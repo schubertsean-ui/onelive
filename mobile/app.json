@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "One Live",
+    "slug": "one-live",
+    "scheme": "onelive",
+    "version": "1.0.0",
+    "extra": {
+      "EXPO_PUBLIC_API": "http://localhost:8000"
+    }
+  }
+}

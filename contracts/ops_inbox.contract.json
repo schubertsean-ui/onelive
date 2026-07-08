@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "inbox_item": {
+    "candidate_id": "uuid",
+    "title": "string|null",
+    "start_time": "iso_datetime|null",
+    "venue_name": "string|null",
+    "city": "string|null",
+    "status": "string",
+    "gate_reason": "string|null",
+    "required_next": "string|null"
+  },
+  "candidate_detail": {
+    "candidate": "object",
+    "evidence": "array"
+  }
+}
