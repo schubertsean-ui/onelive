@@ -5,5 +5,7 @@ from typing import Protocol, Optional
 
 
 class AIProvider(Protocol):
-    def extract_event_json(self, text: str, schema_json: dict) -> Optional[dict]:
+    def extract_event_json(
+        self, text: str, schema_json: dict, system_prompt: Optional[str] = None
+    ) -> Optional[dict]:
         ...

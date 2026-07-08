@@ -6,6 +6,7 @@ import os
 import psycopg2
 
 from worker.gating import multi_confirm_gate
+from worker.confidence import derive_confidence, is_valid_confidence
 from worker.resolve_entities import resolve_venue_id, resolve_artist_ids
 from worker.dedupe import find_possible_duplicates
 
@@ -30,6 +31,10 @@ def promote_candidate(candidate_id: str) -> str:
             gate = multi_confirm_gate(classes, sxsw_mode=sxsw_mode)
             if not gate.ok_to_promote:
                 raise ValueError(gate.reason)
+
+            # Derive the initial 4-state confidence from the evidence that
+            # cleared the gate (anchor -> confirmed, corroborated -> likely).
+            confidence = derive_confidence(classes, sxsw_mode=sxsw_mode)
 
             cur.execute("""
               select title, start_time, end_time, venue_name, city, artist_names,
@@ -57,13 +62,14 @@ def promote_candidate(candidate_id: str) -> str:
                 status, confidence, override_lock,
                 is_private_rsvp, private_access, notes
               )
-              values (%s,%s,%s,%s,'scheduled','unverified',false,%s,%s::jsonb,%s)
+              values (%s,%s,%s,%s,'scheduled',%s,false,%s,%s::jsonb,%s)
               returning event_id
             """, (
                 venue_id,
                 artist_ids,
                 start_time,
                 end_time,
+                confidence,
                 bool(is_private),
                 json.dumps(private_access or {}),
                 title or (raw_text or "")[:120]
@@ -79,6 +85,33 @@ def promote_candidate(candidate_id: str) -> str:
             cur.execute("""
               insert into audit_log(actor_type, action, entity_type, entity_id, payload)
               values ('admin','promote','candidate',%s,%s::jsonb)
-            """, (candidate_id, json.dumps({"event_id": str(event_id)})))
+            """, (candidate_id, json.dumps({"event_id": str(event_id), "confidence": confidence})))
         conn.commit()
     return str(event_id)
+
+
+def set_event_confidence(event_id: str, confidence: str, actor_type: str = "admin") -> None:
+    """Explicitly transition a canonical event to any of the 4 confidence states.
+
+    Used by ops/moderation. Setting 'disputed' NEVER deletes the row — the event
+    stays visible and is rendered as disputed by the public API.
+    """
+    if not is_valid_confidence(confidence):
+        raise ValueError(f"invalid confidence state: {confidence!r}")
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "update event set confidence=%s, updated_at=now() where event_id=%s",
+                (confidence, event_id))
+            if cur.rowcount == 0:
+                raise ValueError("event not found")
+            cur.execute("""
+              insert into audit_log(actor_type, action, entity_type, entity_id, payload)
+              values (%s,'set_confidence','event',%s,%s::jsonb)
+            """, (actor_type, event_id, json.dumps({"confidence": confidence})))
+        conn.commit()
+
+
+def mark_event_disputed(event_id: str, actor_type: str = "admin") -> None:
+    """Flag an event as disputed. It remains visible; it is never deleted."""
+    set_event_confidence(event_id, "disputed", actor_type=actor_type)

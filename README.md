@@ -54,6 +54,28 @@ One Live is a truth-first live entertainment discovery platform. AI proposes can
   - `POST /ops/candidates/{id}/evidence`
   - `POST /ops/candidates/{id}/promote`
 
+## Tests
+
+Pipeline logic tests live in `tests/` and use pytest.
+
+```
+pip install -r worker/requirements.txt pytest
+pytest -m "not dbintegration"   # pure-logic tests (no database needed)
+```
+
+Most tests (multi-confirm gate thresholds, 4-state confidence transitions,
+disputed-never-dropped guards) run without a database. Tests that exercise a
+live Postgres are marked `@pytest.mark.dbintegration` and skip automatically
+unless a test DSN is provided:
+
+```
+export ONELIVE_TEST_DB_DSN="postgresql://user:pass@localhost:5432/onelive_test"
+pytest -m dbintegration
+```
+
+Apply `supabase/migrations/*.sql` (in order, including `0005_pg_trgm.sql`) to the
+test database first.
+
 ## Policies (Non-negotiable)
 
 - Do not bypass login/paywalls/bot protections.
