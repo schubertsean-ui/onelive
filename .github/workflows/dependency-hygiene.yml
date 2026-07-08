@@ -1,0 +1,31 @@
+name: Weekly Dependency Hygiene
+
+on:
+  schedule:
+    - cron: '0 15 * * 1'
+  workflow_dispatch: {}
+
+concurrency:
+  group: dependency-hygiene
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-sonnet-4-6
+          max_turns: 10
+          allowed_tools: "git,gh pr"
+          prompt: |
+            Check for outdated npm/pip dependencies with known security advisories.
+            Update STATE.md's "known dependency" notes if anything material changed.
+            Open a PR for any safe, non-breaking version bumps. Do not touch pinned
+            versions (next@14.2.5, react@18.3.1, expo@~51.0.0) without flagging why in the PR body.

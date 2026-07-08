@@ -1,0 +1,33 @@
+name: Weekly Source Catalog Backfill
+
+on:
+  schedule:
+    - cron: '0 14 * * 1'   # Mondays 9am America/Chicago (14:00 UTC in summer)
+  workflow_dispatch: {}
+
+concurrency:
+  group: source-backfill
+  cancel-in-progress: true
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-sonnet-4-6
+          max_turns: 12
+          allowed_tools: "git,gh pr,web_search"
+          prompt: |
+            Read STATE.md and the source catalog file (ranks 42-118 are TODO placeholders).
+            Research and propose 5-10 real Austin nightlife/event data sources
+            (ticketing platforms, venue calendars, community/social sources, newsletters,
+            city/municipal event listings) that aren't already in the catalog.
+            Fill in real names, URLs, and a reasonable priority_score using the existing formula.
+            Open a PR with your additions. Do not merge — this always needs founder review.

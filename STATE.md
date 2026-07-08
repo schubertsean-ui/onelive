@@ -22,17 +22,19 @@ Last updated: 2026-07-08 by Computer (PM)
 - **DB engine:** Supabase-managed Postgres 17 replaces the reference build's local Docker Postgres 16. Schema lives in `supabase/migrations/*.sql` (applied via the Supabase migration tool) instead of `db/migrations/*.sql` + `db/apply_schema.sh` (raw psql script). **The legacy `docker-compose.yml`, `db/apply_schema.sh`, and `db/migrations/` local-Postgres path from the reference build was deliberately dropped** — Supabase is the only DB path going forward. If local-Postgres dev (no Supabase network dependency) is ever needed, re-add this path explicitly; it is not currently planned.
 - **Confidence model:** `event.confidence` uses the 4-state model (`unverified|likely|confirmed|disputed`), not the reference build's 3-state model — per the earlier master-spec decision. Encoded with a comment in `supabase/migrations/0001_core.sql`.
 
-## What's in progress
-- Phase 0 harness setup: GitHub Actions workflows (`pr-review.yml`, `source-backfill.yml`, `dependency-hygiene.yml`) and `.claude/agents/gate-verifier.md` not yet added to the repo (drafted in `OneLive_Build_Runbook.md`, ready to copy in).
-- Nothing has been committed/pushed to git yet — working tree has all files above as untracked.
-- Migrations have not yet been applied to the live Supabase project (project just became healthy this session).
+## What's done (continued)
+- All 60+ extracted files committed and pushed to `origin/master` (commit `5ecaa05`).
+- All 4 SQL migrations applied to the live Supabase project (`vqipjlvzfiwnandjumvx`): `0001_core`, `0002_event_candidates`, `0003_raw_fetch`, `0004_ads`. Verified via `list_tables`: 14 tables live (source, venue, artist, event, audit_log, event_candidate, candidate_evidence, source_reliability, advertiser, ad_campaign, ad_creative, ad_placement_rule, raw_fetch, raw_event).
+- GitHub Actions workflows added: `.github/workflows/pr-review.yml`, `source-backfill.yml`, `dependency-hygiene.yml`, plus `.claude/agents/gate-verifier.md` — copied verbatim from `OneLive_Build_Runbook.md` §1.6-1.7.
+
+## ⚠️ Security flag — Row Level Security disabled on all tables
+Supabase's advisor reports **all 14 public tables have RLS disabled**, meaning the `anon`/`authenticated` Supabase client keys could read/write every row if ever used from a browser or mobile client. This is fine for now since the FastAPI backend uses a direct `psycopg2` service connection (not the Supabase client SDK), but **must be addressed before the web/mobile apps talk to Supabase directly, or before the anon/publishable key is ever shipped client-side.** Do not enable RLS blindly — enabling it without policies will lock out all access, including the API's own connection if it ever switches to the Supabase client. Decide on a policy model (e.g. service-role-only writes, public read-only on `event`/`venue`/`artist`) before flipping this on. Remediation SQL is on file if/when the founder wants to proceed.
 
 ## What's next
-- Commit and push all extracted files to `origin/master`.
-- Apply the 4 SQL migrations to Supabase (`apply_migration`, project ref `vqipjlvzfiwnandjumvx`).
-- Add the 3 GitHub Actions workflows + gate-verifier agent config.
 - Dispatch the first coding subagent (Phase 1: feed pipeline extension) against the real, now-populated repo.
+- Decide and apply an RLS policy model before any client-side Supabase access (see security flag above).
 - Populate source catalog ranks 42-118 (target: 120+ sources total) — flagged as an ongoing gap, not blocking Phase 1.
+- Connect Vercel + Clerk (see Accounts/services status below) before Phase 1 needs public preview/auth.
 
 ## Open founder decisions (pull from Spec §17 — do not let these silently lapse)
 - [ ] Confirm 4-state confidence model finalized — CLAUDE.md already assumes this is decided.
