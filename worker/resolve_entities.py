@@ -19,6 +19,16 @@ Fuzzy matching uses the pg_trgm `%` operator (WHERE name %% <input>), which the
 trigram GIN indexes in supabase/migrations/0005_pg_trgm.sql CAN serve; the older
 `similarity(name, x) >= t` form forced a sequential scan. The match cutoff is set
 per session via `SET pg_trgm.similarity_threshold` so the `%` operator honours it.
+
+The `%` operator and `similarity()` are schema-qualified to `extensions`
+(`OPERATOR(extensions.%%)` and `extensions.similarity(...)`) so resolution does
+NOT depend on the connection's search_path. Migration 0006 relocates pg_trgm from
+`public` to the `extensions` schema; on Supabase, role-level search_path settings
+take precedence over the database-level `ALTER DATABASE ... SET search_path`, so we
+cannot rely on that default including `extensions`. Qualifying at the call site is
+what actually makes fuzzy matching resolve after the move (see the DB integration
+test in tests/test_migration_0006_rls.py that connects WITHOUT extensions on the
+search_path).
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/resolve_entities.py)
 """
 import json
@@ -39,13 +49,19 @@ def _fuzzy_match(cur, table: str, id_col: str, name: str, threshold: float,
     """Return (id, similarity) of the best trigram match for `name`, or None.
 
     Uses the pg_trgm `%` operator so the trigram GIN index is used, with the
-    match cutoff set via `SET pg_trgm.similarity_threshold`. When `city` is
-    provided the candidate set is scoped to that city (mirroring the exact-match
-    step) so a same-named entity in another city can never be merged in.
+    match cutoff set via `SET pg_trgm.similarity_threshold`. The operator and
+    `similarity()` are schema-qualified to `extensions` so this resolves
+    regardless of the connection's search_path (see module docstring). When
+    `city` is provided the candidate set is scoped to that city (mirroring the
+    exact-match step) so a same-named entity in another city can never be merged.
 
-    Wrapped in a SAVEPOINT: if pg_trgm is unavailable the statement errors and we
-    roll back to the savepoint and return None, so resolution degrades to
-    exact-match + placeholder without aborting the caller's transaction.
+    Wrapped in a SAVEPOINT so a genuine "no match" degrades to exact + placeholder
+    without aborting the caller's transaction. IMPORTANT: a schema-resolution
+    failure (operator/function does not exist, SQLSTATE 42883) is NOT treated as a
+    soft miss — it means the `extensions`-qualified pg_trgm objects are not
+    reachable, which would silently collapse resolution to placeholder-only and
+    spawn duplicate venue/artist rows. We log an error and re-raise those so the
+    misconfiguration is loud, not invisible.
     """
     try:
         cur.execute("SAVEPOINT fuzzy_match")
@@ -54,23 +70,39 @@ def _fuzzy_match(cur, table: str, id_col: str, name: str, threshold: float,
         cur.execute("SET LOCAL pg_trgm.similarity_threshold = %s" % float(threshold))
         if city is not None:
             cur.execute(
-                f"select {id_col}, similarity(name, %s) as sim from {table} "
-                f"where name %% %s and (city is null or lower(city)=lower(%s)) "
+                f"select {id_col}, extensions.similarity(name, %s) as sim from {table} "
+                f"where name OPERATOR(extensions.%%) %s and (city is null or lower(city)=lower(%s)) "
                 f"order by sim desc limit 1",
                 (name, name, city))
         else:
             cur.execute(
-                f"select {id_col}, similarity(name, %s) as sim from {table} "
-                f"where name %% %s order by sim desc limit 1",
+                f"select {id_col}, extensions.similarity(name, %s) as sim from {table} "
+                f"where name OPERATOR(extensions.%%) %s order by sim desc limit 1",
                 (name, name))
         row = cur.fetchone()
         cur.execute("RELEASE SAVEPOINT fuzzy_match")
         if row:
             return str(row[0]), float(row[1])
         return None
-    except psycopg2.Error:
-        # pg_trgm not enabled yet — undo the failed statement and skip fuzzy step.
+    except psycopg2.Error as exc:
+        # Roll back the failed statement first so the caller's transaction stays
+        # usable whether we re-raise or fall back.
         cur.execute("ROLLBACK TO SAVEPOINT fuzzy_match")
+        # SQLSTATE 42883 (undefined_function) covers both "operator does not
+        # exist" and "function does not exist" — i.e. the extensions-qualified
+        # pg_trgm objects could not be resolved. Fail loudly: silently falling
+        # back here is exactly the bug the second review round caught.
+        if getattr(exc, "pgcode", None) == "42883":
+            logger.error(
+                "fuzzy match failed to resolve pg_trgm in the `extensions` schema "
+                "(SQLSTATE 42883) for %s.%s <- %r; refusing to silently degrade to "
+                "placeholder-only matching. Check that migration 0006 applied and "
+                "that the operator/similarity() are schema-qualified.",
+                table, id_col, name)
+            raise
+        # Any other error is a genuine soft miss — skip the fuzzy step.
+        logger.warning("fuzzy match skipped for %s.%s <- %r due to %s; "
+                       "falling back to placeholder", table, id_col, name, exc)
         return None
 
 

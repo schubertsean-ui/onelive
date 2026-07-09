@@ -13,6 +13,7 @@ a live Postgres with pg_trgm + migration 0005 applied).
 """
 import re
 
+import psycopg2
 import pytest
 
 from worker.resolve_entities import resolve_venue_id, resolve_artist_ids, FUZZY_THRESHOLD
@@ -159,6 +160,52 @@ def test_artist_exact_then_fuzzy_then_placeholder():
 
 def test_threshold_constant_is_sane():
     assert 0.0 < FUZZY_THRESHOLD < 1.0
+
+
+class _UndefinedFunctionError(psycopg2.Error):
+    # SQLSTATE 42883 = undefined_function ("operator/function does not exist").
+    # Class attribute shadows the C-level descriptor so getattr sees "42883".
+    pgcode = "42883"
+
+
+class _OtherDBError(psycopg2.Error):
+    pgcode = "40001"  # serialization_failure — a genuine transient, not schema.
+
+
+class _SchemaFailCursor(FakeCursor):
+    """FakeCursor whose fuzzy SELECT raises a chosen psycopg2 error, to exercise
+    the fail-loud vs. soft-fallback branches of _fuzzy_match."""
+
+    def __init__(self, error):
+        super().__init__()
+        self._error = error
+
+    def execute(self, sql, params=()):
+        s = " ".join(sql.lower().split())
+        if "similarity" in s and "from" in s:
+            raise self._error
+        return super().execute(sql, params)
+
+
+def test_fuzzy_reraises_on_schema_resolution_failure():
+    """A 42883 (operator/function does not exist) means the extensions-qualified
+    pg_trgm objects are unreachable — resolution must fail loudly, NOT silently
+    fall back to a placeholder (the second-review-round bug)."""
+    cur = _SchemaFailCursor(_UndefinedFunctionError("operator does not exist: text % text"))
+    cur.venues.append({"venue_id": "v1", "name": "The Mohawk", "city": "Austin"})
+    with pytest.raises(psycopg2.Error):
+        resolve_venue_id(cur, "Mohawk", "Austin")
+    assert len(cur.venues) == 1  # no placeholder silently created
+
+
+def test_fuzzy_soft_falls_back_on_non_schema_error():
+    """A non-42883 error is a genuine soft miss (e.g. transient) — degrade to the
+    placeholder path rather than aborting."""
+    cur = _SchemaFailCursor(_OtherDBError("could not serialize access"))
+    cur.venues.append({"venue_id": "v1", "name": "The Mohawk", "city": "Austin"})
+    new_id = resolve_venue_id(cur, "Mohawk", "Austin")
+    assert new_id != "v1"          # fuzzy skipped, placeholder created instead
+    assert len(cur.venues) == 2
 
 
 # --------------------------------------------------------------------------
