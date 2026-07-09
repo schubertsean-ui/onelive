@@ -1,6 +1,6 @@
 # OneLive — STATE
 
-Last updated: 2026-07-09 by Computer (PM) — includes PR #2 second review-round fixes (see Security section)
+Last updated: 2026-07-09 by Computer (PM) — migration 0007 narrows the event public-read RLS policy (see Security section); Vercel + Clerk now connected
 
 ## Phase 1 — feed pipeline hardening (this session)
 Branch/PR opened against `master` (not merged). Changes:
@@ -95,10 +95,22 @@ Both reviewers (Claude + GPT-5.5) re-reviewed `0006_rls_policies.sql`. Three fin
 
 Full suite after these fixes: **40 passed, 9 skipped** (the 9 skips are `@dbintegration`, need `ONELIVE_TEST_DB_DSN`).
 
+## Security — narrowed event public-read RLS (migration 0007 written & PR'd, NOT yet applied)
+Follows through on the accepted-tradeoff/DECISION-TO-REVISIT flagged in migration 0006's second review round (see item 2 above): **`supabase/migrations/0007_narrow_event_public_read.sql`** (branch `security/0007-narrow-event-public-read`, PR opened against `master`, **not merged and NOT yet applied to the live database** — the founder will apply it separately after review, same process as 0005/0006).
+
+- **What changed:** 0006 gave `event` a `public_read` SELECT policy of `using (true)`, which exposed EVERY event row (including rows flagged private via `event.is_private_rsvp` / `event.private_access`) to the anon/authenticated Supabase key. 0007 drops and recreates that policy as:
+  `using (is_private_rsvp = false and private_access = '{}'::jsonb)` — anon/authenticated can now only SELECT non-private events. Still SELECT-only, still granted to anon + authenticated. venue/artist policies are intentionally left as `using (true)` (no privacy columns).
+- **Why now:** Phase 2 (PWA consumer screen + Clerk auth) is about to start and will ship the anon key client-side. 0006/STATE.md flagged narrowing "before the anon key is ever shipped client-side" — that time is now.
+- **Verified zero effect on the backend:** the FastAPI backend (`api/`, `worker/`, `tools/`) reads via a direct psycopg2 service-role connection (`ONELIVE_DB_DSN`) which BYPASSES RLS. `/tonight` + `/events` continue to read ALL events (including private and disputed) exactly as before — RLS only constrains hypothetical future direct-Supabase-client (anon-key) reads, of which there are none yet. The confidence-never-filters guarantee is untouched.
+- **Semantics note / flagged for founder:** `private_access` is a freeform jsonb carried straight from AI extraction (`ai_models.py` → `candidate_store.py` → `promote.py` → `event`) and surfaced verbatim in the API responses. **No code anywhere branches on its contents** — it is a passthrough blob today, so "empty jsonb = not private" is the only interpretation the current code supports, and 0007 uses it. IF a future use case gives `private_access` richer meaning (e.g. `{"ticket_holders": ...}` = "restricted to specific ticket holders" rather than fully private), this policy's `private_access = '{}'` test would over-hide such events from the anon key and should be revisited then. Implemented the straightforward interpretation per the current code; flagged here so the nuance isn't silently lost.
+- **Tests** in `tests/test_migration_0007_narrow_event_read.py`: structural (no DB) asserting the event USING clause references BOTH `is_private_rsvp` and `private_access` (not `using (true)`), stays SELECT-only for anon+authenticated, introduces no write policy, and that venue/artist remain `using (true)`; a backend-guarantee test (no DB) asserting `/tonight`+`/events` still read via service-role psycopg2 (not the Supabase client SDK) and never filter on confidence; plus a `@dbintegration` test (skips without `ONELIVE_TEST_DB_DSN`) that creates public + private events and asserts an `anon`/`authenticated` role sees only the public one while the service-role connection still sees all. Full suite: **48 passed, 10 skipped**.
+
 ## What's next
-- **Next phase: public consumer PWA screen + Clerk auth wiring.** Deferred this pass on
-  purpose — Clerk is not yet connected to the project (pending founder action). Once Clerk
-  is connected, wire the consumer feed UI and auth/claim flow. Nothing in Phase 1 blocks it.
+- **Next phase: public consumer PWA screen + Clerk auth wiring.** Clerk IS now connected
+  to the project. Next step: wire the consumer feed UI and auth/claim flow. Nothing in
+  Phase 1 blocks it. NOTE: Phase 2 will ship the anon Supabase key client-side, so
+  `event`'s public-read RLS policy has now been narrowed (migration 0007, see Security
+  section below) so the anon key can no longer read private events.
 - Apply `supabase/migrations/0005_pg_trgm.sql` to the live Supabase project before relying
   on fuzzy entity resolution (exact + placeholder still work without it). NOTE: `0006`
   moves pg_trgm to the `extensions` schema and drops/recreates it, so apply `0005` then
@@ -106,6 +118,10 @@ Full suite after these fixes: **40 passed, 9 skipped** (the 9 skips are `@dbinte
   `extensions` with both indexes — but the migration chain expects 0005 first).
 - **Apply `supabase/migrations/0006_rls_policies.sql`** (RLS policy model + pg_trgm schema
   move) after code review. Written and PR'd, NOT yet applied — see the Security section above.
+- **Apply `supabase/migrations/0007_narrow_event_public_read.sql`** (narrowed event
+  public-read policy) after code review — apply after 0006. Written and PR'd, NOT yet
+  applied — see the Security section above. Required before the anon key ships client-side
+  in Phase 2.
 - Populate source catalog ranks 42-118 (target: 120+ sources total) — flagged as an ongoing gap, not blocking Phase 1.
 - Connect Vercel + Clerk (see Accounts/services status below) before Phase 1 needs public preview/auth.
 
@@ -128,6 +144,6 @@ Full suite after these fixes: **40 passed, 9 skipped** (the 9 skips are `@dbinte
 ## Accounts/services status
 - GitHub: connected, repo live.
 - Supabase: connected, project live and ACTIVE_HEALTHY (ref vqipjlvzfiwnandjumvx).
-- Vercel: NOT YET connected — needed before Phase 1 can deploy a public preview.
-- Clerk: NOT YET connected — needed before Phase 1 auth/claim flow work.
+- Vercel: connected.
+- Clerk: connected.
 - Sentry: not needed until Phase 4.
