@@ -6,6 +6,7 @@ from typing import Optional
 from pydantic import TypeAdapter
 
 from ai.provider import AIProvider
+from ai.prompts import EXTRACTION_SYSTEM_PROMPT
 from worker.ai_models import AIEventExtraction
 from worker.candidate_store import create_candidate, add_evidence
 from worker.gating import multi_confirm_gate
@@ -22,7 +23,7 @@ def extract_candidate(
     source_id: Optional[str] = None,
 ) -> str:
     schema = AIEventExtraction.model_json_schema()
-    extracted = ai.extract_event_json(text, schema) or {}
+    extracted = ai.extract_event_json(text, schema, system_prompt=EXTRACTION_SYSTEM_PROMPT) or {}
     # Validate/shape
     adapter = TypeAdapter(AIEventExtraction)
     try:

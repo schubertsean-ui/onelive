@@ -2,6 +2,55 @@
 
 Last updated: 2026-07-08 by Computer (PM)
 
+## Phase 1 — feed pipeline hardening (this session)
+Branch/PR opened against `master` (not merged). Changes:
+- **4-state confidence enforced end-to-end.** New `worker/confidence.py` is the single
+  source of truth (`CONFIDENCE_STATES`, `derive_confidence`, `renders_in_public_feed`,
+  `FEED_PRIORITY`). `worker/promote.py` now derives confidence from evidence at
+  promotion (anchor→`confirmed`, corroborated→`likely`, else `unverified`) instead of
+  hardcoding `unverified`, and adds `set_event_confidence` / `mark_event_disputed`
+  (disputed is set explicitly by ops, never inferred; the row is never deleted).
+- **Disputed always renders.** `api/public.py` `/tonight` now ranks `disputed` explicitly
+  (sorts last, never filtered); `/events` applies no confidence filter. A structural
+  test guards that neither endpoint filters on confidence in its WHERE clause.
+- **Anti-hallucination prompt.** New editable `ai/prompts.py::EXTRACTION_SYSTEM_PROMPT`
+  instructs the model to extract only what is literally in the source and return
+  null/empty otherwise. Wired through `ai/provider.py` (protocol), `ai/bedrock_provider.py`,
+  and `worker/ai_extract.py`.
+- **Entity resolution hardened.** `worker/resolve_entities.py` now does exact →
+  pg_trgm trigram fuzzy (threshold 0.45) → placeholder, in that order, degrading
+  gracefully to exact+placeholder if pg_trgm is absent.
+- **New migration `supabase/migrations/0005_pg_trgm.sql`**: `create extension pg_trgm`
+  + trigram GIN indexes on `venue.name` and `artist.name`. NOT YET APPLIED to the live
+  Supabase project — apply via the migration tool before fuzzy resolution is relied on.
+- **Tests added** in `tests/` (pytest): gate thresholds, 4-state transitions incl.
+  disputed, and disputed-never-dropped guards. Pure-logic tests need no DB; an optional
+  `@pytest.mark.dbintegration` suite runs against `ONELIVE_TEST_DB_DSN`. See README.
+- New dependency note: tests use `pytest`; DB fuzzy matching depends on the `pg_trgm`
+  Postgres extension (migration 0005).
+
+## Phase 1 PR #1 review fixes (follow-up commit)
+Addressed the 3 blocking issues both reviewers (Claude + GPT-5.5) flagged on PR #1:
+- **Trigram GIN indexes now actually used.** `worker/resolve_entities.py` fuzzy step
+  switched from `where similarity(name,x) >= t` (forces seq scan) to the pg_trgm `%`
+  operator (`where name % <input>`), with the cutoff set via
+  `SET LOCAL pg_trgm.similarity_threshold`. A `@dbintegration` EXPLAIN test asserts
+  `idx_venue_name_trgm` is used. Migration `0005_pg_trgm.sql` comments updated.
+- **No more orphan placeholder venues/artists.** `resolve_venue_id`/`resolve_artist_ids`
+  no longer open their own connection or COMMIT — they take the caller's cursor.
+  `worker/promote.py` runs them inside the same transaction as the dedupe check, so a
+  dedupe ValueError rolls back any freshly-created placeholder entities (venue has no
+  unique name constraint, so leaked placeholders used to duplicate on every retry).
+  `worker/dedupe.py::find_possible_duplicates` gained an optional `cur=` param.
+- **Fuzzy match is city-scoped.** The fuzzy fallback now applies the same city filter
+  as the exact step, preventing cross-city merges (e.g. two venues named "Empire").
+  Fuzzy merges are audited to `audit_log` (`action='fuzzy_match_merge'`, matched id +
+  similarity + input name) plus a log line.
+- **Tests added** `tests/test_resolve_entities.py`: 7 pure-logic tests (exact, fuzzy
+  within city, cross-city rejection, placeholder, blank-name, artist path, threshold)
+  via an in-memory FakeCursor, + 5 `@dbintegration` tests (skipped without
+  ONELIVE_TEST_DB_DSN). Suite: 30 passed, 6 skipped.
+
 ## What's done
 - Repo created at github.com/schubertsean-ui/onelive.
 - Supabase project created (ref: vqipjlvzfiwnandjumvx, org: schubertsean-ui's Org, region: us-east-1). Status: **ACTIVE_HEALTHY** (Postgres 17.6.1.141).
@@ -31,7 +80,11 @@ Last updated: 2026-07-08 by Computer (PM)
 Supabase's advisor reports **all 14 public tables have RLS disabled**, meaning the `anon`/`authenticated` Supabase client keys could read/write every row if ever used from a browser or mobile client. This is fine for now since the FastAPI backend uses a direct `psycopg2` service connection (not the Supabase client SDK), but **must be addressed before the web/mobile apps talk to Supabase directly, or before the anon/publishable key is ever shipped client-side.** Do not enable RLS blindly — enabling it without policies will lock out all access, including the API's own connection if it ever switches to the Supabase client. Decide on a policy model (e.g. service-role-only writes, public read-only on `event`/`venue`/`artist`) before flipping this on. Remediation SQL is on file if/when the founder wants to proceed.
 
 ## What's next
-- Dispatch the first coding subagent (Phase 1: feed pipeline extension) against the real, now-populated repo.
+- **Next phase: public consumer PWA screen + Clerk auth wiring.** Deferred this pass on
+  purpose — Clerk is not yet connected to the project (pending founder action). Once Clerk
+  is connected, wire the consumer feed UI and auth/claim flow. Nothing in Phase 1 blocks it.
+- Apply `supabase/migrations/0005_pg_trgm.sql` to the live Supabase project before relying
+  on fuzzy entity resolution (exact + placeholder still work without it).
 - Decide and apply an RLS policy model before any client-side Supabase access (see security flag above).
 - Populate source catalog ranks 42-118 (target: 120+ sources total) — flagged as an ongoing gap, not blocking Phase 1.
 - Connect Vercel + Clerk (see Accounts/services status below) before Phase 1 needs public preview/auth.

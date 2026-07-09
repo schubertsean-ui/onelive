@@ -5,6 +5,7 @@ Source: extracted from Entertainment-App-Code-v1-4 reference build (ai/bedrock_p
 import json
 from typing import Optional
 from ai.provider import AIProvider
+from ai.prompts import EXTRACTION_SYSTEM_PROMPT
 
 
 class BedrockProvider(AIProvider):
@@ -12,11 +13,14 @@ class BedrockProvider(AIProvider):
         self.client = client
         self.model_id = model_id
 
-    def extract_event_json(self, text: str, schema_json: dict) -> Optional[dict]:
+    def extract_event_json(
+        self, text: str, schema_json: dict, system_prompt: Optional[str] = None
+    ) -> Optional[dict]:
         # If no client, return None (forces evidence-based/manual ops path).
         if self.client is None or self.model_id == "stub":
             return None
         payload = {
+            "system": system_prompt or EXTRACTION_SYSTEM_PROMPT,
             "inputText": text,
             "schema": schema_json
         }

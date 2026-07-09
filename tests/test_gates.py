@@ -1,0 +1,184 @@
+"""Tests for the multi-confirm gate, the 4-state confidence model, and the
+guarantee that disputed events are never dropped from the public API.
+
+Pure-logic tests run with no database. See conftest.py for the optional
+`db_conn` fixture used by @pytest.mark.dbintegration tests.
+"""
+import inspect
+
+import pytest
+
+from worker.gating import multi_confirm_gate, ANCHOR_CLASSES
+from worker.confidence import (
+    CONFIDENCE_STATES,
+    FEED_PRIORITY,
+    derive_confidence,
+    is_valid_confidence,
+    renders_in_public_feed,
+)
+
+
+# --------------------------------------------------------------------------
+# Multi-confirm gate — evidence-count thresholds
+# --------------------------------------------------------------------------
+
+def test_gate_single_anchor_promotes():
+    result = multi_confirm_gate(["ticketing"])
+    assert result.ok_to_promote is True
+    assert result.status == "ready_to_promote"
+
+
+@pytest.mark.parametrize("anchor", sorted(ANCHOR_CLASSES))
+def test_gate_every_anchor_class_promotes_alone(anchor):
+    assert multi_confirm_gate([anchor]).ok_to_promote is True
+
+
+def test_gate_single_non_anchor_blocks():
+    result = multi_confirm_gate(["social"])
+    assert result.ok_to_promote is False
+    assert result.status == "needs_more_confirmation"
+    assert "need 2" in result.reason
+
+
+def test_gate_two_non_anchor_sources_promote():
+    result = multi_confirm_gate(["social", "local_media"])
+    assert result.ok_to_promote is True
+
+
+def test_gate_duplicate_non_anchor_source_does_not_count_twice():
+    # Same class twice is still one unique corroborating source.
+    result = multi_confirm_gate(["social", "social"])
+    assert result.ok_to_promote is False
+
+
+def test_gate_sxsw_mode_requires_three_non_anchor():
+    assert multi_confirm_gate(["social", "local_media"], sxsw_mode=True).ok_to_promote is False
+    result = multi_confirm_gate(["social", "local_media", "blog"], sxsw_mode=True)
+    assert result.ok_to_promote is True
+
+
+def test_gate_anchor_short_circuits_sxsw_mode():
+    # An anchor promotes even in the stricter SXSW/chaos mode.
+    assert multi_confirm_gate(["venue_calendar"], sxsw_mode=True).ok_to_promote is True
+
+
+def test_gate_ignores_empty_classes():
+    assert multi_confirm_gate(["", None, "social"]).ok_to_promote is False
+
+
+# --------------------------------------------------------------------------
+# 4-state confidence model
+# --------------------------------------------------------------------------
+
+def test_confidence_is_exactly_four_states():
+    assert CONFIDENCE_STATES == ("unverified", "likely", "confirmed", "disputed")
+    assert len(CONFIDENCE_STATES) == 4
+
+
+def test_disputed_is_a_valid_state():
+    assert is_valid_confidence("disputed") is True
+
+
+def test_invalid_confidence_rejected():
+    assert is_valid_confidence("pending") is False
+    assert is_valid_confidence("") is False
+
+
+def test_derive_anchor_is_confirmed():
+    assert derive_confidence(["ticketing"]) == "confirmed"
+
+
+def test_derive_corroborated_is_likely():
+    assert derive_confidence(["social", "local_media"]) == "likely"
+
+
+def test_derive_single_weak_source_is_unverified():
+    assert derive_confidence(["social"]) == "unverified"
+
+
+def test_derive_sxsw_needs_three_for_likely():
+    assert derive_confidence(["social", "local_media"], sxsw_mode=True) == "unverified"
+    assert derive_confidence(["social", "local_media", "blog"], sxsw_mode=True) == "likely"
+
+
+def test_derive_never_returns_disputed():
+    # Disputed is a moderation decision, never inferred from source counts.
+    for classes in ([], ["social"], ["social", "local_media"], ["ticketing"]):
+        assert derive_confidence(classes) != "disputed"
+
+
+# --------------------------------------------------------------------------
+# Disputed events are never dropped from the public feed
+# --------------------------------------------------------------------------
+
+def test_every_state_renders_including_disputed():
+    for state in CONFIDENCE_STATES:
+        assert renders_in_public_feed(state) is True
+
+
+def test_disputed_has_a_feed_priority_slot():
+    # Disputed must be orderable (shown last), not excluded.
+    assert "disputed" in FEED_PRIORITY
+    assert FEED_PRIORITY["disputed"] == max(FEED_PRIORITY.values())
+
+
+def test_public_api_queries_do_not_filter_by_confidence():
+    """Structural guard: neither /events nor /tonight may exclude a confidence
+    state in SQL. Confidence may only appear in ORDER BY, never in WHERE."""
+    import api.public as public
+
+    for fn in (public.events, public.tonight):
+        src = inspect.getsource(fn).lower()
+        # Isolate the WHERE clause (from 'where' up to the next ORDER BY / LIMIT).
+        assert "where" in src
+        after_where = src.split("where", 1)[1]
+        for terminator in ("order by", "limit"):
+            after_where = after_where.split(terminator)[0]
+        assert "confidence" not in after_where, (
+            f"{fn.__name__} filters on confidence in its WHERE clause — "
+            "disputed events could be silently dropped"
+        )
+
+    # /tonight must explicitly rank 'disputed' rather than lump it into a
+    # catch-all that a future edit could turn into a filter.
+    tonight_src = inspect.getsource(public.tonight).lower()
+    assert "'disputed'" in tonight_src
+
+
+# --------------------------------------------------------------------------
+# Optional DB integration: promote sets 4-state confidence; disputed persists
+# --------------------------------------------------------------------------
+
+@pytest.mark.dbintegration
+def test_promote_sets_confirmed_for_anchor_then_dispute_persists(db_conn):
+    from worker import promote
+
+    cur = db_conn.cursor()
+    cur.execute("insert into venue(name, city) values ('Test Hall','Austin') returning venue_id")
+    venue_id = cur.fetchone()[0]
+    cur.execute(
+        """insert into event(venue_id, status, confidence)
+           values (%s,'scheduled',%s) returning event_id""",
+        (venue_id, derive_confidence(["ticketing"])),
+    )
+    event_id = cur.fetchone()[0]
+    db_conn.commit()
+
+    cur.execute("select confidence from event where event_id=%s", (event_id,))
+    assert cur.fetchone()[0] == "confirmed"
+
+    # Mark disputed via the shared DSN path.
+    import os
+    old = os.environ.get("ONELIVE_DB_DSN")
+    os.environ["ONELIVE_DB_DSN"] = os.environ["ONELIVE_TEST_DB_DSN"]
+    try:
+        promote.mark_event_disputed(str(event_id))
+    finally:
+        if old is not None:
+            os.environ["ONELIVE_DB_DSN"] = old
+
+    cur.execute("select confidence from event where event_id=%s", (event_id,))
+    assert cur.fetchone()[0] == "disputed"
+    # Row still exists — disputed is never deleted.
+    cur.execute("select count(*) from event where event_id=%s", (event_id,))
+    assert cur.fetchone()[0] == 1

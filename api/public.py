@@ -16,6 +16,8 @@ def db():
 def events(limit: int = 50):
     with db() as conn:
         with conn.cursor() as cur:
+            # No confidence filter here: every state (including 'disputed') is
+            # returned. Disputed events are shown as disputed, never dropped.
             cur.execute("""
               select event_id, venue_id, artist_ids, start_time, end_time, status, confidence,
                      is_private_rsvp, private_access, notes
@@ -45,6 +47,8 @@ def tonight(city: str = "Austin", hours: int = 12, limit: int = 50):
     window_end = now + timedelta(hours=hours)
     with db() as conn:
         with conn.cursor() as cur:
+            # Confidence only affects ordering, never inclusion. 'disputed' events
+            # sort last but are always returned (shown as disputed, never dropped).
             cur.execute("""
               select e.event_id, e.start_time, e.confidence, e.notes,
                      v.venue_id, v.name, v.city, e.artist_ids
@@ -59,7 +63,8 @@ def tonight(city: str = "Austin", hours: int = 12, limit: int = 50):
                   when 'confirmed' then 1
                   when 'likely' then 2
                   when 'unverified' then 3
-                  else 4
+                  when 'disputed' then 4
+                  else 5
                 end asc,
                 e.start_time asc
               limit %s
