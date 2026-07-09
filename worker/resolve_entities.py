@@ -1,95 +1,138 @@
 """Entity resolution for venues and artists.
 
 Resolution priority (in order):
-  1. exact match      — case-insensitive exact name match.
+  1. exact match      — case-insensitive exact name match (city-scoped for venues).
   2. trigram fuzzy    — pg_trgm similarity above FUZZY_THRESHOLD (handles minor
-                        spelling/spacing variants without creating a duplicate).
+                        spelling/spacing variants without creating a duplicate),
+                        scoped by the same city filter as the exact-match step.
   3. placeholder      — get-or-create: insert a new row as a fallback.
 
-pg_trgm + the trigram GIN indexes are provided by supabase/migrations/0005_pg_trgm.sql.
+These functions operate on a caller-supplied cursor and never open their own
+connection or COMMIT. The caller (worker/promote.py) runs them inside the same
+transaction as the event dedupe-check-and-insert, so if that transaction rolls
+back (e.g. a duplicate is detected) any placeholder venue/artist rows created
+here roll back too — otherwise repeated retries of a duplicate-blocked candidate
+would orphan a fresh placeholder venue on every attempt (venue has no unique
+name constraint).
+
+Fuzzy matching uses the pg_trgm `%` operator (WHERE name %% <input>), which the
+trigram GIN indexes in supabase/migrations/0005_pg_trgm.sql CAN serve; the older
+`similarity(name, x) >= t` form forced a sequential scan. The match cutoff is set
+per session via `SET pg_trgm.similarity_threshold` so the `%` operator honours it.
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/resolve_entities.py)
 """
-import os
-import psycopg2
-from typing import List, Optional
+import json
+import logging
+from typing import List, Optional, Tuple
 
-DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
+import psycopg2
+
+logger = logging.getLogger(__name__)
 
 # Similarity in [0,1]; 0.45 tolerates minor variants ("Mohawk" vs "The Mohawk")
 # while staying strict enough not to collapse genuinely different names.
 FUZZY_THRESHOLD = 0.45
 
 
-def db():
-    return psycopg2.connect(DB_DSN)
+def _fuzzy_match(cur, table: str, id_col: str, name: str, threshold: float,
+                 city: Optional[str] = None) -> Optional[Tuple[str, float]]:
+    """Return (id, similarity) of the best trigram match for `name`, or None.
 
+    Uses the pg_trgm `%` operator so the trigram GIN index is used, with the
+    match cutoff set via `SET pg_trgm.similarity_threshold`. When `city` is
+    provided the candidate set is scoped to that city (mirroring the exact-match
+    step) so a same-named entity in another city can never be merged in.
 
-def _fuzzy_match_id(cur, table: str, id_col: str, name: str, threshold: float) -> Optional[str]:
-    """Return the best trigram match id for `name` in `table`, or None.
-
-    Uses pg_trgm similarity(). Falls back to None (not an error) if pg_trgm is
-    unavailable, so resolution degrades to exact-match + placeholder rather than
-    crashing the pipeline.
+    Wrapped in a SAVEPOINT: if pg_trgm is unavailable the statement errors and we
+    roll back to the savepoint and return None, so resolution degrades to
+    exact-match + placeholder without aborting the caller's transaction.
     """
     try:
-        cur.execute(
-            f"select {id_col}, similarity(name, %s) as sim from {table} "
-            f"where similarity(name, %s) >= %s order by sim desc limit 1",
-            (name, name, threshold))
+        cur.execute("SAVEPOINT fuzzy_match")
+        # threshold is our own float constant; format it directly since SET does
+        # not accept a bound parameter for the value.
+        cur.execute("SET LOCAL pg_trgm.similarity_threshold = %s" % float(threshold))
+        if city is not None:
+            cur.execute(
+                f"select {id_col}, similarity(name, %s) as sim from {table} "
+                f"where name %% %s and (city is null or lower(city)=lower(%s)) "
+                f"order by sim desc limit 1",
+                (name, name, city))
+        else:
+            cur.execute(
+                f"select {id_col}, similarity(name, %s) as sim from {table} "
+                f"where name %% %s order by sim desc limit 1",
+                (name, name))
         row = cur.fetchone()
-        return str(row[0]) if row else None
+        cur.execute("RELEASE SAVEPOINT fuzzy_match")
+        if row:
+            return str(row[0]), float(row[1])
+        return None
     except psycopg2.Error:
-        # pg_trgm not enabled yet — skip fuzzy step gracefully.
-        cur.connection.rollback()
+        # pg_trgm not enabled yet — undo the failed statement and skip fuzzy step.
+        cur.execute("ROLLBACK TO SAVEPOINT fuzzy_match")
         return None
 
 
-def resolve_venue_id(venue_name: str, city: str = "Austin") -> str:
+def _log_fuzzy_merge(cur, entity_type: str, entity_id: str, input_name: str, sim: float) -> None:
+    """Record a fuzzy-match merge so low-confidence merges stay traceable."""
+    logger.info("fuzzy-match merge: %s %s <- %r (similarity=%.3f)",
+                entity_type, entity_id, input_name, sim)
+    cur.execute(
+        """
+          insert into audit_log(actor_type, action, entity_type, entity_id, payload)
+          values ('system','fuzzy_match_merge',%s,%s,%s::jsonb)
+        """,
+        (entity_type, entity_id,
+         json.dumps({"input_name": input_name, "similarity": round(sim, 3)})))
+
+
+def resolve_venue_id(cur, venue_name: str, city: str = "Austin") -> str:
+    """Resolve (or create) a venue id using the caller's cursor/transaction."""
     venue_name = (venue_name or "").strip()
     city = (city or "").strip()
-    with db() as conn:
-        with conn.cursor() as cur:
-            # 1. exact match
-            cur.execute(
-                "select venue_id from venue where lower(name)=lower(%s) and (city is null or lower(city)=lower(%s)) limit 1",
-                (venue_name, city))
-            row = cur.fetchone()
-            if row:
-                return str(row[0])
-            # 2. trigram fuzzy match (only for real names, not the placeholder)
-            if venue_name:
-                fuzzy = _fuzzy_match_id(cur, "venue", "venue_id", venue_name, FUZZY_THRESHOLD)
-                if fuzzy:
-                    return fuzzy
-            # 3. placeholder fallback
-            cur.execute("insert into venue(name, city) values (%s,%s) returning venue_id",
-                        (venue_name or "Unknown Venue", city or None))
-            vid = cur.fetchone()[0]
-        conn.commit()
-    return str(vid)
+    # 1. exact match (city-scoped)
+    cur.execute(
+        "select venue_id from venue where lower(name)=lower(%s) and (city is null or lower(city)=lower(%s)) limit 1",
+        (venue_name, city))
+    row = cur.fetchone()
+    if row:
+        return str(row[0])
+    # 2. trigram fuzzy match (only for real names, not the placeholder), scoped
+    #    to the same city as the exact step so we never merge across cities.
+    if venue_name:
+        match = _fuzzy_match(cur, "venue", "venue_id", venue_name, FUZZY_THRESHOLD, city=city)
+        if match:
+            vid, sim = match
+            _log_fuzzy_merge(cur, "venue", vid, venue_name, sim)
+            return vid
+    # 3. placeholder fallback
+    cur.execute("insert into venue(name, city) values (%s,%s) returning venue_id",
+                (venue_name or "Unknown Venue", city or None))
+    return str(cur.fetchone()[0])
 
 
-def resolve_artist_ids(artist_names: List[str]) -> List[str]:
+def resolve_artist_ids(cur, artist_names: List[str]) -> List[str]:
+    """Resolve (or create) artist ids using the caller's cursor/transaction."""
     out = []
-    with db() as conn:
-        with conn.cursor() as cur:
-            for name in (artist_names or []):
-                n = (name or "").strip()
-                if not n:
-                    continue
-                # 1. exact match
-                cur.execute("select artist_id from artist where lower(name)=lower(%s) limit 1", (n,))
-                row = cur.fetchone()
-                if row:
-                    out.append(str(row[0]))
-                    continue
-                # 2. trigram fuzzy match
-                fuzzy = _fuzzy_match_id(cur, "artist", "artist_id", n, FUZZY_THRESHOLD)
-                if fuzzy:
-                    out.append(fuzzy)
-                    continue
-                # 3. placeholder fallback (get-or-create)
-                cur.execute("insert into artist(name) values (%s) returning artist_id", (n,))
-                out.append(str(cur.fetchone()[0]))
-        conn.commit()
+    for name in (artist_names or []):
+        n = (name or "").strip()
+        if not n:
+            continue
+        # 1. exact match
+        cur.execute("select artist_id from artist where lower(name)=lower(%s) limit 1", (n,))
+        row = cur.fetchone()
+        if row:
+            out.append(str(row[0]))
+            continue
+        # 2. trigram fuzzy match (artist has no city dimension)
+        match = _fuzzy_match(cur, "artist", "artist_id", n, FUZZY_THRESHOLD)
+        if match:
+            aid, sim = match
+            _log_fuzzy_merge(cur, "artist", aid, n, sim)
+            out.append(aid)
+            continue
+        # 3. placeholder fallback (get-or-create)
+        cur.execute("insert into artist(name) values (%s) returning artist_id", (n,))
+        out.append(str(cur.fetchone()[0]))
     return out

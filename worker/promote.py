@@ -48,11 +48,16 @@ def promote_candidate(candidate_id: str) -> str:
             (title, start_time, end_time, venue_name, city, artist_names, is_private,
              private_access, ticket_link, rsvp_link, raw_text) = c
 
-            venue_id = resolve_venue_id(venue_name or "Unknown Venue", city or "Austin")
-            artist_ids = [a for a in resolve_artist_ids(artist_names or [])]
+            # Resolve entities on THIS cursor so placeholder venue/artist rows are
+            # part of the same transaction as the dedupe-check-and-insert below.
+            # If dedupe raises and we roll back, those placeholders roll back too
+            # (venue has no unique name constraint, so a leaked placeholder would
+            # accumulate a duplicate on every retry of a duplicate-blocked candidate).
+            venue_id = resolve_venue_id(cur, venue_name or "Unknown Venue", city or "Austin")
+            artist_ids = resolve_artist_ids(cur, artist_names or [])
 
             # Dedupe check (if duplicates exist, do not auto-merge; require ops decision)
-            dups = find_possible_duplicates(venue_id, start_time) if start_time else []
+            dups = find_possible_duplicates(venue_id, start_time, cur=cur) if start_time else []
             if dups:
                 raise ValueError(f"Possible duplicate canonical events exist: {dups}")
 

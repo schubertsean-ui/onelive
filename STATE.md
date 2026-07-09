@@ -29,6 +29,28 @@ Branch/PR opened against `master` (not merged). Changes:
 - New dependency note: tests use `pytest`; DB fuzzy matching depends on the `pg_trgm`
   Postgres extension (migration 0005).
 
+## Phase 1 PR #1 review fixes (follow-up commit)
+Addressed the 3 blocking issues both reviewers (Claude + GPT-5.5) flagged on PR #1:
+- **Trigram GIN indexes now actually used.** `worker/resolve_entities.py` fuzzy step
+  switched from `where similarity(name,x) >= t` (forces seq scan) to the pg_trgm `%`
+  operator (`where name % <input>`), with the cutoff set via
+  `SET LOCAL pg_trgm.similarity_threshold`. A `@dbintegration` EXPLAIN test asserts
+  `idx_venue_name_trgm` is used. Migration `0005_pg_trgm.sql` comments updated.
+- **No more orphan placeholder venues/artists.** `resolve_venue_id`/`resolve_artist_ids`
+  no longer open their own connection or COMMIT — they take the caller's cursor.
+  `worker/promote.py` runs them inside the same transaction as the dedupe check, so a
+  dedupe ValueError rolls back any freshly-created placeholder entities (venue has no
+  unique name constraint, so leaked placeholders used to duplicate on every retry).
+  `worker/dedupe.py::find_possible_duplicates` gained an optional `cur=` param.
+- **Fuzzy match is city-scoped.** The fuzzy fallback now applies the same city filter
+  as the exact step, preventing cross-city merges (e.g. two venues named "Empire").
+  Fuzzy merges are audited to `audit_log` (`action='fuzzy_match_merge'`, matched id +
+  similarity + input name) plus a log line.
+- **Tests added** `tests/test_resolve_entities.py`: 7 pure-logic tests (exact, fuzzy
+  within city, cross-city rejection, placeholder, blank-name, artist path, threshold)
+  via an in-memory FakeCursor, + 5 `@dbintegration` tests (skipped without
+  ONELIVE_TEST_DB_DSN). Suite: 30 passed, 6 skipped.
+
 ## What's done
 - Repo created at github.com/schubertsean-ui/onelive.
 - Supabase project created (ref: vqipjlvzfiwnandjumvx, org: schubertsean-ui's Org, region: us-east-1). Status: **ACTIVE_HEALTHY** (Postgres 17.6.1.141).
