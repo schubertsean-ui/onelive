@@ -1,6 +1,6 @@
 # OneLive — STATE
 
-Last updated: 2026-07-08 by Computer (PM)
+Last updated: 2026-07-09 by Computer (PM)
 
 ## Phase 1 — feed pipeline hardening (this session)
 Branch/PR opened against `master` (not merged). Changes:
@@ -76,16 +76,27 @@ Addressed the 3 blocking issues both reviewers (Claude + GPT-5.5) flagged on PR 
 - All 4 SQL migrations applied to the live Supabase project (`vqipjlvzfiwnandjumvx`): `0001_core`, `0002_event_candidates`, `0003_raw_fetch`, `0004_ads`. Verified via `list_tables`: 14 tables live (source, venue, artist, event, audit_log, event_candidate, candidate_evidence, source_reliability, advertiser, ad_campaign, ad_creative, ad_placement_rule, raw_fetch, raw_event).
 - GitHub Actions workflows added: `.github/workflows/pr-review.yml`, `source-backfill.yml`, `dependency-hygiene.yml`, plus `.claude/agents/gate-verifier.md` — copied verbatim from `OneLive_Build_Runbook.md` §1.6-1.7.
 
-## ⚠️ Security flag — Row Level Security disabled on all tables
-Supabase's advisor reports **all 14 public tables have RLS disabled**, meaning the `anon`/`authenticated` Supabase client keys could read/write every row if ever used from a browser or mobile client. This is fine for now since the FastAPI backend uses a direct `psycopg2` service connection (not the Supabase client SDK), but **must be addressed before the web/mobile apps talk to Supabase directly, or before the anon/publishable key is ever shipped client-side.** Do not enable RLS blindly — enabling it without policies will lock out all access, including the API's own connection if it ever switches to the Supabase client. Decide on a policy model (e.g. service-role-only writes, public read-only on `event`/`venue`/`artist`) before flipping this on. Remediation SQL is on file if/when the founder wants to proceed.
+## Security — RLS + pg_trgm schema (migration 0006 written & PR'd, NOT yet applied)
+Two Supabase security advisories are addressed by **`supabase/migrations/0006_rls_policies.sql`** (branch `security/0006-rls-and-pg_trgm-schema`, PR opened against `master`, **not merged and NOT yet applied to the live database** — the founder will apply it separately after review).
+
+- **RLS enabled on all 14 public tables** with the founder-approved policy model:
+  - Public read-only (`event`, `venue`, `artist`, `source_reliability`): RLS on + a `SELECT` policy (`public_read`) granting read to `anon` + `authenticated`. No write policies — writes only via the service-role backend connection, which bypasses RLS.
+  - Service-role-only (the other 10: `source`, `event_candidate`, `candidate_evidence`, `audit_log`, `raw_fetch`, `raw_event`, `advertiser`, `ad_campaign`, `ad_creative`, `ad_placement_rule`): RLS on with NO policies → default-deny for anon/authenticated; the service-role backend is unaffected.
+  - **Verified safe before writing:** the FastAPI backend (`api/`, `worker/`, `tools/`) connects via a direct `psycopg2` connection as the `postgres` superuser/service role (`ONELIVE_DB_DSN`), NOT the Supabase client SDK with an anon key — confirmed by grepping the whole backend (no `supabase`/`create_client` usage anywhere). service_role/superuser bypasses RLS, so this migration does not affect any current backend code path.
+- **pg_trgm moved out of `public`** into a dedicated `extensions` schema (fixes the "Extension in Public" advisory). Drops the two trigram GIN indexes, drops & recreates the extension `SCHEMA extensions`, sets `ALTER DATABASE postgres SET search_path TO public, extensions` so the unqualified `%`/`similarity()` calls in `worker/resolve_entities.py` still resolve on future connections, then recreates `idx_venue_name_trgm`/`idx_artist_name_trgm` with the schema-qualified `extensions.gin_trgm_ops` opclass. Both tables are empty in prod; migration is idempotent.
+- **Tests** in `tests/test_migration_0006_rls.py`: 7 structural (no DB) asserting RLS on all 14 tables, only-SELECT/anon+authenticated policies on the 4 public-read tables, no policies on the 10 service-role tables, no write policies anywhere, and the pg_trgm move + index recreation; plus 2 `@dbintegration` (skip without `ONELIVE_TEST_DB_DSN`) asserting pg_trgm lives in `extensions` and that fuzzy resolution still works after the move. Full suite: 37 passed, 8 skipped.
 
 ## What's next
 - **Next phase: public consumer PWA screen + Clerk auth wiring.** Deferred this pass on
   purpose — Clerk is not yet connected to the project (pending founder action). Once Clerk
   is connected, wire the consumer feed UI and auth/claim flow. Nothing in Phase 1 blocks it.
 - Apply `supabase/migrations/0005_pg_trgm.sql` to the live Supabase project before relying
-  on fuzzy entity resolution (exact + placeholder still work without it).
-- Decide and apply an RLS policy model before any client-side Supabase access (see security flag above).
+  on fuzzy entity resolution (exact + placeholder still work without it). NOTE: `0006`
+  moves pg_trgm to the `extensions` schema and drops/recreates it, so apply `0005` then
+  `0006` in order (or, if neither is applied yet, `0006` alone stands up pg_trgm in
+  `extensions` with both indexes — but the migration chain expects 0005 first).
+- **Apply `supabase/migrations/0006_rls_policies.sql`** (RLS policy model + pg_trgm schema
+  move) after code review. Written and PR'd, NOT yet applied — see the Security section above.
 - Populate source catalog ranks 42-118 (target: 120+ sources total) — flagged as an ongoing gap, not blocking Phase 1.
 - Connect Vercel + Clerk (see Accounts/services status below) before Phase 1 needs public preview/auth.
 
