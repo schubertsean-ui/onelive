@@ -105,6 +105,48 @@ Follows through on the accepted-tradeoff/DECISION-TO-REVISIT flagged in migratio
 - **Semantics note / flagged for founder:** `private_access` is a freeform jsonb carried straight from AI extraction (`ai_models.py` → `candidate_store.py` → `promote.py` → `event`) and surfaced verbatim in the API responses. **No code anywhere branches on its contents** — it is a passthrough blob today, so "empty jsonb = not private" is the only interpretation the current code supports, and 0007 uses it. IF a future use case gives `private_access` richer meaning (e.g. `{"ticket_holders": ...}` = "restricted to specific ticket holders" rather than fully private), this policy's `private_access = '{}'` test would over-hide such events from the anon key and should be revisited then. Implemented the straightforward interpretation per the current code; flagged here so the nuance isn't silently lost.
 - **Tests** in `tests/test_migration_0007_narrow_event_read.py`: structural (no DB) asserting the event USING clause references BOTH `is_private_rsvp` and `private_access` (not `using (true)`), stays SELECT-only for anon+authenticated, introduces no write policy, and that venue/artist remain `using (true)`; a backend-guarantee test (no DB) asserting `/tonight`+`/events` still read via service-role psycopg2 (not the Supabase client SDK) and never filter on confidence; plus a `@dbintegration` test (skips without `ONELIVE_TEST_DB_DSN`) that creates public + private events and asserts an `anon`/`authenticated` role sees only the public one while the service-role connection still sees all. Full suite: **48 passed, 10 skipped**.
 
+## Source-trust scoring substrate (migration 0008 written & PR'd, NOT yet applied)
+Implements the three source-trust mechanisms underlying the planned "last verified"
+badge — all numeric constants are data-driven (product owner wants to flex them).
+Branch `feature/source-trust-scoring`, PR opened against `master` (draft, NOT merged,
+migration 0008 NOT yet applied to the live DB — same apply-after-review process as 0005-0007).
+
+- **Config is the single source of truth.** `sources/trust_config.json` holds every
+  numeric constant (type weights, confidence thresholds, priority coefficients, bands,
+  decay/growth multipliers). `worker/trust_config.py` loads it (cached; overridable via
+  `ONELIVE_TRUST_CONFIG`). `supabase/migrations/0008_source_trust_config.sql` mirrors
+  the same values into config tables (DB authoritative at runtime, JSON = fallback/seed).
+- **Mechanism 1 — credibility weighting** (`worker/source_credibility.py`): per-type
+  defaults (venue_calendar/venue_claim/artist_claim=1.0 … anonymous=0.2) via new
+  `source_type_weight` table; per-source override lives in the existing
+  `source.credibility_weight` column (this is what decay/growth drifts). Aggregated
+  weight → 4-state confidence: >=1.8 likely, >=1.0 unverified, <1.0 disputed
+  (`confidence_weight_threshold` table). Complements — does not replace — the
+  evidence-class `worker/confidence.py::derive_confidence`.
+- **Mechanism 2 — priority ranking** (`worker/source_rank.py`, extended): coefficients
+  (0.40/0.20/0.15/0.15/0.10) are now **versioned** (`priority_formula_version` +
+  `priority_formula_coefficient`); `rank_source()` stamps the formula version on each
+  result for audit/rollback. Sub-score **scale normalized** to 0-100 before combining
+  (accepts unit 0-1 or percent 0-100; out-of-range fails loud) — resolves the flagged
+  scale-consistency risk. Four bands P0/P1/P2/P3 via `priority_band` table.
+- **Mechanism 3 — reputation decay/growth** (`worker/source_reliability.py`, extended):
+  `decay_growth_v1()` (FP ×0.85 floored 0.1, TP ×1.02 capped 1.0) is a **pluggable**
+  registry entry (`DECAY_GROWTH_FUNCTIONS`/`get_decay_growth`) so a future Wilson/Bayesian
+  rule swaps in without touching call sites; constants from `reputation_update_param`.
+  `record_outcome(source_id, outcome)` is the new persistence path; legacy additive
+  `adjust_source_reliability` kept.
+- **4-state hardened at the schema level.** The repo was already 4-state everywhere in
+  code (confidence.py, promote.py, 0001_core.sql comment) — the earlier 3-state reference
+  contradiction was resolved in Phase 1. But `event.confidence` had NO CHECK constraint
+  (free text), so 0008 adds `event_confidence_4state_chk` pinning it to exactly
+  (unverified|likely|confirmed|disputed), locking in disputed as a first-class state.
+- **Tests**: `tests/test_source_trust.py` (pure-logic: weighting+override, confidence-
+  from-weight boundaries, priority across all 4 bands, scale normalization, decay/growth
+  floor/cap + pluggable contract) and `tests/test_migration_0008_source_trust.py`
+  (structural seed/constraint checks + a @dbintegration apply test). Full suite:
+  **125 passed, 11 skipped** (skips are @dbintegration, need `ONELIVE_TEST_DB_DSN`).
+- New dependency note: none (stdlib json only).
+
 ## What's next
 - **Next phase: public consumer PWA screen + Clerk auth wiring.** Clerk IS now connected
   to the project. Next step: wire the consumer feed UI and auth/claim flow. Nothing in
@@ -122,6 +164,9 @@ Follows through on the accepted-tradeoff/DECISION-TO-REVISIT flagged in migratio
   public-read policy) after code review — apply after 0006. Written and PR'd, NOT yet
   applied — see the Security section above. Required before the anon key ships client-side
   in Phase 2.
+- **Apply `supabase/migrations/0008_source_trust_config.sql`** (source-trust config tables +
+  seeds + event.confidence 4-state CHECK) after code review — apply after 0007. Written and
+  PR'd, NOT yet applied — see the Source-trust scoring substrate section above.
 - Populate source catalog ranks 42-118 (target: 120+ sources total) — flagged as an ongoing gap, not blocking Phase 1.
 - Connect Vercel + Clerk (see Accounts/services status below) before Phase 1 needs public preview/auth.
 

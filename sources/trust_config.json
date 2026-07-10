@@ -1,0 +1,59 @@
+{
+  "_comment": "Canonical, data-driven defaults for the source-trust scoring substrate (v1). All numeric constants for the three trust mechanisms live here so the product owner can flex/iterate without code changes. The DB seed in supabase/migrations/0008_source_trust_config.sql mirrors these values; at runtime the DB is authoritative and this file is the fallback/seed source. Override the path via ONELIVE_TRUST_CONFIG.",
+
+  "source_type_weights": {
+    "venue_calendar": 1.0,
+    "venue_claim": 1.0,
+    "artist_claim": 1.0,
+    "ticketing": 0.9,
+    "community_calendar": 0.7,
+    "artist_website": 0.6,
+    "linktree": 0.6,
+    "soundcloud": 0.6,
+    "bandcamp": 0.6,
+    "instagram": 0.4,
+    "facebook": 0.4,
+    "anonymous": 0.2
+  },
+  "default_source_type_weight": 0.2,
+
+  "confidence_weight_thresholds": [
+    { "state": "likely", "min_weight": 1.8 },
+    { "state": "unverified", "min_weight": 1.0 },
+    { "state": "disputed", "min_weight": 0.0 }
+  ],
+
+  "priority_formula": {
+    "current_version": "v1",
+    "versions": {
+      "v1": {
+        "coefficients": {
+          "credibility_weight": 0.40,
+          "access_reliability": 0.20,
+          "coverage_uniqueness": 0.15,
+          "update_frequency_score": 0.15,
+          "verification_anchor_score": 0.10
+        }
+      }
+    }
+  },
+
+  "priority_bands": [
+    { "band": "P0", "label": "Anchor truth", "min_score": 85 },
+    { "band": "P1", "label": "High trust", "min_score": 70 },
+    { "band": "P2", "label": "Corroboration", "min_score": 50 },
+    { "band": "P3", "label": "Weak signal", "min_score": 0 }
+  ],
+
+  "reputation_decay_growth": {
+    "current_version": "v1",
+    "versions": {
+      "v1": {
+        "false_positive_multiplier": 0.85,
+        "true_positive_multiplier": 1.02,
+        "floor": 0.1,
+        "cap": 1.0
+      }
+    }
+  }
+}
