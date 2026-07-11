@@ -142,7 +142,24 @@ integrated throughout. Practically, a change clears the bar when:
 
 ---
 
-## 6. When in doubt
+## 6. Presenting options (communication standard)
+
+Whenever options are presented, never present a neutral menu. Always lead with a
+recommendation and its reasoning. Every set of options must include:
+
+1. **The recommended choice**, stated up front.
+2. **Why** it's recommended (the reasoning, tied to the goal at hand).
+3. **The recommended order/sequence** when order matters — and why that order.
+4. **Tradeoffs** — of the recommendation *and* of the alternatives, so the choice
+   is informed, not just asserted.
+
+This applies to plans, technical choices, sequencing, and `ask_user_question`
+prompts alike. A recommendation can still be overridden — but the default is a
+considered position, not a shrug.
+
+---
+
+## 7. When in doubt
 
 - Prefer surfacing a gap over hiding it.
 - Prefer a smaller verified step over a larger unverified one.
