@@ -17,10 +17,18 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # need full history so the base..HEAD diff resolves
       - name: Determine review depth
         id: depth
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          FILES=$(git diff --name-only origin/main...HEAD)
+          # Diff against the PR's actual base branch (master), not a hardcoded
+          # 'main' which does not exist in this repo and made this step error out
+          # in ~7s, silently disabling the review gate for every PR.
+          git fetch --no-tags origin "$BASE_REF"
+          FILES=$(git diff --name-only "origin/${BASE_REF}...HEAD")
           echo "$FILES"
           if echo "$FILES" | grep -qE 'gating|promote|auth|payment|stripe'; then
             echo "model=claude-opus-4-6" >> "$GITHUB_OUTPUT"
