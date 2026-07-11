@@ -150,7 +150,10 @@ recommendation and its reasoning. Every set of options must include:
 1. **The recommended choice**, stated up front.
 2. **Why** it's recommended (the reasoning, tied to the goal at hand).
 3. **The recommended order/sequence** when order matters — and why that order.
-4. **Tradeoffs** — of the recommendation *and* of the alternatives, so the choice
+4. **A standalone explanation of each option** — what it is, what it does, and
+   what choosing it means — so each can be assessed on its own merits, not only
+   as a foil to the recommendation.
+5. **Tradeoffs** — of the recommendation *and* of each alternative, so the choice
    is informed, not just asserted.
 
 This applies to plans, technical choices, sequencing, and `ask_user_question`
