@@ -4,10 +4,14 @@ Last updated: 2026-07-10 by Computer (PM) — reconciled against live ground tru
 
 > **Session arcs:** chronological per-session records of decisions, findings, and artifacts live in `docs/session_arcs/`. This file (`STATE.md`) is the always-current rollup; arcs explain how the state got here. Latest arc: `docs/session_arcs/2026-07-10_build-assessment.md`.
 
+> **Operating rules:** how we work on OneLive (quality bar, Loops/Kaizen, trust rules, the Harness) is codified in `docs/OPERATING_RULES.md`. Read it with `CLAUDE.md`.
+
 ## Reality check (verified 2026-07-10)
 - **Migrations 0001-0007 are ALL applied** to live project `vqipjlvzfiwnandjumvx` (confirmed via `list_migrations`).
 - **PRs #1, #2, #3 are MERGED**; **PR #4 (source-trust scoring, migration 0008) is an open DRAFT**.
-- **All 14 tables are 0 rows** — the 43-source catalog has never been imported, the AI provider is still a `stub`, and there is no orchestrator looping the sources. The `fetch → extract → gate → promote → /tonight` pipeline has never run on real data. This is the current bottleneck (see the 2026-07-10 arc for next steps).
+- **Source catalog IMPORTED (2026-07-10):** the `source` table now holds **43 rows** (all enabled, 15 source_types, avg credibility_weight 0.673), verified via `execute_sql count(*)`. Migration `0009_source_name_unique` (unique constraint on `source.name`) applied to make the import idempotent.
+- **Real AI provider IMPLEMENTED (2026-07-10):** `ai/claude_provider.py` (`ClaudeProvider`) replaces the stub behind the `AIProvider` protocol. Fail-loud on misconfig (`ExtractionConfigError`), retry+audit-degrade on transient faults, `_provenance` stamping, hallucination-rate eval (`ai/eval_harness.py`). Requires `ANTHROPIC_API_KEY`. New dep `anthropic` noted here (CLAUDE.md review rule #3). 64 unit/integration tests green.
+- **Remaining pipeline gap:** no orchestrator yet loops the 43 sources through `fetch → extract → gate → promote → /tonight` on real data. That is now the next bottleneck (was: catalog+provider, both now done).
 - Security advisors: only INFO-level `rls_enabled_no_policy` on the 11 service-role-only tables — intentional/benign.
 
 > NOTE: The historical sections below were written before the reconciliation above and describe some migrations/PRs as "NOT yet applied / not merged." That language is now superseded by the Reality check — kept verbatim for audit history.

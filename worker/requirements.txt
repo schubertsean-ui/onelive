@@ -2,3 +2,4 @@ psycopg2-binary
 pydantic
 python-dateutil
 requests
+anthropic>=0.39,<1.0  # Claude API for weak-signal event extraction (ai/claude_provider.py)

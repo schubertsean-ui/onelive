@@ -75,6 +75,21 @@ def add_evidence(candidate_id: str, source_class: str, source_name: str, source_
     return str(eid)
 
 
+def record_ai_degradation(payload: Dict[str, Any]) -> None:
+    """Persist an AI-extraction degradation event to audit_log so a transient
+    provider failure is observable in ops, never invisibly conflated with a
+    genuine "no event found". Used as the provider's audit_hook."""
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                insert into audit_log(actor_type, action, entity_type, payload)
+                values ('system','ai_extraction_degraded','source',%s::jsonb)
+                """,
+                (json.dumps(payload),))
+        conn.commit()
+
+
 def list_candidate_source_classes(candidate_id: str) -> List[str]:
     with db() as conn:
         with conn.cursor() as cur:

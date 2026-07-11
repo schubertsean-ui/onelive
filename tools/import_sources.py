@@ -21,10 +21,19 @@ def main():
     with psycopg2.connect(args.dsn) as conn:
         with conn.cursor() as cur:
             for s in sources:
+                # ON CONFLICT (name) requires the source_name_key unique
+                # constraint (migration 0009). On conflict we refresh the
+                # mutable columns so re-importing an updated catalog is a true
+                # upsert, not a silent no-op.
                 cur.execute("""
                   insert into source (name, source_type, base_url, enabled, credibility_weight, config)
                   values (%s,%s,%s,%s,%s,%s::jsonb)
-                  on conflict do nothing
+                  on conflict (name) do update set
+                    source_type = excluded.source_type,
+                    base_url = excluded.base_url,
+                    enabled = excluded.enabled,
+                    credibility_weight = excluded.credibility_weight,
+                    config = excluded.config
                 """, (
                     s["name"],
                     s.get("category", s.get("source_type", "unknown")),
