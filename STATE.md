@@ -6,6 +6,20 @@ Last updated: 2026-07-10 by Computer (PM) — reconciled against live ground tru
 
 > **Operating rules:** how we work on OneLive (quality bar, Loops/Kaizen, trust rules, the Harness) is codified in `docs/OPERATING_RULES.md`. Read it with `CLAUDE.md`.
 
+> **Start here every session:** run `docs/SESSION_START.md`. It runs `python tools/session_reconcile.py --heal` to verify the block below against live ground truth (git/PRs/DB) BEFORE you trust anything in this file. The block below is machine-maintained by that script — do not hand-edit it; fix the prose sections and let the script refresh the block.
+
+<!-- GROUND_TRUTH:BEGIN -->
+```json
+{
+  "reconciled_at": "2026-07-11T05:07:00+00:00",
+  "git": {"branch": "feat/source-import-and-claude-provider"},
+  "prs": {"1": "merged", "2": "merged", "3": "merged", "4": "open", "5": "merged", "6": "open"},
+  "applied_migrations": ["20260708065822", "20260708065834", "20260708065849", "20260708065908", "20260708234844", "20260709034237", "20260709051800", "20260711045154"],
+  "row_counts": {"source": 43, "event": 0, "event_candidate": 0, "candidate_evidence": 0}
+}
+```
+<!-- GROUND_TRUTH:END -->
+
 ## Reality check (verified 2026-07-10)
 - **Migrations 0001-0007 are ALL applied** to live project `vqipjlvzfiwnandjumvx` (confirmed via `list_migrations`).
 - **PRs #1, #2, #3 are MERGED**; **PR #4 (source-trust scoring, migration 0008) is an open DRAFT**.

@@ -105,17 +105,22 @@ The Harness runs by judgment during a session, not on a clock. "Assess where you
 are prior to the need to compact."
 
 **Session open — reconcile before trusting anything:**
-- `git log origin/master`, `gh pr list --state all`, Supabase `list_migrations`,
-  core-table row counts.
-- Correct any drift in STATE.md *before* acting on it. STATE.md is only trusted
-  after it's reconciled.
+- Run `docs/SESSION_START.md`, which runs `tools/session_reconcile.py`. It verifies
+  STATE.md's machine-readable ground-truth block against live git/PRs/DB and
+  classifies drift: benign drift auto-heals; a **material contradiction hard-stops
+  (exit 2)** until STATE.md is corrected; unverifiable critical facts are flagged
+  loudly (never treated as "fine").
+- STATE.md is only trusted after this reconcile is clean. This is the mechanical
+  enforcement of "findings are claims until verified" applied to STATE.md itself.
 
 **During — checkpoint proactively at heavy moments:**
 - Before a context-heavy stretch risks compaction, write/append a session arc so
   no decision, finding, or artifact is lost.
 
 **Session close — finalize:**
-- Update STATE.md (the always-current rollup), write the session arc
+- Update STATE.md (the always-current rollup), then **re-run
+  `session_reconcile.py --heal`** so the ground-truth block matches reality at
+  close and the next session starts from a verified snapshot. Write the session arc
   (`docs/session_arcs/YYYY-MM-DD_slug.md`, indexed in the README), mirror to
   memory. Note any new external dependency in STATE.md (CLAUDE.md review rule #3).
 
