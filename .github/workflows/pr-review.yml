@@ -19,6 +19,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # need full history so the base..HEAD diff resolves
+
+      - name: Require ANTHROPIC_API_KEY
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Fail LOUDLY and specifically if the secret is unset. Without this,
+          # claude-code-action falls back to OIDC and dies with an opaque
+          # "Could not fetch an OIDC token" error that hides the real cause
+          # (a missing repo secret). Never let "misconfigured" look like
+          # "something else broke".
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error title=Missing secret::ANTHROPIC_API_KEY repo secret is not set. Add it under Settings -> Secrets and variables -> Actions. The Claude PR review gate cannot run without it."
+            exit 1
+          fi
+
       - name: Determine review depth
         id: depth
         env:
@@ -31,21 +46,31 @@ jobs:
           FILES=$(git diff --name-only "origin/${BASE_REF}...HEAD")
           echo "$FILES"
           if echo "$FILES" | grep -qE 'gating|promote|auth|payment|stripe'; then
-            echo "model=claude-opus-4-6" >> "$GITHUB_OUTPUT"
+            echo "model=claude-opus-4-8" >> "$GITHUB_OUTPUT"
             echo "max_turns=15" >> "$GITHUB_OUTPUT"
           else
-            echo "model=claude-sonnet-4-6" >> "$GITHUB_OUTPUT"
+            echo "model=claude-sonnet-5" >> "$GITHUB_OUTPUT"
             echo "max_turns=5" >> "$GITHUB_OUTPUT"
           fi
+
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: ${{ steps.depth.outputs.model }}
-          max_turns: ${{ steps.depth.outputs.max_turns }}
-          allowed_tools: "git,gh pr"
+          # v1 moved model / max-turns / tool allowlist out of top-level inputs
+          # and into claude_args (Claude Code SDK CLI flags). The old top-level
+          # `model`/`max_turns`/`allowed_tools` inputs are rejected as "Unexpected
+          # input(s)" by @v1 and must not be used.
+          claude_args: |
+            --model ${{ steps.depth.outputs.model }}
+            --max-turns ${{ steps.depth.outputs.max_turns }}
+            --allowedTools "Bash(git diff:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"
           prompt: |
-            Review this PR against CLAUDE.md's review criteria. Check for:
-            input validation on all API endpoints, parameterized queries only,
-            auth checks on protected routes, and whether tastemaker-post code
-            ever touches the event gating/promotion pipeline (it must not).
-            Post your findings as a PR comment. Flag severity as blocking vs. suggestion.
+            Review this pull request against the review criteria in CLAUDE.md.
+            Check specifically for:
+              - input validation on all API endpoints,
+              - parameterized queries only (no string-built SQL),
+              - auth checks on protected routes,
+              - and whether any tastemaker-post code ever touches the event
+                gating/promotion pipeline (it must not).
+            Post your findings as a single PR comment. Flag each finding's
+            severity as either "blocking" or "suggestion".
