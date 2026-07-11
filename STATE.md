@@ -1,6 +1,16 @@
 # OneLive — STATE
 
-Last updated: 2026-07-09 by Computer (PM) — migration 0007 narrows the event public-read RLS policy (see Security section); Vercel + Clerk now connected
+Last updated: 2026-07-10 by Computer (PM) — reconciled against live ground truth (repo, PRs, Supabase migrations, DB row counts). **Corrected stale status: PRs #1-3 are MERGED and migrations 0005/0006/0007 ARE applied to the live DB** (prior versions of this file said otherwise). Established the session-arc system — see `docs/session_arcs/`.
+
+> **Session arcs:** chronological per-session records of decisions, findings, and artifacts live in `docs/session_arcs/`. This file (`STATE.md`) is the always-current rollup; arcs explain how the state got here. Latest arc: `docs/session_arcs/2026-07-10_build-assessment.md`.
+
+## Reality check (verified 2026-07-10)
+- **Migrations 0001-0007 are ALL applied** to live project `vqipjlvzfiwnandjumvx` (confirmed via `list_migrations`).
+- **PRs #1, #2, #3 are MERGED**; **PR #4 (source-trust scoring, migration 0008) is an open DRAFT**.
+- **All 14 tables are 0 rows** — the 43-source catalog has never been imported, the AI provider is still a `stub`, and there is no orchestrator looping the sources. The `fetch → extract → gate → promote → /tonight` pipeline has never run on real data. This is the current bottleneck (see the 2026-07-10 arc for next steps).
+- Security advisors: only INFO-level `rls_enabled_no_policy` on the 11 service-role-only tables — intentional/benign.
+
+> NOTE: The historical sections below were written before the reconciliation above and describe some migrations/PRs as "NOT yet applied / not merged." That language is now superseded by the Reality check — kept verbatim for audit history.
 
 ## Phase 1 — feed pipeline hardening (this session)
 Branch/PR opened against `master` (not merged). Changes:
