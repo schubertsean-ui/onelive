@@ -62,10 +62,35 @@ Understand → Implement → Self-review against §1 → Fix what review finds �
 Once a week, step back from feature work and improve the *system that builds the
 system*:
 - What defect classes recurred? Encode a guard (a rule here, a test, a lint) so
-  they can't recur silently.
+  they can't recur silently. Mature a guard along the path **point fix ->
+  meta-rule -> mechanized scanner**: only guards that reach the mechanized-scanner
+  stage actually stop recurrence (ad hoc point fixes recur). The trust gate
+  (`tools/trust_gate.py`) is the canonical example of a step-3 mechanized scanner.
 - What did a session-arc reveal about drift between STATE.md and reality?
 - What manual step happened 3+ times and should be automated?
 - Update this doc and `CLAUDE.md` review criteria with anything learned.
+
+**Every guard must be sabotage-validated before it is trusted.** Prove a new
+guard is alive by deliberately introducing the exact violation it targets,
+observing it fire, then reverting. In a system whose primary failure class is
+*silent*, an unvalidated guard is indistinguishable from a vacuous one — a check
+that looks present in the code but has zero real effect. (This is not
+theoretical: hardening the sensor on 2026-07-11, a sabotage test caught a
+mojibake guard whose marker constants were the wrong byte variant and would
+never have fired on real corruption.) Tests written for a guard must assert both
+that it fires on the violation AND that it does not false-positive on clean
+input.
+
+**The Sunset Law (guard-retirement discipline).** Guard/rule accumulation is not
+self-limiting: every guard adds a part, and parts add seams, and defenses are
+themselves incident surfaces. So the creation discipline above is paired with a
+symmetric retirement discipline: **before adding a new guard/check/rule, attempt
+to retire or fold in an equivalent existing one.** One logical invariant should
+have one physical representation. When you add a guard, name in the commit /
+arc what you considered retiring (even if the answer is "nothing yet"). The goal,
+empirically supported, is that over time the system retires more duplicate
+representations than it adds invariants — incident frequency falls without
+slowing feature velocity.
 
 ### 2c. Definition of "improvement"
 An improvement must be *measurable* or *structural*, not vibes. Prefer:
