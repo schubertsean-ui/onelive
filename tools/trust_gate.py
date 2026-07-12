@@ -49,6 +49,7 @@ ADS_TASTEMAKER_MARKERS = ("ads", "tastemaker", "advertiser", "ad_campaign", "cur
 PROMOTE_IMPORT_ALLOWLIST = {
     "api/ops_candidates.py",  # operator action: human-reviewed promote endpoint
     "worker/run_once.py",     # the orchestrator entrypoint
+    "worker/orchestrator.py", # the per-source runner: gate3 -> promote|needs_review
     "worker/multiconfirm.py", # gate helper
 }
 
