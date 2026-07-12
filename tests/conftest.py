@@ -23,6 +23,38 @@ def pytest_configure(config):
         "markers",
         "dbintegration: test requires a live Postgres (set ONELIVE_TEST_DB_DSN)",
     )
+    config.addinivalue_line(
+        "markers",
+        "perf: performance/timing benchmark (skipped by default; run explicitly "
+        "with `pytest -m perf`, see tools/profile_target.py and docs/TESTS.md)",
+    )
+    config.addinivalue_line(
+        "markers",
+        "visual: visual-regression check against tests/visual_baselines/ "
+        "(skipped by default; requires a booted app, see tools/visual_regression.py)",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """perf and visual tests are opt-in only: they require either a real
+    timing budget (perf) or a booted app + baseline images (visual), neither
+    of which belongs in the default fast/pure-logic suite that runs on every
+    commit. Skip them UNLESS the run explicitly selected them via `-m perf`,
+    `-m visual`, or a combination that mentions them (e.g. `-m "perf or visual"`)
+    -- mirrors how `-m dbintegration` is used to opt IN to DB tests elsewhere
+    in this file, just via auto-skip instead of a fixture, since there's no
+    natural single fixture every perf/visual test shares.
+    """
+    markexpr = config.getoption("markexpr", default="") or ""
+    for opt_in_marker in ("perf", "visual"):
+        if opt_in_marker in markexpr:
+            continue  # this run explicitly asked for these; don't skip them
+        skip_marker = pytest.mark.skip(
+            reason=f"'{opt_in_marker}' tests are opt-in only; run with `pytest -m {opt_in_marker}`"
+        )
+        for item in items:
+            if opt_in_marker in item.keywords:
+                item.add_marker(skip_marker)
 
 
 @pytest.fixture
