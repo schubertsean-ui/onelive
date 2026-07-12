@@ -84,9 +84,9 @@ def format_report(report) -> str
   (schema-validate the corpus itself — a malformed case must fail LOUD, not be
   skipped silently).
 - run_eval over the real seeded corpus with ai=None: all gate and sensor cases
-  PASS (this proves the current gate+sensor actually satisfy the adversarial
+  PASS (this proves the current gate+sensor satisfy the adversarial
   set — sabotage the corpus in a test by flipping one expected_decision and
-  assert run_eval then reports a failure, proving the eval can actually fail).
+  assert run_eval then reports a failure, proving the eval can fail).
 - over_suppression is 0.0 on the seeded corpus (the control cases pass).
 - extraction cases are reported as skipped (not passed) when ai=None.
 - A CLI entrypoint `python -m ai.eval_loop` prints format_report and exits 0

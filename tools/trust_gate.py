@@ -6,7 +6,7 @@ reviewer's thoroughness varies run to run; a trust *invariant* must be enforced 
 a check that gives the same answer every time. This gate is that check.
 
 It enforces three invariants, each tied to the product's defensible core
-("how does OneLive know this show is actually happening tonight?"):
+("how does OneLive know this show is happening tonight?"):
 
   1. NO DYNAMIC SQL. Every SQL statement is either a static string with %s bound
      parameters, or composed via psycopg2.sql (SQL/Identifier/Literal). f-strings,

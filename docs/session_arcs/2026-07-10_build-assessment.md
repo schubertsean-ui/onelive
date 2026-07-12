@@ -1,6 +1,6 @@
 # Session Arc — 2026-07-10 — Build Assessment & Session-Arc System
 
-- **Session focus:** Assess where the OneLive build actually stands, define the best next steps with reasoning/tradeoffs, and stand up a durable session-arc system (Loops & Harness).
+- **Session focus:** Assess where the OneLive build stands, define the best next steps with reasoning/tradeoffs, and stand up a durable session-arc system (Loops & Harness).
 - **Status at close:** Infrastructure and code substrate are complete and well-engineered, but **the pipeline has never run on real data** — every table is empty. The bottleneck is no longer building; it's turning the machine on.
 
 ## Ground-truth snapshot (reconciliation result)
@@ -19,7 +19,7 @@ Verified live on 2026-07-10, not read from docs.
 ## Decisions (what + why + tradeoffs)
 
 - **Next priority = prove the pipeline end-to-end on real data (one city: Austin).** Import the 43-source catalog into the live DB, wire one real AI provider (Claude API per spec §14, replacing the `stub`), and build the missing orchestrator that loops the sources so `fetch → extract → gate → promote → /tonight` runs on real events.
-  - Why: this is the difference between "we have code" and "we have a product." It validates the confidence model, dedupe, and fuzzy resolution against messy reality — where they'll actually break.
+  - Why: this is the difference between "we have code" and "we have a product." It validates the confidence model, dedupe, and fuzzy resolution against messy reality — where they break.
   - Tradeoff: least glamorous work, touches AI cost/rate limits. But skipping it leaves every downstream feature untestable.
 - **Finish & merge PR #4 (source-trust scoring / migration 0008) alongside the import.** It's Wave 2's "load-bearing wall" and already in flight.
   - Why: retrofit scoring onto a populated `source_reliability` table is far messier than doing it before data lands.

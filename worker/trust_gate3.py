@@ -4,8 +4,8 @@
 correct for *corroboration counting*, but corroboration count alone is not
 enough to safely auto-publish. Trust requires a third outcome: when evidence
 is technically sufficient by count BUT internally contradictory or otherwise
-requires a human's judgement, we must not silently promote just because the
-count-based gate said yes. This module wraps (never replaces)
+requires a human's judgement, we must not silently promote on the strength of
+the count-based gate alone. This module wraps (never replaces)
 `multi_confirm_gate` and adds that third outcome.
 
 This is the literal enforcement of the project's "AI never publishes
@@ -50,7 +50,7 @@ def _has_conflicting_start_time(evidence_signals: Dict[str, Any]) -> bool:
     Evidence_signals carries `start_times`: the list of start_time strings
     observed across evidence rows (may include None for evidence that didn't
     state one). We only compare non-null values — an evidence row that is
-    silent about start_time is not a conflict, it's just weaker evidence.
+    silent about start_time is not a conflict; it is weaker evidence.
     """
     start_times = evidence_signals.get("start_times") or []
     observed = {t for t in start_times if t}
@@ -97,7 +97,7 @@ def evaluate_gate(
 
     Deterministic, three ordered rules:
       1. HOLD    — base gate says not ok_to_promote (insufficient
-                   corroboration). Not an error, not an escalation: just wait
+                   corroboration). Not an error, not an escalation: wait
                    for more evidence.
       2. ESCALATE — base gate says ok_to_promote, but the evidence itself is
                    conflicting or ambiguous (conflicting start_time,

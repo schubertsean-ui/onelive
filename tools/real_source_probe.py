@@ -1,13 +1,13 @@
 """Real-source sensor probe — Gate 5, honest DB-less slice.
 
 WHAT THIS ANSWERS. The full orchestrator (`worker/run_once.py --real`) is
-DB-coupled from the very first stage: `fetch_url` writes a raw_fetch audit row,
+DB-coupled from its first stage: `fetch_url` writes a raw_fetch audit row,
 and `extract_candidate` writes to the candidate store. Both are by design (every
 fetch and extraction is auditable). So a genuine `--real` run REQUIRES a live
 Postgres + Anthropic key, which the build sandbox does not have. Faking that run
 would be exactly the "silent degradation" the operating rules forbid.
 
-What CAN be verified honestly here, on REAL data, with no DB: whether real Austin
+What CAN be verified here, on REAL data, with no DB: whether real Austin
 source pages (a) fetch at all, and (b) survive the hardened context-hygiene
 sensor (`worker.sensors.assess_input`) rather than being silently rejected as
 truncated / mojibake / boilerplate / injection. Sensor rejection is the first

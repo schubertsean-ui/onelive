@@ -195,7 +195,7 @@ def test_db_fuzzy_resolution_works_without_extensions_on_search_path(db_conn):
     similarity() to `extensions` in worker/resolve_entities.py) is what makes
     resolution work — not the migration's `ALTER DATABASE ... SET search_path`,
     which on Supabase can be overridden by role-level settings. We force a
-    search_path of just `public` (no extensions); if the code still relied on an
+    search_path of only `public` (no extensions); if the code still relied on an
     unqualified operator this would raise SQLSTATE 42883 and fall through to a
     placeholder (vid != new id), failing the assert.
     """

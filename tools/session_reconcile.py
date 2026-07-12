@@ -8,7 +8,7 @@ after those were already done; only a manual check caught it. This script turns
 that manual check into a mechanical, tiered guarantee (our Kaizen response to that
 defect):
 
-  - BENIGN drift (STATE.md agrees with, or is merely silent about, live state)
+  - BENIGN drift (STATE.md agrees with, or is silent about, live state)
     -> auto-heal the machine-readable ground-truth block in STATE.md, log it,
        and proceed. No friction on the common path.
   - MATERIAL contradiction (STATE.md asserts X, live ground truth says NOT X, and
@@ -163,7 +163,7 @@ def classify(prev, live):
     material, benign, unverified = [], [], []
     prev = prev or {}
 
-    # PRs — a claimed-merged PR that is actually open (or vice versa) is material.
+    # PRs — a claimed-merged PR that is open (or vice versa) is material.
     if not live["prs"]["verified"]:
         unverified.append(f"PR state UNVERIFIED ({live['prs'].get('error')})")
     else:
@@ -190,7 +190,7 @@ def classify(prev, live):
                     benign.append(f"table {t}: count changed {prev_counts[t]} -> {live_n}")
 
     # Migrations — a migration STATE.md calls "not applied" that IS applied is benign
-    # to heal; the reverse (claimed applied, actually missing) is material.
+    # to heal; the reverse (claimed applied, but missing) is material.
     if live["db"]["verified"]:
         live_migs = set(live["db"]["migrations"] or [])
         for m in (prev.get("applied_migrations") or []):

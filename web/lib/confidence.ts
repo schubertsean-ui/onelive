@@ -4,7 +4,7 @@
 //  * Every event shows its confidence state explicitly. There is no "silent"
 //    or hidden state.
 //  * `disputed` is always shown AS disputed (never dropped, never softened).
-//  * `unverified` is shown but clearly caveated — never dressed up as trusted.
+//  * `unverified` is shown with its caveat — never dressed up as trusted.
 //  * An UNKNOWN or MISSING confidence value degrades to the most cautious
 //    presentation ("unverified"-style), never to a confident one. Failing safe
 //    means failing toward LESS trust, not more.
@@ -56,7 +56,7 @@ export function confidenceDisplay(raw: string | null | undefined): ConfidenceDis
     return TABLE[raw];
   }
   // Fail safe: an unrecognized or absent state is treated as the LEAST trusted
-  // presentation, and says so honestly.
+  // presentation, and labels the value as unverified.
   return {
     key: "unverified",
     label: "Unverified",

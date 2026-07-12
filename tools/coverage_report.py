@@ -16,7 +16,7 @@ TWO INPUT MODES (both first-class; neither is a fallback that hides truth):
 
 If neither a JSON file nor a reachable DB is available, the tool says so LOUDLY
 (prints the exact SQL to run via the Supabase connector) and exits non-zero. It
-never prints an empty grid as if coverage were simply zero.
+never prints an empty grid as if coverage were zero.
 
 The 5-county Austin MSA and the canonical category vocabulary are defined here so
 the grid always shows EVERY county and EVERY category — including the empty

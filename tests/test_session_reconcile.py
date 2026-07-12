@@ -2,7 +2,7 @@
 
 Guards the continuity safeguard itself against silent rot: the whole point is to
 hard-stop on a material contradiction (the failure mode where a prior session left
-STATE.md claiming a PR merged that's actually open, or a table empty that's
+STATE.md claiming a PR merged that is open, or a table empty that's
 populated). These tests lock that behavior in without git/gh/DB access.
 """
 import importlib.util

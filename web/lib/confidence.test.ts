@@ -41,7 +41,7 @@ describe("confidenceDisplay", () => {
     expect(d.cautious).toBe(true);
   });
 
-  it("unrecognized confidence string fails SAFE and names the bad value honestly", () => {
+  it("unrecognized confidence string fails SAFE and names the bad value", () => {
     const d = confidenceDisplay("super-legit-trust-me");
     expect(d.tone).toBe("unverified");
     expect(d.cautious).toBe(true);

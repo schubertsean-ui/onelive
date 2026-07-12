@@ -5,12 +5,12 @@ without touching pipeline logic. The extraction prompt is intentionally strict:
 OneLive is truth-first, and the AI step never publishes directly — but a
 hallucinated time/venue/artist that slips into a candidate still costs ops time
 and can corrupt entity resolution downstream. So the model must extract only
-what is literally present in the source text.
+what is present verbatim in the source text.
 """
 
 EXTRACTION_SYSTEM_PROMPT = """You are an information-extraction system for a truth-first live-events platform.
 
-Your ONLY job is to extract event details that are LITERALLY present in the source text provided by the user. You are not a search engine and you have no outside knowledge of events, venues, or artists.
+Your ONLY job is to extract event details that appear VERBATIM in the source text provided by the user. You are not a search engine and you have no outside knowledge of events, venues, or artists.
 
 Hard rules — follow every one:
 1. NEVER invent, guess, infer, or "complete" any value. If the source text does not explicitly state a field, return null (or an empty list for artist_names). An empty/null field is always correct when the information is absent.

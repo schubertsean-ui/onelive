@@ -49,7 +49,7 @@ a verified state (full pytest + trust_gate green) and a commit on the branch.
 
 6. **Public feed UI** — `/tonight` + event feed, world-class UX: loading/empty/
    error states, accessibility, copy, and trust display (confidence states:
-   confirmed/likely/unverified/disputed all render honestly). Exit: renders real
+   confirmed/likely/unverified/disputed all render with their state). Exit: renders real
    promoted events from the API.
 
 7. **Deploy + stealth gate** — wire public API to Supabase in prod; deploy web
@@ -58,7 +58,7 @@ a verified state (full pytest + trust_gate green) and a commit on the branch.
 
 8. **World-class QA on live data** — security, performance, failure semantics,
    observability; final trust review across all aspects. Exit: no unnamed
-   weakness; every aspect graded honestly.
+   weakness; every aspect graded with named comparisons.
 
 9. **Founder finalize** — return with the live URL + the decisions only the
    founder can make (domain, invite list, stealth copy, launch timing, any

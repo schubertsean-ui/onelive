@@ -112,7 +112,7 @@ class ClaudeProvider(AIProvider):
         audit_hook=None,
         source_name: Optional[str] = None,
     ) -> Optional[dict]:
-        """Extract event fields literally present in `text`.
+        """Extract event fields present verbatim in `text`.
 
         Optional keyword-only `audit_hook(payload: dict)` lets the transient-
         failure path record an observable degradation event WITHOUT this module
@@ -127,7 +127,7 @@ class ClaudeProvider(AIProvider):
         tool = {
             "name": "record_event_extraction",
             "description": (
-                "Record only the event fields LITERALLY present in the source text. "
+                "Record only the event fields present VERBATIM in the source text. "
                 "Leave any field null/empty if it is not explicitly stated."),
             "input_schema": schema_json,
         }

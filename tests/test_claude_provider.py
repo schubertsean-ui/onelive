@@ -92,7 +92,7 @@ def test_rate_limit_retries_then_degrades_to_none():
     p = ClaudeProvider(api_key="k", client=FakeAnthropic(behavior),
                        max_retries=3)
     p_sleep = __import__("ai.claude_provider", fromlist=["time"]).time
-    p_sleep.sleep = lambda *_: None  # don't actually sleep in tests
+    p_sleep.sleep = lambda *_: None  # no real sleep in tests
     hook = RecordingHook()
     out = p.extract_event_json("text", SCHEMA, audit_hook=hook, source_name="Do512")
     assert out is None

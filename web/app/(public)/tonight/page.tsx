@@ -12,7 +12,7 @@ type Status = "loading" | "ready" | "error";
 
 const CITY = "Austin";
 
-// Small legend so the confidence vocabulary is explained up front, honestly.
+// Small legend so the confidence vocabulary is explained up front.
 const LEGEND: { tone: string; label: string }[] = [
   { tone: "confirmed", label: "Confirmed" },
   { tone: "likely", label: "Likely" },
@@ -105,8 +105,8 @@ export default function TonightPage() {
       ) : null}
 
       <footer className="pub-footer">
-        OneLive shows verified and unverified listings side by side, labeled honestly.
-        Disputed events are shown on purpose &mdash; verify before you go.
+        OneLive shows verified and unverified listings side by side, each labeled with
+        its verification state. Disputed events are shown on purpose &mdash; verify before you go.
       </footer>
     </main>
   );

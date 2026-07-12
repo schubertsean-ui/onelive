@@ -23,7 +23,7 @@ Ratchet note (dev-time only, per red-team review): the iterate-on-green /
 revert-on-regression ratchet governs how WE build and evolve this file across
 commits. It must never leak into the runtime behaviour of the loop itself:
 this module does not self-modify, and it must never auto-approve a promotion
-just to "keep the run going". Escalating an ambiguous candidate to a human is
+to "keep the run going". Escalating an ambiguous candidate to a human is
 the correct, intended outcome here — not a bug to route around.
 
 This file legitimately calls worker.promote.promote_candidate and is
@@ -45,7 +45,7 @@ from worker.sensors import assess_input
 from worker.trust_gate3 import GateDecision, evaluate_gate
 
 # Keys tracked in RunReport.counts. Declared up front so every run reports the
-# full shape even when a count is zero (never omit a key just because it's 0 —
+# full shape even when a count is zero (never omit a key because it's 0 —
 # that would make "nothing happened" indistinguishable from "not tracked").
 _COUNT_KEYS = (
     "fetched",
@@ -90,7 +90,7 @@ def _read_fetched_text(fetch_result: Dict[str, Any]) -> str:
     """Read the bytes fetch_url wrote to storage_ref and decode as text.
 
     fetch_url is the real http adapter (worker/fetch/http_fetch.py): on
-    status 'ok' it always returns a storage_ref path to bytes it just wrote.
+    status 'ok' it always returns a storage_ref path to the bytes it wrote.
     Decoding is best-effort utf-8 with replacement so a stray non-utf8 byte
     degrades to a sensor-detectable "looks binary" signal rather than raising
     and killing the source (that's what per-source error isolation is for
@@ -134,8 +134,8 @@ def _run_one_source(
     the ordered list of RunReport.counts buckets this source's run touched
     (e.g. a source that fetches, passes the sensor, extracts, then holds at
     the gate increments ["fetched", "extracted", "held"] — each stage it
-    actually reached, not a single terminal bucket, so counts reflect real
-    throughput at every stage rather than just the final outcome).
+    reached, not a single terminal bucket, so counts reflect real
+    throughput at every stage rather than only the final outcome).
 
     Any exception raised by a step in here is treated as a per-source
     transient failure by the caller (run_loop) and is intentionally NOT

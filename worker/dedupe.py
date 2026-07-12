@@ -25,7 +25,7 @@ def find_possible_duplicates(venue_id: str, start_time, window_minutes: int = 90
     """Return ids of existing canonical events that may duplicate this one.
 
     Pass `cur` to run inside the caller's transaction (so the dedupe check shares
-    a consistent snapshot with any entities just resolved). If omitted, a
+    a consistent snapshot with any entities resolved in that transaction). If omitted, a
     short-lived read-only connection is opened.
     """
     params = (venue_id, start_time, window_minutes, start_time, window_minutes)

@@ -27,7 +27,7 @@ def main():
                 # upsert, not a silent no-op.
                 #
                 # Geo/coverage columns (migration 0010) are written here too, so
-                # a geotagged catalog actually populates them (a migration whose
+                # a geotagged catalog populates them (a migration whose
                 # columns nothing writes would be dead schema). county/sub_region
                 # may be null (= not county-specific); coverage_categories
                 # defaults to an empty array. A bad county value fails LOUD at the

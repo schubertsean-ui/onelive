@@ -26,7 +26,7 @@ NOT depend on the connection's search_path. Migration 0006 relocates pg_trgm fro
 `public` to the `extensions` schema; on Supabase, role-level search_path settings
 take precedence over the database-level `ALTER DATABASE ... SET search_path`, so we
 cannot rely on that default including `extensions`. Qualifying at the call site is
-what actually makes fuzzy matching resolve after the move (see the DB integration
+what makes fuzzy matching resolve after the move (see the DB integration
 test in tests/test_migration_0006_rls.py that connects WITHOUT extensions on the
 search_path).
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/resolve_entities.py)

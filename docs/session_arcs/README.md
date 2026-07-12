@@ -22,10 +22,10 @@ The harness is a repeatable ritual with two bookends and a safeguard in the midd
 
 ### 1. Session-open reconciliation (before doing work)
 Verify **ground truth** and correct any drift in `STATE.md` before trusting it:
-- `git log` on `origin/master` — what actually landed.
+- `git log` on `origin/master` — what landed.
 - `gh pr list --state all` — real merge/draft status (not what a doc claims).
-- Supabase `list_migrations` — which migrations are actually applied to the live project.
-- Supabase row counts on core tables — what data actually exists (pipeline liveness).
+- Supabase `list_migrations` — which migrations are applied to the live project.
+- Supabase row counts on core tables — what data exists (pipeline liveness).
 - Deploy state (Vercel) and connected services (Clerk, GitHub, Supabase).
 
 Drift found during reconciliation is itself a **finding** — record it in the arc.

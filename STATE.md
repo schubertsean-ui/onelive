@@ -44,7 +44,7 @@ Branch/PR opened against `master` (not merged). Changes:
   (sorts last, never filtered); `/events` applies no confidence filter. A structural
   test guards that neither endpoint filters on confidence in its WHERE clause.
 - **Anti-hallucination prompt.** New editable `ai/prompts.py::EXTRACTION_SYSTEM_PROMPT`
-  instructs the model to extract only what is literally in the source and return
+  instructs the model to extract only what appears verbatim in the source and return
   null/empty otherwise. Wired through `ai/provider.py` (protocol), `ai/bedrock_provider.py`,
   and `worker/ai_extract.py`.
 - **Entity resolution hardened.** `worker/resolve_entities.py` now does exact →
@@ -61,7 +61,7 @@ Branch/PR opened against `master` (not merged). Changes:
 
 ## Phase 1 PR #1 review fixes (follow-up commit)
 Addressed the 3 blocking issues both reviewers (Claude + GPT-5.5) flagged on PR #1:
-- **Trigram GIN indexes now actually used.** `worker/resolve_entities.py` fuzzy step
+- **Trigram GIN indexes now used.** `worker/resolve_entities.py` fuzzy step
   switched from `where similarity(name,x) >= t` (forces seq scan) to the pg_trgm `%`
   operator (`where name % <input>`), with the cutoff set via
   `SET LOCAL pg_trgm.similarity_threshold`. A `@dbintegration` EXPLAIN test asserts

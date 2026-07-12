@@ -2,7 +2,7 @@
 
 Each new behavior is proven in BOTH directions: it fires when it should, and it
 does NOT false-positive on clean/equivalent input. A sabotage test proves the
-scorer can actually report a discrepancy (it is not vacuously green).
+scorer can report a discrepancy (it is not vacuously green).
 """
 import importlib
 
@@ -223,7 +223,7 @@ def test_accuracy_property_is_the_scalar_replacement():
     assert score_extraction({}, {}).accuracy == 1.0
 
 
-# --- sabotage: prove the scorer can actually fail ----------------------------
+# --- sabotage: prove the scorer can fail --------------------------------------
 def test_sabotage_known_wrong_expected_is_reported():
     # Feed a KNOWN-wrong expected value; a real scorer must report the
     # discrepancy. If this ever passes as a match, the scorer is vacuous.

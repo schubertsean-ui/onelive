@@ -76,7 +76,7 @@ def test_unknown_category_surfaced_not_silently_added_as_column():
 def test_out_of_domain_county_surfaced_loud_not_dropped():
     res = compute_coverage([_src("Dallas Venue", "dallas", ["music"])])
     assert any("Dallas Venue" in u for u in res.unknown_county)
-    # its source count is still reflected honestly (not silently dropped)
+    # its source count is still reflected (not silently dropped)
     assert res.source_count == 1
 
 

@@ -62,7 +62,7 @@ Must be import-safe with no DB and no network. Fail LOUDLY if the log dir is
 unwritable (never silently drop audit records).
 
 ### 3. `worker/sensors.py` — input-quality / context-hygiene sensor
-Gate fetch->extract: reject obviously junk input before spending an AI call.
+Gate fetch->extract: reject junk input before spending an AI call.
 ```
 @dataclass SensorReading: ok: bool; reason: str; signals: dict
 def assess_input(*, text: str, content_type: str | None) -> SensorReading

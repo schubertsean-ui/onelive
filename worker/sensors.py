@@ -15,7 +15,7 @@ Gates fetch -> extract. Two distinct jobs, both first-class:
    that an LLM will happily "extract an event" from by fabricating the missing
    parts. Catching these BEFORE extraction is cheaper and safer than trying to
    catch the fabricated output afterwards. This is why the sensor tags input
-   quality as provenance (signals), not just returns a boolean: a candidate's
+   quality as provenance (signals) instead of returning a bare boolean: a candidate's
    trustworthiness depends on the quality of the input it came from.
 
 Rejecting input here is a *normal* pipeline outcome, not a failure: the source
@@ -101,7 +101,8 @@ _ERROR_PAGE_MARKERS = (
 _BINARY_CONTENT_TYPE_PREFIXES = ("image/", "video/", "audio/", "application/octet-stream")
 
 # Above this fraction of mojibake markers, the text is treated as charset-
-# corrupt. Kept low: real content essentially never contains these sequences.
+# corrupt. Kept low: valid decoded text does not contain these mojibake sequences,
+# so a small fraction already signals a charset problem.
 MOJIBAKE_MAX_RATIO = 0.005
 
 
@@ -116,7 +117,7 @@ def _looks_binary(text: str) -> bool:
     """Heuristic: real listing/event text is printable. A high proportion of
     non-printable characters (or an embedded NUL byte, impossible in valid
     text) indicates a binary blob that decoded without raising but is not
-    actually text.
+    text.
     """
     if "\x00" in text:
         return True
@@ -233,7 +234,7 @@ def assess_input(*, text: Optional[str], content_type: Optional[str] = None) -> 
     # --- Class-D context-hygiene checks (fabrication-from-polluted-input) ---
     # These run after the cheap structural checks above. Each records its
     # measured signal so a downstream reviewer can see WHY input was rejected
-    # (input-quality provenance), not just that it was.
+    # (input-quality provenance), not only that it was.
 
     # Prompt injection: adversarial source text must never reach the extractor.
     injection = _injection_marker(stripped)

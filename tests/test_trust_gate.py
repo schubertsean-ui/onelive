@@ -1,7 +1,7 @@
 """Tests for tools/trust_gate.py — the deterministic trust-invariant CI gate.
 
 A gate that cannot fail is theatre. These tests prove the gate (a) passes on the
-real repo and (b) actually CATCHES each class of violation it claims to guard,
+real repo and (b) CATCHES each class of violation it claims to guard,
 by running the individual checks against synthetic files written to a tmp repo.
 """
 import importlib.util

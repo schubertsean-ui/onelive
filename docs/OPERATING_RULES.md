@@ -28,22 +28,22 @@ scope, never trust.
 able to defend.
 
 **Scope: world-class applies to EVERY aspect of the build, without exception** —
-not just code correctness. That means, at minimum: system & data architecture;
+not only code correctness. That means, at minimum: system & data architecture;
 the data model and schema; APIs and contracts; the UX/UI and its copy,
 accessibility, and states (loading/empty/error); the trust & verification layer;
 security and privacy; performance and cost; reliability and failure semantics;
 observability (logging, tracing, metrics); tests; the developer experience; and
-the documentation itself. If any one aspect is merely "fine," the thing is not
+the documentation itself. If any one aspect is only "fine," the thing is not
 world-class — a great engine in a broken chassis is not a great car. No aspect
 gets a pass because another aspect is strong.
 
 A component (in ANY of the aspects above) is world-class only when ALL of the
 following hold — and we state, for each, HOW we know:
-- **Correct at the core, not just at the surface.** The central logic is right,
-  not merely the happy path. (Example failure: an extraction scorer whose
+- **Correct at the core, not only at the surface.** The central logic is right,
+  not only the happy path. (Example failure: an extraction scorer whose
   hallucination KPI is poisoned because its comparison layer flags a correctly
   extracted `"8pm"` vs `"20:00"` as a hallucination. Surface metric, broken core.)
-- **Adversarially tested, not just demonstrated.** We have tried to break it and
+- **Adversarially tested, not only demonstrated.** We have tried to break it and
   shown it holds (sabotage-validation, §2b). "It works on the example I chose"
   is not evidence.
 - **Best-in-class for its job, and we can name what we compared against.** If a
@@ -76,7 +76,7 @@ Concretely, before anything is considered done:
   are banned unless the caught branch is *itself* logged/audited and justified in
   a comment.
 - **No dead code / unreachable features.** If a parameter, hook, or path can't
-  actually fire in production, it isn't done — wire it or remove it.
+  fire in production, it isn't done — wire it or remove it.
 - **No deferred cleanup.** If a review turns up a defect, fix it in the same
   change. Do not write a TODO and move on. A known issue left behind is a broken
   window.
@@ -85,7 +85,29 @@ Concretely, before anything is considered done:
 - **Findings are claims until verified.** Row counts, scores, "it works" — prove
   them against ground truth (DB query, passing test, real run) before asserting.
 
-If something is merely "fine," it is not done. State the gap and close it.
+If something is only "fine," it is not done. State the gap and close it.
+
+### 1c. Language audit — prose is part of the build
+Every piece of language in the build is a build artifact and is held to the same
+bar as code. This covers, without exception: code comments and docstrings,
+commit messages, UI copy, docs and the handbook, error and log strings, test
+names, identifiers (variable/function/class names), source-catalog notes, and
+spec prose.
+
+**Rule:** audit all such language for adverbs and other qualifying or hedging
+grammar, and remove it. Targets include filler adverbs (`just`, `simply`,
+`quickly`, `basically`, `honestly`, `actually`, `really`, `very`), vague
+intensifiers, and qualifiers the text cannot support. Hedging weakens a
+truth-first product's voice and hides imprecision; treat it as a defect.
+
+- The audit applies to everything already built and everything yet to be built,
+  no matter how small the unit.
+- Fix in-change (Sunset Law, §2b) — never leave hedged prose for later.
+- **Exception:** keep an adverb when it states a genuine engineering property,
+  not decoration — e.g. `idempotently`, `atomically`, `explicitly`, and
+  `fail-loud`/`loudly` used in the §3 sense. The test: if deleting the adverb
+  changes what the sentence technically asserts, keep it; if it only softens or
+  inflates, cut it.
 
 ---
 
@@ -110,8 +132,9 @@ system*:
 - What defect classes recurred? Encode a guard (a rule here, a test, a lint) so
   they can't recur silently. Mature a guard along the path **point fix ->
   meta-rule -> mechanized scanner**: only guards that reach the mechanized-scanner
-  stage actually stop recurrence (ad hoc point fixes recur). The trust gate
-  (`tools/trust_gate.py`) is the canonical example of a step-3 mechanized scanner.
+  stage stop recurrence (ad hoc point fixes recur). The trust gate
+  (`tools/trust_gate.py`) and the language audit (`tools/language_audit.py`,
+  §1c) are the canonical step-3 mechanized scanners.
 - What did a session-arc reveal about drift between STATE.md and reality?
 - What manual step happened 3+ times and should be automated?
 - Update this doc and `CLAUDE.md` review criteria with anything learned.
@@ -232,7 +255,7 @@ integrated throughout. Practically, a change clears the bar when:
   about the DB — it takes an `audit_hook`), tested including the failure and
   degradation paths, comments explain *why* not *what*.
 - **UX/UI:** trust made legible to the user without nagging — "infrastructural
-  trust" over loud badges. Confidence states and provenance surface honestly.
+  trust" over loud badges. Confidence states and provenance surface with each event.
 - **Verified:** proven against ground truth before being called done.
 
 ---
@@ -249,7 +272,7 @@ recommendation and its reasoning. Every set of options must include:
    what choosing it means — so each can be assessed on its own merits, not only
    as a foil to the recommendation.
 5. **Tradeoffs** — of the recommendation *and* of each alternative, so the choice
-   is informed, not just asserted.
+   is informed, not asserted without support.
 
 This applies to plans, technical choices, sequencing, and `ask_user_question`
 prompts alike. A recommendation can still be overridden — but the default is a

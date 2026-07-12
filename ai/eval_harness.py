@@ -1,6 +1,6 @@
 """Extraction-accuracy scorer for offline eval of the AI provider.
 
-`score_extraction`/`aggregate` compute the metric that actually governs trust for
+`score_extraction`/`aggregate` compute the metric that governs trust for
 a truth-first pipeline: the HALLUCINATION RATE — how often the model asserts a
 field value that is NOT in the ground truth. This is the direct measure behind
 item #41's "Definition of Done: false positives" KPI. A missed field (recall
@@ -11,7 +11,7 @@ and report false positives explicitly.
 
 Comparison is FIELD-KIND aware (see `FieldKind` / `DEFAULT_FIELD_KINDS`). A plain
 `strip().lower()` compare would flag a correctly extracted `"8pm"` vs `"20:00"`
-as a hallucination — poisoning the very KPI that governs trust. Instead each
+as a hallucination — poisoning the KPI that governs trust. Instead each
 field is normalized according to its kind:
 
 - TEXT      -> case/whitespace-insensitive string compare (lists as sets).

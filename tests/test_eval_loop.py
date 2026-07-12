@@ -3,7 +3,7 @@
 Gate and sensor cases need NO ai/network/DB. Extraction cases are proven to be
 reported as SKIPPED (never passed) when ai is None. A sabotage test flips one
 expected decision and asserts the eval then reports a failure — proving the eval
-can actually fail, not vacuously pass.
+can fail, not vacuously pass.
 """
 import copy
 import json
@@ -118,7 +118,7 @@ def test_extraction_cases_skipped_not_passed_when_ai_none(corpus):
     assert report.extraction_metrics == {}  # nothing scored without an ai
 
 
-# --- sabotage: prove the eval can actually fail ------------------------------
+# --- sabotage: prove the eval can fail ----------------------------------------
 def test_sabotage_flipped_expected_decision_reports_failure(corpus):
     sabotaged = copy.deepcopy(corpus)
     # Flip the clean control's expected decision from pass -> hold. The live gate

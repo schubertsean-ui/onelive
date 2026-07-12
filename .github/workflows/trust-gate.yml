@@ -36,6 +36,9 @@ jobs:
       - name: Trust invariants (no dynamic SQL; ads isolated; AI never promotes)
         run: python tools/trust_gate.py
 
+      - name: Language audit (no hedging/filler in build prose — OPERATING_RULES §1c)
+        run: python tools/language_audit.py
+
       - name: Test suite
         run: python -m pytest -q
 

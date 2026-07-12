@@ -53,7 +53,7 @@ Normalizers (all stdlib; deterministic):
   that this is deliberately lenient (venue aliases beyond this need an entity
   table — name that as a known limit, not silently ignored).
 - **LIST_TEXT**: element-wise. Compute per-element set overlap → return enough
-  to support PARTIAL CREDIT (see §2), not just equal/not-equal.
+  to support PARTIAL CREDIT (see §2), not only equal/not-equal.
 - **TEXT**: current strip().lower() behavior (unchanged).
 
 ### 2. Per-element list scoring (partial credit)
@@ -106,5 +106,5 @@ Prove BOTH directions for each new behavior:
 
 ## Done =
 Full suite + `python tools/trust_gate.py` green; no dead code; docstrings state
-limits honestly; ai/eval_harness.py does NOT import worker.promote and pulls in
+limits without overstatement; ai/eval_harness.py does NOT import worker.promote and pulls in
 no new deps.
