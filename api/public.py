@@ -1,4 +1,4 @@
-"""Public read API: /tonight and /events. Never filters on confidence state —
+"""Public read API: /tonight and /events. Never filters on confidence state --
 disputed events are always shown as disputed, never dropped (CLAUDE.md 4-state
 confidence model; guarded by a structural test in tests/test_gates.py).
 """
@@ -7,8 +7,6 @@ import os
 
 from fastapi import APIRouter
 import psycopg2
-
-
 
 DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
 

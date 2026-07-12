@@ -7,6 +7,7 @@ files on disk (not just flags).
 """
 import importlib.util
 import pathlib
+import re
 import sys
 import textwrap
 
@@ -210,6 +211,54 @@ def test_fix_is_noop_on_already_clean_file(tmp_path):
     p.write_text('"""doc."""\nx = 1\n')
     changed = lint.apply_fixes(p)
     assert changed is False
+
+
+def test_fix_import_sort_is_idempotent(tmp_path):
+    """Regression guard: an earlier version of --fix grew an extra blank line
+    on every re-run of the import sorter (not idempotent). Prove N runs after
+    the first converge to a fixed point with no further file changes."""
+    p = tmp_path / "demo3.py"
+    p.write_text(
+        '"""A module."""\n'
+        "import sys\n"
+        "import os\n"
+        "from collections import OrderedDict\n"
+        "import requests\n"
+        "\n"
+        "print(1)\n"
+    )
+    first_changed = lint.apply_fixes(p)
+    assert first_changed is True
+    after_first = p.read_text()
+    for _ in range(3):
+        changed_again = lint.apply_fixes(p)
+        assert changed_again is False, "--fix must be a no-op once converged"
+        assert p.read_text() == after_first, "repeated --fix must not keep mutating the file"
+
+
+def test_fix_import_sort_no_blank_line_growth_across_many_files(tmp_path):
+    """Same regression guard as above, but on several of the real files that
+    were affected historically, to prove the fix generalizes."""
+    samples = {
+        "a.py": '"""Doc."""\nimport json\nimport os\n\nimport psycopg2\n\nfrom worker.gating import multi_confirm_gate\nfrom worker.confidence import derive_confidence\n\n\nX = 1\n',
+        "b.py": '"""Doc."""\nfrom typing import List, Optional\n\nfrom pydantic import BaseModel, Field\n\n\nY = 2\n',
+    }
+    for name, content in samples.items():
+        p = tmp_path / name
+        p.write_text(content)
+        lint.apply_fixes(p)
+        max_blanks_after_one = max(
+            (len(run) for run in re.findall(r"\n(\n+)", p.read_text())), default=0
+        )
+        for _ in range(3):
+            lint.apply_fixes(p)
+        max_blanks_after_many = max(
+            (len(run) for run in re.findall(r"\n(\n+)", p.read_text())), default=0
+        )
+        assert max_blanks_after_many == max_blanks_after_one, (
+            f"{name}: blank-line run grew from {max_blanks_after_one} to "
+            f"{max_blanks_after_many} across repeated --fix runs"
+        )
 
 
 # --- exit codes -----------------------------------------------------------------

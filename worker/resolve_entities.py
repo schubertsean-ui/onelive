@@ -38,9 +38,6 @@ import logging
 from psycopg2 import sql
 import psycopg2
 
-
-
-
 logger = logging.getLogger(__name__)
 
 # The only table/id-column pairs entity resolution is ever allowed to touch.

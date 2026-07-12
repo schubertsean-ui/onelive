@@ -5,8 +5,6 @@ import os
 
 import psycopg2
 
-
-
 DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
 
 

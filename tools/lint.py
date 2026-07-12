@@ -179,9 +179,14 @@ def _is_stdlib(modname: str) -> bool:
 
 def _sort_leading_imports(text: str) -> str:
     """Sort a leading contiguous import block (after any module docstring) into
-    stdlib / third-party / local groups, alphabetical within each group. Only
-    touches a simple leading block — never reorders imports scattered through
-    the file (that would risk changing behavior for conditional imports)."""
+    stdlib / third-party / local groups, alphabetical within each group, with
+    exactly one blank line between non-empty groups and exactly one blank line
+    after the whole block (PEP8-style). Only touches a simple leading block --
+    never reorders imports scattered through the file (that would risk
+    changing behavior for conditional imports). Idempotent by construction:
+    re-running on already-sorted output must be a no-op, so this rebuilds the
+    separator blank lines from scratch every time rather than trying to count
+    and preserve whatever separators happened to exist on disk."""
     lines = text.splitlines(keepends=True)
     i = 0
     # skip module docstring if present
@@ -206,9 +211,12 @@ def _sort_leading_imports(text: str) -> str:
     import_lines = [l for l in block if import_re.match(l)]
     if len(import_lines) < 2:
         return text  # nothing meaningful to sort
-    trailing_blanks = len(block) - len(import_lines) if all(
-        import_re.match(l) or l.strip() == "" for l in block
-    ) else 0
+    # Exactly one blank line must separate the block from the next code line
+    # (unless nothing follows). Compute this from what follows the block in
+    # the ORIGINAL file, never from the block's own (about-to-be-rebuilt)
+    # content -- that is what made the previous version grow an extra blank
+    # line on every re-run (not idempotent).
+    trailer_blank = 1 if (end < len(lines) and lines[end].strip() != "") else 0
     stdlib, thirdparty, local = [], [], []
     for l in import_lines:
         m = re.match(r"^(?:import|from)\s+([A-Za-z0-9_\.]+)", l)
@@ -219,14 +227,15 @@ def _sort_leading_imports(text: str) -> str:
             stdlib.append(l)
         else:
             thirdparty.append(l)
+    groups = [g for g in (sorted(stdlib), sorted(thirdparty), sorted(local)) if g]
     new_block = []
-    for group in (sorted(stdlib), sorted(thirdparty), sorted(local)):
-        if group:
-            new_block.extend(group)
-            new_block.append("\n")
-    if new_block and new_block[-1] == "\n":
-        new_block.pop()
-    new_block.extend(["\n"] * trailing_blanks)
+    for idx, group in enumerate(groups):
+        new_block.extend(group)
+        if idx < len(groups) - 1:
+            new_block.append("\n")  # exactly one separator blank between groups
+    new_block.extend(["\n"] * trailer_blank)
+    if new_block == block:
+        return text  # already in sorted form; do not touch the file
     return "".join(lines[:start] + new_block + lines[end:])
 
 

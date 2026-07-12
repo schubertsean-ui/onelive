@@ -40,7 +40,7 @@ fi
 # --fix may have modified files in place; re-stage anything it touched so the
 # commit actually contains the fixed version instead of silently committing
 # the pre-fix content.
-git diff --name-only --diff-filter=M | grep -E '\.py$' | xargs -r git add
+git diff --name-only --diff-filter=M | { grep -E '\.py$' || true; } | xargs -r git add
 
 echo "[pre-commit] OK — lint + trust_gate clean."
 exit 0

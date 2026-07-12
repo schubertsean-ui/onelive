@@ -4,7 +4,6 @@ Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/run_o
 from ai.bedrock_provider import BedrockProvider
 from worker.ai_extract import extract_candidate
 
-
 def main():
     ai = BedrockProvider(client=None, model_id="stub")
     text = """

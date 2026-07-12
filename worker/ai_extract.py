@@ -13,11 +13,6 @@ from worker.ai_models import AIEventExtraction
 from worker.candidate_store import create_candidate, add_evidence, record_ai_degradation
 from worker.gating import multi_confirm_gate
 
-
-
-
-
-
 logger = logging.getLogger(__name__)
 
 # Meta keys the provider may attach (e.g. Claude provenance). These are NOT event

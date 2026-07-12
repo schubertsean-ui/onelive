@@ -8,9 +8,6 @@ import json
 from ai.prompts import EXTRACTION_SYSTEM_PROMPT
 from ai.provider import AIProvider
 
-
-
-
 class BedrockProvider(AIProvider):
     def __init__(self, client=None, model_id: str = "stub"):
         self.client = client
