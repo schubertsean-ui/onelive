@@ -4,7 +4,9 @@ Source: extracted from Entertainment-App-Code-v1-4 reference build (tools/import
 import argparse
 import json
 import os
+
 import psycopg2
+
 
 DEFAULT_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
 

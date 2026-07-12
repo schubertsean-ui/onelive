@@ -2,10 +2,12 @@
 or AWS Bedrock) later — swap by implementing extract_event_json.
 Source: extracted from Entertainment-App-Code-v1-4 reference build (ai/bedrock_provider.py)
 """
-import json
 from typing import Optional
-from ai.provider import AIProvider
+import json
+
 from ai.prompts import EXTRACTION_SYSTEM_PROMPT
+from ai.provider import AIProvider
+
 
 
 class BedrockProvider(AIProvider):

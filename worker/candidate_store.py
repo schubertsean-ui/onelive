@@ -1,10 +1,12 @@
 """DB access layer for event_candidate / candidate_evidence.
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/candidate_store.py)
 """
+from typing import Optional, Dict, Any, List
 import json
 import os
+
 import psycopg2
-from typing import Optional, Dict, Any, List
+
 
 DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
 

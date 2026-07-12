@@ -31,12 +31,14 @@ test in tests/test_migration_0006_rls.py that connects WITHOUT extensions on the
 search_path).
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/resolve_entities.py)
 """
+from typing import List, Optional, Tuple
 import json
 import logging
-from typing import List, Optional, Tuple
 
-import psycopg2
 from psycopg2 import sql
+import psycopg2
+
+
 
 logger = logging.getLogger(__name__)
 

@@ -2,13 +2,15 @@
 No login/paywall/bot-protection bypass — policy-safe by construction (see CLAUDE.md).
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/fetch/http_fetch.py)
 """
+from typing import Optional, Dict, Any
 import hashlib
 import json
 import os
 import time
-from typing import Optional, Dict, Any
+
 import psycopg2
 import requests
+
 
 DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
 RAW_DIR = os.getenv("ONELIVE_RAW_DIR", "var/raw")

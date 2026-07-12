@@ -1,9 +1,11 @@
 """Duplicate detection for canonical events (same venue + overlapping time window).
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/dedupe.py)
 """
-import os
-import psycopg2
 from typing import List
+import os
+
+import psycopg2
+
 
 DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
 

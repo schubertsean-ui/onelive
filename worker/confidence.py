@@ -16,6 +16,8 @@ from typing import List
 
 from worker.gating import ANCHOR_CLASSES  # anchor evidence classes (single source)
 
+
+
 # Canonical, ordered by ascending trust (disputed is a moderation flag, kept last).
 CONFIDENCE_STATES = ("unverified", "likely", "confirmed", "disputed")
 
