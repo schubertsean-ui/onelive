@@ -10,7 +10,7 @@ lock in the trust-critical behavior:
 import pytest
 
 from ai.claude_provider import ClaudeProvider, ExtractionConfigError, PROMPT_VERSION
-from ai.eval_harness import score_extraction, aggregate, evaluate_extraction
+from ai.eval_harness import score_extraction, aggregate
 
 
 SCHEMA = {"type": "object", "properties": {"title": {"type": "string"}}}
@@ -177,7 +177,9 @@ def test_aggregate_micro_average():
     assert 0.0 <= agg["hallucination_rate"] <= 1.0
 
 
-def test_backward_compat_evaluate_extraction():
-    assert evaluate_extraction({"a": 1}, {"a": 1}) == 1.0
-    assert evaluate_extraction({"a": 1}, {"a": 2}) == 0.0
-    assert evaluate_extraction({}, {}) == 0.0
+def test_accuracy_scalar_replaces_retired_evaluate_extraction():
+    # evaluate_extraction (exact-match ratio) was retired under the Sunset Law;
+    # ExtractionScore.accuracy is the one 0..1 scalar representation now.
+    assert score_extraction({"a": 1}, {"a": 1}).accuracy == 1.0
+    assert score_extraction({"a": 1}, {"a": 2}).accuracy == 0.0
+    assert score_extraction({}, {}).accuracy == 1.0  # nothing to compare
