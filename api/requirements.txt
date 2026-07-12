@@ -2,3 +2,4 @@ fastapi
 uvicorn[standard]
 psycopg2-binary
 pydantic
+PyJWT[crypto]>=2.8  # Clerk session-JWT verification (RS256 via JWKS) in api/clerk_auth.py

@@ -8,6 +8,9 @@ from typing import Dict, Any
 import os
 
 import psycopg2
+from fastapi import Depends
+
+from api.clerk_auth import require_allowlisted_user
 
 DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
 
@@ -16,6 +19,11 @@ def get_db():
     return psycopg2.connect(DB_DSN)
 
 
-def require_admin() -> Dict[str, Any]:
-    # Replace with real auth + RBAC
-    return {"user_id": None, "role": "admin"}
+def require_admin(user: Dict[str, Any] = Depends(require_allowlisted_user)) -> Dict[str, Any]:
+    """Real auth for ops actions: a valid, allowlisted Clerk token (layer 2).
+
+    In stealth every allowlisted user is an operator, so allowlisted == admin.
+    Backed by api.clerk_auth (independent JWKS/RS256 + azp + email-allowlist
+    verification); replaces the fail-open stub.
+    """
+    return user
