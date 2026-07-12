@@ -1,8 +1,8 @@
 # OneLive — STATE
 
-Last updated: 2026-07-10 by Computer (PM) — reconciled against live ground truth (repo, PRs, Supabase migrations, DB row counts). **Corrected stale status: PRs #1-3 are MERGED and migrations 0005/0006/0007 ARE applied to the live DB** (prior versions of this file said otherwise). Established the session-arc system — see `docs/session_arcs/`.
+Last updated: 2026-07-12 by Computer (PM) — reconciled against live ground truth (repo, PRs, Supabase migrations, DB row counts). **This session: PR #8 (agentic-harness buildout) reviewed cross-model, its findings fixed, and MERGED to master (HEAD a0b3724).** The `validate` gate no longer treats SKIP/ADVISORY as PASS (the founding anti-pattern is now impossible in the gate itself). **Corrected stale status: RLS migrations 0006/0007 ARE applied to the live DB, and 9 migrations total are live (incl. `source_geo_coverage`); `source` = 230 rows, but `event`/`event_candidate`/`candidate_evidence` are still 0.** Established the session-arc system — see `docs/session_arcs/`.
 
-> **Session arcs:** chronological per-session records of decisions, findings, and artifacts live in `docs/session_arcs/`. This file (`STATE.md`) is the always-current rollup; arcs explain how the state got here. Latest arc: `docs/session_arcs/2026-07-10_build-assessment.md`.
+> **Session arcs:** chronological per-session records of decisions, findings, and artifacts live in `docs/session_arcs/`. This file (`STATE.md`) is the always-current rollup; arcs explain how the state got here. Latest arc: `docs/session_arcs/2026-07-12_harness-review-merge-and-live-reconcile.md`.
 
 > **Operating rules:** how we work on OneLive (quality bar, Loops/Kaizen, trust rules, the Harness) is codified in `docs/OPERATING_RULES.md`. Read it with `CLAUDE.md`.
 
@@ -11,16 +11,35 @@ Last updated: 2026-07-10 by Computer (PM) — reconciled against live ground tru
 <!-- GROUND_TRUTH:BEGIN -->
 ```json
 {
-  "reconciled_at": "2026-07-11T05:07:00+00:00",
-  "git": {"branch": "feat/source-import-and-claude-provider"},
-  "prs": {"1": "merged", "2": "merged", "3": "merged", "4": "open", "5": "merged", "6": "open"},
-  "applied_migrations": ["20260708065822", "20260708065834", "20260708065849", "20260708065908", "20260708234844", "20260709034237", "20260709051800", "20260711045154"],
-  "row_counts": {"source": 43, "event": 0, "event_candidate": 0, "candidate_evidence": 0}
+  "git": {
+    "branch": "master",
+    "head": "a0b3724"
+  },
+  "prs": {
+    "1": "merged",
+    "2": "merged",
+    "3": "merged",
+    "4": "open",
+    "5": "merged",
+    "6": "merged",
+    "7": "open",
+    "8": "merged"
+  },
+  "reconciled_at": "2026-07-12T05:51:07.747368+00:00"
 }
 ```
 <!-- GROUND_TRUTH:END -->
 
-## Reality check (verified 2026-07-10)
+## Reality check (verified 2026-07-12 — this session)
+- **Master HEAD = a0b3724** — PR #8 (agentic-harness buildout) MERGED this session after cross-model review (GPT-5.5, security + domain-truth-and-trust personas). All review findings fixed: `validate` silent-pass P1 (SKIP/ADVISORY → INCOMPLETE/exit 2, `--allow-skips` to acknowledge), `visual_regression` shell-injection P1, and four P2s (agent_review containment/secret-denylist, NUL-safe hook staging, commit_sweep empty-range=exit 2, test_audit patch()-mock detection). CI trust-gate green. Suite: 127 passed / 27 skipped.
+- **DB: 9 migrations applied and live** (confirmed via `list_migrations` on `vqipjlvzfiwnandjumvx`): 0001-0007 + 0009 (`source_name_unique`) + `source_geo_coverage`. The RLS + narrowed-public-read migrations (0006/0007) are ALREADY LIVE.
+- **Row counts (verified via `execute_sql`):** `source` = **230**; `event` = **0**; `event_candidate` = **0**; `candidate_evidence` = **0**. The pipeline has NOT run on real data — there are zero events.
+- **Open PRs:** #4 (source-trust scoring, `feature/source-trust-scoring`) and **#7 (orchestrator-as-Harness + /tonight feed, `feat/orchestrator-harness`)** — both still OPEN/unmerged. The real ingestion orchestrator lives on #7; master only has the STUB `worker/run_once.py`.
+- **GAP 1 (azp/CSRF) is BLOCKED, not closed.** It targets `api/clerk_auth.py`, which does NOT exist on master or on ANY remote branch. It lives only in the user's Clerk stealth-gate + Next-15 commits (f970e3a, 1a9728d, 35c5605) that were authored on the OLD sandbox and were **never pushed** (remote `feat/orchestrator-harness` = 3258a57, not the arc's 1a9728d). Pushing them is the user's step; this sandbox cannot reproduce or push them. See `LIVE_READINESS.md`.
+- **"OneLive live" is not achievable end-to-end from this sandbox** — it requires (a) a real ingestion run to create events and (b) the unpushed auth gate; both depend on unmerged #7 work and on 3 local commits that only exist on the user's old sandbox. Fabricating events or a clerk_auth fix against absent files would be a §1 violation.
+- Security advisors: only INFO-level `rls_enabled_no_policy` on the service-role-only tables — intentional/benign.
+
+## Historical reality check (verified 2026-07-10)
 - **Migrations 0001-0007 are ALL applied** to live project `vqipjlvzfiwnandjumvx` (confirmed via `list_migrations`).
 - **PRs #1, #2, #3 are MERGED**; **PR #4 (source-trust scoring, migration 0008) is an open DRAFT**.
 - **Source catalog IMPORTED (2026-07-10):** the `source` table now holds **43 rows** (all enabled, 15 source_types, avg credibility_weight 0.673), verified via `execute_sql count(*)`. Migration `0009_source_name_unique` (unique constraint on `source.name`) applied to make the import idempotent.

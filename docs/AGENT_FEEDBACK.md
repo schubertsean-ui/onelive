@@ -107,3 +107,41 @@ tier, with the reasoning) + a `tools/` helper that resolves a stage label to a
 model id, and wire it into any future scheduled runner and the CI actions
 (currently hardcoded `claude-sonnet-4-6`). Tracked as TODOS.md item + arc
 `2026-07-11_agentic-harness-buildout.md` open thread #1.
+
+### 2026-07-12 — the founding anti-pattern was living inside the enforcement gate
+
+**Session:** cross-model review of PR #8 (agentic-harness buildout), fix, merge
+to master, and live-state reconcile.
+
+**Friction:** A cross-model review (GPT-5.5, security + domain-truth-and-trust
+personas) of the harness found that `tools/validate` — the gate whose entire
+job is to enforce §1 "couldn't verify must not look like passed" — itself
+printed `RESULT: PASS` + exit 0 when checks were SKIPPED or advisory. The single
+most important quality invariant in the project was violated by the tool meant
+to guarantee it. It shipped that way because the author (Claude) and the gate
+were never reviewed by a different model before landing.
+
+**Root cause:** self-review blind spot. The buildout was large, internally
+consistent, and written in one voice, so the "skip is loud but still green"
+compromise looked reasonable in isolation. It took an adversarial second model,
+pointed explicitly at the trust persona, to name it as the founding
+anti-pattern. Also: PR #8 sat as an unreviewed parallel branch — the process gap
+was that harness tooling was allowed to accumulate without the same
+cross-model + merge discipline applied to product code.
+
+**Fix applied this session:** `validate` now distinguishes RUN+PASS from
+SKIP/ADVISORY: the latter yield `RESULT: INCOMPLETE` + exit 2 unless a human
+explicitly acknowledges with `--allow-skips`. Same "unverified is not a pass"
+correction applied to `commit_sweep.py` (empty range => exit 2) and
+`test_audit.py` (docstring/detector brought into lockstep on patch()-mocks).
+Plus the `visual_regression` shell-injection P1 and three other P2s. All with
+regression tests; suite 120 -> 127 passing. Merged as `a0b3724`.
+
+**Suggested follow-up:** apply the same cross-model review + merge discipline to
+the two still-open PRs (#4, #7) BEFORE they land, not after. And treat harness
+tooling as production code for review purposes — it enforces the rules, so a bug
+in it is a rules bug. Separately: "OneLive live" is blocked on unpushed
+old-sandbox commits (Clerk gate + Next 15) and unmerged #7 (orchestrator) — see
+`LIVE_READINESS.md`; the sandbox-portability of in-progress work is a recurring
+friction worth solving (push WIP branches early, don't let commits live only on
+one sandbox).
