@@ -1,0 +1,13 @@
+# Next.js build output
+.next/
+out/
+
+# Dependencies
+node_modules/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Local QA artifacts (screenshots/logs are throwaway; mock-api.mjs is kept)
+qa/shots/
+qa/*.log
