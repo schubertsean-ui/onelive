@@ -25,8 +25,20 @@ scope, never trust.
 
 ### 1a. World-class is the bar, and it is defined — not vibes
 "World-class" is not a compliment we award ourselves; it is a claim we must be
-able to defend. A component is world-class only when ALL of the following hold —
-and we state, for each, HOW we know:
+able to defend.
+
+**Scope: world-class applies to EVERY aspect of the build, without exception** —
+not just code correctness. That means, at minimum: system & data architecture;
+the data model and schema; APIs and contracts; the UX/UI and its copy,
+accessibility, and states (loading/empty/error); the trust & verification layer;
+security and privacy; performance and cost; reliability and failure semantics;
+observability (logging, tracing, metrics); tests; the developer experience; and
+the documentation itself. If any one aspect is merely "fine," the thing is not
+world-class — a great engine in a broken chassis is not a great car. No aspect
+gets a pass because another aspect is strong.
+
+A component (in ANY of the aspects above) is world-class only when ALL of the
+following hold — and we state, for each, HOW we know:
 - **Correct at the core, not just at the surface.** The central logic is right,
   not merely the happy path. (Example failure: an extraction scorer whose
   hallucination KPI is poisoned because its comparison layer flags a correctly
