@@ -133,6 +133,33 @@ Follows through on the accepted-tradeoff/DECISION-TO-REVISIT flagged in migratio
 - **Semantics note / flagged for founder:** `private_access` is a freeform jsonb carried straight from AI extraction (`ai_models.py` → `candidate_store.py` → `promote.py` → `event`) and surfaced verbatim in the API responses. **No code anywhere branches on its contents** — it is a passthrough blob today, so "empty jsonb = not private" is the only interpretation the current code supports, and 0007 uses it. IF a future use case gives `private_access` richer meaning (e.g. `{"ticket_holders": ...}` = "restricted to specific ticket holders" rather than fully private), this policy's `private_access = '{}'` test would over-hide such events from the anon key and should be revisited then. Implemented the straightforward interpretation per the current code; flagged here so the nuance isn't silently lost.
 - **Tests** in `tests/test_migration_0007_narrow_event_read.py`: structural (no DB) asserting the event USING clause references BOTH `is_private_rsvp` and `private_access` (not `using (true)`), stays SELECT-only for anon+authenticated, introduces no write policy, and that venue/artist remain `using (true)`; a backend-guarantee test (no DB) asserting `/tonight`+`/events` still read via service-role psycopg2 (not the Supabase client SDK) and never filter on confidence; plus a `@dbintegration` test (skips without `ONELIVE_TEST_DB_DSN`) that creates public + private events and asserts an `anon`/`authenticated` role sees only the public one while the service-role connection still sees all. Full suite: **48 passed, 10 skipped**.
 
+## Agentic harness buildout (2026-07-11, branch `feat/agentic-harness-buildout`)
+Audited the build against two external agentic frameworks (Jamon Holmgren's 18-item
+setup and the 20-step Loop Engineering roadmap) and built out every missing/partial
+piece. All committed on the branch, full `tools/validate` gate green (7 PASS, 1
+SKIP-loud for visual regression which needs a booted app). Test suite 78→120 passing.
+- **Enforcement:** `tools/lint.py` (pure-stdlib conventions linter, `--fix`) +
+  `.pre-commit-config.yaml` + `tools/install_hooks.sh` (hook runs lint --fix +
+  trust_gate, blocks bad commits).
+- **Single gate:** `tools/validate` runs trust_gate, lint, full pytest,
+  eval_harness import, perf benchmarks, test_audit, commit_sweep, visual_regression
+  (SKIP-loud headless), with a PASS/FAIL/SKIP summary; a skip is never counted green.
+- **Quality instrumentation:** `tools/commit_sweep.py` (cross-commit gotchas),
+  `tools/test_audit.py` (false-confidence test scan), `tests/test_perf_benchmarks.py`
+  + `tools/profile_target.py` (perf budgets + profiling), `tools/visual_regression.py`
+  + `tests/visual_baselines/`.
+- **Autonomy + review:** `docs/skills/night_shift.md` (orchestration loop, layered
+  exits, open/closed choice, hard stops), `docs/review_personas/` (6 cross-agent
+  review lenses w/ doc ownership), `tools/agent_review` CLI, `tools/README.md`.
+- **Docs + queue:** `docs/TESTS.md`, `docs/CODING_CONVENTIONS.md`, `TODOS.md`,
+  `docs/AGENT_FEEDBACK.md`; git-tag-per-arc convention; all wired into CLAUDE.md /
+  SESSION_START.md / OPERATING_RULES.md (nothing orphaned).
+- **Known remaining world-class gap:** model-cost routing (Loop step 17) — no router
+  yet; documented as prose in night_shift.md §4 and tracked in TODOS.md + AGENT_FEEDBACK.
+- New dev-time deps (all optional, none required to run the app): `pytest` (already
+  noted), and — only for the visual-regression capture path — a Playwright/headless
+  browser + PIL, both gracefully absent-tolerant (fail-loud with install instructions).
+
 ## What's next
 - **Next phase: public consumer PWA screen + Clerk auth wiring.** Clerk IS now connected
   to the project. Next step: wire the consumer feed UI and auth/claim flow. Nothing in

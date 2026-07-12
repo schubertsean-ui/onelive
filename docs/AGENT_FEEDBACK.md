@@ -77,3 +77,33 @@ the real code path would still slip past AST-level detection, so human
 review of new regression tests for auto-fixers specifically should still
 double-check they use a realistic multi-group/multi-file fixture, not just a
 single trivial one).
+
+### 2026-07-11 — cost/model-routing (Loop step 17) has no home in the harness yet
+
+**Session:** `feat/agentic-harness-buildout`, closing pass (assessment vs. the
+20-step Loop Engineering roadmap + controlling-doc wiring).
+
+**Friction:** Assessing OneLive against the Loop Engineering roadmap surfaced one
+world-class gap the buildout could NOT close with existing structure: step 17
+(route each loop step to the cheapest capable model; reuse stable prompt
+prefixes). There was no doc or helper to point the routing rule at, so it lives
+only as prose in `docs/skills/night_shift.md` §4 with an explicit "apply by
+judgment until a router exists" caveat. That is a documented gap, not a silent
+one — but it is judgment where the rest of the harness is mechanical.
+
+**Root cause:** the harness matured verifier-first (trust_gate, validate,
+test_audit) and state-first (STATE.md, reconcile, arcs). Cost was never a
+first-class concern because most work has been interactive/human-paced, where the
+model choice is made by the operator, not the loop. The moment a real scheduled
+runner exists (step 19), un-routed model selection becomes a live cost risk.
+
+**Fix applied this session:** none (out of scope for a doc/harness buildout;
+routing needs a small runtime helper + a policy doc, and ideally hooks into the
+actual model-call sites which are currently the CI Claude actions + interactive
+sessions, not a central call path).
+
+**Suggested follow-up:** add `docs/MODEL_ROUTING.md` (policy: which stage → which
+tier, with the reasoning) + a `tools/` helper that resolves a stage label to a
+model id, and wire it into any future scheduled runner and the CI actions
+(currently hardcoded `claude-sonnet-4-6`). Tracked as TODOS.md item + arc
+`2026-07-11_agentic-harness-buildout.md` open thread #1.
