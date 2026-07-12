@@ -73,16 +73,37 @@ def _run_real() -> int:
         return 1
 
     ai = ClaudeProvider()
+    # Column names mirror the `source` schema (migrations 0001 + 0010):
+    # source_id / name / base_url / source_type / enabled. The orchestrator's
+    # per-source dict contract is {source_id, name, url, source_class} (see
+    # worker.orchestrator.run_loop), so base_url -> url and source_type ->
+    # source_class are mapped explicitly here. A row with a null base_url is
+    # skipped loudly (it cannot be fetched) rather than fed a None url.
     with candidate_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("select source_id, name, url, source_class from source where active = true")
+            cur.execute(
+                "select source_id, name, base_url, source_type "
+                "from source where enabled = true"
+            )
             rows = cur.fetchall()
-    sources = [
-        {"source_id": str(sid), "name": name, "url": url, "source_class": source_class}
-        for (sid, name, url, source_class) in rows
-    ]
+    sources = []
+    skipped_no_url = []
+    for (sid, name, base_url, source_type) in rows:
+        if not base_url:
+            skipped_no_url.append(name)
+            continue
+        sources.append({
+            "source_id": str(sid),
+            "name": name,
+            "url": base_url,
+            "source_class": source_type,
+        })
+    if skipped_no_url:
+        print(f"WARNING: skipped {len(skipped_no_url)} enabled source(s) with no "
+              f"base_url: {', '.join(skipped_no_url[:10])}", file=sys.stderr)
     if not sources:
-        print("ERROR: no active sources found in the `source` table.", file=sys.stderr)
+        print("ERROR: no enabled, fetchable sources found in the `source` table.",
+              file=sys.stderr)
         return 1
 
     report = run_loop(ai=ai, sources=sources, sxsw_mode=False, promote=False, dsn=dsn)

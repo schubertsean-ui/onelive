@@ -10,30 +10,42 @@ a verified state (full pytest + trust_gate green) and a commit on the branch.
 
 ## Gates (in dependency order)
 
-1. **Eval loop (Layer 4)** — adversarial corpus + runner + over-suppression
-   tracking, on the hardened scorer. Exit: corpus loads, gate/sensor cases pass
-   with ai=None, over_suppression surfaced, sabotage test proves it can fail.
+1. **Eval loop (Layer 4)** — DONE (commit 651abfd). 14-case adversarial corpus +
+   deterministic runner reusing the one scorer; over_suppression first-class;
+   sabotage tests prove it reports failure. `python -m ai.eval_loop` exit 0,
+   gate/sensor accuracy 1.000, over_suppression 0.000.
 
-2. **Source schema: geo/coverage dimension** — migration adding `county`,
-   `sub_region`, `coverage_categories` to `source`; the reason 43 sources was
-   "coverage theater" is there was no way to measure geographic/category
-   blindness. Exit: migration + model + tests green.
+2. **Source schema: geo/coverage dimension** — DONE (commit 8b3fc9b). Migration
+   0010 adds `county` (CHECK-constrained to the 5-county MSA), `sub_region`,
+   `coverage_categories`; importer writes + upserts them (commit 9a70a04).
 
-3. **Real source catalog (250–400+)** — 5-county Austin metro (Travis,
-   Williamson, Hays, Bastrop, Caldwell) × categories (music venues, theaters/
-   arts, galleries/museums, food/culinary, universities, city/county calendars,
-   local media, community/cultural orgs). VERIFIED real URLs via browser
-   research — NEVER model-invented sources (that would poison the catalog and
-   violate the Class-D trust discipline). Scored + imported idempotently.
-   Exit: source table holds the catalog, geotagged, category-balanced.
+3. **Real source catalog** — DONE (commit a85da83). 193 VERIFIED sources across
+   all 5 counties (Travis 86, Williamson 39, Hays 36, Bastrop 18, Caldwell 14).
+   196 candidates from browser research → HTTP sweep → browser re-verification
+   of every non-200 → 8 URLs corrected, 3 dead dropped. NEVER model-invented.
+   `sources/austin_metro_catalog.json` is canonical; old 43 renamed *_LEGACY.
 
-4. **Coverage report** — `tools/coverage_report.py`: county × category matrix so
-   "are we blind anywhere?" is a query. Exit: report runs, shows the grid.
+4. **Coverage report** — DONE (commit 9a70a04). `tools/coverage_report.py` renders
+   the county × category grid and surfaces coverage debt (empty cells,
+   uncategorized, out-of-domain county). Proven on both catalogs.
 
-5. **Pipeline on real data** — run orchestrator `--real` end-to-end; confirm
-   candidates promote through the 3-way gate; measure hallucination_rate on real
-   extractions. Exit: ≥1 confirmed event lands from real sources; metrics
-   recorded. THE biggest unknown — de-risks the whole launch.
+5. **Pipeline on real data** — PARTIALLY VERIFIED (honest scope).
+   - VERIFIED DB-less on REAL data (`tools/real_source_probe.py`): 189/193 real
+     source pages fetch (98%; the 4 misses are sandbox SSL/403 artifacts on
+     sites confirmed live in-browser), and **189/189 fetched pages pass the
+     hardened context-hygiene sensor (100%, zero over-suppression on real data)**
+     — the first real-world failure mode (silent sensor rejection) is measured
+     and clear. Fixed a latent bug in `worker/run_once.py --real` found here:
+     it queried non-existent columns (`active`/`url`/`source_class`); corrected
+     to the real schema (`enabled`/`base_url`/`source_type`).
+   - NOT YET RUN: full `--real` (fetch→extract→gate→promote) end-to-end and
+     hallucination_rate on real extractions. BLOCKED by environment, not code:
+     `fetch_url` writes a raw_fetch audit row and `extract_candidate` writes the
+     candidate store, so every real stage needs a live Postgres; extraction also
+     needs the model key. The build sandbox has neither. This is a Gate-9
+     founder-environment decision (point prod DSN + key, run one real cycle),
+     documented rather than faked. The extract→gate→promote path IS exercised
+     hermetically by the suite + eval loop; only the real-data measurement waits.
 
 6. **Public feed UI** — `/tonight` + event feed, world-class UX: loading/empty/
    error states, accessibility, copy, and trust display (confidence states:
