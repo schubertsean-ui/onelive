@@ -1,17 +1,16 @@
 """DB access layer for event_candidate / candidate_evidence.
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/candidate_store.py)
 """
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 import json
-import os
 
 import psycopg2
 
-DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
+from worker.db_config import resolve_dsn
 
 
 def db():
-    return psycopg2.connect(DB_DSN)
+    return psycopg2.connect(resolve_dsn())
 
 
 def create_candidate(
@@ -96,3 +95,73 @@ def list_candidate_source_classes(candidate_id: str) -> List[str]:
         with conn.cursor() as cur:
             cur.execute("select source_class from candidate_evidence where candidate_id=%s", (candidate_id,))
             return [r[0] for r in cur.fetchall()]
+
+
+def _load_gate_signals(cur, candidate_id: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Read the REAL stored extraction + evidence-derived gate signals for a
+    candidate on `cur`. Shared body of load_candidate_gate_signals so a caller
+    already inside a transaction (worker.promote) can run the exact same load on
+    its own cursor and gate on the same snapshot it promotes from.
+    """
+    cur.execute(
+        """
+        select extracted, start_time, venue_name, is_private_rsvp
+        from event_candidate where candidate_id=%s
+        """,
+        (candidate_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        raise ValueError(f"candidate not found: {candidate_id}")
+    extracted, start_time, venue_name, is_private_rsvp = row
+    extracted = dict(extracted or {})
+    # The dedicated column is authoritative: fold it in so a private/RSVP event
+    # can never look public to the gate because of a stale jsonb copy.
+    extracted["is_private_rsvp"] = bool(is_private_rsvp) or bool(extracted.get("is_private_rsvp"))
+
+    # Distinct non-null start-time claims across the candidate's own column and
+    # its stored extracted payload; >1 distinct value is a real cross-signal
+    # conflict for trust_gate3 (which ESCALATEs rather than PASSing).
+    start_times: List[str] = []
+    if start_time is not None:
+        start_times.append(start_time.isoformat() if hasattr(start_time, "isoformat") else str(start_time))
+    ex_start = extracted.get("start_time")
+    if ex_start:
+        start_times.append(str(ex_start))
+
+    # Dedupe hint from real stored data: another live candidate naming the same
+    # venue at the same start_time is a genuine "two candidates, one slot"
+    # ambiguity a human should resolve before publish.
+    dedupe_ambiguous = False
+    if venue_name and start_time is not None:
+        cur.execute(
+            """
+            select count(*) from event_candidate
+            where candidate_id <> %s
+              and lower(venue_name) = lower(%s)
+              and start_time = %s
+              and status in ('needs_review', 'ready_to_promote')
+            """,
+            (candidate_id, venue_name, start_time),
+        )
+        dedupe_ambiguous = cur.fetchone()[0] > 0
+
+    return extracted, {"start_times": start_times, "dedupe_ambiguous": dedupe_ambiguous}
+
+
+def load_candidate_gate_signals(candidate_id: str, cur=None) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Load a candidate's REAL stored extraction + evidence signals for gate3.
+
+    Returns (extracted, evidence_signals) where `extracted` is the stored
+    `extracted` jsonb (carrying `_provenance.validation_error` and the
+    authoritative `is_private_rsvp`) and `evidence_signals` is
+    {"start_times": [...], "dedupe_ambiguous": bool}. This is the single seam
+    the orchestrator and the promotion guard use so gate3 sees actual stored
+    facts — never a test-only injected shortcut. Pass `cur` to reuse an open
+    transaction; otherwise a short-lived connection is opened.
+    """
+    if cur is not None:
+        return _load_gate_signals(cur, candidate_id)
+    with db() as conn:
+        with conn.cursor() as own:
+            return _load_gate_signals(own, candidate_id)

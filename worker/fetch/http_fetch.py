@@ -11,12 +11,13 @@ import time
 import psycopg2
 import requests
 
-DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
+from worker.db_config import resolve_dsn
+
 RAW_DIR = os.getenv("ONELIVE_RAW_DIR", "var/raw")
 
 
 def db():
-    return psycopg2.connect(DB_DSN)
+    return psycopg2.connect(resolve_dsn())
 
 
 def sha256(b: bytes) -> str:

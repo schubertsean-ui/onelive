@@ -2,15 +2,14 @@
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/dedupe.py)
 """
 from typing import List
-import os
 
 import psycopg2
 
-DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
+from worker.db_config import resolve_dsn
 
 
 def db():
-    return psycopg2.connect(DB_DSN)
+    return psycopg2.connect(resolve_dsn())
 
 
 _DUP_SQL = """

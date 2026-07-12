@@ -2,20 +2,40 @@
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/promote.py)
 """
 import json
-import os
 
 import psycopg2
 
+from worker.candidate_store import load_candidate_gate_signals
 from worker.confidence import derive_confidence, is_valid_confidence
+from worker.db_config import resolve_dsn
 from worker.dedupe import find_possible_duplicates
-from worker.gating import multi_confirm_gate
 from worker.resolve_entities import resolve_venue_id, resolve_artist_ids
-
-DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
+from worker.trust_gate3 import GateDecision, evaluate_gate
 
 
 def db():
-    return psycopg2.connect(DB_DSN)
+    return psycopg2.connect(resolve_dsn())
+
+
+def assert_promotable(*, source_classes, sxsw_mode, extracted, evidence_signals):
+    """Full three-way trust-gate guard for the publish step. Raises ValueError
+    unless the candidate is a real PASS. Extracted as a pure function so the
+    "only a PASS from real data may be published" invariant is unit-testable
+    without a database, and so both the orchestrator-facing gate and this
+    promotion-time re-check enforce the identical rule.
+    """
+    verdict = evaluate_gate(
+        source_classes=source_classes,
+        sxsw_mode=sxsw_mode,
+        extracted=extracted,
+        evidence_signals=evidence_signals,
+    )
+    if verdict.decision is not GateDecision.PASS:
+        raise ValueError(
+            f"promotion refused: trust gate did not PASS "
+            f"({verdict.decision.value}: {verdict.reason})"
+        )
+    return verdict
 
 
 def promote_candidate(candidate_id: str) -> str:
@@ -29,9 +49,24 @@ def promote_candidate(candidate_id: str) -> str:
 
             cur.execute("select source_class from candidate_evidence where candidate_id=%s", (candidate_id,))
             classes = [r[0] for r in cur.fetchall()]
-            gate = multi_confirm_gate(classes, sxsw_mode=sxsw_mode)
-            if not gate.ok_to_promote:
-                raise ValueError(gate.reason)
+
+            # Re-run the FULL three-way trust gate here — not just the 2-way
+            # source-count gate — against the candidate's REAL stored extraction
+            # and evidence signals, loaded on THIS cursor so we gate on the same
+            # snapshot we promote from. This is the last, authoritative guard
+            # before a row reaches the canonical `event` table: promotion is the
+            # publish step, so anything that is not a PASS produced from real
+            # data (HOLD for weak corroboration, ESCALATE for validation-error /
+            # private-RSVP / conflicting-start-time / dedupe ambiguity) is
+            # refused here regardless of how it got to this call. evaluate_gate
+            # wraps multi_confirm_gate, so the count-based check is subsumed.
+            extracted, evidence_signals = load_candidate_gate_signals(candidate_id, cur=cur)
+            assert_promotable(
+                source_classes=classes,
+                sxsw_mode=sxsw_mode,
+                extracted=extracted,
+                evidence_signals=evidence_signals,
+            )
 
             # Derive the initial 4-state confidence from the evidence that
             # cleared the gate (anchor -> confirmed, corroborated -> likely).

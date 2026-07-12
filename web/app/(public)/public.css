@@ -1,0 +1,292 @@
+/* OneLive public feed — its own art direction, distinct from the ops utility UI.
+   Concept: late-evening live culture in Austin. Deep ink surface, warm amber
+   accent (stage light), restrained type. Honest-by-design trust colors. */
+
+.pub {
+  --ink: #0e0f13;
+  --ink-2: #16181f;
+  --surface: #1b1e27;
+  --surface-2: #22262f;
+  --line: #2c313d;
+  --text: #f4f2ee;
+  --text-dim: #a7adba;
+  --text-faint: #757c8a;
+  --amber: #ffb23e;
+  --amber-ink: #1a1206;
+
+  /* Trust palette — each state reads differently at a glance and by label. */
+  --c-confirmed: #4ade80;
+  --c-confirmed-bg: rgba(74, 222, 128, 0.12);
+  --c-likely: #7dd3fc;
+  --c-likely-bg: rgba(125, 211, 252, 0.12);
+  --c-unverified: #fbbf24;
+  --c-unverified-bg: rgba(251, 191, 36, 0.12);
+  --c-disputed: #fb7185;
+  --c-disputed-bg: rgba(251, 113, 133, 0.14);
+
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 600px at 78% -8%, rgba(255, 178, 62, 0.10), transparent 60%),
+    var(--ink);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pub a { color: inherit; text-decoration: none; }
+
+.pub-wrap { max-width: 780px; margin: 0 auto; padding: 28px 20px 96px; }
+
+/* Header */
+.pub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0 22px;
+}
+.pub-brand { display: flex; align-items: center; gap: 11px; }
+.pub-brand svg { display: block; }
+.pub-brand-name {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.pub-brand-name b { color: var(--amber); font-weight: 700; }
+.pub-city {
+  font-size: 13px;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+/* Hero */
+.pub-hero { padding: 6px 0 20px; }
+.pub-kicker {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin: 0 0 8px;
+}
+.pub-title {
+  font-size: clamp(30px, 6vw, 44px);
+  line-height: 1.04;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 10px;
+}
+.pub-sub {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin: 0;
+  max-width: 52ch;
+}
+
+/* Trust legend */
+.pub-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 20px 0 6px;
+  padding: 14px 16px;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.pub-legend-title {
+  width: 100%;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 2px;
+}
+.pub-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+/* Event list */
+.pub-feed { display: flex; flex-direction: column; gap: 12px; margin-top: 22px; }
+.pub-daygroup-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin: 18px 2px 2px;
+}
+
+.pub-card {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+  transition: border-color 140ms ease, transform 140ms ease, background 140ms ease;
+}
+.pub-card:hover,
+.pub-card:focus-within {
+  border-color: #3a4150;
+  background: var(--surface-2);
+  transform: translateY(-1px);
+}
+.pub-card-time {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+.pub-time { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.pub-time-day { font-size: 11.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
+.pub-card-body { min-width: 0; }
+.pub-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pub-venue {
+  font-size: 16.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+.pub-venue-city { font-size: 13px; color: var(--text-dim); margin: 3px 0 0; }
+.pub-notes {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  margin: 10px 0 0;
+  overflow-wrap: break-word;
+}
+
+/* Confidence badge */
+.pub-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.pub-badge-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.pub-badge[data-tone="confirmed"] { color: var(--c-confirmed); background: var(--c-confirmed-bg); border-color: rgba(74,222,128,0.28); }
+.pub-badge[data-tone="confirmed"] .pub-badge-dot { background: var(--c-confirmed); }
+.pub-badge[data-tone="likely"] { color: var(--c-likely); background: var(--c-likely-bg); border-color: rgba(125,211,252,0.28); }
+.pub-badge[data-tone="likely"] .pub-badge-dot { background: var(--c-likely); }
+.pub-badge[data-tone="unverified"] { color: var(--c-unverified); background: var(--c-unverified-bg); border-color: rgba(251,191,36,0.30); }
+.pub-badge[data-tone="unverified"] .pub-badge-dot { background: var(--c-unverified); }
+.pub-badge[data-tone="disputed"] { color: var(--c-disputed); background: var(--c-disputed-bg); border-color: rgba(251,113,133,0.34); }
+.pub-badge[data-tone="disputed"] .pub-badge-dot { background: var(--c-disputed); }
+
+/* Disputed events get an explicit inline caution line — never hidden. */
+.pub-caution {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 11px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  background: var(--c-disputed-bg);
+  color: #ffc2cc;
+  border: 1px solid rgba(251,113,133,0.30);
+}
+.pub-caution[data-tone="unverified"] {
+  background: var(--c-unverified-bg);
+  color: #ffe0a3;
+  border-color: rgba(251,191,36,0.30);
+}
+
+/* States: skeleton, empty, error */
+.pub-skel-card {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+.pub-skel {
+  background: linear-gradient(90deg, #232732 25%, #2c313d 37%, #232732 63%);
+  background-size: 400% 100%;
+  animation: pub-shimmer 1.4s ease infinite;
+  border-radius: 7px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pub-skel { animation: none; }
+  .pub-card { transition: none; }
+}
+@keyframes pub-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+.pub-state {
+  text-align: center;
+  padding: 56px 24px;
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  margin-top: 22px;
+}
+.pub-state-icon { margin: 0 auto 14px; color: var(--text-faint); }
+.pub-state-title { font-size: 18px; font-weight: 700; margin: 0 0 6px; }
+.pub-state-body { font-size: 14px; color: var(--text-dim); margin: 0 auto; max-width: 46ch; line-height: 1.55; }
+.pub-retry {
+  margin-top: 18px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--amber-ink);
+  background: var(--amber);
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  cursor: pointer;
+}
+.pub-retry:hover { filter: brightness(1.06); }
+.pub-retry:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Footer */
+.pub-footer {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--text-faint);
+  line-height: 1.6;
+}
+
+/* Focus visibility for keyboard users everywhere */
+.pub a:focus-visible,
+.pub button:focus-visible,
+.pub [tabindex]:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (max-width: 480px) {
+  .pub-card, .pub-skel-card { grid-template-columns: 62px 1fr; gap: 12px; padding: 14px; }
+  .pub-time { font-size: 15px; }
+  /* Stack the badge under the venue on narrow screens so the title keeps its
+     full width and never has to break mid-word. */
+  .pub-card-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .pub-badge { order: -1; }
+}

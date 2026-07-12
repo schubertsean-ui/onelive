@@ -2,8 +2,10 @@ import { apiGet } from "../../../../lib/api";
 import { EvidenceForm } from "../../../../components/EvidenceForm";
 import { CandidateActions } from "../../../../components/CandidateActions";
 
-export default async function CandidatePage({ params }: { params: { id: string } }) {
-  const data = await apiGet(`/ops/candidates/${params.id}`);
+export default async function CandidatePage({ params }: { params: Promise<{ id: string }> }) {
+  // Next.js 15: route `params` is async and must be awaited before use.
+  const { id } = await params;
+  const data = await apiGet(`/ops/candidates/${id}`);
   const c = data.candidate;
   return (
     <div className="row">
@@ -18,11 +20,11 @@ export default async function CandidatePage({ params }: { params: { id: string }
           <div className="small" style={{ marginTop: 8 }}><b>Raw:</b><br />{(c.raw_text || "").slice(0, 800)}</div>
         </div>
         <div style={{ marginTop: 12 }}>
-          <EvidenceForm candidateId={params.id} onDone={() => { /* refresh via reload */ }} />
+          <EvidenceForm candidateId={id} onDone={() => { /* refresh via reload */ }} />
         </div>
       </div>
       <div style={{ flex: 1, minWidth: 280 }}>
-        <CandidateActions candidateId={params.id} />
+        <CandidateActions candidateId={id} />
         <div style={{ marginTop: 12 }} className="card">
           <div className="h1">Evidence</div>
           {(data.evidence || []).map((e: any) => (

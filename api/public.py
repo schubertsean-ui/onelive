@@ -3,18 +3,22 @@ disputed events are always shown as disputed, never dropped (CLAUDE.md 4-state
 confidence model; guarded by a structural test in tests/test_gates.py).
 """
 from datetime import datetime, timedelta, timezone
-import os
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 import psycopg2
 
-DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
+from api.clerk_auth import require_allowlisted_user
+from worker.db_config import resolve_dsn
 
-router = APIRouter(tags=["public"])
+# Stealth launch: the whole app is private, so even the consumer read feed is
+# gated by layer 2 (a valid, allowlisted Clerk token). Applied at the router
+# level so every route here is protected uniformly; /healthz stays public
+# because it is mounted on the app in api/main.py, not on this router.
+router = APIRouter(tags=["public"], dependencies=[Depends(require_allowlisted_user)])
 
 
 def db():
-    return psycopg2.connect(DB_DSN)
+    return psycopg2.connect(resolve_dsn())
 
 
 @router.get("/events")

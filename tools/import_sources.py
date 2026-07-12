@@ -4,22 +4,28 @@ Source: extracted from Entertainment-App-Code-v1-4 reference build (tools/import
 import argparse
 import json
 import os
+import sys
 
 import psycopg2
 
-DEFAULT_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
+# Make the repo root importable when run directly as a script.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from worker.db_config import resolve_dsn
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", required=True, help="Path to sources JSON")
-    ap.add_argument("--dsn", default=DEFAULT_DSN)
+    # No hardcoded DSN default: use --dsn, else resolve from env
+    # (ONELIVE_DB_DSN, or the explicit ONELIVE_DEV_DB=1 dev opt-in).
+    ap.add_argument("--dsn", default=None)
     args = ap.parse_args()
+    dsn = args.dsn or resolve_dsn()
 
     with open(args.json, "r", encoding="utf-8") as f:
         sources = json.load(f)
 
-    with psycopg2.connect(args.dsn) as conn:
+    with psycopg2.connect(dsn) as conn:
         with conn.cursor() as cur:
             for s in sources:
                 # ON CONFLICT (name) requires the source_name_key unique
