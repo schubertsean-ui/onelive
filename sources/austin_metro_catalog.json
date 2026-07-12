@@ -1,0 +1,2322 @@
+[
+  {
+    "name": "Austin Parks and Recreation Department",
+    "base_url": "https://www.austintexas.gov/parks",
+    "category": "city_calendar",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Confirmed via fetch; official city parks department page with upcoming events listings."
+  },
+  {
+    "name": "Austin Public Library Events Calendar",
+    "base_url": "https://library.austintexas.gov/events/calendar",
+    "category": "city_calendar",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "literary",
+      "community",
+      "film"
+    ],
+    "note": "Confirmed via fetch; official City of Austin library system events calendar with real story times, book clubs, and programs."
+  },
+  {
+    "name": "City of Austin Events (Arts & Culture)",
+    "base_url": "https://www.austintexas.gov/ace/events",
+    "category": "city_calendar",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "community",
+      "festival",
+      "music"
+    ],
+    "note": "Confirmed via fetch; Austin Arts, Culture, Music & Entertainment (ACME) department event listings including Austin FC games, Bat Fest, Austin Pride."
+  },
+  {
+    "name": "City of Austin Full Events Calendar",
+    "base_url": "https://www.austintexas.gov/events",
+    "category": "city_calendar",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "community",
+      "festival",
+      "museum"
+    ],
+    "note": "Confirmed via fetch; official city government events calendar listing hundreds of real dated events (farmers markets, museum programs, civic events). [url corrected during liveness verification]"
+  },
+  {
+    "name": "Visit Austin (Austin CVB) Events",
+    "base_url": "https://www.austintexas.org/events/",
+    "category": "city_calendar",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "music",
+      "food",
+      "festival",
+      "theater",
+      "community"
+    ],
+    "note": "Official Austin Convention & Visitors Bureau tourism events site (austintexas.org), confirmed via multiple search results."
+  },
+  {
+    "name": "Visit Austin Festivals Calendar",
+    "base_url": "https://www.austintexas.org/events/festivals/",
+    "category": "city_calendar",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "festival",
+      "music",
+      "food"
+    ],
+    "note": "Official CVB festival-specific listings page confirmed via search result."
+  },
+  {
+    "name": "Waterloo Greenway Conservancy",
+    "base_url": "https://waterloogreenway.org/events/",
+    "category": "city_calendar",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "community",
+      "festival",
+      "music"
+    ],
+    "note": "Confirmed via direct fetch; official conservancy events page covering Waterloo Park/Moody Amphitheater grounds programming (Wild Waterloo nature series, Two-Step Night, etc.)."
+  },
+  {
+    "name": "Asian American Resource Center (AARC)",
+    "base_url": "https://www.austintexas.gov/aarc/asian-american-resource-center-event-calendar",
+    "category": "community",
+    "county": "travis",
+    "sub_region": "north_austin",
+    "coverage_categories": [
+      "community",
+      "literary",
+      "museum"
+    ],
+    "note": "Confirmed via direct fetch; official City of Austin page with real dated 2026 events."
+  },
+  {
+    "name": "Austin Museum Partnership",
+    "base_url": "https://www.austinmuseums.org/",
+    "category": "community",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "museum",
+      "visual_art",
+      "community"
+    ],
+    "note": "Confirmed via search result; official coalition/directory site of Austin-area museums including Bullock, Blanton, Contemporary Austin, Elisabet Ney, and others."
+  },
+  {
+    "name": "Emma S. Barrientos Mexican American Cultural Center (ESB-MACC)",
+    "base_url": "https://www.austintexas.gov/macc",
+    "category": "community",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "community",
+      "music",
+      "visual_art"
+    ],
+    "note": "Confirmed via direct fetch; official City of Austin page with real dated 2026 events (Casa de la Cultura series). Located at 600 River St."
+  },
+  {
+    "name": "Texas Book Festival",
+    "base_url": "https://texasbookfestival.org/events/",
+    "category": "community",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "literary",
+      "festival"
+    ],
+    "note": "Confirmed via direct fetch; extensive real dated 2025-2026 events listed (year-round programming plus annual festival weekend near the Capitol)."
+  },
+  {
+    "name": "Austin City Limits Music Festival (ACL Fest)",
+    "base_url": "https://www.aclfestival.com/",
+    "category": "festival_feed",
+    "county": "travis",
+    "sub_region": "zilker",
+    "coverage_categories": [
+      "music",
+      "festival"
+    ],
+    "note": "Confirmed via direct official domain with schedule page; held annually at Zilker Park."
+  },
+  {
+    "name": "Austin Film Festival",
+    "base_url": "https://austinfilmfestival.com/events/list/",
+    "category": "festival_feed",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "film",
+      "literary"
+    ],
+    "note": "Confirmed via direct domain (austinff.com/screenplay/); annual Oct-Nov writers conference/film festival. [url corrected during liveness verification]"
+  },
+  {
+    "name": "Fusebox Festival",
+    "base_url": "https://fuseboxlive.com/",
+    "category": "festival_feed",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "theater",
+      "visual_art",
+      "community",
+      "festival"
+    ],
+    "note": "Confirmed via direct domain; adventurous live performance, film, visual art, literature, and music festival, real 2026 series pages."
+  },
+  {
+    "name": "Levitation Festival",
+    "base_url": "https://levitation.fm/",
+    "category": "festival_feed",
+    "county": "travis",
+    "sub_region": "east_austin",
+    "coverage_categories": [
+      "music",
+      "festival"
+    ],
+    "note": "Confirmed via direct domain; official festival site with 2026 dates (Sept 10-13) and venue details (Radio/East, Stubb's, Mohawk, etc.)."
+  },
+  {
+    "name": "Old Settler's Music Festival",
+    "base_url": "https://oldsettlersmusicfest.org/",
+    "category": "festival_feed",
+    "county": "travis",
+    "sub_region": "greater_austin",
+    "coverage_categories": [
+      "music",
+      "festival"
+    ],
+    "note": "Confirmed via direct fetch/search; official festival site with schedule, lineup, tickets pages. Technically held near Dale, TX (Bastrop County) but heavily Austin-oriented; flagged sub_region as greater_austin rather than a Travis Co. neighborhood."
+  },
+  {
+    "name": "SXSW",
+    "base_url": "https://www.sxsw.com/",
+    "category": "festival_feed",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "music",
+      "film",
+      "comedy",
+      "community",
+      "festival"
+    ],
+    "note": "Confirmed via direct official domain; major annual conference/festival with music, film, comedy programming."
+  },
+  {
+    "name": "Austin Food & Wine Festival",
+    "base_url": "https://www.austinfoodandwinefestival.com/schedule",
+    "category": "food_culinary",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "food",
+      "festival"
+    ],
+    "note": "Real domain; annual festival at Auditorium Shores with schedule page."
+  },
+  {
+    "name": "Edible Austin",
+    "base_url": "https://edibleaustin.com/calendar/",
+    "category": "food_culinary",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "food"
+    ],
+    "note": "Real domain; local food magazine with dedicated events calendar covering county-wide culinary events."
+  },
+  {
+    "name": "Fareground",
+    "base_url": "https://www.faregroundaustin.com/",
+    "category": "food_culinary",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "food",
+      "music",
+      "community"
+    ],
+    "note": "Confirmed via direct fetch; Austin's first food hall at ONE ELEVEN Congress, hosts live music and events (e.g. Fareground Crawfish Festival)."
+  },
+  {
+    "name": "Blanton Museum of Art",
+    "base_url": "https://blantonmuseum.org/programs/",
+    "category": "gallery_museum",
+    "county": "travis",
+    "sub_region": "university",
+    "coverage_categories": [
+      "visual_art",
+      "museum"
+    ],
+    "note": "Confirmed via fetch; extensive listings including Blanton All Day and B Scene events, UT Austin's art museum."
+  },
+  {
+    "name": "Bullock Texas State History Museum",
+    "base_url": "https://www.thestoryoftexas.com/visit/calendar",
+    "category": "gallery_museum",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "museum",
+      "community"
+    ],
+    "note": "Confirmed via direct fetch; real calendar with dated 2026 programs (Trains at the Bullock, Poetry Out Loud, workshops)."
+  },
+  {
+    "name": "Elisabet Ney Museum",
+    "base_url": "https://www.austintexas.gov/ti-et/ney/programs-events",
+    "category": "gallery_museum",
+    "county": "travis",
+    "sub_region": "hyde_park",
+    "coverage_categories": [
+      "museum",
+      "visual_art"
+    ],
+    "note": "Official City of Austin page for this historic house museum/studio; alt nonprofit site theney.org also exists."
+  },
+  {
+    "name": "French Legation Museum",
+    "base_url": "https://thc.texas.gov/historic-sites/french-legation",
+    "category": "gallery_museum",
+    "county": "travis",
+    "sub_region": "east_austin",
+    "coverage_categories": [
+      "museum",
+      "community"
+    ],
+    "note": "Confirmed via direct fetch of Texas Historical Commission page; Austin's oldest home/museum at 802 San Marcos St, hosts events like Bastille Day celebration."
+  },
+  {
+    "name": "George Washington Carver Museum, Cultural & Genealogy Center",
+    "base_url": "https://www.austintexas.gov/carver/programs-events",
+    "category": "gallery_museum",
+    "county": "travis",
+    "sub_region": "east_austin",
+    "coverage_categories": [
+      "museum",
+      "community",
+      "music"
+    ],
+    "note": "Confirmed via direct fetch; official City of Austin page with real 2026 dated events (Juneteenth festival, exhibits, genealogy seminars)."
+  },
+  {
+    "name": "Harry Ransom Center (UT Austin)",
+    "base_url": "https://www.hrc.utexas.edu/events/",
+    "category": "gallery_museum",
+    "county": "travis",
+    "sub_region": "university",
+    "coverage_categories": [
+      "museum",
+      "literary",
+      "film",
+      "visual_art"
+    ],
+    "note": "Confirmed via direct fetch; UT Austin's research library/museum, real event calendar with lectures, film screenings, poetry readings, exhibition tours."
+  },
+  {
+    "name": "Lady Bird Johnson Wildflower Center",
+    "base_url": "https://www.wildflower.org/",
+    "category": "gallery_museum",
+    "county": "travis",
+    "sub_region": "south_austin",
+    "coverage_categories": [
+      "museum",
+      "community"
+    ],
+    "note": "Confirmed via multiple independent listings (UT Events Calendar, ticketing portal lbjwc.ticketapp.org) referencing official site wildflower.org; botanical garden/museum with real dated nature programs (birding, foraging, family events)."
+  },
+  {
+    "name": "Mexic-Arte Museum",
+    "base_url": "https://mexic-artemuseum.org/calendar/",
+    "category": "gallery_museum",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "visual_art",
+      "museum",
+      "community"
+    ],
+    "note": "Real domain; official Mexican and Mexican American Fine Arts Museum of Texas."
+  },
+  {
+    "name": "Neill-Cochran House Museum",
+    "base_url": "https://www.nchmuseum.org/events",
+    "category": "gallery_museum",
+    "county": "travis",
+    "sub_region": "west_campus",
+    "coverage_categories": [
+      "museum",
+      "community",
+      "music"
+    ],
+    "note": "Confirmed via direct fetch; real dated 2026 events (Sunday Fundays, author talks, performances, Juneteenth celebration) at historic house museum, 2310 San Gabriel St."
+  },
+  {
+    "name": "O. Henry Museum / Pun-Off World Championships",
+    "base_url": "https://www.austintexas.gov/o-henry/o-henry-museum-programs-and-events",
+    "category": "gallery_museum",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "museum",
+      "literary",
+      "community"
+    ],
+    "note": "Confirmed via direct fetch of official City of Austin page; hosts monthly literary discussion group and annual Pun-Off World Championships at Brush Square."
+  },
+  {
+    "name": "The Contemporary Austin",
+    "base_url": "https://thecontemporaryaustin.org/",
+    "category": "gallery_museum",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "visual_art",
+      "museum"
+    ],
+    "note": "Real domain; operates two sites, the Jones Center downtown and Laguna Gloria in west Austin."
+  },
+  {
+    "name": "Thinkery",
+    "base_url": "https://my.thinkeryaustin.org/events",
+    "category": "gallery_museum",
+    "county": "travis",
+    "sub_region": "east_austin",
+    "coverage_categories": [
+      "museum",
+      "community"
+    ],
+    "note": "Real domain; Austin's children's museum with programs calendar. [url corrected during liveness verification]"
+  },
+  {
+    "name": "UMLAUF Sculpture Garden + Museum",
+    "base_url": "https://www.umlaufsculpture.org/programs",
+    "category": "gallery_museum",
+    "county": "travis",
+    "sub_region": "zilker",
+    "coverage_categories": [
+      "visual_art",
+      "museum"
+    ],
+    "note": "Real domain; sculpture garden and museum near Zilker Park."
+  },
+  {
+    "name": "365 Things Austin",
+    "base_url": "https://365thingsaustin.com/events/",
+    "category": "local_media",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "music",
+      "food",
+      "community",
+      "festival"
+    ],
+    "note": "Confirmed via fetch; real dated local events calendar site with detailed weekly listings covering music, food, and community events."
+  },
+  {
+    "name": "Austin American-Statesman / Austin360 Events",
+    "base_url": "https://community.statesman.com/events/",
+    "category": "local_media",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "music",
+      "food",
+      "community",
+      "festival"
+    ],
+    "note": "Confirmed via search result; Austin's daily newspaper events/community calendar section."
+  },
+  {
+    "name": "Austin Chronicle (main site)",
+    "base_url": "https://www.austinchronicle.com/",
+    "category": "local_media",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "music",
+      "food",
+      "community",
+      "film"
+    ],
+    "note": "Confirmed via search result; Austin's long-running alt-weekly newspaper covering music, arts, and events."
+  },
+  {
+    "name": "Austin Chronicle Calendar",
+    "base_url": "https://calendar.austinchronicle.com/austin/EventSearch?v=g",
+    "category": "local_media",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "music",
+      "food",
+      "community",
+      "film",
+      "literary",
+      "festival"
+    ],
+    "note": "Confirmed via search results with extensive real dated listings across categories; alt static page at austinchronicle.com/calendar/."
+  },
+  {
+    "name": "Do512",
+    "base_url": "https://do512.com/",
+    "category": "local_media",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "music",
+      "community",
+      "comedy",
+      "film",
+      "food"
+    ],
+    "note": "Confirmed via direct fetch; long-running Austin event guide site (founded 2006) with hundreds of real dated events, founded by Jimmy Stewart and Scott Owens."
+  },
+  {
+    "name": "KUTX (Austin Music Experience)",
+    "base_url": "https://kutx.org/",
+    "category": "local_media",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Confirmed via fetch; UT Austin public radio music station with extensive KUTX Presents events listings and festival calendar."
+  },
+  {
+    "name": "KUTX Austin Festival Calendar",
+    "base_url": "https://kutx.org/live-events/austin-festival-calendar/",
+    "category": "local_media",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "music",
+      "festival"
+    ],
+    "note": "Confirmed via search result; dedicated festival tracking page from KUTX."
+  },
+  {
+    "name": "KUTX Presents / Events",
+    "base_url": "https://kutx.org/kutx-presents/",
+    "category": "local_media",
+    "county": "travis",
+    "sub_region": null,
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Confirmed via fetch; real dated concert co-presentation listings across many Austin venues (Long Center, Continental Club, Mohawk, Antone's, etc.)."
+  },
+  {
+    "name": "Alamo Drafthouse Austin",
+    "base_url": "https://drafthouse.com/austin",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "multiple_locations",
+    "coverage_categories": [
+      "film",
+      "comedy",
+      "community"
+    ],
+    "note": "Confirmed via direct domain (drafthouse.com/austin) and Facebook page referencing same URL; official chain cinema site with Austin market page covering Village, South Lamar, Slaughter Lane, Lakeline, Mueller locations."
+  },
+  {
+    "name": "Austin Film Society / AFS Cinema",
+    "base_url": "https://www.austinfilm.org/",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "north_austin",
+    "coverage_categories": [
+      "film"
+    ],
+    "note": "Confirmed via official press release page (austinfilm.org/press/...) referencing full calendar at www.austinfilm.org."
+  },
+  {
+    "name": "Austin Opera",
+    "base_url": "https://austinopera.org/",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "music",
+      "theater"
+    ],
+    "note": "Real domain; official regional opera company site."
+  },
+  {
+    "name": "Austin Playhouse",
+    "base_url": "https://www.austinplayhouse.com/",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "north_austin",
+    "coverage_categories": [
+      "theater"
+    ],
+    "note": "Confirmed via direct domain; real season listings through 2027 found. Located at 405 W 22nd St."
+  },
+  {
+    "name": "Austin Symphony Orchestra",
+    "base_url": "https://austinsymphony.org/",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Real domain; official orchestra site with season/concert listings."
+  },
+  {
+    "name": "Ballet Austin",
+    "base_url": "https://balletaustin.org/",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "dance"
+    ],
+    "note": "Real domain; official regional ballet company site."
+  },
+  {
+    "name": "Bass Concert Hall",
+    "base_url": "https://www.bassconcerthalltx.com/",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "university",
+    "coverage_categories": [
+      "theater",
+      "music",
+      "dance"
+    ],
+    "note": "Real domain; part of UT Austin / Texas Performing Arts venue system."
+  },
+  {
+    "name": "Cap City Comedy Club",
+    "base_url": "https://www.capcitycomedy.com/calendar",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "north_austin",
+    "coverage_categories": [
+      "comedy"
+    ],
+    "note": "Confirmed via direct fetch; real dated show listings (July 2026)."
+  },
+  {
+    "name": "Esther's Follies",
+    "base_url": "https://www.esthersfollies.com/tickets",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "comedy",
+      "theater"
+    ],
+    "note": "Confirmed via direct domain; long-running live comedy/variety show venue since 1977 on 6th Street, real showtimes listed."
+  },
+  {
+    "name": "Hyde Park Theatre",
+    "base_url": "https://www.hydeparktheatre.org/season",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "hyde_park",
+    "coverage_categories": [
+      "theater",
+      "music"
+    ],
+    "note": "Confirmed via direct fetch; real 2025-26 season listings including FronteraFest, at historic Austin theater since 1980s (511 W 43rd St)."
+  },
+  {
+    "name": "Long Center for the Performing Arts",
+    "base_url": "https://thelongcenter.org/upcoming-calendar/",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "music",
+      "theater",
+      "dance"
+    ],
+    "note": "Real domain; hosts Austin Symphony, Ballet Austin, and Austin Opera performances."
+  },
+  {
+    "name": "Paramount Theatre",
+    "base_url": "https://www.austintheatre.org/events/",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "theater",
+      "music",
+      "comedy",
+      "film"
+    ],
+    "note": "Confirmed via fetch; real domain, hosts Moontower Comedy Festival and film series."
+  },
+  {
+    "name": "Salvage Vanguard Theater",
+    "base_url": "https://www.salvagevanguard.org/",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "east_austin",
+    "coverage_categories": [
+      "theater"
+    ],
+    "note": "Confirmed via direct fetch; official site of long-running experimental theater company, cross-referenced with CTX Live Theatre listings."
+  },
+  {
+    "name": "The Vortex",
+    "base_url": "https://vortexrep.org/calendar",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "east_austin",
+    "coverage_categories": [
+      "theater",
+      "dance",
+      "community"
+    ],
+    "note": "Confirmed via direct fetch; real season listings (2803 Manor Rd), experimental theater/dance company hosting FronteraFest, OUTsider Fest, and more."
+  },
+  {
+    "name": "Zach Theatre",
+    "base_url": "https://www.zachtheater.org/tickets/shows/",
+    "category": "theater_arts",
+    "county": "travis",
+    "sub_region": "zilker",
+    "coverage_categories": [
+      "theater"
+    ],
+    "note": "Real domain; major regional theater company near Zilker Park."
+  },
+  {
+    "name": "St. Edward's University Events",
+    "base_url": "https://www.stedwards.edu/events",
+    "category": "university",
+    "county": "travis",
+    "sub_region": "south_austin",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Real domain; confirmed with 181 listed events at time of research."
+  },
+  {
+    "name": "Texas Performing Arts (UT Austin)",
+    "base_url": "https://texasperformingarts.org/events/calendar/",
+    "category": "university",
+    "county": "travis",
+    "sub_region": "university",
+    "coverage_categories": [
+      "music",
+      "theater",
+      "dance"
+    ],
+    "note": "Real domain; UT Austin's official performing arts presenting organization."
+  },
+  {
+    "name": "UT Austin Events Calendar",
+    "base_url": "https://calendar.utexas.edu/",
+    "category": "university",
+    "county": "travis",
+    "sub_region": "university",
+    "coverage_categories": [
+      "music",
+      "community",
+      "film",
+      "museum"
+    ],
+    "note": "Comprehensive official UT calendar covering many campus venues and event types."
+  },
+  {
+    "name": "ACL Live at 3TEN",
+    "base_url": "https://www.acllive.com/stages/3ten",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Same operator/domain family as ACL Live at Moody Theater; real smaller stage venue."
+  },
+  {
+    "name": "ACL Live at The Moody Theater",
+    "base_url": "https://www.acl-live.com/events",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Confirmed via fetch; official venue site, home of Austin City Limits taping."
+  },
+  {
+    "name": "Antone's Nightclub",
+    "base_url": "https://antonesnightclub.com/calendar/",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Confirmed via fetch; \"Home of the Blues since 1975,\" real event calendar."
+  },
+  {
+    "name": "Austin Convention Center",
+    "base_url": "https://www.austinconventioncenter.com/",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Confirmed via direct fetch; official convention center site with press releases listing real conferences and events (SXSW-adjacent programming, trade shows)."
+  },
+  {
+    "name": "C-Boy's Heart & Soul",
+    "base_url": "https://www.cboys.com/calendar",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "south_congress",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Confirmed via search result showing real calendar with venue address and booking contact."
+  },
+  {
+    "name": "Cactus Cafe (UT Austin)",
+    "base_url": "https://universityunions.utexas.edu/play/cactus-cafe",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "university",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Official UT Unions page; long-running listening room on UT campus."
+  },
+  {
+    "name": "Come and Take It Live",
+    "base_url": "https://www.comeandtakeitlive.com/",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "east_riverside",
+    "coverage_categories": [
+      "music",
+      "film",
+      "visual_art"
+    ],
+    "note": "\"Genre-neutral venue, showcasing music, art and film\"; real domain."
+  },
+  {
+    "name": "Continental Club",
+    "base_url": "https://continentalclub.com/austinclub",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "south_congress",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Real historic venue site (since 1955). Note: /austin-calendar/ path 404s; ticketed shows also at continentalclub.com/austintickets."
+  },
+  {
+    "name": "Elephant Room",
+    "base_url": "https://elephantroom.com/calendar",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Basement jazz bar on Congress Ave since 1991; real domain."
+  },
+  {
+    "name": "Emo's Austin",
+    "base_url": "https://www.emosaustin.com/shows",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "east_austin",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Confirmed via fetch; official venue site with real show schedule."
+  },
+  {
+    "name": "Historic Scoot Inn",
+    "base_url": "https://www.scootinnaustin.com/",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "east_austin",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Confirmed via fetch; real outdoor venue with real listings."
+  },
+  {
+    "name": "Hole in the Wall",
+    "base_url": "https://www.theholeinthewallaustin.com/shows",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "west_campus",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Near UT campus, operating since 1974; real domain with show listings."
+  },
+  {
+    "name": "Kingdom Nightclub",
+    "base_url": "https://kingdomnightclub.com/events/",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "red_river",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Confirmed via multiple consistent third-party listings (Austin Chronicle, Bandsintown, austin.theater) pointing to kingdomnightclub.com as official site; real dated 2026 event listings found directly on kingdomnightclub.com/events/."
+  },
+  {
+    "name": "Meanwhile Brewing Company",
+    "base_url": "https://www.meanwhilebeer.com/events",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "south_austin",
+    "coverage_categories": [
+      "music",
+      "food",
+      "community"
+    ],
+    "note": "Confirmed via direct fetch; real dated 2026 events including free concerts, trivia, pop-up markets, farmers markets. Located at 3901 Promontory Point Dr."
+  },
+  {
+    "name": "Mohawk Austin",
+    "base_url": "https://mohawkaustin.com/events/",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Confirmed via direct fetch; official Red River District venue site with real upcoming show listings."
+  },
+  {
+    "name": "Moody Amphitheater at Waterloo Park",
+    "base_url": "https://www.moodyamphitheater.com/events-tickets",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "music",
+      "festival"
+    ],
+    "note": "Confirmed via direct fetch; extensive real dated 2026 concert listings (Jack White, Chance the Rapper, etc.), operated by C3 Presents/Waterloo Greenway."
+  },
+  {
+    "name": "Moody Center",
+    "base_url": "https://moodycenteratx.com/events/",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "university",
+    "coverage_categories": [
+      "music",
+      "community"
+    ],
+    "note": "Confirmed via direct domain; 15,000+ seat arena on UT campus, also home to UT basketball."
+  },
+  {
+    "name": "Palmer Events Center",
+    "base_url": "https://www.palmereventscenter.com/events",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "south_austin",
+    "coverage_categories": [
+      "community",
+      "festival",
+      "museum"
+    ],
+    "note": "Confirmed via direct fetch; official City of Austin convention center events page with 70+ real dated 2026 listings (art fairs, expos, markets, record conventions). Located at 900 Barton Springs Rd."
+  },
+  {
+    "name": "Q2 Stadium / Austin FC",
+    "base_url": "https://www.austinfc.com/schedule/matches",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "north_austin",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Confirmed via direct domain; official Austin FC/Q2 Stadium site with match schedule; stadium also hosts non-sports community events per austintexas.gov/ace listings."
+  },
+  {
+    "name": "Radio/East",
+    "base_url": "https://radiocoffeeandbeer.com/radio-east",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "east_austin",
+    "coverage_categories": [
+      "music",
+      "food"
+    ],
+    "note": "Real East Austin venue/coffee shop hybrid confirmed via multiple third-party listings (KUTX, JamBase, CultureMap) hosting shows like Levitation and KUTX Presents; official domain inferred from consistent branding, recommend re-verifying direct fetch before production use. [url corrected during liveness verification]"
+  },
+  {
+    "name": "Sagebrush",
+    "base_url": "https://sagebrushaustin.com/events",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "south_austin",
+    "coverage_categories": [
+      "music",
+      "dance"
+    ],
+    "note": "Confirmed via fetch of search result; real, active listings with specific dated shows (July 2026)."
+  },
+  {
+    "name": "Stubb's Bar-B-Q / Waller Creek Amphitheater",
+    "base_url": "https://stubbsaustin.com/concert-calendar/",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Confirmed via fetch; extensive real listings including KUTX Presents shows. [url corrected during liveness verification]"
+  },
+  {
+    "name": "The Far Out Lounge and Stage",
+    "base_url": "https://www.thefaroutaustin.com/events.html",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "south_austin",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Real domain, extensive listings; outdoor stage venue."
+  },
+  {
+    "name": "The Parish",
+    "base_url": "https://brushystreet.com/event-calendar",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "red_river",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Real domain, Red River Cultural District venue. [url corrected during liveness verification]"
+  },
+  {
+    "name": "The Saxon Pub",
+    "base_url": "https://thesaxonpub.com/events/",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "south_austin",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Real domain with extensive listings; long-running singer-songwriter venue."
+  },
+  {
+    "name": "The White Horse",
+    "base_url": "https://www.thewhitehorseaustin.com/calendar-1",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "east_austin",
+    "coverage_categories": [
+      "music",
+      "dance"
+    ],
+    "note": "Confirmed via search results showing real calendar page; East Austin honky-tonk with two-step dancing."
+  },
+  {
+    "name": "Vulcan Gas Company",
+    "base_url": "https://www.vulcanatx.com/",
+    "category": "venue_calendar",
+    "county": "travis",
+    "sub_region": "downtown_austin",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Real domain, 6th Street area music venue."
+  },
+  {
+    "name": "City of Cedar Park Events",
+    "base_url": "https://www.cedarparktexas.gov/177/Events",
+    "category": "city_calendar",
+    "county": "williamson",
+    "sub_region": "cedar_park",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official City of Cedar Park government events page."
+  },
+  {
+    "name": "City of Hutto Connect Calendar",
+    "base_url": "https://www.huttotx.gov/802/Connect-Calendar",
+    "category": "city_calendar",
+    "county": "williamson",
+    "sub_region": "hutto",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official City of Hutto government events calendar."
+  },
+  {
+    "name": "City of Leander Events",
+    "base_url": "https://www.leandertx.gov/485/Events",
+    "category": "city_calendar",
+    "county": "williamson",
+    "sub_region": "leander",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official City of Leander government events calendar page."
+  },
+  {
+    "name": "City of Liberty Hill Annual Events",
+    "base_url": "https://www.libertyhilltx.gov/397/Annual-Events",
+    "category": "city_calendar",
+    "county": "williamson",
+    "sub_region": "liberty_hill",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official city page listing Liberty Hill's recurring annual community events."
+  },
+  {
+    "name": "City of Liberty Hill Calendar",
+    "base_url": "https://www.libertyhilltx.gov/Calendar.aspx",
+    "category": "city_calendar",
+    "county": "williamson",
+    "sub_region": "liberty_hill",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official City of Liberty Hill government events calendar."
+  },
+  {
+    "name": "City of Round Rock Events Calendar",
+    "base_url": "https://www.roundrocktexas.gov/events/",
+    "category": "city_calendar",
+    "county": "williamson",
+    "sub_region": "round_rock",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official City of Round Rock government events calendar."
+  },
+  {
+    "name": "City of Taylor 2026 Schedule of Community Events",
+    "base_url": "https://www.taylortx.gov/254/2026-Schedule-of-Community-Events",
+    "category": "city_calendar",
+    "county": "williamson",
+    "sub_region": "taylor",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official published annual community events schedule for the City of Taylor."
+  },
+  {
+    "name": "City of Taylor Events",
+    "base_url": "https://taylortx.gov/911/Events",
+    "category": "city_calendar",
+    "county": "williamson",
+    "sub_region": "taylor",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official City of Taylor government events page."
+  },
+  {
+    "name": "Round Rock Arts and Culture Events",
+    "base_url": "https://www.roundrocktexas.gov/city-departments/arts-and-culture/events/",
+    "category": "city_calendar",
+    "county": "williamson",
+    "sub_region": "round_rock",
+    "coverage_categories": [
+      "visual_art",
+      "music"
+    ],
+    "note": "Official city Arts & Culture department events listing."
+  },
+  {
+    "name": "Round Rock Parks Special Events",
+    "base_url": "https://www.roundrocktexas.gov/city-departments/parks-and-recreation/parks-special-events/",
+    "category": "city_calendar",
+    "county": "williamson",
+    "sub_region": "round_rock",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official Parks & Recreation special events page for the city of Round Rock."
+  },
+  {
+    "name": "Williamson County Official Site",
+    "base_url": "https://www.wilcotx.gov/1/Home",
+    "category": "city_calendar",
+    "county": "williamson",
+    "sub_region": "williamson_county",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Williamson County government homepage with links to county-wide event and calendar info."
+  },
+  {
+    "name": "Downtown Georgetown Association Events",
+    "base_url": "https://dgagtx.org/events",
+    "category": "community",
+    "county": "williamson",
+    "sub_region": "georgetown",
+    "coverage_categories": [
+      "festival",
+      "music",
+      "community"
+    ],
+    "note": "Official Downtown Georgetown Association events calendar for the historic square."
+  },
+  {
+    "name": "Downtown Round Rock Texas Events",
+    "base_url": "https://downtownroundrocktexas.com/events/",
+    "category": "community",
+    "county": "williamson",
+    "sub_region": "round_rock",
+    "coverage_categories": [
+      "music",
+      "festival",
+      "community"
+    ],
+    "note": "Downtown Round Rock district association's official events listing."
+  },
+  {
+    "name": "Experience LHTX Events",
+    "base_url": "https://experiencelhtx.com/events-home/",
+    "category": "community",
+    "county": "williamson",
+    "sub_region": "liberty_hill",
+    "coverage_categories": [
+      "festival",
+      "community"
+    ],
+    "note": "Official Liberty Hill tourism/visitors events page."
+  },
+  {
+    "name": "Georgetown Chamber Business Events Calendar",
+    "base_url": "https://business.georgetownchamber.org/events",
+    "category": "community",
+    "county": "williamson",
+    "sub_region": "georgetown",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Georgetown Chamber's dedicated ChamberMaster events calendar."
+  },
+  {
+    "name": "Georgetown Chamber of Commerce Events",
+    "base_url": "https://www.georgetownchamber.org/",
+    "category": "community",
+    "county": "williamson",
+    "sub_region": "georgetown",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Georgetown Chamber of Commerce site with member/business events section."
+  },
+  {
+    "name": "Liberty Hill EDC Event Calendar",
+    "base_url": "https://www.libertyhilledc.com/life/event-calendar",
+    "category": "community",
+    "county": "williamson",
+    "sub_region": "liberty_hill",
+    "coverage_categories": [
+      "festival",
+      "community"
+    ],
+    "note": "Official Liberty Hill Economic Development Corporation events calendar."
+  },
+  {
+    "name": "Liberty Hill Public Library Calendar",
+    "base_url": "https://lhpl.org/calendar/",
+    "category": "community",
+    "county": "williamson",
+    "sub_region": "liberty_hill",
+    "coverage_categories": [
+      "literary",
+      "community"
+    ],
+    "note": "Official Liberty Hill Public Library events calendar."
+  },
+  {
+    "name": "Round Rock Chamber Events & Sponsorships",
+    "base_url": "https://roundrockchamber.org/about/events-sponsorships/",
+    "category": "community",
+    "county": "williamson",
+    "sub_region": "round_rock",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Round Rock Chamber of Commerce events and sponsorship page."
+  },
+  {
+    "name": "Round Rock Pride Events",
+    "base_url": "https://www.roundrockpride.com/events",
+    "category": "community",
+    "county": "williamson",
+    "sub_region": "round_rock",
+    "coverage_categories": [
+      "festival",
+      "community"
+    ],
+    "note": "Verified live via fetch_url; official Round Rock Pride organization events listing."
+  },
+  {
+    "name": "Round Rock Public Library Events",
+    "base_url": "https://roundrocktexas.libcal.com/",
+    "category": "community",
+    "county": "williamson",
+    "sub_region": "round_rock",
+    "coverage_categories": [
+      "literary",
+      "community"
+    ],
+    "note": "Official LibCal events calendar for Round Rock Public Library programs."
+  },
+  {
+    "name": "Visit Cedar Park Events",
+    "base_url": "https://visitcedarparktexas.com/events/",
+    "category": "community",
+    "county": "williamson",
+    "sub_region": "cedar_park",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official Cedar Park tourism/visitors bureau events listing."
+  },
+  {
+    "name": "Visit Leander",
+    "base_url": "https://visitleandertx.com",
+    "category": "community",
+    "county": "williamson",
+    "sub_region": "leander",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official Leander tourism/visitors site with community events listings."
+  },
+  {
+    "name": "Taylor Studio Tour",
+    "base_url": "https://www.taylorstudiotour.com/schedule-1",
+    "category": "festival_feed",
+    "county": "williamson",
+    "sub_region": "taylor",
+    "coverage_categories": [
+      "visual_art",
+      "festival"
+    ],
+    "note": "Official annual studio tour event featuring Taylor-area visual artists."
+  },
+  {
+    "name": "Texas Beer Company",
+    "base_url": "https://www.texasbeerco.com/",
+    "category": "food_culinary",
+    "county": "williamson",
+    "sub_region": "taylor",
+    "coverage_categories": [
+      "food",
+      "music",
+      "community"
+    ],
+    "note": "Real, active craft brewery and taproom in downtown Taylor hosting live music and community events."
+  },
+  {
+    "name": "Georgetown Art Center Arts Calendar",
+    "base_url": "https://visit.georgetown.org/events/",
+    "category": "gallery_museum",
+    "county": "williamson",
+    "sub_region": "georgetown",
+    "coverage_categories": [
+      "visual_art"
+    ],
+    "note": "Official Georgetown Art Center calendar of exhibitions and visual arts programming. [url corrected during liveness verification]"
+  },
+  {
+    "name": "Preservation Georgetown / Grace Heritage Center Events",
+    "base_url": "https://www.preservationgeorgetown.org/event-calendar",
+    "category": "gallery_museum",
+    "county": "williamson",
+    "sub_region": "georgetown",
+    "coverage_categories": [
+      "museum",
+      "community",
+      "literary"
+    ],
+    "note": "Official events calendar for the historic Grace Heritage Center, run by Preservation Georgetown nonprofit."
+  },
+  {
+    "name": "Community Impact Austin Hub",
+    "base_url": "https://communityimpact.com/austin/",
+    "category": "local_media",
+    "county": "williamson",
+    "sub_region": "austin_metro",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Community Impact Newspaper Austin-area hub linking to all Central Texas metro editions including Round Rock, Georgetown, and San Marcos-Buda-Kyle."
+  },
+  {
+    "name": "Community Impact Georgetown Edition",
+    "base_url": "https://editions.communityimpact.com/view/370690615",
+    "category": "local_media",
+    "county": "williamson",
+    "sub_region": "georgetown",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Community Impact Newspaper digital edition covering Georgetown news and local happenings."
+  },
+  {
+    "name": "Community Impact Georgetown Print Archive",
+    "base_url": "https://communityimpact.com/georgetown/print-archives/",
+    "category": "local_media",
+    "county": "williamson",
+    "sub_region": "georgetown",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Community Impact archive hub for all Georgetown edition issues."
+  },
+  {
+    "name": "Community Impact Round Rock Edition",
+    "base_url": "https://editions.communityimpact.com/view/384088324/7/",
+    "category": "local_media",
+    "county": "williamson",
+    "sub_region": "round_rock",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Community Impact Newspaper digital edition covering Round Rock news and local happenings."
+  },
+  {
+    "name": "Hello Georgetown Festivals and Events",
+    "base_url": "https://www.hellogeorgetown.com/festivals-and-events-georgetown-texas/",
+    "category": "local_media",
+    "county": "williamson",
+    "sub_region": "georgetown",
+    "coverage_categories": [
+      "festival",
+      "community"
+    ],
+    "note": "Local Georgetown community/tourism media site listing festivals and events."
+  },
+  {
+    "name": "Round the Rock",
+    "base_url": "https://roundtherocktx.com/events",
+    "category": "local_media",
+    "county": "williamson",
+    "sub_region": "round_rock",
+    "coverage_categories": [
+      "community",
+      "music",
+      "festival"
+    ],
+    "note": "Local Round Rock community media/events aggregator site."
+  },
+  {
+    "name": "YOUR Williamson",
+    "base_url": "https://www.yourwilliamson.com/calendar",
+    "category": "local_media",
+    "county": "williamson",
+    "sub_region": "williamson_county",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Regional Williamson County community/local media calendar covering multiple cities."
+  },
+  {
+    "name": "Georgetown Palace Theatre",
+    "base_url": "https://www.georgetownpalace.org/",
+    "category": "theater_arts",
+    "county": "williamson",
+    "sub_region": "georgetown",
+    "coverage_categories": [
+      "theater",
+      "music",
+      "dance"
+    ],
+    "note": "Official historic community theater in downtown Georgetown with active season listings."
+  },
+  {
+    "name": "Southwestern University Calendar",
+    "base_url": "https://www.southwestern.edu/calendar/",
+    "category": "university",
+    "county": "williamson",
+    "sub_region": "georgetown",
+    "coverage_categories": [
+      "music",
+      "literary",
+      "theater",
+      "community"
+    ],
+    "note": "Official Southwestern University campus events calendar."
+  },
+  {
+    "name": "H-E-B Center at Cedar Park Events",
+    "base_url": "https://www.hebcenter.com/events",
+    "category": "venue_calendar",
+    "county": "williamson",
+    "sub_region": "cedar_park",
+    "coverage_categories": [
+      "music",
+      "comedy",
+      "festival"
+    ],
+    "note": "Official events calendar for the H-E-B Center arena, a major regional concert/sports venue."
+  },
+  {
+    "name": "Kalahari Resorts Round Rock Events",
+    "base_url": "https://www.kalahariresorts.com/texas/things-to-do/events/",
+    "category": "venue_calendar",
+    "county": "williamson",
+    "sub_region": "round_rock",
+    "coverage_categories": [
+      "music",
+      "festival",
+      "comedy"
+    ],
+    "note": "Official Kalahari Resort Round Rock events page for its convention center and entertainment offerings."
+  },
+  {
+    "name": "Round Rock Amphitheater",
+    "base_url": "https://roundrockamp.com/",
+    "category": "venue_calendar",
+    "county": "williamson",
+    "sub_region": "round_rock",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Verified live via fetch_url; active concert venue with real, current listings."
+  },
+  {
+    "name": "Buda Calendar (City of Buda)",
+    "base_url": "https://www.budatx.gov/806/Buda-Calendar",
+    "category": "city_calendar",
+    "county": "hays",
+    "sub_region": "buda",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official City of Buda government events calendar."
+  },
+  {
+    "name": "Buda, TX Park Events",
+    "base_url": "https://www.budatx.gov/403/Park-Events",
+    "category": "city_calendar",
+    "county": "hays",
+    "sub_region": "buda",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official City of Buda parks events listing page."
+  },
+  {
+    "name": "City of Dripping Springs Calendar",
+    "base_url": "https://www.cityofdrippingsprings.com/calendar/year",
+    "category": "city_calendar",
+    "county": "hays",
+    "sub_region": "dripping_springs",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official City of Dripping Springs government events calendar."
+  },
+  {
+    "name": "City of Kyle Community Events",
+    "base_url": "https://www.cityofkyle.gov/living-here/parks-and-recreation/community-events/",
+    "category": "city_calendar",
+    "county": "hays",
+    "sub_region": "kyle",
+    "coverage_categories": [
+      "community",
+      "music",
+      "festival"
+    ],
+    "note": "Official City of Kyle Parks & Recreation community events page listing Jams on the Green, Market Days, parades, and more."
+  },
+  {
+    "name": "City of Kyle Homepage",
+    "base_url": "https://www.cityofkyle.gov/",
+    "category": "city_calendar",
+    "county": "hays",
+    "sub_region": "kyle",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official City of Kyle government homepage featuring upcoming events and council meetings."
+  },
+  {
+    "name": "City of San Marcos Calendar",
+    "base_url": "https://www.sanmarcostx.gov/Calendar/home",
+    "category": "city_calendar",
+    "county": "hays",
+    "sub_region": "san_marcos",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official City of San Marcos government events calendar."
+  },
+  {
+    "name": "Buda EDC Events Calendar",
+    "base_url": "https://www.budaedc.com/events-calendar/",
+    "category": "community",
+    "county": "hays",
+    "sub_region": "buda",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official Buda Economic Development Corporation events calendar."
+  },
+  {
+    "name": "Destination Dripping Springs Events",
+    "base_url": "https://www.destinationdrippingsprings.com/events",
+    "category": "community",
+    "county": "hays",
+    "sub_region": "dripping_springs",
+    "coverage_categories": [
+      "community",
+      "festival",
+      "music"
+    ],
+    "note": "Official Dripping Springs tourism/visitors bureau events calendar."
+  },
+  {
+    "name": "Destination Dripping Springs Live Music",
+    "base_url": "https://www.destinationdrippingsprings.com/p/attractions/live-music1",
+    "category": "community",
+    "county": "hays",
+    "sub_region": "dripping_springs",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Official tourism site page listing wineries and venues with live music in Dripping Springs."
+  },
+  {
+    "name": "Discover Buda Tourism Events & Festivals",
+    "base_url": "https://www.discoverbudatx.com/96/Events-Festivals",
+    "category": "community",
+    "county": "hays",
+    "sub_region": "buda",
+    "coverage_categories": [
+      "festival",
+      "community",
+      "food",
+      "music"
+    ],
+    "note": "Official Buda tourism site's Events & Festivals page, covering the Budaful Farmers Market, live music nights, and downtown happenings."
+  },
+  {
+    "name": "Downtown Association of San Marcos Events",
+    "base_url": "https://www.downtownsanmarcos.org/event-list",
+    "category": "community",
+    "county": "hays",
+    "sub_region": "san_marcos",
+    "coverage_categories": [
+      "community",
+      "festival",
+      "museum"
+    ],
+    "note": "Official Downtown San Marcos business/civic association events list."
+  },
+  {
+    "name": "Friends of the Dripping Springs Community Library Events",
+    "base_url": "https://fodscl.org/events/",
+    "category": "community",
+    "county": "hays",
+    "sub_region": "dripping_springs",
+    "coverage_categories": [
+      "literary",
+      "community"
+    ],
+    "note": "Official nonprofit Friends group events page supporting the Dripping Springs Community Library."
+  },
+  {
+    "name": "Kyle Area Chamber of Commerce Event Calendar",
+    "base_url": "https://www.kylechamber.org/events/calendar",
+    "category": "community",
+    "county": "hays",
+    "sub_region": "kyle",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Kyle Area Chamber of Commerce and Visitor's Bureau events calendar."
+  },
+  {
+    "name": "Kyle Chamber Community Events",
+    "base_url": "https://www.kylechamber.org/events/catgid/3",
+    "category": "community",
+    "county": "hays",
+    "sub_region": "kyle",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Kyle Chamber's community-category event listings including local meetups and civic events."
+  },
+  {
+    "name": "San Marcos Chamber Events",
+    "base_url": "https://business.sanmarcostexas.com/events/calendarcatgid/5024108",
+    "category": "community",
+    "county": "hays",
+    "sub_region": "san_marcos",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official San Marcos Chamber of Commerce ChamberMaster events calendar."
+  },
+  {
+    "name": "Visit San Marcos Events",
+    "base_url": "https://www.visitsanmarcos.com/events/",
+    "category": "community",
+    "county": "hays",
+    "sub_region": "san_marcos",
+    "coverage_categories": [
+      "community",
+      "festival",
+      "music"
+    ],
+    "note": "Official San Marcos tourism/visitors bureau events calendar."
+  },
+  {
+    "name": "Visit Wimberley Texas Events",
+    "base_url": "https://www.visitwimberleytx.org/directory/wimberley-market-days/",
+    "category": "community",
+    "county": "hays",
+    "sub_region": "wimberley",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official Wimberley tourism/visitors bureau events and market days directory."
+  },
+  {
+    "name": "Wimberley Market Day",
+    "base_url": "https://wimberleymarketday.com/",
+    "category": "community",
+    "county": "hays",
+    "sub_region": "wimberley",
+    "coverage_categories": [
+      "community",
+      "music",
+      "festival"
+    ],
+    "note": "Official site of the Wimberley Lions Club's long-running monthly Market Days event."
+  },
+  {
+    "name": "EmilyAnn Theatre Butterfly Festival",
+    "base_url": "https://www.emilyann.org/butterfly.html",
+    "category": "festival_feed",
+    "county": "hays",
+    "sub_region": "wimberley",
+    "coverage_categories": [
+      "festival",
+      "community"
+    ],
+    "note": "Official annual Butterfly Festival event page hosted at EmilyAnn Theatre & Gardens."
+  },
+  {
+    "name": "Mercer Street Chic Boutique & Art Gallery Events",
+    "base_url": "https://www.mercerstreetchicboutique.com/events",
+    "category": "gallery_museum",
+    "county": "hays",
+    "sub_region": "dripping_springs",
+    "coverage_categories": [
+      "visual_art",
+      "music"
+    ],
+    "note": "Real Mercer Street (downtown Dripping Springs) boutique and art gallery hosting live music and trunk show events."
+  },
+  {
+    "name": "Community Impact San Marcos - Buda - Kyle Edition",
+    "base_url": "https://editions.communityimpact.com/view/740032661",
+    "category": "local_media",
+    "county": "hays",
+    "sub_region": "san_marcos",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Community Impact Newspaper digital edition covering San Marcos, Buda, and Kyle news and events."
+  },
+  {
+    "name": "Dripping Springs Century News Community Calendar",
+    "base_url": "https://www.drippingspringsnews.com/article/3181,community-calendar",
+    "category": "local_media",
+    "county": "hays",
+    "sub_region": "dripping_springs",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Local Dripping Springs newspaper's regularly updated community calendar feature."
+  },
+  {
+    "name": "Hays Free Press and News-Dispatch",
+    "base_url": "https://www.haysfreepress.com/",
+    "category": "local_media",
+    "county": "hays",
+    "sub_region": "hays_county",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official local newspaper of record for Hays County (Kyle, Buda, San Marcos area), covering community news."
+  },
+  {
+    "name": "Hays Free Press Community Calendar",
+    "base_url": "https://www.haysfreepress.com/p/4/community-calendar",
+    "category": "local_media",
+    "county": "hays",
+    "sub_region": "hays_county",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Hays Free Press/News-Dispatch's dedicated community calendar page."
+  },
+  {
+    "name": "Wimberley View (Local Newspaper Event Views)",
+    "base_url": "https://www.wimberleyview.com/article/4035,event-views",
+    "category": "local_media",
+    "county": "hays",
+    "sub_region": "wimberley",
+    "coverage_categories": [
+      "community",
+      "music",
+      "theater"
+    ],
+    "note": "Local Wimberley newspaper's regularly published community events roundup column."
+  },
+  {
+    "name": "EmilyAnn Theatre & Gardens",
+    "base_url": "https://emilyann.org/",
+    "category": "theater_arts",
+    "county": "hays",
+    "sub_region": "wimberley",
+    "coverage_categories": [
+      "theater",
+      "festival",
+      "community"
+    ],
+    "note": "Official nonprofit outdoor theatre and gardens in Wimberley, hosting Shakespeare Under the Stars, the Butterfly Festival, and Trail of Lights."
+  },
+  {
+    "name": "The Wimberley Players",
+    "base_url": "https://www.wimberleyplayers.org/",
+    "category": "theater_arts",
+    "county": "hays",
+    "sub_region": "wimberley",
+    "coverage_categories": [
+      "theater",
+      "music",
+      "film"
+    ],
+    "note": "Official community theater company in Wimberley with an active season of plays, musicals, and the Stars Over Wimberley concert series."
+  },
+  {
+    "name": "Wimberley Players 2026 Season",
+    "base_url": "https://www.wimberleyplayers.org/2026-season",
+    "category": "theater_arts",
+    "county": "hays",
+    "sub_region": "wimberley",
+    "coverage_categories": [
+      "theater"
+    ],
+    "note": "Official Wimberley Players season page listing confirmed 2026 productions."
+  },
+  {
+    "name": "Wimberley Players Events",
+    "base_url": "https://www.wimberleyplayers.org/event",
+    "category": "theater_arts",
+    "county": "hays",
+    "sub_region": "wimberley",
+    "coverage_categories": [
+      "theater",
+      "music",
+      "film"
+    ],
+    "note": "Official Wimberley Players events page for concerts, film screenings, and special performances at the Playhouse."
+  },
+  {
+    "name": "KTSW 89.9 Events",
+    "base_url": "https://ktsw.txst.edu/events/calendars.html",
+    "category": "university",
+    "county": "hays",
+    "sub_region": "san_marcos",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Texas State University's official student radio station events/calendar page."
+  },
+  {
+    "name": "Texas State Center for the Study of the Southwest",
+    "base_url": "https://www.txst.edu/cssw/news-events.html",
+    "category": "university",
+    "county": "hays",
+    "sub_region": "san_marcos",
+    "coverage_categories": [
+      "literary",
+      "community"
+    ],
+    "note": "Official Texas State University academic center hosting literary/cultural talks (e.g., at the Price Center)."
+  },
+  {
+    "name": "Texas State Galleries Events",
+    "base_url": "https://www.txstgalleries.org/events-home",
+    "category": "university",
+    "county": "hays",
+    "sub_region": "san_marcos",
+    "coverage_categories": [
+      "visual_art",
+      "museum"
+    ],
+    "note": "Official Texas State University School of Art and Design galleries events page."
+  },
+  {
+    "name": "Texas State University Homecoming/Events",
+    "base_url": "https://www.txst.edu/homecoming.html",
+    "category": "university",
+    "county": "hays",
+    "sub_region": "san_marcos",
+    "coverage_categories": [
+      "community",
+      "music",
+      "festival"
+    ],
+    "note": "Official Texas State University homecoming and campus events page."
+  },
+  {
+    "name": "Texas State University Student Life",
+    "base_url": "https://www.txst.edu/student-life.html",
+    "category": "university",
+    "county": "hays",
+    "sub_region": "san_marcos",
+    "coverage_categories": [
+      "community",
+      "music",
+      "festival"
+    ],
+    "note": "Official Texas State University student life events and activities hub."
+  },
+  {
+    "name": "Buda Amphitheater Calendar",
+    "base_url": "https://www.budaamphitheater.com/calendar",
+    "category": "venue_calendar",
+    "county": "hays",
+    "sub_region": "buda",
+    "coverage_categories": [
+      "music",
+      "festival"
+    ],
+    "note": "Official calendar for the Buda Amphitheater & City Park, home to concert series like the Fall Concert Series and Railcar Revival."
+  },
+  {
+    "name": "Cheatham Street Warehouse",
+    "base_url": "https://cheathamstreet.com/",
+    "category": "venue_calendar",
+    "county": "hays",
+    "sub_region": "san_marcos",
+    "coverage_categories": [
+      "music"
+    ],
+    "note": "Iconic, historic live-music venue in San Marcos where numerous Texas music legends got their start; verified live and active with current show listings."
+  },
+  {
+    "name": "Bastrop Community Calendar (connect.cityofbastrop.org)",
+    "base_url": "https://connect.cityofbastrop.org/bastroptx/calendar",
+    "category": "city_calendar",
+    "county": "bastrop",
+    "sub_region": "bastrop",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official City of Bastrop community calendar portal."
+  },
+  {
+    "name": "City of Bastrop Calendar",
+    "base_url": "https://www.cityofbastrop.org/page/lib.calendar",
+    "category": "city_calendar",
+    "county": "bastrop",
+    "sub_region": "bastrop",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official City of Bastrop government library/community calendar."
+  },
+  {
+    "name": "City of Bastrop Eventeny Page",
+    "base_url": "https://www.eventeny.com/company/?c=427727",
+    "category": "city_calendar",
+    "county": "bastrop",
+    "sub_region": "bastrop",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official City of Bastrop Eventeny-hosted events listing including F.A.M.E. Days and Big Bang Celebration."
+  },
+  {
+    "name": "City of Bastrop Parks and Recreation Calendar",
+    "base_url": "https://cityofbastroptx.recdesk.com/Community/Calendar",
+    "category": "city_calendar",
+    "county": "bastrop",
+    "sub_region": "bastrop",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official RecDesk-hosted Parks & Recreation events calendar for the City of Bastrop."
+  },
+  {
+    "name": "City of Elgin Calendar",
+    "base_url": "https://www.elgintexas.gov/calendar.aspx",
+    "category": "city_calendar",
+    "county": "bastrop",
+    "sub_region": "elgin",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official City of Elgin government events calendar (CivicEngage platform)."
+  },
+  {
+    "name": "Elgin Annual & Community Events",
+    "base_url": "https://www.elgintexas.gov/185/Annual-Community-Events",
+    "category": "city_calendar",
+    "county": "bastrop",
+    "sub_region": "elgin",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official City of Elgin government page listing recurring annual community events."
+  },
+  {
+    "name": "Elgin Calendar - Events Category",
+    "base_url": "https://www.elgintexas.gov/calendar.aspx?CID=24",
+    "category": "city_calendar",
+    "county": "bastrop",
+    "sub_region": "elgin",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official City of Elgin events-specific calendar filter view."
+  },
+  {
+    "name": "Explore Elgin All Year Long",
+    "base_url": "https://www.elgintexas.gov/1399/Explore-Elgin-All-Year-Long",
+    "category": "city_calendar",
+    "county": "bastrop",
+    "sub_region": "elgin",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official City of Elgin tourism/events page."
+  },
+  {
+    "name": "Bastrop Chamber Regional Event Calendar",
+    "base_url": "https://www.bastropchamber.com/bastrop-regional-event-calendar/",
+    "category": "community",
+    "county": "bastrop",
+    "sub_region": "bastrop",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Bastrop Area Chamber of Commerce regional events calendar."
+  },
+  {
+    "name": "Bastrop County Calendar (bastropcountycalendar.com)",
+    "base_url": "https://bastropcountycalendar.com/events/smithville-celebrates-americas-250th",
+    "category": "community",
+    "county": "bastrop",
+    "sub_region": "bastrop_county",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Independent Bastrop County community events calendar site covering Bastrop, Smithville, and Elgin events."
+  },
+  {
+    "name": "Explore Bastrop County Calendar of Events",
+    "base_url": "https://explorebastropcounty.com/calendar-events/category/elgin/",
+    "category": "community",
+    "county": "bastrop",
+    "sub_region": "bastrop_county",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official Bastrop County tourism site's countywide calendar of events, filterable by city."
+  },
+  {
+    "name": "Smithville Area Chamber of Commerce Events",
+    "base_url": "http://smithvilletx.chambermaster.com/events/",
+    "category": "community",
+    "county": "bastrop",
+    "sub_region": "smithville",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Smithville Area Chamber of Commerce ChamberMaster events calendar."
+  },
+  {
+    "name": "Smithville Chamber Community Calendar",
+    "base_url": "https://www.smithvillechamber.org/communitycalendar",
+    "category": "community",
+    "county": "bastrop",
+    "sub_region": "smithville",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Smithville Chamber of Commerce community calendar page."
+  },
+  {
+    "name": "Smithville Chamber Events - Community Category",
+    "base_url": "https://business.smithvilletx.org/events/catgid/3",
+    "category": "community",
+    "county": "bastrop",
+    "sub_region": "smithville",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Smithville Chamber's community-category event listings, covering food distributions, workshops, and local gatherings."
+  },
+  {
+    "name": "Visit Bastrop Events & Activities",
+    "base_url": "https://www.visitbastrop.com/events/",
+    "category": "community",
+    "county": "bastrop",
+    "sub_region": "bastrop",
+    "coverage_categories": [
+      "festival",
+      "community",
+      "music"
+    ],
+    "note": "Official Bastrop tourism/visitors bureau calendar of events, festivals, and entertainment."
+  },
+  {
+    "name": "Visit Smithville Annual Events",
+    "base_url": "https://www.visitsmithvilletx.org/annual-events",
+    "category": "community",
+    "county": "bastrop",
+    "sub_region": "smithville",
+    "coverage_categories": [
+      "festival",
+      "community"
+    ],
+    "note": "Official Smithville tourism/visitors site listing the Jamboree Celebration, Fly-In, Festival of Lights, and other annual events."
+  },
+  {
+    "name": "Bastrop Opera House",
+    "base_url": "https://www.bastropoperahouse.org/",
+    "category": "theater_arts",
+    "county": "bastrop",
+    "sub_region": "bastrop",
+    "coverage_categories": [
+      "theater",
+      "music"
+    ],
+    "note": "Historic, active community theater in downtown Bastrop with a full season of musicals and plays; cross-verified via BroadwayWorld listings."
+  },
+  {
+    "name": "Bastrop Opera House Upcoming Shows",
+    "base_url": "https://www.bastropoperahouse.org/upcoming-shows",
+    "category": "theater_arts",
+    "county": "bastrop",
+    "sub_region": "bastrop",
+    "coverage_categories": [
+      "theater",
+      "music"
+    ],
+    "note": "Official Bastrop Opera House upcoming shows page."
+  },
+  {
+    "name": "City of Lockhart Calendar",
+    "base_url": "https://www.cityoflockhart.gov/calendar.aspx",
+    "category": "city_calendar",
+    "county": "caldwell",
+    "sub_region": "lockhart",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official City of Lockhart government events calendar (CivicEngage platform)."
+  },
+  {
+    "name": "City of Lockhart Homepage",
+    "base_url": "https://www.cityoflockhart.gov/",
+    "category": "city_calendar",
+    "county": "caldwell",
+    "sub_region": "lockhart",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official City of Lockhart government homepage with upcoming events and council meeting listings."
+  },
+  {
+    "name": "City of Luling Official Site",
+    "base_url": "https://www.cityofluling.net/144/Find",
+    "category": "city_calendar",
+    "county": "caldwell",
+    "sub_region": "luling",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official City of Luling government website."
+  },
+  {
+    "name": "Caldwell Chamber of Commerce Events Calendar",
+    "base_url": "https://business.caldwellchamber.org/events",
+    "category": "community",
+    "county": "caldwell",
+    "sub_region": "caldwell_county",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official Caldwell County Chamber of Commerce events calendar covering Lockhart, Luling, and surrounding areas."
+  },
+  {
+    "name": "Lockhart Chamber of Commerce Events - Community",
+    "base_url": "https://www.lockhartchamber.com/events/eventcalendar",
+    "category": "community",
+    "county": "caldwell",
+    "sub_region": "lockhart",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Lockhart Chamber of Commerce ChamberMaster community events listings. [url corrected during liveness verification]"
+  },
+  {
+    "name": "Lockhart Economic Development Events Calendar",
+    "base_url": "https://lockhartedc.com/news-updates/events-calendar",
+    "category": "community",
+    "county": "caldwell",
+    "sub_region": "lockhart",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Lockhart Economic Development Corporation events calendar."
+  },
+  {
+    "name": "Luling Chamber of Commerce (lulingcc.org) Event List",
+    "base_url": "https://www.lulingcc.org/events/display_event_list.php",
+    "category": "community",
+    "county": "caldwell",
+    "sub_region": "luling",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Official Luling Area Chamber of Commerce events listing."
+  },
+  {
+    "name": "Luling Watermelon Thump",
+    "base_url": "https://www.watermelonthump.com/",
+    "category": "festival_feed",
+    "county": "caldwell",
+    "sub_region": "luling",
+    "coverage_categories": [
+      "festival",
+      "music",
+      "food"
+    ],
+    "note": "Official website of the historic annual Luling Watermelon Thump festival, running since 1954 with live music, parade, and contests."
+  },
+  {
+    "name": "Luling Watermelon Thump Schedule",
+    "base_url": "https://www.watermelonthump.com/properties",
+    "category": "festival_feed",
+    "county": "caldwell",
+    "sub_region": "luling",
+    "coverage_categories": [
+      "festival",
+      "music"
+    ],
+    "note": "Official detailed weekend schedule page for the Luling Watermelon Thump festival."
+  },
+  {
+    "name": "LockhARTHOUSE Happenings",
+    "base_url": "https://www.lockharthousetx.com/happenings",
+    "category": "gallery_museum",
+    "county": "caldwell",
+    "sub_region": "lockhart",
+    "coverage_categories": [
+      "visual_art",
+      "community"
+    ],
+    "note": "Real, active Lockhart arts organization/gallery hosting exhibitions and community art events (e.g., at Tank Town)."
+  },
+  {
+    "name": "Hello Lockhart Events",
+    "base_url": "https://hellolockhart.com/events/",
+    "category": "local_media",
+    "county": "caldwell",
+    "sub_region": "lockhart",
+    "coverage_categories": [
+      "community",
+      "festival"
+    ],
+    "note": "Local Lockhart community/tourism events calendar site."
+  },
+  {
+    "name": "Lockhart Post Register Community Calendar",
+    "base_url": "https://post-register.com/category/local-news/community-calendar/",
+    "category": "local_media",
+    "county": "caldwell",
+    "sub_region": "lockhart",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official Lockhart Post-Register newspaper's regularly published community calendar section."
+  },
+  {
+    "name": "Lockhart Post-Register",
+    "base_url": "https://post-register.com/",
+    "category": "local_media",
+    "county": "caldwell",
+    "sub_region": "lockhart",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Official local newspaper of record for Lockhart and Caldwell County, with dedicated community calendar and local news sections."
+  },
+  {
+    "name": "Lockhart Post-Register Local News",
+    "base_url": "https://post-register.com/category/local-news/",
+    "category": "local_media",
+    "county": "caldwell",
+    "sub_region": "lockhart",
+    "coverage_categories": [
+      "community"
+    ],
+    "note": "Lockhart Post-Register's local news section, frequently covering community events like library talks and fundraisers."
+  }
+]
