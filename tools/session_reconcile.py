@@ -54,6 +54,12 @@ END = "<!-- GROUND_TRUTH:END -->"
 
 # Core tables whose row counts are load-bearing for "has the pipeline run?".
 CORE_TABLES = ["source", "event", "event_candidate", "candidate_evidence"]
+# These are compile-time constants, never user input. We still assert they are
+# plain identifiers so the row-count SQL below (and the connector display string)
+# can never carry anything but a bare table name — belt-and-braces against a
+# future edit that adds something exotic to this list.
+assert all(re.fullmatch(r"[a-z_][a-z0-9_]*", t) for t in CORE_TABLES), \
+    "CORE_TABLES entries must be plain SQL identifiers"
 
 
 # --- shell helpers -----------------------------------------------------------
@@ -103,6 +109,7 @@ def gather_db(dsn):
         }
     try:
         import psycopg2
+        from psycopg2 import sql
     except ImportError:
         return {"verified": False, "reason": "psycopg2 not installed",
                 "migrations": None, "row_counts": None}
@@ -113,7 +120,9 @@ def gather_db(dsn):
                 migs = [r[0] for r in cur.fetchall()]
                 counts = {}
                 for t in CORE_TABLES:
-                    cur.execute(f"select count(*) from {t};")
+                    # Compose the identifier via psycopg2.sql — never f-string a
+                    # table name into executed SQL, even a constant one.
+                    cur.execute(sql.SQL("select count(*) from {}").format(sql.Identifier(t)))
                     counts[t] = cur.fetchone()[0]
         return {"verified": True, "migrations": migs, "row_counts": counts}
     except Exception as exc:  # noqa: BLE001 — reported loudly, not swallowed
