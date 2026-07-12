@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# agent_review — kick off a cross-agent code review without memorizing each
+# tool's incantation. SUMMARY: loads docs/review_personas/<persona>.md, prints
+# the review prompt (persona checklist) + the diff to review to stdout, so any
+# agent/model can consume it as a single piece of context. Fails loudly if the
+# persona doc or the git ref/path doesn't exist. Usage:
+#   tools/agent_review --persona security --target HEAD~1
+#   tools/agent_review --persona performance --target worker/confidence.py
+#   tools/agent_review --list-personas
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PERSONAS_DIR="$REPO_ROOT/docs/review_personas"
+
+usage() {
+  cat >&2 <<'USAGE'
+Usage: tools/agent_review --persona <name> --target <path/ref> [--diff-context N]
+       tools/agent_review --list-personas
+
+  --persona NAME       Persona doc to load from docs/review_personas/NAME.md
+                        (name without the .md extension).
+  --target PATH_OR_REF  A git ref (e.g. HEAD~1, a branch, a commit sha) to diff
+                        against HEAD, OR a file/directory path to review as-is
+                        (its current content is printed, not a diff).
+  --diff-context N     Lines of diff context when --target is a git ref
+                        (default 3, passed through to `git diff -U<N>`).
+  --list-personas      Print available persona names and exit 0.
+
+Exit codes: 0 = printed review prompt successfully. 2 = persona missing,
+target missing, or git diff failed (never a silent empty result).
+USAGE
+}
+
+PERSONA=""
+TARGET=""
+DIFF_CONTEXT=3
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --persona) PERSONA="$2"; shift 2 ;;
+    --target) TARGET="$2"; shift 2 ;;
+    --diff-context) DIFF_CONTEXT="$2"; shift 2 ;;
+    --list-personas)
+      echo "Available personas (docs/review_personas/):"
+      for f in "$PERSONAS_DIR"/*.md; do
+        [ -e "$f" ] || continue
+        echo "  - $(basename "$f" .md)"
+      done
+      exit 0
+      ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "agent_review: unknown argument '$1'" >&2; usage; exit 2 ;;
+  esac
+done
+
+if [ -z "$PERSONA" ] || [ -z "$TARGET" ]; then
+  echo "agent_review: both --persona and --target are required (or use --list-personas)." >&2
+  usage
+  exit 2
+fi
+
+PERSONA_DOC="$PERSONAS_DIR/$PERSONA.md"
+if [ ! -f "$PERSONA_DOC" ]; then
+  echo "agent_review: FAIL — no persona doc at $PERSONA_DOC." >&2
+  echo "Available personas:" >&2
+  for f in "$PERSONAS_DIR"/*.md; do
+    [ -e "$f" ] || continue
+    echo "  - $(basename "$f" .md)" >&2
+  done
+  exit 2
+fi
+
+cd "$REPO_ROOT"
+
+echo "=============================================================================="
+echo "AGENT REVIEW — persona: $PERSONA"
+echo "=============================================================================="
+echo
+echo "--- REVIEW CHECKLIST (docs/review_personas/$PERSONA.md) ---"
+echo
+cat "$PERSONA_DOC"
+echo
+echo "--- SHARED BASELINE (docs/CODING_CONVENTIONS.md) ---"
+echo
+cat "$REPO_ROOT/docs/CODING_CONVENTIONS.md"
+echo
+echo "--- REVIEW TARGET: $TARGET ---"
+echo
+
+if git rev-parse --verify --quiet "$TARGET" > /dev/null 2>&1 && [ ! -e "$TARGET" ]; then
+  # TARGET resolves as a git ref (and isn't ALSO an existing file path with
+  # the same name, which would be ambiguous) -- show it as a diff against HEAD.
+  if ! git diff -U"$DIFF_CONTEXT" "$TARGET"..HEAD; then
+    echo "agent_review: FAIL — 'git diff $TARGET..HEAD' failed." >&2
+    exit 2
+  fi
+elif [ -e "$TARGET" ]; then
+  # TARGET is a real file or directory on disk -- print its current content
+  # (a fresh file/dir has no "diff" to show; reviewing current state is the
+  # correct behavior here, not a fallback).
+  if [ -d "$TARGET" ]; then
+    MATCHES=$(find "$TARGET" -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" -o -name "*.sh" -o -name "*.md" \) 2>/dev/null)
+    if [ -z "$MATCHES" ]; then
+      echo "agent_review: NOTE — '$TARGET' contains no .py/.ts/.tsx/.sh/.md files to show." >&2
+    else
+      while IFS= read -r f; do
+        echo "### $f"
+        cat "$f"
+        echo
+      done <<< "$MATCHES"
+    fi
+  else
+    cat "$TARGET"
+  fi
+else
+  echo "agent_review: FAIL — '$TARGET' is not a valid git ref and not an existing file/directory." >&2
+  exit 2
+fi
+
+echo
+echo "=============================================================================="
+echo "END REVIEW TARGET — apply the $PERSONA checklist above to what you just read."
+echo "=============================================================================="
