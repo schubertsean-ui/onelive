@@ -18,6 +18,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import re
+import shlex
 import shutil
 import struct
 import subprocess
@@ -180,17 +182,42 @@ def compare_files(baseline_path: Path, candidate_path: Path, threshold: float) -
     return diff_images(baseline, candidate, threshold)
 
 
+def _redact(text: str) -> str:
+    """Best-effort redaction of URL query strings and token-looking substrings
+    from tool stderr before we print/log it (a capture URL can carry a signed
+    token or session param). Never let a secret leak into the review log."""
+    text = re.sub(r"([?&])\S*", r"\1<redacted-query>", text)
+    text = re.sub(r"(?i)(token|key|secret|password|sig|signature)=\S+",
+                  r"\1=<redacted>", text)
+    return text
+
+
 def capture_screenshot(capture_cmd: str, url: str, out_path: Path) -> None:
-    """Run a caller-supplied screenshot command. `capture_cmd` must contain
-    literal `{url}` and `{out}` placeholders, e.g.:
+    """Run a caller-supplied screenshot command. `capture_cmd` is an argv
+    TEMPLATE (parsed with shlex, NEVER run through a shell) that must contain
+    the literal tokens `{url}` and `{out}`, e.g.:
         'playwright screenshot {url} {out} --viewport-size=1280,800'
-    Fails loudly (raises) if the templated binary isn't on PATH, if the
-    command exits non-zero, or if it doesn't actually produce `out_path` --
-    this NEVER falls back to a fake/blank image on failure."""
+    `{url}` and `{out}` are substituted as WHOLE argv elements, so shell
+    metacharacters in the URL or output path cannot inject additional commands.
+    Fails loudly (raises) if the templated binary isn't on PATH, if the command
+    exits non-zero, or if it doesn't actually produce `out_path` -- this NEVER
+    falls back to a fake/blank image on failure."""
     if "{url}" not in capture_cmd or "{out}" not in capture_cmd:
         raise ValueError("--capture-cmd must contain both {url} and {out} placeholders")
-    cmd = capture_cmd.format(url=url, out=str(out_path))
-    binary = cmd.split()[0]
+    # Tokenize the template FIRST, then substitute per-token, so {url}/{out}
+    # each become exactly one argv element even if their value contains spaces
+    # or shell metacharacters. No shell is ever invoked (shell=False).
+    argv = []
+    for tok in shlex.split(capture_cmd):
+        if tok == "{url}":
+            argv.append(url)
+        elif tok == "{out}":
+            argv.append(str(out_path))
+        else:
+            # Substitute placeholders that are embedded in a larger token
+            # (e.g. "--output={out}") without re-tokenizing the value.
+            argv.append(tok.replace("{url}", url).replace("{out}", str(out_path)))
+    binary = argv[0]
     if shutil.which(binary) is None:
         raise RuntimeError(
             f"capture command's binary '{binary}' is not installed/on PATH. "
@@ -198,9 +225,12 @@ def capture_screenshot(capture_cmd: str, url: str, out_path: Path) -> None:
             f"capture must be run in an environment that has one (see "
             f"tests/visual_baselines/README.md). Refusing to fake a screenshot."
         )
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    result = subprocess.run(argv, shell=False, capture_output=True, text=True)
     if result.returncode != 0:
-        raise RuntimeError(f"capture command failed (exit {result.returncode}): {result.stderr.strip()}")
+        raise RuntimeError(
+            f"capture command failed (exit {result.returncode}): "
+            f"{_redact(result.stderr.strip())}"
+        )
     if not out_path.exists():
         raise RuntimeError(f"capture command exited 0 but did not produce {out_path}")
 
@@ -258,7 +288,7 @@ def main(argv=None) -> int:
     p_cap = sub.add_parser("capture-and-compare", help="capture a fresh screenshot and compare to (or create) a named baseline")
     p_cap.add_argument("name", help="baseline name, stored as tests/visual_baselines/NAME.png")
     p_cap.add_argument("--url", required=True)
-    p_cap.add_argument("--capture-cmd", required=True, help="shell command template with {url} and {out} placeholders")
+    p_cap.add_argument("--capture-cmd", required=True, help="argv command template (parsed with shlex, NOT run through a shell) with {url} and {out} placeholders")
     p_cap.add_argument("--threshold", type=float, default=0.01)
     p_cap.add_argument("--update-baseline", action="store_true", help="overwrite/create the baseline instead of comparing to it")
     p_cap.set_defaults(func=cmd_capture_and_compare)

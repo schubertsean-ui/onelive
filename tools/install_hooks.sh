@@ -39,8 +39,9 @@ fi
 
 # --fix may have modified files in place; re-stage anything it touched so the
 # commit actually contains the fixed version instead of silently committing
-# the pre-fix content.
-git diff --name-only --diff-filter=M | { grep -E '\.py$' || true; } | xargs -r git add
+# the pre-fix content. NUL-delimited + `--` so filenames with spaces/newlines
+# or leading-dash names are handled safely and never parsed as options.
+git diff --name-only -z --diff-filter=M -- '*.py' | xargs -0 -r git add --
 
 echo "[pre-commit] OK — lint + trust_gate clean."
 exit 0

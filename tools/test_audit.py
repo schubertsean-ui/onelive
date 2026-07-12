@@ -107,16 +107,40 @@ def _body_is_just_pass(node) -> bool:
 
 
 def _mock_names_created(node: ast.AST) -> set[str]:
-    """Variable names assigned from Mock()/MagicMock()/patch(...) calls."""
+    """Variable names bound to a mock object. Covers both direct construction
+    (`m = Mock()/MagicMock()/AsyncMock()`) and patch-based creation:
+      - `m = patch(...).start()` / `m = mocker.patch(...)` / `m = mock.patch(...)`
+      - `with patch(...) as m:` / `with mocker.patch(...) as m:`
+    so a mock asserted-on-but-never-invoked is caught regardless of how it was
+    created (the docstring and the detector are kept in lockstep on purpose)."""
     names = set()
+
+    def _is_mock_ctor(call: ast.Call) -> bool:
+        f = call.func
+        fname = f.attr if isinstance(f, ast.Attribute) else (f.id if isinstance(f, ast.Name) else None)
+        if fname in ("Mock", "MagicMock", "AsyncMock", "patch"):
+            return True
+        # `patch(...).start()` — a Call whose func is an attribute `.start` on a
+        # `patch(...)` / `mocker.patch(...)` / `mock.patch(...)` call.
+        if isinstance(f, ast.Attribute) and f.attr == "start" and isinstance(f.value, ast.Call):
+            inner = f.value.func
+            iname = inner.attr if isinstance(inner, ast.Attribute) else (inner.id if isinstance(inner, ast.Name) else None)
+            if iname == "patch":
+                return True
+        return False
+
     for n in ast.walk(node):
+        # Plain assignment: name = <mock-producing call>
         if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
-            call = n.value
-            if isinstance(call, ast.Call):
-                f = call.func
-                fname = f.attr if isinstance(f, ast.Attribute) else (f.id if isinstance(f, ast.Name) else None)
-                if fname in ("Mock", "MagicMock", "AsyncMock"):
-                    names.add(n.targets[0].id)
+            if isinstance(n.value, ast.Call) and _is_mock_ctor(n.value):
+                names.add(n.targets[0].id)
+        # Context manager: with patch(...) as name:  (and async with)
+        if isinstance(n, (ast.With, ast.AsyncWith)):
+            for item in n.items:
+                if (isinstance(item.context_expr, ast.Call)
+                        and _is_mock_ctor(item.context_expr)
+                        and isinstance(item.optional_vars, ast.Name)):
+                    names.add(item.optional_vars.id)
     return names
 
 

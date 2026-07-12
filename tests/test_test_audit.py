@@ -76,6 +76,37 @@ def test_flags_mock_asserted_but_never_invoked(tmp_path):
     assert any("never invoked" in f for f in findings.items)
 
 
+def test_flags_patch_start_mock_never_invoked(tmp_path):
+    # The docstring claims patch()-created mocks are covered; prove it for the
+    # `m = patch(...).start()` form (previously undetected — docstring overclaim).
+    _write(tmp_path, "test_patchstart.py",
+           "from unittest.mock import patch\n\n\ndef test_patch_start_dead_mock():\n"
+           "    m = patch('pkg.mod.fn').start()\n    m.assert_not_called()\n")
+    findings = test_audit.Findings()
+    test_audit.audit_file(tmp_path / "test_patchstart.py", findings)
+    assert any("never invoked" in f for f in findings.items)
+
+
+def test_flags_with_patch_as_mock_never_invoked(tmp_path):
+    # ...and for the `with patch(...) as m:` context-manager form.
+    _write(tmp_path, "test_patchwith.py",
+           "from unittest.mock import patch\n\n\ndef test_patch_ctx_dead_mock():\n"
+           "    with patch('pkg.mod.fn') as m:\n        m.assert_not_called()\n")
+    findings = test_audit.Findings()
+    test_audit.audit_file(tmp_path / "test_patchwith.py", findings)
+    assert any("never invoked" in f for f in findings.items)
+
+
+def test_does_not_flag_patch_mock_that_is_invoked(tmp_path):
+    # A patch()-created mock that IS actually called must not be flagged.
+    _write(tmp_path, "test_patchlive.py",
+           "from unittest.mock import patch\n\n\ndef test_patch_ctx_live_mock():\n"
+           "    with patch('pkg.mod.fn') as m:\n        m('x')\n        m.assert_called_once_with('x')\n")
+    findings = test_audit.Findings()
+    test_audit.audit_file(tmp_path / "test_patchlive.py", findings)
+    assert not any("never invoked" in f for f in findings.items)
+
+
 def test_does_not_flag_mock_that_is_invoked(tmp_path):
     _write(tmp_path, "test_livemock.py",
            "from unittest.mock import Mock\n\n\ndef test_checks_a_mock_that_was_called():\n"

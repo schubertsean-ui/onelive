@@ -154,3 +154,16 @@ def test_strict_exit_code_reflects_findings():
     # certain to exist in real history (large commits are the reliable one).
     rc = commit_sweep.main(["--n", "20", "--strict"])
     assert rc in (0, 1)  # strict CAN be 0 if truly nothing found; proves it's wired, not hardcoded
+
+
+def test_empty_range_is_unverified_not_pass():
+    # §1: a no-op sweep (empty range) must NOT look like a clean pass. An
+    # empty range gathered zero evidence, so the gate is UNVERIFIED (exit 2).
+    rc = commit_sweep.main(["--since", "1 second ago"])
+    assert rc == 2
+
+
+def test_empty_range_allow_flag_is_explicit_ok():
+    # ...unless the caller explicitly acknowledges an expected no-op sweep.
+    rc = commit_sweep.main(["--since", "1 second ago", "--allow-empty-range"])
+    assert rc == 0

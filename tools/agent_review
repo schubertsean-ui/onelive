@@ -87,6 +87,18 @@ echo
 echo "--- REVIEW TARGET: $TARGET ---"
 echo
 
+# Guard against dumping secrets or out-of-repo files into the review transcript.
+# A review target must be either a git ref, or a path that lives INSIDE the repo
+# and is tracked by git (git ls-files) -- never an arbitrary absolute path like
+# /etc/passwd or a local .env, and never an untracked secret dropped in the tree.
+sensitive_name() {
+  case "$(basename "$1")" in
+    .env|.env.*|*.pem|*.key|*.p12|*.pfx|id_rsa|id_dsa|id_ed25519|*.crt|credentials|*.secret|*secrets*)
+      return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 if git rev-parse --verify --quiet "$TARGET" > /dev/null 2>&1 && [ ! -e "$TARGET" ]; then
   # TARGET resolves as a git ref (and isn't ALSO an existing file path with
   # the same name, which would be ambiguous) -- show it as a diff against HEAD.
@@ -95,21 +107,40 @@ if git rev-parse --verify --quiet "$TARGET" > /dev/null 2>&1 && [ ! -e "$TARGET"
     exit 2
   fi
 elif [ -e "$TARGET" ]; then
-  # TARGET is a real file or directory on disk -- print its current content
-  # (a fresh file/dir has no "diff" to show; reviewing current state is the
-  # correct behavior here, not a fallback).
+  # TARGET is a real file or directory on disk. Containment check: it must be
+  # inside REPO_ROOT (realpath prefix) before we print anything.
+  TARGET_ABS="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd)/$(basename "$TARGET")"
+  case "$TARGET_ABS" in
+    "$REPO_ROOT"|"$REPO_ROOT"/*) : ;;
+    *)
+      echo "agent_review: FAIL — '$TARGET' resolves outside the repo ($REPO_ROOT)." >&2
+      echo "                 Refusing to print files outside the repository." >&2
+      exit 2 ;;
+  esac
+  if sensitive_name "$TARGET"; then
+    echo "agent_review: FAIL — '$TARGET' looks like a secret/credential file." >&2
+    echo "                 Refusing to print it into a review transcript." >&2
+    exit 2
+  fi
+  # Print only git-TRACKED source files (never untracked secrets), current state.
   if [ -d "$TARGET" ]; then
-    MATCHES=$(find "$TARGET" -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" -o -name "*.sh" -o -name "*.md" \) 2>/dev/null)
+    MATCHES=$(git -C "$REPO_ROOT" ls-files -- "$TARGET" \
+      | grep -E '\.(py|ts|tsx|sh|md)$' || true)
     if [ -z "$MATCHES" ]; then
-      echo "agent_review: NOTE — '$TARGET' contains no .py/.ts/.tsx/.sh/.md files to show." >&2
+      echo "agent_review: NOTE — '$TARGET' has no tracked .py/.ts/.tsx/.sh/.md files to show." >&2
     else
       while IFS= read -r f; do
+        sensitive_name "$f" && continue
         echo "### $f"
-        cat "$f"
+        cat "$REPO_ROOT/$f"
         echo
       done <<< "$MATCHES"
     fi
   else
+    if ! git -C "$REPO_ROOT" ls-files --error-unmatch -- "$TARGET" >/dev/null 2>&1; then
+      echo "agent_review: FAIL — '$TARGET' is not tracked by git; refusing to print untracked file." >&2
+      exit 2
+    fi
     cat "$TARGET"
   fi
 else

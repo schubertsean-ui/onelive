@@ -173,6 +173,9 @@ def main(argv=None) -> int:
     ap.add_argument("--n", type=int, default=15, help="Number of commits to scan (default 15).")
     ap.add_argument("--since", default=None, help="git --since spec (e.g. '2 weeks ago'); overrides --n.")
     ap.add_argument("--strict", action="store_true", help="Exit 1 if any finding is reported (default: advisory, exit 0).")
+    ap.add_argument("--allow-empty-range", action="store_true",
+                    help="Treat an empty commit range as OK (exit 0) instead of "
+                         "unverified (exit 2). Use only when a no-op sweep is expected.")
     args = ap.parse_args(argv if argv is not None else sys.argv[1:])
 
     try:
@@ -182,8 +185,19 @@ def main(argv=None) -> int:
         return 1  # environment error is loud regardless of --strict
 
     if not commits:
-        print("commit_sweep.py: no commits found in range — nothing to sweep.")
-        return 0
+        # An empty range produced NO evidence about churn / no-test-change /
+        # marker-comment growth. "Nothing to sweep" is not the same as "swept clean" —
+        # §1 forbids do-nothing looking like a pass. Unverified (exit 2) unless
+        # the caller explicitly expects an empty range.
+        if args.allow_empty_range:
+            print("commit_sweep.py: no commits in range — nothing to sweep "
+                  "(--allow-empty-range: treated as OK).")
+            return 0
+        print("commit_sweep.py: UNVERIFIED — no commits found in range, so nothing "
+              "was actually swept. This is NOT a clean result. Widen --n/--since, "
+              "or pass --allow-empty-range if a no-op sweep is genuinely expected.",
+              file=sys.stderr)
+        return 2
 
     findings = Findings()
     for check in CHECKS:
