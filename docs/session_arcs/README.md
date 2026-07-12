@@ -53,6 +53,13 @@ and mirror key facts to memory.
   If a session spans work already covered by a dated file, **update that file in place**
   rather than creating a duplicate.
 - **Index:** newest arcs listed at the top of the table below.
+- **Git tag (findability):** at session close, tag the commit that finalizes an
+  arc with `arc/YYYY-MM-DD_slug` — the same slug as the arc filename — so any arc
+  is directly reachable from git history later (`git tag arc/2026-07-11_agentic-harness <sha>`;
+  find with `git tag -l 'arc/*'`, jump with `git show arc/<slug>`). Arcs are
+  referenced *often* after the fact; the tag makes "which commits belong to that
+  session?" a one-liner. Push tags with `git push --tags`. If a session spans an
+  existing dated arc, move/retag rather than duplicate.
 
 ## Arc template
 

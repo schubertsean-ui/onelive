@@ -18,6 +18,9 @@ Stack:
 - Stripe Connect (deferred until Phase 3 matching payments — not needed for v1 intro-only matching)
 
 ## Coding standards
+(Full reviewer-facing checklist: `docs/CODING_CONVENTIONS.md`. Mechanically enforced
+by `python tools/lint.py` — pre-commit hook installed via `tools/install_hooks.sh`
+runs `lint.py --fix` + `trust_gate.py` and blocks the commit on any violation.)
 - TypeScript strict mode everywhere in the Next.js app. No `any` without a comment explaining why.
 - Every API endpoint validates input (zod or pydantic schema) before touching the DB.
 - Parameterized queries only — never string-interpolate SQL.
@@ -28,8 +31,23 @@ Stack:
 1. Does it touch the promotion pipeline or auth? If yes, flag for a deeper review pass, not the fast default pass.
 2. Are confidence-state and moderation-state transitions covered by a test in `tests/test_gates.py` (or the tastemaker-post equivalent)?
 3. Does it introduce a new external dependency? If yes, note it in STATE.md.
+4. Run a cross-agent review (a *different* model than wrote the code) via
+   `tools/agent_review --persona <p> --target <ref>`, choosing the persona(s) in
+   `docs/review_personas/` that own the risk (security, performance,
+   maintainability, code-quality, ai-smells, domain-truth-and-trust). Each persona
+   also owns and maintains a set of system docs — see its file.
 
 ## Where to look first
+Quick map of the harness (all discoverable, none orphaned):
+- `docs/SESSION_START.md` — session bookends (reconcile → work → close).
+- `TODOS.md` — the work queue. `docs/skills/night_shift.md` — autonomous-run orchestration.
+- `tools/validate` — the single end-of-shift "run everything" gate (trust_gate,
+  lint, full pytest, eval_harness, perf, test_audit, commit_sweep, visual_regression).
+- `docs/TESTS.md` — test inventory + how-to-write-tests. `docs/CODING_CONVENTIONS.md` — conventions.
+- `docs/review_personas/` — cross-agent review lenses. `docs/AGENT_FEEDBACK.md` — session-end friction log.
+- `tools/README.md` — index of every helper script (lint, trust_gate, test_audit,
+  commit_sweep, profile_target, visual_regression, session_reconcile, agent_review).
+
 **Run `docs/SESSION_START.md` before starting any session.** It reconciles STATE.md
 against live ground truth (git/PRs/DB via `tools/session_reconcile.py`) so you can
 trust it, then routes you to STATE.md (what's done/next), the latest session arc

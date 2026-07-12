@@ -57,6 +57,17 @@ Understand → Implement → Self-review against §1 → Fix what review finds �
   `_provenance` key and the null-city bug is the standard, not the exception.
 - A loop iteration ends only when review finds nothing new *and* verification is
   green.
+- **Mechanical backstop:** the pre-commit hook (`tools/install_hooks.sh` →
+  `lint.py --fix` + `trust_gate.py`) enforces the floor on every commit, and
+  `bash tools/validate` runs the *full* gate (trust_gate, lint, full pytest,
+  eval_harness, perf benchmarks, test_audit, commit_sweep, visual_regression) at
+  checkpoints and at session close. "Verify" is not a vibe — it is these checks
+  green. A SKIPPED check (e.g. visual_regression with no booted app) is *not*
+  green; resolve it or surface it, never count it as a pass.
+- For non-trivial changes, add a **cross-agent review** (`tools/agent_review
+  --persona <p> --target <ref>`) by a different model than wrote the code, using
+  the `docs/review_personas/` lens that owns the risk. Autonomous/overnight runs
+  follow `docs/skills/night_shift.md` (orchestration + layered exits + hard stops).
 
 ### 2b. The weekly Kaizen loop (per week)
 Once a week, step back from feature work and improve the *system that builds the
@@ -64,7 +75,11 @@ system*:
 - What defect classes recurred? Encode a guard (a rule here, a test, a lint) so
   they can't recur silently.
 - What did a session-arc reveal about drift between STATE.md and reality?
-- What manual step happened 3+ times and should be automated?
+- What manual step happened 3+ times and should be automated? (Add a script to
+  `tools/` — see `tools/README.md` for the authoring conventions — or a check to
+  `tools/lint.py` / `tools/validate`.)
+- What friction did agents log in `docs/AGENT_FEEDBACK.md` since last week? Ingest
+  it here and fix the top items.
 - Update this doc and `CLAUDE.md` review criteria with anything learned.
 
 ### 2c. Definition of "improvement"
