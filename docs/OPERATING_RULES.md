@@ -19,8 +19,42 @@ scope, never trust.
 
 ## 1. The quality bar (non-negotiable)
 
-> **No "ok" code. No "no immediate problems." Nothing lingers, is ignored, or is
-> set for later.**
+> **Everything we build must be world-class, and everything is tested as it is
+> built. No "ok" code. No "no immediate problems." Nothing lingers, is ignored,
+> or is set for later.**
+
+### 1a. World-class is the bar, and it is defined — not vibes
+"World-class" is not a compliment we award ourselves; it is a claim we must be
+able to defend. A component is world-class only when ALL of the following hold —
+and we state, for each, HOW we know:
+- **Correct at the core, not just at the surface.** The central logic is right,
+  not merely the happy path. (Example failure: an extraction scorer whose
+  hallucination KPI is poisoned because its comparison layer flags a correctly
+  extracted `"8pm"` vs `"20:00"` as a hallucination. Surface metric, broken core.)
+- **Adversarially tested, not just demonstrated.** We have tried to break it and
+  shown it holds (sabotage-validation, §2b). "It works on the example I chose"
+  is not evidence.
+- **Best-in-class for its job, and we can name what we compared against.** If a
+  simpler/stronger standard approach exists, we either use it or write down why
+  ours is better. Reinventing a weaker version of a solved problem is not
+  world-class.
+- **No known weakness left unnamed.** If we can see a gap (naive normalization,
+  missing calibration, no confidence interval), it is either fixed now or
+  recorded as an explicit, tracked debt with an owner — never silently shipped
+  under the word "solid."
+- **Honesty about maturity is part of the bar.** Do not call something
+  "world-class" or "solid" to close a thread. Grade it against this list and
+  state the real level. Overstating quality is itself a quality-bar violation.
+
+### 1b. Test everything as you go (not after)
+Testing is not a phase that follows building; it is part of building. For every
+unit of work, in the same change that creates it:
+- write the test(s) that prove it does what it claims AND that it fails when it
+  should (both directions — see sabotage-validation, §2b);
+- run the full suite + `tools/trust_gate.py` and get to green before moving on;
+- never advance to the next unit on top of un-tested or red work.
+A feature without its tests, in the same increment, is not half-done — it is not
+done, and does not count as progress.
 
 Concretely, before anything is considered done:
 
