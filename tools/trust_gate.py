@@ -50,6 +50,8 @@ PROMOTE_IMPORT_ALLOWLIST = {
     "api/ops_candidates.py",  # operator action: human-reviewed promote endpoint
     "worker/run_once.py",     # the orchestrator entrypoint
     "worker/multiconfirm.py", # gate helper
+    "worker/orchestrator.py", # the Loop: on trust_gate3 PASS it calls promote_candidate,
+                               # which re-checks the 2-way gate itself (defense in depth)
 }
 
 

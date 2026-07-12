@@ -11,9 +11,9 @@ Last updated: 2026-07-10 by Computer (PM) — reconciled against live ground tru
 <!-- GROUND_TRUTH:BEGIN -->
 ```json
 {
-  "reconciled_at": "2026-07-11T05:07:00+00:00",
-  "git": {"branch": "feat/source-import-and-claude-provider"},
-  "prs": {"1": "merged", "2": "merged", "3": "merged", "4": "open", "5": "merged", "6": "open"},
+  "reconciled_at": "2026-07-12T01:35:00+00:00",
+  "git": {"branch": "feat/orchestrator-harness", "master_head": "a135ca9"},
+  "prs": {"1": "merged", "2": "merged", "3": "merged", "4": "open", "5": "merged", "6": "merged", "7": "pending"},
   "applied_migrations": ["20260708065822", "20260708065834", "20260708065849", "20260708065908", "20260708234844", "20260709034237", "20260709051800", "20260711045154"],
   "row_counts": {"source": 43, "event": 0, "event_candidate": 0, "candidate_evidence": 0}
 }
@@ -25,7 +25,9 @@ Last updated: 2026-07-10 by Computer (PM) — reconciled against live ground tru
 - **PRs #1, #2, #3 are MERGED**; **PR #4 (source-trust scoring, migration 0008) is an open DRAFT**.
 - **Source catalog IMPORTED (2026-07-10):** the `source` table now holds **43 rows** (all enabled, 15 source_types, avg credibility_weight 0.673), verified via `execute_sql count(*)`. Migration `0009_source_name_unique` (unique constraint on `source.name`) applied to make the import idempotent.
 - **Real AI provider IMPLEMENTED (2026-07-10):** `ai/claude_provider.py` (`ClaudeProvider`) replaces the stub behind the `AIProvider` protocol. Fail-loud on misconfig (`ExtractionConfigError`), retry+audit-degrade on transient faults, `_provenance` stamping, hallucination-rate eval (`ai/eval_harness.py`). Requires `ANTHROPIC_API_KEY`. New dep `anthropic` noted here (CLAUDE.md review rule #3). 64 unit/integration tests green.
-- **Remaining pipeline gap:** no orchestrator yet loops the 43 sources through `fetch → extract → gate → promote → /tonight` on real data. That is now the next bottleneck (was: catalog+provider, both now done).
+- **CI = deterministic trust gate (2026-07-11, PR #6 MERGED, squash a135ca9):** the AI PR-reviewer action was replaced by `tools/trust_gate.py` — an AST-based, dependency-free gate enforcing three trust invariants (no dynamic SQL in api/worker/tools; ads/tastemaker never import gating/promote; AI/extraction layer never imports promote). Runs in `.github/workflows/trust-gate.yml` on every PR + push to master, alongside the full pytest suite. Green in CI. Two real dynamic-SQL sites (`worker/resolve_entities.py`, `tools/session_reconcile.py`) were hardened with psycopg2.sql composition to pass it.
+- **Orchestrator-as-Harness IMPLEMENTED (2026-07-11, branch `feat/orchestrator-harness`, PR pending):** the source loop now exists AS the Sensors→Harness→Loop structure. New modules: `worker/orchestrator.py` (the loop, per-source error isolation), `worker/trust_gate3.py` (three-way PASS/HOLD/**ESCALATE** gate wrapping `multi_confirm_gate` — ESCALATE is the human-judgement branch for conflicting/ambiguous evidence; it never auto-promotes), `worker/sensors.py` (input-quality gate before extraction), `worker/replay_log.py` (append-only JSONL deterministic-replay audit, fail-loud on unwritable dir). `worker/run_once.py` rewritten to drive the real loop. **The Karpathy ratchet is fenced to the build loop only — the product gate must ESCALATE to a human, never auto-approve.** 117 tests green (39 new), trust gate green. See arc `2026-07-11_orchestrator-as-harness.md`.
+- **Remaining pipeline gap:** orchestrator not yet run `--real` against live Austin sources (no DB reachable in this sandbox); DB still 0 events / 0 candidates. Next: run the loop on real data and confirm a candidate lands.
 - Security advisors: only INFO-level `rls_enabled_no_policy` on the 11 service-role-only tables — intentional/benign.
 
 > NOTE: The historical sections below were written before the reconciliation above and describe some migrations/PRs as "NOT yet applied / not merged." That language is now superseded by the Reality check — kept verbatim for audit history.

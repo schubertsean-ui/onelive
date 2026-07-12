@@ -85,16 +85,40 @@ An improvement must be *measurable* or *structural*, not vibes. Prefer:
    `ExtractionConfigError` on no-key/unknown-model/bad-schema; retry+degrade on
    429/5xx; **audit** every degrade so it is never invisible.
 2. **The AI step never publishes.** Extraction only proposes candidates;
-   promotion always passes the multi-confirm gate (`worker/gating.py`).
-3. **Everything auditable.** Every stage leaves a trail. AI extractions carry
-   `_provenance` (provider, model, prompt_version, timestamp). Degradations and
-   fuzzy merges write to `audit_log`.
-4. **Never fabricate to fill a gap.** Null/empty is always the correct answer when
+   promotion always passes the multi-confirm gate (`worker/gating.py`). This is
+   enforced structurally in CI by `tools/trust_gate.py` (an AST gate that fails
+   the build if the AI/extraction layer imports `worker.promote`, if
+   ads/tastemaker code imports gating/promote, or if any dynamic SQL appears in
+   api/worker/tools). A deterministic gate — not an LLM reviewer — guards trust
+   invariants precisely because the guard itself must never be flaky or
+   de-authorizable.
+3. **The gate is three-way: PASS / HOLD / ESCALATE.** Corroboration count alone
+   (`worker/gating.py` is 2-way) does not equal safe-to-auto-publish.
+   `worker/trust_gate3.py` wraps the count gate and adds ESCALATE for evidence
+   that is promotable-by-count but conflicting or needs human judgement
+   (conflicting start_time, a `validation_error` in extraction provenance, a
+   private/RSVP event, a dedupe-ambiguity hint). ESCALATE => leave in
+   needs_review, log it, never auto-promote. **Escalating to a human is the
+   correct outcome, never a bug to route around.** Any build-time iteration
+   ratchet ("commit on green, keep going") governs how WE evolve the code only —
+   it must never leak into the product gate as "auto-approve to keep the run
+   moving." This fence is documented in `worker/orchestrator.py` so it cannot
+   silently erode.
+4. **Everything auditable, and every loop decision is replayable.** Every stage
+   leaves a trail. AI extractions carry `_provenance` (provider, model,
+   prompt_version, timestamp); degradations and fuzzy merges write to
+   `audit_log`. The orchestrator (`worker/orchestrator.py`) additionally emits a
+   deterministic-replay record (`worker/replay_log.py`) for every loop step —
+   fetch, sensor, extract, gate, promote|escalate|hold|error — with sha256
+   digests of canonicalized inputs/outputs, so any promotion decision is
+   auditable and re-runnable later. Losing an audit record fails LOUD
+   (`ReplayLogWriteError`); it is never silently dropped.
+5. **Never fabricate to fill a gap.** Null/empty is always the correct answer when
    the source doesn't state a value. Enforced by the extraction prompt and by
    measuring `hallucination_rate` (`ai/eval_harness.py`) — the KPI behind DoD #41.
-5. **Disputed data is shown as disputed, never deleted** (4-state confidence model
+6. **Disputed data is shown as disputed, never deleted** (4-state confidence model
    in `CLAUDE.md`).
-6. **Tastemaker (human opinion) content never enters the event
+7. **Tastemaker (human opinion) content never enters the event
    candidate/gating/promotion pipeline** — separate trust category.
 
 ---
