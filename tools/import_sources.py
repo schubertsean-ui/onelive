@@ -25,15 +25,35 @@ def main():
                 # constraint (migration 0009). On conflict we refresh the
                 # mutable columns so re-importing an updated catalog is a true
                 # upsert, not a silent no-op.
+                #
+                # Geo/coverage columns (migration 0010) are written here too, so
+                # a geotagged catalog actually populates them (a migration whose
+                # columns nothing writes would be dead schema). county/sub_region
+                # may be null (= not county-specific); coverage_categories
+                # defaults to an empty array. A bad county value fails LOUD at the
+                # DB CHECK constraint rather than silently creating a phantom
+                # county in coverage reports.
+                county = s.get("county")
+                sub_region = s.get("sub_region")
+                categories = s.get("coverage_categories") or []
+                if not isinstance(categories, list):
+                    raise ValueError(
+                        f"source {s['name']!r}: coverage_categories must be a list, "
+                        f"got {type(categories).__name__}")
                 cur.execute("""
-                  insert into source (name, source_type, base_url, enabled, credibility_weight, config)
-                  values (%s,%s,%s,%s,%s,%s::jsonb)
+                  insert into source (name, source_type, base_url, enabled,
+                                      credibility_weight, config,
+                                      county, sub_region, coverage_categories)
+                  values (%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s)
                   on conflict (name) do update set
                     source_type = excluded.source_type,
                     base_url = excluded.base_url,
                     enabled = excluded.enabled,
                     credibility_weight = excluded.credibility_weight,
-                    config = excluded.config
+                    config = excluded.config,
+                    county = excluded.county,
+                    sub_region = excluded.sub_region,
+                    coverage_categories = excluded.coverage_categories
                 """, (
                     s["name"],
                     s.get("category", s.get("source_type", "unknown")),
@@ -41,6 +61,9 @@ def main():
                     True,
                     float(s.get("credibility_weight", 0.5)),
                     json.dumps(s),
+                    county,
+                    sub_region,
+                    categories,
                 ))
         conn.commit()
     print(f"Imported {len(sources)} sources from {args.json}")
