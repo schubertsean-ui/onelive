@@ -65,14 +65,16 @@ def _stealth_env(monkeypatch):
 
 
 def _make_token(keypair, *, email=ALLOWED_EMAIL, azp=ALLOWED_AZP,
-                exp_delta=3600, nbf_delta=-10, include_azp=True, include_email=True):
+                exp_delta=3600, nbf_delta=-10, include_azp=True, include_email=True,
+                include_nbf=True):
     now = dt.datetime.now(tz=dt.timezone.utc)
     payload = {
         "sub": "user_abc123",
         "iat": now,
-        "nbf": now + dt.timedelta(seconds=nbf_delta),
         "exp": now + dt.timedelta(seconds=exp_delta),
     }
+    if include_nbf:
+        payload["nbf"] = now + dt.timedelta(seconds=nbf_delta)
     if include_azp:
         payload["azp"] = azp
     if include_email:
@@ -124,6 +126,17 @@ def test_not_yet_valid_token_rejected(keypair):
     assert exc.value.status_code == 401
 
 
+def test_token_missing_nbf_rejected(keypair):
+    # §4.7: nbf is REQUIRED, not merely verified-if-present. A validly signed
+    # token that omits nbf must be refused, not accepted with no lower bound.
+    token = _make_token(keypair, include_nbf=False)
+    with _patch_key(keypair):
+        with pytest.raises(AuthError) as exc:
+            verify_clerk_jwt(token)
+    assert exc.value.status_code == 401
+    assert "nbf" in exc.value.detail.lower()
+
+
 # --- GAP 1: azp --------------------------------------------------------------
 def test_azp_not_in_allowed_set_rejected(keypair):
     token = _make_token(keypair, azp="https://evil.example.com")
@@ -141,6 +154,34 @@ def test_azp_missing_rejected_per_policy(keypair):
             verify_clerk_jwt(token)
     assert exc.value.status_code == 403
     assert "azp" in exc.value.detail.lower()
+
+
+def test_list_valued_azp_rejected_cleanly_not_500(keypair):
+    # A hostile/malformed token with a JSON-array azp must produce a clean
+    # AuthError(403), never an unhashable-type TypeError surfacing as a 500.
+    token = _make_token(keypair, azp=["https://evil.example.com", ALLOWED_AZP])
+    with _patch_key(keypair):
+        with pytest.raises(AuthError) as exc:
+            verify_clerk_jwt(token)
+    assert exc.value.status_code == 403
+    assert "azp" in exc.value.detail.lower()
+
+
+def test_non_string_azp_rejected_cleanly(keypair):
+    # A numeric azp is likewise a malformed authorized-party claim -> 403 deny.
+    token = _make_token(keypair, azp=12345)
+    with _patch_key(keypair):
+        with pytest.raises(AuthError) as exc:
+            verify_clerk_jwt(token)
+    assert exc.value.status_code == 403
+
+
+def test_whitespace_only_azp_rejected(keypair):
+    token = _make_token(keypair, azp="   ")
+    with _patch_key(keypair):
+        with pytest.raises(AuthError) as exc:
+            verify_clerk_jwt(token)
+    assert exc.value.status_code == 403
 
 
 def test_empty_azp_allowlist_denies_all(keypair, monkeypatch):
@@ -173,6 +214,15 @@ def test_empty_email_allowlist_denies_all(keypair, monkeypatch):
 
 def test_case_insensitive_email_match(keypair):
     token = _make_token(keypair, email="OPS@OneLive.TEST")
+    with _patch_key(keypair):
+        user = verify_and_authorize(token)
+    assert user["email"] == ALLOWED_EMAIL
+
+
+def test_email_claim_whitespace_is_stripped(keypair):
+    # Stray surrounding whitespace in the email claim must normalize to a match
+    # (aligns with the web layer) rather than cause a false deny.
+    token = _make_token(keypair, email="  ops@onelive.test  ")
     with _patch_key(keypair):
         user = verify_and_authorize(token)
     assert user["email"] == ALLOWED_EMAIL

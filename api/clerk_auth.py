@@ -116,7 +116,10 @@ def verify_clerk_jwt(token: str) -> Dict[str, Any]:
         "algorithms": ["RS256"],
         # Clerk session tokens use `azp`, not `aud`, for the origin binding; we
         # validate `azp` explicitly below rather than relying on audience.
-        "options": {"require": ["exp"], "verify_aud": False},
+        # Both `exp` and `nbf` are required (§4.7): a validly-signed token that
+        # omits either temporal bound is refused, not accepted with an implicit
+        # "no lower bound".
+        "options": {"require": ["exp", "nbf"], "verify_aud": False},
     }
     issuer = os.getenv("ONELIVE_CLERK_ISSUER")
     if issuer:
@@ -138,6 +141,12 @@ def verify_clerk_jwt(token: str) -> Dict[str, Any]:
     azp = claims.get("azp")
     if azp is None:
         raise AuthError("token missing azp (authorized party); refused", status_code=403)
+    # Type-check BEFORE the membership test: a list/dict/number `azp` (a malformed
+    # or hostile token) must produce a clean 403 deny, never an unhashable-type
+    # TypeError that surfaces as a 500 and looks like a server fault.
+    if not isinstance(azp, str) or not azp.strip():
+        raise AuthError("token azp is not a valid non-empty string; refused", status_code=403)
+    azp = azp.strip()
     if azp not in azp_allowed:
         raise AuthError(f"token azp '{azp}' is not an authorized party", status_code=403)
 
@@ -149,8 +158,10 @@ def _email_from_claims(claims: Dict[str, Any]) -> Optional[str]:
     # depending on the JWT template; check the common ones.
     for key in ("email", "email_address", "primary_email_address"):
         value = claims.get(key)
-        if isinstance(value, str) and value:
-            return value.lower()
+        if isinstance(value, str) and value.strip():
+            # Strip + lowercase so a claim with stray surrounding whitespace
+            # matches the allowlist, mirroring the web layer's normalization.
+            return value.strip().lower()
     return None
 
 
