@@ -95,3 +95,4 @@ and mirror key facts to memory.
 | Date | Arc | Focus |
 |---|---|---|
 | 2026-07-10 | [Build assessment & session-arc system](2026-07-10_build-assessment.md) | Ground-truth audit of the build; defined next steps; established this arc system. |
+| 2026-07-10 | [Source import + real AI provider + operating rules](2026-07-10_source-import-and-ai-provider.md) | Imported 43-source catalog; built Claude provider (fail-loud/audit-degrade/provenance); hallucination-rate eval; codified `OPERATING_RULES.md`. |

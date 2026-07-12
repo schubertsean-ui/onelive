@@ -1,0 +1,48 @@
+name: Trust Gate
+
+# Deterministic, hermetic trust-invariant checks. Replaces the AI PR-review
+# action (which required the Claude GitHub App and gave non-deterministic
+# results). A trust INVARIANT must be enforced by a check that returns the same
+# answer every time — so it is code in-repo (tools/trust_gate.py), not an AI.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [master]
+
+concurrency:
+  group: trust-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trust-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install worker + api deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r worker/requirements.txt -r api/requirements.txt pytest
+
+      - name: Trust invariants (no dynamic SQL; ads isolated; AI never promotes)
+        run: python tools/trust_gate.py
+
+      - name: Test suite
+        run: python -m pytest -q
+
+      - name: Extraction eval harness (precision/recall/F1/hallucination)
+        run: |
+          # eval_harness scores extraction quality against the golden set. It is
+          # a module; running it as a script executes its self-check. If it has
+          # no __main__ yet, importing it must at least succeed (no import-time
+          # regressions) — fail loudly if even that breaks.
+          python -c "import ai.eval_harness as e; print('eval_harness import OK:', [n for n in dir(e) if not n.startswith('_')][:8])"

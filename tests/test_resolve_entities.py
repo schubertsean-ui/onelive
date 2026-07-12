@@ -14,9 +14,35 @@ a live Postgres with pg_trgm + migration 0005 applied).
 import re
 
 import psycopg2
+from psycopg2 import sql
 import pytest
 
 from worker.resolve_entities import resolve_venue_id, resolve_artist_ids, FUZZY_THRESHOLD
+
+
+def _render(query) -> str:
+    """Render either a plain SQL string or a psycopg2.sql.Composed into the text
+    the query would become, so FakeCursor can pattern-match it the same way it
+    matches a plain string. Identifiers render WITHOUT the double-quotes psycopg2
+    would add (e.g. Identifier('venue') -> venue) so the existing substring
+    checks ('from venue', 'lower(city)') keep working against composed SQL.
+    Literals render as their SQL text. This mirrors psycopg2's own composition
+    closely enough for the branching the tests exercise."""
+    if isinstance(query, str):
+        return query
+    parts = []
+    for node in getattr(query, "seq", [query]):
+        if isinstance(node, sql.SQL):
+            parts.append(node.string)
+        elif isinstance(node, sql.Identifier):
+            parts.append(".".join(node.strings))
+        elif isinstance(node, sql.Literal):
+            parts.append(str(node.wrapped))
+        elif isinstance(node, sql.Placeholder):
+            parts.append("%s")
+        else:
+            parts.append(str(node))
+    return "".join(parts)
 
 
 def _norm(s: str) -> str:
@@ -43,8 +69,10 @@ class FakeCursor:
             pass
     connection = _Conn()
 
-    def execute(self, sql, params=()):
-        s = " ".join(sql.lower().split())
+    def execute(self, query, params=()):
+        # `query` may be a plain string or a psycopg2.sql.Composed (identifiers
+        # are now composed safely rather than string-interpolated); render both.
+        s = " ".join(_render(query).lower().split())
         self._result = []
         if s.startswith(("savepoint", "release", "rollback", "set ")):
             return
@@ -180,11 +208,11 @@ class _SchemaFailCursor(FakeCursor):
         super().__init__()
         self._error = error
 
-    def execute(self, sql, params=()):
-        s = " ".join(sql.lower().split())
+    def execute(self, query, params=()):
+        s = " ".join(_render(query).lower().split())
         if "similarity" in s and "from" in s:
             raise self._error
-        return super().execute(sql, params)
+        return super().execute(query, params)
 
 
 def test_fuzzy_reraises_on_schema_resolution_failure():

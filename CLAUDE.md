@@ -30,4 +30,9 @@ Stack:
 3. Does it introduce a new external dependency? If yes, note it in STATE.md.
 
 ## Where to look first
-Read STATE.md before starting any session — it is the single source of truth for what's done and what's next. Update STATE.md at the end of every meaningful session.
+**Run `docs/SESSION_START.md` before starting any session.** It reconciles STATE.md
+against live ground truth (git/PRs/DB via `tools/session_reconcile.py`) so you can
+trust it, then routes you to STATE.md (what's done/next), the latest session arc
+(how we got here), and `docs/OPERATING_RULES.md` (how we work). Do not trust
+STATE.md until the reconcile step is clean. Update STATE.md and re-run the
+reconciler at the end of every meaningful session.

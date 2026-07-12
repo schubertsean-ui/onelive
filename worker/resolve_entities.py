@@ -36,8 +36,18 @@ import logging
 from typing import List, Optional, Tuple
 
 import psycopg2
+from psycopg2 import sql
 
 logger = logging.getLogger(__name__)
+
+# The only table/id-column pairs entity resolution is ever allowed to touch.
+# _fuzzy_match composes identifiers via psycopg2.sql.Identifier (never string
+# interpolation), and this allowlist is asserted at the call boundary so a
+# caller can never smuggle an arbitrary identifier into composed SQL.
+_RESOLVABLE = {
+    "venue": "venue_id",
+    "artist": "artist_id",
+}
 
 # Similarity in [0,1]; 0.45 tolerates minor variants ("Mohawk" vs "The Mohawk")
 # while staying strict enough not to collapse genuinely different names.
@@ -63,21 +73,35 @@ def _fuzzy_match(cur, table: str, id_col: str, name: str, threshold: float,
     spawn duplicate venue/artist rows. We log an error and re-raise those so the
     misconfiguration is loud, not invisible.
     """
+    # Defense in depth: identifiers are composed with psycopg2.sql.Identifier
+    # below, but we still refuse any table/id_col outside the known allowlist so
+    # composed SQL can only ever name the two entity tables it is meant to.
+    if _RESOLVABLE.get(table) != id_col:
+        raise ValueError(f"refusing to resolve against unknown table/id_col: {table!r}/{id_col!r}")
     try:
         cur.execute("SAVEPOINT fuzzy_match")
-        # threshold is our own float constant; format it directly since SET does
-        # not accept a bound parameter for the value.
-        cur.execute("SET LOCAL pg_trgm.similarity_threshold = %s" % float(threshold))
+        # SET does not accept a bound parameter for its value, so compose the
+        # statement with psycopg2.sql (sql.Literal safely quotes the value)
+        # rather than %-formatting a string. threshold is a float constant.
+        cur.execute(sql.SQL("SET LOCAL pg_trgm.similarity_threshold = {}").format(
+            sql.Literal(float(threshold))))
+        id_ident = sql.Identifier(id_col)
+        tbl_ident = sql.Identifier(table)
         if city is not None:
             cur.execute(
-                f"select {id_col}, extensions.similarity(name, %s) as sim from {table} "
-                f"where name OPERATOR(extensions.%%) %s and (city is null or lower(city)=lower(%s)) "
-                f"order by sim desc limit 1",
+                sql.SQL(
+                    "select {id}, extensions.similarity(name, %s) as sim from {tbl} "
+                    "where name OPERATOR(extensions.%%) %s "
+                    "and (city is null or lower(city)=lower(%s)) "
+                    "order by sim desc limit 1"
+                ).format(id=id_ident, tbl=tbl_ident),
                 (name, name, city))
         else:
             cur.execute(
-                f"select {id_col}, extensions.similarity(name, %s) as sim from {table} "
-                f"where name OPERATOR(extensions.%%) %s order by sim desc limit 1",
+                sql.SQL(
+                    "select {id}, extensions.similarity(name, %s) as sim from {tbl} "
+                    "where name OPERATOR(extensions.%%) %s order by sim desc limit 1"
+                ).format(id=id_ident, tbl=tbl_ident),
                 (name, name))
         row = cur.fetchone()
         cur.execute("RELEASE SAVEPOINT fuzzy_match")
