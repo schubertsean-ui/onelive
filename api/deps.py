@@ -5,18 +5,16 @@ All API routers depend on `get_db` for a single, consistent connection path
 and STATE.md's RLS section for why that is safe today).
 """
 from typing import Dict, Any
-import os
 
 import psycopg2
 from fastapi import Depends
 
 from api.clerk_auth import require_allowlisted_user
-
-DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
+from worker.db_config import resolve_dsn
 
 
 def get_db():
-    return psycopg2.connect(DB_DSN)
+    return psycopg2.connect(resolve_dsn())
 
 
 def require_admin(user: Dict[str, Any] = Depends(require_allowlisted_user)) -> Dict[str, Any]:

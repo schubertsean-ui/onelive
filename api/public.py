@@ -3,14 +3,12 @@ disputed events are always shown as disputed, never dropped (CLAUDE.md 4-state
 confidence model; guarded by a structural test in tests/test_gates.py).
 """
 from datetime import datetime, timedelta, timezone
-import os
 
 from fastapi import APIRouter, Depends
 import psycopg2
 
 from api.clerk_auth import require_allowlisted_user
-
-DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
+from worker.db_config import resolve_dsn
 
 # Stealth launch: the whole app is private, so even the consumer read feed is
 # gated by layer 2 (a valid, allowlisted Clerk token). Applied at the router
@@ -20,7 +18,7 @@ router = APIRouter(tags=["public"], dependencies=[Depends(require_allowlisted_us
 
 
 def db():
-    return psycopg2.connect(DB_DSN)
+    return psycopg2.connect(resolve_dsn())
 
 
 @router.get("/events")
