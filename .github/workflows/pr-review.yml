@@ -15,6 +15,12 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      # claude-code-action@v1 unconditionally requests an OIDC token during
+      # startup even when a static ANTHROPIC_API_KEY is supplied (see
+      # anthropics/claude-code-action#649). Without id-token:write it dies with
+      # "Could not fetch an OIDC token". Granting it is harmless: auth still
+      # uses the API key; this only lets the action mint the token it insists on.
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,7 +59,11 @@ jobs:
             echo "max_turns=5" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: anthropics/claude-code-action@v1
+      # Pinned to an exact release, NOT the floating @v1 tag. @v1 silently moves
+      # when Anthropic ships new builds, which is how the input/model schema
+      # drifted out from under this workflow before. Pinning keeps CI
+      # deterministic; bump this deliberately, never implicitly.
+      - uses: anthropics/claude-code-action@v1.0.171
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # v1 moved model / max-turns / tool allowlist out of top-level inputs
