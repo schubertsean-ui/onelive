@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# agent_review — kick off a cross-agent code review without memorizing each
+# tool's incantation. SUMMARY: loads docs/review_personas/<persona>.md, prints
+# the review prompt (persona checklist) + the diff to review to stdout, so any
+# agent/model can consume it as a single piece of context. Fails loudly if the
+# persona doc or the git ref/path doesn't exist. Usage:
+#   tools/agent_review --persona security --target HEAD~1
+#   tools/agent_review --persona performance --target worker/confidence.py
+#   tools/agent_review --list-personas
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PERSONAS_DIR="$REPO_ROOT/docs/review_personas"
+
+usage() {
+  cat >&2 <<'USAGE'
+Usage: tools/agent_review --persona <name> --target <path/ref> [--diff-context N]
+       tools/agent_review --list-personas
+
+  --persona NAME       Persona doc to load from docs/review_personas/NAME.md
+                        (name without the .md extension).
+  --target PATH_OR_REF  A git ref (e.g. HEAD~1, a branch, a commit sha) to diff
+                        against HEAD, OR a file/directory path to review as-is
+                        (its current content is printed, not a diff).
+  --diff-context N     Lines of diff context when --target is a git ref
+                        (default 3, passed through to `git diff -U<N>`).
+  --list-personas      Print available persona names and exit 0.
+
+Exit codes: 0 = printed review prompt successfully. 2 = persona missing,
+target missing, or git diff failed (never a silent empty result).
+USAGE
+}
+
+PERSONA=""
+TARGET=""
+DIFF_CONTEXT=3
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --persona) PERSONA="$2"; shift 2 ;;
+    --target) TARGET="$2"; shift 2 ;;
+    --diff-context) DIFF_CONTEXT="$2"; shift 2 ;;
+    --list-personas)
+      echo "Available personas (docs/review_personas/):"
+      for f in "$PERSONAS_DIR"/*.md; do
+        [ -e "$f" ] || continue
+        echo "  - $(basename "$f" .md)"
+      done
+      exit 0
+      ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "agent_review: unknown argument '$1'" >&2; usage; exit 2 ;;
+  esac
+done
+
+if [ -z "$PERSONA" ] || [ -z "$TARGET" ]; then
+  echo "agent_review: both --persona and --target are required (or use --list-personas)." >&2
+  usage
+  exit 2
+fi
+
+PERSONA_DOC="$PERSONAS_DIR/$PERSONA.md"
+if [ ! -f "$PERSONA_DOC" ]; then
+  echo "agent_review: FAIL — no persona doc at $PERSONA_DOC." >&2
+  echo "Available personas:" >&2
+  for f in "$PERSONAS_DIR"/*.md; do
+    [ -e "$f" ] || continue
+    echo "  - $(basename "$f" .md)" >&2
+  done
+  exit 2
+fi
+
+cd "$REPO_ROOT"
+
+echo "=============================================================================="
+echo "AGENT REVIEW — persona: $PERSONA"
+echo "=============================================================================="
+echo
+echo "--- REVIEW CHECKLIST (docs/review_personas/$PERSONA.md) ---"
+echo
+cat "$PERSONA_DOC"
+echo
+echo "--- SHARED BASELINE (docs/CODING_CONVENTIONS.md) ---"
+echo
+cat "$REPO_ROOT/docs/CODING_CONVENTIONS.md"
+echo
+echo "--- REVIEW TARGET: $TARGET ---"
+echo
+
+# Guard against dumping secrets or out-of-repo files into the review transcript.
+# A review target must be either a git ref, or a path that lives INSIDE the repo
+# and is tracked by git (git ls-files) -- never an arbitrary absolute path like
+# /etc/passwd or a local .env, and never an untracked secret dropped in the tree.
+sensitive_name() {
+  case "$(basename "$1")" in
+    .env|.env.*|*.pem|*.key|*.p12|*.pfx|id_rsa|id_dsa|id_ed25519|*.crt|credentials|*.secret|*secrets*)
+      return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+if git rev-parse --verify --quiet "$TARGET" > /dev/null 2>&1 && [ ! -e "$TARGET" ]; then
+  # TARGET resolves as a git ref (and isn't ALSO an existing file path with
+  # the same name, which would be ambiguous) -- show it as a diff against HEAD.
+  if ! git diff -U"$DIFF_CONTEXT" "$TARGET"..HEAD; then
+    echo "agent_review: FAIL — 'git diff $TARGET..HEAD' failed." >&2
+    exit 2
+  fi
+elif [ -e "$TARGET" ]; then
+  # TARGET is a real file or directory on disk. Containment check: it must be
+  # inside REPO_ROOT (realpath prefix) before we print anything.
+  TARGET_ABS="$(cd "$(dirname "$TARGET")" 2>/dev/null && pwd)/$(basename "$TARGET")"
+  case "$TARGET_ABS" in
+    "$REPO_ROOT"|"$REPO_ROOT"/*) : ;;
+    *)
+      echo "agent_review: FAIL — '$TARGET' resolves outside the repo ($REPO_ROOT)." >&2
+      echo "                 Refusing to print files outside the repository." >&2
+      exit 2 ;;
+  esac
+  if sensitive_name "$TARGET"; then
+    echo "agent_review: FAIL — '$TARGET' looks like a secret/credential file." >&2
+    echo "                 Refusing to print it into a review transcript." >&2
+    exit 2
+  fi
+  # Print only git-TRACKED source files (never untracked secrets), current state.
+  if [ -d "$TARGET" ]; then
+    MATCHES=$(git -C "$REPO_ROOT" ls-files -- "$TARGET" \
+      | grep -E '\.(py|ts|tsx|sh|md)$' || true)
+    if [ -z "$MATCHES" ]; then
+      echo "agent_review: NOTE — '$TARGET' has no tracked .py/.ts/.tsx/.sh/.md files to show." >&2
+    else
+      while IFS= read -r f; do
+        sensitive_name "$f" && continue
+        echo "### $f"
+        cat "$REPO_ROOT/$f"
+        echo
+      done <<< "$MATCHES"
+    fi
+  else
+    if ! git -C "$REPO_ROOT" ls-files --error-unmatch -- "$TARGET" >/dev/null 2>&1; then
+      echo "agent_review: FAIL — '$TARGET' is not tracked by git; refusing to print untracked file." >&2
+      exit 2
+    fi
+    cat "$TARGET"
+  fi
+else
+  echo "agent_review: FAIL — '$TARGET' is not a valid git ref and not an existing file/directory." >&2
+  exit 2
+fi
+
+echo
+echo "=============================================================================="
+echo "END REVIEW TARGET — apply the $PERSONA checklist above to what you just read."
+echo "=============================================================================="

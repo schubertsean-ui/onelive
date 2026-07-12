@@ -1,0 +1,34 @@
+# OneLive pre-commit hooks. SUMMARY: wires trust_gate.py (trust invariants),
+# lint.py --fix (style/broken-window checks, auto-fixes what's safe), and a
+# fast pure-logic pytest subset into `pre-commit` if that framework is
+# installed. If it ISN'T installed, use tools/install_hooks.sh instead — it
+# installs a plain git hook that runs the same two Python checks directly, so
+# commits are never left unguarded just because this framework is absent.
+#
+# Install (only if the `pre-commit` framework is available):
+#   pip install pre-commit && pre-commit install
+# If pre-commit isn't installed / can't be installed in this environment, run
+# tools/install_hooks.sh instead (pure stdlib, no framework dependency).
+repos:
+  - repo: local
+    hooks:
+      - id: onelive-lint-fix
+        name: OneLive lint (--fix)
+        entry: python tools/lint.py --fix
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: onelive-trust-gate
+        name: OneLive trust gate (dynamic SQL / pipeline isolation invariants)
+        entry: python tools/trust_gate.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: onelive-pytest-fast
+        name: OneLive pytest (pure-logic subset, excludes db/perf/visual)
+        entry: python -m pytest -q -m "not dbintegration and not perf and not visual"
+        language: system
+        pass_filenames: false
+        always_run: true

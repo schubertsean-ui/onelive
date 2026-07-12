@@ -1,8 +1,15 @@
+"""Ops inbox API: list/review event candidates and the human promote action.
+
+This is the one legitimate human-in-the-loop path that calls worker.promote
+directly (see tools/trust_gate.py PROMOTE_IMPORT_ALLOWLIST) -- an operator
+reviews evidence, then promotes; the AI extraction layer never promotes.
+"""
+from typing import Any, Dict, List, Optional
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Any, Dict, List, Optional
 import psycopg2
-import json
 
 from api.deps import get_db, require_admin
 from worker.gating import multi_confirm_gate

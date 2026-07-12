@@ -51,6 +51,13 @@ where the *why* lives that STATE.md summarizes.
 ## Step 4 — Refresh the working rules (once, or when they change)
 - `docs/OPERATING_RULES.md` — quality bar, Loops/Kaizen, trust rules, the Harness.
 - `CLAUDE.md` — architecture invariants and PR review criteria.
+- `docs/CODING_CONVENTIONS.md` — the reviewer-facing conventions checklist.
+
+## Step 5 — Know the queue (what to work on)
+`TODOS.md` is the work queue (seeded from STATE.md "What's next" + open founder
+decisions). Take the highest-priority **unblocked** item; never start one that
+depends on an open founder decision. For an autonomous/overnight run, follow
+`docs/skills/night_shift.md` (orchestration loop + layered exits + hard stops).
 
 ---
 
@@ -59,14 +66,24 @@ where the *why* lives that STATE.md summarizes.
   append/write a session arc so no decision or finding is lost.
 
 ## Session close (finalize)
-1. Update STATE.md prose (what changed, what's next).
+1. Update STATE.md prose (what changed, what's next). Update `TODOS.md` (check off
+   done items, add new ones). Do NOT hand-edit STATE.md's GROUND_TRUTH json block.
 2. Re-run `session_reconcile.py --heal` so the ground-truth block matches reality
    at close (leaves the next session a verified starting point).
-3. Write the session arc (`docs/session_arcs/YYYY-MM-DD_slug.md`), add it to the
-   README index, mirror key decisions to memory.
-4. Note any new external dependency in STATE.md (CLAUDE.md review rule #3).
+3. **Run `bash tools/validate`** — the single "run everything" gate (trust_gate,
+   lint, full pytest, eval_harness, perf, test_audit, commit_sweep,
+   visual_regression). RESULT: FAIL → you are not done. A SKIPPED check is NOT a
+   pass — resolve it or hand it to the founder explicitly.
+4. Write the session arc (`docs/session_arcs/YYYY-MM-DD_slug.md`), add it to the
+   README index, and **tag it** `arc/YYYY-MM-DD_slug` (see session_arcs/README.md).
+   Mirror key decisions to memory.
+5. Append honest friction/feedback to `docs/AGENT_FEEDBACK.md` (what slowed you
+   down, what to automate next) — periodically ingested to improve the workflow.
+6. Note any new external dependency in STATE.md (CLAUDE.md review rule #3).
 
 ---
 
 **One-line version:** reconcile → trust STATE.md → skim latest arc → know the
-rules → work → checkpoint before compaction → finalize + re-reconcile at close.
+rules → pull from TODOS.md → work → checkpoint before compaction → at close:
+update STATE/TODOS → re-reconcile → `tools/validate` (green, no unresolved skips)
+→ write + tag the arc → append AGENT_FEEDBACK.

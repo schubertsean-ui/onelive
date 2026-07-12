@@ -1,13 +1,14 @@
 """AI extraction entrypoint — turns raw source text into an event_candidate row.
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/ai_extract.py)
 """
+from typing import Optional
 import inspect
 import logging
-from typing import Optional
+
 from pydantic import TypeAdapter, ValidationError
 
-from ai.provider import AIProvider
 from ai.prompts import EXTRACTION_SYSTEM_PROMPT
+from ai.provider import AIProvider
 from worker.ai_models import AIEventExtraction
 from worker.candidate_store import create_candidate, add_evidence, record_ai_degradation
 from worker.gating import multi_confirm_gate

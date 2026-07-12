@@ -1,9 +1,9 @@
 """Pydantic model for AI-extracted event data.
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/ai_models.py)
 """
-from pydantic import BaseModel, Field
 from typing import List, Optional
 
+from pydantic import BaseModel, Field
 
 class AIEventExtraction(BaseModel):
     title: Optional[str] = None

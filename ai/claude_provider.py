@@ -43,15 +43,15 @@ version, UTC timestamp) so an AI-extracted candidate can be re-verified and
 recalled if a model version regresses — required by CLAUDE.md's "every stage
 independently auditable".
 """
+from datetime import datetime, timezone
+from typing import Optional
 import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
-from typing import Optional
 
-from ai.provider import AIProvider
 from ai.prompts import EXTRACTION_SYSTEM_PROMPT
+from ai.provider import AIProvider
 
 logger = logging.getLogger(__name__)
 

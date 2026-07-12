@@ -3,12 +3,13 @@ Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/promo
 """
 import json
 import os
+
 import psycopg2
 
-from worker.gating import multi_confirm_gate
 from worker.confidence import derive_confidence, is_valid_confidence
-from worker.resolve_entities import resolve_venue_id, resolve_artist_ids
 from worker.dedupe import find_possible_duplicates
+from worker.gating import multi_confirm_gate
+from worker.resolve_entities import resolve_venue_id, resolve_artist_ids
 
 DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
 

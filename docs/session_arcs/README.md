@@ -53,6 +53,13 @@ and mirror key facts to memory.
   If a session spans work already covered by a dated file, **update that file in place**
   rather than creating a duplicate.
 - **Index:** newest arcs listed at the top of the table below.
+- **Git tag (findability):** at session close, tag the commit that finalizes an
+  arc with `arc/YYYY-MM-DD_slug` — the same slug as the arc filename — so any arc
+  is directly reachable from git history later (`git tag arc/2026-07-11_agentic-harness <sha>`;
+  find with `git tag -l 'arc/*'`, jump with `git show arc/<slug>`). Arcs are
+  referenced *often* after the fact; the tag makes "which commits belong to that
+  session?" a one-liner. Push tags with `git push --tags`. If a session spans an
+  existing dated arc, move/retag rather than duplicate.
 
 ## Arc template
 
@@ -94,5 +101,6 @@ and mirror key facts to memory.
 
 | Date | Arc | Focus |
 |---|---|---|
+| 2026-07-11 | [Agentic-harness buildout](2026-07-11_agentic-harness-buildout.md) | Audited OneLive vs. the 18-item setup + 20-step Loop Engineering roadmap; built lint+hooks, validate gate, night-shift skill, commit_sweep, test_audit, perf benchmarks/profiler, visual-regression harness, personas, TESTS/CONVENTIONS/TODOS/FEEDBACK docs; wired all controlling docs. |
 | 2026-07-10 | [Build assessment & session-arc system](2026-07-10_build-assessment.md) | Ground-truth audit of the build; defined next steps; established this arc system. |
 | 2026-07-10 | [Source import + real AI provider + operating rules](2026-07-10_source-import-and-ai-provider.md) | Imported 43-source catalog; built Claude provider (fail-loud/audit-degrade/provenance); hallucination-rate eval; codified `OPERATING_RULES.md`. |

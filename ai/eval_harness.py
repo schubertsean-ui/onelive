@@ -20,7 +20,6 @@ genuine discrepancy worth surfacing.
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-
 def _norm(v):
     """Normalize a scalar for comparison; lists compared as normalized sets."""
     if v is None:
