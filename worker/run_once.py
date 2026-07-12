@@ -2,8 +2,9 @@
 
 Default (no flags) mode is a smoke test: a stub AI provider (no model call)
 over a single in-memory source, so the loop itself — fetch, sensor, extract,
-gate3, promote/escalate, replay logging — is genuinely exercised end to end
-without a live database or an Anthropic key. The one thing it does need is
+gate3, replay logging — is genuinely exercised end to end without a live
+database or an Anthropic key. The loop never promotes (promotion is an
+authenticated ops action), so no publish happens here. The one thing it needs is
 network for the fetch step: the stub source points at a tiny, stable public
 URL (fetch_url is HTTP-only, so a local file:// path is not an option). Only
 that fetch step touches the network; sensors, extract, gate3, and replay run
@@ -14,10 +15,10 @@ configured (it swaps in ClaudeProvider and expects real `source` rows from
 the DB); it is guarded behind the flag specifically so importing this module,
 or running it with no flags, never requires network or DB configuration.
 
-This file legitimately calls worker.orchestrator.run_loop, which itself calls
-worker.promote.promote_candidate; run_once.py is on the PROMOTE_IMPORT_ALLOWLIST
-in tools/trust_gate.py (transitively exercising the promote path is the whole
-point of a smoke test for the orchestrator).
+This file drives worker.orchestrator.run_loop, which classifies candidates but
+never promotes them: publishing to the canonical event table is an authenticated
+ops action only (api/ops_candidates.py). run_once therefore has no publish side
+effect of its own.
 """
 import argparse
 import logging
@@ -52,7 +53,7 @@ _SMOKE_SOURCE = {
 
 def _run_stub() -> int:
     ai = BedrockProvider(client=None, model_id="stub")
-    report = run_loop(ai=ai, sources=[_SMOKE_SOURCE], sxsw_mode=False, promote=False)
+    report = run_loop(ai=ai, sources=[_SMOKE_SOURCE], sxsw_mode=False)
     print("RunReport:")
     print(f"  run_id:   {report.run_id}")
     print(f"  started:  {report.started}")
@@ -110,7 +111,7 @@ def _run_real() -> int:
         logger.error("no enabled, fetchable sources found in the `source` table.")
         return 1
 
-    report = run_loop(ai=ai, sources=sources, sxsw_mode=False, promote=False, dsn=dsn)
+    report = run_loop(ai=ai, sources=sources, sxsw_mode=False, dsn=dsn)
     print("RunReport:")
     print(f"  run_id:   {report.run_id}")
     print(f"  counts:   {report.counts}")

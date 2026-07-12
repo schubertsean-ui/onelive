@@ -46,11 +46,12 @@ PIPELINE_MODULES = ("worker.gating", "worker.promote")
 ADS_TASTEMAKER_MARKERS = ("ads", "tastemaker", "advertiser", "ad_campaign", "curat")
 
 # Files allowed to import worker.promote (the only legitimate promoters).
+# The orchestrator and its entrypoint are DELIBERATELY absent: the AI loop must
+# never be able to publish, so if either re-acquires a worker.promote import
+# this gate fails. "AI never auto-promotes" is enforced here structurally, not
+# by a runtime flag.
 PROMOTE_IMPORT_ALLOWLIST = {
     "api/ops_candidates.py",  # operator action: human-reviewed promote endpoint
-    "worker/run_once.py",     # the orchestrator entrypoint
-    "worker/orchestrator.py", # the per-source runner: gate3 -> promote|needs_review
-    "worker/multiconfirm.py", # gate helper
 }
 
 
