@@ -55,6 +55,7 @@ from ai.provider import AIProvider
 
 
 
+
 logger = logging.getLogger(__name__)
 
 # Bump when EXTRACTION_SYSTEM_PROMPT changes materially, so provenance on stored

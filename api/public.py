@@ -9,6 +9,7 @@ from fastapi import APIRouter
 import psycopg2
 
 
+
 DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
 
 router = APIRouter(tags=["public"])

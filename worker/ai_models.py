@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 
 
+
 class AIEventExtraction(BaseModel):
     title: Optional[str] = None
     start_time: Optional[str] = None   # ISO string

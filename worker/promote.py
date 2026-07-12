@@ -14,6 +14,8 @@ from worker.resolve_entities import resolve_venue_id, resolve_artist_ids
 
 
 
+
+
 DB_DSN = os.getenv("ONELIVE_DB_DSN", "dbname=onelive user=postgres password=postgres host=localhost")
 
 
