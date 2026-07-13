@@ -48,6 +48,19 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Validate the budget ceiling input (fail closed, never interpolate)
+        env:
+          # Untrusted dispatch input reaches the shell ONLY via env (never
+          # ${{ }}-interpolated into run: — shell-injection surface) and must
+          # be a positive integer; 0/negative is rejected here AND in
+          # run_once.py (defense in depth, evaluator finding PR #12 round 1).
+          MAX_SOURCES: ${{ github.event.inputs.max_sources }}
+        run: |
+          if ! printf '%s' "$MAX_SOURCES" | grep -Eq '^[1-9][0-9]*$'; then
+            echo "::error::max_sources must be a positive integer (got '$MAX_SOURCES'). The budget ceiling is required and fails closed — 0 does not mean uncapped."
+            exit 1
+          fi
+
       - name: Preconditions (fail loud, never no-op)
         env:
           ONELIVE_DB_DSN: ${{ secrets.ONELIVE_DB_DSN }}
@@ -74,8 +87,9 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ORCHESTRATOR_PING_URL: ${{ secrets.ORCHESTRATOR_PING_URL }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          MAX_SOURCES: ${{ github.event.inputs.max_sources }}
         run: |
-          python worker/run_once.py --real --max-sources "${{ github.event.inputs.max_sources }}"
+          python worker/run_once.py --real --max-sources "$MAX_SOURCES"
 
       - name: Persist the replay log (audit trail)
         if: always()
@@ -83,4 +97,7 @@ jobs:
         with:
           name: replay-log-${{ github.run_id }}
           path: var/replay/
-          if-no-files-found: warn
+          # A successful real run MUST leave a replay audit trail — absence on
+          # success is a failure. After an earlier failed step, absence is
+          # expected and merely warned (the failure is already red).
+          if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}

@@ -24,6 +24,7 @@ import argparse
 import logging
 import os
 import sys
+from typing import Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -65,40 +66,75 @@ def _run_stub() -> int:
     return 0
 
 
-def apply_source_ceiling(sources: list, cap) -> list:
+def _positive_int(raw: str) -> int:
+    """argparse type for --max-sources: a budget ceiling is positive or it is
+    rejected — 0/negative must never mean "uncapped" (fail-closed, evaluator
+    finding PR #12 round 1)."""
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"{raw!r} is not an integer") from exc
+    if value <= 0:
+        raise argparse.ArgumentTypeError(
+            f"{value} is not a valid budget ceiling — must be a positive "
+            "integer; a ceiling of 0 does not mean uncapped, it means no run."
+        )
+    return value
+
+
+def apply_source_ceiling(sources: Sequence[dict], cap: int | None) -> list:
     """Cap how many sources one real run may process (FinOps §14.3: budget
     ceilings exist BEFORE the recurring loop, not after the first surprise
-    bill). cap None/<=0 means uncapped — but the caller logs that loudly, so
-    an uncapped scheduled run is always a visible, deliberate choice. Order is
-    preserved (DB order), so the ceiling truncates the tail, deterministically.
+    bill). cap=None means uncapped — the caller logs that loudly, so an
+    uncapped run is always a visible, deliberate choice. Any other value must
+    be a positive int: 0/negative is a misconfiguration and FAILS CLOSED
+    (raises) instead of silently disabling the guard. Order is preserved
+    (DB order), so the ceiling truncates the tail, deterministically.
     """
-    if cap is None or cap <= 0:
-        return sources
+    if cap is None:
+        return list(sources)
+    if cap <= 0:
+        raise ValueError(
+            f"source ceiling {cap} is invalid — a budget cap must be positive; "
+            "0/negative fails closed, it never means uncapped."
+        )
     if len(sources) > cap:
         logger.warning(
             "budget ceiling: processing %d of %d enabled sources this run "
             "(raise --max-sources / ONELIVE_MAX_SOURCES_PER_RUN deliberately).",
             cap, len(sources),
         )
-    return sources[:cap]
+    return list(sources[:cap])
 
 
-def _resolve_source_cap(cli_value) -> "int | None":
+def _resolve_source_cap(cli_value: int | None) -> int | None:
     """--max-sources wins; else ONELIVE_MAX_SOURCES_PER_RUN; else uncapped
-    (logged loudly by the caller). A non-integer env value is a misconfig and
-    fails loud rather than silently running uncapped."""
+    (logged loudly by the caller). Any non-positive or non-integer value from
+    either channel is a misconfig and fails loud (closed) rather than silently
+    running uncapped."""
     if cli_value is not None:
+        if cli_value <= 0:
+            raise SystemExit(
+                f"--max-sources={cli_value} is invalid — the budget ceiling "
+                "must be a positive integer (fails closed)."
+            )
         return cli_value
     raw = os.getenv("ONELIVE_MAX_SOURCES_PER_RUN")
     if raw is None or raw == "":
         return None
     try:
-        return int(raw)
+        value = int(raw)
     except ValueError as exc:
         raise SystemExit(
             f"ONELIVE_MAX_SOURCES_PER_RUN={raw!r} is not an integer — refusing "
             "to guess whether this run should be capped."
         ) from exc
+    if value <= 0:
+        raise SystemExit(
+            f"ONELIVE_MAX_SOURCES_PER_RUN={value} is invalid — the budget "
+            "ceiling must be a positive integer (fails closed)."
+        )
+    return value
 
 
 def _run_real(max_sources=None) -> int:
@@ -176,10 +212,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--max-sources",
-        type=int,
+        type=_positive_int,
         default=None,
-        help="Budget ceiling: process at most N sources this run (falls back to "
-             "ONELIVE_MAX_SOURCES_PER_RUN; unset = uncapped, logged loudly).",
+        help="Budget ceiling: process at most N sources this run (positive "
+             "integer; falls back to ONELIVE_MAX_SOURCES_PER_RUN; unset = "
+             "uncapped, logged loudly).",
     )
     args = parser.parse_args()
     # Sentinel minimum (Session Contract #1): this is the scheduled entrypoint,

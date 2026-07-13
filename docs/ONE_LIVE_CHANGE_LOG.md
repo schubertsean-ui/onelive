@@ -182,3 +182,7 @@
 - Shipped: per-run budget ceiling on real ingestion (`worker/run_once.py --max-sources` / `ONELIVE_MAX_SOURCES_PER_RUN`, CLI>env>uncapped-loud, garbage env fails loud; tests) — §14.3 caps exist BEFORE the recurring loop.
 - Shipped: `.github/workflows/ingest.yml` — manual-only (`workflow_dispatch`, required max_sources input); **no cron on purpose** until founder arms P2/P3 (Anthropic key w/ console spend cap, DB DSN, healthchecks URL as Actions secrets) + friction re-attack; preconditions fail loud, replay log uploaded as artifact, deadman+Sentry ride the existing run_once wiring.
 - Arming = a follow-up PR adding the `schedule:` block, which itself passes the (now armed) adversarial gate.
+
+## 2026-07-13 (later) — Armed gate's first steady-state verdict: REQUEST-CHANGES on PR #12; budget guard made fail-closed
+- The armed evaluator's first trusted-script review correctly caught the budget ceiling failing OPEN (0/negative = uncapped) and an unescaped workflow_dispatch input interpolated into shell.
+- Fixed: 0/negative/garbage caps now fail closed at every channel (argparse type, CLI resolution, env var, apply_source_ceiling ValueError — defense in depth, all tested); workflow input reaches the shell only via env and is validated as a positive integer before anything runs; replay-log artifact absence is an error on success (audit trail guaranteed) and a warning after failure; tighter type hints.
