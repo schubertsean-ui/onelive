@@ -12,6 +12,17 @@
   - **T3 — platform relationship queries outgrow SQL**: artist×venue×hour×feel queries require multi-hop traversals that Postgres/pgvector cannot serve within the CWV budget.
   - **On fire:** run a Friction pre-work attack on the 1D adoption plan, then escalate to the founder (new infrastructure = money/new-services = founder-crucial). The standing TODOS item "G-BRAIN-1D trigger watch" keeps this in the every-session work queue.
 
+## Addendum 2026-07-13 — RAG investigation (founder ask: "investigate the use of a RAG System")
+
+**Finding: the ratified Brain 1B IS a RAG system.** RAG ("retrieval-augmented generation") is the umbrella name for exactly what 1B does: store knowledge outside the model, retrieve the relevant pieces by meaning, and hand them to the model as context. The pgvector-in-Supabase recommendation the founder ratified is the standard production RAG pattern on this stack — no change of direction is needed, only two quality upgrades folded into the queued 1B build (same PR, no new vendors, no new spend):
+
+1. **Hybrid retrieval** — combine meaning-based (vector) search with classic keyword search (Postgres full-text, already in our database). Meaning-search finds paraphrases ("the azp thing" → the CSRF decision); keyword-search wins on exact terms (error codes, function names, `[R-###]` tags). Production guidance is unambiguous that the combination beats either alone ([RAG production patterns](https://ailearningguides.com/rag-optimization-production-ai-guide/), [advanced RAG techniques](https://blog.starmorph.com/advanced-rag-techniques-hybrid-search-reranking-query-transformation)).
+2. **Reranking** — retrieve ~20 candidates cheaply, then have a small model re-order them for true relevance before using the top ~5. The single biggest precision win in the literature (typ. 15–30% quality gain) for pennies per query.
+
+**GraphRAG (the graph-database flavor of RAG) = our option 1D**, already covered by the standing G-BRAIN-1D trigger above: it earns its extra cost only for cross-document "connect-the-dots" relationship questions ([GraphRAG vs vector RAG](https://buildmvpfast.com/blog/graphrag-vs-vector-rag-complete-guide/), [Neo4j advanced RAG](https://neo4j.com/blog/genai/advanced-rag-techniques/)), which is precisely fire-condition T3. pgvector remains the right engine below ~10M chunks — we are at ~10² documents. Nothing new to decide; the trigger already encodes the graduation point.
+
+---
+
 **Founder ask:** "Add a 'brain' so you [the build agent] never forget and so OneLive platform never forgets. Research the best world-class options."
 
 These are two different brains with two different jobs, so they get separate options:
