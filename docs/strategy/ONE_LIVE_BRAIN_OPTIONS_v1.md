@@ -6,7 +6,7 @@
 
 - **Build brain = 1A + 1B fused**: sharpened file brain (`docs/memory/` — live as of this ratification) + pgvector semantic recall in the existing Supabase (build queued: see TODOS "Brain 1B build").
 - **Platform brain = 2C now, 2A at Sprint Step 7** (embed events/artists/venues once real rows exist; same pgvector migration as 1B).
-- **G-BRAIN-1D — graph-infrastructure trigger (founder-directed, standing):** *"if it ever needs graph infrastructure, that's the moment option 1D becomes worth it, one investment serving both brains."* Option 1D (self-hosted Graphiti + a graph database) is NOT built now, but it fires for re-evaluation when ANY of these objective conditions is met:
+- **G-BRAIN-1D — graph-infrastructure trigger (founder-directed, standing):** *"if it ever needs graph infrastructure, that's the moment option 1D becomes worth it, one investment serving both brains."* Option 1D (self-hosted Graphiti + a graph database) is NOT built now — recorded as [R-010] in `docs/RECORD.md` per the no-silent-deferrals rule — but it fires for re-evaluation when ANY of these objective conditions is met:
   - **T1 — Emotion Graph implementation begins** (P3 per the Emotion & Vibe spec): the platform moat needs relationship storage; evaluate 1D as its engine so one investment serves both brains.
   - **T2 — build-brain temporal recall fails**: the pgvector index demonstrably cannot answer "what was true, and when" questions (e.g. contradictory decisions across ≥50 session arcs surface as retrieval errors logged in AGENT_FEEDBACK).
   - **T3 — platform relationship queries outgrow SQL**: artist×venue×hour×feel queries require multi-hop traversals that Postgres/pgvector cannot serve within the CWV budget.

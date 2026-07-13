@@ -1,4 +1,4 @@
-G-BRAIN ratified: build brain = 1A (this directory) + 1B (pgvector recall in existing Supabase); platform brain at Sprint Step 7; option 1D (graph infra) deferred behind a standing trigger.
+G-BRAIN ratified: build brain = 1A (this directory) + 1B (pgvector recall in existing Supabase); platform brain at Sprint Step 7; option 1D (graph infra) deferred behind a standing trigger — recorded as [R-010] in docs/RECORD.md.
 
 Founder verbatim (2026-07-13): "Brain: 1A+1B, platform at Step 7" plus the
 directive to never lose: "if it ever needs graph infrastructure, that's the

@@ -32,13 +32,31 @@ STAGE_MODELS = {
 # compatibility with wiring that predates this router.
 _LEGACY_ENV = {"evaluator": "OPENAI_REVIEW_MODEL"}
 
+# Charter §0.2: the evaluator grades the generator's work, so it must never
+# be the generator's model family — a Claude evaluator would be self-grading.
+# Enforced here (fail-closed), not by operator discipline.
+_GENERATOR_FAMILY_MARKERS = ("claude", "anthropic")
+
+
+def _check_evaluator_separation(stage: str, model: str, source: str) -> None:
+    if stage == "evaluator" and any(m in model.lower() for m in _GENERATOR_FAMILY_MARKERS):
+        raise ValueError(
+            f"{source} resolves the evaluator stage to {model!r} — a "
+            "generator-family (Claude/Anthropic) model must never grade its "
+            "own work (charter §0.2 write/grade separation). Use a non-Claude "
+            "model id."
+        )
+
 
 def resolve_model(stage: str) -> str:
-    """Return the model id for a stage. Unknown stage or empty override raises.
+    """Return the model id for a stage. Unknown stage or bad override raises.
 
     Precedence: ONELIVE_MODEL_<STAGE> > legacy env (evaluator:
-    OPENAI_REVIEW_MODEL) > policy default. A present-but-empty override is a
-    misconfiguration and fails loud (the PR #11/#12 empty-env lesson).
+    OPENAI_REVIEW_MODEL) > policy default. A present-but-empty (or
+    whitespace-only) override is a misconfiguration and fails loud (the
+    PR #11/#12 empty-env lesson). The evaluator stage additionally rejects
+    Claude/Anthropic model ids regardless of source — write/grade separation
+    is an invariant, not a default.
     """
     if stage not in STAGE_MODELS:
         raise KeyError(
@@ -51,13 +69,17 @@ def resolve_model(stage: str) -> str:
         value = os.environ.get(env_name)
         if value is None:
             continue
-        if value == "":
+        if value.strip() == "":
             raise ValueError(
-                f"{env_name} is set but empty — set a model id or unset it "
-                "entirely; empty must never silently mean 'default'."
+                f"{env_name} is set but empty/whitespace — set a model id or "
+                "unset it entirely; empty must never silently mean 'default'."
             )
+        value = value.strip()
+        _check_evaluator_separation(stage, value, env_name)
         return value
-    return STAGE_MODELS[stage]
+    default = STAGE_MODELS[stage]
+    _check_evaluator_separation(stage, default, "STAGE_MODELS default")
+    return default
 
 
 def main(argv: list[str] | None = None) -> int:

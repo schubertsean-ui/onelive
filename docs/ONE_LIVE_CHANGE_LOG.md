@@ -216,5 +216,15 @@
 - New tools/deferral_scan.py (+7 tests, incl. real-repo-clean guard): deferral-language code comments must carry a live [R-###] tag; dangling tags fail; missing register = hard failure. Wired into tools/validate as a BLOCKING check. The three existing "for now" comments (Sentry tracing) tagged [R-001].
 - CLAUDE.md gains "The Record" section (same-commit rule, prose covered by evaluator review); SESSION_START close adds step 7: review OPEN rows — a fired-but-unactioned trigger is a defect.
 
+## 2026-07-13 (later) — PR #14 evaluator round 1: evaluator slot hardened, Record enforcement made real
+- The gate's REQUEST-CHANGES on PR #14 was correct on all 7 blocking counts. Fixed:
+  - `tools/model_router.py` now REJECTS any Claude/Anthropic model id in the evaluator slot from every channel (both env overrides AND the policy default) — write/grade separation is enforced fail-closed, not by operator discipline. Whitespace-only overrides fail like empty; values are stripped. Tests prove the invariant (both env names, case-insensitive) and that generator stages still accept Claude overrides.
+  - CI wiring actually done: `dependency-hygiene.yml` + `source-backfill.yml` resolve their model via `tools/model_router.py standard` instead of hardcoding — the TODOS "DONE" claim is now true, not deferred-work-hidden-as-completion.
+  - `tools/deferral_scan.py` now parses real `| R-### | … |` table rows (prose mentions of an id no longer count), only OPEN rows legitimize a tag (tags on RESOLVED rows fail — fired deferrals can't linger in code), a register with zero parseable rows is a hard failure, and scanning covers SQL `--` comments (supabase/ added to scan dirs) and TS/JS `/* */` block comments.
+  - The widened scanner immediately caught a real pre-existing silent deferral: 0006's "revisit before the anon key ships" RLS comment — already resolved by migration 0007 — reworded (comment-only) + retro-recorded as R-011 (RESOLVED).
+  - R-010 added: option 1D not-built-now is now a register row (the G-BRAIN-1D standing trigger is its resolution trigger); both prose docs point at it.
+  - R-007's trigger made objective (Sprint Step 6 exit gate: backfill-filled or founder-descoped); MODEL_ROUTING.md states ids/prices are verified-live 2026-07-13, and documents the evaluator-slot invariant.
+- Suite: 274 passed / 28 skipped (11 new tests); trust_gate, lint, deferral_scan green.
+
 ## 2026-07-13 (later) — RAG investigation folded into the ratified brain plan
 - Founder ask: "investigate the use of a RAG System re: our prior 'brain' conversation." Finding: the ratified Brain 1B (pgvector-in-Supabase) IS a RAG system — no direction change; two proven quality upgrades folded into the queued 1B build spec at zero new vendor/spend: hybrid retrieval (vector + Postgres full-text) and a cheap rerank pass (typ. 15–30% retrieval-quality gain). GraphRAG identified as the RAG name for option 1D — already covered by the standing G-BRAIN-1D trigger (T3 = exactly the workload where GraphRAG earns its cost). Addendum in docs/strategy/ONE_LIVE_BRAIN_OPTIONS_v1.md; TODOS 1B item updated.

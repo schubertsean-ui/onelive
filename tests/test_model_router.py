@@ -31,11 +31,39 @@ def test_env_override_beats_default(monkeypatch):
 
 
 def test_evaluator_precedence_specific_beats_legacy(monkeypatch):
-    monkeypatch.setenv("OPENAI_REVIEW_MODEL", "legacy-model")
+    monkeypatch.setenv("OPENAI_REVIEW_MODEL", "gpt-5.5-legacy")
     monkeypatch.delenv("ONELIVE_MODEL_EVALUATOR", raising=False)
-    assert mr.resolve_model("evaluator") == "legacy-model"
-    monkeypatch.setenv("ONELIVE_MODEL_EVALUATOR", "specific-model")
-    assert mr.resolve_model("evaluator") == "specific-model"
+    assert mr.resolve_model("evaluator") == "gpt-5.5-legacy"
+    monkeypatch.setenv("ONELIVE_MODEL_EVALUATOR", "gpt-5.5-specific")
+    assert mr.resolve_model("evaluator") == "gpt-5.5-specific"
+
+
+def test_evaluator_rejects_generator_family_override(monkeypatch):
+    """Trust invariant (charter §0.2): a Claude/Anthropic model must never be
+    routed into the evaluator slot — that would be the generator grading its
+    own work. Both env channels must fail closed, case-insensitively."""
+    monkeypatch.delenv("OPENAI_REVIEW_MODEL", raising=False)
+    for env_name in ("ONELIVE_MODEL_EVALUATOR", "OPENAI_REVIEW_MODEL"):
+        for bad in ("claude-opus-4-8", "Claude-Haiku-4-5", "anthropic/claude-sonnet-4-6"):
+            monkeypatch.setenv(env_name, bad)
+            with pytest.raises(ValueError, match="write/grade separation"):
+                mr.resolve_model("evaluator")
+        monkeypatch.delenv(env_name, raising=False)
+
+
+def test_evaluator_default_is_not_generator_family():
+    """The policy default itself must satisfy the separation invariant."""
+    assert not any(
+        m in mr.STAGE_MODELS["evaluator"].lower()
+        for m in ("claude", "anthropic")
+    )
+
+
+def test_generator_stages_still_accept_claude_overrides(monkeypatch):
+    """The separation rule constrains ONLY the evaluator slot — generator
+    stages routing to Claude tiers is the whole point of the policy."""
+    monkeypatch.setenv("ONELIVE_MODEL_MECHANICAL", "claude-opus-4-8")
+    assert mr.resolve_model("mechanical") == "claude-opus-4-8"
 
 
 def test_unknown_stage_fails_loud():
@@ -47,6 +75,19 @@ def test_empty_override_fails_loud(monkeypatch):
     monkeypatch.setenv("ONELIVE_MODEL_STANDARD", "")
     with pytest.raises(ValueError):
         mr.resolve_model("standard")
+
+
+def test_whitespace_only_override_fails_loud(monkeypatch):
+    """Whitespace-only is the same misconfig class as empty (CI forwards
+    unset vars as empty strings; a stray space must not sneak past)."""
+    monkeypatch.setenv("ONELIVE_MODEL_STANDARD", "   ")
+    with pytest.raises(ValueError):
+        mr.resolve_model("standard")
+
+
+def test_override_value_is_stripped(monkeypatch):
+    monkeypatch.setenv("ONELIVE_MODEL_STANDARD", " claude-sonnet-4-6 ")
+    assert mr.resolve_model("standard") == "claude-sonnet-4-6"
 
 
 def test_cli_exit_codes(monkeypatch, capsys):

@@ -27,7 +27,7 @@ cheap tier's output was good enough.
 | Tier | Model | Price | Use for |
 |---|---|---|---|
 | Cheap | `claude-haiku-4-5` | $1 / $5 | Mechanical work: classification, log parsing, formatting, renames, summaries of known-shape text |
-| Standard | `claude-sonnet-4-6` | $3 / $15 | Default working tier: code generation, tests, docs, CI assistance (matches the model pinned in existing Actions) |
+| Standard | `claude-sonnet-4-6` | $3 / $15 | Default working tier: code generation, tests, docs, CI assistance (the tier CI's Actions resolve via the router) |
 | Critical | `claude-opus-4-8` | $5 / $25 | Architecture, security/trust-critical reasoning, hard debugging, founder-facing incident response |
 | Evaluator | `gpt-5.5` (OpenAI) | n/a | Non-Claude requirement dominates cost (§0.2 write/grade separation) — never downgraded for price |
 
@@ -39,7 +39,14 @@ Stage mapping (see `tools/model_router.py`, env-overridable via `ONELIVE_MODEL_<
 | `standard` | Standard | |
 | `critical` | Critical | Escalation triggers below |
 | `extraction` | Cheap (provisional) | Governed by eval-harness thresholds, not opinion: the tier keeps its place while hallucination/faithfulness gates pass on the golden set, and escalates one tier the moment they fail. Ratify with the §11.2 threshold. |
-| `evaluator` | Evaluator | `OPENAI_REVIEW_MODEL` overrides |
+| `evaluator` | Evaluator | `OPENAI_REVIEW_MODEL` overrides. Hard invariant: the router REJECTS any Claude/Anthropic id in this slot (fail-closed in `resolve_model`) — the grader is never the generator's family, at any price. |
+
+All model ids and prices above are **live, current ids verified 2026-07-13**
+(Claude ids against [the pricing page](https://platform.claude.com/docs/en/pricing.md);
+`gpt-5.5` is the deployed evaluator already exercised in CI on PRs #11–#12) —
+none are placeholders. When a vendor renames or supersedes a model, update
+this table and `tools/model_router.py` in the same commit; a stale id fails
+loud at the API, never silently reroutes.
 
 ## Escalation triggers (spend more, deliberately, logged)
 

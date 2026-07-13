@@ -18,10 +18,15 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+      # Model resolved via the cost-routing policy (docs/MODEL_ROUTING.md),
+      # never hardcoded — dependency triage is a Standard-tier task.
+      - name: Resolve model (cost routing)
+        id: route
+        run: echo "model=$(python3 tools/model_router.py standard)" >> "$GITHUB_OUTPUT"
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: claude-sonnet-4-6
+          model: ${{ steps.route.outputs.model }}
           max_turns: 10
           allowed_tools: "git,gh pr"
           prompt: |
