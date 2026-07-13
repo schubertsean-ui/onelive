@@ -3,3 +3,4 @@ pydantic
 python-dateutil
 requests
 anthropic>=0.39,<1.0  # Claude API for weak-signal event extraction (ai/claude_provider.py)
+sentry-sdk  # Sentinel: no-op unless SENTRY_DSN is set (worker/sentinel.py)

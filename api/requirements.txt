@@ -3,3 +3,4 @@ uvicorn[standard]
 psycopg2-binary
 pydantic
 PyJWT[crypto]>=2.8  # Clerk session-JWT verification (RS256 via JWKS) in api/clerk_auth.py
+sentry-sdk  # Sentinel: no-op unless SENTRY_DSN is set (worker/sentinel.py)
