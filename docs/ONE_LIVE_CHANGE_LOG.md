@@ -189,3 +189,6 @@
 
 ## 2026-07-13 (later) — PR #12 round 2: remaining fail-open crack sealed
 - Evaluator round 2: set-but-EMPTY `ONELIVE_MAX_SOURCES_PER_RUN` now fails closed (CI forwards unset vars as empty — same class as the PR #11 model bug); cap validation moved BEFORE any DB/provider access so misconfig can never hide behind "no sources found"; empty-string added to the bad-env test matrix; workflow input validated as a whole string via [[ =~ ]] (newline-proof) and never echoed into annotations; _run_real typed.
+
+## 2026-07-13 (later) — Founder communication rules added to the charter
+- Founder directive incorporated into CLAUDE.md as a standing section: plain language; why-this-not-that with alternatives; honest tradeoffs; direct links; make-it-easy (numbered, phone-friendly, one consolidated ask). Binding on every founder-facing report/PR description, every session.
