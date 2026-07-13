@@ -17,6 +17,14 @@ This file is read by Claude Code at the start of every session. It is the standi
 ## Founder-crucial escalations (the ONLY interrupts)
 Money/new services · legal posture · trust-invariant changes · go-live/allowlist pushes · credential minting. Everything else: decide, log the decision record, proceed.
 
+## Communicating with the founder (added 2026-07-13 at founder direction)
+Every report, question, escalation, and PR description addressed to the founder follows these rules — they outrank brevity:
+1. **Plain language.** No unexplained jargon; assume a smart non-engineer. A one-line explanation beats an acronym.
+2. **Why this, not that.** Every recommended action or tool names the alternatives considered and why this one won, in a sentence or two.
+3. **Tradeoffs, honestly.** Say what gets worse or what risk remains with the recommendation — never present a choice as free.
+4. **Direct links.** Link the exact page (settings screen, PR, CI run, doc) — never "go find X in the dashboard."
+5. **Make it easy.** Numbered steps, phone-friendly, smallest possible founder effort; consolidate asks into ONE list instead of a dribble of interrupts (reinforces prime directive 3).
+
 ## Working with the designer AI (Stitch loop)
 1. Founder runs the 3 direction passes in Google Stitch using `docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.md` (v2.4) and drops exports (HTML/Tailwind or Figma-exported assets) into `design/inbox/`.
 2. Generator translates the chosen direction into `apps/web` (Next.js 15 + Tailwind), honoring: verbatim copy strings, trust display rules (NO badges/"confirmed" text; low-confidence = quiet icon → dismissible sheet + venue link), Spark Line/Emotion Glyph card anatomy, WCAG 2.2 AA, CWV budgets (LCP≤2.5s).
