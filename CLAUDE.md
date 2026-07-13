@@ -96,6 +96,9 @@ runs `lint.py --fix` + `trust_gate.py` and blocks the commit on any violation.)
 ## Where to look first
 Quick map of the harness (all discoverable, none orphaned):
 - `docs/SESSION_START.md` — session bookends (reconcile → work → close).
+- `docs/memory/` — the agent's long-term memory (Brain 1A, G-BRAIN ratified):
+  distilled decisions/gotchas/entity notes; skim after reconcile, write per
+  its README conventions before session close.
 - `TODOS.md` — the work queue. `docs/skills/night_shift.md` — autonomous-run orchestration.
 - `tools/validate` — the single end-of-shift "run everything" gate (trust_gate,
   lint, full pytest, eval_harness, perf, test_audit, commit_sweep, visual_regression).

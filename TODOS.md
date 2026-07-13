@@ -23,6 +23,12 @@ Check items off in the same commit that completes them; don't batch-remove.
 - [ ] (P2) Clear the postcss SCA baseline entry (docs/SCA_BASELINE.md) when `next` ships with postcss ≥ 8.5.10 — owner: web — moderate, no fix available upstream as of 2026-07-13; CI re-audits on every web PR.
 - [ ] (P2) Refresh STATE.md GROUND_TRUTH block via `session_reconcile.py --heal` from an env with `gh` + DB DSN — owner: next session with credentials — block is stale at pre-PR#9 state and could not be machine-refreshed from this sandbox.
 
+## Brain (G-BRAIN RATIFIED 2026-07-13: "1A+1B, platform at Step 7")
+- [x] (P2) Brain 1A — sharpened file brain: `docs/memory/` structure + conventions + seed entries. DONE 2026-07-13 (this ratification session).
+- [ ] (P1) **Brain 1B build** — pgvector in the existing Supabase: migration `00xx_pgvector_agent_memory.sql` (extension into `extensions` schema + `agent_memory` table; written+PR'd, applied by founder per the established 0005–0007 process) + `tools/brain_index.py` (embed arcs/decisions/changelog; skip-loud without an embeddings key) + `tools/brain_recall.py` (semantic query at session start) + tests. Trust-critical (SQL) → evaluator mandatory. Owner: next focused session, contract-first.
+- [ ] (P2) Platform brain 2A — semantic event/artist/venue memory. **Gated on Sprint Step 7** (real rows exist); rides the same pgvector migration as 1B.
+- [ ] (P2, STANDING — do not check off; re-evaluate when fired) **G-BRAIN-1D trigger watch** — founder-directed: option 1D (Graphiti + graph DB) is re-evaluated the moment graph infrastructure is needed, "one investment serving both brains." Objective fire conditions T1 (Emotion Graph build begins) / T2 (pgvector temporal-recall failures logged) / T3 (relationship queries outgrow SQL) are defined in `docs/strategy/ONE_LIVE_BRAIN_OPTIONS_v1.md` §RATIFIED. On fire: friction attack → founder decision (money/new services).
+
 ## Founder decisions needed (cannot be resolved by an agent — do not silently pick one)
 - [ ] (P1) Confirm 4-state confidence model finalized — owner: founder — `CLAUDE.md` already assumes this is decided; STATE.md flags it as still open.
 - [ ] (P2) Trust framework naming: drop "ESIM" 3-pillar branding, or relabel as OneLive's own framing — owner: founder.

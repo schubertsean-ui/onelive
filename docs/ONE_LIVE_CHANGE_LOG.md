@@ -203,3 +203,9 @@
 - CLAUDE.md gains a "Cost discipline" section (cheapest-capable first; deliberate logged escalation; quality gates never relax; measure don't guess).
 - New docs/MODEL_ROUTING.md: tier ladder w/ real prices (Haiku $1/$5 · Sonnet $3/$15 · Opus $5/$25 · gpt-5.5 evaluator never downgraded), stage mapping, 4 escalation triggers, techniques (prompt caching ~0.1× reads, Batch API 50% off for descriptor-foundry/embedding jobs, effort levels, context hygiene), ceilings unaffected.
 - New tools/model_router.py (+6 tests): stage→model resolver, env-overridable, unknown/empty fails loud. TODOS model-cost-routing item checked off.
+
+## 2026-07-13 (later) — G-BRAIN RATIFIED: "1A+1B, platform at Step 7"; 1D trigger made standing; Brain 1A LIVE
+- Founder ratified the brain recommendation verbatim and directed that the 1D condition never be lost: "if it ever needs graph infrastructure, that's the moment option 1D becomes worth it, one investment serving both brains."
+- Codified as G-BRAIN-1D, a STANDING trigger with objective fire conditions — T1 Emotion Graph build begins / T2 pgvector temporal-recall failures logged / T3 relationship queries outgrow SQL — recorded in the (now RATIFIED) brain doc, a never-check-off TODOS item, and STATE.md's locked-in decisions. On fire: friction attack → founder (new infra = money).
+- Brain 1A shipped: docs/memory/ (README conventions + decisions/ + gotchas/ + entities/) seeded with the G-BRAIN decision record and the CI empty-env fail-closed lesson; wired into CLAUDE.md's harness map.
+- Brain 1B (pgvector migration + index/recall tools) queued as a P1 contract-first build; platform 2A gated on Sprint Step 7.
