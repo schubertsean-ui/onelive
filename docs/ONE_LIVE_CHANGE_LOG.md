@@ -175,3 +175,10 @@
 - Dependency fix: vitest 3→4 (dev-only chain carried the 1 critical + 1 high; 25/25 tests pass). Remaining 4 moderates = postcss-via-next, no upstream fix — baselined with clear-when trigger + TODOS item.
 - Nits: evaluator output now ends with the model's own VERDICT line; trust-gate/validate cross-linked in the workflow header; dead-man ping failures log structured context (url/event/error).
 - Consequence: this PR's adversarial-review check stays RED by design (tool not on master yet = bootstrap hard-fail). The two completed evaluator rounds are the non-Claude review evidence for this PR; founder merges past the red bootstrap check after human review.
+
+## 2026-07-13 (later) — PR #11 MERGED by founder; sprint GO; Step 5 scaffolding shipped
+- Founder reviewed and merged PR #11 (squash `9d40eb5`) past the by-design-red bootstrap check — the adversarial-review gate is now armed and self-consistent on master (trusted script exists on the base branch; the bootstrap exception can never recur).
+- Founder: **"proceed with the sprint plan"** → Session Contract #2 (STATE.md): unblocked Step 5 scaffolding only, zero spend/migrations/cron.
+- Shipped: per-run budget ceiling on real ingestion (`worker/run_once.py --max-sources` / `ONELIVE_MAX_SOURCES_PER_RUN`, CLI>env>uncapped-loud, garbage env fails loud; tests) — §14.3 caps exist BEFORE the recurring loop.
+- Shipped: `.github/workflows/ingest.yml` — manual-only (`workflow_dispatch`, required max_sources input); **no cron on purpose** until founder arms P2/P3 (Anthropic key w/ console spend cap, DB DSN, healthchecks URL as Actions secrets) + friction re-attack; preconditions fail loud, replay log uploaded as artifact, deadman+Sentry ride the existing run_once wiring.
+- Arming = a follow-up PR adding the `schedule:` block, which itself passes the (now armed) adversarial gate.

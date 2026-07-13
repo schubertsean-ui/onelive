@@ -65,7 +65,43 @@ def _run_stub() -> int:
     return 0
 
 
-def _run_real() -> int:
+def apply_source_ceiling(sources: list, cap) -> list:
+    """Cap how many sources one real run may process (FinOps §14.3: budget
+    ceilings exist BEFORE the recurring loop, not after the first surprise
+    bill). cap None/<=0 means uncapped — but the caller logs that loudly, so
+    an uncapped scheduled run is always a visible, deliberate choice. Order is
+    preserved (DB order), so the ceiling truncates the tail, deterministically.
+    """
+    if cap is None or cap <= 0:
+        return sources
+    if len(sources) > cap:
+        logger.warning(
+            "budget ceiling: processing %d of %d enabled sources this run "
+            "(raise --max-sources / ONELIVE_MAX_SOURCES_PER_RUN deliberately).",
+            cap, len(sources),
+        )
+    return sources[:cap]
+
+
+def _resolve_source_cap(cli_value) -> "int | None":
+    """--max-sources wins; else ONELIVE_MAX_SOURCES_PER_RUN; else uncapped
+    (logged loudly by the caller). A non-integer env value is a misconfig and
+    fails loud rather than silently running uncapped."""
+    if cli_value is not None:
+        return cli_value
+    raw = os.getenv("ONELIVE_MAX_SOURCES_PER_RUN")
+    if raw is None or raw == "":
+        return None
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise SystemExit(
+            f"ONELIVE_MAX_SOURCES_PER_RUN={raw!r} is not an integer — refusing "
+            "to guess whether this run should be capped."
+        ) from exc
+
+
+def _run_real(max_sources=None) -> int:
     # Imported lazily, inside the guarded branch, so importing run_once.py
     # (or running its stub path) never requires anthropic/psycopg2 network
     # configuration — only `--real` pays that cost.
@@ -112,6 +148,16 @@ def _run_real() -> int:
         logger.error("no enabled, fetchable sources found in the `source` table.")
         return 1
 
+    cap = _resolve_source_cap(max_sources)
+    if cap is None:
+        logger.warning(
+            "NO per-run source ceiling set (--max-sources / "
+            "ONELIVE_MAX_SOURCES_PER_RUN) — processing all %d sources. A "
+            "scheduled run should always set one (§14.3 budget caps).",
+            len(sources),
+        )
+    sources = apply_source_ceiling(sources, cap)
+
     report = run_loop(ai=ai, sources=sources, sxsw_mode=False, dsn=dsn)
     print("RunReport:")
     print(f"  run_id:   {report.run_id}")
@@ -128,6 +174,13 @@ def main() -> int:
         action="store_true",
         help="Use ClaudeProvider and real `source` rows from ONELIVE_DB_DSN instead of the offline stub.",
     )
+    parser.add_argument(
+        "--max-sources",
+        type=int,
+        default=None,
+        help="Budget ceiling: process at most N sources this run (falls back to "
+             "ONELIVE_MAX_SOURCES_PER_RUN; unset = uncapped, logged loudly).",
+    )
     args = parser.parse_args()
     # Sentinel minimum (Session Contract #1): this is the scheduled entrypoint,
     # so it carries both signals — Sentry (no-op without SENTRY_DSN) and the
@@ -135,7 +188,7 @@ def main() -> int:
     # charter forbids scheduling a recurring loop until both env vars exist.
     init_sentry("worker")
     with deadman():
-        return _run_real() if args.real else _run_stub()
+        return _run_real(args.max_sources) if args.real else _run_stub()
 
 
 if __name__ == "__main__":
