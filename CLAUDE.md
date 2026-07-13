@@ -1,3 +1,44 @@
+# CLAUDE.md — ONE LIVE Autonomous Build Charter (place at repo root)
+This file is read by Claude Code at the start of every session. It is the standing contract.
+
+## Prime directives
+1. **Trust invariants are physics, not policy.** AI never publishes; orchestrator cannot import the promote path; no pay-to-rank surface, ever; disputed shown-never-hidden; RLS stays fail-closed. Any change touching these = STOP and escalate to founder.
+2. **Loops discipline (docs/LOOPS + Part 5 of MASTER):** every session begins with `python tools/session_reconcile.py` and ends by updating STATE.md + TODOS.md + docs/ONE_LIVE_CHANGE_LOG.md. Disk is truth; never trust chat memory over files.
+3. **Contract-first:** no code before the session contract (goal, scope, done-criteria) is written to STATE.md. If the contract is ambiguous → ask the founder ONE consolidated question set, then proceed.
+4. **Validation:** `python tools/validate.py` must pass before any PR is opened. `--allow-skips` is temporary debt; log every skip.
+
+## Agent org (who does what)
+- **Generator = this Claude Code session.** Writes code, tests-in-same-PR, small self-contained changes.
+- **Independent Evaluator = GPT-5.5 via `OPENAI_API_KEY`** (script: `tools/adversarial_review.py`; create it in session 1 if absent — it posts the raw diff + test logs and demands APPROVE/REQUEST-CHANGES). MANDATORY for: auth, pipeline, SQL/RLS, data-trust, prompt/model changes. Optional second lens: Gemini via `GEMINI_API_KEY`.
+- **Friction Agent = non-Claude model, pre-work.** Before any irreversible action (deploy, migration, spend, prompt_version bump), write the plan to `docs/FRICTION_LOG.md` and run it past the evaluator model with the prompt: "Attack this plan: what breaks, who is harmed, cheaper path, founder-crucial or not?" Blockers must be answered in writing.
+- **Sentinel:** Sentry (`SENTRY_DSN`) on web+API+worker; healthchecks.io dead-man ping on any scheduled job. No scheduled loop ships without both.
+- **Librarian:** session bookends, weekly digest appended to docs/FOUNDER_DIGEST.md.
+
+## Founder-crucial escalations (the ONLY interrupts)
+Money/new services · legal posture · trust-invariant changes · go-live/allowlist pushes · credential minting. Everything else: decide, log the decision record, proceed.
+
+## Working with the designer AI (Stitch loop)
+1. Founder runs the 3 direction passes in Google Stitch using `docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.md` (v2.4) and drops exports (HTML/Tailwind or Figma-exported assets) into `design/inbox/`.
+2. Generator translates the chosen direction into `apps/web` (Next.js 15 + Tailwind), honoring: verbatim copy strings, trust display rules (NO badges/"confirmed" text; low-confidence = quiet icon → dismissible sheet + venue link), Spark Line/Emotion Glyph card anatomy, WCAG 2.2 AA, CWV budgets (LCP≤2.5s).
+3. Every design-derived PR gets an evaluator pass against the brief's 8-criterion rubric; deltas from the brief are logged, never silent.
+4. Descriptor Foundry (brief appendix) is the mandatory pipeline for ALL AI-generated descriptors: 6 candidates → pairwise knockout vs checklist → Fusion-of-N synthesis (style new, facts never) → independent judge → provenance + golden-set regression.
+
+## Environment (never in git; see docs/KEYS.md and the API manifest)
+ONELIVE_DB_DSN · SUPABASE anon (web) · ANTHROPIC_API_KEY (extraction only, spend cap set in console FIRST) · OPENAI_API_KEY (evaluator/friction) · GEMINI_API_KEY (optional) · CLERK keys · VERCEL_TOKEN · SENTRY_DSN · ORCHESTRATOR_PING_URL. Agents never mint keys.
+
+## Document index (read on demand, not every session)
+Source canon (this session's inputs): `docs/source/OneLive_WORLD_CLASS_bar.md` (§0–§9 engineering bar) · `docs/source/OneLive_MASTER_the_whole_enchilada.md` (Parts 0–8 master state).
+Session 2026-07-12 outputs: `docs/strategy/OneLive_WORLD_CLASS_v1.1_DEEP_REVIEW.md` (PROPOSAL: §10 legal/TRAIGA·TDPSA, §11 AI governance/NIST AI RMF, §12 IR/DR, §13 privacy, §14 FinOps, §15 growth; defects D1–D5; DORA/ASVS numbers) · `docs/strategy/OneLive_AUTONOMOUS_BUILD_CHARTER_and_API_MANIFEST.md` (6-agent org, escalation protocol, 12-service key manifest) · `docs/strategy/ONE_LIVE_EMOTION_VIBE_LAYER_SPEC_v1.md` (PROPOSAL: two-axis taxonomy, Feel mode, Emotion Graph, EU-AI-Act guardrails) · `docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md` (RATIFIED design canon: trust display rules, Spark Line waterfall incl. subtle-✳ tier C, Emotion Glyph engine, Descriptor Foundry, behavioral architecture, 3-direction Stitch mandate) · `docs/design/OneLive_Tonight_Prototype_v2.jsx` (reference implementation of the PRD wireframe) · `docs/ops/CLAUDE_CODE_KICKOFF_PROMPT.md` (Session Contract #1) · `docs/ops/ONE_LIVE_CHANGE_LOG_UPDATE_2026-07-12.md` (append to docs/ONE_LIVE_CHANGE_LOG.md).
+Status legend: brief v2.4 = founder-ratified through its edits; deep review §10–§15, Emotion & Vibe spec, and taxonomy remain PROPOSALS pending gap-by-gap ratification (G1–G6, G-VT, G-EG, G-F). When in doubt, PROPOSAL ≠ license to build.
+
+## Current mission (until founder changes it)
+Ship the live site behind the stealth gate: Steps 5→10 of the critical path — schedule ingestion (GitHub Actions cron + dead-man ping + budget caps BEFORE first scheduled run), extraction with eval-harness thresholds, gate→candidate flow, admin review, implement the ratified design direction on /tonight (feed+filters+detail), Clerk allowlist gate, Vercel deploy, founder go/no-go.
+
+
+---
+
+<!-- ===== REPO-LOCAL ADDITIONS PRESERVED (pre-genesis CLAUDE.md, still in force) ===== -->
+
 # OneLive — Agent Instructions
 
 ## Architecture (do not deviate without a STATE.md note)
