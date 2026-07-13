@@ -92,6 +92,11 @@ def test_digests_stable_for_same_logical_input_across_records(tmp_path, monkeypa
     assert lines[0]["inputs_digest"] == lines[1]["inputs_digest"]
 
 
+@pytest.mark.skipif(
+    hasattr(os, "geteuid") and os.geteuid() == 0,
+    reason="root bypasses file permissions, so the unwritable-dir precondition "
+    "cannot be established (chmod 0500 does not stop root from writing)",
+)
 def test_fails_loud_on_unwritable_dir(tmp_path, monkeypatch):
     unwritable = tmp_path / "locked"
     unwritable.mkdir()

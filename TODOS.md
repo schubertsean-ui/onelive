@@ -13,6 +13,15 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #1 follow-ups (2026-07-13 — genesis install; see docs/SPRINT_LIVE_SITE.md)
+- [ ] (P0) Mint `OPENAI_API_KEY` (usage-capped) — owner: founder (credential minting is founder-crucial) — the Independent Evaluator (`tools/adversarial_review.py`) and Friction attacks are wired but SKIPPED-loud without it; required before any trust-critical PR merges and before Step 5.
+- [ ] (P0) Re-attack FRICTION_LOG entry #1 with the non-Claude evaluator once the key exists — owner: evaluator — entry is PROVISIONAL (attacked by the generator model, flagged).
+- [ ] (P1) Decide open PR #7: PR #9 already ported its content to master — close as superseded, or state what still needs extraction — owner: founder (1 line).
+- [ ] (P1) Mint `SENTRY_DSN` (web/api/worker) + `ORCHESTRATOR_PING_URL` (healthchecks.io) — owner: founder — wiring is done and no-op until these exist; charter forbids scheduling the recurring loop without both.
+- [ ] (P1) Execute PR #9's live gate test plan (non-allowlisted → /access; wrong azp → 403) once deploy env exists — owner: Generator — SPRINT Step 8.
+- [ ] (P2) Supply `docs/source/OneLive_WORLD_CLASS_bar.md` + `docs/source/OneLive_MASTER_the_whole_enchilada.md` (the two genesis source-canon files) or amend the charter's Document Index to point at `docs/WORLD_CLASS.md` — owner: founder — MASTER doc currently has no in-repo equivalent.
+- [ ] (P2) Refresh STATE.md GROUND_TRUTH block via `session_reconcile.py --heal` from an env with `gh` + DB DSN — owner: next session with credentials — block is stale at pre-PR#9 state and could not be machine-refreshed from this sandbox.
+
 ## Founder decisions needed (cannot be resolved by an agent — do not silently pick one)
 - [ ] (P1) Confirm 4-state confidence model finalized — owner: founder — `CLAUDE.md` already assumes this is decided; STATE.md flags it as still open.
 - [ ] (P2) Trust framework naming: drop "ESIM" 3-pillar branding, or relabel as OneLive's own framing — owner: founder.

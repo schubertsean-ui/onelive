@@ -148,3 +148,14 @@
 ## 2026-07-12 (later) — GENESIS package built: single-file, phone-droppable kickoff
 - ONELIVE_GENESIS.md (≈124KB): self-installing bundle for Claude Code (mobile app Code feature or claude.ai/code). Contains founder 3-step phone instructions + executable Steps 0–4 for Claude Code (install 9 embedded files verbatim, commit, verify canon presence, execute Session Contract #1, report, stop) + all documents embedded with FILE/END FILE delimiters: CLAUDE.md, kickoff contract, brief v2.4, deep review, charter+manifest, emotion-vibe spec, reference prototype, changelog append, manifest.
 - Safety preserved: Session 1 remains zero-deploy/zero-migrate/zero-spend; missing OPENAI_API_KEY degrades gracefully (flag, don't block); no push to auto-deploy branches.
+
+## 2026-07-13 — GENESIS executed in-repo; Session Contract #1 complete (zero deploy/migrate/spend)
+
+- Genesis package installed and committed (charter merged with pre-existing CLAUDE.md — both in force; brief v2.4, deep review, charter+manifest, emotion-vibe spec, prototype, kickoff, manifest).
+- Verified via GitHub API: PRs #9 (stealth gate + orchestrator reconcile) and #10 (world-class bar) MERGED — STATE.md's "GAP 1 blocked" claim superseded. Open: #4 (draft), #7 (recommend close as superseded by #9's port).
+- Evaluator online: `tools/adversarial_review.py` (stdlib, exit 0/1/2, SKIPPED-loud without OPENAI_API_KEY, `--require` for CI) + hermetic tests; exercised on PR #9's merge diff (skip path — key not minted).
+- Friction gate online: `docs/FRICTION_LOG.md` entry #1 = the sprint plan attacked (PROVISIONAL: generator-model attack, non-Claude re-attack required before Step 5).
+- Sentinel minimum: `worker/sentinel.py` (Sentry init fail-loud-on-misconfig/no-op-unset + healthchecks dead-man ping) wired into `api/main.py` + `worker/run_once.py`; `@sentry/nextjs` via `web/instrumentation*.ts`. New deps noted in STATE.md. All no-op until founder mints DSNs.
+- Sprint plan written: `docs/SPRINT_LIVE_SITE.md` (Steps 5→10, done-criteria + gating agent per step; preconditions P1–P5).
+- Suite: 218 passed/27 skipped as root + 25 vitest; root-only test-precondition fix (skipif euid==0 on unwritable-dir test). D1 python count reconciled: 219/27 non-root.
+- The one missing item: `OPENAI_API_KEY` (founder-crucial minting) — evaluator + friction attacks degrade gracefully until then.

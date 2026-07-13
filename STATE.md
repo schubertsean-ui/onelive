@@ -1,6 +1,8 @@
 # OneLive — STATE
 
-Last updated: 2026-07-12 by Computer (PM) — reconciled against live ground truth (repo, PRs, Supabase migrations, DB row counts). **This session: PR #8 (agentic-harness buildout) reviewed cross-model, its findings fixed, and MERGED to master (HEAD a0b3724).** The `validate` gate no longer treats SKIP/ADVISORY as PASS (the founding anti-pattern is now impossible in the gate itself). **Corrected stale status: RLS migrations 0006/0007 ARE applied to the live DB, and 9 migrations total are live (incl. `source_geo_coverage`); `source` = 230 rows, but `event`/`event_candidate`/`candidate_evidence` are still 0.** Established the session-arc system — see `docs/session_arcs/`.
+Last updated: 2026-07-13 by Claude Code (Session Contract #1) — GENESIS package installed; PR state re-verified via GitHub API (PRs #9 + #10 MERGED — see the 2026-07-13 reality check); DB facts NOT re-verified this session (no DSN/connector in this sandbox).
+
+Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground truth (repo, PRs, Supabase migrations, DB row counts). **This session: PR #8 (agentic-harness buildout) reviewed cross-model, its findings fixed, and MERGED to master (HEAD a0b3724).** The `validate` gate no longer treats SKIP/ADVISORY as PASS (the founding anti-pattern is now impossible in the gate itself). **Corrected stale status: RLS migrations 0006/0007 ARE applied to the live DB, and 9 migrations total are live (incl. `source_geo_coverage`); `source` = 230 rows, but `event`/`event_candidate`/`candidate_evidence` are still 0.** Established the session-arc system — see `docs/session_arcs/`.
 
 > **Session arcs:** chronological per-session records of decisions, findings, and artifacts live in `docs/session_arcs/`. This file (`STATE.md`) is the always-current rollup; arcs explain how the state got here. Latest arc: `docs/session_arcs/2026-07-12_harness-review-merge-and-live-reconcile.md`.
 
@@ -29,6 +31,27 @@ Last updated: 2026-07-12 by Computer (PM) — reconciled against live ground tru
 }
 ```
 <!-- GROUND_TRUTH:END -->
+
+> **Ground-truth block staleness (2026-07-13):** the JSON block above is machine-maintained and could NOT be refreshed this session — the reconciler needs `gh` (absent in this sandbox) and a DB DSN (not provided). It shows pre-PR#9 state. The 2026-07-13 reality check below records what WAS independently verified (via the GitHub API). Refresh the block with `session_reconcile.py --heal` from an env with `gh` + `ONELIVE_DB_DSN`.
+
+## Session Contract #1 (2026-07-13 — this session)
+
+GOAL: Stand up the autonomous build loop and take the first two steps toward the live site.
+Scope (per `docs/ops/CLAUDE_CODE_KICKOFF_PROMPT.md`): (1) VERIFY repo+DB state and reconcile drift — report, don't fix silently; (2) EVALUATOR ONLINE — `tools/adversarial_review.py`; (3) FRICTION GATE ONLINE — `docs/FRICTION_LOG.md` + pre-work attack wiring; (4) SENTINEL MINIMUM — Sentry behind `SENTRY_DSN` on web+api+worker, healthchecks dead-man wrapper on the scheduled entrypoint; (5) PLAN ONLY — `docs/SPRINT_LIVE_SITE.md` for critical-path Steps 5→10.
+DONE-CRITERIA: reconcile run (drift reported below) · verification report delivered · adversarial_review.py exercised on a real diff (skip-loud path — no key) · friction log exists with entry #1 (the sprint plan, attacked) · Sentry/no-op wired · sprint plan written. NOTHING deploys, migrates, or spends in this session. Constraint honored: zero deploys, zero migrations, zero spend.
+
+## Reality check (verified 2026-07-13 — this session, via GitHub API + local git/pytest)
+
+- **PR #9 (two-layer fail-closed Clerk stealth gate + PR#7 orchestrator reconcile) is MERGED** (2026-07-12T07:03Z) — master HEAD at session start = `3247ad7` = that merge. **This supersedes the 2026-07-12 claim below that GAP 1 (azp/CSRF) is blocked on unpushed commits: `api/clerk_auth.py` IS on master, azp validated, fail-closed.** PR #9's live test plan (real allowlist/azp rejection observed against a deployed instance) remains unexecuted — carried into `docs/SPRINT_LIVE_SITE.md` Step 8.
+- **PR #10 (per-clause-cited world-class bar) is MERGED** — `docs/WORLD_CLASS.md` is in-repo canon.
+- **Open PRs: #4 (draft, source-trust scoring + unapplied migration 0008) and #7 (orchestrator-harness).** PR #9 already ported #7's content onto master — recommend closing #7 as superseded (founder ack; see SPRINT precondition P4).
+- **Test suite: 218 passed, 27 skipped, 1 environment-artifact failure fixed** — `test_fails_loud_on_unwritable_dir` fails only when run as root (root ignores chmod, so the unwritable-dir precondition can't exist); now skips honestly under euid 0. Matches the MASTER doc's claimed 219/27 (the 219th is this test on a non-root box). This resolves defect D1's ambiguity for the python side: canonical count = **219 passed / 27 skipped non-root; 218/28 as root** (+25 vitest, verified green this session).
+- **DB facts UNVERIFIED this session** (no `ONELIVE_DB_DSN`, no Supabase connector in this sandbox). The 2026-07-12 row counts (source=230, event=0) are the latest verified numbers and were NOT re-checked. Per SESSION_START, do not treat as re-confirmed.
+- **web build note:** `next build` fails at prerendering `/ops` without `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (pre-existing on master, verified by building clean `3247ad7`); builds green with a key present. Not introduced this session.
+- **Genesis canon presence (charter Step 2):** WORLD_CLASS bar equivalent = `docs/WORLD_CLASS.md` (present). `OneLive_MASTER_the_whole_enchilada.md` has NO in-repo equivalent (not fabricated; the charter's Document Index points at `docs/source/` paths that only exist for the doc itself once the founder supplies the two source files).
+- **New external dependencies (CLAUDE.md review rule #3):** `sentry-sdk` (api+worker requirements; no-op unless `SENTRY_DSN` set) and `@sentry/nextjs` (web; no-op unless DSN set). Both wired via `worker/sentinel.py` / `web/instrumentation*.ts`. No new services activated, no spend.
+- **New harness pieces:** `tools/adversarial_review.py` (non-Claude evaluator gate; SKIPPED-loud without `OPENAI_API_KEY`, `--require` for CI), `docs/FRICTION_LOG.md` (entry #1 = sprint plan attacked, PROVISIONAL pending non-Claude re-attack), `docs/SPRINT_LIVE_SITE.md` (Steps 5→10 plan), healthchecks dead-man wrapper on `worker/run_once.py`.
+- **The one missing item: `OPENAI_API_KEY`** — evaluator + friction attacks degrade gracefully but are NOT live. Minting is founder-crucial.
 
 ## Reality check (verified 2026-07-12 — this session)
 - **Master HEAD = a0b3724** — PR #8 (agentic-harness buildout) MERGED this session after cross-model review (GPT-5.5, security + domain-truth-and-trust personas). All review findings fixed: `validate` silent-pass P1 (SKIP/ADVISORY → INCOMPLETE/exit 2, `--allow-skips` to acknowledge), `visual_regression` shell-injection P1, and four P2s (agent_review containment/secret-denylist, NUL-safe hook staging, commit_sweep empty-range=exit 2, test_audit patch()-mock detection). CI trust-gate green. Suite: 127 passed / 27 skipped.

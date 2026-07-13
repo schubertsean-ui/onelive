@@ -6,6 +6,9 @@ from fastapi import FastAPI
 
 from api.ops_candidates import router as ops_router
 from api.public import router as public_router
+from worker.sentinel import init_sentry
+
+init_sentry("api")
 
 app = FastAPI(title="One Live API")
 app.include_router(public_router)

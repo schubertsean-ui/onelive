@@ -145,3 +145,29 @@ old-sandbox commits (Clerk gate + Next 15) and unmerged #7 (orchestrator) — se
 `LIVE_READINESS.md`; the sandbox-portability of in-progress work is a recurring
 friction worth solving (push WIP branches early, don't let commits live only on
 one sandbox).
+
+## 2026-07-13 — Genesis install + Session Contract #1 (Claude Code, remote sandbox)
+
+**What slowed the session down:**
+1. **The sandbox can't run the reconciler's PR/DB legs** — no `gh`, no DSN, no
+   Supabase connector. PR state was recovered via the GitHub API tools, but the
+   GROUND_TRUTH block stayed stale and had to be flagged in prose instead of
+   healed. Follow-up: teach `session_reconcile.py` to fall back to the GitHub
+   REST API with a plain token (it already prints the SQL fallback for DB).
+2. **Root-privileged test env broke a permissions-based test**
+   (`test_fails_loud_on_unwritable_dir`) — chmod can't make a dir unwritable
+   for root. Fixed with skipif(euid==0); worth remembering for any future
+   permission-denied test.
+3. **`next build` needs a Clerk publishable key even for a stealth-gated app**
+   (prerender of /ops) — pre-existing, cost a baseline-attribution rebuild.
+   Either commit a documented dummy key for CI builds or make /ops
+   force-dynamic; decide next web session.
+4. **Genesis Step 0's "overwrite CLAUDE.md, preserve in a comment block"
+   conflicted with the live repo charter** — resolved by keeping both active
+   (arc decision #1). Doc-bundle instructions written off-repo should say
+   "merge" when the target file is itself a controlling doc.
+
+**What to automate next:** the outbound proxy blocks the run_once smoke fetch
+(httpbin 403) — swap the smoke URL for an allowlisted/static target or a local
+fixture server so the offline smoke path stays meaningful in restricted
+sandboxes.

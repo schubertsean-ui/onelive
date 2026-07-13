@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ai.bedrock_provider import BedrockProvider
 from worker.orchestrator import run_loop
+from worker.sentinel import deadman, init_sentry
 
 # A tiny, stable public endpoint used only for the offline smoke path so
 # `python worker/run_once.py` demonstrates a real fetch->sensor->extract->
@@ -128,7 +129,13 @@ def main() -> int:
         help="Use ClaudeProvider and real `source` rows from ONELIVE_DB_DSN instead of the offline stub.",
     )
     args = parser.parse_args()
-    return _run_real() if args.real else _run_stub()
+    # Sentinel minimum (Session Contract #1): this is the scheduled entrypoint,
+    # so it carries both signals — Sentry (no-op without SENTRY_DSN) and the
+    # healthchecks dead-man ping (no-op without ORCHESTRATOR_PING_URL). The
+    # charter forbids scheduling a recurring loop until both env vars exist.
+    init_sentry("worker")
+    with deadman():
+        return _run_real() if args.real else _run_stub()
 
 
 if __name__ == "__main__":
