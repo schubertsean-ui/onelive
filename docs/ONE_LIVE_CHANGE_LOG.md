@@ -197,3 +197,9 @@
 - Founder ask: persistent memory so the build agent and the platform never forget. Researched agent-memory landscape (Mem0/Zep/Graphiti/Letta/Anthropic memory tool/pgvector patterns) + platform memory.
 - New artifact docs/strategy/ONE_LIVE_BRAIN_OPTIONS_v1.md: Build brain options 1A file-brain sharpening / 1B pgvector-in-existing-Supabase (RECOMMENDED fused with 1A) / 1C hosted (Zep $125+/mo, best LongMemEval 63.8%) / 1D self-hosted graph (Graphiti+Neo4j). Platform brain: audit/replay/provenance already = never-forgets; 2A pgvector semantic layer at Step 7; 2B Emotion Graph stays P3.
 - Awaiting founder one-liner (G-BRAIN). No build until ratified.
+
+## 2026-07-13 (later) — Cost discipline chartered; model-cost routing shipped (closes the last 2026-07-11 harness gap)
+- Founder directive: least costly method per task, balanced against urgency/criticality, world-class always, maximum margin. Researched routing state of the art (FrugalGPT/RouteLLM cascades: 40–85% cost cuts at ~95% quality) + authoritative Anthropic pricing/caching/batch numbers.
+- CLAUDE.md gains a "Cost discipline" section (cheapest-capable first; deliberate logged escalation; quality gates never relax; measure don't guess).
+- New docs/MODEL_ROUTING.md: tier ladder w/ real prices (Haiku $1/$5 · Sonnet $3/$15 · Opus $5/$25 · gpt-5.5 evaluator never downgraded), stage mapping, 4 escalation triggers, techniques (prompt caching ~0.1× reads, Batch API 50% off for descriptor-foundry/embedding jobs, effort levels, context hygiene), ceilings unaffected.
+- New tools/model_router.py (+6 tests): stage→model resolver, env-overridable, unknown/empty fails loud. TODOS model-cost-routing item checked off.
