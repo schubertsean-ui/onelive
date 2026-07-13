@@ -208,18 +208,21 @@ def main(argv: list[str] | None = None) -> int:
         model = os.environ.get("OPENAI_REVIEW_MODEL") or DEFAULT_MODEL
         base_url = os.environ.get("OPENAI_BASE_URL") or DEFAULT_BASE_URL
         review = request_review(review_input, api_key, model, base_url)
-        print(review)
         verdict = parse_verdict(review)
+        # Wrapper status precedes the review so the output ends with the
+        # evaluator's own final VERDICT line, never our commentary (evaluator
+        # finding, PR #11 round 2).
+        if verdict == APPROVE:
+            print(f"adversarial_review: {APPROVE} (model={model})\n")
+        else:
+            print(f"adversarial_review: {REQUEST_CHANGES} (model={model}) — fix "
+                  "the file:line issues below and re-run; do not merge on red.\n",
+                  file=sys.stderr)
+        print(review)
     except (RuntimeError, ValueError, OSError, urllib.error.URLError) as exc:
         print(f"adversarial_review: HARD FAIL — {exc}", file=sys.stderr)
         return 2
-
-    if verdict == APPROVE:
-        print(f"\nadversarial_review: {APPROVE} (model={model})")
-        return 0
-    print(f"\nadversarial_review: {REQUEST_CHANGES} (model={model}) — fix the "
-          "file:line issues above and re-run; do not merge on red.", file=sys.stderr)
-    return 1
+    return 0 if verdict == APPROVE else 1
 
 
 if __name__ == "__main__":

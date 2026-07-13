@@ -3,22 +3,30 @@ name: Adversarial Review (non-Claude)
 # CLAUDE.md §0.2 / Agent org: the generator (Claude) never grades its own
 # trust-critical work. This gate posts the PR's raw diff + test logs to the
 # Independent Evaluator (OpenAI, default gpt-5.5) via tools/adversarial_review
-# .py and FAILS unless it answers "VERDICT: APPROVE". --require makes a
-# missing OPENAI_API_KEY a hard failure here (in CI the review is MANDATORY;
-# the local tool merely skips loud).
+# .py and FAILS unless it answers "VERDICT: APPROVE".
 #
-# Hardening (from this gate's own first evaluator review, PR #11 round 1):
-# - The evaluator script is executed from the TRUSTED BASE REF, not the PR
-#   checkout — otherwise any PR could edit the script to print APPROVE or
-#   exfiltrate the key. Run with `python -I` (isolated: ignores PYTHONPATH/
-#   cwd hijacks; the script is stdlib-only so it needs no installed deps).
-#   Bootstrap exception: if the script does not exist on the base ref yet,
-#   the PR copy runs with a LOUD warning (that first PR needs human review
-#   of the tool itself anyway).
+# Runs on EVERY pull request — no path filter. The evaluator itself judged a
+# path filter bypassable (PR #11 rounds 1-2): trust rules live in CLAUDE.md /
+# docs/** as much as in code, and "mandatory" must not depend on where a file
+# sits. Relationship to the other gates (cross-linked per PR #11 round 2):
+# trust-gate.yml runs the deterministic invariants + pytest + eval-harness
+# import on every PR/push; `bash tools/validate` is the local end-of-shift
+# everything gate. This workflow is the independent non-Claude REVIEW leg —
+# it complements, never replaces, those.
+#
+# Security posture (from this gate's own evaluator reviews):
+# - The evaluator script executes ONLY from the TRUSTED BASE REF, with
+#   `python -I` (stdlib-only; immune to PYTHONPATH/cwd hijack). If the script
+#   is absent on the base ref (bootstrap: the PR introducing the tool), the
+#   gate HARD-FAILS WITHOUT the secret ever entering the job — a warning is
+#   not enforcement. That bootstrap PR is human-reviewed and merged with this
+#   check red, once; afterwards the gate is self-consistent.
 # - Machine-generated lockfiles are excluded from the diff by policy (noted
-#   to the evaluator); with them gone, --require refuses truncated diffs.
-# - PRs touching web/ also send npm typecheck/vitest/build logs.
-# - checkout uses persist-credentials: false; the OpenAI key is exposed only
+#   to the evaluator); --require refuses truncated diffs outright.
+# - Supply-chain gate: production deps must audit clean at high/critical
+#   (`npm audit --omit=dev --audit-level=high` blocks); the full audit is
+#   shown to the evaluator; accepted exceptions live in docs/SCA_BASELINE.md.
+# - checkout uses persist-credentials: false; OPENAI_API_KEY is exposed only
 #   to the final trusted-script step.
 #
 # workflow_dispatch reviews an arbitrary ref/range from the Actions tab
@@ -27,17 +35,6 @@ name: Adversarial Review (non-Claude)
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - "api/**"
-      - "worker/**"
-      - "ai/**"
-      - "supabase/**"
-      - "tools/**"
-      # All of web/ is trust-critical surface: middleware/allowlist are auth,
-      # and app/components/lib render the feed where disputed events could be
-      # hidden (charter: disputed shown-never-hidden applies to display code).
-      - "web/**"
-      - ".github/workflows/**"
   workflow_dispatch:
     inputs:
       range:
@@ -77,15 +74,15 @@ jobs:
             echo "range=origin/${{ github.base_ref }}...HEAD" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Pin the TRUSTED evaluator script from the base ref
+      - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
         run: |
           mkdir -p /tmp/trusted
           if git show "${{ steps.range.outputs.base }}:tools/adversarial_review.py" \
                > /tmp/trusted/adversarial_review.py 2>/dev/null; then
             echo "Using tools/adversarial_review.py from ${{ steps.range.outputs.base }} (trusted)."
           else
-            echo "::warning::BOOTSTRAP: tools/adversarial_review.py does not exist on the base ref yet — falling back to the PR's copy. The tool itself MUST be human-reviewed in this PR; this warning disappears once the tool is on the base branch."
-            cp tools/adversarial_review.py /tmp/trusted/adversarial_review.py
+            echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on ${{ steps.range.outputs.base }}. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
+            exit 1
           fi
 
       - name: Install worker + api deps
@@ -98,13 +95,18 @@ jobs:
           set -o pipefail
           python -m pytest -q 2>&1 | tee pytest.log
 
-      - name: Web checks when web/ is touched (log captured for the evaluator)
+      - name: Web checks + SCA when web/ is touched (log captured for the evaluator)
         run: |
           set -o pipefail
           if git diff --name-only "${{ steps.range.outputs.range }}" | grep -q '^web/'; then
             (
               cd web
               npm ci
+              # Supply-chain gate: production deps clean at high/critical, or
+              # the job fails here. Full audit (incl. dev/moderate) is shown to
+              # the evaluator below; reviewed exceptions: docs/SCA_BASELINE.md.
+              npm audit --omit=dev --audit-level=high
+              npm audit || true
               npx tsc --noEmit
               npm test
               # Publishable keys are non-secret client identifiers; this dummy
@@ -121,7 +123,8 @@ jobs:
           {
             echo "# NOTE to evaluator: machine-generated lockfiles (package-lock.json)"
             echo "# are excluded from this diff by policy — they are npm-generated and"
-            echo "# reviewed via 'npm ci' succeeding in the attached web log instead."
+            echo "# validated by 'npm ci' + the blocking npm-audit SCA gate in the"
+            echo "# attached web log instead (exceptions: docs/SCA_BASELINE.md)."
             git diff "${{ steps.range.outputs.range }}" -- . ':(exclude)**/package-lock.json'
           } > pr.diff
           wc -c pr.diff

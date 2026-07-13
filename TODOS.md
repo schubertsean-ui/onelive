@@ -20,6 +20,7 @@ Check items off in the same commit that completes them; don't batch-remove.
 - [ ] (P1) Mint `SENTRY_DSN` (web/api/worker) + `ORCHESTRATOR_PING_URL` (healthchecks.io) — owner: founder — wiring is done and no-op until these exist; charter forbids scheduling the recurring loop without both.
 - [ ] (P1) Execute PR #9's live gate test plan (non-allowlisted → /access; wrong azp → 403) once deploy env exists — owner: Generator — SPRINT Step 8.
 - [ ] (P2) Supply `docs/source/OneLive_WORLD_CLASS_bar.md` + `docs/source/OneLive_MASTER_the_whole_enchilada.md` (the two genesis source-canon files) or amend the charter's Document Index to point at `docs/WORLD_CLASS.md` — owner: founder — MASTER doc currently has no in-repo equivalent.
+- [ ] (P2) Clear the postcss SCA baseline entry (docs/SCA_BASELINE.md) when `next` ships with postcss ≥ 8.5.10 — owner: web — moderate, no fix available upstream as of 2026-07-13; CI re-audits on every web PR.
 - [ ] (P2) Refresh STATE.md GROUND_TRUTH block via `session_reconcile.py --heal` from an env with `gh` + DB DSN — owner: next session with credentials — block is stale at pre-PR#9 state and could not be machine-refreshed from this sandbox.
 
 ## Founder decisions needed (cannot be resolved by an agent — do not silently pick one)

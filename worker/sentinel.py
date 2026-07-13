@@ -85,7 +85,10 @@ def ping_deadman(event: str = "") -> bool:
             logger.warning("dead-man ping %s returned HTTP %s.", url, resp.status)
         return ok
     except (urllib.error.URLError, OSError) as exc:
-        logger.warning("dead-man ping %s failed: %s (job continues).", url, exc)
+        logger.warning(
+            "dead-man ping failed (job continues): url=%s event=%s error=%s",
+            url, event or "success", exc,
+        )
         return False
 
 
