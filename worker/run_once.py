@@ -120,8 +120,17 @@ def _resolve_source_cap(cli_value: int | None) -> int | None:
             )
         return cli_value
     raw = os.getenv("ONELIVE_MAX_SOURCES_PER_RUN")
-    if raw is None or raw == "":
+    if raw is None:
         return None
+    if raw == "":
+        # Set-but-empty is a misconfiguration, not "uncapped": CI forwards
+        # unset variables as empty strings (the exact failure mode that broke
+        # OPENAI_REVIEW_MODEL in PR #11), so an empty budget cap fails closed.
+        raise SystemExit(
+            "ONELIVE_MAX_SOURCES_PER_RUN is set but empty — the budget ceiling "
+            "must be a positive integer, or the variable must be fully unset "
+            "for a deliberate (loudly logged) uncapped run. Fails closed."
+        )
     try:
         value = int(raw)
     except ValueError as exc:
@@ -137,7 +146,12 @@ def _resolve_source_cap(cli_value: int | None) -> int | None:
     return value
 
 
-def _run_real(max_sources=None) -> int:
+def _run_real(max_sources: int | None = None) -> int:
+    # Budget-cap misconfiguration must fail loud DETERMINISTICALLY — before
+    # any provider/DB access, so it can never hide behind "no enabled sources
+    # found" or a connection error (evaluator finding, PR #12 round 2).
+    cap = _resolve_source_cap(max_sources)
+
     # Imported lazily, inside the guarded branch, so importing run_once.py
     # (or running its stub path) never requires anthropic/psycopg2 network
     # configuration — only `--real` pays that cost.
@@ -184,7 +198,6 @@ def _run_real(max_sources=None) -> int:
         logger.error("no enabled, fetchable sources found in the `source` table.")
         return 1
 
-    cap = _resolve_source_cap(max_sources)
     if cap is None:
         logger.warning(
             "NO per-run source ceiling set (--max-sources / "

@@ -56,8 +56,12 @@ jobs:
           # run_once.py (defense in depth, evaluator finding PR #12 round 1).
           MAX_SOURCES: ${{ github.event.inputs.max_sources }}
         run: |
-          if ! printf '%s' "$MAX_SOURCES" | grep -Eq '^[1-9][0-9]*$'; then
-            echo "::error::max_sources must be a positive integer (got '$MAX_SOURCES'). The budget ceiling is required and fails closed — 0 does not mean uncapped."
+          # [[ =~ ]] validates the WHOLE string (POSIX ERE, not line-oriented
+          # like grep — a newline-smuggled second line cannot pass), and the
+          # raw value is never echoed into an annotation (log-command
+          # injection surface) — evaluator nits, PR #12 round 2.
+          if ! [[ "$MAX_SOURCES" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::max_sources must be a positive integer (invalid value redacted — check the run input). The budget ceiling is required and fails closed; 0 does not mean uncapped."
             exit 1
           fi
 

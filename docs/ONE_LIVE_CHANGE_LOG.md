@@ -186,3 +186,6 @@
 ## 2026-07-13 (later) — Armed gate's first steady-state verdict: REQUEST-CHANGES on PR #12; budget guard made fail-closed
 - The armed evaluator's first trusted-script review correctly caught the budget ceiling failing OPEN (0/negative = uncapped) and an unescaped workflow_dispatch input interpolated into shell.
 - Fixed: 0/negative/garbage caps now fail closed at every channel (argparse type, CLI resolution, env var, apply_source_ceiling ValueError — defense in depth, all tested); workflow input reaches the shell only via env and is validated as a positive integer before anything runs; replay-log artifact absence is an error on success (audit trail guaranteed) and a warning after failure; tighter type hints.
+
+## 2026-07-13 (later) — PR #12 round 2: remaining fail-open crack sealed
+- Evaluator round 2: set-but-EMPTY `ONELIVE_MAX_SOURCES_PER_RUN` now fails closed (CI forwards unset vars as empty — same class as the PR #11 model bug); cap validation moved BEFORE any DB/provider access so misconfig can never hide behind "no sources found"; empty-string added to the bad-env test matrix; workflow input validated as a whole string via [[ =~ ]] (newline-proof) and never echoed into annotations; _run_real typed.

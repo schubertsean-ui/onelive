@@ -44,7 +44,7 @@ def test_cap_resolution_cli_beats_env_beats_uncapped(monkeypatch):
     assert _resolve_source_cap(None) is None
 
 
-@pytest.mark.parametrize("bad_env", ["twenty", "0", "-3"])
+@pytest.mark.parametrize("bad_env", ["twenty", "0", "-3", ""])
 def test_bad_env_cap_fails_loud(monkeypatch, bad_env):
     monkeypatch.setenv("ONELIVE_MAX_SOURCES_PER_RUN", bad_env)
     with pytest.raises(SystemExit):
