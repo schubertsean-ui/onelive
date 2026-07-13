@@ -192,3 +192,8 @@
 
 ## 2026-07-13 (later) — Founder communication rules added to the charter
 - Founder directive incorporated into CLAUDE.md as a standing section: plain language; why-this-not-that with alternatives; honest tradeoffs; direct links; make-it-easy (numbered, phone-friendly, one consolidated ask). Binding on every founder-facing report/PR description, every session.
+
+## 2026-07-13 (later) — "Brain" research delivered (G-BRAIN, PROPOSAL)
+- Founder ask: persistent memory so the build agent and the platform never forget. Researched agent-memory landscape (Mem0/Zep/Graphiti/Letta/Anthropic memory tool/pgvector patterns) + platform memory.
+- New artifact docs/strategy/ONE_LIVE_BRAIN_OPTIONS_v1.md: Build brain options 1A file-brain sharpening / 1B pgvector-in-existing-Supabase (RECOMMENDED fused with 1A) / 1C hosted (Zep $125+/mo, best LongMemEval 63.8%) / 1D self-hosted graph (Graphiti+Neo4j). Platform brain: audit/replay/provenance already = never-forgets; 2A pgvector semantic layer at Step 7; 2B Emotion Graph stays P3.
+- Awaiting founder one-liner (G-BRAIN). No build until ratified.
