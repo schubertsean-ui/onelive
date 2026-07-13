@@ -112,8 +112,14 @@ def _post_json(url: str, payload: dict, api_key: str, timeout: int = 300) -> dic
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        # Surface the API's error body — "HTTP Error 400" alone is undiagnosable
+        # from CI logs (proven by the first live run of this gate).
+        body = exc.read().decode("utf-8", errors="replace")[:2000]
+        raise RuntimeError(f"OpenAI API HTTP {exc.code}: {body}") from exc
 
 
 def request_review(review_input: str, api_key: str, model: str, base_url: str) -> str:
@@ -180,8 +186,11 @@ def main(argv: list[str] | None = None) -> int:
             with open(path, encoding="utf-8", errors="replace") as f:
                 test_logs.append((os.path.basename(path), f.read()))
         review_input = build_review_input(diff, test_logs, args.max_diff_bytes)
-        model = os.environ.get("OPENAI_REVIEW_MODEL", DEFAULT_MODEL)
-        base_url = os.environ.get("OPENAI_BASE_URL", DEFAULT_BASE_URL)
+        # `or` (not a .get default): CI forwards these vars even when the repo
+        # variable is unset, so they arrive present-but-empty — and an empty
+        # model string 400s at the API (first live run of this gate).
+        model = os.environ.get("OPENAI_REVIEW_MODEL") or DEFAULT_MODEL
+        base_url = os.environ.get("OPENAI_BASE_URL") or DEFAULT_BASE_URL
         review = request_review(review_input, api_key, model, base_url)
         print(review)
         verdict = parse_verdict(review)

@@ -87,6 +87,43 @@ def test_exit_codes_follow_verdict(tmp_path, monkeypatch):
     assert ar.main(["--diff-file", _diff_file(tmp_path)]) == 1
 
 
+def test_empty_model_env_var_falls_back_to_default(tmp_path, monkeypatch):
+    """Regression (first live CI run): CI forwards OPENAI_REVIEW_MODEL even when
+    the repo variable is unset, so it arrives present-but-empty; sending
+    model="" 400s at the API. Present-but-empty must mean the default."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_REVIEW_MODEL", "")
+    monkeypatch.setenv("OPENAI_BASE_URL", "")
+    sent = {}
+
+    def _capture(url, payload, api_key, timeout=300):
+        sent["url"] = url
+        sent["model"] = payload["model"]
+        return _fake_response("fine\nVERDICT: APPROVE")
+
+    monkeypatch.setattr(ar, "_post_json", _capture)
+    assert ar.main(["--diff-file", _diff_file(tmp_path)]) == 0
+    assert sent["model"] == ar.DEFAULT_MODEL
+    assert sent["url"].startswith(ar.DEFAULT_BASE_URL)
+
+
+def test_http_error_body_is_surfaced(monkeypatch):
+    """Regression (first live CI run): a bare 'HTTP Error 400' is undiagnosable;
+    the API's error body must reach the failure message."""
+    import io
+    import urllib.error
+
+    def _boom(req, timeout):
+        raise urllib.error.HTTPError(
+            "https://api.example/v1/chat/completions", 400, "Bad Request",
+            hdrs=None, fp=io.BytesIO(b'{"error": {"message": "you must provide a model"}}'),
+        )
+
+    monkeypatch.setattr(ar.urllib.request, "urlopen", _boom)
+    with pytest.raises(RuntimeError, match="you must provide a model"):
+        ar._post_json("https://api.example/v1/chat/completions", {}, "k")
+
+
 def test_ambiguous_verdict_and_empty_diff_are_hard_failures(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(ar, "_post_json", lambda *a, **k: _fake_response("shrug"))
