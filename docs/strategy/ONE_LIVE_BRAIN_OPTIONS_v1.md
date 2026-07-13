@@ -70,5 +70,5 @@ OneLive's trust architecture *is* a memory system: append-only `audit_log`, dete
 
 ---
 
-## Consolidated founder decision (one ask, per the communication rules)
-Reply with one line: **"Brain: fused 1A+1B, platform 2A-at-Step-7"** (the recommendation), or name a different combination. If 1C/1D is chosen, that's a money/new-vendor decision and I'll prepare the friction attack first. Nothing is built until you pick (PROPOSAL ≠ license to build).
+## Consolidated founder decision (HISTORICAL — answered; see §RATIFIED at top)
+*This ask was answered 2026-07-13 with "Brain: 1A+1B, platform at Step 7" — kept verbatim for the record, no reply needed.* Original ask: reply with one line: **"Brain: fused 1A+1B, platform 2A-at-Step-7"** (the recommendation), or name a different combination. If 1C/1D is chosen, that's a money/new-vendor decision and I'll prepare the friction attack first. Nothing is built until you pick (PROPOSAL ≠ license to build).

@@ -127,6 +127,22 @@ def test_empty_model_env_var_falls_back_to_default(tmp_path, monkeypatch):
     assert sent["url"].startswith(ar.DEFAULT_BASE_URL)
 
 
+def test_generator_family_review_model_hard_fails(tmp_path, monkeypatch, capsys):
+    """Trust invariant (charter §0.2), enforced at the reviewer's OWN entry
+    point: a Claude/Anthropic model in OPENAI_REVIEW_MODEL means the generator
+    would grade its own work — hard fail (exit 2) BEFORE any API call."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    def _explode(*a, **k):
+        raise AssertionError("no API call may happen with a generator-family model")
+
+    monkeypatch.setattr(ar, "_post_json", _explode)
+    for bad in ("claude-opus-4-8", "Claude-Sonnet-4-6", "anthropic/claude-haiku-4-5"):
+        monkeypatch.setenv("OPENAI_REVIEW_MODEL", bad)
+        assert ar.main(["--diff-file", _diff_file(tmp_path)]) == 2
+        assert "write/grade separation" in capsys.readouterr().err
+
+
 def test_http_error_body_is_surfaced(monkeypatch):
     """Regression (first live CI run): a bare 'HTTP Error 400' is undiagnosable;
     the API's error body must reach the failure message."""

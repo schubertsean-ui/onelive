@@ -206,6 +206,19 @@ def main(argv: list[str] | None = None) -> int:
         # variable is unset, so they arrive present-but-empty — and an empty
         # model string 400s at the API (first live run of this gate).
         model = os.environ.get("OPENAI_REVIEW_MODEL") or DEFAULT_MODEL
+        # Write/grade separation (charter §0.2) enforced at THIS entry point,
+        # not just in tools/model_router.py: the reviewer must never be the
+        # generator's model family, or the gate grades its own homework. The
+        # check is deliberately DUPLICATED from model_router rather than
+        # imported — in CI this script runs as a trusted copy from the base
+        # ref (`python -I /tmp/trusted/...`) and must not import
+        # PR-controlled repo modules.
+        if any(m in model.lower() for m in ("claude", "anthropic")):
+            print(f"adversarial_review: HARD FAIL — the review model resolves "
+                  f"to {model!r}, a generator-family (Claude/Anthropic) model; "
+                  "the evaluator must be non-Claude (write/grade separation, "
+                  "charter §0.2). Fix OPENAI_REVIEW_MODEL.", file=sys.stderr)
+            return 2
         base_url = os.environ.get("OPENAI_BASE_URL") or DEFAULT_BASE_URL
         review = request_review(review_input, api_key, model, base_url)
         verdict = parse_verdict(review)

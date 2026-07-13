@@ -38,7 +38,7 @@ Stage mapping (see `tools/model_router.py`, env-overridable via `ONELIVE_MODEL_<
 | `mechanical` | Cheap | |
 | `standard` | Standard | |
 | `critical` | Critical | Escalation triggers below |
-| `extraction` | Cheap (provisional) | Governed by eval-harness thresholds, not opinion: the tier keeps its place while hallucination/faithfulness gates pass on the golden set, and escalates one tier the moment they fail. Ratify with the §11.2 threshold. |
+| `extraction` | **BLOCKED (fail-closed)** | The resolver refuses to route this stage at all — overrides included — until the §11.2 hallucination threshold is founder-ratified (docs/RECORD.md R-006). Once ratified (flip `EXTRACTION_THRESHOLD_RATIFIED` in the same commit), it starts at Cheap governed by the golden-set gates: keeps its tier while hallucination/faithfulness gates pass, escalates the moment they fail. |
 | `evaluator` | Evaluator | `OPENAI_REVIEW_MODEL` overrides. Hard invariant: the router REJECTS any Claude/Anthropic id in this slot (fail-closed in `resolve_model`) — the grader is never the generator's family, at any price. |
 
 All model ids and prices above are **live, current ids verified 2026-07-13**

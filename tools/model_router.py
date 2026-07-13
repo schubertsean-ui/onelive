@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 
 # Cheapest-capable defaults, ratified via docs/MODEL_ROUTING.md. Change them
@@ -21,12 +22,26 @@ STAGE_MODELS = {
     "mechanical": "claude-haiku-4-5",
     "standard": "claude-sonnet-4-6",
     "critical": "claude-opus-4-8",
-    # Provisional cheap tier, governed by eval-harness thresholds (§11.2):
-    # keeps its slot while golden-set gates pass, escalates when they fail.
+    # Starting tier once unblocked (see EXTRACTION_THRESHOLD_RATIFIED below),
+    # governed by eval-harness thresholds (§11.2): keeps its slot while
+    # golden-set gates pass, escalates when they fail.
     "extraction": "claude-haiku-4-5",
     # Non-Claude by charter (§0.2) — cost never downgrades the grader.
     "evaluator": "gpt-5.5",
 }
+
+# R-006 (docs/RECORD.md): the §11.2 extraction hallucination threshold is NOT
+# yet founder-ratified. Until it is, resolving the extraction stage fails
+# closed — a trust-critical AI path must not route anywhere (cheap OR
+# expensive) without its release-blocking quality gate in force. Flip to True
+# ONLY in the commit that records the ratification and resolves R-006.
+EXTRACTION_THRESHOLD_RATIFIED = False
+
+# Model ids across vendors are ASCII: letters/digits/dot/underscore/colon/
+# slash/hyphen. Anything else (newlines, spaces, shell metacharacters) is a
+# misconfiguration caught HERE, not later at an API or inside a CI $GITHUB_OUTPUT
+# write where a newline could smuggle extra output lines.
+_MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
 
 # Extra env names honored per stage, after ONELIVE_MODEL_<STAGE>, for
 # compatibility with wiring that predates this router.
@@ -63,6 +78,14 @@ def resolve_model(stage: str) -> str:
             f"unknown routing stage {stage!r} — valid stages: "
             f"{', '.join(sorted(STAGE_MODELS))} (docs/MODEL_ROUTING.md)"
         )
+    if stage == "extraction" and not EXTRACTION_THRESHOLD_RATIFIED:
+        # Fail-closed regardless of overrides: the block is about the missing
+        # quality gate (R-006), not about which model would run.
+        raise ValueError(
+            "extraction routing is fail-closed until the §11.2 hallucination "
+            "threshold is ratified (docs/RECORD.md R-006) — nothing may run "
+            "extraction without its release-blocking quality gate in force."
+        )
     for env_name in (f"ONELIVE_MODEL_{stage.upper()}", _LEGACY_ENV.get(stage, "")):
         if not env_name:
             continue
@@ -75,6 +98,11 @@ def resolve_model(stage: str) -> str:
                 "unset it entirely; empty must never silently mean 'default'."
             )
         value = value.strip()
+        if not _MODEL_ID_RE.fullmatch(value):
+            raise ValueError(
+                f"{env_name} value {value!r} is not a plausible model id "
+                "(letters/digits/._:/- only) — refusing to pass it downstream."
+            )
         _check_evaluator_separation(stage, value, env_name)
         return value
     default = STAGE_MODELS[stage]

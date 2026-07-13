@@ -18,11 +18,33 @@ sys.modules["model_router"] = mr
 _spec.loader.exec_module(mr)
 
 
-def test_defaults_resolve_for_every_stage(monkeypatch):
+def test_defaults_resolve_for_every_unblocked_stage(monkeypatch):
     monkeypatch.delenv("OPENAI_REVIEW_MODEL", raising=False)
     for stage, model in mr.STAGE_MODELS.items():
+        if stage == "extraction":
+            continue  # fail-closed until R-006 ratifies — proven below
         monkeypatch.delenv(f"ONELIVE_MODEL_{stage.upper()}", raising=False)
         assert mr.resolve_model(stage) == model
+
+
+def test_extraction_fails_closed_until_threshold_ratified(monkeypatch):
+    """R-006: the §11.2 extraction hallucination threshold is unratified, so
+    the extraction stage must not resolve to ANY model — and an env override
+    must not bypass the block (it's about the missing gate, not the model)."""
+    assert mr.EXTRACTION_THRESHOLD_RATIFIED is False
+    with pytest.raises(ValueError, match="R-006"):
+        mr.resolve_model("extraction")
+    monkeypatch.setenv("ONELIVE_MODEL_EXTRACTION", "claude-opus-4-8")
+    with pytest.raises(ValueError, match="R-006"):
+        mr.resolve_model("extraction")
+
+
+def test_extraction_resolves_once_ratified(monkeypatch):
+    """When the founder ratifies the threshold (flag flipped in that commit),
+    extraction routes to its documented starting tier."""
+    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", True)
+    monkeypatch.delenv("ONELIVE_MODEL_EXTRACTION", raising=False)
+    assert mr.resolve_model("extraction") == mr.STAGE_MODELS["extraction"]
 
 
 def test_env_override_beats_default(monkeypatch):
@@ -88,6 +110,16 @@ def test_whitespace_only_override_fails_loud(monkeypatch):
 def test_override_value_is_stripped(monkeypatch):
     monkeypatch.setenv("ONELIVE_MODEL_STANDARD", " claude-sonnet-4-6 ")
     assert mr.resolve_model("standard") == "claude-sonnet-4-6"
+
+
+def test_implausible_model_ids_fail_loud(monkeypatch):
+    """Overrides must look like model ids — newlines especially matter because
+    CI writes the resolved id into $GITHUB_OUTPUT, where an embedded newline
+    could smuggle extra output lines."""
+    for bad in ("model\nextra=1", "model with spaces", "model;rm", "$(cmd)"):
+        monkeypatch.setenv("ONELIVE_MODEL_STANDARD", bad)
+        with pytest.raises(ValueError, match="plausible model id"):
+            mr.resolve_model("standard")
 
 
 def test_cli_exit_codes(monkeypatch, capsys):
