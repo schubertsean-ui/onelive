@@ -34,6 +34,13 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 
 > **Ground-truth block staleness (2026-07-13):** the JSON block above is machine-maintained and could NOT be refreshed this session — the reconciler needs `gh` (absent in this sandbox) and a DB DSN (not provided). It shows pre-PR#9 state. The 2026-07-13 reality check below records what WAS independently verified (via the GitHub API). Refresh the block with `session_reconcile.py --heal` from an env with `gh` + `ONELIVE_DB_DSN`.
 
+## Session Contract #2 (2026-07-13, same conversation — founder said "proceed with the sprint plan")
+
+GOAL: Execute the unblocked scaffolding of SPRINT Step 5 (scheduled ingestion) without triggering any founder-crucial precondition.
+SCOPE: (1) record PR #11 merge (evaluator gate now armed on master) in STATE/changelog; (2) per-run budget ceiling on the real ingestion run (`worker/run_once.py --max-sources` + `ONELIVE_MAX_SOURCES_PER_RUN`, §14.3 "caps before the recurring loop") with tests; (3) `.github/workflows/ingest.yml` shipped **manual-only** (`workflow_dispatch`; cron deliberately ABSENT until the founder arms P2/P3 — charter: no scheduled loop without dead-man + budget caps), failing loud on missing env; (4) consolidated founder unblock-list delivered in chat.
+NON-GOALS this block: no cron trigger, no migrations, no spend, no extraction threshold ratification (proposed number stays PROPOSAL), no design implementation (design/inbox is empty).
+DONE-CRITERIA: tests green · validate green (visual-regression skip acknowledged) · PR opened and it receives a real armed-gate evaluator verdict · founder unblock-list delivered.
+
 ## Session Contract #1 (2026-07-13 — this session)
 
 GOAL: Stand up the autonomous build loop and take the first two steps toward the live site.

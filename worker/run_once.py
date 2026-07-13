@@ -24,6 +24,7 @@ import argparse
 import logging
 import os
 import sys
+from typing import Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,92 @@ def _run_stub() -> int:
     return 0
 
 
-def _run_real() -> int:
+def _positive_int(raw: str) -> int:
+    """argparse type for --max-sources: a budget ceiling is positive or it is
+    rejected — 0/negative must never mean "uncapped" (fail-closed, evaluator
+    finding PR #12 round 1)."""
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"{raw!r} is not an integer") from exc
+    if value <= 0:
+        raise argparse.ArgumentTypeError(
+            f"{value} is not a valid budget ceiling — must be a positive "
+            "integer; a ceiling of 0 does not mean uncapped, it means no run."
+        )
+    return value
+
+
+def apply_source_ceiling(sources: Sequence[dict], cap: int | None) -> list:
+    """Cap how many sources one real run may process (FinOps §14.3: budget
+    ceilings exist BEFORE the recurring loop, not after the first surprise
+    bill). cap=None means uncapped — the caller logs that loudly, so an
+    uncapped run is always a visible, deliberate choice. Any other value must
+    be a positive int: 0/negative is a misconfiguration and FAILS CLOSED
+    (raises) instead of silently disabling the guard. Order is preserved
+    (DB order), so the ceiling truncates the tail, deterministically.
+    """
+    if cap is None:
+        return list(sources)
+    if cap <= 0:
+        raise ValueError(
+            f"source ceiling {cap} is invalid — a budget cap must be positive; "
+            "0/negative fails closed, it never means uncapped."
+        )
+    if len(sources) > cap:
+        logger.warning(
+            "budget ceiling: processing %d of %d enabled sources this run "
+            "(raise --max-sources / ONELIVE_MAX_SOURCES_PER_RUN deliberately).",
+            cap, len(sources),
+        )
+    return list(sources[:cap])
+
+
+def _resolve_source_cap(cli_value: int | None) -> int | None:
+    """--max-sources wins; else ONELIVE_MAX_SOURCES_PER_RUN; else uncapped
+    (logged loudly by the caller). Any non-positive or non-integer value from
+    either channel is a misconfig and fails loud (closed) rather than silently
+    running uncapped."""
+    if cli_value is not None:
+        if cli_value <= 0:
+            raise SystemExit(
+                f"--max-sources={cli_value} is invalid — the budget ceiling "
+                "must be a positive integer (fails closed)."
+            )
+        return cli_value
+    raw = os.getenv("ONELIVE_MAX_SOURCES_PER_RUN")
+    if raw is None:
+        return None
+    if raw == "":
+        # Set-but-empty is a misconfiguration, not "uncapped": CI forwards
+        # unset variables as empty strings (the exact failure mode that broke
+        # OPENAI_REVIEW_MODEL in PR #11), so an empty budget cap fails closed.
+        raise SystemExit(
+            "ONELIVE_MAX_SOURCES_PER_RUN is set but empty — the budget ceiling "
+            "must be a positive integer, or the variable must be fully unset "
+            "for a deliberate (loudly logged) uncapped run. Fails closed."
+        )
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise SystemExit(
+            f"ONELIVE_MAX_SOURCES_PER_RUN={raw!r} is not an integer — refusing "
+            "to guess whether this run should be capped."
+        ) from exc
+    if value <= 0:
+        raise SystemExit(
+            f"ONELIVE_MAX_SOURCES_PER_RUN={value} is invalid — the budget "
+            "ceiling must be a positive integer (fails closed)."
+        )
+    return value
+
+
+def _run_real(max_sources: int | None = None) -> int:
+    # Budget-cap misconfiguration must fail loud DETERMINISTICALLY — before
+    # any provider/DB access, so it can never hide behind "no enabled sources
+    # found" or a connection error (evaluator finding, PR #12 round 2).
+    cap = _resolve_source_cap(max_sources)
+
     # Imported lazily, inside the guarded branch, so importing run_once.py
     # (or running its stub path) never requires anthropic/psycopg2 network
     # configuration — only `--real` pays that cost.
@@ -112,6 +198,15 @@ def _run_real() -> int:
         logger.error("no enabled, fetchable sources found in the `source` table.")
         return 1
 
+    if cap is None:
+        logger.warning(
+            "NO per-run source ceiling set (--max-sources / "
+            "ONELIVE_MAX_SOURCES_PER_RUN) — processing all %d sources. A "
+            "scheduled run should always set one (§14.3 budget caps).",
+            len(sources),
+        )
+    sources = apply_source_ceiling(sources, cap)
+
     report = run_loop(ai=ai, sources=sources, sxsw_mode=False, dsn=dsn)
     print("RunReport:")
     print(f"  run_id:   {report.run_id}")
@@ -128,6 +223,14 @@ def main() -> int:
         action="store_true",
         help="Use ClaudeProvider and real `source` rows from ONELIVE_DB_DSN instead of the offline stub.",
     )
+    parser.add_argument(
+        "--max-sources",
+        type=_positive_int,
+        default=None,
+        help="Budget ceiling: process at most N sources this run (positive "
+             "integer; falls back to ONELIVE_MAX_SOURCES_PER_RUN; unset = "
+             "uncapped, logged loudly).",
+    )
     args = parser.parse_args()
     # Sentinel minimum (Session Contract #1): this is the scheduled entrypoint,
     # so it carries both signals — Sentry (no-op without SENTRY_DSN) and the
@@ -135,7 +238,7 @@ def main() -> int:
     # charter forbids scheduling a recurring loop until both env vars exist.
     init_sentry("worker")
     with deadman():
-        return _run_real() if args.real else _run_stub()
+        return _run_real(args.max_sources) if args.real else _run_stub()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,107 @@
+name: Ingestion Run (manual only — cron deliberately not armed)
+
+# SPRINT Step 5 scaffolding. This workflow runs the real ingestion loop
+# (fetch -> sensors -> extract -> gate3 -> candidate store; NEVER promotes —
+# promotion is an authenticated human ops action only).
+#
+# THERE IS NO `schedule:` TRIGGER YET, ON PURPOSE. The charter forbids
+# scheduling a recurring loop until ALL of these exist (docs/SPRINT_LIVE_SITE
+# .md preconditions; CLAUDE.md Sentinel rule; §14.3 budget caps):
+#   1. ANTHROPIC_API_KEY minted with a monthly spend cap set in the console
+#      FIRST (founder-crucial), stored as an Actions secret.
+#   2. ONELIVE_DB_DSN stored as an Actions secret.
+#   3. ORCHESTRATOR_PING_URL (healthchecks.io dead-man check) stored as an
+#      Actions secret — a cron that dies silently violates the
+#      no-silent-degradation invariant.
+#   4. A Friction pre-work attack of the arming plan logged in
+#      docs/FRICTION_LOG.md and answered in writing.
+# Arming = a follow-up PR that adds the `schedule:` block (hourly cron) and
+# deletes this notice; that PR gets the mandatory adversarial review.
+#
+# Until then, a maintainer can run it manually from the Actions tab; every
+# guard below fails LOUD when a precondition is missing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_sources:
+        description: "Budget ceiling: max sources this run (required; §14.3)"
+        required: true
+        default: "10"
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate the budget ceiling input (fail closed, never interpolate)
+        env:
+          # Untrusted dispatch input reaches the shell ONLY via env (never
+          # ${{ }}-interpolated into run: — shell-injection surface) and must
+          # be a positive integer; 0/negative is rejected here AND in
+          # run_once.py (defense in depth, evaluator finding PR #12 round 1).
+          MAX_SOURCES: ${{ github.event.inputs.max_sources }}
+        run: |
+          # [[ =~ ]] validates the WHOLE string (POSIX ERE, not line-oriented
+          # like grep — a newline-smuggled second line cannot pass), and the
+          # raw value is never echoed into an annotation (log-command
+          # injection surface) — evaluator nits, PR #12 round 2.
+          if ! [[ "$MAX_SOURCES" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::max_sources must be a positive integer (invalid value redacted — check the run input). The budget ceiling is required and fails closed; 0 does not mean uncapped."
+            exit 1
+          fi
+
+      - name: Preconditions (fail loud, never no-op)
+        env:
+          ONELIVE_DB_DSN: ${{ secrets.ONELIVE_DB_DSN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ORCHESTRATOR_PING_URL: ${{ secrets.ORCHESTRATOR_PING_URL }}
+        run: |
+          missing=""
+          [ -z "$ONELIVE_DB_DSN" ] && missing="$missing ONELIVE_DB_DSN"
+          [ -z "$ANTHROPIC_API_KEY" ] && missing="$missing ANTHROPIC_API_KEY"
+          [ -z "$ORCHESTRATOR_PING_URL" ] && missing="$missing ORCHESTRATOR_PING_URL"
+          if [ -n "$missing" ]; then
+            echo "::error::Ingestion refused — missing Actions secret(s):$missing. Minting keys is founder-crucial; the Anthropic key requires a console spend cap FIRST (§14.3). See docs/SPRINT_LIVE_SITE.md Step 5."
+            exit 1
+          fi
+
+      - name: Install worker deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r worker/requirements.txt
+
+      - name: Run the loop once (capped, dead-man pinged)
+        env:
+          ONELIVE_DB_DSN: ${{ secrets.ONELIVE_DB_DSN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ORCHESTRATOR_PING_URL: ${{ secrets.ORCHESTRATOR_PING_URL }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          MAX_SOURCES: ${{ github.event.inputs.max_sources }}
+        run: |
+          python worker/run_once.py --real --max-sources "$MAX_SOURCES"
+
+      - name: Persist the replay log (audit trail)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay-log-${{ github.run_id }}
+          path: var/replay/
+          # A successful real run MUST leave a replay audit trail — absence on
+          # success is a failure. After an earlier failed step, absence is
+          # expected and merely warned (the failure is already red).
+          if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}

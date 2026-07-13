@@ -175,3 +175,17 @@
 - Dependency fix: vitest 3→4 (dev-only chain carried the 1 critical + 1 high; 25/25 tests pass). Remaining 4 moderates = postcss-via-next, no upstream fix — baselined with clear-when trigger + TODOS item.
 - Nits: evaluator output now ends with the model's own VERDICT line; trust-gate/validate cross-linked in the workflow header; dead-man ping failures log structured context (url/event/error).
 - Consequence: this PR's adversarial-review check stays RED by design (tool not on master yet = bootstrap hard-fail). The two completed evaluator rounds are the non-Claude review evidence for this PR; founder merges past the red bootstrap check after human review.
+
+## 2026-07-13 (later) — PR #11 MERGED by founder; sprint GO; Step 5 scaffolding shipped
+- Founder reviewed and merged PR #11 (squash `9d40eb5`) past the by-design-red bootstrap check — the adversarial-review gate is now armed and self-consistent on master (trusted script exists on the base branch; the bootstrap exception can never recur).
+- Founder: **"proceed with the sprint plan"** → Session Contract #2 (STATE.md): unblocked Step 5 scaffolding only, zero spend/migrations/cron.
+- Shipped: per-run budget ceiling on real ingestion (`worker/run_once.py --max-sources` / `ONELIVE_MAX_SOURCES_PER_RUN`, CLI>env>uncapped-loud, garbage env fails loud; tests) — §14.3 caps exist BEFORE the recurring loop.
+- Shipped: `.github/workflows/ingest.yml` — manual-only (`workflow_dispatch`, required max_sources input); **no cron on purpose** until founder arms P2/P3 (Anthropic key w/ console spend cap, DB DSN, healthchecks URL as Actions secrets) + friction re-attack; preconditions fail loud, replay log uploaded as artifact, deadman+Sentry ride the existing run_once wiring.
+- Arming = a follow-up PR adding the `schedule:` block, which itself passes the (now armed) adversarial gate.
+
+## 2026-07-13 (later) — Armed gate's first steady-state verdict: REQUEST-CHANGES on PR #12; budget guard made fail-closed
+- The armed evaluator's first trusted-script review correctly caught the budget ceiling failing OPEN (0/negative = uncapped) and an unescaped workflow_dispatch input interpolated into shell.
+- Fixed: 0/negative/garbage caps now fail closed at every channel (argparse type, CLI resolution, env var, apply_source_ceiling ValueError — defense in depth, all tested); workflow input reaches the shell only via env and is validated as a positive integer before anything runs; replay-log artifact absence is an error on success (audit trail guaranteed) and a warning after failure; tighter type hints.
+
+## 2026-07-13 (later) — PR #12 round 2: remaining fail-open crack sealed
+- Evaluator round 2: set-but-EMPTY `ONELIVE_MAX_SOURCES_PER_RUN` now fails closed (CI forwards unset vars as empty — same class as the PR #11 model bug); cap validation moved BEFORE any DB/provider access so misconfig can never hide behind "no sources found"; empty-string added to the bad-env test matrix; workflow input validated as a whole string via [[ =~ ]] (newline-proof) and never echoed into annotations; _run_real typed.
