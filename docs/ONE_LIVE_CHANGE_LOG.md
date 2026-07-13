@@ -159,3 +159,7 @@
 - Sprint plan written: `docs/SPRINT_LIVE_SITE.md` (Steps 5→10, done-criteria + gating agent per step; preconditions P1–P5).
 - Suite: 218 passed/27 skipped as root + 25 vitest; root-only test-precondition fix (skipif euid==0 on unwritable-dir test). D1 python count reconciled: 219/27 non-root.
 - The one missing item: `OPENAI_API_KEY` (founder-crucial minting) — evaluator + friction attacks degrade gracefully until then.
+
+## 2026-07-13 (later) — Evaluator armed in CI
+- Founder minted `OPENAI_API_KEY` and added it as a GitHub Actions repository secret (session-env copy pending — environments UI has a known bug upstream).
+- New workflow `.github/workflows/adversarial-review.yml`: runs `tools/adversarial_review.py --require` (non-Claude, VERDICT: APPROVE demanded) with the full pytest log on every PR touching trust-critical paths (api/worker/ai/supabase/tools/auth-surface/workflows); `workflow_dispatch` variant reviews an arbitrary git range from the Actions tab.

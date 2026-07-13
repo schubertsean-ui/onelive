@@ -14,7 +14,7 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P3** — nice-to-have / ongoing background work.
 
 ## Session Contract #1 follow-ups (2026-07-13 — genesis install; see docs/SPRINT_LIVE_SITE.md)
-- [ ] (P0) Mint `OPENAI_API_KEY` (usage-capped) — owner: founder (credential minting is founder-crucial) — the Independent Evaluator (`tools/adversarial_review.py`) and Friction attacks are wired but SKIPPED-loud without it; required before any trust-critical PR merges and before Step 5.
+- [ ] (P0) Mint `OPENAI_API_KEY` (usage-capped) — owner: founder (credential minting is founder-crucial) — the Independent Evaluator (`tools/adversarial_review.py`) and Friction attacks are wired but SKIPPED-loud without it; required before any trust-critical PR merges and before Step 5. **PROGRESS 2026-07-13: founder added the key as a GitHub Actions repo secret; `.github/workflows/adversarial-review.yml` now runs the evaluator with `--require` on trust-critical PRs. Remaining: the Claude Code session-env copy (env-var UI currently has a known bug — claude-code issues #52729/#53029) so in-session review/friction attacks stay skip-loud until then.
 - [ ] (P0) Re-attack FRICTION_LOG entry #1 with the non-Claude evaluator once the key exists — owner: evaluator — entry is PROVISIONAL (attacked by the generator model, flagged).
 - [ ] (P1) Decide open PR #7: PR #9 already ported its content to master — close as superseded, or state what still needs extraction — owner: founder (1 line).
 - [ ] (P1) Mint `SENTRY_DSN` (web/api/worker) + `ORCHESTRATOR_PING_URL` (healthchecks.io) — owner: founder — wiring is done and no-op until these exist; charter forbids scheduling the recurring loop without both.
