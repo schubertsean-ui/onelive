@@ -115,6 +115,11 @@ run_check "trust_gate" "$PY" tools/trust_gate.py
 # 2. Conventions linter — must pass (no --fix here; validate must not mutate).
 run_check "lint" "$PY" tools/lint.py
 
+# 2b. Recording enforcement — no silent deferrals: deferral-language code
+#     comments must carry a live [R-###] tag from docs/RECORD.md (founder
+#     rule 2026-07-13; see CLAUDE.md "The Record").
+run_check "deferral_scan" "$PY" tools/deferral_scan.py
+
 # 3. Full test suite — must pass. DB-integration tests self-skip without a DSN;
 #    that self-skip is internal to pytest and reported in its own output.
 run_check "pytest (full suite)" "$PY" -m pytest -q

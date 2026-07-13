@@ -80,6 +80,9 @@ depends on an open founder decision. For an autonomous/overnight run, follow
 5. Append honest friction/feedback to `docs/AGENT_FEEDBACK.md` (what slowed you
    down, what to automate next) — periodically ingested to improve the workflow.
 6. Note any new external dependency in STATE.md (CLAUDE.md review rule #3).
+7. Review `docs/RECORD.md` OPEN rows (the no-silent-deferrals register):
+   resolve, re-affirm, or escalate each. A row whose resolution trigger has
+   fired but wasn't acted on is a defect, not a backlog item.
 
 ---
 

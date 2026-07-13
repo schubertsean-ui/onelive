@@ -11,7 +11,7 @@ if (dsn) {
   Sentry.init({
     dsn,
     environment: process.env.NEXT_PUBLIC_ONELIVE_ENV ?? "development",
-    // Error monitoring only for now — see instrumentation.ts.
+    // Error monitoring only for now [R-001] — see instrumentation.ts.
     tracesSampleRate: 0,
   });
   Sentry.setTag("surface", "web-client");

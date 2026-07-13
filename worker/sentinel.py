@@ -53,8 +53,8 @@ def init_sentry(surface: str) -> bool:
     sentry_sdk.init(
         dsn=dsn,
         environment=os.environ.get("ONELIVE_ENV", "development"),
-        # Error monitoring only for now; performance tracing is a later,
-        # deliberate (and billable-volume) decision.
+        # Error monitoring only for now [R-001]; performance tracing is a
+        # deliberate, costed decision at Step 9 (docs/RECORD.md).
         traces_sample_rate=0.0,
     )
     sentry_sdk.set_tag("surface", surface)

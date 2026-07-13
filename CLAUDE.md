@@ -24,6 +24,9 @@ Maximally effective AND maximally efficient — highest margin at a world-class 
 3. **Quality gates never relax.** validate/trust_gate/evaluator/eval-harness thresholds are identical at every tier — efficiency is achieved by routing, caching, and batching, never by skipping verification.
 4. **Measure, don't guess.** Cost-per-verified-event (§14.2) and per-run ceilings govern the pipeline; a cheaper tier earns its place by passing the same gates, and loses it the same way.
 
+## The Record — no silent deferrals (added 2026-07-13 at founder direction)
+Everything is checked against the documented world-class bar for that item, so deferrals should not exist. When one does — any "for now", "check later", "ok for now", "revisit", or a noticed-but-unfixed issue, in code, docs, PR text, or chat — it is RECORDED in `docs/RECORD.md` **in the same commit**: what is deferred, the bar it deviates from (cited), and an objective resolution trigger (never "someday"). Silent deferral is a violation. Enforcement: `tools/deferral_scan.py` (blocking, in `tools/validate`) requires every deferral-language code comment to carry a live `[R-###]` tag; prose is covered by this rule + evaluator review. Session close reviews OPEN entries — a fired-but-unactioned trigger is a defect.
+
 ## Communicating with the founder (added 2026-07-13 at founder direction)
 Every report, question, escalation, and PR description addressed to the founder follows these rules — they outrank brevity:
 1. **Plain language.** No unexplained jargon; assume a smart non-engineer. A one-line explanation beats an acronym.

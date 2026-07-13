@@ -12,8 +12,8 @@ export async function register(): Promise<void> {
   Sentry.init({
     dsn,
     environment: process.env.ONELIVE_ENV ?? "development",
-    // Error monitoring only for now; tracing volume is a later, deliberate
-    // (billable) decision — matches worker/sentinel.py.
+    // Error monitoring only for now [R-001]; tracing is a deliberate, costed
+    // decision at Step 9 (docs/RECORD.md) — matches worker/sentinel.py.
     tracesSampleRate: 0,
   });
   Sentry.setTag("surface", process.env.NEXT_RUNTIME === "edge" ? "web-edge" : "web-server");
