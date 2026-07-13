@@ -1,6 +1,15 @@
 import { useState } from "react";
 
 /* =====================================================================
+   ⚠ HISTORICAL REFERENCE — DO NOT COPY THE TRUST LINE. This prototype
+   predates the ratified trust-display rules (brief v2.4 §2): the
+   "✓ Confirmed by multiple sources" TrustLine below is now FORBIDDEN
+   (no badges, no "confirmed" text, ever). Confidence is expressed only
+   as the quiet-icon + dismissible-sheet pattern. Kept verbatim below
+   for wireframe/layout reference only. Delta logged per the charter
+   rule "deltas from the brief are logged, never silent" (evaluator
+   finding, PR #11 round 1).
+   =====================================================================
    ONE LIVE — /tonight PROTOTYPE v2 · built from the founder's OWN
    wireframe & PRD (One_Live_1100.pdf, "V1 Fan-First, Zero Noise,
    Utility Wins") — nothing invented:

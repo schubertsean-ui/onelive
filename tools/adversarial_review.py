@@ -86,20 +86,26 @@ def build_review_input(diff: str, test_logs: list[tuple[str, str]],
 def parse_verdict(review_text: str) -> str:
     """Extract the final APPROVE/REQUEST-CHANGES verdict. Ambiguous -> error.
 
-    The verdict must be unambiguous: exactly one VERDICT line, and it decides
-    the exit code. An evaluator that hedges gets a hard failure, not a pass.
+    The verdict must be unambiguous: exactly one VERDICT line, it must be the
+    LAST non-empty line (the prompt demands "nothing after it" — trailing text
+    could contradict or launder the verdict), and it decides the exit code. An
+    evaluator that hedges gets a hard failure, not a pass.
     """
-    verdicts = [
-        line.split("VERDICT:", 1)[1].strip()
-        for line in review_text.splitlines()
-        if line.strip().upper().startswith("VERDICT:")
-    ]
-    if len(verdicts) != 1 or verdicts[0].upper() not in (APPROVE, REQUEST_CHANGES):
+    lines = [line.strip() for line in review_text.splitlines() if line.strip()]
+    verdict_lines = [l for l in lines if l.upper().startswith("VERDICT:")]
+    if (
+        len(verdict_lines) != 1
+        or not lines
+        or lines[-1] != verdict_lines[0]
+        or verdict_lines[0].split(":", 1)[1].strip().upper()
+        not in (APPROVE, REQUEST_CHANGES)
+    ):
         raise ValueError(
-            f"ambiguous evaluator verdict (found {verdicts!r}); expected exactly "
-            f"one 'VERDICT: {APPROVE}' or 'VERDICT: {REQUEST_CHANGES}' line"
+            f"ambiguous evaluator verdict (found {verdict_lines!r}); expected "
+            f"exactly one 'VERDICT: {APPROVE}' or 'VERDICT: {REQUEST_CHANGES}' "
+            "line, as the final line of the review"
         )
-    return verdicts[0].upper()
+    return verdict_lines[0].split(":", 1)[1].strip().upper()
 
 
 def _post_json(url: str, payload: dict, api_key: str, timeout: int = 300) -> dict:
@@ -180,6 +186,16 @@ def main(argv: list[str] | None = None) -> int:
         if not diff.strip():
             print("adversarial_review: HARD FAIL — empty diff (nothing to review "
                   "is a wiring error, not an approval).", file=sys.stderr)
+            return 2
+        if (args.require
+                and len(diff.encode("utf-8", errors="replace")) > args.max_diff_bytes):
+            # Evaluator finding (PR #11 round 1): a truncated diff can hide
+            # whole files from the reviewer — a partial diff is not a review.
+            # Local/advisory runs may truncate; a MANDATORY gate may not.
+            print(f"adversarial_review: HARD FAIL — diff exceeds --max-diff-bytes "
+                  f"({args.max_diff_bytes}) and --require forbids reviewing a "
+                  "truncated diff. Exclude generated files from the diff, split "
+                  "the PR, or raise the limit deliberately.", file=sys.stderr)
             return 2
         test_logs = []
         for path in args.test_log:

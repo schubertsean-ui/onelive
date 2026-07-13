@@ -1,17 +1,28 @@
 name: Adversarial Review (non-Claude)
 
 # CLAUDE.md §0.2 / Agent org: the generator (Claude) never grades its own
-# trust-critical work. This gate posts the PR's raw diff + test log to the
+# trust-critical work. This gate posts the PR's raw diff + test logs to the
 # Independent Evaluator (OpenAI, default gpt-5.5) via tools/adversarial_review
 # .py and FAILS unless it answers "VERDICT: APPROVE". --require makes a
 # missing OPENAI_API_KEY a hard failure here (in CI the review is MANDATORY;
-# the local tool merely skips loud). Paths below are the charter's
-# trust-critical classes: auth, pipeline, SQL/RLS, data-trust, prompt/model,
-# and the harness that enforces them.
+# the local tool merely skips loud).
 #
-# workflow_dispatch exists so a maintainer can run the evaluator against an
-# arbitrary ref/range from the Actions tab (e.g. re-attacking a plan diff or
-# reviewing an already-merged commit) — the key lives only in Actions secrets.
+# Hardening (from this gate's own first evaluator review, PR #11 round 1):
+# - The evaluator script is executed from the TRUSTED BASE REF, not the PR
+#   checkout — otherwise any PR could edit the script to print APPROVE or
+#   exfiltrate the key. Run with `python -I` (isolated: ignores PYTHONPATH/
+#   cwd hijacks; the script is stdlib-only so it needs no installed deps).
+#   Bootstrap exception: if the script does not exist on the base ref yet,
+#   the PR copy runs with a LOUD warning (that first PR needs human review
+#   of the tool itself anyway).
+# - Machine-generated lockfiles are excluded from the diff by policy (noted
+#   to the evaluator); with them gone, --require refuses truncated diffs.
+# - PRs touching web/ also send npm typecheck/vitest/build logs.
+# - checkout uses persist-credentials: false; the OpenAI key is exposed only
+#   to the final trusted-script step.
+#
+# workflow_dispatch reviews an arbitrary ref/range from the Actions tab
+# (e.g. re-attacking a plan diff or reviewing an already-merged commit).
 
 on:
   pull_request:
@@ -22,8 +33,10 @@ on:
       - "ai/**"
       - "supabase/**"
       - "tools/**"
-      - "web/middleware.ts"
-      - "web/lib/allowlist.ts"
+      # All of web/ is trust-critical surface: middleware/allowlist are auth,
+      # and app/components/lib render the feed where disputed events could be
+      # hidden (charter: disputed shown-never-hidden applies to display code).
+      - "web/**"
       - ".github/workflows/**"
   workflow_dispatch:
     inputs:
@@ -47,10 +60,33 @@ jobs:
         with:
           # Full history so merge-base diffs (base...head) resolve.
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Resolve the base ref and diff range
+        id: range
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "base=origin/master" >> "$GITHUB_OUTPUT"
+            echo "range=${{ github.event.inputs.range }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "base=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+            echo "range=origin/${{ github.base_ref }}...HEAD" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pin the TRUSTED evaluator script from the base ref
+        run: |
+          mkdir -p /tmp/trusted
+          if git show "${{ steps.range.outputs.base }}:tools/adversarial_review.py" \
+               > /tmp/trusted/adversarial_review.py 2>/dev/null; then
+            echo "Using tools/adversarial_review.py from ${{ steps.range.outputs.base }} (trusted)."
+          else
+            echo "::warning::BOOTSTRAP: tools/adversarial_review.py does not exist on the base ref yet — falling back to the PR's copy. The tool itself MUST be human-reviewed in this PR; this warning disappears once the tool is on the base branch."
+            cp tools/adversarial_review.py /tmp/trusted/adversarial_review.py
+          fi
 
       - name: Install worker + api deps
         run: |
@@ -62,13 +98,32 @@ jobs:
           set -o pipefail
           python -m pytest -q 2>&1 | tee pytest.log
 
-      - name: Extract the diff under review
+      - name: Web checks when web/ is touched (log captured for the evaluator)
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            git diff "${{ github.event.inputs.range }}" > pr.diff
+          set -o pipefail
+          if git diff --name-only "${{ steps.range.outputs.range }}" | grep -q '^web/'; then
+            (
+              cd web
+              npm ci
+              npx tsc --noEmit
+              npm test
+              # Publishable keys are non-secret client identifiers; this dummy
+              # (base64 of clerk.example.com) only satisfies the /ops prerender
+              # so `next build` can complete in CI without real Clerk config.
+              NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k npm run build
+            ) 2>&1 | tee web.log
           else
-            git diff "origin/${{ github.base_ref }}...HEAD" > pr.diff
+            echo "no web/ files in this diff — web checks not applicable" | tee web.log
           fi
+
+      - name: Extract the diff under review (lockfiles excluded by policy)
+        run: |
+          {
+            echo "# NOTE to evaluator: machine-generated lockfiles (package-lock.json)"
+            echo "# are excluded from this diff by policy — they are npm-generated and"
+            echo "# reviewed via 'npm ci' succeeding in the attached web log instead."
+            git diff "${{ steps.range.outputs.range }}" -- . ':(exclude)**/package-lock.json'
+          } > pr.diff
           wc -c pr.diff
 
       - name: Independent evaluator (APPROVE required)
@@ -77,5 +132,5 @@ jobs:
           # Optional repo variable to pin a different reviewer model.
           OPENAI_REVIEW_MODEL: ${{ vars.OPENAI_REVIEW_MODEL }}
         run: |
-          python tools/adversarial_review.py --require \
-            --diff-file pr.diff --test-log pytest.log
+          python -I /tmp/trusted/adversarial_review.py --require \
+            --diff-file pr.diff --test-log pytest.log --test-log web.log

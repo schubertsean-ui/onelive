@@ -163,3 +163,8 @@
 ## 2026-07-13 (later) — Evaluator armed in CI
 - Founder minted `OPENAI_API_KEY` and added it as a GitHub Actions repository secret (session-env copy pending — environments UI has a known bug upstream).
 - New workflow `.github/workflows/adversarial-review.yml`: runs `tools/adversarial_review.py --require` (non-Claude, VERDICT: APPROVE demanded) with the full pytest log on every PR touching trust-critical paths (api/worker/ai/supabase/tools/auth-surface/workflows); `workflow_dispatch` variant reviews an arbitrary git range from the Actions tab.
+
+## 2026-07-13 (later) — Evaluator LIVE: first non-Claude review ran, blocked its own gate, findings fixed
+- First end-to-end `adversarial-review` run (gpt-5.5) on PR #11 returned REQUEST-CHANGES with 4 blocking + 4 nit findings — the write/grade separation working as chartered, on its first real diff.
+- Fixed in-change: (1) evaluator script now executes from the TRUSTED base ref with `python -I` (a PR can no longer edit the reviewer to self-approve or leak the key; loud bootstrap fallback for the first PR); (2) `--require` mode refuses truncated diffs (partial diff ≠ review) and lockfiles are excluded-by-policy with a note to the evaluator; (3) web-touching PRs now ship npm typecheck/vitest/build logs to the evaluator; (4) path filter widened to all of `web/**` (disputed-never-hidden applies to display code); (5) verdict must be the final line; (6) prototype's pre-ratification "✓ Confirmed" line annotated as forbidden-to-ship; (7) `persist-credentials: false`.
+- Justified skip (nit): `api/main.py` importing `worker.sentinel` matches the repo's existing api→worker layering (deps/public/ops_candidates already do); revisit only if api/ ever packages standalone.

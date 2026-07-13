@@ -47,11 +47,31 @@ def test_parse_verdict_approve_and_request_changes():
         "no verdict at all",
         "VERDICT: APPROVE\nVERDICT: REQUEST-CHANGES",  # two verdicts = ambiguous
         "VERDICT: MAYBE",
+        # Evaluator finding (PR #11 round 1): the verdict must be the FINAL
+        # line — trailing prose could contradict or launder it.
+        "VERDICT: APPROVE\nbut actually I have grave concerns",
     ],
 )
 def test_parse_verdict_rejects_ambiguity(text):
     with pytest.raises(ValueError):
         ar.parse_verdict(text)
+
+
+def test_require_mode_refuses_truncated_diff(tmp_path, monkeypatch, capsys):
+    """Evaluator finding (PR #11 round 1): a partial diff is not a review —
+    in --require (CI) mode an over-limit diff is a hard failure, never a
+    silent truncation the reviewer can't see past."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        ar, "_post_json", lambda *a, **k: _fake_response("fine\nVERDICT: APPROVE")
+    )
+    big = tmp_path / "big.patch"
+    big.write_text("x" * 500)
+    args = ["--diff-file", str(big), "--max-diff-bytes", "100"]
+    assert ar.main(args + ["--require"]) == 2
+    assert "truncated" in capsys.readouterr().err
+    # Without --require (local/advisory use) the same diff truncates and runs.
+    assert ar.main(args) == 0
 
 
 def test_build_review_input_includes_diff_logs_and_truncates():
