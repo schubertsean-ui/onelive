@@ -47,6 +47,31 @@ def test_research_jsonl_every_line_parses(path):
     assert parsed > 0, f"{path.name}: no parseable records — an empty audit trail proves nothing"
 
 
+def test_cited_source_appendices_exist_and_are_nonempty():
+    """The market-analysis doc cites raw agent-report appendices as its
+    provenance trail ([A]-[H] → market_analysis_sources/<Letter>_*.md).
+    Every cited appendix file must be committed and non-trivially non-empty —
+    a missing or gutted appendix would silently orphan the doc's citations."""
+    import re
+
+    analysis = RESEARCH_DIR / "PR_AGGREGATOR_MARKET_ANALYSIS.md"
+    if not analysis.exists():
+        pytest.skip("market analysis not present")
+    text = analysis.read_text(encoding="utf-8")
+    referenced_files = set(re.findall(r"market_analysis_sources/([\w-]+\.md)", text))
+    assert referenced_files, "analysis doc no longer names its appendix files — update this test"
+    srcdir = RESEARCH_DIR / "market_analysis_sources"
+    for name in sorted(referenced_files):
+        p = srcdir / name
+        assert p.exists(), f"analysis cites {name} but it is not committed"
+        assert len(p.read_text(encoding="utf-8").strip()) > 500, f"{name} is suspiciously small for a source appendix"
+    # every bracketed appendix letter used in the analysis must map to a committed file
+    cited_letters = set(re.findall(r"\[([A-H])\]", text))
+    on_disk_letters = {p.name.split("_")[0] for p in srcdir.glob("*.md")} if srcdir.exists() else set()
+    missing = sorted(cited_letters - on_disk_letters)
+    assert not missing, f"analysis cites appendix letters with no committed file: {missing}"
+
+
 def test_every_artifact_referenced_by_research_docs_is_committed():
     # Dynamic, not a hard-coded filename list: any docs/research/*.md that
     # mentions a .json/.jsonl artifact must have that artifact committed.

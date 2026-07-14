@@ -125,21 +125,7 @@ jobs:
             echo "# are excluded from this diff by policy — they are npm-generated and"
             echo "# validated by 'npm ci' + the blocking npm-audit SCA gate in the"
             echo "# attached web log instead (exceptions: docs/SCA_BASELINE.md)."
-            echo "# ALSO excluded by the same policy: machine-generated research audit"
-            echo "# artifacts — docs/research/**/*.json(l) (verification journals / vote"
-            echo "# records exported verbatim from agent transcripts) and"
-            echo "# docs/research/*/market_analysis_sources-style raw agent reports."
-            echo "# They are not human-authored prose; they are parse-validated by the"
-            echo "# blocking tests in tests/test_research_artifacts.py (in the attached"
-            echo "# pytest log). The human-authored research docs that CITE them remain"
-            echo "# fully in this diff. Filenames of excluded paths are listed below so"
-            echo "# nothing is hidden:"
-            git diff --name-only "${{ steps.range.outputs.range }}" -- 'docs/research/**/*.json' 'docs/research/**/*.jsonl' 'docs/research/market_analysis_sources/**' | sed 's/^/#   excluded: /'
-            git diff "${{ steps.range.outputs.range }}" -- . \
-              ':(exclude)**/package-lock.json' \
-              ':(exclude)docs/research/**/*.json' \
-              ':(exclude)docs/research/**/*.jsonl' \
-              ':(exclude)docs/research/market_analysis_sources/**'
+            git diff "${{ steps.range.outputs.range }}" -- . ':(exclude)**/package-lock.json'
           } > pr.diff
           wc -c pr.diff
 
@@ -160,5 +146,16 @@ jobs:
           # OPENAI_REVIEW_MODEL env override still exists for LOCAL runs,
           # where the script itself fails loud on empty or Claude-family ids.
         run: |
+          # --max-diff-bytes raised from the 300000 default DELIBERATELY
+          # (evaluator finding, PR #18 rounds 6-7): research PRs commit their
+          # full evidentiary substrate — verbatim agent-report appendices and
+          # verification journals/vote records — and the evaluator ruled that
+          # excluding cited evidence from the reviewed diff hides the very
+          # material adversarial review exists to check ("shown, never
+          # hidden" applies to our own evidence too). So the WHOLE diff is
+          # reviewed and the cap is raised instead. The hard-fail-on-truncate
+          # behavior of --require is unchanged; this is a bigger window, not
+          # a softer gate.
           python -I /tmp/trusted/adversarial_review.py --require \
+            --max-diff-bytes 800000 \
             --diff-file pr.diff --test-log pytest.log --test-log web.log
