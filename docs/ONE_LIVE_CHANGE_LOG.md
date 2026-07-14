@@ -192,3 +192,58 @@
 
 ## 2026-07-13 (later) — Founder communication rules added to the charter
 - Founder directive incorporated into CLAUDE.md as a standing section: plain language; why-this-not-that with alternatives; honest tradeoffs; direct links; make-it-easy (numbered, phone-friendly, one consolidated ask). Binding on every founder-facing report/PR description, every session.
+
+## 2026-07-13 (later) — "Brain" research delivered (G-BRAIN, PROPOSAL)
+- Founder ask: persistent memory so the build agent and the platform never forget. Researched agent-memory landscape (Mem0/Zep/Graphiti/Letta/Anthropic memory tool/pgvector patterns) + platform memory.
+- New artifact docs/strategy/ONE_LIVE_BRAIN_OPTIONS_v1.md: Build brain options 1A file-brain sharpening / 1B pgvector-in-existing-Supabase (RECOMMENDED fused with 1A) / 1C hosted (Zep $125+/mo, best LongMemEval 63.8%) / 1D self-hosted graph (Graphiti+Neo4j). Platform brain: audit/replay/provenance already = never-forgets; 2A pgvector semantic layer at Step 7; 2B Emotion Graph stays P3.
+- Awaiting founder one-liner (G-BRAIN). No build until ratified.
+
+## 2026-07-13 (later) — Cost discipline chartered; model-cost routing shipped (closes the last 2026-07-11 harness gap)
+- Founder directive: least costly method per task, balanced against urgency/criticality, world-class always, maximum margin. Researched routing state of the art (FrugalGPT/RouteLLM cascades: 40–85% cost cuts at ~95% quality) + authoritative Anthropic pricing/caching/batch numbers.
+- CLAUDE.md gains a "Cost discipline" section (cheapest-capable first; deliberate logged escalation; quality gates never relax; measure don't guess).
+- New docs/MODEL_ROUTING.md: tier ladder w/ real prices (Haiku $1/$5 · Sonnet $3/$15 · Opus $5/$25 · gpt-5.5 evaluator never downgraded), stage mapping, 4 escalation triggers, techniques (prompt caching ~0.1× reads, Batch API 50% off for descriptor-foundry/embedding jobs, effort levels, context hygiene), ceilings unaffected.
+- New tools/model_router.py (+6 tests): stage→model resolver, env-overridable, unknown/empty fails loud. TODOS model-cost-routing item checked off.
+
+## 2026-07-13 (later) — G-BRAIN RATIFIED: "1A+1B, platform at Step 7"; 1D trigger made standing; Brain 1A LIVE
+- Founder ratified the brain recommendation verbatim and directed that the 1D condition never be lost: "if it ever needs graph infrastructure, that's the moment option 1D becomes worth it, one investment serving both brains."
+- Codified as G-BRAIN-1D, a STANDING trigger with objective fire conditions — T1 Emotion Graph build begins / T2 pgvector temporal-recall failures logged / T3 relationship queries outgrow SQL — recorded in the (now RATIFIED) brain doc, a never-check-off TODOS item, and STATE.md's locked-in decisions. On fire: friction attack → founder (new infra = money).
+- Brain 1A shipped: docs/memory/ (README conventions + decisions/ + gotchas/ + entities/) seeded with the G-BRAIN decision record and the CI empty-env fail-closed lesson; wired into CLAUDE.md's harness map.
+- Brain 1B (pgvector migration + index/recall tools) queued as a P1 contract-first build; platform 2A gated on Sprint Step 7.
+
+## 2026-07-13 (later) — "Recording" implemented: the no-silent-deferrals Record, mechanically enforced
+- Founder directive: every "check later" / "ok for now" / noticing-holding moment must be recorded — ideally none exist, since everything is checked against the documented world-class bar for that item.
+- New docs/RECORD.md: the deviations register — each entry names what is deferred, the bar it deviates from (cited), and an OBJECTIVE resolution trigger; rows never deleted, resolved rows flip status. Seeded honestly with 9 currently-live deferrals (Sentry tracing-off R-001, visual-regression skip R-002/D4, SCA baseline R-003, stale ground-truth block R-004, provisional friction attack R-005, unratified extraction threshold R-006, catalog gap R-007, unarmed cron R-008, open PRs #4/#7 R-009).
+- New tools/deferral_scan.py (+7 tests, incl. real-repo-clean guard): deferral-language code comments must carry a live [R-###] tag; dangling tags fail; missing register = hard failure. Wired into tools/validate as a BLOCKING check. The three existing "for now" comments (Sentry tracing) tagged [R-001].
+- CLAUDE.md gains "The Record" section (same-commit rule, prose covered by evaluator review); SESSION_START close adds step 7: review OPEN rows — a fired-but-unactioned trigger is a defect.
+
+## 2026-07-13 (later) — PR #14 evaluator round 1: evaluator slot hardened, Record enforcement made real
+- The gate's REQUEST-CHANGES on PR #14 was correct on all 7 blocking counts. Fixed:
+  - `tools/model_router.py` now REJECTS any Claude/Anthropic model id in the evaluator slot from every channel the ROUTER resolves (both env overrides AND the policy default). (Round 2 correctly flagged that the live review path in `tools/adversarial_review.py` was not yet covered — closed in the round-2 entry below.) Whitespace-only overrides fail like empty; values are stripped. Tests prove the invariant (both env names, case-insensitive) and that generator stages still accept Claude overrides.
+  - CI wiring actually done: `dependency-hygiene.yml` + `source-backfill.yml` resolve their model via `tools/model_router.py standard` instead of hardcoding — the TODOS "DONE" claim is now true, not deferred-work-hidden-as-completion.
+  - `tools/deferral_scan.py` now parses real `| R-### | … |` table rows (prose mentions of an id no longer count), only OPEN rows legitimize a tag (tags on RESOLVED rows fail — fired deferrals can't linger in code), a register with zero parseable rows is a hard failure, and scanning covers SQL `--` comments (supabase/ added to scan dirs) and TS/JS `/* */` block comments.
+  - The widened scanner immediately caught a real pre-existing silent deferral: 0006's "revisit before the anon key ships" RLS comment — already resolved by migration 0007 — reworded (comment-only) + retro-recorded as R-011 (RESOLVED).
+  - R-010 added: option 1D not-built-now is now a register row (the G-BRAIN-1D standing trigger is its resolution trigger); both prose docs point at it.
+  - R-007's trigger made objective (Sprint Step 6 exit gate: backfill-filled or founder-descoped); MODEL_ROUTING.md states ids/prices are verified-live 2026-07-13, and documents the evaluator-slot invariant.
+- Suite: 274 passed / 28 skipped (11 new tests); trust_gate, lint, deferral_scan green.
+
+## 2026-07-13 (later) — PR #14 evaluator round 2: separation enforced at the live review path; extraction routing fail-closed
+- Round 2 caught that round 1's invariant was real but not WIRED: the non-Claude-evaluator check lived only in `tools/model_router.py`, while the actual review entry point (`tools/adversarial_review.py`) would still accept a Claude id. Fixed at the entry point itself — hard fail (exit 2) before any API call. The check is deliberately duplicated, not imported: CI runs the reviewer as a trusted copy from the base ref and must never import PR-controlled repo modules.
+- `extraction` stage now fails closed (overrides included) until the §11.2 hallucination threshold is founder-ratified (R-006) — a trust-critical AI path routes nowhere without its release-blocking gate in force. `EXTRACTION_THRESHOLD_RATIFIED` flips only in the ratification commit. MODEL_ROUTING.md updated to match.
+- Model-id allowlist added to the router (letters/digits/._:/- only) — catches newline/space/metacharacter misconfig before it reaches an API or a CI `$GITHUB_OUTPUT` write.
+- Round-1 changelog claim corrected (it said "every channel" when only the router was covered — operational records must not overstate enforcement). Brain doc's answered founder-ask marked HISTORICAL.
+- Suite: 278 passed / 28 skipped (4 new tests).
+
+## 2026-07-14 — PR #14 evaluator round 3: swallowed router failures + the empty-model fallback itself
+- Round 3 caught round 2's own wiring: `echo "model=$(router)"` in the two Actions swallows a router failure (a failing command substitution inside a successful echo doesn't fail the step) — the fail-closed resolver could emit `model=` silently. Fixed: the substitution runs as its own assignment under `bash -e` + a non-empty assertion, so a router rejection fails the step loudly.
+- It also correctly turned our own fail-closed rule against the reviewer's oldest line: present-but-empty `OPENAI_REVIEW_MODEL` silently meaning "default" (the PR #11 first-live-run fallback) is fail-open on the trust-critical path. Now: the workflow exports the var only when the repo variable is genuinely non-empty (so "unset" is expressible in CI), and the script HARD-FAILS on set-but-empty model or base URL; unset still means the documented default. The old codifying test replaced with fail-closed tests. Back-compatible with the base-ref trusted copy during this PR's own review.
+- Nits: TODOS bold-marker hygiene; P3 TODOS item for a model-id liveness smoke check; deferral_scan contributor note on deliberate false-positive bias (reword/tag, never weaken).
+- Suite: 279 passed / 28 skipped.
+
+## 2026-07-14 — PR #14 evaluator round 4: CI reviewer-model override channel removed entirely
+- Round 4's single blocker was airtight: GitHub renders an UNSET repo variable and a SET-BUT-EMPTY one identically in `${{ vars.* }}`, so no workflow shell gate can fail closed on the difference — round 3's "export only when non-empty" quietly maps set-but-empty to "default", bypassing the script's hard-fail.
+- Resolution: the runtime override channel is REMOVED from CI rather than patched (fewer config channels on a trust-critical path beats a cleverer check). CI always runs the trusted script's `DEFAULT_MODEL`; changing the CI reviewer model is now a PR editing that constant — which the trusted-base-ref mechanism has the OLD model review. Dead-default emergency path: the documented human-review bootstrap exception. `OPENAI_REVIEW_MODEL` remains for local runs with the script's own fail-closed handling.
+- Nits: autouse env-isolation fixture in the router tests; MODEL_ROUTING.md now states explicitly that the CI reviewer enforces the evaluator invariant independently of the router (trusted copy must not import PR-controlled modules).
+- Suite: 279 passed / 28 skipped.
+
+## 2026-07-13 (later) — RAG investigation folded into the ratified brain plan
+- Founder ask: "investigate the use of a RAG System re: our prior 'brain' conversation." Finding: the ratified Brain 1B (pgvector-in-Supabase) IS a RAG system — no direction change; two proven quality upgrades folded into the queued 1B build spec at zero new vendor/spend: hybrid retrieval (vector + Postgres full-text) and a cheap rerank pass (typ. 15–30% retrieval-quality gain). GraphRAG identified as the RAG name for option 1D — already covered by the standing G-BRAIN-1D trigger (T3 = exactly the workload where GraphRAG earns its cost). Addendum in docs/strategy/ONE_LIVE_BRAIN_OPTIONS_v1.md; TODOS 1B item updated.

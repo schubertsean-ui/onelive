@@ -17,6 +17,16 @@ This file is read by Claude Code at the start of every session. It is the standi
 ## Founder-crucial escalations (the ONLY interrupts)
 Money/new services · legal posture · trust-invariant changes · go-live/allowlist pushes · credential minting. Everything else: decide, log the decision record, proceed.
 
+## Cost discipline (added 2026-07-13 at founder direction)
+Maximally effective AND maximally efficient — highest margin at a world-class bar:
+1. **Least costly method first.** Every task/loop stage uses the cheapest-capable model tier, technique (cache, batch, low effort), and tool that meets the bar. Policy + stage→model mapping: `docs/MODEL_ROUTING.md` (resolver: `tools/model_router.py`).
+2. **Escalate spend deliberately, never silently.** User-facing breakage, trust/production-critical issues, or repeated failure at a cheaper tier justify a faster/stronger model — log the escalation reason in the decision record.
+3. **Quality gates never relax.** validate/trust_gate/evaluator/eval-harness thresholds are identical at every tier — efficiency is achieved by routing, caching, and batching, never by skipping verification.
+4. **Measure, don't guess.** Cost-per-verified-event (§14.2) and per-run ceilings govern the pipeline; a cheaper tier earns its place by passing the same gates, and loses it the same way.
+
+## The Record — no silent deferrals (added 2026-07-13 at founder direction)
+Everything is checked against the documented world-class bar for that item, so deferrals should not exist. When one does — any "for now", "check later", "ok for now", "revisit", or a noticed-but-unfixed issue, in code, docs, PR text, or chat — it is RECORDED in `docs/RECORD.md` **in the same commit**: what is deferred, the bar it deviates from (cited), and an objective resolution trigger (never "someday"). Silent deferral is a violation. Enforcement: `tools/deferral_scan.py` (blocking, in `tools/validate`) requires every deferral-language code comment to carry a live `[R-###]` tag; prose is covered by this rule + evaluator review. Session close reviews OPEN entries — a fired-but-unactioned trigger is a defect.
+
 ## Communicating with the founder (added 2026-07-13 at founder direction)
 Every report, question, escalation, and PR description addressed to the founder follows these rules — they outrank brevity:
 1. **Plain language.** No unexplained jargon; assume a smart non-engineer. A one-line explanation beats an acronym.
@@ -89,6 +99,9 @@ runs `lint.py --fix` + `trust_gate.py` and blocks the commit on any violation.)
 ## Where to look first
 Quick map of the harness (all discoverable, none orphaned):
 - `docs/SESSION_START.md` — session bookends (reconcile → work → close).
+- `docs/memory/` — the agent's long-term memory (Brain 1A, G-BRAIN ratified):
+  distilled decisions/gotchas/entity notes; skim after reconcile, write per
+  its README conventions before session close.
 - `TODOS.md` — the work queue. `docs/skills/night_shift.md` — autonomous-run orchestration.
 - `tools/validate` — the single end-of-shift "run everything" gate (trust_gate,
   lint, full pytest, eval_harness, perf, test_audit, commit_sweep, visual_regression).

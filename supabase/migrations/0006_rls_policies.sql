@@ -25,8 +25,9 @@ alter table venue             enable row level security;
 alter table artist            enable row level security;
 
 drop policy if exists public_read on event;
--- ACCEPTED TRADEOFF (flagged for founder review in STATE.md — revisit before the
--- anon key is ever shipped client-side): this `using (true)` exposes ALL columns
+-- ACCEPTED TRADEOFF, since RESOLVED by 0007_narrow_event_public_read.sql
+-- (docs/RECORD.md row R-011), which narrows this policy ahead of any
+-- client-side anon-key use. The concern was: this `using (true)` exposes ALL columns
 -- of `event` to anon/authenticated, including `event.private_access` (jsonb) and
 -- `event.is_private_rsvp` (see 0001_core.sql). That is safe TODAY only because
 -- nothing talks to Supabase with the anon key yet — every read goes through the

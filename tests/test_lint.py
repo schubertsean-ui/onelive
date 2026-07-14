@@ -155,7 +155,7 @@ def test_catches_todo_marker(tmp_path, monkeypatch):
     marker = "TO" + "DO"  # built at runtime so this test file itself stays clean
     _write(tmp_path, "worker/hastodo.py", f'''
         """A module."""
-        # {marker}: revisit this later
+        # {marker}: placeholder marker line for the lint rule
         X = 1
     ''')
     f = lint.Findings()

@@ -239,6 +239,7 @@ SKIP-loud for visual regression which needs a booted app). Test suite 78→120 p
 - [ ] Sync licensing as a future matching expansion — flag as Phase 3+ or rule out now.
 
 ## Known schema/architecture decisions already locked in
+- **G-BRAIN (ratified 2026-07-13): build-agent memory = 1A file brain (`docs/memory/`, live) + 1B pgvector recall in the existing Supabase (build queued in TODOS); platform semantic memory at Sprint Step 7; option 1D (graph infrastructure) deferred behind the STANDING trigger G-BRAIN-1D — fire conditions and protocol in `docs/strategy/ONE_LIVE_BRAIN_OPTIONS_v1.md` §RATIFIED ("one investment serving both brains").**
 - 4-state confidence model (not 3-state).
 - Creator-Venue Matching (not Heartbeat Analytics) is the v1 differentiator.
 - Tastemaker Content ships in Phase 2, before Matching (Phase 3) — it's the growth-loop mechanism.
