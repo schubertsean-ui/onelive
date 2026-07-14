@@ -16,8 +16,10 @@ Usage:
   python tools/adversarial_review.py --target HEAD --require  # CI: key mandatory
 
 Env: OPENAI_API_KEY (unset -> SKIPPED-loud, exit 0 — the charter says flag,
-don't block — unless --require, then exit 2); OPENAI_REVIEW_MODEL (default
-gpt-5.5); OPENAI_BASE_URL (default https://api.openai.com/v1).
+don't block — unless --require, then exit 2); OPENAI_REVIEW_MODEL (unset ->
+gpt-5.5; set-but-empty or a Claude/Anthropic id -> HARD FAIL exit 2, the
+fail-closed + write/grade-separation rules); OPENAI_BASE_URL (unset ->
+https://api.openai.com/v1; set-but-empty -> HARD FAIL exit 2).
 
 Exit codes (tools/README.md convention): 0 = APPROVE (or explicit no-key skip
 without --require); 1 = REQUEST-CHANGES (blocking findings); 2 = hard failure
@@ -202,10 +204,18 @@ def main(argv: list[str] | None = None) -> int:
             with open(path, encoding="utf-8", errors="replace") as f:
                 test_logs.append((os.path.basename(path), f.read()))
         review_input = build_review_input(diff, test_logs, args.max_diff_bytes)
-        # `or` (not a .get default): CI forwards these vars even when the repo
-        # variable is unset, so they arrive present-but-empty — and an empty
-        # model string 400s at the API (first live run of this gate).
-        model = os.environ.get("OPENAI_REVIEW_MODEL") or DEFAULT_MODEL
+        # Fail-closed env rule: UNSET means the default; PRESENT-BUT-EMPTY is
+        # a misconfiguration and hard-fails — an explicit-but-blank value must
+        # never silently mean "default" on the trust-critical review path.
+        # (The workflow exports OPENAI_REVIEW_MODEL only when the repo
+        # variable is genuinely non-empty, so "unset" is expressible in CI.)
+        model = os.environ.get("OPENAI_REVIEW_MODEL")
+        if model is not None and model.strip() == "":
+            print("adversarial_review: HARD FAIL — OPENAI_REVIEW_MODEL is set "
+                  "but empty/whitespace; set a model id or unset it entirely "
+                  "(empty must never silently mean 'default').", file=sys.stderr)
+            return 2
+        model = (model or DEFAULT_MODEL).strip()
         # Write/grade separation (charter §0.2) enforced at THIS entry point,
         # not just in tools/model_router.py: the reviewer must never be the
         # generator's model family, or the gate grades its own homework. The
@@ -219,7 +229,14 @@ def main(argv: list[str] | None = None) -> int:
                   "the evaluator must be non-Claude (write/grade separation, "
                   "charter §0.2). Fix OPENAI_REVIEW_MODEL.", file=sys.stderr)
             return 2
-        base_url = os.environ.get("OPENAI_BASE_URL") or DEFAULT_BASE_URL
+        # Same fail-closed rule for the endpoint override.
+        base_url = os.environ.get("OPENAI_BASE_URL")
+        if base_url is not None and base_url.strip() == "":
+            print("adversarial_review: HARD FAIL — OPENAI_BASE_URL is set but "
+                  "empty/whitespace; set a URL or unset it entirely.",
+                  file=sys.stderr)
+            return 2
+        base_url = (base_url or DEFAULT_BASE_URL).strip()
         review = request_review(review_input, api_key, model, base_url)
         verdict = parse_verdict(review)
         # Wrapper status precedes the review so the output ends with the

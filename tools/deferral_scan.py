@@ -12,6 +12,12 @@ fires. Prose docs are out of scope (charter + evaluator review cover them).
 Wired into `tools/validate` as a blocking check. Exit codes per
 tools/README.md: 0 clean / 1 violations / 2 hard failure (register
 missing/unreadable/unparseable).
+
+Contributor note on false positives: the scanner deliberately treats a
+comment marker ANYWHERE on a line as starting a comment (a marker inside a
+string/URL can therefore fire). That bias is chosen — a missed real comment
+would be a silent-deferral hole — so when a false positive fires, reword the
+string or tag the line; do not weaken the scanner.
 """
 from __future__ import annotations
 

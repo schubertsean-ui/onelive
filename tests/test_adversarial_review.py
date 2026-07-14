@@ -107,13 +107,11 @@ def test_exit_codes_follow_verdict(tmp_path, monkeypatch):
     assert ar.main(["--diff-file", _diff_file(tmp_path)]) == 1
 
 
-def test_empty_model_env_var_falls_back_to_default(tmp_path, monkeypatch):
-    """Regression (first live CI run): CI forwards OPENAI_REVIEW_MODEL even when
-    the repo variable is unset, so it arrives present-but-empty; sending
-    model="" 400s at the API. Present-but-empty must mean the default."""
+def test_unset_model_env_uses_default(tmp_path, monkeypatch):
+    """Truly-UNSET model/base-url env means the documented defaults."""
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.setenv("OPENAI_REVIEW_MODEL", "")
-    monkeypatch.setenv("OPENAI_BASE_URL", "")
+    monkeypatch.delenv("OPENAI_REVIEW_MODEL", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     sent = {}
 
     def _capture(url, payload, api_key, timeout=300):
@@ -125,6 +123,27 @@ def test_empty_model_env_var_falls_back_to_default(tmp_path, monkeypatch):
     assert ar.main(["--diff-file", _diff_file(tmp_path)]) == 0
     assert sent["model"] == ar.DEFAULT_MODEL
     assert sent["url"].startswith(ar.DEFAULT_BASE_URL)
+
+
+def test_empty_model_env_var_hard_fails(tmp_path, monkeypatch, capsys):
+    """Fail-closed (supersedes the first-live-run fallback behavior): a
+    PRESENT-but-empty OPENAI_REVIEW_MODEL is a misconfiguration on the
+    trust-critical review path and must hard-fail, never silently mean the
+    default. The workflow expresses 'unset' by not exporting the var."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+
+    def _explode(*a, **k):
+        raise AssertionError("no API call may happen on misconfigured env")
+
+    monkeypatch.setattr(ar, "_post_json", _explode)
+    for empty in ("", "   "):
+        monkeypatch.setenv("OPENAI_REVIEW_MODEL", empty)
+        assert ar.main(["--diff-file", _diff_file(tmp_path)]) == 2
+        assert "set but empty" in capsys.readouterr().err
+    monkeypatch.delenv("OPENAI_REVIEW_MODEL", raising=False)
+    monkeypatch.setenv("OPENAI_BASE_URL", "")
+    assert ar.main(["--diff-file", _diff_file(tmp_path)]) == 2
 
 
 def test_generator_family_review_model_hard_fails(tmp_path, monkeypatch, capsys):

@@ -233,5 +233,11 @@
 - Round-1 changelog claim corrected (it said "every channel" when only the router was covered — operational records must not overstate enforcement). Brain doc's answered founder-ask marked HISTORICAL.
 - Suite: 278 passed / 28 skipped (4 new tests).
 
+## 2026-07-14 — PR #14 evaluator round 3: swallowed router failures + the empty-model fallback itself
+- Round 3 caught round 2's own wiring: `echo "model=$(router)"` in the two Actions swallows a router failure (a failing command substitution inside a successful echo doesn't fail the step) — the fail-closed resolver could emit `model=` silently. Fixed: the substitution runs as its own assignment under `bash -e` + a non-empty assertion, so a router rejection fails the step loudly.
+- It also correctly turned our own fail-closed rule against the reviewer's oldest line: present-but-empty `OPENAI_REVIEW_MODEL` silently meaning "default" (the PR #11 first-live-run fallback) is fail-open on the trust-critical path. Now: the workflow exports the var only when the repo variable is genuinely non-empty (so "unset" is expressible in CI), and the script HARD-FAILS on set-but-empty model or base URL; unset still means the documented default. The old codifying test replaced with fail-closed tests. Back-compatible with the base-ref trusted copy during this PR's own review.
+- Nits: TODOS bold-marker hygiene; P3 TODOS item for a model-id liveness smoke check; deferral_scan contributor note on deliberate false-positive bias (reword/tag, never weaken).
+- Suite: 279 passed / 28 skipped.
+
 ## 2026-07-13 (later) — RAG investigation folded into the ratified brain plan
 - Founder ask: "investigate the use of a RAG System re: our prior 'brain' conversation." Finding: the ratified Brain 1B (pgvector-in-Supabase) IS a RAG system — no direction change; two proven quality upgrades folded into the queued 1B build spec at zero new vendor/spend: hybrid retrieval (vector + Postgres full-text) and a cheap rerank pass (typ. 15–30% retrieval-quality gain). GraphRAG identified as the RAG name for option 1D — already covered by the standing G-BRAIN-1D trigger (T3 = exactly the workload where GraphRAG earns its cost). Addendum in docs/strategy/ONE_LIVE_BRAIN_OPTIONS_v1.md; TODOS 1B item updated.

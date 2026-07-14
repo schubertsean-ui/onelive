@@ -19,10 +19,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # Model resolved via the cost-routing policy (docs/MODEL_ROUTING.md),
-      # never hardcoded — dependency triage is a Standard-tier task.
+      # never hardcoded — dependency triage is a Standard-tier task. The
+      # substitution runs in its own assignment (not inside echo) so a router
+      # failure fails THIS STEP under `bash -e`, never becoming `model=`.
       - name: Resolve model (cost routing)
         id: route
-        run: echo "model=$(python3 tools/model_router.py standard)" >> "$GITHUB_OUTPUT"
+        run: |
+          model="$(python3 tools/model_router.py standard)"
+          test -n "$model"
+          echo "model=$model" >> "$GITHUB_OUTPUT"
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}

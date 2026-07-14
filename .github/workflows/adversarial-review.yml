@@ -132,8 +132,15 @@ jobs:
       - name: Independent evaluator (APPROVE required)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # Optional repo variable to pin a different reviewer model.
-          OPENAI_REVIEW_MODEL: ${{ vars.OPENAI_REVIEW_MODEL }}
+          # Optional repo variable to pin a different reviewer model. GitHub
+          # forwards an UNSET repo variable as an EMPTY string, so the shell
+          # below exports OPENAI_REVIEW_MODEL only when genuinely non-empty —
+          # letting the script distinguish "unset → default" from
+          # "set-but-empty → hard fail" (the fail-closed empty-env rule).
+          OPENAI_REVIEW_MODEL_RAW: ${{ vars.OPENAI_REVIEW_MODEL }}
         run: |
+          if [ -n "$OPENAI_REVIEW_MODEL_RAW" ]; then
+            export OPENAI_REVIEW_MODEL="$OPENAI_REVIEW_MODEL_RAW"
+          fi
           python -I /tmp/trusted/adversarial_review.py --require \
             --diff-file pr.diff --test-log pytest.log --test-log web.log
