@@ -72,6 +72,35 @@ def test_cited_source_appendices_exist_and_are_nonempty():
     assert not missing, f"analysis cites appendix letters with no committed file: {missing}"
 
 
+def test_no_source_dated_after_compilation():
+    """Evaluator catch (PR #18 round 8): an appendix cited a source whose
+    publication date post-dated the compilation date — a time-incoherent
+    (hallucinated or forward-dated) citation. Rule: no ISO date later than the
+    file's compilation date may appear in a committed source appendix.
+    (Forward-looking regulatory deadlines in these files are written as prose
+    dates, so a strict ISO check does not false-positive on them.)"""
+    import datetime
+    import re
+
+    srcdir = RESEARCH_DIR / "market_analysis_sources"
+    if not srcdir.exists():
+        pytest.skip("no source appendices present")
+    violations = []
+    for md in sorted(srcdir.glob("*.md")):
+        text = md.read_text(encoding="utf-8")
+        m = re.search(r"Compiled (\d{4}-\d{2}-\d{2})", text)
+        assert m, f"{md.name}: missing 'Compiled YYYY-MM-DD' header — the date-sanity gate needs it"
+        compiled = datetime.date.fromisoformat(m.group(1))
+        for iso in re.findall(r"\b(\d{4}-\d{2}-\d{2})\b", text):
+            try:
+                d = datetime.date.fromisoformat(iso)
+            except ValueError:
+                continue
+            if d > compiled:
+                violations.append(f"{md.name}: cites {iso}, after compilation {compiled}")
+    assert not violations, f"time-incoherent citations: {violations}"
+
+
 def test_every_artifact_referenced_by_research_docs_is_committed():
     # Dynamic, not a hard-coded filename list: any docs/research/*.md that
     # mentions a .json/.jsonl artifact must have that artifact committed.
