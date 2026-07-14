@@ -96,7 +96,23 @@ The wires sell *distribution* to issuers; reading is the product working as inte
 
 ## 5. Non-US regulatory feeds **[BEST-EFFORT — single-pass primary-source fetch]**
 
-<!-- FILL:REGULATORY_FEEDS -->
+Ranked for a commercial store-and-transform product (each venue's cheapest sanctioned path):
+
+**Free and commercial-reuse-friendly today:**
+
+| Venue | Access | Terms | Notes |
+|---|---|---|---|
+| **Japan EDINET** (FSA statutory disclosure) | Free API v2, self-service key | Secondary use **including for-profit** permitted (open-data posture) | Statutory filings, slower cadence than exchange timely disclosure; multi-year archive |
+| **France info-financiere** (AMF OAM via DILA) | Free official API on data.gouv.fr / Opendatasoft | Likely Licence Ouverte 2.0 (confirm) | Best free EU venue found; per-issuer document lists + downloads |
+| **UK FCA NSM** (National Storage Mechanism) | Free web archive, CSV export; no documented retrieval API | Notably friendly: licence to use, store, copy, distribute, make available to third parties for lawful purposes | Slower than RNS real-time; read the Acceptable Use Policy before automating |
+
+**Coming free:** **EU ESAP** — phase-1 collection starts 2026-07-10 (this week); public portal mandated by 2027-07-10, free, machine-readable, with API and bulk download by regulation. This will be the best free EU-wide source; design-track it now.
+
+**Cheap published license:** **ASX ComNews** (real-time, every announcement, redistribution-grade): AUD 575/datafeed/month from Jan 2026, plus vendor/end-user fees — cheap by exchange standards. **Japan TDnet API**: ~JPY 70,000/month base + tiered fees; but its terms prohibit third-party redistribution and auto-accumulation environments — transformed-output question needs JPX's answer.
+
+**Unpublished-price license:** **LSE RNS feed** (contact LSEG; site ToS explicitly ban all bots — no scraping path); **Canada ASC bulk data** (contact ASC; notably the *only* venue whose license explicitly permits resale under conditions).
+
+**Effectively closed without bespoke licensing:** HKEXnews, SGXNet, India NSE/BSE (scraping contractually — in India possibly statutorily — barred), Germany's Unternehmensregister (register authority has said mass automated queries may be criminal; wait for ESAP).
 
 ## 6. Open-data bulk: Common Crawl CC-NEWS **[VERIFIED 3-0]**
 
@@ -162,7 +178,7 @@ Underwritten by verified findings; per-source costs in §3/§5 are best-effort.
 2. **Wire supplement (low cost, licensing-gated):** one financial news API chosen on *redistribution terms first, price second* (§3 tables) to catch non-8-K press releases (product launches, partnerships) and pre-8-K timing. Store full text internally; publish only transformed output.
 3. **IR-page RSS (free, targeted):** for the beachhead sector's issuers, poll company IR RSS/newsroom pages directly — issuer-published content, lowest ToS risk among scraped sources, best earliest-copy provenance.
 4. **Global backfill (compute-cost):** CC-NEWS WARCs 2016+ for retrospective timelines; accept partial coverage. **[VERIFIED, cost caveat]**
-5. **International regulatory (free-first):** per §5 — sequence by what's genuinely free and licensed for reuse (EDINET-style APIs, ESAP as it comes online) and defer license-required venues (SEDAR+, licensed RNS) until revenue justifies them.
+5. **International regulatory (free-first):** per §5 — Japan EDINET (free API, for-profit reuse allowed), France info-financiere (free API), UK FCA NSM (free, reuse-friendly terms) now; EU ESAP when its public portal opens (mandated July 2027, free + API by regulation); ASX ComNews (~AUD 575/mo) as the first *paid* venue when Australia matters; defer LSE RNS / ASC Canada / HKEX / SGX / India until revenue justifies bespoke licenses.
 6. **Excluded:** SEDAR+ scraping (ToS), speed-race feeds (weak moat), any source whose ToS bans derived-work commercialization unless a license is bought deliberately (escalation: money/new services = founder-crucial).
 
 ## 11. Relationship to multibagger (founder context)

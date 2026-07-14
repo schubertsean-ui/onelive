@@ -30,6 +30,7 @@ Check items off in the same commit that completes them; don't batch-remove.
 - [ ] (P2, STANDING — do not check off; re-evaluate when fired) **G-BRAIN-1D trigger watch** — founder-directed: option 1D (Graphiti + graph DB) is re-evaluated the moment graph infrastructure is needed, "one investment serving both brains." Objective fire conditions T1 (Emotion Graph build begins) / T2 (pgvector temporal-recall failures logged) / T3 (relationship queries outgrow SQL) are defined in `docs/strategy/ONE_LIVE_BRAIN_OPTIONS_v1.md` §RATIFIED. On fire: friction attack → founder decision (money/new services).
 
 ## Founder decisions needed (cannot be resolved by an agent — do not silently pick one)
+- [ ] (P2) PR-aggregator venture go/no-go — owner: founder — research delivered in `docs/research/PR_AGGREGATOR_RESEARCH.md` (PR #18); if greenlit, R-013 fires (re-verify pricing/ToS primary-source + written redistribution answers from any finalist provider) and the venture gets its own session contract, beachhead-sector po battery, and friction attack before any build/spend.
 - [ ] (P1) Confirm 4-state confidence model finalized — owner: founder — `CLAUDE.md` already assumes this is decided; STATE.md flags it as still open.
 - [ ] (P2) Trust framework naming: drop "ESIM" 3-pillar branding, or relabel as OneLive's own framing — owner: founder.
 - [ ] (P1) Monitoring stack: Vercel Analytics + Supabase logs to start, Sentry before public launch — owner: founder — confirm timing.

@@ -40,6 +40,7 @@ GOAL: Research-only. Answer the founder's question: are there press-release (PR)
 SCOPE: (1) deep multi-source web research (deep-research harness: fan-out search → fetch → adversarial claim verification → cited synthesis); (2) written report at `docs/research/PR_AGGREGATOR_RESEARCH.md` covering sources+pricing+licensing, legal posture, competitive landscape, moat assessment, recommended cheapest-viable ingestion stack; (3) session bookends (STATE/TODOS/changelog). Related context: founder's `multibagger` repo (investor audience) was attached to this session; the shared Perplexity space link is login-gated and could NOT be read.
 NON-GOALS: no code, no ingestion build, no spend, no new services, no OneLive pipeline changes. This is a NEW-VENTURE research doc, not an OneLive feature; build would need its own contract + founder go.
 DONE-CRITERIA: report committed on the designated branch · draft PR opened · bookends updated.
+STATUS 2026-07-14: COMPLETE — report delivered (`docs/research/PR_AGGREGATOR_RESEARCH.md`, PR #18); 22 claims verified 3-0, 3 refuted+recorded; pricing sections BEST-EFFORT (egress proxy blocked vendor fetches) → deferral R-013; venture go/no-go added to TODOS founder-decisions.
 
 ## Session Contract #3 (2026-07-14, same conversation — founder ratified "All three" [po + measures + levels-later] and directed a maximally robust po)
 
