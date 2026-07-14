@@ -239,5 +239,11 @@
 - Nits: TODOS bold-marker hygiene; P3 TODOS item for a model-id liveness smoke check; deferral_scan contributor note on deliberate false-positive bias (reword/tag, never weaken).
 - Suite: 279 passed / 28 skipped.
 
+## 2026-07-14 — PR #14 evaluator round 4: CI reviewer-model override channel removed entirely
+- Round 4's single blocker was airtight: GitHub renders an UNSET repo variable and a SET-BUT-EMPTY one identically in `${{ vars.* }}`, so no workflow shell gate can fail closed on the difference — round 3's "export only when non-empty" quietly maps set-but-empty to "default", bypassing the script's hard-fail.
+- Resolution: the runtime override channel is REMOVED from CI rather than patched (fewer config channels on a trust-critical path beats a cleverer check). CI always runs the trusted script's `DEFAULT_MODEL`; changing the CI reviewer model is now a PR editing that constant — which the trusted-base-ref mechanism has the OLD model review. Dead-default emergency path: the documented human-review bootstrap exception. `OPENAI_REVIEW_MODEL` remains for local runs with the script's own fail-closed handling.
+- Nits: autouse env-isolation fixture in the router tests; MODEL_ROUTING.md now states explicitly that the CI reviewer enforces the evaluator invariant independently of the router (trusted copy must not import PR-controlled modules).
+- Suite: 279 passed / 28 skipped.
+
 ## 2026-07-13 (later) — RAG investigation folded into the ratified brain plan
 - Founder ask: "investigate the use of a RAG System re: our prior 'brain' conversation." Finding: the ratified Brain 1B (pgvector-in-Supabase) IS a RAG system — no direction change; two proven quality upgrades folded into the queued 1B build spec at zero new vendor/spend: hybrid retrieval (vector + Postgres full-text) and a cheap rerank pass (typ. 15–30% retrieval-quality gain). GraphRAG identified as the RAG name for option 1D — already covered by the standing G-BRAIN-1D trigger (T3 = exactly the workload where GraphRAG earns its cost). Addendum in docs/strategy/ONE_LIVE_BRAIN_OPTIONS_v1.md; TODOS 1B item updated.

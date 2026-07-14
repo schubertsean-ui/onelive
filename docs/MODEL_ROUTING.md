@@ -39,7 +39,7 @@ Stage mapping (see `tools/model_router.py`, env-overridable via `ONELIVE_MODEL_<
 | `standard` | Standard | |
 | `critical` | Critical | Escalation triggers below |
 | `extraction` | **BLOCKED (fail-closed)** | The resolver refuses to route this stage at all — overrides included — until the §11.2 hallucination threshold is founder-ratified (docs/RECORD.md R-006). Once ratified (flip `EXTRACTION_THRESHOLD_RATIFIED` in the same commit), it starts at Cheap governed by the golden-set gates: keeps its tier while hallucination/faithfulness gates pass, escalates the moment they fail. |
-| `evaluator` | Evaluator | `OPENAI_REVIEW_MODEL` overrides. Hard invariant: the router REJECTS any Claude/Anthropic id in this slot (fail-closed in `resolve_model`) — the grader is never the generator's family, at any price. |
+| `evaluator` | Evaluator | `OPENAI_REVIEW_MODEL` overrides. Hard invariant: the router REJECTS any Claude/Anthropic id in this slot (fail-closed in `resolve_model`) — the grader is never the generator's family, at any price. **Deliberate exception:** the live CI reviewer (`tools/adversarial_review.py`) does NOT consume this router — it runs as a trusted copy from the base ref and must not import PR-controlled modules, so it enforces the same invariant independently (duplicated check + its own fail-closed env handling), and CI passes it no model override at all: changing the CI reviewer model = a PR editing `DEFAULT_MODEL`, reviewed by the old model. |
 
 All model ids and prices above are **live, current ids verified 2026-07-13**
 (Claude ids against [the pricing page](https://platform.claude.com/docs/en/pricing.md);

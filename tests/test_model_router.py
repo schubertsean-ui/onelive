@@ -18,8 +18,18 @@ sys.modules["model_router"] = mr
 _spec.loader.exec_module(mr)
 
 
-def test_defaults_resolve_for_every_unblocked_stage(monkeypatch):
+@pytest.fixture(autouse=True)
+def _clean_routing_env(monkeypatch):
+    """Ambient ONELIVE_MODEL_*/OPENAI_REVIEW_MODEL in a dev shell or CI must
+    never leak into these tests (evaluator nit, PR #14 round 4)."""
+    import os
+    for name in list(os.environ):
+        if name.startswith("ONELIVE_MODEL_"):
+            monkeypatch.delenv(name, raising=False)
     monkeypatch.delenv("OPENAI_REVIEW_MODEL", raising=False)
+
+
+def test_defaults_resolve_for_every_unblocked_stage(monkeypatch):
     for stage, model in mr.STAGE_MODELS.items():
         if stage == "extraction":
             continue  # fail-closed until R-006 ratifies — proven below

@@ -132,15 +132,19 @@ jobs:
       - name: Independent evaluator (APPROVE required)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # Optional repo variable to pin a different reviewer model. GitHub
-          # forwards an UNSET repo variable as an EMPTY string, so the shell
-          # below exports OPENAI_REVIEW_MODEL only when genuinely non-empty —
-          # letting the script distinguish "unset → default" from
-          # "set-but-empty → hard fail" (the fail-closed empty-env rule).
-          OPENAI_REVIEW_MODEL_RAW: ${{ vars.OPENAI_REVIEW_MODEL }}
+          # NO runtime model override in CI — deliberately (evaluator finding,
+          # PR #14 round 4): GitHub renders an UNSET repo variable and a
+          # SET-BUT-EMPTY one identically in ${{ vars.* }}, so a workflow can
+          # never fail closed on the difference. Instead of adding an API
+          # existence-check to a trust-critical path, the channel is removed:
+          # CI always runs the trusted script's DEFAULT_MODEL, and changing
+          # the reviewer model is a PR editing that constant — reviewed by the
+          # OLD model via the trusted-base-ref mechanism, exactly how a
+          # write/grade-separation change should land. (If the default model
+          # is ever dead/deprecated, that PR merges with this check red under
+          # the documented human-review bootstrap exception above.) The
+          # OPENAI_REVIEW_MODEL env override still exists for LOCAL runs,
+          # where the script itself fails loud on empty or Claude-family ids.
         run: |
-          if [ -n "$OPENAI_REVIEW_MODEL_RAW" ]; then
-            export OPENAI_REVIEW_MODEL="$OPENAI_REVIEW_MODEL_RAW"
-          fi
           python -I /tmp/trusted/adversarial_review.py --require \
             --diff-file pr.diff --test-log pytest.log --test-log web.log
