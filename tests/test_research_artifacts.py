@@ -35,27 +35,35 @@ def test_research_jsonl_every_line_parses(path):
             if not line.strip():
                 continue
             try:
-                json.loads(line)
-                parsed += 1
+                rec = json.loads(line)
             except json.JSONDecodeError as exc:
                 errors.append(f"{path.name}:{lineno}: {exc}")
+                continue
+            if not isinstance(rec, dict):
+                errors.append(f"{path.name}:{lineno}: line is {type(rec).__name__}, not an object — bare values cannot carry audit fields")
+                continue
+            parsed += 1
     assert not errors, f"invalid JSONL lines: {errors}"
     assert parsed > 0, f"{path.name}: no parseable records — an empty audit trail proves nothing"
 
 
-def test_artifacts_exist_when_report_references_them():
-    report = RESEARCH_DIR / "PR_AGGREGATOR_RESEARCH.md"
-    if not report.exists():
-        pytest.skip("report not present")
-    text = report.read_text(encoding="utf-8")
-    referenced = [
-        name
-        for name in (
-            "PR_AGGREGATOR_RESEARCH_verification.json",
-            "PR_AGGREGATOR_RESEARCH_verification_votes.jsonl",
-        )
-        if name in text
-    ]
-    assert referenced, "report no longer references its verification artifacts — update this test's list"
-    for name in referenced:
-        assert (RESEARCH_DIR / name).exists(), f"report references {name} but it is not committed"
+def test_every_artifact_referenced_by_research_docs_is_committed():
+    # Dynamic, not a hard-coded filename list: any docs/research/*.md that
+    # mentions a .json/.jsonl artifact must have that artifact committed.
+    import re
+
+    # Top-level research docs only: the raw-source appendices in subdirectories
+    # quote external API endpoints (e.g. EDGAR's submissions.json) that are not
+    # repo artifacts.
+    md_files = sorted(RESEARCH_DIR.glob("*.md"))
+    if not md_files:
+        pytest.skip("no research docs present")
+    referenced = set()
+    for md in md_files:
+        text = md.read_text(encoding="utf-8")
+        referenced.update(re.findall(r"[\w./-]+\.jsonl?\b", text))
+    artifact_refs = {r.split("/")[-1] for r in referenced if not r.startswith("http")}
+    assert artifact_refs, "no artifact references found in any research doc — update this test if artifacts moved"
+    committed = {p.name for p in list(_json_files) + list(_jsonl_files)}
+    missing = sorted(a for a in artifact_refs if a not in committed and (RESEARCH_DIR / a).suffix in (".json", ".jsonl"))
+    assert not missing, f"research docs reference uncommitted artifacts: {missing}"
