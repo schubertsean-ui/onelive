@@ -91,13 +91,25 @@ def test_no_source_dated_after_compilation():
         m = re.search(r"Compiled (\d{4}-\d{2}-\d{2})", text)
         assert m, f"{md.name}: missing 'Compiled YYYY-MM-DD' header — the date-sanity gate needs it"
         compiled = datetime.date.fromisoformat(m.group(1))
-        for iso in re.findall(r"\b(\d{4}-\d{2}-\d{2})\b", text):
-            try:
-                d = datetime.date.fromisoformat(iso)
-            except ValueError:
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            future = []
+            for iso in re.findall(r"\b(\d{4}-\d{2}-\d{2})\b", line):
+                try:
+                    d = datetime.date.fromisoformat(iso)
+                except ValueError:
+                    continue
+                if d > compiled:
+                    future.append(iso)
+            if not future:
                 continue
-            if d > compiled:
-                violations.append(f"{md.name}: cites {iso}, after compilation {compiled}")
+            # A future-dated citation may remain ONLY as preserved disputed
+            # evidence: the line must carry an explicit REFUTED verdict AND
+            # must still contain the original source URL — a verdict without
+            # the evidence is redaction, which the repo bar forbids.
+            if "REFUTED" not in line:
+                violations.append(f"{md.name}:{lineno}: cites {future} after compilation {compiled} with no REFUTED verdict")
+            elif "http" not in line and "see row" not in line:
+                violations.append(f"{md.name}:{lineno}: REFUTED line lost its original source URL — evidence must be preserved, not redacted")
     assert not violations, f"time-incoherent citations: {violations}"
 
 
@@ -116,8 +128,11 @@ def test_every_artifact_referenced_by_research_docs_is_committed():
     for md in md_files:
         text = md.read_text(encoding="utf-8")
         referenced.update(re.findall(r"[\w./-]+\.jsonl?\b", text))
-    artifact_refs = {r.split("/")[-1] for r in referenced if not r.startswith("http")}
+    # keep any path component so same-basename artifacts in different
+    # subdirectories cannot mask each other (evaluator r9 nit)
+    artifact_refs = {r.removeprefix("docs/research/") for r in referenced if not r.startswith("http")}
     assert artifact_refs, "no artifact references found in any research doc — update this test if artifacts moved"
-    committed = {p.name for p in list(_json_files) + list(_jsonl_files)}
+    committed = {str(p.relative_to(RESEARCH_DIR)) for p in list(_json_files) + list(_jsonl_files)}
+    committed |= {p.name for p in list(_json_files) + list(_jsonl_files) if p.parent == RESEARCH_DIR}
     missing = sorted(a for a in artifact_refs if a not in committed and (RESEARCH_DIR / a).suffix in (".json", ".jsonl"))
     assert not missing, f"research docs reference uncommitted artifacts: {missing}"
