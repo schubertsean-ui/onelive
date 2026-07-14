@@ -15,6 +15,7 @@ founder digest in plain language.
 | 2026-07-13 | #13 | 1 | — | — | ~1 evaluator call | communication rules (docs-only) |
 | 2026-07-14 | #14 | 5 | evaluator r1: trust-invariant-not-enforced ×2, enforcement-not-wired ×2, silent-deferral ×3; r2: fail-open-provisional ×2, invariant-not-at-entry-point ×1, overstated-record ×1; r3: swallowed-error(CI) ×2, fail-open-empty-env ×2; r4: unclosable-config-channel ×1 | non-Claude-evaluator invariant (router + reviewer entry point); OPEN-row-only Record enforcement + SQL/block-comment scanning; fail-loud router steps; CI override channel removed | ~5 evaluator calls + CI | repeat class across r3–r4: empty-env fail-open (same class as #11/#12) — see class note below |
 | 2026-07-14 | — (session) | — | deferral_scan(SQL pass): pre-existing silent deferral in 0006 RLS comment ×1 (already resolved by 0007; retro-recorded R-011) | SQL + block comments added to scanner | ~0 | M4 example: a widened gate immediately caught a real latent item |
+| 2026-07-14 | — (session) | — | external-review(Weco RSI post): charter-prose gap ×1 — gate-tooling changes not named in the evaluator-MANDATORY list; no founder interrupt on gate relaxations | gate custody added to charter; threshold relaxations now founder-crucial (CI enforcement predates the prose — adversarial-review.yml was already path-filterless per #11) | ~0 | class: gate-custody-prose-gap; caught by founder-supplied external article review, founder approved amendment same day |
 
 ## Class watch (M2 repeat classes — these must trend to zero)
 

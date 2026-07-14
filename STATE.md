@@ -34,6 +34,14 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 
 > **Ground-truth block staleness (2026-07-13):** the JSON block above is machine-maintained and could NOT be refreshed this session — the reconciler needs `gh` (absent in this sandbox) and a DB DSN (not provided). It shows pre-PR#9 state. The 2026-07-13 reality check below records what WAS independently verified (via the GitHub API). Refresh the block with `session_reconcile.py --heal` from an env with `gh` + `ONELIVE_DB_DSN`.
 
+## Session Contract #5 (2026-07-14 — founder: "I approve the charter amendment" [gate custody])
+
+GOAL: Close the gate-custody gap surfaced by reviewing Weco's recursive-self-improvement post — the Generator must never be the unreviewed author of its own examiners, and making a gate easier to pass must interrupt the founder.
+SCOPE: (1) CLAUDE.md: add **gate custody** (any change to verification tooling or its thresholds) to the evaluator-MANDATORY list; add **gate-threshold relaxations** to the founder-crucial escalation list. (2) Decision record `docs/memory/decisions/2026-07-14_gate-custody.md`. (3) Changelog + Kaizen ledger rows.
+FINDING (recorded during implementation, honesty over drama): the CI evaluator gate ALREADY reviews every PR — `adversarial-review.yml` deliberately has no path filter (PR #11 rounds 1–2: the evaluator judged path filters bypassable). So the evaluator half of this amendment was already mechanical; the charter now states it as standing intent so it never depends on one workflow file's comment. The genuinely NEW rule is the founder interrupt on threshold relaxations.
+NON-GOALS: no gate code or threshold changes; no new tooling; no trust-invariant changes.
+DONE-CRITERIA: validate green (docs-only change) · amendment PR opened through the armed gate · decision record + ledger row in the same commit.
+
 ## Session Contract #4 (2026-07-14, same conversation — founder: "Record it" [scale-out sensor architecture + first-party trust rule])
 
 GOAL: Record the founder-ratified scale-out sensor architecture as canon, with the po battery run against it per the new charter rule.
