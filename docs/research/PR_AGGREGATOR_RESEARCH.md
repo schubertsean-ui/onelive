@@ -3,7 +3,7 @@
 **Date:** 2026-07-14 · **Status:** RESEARCH (new-venture idea, not an OneLive feature) · **Session Contract:** #5 (STATE.md)
 **Question (founder):** Are there press-release (PR) aggregators with free or very low cost APIs? Is a product viable that ingests PRs per public company worldwide, builds a per-entity timeline, and produces diff-style analysis vs prior releases — what's new, what changed, what's unanswered, what was promised but not delivered — for investors, consultants, and policy makers? What are the real moats?
 
-**Method:** deep-research harness — 5 parallel search angles → 25 sources fetched → 46 falsifiable claims extracted → top 25 adversarially verified by 3 independent verifier votes each (2/3 refutes kill a claim). Result: 22 confirmed, 3 refuted, 0 unverified. The claim-by-claim verification journal (votes, evidence, sources, refuted claims) is committed alongside this report: `PR_AGGREGATOR_RESEARCH_verification.json`. Sections marked **[VERIFIED 3-0]** survived that gate. Sections marked **[BEST-EFFORT]** come from a follow-up pass that *attempted* direct fetches of vendors' own pricing/terms pages but was blocked by this sandbox's egress proxy for most vendor domains — those figures therefore come from search-index captures of the vendors' pages plus secondary comparison sources, single-pass, NOT adversarially verified and NOT primary-source-confirmed. **The pricing/licensing half of the founder's question is answered provisionally, not definitively** — re-verification against live pages is recorded as deferral **R-013** in `docs/RECORD.md`, with an objective trigger (venture greenlight → primary-source re-check + written redistribution answers from finalists, before any spend).
+**Method:** deep-research harness — 5 parallel search angles → 25 sources consulted (several primary pages were reachable only via search-index captures after 403s) → 46 falsifiable claims extracted → top 25 adversarially verified by 3 independent verifier votes each (2/3 refutes kill a claim). Result: 22 confirmed, 3 refuted, 0 unverified. The verification record is committed alongside this report: `PR_AGGREGATOR_RESEARCH_verification.json` (claim-level aggregates, evidence, sources, refuted claims) and `PR_AGGREGATOR_RESEARCH_verification_votes.jsonl` (all 75 individual verifier votes with per-vote evidence). Sections marked **[VERIFIED 3-0]** survived that gate. Sections marked **[BEST-EFFORT]** come from a follow-up pass that *attempted* direct fetches of vendors' own pricing/terms pages but was blocked by this sandbox's egress proxy for most vendor domains — those figures therefore come from search-index captures of the vendors' pages plus secondary comparison sources, single-pass, NOT adversarially verified and NOT primary-source-confirmed. **The pricing/licensing half of the founder's question is answered provisionally, not definitively** — re-verification against live pages is recorded as deferral **R-013** in `docs/RECORD.md`, with an objective trigger (venture greenlight → primary-source re-check + written redistribution answers from finalists, before any spend).
 
 ---
 
@@ -22,7 +22,7 @@
 
 | Fact | Detail | Source |
 |---|---|---|
-| Cost | Free. No API key, subscription, or license. US-government work; storable, transformable, republishable | [SEC: Accessing EDGAR Data](https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data) |
+| Cost | Free *access*. No API key, subscription, or license fee. **Access ≠ content rights:** SEC-authored material is public domain, but company-authored exhibits — including the press releases themselves — retain the company's copyright (the verification journal carries this caveat). Reuse is governed by the §4 rules: extract facts and re-express; no systematic verbatim republication | [SEC: Accessing EDGAR Data](https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data) |
 | Press releases | Companies file material press releases as exhibits (typically EX-99.1) to Form 8-K; earnings PRs under Item 2.02 | same |
 | Rate limit | Hard cap 10 requests/second regardless of machine count, per-IP, ~10-minute 403 block on breach | same |
 | Identification | Mandatory declared `User-Agent: Company Name admin@email` or requests are denied | same |
@@ -33,15 +33,15 @@
 
 Design consequences: poll ≤10 req/s for freshness, bulk ZIPs for the 2001+ backfill, compliant User-Agent from day one.
 
-## 3. Newswire and news-API ingestion **[BEST-EFFORT — single-pass primary-source fetch]**
+## 3. Newswire and news-API ingestion **[BEST-EFFORT — single-pass; search-index/secondary reads, NOT primary-verified]**
 
 > **Provenance (read before trusting any number below):** the adversarial pass produced zero *verified* claims about commercial API pricing (marketing pages don't survive a 3-verifier bar; several pages block fetchers). A follow-up pass attempted direct fetches of vendors' own pricing/terms pages, but this sandbox's egress proxy returned 403 for the vendor domains — so the tables below were compiled from **search-index captures of the vendors' own pages plus secondary comparison sources**, as of 2026-07-14. No figure here is screen-verified against a live page. Conflicting numbers are shown as ranges; per-provider source pages to re-verify are listed at the end of each subsection. Re-verification is deferral **R-013** (fires at venture greenlight, before any contract or ingestion code).
 
 ### 3.1 Financial-data APIs that carry press releases
 
-| Provider | Free tier | Lowest paid | PR coverage (wires named?) | Redistribution posture | Archive |
+| Provider | Free tier (reported, unverified) | Lowest paid (reported, unverified) | PR coverage (wires named?) | Redistribution posture (reported) | Archive (reported) |
 |---|---|---|---|---|---|
-| **RTPR** (rtpr.io, Newsmatics) | "Wire" tier, never expires, ~60-min delay | **Pro $139/mo** | **Yes — its whole product**: Business Wire, PR Newswire, GlobeNewswire, AccessWire, sub-500ms claimed | **Red flag**: license is "solely for personal use," bans redistribute/resell/syndicate "in whole or in part" — transformed-diff question must be put to them in writing | unknown |
+| **RTPR** (rtpr.io, Newsmatics) | "Wire" tier, never expires, ~60-min delay | **Pro $139/mo** | **Yes — its whole product**: Business Wire, PR Newswire, GlobeNewswire, AccessWire, sub-500ms claimed | **Red flag** (from a search-index capture of rtpr.io/terms, not a direct read): license is "solely for personal use," bans redistribute/resell/syndicate "in whole or in part" — direct read + written answer on transformed diffs required | unknown |
 | **Benzinga** | AWS Marketplace basic tier (headlines/teasers only) | Sales-gated enterprise | **Yes — 5 wires** (ACCESSWIRE, Business Wire, GlobeNewswire, PRNewswire, Newsfile), **raw full text**, API pull or TCP push | Contracts contemplate display/redistribution — negotiated per use | implied historical (backtesting use) |
 | **Finnhub** | 60 calls/min; company news NA-only, 1-yr history | opaque (pricing page gated; 3rd-party figures conflict) | Yes — `/press-releases` endpoint names 6 wires, **but full text = Enterprise only** | unverified | 1 yr free news |
 | **Financial Modeling Prep** | 250 calls/day | Starter **$29/mo** (5-yr history), Premium $69/mo | **Yes — dedicated Press Releases + Search endpoints**, wire provenance undocumented | Public display of FMP-sourced data requires their separate Data Display & Licensing Agreement | 5–30+ yr (market data; PR depth unverified) |
@@ -60,7 +60,7 @@ Design consequences: poll ≤10 req/s for freshness, bulk ZIPs for the 2001+ bac
 
 > Sandbox caveat: this environment's egress proxy blocked direct fetches to most vendor domains, so these figures come from the search index citing the vendors' own pages (July 2026), plus secondary comparison sources. Conflicting numbers are shown as ranges. **The pattern that matters is consistent across all of them: price is not the barrier — licensing is.**
 
-| Provider | Free tier | Lowest paid | Archive | Redistribution posture (the deal-breaker column) |
+| Provider | Free tier (reported, unverified) | Lowest paid (reported, unverified) | Archive (reported) | Redistribution posture (reported — the deal-breaker column) |
 |---|---|---|---|---|
 | NewsAPI.org | 100 req/day (one source says 1,000), 24h delay, 1-mo archive, dev-only — no production use | Business $449/mo, 250k req/mo, 5-yr archive | 5 yr paid | ToS reportedly prohibits republishing article content (title/description/URL only); derived-summaries question unaddressed |
 | NewsData.io | 200 credits/day (≈2,000 articles), 12h delay, no full content | Basic $199.99/mo, 20k credits, 6-mo history | up to 5–8 yr on top tiers | Redistribution only on upper tiers; GlobeNewswire content confirmed present |
@@ -77,7 +77,7 @@ Design consequences: poll ≤10 req/s for freshness, bulk ZIPs for the 2001+ bac
 
 The wires sell *distribution* to issuers; reading is the product working as intended, but their site ToS don't always reflect that:
 
-| Wire | Free read path | ToS posture on automation/derivatives |
+| Wire | Free read path (reported) | ToS posture on automation/derivatives (reported) |
 |---|---|---|
 | GlobeNewswire (Notified) | **Best free source found**: public RSS/Atom directory by category (public companies, earnings, M&A) at globenewswire.com/rss/list + full-archive access with a free Reader Account | ToS text not located — must be read before build |
 | PR Newswire (Cision) | Free public RSS (prnewswire.com/rss/) | Site ToS reportedly bars robots/data-mining and derivative works without written consent — RSS consumption vs ToS text is in tension; consent or license needed for scale |
@@ -85,9 +85,9 @@ The wires sell *distribution* to issuers; reading is the product working as inte
 | ACCESSWIRE / Access Newswire | RSS page exists; real-time API/JSON/FTP feeds via sales | Terms unverified |
 | EIN Presswire (Newsmatics) | Free topic/custom RSS (einpresswire.com/all-rss) | Reader-side terms unverified |
 | openPR | RSS exists; low-tier releases | Reader-side terms unverified |
-| **RTPR (rtpr.io, by Newsmatics)** | **Free "Wire" tier; Pro ~$139/mo, 7-day trial** — a real-time press-release API aggregating Business Wire, PR Newswire, GlobeNewswire, and ACCESSWIRE, sub-500ms claimed | Terms page exists, content unread — the single most important ToS to read next |
+| **RTPR (rtpr.io, by Newsmatics)** | **Free "Wire" tier; Pro ~$139/mo, 7-day trial** — a real-time press-release API aggregating Business Wire, PR Newswire, GlobeNewswire, and ACCESSWIRE, sub-500ms claimed | Terms as captured in the search index show personal-use / no-redistribution language (details §3.1) — a direct read plus a written answer on transformed output is the single most important licensing task before relying on it |
 
-**RTPR is the most interesting single discovery of this pass:** all four major wires, by API, at $139/mo — if its license permits derived analytical works, it collapses the wire-ingestion problem to trivial cost. Verify before relying on it (young product; check who stands behind uptime and licensing indemnity).
+**RTPR is the most interesting single discovery of this pass:** all four major wires, by API, at $139/mo — which would collapse the wire-ingestion problem to trivial cost, EXCEPT that its terms as indexed read personal-use-only with a blanket no-redistribution clause (§3.1). The gating question is written confirmation that derived analytical works are permitted; also diligence the product itself (young; who stands behind uptime and licensing indemnity).
 
 *Source pages to re-verify (R-013):* prnewswire.com/rss + /terms-of-use · globenewswire.com/rss/list + Notified ToS (not located this pass) · businesswire.com/help/feed-options + services.businesswire.com/copyright · accesswire.com/rssfeed.aspx · einpresswire.com/all-rss · openpr.com/news/terms.html · rtpr.io/terms.
 
@@ -101,17 +101,18 @@ The wires sell *distribution* to issuers; reading is the product working as inte
 6. **Not yet assessed (open):** EU press-publishers' right (DSM Art. 15), EU database right, UK/EU text-and-data-mining exceptions. Required before serving or sourcing from Europe. Also: each commercial API's ToS overrides all of the above doctrine for content obtained *through that API* — contract beats copyright analysis.
 7. **Canada / SEDAR+ is out** as a scraped source: the ToS license only *unaltered* extracts for informational/internal use, and expressly prohibit commercialization, database construction, and robots/scraping — a diff product breaches all of these simultaneously. Canadian coverage = paid ASC bulk-data license, a commercial redistributor, or cross-listed companies' EDGAR filings. [SEDAR+ ToS](https://www.sedarplus.ca/onlinehelp/terms-of-use/)
 
-## 5. Non-US regulatory feeds **[BEST-EFFORT — single-pass primary-source fetch]**
+## 5. Non-US regulatory feeds **[BEST-EFFORT — single-pass; search-index/secondary reads, NOT primary-verified]**
 
 Ranked for a commercial store-and-transform product (each venue's cheapest sanctioned path):
 
-**Free and commercial-reuse-friendly today:**
+**Free and commercial-reuse-friendly today (reported terms; confirm under R-013):**
 
 | Venue | Access | Terms | Notes |
 |---|---|---|---|
 | **Japan EDINET** (FSA statutory disclosure) | Free API v2, self-service key | Secondary use **including for-profit** permitted (open-data posture) | Statutory filings, slower cadence than exchange timely disclosure; multi-year archive |
-| **France info-financiere** (AMF OAM via DILA) | Free official API on data.gouv.fr / Opendatasoft | **PROVISIONAL** — reuse license believed to be Licence Ouverte 2.0 (standard for data.gouv.fr) but NOT confirmed this pass; treat as unranked until the license text is read | Per-issuer document lists + downloads; would be the best free EU venue if the license confirms |
 | **UK FCA NSM** (National Storage Mechanism) | Free web archive, CSV export; no documented retrieval API | Notably friendly: licence to use, store, copy, distribute, make available to third parties for lawful purposes | Slower than RNS real-time; read the Acceptable Use Policy before automating |
+
+**Provisional — free access, reuse license NOT yet confirmed (do not treat as cleared):** **France info-financiere** (AMF OAM via DILA) — free official API on data.gouv.fr / Opendatasoft, per-issuer document lists + downloads. Reuse license *believed* to be Licence Ouverte 2.0 (the data.gouv.fr standard) but the license text was not read this pass; it joins the bucket above only when confirmed.
 
 **Coming free:** **EU ESAP** — phase-1 collection starts 2026-07-10 (this week); public portal mandated by 2027-07-10, free, machine-readable, with API and bulk download by regulation. This will be the best free EU-wide source; design-track it now.
 
@@ -133,13 +134,13 @@ Daily WARC drops (often within hours of capture) at `s3://commoncrawl/crawl-data
 
 Three honest qualifications: (a) evidence is on SEC filings, not press releases — our EDGAR-first stack applies it directly, but PR-text diffing is an untested extrapolation; (b) the tradeable return spread is likely partially arbitraged post-publication (McLean-Pontiff decay); (c) crucially, the *fundamental-prediction* results — the basis for a promise ledger — are not decay-sensitive the way trading alpha is. The paper also found no announcement-day effect: returns accrue when the change's meaning is later revealed. That is precisely the gap this product monetizes for humans: surfacing the change *at disclosure time* instead of quarters later.
 
-## 8. Competitive landscape **[BEST-EFFORT — single-pass]**
+## 8. Competitive landscape **[BEST-EFFORT — single-pass; search-index/secondary reads, NOT primary-verified]**
 
 > All prices below are as reported by search index/third-party trackers as of 2026-07-14 (vendor sites largely blocked direct fetching); confirm before citing externally.
 
 **Platform incumbents (search/summarize, some filing redlines, no promise ledger):**
 
-| Company | What it does (relevant part) | Pricing | API for customer AI platforms? |
+| Company | What it does (relevant part) | Pricing (reported, unverified) | API for customer AI platforms? |
 |---|---|---|---|
 | AlphaSense | Search + AI summarization over filings/transcripts/news; "Blacklining" = redline of current vs prior 10-K/10-Q — a document-pair diff, not a timeline, filings-only | Sales-gated; reported ~$10K–20K/seat/yr (Vendr median contract $18,375/yr); $40K+ tiers w/ expert calls | Yes, enterprise-gated |
 | Quartr | Earnings calls/IR docs, 15,000+ companies, 65 markets; aggregation + summaries, no diffing | Free app; Pro $499/mo; API sales-gated | Yes — flagship, "structured for AI" |
@@ -153,7 +154,7 @@ Three honest qualifications: (a) evidence is on SEC filings, not press releases 
 
 **Promise-tracking — the adjacent occupants (this is the important row):**
 
-| Product | Scope | Pricing | Gap it leaves |
+| Product | Scope | Pricing (reported, unverified) | Gap it leaves |
 |---|---|---|---|
 | **Marvin Labs** — "Guidance Tracking: Analyze Management Promises vs Delivery" | Extracts each management commitment from earnings communications, links restatements across time, scores promise-vs-delivery when the period closes | Free ≤15 companies; reported ~$89/mo/analyst | Earnings-guidance-scoped, equity-analyst-sold; not press releases broadly, not "what's unanswered," not policy makers/consultants |
 | FinCatch | Early-stage; blog describes extracting forward-looking statements from transcripts AND press releases, scoring reality vs promise | Not public; traction unverified | Same loop, unproven; conviction-graph framing |
