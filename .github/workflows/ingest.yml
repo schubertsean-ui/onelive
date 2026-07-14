@@ -80,48 +80,20 @@ jobs:
             exit 1
           fi
 
-      - name: Assemble the DB DSN (placeholder substitution, fail closed)
-        # Founder ergonomics (2026-07-14): Supabase's Connect panel emits the
-        # URI with a literal [YOUR-PASSWORD] placeholder, and hand-editing a
-        # credential string on a phone is the most error-prone step of setup.
-        # Supported paths, both fail-closed:
-        #   A (recommended): paste the Supabase URI AS-IS into ONELIVE_DB_DSN
-        #     and the database password into ONELIVE_DB_PASSWORD — this step
-        #     splices them, URL-ENCODING the password so special characters
-        #     can never corrupt the URI (they silently would in a hand-edit).
-        #   B: paste a fully-edited DSN (no placeholder); password secret
-        #     unused.
-        # Placeholder present + no password secret = hard fail, never a
-        # half-configured connection attempt.
+      - name: Validate DSN assembly early (fail loud before installing anything)
+        # Founder ergonomics (2026-07-14): the Supabase Connect panel emits a
+        # URI with a literal [YOUR-PASSWORD] placeholder. tools/assemble_dsn
+        # .py (unit-tested) splices in ONELIVE_DB_PASSWORD, URL-encoding it.
+        # This step only VALIDATES (stdout discarded) so a misconfig fails
+        # before deps install; the real assembly happens INSIDE the run step
+        # below — the assembled credential is never exported via GITHUB_ENV /
+        # outputs / workflow commands, so no other step (e.g. pip install)
+        # ever sees it (evaluator findings, PR #19 round 1).
         env:
-          RAW_DSN: ${{ secrets.ONELIVE_DB_DSN }}
-          DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
+          ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
+          ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
         run: |
-          python3 - <<'EOF'
-          import os, sys, urllib.parse
-          raw = os.environ.get("RAW_DSN", "")
-          pw = os.environ.get("DB_PASSWORD", "")
-          placeholder = "[YOUR-PASSWORD]"
-          if placeholder in raw:
-              if not pw.strip():
-                  print("::error::ONELIVE_DB_DSN still contains the "
-                        "[YOUR-PASSWORD] placeholder and ONELIVE_DB_PASSWORD "
-                        "is not set. Recommended: keep the DSN exactly as "
-                        "Supabase shows it and add the password as its own "
-                        "secret named ONELIVE_DB_PASSWORD.", file=sys.stderr)
-                  sys.exit(1)
-              final = raw.replace(placeholder, urllib.parse.quote(pw, safe=""))
-          else:
-              final = raw
-          if "\n" in final or "\r" in final:
-              print("::error::assembled DSN contains a line break — a copy-"
-                    "paste artifact; re-paste the secret as one line.",
-                    file=sys.stderr)
-              sys.exit(1)
-          print(f"::add-mask::{final}")
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
-              f.write(f"ONELIVE_DB_DSN={final}\n")
-          EOF
+          python3 tools/assemble_dsn.py > /dev/null
 
       - name: Install worker deps
         run: |
@@ -129,14 +101,21 @@ jobs:
           pip install -r worker/requirements.txt
 
       - name: Run the loop once (capped, dead-man pinged)
-        # ONELIVE_DB_DSN comes from GITHUB_ENV (assembled + masked above),
-        # NOT from the raw secret — the assembly step is the single source.
+        # The DB credential exists ONLY inside this step: assembled here via
+        # command substitution (never logged — the script prints nothing but
+        # the DSN, captured silently) and exported to the worker process
+        # alone. No GITHUB_ENV, no step outputs, no add-mask escaping
+        # surface.
         env:
+          ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
+          ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ORCHESTRATOR_PING_URL: ${{ secrets.ORCHESTRATOR_PING_URL }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           MAX_SOURCES: ${{ github.event.inputs.max_sources }}
         run: |
+          ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
+          export ONELIVE_DB_DSN
           python worker/run_once.py --real --max-sources "$MAX_SOURCES"
 
       - name: Persist the replay log (audit trail)
