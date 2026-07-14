@@ -80,14 +80,58 @@ jobs:
             exit 1
           fi
 
+      - name: Assemble the DB DSN (placeholder substitution, fail closed)
+        # Founder ergonomics (2026-07-14): Supabase's Connect panel emits the
+        # URI with a literal [YOUR-PASSWORD] placeholder, and hand-editing a
+        # credential string on a phone is the most error-prone step of setup.
+        # Supported paths, both fail-closed:
+        #   A (recommended): paste the Supabase URI AS-IS into ONELIVE_DB_DSN
+        #     and the database password into ONELIVE_DB_PASSWORD — this step
+        #     splices them, URL-ENCODING the password so special characters
+        #     can never corrupt the URI (they silently would in a hand-edit).
+        #   B: paste a fully-edited DSN (no placeholder); password secret
+        #     unused.
+        # Placeholder present + no password secret = hard fail, never a
+        # half-configured connection attempt.
+        env:
+          RAW_DSN: ${{ secrets.ONELIVE_DB_DSN }}
+          DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
+        run: |
+          python3 - <<'EOF'
+          import os, sys, urllib.parse
+          raw = os.environ.get("RAW_DSN", "")
+          pw = os.environ.get("DB_PASSWORD", "")
+          placeholder = "[YOUR-PASSWORD]"
+          if placeholder in raw:
+              if not pw.strip():
+                  print("::error::ONELIVE_DB_DSN still contains the "
+                        "[YOUR-PASSWORD] placeholder and ONELIVE_DB_PASSWORD "
+                        "is not set. Recommended: keep the DSN exactly as "
+                        "Supabase shows it and add the password as its own "
+                        "secret named ONELIVE_DB_PASSWORD.", file=sys.stderr)
+                  sys.exit(1)
+              final = raw.replace(placeholder, urllib.parse.quote(pw, safe=""))
+          else:
+              final = raw
+          if "\n" in final or "\r" in final:
+              print("::error::assembled DSN contains a line break — a copy-"
+                    "paste artifact; re-paste the secret as one line.",
+                    file=sys.stderr)
+              sys.exit(1)
+          print(f"::add-mask::{final}")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+              f.write(f"ONELIVE_DB_DSN={final}\n")
+          EOF
+
       - name: Install worker deps
         run: |
           python -m pip install --upgrade pip
           pip install -r worker/requirements.txt
 
       - name: Run the loop once (capped, dead-man pinged)
+        # ONELIVE_DB_DSN comes from GITHUB_ENV (assembled + masked above),
+        # NOT from the raw secret — the assembly step is the single source.
         env:
-          ONELIVE_DB_DSN: ${{ secrets.ONELIVE_DB_DSN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ORCHESTRATOR_PING_URL: ${{ secrets.ORCHESTRATOR_PING_URL }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
