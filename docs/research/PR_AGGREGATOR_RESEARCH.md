@@ -36,11 +36,53 @@ Design consequences: poll ≤10 req/s for freshness, bulk ZIPs for the 2001+ bac
 
 > The adversarial pass produced zero *verified* claims about commercial API pricing (marketing pages don't survive a 3-verifier bar; several pages block fetchers). The tables below were compiled directly from vendors' own pricing/terms pages in a follow-up pass. Treat as accurate-as-of-2026-07-14, re-verify before contracting.
 
-<!-- FILL:FINANCIAL_APIS -->
+### 3.1 Financial-data APIs that carry press releases
 
-<!-- FILL:GENERAL_NEWS_APIS -->
+| Provider | Free tier | Lowest paid | PR coverage (wires named?) | Redistribution posture | Archive |
+|---|---|---|---|---|---|
+| **RTPR** (rtpr.io, Newsmatics) | "Wire" tier, never expires, ~60-min delay | **Pro $139/mo** | **Yes — its whole product**: Business Wire, PR Newswire, GlobeNewswire, AccessWire, sub-500ms claimed | **Red flag**: license is "solely for personal use," bans redistribute/resell/syndicate "in whole or in part" — transformed-diff question must be put to them in writing | unknown |
+| **Benzinga** | AWS Marketplace basic tier (headlines/teasers only) | Sales-gated enterprise | **Yes — 5 wires** (ACCESSWIRE, Business Wire, GlobeNewswire, PRNewswire, Newsfile), **raw full text**, API pull or TCP push | Contracts contemplate display/redistribution — negotiated per use | implied historical (backtesting use) |
+| **Finnhub** | 60 calls/min; company news NA-only, 1-yr history | opaque (pricing page gated; 3rd-party figures conflict) | Yes — `/press-releases` endpoint names 6 wires, **but full text = Enterprise only** | unverified | 1 yr free news |
+| **Financial Modeling Prep** | 250 calls/day | Starter **$29/mo** (5-yr history), Premium $69/mo | **Yes — dedicated Press Releases + Search endpoints**, wire provenance undocumented | Public display of FMP-sourced data requires their separate Data Display & Licensing Agreement | 5–30+ yr (market data; PR depth unverified) |
+| **StockNewsAPI** | 5-day trial only (Student $19.99/mo) | main-tier prices not published in index | **Yes — 5,000+ PRs/month from 5 named wires**, PR filter param | unverified | news to Feb 2019 |
+| Polygon.io (now "Massive") | $0: 5 calls/min | $29/mo | News = Benzinga articles via partnership; raw PR feed appears premium-partner-gated | Market-data terms PDF unread | 2 yr free → 20+ yr $199 |
+| Tiingo | 1,000 req/day, **news API excluded from free** | conflicting ($10 vs $30–50/mo) | No wire-PR claim; curated financial news | **Internal-use only by default**; redistribution by permission + fees ($250–500/mo tiers cited) | news: 3-mo window standard |
+| EODHD | 20 calls/day (≈4 news requests) | $19.99–99.99/mo | No wire PR feed; general financial news, 15–60 min delay | Bars redistribution/display of data "original or repackaged" without approval | ~2018+ |
+| Marketaux | 100 req/day | ~$166–199/mo top tier visible | No demonstrated wire-PR coverage | unverified | unknown |
+| Alpha Vantage | **25 req/day** (unusable for polling) | $49.99/mo | No — aggregated news + sentiment | Standard grant is personal, non-commercial | unverified |
 
-<!-- FILL:WIRE_RSS -->
+**Read of this table:** the only affordable self-serve products with *verified wire-named press-release coverage* are RTPR ($139/mo, but a hostile license as written), FMP ($29–69/mo, provenance undocumented), and StockNewsAPI (prices unpublished). Benzinga is the "right at scale, wrong at bootstrap" option — full raw text from five wires with redistribution contemplated in contract, at enterprise prices. The recurring pattern: **whether transformed diffs/summaries count as prohibited "redistribution" is answered by no provider's public terms — it must be asked in writing of any finalist before a line of ingestion code is written against them.**
+
+### 3.2 General news-aggregation APIs
+
+> Sandbox caveat: this environment's egress proxy blocked direct fetches to most vendor domains, so these figures come from the search index citing the vendors' own pages (July 2026), plus secondary comparison sources. Conflicting numbers are shown as ranges. **The pattern that matters is consistent across all of them: price is not the barrier — licensing is.**
+
+| Provider | Free tier | Lowest paid | Archive | Redistribution posture (the deal-breaker column) |
+|---|---|---|---|---|
+| NewsAPI.org | 100 req/day (one source says 1,000), 24h delay, 1-mo archive, dev-only — no production use | Business $449/mo, 250k req/mo, 5-yr archive | 5 yr paid | ToS reportedly prohibits republishing article content (title/description/URL only); derived-summaries question unaddressed |
+| NewsData.io | 200 credits/day (≈2,000 articles), 12h delay, no full content | Basic $199.99/mo, 20k credits, 6-mo history | up to 5–8 yr on top tiers | Redistribution only on upper tiers; GlobeNewswire content confirmed present |
+| GNews | 100 req/day, 12h delay, non-commercial only | Essential ~€49.99/mo | ~2020+ top tiers | Commercial use OK paid; white-label redistribution prohibited |
+| Mediastack | 100 req/**month**, 30-min delay | ~$24.99/mo | undisclosed | **Worst terms found**: data licensed for end-user "reference" only; storage/distribution by end users prohibited — incompatible with this product |
+| Event Registry / NewsAPI.ai | 2,000 tokens, 30-day window, non-commercial | ~$90/mo token-based | **to 2014** (deepest self-serve) | Paid-tier derived-data terms unverified — direct ToS read required |
+| Webz.io | News API Lite: 1,000 calls/mo, non-commercial | Sales-gated (expect 4–5 figures/yr) | **to 2008** (separate archive product) | Contract-negotiated — likeliest path to *explicit* redistribution rights |
+
+**Key structural finding:** no general news API verifiably licenses "store + republish transformed summaries commercially" at a self-serve tier. The cheap tiers are cheap because they don't grant the rights this product needs. Either the rights come by contract (Webz.io-style), or the product leans on sources where the rights question is structurally easier: EDGAR (public domain) and the wires' own read surfaces (below).
+
+### 3.3 The newswires themselves — read access
+
+The wires sell *distribution* to issuers; reading is the product working as intended, but their site ToS don't always reflect that:
+
+| Wire | Free read path | ToS posture on automation/derivatives |
+|---|---|---|
+| GlobeNewswire (Notified) | **Best free source found**: public RSS/Atom directory by category (public companies, earnings, M&A) at globenewswire.com/rss/list + full-archive access with a free Reader Account | ToS text not located — must be read before build |
+| PR Newswire (Cision) | Free public RSS (prnewswire.com/rss/) | Site ToS reportedly bars robots/data-mining and derivative works without written consent — RSS consumption vs ToS text is in tension; consent or license needed for scale |
+| Business Wire | Headline RSS free; **full-text Atom feeds that explicitly allow in-network storage exist but are arranged (and likely priced) via their media team** | "All reproduction other than personal reference prohibited without written permission" |
+| ACCESSWIRE / Access Newswire | RSS page exists; real-time API/JSON/FTP feeds via sales | Terms unverified |
+| EIN Presswire (Newsmatics) | Free topic/custom RSS (einpresswire.com/all-rss) | Reader-side terms unverified |
+| openPR | RSS exists; low-tier releases | Reader-side terms unverified |
+| **RTPR (rtpr.io, by Newsmatics)** | **Free "Wire" tier; Pro ~$139/mo, 7-day trial** — a real-time press-release API aggregating Business Wire, PR Newswire, GlobeNewswire, and ACCESSWIRE, sub-500ms claimed | Terms page exists, content unread — the single most important ToS to read next |
+
+**RTPR is the most interesting single discovery of this pass:** all four major wires, by API, at $139/mo — if its license permits derived analytical works, it collapses the wire-ingestion problem to trivial cost. Verify before relying on it (young product; check who stands behind uptime and licensing indemnity).
 
 ## 4. Legal posture **[VERIFIED 3-0 unless noted]**
 
@@ -68,7 +110,32 @@ Three honest qualifications: (a) evidence is on SEC filings, not press releases 
 
 ## 8. Competitive landscape **[BEST-EFFORT — single-pass]**
 
-<!-- FILL:COMPETITORS -->
+> All prices below are as reported by search index/third-party trackers as of 2026-07-14 (vendor sites largely blocked direct fetching); confirm before citing externally.
+
+**Platform incumbents (search/summarize, some filing redlines, no promise ledger):**
+
+| Company | What it does (relevant part) | Pricing | API for customer AI platforms? |
+|---|---|---|---|
+| AlphaSense | Search + AI summarization over filings/transcripts/news; "Blacklining" = redline of current vs prior 10-K/10-Q — a document-pair diff, not a timeline, filings-only | Sales-gated; reported ~$10K–20K/seat/yr (Vendr median contract $18,375/yr); $40K+ tiers w/ expert calls | Yes, enterprise-gated |
+| Quartr | Earnings calls/IR docs, 15,000+ companies, 65 markets; aggregation + summaries, no diffing | Free app; Pro $499/mo; API sales-gated | Yes — flagship, "structured for AI" |
+| Koyfin | Charting/fundamentals dashboards; no diffing | Free / $39 / ~$79 / advisor tiers $209–299/mo | No (their FAQ cites data-vendor restrictions) |
+| Hudson Labs (ex-Bedrock AI) | Forensic red-flag scoring of SEC filings + "know what changed before earnings" filing comparison — the most analytical diff incumbent, but SEC-filings-scoped | Reported Core ~$100/mo; institutional ~$15K/team/yr | Reported in enterprise tier |
+| Amenity Analytics | **Exited** — acquired by Symphony (Nov 2022), absorbed; no standalone product | — | — |
+| Tegus / Sentieo / Stream | All acquired into AlphaSense (Tegus $930M, 2024); expert transcripts, not diffing | Sales-gated | via AlphaSense |
+| Daloopa / Fintool / Fiscal.ai | AI fundamentals/copilots, no diffing or promises. Notable: Fiscal.ai sells API+MCP at $990/yr individual — evidence of pull for AI-platform-native delivery | Fiscal.ai Free/$39/$99/mo; others sales-gated | Daloopa yes; Fiscal.ai yes (MCP); Fintool enterprise |
+
+**Diff-specific tools (all document-pair redlines of SEC filings — none cover press releases, none analyze):** BamSEC Compare Filings ($69/mo annual), Last10K ($9.99/mo retail), AlphaSense Blacklining, Hudson Labs comparison, free OSS (sec-diff, EDGAR Analyst), LexisNexis Knowledge Mosaic (legacy). Generic webpage-change monitors (Visualping, PageCrawl) are the only tools touching press-release pages — raw pixel/text diffs, no entity model, no analysis.
+
+**Promise-tracking — the adjacent occupants (this is the important row):**
+
+| Product | Scope | Pricing | Gap it leaves |
+|---|---|---|---|
+| **Marvin Labs** — "Guidance Tracking: Analyze Management Promises vs Delivery" | Extracts each management commitment from earnings communications, links restatements across time, scores promise-vs-delivery when the period closes | Free ≤15 companies; reported ~$89/mo/analyst | Earnings-guidance-scoped, equity-analyst-sold; not press releases broadly, not "what's unanswered," not policy makers/consultants |
+| FinCatch | Early-stage; blog describes extracting forward-looking statements from transcripts AND press releases, scoring reality vs promise | Not public; traction unverified | Same loop, unproven; conviction-graph framing |
+| Visible Alpha (S&P Global) | Structured guidance line items vs actuals (data layer) | Sales-gated | Numbers only, no narrative ledger |
+| Net Zero Tracker / ChatNetZero / S&P NZ Commitments | Climate-commitment accountability | Free (nonprofit) / sales-gated | Climate-only; proves the accountability-timeline framing has demand |
+
+**Whitespace verdict (from this pass):** filing-pair redlining is occupied and cheap — don't compete there. Press-release-level, entity-resolved longitudinal timelines with analysis are **empty**. Promise-tracking is **adjacent-occupied** (Marvin Labs exists and ships today) but is earnings-scoped and analyst-sold; multi-year promise ledgers across *all* corporate communications, the "what's unanswered" layer, the policy-maker/consultant buyer, and an open machine-readable promise-ledger API have **no direct occupant**. The category name is unclaimed in finance.
 
 **Verified data point:** raw document comparison is commoditized — Draftable (~$249/user/yr legal tier, free tool, API), Litera Compare (~72% of the legal industry), Word Compare, Acrobat. Diff *mechanics* cannot be the moat. **[VERIFIED 3-0, medium confidence on exact figures]**
 
@@ -76,7 +143,7 @@ Three honest qualifications: (a) evidence is on SEC filings, not press releases 
 
 | Moat candidate | Verdict | Why |
 |---|---|---|
-| **Longitudinal promise ledger** (entity-resolved claims → outcomes, point-in-time correct) | **REAL — the moat** | Compounds with time; a late entrant must reconstruct history without contaminating it with hindsight. Academically underwritten (§7: disclosure changes predict fundamentals). Directly analogous to multibagger's retrodiction/Kaizen philosophy applied to issuers. No verified evidence any incumbent ships this (see §8 whitespace check). |
+| **Longitudinal promise ledger** (entity-resolved claims → outcomes, point-in-time correct) | **REAL — the moat, but not empty-field** | Compounds with time; a late entrant must reconstruct history without contaminating it with hindsight. Academically underwritten (§7: disclosure changes predict fundamentals). Directly analogous to multibagger's retrodiction/Kaizen philosophy applied to issuers. Honesty check: Marvin Labs already ships promise-vs-delivery scoring for *earnings guidance* (~$89/mo, §8) — the open ground is all-communications scope, the "what's unanswered" layer, non-analyst buyers, and an open machine-readable ledger API. |
 | **Point-in-time discipline** (immutable as-of-known-when records) | **REAL — quality moat** | Same reason multibagger forbids yfinance: most cheap news APIs silently revise. Doing this correctly from day one is cheap; retrofitting it is impossible. Also makes the dataset valuable as backtest input — a second customer segment (quants). |
 | **Entity resolution + dedup quality** (same story across 4 wires + 8-K + IR page = one event) | **Real but earnable** | Genuine engineering asset and a visible quality bar; incumbents with money can replicate. A moat only in combination with the ledger. |
 | **Machine-readable output for customers' AI platforms** | **Real as positioning, weak as moat** | "We organize, you think" + clean structured feeds (JSON/MCP) is the right wedge vs incumbents selling dashboards; but schemas are copyable. Stickiness comes from the ledger behind the schema. |
