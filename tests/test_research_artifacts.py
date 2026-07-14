@@ -22,19 +22,25 @@ _jsonl_files = sorted(RESEARCH_DIR.glob("**/*.jsonl")) if RESEARCH_DIR.exists() 
 @pytest.mark.parametrize("path", _json_files, ids=lambda p: p.name)
 def test_research_json_parses(path):
     with open(path, encoding="utf-8") as f:
-        json.load(f)
+        data = json.load(f)
+    assert isinstance(data, (dict, list)), f"{path.name}: top-level JSON must be an object or array"
 
 
 @pytest.mark.parametrize("path", _jsonl_files, ids=lambda p: p.name)
 def test_research_jsonl_every_line_parses(path):
+    errors = []
+    parsed = 0
     with open(path, encoding="utf-8") as f:
         for lineno, line in enumerate(f, start=1):
             if not line.strip():
                 continue
             try:
                 json.loads(line)
+                parsed += 1
             except json.JSONDecodeError as exc:
-                pytest.fail(f"{path.name}:{lineno} is not valid JSON: {exc}")
+                errors.append(f"{path.name}:{lineno}: {exc}")
+    assert not errors, f"invalid JSONL lines: {errors}"
+    assert parsed > 0, f"{path.name}: no parseable records — an empty audit trail proves nothing"
 
 
 def test_artifacts_exist_when_report_references_them():
@@ -42,9 +48,14 @@ def test_artifacts_exist_when_report_references_them():
     if not report.exists():
         pytest.skip("report not present")
     text = report.read_text(encoding="utf-8")
-    for name in (
-        "PR_AGGREGATOR_RESEARCH_verification.json",
-        "PR_AGGREGATOR_RESEARCH_verification_votes.jsonl",
-    ):
-        if name in text:
-            assert (RESEARCH_DIR / name).exists(), f"report references {name} but it is not committed"
+    referenced = [
+        name
+        for name in (
+            "PR_AGGREGATOR_RESEARCH_verification.json",
+            "PR_AGGREGATOR_RESEARCH_verification_votes.jsonl",
+        )
+        if name in text
+    ]
+    assert referenced, "report no longer references its verification artifacts — update this test's list"
+    for name in referenced:
+        assert (RESEARCH_DIR / name).exists(), f"report references {name} but it is not committed"
