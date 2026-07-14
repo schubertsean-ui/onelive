@@ -34,6 +34,13 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 
 > **Ground-truth block staleness (2026-07-13):** the JSON block above is machine-maintained and could NOT be refreshed this session — the reconciler needs `gh` (absent in this sandbox) and a DB DSN (not provided). It shows pre-PR#9 state. The 2026-07-13 reality check below records what WAS independently verified (via the GitHub API). Refresh the block with `session_reconcile.py --heal` from an env with `gh` + `ONELIVE_DB_DSN`.
 
+## Session Contract #3 (2026-07-14, same conversation — founder ratified "All three" [po + measures + levels-later] and directed a maximally robust po)
+
+GOAL: Institutionalize divergent thinking (de Bono po) and Kaizen measurement without touching any trust gate's convergent behavior.
+SCOPE: (1) research-grounded po protocol (`docs/skills/po_provocation.md`) with the founder-directed operator battery — escape/reversal-invert-opposite/exaggeration/distortion/wishful/absurd/random-entry + random×operator combos — and de Bono's movement techniques; (2) mechanical prompt generator `tools/po_battery.py` (+8 tests, seedable); (3) `docs/KAIZEN.md` + append-only `docs/metrics/KAIZEN_LEDGER.md` (measures M1–M6; zero ESCAPED defects absolute; internal catches mined by class), seeded with real PR #11–#14 data incl. the empty-env repeat-class watch; (4) charter section + SESSION_START close step 8 + standing TODOS items; (5) levels deferred behind R-012 (objective trigger: first real cron week).
+NON-GOALS: no po output into memory/factual records; no gate threshold changes; no maturity levels yet.
+DONE-CRITERIA: suite green incl. new tests · deferral_scan/lint/trust_gate green · PR opened through the armed gate · ledger's first rows written.
+
 ## Session Contract #2 (2026-07-13, same conversation — founder said "proceed with the sprint plan")
 
 GOAL: Execute the unblocked scaffolding of SPRINT Step 5 (scheduled ingestion) without triggering any founder-crucial precondition.
