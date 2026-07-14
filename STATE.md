@@ -34,6 +34,13 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 
 > **Ground-truth block staleness (2026-07-13):** the JSON block above is machine-maintained and could NOT be refreshed this session — the reconciler needs `gh` (absent in this sandbox) and a DB DSN (not provided). It shows pre-PR#9 state. The 2026-07-13 reality check below records what WAS independently verified (via the GitHub API). Refresh the block with `session_reconcile.py --heal` from an env with `gh` + `ONELIVE_DB_DSN`.
 
+## Session Contract #4 (2026-07-14 — founder-directed research task, branch `claude/pr-aggregator-research-ykhvii`)
+
+GOAL: Research-only. Answer the founder's question: are there press-release (PR) aggregators with free/very-low-cost APIs, and is a "PR Aggregator + longitudinal analysis" product (ingest PRs per entity, diff vs prior PRs — what's new/changed/unanswered/undelivered — for investors/consultants/policy makers) viable, with real moats identified.
+SCOPE: (1) deep multi-source web research (deep-research harness: fan-out search → fetch → adversarial claim verification → cited synthesis); (2) written report at `docs/research/PR_AGGREGATOR_RESEARCH.md` covering sources+pricing+licensing, legal posture, competitive landscape, moat assessment, recommended cheapest-viable ingestion stack; (3) session bookends (STATE/TODOS/changelog). Related context: founder's `multibagger` repo (investor audience) was attached to this session; the shared Perplexity space link is login-gated and could NOT be read.
+NON-GOALS: no code, no ingestion build, no spend, no new services, no OneLive pipeline changes. This is a NEW-VENTURE research doc, not an OneLive feature; build would need its own contract + founder go.
+DONE-CRITERIA: report committed on the designated branch · draft PR opened · bookends updated.
+
 ## Session Contract #3 (2026-07-14, same conversation — founder ratified "All three" [po + measures + levels-later] and directed a maximally robust po)
 
 GOAL: Institutionalize divergent thinking (de Bono po) and Kaizen measurement without touching any trust gate's convergent behavior.
