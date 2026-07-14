@@ -1,0 +1,12 @@
+{
+  "description": "Registry of citations struck as refuted in the research appendices. Pins each refuted citation's ORIGINAL url+date so the evidence-preservation gate (tests/test_research_artifacts.py) can verify the original evidence is still present verbatim on a REFUTED-marked line — substitution or redaction of the original URL breaks the match and fails CI.",
+  "refuted": [
+    {
+      "file": "C_trends_mcp_agent_native_delivery.md",
+      "date": "2026-07-28",
+      "original_url": "https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/",
+      "reason": "publication date post-dates compilation (2026-07-14) — time-incoherent",
+      "verdict_recorded": "2026-07-14"
+    }
+  ]
+}

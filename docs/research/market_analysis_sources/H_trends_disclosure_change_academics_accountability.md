@@ -1,4 +1,5 @@
-<!-- Raw research-agent report, committed verbatim as the audit trail for
+<!-- Raw research-agent report — the agent-authored BODY below is preserved
+verbatim; this header comment is editorial. Audit trail for
 docs/research/PR_AGGREGATOR_MARKET_ANALYSIS.md. Single-pass, search-index/secondary
 sources unless a row says otherwise; confidence labels are the agent's own.
 Compiled 2026-07-14. -->

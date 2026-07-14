@@ -8,6 +8,8 @@
 
 ## 1. Executive summary
 
+*(Every bullet below inherits the provenance caveat above: single-pass, directional research — not adversarially verified, not contract- or spend-grade.)*
+
 1. **The market is large, growing, and consolidating upward.** Financial market data/analysis spend hit **$49.2B in 2025 (+6.5%, Burton-Taylor)** [A]. The AI-research-platform tier is growing far faster than the ~6.5% overall market — AlphaSense went ~$350M → **$600M+ ARR** in ~18 months and raised at **$7.5B** (June 2026), and venture capital is concentrating there [A] — though no committed evidence ranks every market slice, so "fastest" is not claimed. General LLMs are not killing specialized platforms — they're commoditizing undifferentiated work while value migrates to proprietary corpora, provenance, and workflow [D].
 2. **A genuine pricing chasm exists between $6k and $15k/seat.** Prosumer tools top out near $6k/yr; institutional platforms start near $15–25k. ~6,500 sub-$250M funds, 16,544 RIAs, and ~9,000 family offices live in that chasm [B]. No direct occupant serving them disclosure intelligence at a mid-four-figure price was found in this pass.
 3. **The #1 and #2 complaints about the category leader are noise and price** — "noisy search results top the complaint list"; alerts produce "a lot of noise" [B]. No incumbent markets longitudinal claim-tracking or alert *precision*. The complaint data independently confirms the promise-ledger thesis.
