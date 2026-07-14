@@ -46,12 +46,37 @@ entities/day. Charter Cost discipline §1.)
   assembly → confidence state. This formalizes the existing Evidence →
   Gate stages; the verdict IS the product.
 
+## 2b. Channel sign-up playbook (founder ask 2026-07-14: "how do we best 'sign up'?")
+The channel registry is an OPEN taxonomy — each watcher record holds any
+number of channels, each with a TYPE, a subscription method, a validation
+method, and a trust class. New channel types are config, not code rewrites
+("any number of other unnamed channels" — founder). Priority: cheapest
+reliable first, per entity:
+
+| Priority | Channel | Sign-up mechanics | Trust class |
+|---|---|---|---|
+| 1 | ICS/RSS feeds (venue calendars, univ. press offices, civic calendars) | one-time feed registration; free, structured, push-shaped | First-party when served from the entity's canonical domain |
+| 2 | Newsletters (venue/artist/fan-club email) | subscribe the dedicated ingest mailbox (founder decision, §2) | First-party when DMARC-aligned with the registered domain; else third-party |
+| 3 | Canonical website | fetch+diff on cadence (§2 pull) | First-party (their domain) |
+| 4 | Instagram / Facebook / socials | register the entity's OFFICIAL handles on the watcher record; platform accounts/API access founder-minted | First-party from registered official handles (hijack caveat §3.2 applies); everything else third-party |
+| 5 | Industry aggregators (Bandsintown, Songkick, ticketing platforms, Do512-class local listers, vertical sources per category — food, campus, civic) | API where offered; **ToS/data-licensing review is FOUNDER-CRUCIAL (legal posture) before scale use** | THIRD-party always (they aggregate) — high-quality corroboration + discovery, never the fast lane |
+| 6 | LinkedIn / press offices / PR distribution | mostly a DISCOVERY lens for the scout swarm (bookers, promoters, openings), not a per-event watch channel | Third-party |
+
+Notes: (1) most entities need only their 1–2 cheapest channels most days —
+channel count follows entity value, not maximalism (Cost discipline §1);
+(2) aggregators double as corroboration engines for third-party claims —
+they make the `unverified → likely/confirmed` climb cheap; (3) the two
+standing founder decisions this table creates when push channels build:
+the ingest mailbox, and aggregator ToS/licensing review.
+
 ## 3. The provenance-weighted gate (RATIFIED trust policy)
 **First-party provenance is a weight INSIDE the gate, never a bypass.**
 Two validated first-party channels, equal rank:
 - **Verified external channel:** content arriving via a channel registered
-  on the watcher record and mechanically validated — email passing
-  SPF/DKIM/DMARC from the entity's registered domain; content fetched from
+  on the watcher record and mechanically validated — email whose
+  DKIM/SPF authentication is DMARC-ALIGNED with the entity's registered
+  domain (alignment required: a generic SPF/DKIM pass on a forwarding or
+  vendor domain proves nothing about entity control); content fetched from
   the entity's own canonical domain; posts from its registered official
   handles. Validation is cryptographic/mechanical code, never vibes.
 - **Authorized in-product account:** the entity (or designee) enters the
@@ -63,8 +88,10 @@ entity's OWN event logistics (time, date, lineup, cancellation, venue-side
 facts) enters at **`confirmed`**. Third-party claims enter at `unverified`
 and climb via corroboration, as today. Cost effect: the corroboration
 machinery is reserved for third-party claims; day-of first-party changes
-(the highest-value facts) skip investigation — validate mechanically,
-extract, promote.
+(the highest-value facts) skip third-party-style corroboration — validate
+mechanically, extract, CHECK AGAINST EXISTING CONTRADICTORY EVIDENCE (a
+standing cheap check, so a live dispute is never steamrolled by the fast
+lane), promote.
 
 **Boundaries (all three load-bearing):**
 1. **Scoped authority:** first-party weight applies field-by-field to the
@@ -107,8 +134,8 @@ Every scheduled scout carries the charter's budget cap + dead-man ping.
 ## Appendix — Po harvest (battery run 2026-07-14, seed 20260714, word: "beehive")
 CANDIDATE ideas only — each traceable to its provocation; none ratified;
 they feed normal planning through normal gates (M6 ledger row filed):
-- **P1 ESCAPE** ("Po: venues do not know their own schedules") → sometimes TRUE: promoters/bookers know first. Harvest: watcher records support MULTIPLE authorized parties per entity/event (founder's "designee" made structural); among conflicting first-party signals, the fresher validated signal wins.
-- **P3 EXAGGERATION** ("Po: 10,000 events tonight" — SXSW is real) → ingestion must degrade gracefully under burst: priority queue by user-relevance under budget caps. Down-version ("one event a year") → watcher lifecycle states incl. HIBERNATED (stop polling dormant entities; wake on push signal).
+- **P1 ESCAPE** ("Po: venues do not know their own schedules") → sometimes TRUE: promoters/bookers know first. Harvest: watcher records support MULTIPLE authorized parties per entity/event (founder's "designee" made structural). When validated first-party signals conflict, the newer one may become the PREFERRED value, but the conflict is never silently collapsed — it surfaces per §3 boundary 3 (disputed, shown-never-hidden), with provenance recorded for both signals.
+- **P3 EXAGGERATION** ("Po: 10,000 events tonight" — SXSW is real) → ingestion must degrade gracefully under burst: priority queue by user-relevance under budget caps. Down-version ("one event a year") → watcher lifecycle states incl. HIBERNATED — stop/slow POLLING only: the record still accepts push, manual, and contradiction signals (a dormant entity must never become invisible), and any such signal wakes it.
 - **P4 DISTORTION** ("Po: review happens before extraction") → per-source extraction templates: once a source's format is reviewed, subsequent extractions get cheaper/deterministic — review once, extract cheaply forever.
-- **P5 WISHFUL** ("Po: every event verifies itself") → the ratified fast lane IS this; extension harvested: "confirm your listing" magic-link emails to venues — converts third-party data to first-party `confirmed` with one click by the venue. Candidate growth+trust loop in one.
+- **P5 WISHFUL** ("Po: every event verifies itself") → the ratified fast lane IS this; extension harvested: "confirm your listing" outreach emails to venues — the link INITIATES the verified claim/auth flow (§3: claimed authenticated account or mechanical domain-control validation; single-use, expiring, replay-protected, audited). Link possession alone confirms NOTHING — a forwarded link must be worthless. Only after verification completes do the entity's assertions carry first-party weight. Candidate growth+trust loop in one.
 - **P7/P8 RANDOM "beehive"** (scouts/foragers dance to recruit; hive throttles foragers by nectar flow) → attention allocation by expected change rate: sources that keep yielding changes get watched harder; quiet ones decay to slower cadence — the "rotating beam" instead of flat polling.
