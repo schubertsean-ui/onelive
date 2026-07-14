@@ -72,13 +72,17 @@ def test_cited_source_appendices_exist_and_are_nonempty():
     assert not missing, f"analysis cites appendix letters with no committed file: {missing}"
 
 
-def test_no_source_dated_after_compilation():
+def test_no_publication_style_date_after_compilation():
     """Evaluator catch (PR #18 round 8): an appendix cited a source whose
     publication date post-dated the compilation date — a time-incoherent
-    (hallucinated or forward-dated) citation. Rule: no ISO date later than the
-    file's compilation date may appear in a committed source appendix.
-    (Forward-looking regulatory deadlines in these files are written as prose
-    dates, so a strict ISO check does not false-positive on them.)"""
+    (hallucinated or forward-dated) citation.
+
+    SCOPE (deliberately narrow — do not assume more): this gate checks
+    PUBLICATION-STYLE dates only — bare ISO YYYY-MM-DD literals and
+    /YYYY/MM/DD segments inside URLs. Prose dates ("Aug 2, 2026") are NOT
+    checked, because appendices legitimately cite future *event* dates
+    (regulatory deadlines, compliance windows) in prose; prose publication
+    dates remain the evaluator's and editor's job to catch."""
     import datetime
     import re
 
