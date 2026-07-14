@@ -58,13 +58,13 @@ def test_cited_source_appendices_exist_and_are_nonempty():
     if not analysis.exists():
         pytest.skip("market analysis not present")
     text = analysis.read_text(encoding="utf-8")
-    referenced_files = set(re.findall(r"market_analysis_sources/([\w-]+\.md)", text))
+    referenced_files = set(re.findall(r"market_analysis_sources/([\w-]+\.(?:md|txt))", text))
     assert referenced_files, "analysis doc no longer names its appendix files — update this test"
     srcdir = RESEARCH_DIR / "market_analysis_sources"
     for name in sorted(referenced_files):
         p = srcdir / name
         assert p.exists(), f"analysis cites {name} but it is not committed"
-        assert len(p.read_text(encoding="utf-8").strip()) > 500, f"{name} is suspiciously small for a source appendix"
+        assert len(p.read_text(encoding="utf-8").strip()) > 500, f"{name} is suspiciously small for a cited artifact"
     # every bracketed appendix letter used in the analysis must map to a committed file
     cited_letters = set(re.findall(r"\[([A-H])\]", text))
     on_disk_letters = {p.name.split("_")[0] for p in srcdir.glob("*.md")} if srcdir.exists() else set()
@@ -93,7 +93,14 @@ def test_no_source_dated_after_compilation():
         compiled = datetime.date.fromisoformat(m.group(1))
         for lineno, line in enumerate(text.splitlines(), start=1):
             future = []
-            for iso in re.findall(r"\b(\d{4}-\d{2}-\d{2})\b", line):
+            # bare ISO dates + URL-embedded publication dates (/YYYY/MM/DD or
+            # YYYY-MM-DD in a URL path). Prose dates ("Aug 2, 2026") are NOT
+            # blanket-checked: appendices legitimately cite future *event*
+            # dates (regulatory deadlines); only publication-style dates can
+            # be time-incoherent, and those appear in ISO or URL-slug form.
+            candidates = re.findall(r"\b(\d{4}-\d{2}-\d{2})\b", line)
+            candidates += ["-".join(m) for m in re.findall(r"https?://\S*?/(\d{4})/(\d{2})/(\d{2})", line)]
+            for iso in candidates:
                 try:
                     d = datetime.date.fromisoformat(iso)
                 except ValueError:
