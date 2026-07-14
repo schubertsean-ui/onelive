@@ -34,6 +34,13 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 
 > **Ground-truth block staleness (2026-07-13):** the JSON block above is machine-maintained and could NOT be refreshed this session — the reconciler needs `gh` (absent in this sandbox) and a DB DSN (not provided). It shows pre-PR#9 state. The 2026-07-13 reality check below records what WAS independently verified (via the GitHub API). Refresh the block with `session_reconcile.py --heal` from an env with `gh` + `ONELIVE_DB_DSN`.
 
+## Session Contract #4 (2026-07-14, same conversation — founder: "Record it" [scale-out sensor architecture + first-party trust rule])
+
+GOAL: Record the founder-ratified scale-out sensor architecture as canon, with the po battery run against it per the new charter rule.
+SCOPE: docs/strategy/ONE_LIVE_SCALEOUT_SENSOR_ARCHITECTURE_v1.md (RATIFIED: watcher records not idle agents; pull/push/investigate modes; provenance-weighted gate — validated first-party assertion about own logistics enters at `confirmed`, via verified external channels OR authorized in-product accounts; scoped authority / no command authority / disputed-still-wins; scout swarm gated+capped; build triggers table — current critical path unchanged) + po harvest appendix (M6 ledger row) + TODOS/changelog wiring.
+NON-GOALS: no code builds now (triggers: Step 7+); ingest mailbox = future founder decision; no trust-invariant changes (4-state model, AI-never-publishes, shown-never-hidden all unchanged).
+DONE-CRITERIA: doc merged through the gate · decision anchors verbatim · harvest in ledger · TODOS carry the build triggers.
+
 ## Session Contract #3 (2026-07-14, same conversation — founder ratified "All three" [po + measures + levels-later] and directed a maximally robust po)
 
 GOAL: Institutionalize divergent thinking (de Bono po) and Kaizen measurement without touching any trust gate's convergent behavior.

@@ -33,4 +33,4 @@ founder digest in plain language.
 
 | Date | Decision/plan | Provocations run | Ideas surviving gates |
 |---|---|---|---|
-| — | none yet — first mandatory battery: the R-008 cron-arming friction attack | | |
+| 2026-07-14 | Scale-out sensor architecture (RATIFIED) | Full battery, seed 20260714, word "beehive" — all P1–P8.6 | 5 candidates harvested into the doc appendix + TODOS triage item (multi-party authority; burst/hibernation lifecycle; per-source extraction templates; confirm-your-listing magic link; change-rate attention allocation) — survival through design gates TBD at Step 7 |
