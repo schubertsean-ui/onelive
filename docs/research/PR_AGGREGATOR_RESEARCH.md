@@ -1,9 +1,9 @@
 # Press-Release Aggregator + Longitudinal Analysis — Research Report
 
-**Date:** 2026-07-14 · **Status:** RESEARCH (new-venture idea, not an OneLive feature) · **Session Contract:** #4 (STATE.md)
+**Date:** 2026-07-14 · **Status:** RESEARCH (new-venture idea, not an OneLive feature) · **Session Contract:** #5 (STATE.md)
 **Question (founder):** Are there press-release (PR) aggregators with free or very low cost APIs? Is a product viable that ingests PRs per public company worldwide, builds a per-entity timeline, and produces diff-style analysis vs prior releases — what's new, what changed, what's unanswered, what was promised but not delivered — for investors, consultants, and policy makers? What are the real moats?
 
-**Method:** deep-research harness — 5 parallel search angles → 25 sources fetched → 46 falsifiable claims extracted → top 25 adversarially verified by 3 independent verifier votes each (2/3 refutes kill a claim). Result: 22 confirmed, 3 refuted, 0 unverified. 107 agents total. Sections marked **[VERIFIED 3-0]** survived that gate; sections marked **[BEST-EFFORT]** come from a follow-up direct-fetch pass of vendors' own pricing pages (primary sources, single-pass, not adversarially verified — pricing changes often; re-check before contracting).
+**Method:** deep-research harness — 5 parallel search angles → 25 sources fetched → 46 falsifiable claims extracted → top 25 adversarially verified by 3 independent verifier votes each (2/3 refutes kill a claim). Result: 22 confirmed, 3 refuted, 0 unverified. The claim-by-claim verification journal (votes, evidence, sources, refuted claims) is committed alongside this report: `PR_AGGREGATOR_RESEARCH_verification.json`. Sections marked **[VERIFIED 3-0]** survived that gate. Sections marked **[BEST-EFFORT]** come from a follow-up pass that *attempted* direct fetches of vendors' own pricing/terms pages but was blocked by this sandbox's egress proxy for most vendor domains — those figures therefore come from search-index captures of the vendors' pages plus secondary comparison sources, single-pass, NOT adversarially verified and NOT primary-source-confirmed. **The pricing/licensing half of the founder's question is answered provisionally, not definitively** — re-verification against live pages is recorded as deferral **R-013** in `docs/RECORD.md`, with an objective trigger (venture greenlight → primary-source re-check + written redistribution answers from finalists, before any spend).
 
 ---
 
@@ -16,6 +16,7 @@
 5. **Raw diffing is commoditized; the moat is the ledger.** Redline tools are a crowded, cheap market. The defensible asset is the longitudinal, entity-resolved **promise ledger** — a growing, point-in-time-correct record of what each company claimed and what happened — because it compounds with time and cannot be back-filled cheaply by a late entrant. See §7.
 6. **Canada is a trap; Europe is opening up.** SEDAR+ terms prohibit scraping, database-building, and commercialization outright — verified against the actual ToS. Meanwhile the EU's ESAP and existing free national mechanisms (see §5) are the international expansion path.
 7. **You are customer #1.** The multibagger stock engine needs event/filing ingestion that is point-in-time correct. This product's machine-readable output is exactly that feed — which both de-risks product-market fit and enforces the right data discipline from day one (§7.4).
+8. **What this report does NOT settle:** exact commercial pricing and — more importantly — whether any affordable provider's license permits republishing *transformed* diffs/summaries. Vendor pages could not be fetched directly from this sandbox, so §3/§5/§8 figures are search-index/secondary reads, and no provider's public terms answer the transformed-output question. That verification is recorded as deferral R-013 and fires before any spend or build.
 
 ## 2. The free backbone: SEC EDGAR **[VERIFIED 3-0]**
 
@@ -34,7 +35,7 @@ Design consequences: poll ≤10 req/s for freshness, bulk ZIPs for the 2001+ bac
 
 ## 3. Newswire and news-API ingestion **[BEST-EFFORT — single-pass primary-source fetch]**
 
-> The adversarial pass produced zero *verified* claims about commercial API pricing (marketing pages don't survive a 3-verifier bar; several pages block fetchers). The tables below were compiled directly from vendors' own pricing/terms pages in a follow-up pass. Treat as accurate-as-of-2026-07-14, re-verify before contracting.
+> **Provenance (read before trusting any number below):** the adversarial pass produced zero *verified* claims about commercial API pricing (marketing pages don't survive a 3-verifier bar; several pages block fetchers). A follow-up pass attempted direct fetches of vendors' own pricing/terms pages, but this sandbox's egress proxy returned 403 for the vendor domains — so the tables below were compiled from **search-index captures of the vendors' own pages plus secondary comparison sources**, as of 2026-07-14. No figure here is screen-verified against a live page. Conflicting numbers are shown as ranges; per-provider source pages to re-verify are listed at the end of each subsection. Re-verification is deferral **R-013** (fires at venture greenlight, before any contract or ingestion code).
 
 ### 3.1 Financial-data APIs that carry press releases
 
@@ -51,7 +52,9 @@ Design consequences: poll ≤10 req/s for freshness, bulk ZIPs for the 2001+ bac
 | Marketaux | 100 req/day | ~$166–199/mo top tier visible | No demonstrated wire-PR coverage | unverified | unknown |
 | Alpha Vantage | **25 req/day** (unusable for polling) | $49.99/mo | No — aggregated news + sentiment | Standard grant is personal, non-commercial | unverified |
 
-**Read of this table:** the only affordable self-serve products with *verified wire-named press-release coverage* are RTPR ($139/mo, but a hostile license as written), FMP ($29–69/mo, provenance undocumented), and StockNewsAPI (prices unpublished). Benzinga is the "right at scale, wrong at bootstrap" option — full raw text from five wires with redistribution contemplated in contract, at enterprise prices. The recurring pattern: **whether transformed diffs/summaries count as prohibited "redistribution" is answered by no provider's public terms — it must be asked in writing of any finalist before a line of ingestion code is written against them.**
+**Read of this table:** the only affordable self-serve products with *reported* wire-named press-release coverage are RTPR ($139/mo, but a hostile license as written), FMP ($29–69/mo, provenance undocumented), and StockNewsAPI (prices unpublished). Benzinga is the "right at scale, wrong at bootstrap" option — full raw text from five wires with redistribution contemplated in contract, at enterprise prices. The recurring pattern: **whether transformed diffs/summaries count as prohibited "redistribution" is answered by no provider's public terms — it must be asked in writing of any finalist before a line of ingestion code is written against them.**
+
+*Source pages to re-verify (R-013):* rtpr.io + rtpr.io/terms · finnhub.io/pricing + finnhub.io/docs/api/press-releases · site.financialmodelingprep.com/pricing-plans + /developer/docs/stable/press-releases + /terms-of-service · stocknewsapi.com/pricing + /termsandconditions · benzinga.com/apis/cloud-product/press-releases · massive.com/pricing + /terms/market_data_terms.pdf (ex-Polygon) · tiingo.com/about/pricing + app.tiingo.com/tos · eodhd.com/pricing + /financial-apis/terms-conditions · marketaux.com/pricing + /tos · alphavantage.co/premium + /terms_of_service.
 
 ### 3.2 General news-aggregation APIs
 
@@ -65,6 +68,8 @@ Design consequences: poll ≤10 req/s for freshness, bulk ZIPs for the 2001+ bac
 | Mediastack | 100 req/**month**, 30-min delay | ~$24.99/mo | undisclosed | **Worst terms found**: data licensed for end-user "reference" only; storage/distribution by end users prohibited — incompatible with this product |
 | Event Registry / NewsAPI.ai | 2,000 tokens, 30-day window, non-commercial | ~$90/mo token-based | **to 2014** (deepest self-serve) | Paid-tier derived-data terms unverified — direct ToS read required |
 | Webz.io | News API Lite: 1,000 calls/mo, non-commercial | Sales-gated (expect 4–5 figures/yr) | **to 2008** (separate archive product) | Contract-negotiated — likeliest path to *explicit* redistribution rights |
+
+*Source pages to re-verify (R-013):* newsapi.org/pricing + /terms · newsdata.io/pricing + /terms + /news-sources · gnews.io/pricing + /legal/terms-of-service · mediastack.com/pricing + /terms · newsapi.ai/plans + eventregistry.org ToS · webz.io/products/news-api + docs.webz.io/reference/news-api-lite.
 
 **Key structural finding:** no general news API verifiably licenses "store + republish transformed summaries commercially" at a self-serve tier. The cheap tiers are cheap because they don't grant the rights this product needs. Either the rights come by contract (Webz.io-style), or the product leans on sources where the rights question is structurally easier: EDGAR (public domain) and the wires' own read surfaces (below).
 
@@ -83,6 +88,8 @@ The wires sell *distribution* to issuers; reading is the product working as inte
 | **RTPR (rtpr.io, by Newsmatics)** | **Free "Wire" tier; Pro ~$139/mo, 7-day trial** — a real-time press-release API aggregating Business Wire, PR Newswire, GlobeNewswire, and ACCESSWIRE, sub-500ms claimed | Terms page exists, content unread — the single most important ToS to read next |
 
 **RTPR is the most interesting single discovery of this pass:** all four major wires, by API, at $139/mo — if its license permits derived analytical works, it collapses the wire-ingestion problem to trivial cost. Verify before relying on it (young product; check who stands behind uptime and licensing indemnity).
+
+*Source pages to re-verify (R-013):* prnewswire.com/rss + /terms-of-use · globenewswire.com/rss/list + Notified ToS (not located this pass) · businesswire.com/help/feed-options + services.businesswire.com/copyright · accesswire.com/rssfeed.aspx · einpresswire.com/all-rss · openpr.com/news/terms.html · rtpr.io/terms.
 
 ## 4. Legal posture **[VERIFIED 3-0 unless noted]**
 
@@ -103,7 +110,7 @@ Ranked for a commercial store-and-transform product (each venue's cheapest sanct
 | Venue | Access | Terms | Notes |
 |---|---|---|---|
 | **Japan EDINET** (FSA statutory disclosure) | Free API v2, self-service key | Secondary use **including for-profit** permitted (open-data posture) | Statutory filings, slower cadence than exchange timely disclosure; multi-year archive |
-| **France info-financiere** (AMF OAM via DILA) | Free official API on data.gouv.fr / Opendatasoft | Likely Licence Ouverte 2.0 (confirm) | Best free EU venue found; per-issuer document lists + downloads |
+| **France info-financiere** (AMF OAM via DILA) | Free official API on data.gouv.fr / Opendatasoft | **PROVISIONAL** — reuse license believed to be Licence Ouverte 2.0 (standard for data.gouv.fr) but NOT confirmed this pass; treat as unranked until the license text is read | Per-issuer document lists + downloads; would be the best free EU venue if the license confirms |
 | **UK FCA NSM** (National Storage Mechanism) | Free web archive, CSV export; no documented retrieval API | Notably friendly: licence to use, store, copy, distribute, make available to third parties for lawful purposes | Slower than RNS real-time; read the Acceptable Use Policy before automating |
 
 **Coming free:** **EU ESAP** — phase-1 collection starts 2026-07-10 (this week); public portal mandated by 2027-07-10, free, machine-readable, with API and bulk download by regulation. This will be the best free EU-wide source; design-track it now.
@@ -113,6 +120,8 @@ Ranked for a commercial store-and-transform product (each venue's cheapest sanct
 **Unpublished-price license:** **LSE RNS feed** (contact LSEG; site ToS explicitly ban all bots — no scraping path); **Canada ASC bulk data** (contact ASC; notably the *only* venue whose license explicitly permits resale under conditions).
 
 **Effectively closed without bespoke licensing:** HKEXnews, SGXNet, India NSE/BSE (scraping contractually — in India possibly statutorily — barred), Germany's Unternehmensregister (register authority has said mass automated queries may be criminal; wait for ESAP).
+
+*Source pages to re-verify (R-013):* fca.org.uk NSM pages + data.fca.org.uk/artefacts/NSM_Terms_of_Use.pdf · lseg.com RNS pricing-and-policy-guidelines-2026 PDF + website terms · esma.europa.eu ESAP pages + Reg (EU) 2023/2859 · info-financiere.gouv.fr/pages/api0 + data.gouv.fr listing · asx.com.au/legals/terms-of-use + asxonline.com schedule-of-fees PDF · jpx.co.jp TDnet API service pages · disclosure2dl.edinet-fsa.go.jp API docs + terms (WZEK0030) · sedarplus.ca/onlinehelp/terms-of-use · hkexnews.hk + hkex.com.hk terms · sgx.com/terms-use · nseindia.com/static/nse-terms-of-use + bseindia.com website policy.
 
 ## 6. Open-data bulk: Common Crawl CC-NEWS **[VERIFIED 3-0]**
 
@@ -178,7 +187,7 @@ Underwritten by verified findings; per-source costs in §3/§5 are best-effort.
 2. **Wire supplement (low cost, licensing-gated):** one financial news API chosen on *redistribution terms first, price second* (§3 tables) to catch non-8-K press releases (product launches, partnerships) and pre-8-K timing. Store full text internally; publish only transformed output.
 3. **IR-page RSS (free, targeted):** for the beachhead sector's issuers, poll company IR RSS/newsroom pages directly — issuer-published content, lowest ToS risk among scraped sources, best earliest-copy provenance.
 4. **Global backfill (compute-cost):** CC-NEWS WARCs 2016+ for retrospective timelines; accept partial coverage. **[VERIFIED, cost caveat]**
-5. **International regulatory (free-first):** per §5 — Japan EDINET (free API, for-profit reuse allowed), France info-financiere (free API), UK FCA NSM (free, reuse-friendly terms) now; EU ESAP when its public portal opens (mandated July 2027, free + API by regulation); ASX ComNews (~AUD 575/mo) as the first *paid* venue when Australia matters; defer LSE RNS / ASC Canada / HKEX / SGX / India until revenue justifies bespoke licenses.
+5. **International regulatory (free-first):** per §5 — Japan EDINET (free API, for-profit reuse allowed), France info-financiere (free API; reuse license still to be confirmed), UK FCA NSM (free, reuse-friendly terms) now; EU ESAP when its public portal opens (mandated July 2027, free + API by regulation); ASX ComNews (~AUD 575/mo) as the first *paid* venue when Australia matters; defer LSE RNS / ASC Canada / HKEX / SGX / India until revenue justifies bespoke licenses.
 6. **Excluded:** SEDAR+ scraping (ToS), speed-race feeds (weak moat), any source whose ToS bans derived-work commercialization unless a license is bought deliberately (escalation: money/new services = founder-crucial).
 
 ## 11. Relationship to multibagger (founder context)
@@ -203,4 +212,4 @@ From the Multibagger Everything Document (uploaded 2026-07-14): the stock engine
 
 ---
 
-*Sources: all VERIFIED-tagged findings trace to the deep-research run of 2026-07-14 (22 claims confirmed 3-0 against primary sources: sec.gov, sedarplus.ca, copyright.gov, commoncrawl.org, nber.org, rcfp.org, hudson-labs.com). BEST-EFFORT sections cite vendors' own pages inline. Full verification journal preserved in the session transcript.*
+*Sources: all VERIFIED-tagged findings trace to the deep-research run of 2026-07-14 (22 claims confirmed 3-0 against primary sources: sec.gov, sedarplus.ca, copyright.gov, commoncrawl.org, nber.org, rcfp.org, hudson-labs.com) — claim-by-claim journal committed at `docs/research/PR_AGGREGATOR_RESEARCH_verification.json`. BEST-EFFORT sections are search-index/secondary-source compilations (NOT primary-verified — sandbox egress blocked vendor fetches); each such subsection ends with the list of source pages to re-verify under R-013.*

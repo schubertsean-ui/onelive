@@ -1,0 +1,356 @@
+{
+  "run_date": "2026-07-14",
+  "harness": "deep-research workflow (5 angles, 3-vote adversarial verification)",
+  "logs": [
+    "Q: Research press-release (corporate PR / newswire) aggregators and data sources wi\u2026",
+    "Decomposed into 5 angles: primary-sources-newswire-and-news-APIs, free-regulatory-and-official-feeds, licensing-and-legal-risk, competitive-landscape-and-pricing, practitioner-implementation-and-moats",
+    "primary-sources-newswire-and-news-APIs: 6 results",
+    "free-regulatory-and-official-feeds: 6 results",
+    "competitive-landscape-and-pricing: 6 results",
+    "competitive-landscape-and-pricing: 4 novel (2 filtered)",
+    "licensing-and-legal-risk: 6 results",
+    "licensing-and-legal-risk: 5 novel (1 filtered)",
+    "practitioner-implementation-and-moats: 6 results",
+    "practitioner-implementation-and-moats: 4 novel (2 filtered)",
+    "Fetched 25 sources \u2192 46 claims \u2192 verifying top 25",
+    "\"All EDGAR data is free of charge to access and dow\u2026\": 3-0 \u2713",
+    "\"The SEC's fair-access policy caps automated retrie\u2026\": 3-0 \u2713",
+    "\"Automated requests must declare identity via a Use\u2026\": 3-0 \u2713",
+    "\"SEDAR+ Terms of Use only license reproduction of U\u2026\": 3-0 \u2713",
+    "\"The SEDAR+ Terms of Use expressly prohibit commerc\u2026\": 3-0 \u2713",
+    "\"The Terms of Use prohibit automated/scraped access\u2026\": 3-0 \u2713",
+    "\"The US Copyright Office, in its June 2022 study, d\u2026\": 3-0 \u2713",
+    "\"The Office found that whether news aggregation is \u2026\": 3-0 \u2713",
+    "\"The study reiterates that facts and ideas in news \u2026\": 3-0 \u2713",
+    "\"The report treats the hot-news misappropriation do\u2026\": 3-0 \u2713",
+    "\"The CC-NEWS dataset is published as WARC files on \u2026\": 3-0 \u2713",
+    "\"The CC-NEWS archive extends back to 2016, giving r\u2026\": 3-0 \u2713",
+    "\"Access to Common Crawl data (including CC-NEWS) is\u2026\": 0-3 \u2717",
+    "\"Textual changes between a company's current and pr\u2026\": 3-0 \u2713",
+    "\"Diffs of disclosures predict not only returns but \u2026\": 3-0 \u2713",
+    "\"In AP v. Meltwater (filed 2012), the Associated Pr\u2026\": 3-0 \u2713",
+    "\"The 'hot news' misappropriation tort \u2014 a quasi-pro\u2026\": 3-0 \u2713",
+    "\"Media-law attorney Michael Grygiel's view, as repo\u2026\": 3-0 \u2713",
+    "\"SEC EDGAR provides every mandatory disclosure file\u2026\": 0-3 \u2717",
+    "\"EDGAR's effective rate limit is 10 requests per se\u2026\": 3-0 \u2713",
+    "\"EDGAR's free full-text search endpoint (efts.sec.g\u2026\": 3-0 \u2713",
+    "\"PRSA, the main U.S. trade association for public r\u2026\": 0-3 \u2717",
+    "\"Diff-style comparison of disclosure documents alre\u2026\": 3-0 \u2713",
+    "\"The SEC asks scripted users to minimize server loa\u2026\": 3-0 \u2713",
+    "\"EDGAR full-text search covers the complete text of\u2026\": 3-0 \u2713",
+    "Verify done: 25 claims \u2192 22 confirmed, 3 refuted, 0 unverified"
+  ],
+  "result": {
+    "question": "Research press-release (corporate PR / newswire) aggregators and data sources with free or very low cost APIs, to feed a product that ingests press releases from public (traded) companies worldwide, builds a per-entity timeline, and produces diff-style analysis versus that entity's prior releases (what's new, what changed, what's unanswered, what promised-but-not-delivered) for investors, consultants, and policy makers. Cover: (1) all viable ingestion sources \u2014 newswire APIs (PR Newswire/Cision, Business Wire, GlobeNewswire, Accesswire, EIN Presswire, PRWeb, OpenPR etc.), news-aggregation APIs that carry press releases (NewsAPI.org, NewsData.io, Marketaux, Finnhub, Alpha Vantage News, Polygon.io news, Tiingo, StockNewsAPI, Benzinga, EODHD, Financial Modeling Prep, GNews, Mediastack, Webz.io, Event Registry / NewsAPI.ai, Bing/Google alternatives), regulatory filing feeds that are free (SEC EDGAR full-text + 8-K, SEDAR+, RNS/LSE, ASX, TSE, EU transparency feeds), RSS scraping of company IR pages, and Common Crawl / open datasets; (2) for each: pricing tiers (exact free-tier limits and lowest paid tier), rate limits, coverage (geography, exchanges, sectors), licensing/redistribution terms (can we store, transform, and republish summaries/diffs?), latency, and historical archive depth; (3) legal considerations of aggregating and transforming press releases (copyright status of press releases, hot-news doctrine, fair use for summaries/diffs, terms-of-service risks); (4) competitive landscape \u2014 who already does PR aggregation + analysis for investors (AlphaSense, Tegus, Quartr, Koyfin, Stream, Bloomberg, Refinitiv, tools like Bedrock AI or Amenity Analytics that do disclosure diffing) and what they charge; (5) realistic moat candidates for a small player: quality (entity resolution, dedup, claim tracking over time), speed, cost, longitudinal 'promise ledger' per entity, sector-specific coverage, machine-readable output for ingestion into customers' own AI platforms. Conclude with a recommended ingestion stack (cheapest viable, per-source) and a candid assessment of which moats are real vs weak.",
+    "summary": "The verified evidence strongly supports building the ingestion stack on SEC EDGAR as the zero-cost backbone (free, no API key, ~25 years of full-text-searchable filings including 8-K press-release exhibits, bounded only by a 10 req/s fair-access limit and a mandatory declared User-Agent), supplemented by Common Crawl's CC-NEWS for bulk worldwide news/PR text (daily WARC drops, archive to 2016). Canada's SEDAR+ is the clear counter-example: its Terms of Use prohibit scraping, database construction, and any commercialization, so it cannot legally feed a paid product without a separate ASC bulk-data license. Legally, the core product concept \u2014 extracting facts/claims and producing diffs and summaries \u2014 sits on favorable ground in the US: facts are uncopyrightable, no ancillary press-publishers' right exists, and hot-news misappropriation is largely preempted; the residual risk zone is verbatim excerpting at scale in a paid, non-traffic-driving service (the AP v. Meltwater fact pattern). The diff-analysis thesis itself is academically validated (Cohen/Malloy/Nguyen's \"Lazy Prices\": disclosure changes predict returns up to 188 bps/month and concrete outcomes like earnings and bankruptcies), but raw document diffing is already commoditized (Draftable, Litera, Word Compare), so the defensible moat must be the longitudinal, entity-resolved claim/promise ledger built on top \u2014 not the diff mechanics. Note: no claims about commercial newswire/news-API pricing tiers (PR Newswire, Business Wire, Marketaux, Finnhub, etc.) or competitor pricing (AlphaSense, Quartr, Bedrock AI) survived verification, so that half of the original question remains unanswered by this evidence set.",
+    "findings": [
+      {
+        "claim": "SEC EDGAR is a fully free, sanctioned programmatic ingestion source for all US public-company disclosures, including 8-K press-release exhibits \u2014 no API key, subscription, or license fee required.",
+        "confidence": "high",
+        "sources": [
+          "https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data"
+        ],
+        "evidence": "SEC (primary source): \"Anyone can access and download EDGAR information for free or query it through a variety of EDGAR public searches.\" Independently corroborated by multiple 2026 developer guides confirming the data.sec.gov JSON APIs, full-text search, and bulk archives require no key or registration. Qualifiers: free \u2260 unlimited (fair-access limits apply), sub-second real-time dissemination requires the paid PDS feed (free endpoints have minutes-level latency), and copyright in company-authored 8-K exhibits is separate from the SEC's access terms.",
+        "vote": "3-0 (claim 0)"
+      },
+      {
+        "claim": "EDGAR's operational constraints define the pipeline design: a hard cap of 10 requests/second (machine-count-independent, enforced per IP with ~10-minute 403 blocks), a mandatory declared User-Agent containing company name + admin email, CIKs zero-padded to 10 digits, and an explicit SEC preference that bulk backfills use the nightly bulk ZIP archives and index files rather than page crawling.",
+        "confidence": "high",
+        "sources": [
+          "https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data",
+          "https://dev.to/odeeb/the-sec-edgar-api-a-practical-guide-to-free-filing-data-in-python-15b"
+        ],
+        "evidence": "SEC: \"The current maximum request rate is 10 requests per second... no matter the number of machines used\"; \"You need to supply a company name and administrative email in your HTTP headers, or your request will be denied\"; \"please use efficient scripting, downloading only what you need.\" SEC's APIs page states the most efficient means to fetch large amounts of data is the bulk archive ZIP files (companyfacts.zip, submissions.zip, republished nightly). A verifier's own undeclared automated fetch of sec.gov reproduced the 403 behavior. Policy in force since 2021, confirmed current in 2026.",
+        "vote": "3-0 x4 (claims 1, 2, 17, 20 \u2014 merged)"
+      },
+      {
+        "claim": "EDGAR full-text search (efts.sec.gov) covers the complete text of all electronically filed documents and exhibits since May 2001 \u2014 roughly 25 years of free, keyword-searchable archive depth with form-type, date-range, and entity filters \u2014 sufficient to build per-entity disclosure timelines and retrieve press-release-bearing 8-Ks historically.",
+        "confidence": "high",
+        "sources": [
+          "https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data",
+          "https://dev.to/odeeb/the-sec-edgar-api-a-practical-guide-to-free-filing-data-in-python-15b"
+        ],
+        "evidence": "SEC: \"Full-Text Search allows you to search the full text of all EDGAR filings submitted electronically since 2001, including all data in the filing itself as well as all attachments such as exhibits.\" Index start is 2001-05-04; pre-2001 filings (back to 1993) are index-browsable but not keyword-searchable; confidentially-redacted exhibit portions are excluded.",
+        "vote": "3-0 x2 (claims 18, 21 \u2014 merged)"
+      },
+      {
+        "claim": "SEDAR+ (Canada) is legally unusable as a free ingestion source for this product: its Terms of Use license only UNALTERED extracts for informational/internal use, expressly prohibit commercializing Public Information or building a product/service on it, forbid constructing databases or storing content for third-party access, and ban robots/spiders/automated searches. Unlike EDGAR, there is no sanctioned free bulk/API path \u2014 Canadian coverage requires a paid license (e.g., the Alberta Securities Commission bulk-data subscription) or commercial redistributors (FactSet, QuoteMedia).",
+        "confidence": "high",
+        "sources": [
+          "https://www.sedarplus.ca/onlinehelp/terms-of-use/"
+        ],
+        "evidence": "Terms (verified via search-index extraction; the page itself 403s automated fetchers, itself demonstrating the anti-bot posture): users \"may use and reproduce limited unaltered extracts or unaltered copies... for informational, educational, research or internal business/organizational use\"; must \"not seek to commercialize the Public Information or to create a product or service based on the commercialization of the Public Information\"; may not \"construct a database of any kind\" nor store it \"in databases for access by any third party\"; may not use \"any robot, spider or other automatic device... to monitor, access, scrape, copy\" the site. A store-transform-republish diff product breaches the unaltered-copies condition plus the database, commercialization, and mass-distribution prohibitions simultaneously. Verifiers found the claim conservative, not overstated; no free SEDAR+ API existed as of July 2026.",
+        "vote": "3-0 x3 (claims 3, 4, 5 \u2014 merged)"
+      },
+      {
+        "claim": "US copyright law gives the fact/claim-extraction core of the product a favorable foundation: facts and ideas in press content are uncopyrightable (Feist; 17 U.S.C. \u00a7102(b)), the US Copyright Office's June 2022 study found headline+lede aggregation is 'more likely to reproduce unprotectable ideas and facts' than protected expression, and the Office declined to recommend any EU-style ancillary press-publishers' right \u2014 so no dedicated statutory neighboring right restricts reuse of press content in the US beyond ordinary copyright.",
+        "confidence": "high",
+        "sources": [
+          "https://www.copyright.gov/policy/publishersprotections/202206-Publishers-Protections-Study.pdf"
+        ],
+        "evidence": "USCO: \"Given the available evidence, the Copyright Office does not recommend adopting a new ancillary copyright to bolster press publishers' protections\" and \"Where an aggregator uses only headlines and ledes, it is less likely to reproduce the copyrightable expression of the news content and more likely to reproduce unprotectable ideas and facts.\" As of July 2026 no federal or state ancillary right has been enacted (JCPA never passed; California's AB 886 died in 2024). Verifiers noted a diff product that re-expresses extracted facts sits even further on the unprotectable side than the headline/lede scenario the Office analyzed. Caveat: the study addresses news articles, not press releases specifically \u2014 the doctrine applies identically but the mapping is analogical.",
+        "vote": "3-0 x2 (claims 6, 8 \u2014 merged)"
+      },
+      {
+        "claim": "Fair use for aggregation is unsettled at the margins and bounds how much verbatim press-release text can be stored and republished: there is no consensus that even headline+lede scraping is necessarily fair use, but near consensus that copying large extracts or entire articles exceeds it; media-law practitioners view headline + very small snippet + link as likely fair use, with anything fuller being fact-dependent under the four-factor test.",
+        "confidence": "high",
+        "sources": [
+          "https://www.copyright.gov/policy/publishersprotections/202206-Publishers-Protections-Study.pdf",
+          "https://www.rcfp.org/journals/news-media-and-law-summer-2012/content-aggregation-spreadi/"
+        ],
+        "evidence": "USCO: \"Commenters did not agree on the extent to which fair use permits aggregation of news content or whether the scraping of headlines and lede sentences alone is necessarily fair use, though there was a near consensus that aggregation of large extracts or entire articles can exceed what is permitted.\" RCFP (attorney Michael Grygiel): \"a headline and only a very small snippet of information\" with hyperlinks is likely fair use, but the determination \"would depend on the facts of a case.\" Practical rule for the product: store full text internally for analysis, but limit republished verbatim quotation to short attributed snippets; re-expressed facts/diffs are the safe output format.",
+        "vote": "3-0 x2 (claims 7, 16 \u2014 merged; USCO primary + RCFP secondary)"
+      },
+      {
+        "claim": "Hot-news misappropriation is a limited residual risk, not a blocker: the INS v. AP (1918) quasi-property tort was held largely preempted by the federal Copyright Act in NBA v. Motorola (2d Cir. 1997) and further narrowed in Barclays Capital v. Theflyonthewall.com (2d Cir. 2011), which held that republishing time-sensitive facts from others' reports is not by itself actionable \u2014 a decision that favored a financial-news aggregator on facts close to this product.",
+        "confidence": "high",
+        "sources": [
+          "https://www.copyright.gov/policy/publishersprotections/202206-Publishers-Protections-Study.pdf",
+          "https://www.rcfp.org/journals/news-media-and-law-summer-2012/content-aggregation-spreadi/"
+        ],
+        "evidence": "Barclays v. Theflyonthewall, 650 F.3d 876 (2d Cir. 2011), held the New York hot-news claim over time-sensitive stock recommendations preempted; the USCO study treats the tort as surviving only narrowly in the Second Circuit where specific extra elements (free-riding, direct competition, incentive destruction) are present. Verified against the primary case record (Justia, DMLP, EFF). No post-2011 decision has revived a broad hot-news tort. Minor nuance: a few states historically recognized misappropriation torts, but face the same \u00a7301 preemption analysis.",
+        "vote": "3-0 x2 (claims 9, 15 \u2014 merged)"
+      },
+      {
+        "claim": "AP v. Meltwater (SDNY 2012-2013) is the closest-analog legal risk template for a commercial press-release diff/summary product: AP sued a paid clipping/aggregation service on both copyright and hot-news theories, arguing that charging fees, taking lengthier excerpts than typical aggregators, and not driving traffic back to sources crosses into unlawful aggregation \u2014 and the court granted AP summary judgment on copyright (fair use rejected) in March 2013 before a July 2013 settlement.",
+        "confidence": "medium",
+        "sources": [
+          "https://www.rcfp.org/journals/news-media-and-law-summer-2012/content-aggregation-spreadi/"
+        ],
+        "evidence": "RCFP: \"The AP argued that Meltwater's service crosses the line separating lawful from unlawful aggregation practices because it charges a fee, does not drive traffic to original sources, and uses lengthier excerpts than most aggregators.\" Corroborated by DMLP and Nieman Lab; verifier confirmed the March 2013 fair-use rejection and settlement (the hot-news claim was never adjudicated). Design implication: a paid, non-traffic-driving product must avoid systematic verbatim excerpting \u2014 analysis and re-expression, not clipping. Medium confidence because the primary source is secondary press coverage and the 'most analogous fact pattern' framing is analytical, though verifiers found it defensible.",
+        "vote": "3-0 (claim 14)"
+      },
+      {
+        "claim": "Common Crawl's CC-NEWS dataset is a viable bulk backfill and near-daily-latency supplement for worldwide news/PR text: WARC files are published daily to s3://commoncrawl/crawl-data/CC-NEWS/ (often within hours of capture), with a continuous archive back to August 2016 (~1.3B articles processed by academic users) \u2014 roughly a decade of depth for per-entity timelines.",
+        "confidence": "high",
+        "sources": [
+          "https://commoncrawl.org/news-crawl"
+        ],
+        "evidence": "Common Crawl: \"WARC files are released on a daily basis... Path listings at s3://commoncrawl/crawl-data/CC-NEWS/yyyy/mm/warc.paths.gz\" and \"The news crawl was started in 2016.\" Corroborated by NVIDIA NeMo Curator docs, cc-pyspark, AWS Open Data registry, and the Infini-News paper (1.3B articles from 2016 inception). Key caveats: a 2026 census found only ~83% of sampled news domains captured, press-release wire coverage depends on the crawler's RSS/sitemap seeds (so PR coverage is partial and unguaranteed), and the companion claim that access requires no AWS account/is entirely free was REFUTED \u2014 budget for AWS access/egress costs.",
+        "vote": "3-0 x2 (claims 10, 11 \u2014 merged)"
+      },
+      {
+        "claim": "The product thesis is academically validated: 'Lazy Prices' (Cohen, Malloy & Nguyen; NBER WP 25084, published Journal of Finance 2020) shows textual changes between a company's current and prior 10-K/10-Q filings strongly predict future stock returns \u2014 a short-changers/long-non-changers portfolio earned up to 188 bps/month alpha (>22%/yr) over 1995-2014 \u2014 and predict concrete fundamentals: future earnings, profitability, news announcements, and firm-level bankruptcies. Disclosure diffing carries real fundamental signal, not just trading noise.",
+        "confidence": "high",
+        "sources": [
+          "https://www.nber.org/papers/w25084"
+        ],
+        "evidence": "Abstract: \"A portfolio that shorts 'changers' and buys 'non-changers' earns up to 188 basis points in monthly alphas (over 22% per year)\" and \"Changes to the 10-Ks predict future earnings, profitability, future news announcements, and even future firm-level bankruptcies.\" Peer-reviewed (JF 75(3):1371-1415); no failed replications found. Caveats: the evidence is on SEC filings, not press releases \u2014 extrapolation to PR-text diffing is untested (though the recommended EDGAR-first stack applies directly); '188 bps' is the best specification; the tradeable return spread is likely partially arbitraged post-2020, but the fundamental-prediction results (the basis for a 'promise ledger') are not decay-sensitive in the same way.",
+        "vote": "3-0 x2 (claims 12, 13 \u2014 merged)"
+      },
+      {
+        "claim": "Raw document diffing is a commoditized capability and therefore a weak moat: Draftable sells blackline/redline comparison for PDF/Word (~$249/user/yr legal tier, $10.75/user/mo business tier, plus a free tool and API), competing with Litera Compare (~72% of the legal industry), DocStyle, Adobe Acrobat compare, and free Microsoft Word Compare. The defensible layer must be what the verified evidence supports upstream and downstream of the diff: entity-resolved longitudinal claim/promise tracking (validated by Lazy Prices' fundamentals results) and legally-safe machine-readable fact extraction (validated by the facts-are-unprotectable doctrine) \u2014 not the diff mechanics themselves.",
+        "confidence": "medium",
+        "sources": [
+          "https://www.hudson-labs.com/blog/the-best-sec-filing-navigation-tools",
+          "https://www.nber.org/papers/w25084",
+          "https://www.copyright.gov/policy/publishersprotections/202206-Publishers-Protections-Study.pdf"
+        ],
+        "evidence": "Hudson Labs: \"Draftable provides blacklines/redlines for both PDFs and word documents and gets good reviews.\" Verifier confirmed Draftable pricing against draftable.com and found numerous competing redline products in 2026 market roundups, supporting 'commoditized.' Medium confidence because the source is blog-quality (though independently corroborated) and the moat inference is synthesis across findings rather than a directly verified claim; note the broader competitive landscape (AlphaSense, Quartr, Bedrock AI, Amenity) was NOT covered by any surviving claim.",
+        "vote": "3-0 (claim 19)"
+      },
+      {
+        "claim": "Recommended ingestion stack from the verified evidence (cheapest viable, per-source): (1) US backbone \u2014 SEC EDGAR free APIs + full-text search + nightly bulk ZIPs, with a compliant declared User-Agent, \u226410 req/s polling for freshness, and bulk archives for the 2001+ backfill; (2) global/PR supplement \u2014 CC-NEWS daily WARCs (2016+ backfill), accepting partial wire coverage and AWS compute/egress costs; (3) Canada \u2014 exclude SEDAR+ scraping entirely; if Canadian coverage is required, budget for the ASC bulk-data license or a commercial redistributor. Output design constraint throughout: republish re-expressed facts, diffs, and short attributed snippets \u2014 never systematic verbatim excerpts.",
+        "confidence": "high",
+        "sources": [
+          "https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data",
+          "https://commoncrawl.org/news-crawl",
+          "https://www.sedarplus.ca/onlinehelp/terms-of-use/",
+          "https://www.copyright.gov/policy/publishersprotections/202206-Publishers-Protections-Study.pdf"
+        ],
+        "evidence": "Synthesis of all findings above, each individually 3-0 verified against primary sources. This is the only stack the surviving evidence can underwrite; it is US-heavy by construction because no claims about commercial newswire APIs, financial-news APIs, or non-US regulatory feeds (RNS, ASX, TSE, EU) survived verification.",
+        "vote": "synthesis of 3-0 claims"
+      }
+    ],
+    "caveats": "Coverage gap is the dominant caveat: the surviving 22 claims address only SEC EDGAR, SEDAR+, CC-NEWS, US legal doctrine, one academic paper, and one commoditization data point. The research question's largest sections \u2014 pricing/rate-limits/licensing for commercial newswires (PR Newswire, Business Wire, GlobeNewswire, Accesswire, etc.) and news-aggregation APIs (Marketaux, Finnhub, Polygon, Benzinga, EODHD, FMP, Event Registry, etc.), non-US regulatory feeds (RNS/LSE, ASX, TSE, EU), IR-page RSS scraping economics, and competitor pricing (AlphaSense, Tegus, Quartr, Bedrock AI, Amenity) \u2014 produced zero verified claims, so the recommended stack and moat assessment are necessarily incomplete and US-biased. Three refuted claims matter for planning: Common Crawl access is NOT confirmed as account-free/cost-free (budget AWS costs); EDGAR does NOT deliver every disclosure as JSON (the JSON APIs cover structured data; documents/exhibits are HTML/text); and the notion that press releases carry PRSA-endorsed implicit republication consent was refuted 0-3 \u2014 do not rely on 'issuers want distribution' as a legal theory. Several verifications relied on search-index extraction because primary pages (sec.gov, sedarplus.ca, copyright.gov PDF) blocked the verifier's proxy with 403s, though quotes matched verbatim where checked. Legal findings are US-only (plus Canada ToS); EU/UK database rights, TDM exceptions, and press-publishers' rights (which DO exist in the EU) were not assessed. Time-sensitivity: SEC rate limits are a 'current guideline' subject to change; SEDAR+ terms could be revised; the Lazy Prices return spread (1995-2014 sample) is likely partially arbitraged, though its fundamentals-prediction results are the durable basis for the product. AP v. Meltwater's fair-use ruling is a single district-court decision that settled \u2014 persuasive, not binding, authority.",
+    "openQuestions": [
+      "What are the actual free-tier limits, licensing/redistribution terms, and press-release coverage of the commercial news-API tier (Marketaux, Finnhub, EODHD, FMP, Polygon, Benzinga, Event Registry, NewsData.io, etc.), and do any permit storing and republishing transformed summaries/diffs? None survived verification.",
+      "What free or low-cost sanctioned paths exist for non-US regulatory disclosure feeds \u2014 LSE RNS, ASX announcements, Japan's TDnet/EDINET, EU transparency feeds \u2014 and what are their ToS on commercial transformation? (Also: how do EU press-publishers' rights under DSM Art. 15 and the database right constrain a product serving or sourcing from Europe?)",
+      "What does the ASC/SEDAR+ commercial bulk-data license actually cost, and is Canadian coverage worth that cost versus relying on cross-listed companies' EDGAR filings and company IR-page RSS?",
+      "What do the incumbent competitors (AlphaSense, Quartr, Bedrock AI, Amenity Analytics, Koyfin) actually charge and which of them already ship longitudinal disclosure-diff or promise-tracking features \u2014 i.e., is the 'promise ledger' whitespace real or already occupied?"
+    ],
+    "refuted": [
+      {
+        "claim": "Access to Common Crawl data (including CC-NEWS) is entirely free \u2014 downloadable over HTTPS or processed in AWS without even an AWS account \u2014 under the AWS Open Data Sponsorship Program, so the only ingestion cost is compute/bandwidth on the consumer side.",
+        "vote": "0-3",
+        "source": "https://commoncrawl.org/news-crawl"
+      },
+      {
+        "claim": "SEC EDGAR provides every mandatory disclosure filed by every U.S. public company as JSON, completely free, with no API key required \u2014 making it a zero-cost ingestion source for U.S. corporate disclosures (including 8-K press-release exhibits).",
+        "vote": "0-3",
+        "source": "https://dev.to/odeeb/the-sec-edgar-api-a-practical-guide-to-free-filing-data-in-python-15b"
+      },
+      {
+        "claim": "PRSA, the main U.S. trade association for public relations professionals, takes the official position that a press release carries an implicit consent from its issuer to re-use and republish its content (with exceptions such as direct quotes or specific facts/figures, where attribution is recommended). This industry norm materially lowers the practical copyright/permission risk of ingesting, storing, and transforming corporate press releases in an aggregation product.",
+        "vote": "0-3",
+        "source": "https://prsay.prsa.org/2012/07/20/of-press-releases-and-plagiarism/"
+      }
+    ],
+    "unverified": [],
+    "sources": [
+      {
+        "url": "https://rtpr.io/",
+        "quality": "unreliable",
+        "angle": "primary-sources-newswire-and-news-APIs",
+        "claimCount": 0
+      },
+      {
+        "url": "https://www.benzinga.com/apis/cloud-product/press-releases/",
+        "quality": "unreliable",
+        "angle": "primary-sources-newswire-and-news-APIs",
+        "claimCount": 0
+      },
+      {
+        "url": "https://finnhub.io/docs/api/press-releases",
+        "quality": "unreliable",
+        "angle": "primary-sources-newswire-and-news-APIs",
+        "claimCount": 0
+      },
+      {
+        "url": "https://qveris.ai/guides/financial-news-api-for-ai-agents/",
+        "quality": "unreliable",
+        "angle": "primary-sources-newswire-and-news-APIs",
+        "claimCount": 0
+      },
+      {
+        "url": "https://apitube.io/blog/post/best-financial-news-api-trading",
+        "quality": "unreliable",
+        "angle": "primary-sources-newswire-and-news-APIs",
+        "claimCount": 0
+      },
+      {
+        "url": "https://apify.com/darknezz/press-release-monitor/api",
+        "quality": "unreliable",
+        "angle": "primary-sources-newswire-and-news-APIs",
+        "claimCount": 0
+      },
+      {
+        "url": "https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data",
+        "quality": "primary",
+        "angle": "free-regulatory-and-official-feeds",
+        "claimCount": 5
+      },
+      {
+        "url": "https://dev.to/odeeb/the-sec-edgar-api-a-practical-guide-to-free-filing-data-in-python-15b",
+        "quality": "blog",
+        "angle": "free-regulatory-and-official-feeds",
+        "claimCount": 5
+      },
+      {
+        "url": "https://docs.londonstockexchange.com/sites/default/files/documents/RNS%20Data%20Feed%20Technical%20Specification%20-%20v1.3.pdf",
+        "quality": "unreliable",
+        "angle": "free-regulatory-and-official-feeds",
+        "claimCount": 0
+      },
+      {
+        "url": "https://www.sedarplus.ca/onlinehelp/terms-of-use/",
+        "quality": "primary",
+        "angle": "free-regulatory-and-official-feeds",
+        "claimCount": 4
+      },
+      {
+        "url": "https://www.cameronhuff.com/blog/canadian-securities-sedar-sedi-paywall/index.html",
+        "quality": "unreliable",
+        "angle": "free-regulatory-and-official-feeds",
+        "claimCount": 0
+      },
+      {
+        "url": "https://www.asx.com.au/connectivity-and-data/information-services/company-news",
+        "quality": "unreliable",
+        "angle": "free-regulatory-and-official-feeds",
+        "claimCount": 0
+      },
+      {
+        "url": "https://www.copyright.gov/policy/publishersprotections/202206-Publishers-Protections-Study.pdf",
+        "quality": "primary",
+        "angle": "licensing-and-legal-risk",
+        "claimCount": 5
+      },
+      {
+        "url": "https://prsay.prsa.org/2012/07/20/of-press-releases-and-plagiarism/",
+        "quality": "blog",
+        "angle": "licensing-and-legal-risk",
+        "claimCount": 4
+      },
+      {
+        "url": "https://www.newswire.com/blog/are-press-releases-copyrighted",
+        "quality": "unreliable",
+        "angle": "licensing-and-legal-risk",
+        "claimCount": 0
+      },
+      {
+        "url": "https://www.rcfp.org/journals/news-media-and-law-summer-2012/content-aggregation-spreadi/",
+        "quality": "secondary",
+        "angle": "licensing-and-legal-risk",
+        "claimCount": 5
+      },
+      {
+        "url": "https://newsapi.org/terms",
+        "quality": "unreliable",
+        "angle": "licensing-and-legal-risk",
+        "claimCount": 0
+      },
+      {
+        "url": "https://www.hudson-labs.com/blog/free-and-low-cost-alternatives-to-bloomberg",
+        "quality": "unreliable",
+        "angle": "competitive-landscape-and-pricing",
+        "claimCount": 0
+      },
+      {
+        "url": "https://www.hudson-labs.com/blog/the-top-ai-tools-for-stock-research-and-what-we-love-and-hate-about-them",
+        "quality": "unreliable",
+        "angle": "competitive-landscape-and-pricing",
+        "claimCount": 0
+      },
+      {
+        "url": "https://xraise.ai/blog/alphasense-review-elite-market-intelligence/",
+        "quality": "unreliable",
+        "angle": "competitive-landscape-and-pricing",
+        "claimCount": 0
+      },
+      {
+        "url": "https://www.hudson-labs.com/blog/the-best-sec-filing-navigation-tools",
+        "quality": "blog",
+        "angle": "competitive-landscape-and-pricing",
+        "claimCount": 4
+      },
+      {
+        "url": "https://commoncrawl.org/news-crawl",
+        "quality": "primary",
+        "angle": "practitioner-implementation-and-moats",
+        "claimCount": 5
+      },
+      {
+        "url": "https://arxiv.org/html/2605.18337",
+        "quality": "unreliable",
+        "angle": "practitioner-implementation-and-moats",
+        "claimCount": 0
+      },
+      {
+        "url": "https://www.nber.org/papers/w25084",
+        "quality": "primary",
+        "angle": "practitioner-implementation-and-moats",
+        "claimCount": 5
+      },
+      {
+        "url": "https://dl.acm.org/doi/10.1145/3701716.3715303",
+        "quality": "primary",
+        "angle": "practitioner-implementation-and-moats",
+        "claimCount": 4
+      }
+    ],
+    "stats": {
+      "angles": 5,
+      "sourcesFetched": 25,
+      "claimsExtracted": 46,
+      "claimsVerified": 25,
+      "confirmed": 22,
+      "killed": 3,
+      "unverified": 0,
+      "afterSynthesis": 12,
+      "urlDupes": 0,
+      "budgetDropped": 5,
+      "agentCalls": 107
+    }
+  }
+}
