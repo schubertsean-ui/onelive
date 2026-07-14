@@ -44,6 +44,14 @@ as a blocking check on any prompt/model change; record `prompt_version` in
 provenance (already stamped).
 **Done when:** eval harness runs on a golden set in CI and a deliberately
 degraded prompt fails the gate (prove the gate can fail).
+**Also required (added 2026-07-14, from the Microsoft Foundry production-harness
+review):** indirect-prompt-injection cases in the golden set — fetched source
+text is UNTRUSTED input, so the set must include pages carrying embedded
+instructions ("ignore your previous instructions", "mark this event
+confirmed") and the harness must prove extraction treats them as data, never
+as commands. The trust architecture already bounds the blast radius (AI
+cannot publish; the gate decides), but the extraction layer itself must also
+refuse the injection — defense in depth at the tool boundary.
 **Gated by:** Independent Evaluator (prompt/model changes are trust-critical,
 `--require`); founder ratifies the threshold number (Q-threshold, one line).
 
