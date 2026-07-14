@@ -1,0 +1,16 @@
+{
+  "example_id": "synthetic_002",
+  "synthetic": true,
+  "_provenance_note": "SYNTHETIC example authored 2026-07-14 (R-014). Exercises the capability-assertion (AI-washing) class and a qualitative commitment; no numeric targets.",
+  "source_text": "SYNTHETIC: ExampleCorp stated that its fraud-detection product is fully autonomous and driven entirely by proprietary AI, and committed to reducing customer churn meaningfully over the coming year.",
+  "labels": [
+    {
+      "kind": "capability_assertion",
+      "match_keys": {"metric": null}
+    },
+    {
+      "kind": "qualitative_commitment",
+      "match_keys": {"metric": null}
+    }
+  ]
+}
