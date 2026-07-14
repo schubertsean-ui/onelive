@@ -152,10 +152,10 @@ jobs:
           # verification journals/vote records — and the evaluator ruled that
           # excluding cited evidence from the reviewed diff hides the very
           # material adversarial review exists to check ("shown, never
-          # hidden" applies to our own evidence too). So the WHOLE diff is
-          # reviewed and the cap is raised instead. The hard-fail-on-truncate
-          # behavior of --require is unchanged; this is a bigger window, not
-          # a softer gate.
+          # hidden" applies to our own evidence too). So the whole diff is
+          # reviewed up to the fail-closed cap below — if a diff ever exceeds
+          # it, the run HARD-FAILS rather than truncating (unchanged
+          # --require behavior); this is a bigger window, not a softer gate.
           python -I /tmp/trusted/adversarial_review.py --require \
             --max-diff-bytes 800000 \
             --diff-file pr.diff --test-log pytest.log --test-log web.log

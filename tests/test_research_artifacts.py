@@ -92,38 +92,54 @@ def test_no_publication_style_date_after_compilation():
     srcdir = RESEARCH_DIR / "market_analysis_sources"
     if not srcdir.exists():
         pytest.skip("no source appendices present")
+    def future_dates_in(line, compiled):
+        # bare ISO dates + URL-embedded publication dates (/YYYY/MM/DD or
+        # YYYY-MM-DD in a URL path). Prose dates ("Aug 2, 2026") are NOT
+        # blanket-checked: appendices legitimately cite future *event*
+        # dates (regulatory deadlines); only publication-style dates can
+        # be time-incoherent, and those appear in ISO or URL-slug form.
+        candidates = re.findall(r"\b(\d{4}-\d{2}-\d{2})\b", line)
+        candidates += ["-".join(g) for g in re.findall(r"https?://\S*?/(\d{4})/(\d{2})/(\d{2})", line)]
+        out = set()
+        for iso in candidates:
+            try:
+                d = datetime.date.fromisoformat(iso)
+            except ValueError:
+                continue
+            if d > compiled:
+                out.add(iso)
+        return out
+
     violations = []
     for md in sorted(srcdir.glob("*.md")):
         text = md.read_text(encoding="utf-8")
         m = re.search(r"Compiled (\d{4}-\d{2}-\d{2})", text)
         assert m, f"{md.name}: missing 'Compiled YYYY-MM-DD' header — the date-sanity gate needs it"
         compiled = datetime.date.fromisoformat(m.group(1))
-        for lineno, line in enumerate(text.splitlines(), start=1):
-            future = []
-            # bare ISO dates + URL-embedded publication dates (/YYYY/MM/DD or
-            # YYYY-MM-DD in a URL path). Prose dates ("Aug 2, 2026") are NOT
-            # blanket-checked: appendices legitimately cite future *event*
-            # dates (regulatory deadlines); only publication-style dates can
-            # be time-incoherent, and those appear in ISO or URL-slug form.
-            candidates = re.findall(r"\b(\d{4}-\d{2}-\d{2})\b", line)
-            candidates += ["-".join(m) for m in re.findall(r"https?://\S*?/(\d{4})/(\d{2})/(\d{2})", line)]
-            for iso in candidates:
-                try:
-                    d = datetime.date.fromisoformat(iso)
-                except ValueError:
-                    continue
-                if d > compiled:
-                    future.append(iso)
+        lines = text.splitlines()
+        # First pass: the preserved-evidence set — future dates that appear on
+        # a REFUTED line WHICH STILL CARRIES its original source URL.
+        preserved = set()
+        for line in lines:
+            if "REFUTED" in line and "http" in line:
+                preserved |= future_dates_in(line, compiled)
+        # Second pass: every future date must be either preserved evidence
+        # (REFUTED + URL on that line) or commentary whose dates all point at
+        # preserved evidence elsewhere in the same file. A "see row" note
+        # whose referenced evidence was redacted therefore FAILS — the
+        # cross-reference must resolve to a line that kept the URL.
+        for lineno, line in enumerate(lines, start=1):
+            future = future_dates_in(line, compiled)
             if not future:
                 continue
-            # A future-dated citation may remain ONLY as preserved disputed
-            # evidence: the line must carry an explicit REFUTED verdict AND
-            # must still contain the original source URL — a verdict without
-            # the evidence is redaction, which the repo bar forbids.
             if "REFUTED" not in line:
-                violations.append(f"{md.name}:{lineno}: cites {future} after compilation {compiled} with no REFUTED verdict")
-            elif "http" not in line and "see row" not in line:
-                violations.append(f"{md.name}:{lineno}: REFUTED line lost its original source URL — evidence must be preserved, not redacted")
+                violations.append(f"{md.name}:{lineno}: cites {sorted(future)} after compilation {compiled} with no REFUTED verdict")
+            elif "http" not in line and not future <= preserved:
+                violations.append(
+                    f"{md.name}:{lineno}: REFUTED commentary references future date(s) {sorted(future - preserved)} "
+                    f"with no preserved-evidence line (REFUTED + original URL) in this file — "
+                    f"evidence must be preserved, not redacted"
+                )
     assert not violations, f"time-incoherent citations: {violations}"
 
 
