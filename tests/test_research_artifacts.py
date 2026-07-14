@@ -82,7 +82,10 @@ def test_no_publication_style_date_after_compilation():
     /YYYY/MM/DD segments inside URLs. Prose dates ("Aug 2, 2026") are NOT
     checked, because appendices legitimately cite future *event* dates
     (regulatory deadlines, compliance windows) in prose; prose publication
-    dates remain the evaluator's and editor's job to catch."""
+    dates remain the evaluator's and editor's job to catch.
+    CONVENTION for future appendices: write source PUBLICATION dates in ISO
+    form (YYYY-MM-DD) so this gate covers them; prose form is reserved for
+    event/deadline dates."""
     import datetime
     import re
 
@@ -153,7 +156,7 @@ def test_sizing_arithmetic_is_internally_consistent():
             lo_r, hi_r = float(m.group(5)), float(m.group(6))
             want_lo, want_hi = lo_n * lo_p / 1000, hi_n * hi_p / 1000
             checked += 1
-            if (want_lo, want_hi) != (lo_r, hi_r):
+            if abs(want_lo - lo_r) > 1e-6 or abs(want_hi - hi_r) > 1e-6:
                 errors.append(
                     f"{md.name}: '{m.group(0)[:80]}…' states ${lo_r}–{hi_r}M but "
                     f"{lo_n}×${lo_p}k–{hi_n}×${hi_p}k = ${want_lo:g}–{want_hi:g}M"
