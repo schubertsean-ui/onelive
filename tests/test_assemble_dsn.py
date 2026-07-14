@@ -42,20 +42,47 @@ def test_empty_dsn_fails_closed():
         ad.assemble("", "pw")
 
 
-def test_line_breaks_rejected():
+def test_interior_line_breaks_rejected():
     with pytest.raises(ValueError, match="line break"):
-        ad.assemble(RAW + "\n", "pw")
+        ad.assemble("postgresql://u:pw@h:5432\n/db", "")
     with pytest.raises(ValueError, match="line break"):
-        ad.assemble("postgresql://u:pw@h/db\r", "")
+        ad.assemble("postgresql://u:pw@h\r:5432/db", "")
 
 
 def test_cli_stdout_is_exactly_the_dsn_and_nothing_else(monkeypatch, capsys):
     monkeypatch.setenv("ONELIVE_DB_DSN_RAW", RAW)
     monkeypatch.setenv("ONELIVE_DB_PASSWORD", "secret-pw")
-    assert ad.main() == 0
+    assert ad.main([]) == 0
     captured = capsys.readouterr()
     assert captured.out == ad.assemble(RAW, "secret-pw") + "\n"
     assert captured.err == ""
+
+
+def test_outer_whitespace_is_normalized_not_fatal():
+    """Trailing newline/space is the most common paste artifact — strip it
+    rather than punish the paste; interior whitespace still hard-fails."""
+    assert ad.assemble("  " + RAW.replace("[YOUR-PASSWORD]", "pw") + "\n", "") == \
+        RAW.replace("[YOUR-PASSWORD]", "pw")
+    with pytest.raises(ValueError, match="interior"):
+        ad.assemble("postgresql://u:p w@h/db", "")
+
+
+def test_mask_command_output_is_workflow_escaped(monkeypatch, capsys):
+    """The registered mask must equal the true DSN after the runner
+    unescapes it — '%' sequences from URL encoding are the leak case
+    (evaluator, PR #19 rounds 1-2)."""
+    monkeypatch.setenv("ONELIVE_DB_DSN_RAW", RAW)
+    monkeypatch.setenv("ONELIVE_DB_PASSWORD", "p@ss%1")
+    assert ad.main(["--mask-command"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("::add-mask::")
+    # true DSN contains p%40ss%251; the command must carry p%2540ss%25251
+    assert "p%2540ss%25251" in out
+    assert "p%40ss%251" not in out.replace("p%2540ss%25251", "")
+
+
+def test_escape_order_percent_first():
+    assert ad.escape_workflow_command_value("%0A\n") == "%250A%0A"
 
 
 def test_cli_error_output_contains_no_secret_material(monkeypatch, capsys):
@@ -63,8 +90,22 @@ def test_cli_error_output_contains_no_secret_material(monkeypatch, capsys):
     DSN or password values themselves."""
     monkeypatch.setenv("ONELIVE_DB_DSN_RAW", RAW)
     monkeypatch.setenv("ONELIVE_DB_PASSWORD", "")
-    assert ad.main() == 2
+    assert ad.main([]) == 2
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "pooler.supabase.com" not in captured.err  # no DSN fragments
     assert "postgres" not in captured.err
+
+
+def test_error_paths_with_secrets_present_leak_nothing(monkeypatch, capsys):
+    """Lock the no-secret-in-errors invariant on a path where secret
+    material EXISTS (evaluator nit, PR #19 round 2): interior-whitespace
+    DSN + a real password."""
+    monkeypatch.setenv("ONELIVE_DB_DSN_RAW",
+                       "postgresql://u:[YOUR-PASSWORD]@h h/db")
+    monkeypatch.setenv("ONELIVE_DB_PASSWORD", "hunter2secret")
+    assert ad.main([]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "hunter2secret" not in captured.err
+    assert "postgresql" not in captured.err
