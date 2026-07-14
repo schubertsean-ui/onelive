@@ -196,7 +196,7 @@ def to_json_schema() -> dict:
         "type": "object",
         "required": ["source_url", "source_kind", "published_at", "retrieved_at"],
         "properties": {
-            "source_url": {"type": "string", "format": "uri"},
+            "source_url": {"type": "string", "format": "uri", "pattern": "^https?://"},
             "source_kind": {"type": "string", "minLength": 1},
             "published_at": {"type": "string", "format": "date-time"},
             "retrieved_at": {"type": "string", "format": "date-time"},
@@ -206,8 +206,20 @@ def to_json_schema() -> dict:
     }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://promise-ledger.example/schema/claim/v0",
+        "$id": ("https://github.com/schubertsean-ui/onelive/blob/master/"
+                "ventures/promise_ledger/schema/claim/v0"),
         "title": "Claim",
+        "description": (
+            "The promise-markup interchange record. Mirrors the Python validator in "
+            "ventures/promise_ledger/schema/claim.py, which remains AUTHORITATIVE. "
+            "One invariant is NOT expressible in JSON Schema and MUST be enforced by "
+            "consumers in code: provenance.published_at <= provenance.retrieved_at "
+            "(time-incoherent records are invalid). See x-invariants."
+        ),
+        "x-invariants": [
+            "provenance.published_at <= provenance.retrieved_at (cross-field date "
+            "comparison; not expressible in JSON Schema 2020-12 without extensions)",
+        ],
         "type": "object",
         "required": ["claim_id", "entity", "kind", "statement", "provenance"],
         "properties": {
@@ -215,6 +227,11 @@ def to_json_schema() -> dict:
             "entity": {
                 "type": "object",
                 "required": ["name"],
+                # mirror EntityRef.validate: at least one stable identifier
+                "anyOf": [
+                    {"required": ["lei"], "properties": {"lei": {"type": "string"}}},
+                    {"required": ["cik"], "properties": {"cik": {"type": "string"}}},
+                ],
                 "properties": {
                     "name": {"type": "string", "minLength": 1},
                     "lei": {"type": ["string", "null"], "pattern": _LEI_RE.pattern},
@@ -233,6 +250,32 @@ def to_json_schema() -> dict:
             "due_date": {"type": ["string", "null"], "format": "date"},
             "due_date_text": {"type": ["string", "null"]},
         },
+        # mirror Claim.validate's conditional requirements:
+        "allOf": [
+            {   # numeric_guidance requires metric + at least one target bound
+                "if": {"properties": {"kind": {"const": ClaimKind.NUMERIC_GUIDANCE.value}}},
+                "then": {
+                    "required": ["metric"],
+                    "properties": {"metric": {"type": "string", "minLength": 1}},
+                    "anyOf": [
+                        {"required": ["target_low"], "properties": {"target_low": {"type": "number"}}},
+                        {"required": ["target_high"], "properties": {"target_high": {"type": "number"}}},
+                    ],
+                },
+            },
+            {   # dated_event requires a due date or its original text
+                "if": {"properties": {"kind": {"const": ClaimKind.DATED_EVENT.value}}},
+                "then": {"anyOf": [
+                    {"required": ["due_date"], "properties": {"due_date": {"type": "string"}}},
+                    {"required": ["due_date_text"], "properties": {"due_date_text": {"type": "string"}}},
+                ]},
+            },
+            {   # a parsed due_date must keep its original phrasing
+                "if": {"required": ["due_date"], "properties": {"due_date": {"type": "string"}}},
+                "then": {"required": ["due_date_text"],
+                         "properties": {"due_date_text": {"type": "string", "minLength": 1}}},
+            },
+        ],
         "additionalProperties": False,
         "$defs": {
             "lifecycle_state": {"enum": enum_values(LifecycleState)},

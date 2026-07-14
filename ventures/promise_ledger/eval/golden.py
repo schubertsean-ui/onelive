@@ -72,6 +72,17 @@ def load_examples(golden_dir: Path = GOLDEN_DIR) -> list[dict]:
         if not isinstance(ex["synthetic"], bool):
             raise GoldenSetError(f"{f.name}: 'synthetic' must be an explicit boolean — "
                                  "provenance of examples is never implicit")
+        for label in ex["labels"]:
+            # A label whose match_keys are all null (or empty) can be "matched"
+            # by a vacuous prediction that names only the kind — that inflates
+            # precision without extraction. Every label must carry at least one
+            # discriminative (non-null) key; statement_substring is the
+            # universal fallback for qualitative/capability claims.
+            keys = label.get("match_keys", {})
+            if not any(v is not None for v in keys.values()):
+                raise GoldenSetError(
+                    f"{f.name}: label of kind {label.get('kind')!r} has no discriminative "
+                    "match key (all null/empty) — add e.g. statement_substring")
         examples.append(ex)
     return examples
 
@@ -79,10 +90,20 @@ def load_examples(golden_dir: Path = GOLDEN_DIR) -> list[dict]:
 def _keys_match(label: dict, prediction: dict) -> bool:
     if label["kind"] != prediction.get("kind"):
         return False
+    matched_discriminative = False
     for key, want in label["match_keys"].items():
+        if key == "statement_substring":
+            statement = prediction.get("statement") or ""
+            if want is None or want.lower() not in statement.lower():
+                return False
+            matched_discriminative = True
+            continue
         if prediction.get(key) != want:
             return False
-    return True
+        if want is not None:
+            matched_discriminative = True
+    # a match must rest on at least one non-null key — kind alone is vacuous
+    return matched_discriminative
 
 
 def score(examples: list[dict], predictions_by_example: dict[str, list[dict]]) -> dict:

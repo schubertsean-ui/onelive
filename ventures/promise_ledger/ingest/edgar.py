@@ -21,6 +21,7 @@ examples).
 
 from __future__ import annotations
 
+import re
 import time
 import urllib.request
 from dataclasses import dataclass, field
@@ -35,7 +36,7 @@ LOCAL_MAX_REQUESTS_PER_SECOND = 5
 
 
 class EdgarAccessError(RuntimeError):
-    """Raised on 403 (fair-access breach) — callers must STOP, not retry."""
+    """Raised on 403/429 (fair-access signals) — callers must STOP, not retry."""
 
 
 @dataclass
@@ -86,19 +87,20 @@ class EdgarClient:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return resp.read()
         except urllib.error.HTTPError as exc:  # pragma: no cover - needs network
-            if exc.code == 403:
+            if exc.code in (403, 429):
                 raise EdgarAccessError(
-                    "EDGAR returned 403 — fair-access breach or blocked egress. "
-                    "STOP polling entirely (the block is per-IP, ~10 minutes); "
-                    "do not retry-loop.") from exc
+                    f"EDGAR returned {exc.code} — fair-access signal (breach, "
+                    "throttle, or blocked egress). STOP polling entirely (the "
+                    "block is per-IP, ~10 minutes); do not retry-loop.") from exc
             raise
 
 
-def extract_8k_press_release_docs(submissions_json: dict) -> list[dict]:
-    """From a data.sec.gov submissions JSON, list recent 8-K filings whose
-    exhibits plausibly carry press releases (EX-99.*). Pure function over the
-    documented JSON shape; exercised by synthetic-fixture tests until live
-    access exists (R-014)."""
+def list_recent_8k_filings(submissions_json: dict) -> list[dict]:
+    """STAGE 1: from a data.sec.gov submissions JSON, list recent 8-K filings
+    (accession + items). This does NOT locate press releases — the press
+    release is normally an EX-99.x EXHIBIT inside the filing, not the 8-K
+    primary document; finding it requires the per-filing index (stage 2).
+    Pure function over the documented JSON shape."""
     recent = submissions_json.get("filings", {}).get("recent", {})
     out = []
     forms = recent.get("form", [])
@@ -111,4 +113,51 @@ def extract_8k_press_release_docs(submissions_json: dict) -> list[dict]:
             "primary_doc": recent["primaryDocument"][i],
             "items": recent.get("items", [""] * len(forms))[i],
         })
+    return out
+
+
+# 8-K item codes under which press releases are customarily furnished/filed.
+PRESS_RELEASE_ITEMS = ("2.02", "7.01", "8.01")
+
+# Conservative filename shapes for EX-99.x exhibit documents.
+_EXHIBIT_NAME_RE = re.compile(r"(?:^|[^a-z0-9])(?:ex|exh|exhibit)[-_.]?99", re.IGNORECASE)
+
+
+def filing_index_url(cik: str, accession: str) -> str:
+    """STAGE 2a: URL of a filing's machine-readable directory listing
+    (index.json) under www.sec.gov/Archives. CIK loses zero-padding in
+    archive paths; accession loses dashes."""
+    if not (cik.isdigit() and len(cik) == 10):
+        raise ValueError(f"CIK {cik!r} must be zero-padded to 10 digits")
+    acc = accession.replace("-", "")
+    return f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc}/index.json"
+
+
+def find_press_release_exhibit_candidates(index_json: dict, filing: dict) -> list[dict]:
+    """STAGE 2b: from a filing's index.json directory listing, return the
+    EX-99.x-shaped documents that plausibly carry the press release, with an
+    honest confidence field.
+
+    LIMITATION (stated, not hidden): index.json lists file NAMES only — the
+    authoritative exhibit-type table lives in the filing's -index.htm page.
+    Name-pattern matching is a conservative first pass; the live pipeline
+    must confirm exhibit type from the index page before treating a document
+    as THE press release. Confidence here is therefore capped at "likely"
+    (never "confirmed") and is raised only when the parent 8-K's item codes
+    include a customary press-release item (2.02/7.01/8.01)."""
+    items_field = filing.get("items", "") or ""
+    has_pr_item = any(code in items_field for code in PRESS_RELEASE_ITEMS)
+    out = []
+    for entry in index_json.get("directory", {}).get("item", []):
+        name = entry.get("name", "")
+        if not name.lower().endswith((".htm", ".html", ".txt")):
+            continue
+        if _EXHIBIT_NAME_RE.search(name):
+            out.append({
+                "document": name,
+                "confidence": "likely" if has_pr_item else "unverified",
+                "basis": ("filename matches EX-99 pattern"
+                          + ("; parent 8-K items include a press-release item" if has_pr_item else
+                             "; parent 8-K items do NOT include a customary press-release item")),
+            })
     return out

@@ -123,6 +123,37 @@ def test_json_schema_lockstep_with_dataclass():
     assert set(schema["$defs"]["lifecycle_state"]["enum"]) == {m.value for m in LifecycleState}
 
 
+def test_json_schema_carries_the_validator_invariants():
+    """The exported interchange schema must not be fail-open relative to the
+    Python validator (evaluator r17): each trust invariant the validator
+    enforces must appear as a schema construct, and the one invariant JSON
+    Schema cannot express must be declared, not silent."""
+    schema = to_json_schema()
+    # entity requires at least one stable identifier
+    entity_anyof = schema["properties"]["entity"]["anyOf"]
+    assert {"lei"} in [set(alt.get("required", [])) for alt in entity_anyof]
+    assert {"cik"} in [set(alt.get("required", [])) for alt in entity_anyof]
+    # conditional requirements mirror Claim.validate
+    conds = schema["allOf"]
+    ng = next(c for c in conds
+              if c.get("if", {}).get("properties", {}).get("kind", {}).get("const") == "numeric_guidance")
+    assert "metric" in ng["then"]["required"]
+    assert any("target_low" in alt.get("required", []) or "target_high" in alt.get("required", [])
+               for alt in ng["then"]["anyOf"])
+    de = next(c for c in conds
+              if c.get("if", {}).get("properties", {}).get("kind", {}).get("const") == "dated_event")
+    assert any("due_date" in alt.get("required", []) or "due_date_text" in alt.get("required", [])
+               for alt in de["then"]["anyOf"])
+    dd = next(c for c in conds if c.get("if", {}).get("required") == ["due_date"])
+    assert dd["then"]["required"] == ["due_date_text"]
+    # the inexpressible invariant is declared loudly for consumers
+    assert any("published_at" in inv and "retrieved_at" in inv for inv in schema["x-invariants"])
+    assert "published_at <= provenance.retrieved_at" in schema["description"] or \
+           "published_at <= " in schema["description"]
+    # stable namespace, not a placeholder domain
+    assert ".example/" not in schema["$id"]
+
+
 # ------------------------------------------------------------ golden harness
 
 def test_golden_set_loads_and_synthetic_flags_are_explicit():
@@ -140,12 +171,48 @@ def test_perfect_predictions_on_synthetic_set_still_cannot_pass():
     """R-014 mechanically enforced: synthetic-only golden sets exercise the
     harness but can never bless an extractor."""
     examples = golden.load_examples()
-    perfect = {ex["example_id"]: [dict(kind=l["kind"], **l["match_keys"]) for l in ex["labels"]]
-               for ex in examples}
+    def realize(label):
+        pred = {"kind": label["kind"]}
+        for k, v in label["match_keys"].items():
+            if k == "statement_substring":
+                pred["statement"] = f"...{v}..."
+            else:
+                pred[k] = v
+        return pred
+    perfect = {ex["example_id"]: [realize(l) for l in ex["labels"]] for ex in examples}
     report = golden.score(examples, perfect)
     assert report["precision"] == 1.0 and report["recall"] == 1.0
     ok, text = golden.verdict(report)
     assert not ok and "SYNTHETIC-ONLY" in text and "FAIL" in text
+
+
+def test_vacuous_kind_only_predictions_do_not_match():
+    """Evaluator r17: a prediction that names only the kind (no discriminative
+    content) must not count as a match."""
+    examples = golden.load_examples()
+    vacuous = {ex["example_id"]: [{"kind": l["kind"]} for l in ex["labels"]]
+               for ex in examples}
+    report = golden.score(examples, vacuous)
+    assert report["recall"] == 0.0, "kind-only predictions matched labels — vacuous-match hole"
+
+
+def test_all_null_match_keys_refused_at_load(tmp_path):
+    bad = {"example_id": "x", "synthetic": True, "source_text": "SYNTHETIC: t",
+           "labels": [{"kind": "qualitative_commitment", "match_keys": {"metric": None}}]}
+    import json as _json
+    (tmp_path / "bad.json").write_text(_json.dumps(bad), encoding="utf-8")
+    with pytest.raises(golden.GoldenSetError, match="discriminative"):
+        golden.load_examples(tmp_path)
+
+
+def test_statement_substring_matching_is_case_insensitive_and_required():
+    examples = [{"example_id": "e", "synthetic": True, "source_text": "SYNTHETIC: t",
+                 "labels": [{"kind": "capability_assertion",
+                             "match_keys": {"statement_substring": "Fully Autonomous"}}]}]
+    hit = {"e": [{"kind": "capability_assertion", "statement": "claims product is fully autonomous AI"}]}
+    miss = {"e": [{"kind": "capability_assertion", "statement": "claims something else"}]}
+    assert golden.score(examples, hit)["recall"] == 1.0
+    assert golden.score(examples, miss)["recall"] == 0.0
 
 
 def test_wrong_predictions_score_below_bar():
@@ -183,18 +250,52 @@ def test_local_budget_stays_under_sec_cap():
     assert edgar.LOCAL_MAX_REQUESTS_PER_SECOND < 10, "local budget must stay under the SEC cap"
 
 
-def test_extract_8k_docs_from_documented_shape():
+def test_stage1_lists_8k_filings_not_press_releases():
     # Synthetic fixture mirroring the DOCUMENTED data.sec.gov submissions shape
-    # (real fetch blocked from this sandbox — R-014).
+    # (real fetch blocked from this sandbox — R-014). Note: primaryDocument is
+    # the 8-K itself, NOT the press-release exhibit — stage 1 must not claim
+    # otherwise (evaluator r17).
     fixture = {
         "filings": {"recent": {
             "form": ["8-K", "10-Q", "8-K"],
             "accessionNumber": ["0000000000-26-000001", "0000000000-26-000002", "0000000000-26-000003"],
             "filingDate": ["2026-07-01", "2026-06-15", "2026-05-01"],
-            "primaryDocument": ["ex991.htm", "q.htm", "er.htm"],
-            "items": ["2.02,9.01", "", "7.01"],
+            "primaryDocument": ["form8k.htm", "q.htm", "form8k2.htm"],
+            "items": ["2.02,9.01", "", "5.02"],
         }}
     }
-    docs = edgar.extract_8k_press_release_docs(fixture)
+    docs = edgar.list_recent_8k_filings(fixture)
     assert [d["accession"] for d in docs] == ["0000000000-26-000001", "0000000000-26-000003"]
     assert docs[0]["items"] == "2.02,9.01"
+
+
+def test_stage2_filing_index_url_shape():
+    assert edgar.filing_index_url("0000320193", "0000320193-26-000001") == \
+        "https://www.sec.gov/Archives/edgar/data/320193/000032019326000001/index.json"
+    with pytest.raises(ValueError, match="zero-padded"):
+        edgar.filing_index_url("320193", "0000320193-26-000001")
+
+
+def test_stage2_finds_ex99_exhibits_with_honest_confidence():
+    # index.json directory shape per SEC Archives; exhibit typing is NOT in
+    # index.json, so confidence is capped at "likely" and requires a
+    # press-release item code on the parent filing.
+    index_json = {"directory": {"item": [
+        {"name": "form8k.htm"},
+        {"name": "ex991.htm"},
+        {"name": "ex99-2.txt"},
+        {"name": "graphic.jpg"},
+    ]}}
+    with_pr_item = {"items": "2.02,9.01"}
+    without_pr_item = {"items": "5.02"}
+    hits = edgar.find_press_release_exhibit_candidates(index_json, with_pr_item)
+    assert [h["document"] for h in hits] == ["ex991.htm", "ex99-2.txt"]
+    assert all(h["confidence"] == "likely" for h in hits)
+    assert all(h["confidence"] != "confirmed" for h in hits), "confidence must cap below confirmed"
+    hits2 = edgar.find_press_release_exhibit_candidates(index_json, without_pr_item)
+    assert all(h["confidence"] == "unverified" for h in hits2)
+
+
+def test_stage2_ignores_non_document_files_and_non_ex99_names():
+    index_json = {"directory": {"item": [{"name": "pressrelease.htm"}, {"name": "ex101.htm"}]}}
+    assert edgar.find_press_release_exhibit_candidates(index_json, {"items": "2.02"}) == []
