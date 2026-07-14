@@ -65,14 +65,20 @@ OPERATORS = (
 )
 
 
-def build_battery(statement: str, seed: int | None = None, combos: int = 2) -> str:
-    """Return the full battery as printable text. Deterministic under seed."""
+def build_battery(statement: str, seed: int | None = None) -> str:
+    """Return the FULL battery as printable text. Deterministic under seed.
+
+    Deliberately not configurable downward (evaluator finding, PR #15 r1):
+    the founder's contract is near-exhaustive coverage — every standalone
+    operator AND every random×operator combo, every time. A knob that trims
+    the battery is a fail-open door to false confidence.
+    """
     statement = statement.strip()
     if not statement:
         raise ValueError("statement must be non-empty — po needs a target.")
     rng = random.Random(seed)
     word = rng.choice(RANDOM_WORDS)
-    combo_ops = rng.sample(OPERATORS, k=min(combos, len(OPERATORS)))
+    combo_ops = OPERATORS  # ALL of them — P8.1 through P8.6, no sampling
 
     lines = [
         "PO BATTERY (docs/skills/po_provocation.md) — run EVERY prompt, write",
@@ -117,11 +123,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("statement", help="the target statement/plan/assumption")
     parser.add_argument("--seed", type=int, default=None,
                         help="seed the random-entry word (tests/reproducibility)")
-    parser.add_argument("--combos", type=int, default=2,
-                        help="number of RANDOM+operator combos (default 2)")
     args = parser.parse_args(argv)
     try:
-        print(build_battery(args.statement, seed=args.seed, combos=args.combos))
+        print(build_battery(args.statement, seed=args.seed))
     except ValueError as exc:
         print(f"po_battery: {exc}", file=sys.stderr)
         return 2

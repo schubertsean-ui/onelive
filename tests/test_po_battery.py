@@ -28,10 +28,15 @@ def test_every_standalone_operator_present():
         assert title in out, f"operator {title} missing from battery"
 
 
-def test_random_plus_operator_combos_present():
-    out = po.build_battery(STATEMENT, seed=1, combos=2)
-    assert "P8.1 RANDOM +" in out
-    assert "P8.2 RANDOM +" in out
+def test_random_plus_every_operator_combo_present():
+    """Founder contract: ALL random×operator combos, every battery — the
+    suite must fail if any of P8.1–P8.6 is sampled away (evaluator finding,
+    PR #15 r1: partial coverage printing 'run EVERY prompt' is false
+    confidence)."""
+    out = po.build_battery(STATEMENT, seed=1)
+    for i in range(1, len(po.OPERATORS) + 1):
+        assert f"P8.{i} RANDOM +" in out, f"combo P8.{i} missing"
+    assert len(po.OPERATORS) == 6, "operator canon changed — update doc + tests together"
 
 
 def test_movement_techniques_always_attached():
@@ -47,8 +52,16 @@ def test_seed_makes_battery_deterministic():
 
 
 def test_different_seeds_vary_the_random_word():
-    words = {po.build_battery(STATEMENT, seed=s) for s in range(8)}
-    assert len(words) > 1, "random entry must actually vary across seeds"
+    """Parse the P7 word field directly (evaluator nit: whole-output
+    comparison could pass for reasons other than the word varying)."""
+    import re
+    words = set()
+    for s in range(8):
+        m = re.search(r"P7 RANDOM ENTRY \(word: '([^']+)'\)",
+                      po.build_battery(STATEMENT, seed=s))
+        assert m, "P7 word field missing/unparseable"
+        words.add(m.group(1))
+    assert len(words) > 1, "random entry word must actually vary across seeds"
 
 
 def test_statement_is_embedded_and_judging_deferred():

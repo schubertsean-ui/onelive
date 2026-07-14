@@ -17,20 +17,20 @@ except by surviving the normal gates as an ordinary, evidenced change.
 
 De Bono's provocation tool ("po" from hypothesis/suppose/possible) makes a
 statement known to be wrong or impossible, not as a proposal but as a stimulus
-to force thinking off its established track ([Po overview](https://en.wikipedia.org/wiki/Po_(lateral_thinking)),
-[deBono.com on Serious Creativity](https://www.debono.com/serious-creativity-article)).
+to force thinking off its established track ([Wikipedia, "Po (lateral thinking)" — de Bono, 1972/1992 canon](https://en.wikipedia.org/wiki/Po_(lateral_thinking));
+[deBono.com, "Serious Creativity" article — de Bono's own summary](https://www.debono.com/serious-creativity-article)).
 The canonical operator set is escape / reversal / exaggeration / distortion /
 wishful thinking, plus random entry (juxtapose a random noun), and the value
 is extracted by explicit MOVEMENT techniques, not judgement
-([Mycoted provocation reference](https://www.mycoted.com/Provocation),
-[movement techniques](https://thepeakperformancecenter.com/educational-learning/thinking/types-of-thinking-2/lateral-thinking/lateral-thinking-techniques/),
-[random input](https://www.innovation.wiki/en/method/random-input-technique/)).
+([Mycoted creativity wiki, "Provocation" — practitioner reference](https://www.mycoted.com/Provocation);
+[Peak Performance Center, "Lateral Thinking Techniques" — movement: extract-principle/difference/moment-to-moment/positive/circumstances](https://thepeakperformancecenter.com/educational-learning/thinking/types-of-thinking-2/lateral-thinking/lateral-thinking-techniques/);
+[verrocchio Institute Innovation Wiki, "Random Input Technique" — de Bono 1968, publ. Serious Creativity 1992](https://www.innovation.wiki/en/method/random-input-technique/)).
 Modern LLM-creativity research supports exactly the founder's "run many"
 instruction: models under-diversify by default, and structured multi-operator
 prompting with diverse roles measurably outperforms single-shot ideation
-([creativity-centered survey](https://arxiv.org/html/2511.07448v2),
-[barriers to diversity in LLM ideas](https://arxiv.org/pdf/2602.20408v1),
-[multi-agent brainstorming evidence](https://dl.acm.org/doi/10.1145/3715928.3737479)).
+([arXiv 2511.07448, "LLMs for Scientific Idea Generation: A Creativity-Centered Survey", 2025](https://arxiv.org/html/2511.07448v2);
+[arXiv 2602.20408, "Examining and Addressing Barriers to Diversity in LLM-Generated Ideas", 2026](https://arxiv.org/pdf/2602.20408v1);
+[ACM Collective Intelligence 2025, "Can LLM-Powered Multi-Agent Systems Augment Human Creativity?"](https://dl.acm.org/doi/10.1145/3715928.3737479)).
 
 ## The operator battery (founder-directed: standalone AND combinations)
 
@@ -47,7 +47,7 @@ operator; each yields ≥1 provocation ("Po: ..."):
 | P5 | WISHFUL | "Wouldn't it be nice if…" impossible fantasy | Po: every event verifies itself the moment it's spoken aloud |
 | P6 | ABSURD | Founder's addition — the flat-out ridiculous version, past exaggeration into category error | Po: the events attend the people |
 | P7 | RANDOM ENTRY | Juxtapose a random noun with S and force associations | Po: event trust + "lighthouse" |
-| P8 | RANDOM + <operator> | Founder-directed combo: apply P1–P6 to the random word's associations (e.g. random "lighthouse" + REVERSAL: the ships warn the lighthouse) | run ≥2 combos per session |
+| P8 | RANDOM + <operator> | Founder-directed combo: apply EACH of P1–P6 to the random word's associations (e.g. random "lighthouse" + REVERSAL: the ships warn the lighthouse) | ALL six combos, P8.1–P8.6, every battery — coverage is never sampled down |
 
 Rules: (1) operators run cheap — this is Mechanical/Standard-tier work per
 docs/MODEL_ROUTING.md; (2) every provocation gets written down BEFORE any
