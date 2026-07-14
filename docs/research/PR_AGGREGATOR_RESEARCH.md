@@ -71,7 +71,7 @@ Design consequences: poll ≤10 req/s for freshness, bulk ZIPs for the 2001+ bac
 
 *Source pages to re-verify (R-013):* newsapi.org/pricing + /terms · newsdata.io/pricing + /terms + /news-sources · gnews.io/pricing + /legal/terms-of-service · mediastack.com/pricing + /terms · newsapi.ai/plans + eventregistry.org ToS · webz.io/products/news-api + docs.webz.io/reference/news-api-lite.
 
-**Key structural finding:** no general news API verifiably licenses "store + republish transformed summaries commercially" at a self-serve tier. The cheap tiers are cheap because they don't grant the rights this product needs. Either the rights come by contract (Webz.io-style), or the product leans on sources where the rights question is structurally easier: EDGAR (public domain) and the wires' own read surfaces (below).
+**Key structural finding:** no general news API verifiably licenses "store + republish transformed summaries commercially" at a self-serve tier. The cheap tiers are cheap because they don't grant the rights this product needs. Either the rights come by contract (Webz.io-style), or the product leans on sources where the rights question is structurally easier: EDGAR (free sanctioned access; company exhibits keep company copyright, so output follows the §4 re-expression rules) and the wires' own read surfaces (below).
 
 ### 3.3 The newswires themselves — read access
 
@@ -105,7 +105,7 @@ The wires sell *distribution* to issuers; reading is the product working as inte
 
 Ranked for a commercial store-and-transform product (each venue's cheapest sanctioned path):
 
-**Free and commercial-reuse-friendly today (reported terms; confirm under R-013):**
+**Reported free + reuse-permissive (terms as captured in search index — NOT cleared until the actual ToS text is read under R-013):**
 
 | Venue | Access | Terms | Notes |
 |---|---|---|---|
@@ -180,15 +180,15 @@ Three honest qualifications: (a) evidence is on SEC filings, not press releases 
 
 **The honest one-line version:** the defensible business is not "PR aggregator" (weak) — it is "the entity-resolved, point-in-time promise ledger over corporate communications, with machine-readable output" (real), where aggregation is merely the intake.
 
-## 10. Recommended ingestion stack (cheapest viable) 
+## 10. Recommended ingestion stack (cheapest viable)
 
-Underwritten by verified findings; per-source costs in §3/§5 are best-effort.
+**Verification status per item:** items 1 and 4 rest on VERIFIED 3-0 findings; items 2, 3, and 5 are PROVISIONAL — they name candidates whose pricing/terms come from the BEST-EFFORT sections and are NOT cleared for build or spend until the R-013 re-verification (live ToS read + written redistribution answers) passes for the chosen source.
 
 1. **US backbone (free):** EDGAR full-text search + data.sec.gov JSON APIs + nightly bulk ZIPs. Compliant User-Agent; ≤10 req/s polling; bulk archives for 2001+ backfill. Covers every US-listed company's material PRs via 8-K exhibits. **[VERIFIED]**
 2. **Wire supplement (low cost, licensing-gated):** one financial news API chosen on *redistribution terms first, price second* (§3 tables) to catch non-8-K press releases (product launches, partnerships) and pre-8-K timing. Store full text internally; publish only transformed output.
 3. **IR-page RSS (free, targeted):** for the beachhead sector's issuers, poll company IR RSS/newsroom pages directly — issuer-published content, lowest ToS risk among scraped sources, best earliest-copy provenance.
 4. **Global backfill (compute-cost):** CC-NEWS WARCs 2016+ for retrospective timelines; accept partial coverage. **[VERIFIED, cost caveat]**
-5. **International regulatory (free-first):** per §5 — Japan EDINET (free API, for-profit reuse allowed), France info-financiere (free API; reuse license still to be confirmed), UK FCA NSM (free, reuse-friendly terms) now; EU ESAP when its public portal opens (mandated July 2027, free + API by regulation); ASX ComNews (~AUD 575/mo) as the first *paid* venue when Australia matters; defer LSE RNS / ASC Canada / HKEX / SGX / India until revenue justifies bespoke licenses.
+5. **International regulatory (free-first, all pending R-013 terms confirmation):** per §5 — Japan EDINET (free API; reported for-profit reuse), France info-financiere (free API; license unconfirmed), UK FCA NSM (free; reported reuse-friendly terms) as first candidates; EU ESAP when its public portal opens (mandated July 2027, free + API by regulation); ASX ComNews (~AUD 575/mo) as the first *paid* venue when Australia matters; defer LSE RNS / ASC Canada / HKEX / SGX / India until revenue justifies bespoke licenses.
 6. **Excluded:** SEDAR+ scraping (ToS), speed-race feeds (weak moat), any source whose ToS bans derived-work commercialization unless a license is bought deliberately (escalation: money/new services = founder-crucial).
 
 ## 11. Relationship to multibagger (founder context)
@@ -213,4 +213,4 @@ From the Multibagger Everything Document (uploaded 2026-07-14): the stock engine
 
 ---
 
-*Sources: all VERIFIED-tagged findings trace to the deep-research run of 2026-07-14 (22 claims confirmed 3-0 against primary sources: sec.gov, sedarplus.ca, copyright.gov, commoncrawl.org, nber.org, rcfp.org, hudson-labs.com) — claim-by-claim journal committed at `docs/research/PR_AGGREGATOR_RESEARCH_verification.json`. BEST-EFFORT sections are search-index/secondary-source compilations (NOT primary-verified — sandbox egress blocked vendor fetches); each such subsection ends with the list of source pages to re-verify under R-013.*
+*Sources: all VERIFIED-tagged findings trace to the deep-research run of 2026-07-14 — 22 claims confirmed 3-0 against the cited sources: primary where available (sec.gov, sedarplus.ca, copyright.gov, commoncrawl.org, nber.org), secondary/press for the legal-history and commoditization claims (rcfp.org, hudson-labs.com — graded medium-confidence in the journal accordingly) — claim-by-claim journal committed at `docs/research/PR_AGGREGATOR_RESEARCH_verification.json`. BEST-EFFORT sections are search-index/secondary-source compilations (NOT primary-verified — sandbox egress blocked vendor fetches); each such subsection ends with the list of source pages to re-verify under R-013.*
