@@ -124,6 +124,44 @@ def test_no_publication_style_date_after_compilation():
     assert not violations, f"time-incoherent citations: {violations}"
 
 
+def test_sizing_arithmetic_is_internally_consistent():
+    """Evaluator catches (PR #18 rounds 10 and 12): founder-facing market-sizing
+    lines carried wrong multiplication TWICE — including in the round-10 'fix'.
+    Mechanical gate: every 'count × $price-range ≈ $result-range' claim in
+    top-level research docs must recompute exactly (low×low, high×high)."""
+    import re
+
+    md_files = sorted(RESEARCH_DIR.glob("*.md"))
+    if not md_files:
+        pytest.skip("no research docs present")
+
+    def parse_count(tok):
+        tok = tok.replace(",", "")
+        return int(tok[:-1]) * 1000 if tok.endswith("k") else int(tok)
+
+    pattern = re.compile(
+        r"~?([\d,]+k?)(?:–([\d,]+k?))?\s+(?:orgs|companies)[^×\n]*×\s*"
+        r"\$([\d.]+)–([\d.]+)k[^=≈\n]*[=≈][^$\n]*\$([\d.]+)–([\d.]+)M"
+    )
+    checked = 0
+    errors = []
+    for md in md_files:
+        for m in pattern.finditer(md.read_text(encoding="utf-8")):
+            lo_n = parse_count(m.group(1))
+            hi_n = parse_count(m.group(2)) if m.group(2) else lo_n
+            lo_p, hi_p = float(m.group(3)), float(m.group(4))
+            lo_r, hi_r = float(m.group(5)), float(m.group(6))
+            want_lo, want_hi = lo_n * lo_p / 1000, hi_n * hi_p / 1000
+            checked += 1
+            if (want_lo, want_hi) != (lo_r, hi_r):
+                errors.append(
+                    f"{md.name}: '{m.group(0)[:80]}…' states ${lo_r}–{hi_r}M but "
+                    f"{lo_n}×${lo_p}k–{hi_n}×${hi_p}k = ${want_lo:g}–{want_hi:g}M"
+                )
+    assert not errors, f"sizing arithmetic errors: {errors}"
+    assert checked >= 1, "no sizing claims matched the convention — update the pattern if phrasing changed"
+
+
 def test_every_artifact_referenced_by_research_docs_is_committed():
     # Dynamic, not a hard-coded filename list: any docs/research/*.md that
     # mentions a .json/.jsonl artifact must have that artifact committed.
