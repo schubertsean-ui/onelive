@@ -67,13 +67,18 @@
   .meta{display:flex;gap:7px;color:var(--muted);font-size:12.5px;margin-top:7px;flex-wrap:wrap;align-items:center}
   .meta .venue{color:var(--ink)}
   .dot{opacity:.5}
-  .badgeline{display:flex;align-items:center;gap:8px;margin-top:9px}
+  .card-tags{display:flex;align-items:center;gap:8px;margin-top:9px}
   .genre{font-size:10.5px;color:var(--live);border:1px solid rgba(99,224,210,.35);border-radius:6px;padding:3px 8px;letter-spacing:.04em;text-transform:uppercase}
   .free{font-size:10.5px;color:var(--stage);letter-spacing:.1em;text-transform:uppercase;font-weight:700}
   .ticketed{font-size:10.5px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
   .glyph{flex:none;width:20px;height:20px;opacity:.9;margin-left:auto}
   .hear{margin-top:10px;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:10px;background:transparent;border:1.5px solid var(--live);color:var(--live);font-size:13px;font-weight:700;letter-spacing:.02em}
-  .quiet-note{position:absolute;bottom:12px;right:14px;width:15px;height:15px;opacity:.45}
+  /* feed-level uncertainty: a REAL control — quiet icon summary (44px target)
+     opening the same one-tap-dismissible sheet used on the detail screen */
+  details.quiet>summary{position:absolute;top:20px;right:4px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;list-style:none;cursor:pointer}
+  details.quiet>summary::-webkit-details-marker{display:none}
+  details.quiet>summary svg{width:15px;height:15px;opacity:.45}
+  details.quiet[open]>summary svg{opacity:.85}
 
   details.sheet summary{list-style:none;cursor:pointer}
   details.sheet summary::-webkit-details-marker{display:none}
@@ -163,7 +168,7 @@
             </div>
             <p class="spark">brass. menace. amen. <span class="attr">— Austin Chronicle</span></p>
             <div class="meta"><span class="venue">Sahara Lounge</span><span class="dot">·</span><span>East Austin</span></div>
-            <div class="badgeline"><span class="genre">Soul</span><span class="genre">Experimental</span><span class="free">Free</span></div>
+            <div class="card-tags"><span class="genre">Soul</span><span class="genre">Experimental</span><span class="free">Free</span></div>
             <button class="hear"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#63E0D2"/></svg>Hear it</button>
           </div>
         </div>
@@ -180,7 +185,7 @@
             </div>
             <p class="spark">doom-laden desert blues, slow and holy <span class="attr">— their words</span></p>
             <div class="meta"><span class="venue">Hotel Vegas</span><span class="dot">·</span><span>East Austin</span></div>
-            <div class="badgeline"><span class="genre">Rock</span><span class="ticketed">Ticketed</span></div>
+            <div class="card-tags"><span class="genre">Rock</span><span class="ticketed">Ticketed</span></div>
             <button class="hear"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#63E0D2"/></svg>Hear it</button>
           </div>
         </div>
@@ -197,15 +202,23 @@
             </div>
             <p class="spark ai">loud——then unbearably tender <span class="mark">✳</span> <span class="attr">— first notes</span></p>
             <div class="meta"><span class="venue">Mohawk (indoor)</span><span class="dot">·</span><span>Red River</span></div>
-            <div class="badgeline"><span class="genre">Experimental</span><span class="genre">Metal</span><span class="ticketed">Ticketed</span></div>
+            <div class="card-tags"><span class="genre">Experimental</span><span class="genre">Metal</span><span class="ticketed">Ticketed</span></div>
             <button class="hear"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#63E0D2"/></svg>Hear it</button>
           </div>
         </div>
       </article>
 
-      <!-- Card 4: quiet uncertainty icon -->
+      <!-- Card 4: uncertain details — ONE quiet icon (a real 44px control) opening the dismissible sheet -->
       <article class="card">
-        <svg class="quiet-note" role="img" aria-label="details may change — tap for more" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="#8FA0BD" stroke-width="1.2"/><path d="M8 5v3.6M8 10.8v.4" stroke="#8FA0BD" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <details class="sheet quiet">
+          <summary aria-label="Details for this show may change — more info">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.2" stroke="#8FA0BD" stroke-width="1.2"/><path d="M8 5v3.6M8 10.8v.4" stroke="#8FA0BD" stroke-width="1.2" stroke-linecap="round"/></svg>
+          </summary>
+          <div class="sheet-body">
+            Details for this show may still change. You may want to double-check
+            with the venue — <a href="#">Elephant Room's site ↗</a>.
+          </div>
+        </details>
         <div class="card-top">
           <div class="time-block"><div class="t">10:30</div><div class="ampm">PM</div></div>
           <div class="card-main">
@@ -215,7 +228,7 @@
             </div>
             <p class="spark">after-midnight jazz for slow hearts <span class="attr">— their words</span></p>
             <div class="meta"><span class="venue">Elephant Room</span><span class="dot">·</span><span>Downtown</span></div>
-            <div class="badgeline"><span class="genre">Jazz</span><span class="free">Free</span></div>
+            <div class="card-tags"><span class="genre">Jazz</span><span class="free">Free</span></div>
             <button class="hear"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#63E0D2"/></svg>Hear it</button>
           </div>
         </div>
@@ -261,7 +274,7 @@
       <a class="back" href="#">← Tonight</a>
       <h2 class="d-artist">Culebra Canyon</h2>
       <p class="spark" style="margin-top:6px">doom-laden desert blues, slow and holy <span class="attr">— their words</span></p>
-      <div class="badgeline" style="margin-top:10px"><span class="genre">Rock</span><span class="ticketed">Ticketed</span></div>
+      <div class="card-tags" style="margin-top:10px"><span class="genre">Rock</span><span class="ticketed">Ticketed</span></div>
 
       <div class="player" aria-label="music preview player">
         <span class="play-btn"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5 3.5v9l8-4.5-8-4.5Z" fill="#04110F"/></svg></span>

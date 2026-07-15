@@ -69,7 +69,12 @@
   .ticketed{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
   .hear{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;background:var(--raised);border:1px solid var(--line);color:var(--ink);font-size:13px;font-weight:600}
   .hear svg{width:14px;height:14px}
-  .quiet-note{position:absolute;top:12px;right:12px;width:16px;height:16px;opacity:.4}
+  /* feed-level uncertainty: a REAL control — quiet icon summary (44px target)
+     opening the same one-tap-dismissible sheet used on the detail screen */
+  details.quiet>summary{position:absolute;top:2px;right:2px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;list-style:none;cursor:pointer}
+  details.quiet>summary::-webkit-details-marker{display:none}
+  details.quiet>summary svg{width:16px;height:16px;opacity:.45}
+  details.quiet[open]>summary svg{opacity:.85}
 
   /* uncertainty sheet (demo via <details>) */
   details.sheet summary{list-style:none;cursor:pointer}
@@ -191,9 +196,17 @@
         </div>
       </article>
 
-      <!-- Card 4: uncertain details — ONE quiet icon, no label, no alarm -->
+      <!-- Card 4: uncertain details — ONE quiet icon (a real 44px control) opening the dismissible sheet -->
       <article class="card">
-        <svg class="quiet-note" role="img" aria-label="details may change — tap for more" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="#B9A88F" stroke-width="1.2"/><path d="M8 5v3.6M8 10.8v.4" stroke="#B9A88F" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <details class="sheet quiet">
+          <summary aria-label="Details for this show may change — more info">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.2" stroke="#B9A88F" stroke-width="1.2"/><path d="M8 5v3.6M8 10.8v.4" stroke="#B9A88F" stroke-width="1.2" stroke-linecap="round"/></svg>
+          </summary>
+          <div class="sheet-body">
+            Details for this show may still change. You may want to double-check
+            with the venue — <a href="#">Elephant Room's site ↗</a>.
+          </div>
+        </details>
         <div class="card-top">
           <h3 class="artist">Jess Almendárez Trio</h3>
           <svg class="glyph" role="img" aria-label="mood: late, blue, warm" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="6" stroke="#E8A24B" stroke-width="1.6" opacity=".8"/><circle cx="14.5" cy="10" r="5.6" fill="#221A12"/></svg>

@@ -20,10 +20,11 @@ against the brief's rubric.
 | `direction-3-setlist.html` | **SETLIST** | editorial / monumental | The Time Rule + Edition Masthead — the night as a dated printed setlist ("No. 197"), gone tomorrow |
 
 All three include the three mandated screens (Tonight feed · Filter panel ·
-Event Detail), dark mode rendered + light palette specified, and honor the
-ratified trust-display rules: **no badges/"verified"/"confirmed" anywhere**;
-uncertainty = one quiet icon + one-tap-dismissible sheet with the venue's own
-site linked; Spark Lines with attribution incl. the tier-C machine-drafted
+Event Detail) and honor the ratified trust-display rules: **no
+badges/"verified"/"confirmed" anywhere**; uncertainty = one quiet icon that
+is a REAL ≥44px control (a `<details>` disclosure) opening the one-tap-
+dismissible sheet with the venue's own site linked — at the point where
+uncertainty is shown (feed card) AND on the detail screen; Spark Lines with attribution incl. the tier-C machine-drafted
 register (italic, one shade quieter, small ✳, "— first notes", same
 dismissible-sheet pattern); Emotion Glyphs as self-rendered inline SVGs with
 aria-labels (no platform emoji, no banned rating-glyphs, uniform placement so
@@ -58,9 +59,10 @@ implementation. SETLIST is the most ownable and ages best (and is the only
 direction whose light mode is a structural advantage, not a port); its known
 weakness is scored honestly — condensed uppercase + italic serif needs
 careful sizing to hold AA and dyslexia-friendly reading, fixable at
-implementation. Scores deliberately not tied: 35/35/34 reflects real
-tradeoffs, and the rubric's tie-breaker (signature strength) then favors
-whichever signature the founder finds most ownable.
+implementation. The totals land in a near-tie by design honesty, not by
+design: MARQUEE and CURRENT tie at 35 with SETLIST one point back — real
+tradeoffs, no direction dominates. Per the rubric, ties break on signature-
+element strength: whichever signature the founder finds most ownable wins.
 
 ## Po battery run (chartered for design-direction work)
 
@@ -83,14 +85,31 @@ ends logged: P2 reversal ("the interface designs the night") and P8.3
 entered memory, candidate data, or user-facing copy; spark lines/glyphs in
 the mockups are fixture content for FICTIONAL artists.
 
-## Early-test results (2026-07-15, this session — "run small tests early")
+## Early-test results (2026-07-15 — run LOCALLY in the build-session sandbox)
 
-- All three mockups render in headless Chromium (screenshots delivered to
-  the founder in-session); the `<details>` uncertainty sheets work without JS.
-- Web app smoke for Step 9 run NOW, not at deploy week: `tsc --noEmit`
-  clean · vitest 25/25 · `next build` green with a dummy Clerk publishable
-  key; `/tonight` prerenders static, 184 kB first-load JS (inside the
-  LCP ≤ 2.5s budget's weight class). No Step-9 landmines found.
+Scope stated precisely so no green claim outruns its evidence: these ran in
+the Claude Code session container, NOT in CI — this diff touches no `web/`
+files, so the CI web gate correctly reports "not applicable" for it. The
+same checks re-run mechanically in CI the moment Step 9 touches `web/`.
+
+- Mockup rendering: all three files rendered in headless Chromium
+  (`chromium --headless --screenshot file://…`); the committed evidence is
+  in `renders/` (one PNG per direction, regenerated after every mockup
+  edit). The `<details>` uncertainty sheets work without JavaScript.
+- Web app smoke for Step 9 (`web/`, unchanged by this PR): `npx tsc
+  --noEmit` exit 0 · `npm test` 25/25 · `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+  pk_test_… npm run build` green; `/tonight` prerendered static, 184 kB
+  first-load JS. Captured output: `renders/web-smoke-2026-07-15.log`.
+  Anyone can reproduce with those three commands from `web/`.
+
+## Deferral (recorded, R-014)
+
+Light mode ships as palette specifications here, not as rendered comps —
+rendering three full light variants for two directions that will be
+discarded fails least-costly-method-first. Objective trigger in
+`docs/RECORD.md` R-014: the founder picks a direction → the Step 9
+implementation PR ships the WINNER's light-mode render + visual-regression
+baseline (light + dark), closing the gap where it matters.
 
 ## What happens next
 
