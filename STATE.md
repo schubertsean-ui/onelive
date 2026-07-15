@@ -34,6 +34,13 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 
 > **Ground-truth block staleness (2026-07-13):** the JSON block above is machine-maintained and could NOT be refreshed this session — the reconciler needs `gh` (absent in this sandbox) and a DB DSN (not provided). It shows pre-PR#9 state. The 2026-07-13 reality check below records what WAS independently verified (via the GitHub API). Refresh the block with `session_reconcile.py --heal` from an env with `gh` + `ONELIVE_DB_DSN`.
 
+## Session Contract #6 (2026-07-14, same conversation — founder research note: po battery on global sensing + Peirce semiotics applicability)
+
+GOAL: (a) Run the chartered po battery against the scale challenge — "share with users all the entertainment happening all the time: hundreds of thousands of entertainment/culture websites and feeds globally, starting from central Texas counties" — and harvest candidate ideas through movement techniques. (b) Determine whether Peirce's triadic sign model + semiotics can serve as an analytical frame for po output and the six thinking hats, and whether it maps usefully onto our trust pipeline.
+SCOPE: PROPOSAL research note in docs/strategy/ (po transcript summary + harvest + Peirce analysis) · M6 ledger row · changelog · this contract. Chat deliverable to founder in plain language.
+NON-GOALS: nothing po-generated becomes canon, memory, candidate data, or user-facing copy (charter Thinking-tools rule 1); no build commitments — the ratified scale-out sensor architecture doc and its Step-7 triggers stay the plan of record; no new services or spend.
+DONE-CRITERIA: full battery run (all operators, standalone + combos, seeded) · harvest recorded as CANDIDATES with the trust-invariant screen applied · Peirce verdict with cited grounding and an honest "useful/not-useful" call · bookends updated in the same commit.
+
 ## Session Contract #5 (2026-07-14 — founder: "I approve the charter amendment" [gate custody])
 
 GOAL: Close the gate-custody gap surfaced by reviewing Weco's recursive-self-improvement post — the Generator must never be the unreviewed author of its own examiners, and making a gate easier to pass must interrupt the founder.
