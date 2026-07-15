@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ONE LIVE — Direction 1 of 3: MARQUEE (warm / analog-human)</title>
+<style>
+  /* ============ DIRECTION 1: MARQUEE ============
+     Lean: warm/analog-human — night warmth, human texture.
+     Palette (dark): bg #16110D · surface #221A12 · raised #2C2218
+       ink #F4E9D8 · muted #B9A88F · tungsten #E8A24B · ember #C96F2E
+       hairline #3A2E20
+     Palette (light): bg #FAF4EA · surface #FFFFFF · ink #2A2118
+       muted #6E5F4B · tungsten #B36A1B · hairline #E4D8C4
+     Type pairing: Fraunces (display serif, warm; fallback Georgia)
+       + system humanist sans for UI/meta.
+     Signature element: THE DOORLIGHT — every card's leading edge carries a
+       soft tungsten glow, light spilling from a slightly-open door. Uniform
+       for every listing (never a hierarchy), it makes the feed literally
+       "a street of open doors."
+  */
+  :root{
+    --bg:#16110D; --surface:#221A12; --raised:#2C2218; --ink:#F4E9D8;
+    --muted:#B9A88F; --tung:#E8A24B; --ember:#C96F2E; --line:#3A2E20;
+    --on-accent:#1C130A; --page:#0C0906; --chrome:#0F0B08; --sky:#2B1A20;
+  }
+  /* LIGHT MODE — real, class-toggled (html.light) so both modes render
+     deterministically; production uses prefers-color-scheme + a toggle. */
+  html.light{--bg:#FAF4EA; --surface:#FFFFFF; --raised:#F1E7D6; --ink:#2A2118;
+    --muted:#6E5F4B; --tung:#B36A1B; --ember:#8F4B15; --line:#E4D8C4;
+    --on-accent:#FFF9EF; --page:#EFE7D9; --chrome:#F5EDDE; --sky:#F6E3C8}
+  html.light [stroke="#E8A24B"]{stroke:#B36A1B}
+  html.light [fill="#E8A24B"]{fill:#B36A1B}
+  html.light [fill="#221A12"]{fill:var(--surface)}
+  html.light [stroke="#B9A88F"]{stroke:#6E5F4B}
+  html.light .genre{border-color:rgba(179,106,27,.5)}
+  *{margin:0;padding:0;box-sizing:border-box}
+  button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:inherit;letter-spacing:inherit;text-transform:inherit}
+  body{background:var(--page);color:var(--ink);font-family:ui-sans-serif,system-ui,"Segoe UI",Helvetica,Arial,sans-serif;padding:24px;line-height:1.45}
+  .direction-header{max-width:1200px;margin:0 auto 28px}
+  .direction-header h1{font-family:Georgia,'Times New Roman',serif;font-size:28px;letter-spacing:.5px}
+  .direction-header p{color:var(--muted);max-width:860px;margin-top:8px;font-size:14px}
+  .chips{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .chip{width:64px;height:36px;border-radius:6px;border:1px solid var(--line);display:flex;align-items:flex-end;justify-content:center;font-size:8px;color:#000;padding-bottom:2px}
+  .frames{display:flex;gap:28px;max-width:1200px;margin:0 auto;flex-wrap:wrap;align-items:flex-start}
+  .frame{width:360px;background:var(--bg);border:1px solid var(--line);border-radius:28px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .frame-label{text-align:center;color:var(--muted);font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:10px 0;border-bottom:1px solid var(--line);background:var(--chrome)}
+
+  /* ---------- shared app chrome ---------- */
+  .app{padding:18px 16px 24px;min-height:640px;background:
+    radial-gradient(900px 320px at 50% -140px, rgba(232,162,75,.16), transparent),
+    linear-gradient(180deg, var(--sky) 0%, transparent 150px), var(--bg)}
+  .masthead{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px}
+  .masthead h2{font-family:Georgia,serif;font-size:27px;font-weight:600;letter-spacing:.2px}
+  .tagline{color:var(--muted);font-size:11.5px;margin-bottom:14px}
+  .tabs{display:flex;gap:6px;margin-bottom:14px}
+  .tab{padding:10px 14px;min-height:44px;display:flex;align-items:center;border-radius:999px;font-size:13px;color:var(--muted);border:1px solid var(--line);background:transparent}
+  .tab[aria-pressed="true"]{color:var(--on-accent);background:var(--tung);border-color:var(--tung);font-weight:600}
+  .filter-entry{margin-left:auto;padding:10px 12px;min-height:44px;display:flex;align-items:center;gap:6px;border-radius:999px;border:1px solid var(--tung);color:var(--tung);font-size:13px;font-weight:600;background:transparent}
+  /* v2: genre rail — genre as a first-class, one-tap browse surface */
+  .genre-rail{display:flex;gap:8px;overflow-x:auto;margin:0 -16px 14px;padding:2px 16px 6px;-webkit-overflow-scrolling:touch}
+  .grail{flex:none;padding:10px 16px;min-height:44px;display:flex;align-items:center;border-radius:999px;border:1px solid var(--line);color:var(--ink);font-size:13.5px;font-weight:600}
+  .grail.on{background:var(--tung);color:var(--on-accent);border-color:var(--tung)}
+  /* v2: the venue is a headliner too */
+  .venue-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
+  .venue-name{font-size:15.5px;font-weight:700;color:var(--ink);font-family:Georgia,serif}
+  .venue-name .hood{font-family:ui-sans-serif,system-ui;font-size:11.5px;font-weight:400;color:var(--muted);margin-left:6px}
+  .locpill{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;flex:none}
+  .citymap{width:34px;height:22px}
+  .citymap circle{fill:var(--tung)}
+  .open-hint{color:var(--muted);font-size:12px;flex:none;white-space:nowrap}
+  .pips{display:inline-flex;gap:2.5px;margin-left:7px}
+  .pips i{width:3.5px;height:3.5px;border-radius:99px;background:currentColor;opacity:.75;display:block}
+  a.fopt{text-decoration:none}
+  input.search{appearance:none;-webkit-appearance:none;font:inherit}
+  a.open-hint{text-decoration:none;display:inline-flex;align-items:center;min-height:44px}
+  .samples{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .sample{min-height:44px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:12px;display:flex;align-items:center}
+  .sample.on{border-color:var(--tung);color:var(--tung);font-weight:600}
+
+
+  /* ---------- THE DOORLIGHT card ---------- */
+  .card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 14px 14px 20px;margin-bottom:12px;overflow:hidden}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:7px;
+    background:linear-gradient(90deg, rgba(232,162,75,.95), rgba(232,162,75,.28) 55%, transparent);
+    filter:blur(.4px)}
+  .card-top{display:flex;align-items:flex-start;gap:10px}
+  .artist{font-family:Georgia,serif;font-size:19px;font-weight:600;line-height:1.15;flex:1}
+  .glyph{flex:none;width:22px;height:22px;opacity:.85}
+  .spark{font-size:13.5px;color:var(--ink);margin-top:5px}
+  .spark .attr{color:var(--muted);font-size:11.5px;font-style:normal}
+  .spark.ai{font-style:italic;color:var(--muted)}
+  .spark.ai .mark{font-style:normal;font-size:10px;vertical-align:super}
+  .meta{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12.5px;margin-top:9px;flex-wrap:wrap}
+  .meta .venue{color:var(--ink)}
+  .dot{opacity:.5}
+  .genres{display:flex;gap:6px;margin-top:9px}
+  .genre{font-size:11px;color:var(--tung);border:1px solid rgba(232,162,75,.35);border-radius:999px;padding:3px 9px}
+  .row-actions{display:flex;align-items:center;gap:10px;margin-top:11px;flex-wrap:wrap;row-gap:8px}
+  .time-free{display:flex;align-items:baseline;gap:9px;margin-right:auto;white-space:nowrap}
+  .time{font-size:15px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
+  .free{font-size:11px;color:var(--tung);letter-spacing:.08em;text-transform:uppercase}
+  .ticketed{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+  .hear{display:flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;flex:none;white-space:nowrap;border-radius:999px;background:var(--raised);border:1px solid var(--line);color:var(--ink);font-size:13px;font-weight:600}
+  .hear svg{width:14px;height:14px}
+  /* feed-level uncertainty: a REAL control — quiet icon summary (44px target)
+     opening the same one-tap-dismissible sheet used on the detail screen */
+  details.quiet>summary{position:absolute;top:2px;right:2px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;list-style:none;cursor:pointer}
+  details.quiet>summary::-webkit-details-marker{display:none}
+  details.quiet>summary svg{width:16px;height:16px;opacity:.45}
+  details.quiet[open]>summary svg{opacity:.85}
+
+  /* uncertainty sheet (demo via <details>) */
+  details.sheet summary{list-style:none;cursor:pointer}
+  details.sheet summary::-webkit-details-marker{display:none}
+  .sheet-body{margin-top:10px;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:12.5px;color:var(--muted)}
+  .sheet-body a{color:var(--tung);text-decoration:none;border-bottom:1px solid rgba(232,162,75,.4)}
+
+  /* ---------- filter panel ---------- */
+  .panel-title{font-family:Georgia,serif;font-size:20px;margin-bottom:14px}
+  .fgroup{margin-bottom:18px}
+  .flabel{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+  .fgrid{display:flex;flex-wrap:wrap;gap:8px}
+  .fopt{padding:10px 14px;min-height:44px;display:flex;align-items:center;border-radius:999px;border:1px solid var(--line);font-size:13px;color:var(--ink);background:transparent}
+  .fopt.on{background:var(--tung);color:var(--on-accent);border-color:var(--tung);font-weight:600}
+  .search{width:100%;min-height:44px;background:var(--surface);border:1px solid var(--line);border-radius:12px;color:var(--muted);padding:0 14px;font-size:13.5px;display:flex;align-items:center}
+  .panel-actions{display:flex;gap:10px;margin-top:22px}
+  .apply{flex:1;min-height:48px;border-radius:12px;background:var(--tung);color:var(--on-accent);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center}
+  .clear{min-height:48px;padding:0 18px;border-radius:12px;border:1px solid var(--line);color:var(--muted);font-size:14px;display:flex;align-items:center}
+
+  /* ---------- detail ---------- */
+  .back{color:var(--muted);font-size:13px;margin-bottom:14px;display:block;display:inline-flex;align-items:center;min-height:44px}
+  .d-artist{font-family:Georgia,serif;font-size:28px;font-weight:600;line-height:1.1}
+  .d-spark{font-size:14px;margin:8px 0 2px}
+  .player{margin-top:16px;background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;align-items:center;gap:12px}
+  .play-btn{width:44px;height:44px;border-radius:999px;background:var(--tung);display:flex;align-items:center;justify-content:center;flex:none}
+  .play-btn svg path{fill:var(--on-accent)}
+  .wave{flex:1;height:26px;background:repeating-linear-gradient(90deg,var(--line) 0 3px,transparent 3px 7px);border-radius:4px;opacity:.8}
+  .facts{margin-top:18px;border-top:1px solid var(--line)}
+  .fact{display:flex;justify-content:space-between;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line);font-size:13.5px}
+  .fact .k{color:var(--muted)}
+  .fact .v{text-align:right}
+  .fact .v a, .fact .v .link{color:var(--tung);text-decoration:none}
+  .d-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+  .d-btn{min-height:46px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:13px;display:flex;align-items:center;gap:7px}
+  .d-btn.primary{background:var(--tung);color:var(--on-accent);border-color:var(--tung);font-weight:700}
+  .something-off{display:block;text-align:center;color:var(--muted);font-size:12px;margin-top:8px;cursor:pointer;opacity:.8}
+  .something-off-wrap{margin-top:12px}
+
+  .lightmode-note{max-width:1200px;margin:26px auto 0;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<!-- STATIC COMP, REAL SEMANTICS: every control is a real element — buttons
+     (type="button"), links with real destinations, a real search input, and
+     <details> disclosures. A static artifact carries no app logic; Step 9
+     binds behavior to these already-real controls. All content is fixture
+     data (labeled in every frame). -->
+
+<header class="direction-header">
+  <h1>Direction 1 of 3 — MARQUEE <span style="color:#B9A88F;font-size:15px;font-family:ui-sans-serif,system-ui">warm / analog-human · "night warmth, human texture"</span></h1>
+  <p><strong>Rationale (3 sentences):</strong> Marquee translates the sidewalk moment literally — tungsten light spilling from doorways onto warm pavement — so the feed feels like walking down East 6th with a friend who knows every room. Serif artist names carry the humanity of a hand-set gig poster while the UI sans keeps every scan instant, honoring anticipation + calm certainty in one voice. Nothing glows brighter than anything else: the Doorlight is identical on every card, so warmth never becomes hierarchy and trust stays a property of craft, not chrome.</p>
+  <p><strong>Deliberately avoids:</strong> Spotify charcoal/green, DICE poster-starkness, nostalgia-kitsch "vintage western" Austin clichés, and any badge/checkmark/trust chrome.</p>
+  <p><strong>Type pairing:</strong> Fraunces (display serif — fallback Georgia in this mockup) + system humanist sans. <strong>Signature element:</strong> the DOORLIGHT (uniform warm glow on each card's leading edge — a street of slightly-open doors).</p>
+  <div class="chips" aria-label="dark palette">
+    <div class="chip" style="background:#16110D;color:#B9A88F">16110D</div>
+    <div class="chip" style="background:#221A12;color:#B9A88F">221A12</div>
+    <div class="chip" style="background:#F4E9D8">F4E9D8</div>
+    <div class="chip" style="background:#E8A24B">E8A24B</div>
+    <div class="chip" style="background:#C96F2E">C96F2E</div>
+  </div>
+</header>
+
+<main class="frames">
+
+  <!-- ============ SCREEN 1: TONIGHT FEED ============ -->
+  <section class="frame" id="tonight-feed" aria-label="Screen 1: Tonight feed">
+    <div class="frame-label">Screen 1 · Tonight Feed · fixture data</div>
+    <div class="app">
+      <div class="masthead">
+        <h2>Tonight in Austin</h2>
+        <span style="color:var(--muted);font-size:12px">Tue Jul 15</span>
+      </div>
+      <div class="tagline">Less chaos. Real shows.</div>
+      <div class="tabs">
+        <button class="tab" type="button" aria-pressed="true">Today</button>
+        <button class="tab" type="button" aria-pressed="false">Tomorrow</button>
+        <button class="tab" type="button" aria-pressed="false">This Week</button>
+        <button class="filter-entry" type="button" aria-label="Open filters">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 4h12M4 8h8M6 12h4" stroke="#B9A88F" stroke-width="1.6" stroke-linecap="round"/></svg>
+          Filters
+        </button>
+      </div>
+      <div class="genre-rail" role="group" aria-label="Filter tonight by genre"><button class="grail on" type="button" aria-pressed="true">All</button><button class="grail" type="button" aria-pressed="false">Rock</button><button class="grail" type="button" aria-pressed="false">Hip-Hop</button><button class="grail" type="button" aria-pressed="false">Jazz</button><button class="grail" type="button" aria-pressed="false">Electronic</button><button class="grail" type="button" aria-pressed="false">Country</button><button class="grail" type="button" aria-pressed="false">Metal</button><button class="grail" type="button" aria-pressed="false">Experimental</button><button class="grail" type="button" aria-pressed="false">Latin</button></div>
+
+      <!-- Card 1: sourced spark line, free show -->
+      <article class="card">
+        <div class="card-top">
+          <h3 class="artist">Sister Neon &amp; the Vapors</h3>
+          <svg class="glyph" role="img" aria-label="mood: bright, rising" viewBox="0 0 24 24" fill="none"><path d="M12 20V8M12 8l-4.5 4.5M12 8l4.5 4.5" stroke="#E8A24B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.5" r="1.6" fill="#E8A24B"/></svg>
+        </div>
+        <p class="spark">brass. menace. amen. <span class="attr">— a local critic (fixture)</span></p>
+        <div class="venue-row"><span class="venue-name">Sahara Lounge <span class="hood">East Austin</span></span><span class="locpill" role="img" aria-label="Sahara Lounge on the Austin map — 2.6 miles from you"><svg class="citymap" viewBox="0 0 34 22" aria-hidden="true"><path d="M6 4 L26 3 L29 5 L31 11 L27 19 L14 20 L9 17 L6.5 13.5 L5 11 L5.5 7 Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" opacity=".55"/><path d="M6.5 8.5 C10 10.5 13 12.8 17 13.3 S23.5 14 26 16.5" fill="none" stroke="currentColor" stroke-width=".8" opacity=".35"/><circle cx="24" cy="10" r="2.4"/></svg>2.6 mi</span></div>
+        <div class="genres"><span class="genre">Soul</span><span class="genre">Experimental</span></div>
+        <div class="row-actions">
+          <div class="time-free"><span class="time">8:00 PM</span><span class="free">Free</span></div>
+          <a class="open-hint" href="#event-detail">Details ›</a><button type="button" class="hear" aria-label="Hear it — three short samples"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#E8A24B"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
+        </div>
+      </article>
+
+      <!-- Card 2: artist's own words, ticketed -->
+      <article class="card">
+        <div class="card-top">
+          <h3 class="artist">Culebra Canyon</h3>
+          <svg class="glyph" role="img" aria-label="mood: slow-burning, holy" viewBox="0 0 24 24" fill="none"><path d="M5 16c2.5-1 3-6 7-6s4.5 5 7 6" stroke="#E8A24B" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="18.5" r="1.4" fill="#E8A24B"/></svg>
+        </div>
+        <p class="spark">doom-laden desert blues, slow and holy <span class="attr">— their words</span></p>
+        <div class="venue-row"><span class="venue-name">Hotel Vegas <span class="hood">East Austin</span></span><span class="locpill" role="img" aria-label="Hotel Vegas on the Austin map — 1.4 miles from you"><svg class="citymap" viewBox="0 0 34 22" aria-hidden="true"><path d="M6 4 L26 3 L29 5 L31 11 L27 19 L14 20 L9 17 L6.5 13.5 L5 11 L5.5 7 Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" opacity=".55"/><path d="M6.5 8.5 C10 10.5 13 12.8 17 13.3 S23.5 14 26 16.5" fill="none" stroke="currentColor" stroke-width=".8" opacity=".35"/><circle cx="22" cy="12" r="2.4"/></svg>1.4 mi</span></div>
+        <div class="genres"><span class="genre">Rock</span></div>
+        <div class="row-actions">
+          <div class="time-free"><span class="time">9:00 PM</span><span class="ticketed">Ticketed</span></div>
+          <a class="open-hint" href="#event-detail">Details ›</a><button type="button" class="hear" aria-label="Hear it — three short samples"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#E8A24B"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
+        </div>
+      </article>
+
+      <!-- Card 3: tier-C AI-drafted spark line (✳ + quieter italic + "— first notes") -->
+      <article class="card">
+        <div class="card-top">
+          <h3 class="artist">Palo Duro Choir</h3>
+          <svg class="glyph" role="img" aria-label="mood: wide, tender" viewBox="0 0 24 24" fill="none"><path d="M4 14c3-4 13-4 16 0" stroke="#E8A24B" stroke-width="1.8" stroke-linecap="round"/><path d="M8 17.5h8" stroke="#E8A24B" stroke-width="1.4" stroke-linecap="round" opacity=".55"/></svg>
+        </div>
+        <p class="spark ai">loud——then unbearably tender <span class="mark">✳</span> <span class="attr">— first notes</span></p>
+        <div class="venue-row"><span class="venue-name">Mohawk <span class="hood">Red River</span></span><span class="locpill" role="img" aria-label="Mohawk on the Austin map — 0.9 miles from you"><svg class="citymap" viewBox="0 0 34 22" aria-hidden="true"><path d="M6 4 L26 3 L29 5 L31 11 L27 19 L14 20 L9 17 L6.5 13.5 L5 11 L5.5 7 Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" opacity=".55"/><path d="M6.5 8.5 C10 10.5 13 12.8 17 13.3 S23.5 14 26 16.5" fill="none" stroke="currentColor" stroke-width=".8" opacity=".35"/><circle cx="17" cy="9" r="2.4"/></svg>0.9 mi</span></div>
+        <div class="genres"><span class="genre">Experimental</span><span class="genre">Metal</span></div>
+        <div class="row-actions">
+          <div class="time-free"><span class="time">9:30 PM</span><span class="ticketed">Ticketed</span></div>
+          <a class="open-hint" href="#event-detail">Details ›</a><button type="button" class="hear" aria-label="Hear it — three short samples"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#E8A24B"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
+        </div>
+      </article>
+
+      <!-- Card 4: uncertain details — ONE quiet icon (a real 44px control) opening the dismissible sheet -->
+      <article class="card">
+        <details class="sheet quiet">
+          <summary aria-label="Details for this show may change — more info">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.2" stroke="#B9A88F" stroke-width="1.2"/><path d="M8 5v3.6M8 10.8v.4" stroke="#B9A88F" stroke-width="1.2" stroke-linecap="round"/></svg>
+          </summary>
+          <div class="sheet-body">
+            Details for this show may still change. You may want to double-check
+            with the venue — <a href="https://elephantroom.com" rel="noopener">Elephant Room's site ↗</a>.
+          </div>
+        </details>
+        <div class="card-top">
+          <h3 class="artist">Jess Almendárez Trio</h3>
+          <svg class="glyph" role="img" aria-label="mood: late, blue, warm" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="6" stroke="#E8A24B" stroke-width="1.6" opacity=".8"/><circle cx="14.5" cy="10" r="5.6" fill="#221A12"/></svg>
+        </div>
+        <p class="spark">after-midnight jazz for slow hearts <span class="attr">— their words</span></p>
+        <div class="venue-row"><span class="venue-name">Elephant Room <span class="hood">Downtown</span></span><span class="locpill" role="img" aria-label="Elephant Room on the Austin map — 0.6 miles from you"><svg class="citymap" viewBox="0 0 34 22" aria-hidden="true"><path d="M6 4 L26 3 L29 5 L31 11 L27 19 L14 20 L9 17 L6.5 13.5 L5 11 L5.5 7 Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" opacity=".55"/><path d="M6.5 8.5 C10 10.5 13 12.8 17 13.3 S23.5 14 26 16.5" fill="none" stroke="currentColor" stroke-width=".8" opacity=".35"/><circle cx="15" cy="12" r="2.4"/></svg>0.6 mi</span></div>
+        <div class="genres"><span class="genre">Jazz</span></div>
+        <div class="row-actions">
+          <div class="time-free"><span class="time">10:30 PM</span><span class="free">Free</span></div>
+          <a class="open-hint" href="#event-detail">Details ›</a><button type="button" class="hear" aria-label="Hear it — three short samples"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#E8A24B"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 2: FILTER PANEL ============ -->
+  <section class="frame" aria-label="Screen 2: Filter panel">
+    <div class="frame-label">Screen 2 · Filters (slide-in) · fixture data</div>
+    <div class="app">
+      <h2 class="panel-title">Tune tonight</h2>
+      <div class="fgroup">
+        <div class="flabel">Genre</div>
+        <div class="fgrid">
+          <button class="fopt on" type="button" aria-pressed="true">Rock</button><button class="fopt" type="button" aria-pressed="false">Hip-Hop</button><button class="fopt on" type="button" aria-pressed="true">Jazz</button><button class="fopt" type="button" aria-pressed="false">Electronic</button><button class="fopt" type="button" aria-pressed="false">Country</button><button class="fopt" type="button" aria-pressed="false">Metal</button><button class="fopt" type="button" aria-pressed="false">Experimental</button><button class="fopt" type="button" aria-pressed="false">Latin</button>
+        </div>
+      </div>
+      <div class="fgroup">
+        <div class="flabel">Show type</div>
+        <div class="fgrid"><button class="fopt on" type="button" aria-pressed="true">Free</button><button class="fopt" type="button" aria-pressed="false">Ticketed</button></div>
+      </div>
+      <div class="fgroup">
+        <div class="flabel">Venue</div>
+        <input class="search" type="search" placeholder="Search venues…" aria-label="Search venues">
+      </div>
+      <div class="fgroup">
+        <div class="flabel">Neighborhood</div>
+        <div class="fgrid"><button class="fopt" type="button" aria-pressed="false">Downtown</button><button class="fopt on" type="button" aria-pressed="true">East Austin</button><button class="fopt" type="button" aria-pressed="false">South Austin</button></div>
+      </div>
+      <div class="panel-actions">
+        <button class="apply" type="button">Show 14 shows</button>
+        <button class="clear" type="button">Clear all</button>
+      </div>
+      <p style="color:var(--muted);font-size:11.5px;margin-top:14px;text-align:center">Filters apply instantly. Nothing is ever hidden for money.</p>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 3: EVENT DETAIL ============ -->
+  <section class="frame" id="event-detail" aria-label="Screen 3: Event detail">
+    <div class="frame-label">Screen 3 · Event Detail · fixture data</div>
+    <div class="app">
+      <a class="back" href="#tonight-feed">← Tonight</a>
+      <h2 class="d-artist">Culebra Canyon</h2>
+      <p class="spark d-spark">doom-laden desert blues, slow and holy <span class="attr">— their words</span></p>
+      <div class="genres" style="margin-top:10px"><span class="genre">Rock</span></div>
+
+      <div class="player" aria-label="music preview player">
+        <button class="play-btn" type="button" aria-label="Play sample"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5 3.5v9l8-4.5-8-4.5Z" fill="#1C130A"/></svg></button>
+        <div class="wave" aria-hidden="true"></div>
+        <span style="color:var(--muted);font-size:12px">0:23</span>
+      </div>
+      <div class="samples" aria-label="Three short samples — no act judged on one song"><button type="button" class="sample on">1 · slow &amp; holy</button><button type="button" class="sample">2 · full-band stomp</button><button type="button" class="sample">3 · the tender one</button></div>
+
+      <div class="facts">
+        <div class="fact"><span class="k">Date</span><span class="v">Tuesday, July 15</span></div>
+        <div class="fact"><span class="k">Doors / Start</span><span class="v">8:30 PM / 9:00 PM</span></div>
+        <div class="fact"><span class="k">Est. duration</span><span class="v">~2 hrs with opener</span></div>
+        <div class="fact"><span class="k">Venue</span><span class="v">Hotel Vegas<br><span style="color:var(--muted);font-size:12px">1502 E 6th St · <a class="link" href="https://maps.google.com/?q=Hotel+Vegas+1502+E+6th+St+Austin+TX" rel="noopener">Map</a></span></span></div>
+        <div class="fact"><span class="k">From you</span><span class="v"><span class="locpill" role="img" aria-label="Hotel Vegas on the Austin map — 1.4 miles from you"><svg class="citymap" viewBox="0 0 34 22" aria-hidden="true"><path d="M6 4 L26 3 L29 5 L31 11 L27 19 L14 20 L9 17 L6.5 13.5 L5 11 L5.5 7 Z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" opacity=".55"/><path d="M6.5 8.5 C10 10.5 13 12.8 17 13.3 S23.5 14 26 16.5" fill="none" stroke="currentColor" stroke-width=".8" opacity=".35"/><circle cx="22" cy="12" r="2.4"/></svg>1.4 mi</span></span></div>
+        <div class="fact"><span class="k">Parking</span><span class="v">Street + lot on Comal</span></div>
+        <div class="fact"><span class="k">Tickets</span><span class="v"><a class="link" href="https://texashotelvegas.com" rel="noopener">$12 advance ↗</a></span></div>
+      </div>
+
+      <div class="fgroup" style="margin-top:18px"><div class="flabel">Nearby</div><div class="fgrid"><a class="fopt" href="https://www.google.com/maps/search/restaurants+near+1502+E+6th+St+Austin+TX" rel="noopener">Restaurants ↗</a><a class="fopt" href="https://www.google.com/maps/search/bars+near+1502+E+6th+St+Austin+TX" rel="noopener">Bars ↗</a><a class="fopt" href="https://www.google.com/maps/search/coffee+near+1502+E+6th+St+Austin+TX" rel="noopener">Coffee ↗</a><a class="fopt" href="#tonight-feed">More venues tonight</a></div></div>
+
+      <!-- uncertainty pattern: quiet icon + one-tap dismissible sheet -->
+      <details class="sheet" style="margin-top:16px">
+        <summary style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12.5px;min-height:44px">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.2" stroke="#B9A88F" stroke-width="1.2"/><path d="M8 5v3.6M8 10.8v.4" stroke="#B9A88F" stroke-width="1.2" stroke-linecap="round"/></svg>
+          About tonight's details
+        </summary>
+        <div class="sheet-body">
+          Details for this show may still change. If it's a long drive, you may
+          want to double-check with the venue — <a href="https://texashotelvegas.com" rel="noopener">Hotel Vegas's site ↗</a>.
+        </div>
+      </details>
+
+      <div class="d-actions">
+        <button class="d-btn primary" type="button">Add to calendar</button>
+        <button class="d-btn" type="button">Share</button>
+      </div>
+      <details class="sheet something-off-wrap"><summary class="something-off" style="display:flex;align-items:center;justify-content:center;min-height:44px">Something off?</summary><div class="sheet-body">Tell us what looks wrong — corrections are reviewed by a human and checked with the venue before anything changes. Nothing real is ever hidden.</div></details>
+    </div>
+  </section>
+</main>
+
+<p class="lightmode-note"><strong>Light mode:</strong> bg #FAF4EA · surface #FFFFFF · ink #2A2118 · muted #6E5F4B · tungsten deepens to #B36A1B for 4.6:1 contrast on white · hairlines #E4D8C4. The Doorlight renders as a warm paper-edge glow. Same geometry, same rules; the soul stays nocturnal.</p>
+
+</body>
+</html>
