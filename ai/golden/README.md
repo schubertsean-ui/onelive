@@ -75,6 +75,14 @@ Every expected-key change must cite the convention it corrects toward.
   - g064 title "Midnight Cartography (extended set)" → null: an artist
     name plus a set descriptor is not an event name; keeping it
     contradicted g031/g023 (artist-as-title = null).
+- **2026-07-15 (cycle 9, opus, PR #25):**
+  - g009 title "Purple Reign" → null: the title exactly duplicated the
+    artist name. Production extraction now nulls any title equal to an
+    artist/venue name (provider `_drop_redundant_title` — a duplicate
+    title asserts nothing the bill doesn't already assert, and would
+    render as a doubled line on the event card), so the canon is: such
+    titles are null everywhere. The tribute-trap's real teeth (artist =
+    "Purple Reign", never Prince) are untouched.
 
 ## Prompt hygiene rule (added after the g060 own-goal, cycle 6)
 

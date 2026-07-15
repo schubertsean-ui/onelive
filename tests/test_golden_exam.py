@@ -169,6 +169,21 @@ def test_html_entities_are_decoded_at_the_provider_boundary():
     assert out["is_private_rsvp"] is False
 
 
+def test_title_duplicating_artist_or_venue_is_nulled():
+    """Production normalization (exam cycles 3-9): every model tier
+    sometimes promotes the headline act or the venue to `title`. A title
+    equal to an artist/venue name is dropped deterministically; a
+    distinct title is never touched."""
+    p = ClaudeProvider(api_key="test", model="claude-test", exam_mode=True)
+    out = p._stamp({"title": "The Lantern Parade",
+                    "artist_names": ["The Lantern Parade"]})
+    assert out["title"] is None
+    out = p._stamp({"title": "VALHALLA", "venue_name": "Valhalla"})
+    assert out["title"] is None
+    out = p._stamp({"title": "The Rewire Tour", "artist_names": ["Volt Collective"]})
+    assert out["title"] == "The Rewire Tour"
+
+
 def test_exam_provenance_is_stamped():
     p = ClaudeProvider(api_key="test", model="claude-test", exam_mode=True)
     stamped = p._stamp({"title": "X"})

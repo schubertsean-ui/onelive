@@ -67,7 +67,9 @@ def comparable(d: dict) -> dict:
 
     Time fields compare whitespace-insensitively ("7:45 PM" == "7:45PM"):
     pure spacing is presentation, not information — but any digit/word
-    change ("8PM" -> "8:00 PM") remains a real discrepancy."""
+    change ("8PM" -> "8:00 PM") remains a real discrepancy. (Case and
+    list-order normalization live in eval_harness._norm — the scorer was
+    already case-insensitive; do not duplicate it here.)"""
     out = {}
     for k in COMPARABLE_FIELDS:
         v = d.get(k)

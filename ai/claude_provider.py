@@ -59,7 +59,7 @@ logger = logging.getLogger(__name__)
 
 # Bump when EXTRACTION_SYSTEM_PROMPT changes materially, so provenance on stored
 # candidates records which prompt produced them.
-PROMPT_VERSION = "2026-07-15.7"
+PROMPT_VERSION = "2026-07-15.8"
 
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
@@ -342,11 +342,34 @@ class ClaudeProvider(AIProvider):
             return v
         return {k: dec(v) for k, v in data.items()}
 
+    @staticmethod
+    def _drop_redundant_title(data: Optional[dict]) -> Optional[dict]:
+        """Null a title that merely duplicates an artist or the venue.
+
+        Every model tier tested (exam cycles 3-9) sometimes promotes the
+        headline act or venue to `title` — the industry prior that every
+        listing has a title. A title equal to an artist/venue name carries
+        zero information the other fields don't already assert, and would
+        render as a duplicated line on the event card (design brief: the
+        artist is its own line). Deterministic and case-insensitive; a
+        DISTINCT title is never touched."""
+        if not data or not isinstance(data.get("title"), str):
+            return data
+        t = data["title"].strip().casefold()
+        names = [a for a in (data.get("artist_names") or []) if isinstance(a, str)]
+        if isinstance(data.get("venue_name"), str):
+            names.append(data["venue_name"])
+        if any(t == n.strip().casefold() for n in names):
+            data = dict(data)
+            data["title"] = None
+        return data
+
     def _stamp(self, data: Optional[dict]) -> Optional[dict]:
         """Attach extraction provenance so the candidate is re-verifiable."""
         if data is None:
             return None
         data = self._decode_entities(data)
+        data = self._drop_redundant_title(data)
         data["_provenance"] = {
             "provider": "claude",
             "model": self.model,
