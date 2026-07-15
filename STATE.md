@@ -34,6 +34,14 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 
 > **Ground-truth block staleness (2026-07-13):** the JSON block above is machine-maintained and could NOT be refreshed this session — the reconciler needs `gh` (absent in this sandbox) and a DB DSN (not provided). It shows pre-PR#9 state. The 2026-07-13 reality check below records what WAS independently verified (via the GitHub API). Refresh the block with `session_reconcile.py --heal` from an env with `gh` + `ONELIVE_DB_DSN`.
 
+## Where we are (updated 2026-07-15, session close — see arc 2026-07-14_first-real-run-ratchet-and-sensor-canon)
+
+DONE this arc: PRs #14–#22 merged through the armed gate (M1 trend 5→1). All four Actions secrets landed (founder). FIRST REAL RUN: DB connected (266 sources), caps enforced, dead-man pinged, replay persisted; extraction failed LOUD on a retired model id (~$0, nothing false entered). R-006 RATIFIED at 1% + one-way ratchet (KAIZEN §M7, field-assertion unit). Sensor architecture + po/Kaizen are canon.
+
+NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set gate** — ≥40-example golden set (~320 facts, incl. injection cases), live-exam runner over the REAL provider path (design the documented exam channel past the R-013 gate carefully), blocking CI job; flag flips with a PASSING result → extraction unlocks → first real candidates → Step 7. Then: R-008 cron arming (po battery + friction attack first).
+
+FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
+
 ## Session Contract #6 (2026-07-14, same conversation — founder research note: po battery on global sensing + Peirce semiotics applicability)
 
 GOAL: (a) Run the chartered po battery against the scale challenge — "share with users all the entertainment happening all the time: hundreds of thousands of entertainment/culture websites and feeds globally, starting from central Texas counties" — and harvest candidate ideas through movement techniques. (b) Determine whether Peirce's triadic sign model + semiotics can serve as an analytical frame for po output and the six thinking hats, and whether it maps usefully onto our trust pipeline.

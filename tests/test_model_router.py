@@ -32,29 +32,37 @@ def _clean_routing_env(monkeypatch):
 def test_defaults_resolve_for_every_unblocked_stage(monkeypatch):
     for stage, model in mr.STAGE_MODELS.items():
         if stage == "extraction":
-            continue  # fail-closed until R-006 ratifies — proven below
+            continue  # blocked until the golden-set gate ships (R-013)
         monkeypatch.delenv(f"ONELIVE_MODEL_{stage.upper()}", raising=False)
         assert mr.resolve_model(stage) == model
 
 
-def test_extraction_fails_closed_until_threshold_ratified(monkeypatch):
-    """R-006: the §11.2 extraction hallucination threshold is unratified, so
-    the extraction stage must not resolve to ANY model — and an env override
-    must not bypass the block (it's about the missing gate, not the model)."""
+def test_extraction_blocked_until_golden_gate_ships(monkeypatch):
+    """The bar is ratified (R-006, 1%) but the gate that PROVES it doesn't
+    exist yet (R-013): extraction must not resolve to ANY model, and env
+    overrides cannot bypass the block (it's about the missing gate, not
+    the model). Flag flips only in the Step 6 commit that ships a passing
+    golden-set exam."""
     assert mr.EXTRACTION_THRESHOLD_RATIFIED is False
-    with pytest.raises(ValueError, match="R-006"):
+    with pytest.raises(ValueError, match="R-013"):
         mr.resolve_model("extraction")
     monkeypatch.setenv("ONELIVE_MODEL_EXTRACTION", "claude-opus-4-8")
-    with pytest.raises(ValueError, match="R-006"):
+    with pytest.raises(ValueError, match="R-013"):
         mr.resolve_model("extraction")
 
 
-def test_extraction_resolves_once_ratified(monkeypatch):
-    """When the founder ratifies the threshold (flag flipped in that commit),
-    extraction routes to its documented starting tier."""
+def test_extraction_resolves_once_gate_ships(monkeypatch):
+    """When Step 6 flips the flag with passing exam evidence, extraction
+    routes to its documented starting tier, honoring the env chain
+    (ONELIVE_MODEL_EXTRACTION > legacy ONELIVE_CLAUDE_MODEL > policy)."""
     monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", True)
     monkeypatch.delenv("ONELIVE_MODEL_EXTRACTION", raising=False)
+    monkeypatch.delenv("ONELIVE_CLAUDE_MODEL", raising=False)
     assert mr.resolve_model("extraction") == mr.STAGE_MODELS["extraction"]
+    monkeypatch.setenv("ONELIVE_CLAUDE_MODEL", "legacy-extraction-id")
+    assert mr.resolve_model("extraction") == "legacy-extraction-id"
+    monkeypatch.setenv("ONELIVE_MODEL_EXTRACTION", "claude-haiku-4-5")
+    assert mr.resolve_model("extraction") == "claude-haiku-4-5"
 
 
 def test_env_override_beats_default(monkeypatch):
