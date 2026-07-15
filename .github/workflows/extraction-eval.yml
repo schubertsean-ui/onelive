@@ -10,6 +10,13 @@ name: Extraction Golden-Set Exam (release-blocking)
 # Cost note (§14.3): one full exam = 74 small extraction calls on the
 # cheapest tier — well under a dollar; the ANTHROPIC console spend cap
 # bounds the blast radius regardless.
+#
+# Secret-exposure posture (docs/RECORD.md R-014): this job runs PR code
+# with ANTHROPIC_API_KEY. Accepted while the repo is private/solo — fork
+# PRs get no secrets, so only same-repo branches reach the key, and the
+# key is extraction-only behind a console spend cap. R-014's trigger
+# (public repo / outside contributor) moves this to a protected
+# environment or two-phase workflow.
 
 on:
   pull_request:

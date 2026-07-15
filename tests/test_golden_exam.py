@@ -162,6 +162,42 @@ def test_exam_provenance_is_stamped():
     assert stamped["_provenance"]["exam_mode"] is True
 
 
+def test_exam_mode_denied_when_pipeline_frame_is_anywhere_on_stack():
+    """Evaluator blocker (PR #25 r5): a production wrapper driving the
+    exam runner would make the DIRECT caller look like the allowlisted
+    golden_exam module. Confinement must reject when any worker//api/
+    frame appears anywhere in the stack — synthesized here by compiling
+    an inner constructor under the runner's filename and an outer caller
+    under worker/, without touching real files."""
+    import ai.claude_provider as cp
+    repo_root = pathlib.Path(cp.__file__).resolve().parent.parent
+    inner_ns, outer_ns = {}, {}
+    inner_src = (
+        "from ai.claude_provider import ClaudeProvider\n"
+        "def inner():\n"
+        "    return ClaudeProvider(api_key='test', model='claude-test', exam_mode=True)\n"
+    )
+    exec(compile(inner_src, str(repo_root / "ai" / "golden_exam.py"), "exec"), inner_ns)
+    exec(compile("def outer(f):\n    return f()\n",
+                 str(repo_root / "worker" / "synthetic_wrapper.py"), "exec"), outer_ns)
+    # Positive control: the same inner frame WITHOUT a pipeline frame above
+    # it is the legitimate runner shape and must construct fine.
+    assert inner_ns["inner"]().exam_mode is True
+    # The wrapper hole: golden_exam frame present, but initiated from worker/.
+    with pytest.raises(ExtractionConfigError, match="caller verification failed"):
+        outer_ns["outer"](inner_ns["inner"])
+
+
+def test_full_size_mute_run_fails_on_recall_not_invalid(monkeypatch, capsys):
+    """Evaluator nit (PR #25 r5): validity is a property of the golden set,
+    not the candidate — a full-size run by a mute model is a FAILED exam
+    (recall verdict, exit 1), never an INVALID one (exit 2)."""
+    import ai.golden_exam as ge
+    monkeypatch.setattr(ge, "ClaudeProvider", lambda **kw: MuteFake())
+    assert ge.main(["--model", "claude-test"]) == 1
+    assert "FAILED" in capsys.readouterr().err
+
+
 def test_runner_imports_no_pipeline_or_db_modules():
     """Exam output must be unable to touch the pipeline: the runner may not
     IMPORT candidate_store, promote, orchestrator, or psycopg2 (AST-level —

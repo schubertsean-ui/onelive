@@ -232,13 +232,28 @@ def check_exam_mode_confined(findings: Findings) -> None:
             # construction cannot slip past (evaluator finding, PR #25 r1).
             # Deliberately over-broad: this guards a ratification-gate bypass,
             # and a false positive is a rename away from clean.
-            if "exam_mode" in path.read_text(encoding="utf-8", errors="replace"):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if "exam_mode" in text:
                 findings.add(
                     f"{rel}: references exam_mode outside the exam channel "
                     f"allowlist (ai/golden_exam.py, tests/). exam_mode bypasses "
                     f"the extraction ratification gate and is reserved for the "
                     f"golden-set exam runner only — any reference here is a "
                     f"violation, however constructed."
+                )
+            # Same-hole closure at the static layer (evaluator, PR #25 r5):
+            # pipeline code must not import or invoke the exam RUNNER either —
+            # a wrapper that drives ai.golden_exam would put the allowlisted
+            # runner on the call stack without ever containing "exam_mode".
+            # The runtime stack-walk bans worker//api/ frames; this scan makes
+            # the same wrapper visible in CI before it can run.
+            if "golden_exam" in text:
+                findings.add(
+                    f"{rel}: references golden_exam outside the exam channel "
+                    f"allowlist. Driving the exam runner from pipeline code "
+                    f"would reach the ratification-gate bypass transitively — "
+                    f"the runner may only be invoked by CI, tests, or a human "
+                    f"(python -m ai.golden_exam), never by pipeline code."
                 )
 
 

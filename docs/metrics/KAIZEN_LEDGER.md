@@ -22,6 +22,10 @@ founder digest in plain language.
 | 2026-07-14 | #19 | 3 | evaluator: GITHUB_ENV secret-scope regression ×1, add-mask escaping hole ×1, scope-without-masking ×1, untruthful-record ×1 | credential scoped to one step AND escaped-masked; assembly in tested script; no-secret-in-errors invariant | ~3 evaluator calls | DSN founder-ergonomics |
 | 2026-07-15 | #22 | 1 | — | — | ~1 evaluator call | measured-unit definition (docs-only) |
 | 2026-07-15 | R-006 ratified | — | — | the 1% bar + one-way ratchet codified (KAIZEN §M7); extraction remains BLOCKED under R-013 until the golden-set gate ships and the starting model passes (Step 6) | — | founder: "I'm ok to BEGIN at 1%" — the NUMBER is ratified; the gate that proves it is next |
+| 2026-07-14 | #15 | 2 | evaluator r1: fail-open coverage knob ×1, partial-coverage-as-full ×1 (battery trimmable while claiming "run EVERY prompt") | combos knob removed; tests fail if any P8.x missing | ~2 evaluator calls | row added 2026-07-15 — see record-missing note in class watch |
+| 2026-07-15 | #23 | 1 | — | — | ~1 evaluator call | session-close arc (docs-only); row added 2026-07-15 |
+| 2026-07-15 | #24 | 4 | evaluator: ratification-path governance hole ×1 (founder acceptance is the ONLY ratification path for founder-facing decisions), untruthful-record ×1 (ledger/changelog described intended state as existing), + structural nits | ratification-path rule written into the display-stack canon; records describe what EXISTS | ~4 evaluator calls | certainty display stack; row added 2026-07-15 |
+| 2026-07-15 | #25 (in flight) | 5+ | evaluator r1–r4: exam-channel confinement (grep→runtime) ×2, None-swallowed-as-empty ×1, mismatch-display-only ×1, self-contradicting keys ×3, + nits; r5: wrapper-hole confinement ×2 (runtime + static layers), evidence-channel visibility ×2, sample-floor semantics ×1, secret-on-PR posture ×1 (→ R-014); exam cycles 1–4: prompt–key contradictions ×7 (title conventions), key incoherence ×3 (g004 vs g037/g066; g044), prompt–exam contamination ×1 (golden key strings cited as prompt examples) | two-layer golden_exam confinement; validity = property of the set; key-change log with justifications (ai/golden/README.md); prompt examples must be invented, never golden strings | 5 evaluator calls + 4 real exams (~$2 total) | final row at merge |
 
 ## Class watch (M2 repeat classes — these must trend to zero)
 
@@ -29,6 +33,12 @@ founder digest in plain language.
   (review model). Gate response has now escalated three times (or-default →
   hard-fail → channel removed). If this class appears again, the process fix
   is structural (an env-contract linter for workflows), not another patch.
+- **record-missing / untruthful-record**: #19 (untruthful-record), #24 (same),
+  and 2026-07-15: rows for merged PRs #15/#23/#24 were absent from this table
+  while the changelog claimed the #15 row existed (caught during #25 r5
+  bookkeeping; backfilled same commit). Two more appearances of this class
+  and the fix is structural: a validate-gate check that every merged PR
+  number since #11 has a ledger row.
 
 ## M3 escapes (absolute-zero goal)
 

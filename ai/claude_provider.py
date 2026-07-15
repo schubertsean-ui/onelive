@@ -48,6 +48,7 @@ from typing import Optional
 import json
 import logging
 import os
+import pathlib
 import time
 
 from ai.prompts import EXTRACTION_SYSTEM_PROMPT
@@ -57,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 # Bump when EXTRACTION_SYSTEM_PROMPT changes materially, so provenance on stored
 # candidates records which prompt produced them.
-PROMPT_VERSION = "2026-07-15.2"
+PROMPT_VERSION = "2026-07-15.3"
 
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
@@ -129,27 +130,48 @@ def _resolve_extraction_model(explicit: Optional[str], exam_mode: bool = False) 
 
 
 def _exam_caller_allowed() -> bool:
-    """Runtime confinement of the exam channel (evaluator, PR #25 r3).
+    """Runtime confinement of the exam channel (evaluator, PR #25 r3+r5).
 
-    Walks the call stack past this module's own frames and allows the
-    construction ONLY when the first external caller is the golden-exam
-    runner or test code. Fail-closed: any other caller — worker, api,
-    tools, a REPL — gets ExtractionConfigError even if it found a
-    syntactic disguise past the static trust_gate scan (defense in depth:
-    this is layer 1 at runtime; the text scan remains layer 2 in CI).
+    Two conditions, both required, checked over the WHOLE call stack —
+    not just the nearest frame (r5 closed the wrapper hole: production
+    code calling ai.golden_exam.main() would make the nearest external
+    frame look like the allowlisted runner):
+
+    1. The first non-own frame must be the golden-exam runner or test
+       code (who is directly constructing the provider).
+    2. NO frame anywhere in the stack may come from this repo's worker/
+       or api/ trees (who transitively initiated the call). Pipeline code
+       cannot reach the exam channel even by driving the runner.
+
+    Fail-closed: any violation gets ExtractionConfigError even if it found
+    a syntactic disguise past the static trust_gate scan (defense in depth:
+    this is layer 1 at runtime; the text scan — which also flags any
+    golden_exam reference outside the allowlist — remains layer 2 in CI).
     """
     import inspect
     own = "claude_provider.py"
+    repo_root = str(pathlib.Path(__file__).resolve().parent.parent).replace("\\", "/")
+    direct_caller_ok = False
+    seen_external = False
     for frame in inspect.stack():
         fn = frame.filename.replace("\\", "/")
         if fn.endswith(own):
             continue
-        return (
-            fn.endswith("ai/golden_exam.py")
-            or "/tests/" in fn
-            or "/_pytest/" in fn or "/pytest" in fn
-        )
-    return False
+        # Condition 2: repo pipeline frames are banned ANYWHERE in the stack.
+        # Scoped to this repo's tree so site-packages paths that happen to
+        # contain /api/ (SDK internals) cannot false-positive.
+        if fn.startswith(repo_root + "/worker/") or fn.startswith(repo_root + "/api/"):
+            return False
+        if not seen_external:
+            seen_external = True
+            direct_caller_ok = (
+                fn.endswith("ai/golden_exam.py")
+                or "/tests/" in fn
+                or "/_pytest/" in fn or "/pytest" in fn
+            )
+            if not direct_caller_ok:
+                return False
+    return direct_caller_ok
 
 
 class ExtractionConfigError(RuntimeError):
