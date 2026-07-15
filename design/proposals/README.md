@@ -130,7 +130,7 @@ founder chooses from complete comps. R-014 is RESOLVED by this change.
 | Founder ask | Change (all three directions) |
 |---|---|
 | More inviting, not fussy | MARQUEE: dusk-sky gradient behind the masthead; CURRENT: the Pulse glows, live-colored time numerals; SETLIST: letterpress-red edition number. One warmth move each, no clutter. |
-| How do you get screen 1→2, 2→3? | Filters entry now accent-colored + a prominent genre rail on the feed (one-tap filtering without the panel); every card carries an explicit "Details ›" affordance — tap anywhere on the card opens the show. |
+| How do you get screen 1→2, 2→3? | Filters entry now accent-colored + a prominent genre rail on the feed (one-tap filtering without the panel); every card carries an explicit "Details ›" link (a real in-document anchor in these comps; at Step 9 the whole card becomes the tap target with the link as its accessible name). |
 | Genre prominent + searchable | Horizontally scrollable genre rail (All + 8 genres) at the top of every feed, one tap to filter; full panel remains for combinations. |
 | Venues must feel important | Venue name elevated to its own headliner row (larger, bolder, direction-styled) with neighborhood beside it. |
 | City mini-map + distance | Every card and the detail screen carry a small city-outline chip with a location dot + "N.N mi" from current location; outline is metro-config (Austin now; any city at Step 9), never a hierarchy signal. |

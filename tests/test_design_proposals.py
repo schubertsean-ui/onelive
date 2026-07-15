@@ -228,10 +228,15 @@ def test_no_dead_anchors_or_false_affordances_anywhere(direction):
     an intra-document <a href="#…">, <input>, or <details>."""
     name, html = direction
     assert 'href="#"' not in html, f"{name}: dead anchor present"
-    assert 'role="button"' not in html, f"{name}: role=button on a non-button"
-    assert 'role="tab"' not in html, f"{name}: fake tab semantics"
+    for fake_role in ('role="button"', 'role="tab"', 'role="navigation"',
+                      'role="link"', 'role="tablist"', 'role="searchbox"'):
+        assert fake_role not in html, (
+            f"{name}: {fake_role} — ARIA roles may not claim semantics the "
+            f"element doesn't actually have (role=group/img are the only "
+            f"sanctioned non-implicit roles in these comps)"
+        )
     for cls in ("tab", "grail", "fopt", "apply", "clear", "d-btn", "play-btn",
-                "filter-entry", "open-hint", "link", "search"):
+                "filter-entry", "open-hint", "link", "search", "back"):
         assert not re.search(rf'<(span|div) class="{cls}[" ]', html), (
             f"{name}: affordance class {cls!r} on a dead <span>/<div> — must "
             f"be a real button/anchor/input"
@@ -239,12 +244,14 @@ def test_no_dead_anchors_or_false_affordances_anywhere(direction):
     # every button is explicitly type=button (no accidental submit at Step 9)
     untyped = re.findall(r"<button (?![^>]*type=)", html)
     assert not untyped, f"{name}: {len(untyped)} button(s) missing type=\"button\""
-    # 'Details ›' must be a real link that navigates somewhere real in-document
+    # 'Details ›' and '← Tonight' must be real links navigating to real ids
     hints = re.findall(r'<a class="open-hint" href="(#[a-z-]+)"', html)
     assert len(hints) >= 4, f"{name}: card navigation must be real anchors"
-    for target in set(hints):
+    backs = re.findall(r'<a class="back" href="(#[a-z-]+)"', html)
+    assert backs, f"{name}: back affordance must be a real anchor"
+    for target in set(hints + backs):
         assert f'id="{target[1:]}"' in html, (
-            f"{name}: open-hint targets {target} but no such id exists"
+            f"{name}: navigation targets {target} but no such id exists"
         )
     # search is a real input; every ↗ outbound affordance is a real https link
     assert '<input class="search" type="search"' in html, f"{name}: search is not an <input>"

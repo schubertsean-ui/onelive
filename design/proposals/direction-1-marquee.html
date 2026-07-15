@@ -173,7 +173,7 @@
 <main class="frames">
 
   <!-- ============ SCREEN 1: TONIGHT FEED ============ -->
-  <section class="frame" aria-label="Screen 1: Tonight feed">
+  <section class="frame" id="tonight-feed" aria-label="Screen 1: Tonight feed">
     <div class="frame-label">Screen 1 · Tonight Feed · fixture data</div>
     <div class="app">
       <div class="masthead">
@@ -190,7 +190,7 @@
           Filters
         </button>
       </div>
-      <div class="genre-rail" role="navigation" aria-label="Browse by genre — one tap filters tonight"><button class="grail on" type="button" aria-pressed="true">All</button><button class="grail" type="button" aria-pressed="false">Rock</button><button class="grail" type="button" aria-pressed="false">Hip-Hop</button><button class="grail" type="button" aria-pressed="false">Jazz</button><button class="grail" type="button" aria-pressed="false">Electronic</button><button class="grail" type="button" aria-pressed="false">Country</button><button class="grail" type="button" aria-pressed="false">Metal</button><button class="grail" type="button" aria-pressed="false">Experimental</button><button class="grail" type="button" aria-pressed="false">Latin</button></div>
+      <div class="genre-rail" role="group" aria-label="Filter tonight by genre"><button class="grail on" type="button" aria-pressed="true">All</button><button class="grail" type="button" aria-pressed="false">Rock</button><button class="grail" type="button" aria-pressed="false">Hip-Hop</button><button class="grail" type="button" aria-pressed="false">Jazz</button><button class="grail" type="button" aria-pressed="false">Electronic</button><button class="grail" type="button" aria-pressed="false">Country</button><button class="grail" type="button" aria-pressed="false">Metal</button><button class="grail" type="button" aria-pressed="false">Experimental</button><button class="grail" type="button" aria-pressed="false">Latin</button></div>
 
       <!-- Card 1: sourced spark line, free show -->
       <article class="card">
@@ -298,7 +298,7 @@
   <section class="frame" id="event-detail" aria-label="Screen 3: Event detail">
     <div class="frame-label">Screen 3 · Event Detail · fixture data</div>
     <div class="app">
-      <span class="back">← Tonight</span>
+      <a class="back" href="#tonight-feed">← Tonight</a>
       <h2 class="d-artist">Culebra Canyon</h2>
       <p class="spark d-spark">doom-laden desert blues, slow and holy <span class="attr">— their words</span></p>
       <div class="genres" style="margin-top:10px"><span class="genre">Rock</span></div>
