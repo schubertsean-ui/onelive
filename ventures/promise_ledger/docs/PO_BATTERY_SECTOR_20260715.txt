@@ -1,0 +1,44 @@
+PO BATTERY (docs/skills/po_provocation.md) — run EVERY prompt, write
+every provocation down before judging any, then apply >=2 movement
+techniques per provocation. Provocations are stimuli, never facts.
+
+TARGET STATEMENT: The promise ledger launches with FINANCIALS (banks and financial institutions) as its beachhead sector
+
+STEP 0 — ASSUMPTIONS: list everything the statement takes for granted.
+
+P1 ESCAPE: List the taken-for-granted assumptions in the statement, then NEGATE each one: 'Po: <assumption is false>'.
+
+P2 REVERSAL / INVERT / OPPOSITE: Swap subject and object, AND separately state the opposite relationship — produce both directions when they differ: 'Po: <reversed statement>'.
+
+P3 EXAGGERATION: Take every quantity or frequency in the statement and push it absurdly UP, then absurdly DOWN: 'Po: <10000x version>' and 'Po: <1/10000th version>'.
+
+P4 DISTORTION: Scramble the time-order or the relationship structure (who acts first, who depends on whom): 'Po: <distorted sequence>'.
+
+P5 WISHFUL: Complete the fantasy 'Wouldn't it be nice if…' with something you know cannot occur: 'Po: <impossible wish>'.
+
+P6 ABSURD: Go past exaggeration into category error — the flat-out ridiculous version where roles/objects do things they categorically cannot: 'Po: <absurdity>'.
+
+P7 RANDOM ENTRY (word: 'anchor'): free-associate on 'anchor' (its properties, behaviors, ecosystem), then force each association against the statement: 'Po: <statement> + anchor'.
+
+P8.1 RANDOM + ESCAPE: apply the operator to the 'anchor' associations themselves, then map back to the statement. Operator: List the taken-for-granted assumptions in the statement, then NEGATE each one: 'Po: <assumption is false>'.
+
+P8.2 RANDOM + REVERSAL / INVERT / OPPOSITE: apply the operator to the 'anchor' associations themselves, then map back to the statement. Operator: Swap subject and object, AND separately state the opposite relationship — produce both directions when they differ: 'Po: <reversed statement>'.
+
+P8.3 RANDOM + EXAGGERATION: apply the operator to the 'anchor' associations themselves, then map back to the statement. Operator: Take every quantity or frequency in the statement and push it absurdly UP, then absurdly DOWN: 'Po: <10000x version>' and 'Po: <1/10000th version>'.
+
+P8.4 RANDOM + DISTORTION: apply the operator to the 'anchor' associations themselves, then map back to the statement. Operator: Scramble the time-order or the relationship structure (who acts first, who depends on whom): 'Po: <distorted sequence>'.
+
+P8.5 RANDOM + WISHFUL: apply the operator to the 'anchor' associations themselves, then map back to the statement. Operator: Complete the fantasy 'Wouldn't it be nice if…' with something you know cannot occur: 'Po: <impossible wish>'.
+
+P8.6 RANDOM + ABSURD: apply the operator to the 'anchor' associations themselves, then map back to the statement. Operator: Go past exaggeration into category error — the flat-out ridiculous version where roles/objects do things they categorically cannot: 'Po: <absurdity>'.
+
+MOVEMENT (apply >=2 per provocation):
+  - extract a principle (what abstract rule would make this true — is that rule implementable sanely?)
+  - focus on the difference (what does the provoked world do differently — is any difference adoptable?)
+  - moment to moment (simulate the provoked world minute-by-minute; the operational detail often contains the idea)
+  - positive aspects (what is genuinely good in it, taken straight?)
+  - special circumstances (under what real conditions would this be the right design?)
+
+HARVEST: candidate ideas, each traceable to its provocation. Converge
+through the normal gates (friction, evaluator, trust, cost) — po
+widens the funnel's mouth, never bypasses its filters.
