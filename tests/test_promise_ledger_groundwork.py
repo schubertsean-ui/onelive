@@ -574,3 +574,57 @@ def test_index_headers_url_shape():
 def test_stage2_ignores_non_document_files_and_non_ex99_names():
     index_json = {"directory": {"item": [{"name": "pressrelease.htm"}, {"name": "ex101.htm"}]}}
     assert edgar.find_press_release_exhibit_candidates(index_json, {"items": "2.02"}) == []
+
+
+# --- source-material manifest integrity ------------------------------------
+# The adversarial-review workflow excludes the machine-fetched third-party
+# documents under eval/source_material/ from the review diff (they are not
+# our authored claims; committing them verbatim to the reviewed diff scales
+# linearly with corpus size). That exclusion is only honest if the excluded
+# bytes are mechanically validated ANOTHER way — these tests are that way:
+# every file must appear in MANIFEST.json (which stays IN the reviewed diff,
+# because the manifest IS our provenance claim) with a matching sha256 and
+# byte count, and every manifest entry's file must exist. A file the
+# manifest doesn't vouch for, or a manifest row whose file drifted, fails CI.
+
+SOURCE_MATERIAL = (
+    Path(__file__).resolve().parent.parent
+    / "ventures" / "promise_ledger" / "eval" / "source_material"
+)
+
+
+def _load_manifest():
+    import json
+
+    return json.loads((SOURCE_MATERIAL / "MANIFEST.json").read_text(encoding="utf-8"))
+
+
+def test_every_source_material_file_is_vouched_for_by_the_manifest():
+    import hashlib
+
+    manifest = _load_manifest()
+    by_name = {
+        f"{d['ticker']}_{d['accession']}_{d['exhibit_type']}.htm": d
+        for d in manifest["documents"]
+    }
+    on_disk = [p for p in SOURCE_MATERIAL.iterdir() if p.name != "MANIFEST.json"]
+    assert on_disk, "source_material committed but empty — manifest would be vacuous"
+    for path in on_disk:
+        entry = by_name.get(path.name)
+        assert entry is not None, f"{path.name} has no MANIFEST.json entry vouching for it"
+        blob = path.read_bytes()
+        assert len(blob) == entry["bytes"], f"{path.name}: byte count drifted from manifest"
+        assert hashlib.sha256(blob).hexdigest() == entry["sha256"], (
+            f"{path.name}: content does not match the manifest sha256 — "
+            "stored source material must never be edited; re-fetch and re-manifest instead")
+
+
+def test_every_manifest_entry_has_its_file_and_a_source_url():
+    manifest = _load_manifest()
+    assert manifest["documents"], "manifest committed but lists no documents"
+    for d in manifest["documents"]:
+        name = f"{d['ticker']}_{d['accession']}_{d['exhibit_type']}.htm"
+        assert (SOURCE_MATERIAL / name).exists(), f"manifest vouches for missing file {name}"
+        assert d["source_url"].startswith("https://www.sec.gov/"), (
+            "provenance must point at the authority the document came from")
+        assert d["retrieved_at"] and d["sha256"] and d["bytes"] > 0
