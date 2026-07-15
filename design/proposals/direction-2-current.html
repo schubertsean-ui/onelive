@@ -59,7 +59,25 @@
   .tabs{display:flex;gap:6px;margin-bottom:14px}
   .tab{padding:10px 14px;min-height:44px;display:flex;align-items:center;border-radius:10px;font-size:13px;color:var(--muted);border:1px solid var(--line);font-variant-numeric:tabular-nums}
   .tab[aria-selected="true"]{color:var(--on-accent);background:var(--live);border-color:var(--live);font-weight:700}
-  .filter-entry{margin-left:auto;padding:10px 12px;min-height:44px;display:flex;align-items:center;gap:6px;border-radius:10px;border:1px solid var(--line);color:var(--muted);font-size:13px}
+  .filter-entry{margin-left:auto;padding:10px 12px;min-height:44px;display:flex;align-items:center;gap:6px;border-radius:10px;border:1.5px solid var(--live);color:var(--live);font-size:13px;font-weight:700}
+  .genre-rail{display:flex;gap:8px;overflow-x:auto;margin:0 -16px 14px;padding:2px 16px 6px;-webkit-overflow-scrolling:touch}
+  .grail{flex:none;padding:10px 16px;min-height:44px;display:flex;align-items:center;border-radius:10px;border:1px solid var(--line);color:var(--ink);font-size:13.5px;font-weight:700}
+  .grail.on{background:var(--live);color:var(--on-accent);border-color:var(--live);box-shadow:0 0 14px rgba(99,224,210,.35)}
+  .venue-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
+  .venue-name{font-size:15px;font-weight:800;color:var(--ink);letter-spacing:.01em}
+  .venue-name .hood{font-size:11.5px;font-weight:400;color:var(--muted);margin-left:6px}
+  .locpill{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;flex:none;font-variant-numeric:tabular-nums}
+  .citymap{width:34px;height:22px}
+  .citymap circle{fill:var(--live)}
+  .open-hint{color:var(--muted);font-size:12px;margin-left:10px;white-space:nowrap}
+  .pips{display:inline-flex;gap:2.5px;margin-left:7px}
+  .pips i{width:3.5px;height:3.5px;border-radius:99px;background:currentColor;opacity:.75;display:block}
+  .samples{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .sample{min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:12px;display:flex;align-items:center}
+  .sample.on{border-color:var(--live);color:var(--live);font-weight:700}
+  .pulse svg{filter:drop-shadow(0 0 4px rgba(99,224,210,.55))}
+  .time-block .t{color:var(--live)}
+
 
   /* card: angled current-cut corner */
   .card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;
@@ -84,7 +102,7 @@
   .free{font-size:10.5px;color:var(--stage);letter-spacing:.1em;text-transform:uppercase;font-weight:700}
   .ticketed{font-size:10.5px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
   .glyph{flex:none;width:20px;height:20px;opacity:.9;margin-left:auto}
-  .hear{margin-top:10px;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:10px;background:transparent;border:1.5px solid var(--live);color:var(--live);font-size:13px;font-weight:700;letter-spacing:.02em}
+  .hear{margin-top:10px;display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 14px;white-space:nowrap;border-radius:10px;background:transparent;border:1.5px solid var(--live);color:var(--live);font-size:13px;font-weight:700;letter-spacing:.02em}
   /* feed-level uncertainty: a REAL control — quiet icon summary (44px target)
      opening the same one-tap-dismissible sheet used on the detail screen */
   details.quiet>summary{position:absolute;top:20px;right:4px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;list-style:none;cursor:pointer}
@@ -172,6 +190,7 @@
           Filters
         </span>
       </div>
+      <div class="genre-rail" role="navigation" aria-label="Browse by genre — one tap filters tonight"><span class="grail on">All</span><span class="grail">Rock</span><span class="grail">Hip-Hop</span><span class="grail">Jazz</span><span class="grail">Electronic</span><span class="grail">Country</span><span class="grail">Metal</span><span class="grail">Experimental</span><span class="grail">Latin</span></div>
 
       <!-- Card 1 -->
       <article class="card">
@@ -183,9 +202,9 @@
               <svg class="glyph" role="img" aria-label="mood: bright, rising" viewBox="0 0 24 24" fill="none"><path d="M12 20V8M12 8l-4.5 4.5M12 8l4.5 4.5" stroke="#63E0D2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4.5" r="1.6" fill="#63E0D2"/></svg>
             </div>
             <p class="spark">brass. menace. amen. <span class="attr">— Austin Chronicle</span></p>
-            <div class="meta"><span class="venue">Sahara Lounge</span><span class="dot">·</span><span>East Austin</span></div>
+            <div class="venue-row"><span class="venue-name">Sahara Lounge <span class="hood">East Austin</span></span><span class="locpill" role="img" aria-label="Sahara Lounge on the Austin map — 2.6 miles from you"><svg class="citymap" viewBox="0 0 34 22" aria-hidden="true"><path d="M3 14C4 8 9 4 15 4c6-1 12 2 15 6 2 3 0 7-4 8-6 2-18 2-21 0-2-1-2.5-2-2-4Z" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".55"/><circle cx="24" cy="10" r="2.4"/></svg>2.6 mi</span></div>
             <div class="card-tags"><span class="genre">Soul</span><span class="genre">Experimental</span><span class="free">Free</span></div>
-            <button class="hear"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#63E0D2"/></svg>Hear it</button>
+            <button class="hear" aria-label="Hear it — three short samples"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#63E0D2"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button><span class="open-hint">Details ›</span>
           </div>
         </div>
       </article>
@@ -200,9 +219,9 @@
               <svg class="glyph" role="img" aria-label="mood: slow-burning, holy" viewBox="0 0 24 24" fill="none"><path d="M5 16c2.5-1 3-6 7-6s4.5 5 7 6" stroke="#63E0D2" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="18.5" r="1.4" fill="#63E0D2"/></svg>
             </div>
             <p class="spark">doom-laden desert blues, slow and holy <span class="attr">— their words</span></p>
-            <div class="meta"><span class="venue">Hotel Vegas</span><span class="dot">·</span><span>East Austin</span></div>
+            <div class="venue-row"><span class="venue-name">Hotel Vegas <span class="hood">East Austin</span></span><span class="locpill" role="img" aria-label="Hotel Vegas on the Austin map — 1.4 miles from you"><svg class="citymap" viewBox="0 0 34 22" aria-hidden="true"><path d="M3 14C4 8 9 4 15 4c6-1 12 2 15 6 2 3 0 7-4 8-6 2-18 2-21 0-2-1-2.5-2-2-4Z" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".55"/><circle cx="22" cy="12" r="2.4"/></svg>1.4 mi</span></div>
             <div class="card-tags"><span class="genre">Rock</span><span class="ticketed">Ticketed</span></div>
-            <button class="hear"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#63E0D2"/></svg>Hear it</button>
+            <button class="hear" aria-label="Hear it — three short samples"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#63E0D2"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button><span class="open-hint">Details ›</span>
           </div>
         </div>
       </article>
@@ -217,9 +236,9 @@
               <svg class="glyph" role="img" aria-label="mood: wide, tender" viewBox="0 0 24 24" fill="none"><path d="M4 14c3-4 13-4 16 0" stroke="#63E0D2" stroke-width="1.8" stroke-linecap="round"/><path d="M8 17.5h8" stroke="#63E0D2" stroke-width="1.4" stroke-linecap="round" opacity=".55"/></svg>
             </div>
             <p class="spark ai">loud——then unbearably tender <span class="mark">✳</span> <span class="attr">— first notes</span></p>
-            <div class="meta"><span class="venue">Mohawk (indoor)</span><span class="dot">·</span><span>Red River</span></div>
+            <div class="venue-row"><span class="venue-name">Mohawk <span class="hood">Red River</span></span><span class="locpill" role="img" aria-label="Mohawk on the Austin map — 0.9 miles from you"><svg class="citymap" viewBox="0 0 34 22" aria-hidden="true"><path d="M3 14C4 8 9 4 15 4c6-1 12 2 15 6 2 3 0 7-4 8-6 2-18 2-21 0-2-1-2.5-2-2-4Z" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".55"/><circle cx="17" cy="9" r="2.4"/></svg>0.9 mi</span></div>
             <div class="card-tags"><span class="genre">Experimental</span><span class="genre">Metal</span><span class="ticketed">Ticketed</span></div>
-            <button class="hear"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#63E0D2"/></svg>Hear it</button>
+            <button class="hear" aria-label="Hear it — three short samples"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#63E0D2"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button><span class="open-hint">Details ›</span>
           </div>
         </div>
       </article>
@@ -232,7 +251,7 @@
           </summary>
           <div class="sheet-body">
             Details for this show may still change. You may want to double-check
-            with the venue — <a href="#">Elephant Room's site ↗</a>.
+            with the venue — <a href="https://elephantroom.com" rel="noopener">Elephant Room's site ↗</a>.
           </div>
         </details>
         <div class="card-top">
@@ -243,9 +262,9 @@
               <svg class="glyph" role="img" aria-label="mood: late, blue, warm" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="6" stroke="#63E0D2" stroke-width="1.6" opacity=".85"/><circle cx="14.5" cy="10" r="5.6" fill="#111827"/></svg>
             </div>
             <p class="spark">after-midnight jazz for slow hearts <span class="attr">— their words</span></p>
-            <div class="meta"><span class="venue">Elephant Room</span><span class="dot">·</span><span>Downtown</span></div>
+            <div class="venue-row"><span class="venue-name">Elephant Room <span class="hood">Downtown</span></span><span class="locpill" role="img" aria-label="Elephant Room on the Austin map — 0.6 miles from you"><svg class="citymap" viewBox="0 0 34 22" aria-hidden="true"><path d="M3 14C4 8 9 4 15 4c6-1 12 2 15 6 2 3 0 7-4 8-6 2-18 2-21 0-2-1-2.5-2-2-4Z" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".55"/><circle cx="15" cy="12" r="2.4"/></svg>0.6 mi</span></div>
             <div class="card-tags"><span class="genre">Jazz</span><span class="free">Free</span></div>
-            <button class="hear"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#63E0D2"/></svg>Hear it</button>
+            <button class="hear" aria-label="Hear it — three short samples"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#63E0D2"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button><span class="open-hint">Details ›</span>
           </div>
         </div>
       </article>
@@ -297,15 +316,19 @@
         <div class="wave" aria-hidden="true"></div>
         <span style="color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums">0:23</span>
       </div>
+      <div class="samples" aria-label="Three short samples — no act judged on one song"><button class="sample on">1 · slow &amp; holy</button><button class="sample">2 · full-band stomp</button><button class="sample">3 · the tender one</button></div>
 
       <div class="facts">
         <div class="fact"><span class="k">Date</span><span class="v">Tue, Jul 15</span></div>
         <div class="fact"><span class="k">Doors / Start</span><span class="v">8:30 / 9:00 PM</span></div>
         <div class="fact"><span class="k">Est. duration</span><span class="v">~2 hrs with opener</span></div>
         <div class="fact"><span class="k">Venue</span><span class="v">Hotel Vegas<br><span style="color:var(--muted);font-size:12px">1502 E 6th St · <a href="#">Map</a></span></span></div>
+        <div class="fact"><span class="k">From you</span><span class="v"><span class="locpill" role="img" aria-label="Hotel Vegas on the Austin map — 1.4 miles from you"><svg class="citymap" viewBox="0 0 34 22" aria-hidden="true"><path d="M3 14C4 8 9 4 15 4c6-1 12 2 15 6 2 3 0 7-4 8-6 2-18 2-21 0-2-1-2.5-2-2-4Z" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".55"/><circle cx="22" cy="12" r="2.4"/></svg>1.4 mi</span></span></div>
         <div class="fact"><span class="k">Parking</span><span class="v">Street + lot on Comal</span></div>
         <div class="fact"><span class="k">Tickets</span><span class="v"><a href="#">$12 advance ↗</a></span></div>
       </div>
+
+      <div class="fgroup" style="margin-top:18px"><div class="flabel">Nearby</div><div class="fgrid"><span class="fopt">Restaurants</span><span class="fopt">Bars</span><span class="fopt">Coffee</span><span class="fopt">More venues</span></div></div>
 
       <details class="sheet" style="margin-top:16px">
         <summary style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12.5px;min-height:44px">
@@ -314,7 +337,7 @@
         </summary>
         <div class="sheet-body">
           Details for this show may still change. If it's a long drive, you may
-          want to double-check with the venue — <a href="#">Hotel Vegas's site ↗</a>.
+          want to double-check with the venue — <a href="https://texashotelvegas.com" rel="noopener">Hotel Vegas's site ↗</a>.
         </div>
       </details>
 

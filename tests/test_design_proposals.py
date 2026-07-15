@@ -98,6 +98,39 @@ def test_no_banned_glyphs_or_native_emoji(direction):
             f"{name}: banned character {ch!r} (glyph lexicon rule: no "
             f"rating/endorsement glyphs, no native emoji, no checkmarks)"
         )
+    # Unicode-class sweep, not just a blacklist (evaluator round 3 nit):
+    # any emoji/dingbat-range character is banned except the canon ✳ mark.
+    allowed = {"✳"}
+    for ch in html:
+        code = ord(ch)
+        in_emoji_range = (
+            0x1F000 <= code <= 0x1FAFF
+            or 0x2600 <= code <= 0x27BF
+            or 0x2B00 <= code <= 0x2BFF
+            or code in (0xFE0F, 0x200D)
+        )
+        assert not (in_emoji_range and ch not in allowed), (
+            f"{name}: emoji-range character {ch!r} (U+{code:04X}) — comps "
+            f"use self-rendered SVG glyphs only"
+        )
+
+
+def test_v2_founder_feedback_elements_present(direction):
+    """2026-07-15 founder round: prominent genre rail, headliner venue row
+    with city mini-map + distance, three-sample listening, Nearby section."""
+    name, html = direction
+    assert 'class="genre-rail"' in html, f"{name}: missing prominent genre rail"
+    assert html.count('class="grail') >= 9, f"{name}: genre rail must carry All + 8 genres"
+    assert html.count('class="venue-row"') >= 4, f"{name}: venue rows missing"
+    assert html.count('class="citymap"') >= 5, (
+        f"{name}: city mini-map missing (4 feed cards + detail distance)"
+    )
+    assert html.count("mi</span>") >= 5 or html.count(" mi<") >= 5, (
+        f"{name}: distance-from-you indicators missing"
+    )
+    assert html.count('class="sample') >= 3, f"{name}: three listening samples required"
+    assert ">Nearby<" in html, f"{name}: Nearby section missing on detail screen"
+    assert "Details ›" in html, f"{name}: explicit card-tap affordance missing"
 
 
 def test_feed_uncertainty_icon_is_a_real_control(direction):
@@ -112,9 +145,24 @@ def test_feed_uncertainty_icon_is_a_real_control(direction):
         assert "<summary" in block and "sheet-body" in block, (
             f"{name}: uncertainty control lacks summary + dismissible sheet body"
         )
-        assert "venue" in block.lower() or "site" in block.lower(), (
-            f"{name}: uncertainty sheet must link the venue's own site"
-        )
+
+
+def test_uncertainty_sheets_link_real_venue_sites(direction):
+    """The venue link inside an uncertainty sheet is THE corroboration
+    affordance — it must be a real absolute URL, never a dead anchor
+    (PR #20 evaluator round 3: a stub here is a fake corroboration link,
+    and a test that doesn't inspect href passes the broken thing)."""
+    name, html = direction
+    sheets = re.findall(r'<div class="sheet-body">.*?</div>', html, flags=re.S)
+    assert sheets, f"{name}: no uncertainty sheet bodies found"
+    for sheet in sheets:
+        hrefs = re.findall(r'href="([^"]*)"', sheet)
+        assert hrefs, f"{name}: uncertainty sheet has no venue link at all"
+        for href in hrefs:
+            assert re.match(r"^https://", href), (
+                f"{name}: uncertainty-sheet venue link must be a real "
+                f"absolute URL, got {href!r}"
+            )
 
 
 def test_light_mode_is_implemented_not_promised(direction):

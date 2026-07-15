@@ -125,11 +125,30 @@ to `prefers-color-scheme` plus a user toggle. Light renders for ALL three
 directions are committed alongside the dark ones (see `renders/`), so the
 founder chooses from complete comps. R-014 is RESOLVED by this change.
 
+## v2 — founder feedback round (2026-07-15, "more inviting; venues matter; genre forward")
+
+| Founder ask | Change (all three directions) |
+|---|---|
+| More inviting, not fussy | MARQUEE: dusk-sky gradient behind the masthead; CURRENT: the Pulse glows, live-colored time numerals; SETLIST: letterpress-red edition number. One warmth move each, no clutter. |
+| How do you get screen 1→2, 2→3? | Filters entry now accent-colored + a prominent genre rail on the feed (one-tap filtering without the panel); every card carries an explicit "Details ›" affordance — tap anywhere on the card opens the show. |
+| Genre prominent + searchable | Horizontally scrollable genre rail (All + 8 genres) at the top of every feed, one tap to filter; full panel remains for combinations. |
+| Venues must feel important | Venue name elevated to its own headliner row (larger, bolder, direction-styled) with neighborhood beside it. |
+| City mini-map + distance | Every card and the detail screen carry a small city-outline chip with a location dot + "N.N mi" from current location; outline is metro-config (Austin now; any city at Step 9), never a hierarchy signal. |
+| Nearby restaurants/bars/venues | "Nearby" section on the detail screen (Restaurants · Bars · Coffee · More venues). Data source is a Step-7+/founder decision (new service); the design expression ships now. |
+| "Hear it" = 3 samples | The button carries three sample pips; the detail player offers three named samples ("no act judged on one song" — sample labels drawn from the artist's own materials at implementation, never invented). |
+
+Mechanically enforced from this round on: `test_v2_founder_feedback_elements_present`
+(genre rail, venue rows, ≥5 city maps, distances, 3 samples, Nearby,
+Details affordance) and `test_uncertainty_sheets_link_real_venue_sites`
+(every uncertainty-sheet link must be a real absolute URL — evaluator
+round 3: a stub there is a fake corroboration link).
+
 ## Step 9 implementation checklist (carried from these comps)
 
-- Replace every `href="#"` placeholder (venue site, map, tickets) with
-  real links — a dead "double-check with the venue" link would undermine
-  the exact trust affordance it exists for.
+- Venue corroboration links in uncertainty sheets are REAL (elephantroom.com,
+  texashotelvegas.com) and test-enforced. Remaining `href="#"` placeholders
+  are non-trust utility links only (map, tickets, calendar, nearby chips) —
+  implement as real links at Step 9.
 - Non-`<details>` controls in these comps are visual-only placeholders
   (marked in each file's header comment); implement as real, focusable,
   keyboard-operable elements.
