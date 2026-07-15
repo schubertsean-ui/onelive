@@ -29,30 +29,40 @@ def _clean_routing_env(monkeypatch):
     monkeypatch.delenv("OPENAI_REVIEW_MODEL", raising=False)
 
 
-def test_defaults_resolve_for_every_stage(monkeypatch):
-    """All stages resolve — extraction included since R-006 ratified
-    (founder, 2026-07-15: 1% starting bar + Kaizen ratchet)."""
+def test_defaults_resolve_for_every_unblocked_stage(monkeypatch):
     for stage, model in mr.STAGE_MODELS.items():
+        if stage == "extraction":
+            continue  # blocked until the golden-set gate ships (R-013)
         monkeypatch.delenv(f"ONELIVE_MODEL_{stage.upper()}", raising=False)
         assert mr.resolve_model(stage) == model
 
 
-def test_extraction_block_mechanism_still_works(monkeypatch):
-    """The fail-closed mechanism must remain live even though the flag is
-    now True: if the threshold were ever un-ratified (e.g. a ratchet step
-    invalidates the gate), the block re-engages and env overrides cannot
-    bypass it (it's about the missing gate, not the model)."""
-    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", False)
-    with pytest.raises(ValueError, match="R-006"):
+def test_extraction_blocked_until_golden_gate_ships(monkeypatch):
+    """The bar is ratified (R-006, 1%) but the gate that PROVES it doesn't
+    exist yet (R-013): extraction must not resolve to ANY model, and env
+    overrides cannot bypass the block (it's about the missing gate, not
+    the model). Flag flips only in the Step 6 commit that ships a passing
+    golden-set exam."""
+    assert mr.EXTRACTION_THRESHOLD_RATIFIED is False
+    with pytest.raises(ValueError, match="R-013"):
         mr.resolve_model("extraction")
     monkeypatch.setenv("ONELIVE_MODEL_EXTRACTION", "claude-opus-4-8")
-    with pytest.raises(ValueError, match="R-006"):
+    with pytest.raises(ValueError, match="R-013"):
         mr.resolve_model("extraction")
 
 
-def test_extraction_ratified_flag_is_true():
-    """Regression guard on the ratification itself (R-006 RESOLVED)."""
-    assert mr.EXTRACTION_THRESHOLD_RATIFIED is True
+def test_extraction_resolves_once_gate_ships(monkeypatch):
+    """When Step 6 flips the flag with passing exam evidence, extraction
+    routes to its documented starting tier, honoring the env chain
+    (ONELIVE_MODEL_EXTRACTION > legacy ONELIVE_CLAUDE_MODEL > policy)."""
+    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", True)
+    monkeypatch.delenv("ONELIVE_MODEL_EXTRACTION", raising=False)
+    monkeypatch.delenv("ONELIVE_CLAUDE_MODEL", raising=False)
+    assert mr.resolve_model("extraction") == mr.STAGE_MODELS["extraction"]
+    monkeypatch.setenv("ONELIVE_CLAUDE_MODEL", "legacy-extraction-id")
+    assert mr.resolve_model("extraction") == "legacy-extraction-id"
+    monkeypatch.setenv("ONELIVE_MODEL_EXTRACTION", "claude-haiku-4-5")
+    assert mr.resolve_model("extraction") == "claude-haiku-4-5"
 
 
 def test_env_override_beats_default(monkeypatch):

@@ -59,35 +59,40 @@ logger = logging.getLogger(__name__)
 # candidates records which prompt produced them.
 PROMPT_VERSION = "2026-07-10.1"
 
-# Extraction tier per docs/MODEL_ROUTING.md (cheapest-capable; governed by
-# the ratified §11.2 golden-set gate, R-006 ratified 2026-07-15). The previous
-# default ("claude-3-5-sonnet-latest") was retired by Anthropic and 404'd on
-# the first real ingestion run — a live id that fails loudly at the API is
-# the designed behavior for staleness, and this is that loop closing.
-DEFAULT_MODEL = "claude-haiku-4-5"
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
 
 
-def _resolve_model_env() -> Optional[str]:
-    """Model override resolution, fail-closed on present-but-empty.
+def _resolve_extraction_model(explicit: Optional[str]) -> str:
+    """Resolve the extraction model THROUGH the routing gate (single source).
 
-    Honors ONELIVE_MODEL_EXTRACTION (router naming, docs/MODEL_ROUTING.md)
-    then the legacy ONELIVE_CLAUDE_MODEL. A set-but-empty/whitespace value is
-    a misconfiguration and raises (the CI empty-env lesson, PRs #11/#12/#14),
-    never a silent fallthrough to the default.
+    The trust invariant lives at this entry point, not only in the tool
+    (evaluator finding, PR #21 round 1 — same class as the reviewer-slot
+    fix in PR #14): with no explicit model, resolution delegates to
+    tools.model_router.resolve_model("extraction"), which fails closed
+    until the golden-set gate ships and passes (R-013; bar ratified <=1%
+    per R-006), honors ONELIVE_MODEL_EXTRACTION / legacy
+    ONELIVE_CLAUDE_MODEL with present-but-empty rejected, and single-
+    sources the model id so a stale local default cannot drift again
+    (the retired claude-3-5-sonnet-latest 404'd on the first real run).
+
+    An EXPLICIT model argument is the test/caller-owned channel (fakes,
+    harness runs against a specific candidate model): it bypasses the
+    routing gate deliberately but fails closed on empty/whitespace — a
+    blank explicit value is misconfiguration, never "use the default".
     """
-    for env_name in ("ONELIVE_MODEL_EXTRACTION", "ONELIVE_CLAUDE_MODEL"):
-        value = os.getenv(env_name)
-        if value is None:
-            continue
-        if value.strip() == "":
+    if explicit is not None:
+        if not explicit.strip():
             raise ExtractionConfigError(
-                f"{env_name} is set but empty/whitespace — set a model id or "
-                "unset it entirely; empty must never silently mean 'default'."
+                "explicit model argument is empty/whitespace — pass a real "
+                "model id or pass None to use the routing policy."
             )
-        return value.strip()
-    return None
+        return explicit.strip()
+    from tools.model_router import resolve_model
+    try:
+        return resolve_model("extraction")
+    except (KeyError, ValueError) as exc:
+        raise ExtractionConfigError(str(exc)) from exc
 
 
 class ExtractionConfigError(RuntimeError):
@@ -105,7 +110,7 @@ class ClaudeProvider(AIProvider):
         max_retries: int = MAX_RETRIES,
     ):
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        self.model = model or _resolve_model_env() or DEFAULT_MODEL
+        self.model = _resolve_extraction_model(model)
         self.max_tokens = max_tokens
         self._client = client
         self.max_retries = max_retries

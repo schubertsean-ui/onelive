@@ -3,17 +3,14 @@
 Proves: (1) a run where EVERY attempted source errored raises
 TotalRunFailure — so the deadman context pings /fail instead of recording
 a healthy heartbeat for a dead run; partial errors stay a success; (2) the
-extraction model default is a live routed-tier id, never the retired one,
-and env resolution fails closed on present-but-empty (the CI empty-env
-class, 4th appearance).
+REAL provider consults the routing gate at its own entry point — blocked
+while the golden-set gate is unshipped (R-013), single-sourced model id
+once it ships, fail-closed on present-but-empty env AND blank explicit
+model arguments.
 """
 import pytest
 
-from ai.claude_provider import (
-    DEFAULT_MODEL,
-    ClaudeProvider,
-    ExtractionConfigError,
-)
+from ai.claude_provider import ClaudeProvider, ExtractionConfigError
 from worker.run_once import TotalRunFailure, enforce_useful_work
 
 
@@ -46,28 +43,42 @@ def test_zero_attempted_does_not_raise():
     assert enforce_useful_work({"errors": 0}, attempted=0) is None
 
 
-# --- extraction model resolution ----------------------------------------------
-def test_default_model_is_routed_tier_not_the_retired_id():
-    assert DEFAULT_MODEL == "claude-haiku-4-5"
-    assert "3-5" not in DEFAULT_MODEL  # the id that 404'd on the first run
+# --- extraction model resolution: the gate lives AT the entry point ----------
+def test_provider_blocked_while_golden_gate_absent():
+    """Integration (evaluator finding, PR #21 r1): constructing the REAL
+    provider with no explicit model must consult the routing gate and fail
+    loudly while the golden-set gate is unshipped (R-013) — the invariant
+    is enforced where extraction actually runs, not only in the tool."""
+    with pytest.raises(ExtractionConfigError, match="R-013"):
+        ClaudeProvider(api_key="test")
 
 
-def test_env_override_precedence(monkeypatch):
-    monkeypatch.setenv("ONELIVE_MODEL_EXTRACTION", "claude-sonnet-4-6")
-    monkeypatch.setenv("ONELIVE_CLAUDE_MODEL", "legacy-id")
+def test_provider_resolves_via_router_once_gate_ships(monkeypatch):
+    import tools.model_router as mr
+    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", True)
+    monkeypatch.delenv("ONELIVE_MODEL_EXTRACTION", raising=False)
+    monkeypatch.delenv("ONELIVE_CLAUDE_MODEL", raising=False)
     p = ClaudeProvider(api_key="test")
-    assert p.model == "claude-sonnet-4-6"
-    monkeypatch.delenv("ONELIVE_MODEL_EXTRACTION")
-    assert ClaudeProvider(api_key="test").model == "legacy-id"
-    monkeypatch.delenv("ONELIVE_CLAUDE_MODEL")
-    assert ClaudeProvider(api_key="test").model == DEFAULT_MODEL
+    assert p.model == mr.STAGE_MODELS["extraction"]  # single-sourced id
+    monkeypatch.setenv("ONELIVE_MODEL_EXTRACTION", "claude-sonnet-4-6")
+    assert ClaudeProvider(api_key="test").model == "claude-sonnet-4-6"
 
 
-def test_empty_model_env_fails_closed(monkeypatch):
-    """Present-but-empty is a misconfiguration, never a silent default —
-    the 4th appearance of this defect class (see KAIZEN class watch)."""
-    for env_name in ("ONELIVE_MODEL_EXTRACTION", "ONELIVE_CLAUDE_MODEL"):
-        monkeypatch.setenv(env_name, "   ")
-        with pytest.raises(ExtractionConfigError, match="set but empty"):
-            ClaudeProvider(api_key="test")
-        monkeypatch.delenv(env_name)
+def test_provider_empty_env_fails_closed_via_router(monkeypatch):
+    """Present-but-empty env is rejected by the router the provider now
+    consults (4th appearance of the empty-env class — KAIZEN class watch)."""
+    import tools.model_router as mr
+    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", True)
+    monkeypatch.setenv("ONELIVE_MODEL_EXTRACTION", "   ")
+    with pytest.raises(ExtractionConfigError, match="empty"):
+        ClaudeProvider(api_key="test")
+
+
+def test_explicit_model_channel_fails_closed_on_blank():
+    """The test/caller-owned explicit channel must not fail open either:
+    model="" or whitespace is misconfiguration, never 'use the default'
+    (evaluator finding, PR #21 r1)."""
+    for blank in ("", "   "):
+        with pytest.raises(ExtractionConfigError, match="empty/whitespace"):
+            ClaudeProvider(api_key="test", model=blank)
+    assert ClaudeProvider(api_key="test", model=" claude-test ").model == "claude-test"

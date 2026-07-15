@@ -30,12 +30,15 @@ STAGE_MODELS = {
     "evaluator": "gpt-5.5",
 }
 
-# R-006 RESOLVED: founder ratified 2026-07-15 — "I'm ok to BEGIN at 1%":
-# hallucination rate ≤ 1% on the golden set, release-blocking, with the
-# one-way Kaizen ratchet defined in docs/KAIZEN.md §Extraction ratchet
-# (threshold only ever tightens, on demonstrated headroom at valid sample
-# sizes). This flip is in the ratification commit, as this comment required.
-EXTRACTION_THRESHOLD_RATIFIED = True
+# R-006 RESOLVED as to the NUMBER: founder ratified 2026-07-15 — "I'm ok to
+# BEGIN at 1%" (hallucination ≤ 1% on the golden set, release-blocking, with
+# the one-way Kaizen ratchet of docs/KAIZEN.md §M7). The flag stays False
+# because ratifying the bar is not evidence the bar is MET: the golden-set
+# gate does not exist yet (R-013) — no golden data, no live-exam runner, no
+# CI wiring. Flip to True ONLY in the Step 6 commit that ships the gate AND
+# attaches a passing exam result for the starting model (≥ ~300 measured
+# facts per the §M7 sample-size floor for a 1% claim).
+EXTRACTION_THRESHOLD_RATIFIED = False
 
 # Model ids across vendors are ASCII: letters/digits/dot/underscore/colon/
 # slash/hyphen. Anything else (newlines, spaces, shell metacharacters) is a
@@ -45,7 +48,10 @@ _MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
 
 # Extra env names honored per stage, after ONELIVE_MODEL_<STAGE>, for
 # compatibility with wiring that predates this router.
-_LEGACY_ENV = {"evaluator": "OPENAI_REVIEW_MODEL"}
+_LEGACY_ENV = {
+    "evaluator": "OPENAI_REVIEW_MODEL",
+    "extraction": "ONELIVE_CLAUDE_MODEL",
+}
 
 # Charter §0.2: the evaluator grades the generator's work, so it must never
 # be the generator's model family — a Claude evaluator would be self-grading.
@@ -80,11 +86,15 @@ def resolve_model(stage: str) -> str:
         )
     if stage == "extraction" and not EXTRACTION_THRESHOLD_RATIFIED:
         # Fail-closed regardless of overrides: the block is about the missing
-        # quality gate (R-006), not about which model would run.
+        # quality gate, not about which model would run. The bar is ratified
+        # at 1% (R-006 resolved); the GATE that proves it does not exist yet
+        # (R-013) — extraction routes nowhere until the golden-set exam ships
+        # and the starting model passes it.
         raise ValueError(
-            "extraction routing is fail-closed until the §11.2 hallucination "
-            "threshold is ratified (docs/RECORD.md R-006) — nothing may run "
-            "extraction without its release-blocking quality gate in force."
+            "extraction routing is fail-closed until the golden-set gate "
+            "ships and passes (docs/RECORD.md R-013; bar ratified ≤1% per "
+            "R-006) — nothing may run extraction without its release-blocking "
+            "quality gate in force."
         )
     for env_name in (f"ONELIVE_MODEL_{stage.upper()}", _LEGACY_ENV.get(stage, "")):
         if not env_name:
