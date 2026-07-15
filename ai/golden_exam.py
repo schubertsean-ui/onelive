@@ -86,20 +86,30 @@ def run_exam(provider, examples: list[dict]) -> dict:
     provider is injected, so tests run this hermetically with fakes)."""
     schema = AIEventExtraction.model_json_schema()
     scores, injections, per_example = [], [], []
-    events_with_error = 0
+    unanswered = []   # provider returned None: transient/structural failure
+    events_with_halluc = 0
+    events_with_any_error = 0
     for exm in examples:
         raw = provider.extract_event_json(
             exm["text"], schema, system_prompt=EXTRACTION_SYSTEM_PROMPT
-        ) or {}
+        )
+        if raw is None:
+            # A None return is the provider's degraded-transient path — an
+            # UNANSWERED exam question, not "no facts found". Swallowing it
+            # as {} could sneak failures past the recall floor (evaluator
+            # finding, PR #25 r2); it invalidates the exam instead.
+            unanswered.append(exm["id"])
+            continue
         predicted = {k: v for k, v in raw.items() if not k.startswith("_")}
         hits = find_forbidden(predicted, exm.get("forbidden", []))
         if hits:
             injections.append({"id": exm["id"], "markers": hits})
         s = score_extraction(comparable(predicted), comparable(exm["expected"]))
         scores.append(s)
-        bad = bool(s.hallucinated_fields) or bool(hits)
-        if bad:
-            events_with_error += 1
+        if s.hallucinated_fields or hits:
+            events_with_halluc += 1
+        if s.hallucinated_fields or hits or s.false_negatives:
+            events_with_any_error += 1
         exp_cmp = comparable(exm["expected"])
         pred_cmp = comparable(predicted)
         per_example.append({
@@ -130,11 +140,17 @@ def run_exam(provider, examples: list[dict]) -> dict:
         "recall_min": RECALL_MIN,
         "precision": agg["precision"],
         "injection_failures": injections,
-        "event_level_error_rate": round(events_with_error / len(examples), 4),
+        "unanswered": unanswered,
+        # KAIZEN M7 secondary measure: % of events with >=1 hallucinated
+        # field (or obeyed injection); the broader any-error rate also
+        # counts recall misses, so failures are never understated.
+        "events_with_hallucination_rate": round(events_with_halluc / len(examples), 4),
+        "events_with_any_error_rate": round(events_with_any_error / len(examples), 4),
         "per_example": per_example,
     }
     report["passed"] = (
         report["sample_valid"]
+        and not unanswered
         and report["hallucination_rate"] <= HALLUCINATION_MAX
         and report["recall"] >= RECALL_MIN
         and not injections
@@ -177,8 +193,16 @@ def main(argv: list[str] | None = None) -> int:
         f"hallucination_rate={report['hallucination_rate']:.4f} (max {HALLUCINATION_MAX}) "
         f"recall={report['recall']:.4f} (min {RECALL_MIN}) "
         f"injections={len(report['injection_failures'])} "
-        f"event_level_error_rate={report['event_level_error_rate']:.4f}"
+        f"unanswered={len(report['unanswered'])} "
+        f"events_with_hallucination_rate={report['events_with_hallucination_rate']:.4f} "
+        f"events_with_any_error_rate={report['events_with_any_error_rate']:.4f}"
     )
+    if report["unanswered"]:
+        print(f"golden_exam: INVALID — {len(report['unanswered'])} unanswered "
+              f"question(s) (provider degraded/None): {report['unanswered']} — "
+              f"an exam with unanswered questions proves nothing. {summary}",
+              file=sys.stderr)
+        return 2
     if not report["sample_valid"]:
         print(f"golden_exam: INVALID — asserted facts {report['asserted_facts']} < "
               f"floor {SAMPLE_FLOOR} (a 1% claim needs the evidence; a small pass "

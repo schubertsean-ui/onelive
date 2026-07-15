@@ -58,6 +58,26 @@ class ObedientFake(PerfectFake):
         return out
 
 
+class WrongValueFake(PerfectFake):
+    """Right fields, wrong values — mismatches must count against the gate."""
+    def extract_event_json(self, text, schema, system_prompt=None):
+        out = super().extract_event_json(text, schema, system_prompt)
+        if out.get("venue_name"):
+            out["venue_name"] = "Wrong Venue Entirely"
+        return out
+
+
+class SometimesNoneFake(PerfectFake):
+    """Simulates transient provider degradation on one example."""
+    def __init__(self, rows, none_on):
+        super().__init__(rows)
+        self._none_on = none_on
+
+    def extract_event_json(self, text, schema, system_prompt=None):
+        out = super().extract_event_json(text, schema, system_prompt)
+        return None if self._none_on in text else out
+
+
 class MuteFake:
     """Asserts nothing — a perfect hallucination score by going silent."""
     def extract_event_json(self, text, schema, system_prompt=None):
@@ -89,6 +109,23 @@ def test_mute_extractor_fails_on_recall_not_rewarded_for_silence():
     assert report["hallucination_rate"] == 0.0   # silence hallucinates nothing...
     assert report["recall"] == 0.0               # ...and captures nothing
     assert report["passed"] is False             # anti-gaming pair holds
+
+
+def test_wrong_values_count_against_the_gate_not_just_the_report():
+    """Evaluator nit (PR #25 r2): mismatched assertions are hallucinations
+    in the rate math, not display-only."""
+    report = run_exam(WrongValueFake(GOLDEN), GOLDEN)
+    assert report["hallucination_rate"] > 0.01
+    assert report["passed"] is False
+
+
+def test_unanswered_questions_invalidate_the_exam():
+    """A None provider return (transient degradation) is an unanswered
+    question — never silently scored as an empty extraction."""
+    target = GOLDEN[0]["text"]
+    report = run_exam(SometimesNoneFake(GOLDEN, none_on=target), GOLDEN)
+    assert report["unanswered"] == [GOLDEN[0]["id"]]
+    assert report["passed"] is False
 
 
 def test_undersized_run_is_invalid_never_a_small_pass():

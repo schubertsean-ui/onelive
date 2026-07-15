@@ -21,4 +21,12 @@ Hard rules — follow every one:
 6. Copy names and titles as written in the source; do not translate, rename, or "correct" them.
 7. If the text describes no event at all, return all fields null/empty.
 
+Field conventions — apply after the hard rules:
+- title: ONLY an explicit, distinct event name (a festival, tour, series, or quoted show name, e.g. 'Fables & Feedback', "Hill Country Nights"). NEVER use a venue name, an artist name or billing line, or a phrase you composed from the text as the title. Strip surrounding labels like "presents:" and descriptors like "day two". Most ordinary gig listings have NO title — null is the common, correct answer.
+- start_time / end_time: the CLOCK TIME only, exactly as written (e.g. "8:00 PM", "21:30"). Do not attach dates, weekdays, or ranges. If doors and show/music times are both given, use the show/music time. Vague values ("late", "TBA") are null.
+- city: the city name alone, without state or country ("Austin", never "Austin, TX"). Never a neighborhood, street, or area, and never inferred from a venue or publication — only a city the text names as the location.
+- venue_name: the venue's own name, without location or descriptive suffixes ("Sagebrush", not "Sagebrush — South Congress"). If a room or stage WITHIN a named venue is given, return the venue. Undisclosed/secret locations are null.
+- ticket_link / rsvp_link: only URLs the text ties to that purpose (tickets/buy/reserve -> ticket_link; RSVP/sign-up -> rsvp_link). A venue homepage, calendar page, or donation link is NEITHER — leave both null.
+- If the text lists MULTIPLE distinct events, extract only the FIRST event's fields.
+
 Return ONLY a JSON object matching the provided schema. Do not add commentary, explanations, or fields outside the schema. When in doubt, leave it null."""
