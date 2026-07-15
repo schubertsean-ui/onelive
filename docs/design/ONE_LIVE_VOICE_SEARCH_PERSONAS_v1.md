@@ -118,9 +118,50 @@ nothing is promoted for money in any spoken answer.
 9. **Out-of-scope honesty + demand logging** (#20): say what OneLive is,
    log what people asked for; the ask-log is roadmap evidence.
 
+
+## v1.1 addendum (founder, same day): the Evening Planner class — multi-intent, sequenced, cross-domain
+
+Three founder utterances that break the single-intent frame. These are not
+"filter the list" asks; they are "plan my evening" asks: several intents,
+ordered in time ("then… after"), reaching into data domains OneLive does
+not own. Each gets: honest v1 behavior (Step 9), the richer behavior it
+points at, and what it must NEVER do.
+
+| # | Persona | They say | The app hears | V1 answer (Step 9, honest) | What it points at |
+|---|---|---|---|---|---|
+| 21 | **The Dinner-and-a-Show** | "Find me a show that starts after 7 and has good restaurants nearby for early or late dinner." | show: time≥7PM · venue attribute: dining density nearby · sequence: dinner before OR after | Answers the show part natively (after-7 filter), then joins a FACT we can hold: how food-dense each venue's blocks are (a per-venue count from map data — proximity and quantity, never quality). Spoken: "Nine shows after seven. Three are in heavy restaurant blocks — Hotel Vegas has a dozen kitchens within two blocks. Dinner links are on each show's page." | Per-venue `dining_density` as a computed attribute (Tier-2 OSM counts — factual, un-ranked); full itinerary chaining later. "Good" gets the standing honesty rule: we count and locate, we never rate. |
+| 22 | **The Happy-Hour Hunter** | "Show me happy hour specials in north Austin and who has live music." | deals domain (NOT ours) · neighborhood="north Austin" (outside current 3) · join: live music | Honest split: "I don't track drink specials yet — logging that you asked. Live music up north tonight: two shows." The miss is recorded twice: the DEALS domain and the NEIGHBORHOOD gap both feed the demand log (H5). | A real future surface: venue-self-reported specials through claimed accounts — first-party assertions riding the ratified sensor architecture (verified channel → their own logistics). New product surface = FOUNDER decision when the demand log earns it. Neighborhood list grows as config (north/south/etc.), never code. |
+| 23 | **The Two-Step Student** | "I want to learn country dancing and then listen to music or eat after." | activity: dance LESSON (two-step/swing) · genre=Country · sequence: lesson → music → food | This is real Austin programming (the Broken Spoke runs two-step lessons before shows) and it is EVENT data, not foreign data — a lesson has a venue and a start time like any show. V1: if lesson-type events are in the pipeline, chain them: "Broken Spoke has a two-step lesson at 7, band at 9 — and it's a supper club, so eating after is the same room." | `event_type` (show / lesson / dance-night) joins the Step 6 extraction schema + G-VT taxonomy evidence; the "then… after" grammar becomes the itinerary chainer: order results by time + proximity, offer the whole evening as one spoken plan. |
+
+### Harvest additions (10–15)
+
+10. **Multi-intent parsing**: split compound utterances into sub-queries;
+    answer each at its honest capability level; never let the part we
+    can't do sink the part we can.
+11. **Itinerary sequencing** ("then / after / before / first"): chain
+    results by time + walking proximity. V1 = show natively + maps handoff
+    for food; the full evening-plan builder is a later, earned surface —
+    and the brief's shareable "night plan" card (§6.D5) is its output.
+12. **Cross-domain boundaries said plainly**: restaurant hours, drink
+    specials, menus = not our data. V1 answer is an honest handoff +
+    demand logging. The self-reported-specials channel (venues assert
+    their own deals through claimed, verified accounts — first-party
+    assertions under the sensor architecture) is the principled future
+    path; opening that surface is a FOUNDER decision.
+13. **Event-type taxonomy**: lessons, dance nights, and other venue
+    programming are pipeline events with start times — `event_type` joins
+    the extraction schema (Step 6) and the G-VT evidence file. Two-step
+    lessons at the Broken Spoke are as real as any headliner.
+14. **Dining-density as venue fact**: "restaurants nearby" answered with
+    counts and distance (computable from OSM at Tier 2), never ratings —
+    the subjective-honesty rule extends to every domain we touch.
+15. **Geography vocabulary grows as config**: "north Austin" (and every
+    future neighborhood) is a config row + synonym entries, never code —
+    same rule as metro outlines and the second-county drill.
+
 ## Disposition
 
-Personas #1–20 become the voice parser's golden test set at Step 9 (TODOS
+Personas #1–23 become the voice parser's golden test set at Step 9 (TODOS
 P1 voice item references this doc). Harvest items 1–4 add concrete fields/
 grammar to Step 6 (price capture) and Step 9 (parser). Items 5, 8, 9 are
 voice-register trust rules — they go wherever the parser goes, enforced by
