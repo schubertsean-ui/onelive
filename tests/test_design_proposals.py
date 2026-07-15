@@ -100,6 +100,9 @@ def test_no_banned_glyphs_or_native_emoji(direction):
         )
     # Unicode-class sweep, not just a blacklist (evaluator round 3 nit):
     # any emoji/dingbat-range character is banned except the canon ✳ mark.
+    # Stated rule (round 4 nit): ICONOGRAPHY is SVG-only; plain typographic
+    # marks (▸ ← ↗ › · —) are punctuation, not icons — they sit outside the
+    # emoji ranges below and are deliberately permitted.
     allowed = {"✳"}
     for ch in html:
         code = ord(ch)

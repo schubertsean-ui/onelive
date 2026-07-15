@@ -145,10 +145,15 @@ round 3: a stub there is a fake corroboration link).
 
 ## Step 9 implementation checklist (carried from these comps)
 
+- **These comps are non-shipping visual artifacts. No file in
+  `design/proposals/` may be copied into `web/` unchanged.** Step 9 is a
+  translation into Next.js/Tailwind with real elements, real data, and
+  real links — never a paste.
 - Venue corroboration links in uncertainty sheets are REAL (elephantroom.com,
   texashotelvegas.com) and test-enforced. Remaining `href="#"` placeholders
   are non-trust utility links only (map, tickets, calendar, nearby chips) —
-  implement as real links at Step 9.
+  they exist only inside these non-shipping comps and are implemented as
+  real links at Step 9.
 - Non-`<details>` controls in these comps are visual-only placeholders
   (marked in each file's header comment); implement as real, focusable,
   keyboard-operable elements.

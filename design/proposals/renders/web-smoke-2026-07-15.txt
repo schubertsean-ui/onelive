@@ -1,15 +1,55 @@
-== web smoke, 2026-07-15, build-session sandbox (commands reproducible from web/) ==
+== ONE LIVE web smoke — 2026-07-15, build-session sandbox ==
+== Full command outputs with exit codes (no tails, no swallowed errors) ==
+
 $ npx tsc --noEmit
-tsc exit: 0
+exit code: 0
 
 $ npm test
+
+> one-live-web@1.0.0 test
+> vitest run
+
+
+ RUN  v4.1.10 /home/user/onelive/web
+
+
  Test Files  3 passed (3)
       Tests  25 passed (25)
-   Start at  15:39:06
-   Duration  281ms (transform 151ms, setup 0ms, import 228ms, tests 36ms, environment 0ms)
+   Start at  16:00:07
+   Duration  279ms (transform 151ms, setup 0ms, import 225ms, tests 45ms, environment 1ms)
 
+exit code: 0
 
-$ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_... npm run build
+$ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k npm run build
+
+> one-live-web@1.0.0 build
+> next build
+
+   ▲ Next.js 15.5.20
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 5.3s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/8) ...
+   Generating static pages (2/8) 
+   Generating static pages (4/8) 
+   Generating static pages (6/8) 
+ ✓ Generating static pages (8/8)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ○ /                                      133 B         180 kB
+├ ○ /_not-found                             1 kB         181 kB
+├ ƒ /access                                393 B         216 kB
+├ ○ /ops                                   133 B         180 kB
+├ ƒ /ops/candidate/[id]                    970 B         181 kB
+├ ƒ /ops/inbox                             133 B         180 kB
+└ ○ /tonight                             3.41 kB         184 kB
++ First Load JS shared by all             180 kB
+  ├ chunks/4bd1b696-c023c6e3521b1417.js  54.2 kB
+  ├ chunks/898-651d9e51b108d5fe.js        124 kB
   └ other shared chunks (total)          2.39 kB
 
 
@@ -18,3 +58,4 @@ $ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_... npm run build
 ○  (Static)   prerendered as static content
 ƒ  (Dynamic)  server-rendered on demand
 
+exit code: 0
