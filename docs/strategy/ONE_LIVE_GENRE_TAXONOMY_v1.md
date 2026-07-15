@@ -90,3 +90,6 @@ https://www.artist.bandsintown.com/integrations/spotify
 
 One founder decision: ratify the Layer-1 eighteen (or edit the list), and
 Layer 2 + Layer 0 + the lexicon proceed as config under normal gates.
+HARD pre-ratification check (not optional): the Spotify microgenre claim
+is re-verified against official Spotify documentation/data and the
+citation upgraded before the ratified doc becomes canon.

@@ -105,7 +105,11 @@ same checks re-run mechanically in CI the moment Step 9 touches `web/`.
 - Mockup rendering: all three files rendered in headless Chromium in BOTH
   modes; committed evidence: `design/proposals/renders/<direction>-dark.png`
   and `design/proposals/renders/<direction>-light.png` (regenerated after
-  every mockup edit). The `<details>` uncertainty sheets work without
+  every mockup edit via the committed `render.sh`). Renders are
+  ILLUSTRATIVE evidence — the HTML files are the authoritative artifacts;
+  CI does not verify render freshness (round-18 nit, accepted): anyone
+  auditing a render regenerates it with `render.sh` rather than trusting
+  the committed PNG. The `<details>` uncertainty sheets work without
   JavaScript.
 - Web app smoke for Step 9 (`web/`, unchanged by this PR): `npx tsc
   --noEmit` exit 0 · `npm test` 25/25 · `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
