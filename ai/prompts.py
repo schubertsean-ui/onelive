@@ -37,7 +37,7 @@ Text: "RUBY ROOM AUSTIN — INDOOR / Fri 8/1, doors 8PM / Castle Creek with Tin 
 -> title: null (a billing line is not an event name) · start_time: null (doors only) · venue_name: "Ruby Room Austin" (the city word is part of the venue's name; "— INDOOR" stripped) · city: null (rule 8) · artist_names: ["Castle Creek", "Tin Sparrow"] · ticket_link: "https://t.example/cc"
 
 Text: "The Dallas Winds bring their summer program to Crescent Hall, June 3 — music 7:30 PM. El Paso Gazette calls them unmissable. Reserve: https://ch.example/dw"
--> title: null (artist plus description is not a name) · start_time: "7:30 PM" · venue_name: "Crescent Hall" · city: null ("The Dallas Winds" and "El Paso Gazette" are names, not places — rule 8) · artist_names: ["The Dallas Winds"] · ticket_link: "https://ch.example/dw" (Reserve = tickets) · rsvp_link: null
+-> title: null (artist plus description is not a name — the artist's name is NEVER used as a fallback title, even when it is the headline of the listing) · start_time: "7:30 PM" · venue_name: "Crescent Hall" · city: null ("The Dallas Winds" and "El Paso Gazette" are names, not places — rule 8) · artist_names: ["The Dallas Winds"] · ticket_link: "https://ch.example/dw" (Reserve = tickets) · rsvp_link: null
 
 Text: "@velvetowlsband: HOUSTON!!! back at The Bronze Door Sat, 10pm. ALBUM RELEASE SHOW for 'Slow Static'!"
 -> title: null ("ALBUM RELEASE SHOW" is a description, and "Slow Static" names the album, not the event) · start_time: "10pm" · venue_name: "The Bronze Door" · city: null (a greeting, not a stated location) · artist_names: [] (a handle names no artist)
@@ -47,5 +47,11 @@ Text: "GRANITE HALL: Sat 9/12 — 'Copper Kettle Revue' w/ The Sable Kings. 5 PM
 
 Text: "PRESS RELEASE — The Grandview Center for the Arts, Marfa, TX. 'Glasswing: An Evening of Strings' arrives Oct 2 at 7:00 PM in Beacon Hall, featuring the Sierra Chamber Players. Tickets: https://gv.example/glasswing"
 -> title: "Glasswing: An Evening of Strings" (the FULL name as written — never shortened to its tail) · venue_name: "The Grandview Center for the Arts" (the parent venue; Beacon Hall is a room inside it) · city: "Marfa" ("Marfa, TX" states the venue's place) · start_time: "7:00 PM" · artist_names: ["Sierra Chamber Players"] · ticket_link: "https://gv.example/glasswing"
+
+Text: "Coral Theater | Rex Calloway: The Long Way Home Tour | Fri 7 PM | https://coral.example/rex"
+-> title: "Rex Calloway: The Long Way Home Tour" (the artist's name is PART of the tour's name as written — keep it; "The Long Way Home Tour" alone is wrong) · artist_names: ["Rex Calloway"] (the act whose tour it is performs) · venue_name: "Coral Theater" · start_time: "7 PM" · ticket_link: "https://coral.example/rex"
+
+Text: "flyer drop: 'GOLD RUSH presents: Neon Harbor + Salt Cathedral' — Driftwood patio, 9pm"
+-> title: "GOLD RUSH presents: Neon Harbor + Salt Cathedral" (the entire QUOTED string is the night's name; GOLD RUSH is a promoter — Driftwood is the venue, so nothing is stripped) · artist_names: ["Neon Harbor", "Salt Cathedral"] · venue_name: "Driftwood" · start_time: "9pm" · city: null
 
 Return ONLY a JSON object matching the provided schema. Do not add commentary, explanations, or fields outside the schema. When in doubt, leave it null."""

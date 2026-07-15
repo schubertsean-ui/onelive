@@ -45,6 +45,7 @@ independently auditable".
 """
 from datetime import datetime, timezone
 from typing import Optional
+import html
 import json
 import logging
 import os
@@ -58,7 +59,7 @@ logger = logging.getLogger(__name__)
 
 # Bump when EXTRACTION_SYSTEM_PROMPT changes materially, so provenance on stored
 # candidates records which prompt produced them.
-PROMPT_VERSION = "2026-07-15.6"
+PROMPT_VERSION = "2026-07-15.7"
 
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
@@ -320,11 +321,32 @@ class ClaudeProvider(AIProvider):
                         return None
         return None
 
+    @staticmethod
+    def _decode_entities(data: Optional[dict]) -> Optional[dict]:
+        """Normalize HTML-entity escaping in model output, deterministically.
+
+        Models sometimes HTML-escape string values ('&' -> '&amp;') even
+        when the source text is plain (observed: claude-opus-4-8, exam
+        cycle 8, g002/g030). Encoding artifacts are not content; a single
+        html.unescape pass at the provider boundary fixes every field the
+        same way — deterministic code over prompt instructions."""
+        if data is None:
+            return None
+        def dec(v):
+            if isinstance(v, str):
+                return html.unescape(v)
+            if isinstance(v, list):
+                return [dec(x) for x in v]
+            if isinstance(v, dict):
+                return {k: dec(x) for k, x in v.items()}
+            return v
+        return {k: dec(v) for k, v in data.items()}
+
     def _stamp(self, data: Optional[dict]) -> Optional[dict]:
         """Attach extraction provenance so the candidate is re-verifiable."""
         if data is None:
             return None
-        data = dict(data)
+        data = self._decode_entities(data)
         data["_provenance"] = {
             "provider": "claude",
             "model": self.model,

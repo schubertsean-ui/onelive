@@ -156,6 +156,19 @@ def test_exam_mode_blank_model_still_fails_closed():
         ClaudeProvider(api_key="test", model="  ", exam_mode=True)
 
 
+def test_html_entities_are_decoded_at_the_provider_boundary():
+    """Exam cycle 8 (opus) emitted '&amp;' where the source text has '&' —
+    an output-encoding artifact, not content. The provider decodes entities
+    deterministically on every string field, nested lists/dicts included."""
+    p = ClaudeProvider(api_key="test", model="claude-test", exam_mode=True)
+    out = p._stamp({"venue_name": "Empire Control Room &amp; Garage",
+                    "artist_names": ["Talia &amp; The Ghost Notes"],
+                    "is_private_rsvp": False})
+    assert out["venue_name"] == "Empire Control Room & Garage"
+    assert out["artist_names"] == ["Talia & The Ghost Notes"]
+    assert out["is_private_rsvp"] is False
+
+
 def test_exam_provenance_is_stamped():
     p = ClaudeProvider(api_key="test", model="claude-test", exam_mode=True)
     stamped = p._stamp({"title": "X"})
