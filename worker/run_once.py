@@ -40,6 +40,39 @@ from ai.bedrock_provider import BedrockProvider
 from worker.orchestrator import run_loop
 from worker.sentinel import deadman, init_sentry
 
+class TotalRunFailure(RuntimeError):
+    """Every attempted source errored — the run did no useful work.
+
+    Raised (never returned as a code) so the deadman() context pings /fail:
+    healthchecks must alert on a run that produced nothing, not log a
+    heartbeat for it (first-real-run finding, 2026-07-15).
+    """
+
+
+def enforce_useful_work(counts: dict, attempted: int) -> None:
+    """Fail LOUD when every attempted source errored (zero useful work).
+
+    Raises TotalRunFailure (never returns a code) so the deadman() context
+    pings /fail — healthchecks must alert on a dead run, not log a healthy
+    heartbeat for it. Caught on the FIRST real run (2026-07-15): 3/3 sources
+    errored on a stale model id, yet the job went green and the dead-man
+    pinged success. Partial errors remain a success with a loud warning —
+    some work happened, and per-source detail is in the RunReport/replay.
+    """
+    errors = counts.get("errors", 0)
+    if attempted and errors >= attempted:
+        raise TotalRunFailure(
+            f"all {attempted} attempted source(s) errored — refusing to "
+            "report success for a run that did zero useful work."
+        )
+    if errors:
+        logger.warning(
+            "%d of %d source(s) errored this run — run succeeds because other "
+            "sources progressed; per-source detail is in the RunReport and "
+            "the replay log.", errors, attempted,
+        )
+
+
 # A tiny, stable public endpoint used only for the offline smoke path so
 # `python worker/run_once.py` demonstrates a real fetch->sensor->extract->
 # gate3 loop with zero configuration. httpbin's /html endpoint returns a
@@ -213,6 +246,10 @@ def _run_real(max_sources: int | None = None) -> int:
     print(f"  counts:   {report.counts}")
     for r in report.results:
         print(f"  - {r.source_name}: stage={r.stage_reached} decision={r.decision} detail={r.detail}")
+    # Attempted = per-source results actually recorded by the loop (a source
+    # skipped before attempt has no result row), falling back to the input
+    # list only if the report carries none — evaluator nit, PR #21 r2.
+    enforce_useful_work(report.counts, len(report.results) or len(sources))
     return 0
 
 
