@@ -528,6 +528,49 @@ def test_empty_statement_substring_refused_at_load(tmp_path):
         golden.load_examples(tmp_path)
 
 
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "edgar"
+
+
+def test_authoritative_exhibit_parsing_on_real_jpm_filing():
+    """REAL fixture (live EDGAR, 2026-07-15): JPM's same-day Q2-2026 earnings
+    8-K. The filename fallback originally MISSED both exhibits — the
+    authoritative index-headers path is the fix (Contract #9 live-run catch)."""
+    html = (FIXTURES / "0001628280-26-048078-index-headers.html").read_text(encoding="utf-8")
+    hits = edgar.find_press_release_exhibits_authoritative(html, {"items": "2.02,9.01"})
+    assert [(h["exhibit_type"], h["document"]) for h in hits] == [
+        ("EX-99.1", "a2q26erfexhibit991narrative.htm"),
+        ("EX-99.2", "a2q26erfex992supplement.htm"),
+    ]
+    assert all(h["confidence"] == "likely" for h in hits)
+
+
+def test_authoritative_exhibit_parsing_on_real_bac_filing():
+    html = (FIXTURES / "0000070858-26-000353-index-headers.html").read_text(encoding="utf-8")
+    hits = edgar.find_press_release_exhibits_authoritative(html, {"items": "2.02,7.01,9.01"})
+    assert [h["exhibit_type"] for h in hits] == ["EX-99.1", "EX-99.2", "EX-99.3"]
+    assert hits[0]["document"] == "bac06302026ex991.htm"
+
+
+def test_fallback_now_catches_the_real_world_names_it_missed():
+    """Regression for the live-run recall bug: letters-before-'exhibit991'
+    (JPM) and digits-before-'ex991' (BAC) must match the fallback."""
+    idx = {"directory": {"item": [
+        {"name": "a2q26erfexhibit991narrative.htm"},
+        {"name": "bac06302026ex991.htm"},
+        {"name": "jpm-20260714.htm"},
+        {"name": "report.css"},
+    ]}}
+    hits = edgar.find_press_release_exhibit_candidates(idx, {"items": "2.02"})
+    assert [h["document"] for h in hits] == ["a2q26erfexhibit991narrative.htm",
+                                             "bac06302026ex991.htm"]
+
+
+def test_index_headers_url_shape():
+    assert edgar.index_headers_url("0000070858", "0000070858-26-000353") == (
+        "https://www.sec.gov/Archives/edgar/data/70858/000007085826000353/"
+        "0000070858-26-000353-index-headers.html")
+
+
 def test_stage2_ignores_non_document_files_and_non_ex99_names():
     index_json = {"directory": {"item": [{"name": "pressrelease.htm"}, {"name": "ex101.htm"}]}}
     assert edgar.find_press_release_exhibit_candidates(index_json, {"items": "2.02"}) == []

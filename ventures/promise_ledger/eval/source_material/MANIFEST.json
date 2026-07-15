@@ -1,0 +1,31 @@
+{
+ "documents": [
+  {
+   "ticker": "JPM",
+   "cik": "0000019617",
+   "accession": "0001628280-26-048078",
+   "exhibit_type": "EX-99.1",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/19617/000162828026048078/a2q26erfexhibit991narrative.htm",
+   "sha256": "cbd3405248e33b52c44251b42dcc806089aca90cf9f5c37b7eb9a273c15890ea",
+   "bytes": 207499,
+   "filed_at": "2026-07-14",
+   "retrieved_at": "2026-07-15T19:06:52.675021+00:00",
+   "retrieved_by": "EdgarClient (declared UA, budgeted) \u2014 first live run, Contract #9",
+   "note": "REAL 8-K EX-99.1 earnings press release. Stored INTERNALLY for analysis/labeling only per the AP-v-Meltwater design rule \u2014 never republished verbatim."
+  },
+  {
+   "ticker": "BAC",
+   "cik": "0000070858",
+   "accession": "0000070858-26-000353",
+   "exhibit_type": "EX-99.1",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/70858/000007085826000353/bac06302026ex991.htm",
+   "sha256": "e2730040fa30edfb0953cb416b76cf7bdf7c0515be9a67c17fb4d2e1e48f8d1d",
+   "bytes": 73253,
+   "filed_at": "2026-07-14",
+   "retrieved_at": "2026-07-15T19:06:53.544594+00:00",
+   "retrieved_by": "EdgarClient (declared UA, budgeted) \u2014 first live run, Contract #9",
+   "note": "REAL 8-K EX-99.1 earnings press release. Stored INTERNALLY for analysis/labeling only per the AP-v-Meltwater design rule \u2014 never republished verbatim."
+  }
+ ],
+ "purpose": "R-014 real golden-set source material \u2014 labeling in progress; >=20 required before PRECISION_BAR is meaningful"
+}

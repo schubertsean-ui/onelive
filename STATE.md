@@ -34,6 +34,13 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 
 > **Ground-truth block staleness (2026-07-13):** the JSON block above is machine-maintained and could NOT be refreshed this session — the reconciler needs `gh` (absent in this sandbox) and a DB DSN (not provided). It shows pre-PR#9 state. The 2026-07-13 reality check below records what WAS independently verified (via the GitHub API). Refresh the block with `session_reconcile.py --heal` from an env with `gh` + `ONELIVE_DB_DSN`.
 
+## Session Contract #9 (2026-07-15, same conversation — founder: "Financial" + partial egress unblock [FIRST LIVE EDGAR RUN])
+
+GOAL: Execute the beachhead-sector decision (FINANCIALS) and the first live EDGAR run now that www.sec.gov is reachable (data.sec.gov + efts.sec.gov remain proxy-blocked — remaining ask recorded).
+SCOPE: (1) verify egress (www.sec.gov 200; data/efts still CONNECT-403); (2) LIVE RUN 1 (sprint step 4, financials): list real 8-Ks via browse-edgar Atom for JPM/BAC — both filed Q2 earnings 8-Ks TODAY — fetch real filing indexes, discover exhibits, fetch both EX-99.1 press releases with full provenance into eval/source_material/ (internal-only per the never-verbatim rule); (3) LIVE-RUN CATCH fixed same-commit: real filenames (letters/digits directly before "ex(hibit)99") missed the fallback regex — implemented the AUTHORITATIVE path our design promised (index-headers TYPE/FILENAME table, parse_exhibit_documents + find_press_release_exhibits_authoritative), verified on both real filings, committed real fixtures + regression tests; fallback broadened, confidence semantics unchanged; (4) sector decision recorded + charter-mandated po battery run (seed 20260715, word "anchor", full canon, complete working notes) with 8-item harvest feeding the sector build; (5) bookends + R-014 progress note.
+NON-GOALS: no extraction-model calls yet (R-014 still OPEN until ≥20 labeled real examples), no paid sources (R-013 unchanged), no scheduled polling (single budgeted run only, charter Sentinel rule untouched).
+DONE-CRITERIA: live pipeline proven on real same-day filings · real source material stored with provenance · sector battery + records committed · tests green through the gate.
+
 ## Session Contract #8 (2026-07-15, same conversation — founder: "Go" [VENTURE GREENLIT — build phase 1, sector-agnostic core])
 
 GOAL: Execute the promise-ledger build phase within this sandbox's hard limits (no sec.gov egress, no vendor-domain egress, no spend, no new services). "Go" resolves the venture go/no-go; it does NOT pick the beachhead sector (still founder's, memo stands) and does NOT waive R-013/R-014 — it FIRES R-013's trigger.

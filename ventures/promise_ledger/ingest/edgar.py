@@ -127,14 +127,16 @@ def list_recent_8k_filings(submissions_json: dict) -> list[dict]:
 # 8-K item codes under which press releases are customarily furnished/filed.
 PRESS_RELEASE_ITEMS = ("2.02", "7.01", "8.01")
 
-# Filename shapes for EX-99.x exhibit documents. Covers both separator-delimited
-# names (ex99-1.htm, exh_991.txt, exhibit99.htm) and the filing-agent generated
-# shape where "dex99" follows a digit run with no separator (d123456dex991.htm —
-# very common in EDGAR archives; evaluator r18 catch). Recall matters more than
-# precision here because stage-2 confidence is capped at "likely" and the live
-# pipeline confirms exhibit type from the filing index page before use.
-_EXHIBIT_NAME_RE = re.compile(
-    r"(?:^|[^a-z0-9])(?:ex|exh|exhibit)[-_.]?99|(?<=\d)dex99", re.IGNORECASE)
+# Filename FALLBACK shapes for EX-99.x exhibit documents — used only when the
+# authoritative index-headers mapping (below) cannot be fetched. The first
+# LIVE run (2026-07-15, JPM/BAC same-day earnings 8-Ks) proved filename
+# guessing under-recalls: real names were a2q26erfexhibit991narrative.htm
+# (letters immediately before "exhibit991") and bac06302026ex991.htm (digits
+# immediately before "ex991") — neither matched the old separator-anchored
+# pattern. The fallback now matches ex/exh/exhibit+99 ANYWHERE in the name;
+# the precision cost is acceptable because fallback confidence stays
+# "unverified"/"likely" and the authoritative path is preferred.
+_EXHIBIT_NAME_RE = re.compile(r"(?:ex|exh|exhibit)[-_.]?9{2}", re.IGNORECASE)
 
 
 def filing_index_url(cik: str, accession: str) -> str:
@@ -145,6 +147,54 @@ def filing_index_url(cik: str, accession: str) -> str:
         raise ValueError(f"CIK {cik!r} must be zero-padded to 10 digits")
     acc = accession.replace("-", "")
     return f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc}/index.json"
+
+
+def index_headers_url(cik: str, accession: str) -> str:
+    """URL of a filing's SGML header page (small; carries the AUTHORITATIVE
+    per-document <TYPE>/<FILENAME> table, HTML-escaped in a <PRE> block)."""
+    if not (cik.isdigit() and len(cik) == 10):
+        raise ValueError(f"CIK {cik!r} must be zero-padded to 10 digits")
+    acc_nodash = accession.replace("-", "")
+    return (f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc_nodash}/"
+            f"{accession}-index-headers.html")
+
+
+def parse_exhibit_documents(index_headers_html: str) -> list[dict]:
+    """AUTHORITATIVE stage 2: parse the escaped SGML document table out of an
+    index-headers.html page into [{type, document}]. Verified against real
+    same-day filings (JPM/BAC 2026-07-14 earnings 8-Ks) — this is the mapping
+    the filename fallback only approximates."""
+    import html as _html
+    text = _html.unescape(index_headers_html)
+    out = []
+    for block in text.split("<DOCUMENT>")[1:]:
+        tm = re.search(r"<TYPE>([^<\n]+)", block)
+        fm = re.search(r"<FILENAME>([^<\n]+)", block)
+        if tm and fm:
+            out.append({"type": tm.group(1).strip(), "document": fm.group(1).strip()})
+    return out
+
+
+def find_press_release_exhibits_authoritative(index_headers_html: str, filing: dict) -> list[dict]:
+    """Select EX-99.x documents from the authoritative type table. Confidence
+    is 'likely' when the parent 8-K carries a customary press-release item —
+    still never 'confirmed': type says press-release-shaped exhibit, not that
+    THIS exhibit is the narrative release (e.g. EX-99.2 is often the
+    supplemental tables)."""
+    items_field = filing.get("items", "") or ""
+    has_pr_item = any(code in items_field for code in PRESS_RELEASE_ITEMS)
+    out = []
+    for doc in parse_exhibit_documents(index_headers_html):
+        if doc["type"].upper().startswith("EX-99"):
+            out.append({
+                "document": doc["document"],
+                "exhibit_type": doc["type"],
+                "confidence": "likely" if has_pr_item else "unverified",
+                "basis": f"authoritative index-headers type {doc['type']}"
+                         + ("; parent 8-K items include a press-release item" if has_pr_item
+                            else "; parent 8-K items lack a customary press-release item"),
+            })
+    return out
 
 
 def find_press_release_exhibit_candidates(index_json: dict, filing: dict) -> list[dict]:
