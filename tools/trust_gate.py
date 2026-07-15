@@ -205,12 +205,44 @@ def check_promote_import_allowlist(findings: Findings) -> None:
                 )
 
 
+# The exam channel (R-013's measurement instrument) may only be invoked from
+# the golden-exam runner and tests — pipeline code must never construct an
+# exam-mode provider (it bypasses the extraction ratification gate).
+EXAM_MODE_ALLOWLIST_PREFIXES = (
+    "ai/golden_exam.py",        # the exam runner — the channel's only real caller
+    "tests/",                    # hermetic tests of the channel itself
+    "ai/claude_provider.py",     # where the channel is defined
+    "tools/trust_gate.py",       # this check's own detection string
+)
+
+
+def check_exam_mode_confined(findings: Findings) -> None:
+    for d in ("ai", "worker", "api", "tools"):
+        root = REPO / d
+        if not root.exists():
+            continue
+        for path in root.rglob("*.py"):
+            if "__pycache__" in path.parts:
+                continue
+            rel = str(path.relative_to(REPO))
+            if any(rel.startswith(pref) for pref in EXAM_MODE_ALLOWLIST_PREFIXES):
+                continue
+            if "exam_mode=True" in path.read_text(encoding="utf-8", errors="replace"):
+                findings.add(
+                    f"{rel}: constructs an exam-mode provider outside the exam "
+                    f"channel allowlist (ai/golden_exam.py, tests/). exam_mode "
+                    f"bypasses the extraction ratification gate and is reserved "
+                    f"for the golden-set exam runner only."
+                )
+
+
 def main() -> int:
     findings = Findings()
     check_no_dynamic_sql(findings)
     check_ads_tastemaker_isolation(findings)
     check_ai_never_promotes(findings)
     check_promote_import_allowlist(findings)
+    check_exam_mode_confined(findings)
 
     if findings.ok():
         print("trust_gate: OK — all trust invariants hold "

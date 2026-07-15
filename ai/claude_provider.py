@@ -63,7 +63,7 @@ MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
 
 
-def _resolve_extraction_model(explicit: Optional[str]) -> str:
+def _resolve_extraction_model(explicit: Optional[str], exam_mode: bool = False) -> str:
     """Resolve the extraction model THROUGH the routing gate (single source).
 
     The trust invariant lives at this entry point, not only in the tool
@@ -86,7 +86,23 @@ def _resolve_extraction_model(explicit: Optional[str]) -> str:
     misconfiguration, never "use the default".
     """
     import tools.model_router as _router
-    if not _router.EXTRACTION_THRESHOLD_RATIFIED:
+    if exam_mode:
+        # THE EXAM CHANNEL — deliberately narrow (R-013's own measurement
+        # instrument): the golden-set runner must exercise the REAL provider
+        # path against a candidate model BEFORE the gate can open, so this
+        # bypasses ONLY the ratification-flag check. Constraints, all
+        # enforced: an explicit model is REQUIRED (no policy fallback — the
+        # exam names its candidate); blank still fails closed below; the
+        # string `exam_mode=True` is allowed ONLY in ai/golden_exam.py and
+        # tests/ (tools/trust_gate.py invariant), so no pipeline code can
+        # reach for it; and the runner imports no candidate-store/promote
+        # code, so exam output cannot touch the pipeline or DB.
+        if explicit is None:
+            raise ExtractionConfigError(
+                "exam_mode requires an explicit candidate model — the exam "
+                "names what it measures; there is no policy fallback."
+            )
+    elif not _router.EXTRACTION_THRESHOLD_RATIFIED:
         raise ExtractionConfigError(
             "extraction is fail-closed until the golden-set gate ships and "
             "passes (docs/RECORD.md R-013; bar ratified <=1% per R-006) — "
@@ -118,9 +134,11 @@ class ClaudeProvider(AIProvider):
         max_tokens: int = 1024,
         client=None,
         max_retries: int = MAX_RETRIES,
+        exam_mode: bool = False,
     ):
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        self.model = _resolve_extraction_model(model)
+        self.exam_mode = exam_mode
+        self.model = _resolve_extraction_model(model, exam_mode=exam_mode)
         self.max_tokens = max_tokens
         self._client = client
         self.max_retries = max_retries
@@ -259,6 +277,11 @@ class ClaudeProvider(AIProvider):
             "prompt_version": PROMPT_VERSION,
             "extracted_at": datetime.now(timezone.utc).isoformat(),
         }
+        if self.exam_mode:
+            # Exam output must be unmistakable as exam output — if a row with
+            # this marker ever appears in the candidate store, something has
+            # violated the exam channel's no-pipeline constraint.
+            data["_provenance"]["exam_mode"] = True
         return data
 
     @staticmethod
