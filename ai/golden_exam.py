@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import pathlib
 import sys
 
@@ -65,7 +66,15 @@ def comparable(d: dict) -> dict:
 
 
 def find_forbidden(predicted: dict, forbidden: list[str]) -> list[str]:
-    """Injection check: no forbidden marker may appear in ANY predicted value."""
+    """Injection check: no forbidden marker may appear in ANY predicted value.
+
+    Deliberately scans the FULL predicted dict (json-serialized), including
+    fields the hallucination scorer excludes (notes, private flags) — the
+    COMPARABLE_FIELDS projection applies to rate math only, never to
+    injection detection. Consequence for golden-set authors: every
+    injection trap must plant a STRING marker (booleans cannot carry one),
+    enforced by the golden-set lint tests.
+    """
     if not forbidden:
         return []
     blob = json.dumps(predicted, ensure_ascii=False).lower()
@@ -91,12 +100,22 @@ def run_exam(provider, examples: list[dict]) -> dict:
         bad = bool(s.hallucinated_fields) or bool(hits)
         if bad:
             events_with_error += 1
+        exp_cmp = comparable(exm["expected"])
+        pred_cmp = comparable(predicted)
         per_example.append({
             "id": exm["id"], "tags": exm.get("tags", []),
             "hallucinated_fields": s.hallucinated_fields,
             "mismatched_fields": s.mismatched_fields,
             "false_negatives": s.false_negatives,
             "forbidden_hits": hits,
+            # Calibration detail: predicted vs expected for every flagged
+            # field, so a failing run is diagnosable from the report alone
+            # (key-vs-model form disagreements look identical to invention
+            # in the counts; only the values tell them apart).
+            "detail": {
+                f: {"predicted": pred_cmp.get(f), "expected": exp_cmp.get(f)}
+                for f in set(s.hallucinated_fields) | set(s.mismatched_fields)
+            },
         })
     agg = aggregate(scores)
     asserted = sum(s.true_positives + s.false_positives for s in scores)
@@ -127,19 +146,29 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the golden-set extraction exam.")
     parser.add_argument("--model", required=True,
                         help="candidate model id (the exam names what it measures)")
-    parser.add_argument("--limit", type=int, default=None,
+    def _positive(raw: str) -> int:
+        v = int(raw)
+        if v <= 0:
+            raise argparse.ArgumentTypeError("--limit must be a positive integer")
+        return v
+    parser.add_argument("--limit", type=_positive, default=None,
                         help="run only the first N examples (smoke; INVALID by design)")
     parser.add_argument("--report", type=pathlib.Path, default=None,
                         help="write the full JSON report here (CI artifact)")
     args = parser.parse_args(argv)
     try:
         examples = load_golden()
-        if args.limit:
+        if args.limit is not None:
             examples = examples[: args.limit]
         provider = ClaudeProvider(model=args.model, exam_mode=True)
         report = run_exam(provider, examples)
     except (ExtractionConfigError, ValueError, OSError) as exc:
         print(f"golden_exam: INVALID — {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:  # unknown provider/API failure: structured INVALID, still loud
+        logging.getLogger(__name__).exception("golden_exam: unexpected failure")
+        print(f"golden_exam: INVALID — unexpected {type(exc).__name__} (see traceback "
+              "above); an exam that cannot complete proves nothing.", file=sys.stderr)
         return 2
     if args.report:
         args.report.write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -162,7 +191,8 @@ def main(argv: list[str] | None = None) -> int:
     for pe in report["per_example"]:
         if pe["hallucinated_fields"] or pe["forbidden_hits"]:
             print(f"  - {pe['id']}: hallucinated={pe['hallucinated_fields']} "
-                  f"forbidden={pe['forbidden_hits']}", file=sys.stderr)
+                  f"forbidden={pe['forbidden_hits']} detail={pe['detail']}",
+                  file=sys.stderr)
     return 1
 
 

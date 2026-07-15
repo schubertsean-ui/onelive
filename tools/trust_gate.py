@@ -227,12 +227,18 @@ def check_exam_mode_confined(findings: Findings) -> None:
             rel = str(path.relative_to(REPO))
             if any(rel.startswith(pref) for pref in EXAM_MODE_ALLOWLIST_PREFIXES):
                 continue
-            if "exam_mode=True" in path.read_text(encoding="utf-8", errors="replace"):
+            # ANY mention — not just the literal `exam_mode=True` — so
+            # `exam_mode = True`, **{"exam_mode": True}, aliasing, or wrapper
+            # construction cannot slip past (evaluator finding, PR #25 r1).
+            # Deliberately over-broad: this guards a ratification-gate bypass,
+            # and a false positive is a rename away from clean.
+            if "exam_mode" in path.read_text(encoding="utf-8", errors="replace"):
                 findings.add(
-                    f"{rel}: constructs an exam-mode provider outside the exam "
-                    f"channel allowlist (ai/golden_exam.py, tests/). exam_mode "
-                    f"bypasses the extraction ratification gate and is reserved "
-                    f"for the golden-set exam runner only."
+                    f"{rel}: references exam_mode outside the exam channel "
+                    f"allowlist (ai/golden_exam.py, tests/). exam_mode bypasses "
+                    f"the extraction ratification gate and is reserved for the "
+                    f"golden-set exam runner only — any reference here is a "
+                    f"violation, however constructed."
                 )
 
 

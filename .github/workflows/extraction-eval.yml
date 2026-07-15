@@ -17,6 +17,7 @@ on:
       - "ai/**"
       - "worker/ai_models.py"
       - "worker/ai_extract.py"
+      - "tools/model_router.py"          # the ratification flag + routing table live here
       - ".github/workflows/extraction-eval.yml"
   workflow_dispatch:
     inputs:
@@ -63,7 +64,12 @@ jobs:
             fi
             echo "EXAM_MODEL=$RAW_MODEL" >> "$GITHUB_ENV"
           else
-            echo "EXAM_MODEL=claude-haiku-4-5" >> "$GITHUB_ENV"
+            # PR runs certify the PRODUCTION-ROUTED model — read the routing
+            # table itself, never a duplicated constant (a router change must
+            # be examined as the model it actually routes to).
+            EXAM_MODEL="$(python3 -c "from tools.model_router import STAGE_MODELS; print(STAGE_MODELS['extraction'])")"
+            test -n "$EXAM_MODEL"
+            echo "EXAM_MODEL=$EXAM_MODEL" >> "$GITHUB_ENV"
           fi
 
       - name: Run the golden-set exam (release-blocking)
@@ -82,4 +88,6 @@ jobs:
         with:
           name: golden-exam-report-${{ github.run_id }}
           path: exam-report.json
-          if-no-files-found: warn
+          # Evidence artifact on a release gate: absence on a SUCCESSFUL run
+          # is itself a failure (same rule as the ingest replay log).
+          if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
