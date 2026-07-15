@@ -38,7 +38,11 @@ MONTHS = {m: i + 1 for i, m in enumerate(
 # reviewed change, not a silent loosening.
 EVENT_CONTEXT = re.compile(
     r"appl(?:y|ies|ied)|effective|deadline|due|compliance|begins?|starts?|"
-    r"until|by |live |in force|phase|portal|collected?|period|"
+    r"until|in force|phase|portal|collected?|period|"
+    # "by <Month>" is deadline phrasing; a bare "by " is citation prose
+    # ("post by Vendor, Jul 28, 2026") and must NOT exempt a date (r21).
+    r"by\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)|"
+    r"(?:goes?|went|is|becomes?)\s+live|"
     r"expect|planned|target|mandate|wave|comment|postponed|delayed|"
     r"announced for|scheduled", re.IGNORECASE)
 
@@ -262,6 +266,19 @@ def test_negative_unmarked_future_date_fails():
 def test_negative_prose_future_publication_date_fails():
     vs = check_dates("| 6 | spec released Jul 28, 2026 | Jul 2026 | someblog | High |", _COMPILED, [])
     assert vs, "gate missed a prose future publication date"
+
+
+def test_negative_citation_prose_by_author_not_exempted():
+    """Evaluator r21: a bare 'by <Author>,' before a future prose date is
+    citation prose, not deadline phrasing — it must NOT be exempted."""
+    vs = check_dates("see the post by Vendor, Jul 28, 2026 for details", _COMPILED, [])
+    assert vs, "citation prose 'by Author, <future date>' bypassed the date gate"
+
+
+def test_negative_by_month_deadline_still_allowed():
+    vs = check_dates("the portal must be available by Jul 10, 2027 under the regulation",
+                     _COMPILED, [])
+    assert not vs, f"deadline phrasing 'by <Month D, YYYY>' false-positived: {vs}"
 
 
 def test_negative_prose_future_event_date_allowed():

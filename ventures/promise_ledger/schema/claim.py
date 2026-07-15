@@ -200,6 +200,16 @@ def validate(obj) -> list[str]:
     return obj.validate()
 
 
+def _nonblank(extra: dict | None = None) -> dict:
+    """JSON Schema for a string that is non-empty AND not whitespace-only —
+    parity with the Python validators' .strip() semantics (evaluator r21).
+    `pattern` is unanchored, so \\S means 'contains a non-space character'."""
+    out = {"type": "string", "minLength": 1, "pattern": "\\S"}
+    if extra:
+        out.update(extra)
+    return out
+
+
 def to_json_schema() -> dict:
     """Export a JSON Schema for the Claim record (the interchange format —
     the 'promise markup' consumed by MCP tools and customer pipelines).
@@ -229,17 +239,22 @@ def to_json_schema() -> dict:
         "type": "object",
         "required": ["claim_id", "entity", "kind", "statement", "provenance"],
         "properties": {
-            "claim_id": {"type": "string", "minLength": 1},
+            "claim_id": _nonblank(),
             "entity": {
                 "type": "object",
                 "required": ["name"],
-                # mirror EntityRef.validate: at least one stable identifier
+                # mirror EntityRef.validate: at least one stable identifier,
+                # and the identifier satisfying the branch must be a NON-NULL
+                # pattern-valid string (a present-but-null lei/cik does not
+                # count — evaluator r21).
                 "anyOf": [
-                    {"required": ["lei"], "properties": {"lei": {"type": "string"}}},
-                    {"required": ["cik"], "properties": {"cik": {"type": "string"}}},
+                    {"required": ["lei"],
+                     "properties": {"lei": {"type": "string", "pattern": _LEI_RE.pattern}}},
+                    {"required": ["cik"],
+                     "properties": {"cik": {"type": "string", "pattern": _CIK_RE.pattern}}},
                 ],
                 "properties": {
-                    "name": {"type": "string", "minLength": 1},
+                    "name": _nonblank(),
                     "lei": {"type": ["string", "null"], "pattern": _LEI_RE.pattern},
                     "cik": {"type": ["string", "null"], "pattern": _CIK_RE.pattern},
                     "ticker": {"type": ["string", "null"]},
@@ -247,7 +262,7 @@ def to_json_schema() -> dict:
                 "additionalProperties": False,
             },
             "kind": {"enum": enum_values(ClaimKind)},
-            "statement": {"type": "string", "minLength": 1},
+            "statement": _nonblank(),
             "provenance": provenance_schema,
             "metric": {"type": ["string", "null"]},
             "target_low": {"type": ["number", "null"]},
@@ -262,8 +277,7 @@ def to_json_schema() -> dict:
                 "if": {"properties": {"kind": {"const": ClaimKind.NUMERIC_GUIDANCE.value}}},
                 "then": {
                     "required": ["metric", "unit"],
-                    "properties": {"metric": {"type": "string", "minLength": 1},
-                                   "unit": {"type": "string", "minLength": 1}},
+                    "properties": {"metric": _nonblank(), "unit": _nonblank()},
                     "anyOf": [
                         {"required": ["target_low"], "properties": {"target_low": {"type": "number"}}},
                         {"required": ["target_high"], "properties": {"target_high": {"type": "number"}}},
@@ -273,14 +287,16 @@ def to_json_schema() -> dict:
             {   # dated_event requires a due date or its original text
                 "if": {"properties": {"kind": {"const": ClaimKind.DATED_EVENT.value}}},
                 "then": {"anyOf": [
-                    {"required": ["due_date"], "properties": {"due_date": {"type": "string"}}},
-                    {"required": ["due_date_text"], "properties": {"due_date_text": {"type": "string"}}},
+                    {"required": ["due_date"],
+                     "properties": {"due_date": {"type": "string", "format": "date"}}},
+                    {"required": ["due_date_text"],
+                     "properties": {"due_date_text": _nonblank()}},
                 ]},
             },
-            {   # a parsed due_date must keep its original phrasing
+            {   # a parsed due_date must keep its original NON-BLANK phrasing
                 "if": {"required": ["due_date"], "properties": {"due_date": {"type": "string"}}},
                 "then": {"required": ["due_date_text"],
-                         "properties": {"due_date_text": {"type": "string", "minLength": 1}}},
+                         "properties": {"due_date_text": _nonblank()}},
             },
         ],
         "additionalProperties": False,
@@ -300,7 +316,7 @@ def _provenance_json_schema() -> dict:
         "required": ["source_url", "source_kind", "published_at", "retrieved_at"],
         "properties": {
             "source_url": {"type": "string", "format": "uri", "pattern": "^https?://"},
-            "source_kind": {"type": "string", "minLength": 1},
+            "source_kind": _nonblank(),
             "published_at": {"type": "string", "format": "date-time"},
             "retrieved_at": {"type": "string", "format": "date-time"},
             "excerpt_sha256": {"type": ["string", "null"]},
@@ -334,7 +350,7 @@ def to_lifecycle_event_json_schema() -> dict:
         # states are merely the highest-stakes case of the same rule.
         "required": ["claim_id", "state", "confidence", "observed_at", "evidence"],
         "properties": {
-            "claim_id": {"type": "string", "minLength": 1},
+            "claim_id": _nonblank(),
             "state": {"enum": [m.value for m in LifecycleState]},
             "confidence": {"enum": [m.value for m in FulfillmentConfidence]},
             "observed_at": {"type": "string", "format": "date-time"},

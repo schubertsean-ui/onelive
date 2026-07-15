@@ -154,6 +154,122 @@ def test_json_schema_carries_the_validator_invariants():
     assert ".example/" not in schema["$id"]
 
 
+# ---------------------------------------------------- schema parity (r21)
+# A minimal internal JSON Schema checker (subset: type/required/properties/
+# additionalProperties/pattern/minLength/enum/const/anyOf/allOf-if-then/
+# items/minItems) so parity is proven against the EXPORTED SCHEMA ITSELF,
+# not against its structure — without adding a dependency. Format keywords
+# are ignored (annotation-only in JSON Schema 2020-12 by default).
+
+def _check(instance, schema) -> bool:
+    import re as _re
+    if "const" in schema:
+        return instance == schema["const"]
+    if "enum" in schema:
+        return instance in schema["enum"]
+    types = schema.get("type")
+    if types is not None:
+        tl = types if isinstance(types, list) else [types]
+        ok = any(
+            (t == "null" and instance is None) or
+            (t == "string" and isinstance(instance, str)) or
+            (t == "number" and isinstance(instance, (int, float)) and not isinstance(instance, bool)) or
+            (t == "object" and isinstance(instance, dict)) or
+            (t == "array" and isinstance(instance, list))
+            for t in tl)
+        if not ok:
+            return False
+    if isinstance(instance, str):
+        if "minLength" in schema and len(instance) < schema["minLength"]:
+            return False
+        if "pattern" in schema and not _re.search(schema["pattern"], instance):
+            return False
+    if isinstance(instance, dict):
+        for req in schema.get("required", []):
+            if req not in instance:
+                return False
+        props = schema.get("properties", {})
+        if schema.get("additionalProperties") is False:
+            if set(instance) - set(props):
+                return False
+        for k, sub in props.items():
+            if k in instance and not _check(instance[k], sub):
+                return False
+    if isinstance(instance, list):
+        if "minItems" in schema and len(instance) < schema["minItems"]:
+            return False
+        if "items" in schema and not all(_check(i, schema["items"]) for i in instance):
+            return False
+    for branchset in schema.get("anyOf", []) and [schema["anyOf"]] or []:
+        if not any(_check(instance, alt) for alt in branchset):
+            return False
+    for cond in schema.get("allOf", []):
+        if "if" in cond:
+            if _check(instance, cond["if"]) and not _check(instance, cond.get("then", {})):
+                return False
+        elif not _check(instance, cond):
+            return False
+    return True
+
+
+def _valid_claim_dict():
+    return {
+        "claim_id": "c-001",
+        "entity": {"name": "ExampleCorp", "cik": "0000000000"},
+        "kind": "numeric_guidance",
+        "statement": "FY2027 revenue guidance of $1.2B-$1.4B (re-expressed)",
+        "provenance": {"source_url": "https://www.sec.gov/x.htm", "source_kind": "8-K/EX-99.1",
+                       "published_at": "2026-07-01T00:00:00Z", "retrieved_at": "2026-07-02T00:00:00Z"},
+        "metric": "revenue_fy2027", "target_low": 1200.0, "target_high": 1400.0,
+        "unit": "USD_millions",
+    }
+
+
+def test_mini_checker_accepts_the_valid_document():
+    assert _check(_valid_claim_dict(), to_json_schema())
+
+
+@pytest.mark.parametrize("mutate,desc", [
+    (lambda d: d["entity"].pop("cik"), "no stable identifier at all"),
+    (lambda d: d["entity"].update(cik=None), "present-but-NULL cik must not satisfy anyOf"),
+    (lambda d: d["entity"].update(cik=None, lei=None), "both identifiers null"),
+    (lambda d: d.update(claim_id="   "), "whitespace-only claim_id"),
+    (lambda d: d["entity"].update(name="  "), "whitespace-only entity name"),
+    (lambda d: d.update(statement=" "), "whitespace-only statement"),
+    (lambda d: d["provenance"].update(source_kind="  "), "whitespace-only source_kind"),
+    (lambda d: d.update(metric="   "), "whitespace-only metric for numeric_guidance"),
+    (lambda d: d.update(unit="  "), "whitespace-only unit for numeric_guidance"),
+    (lambda d: d.update(unit=None), "missing unit for numeric_guidance"),
+], ids=lambda x: x if isinstance(x, str) else "")
+def test_exported_schema_rejects_what_the_validator_rejects(mutate, desc):
+    """Evaluator r21 blockers, proven against the exported schema itself:
+    nullable identifiers, whitespace-only required strings, unit parity."""
+    doc = _valid_claim_dict()
+    mutate(doc)
+    assert not _check(doc, to_json_schema()), desc
+
+
+def test_exported_schema_rejects_dateless_dated_event():
+    doc = _valid_claim_dict()
+    doc.update(kind="dated_event", metric=None, target_low=None, target_high=None, unit=None)
+    doc["due_date_text"] = ""
+    assert not _check(doc, to_json_schema()), "empty due_date_text passed the dated_event conditional"
+    doc["due_date_text"] = "   "
+    assert not _check(doc, to_json_schema()), "whitespace due_date_text passed"
+    doc["due_date_text"] = "by Q3 2027"
+    assert _check(doc, to_json_schema()), "legitimate dated_event rejected"
+
+
+def test_exported_lifecycle_schema_rejects_empty_object_evidence():
+    doc = {"claim_id": "c-001", "state": "broken", "confidence": "likely",
+           "observed_at": "2027-10-01T00:00:00Z", "evidence": [{}]}
+    assert not _check(doc, claim_schema.to_lifecycle_event_json_schema())
+    doc["evidence"] = [{"source_url": "https://x.gov/a.htm", "source_kind": "8-K",
+                        "published_at": "2027-09-30T00:00:00Z",
+                        "retrieved_at": "2027-10-01T00:00:00Z"}]
+    assert _check(doc, claim_schema.to_lifecycle_event_json_schema())
+
+
 # ------------------------------------------------------------ golden harness
 
 def test_golden_set_loads_and_synthetic_flags_are_explicit():
