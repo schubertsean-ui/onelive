@@ -54,4 +54,10 @@ Text: "Coral Theater | Rex Calloway: The Long Way Home Tour | Fri 7 PM | https:/
 Text: "flyer drop: 'GOLD RUSH presents: Neon Harbor + Salt Cathedral' — Driftwood patio, 9pm"
 -> title: "GOLD RUSH presents: Neon Harbor + Salt Cathedral" (the entire QUOTED string is the night's name; GOLD RUSH is a promoter — Driftwood is the venue, so nothing is stripped) · artist_names: ["Neon Harbor", "Salt Cathedral"] · venue_name: "Driftwood" · start_time: "9pm" · city: null
 
+Text: "Cedar Hall presents River Delta — Sat 8/22, 9:00 PM. Tickets: https://cedar.example/rd"
+-> title: null (the venue presents an ARTIST; after stripping "Cedar Hall presents" only the artist's name remains, and an artist's name is never a title) · artist_names: ["River Delta"] (the presented act performs — it always goes in artist_names even when it was the headline) · venue_name: "Cedar Hall" · start_time: "9:00 PM" · ticket_link: "https://cedar.example/rd"
+
+Text: "MEMBERS-ONLY PREVIEW NIGHT / Artist: Coral Fang / Where: undisclosed loft / When: 20:00 / Request an invite: https://rsvp.example/cf"
+-> title: null (the caps header names the KIND of event, not an event name) · artist_names: ["Coral Fang"] · venue_name: null (undisclosed) · start_time: "20:00" · rsvp_link: "https://rsvp.example/cf"
+
 Return ONLY a JSON object matching the provided schema. Do not add commentary, explanations, or fields outside the schema. When in doubt, leave it null."""
