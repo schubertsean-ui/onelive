@@ -2,7 +2,7 @@
 
 `golden_set_v1.jsonl` is the extraction exam (runner: `python -m ai.golden_exam`,
 thresholds in `ai/golden_exam.py`, workflow: `.github/workflows/extraction-eval.yml`).
-74 hand-authored examples, ~305 expected field-level facts. Row shape:
+77 hand-authored examples, ~322 expected field-level facts. Row shape:
 `{id, source_class, tags, text, expected, forbidden}`.
 
 ## Scoring conventions (the canon behind the keys)
@@ -91,3 +91,13 @@ surface form with this set — no golden venue, artist, title, or distinctive
 text phrase, not even paraphrased ("Gruene Hall presents: The Fall Ramble"
 as a prompt example taught the wrong answer shape for g060's real text).
 Mechanical check: `tests/test_golden_exam.py::test_prompt_shares_no_surface_forms_with_golden_set`.
+
+## Sample floors (corrected after evaluator r6, PR #25)
+
+Two floors, both 300: the set must CARRY >= 300 expected facts (else any
+run is INVALID), and a PASS requires >= 300 ASSERTED facts — asserted
+facts are the 1% claim's statistical denominator. g075–g077 (dense,
+ordinary listing shapes, collision- and echo-scanned) were added
+2026-07-15 to give the asserted floor honest headroom after a rate-passing
+run asserted 295; trap density obligations (injection/absence/non-event
+minimums) are unchanged and enforced by the structural lint.

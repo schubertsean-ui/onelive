@@ -31,19 +31,18 @@ def _clean_routing_env(monkeypatch):
 
 def test_defaults_resolve_for_every_unblocked_stage(monkeypatch):
     for stage, model in mr.STAGE_MODELS.items():
-        if stage == "extraction":
-            continue  # blocked until the golden-set gate ships (R-013)
+        if stage == "extraction" and not mr.EXTRACTION_THRESHOLD_RATIFIED:
+            continue  # gate closed pending corrected-floor exam evidence (R-013)
         monkeypatch.delenv(f"ONELIVE_MODEL_{stage.upper()}", raising=False)
         assert mr.resolve_model(stage) == model
 
 
-def test_extraction_blocked_until_golden_gate_ships(monkeypatch):
-    """The bar is ratified (R-006, 1%) but the gate that PROVES it doesn't
-    exist yet (R-013): extraction must not resolve to ANY model, and env
-    overrides cannot bypass the block (it's about the missing gate, not
-    the model). Flag flips only in the Step 6 commit that ships a passing
-    golden-set exam."""
-    assert mr.EXTRACTION_THRESHOLD_RATIFIED is False
+def test_extraction_block_mechanism_survives_the_flip(monkeypatch):
+    """R-013 resolved (flag True with exam evidence), but the fail-closed
+    MECHANISM must remain live: if the flag ever goes back to False (a
+    routed model failing the exam), extraction must again resolve to NO
+    model, and env overrides must not bypass the block."""
+    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", False)
     with pytest.raises(ValueError, match="R-013"):
         mr.resolve_model("extraction")
     monkeypatch.setenv("ONELIVE_MODEL_EXTRACTION", "claude-opus-4-8")

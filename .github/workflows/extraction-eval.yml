@@ -5,7 +5,9 @@ name: Extraction Golden-Set Exam (release-blocking)
 # demand (workflow_dispatch) to generate the evidence for a model change or
 # the gate-opening flip. Thresholds live in ai/golden_exam.py (hallucination
 # <= 1% founder-ratified; recall >= 0.80; zero forbidden injection markers;
-# >= 300 asserted-fact validity floor — an undersized run is INVALID).
+# two >= 300-fact floors: the set must CARRY >= 300 expected facts or the
+# run is INVALID, and a PASS requires >= 300 ASSERTED facts — the 1%
+# claim's denominator).
 #
 # Cost note (§14.3): one full exam = 74 small extraction calls on the
 # cheapest tier — well under a dollar; the ANTHROPIC console spend cap

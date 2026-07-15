@@ -128,6 +128,41 @@ def test_unanswered_questions_invalidate_the_exam():
     assert report["passed"] is False
 
 
+class UnderAssertingFake(PerfectFake):
+    """Correct on what it answers, but skips enough fields to sit under the
+    asserted-fact floor while keeping recall above RECALL_MIN's naive read
+    of 'answered most examples' — the shape the r6 blocker warned about."""
+    def extract_event_json(self, text, schema, system_prompt=None):
+        out = super().extract_event_json(text, schema, system_prompt)
+        # Drop the title/end_time/rsvp fact classes (~54 of 322): zero
+        # hallucinations and recall STILL above RECALL_MIN, but fewer
+        # assertions than the documented 1%-claim denominator — the floor
+        # must be the binding constraint, not recall.
+        for k in ("title", "end_time", "rsvp_link"):
+            out.pop(k, None)
+        return out
+
+
+def test_under_asserting_model_fails_on_the_asserted_floor():
+    """Evaluator blocker (PR #25 r6): a model asserting fewer than
+    SAMPLE_FLOOR facts on the FULL set must FAIL — zero hallucinations at
+    an underpowered denominator does not certify the 1% bar."""
+    report = run_exam(UnderAssertingFake(GOLDEN), GOLDEN)
+    assert report["sample_valid"] is True            # the SET is big enough
+    assert report["recall"] >= 0.80                  # recall gate alone would pass
+    assert report["asserted_facts"] < SAMPLE_FLOOR   # but the model under-asserts
+    assert report["asserted_floor_met"] is False
+    assert report["hallucination_rate"] == 0.0       # zero errors, and yet...
+    assert report["passed"] is False                 # ...no pass
+
+
+def test_cli_exit_1_when_asserted_floor_unmet(monkeypatch, capsys):
+    import ai.golden_exam as ge
+    monkeypatch.setattr(ge, "ClaudeProvider", lambda **kw: UnderAssertingFake(GOLDEN))
+    assert ge.main(["--model", "claude-test"]) == 1
+    assert "asserted facts" in capsys.readouterr().err
+
+
 def test_undersized_run_is_invalid_never_a_small_pass():
     subset = GOLDEN[:5]
     report = run_exam(PerfectFake(subset), subset)
@@ -142,10 +177,12 @@ def test_exam_mode_requires_explicit_model():
         ClaudeProvider(api_key="test", exam_mode=True)
 
 
-def test_exam_mode_constructs_while_ratification_flag_is_false():
-    """The exam IS the flag's evidence-generator — it must run pre-flip."""
+def test_exam_mode_constructs_while_ratification_flag_is_false(monkeypatch):
+    """The exam IS the flag's evidence-generator — it must run pre-flip
+    (and again whenever a failing model re-closes the gate), so the exam
+    channel must construct while the flag is False."""
     import tools.model_router as mr
-    assert mr.EXTRACTION_THRESHOLD_RATIFIED is False
+    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", False)
     p = ClaudeProvider(api_key="test", model="claude-haiku-4-5", exam_mode=True)
     assert p.model == "claude-haiku-4-5"
     assert p.exam_mode is True
@@ -294,6 +331,28 @@ def test_prompt_shares_no_surface_forms_with_golden_set():
     offenders = [n for n in sorted(names)
                  if len(n) > 3 and n.lower() != "austin" and n.lower() in prompt]
     assert not offenders, f"golden surface forms leaked into the prompt: {offenders}"
+
+
+def test_prompt_shares_no_text_shingles_with_golden_set():
+    """The stronger half of the contamination guard (evaluator nit, PR #25
+    r6): beyond key VALUES, no distinctive PHRASE from a golden text may
+    appear in the prompt — a paraphrased example (the g060 own-goal) shares
+    word runs long before it shares whole answer strings. Any 5-word
+    shingle from any golden text found in the normalized prompt fails."""
+    import re
+    from ai.prompts import EXTRACTION_SYSTEM_PROMPT
+    def words(s):
+        return re.findall(r"[a-z0-9']+", s.lower())
+    prompt_text = " ".join(words(EXTRACTION_SYSTEM_PROMPT))
+    hits = []
+    for r in GOLDEN:
+        w = words(r["text"])
+        for i in range(len(w) - 4):
+            shingle = " ".join(w[i:i + 5])
+            if shingle in prompt_text:
+                hits.append((r["id"], shingle))
+                break
+    assert not hits, f"golden text phrases leaked into the prompt: {hits}"
 
 
 # --- golden set structural lint --------------------------------------------------

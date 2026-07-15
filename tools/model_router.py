@@ -41,14 +41,18 @@ STAGE_MODELS = {
     "evaluator": "gpt-5.5",
 }
 
-# R-006 RESOLVED as to the NUMBER: founder ratified 2026-07-15 — "I'm ok to
-# BEGIN at 1%" (hallucination ≤ 1% on the golden set, release-blocking, with
-# the one-way Kaizen ratchet of docs/KAIZEN.md §M7). The flag stays False
-# because ratifying the bar is not evidence the bar is MET: the golden-set
-# gate does not exist yet (R-013) — no golden data, no live-exam runner, no
-# CI wiring. Flip to True ONLY in the Step 6 commit that ships the gate AND
-# attaches a passing exam result for the starting model (≥ ~300 measured
-# facts per the §M7 sample-size floor for a 1% claim).
+# R-013 status 2026-07-15: the golden-set exam gate EXISTS (runner in ai/,
+# release-blocking CI via .github/workflows/extraction-eval.yml) and the
+# routed model claude-opus-4-8 passed the RATE bar on exam cycle 11
+# (hallucination 0.0068 ≤ 0.01, recall 0.9702, zero injections — CI run
+# 29424147665, artifact 8346621357) — but that run asserted 295 facts,
+# below the ≥300 asserted-fact floor the 1% claim is powered by, a
+# fail-open floor mismatch the evaluator caught in round 6 before the
+# flip shipped. The flag therefore STAYS False: it flips ONLY in the
+# commit citing a run that passes the corrected gate (rate bar AND
+# asserted-fact floor). Once open, the gate remains in force on every
+# extraction-surface PR, and the flag returns to False if the routed
+# model ever fails (KAIZEN §M7 one-way ratchet governs the threshold).
 EXTRACTION_THRESHOLD_RATIFIED = False
 
 # Model ids across vendors are ASCII: letters/digits/dot/underscore/colon/

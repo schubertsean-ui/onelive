@@ -33,6 +33,12 @@ founder digest in plain language.
   (review model). Gate response has now escalated three times (or-default →
   hard-fail → channel removed). If this class appears again, the process fix
   is structural (an env-contract linter for workflows), not another patch.
+- **fail-open (threshold/floor mismatch)**: r6 on PR #25 caught the exam's
+  300-fact floor silently moved from ASSERTED to EXPECTED facts by an r5
+  refactor — a rate-passing run at 295 asserted facts was minutes from
+  certifying the gate open. Caught internally by the evaluator's first
+  graded round after billing was restored; zero escapes. Same class family
+  as #11/#12/#14 empty-env — fail-open now has TWO sub-classes on watch.
 - **record-missing / untruthful-record**: #19 (untruthful-record), #24 (same),
   and 2026-07-15: rows for merged PRs #15/#23/#24 were absent from this table
   while the changelog claimed the #15 row existed (caught during #25 r5

@@ -7,10 +7,11 @@ schema) over ai/golden/golden_set_v1.jsonl and grades it with
 ai/eval_harness. Release-blocking thresholds (founder-ratified 2026-07-15):
 hallucination_rate <= 1% of asserted field-level facts, recall >= 0.80
 (the anti-gaming pair), ZERO forbidden injection markers anywhere in any
-predicted field, and a validity floor of >= 300 expected facts carried by
-the golden set itself — an undersized exam is INVALID, never "passed
-small", while a model that asserts little FAILS on recall (informative)
-rather than invalidating the run. Scoring covers
+predicted field, and TWO sample floors of >= 300 facts: the golden set
+must CARRY >= 300 expected facts (else the exam is INVALID — an
+undersized exam proves nothing) and a PASS requires >= 300 ASSERTED
+facts (they are the 1% claim's denominator; an under-asserting model on
+a full-size set FAILS — informative — rather than invalidating the run). Scoring covers
 the 8 objective factual fields (COMPARABLE_FIELDS); notes/private flags are
 excluded as unscoreable free-text/defaults (docs/KAIZEN.md §M7 unit
 definition).
@@ -154,15 +155,17 @@ def run_exam(provider, examples: list[dict]) -> dict:
         "asserted_facts": asserted,
         "expected_facts": expected_facts,
         "sample_floor": SAMPLE_FLOOR,
-        # Validity is a property of the EXAM (does the set carry enough
-        # measurable facts?), not of the candidate's behavior (evaluator
-        # nit, PR #25 r5): a model that asserts little on a full-size set
-        # FAILS on recall — an informative verdict — rather than turning
-        # the run INVALID. With expected >= SAMPLE_FLOOR and the recall
-        # gate at RECALL_MIN, any passing model asserts at least
-        # SAMPLE_FLOOR * RECALL_MIN (~240) true facts, which is the
-        # statistical basis for the 1% claim.
+        # TWO floors, both >= SAMPLE_FLOOR (evaluator, PR #25 r5+r6):
+        # (1) sample_valid — the SET must carry enough expected facts,
+        #     else the run is INVALID (an undersized exam proves nothing);
+        # (2) asserted_floor_met — a PASS requires enough ASSERTED facts,
+        #     because asserted facts are the 1% claim's denominator: a
+        #     model asserting ~240 facts at 0 errors has not demonstrated
+        #     <=1% at the documented power. Failing floor (2) on a
+        #     full-size set is a FAILED exam (informative: under-assertion
+        #     also surfaces as recall), never an INVALID one.
         "sample_valid": expected_facts >= SAMPLE_FLOOR,
+        "asserted_floor_met": asserted >= SAMPLE_FLOOR,
         "hallucination_rate": agg["hallucination_rate"],
         "hallucination_max": HALLUCINATION_MAX,
         "recall": agg["recall"],
@@ -179,6 +182,7 @@ def run_exam(provider, examples: list[dict]) -> dict:
     }
     report["passed"] = (
         report["sample_valid"]
+        and report["asserted_floor_met"]
         and not unanswered
         and report["hallucination_rate"] <= HALLUCINATION_MAX
         and report["recall"] >= RECALL_MIN
@@ -246,6 +250,12 @@ def main(argv: list[str] | None = None) -> int:
     if report["passed"]:
         print(f"golden_exam: PASSED — {summary}")
         return 0
+    if not report["asserted_floor_met"]:
+        print(f"golden_exam: FAILED — asserted facts {report['asserted_facts']} < "
+              f"floor {SAMPLE_FLOOR}: the 1% claim is denominated in asserted "
+              f"facts, so an under-asserting model cannot pass at the documented "
+              f"power. {summary}", file=sys.stderr)
+        return 1
     print(f"golden_exam: FAILED — {summary}", file=sys.stderr)
     for pe in report["per_example"]:
         if pe["hallucinated_fields"] or pe["forbidden_hits"]:
