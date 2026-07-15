@@ -40,7 +40,7 @@ DONE this arc: PRs #14–#22 merged through the armed gate (M1 trend 5→1). All
 
 NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set gate** — ≥40-example golden set (~320 facts, incl. injection cases), live-exam runner over the REAL provider path (design the documented exam channel past the R-013 gate carefully), blocking CI job; flag flips with a PASSING result → extraction unlocks → first real candidates → Step 7. Then: R-008 cron arming (po battery + friction attack first).
 
-BLOCKED ON FOUNDER (one-liners, standing): PRs #4/#7 (recommend "close both"); 4-state confidence confirmation.
+FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed") — and the same-day fifth-state question answered NO with the Certainty Display Stack proposal (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md): state × freshness × provenance compose; event_status is its own field. No standing founder blocks remain.
 
 ## Session Contract #4 (2026-07-14, same conversation — founder: "Record it" [scale-out sensor architecture + first-party trust rule])
 
