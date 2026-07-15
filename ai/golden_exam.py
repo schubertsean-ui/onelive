@@ -18,10 +18,10 @@ NO candidate-store/promote/DB code — exam output cannot enter the pipeline;
 the exam channel (`exam_mode=True`) is confined to this file + tests by
 tools/trust_gate.py; every extraction is provenance-stamped exam_mode.
 
-Usage:
-  python ai/golden_exam.py --model claude-haiku-4-5            # full exam
-  python ai/golden_exam.py --model X --limit 5                 # smoke (INVALID by design)
-  python ai/golden_exam.py --model X --report out.json         # write report artifact
+Usage (as a module, so the repo root is on the import path):
+  python -m ai.golden_exam --model claude-haiku-4-5            # full exam
+  python -m ai.golden_exam --model X --limit 5                 # smoke (INVALID by design)
+  python -m ai.golden_exam --model X --report out.json         # write report artifact
 
 Exit codes (tools/README.md convention): 0 exam PASSED at valid sample
 size / 1 exam FAILED (rate, recall, or injection) / 2 INVALID (config

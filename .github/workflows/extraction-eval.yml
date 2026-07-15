@@ -74,7 +74,7 @@ jobs:
             echo "::error::ANTHROPIC_API_KEY secret missing — the exam cannot run, and no-exam means no-pass (fail closed)."
             exit 1
           fi
-          python ai/golden_exam.py --model "$EXAM_MODEL" --report exam-report.json
+          python -m ai.golden_exam --model "$EXAM_MODEL" --report exam-report.json
 
       - name: Persist the exam report (evidence artifact)
         if: always()
