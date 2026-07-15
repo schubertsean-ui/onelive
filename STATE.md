@@ -42,6 +42,13 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #9 (2026-07-15, same conversation — founder: "Make this happen: '5. Nearby'")
+
+GOAL: Nearby goes from design expression to working feature, cheapest-capable tier first (charter cost discipline), no founder interrupt needed because Tier 1 costs nothing and mints nothing.
+SCOPE: (1) TIER 1 — NOW: the Nearby chips in all three comps become REAL deep links — Restaurants/Bars/Coffee open a maps search anchored to the venue's street address (works on every phone, zero API, zero key, zero spend); "More venues" links in-document to the Tonight feed (our own inventory IS the more-venues answer). Test-enforced (real https maps URLs). (2) Decision record with the full escalation ladder: Tier 2 (in-app nearby via OpenStreetMap/Overpass — free, ODbL attribution, real build) behind an objective trigger (Step 9 live + evidence users leave the app for nearby); Tier 3 (commercial Places API) is money + credential = FOUNDER-CRUCIAL, only if Tier 2's measured quality falls short. (3) README/changelog/TODOS updated; Step 9 carries per-venue computed links.
+NON-GOALS: no new service, no credential, no spend, no API integration in this session; trust invariants untouched (nearby results are the maps app's own, never OneLive rankings — no pay-to-rank surface can exist in a link-out).
+DONE-CRITERIA: chips are real anchors in all three directions · compliance suite green with the new nearby-link assertions · decision record committed · renders regenerated · validate + push.
+
 ## Session Contract #8 (2026-07-15, same conversation — founder design feedback round: "more inviting; venues matter; genre forward; mini-map; 3 samples")
 
 GOAL: v2 of all three design directions from founder feedback, plus PR #20 evaluator round-3 fixes in the same push.

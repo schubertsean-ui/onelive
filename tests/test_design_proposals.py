@@ -259,6 +259,27 @@ def test_no_dead_anchors_or_false_affordances_anywhere(direction):
         assert m.group(1) == "a", f"{name}: ↗ affordance on <{m.group(1)}>, not an anchor"
 
 
+def test_nearby_chips_are_working_deep_links(direction):
+    """Founder directive 2026-07-15 ('Make this happen: Nearby'), Tier 1 of
+    docs/memory/decisions/2026-07-15_nearby-tiered-data-source.md: the
+    Nearby chips are real maps deep links anchored to the venue address,
+    and 'More venues' routes to OneLive's own feed."""
+    name, html = direction
+    maps_links = re.findall(
+        r'<a class="fopt" href="(https://www\.google\.com/maps/search/[^"]+)"', html
+    )
+    assert len(maps_links) >= 3, (
+        f"{name}: Nearby needs ≥3 working maps deep links, found {len(maps_links)}"
+    )
+    for href in maps_links:
+        assert "near" in href and "Austin" in href, (
+            f"{name}: nearby link not anchored to the venue address: {href}"
+        )
+    assert '<a class="fopt" href="#tonight-feed">More venues tonight</a>' in html, (
+        f"{name}: 'More venues' must route to OneLive's own feed"
+    )
+
+
 def test_fixture_labeling_visible_in_frames(direction):
     """Round 6 nit: real venues + fictional artists must be labeled as
     fixture content inside the frames, not only in README prose."""

@@ -134,7 +134,7 @@ founder chooses from complete comps. R-014 is RESOLVED by this change.
 | Genre prominent + searchable | Horizontally scrollable genre rail (All + 8 genres) at the top of every feed, one tap to filter; full panel remains for combinations. |
 | Venues must feel important | Venue name elevated to its own headliner row (larger, bolder, direction-styled) with neighborhood beside it. |
 | City mini-map + distance | Every card and the detail screen carry a small city-outline chip with a location dot + "N.N mi" from current location; outline is metro-config (Austin now; any city at Step 9), never a hierarchy signal. |
-| Nearby restaurants/bars/venues | "Nearby" section on the detail screen (Restaurants · Bars · Coffee · More venues). Data source is a Step-7+/founder decision (new service); the design expression ships now. |
+| Nearby restaurants/bars/venues | WORKING (founder: "Make this happen", 2026-07-15): Restaurants/Bars/Coffee are real maps deep links anchored to the venue's address — zero API, zero key, zero spend; "More venues tonight" routes to OneLive's own feed. Richer in-app data climbs the logged escalation ladder in `docs/memory/decisions/2026-07-15_nearby-tiered-data-source.md` (OSM at an objective usage trigger; commercial API only as a founder-crucial last resort). |
 | "Hear it" = 3 samples | The button carries three sample pips; the detail player offers three named samples ("no act judged on one song" — sample labels drawn from the artist's own materials at implementation, never invented). |
 
 Mechanically enforced from this round on: `test_v2_founder_feedback_elements_present`
