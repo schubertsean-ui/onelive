@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Reproducible render script for the committed evidence in renders/
+# (evaluator round 7: screenshots must not be trust-me artifacts).
+# Usage: bash render.sh   — requires headless Chromium on PATH or $CHROMIUM.
+set -euo pipefail
+CHROMIUM="${CHROMIUM:-/opt/pw-browsers/chromium}"
+cd "$(dirname "$0")"
+for f in direction-1-marquee direction-2-current direction-3-setlist; do
+  "$CHROMIUM" --headless --disable-gpu --no-sandbox --hide-scrollbars \
+    --window-size=1240,1500 --screenshot="renders/$f-dark.png" "file://$PWD/$f.html"
+  tmp="$(mktemp --suffix=.html)"
+  sed 's|<html lang="en">|<html lang="en" class="light">|' "$f.html" > "$tmp"
+  "$CHROMIUM" --headless --disable-gpu --no-sandbox --hide-scrollbars \
+    --window-size=1240,1500 --screenshot="renders/$f-light.png" "file://$tmp"
+  rm -f "$tmp"
+  echo "$f: dark + light rendered"
+done

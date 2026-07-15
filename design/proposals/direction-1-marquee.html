@@ -71,6 +71,8 @@
   .open-hint{color:var(--muted);font-size:12px;flex:none;white-space:nowrap}
   .pips{display:inline-flex;gap:2.5px;margin-left:7px}
   .pips i{width:3.5px;height:3.5px;border-radius:99px;background:currentColor;opacity:.75;display:block}
+  input.search{appearance:none;-webkit-appearance:none;font:inherit}
+  a.open-hint{text-decoration:none}
   .samples{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
   .sample{min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:12px;display:flex;align-items:center}
   .sample.on{border-color:var(--tung);color:var(--tung);font-weight:600}
@@ -148,9 +150,11 @@
 </style>
 </head>
 <body>
-<!-- STATIC VISUAL COMP: aside from the <details> uncertainty sheets, controls
-     (tabs, buttons, links) are intentionally non-interactive placeholders here;
-     Step 9 implements them as real, focusable, keyboard-operable elements. -->
+<!-- STATIC COMP, REAL SEMANTICS: every control is a real element — buttons
+     (type="button"), links with real destinations, a real search input, and
+     <details> disclosures. A static artifact carries no app logic; Step 9
+     binds behavior to these already-real controls. All content is fixture
+     data (labeled in every frame). -->
 
 <header class="direction-header">
   <h1>Direction 1 of 3 — MARQUEE <span style="color:#B9A88F;font-size:15px;font-family:ui-sans-serif,system-ui">warm / analog-human · "night warmth, human texture"</span></h1>
@@ -199,7 +203,7 @@
         <div class="genres"><span class="genre">Soul</span><span class="genre">Experimental</span></div>
         <div class="row-actions">
           <div class="time-free"><span class="time">8:00 PM</span><span class="free">Free</span></div>
-          <span class="open-hint">Details ›</span><button class="hear" aria-label="Hear it — three short samples"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#E8A24B"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
+          <a class="open-hint" href="#event-detail">Details ›</a><button type="button" class="hear" aria-label="Hear it — three short samples"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#E8A24B"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
         </div>
       </article>
 
@@ -214,7 +218,7 @@
         <div class="genres"><span class="genre">Rock</span></div>
         <div class="row-actions">
           <div class="time-free"><span class="time">9:00 PM</span><span class="ticketed">Ticketed</span></div>
-          <span class="open-hint">Details ›</span><button class="hear" aria-label="Hear it — three short samples"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#E8A24B"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
+          <a class="open-hint" href="#event-detail">Details ›</a><button type="button" class="hear" aria-label="Hear it — three short samples"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#E8A24B"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
         </div>
       </article>
 
@@ -229,7 +233,7 @@
         <div class="genres"><span class="genre">Experimental</span><span class="genre">Metal</span></div>
         <div class="row-actions">
           <div class="time-free"><span class="time">9:30 PM</span><span class="ticketed">Ticketed</span></div>
-          <span class="open-hint">Details ›</span><button class="hear" aria-label="Hear it — three short samples"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#E8A24B"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
+          <a class="open-hint" href="#event-detail">Details ›</a><button type="button" class="hear" aria-label="Hear it — three short samples"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#E8A24B"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
         </div>
       </article>
 
@@ -253,7 +257,7 @@
         <div class="genres"><span class="genre">Jazz</span></div>
         <div class="row-actions">
           <div class="time-free"><span class="time">10:30 PM</span><span class="free">Free</span></div>
-          <span class="open-hint">Details ›</span><button class="hear" aria-label="Hear it — three short samples"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#E8A24B"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
+          <a class="open-hint" href="#event-detail">Details ›</a><button type="button" class="hear" aria-label="Hear it — three short samples"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 3.5v9l8-4.5-8-4.5Z" fill="#E8A24B"/></svg>Hear it<span class="pips" aria-hidden="true"><i></i><i></i><i></i></span></button>
         </div>
       </article>
     </div>
@@ -276,7 +280,7 @@
       </div>
       <div class="fgroup">
         <div class="flabel">Venue</div>
-        <div class="search">Search venues…</div>
+        <input class="search" type="search" placeholder="Search venues…" aria-label="Search venues">
       </div>
       <div class="fgroup">
         <div class="flabel">Neighborhood</div>
@@ -291,7 +295,7 @@
   </section>
 
   <!-- ============ SCREEN 3: EVENT DETAIL ============ -->
-  <section class="frame" aria-label="Screen 3: Event detail">
+  <section class="frame" id="event-detail" aria-label="Screen 3: Event detail">
     <div class="frame-label">Screen 3 · Event Detail · fixture data</div>
     <div class="app">
       <span class="back">← Tonight</span>
@@ -304,16 +308,16 @@
         <div class="wave" aria-hidden="true"></div>
         <span style="color:var(--muted);font-size:12px">0:23</span>
       </div>
-      <div class="samples" aria-label="Three short samples — no act judged on one song"><button class="sample on">1 · slow &amp; holy</button><button class="sample">2 · full-band stomp</button><button class="sample">3 · the tender one</button></div>
+      <div class="samples" aria-label="Three short samples — no act judged on one song"><button type="button" class="sample on">1 · slow &amp; holy</button><button type="button" class="sample">2 · full-band stomp</button><button type="button" class="sample">3 · the tender one</button></div>
 
       <div class="facts">
         <div class="fact"><span class="k">Date</span><span class="v">Tuesday, July 15</span></div>
         <div class="fact"><span class="k">Doors / Start</span><span class="v">8:30 PM / 9:00 PM</span></div>
         <div class="fact"><span class="k">Est. duration</span><span class="v">~2 hrs with opener</span></div>
-        <div class="fact"><span class="k">Venue</span><span class="v">Hotel Vegas<br><span style="color:var(--muted);font-size:12px">1502 E 6th St · <span class="link">Map</span></span></span></div>
+        <div class="fact"><span class="k">Venue</span><span class="v">Hotel Vegas<br><span style="color:var(--muted);font-size:12px">1502 E 6th St · <a class="link" href="https://maps.google.com/?q=Hotel+Vegas+1502+E+6th+St+Austin+TX" rel="noopener">Map</a></span></span></div>
         <div class="fact"><span class="k">From you</span><span class="v"><span class="locpill" role="img" aria-label="Hotel Vegas on the Austin map — 1.4 miles from you"><svg class="citymap" viewBox="0 0 34 22" aria-hidden="true"><path d="M3 14C4 8 9 4 15 4c6-1 12 2 15 6 2 3 0 7-4 8-6 2-18 2-21 0-2-1-2.5-2-2-4Z" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".55"/><circle cx="22" cy="12" r="2.4"/></svg>1.4 mi</span></span></div>
         <div class="fact"><span class="k">Parking</span><span class="v">Street + lot on Comal</span></div>
-        <div class="fact"><span class="k">Tickets</span><span class="v"><span class="link">$12 advance ↗</span></span></div>
+        <div class="fact"><span class="k">Tickets</span><span class="v"><a class="link" href="https://texashotelvegas.com" rel="noopener">$12 advance ↗</a></span></div>
       </div>
 
       <div class="fgroup" style="margin-top:18px"><div class="flabel">Nearby</div><div class="fgrid"><button class="fopt" type="button" aria-pressed="false">Restaurants</button><button class="fopt" type="button" aria-pressed="false">Bars</button><button class="fopt" type="button" aria-pressed="false">Coffee</button><button class="fopt" type="button" aria-pressed="false">More venues</button></div></div>

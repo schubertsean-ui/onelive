@@ -148,22 +148,27 @@ round 3: a stub there is a fake corroboration link).
 - **These comps are non-shipping visual artifacts. No file in
   `design/proposals/` may be copied into `web/` unchanged.** Step 9 is a
   translation into Next.js/Tailwind with live data wiring — never a paste.
-- **Zero stubs, globally (round 6, test-enforced):** no `href="#"` exists
-  anywhere in the comps — placeholder destinations (map, tickets) render
-  as honest non-link text, never fake links. No `role="button"`/`role="tab"`
-  on dead spans — every control is a real, focusable `<button>`. Trust
-  affordances go further: uncertainty-sheet venue links are REAL absolute
-  URLs (elephantroom.com, texashotelvegas.com) and "Something off?" is an
-  operable disclosure explaining the human-review path. Spark-line critic
-  attribution uses a clearly-fictional "(fixture)" source; every frame
-  carries a visible "fixture data" label.
-- Step 9 acceptance (implementation, not missing behavior): wire the real
-  destinations (map/tickets/calendar/nearby) and handlers onto the already-
-  real controls; license the faces; capture the winner's light+dark
-  visual-regression baselines (closes R-002). Tracked as a P1 TODOS item.
-- Non-`<details>` controls in these comps are visual-only placeholders
-  (marked in each file's header comment); implement as real, focusable,
-  keyboard-operable elements.
+- **Every visible affordance is backed by a real element (rounds 6–7,
+  test-enforced incl. a parser-based well-formedness check):** buttons are
+  `<button type="button">`; "Details ›" is a real intra-document anchor
+  that navigates to the detail frame; venue search is a real
+  `<input type="search">`; Map and ticket affordances are real anchors
+  with real destinations (Google Maps query, venue site); uncertainty
+  sheets link real venue URLs; "Something off?" is an operable disclosure.
+  No `href="#"`, no ARIA roles on dead spans, no link-styled text,
+  anywhere. Spark-line critic attribution uses a clearly-fictional
+  "(fixture)" source; every frame carries a visible "fixture data" label.
+- What a static artifact inherently cannot carry: app LOGIC (a filter
+  button filters nothing in a flat HTML file). The controls are semantically
+  real and focusable; Step 9 binds behavior to them — that is the
+  implementation boundary of the medium, stated plainly, not a deferred
+  stub. Renders are reproducible via the committed `render.sh`.
+- Step 9 acceptance: bind handlers/data to the already-real controls;
+  license the faces; capture the winner's light+dark visual-regression
+  baselines (closes R-002). Tracked as a P1 TODOS item.
+- All controls are already real, focusable elements (buttons/anchors/input/
+  details — see each file's header comment); Step 9's job is binding
+  behavior and live data to them, not recreating them.
 - License the specified faces (Fraunces / Space Grotesk / Archivo) —
   mockups use system fallbacks.
 - Winner's visual-regression baselines: light + dark (closes R-002).

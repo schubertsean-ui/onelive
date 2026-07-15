@@ -176,23 +176,80 @@ def test_uncertainty_sheets_link_real_venue_sites(direction):
         assert 'href="#"' not in sheet, f"{name}: dead anchor inside a trust sheet"
 
 
+VOID_ELEMENTS = {"meta", "br", "img", "input", "hr", "link", "path", "circle"}
+
+
+def test_html_is_well_formed(direction):
+    """Parser-based structural validity (round 7: the malformed SETLIST
+    button proved regex assertions can bless broken DOM). Every non-void
+    open tag must be closed by ITS OWN tag name, properly nested."""
+    from html.parser import HTMLParser
+
+    name, html = direction
+
+    class BalanceChecker(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.stack: list[tuple[str, int]] = []
+            self.errors: list[str] = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag not in VOID_ELEMENTS:
+                self.stack.append((tag, self.getpos()[0]))
+
+        def handle_startendtag(self, tag, attrs):
+            pass  # self-closing (svg primitives) — nothing to balance
+
+        def handle_endtag(self, tag):
+            if tag in VOID_ELEMENTS:
+                return
+            if not self.stack:
+                self.errors.append(f"line {self.getpos()[0]}: </{tag}> with nothing open")
+                return
+            open_tag, open_line = self.stack.pop()
+            if open_tag != tag:
+                self.errors.append(
+                    f"line {self.getpos()[0]}: </{tag}> closes <{open_tag}> "
+                    f"opened at line {open_line} — malformed markup"
+                )
+
+    checker = BalanceChecker()
+    checker.feed(html)
+    leftovers = [f"<{t}> (line {l}) never closed" for t, l in checker.stack if t != "html"]
+    assert not checker.errors and not leftovers, (
+        f"{name}: malformed HTML: {checker.errors + leftovers}"
+    )
+
+
 def test_no_dead_anchors_or_false_affordances_anywhere(direction):
-    """Round 6: the bar is global. Zero href="#" in the entire file —
-    placeholder destinations are honest non-link text, never fake links.
-    And zero role="button"/role="tab" on non-interactive spans — controls
-    are real <button> elements (focusable, keyboard-operable), because
-    committed ARIA semantics on a dead span is a false affordance."""
+    """Rounds 6–7: the bar is global and semantic. Zero href="#"; zero fake
+    ARIA roles; zero control-styled spans — every visible affordance is
+    backed by a real element: <button type="button">, <a href="https…"> or
+    an intra-document <a href="#…">, <input>, or <details>."""
     name, html = direction
     assert 'href="#"' not in html, f"{name}: dead anchor present"
     assert 'role="button"' not in html, f"{name}: role=button on a non-button"
     assert 'role="tab"' not in html, f"{name}: fake tab semantics"
-    for cls in ("tab", "grail", "fopt", "apply", "clear", "d-btn", "play-btn", "filter-entry"):
-        assert not re.search(rf'<span class="{cls}[" ]', html), (
-            f"{name}: control class {cls!r} on a <span> — must be a real <button>"
+    for cls in ("tab", "grail", "fopt", "apply", "clear", "d-btn", "play-btn",
+                "filter-entry", "open-hint", "link", "search"):
+        assert not re.search(rf'<(span|div) class="{cls}[" ]', html), (
+            f"{name}: affordance class {cls!r} on a dead <span>/<div> — must "
+            f"be a real button/anchor/input"
         )
-    assert html.count("<button") >= 30, (
-        f"{name}: expected the comp's controls to be real buttons"
-    )
+    # every button is explicitly type=button (no accidental submit at Step 9)
+    untyped = re.findall(r"<button (?![^>]*type=)", html)
+    assert not untyped, f"{name}: {len(untyped)} button(s) missing type=\"button\""
+    # 'Details ›' must be a real link that navigates somewhere real in-document
+    hints = re.findall(r'<a class="open-hint" href="(#[a-z-]+)"', html)
+    assert len(hints) >= 4, f"{name}: card navigation must be real anchors"
+    for target in set(hints):
+        assert f'id="{target[1:]}"' in html, (
+            f"{name}: open-hint targets {target} but no such id exists"
+        )
+    # search is a real input; every ↗ outbound affordance is a real https link
+    assert '<input class="search" type="search"' in html, f"{name}: search is not an <input>"
+    for m in re.finditer(r"<(\w+)[^>]*>[^<]*↗", html):
+        assert m.group(1) == "a", f"{name}: ↗ affordance on <{m.group(1)}>, not an anchor"
 
 
 def test_fixture_labeling_visible_in_frames(direction):
