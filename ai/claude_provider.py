@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 # Bump when EXTRACTION_SYSTEM_PROMPT changes materially, so provenance on stored
 # candidates records which prompt produced them.
-PROMPT_VERSION = "2026-07-15.3"
+PROMPT_VERSION = "2026-07-15.4"
 
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
