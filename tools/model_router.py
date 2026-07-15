@@ -30,12 +30,12 @@ STAGE_MODELS = {
     "evaluator": "gpt-5.5",
 }
 
-# R-006 (docs/RECORD.md): the §11.2 extraction hallucination threshold is NOT
-# yet founder-ratified. Until it is, resolving the extraction stage fails
-# closed — a trust-critical AI path must not route anywhere (cheap OR
-# expensive) without its release-blocking quality gate in force. Flip to True
-# ONLY in the commit that records the ratification and resolves R-006.
-EXTRACTION_THRESHOLD_RATIFIED = False
+# R-006 RESOLVED: founder ratified 2026-07-15 — "I'm ok to BEGIN at 1%":
+# hallucination rate ≤ 1% on the golden set, release-blocking, with the
+# one-way Kaizen ratchet defined in docs/KAIZEN.md §Extraction ratchet
+# (threshold only ever tightens, on demonstrated headroom at valid sample
+# sizes). This flip is in the ratification commit, as this comment required.
+EXTRACTION_THRESHOLD_RATIFIED = True
 
 # Model ids across vendors are ASCII: letters/digits/dot/underscore/colon/
 # slash/hyphen. Anything else (newlines, spaces, shell metacharacters) is a

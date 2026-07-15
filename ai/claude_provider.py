@@ -59,9 +59,35 @@ logger = logging.getLogger(__name__)
 # candidates records which prompt produced them.
 PROMPT_VERSION = "2026-07-10.1"
 
-DEFAULT_MODEL = "claude-3-5-sonnet-latest"
+# Extraction tier per docs/MODEL_ROUTING.md (cheapest-capable; governed by
+# the ratified §11.2 golden-set gate, R-006 ratified 2026-07-15). The previous
+# default ("claude-3-5-sonnet-latest") was retired by Anthropic and 404'd on
+# the first real ingestion run — a live id that fails loudly at the API is
+# the designed behavior for staleness, and this is that loop closing.
+DEFAULT_MODEL = "claude-haiku-4-5"
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
+
+
+def _resolve_model_env() -> Optional[str]:
+    """Model override resolution, fail-closed on present-but-empty.
+
+    Honors ONELIVE_MODEL_EXTRACTION (router naming, docs/MODEL_ROUTING.md)
+    then the legacy ONELIVE_CLAUDE_MODEL. A set-but-empty/whitespace value is
+    a misconfiguration and raises (the CI empty-env lesson, PRs #11/#12/#14),
+    never a silent fallthrough to the default.
+    """
+    for env_name in ("ONELIVE_MODEL_EXTRACTION", "ONELIVE_CLAUDE_MODEL"):
+        value = os.getenv(env_name)
+        if value is None:
+            continue
+        if value.strip() == "":
+            raise ExtractionConfigError(
+                f"{env_name} is set but empty/whitespace — set a model id or "
+                "unset it entirely; empty must never silently mean 'default'."
+            )
+        return value.strip()
+    return None
 
 
 class ExtractionConfigError(RuntimeError):
@@ -79,7 +105,7 @@ class ClaudeProvider(AIProvider):
         max_retries: int = MAX_RETRIES,
     ):
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        self.model = model or os.getenv("ONELIVE_CLAUDE_MODEL", DEFAULT_MODEL)
+        self.model = model or _resolve_model_env() or DEFAULT_MODEL
         self.max_tokens = max_tokens
         self._client = client
         self.max_retries = max_retries

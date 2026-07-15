@@ -29,19 +29,20 @@ def _clean_routing_env(monkeypatch):
     monkeypatch.delenv("OPENAI_REVIEW_MODEL", raising=False)
 
 
-def test_defaults_resolve_for_every_unblocked_stage(monkeypatch):
+def test_defaults_resolve_for_every_stage(monkeypatch):
+    """All stages resolve — extraction included since R-006 ratified
+    (founder, 2026-07-15: 1% starting bar + Kaizen ratchet)."""
     for stage, model in mr.STAGE_MODELS.items():
-        if stage == "extraction":
-            continue  # fail-closed until R-006 ratifies — proven below
         monkeypatch.delenv(f"ONELIVE_MODEL_{stage.upper()}", raising=False)
         assert mr.resolve_model(stage) == model
 
 
-def test_extraction_fails_closed_until_threshold_ratified(monkeypatch):
-    """R-006: the §11.2 extraction hallucination threshold is unratified, so
-    the extraction stage must not resolve to ANY model — and an env override
-    must not bypass the block (it's about the missing gate, not the model)."""
-    assert mr.EXTRACTION_THRESHOLD_RATIFIED is False
+def test_extraction_block_mechanism_still_works(monkeypatch):
+    """The fail-closed mechanism must remain live even though the flag is
+    now True: if the threshold were ever un-ratified (e.g. a ratchet step
+    invalidates the gate), the block re-engages and env overrides cannot
+    bypass it (it's about the missing gate, not the model)."""
+    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", False)
     with pytest.raises(ValueError, match="R-006"):
         mr.resolve_model("extraction")
     monkeypatch.setenv("ONELIVE_MODEL_EXTRACTION", "claude-opus-4-8")
@@ -49,12 +50,9 @@ def test_extraction_fails_closed_until_threshold_ratified(monkeypatch):
         mr.resolve_model("extraction")
 
 
-def test_extraction_resolves_once_ratified(monkeypatch):
-    """When the founder ratifies the threshold (flag flipped in that commit),
-    extraction routes to its documented starting tier."""
-    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", True)
-    monkeypatch.delenv("ONELIVE_MODEL_EXTRACTION", raising=False)
-    assert mr.resolve_model("extraction") == mr.STAGE_MODELS["extraction"]
+def test_extraction_ratified_flag_is_true():
+    """Regression guard on the ratification itself (R-006 RESOLVED)."""
+    assert mr.EXTRACTION_THRESHOLD_RATIFIED is True
 
 
 def test_env_override_beats_default(monkeypatch):
