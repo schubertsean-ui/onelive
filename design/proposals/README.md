@@ -149,11 +149,16 @@ round 3: a stub there is a fake corroboration link).
   `design/proposals/` may be copied into `web/` unchanged.** Step 9 is a
   translation into Next.js/Tailwind with real elements, real data, and
   real links — never a paste.
-- Venue corroboration links in uncertainty sheets are REAL (elephantroom.com,
-  texashotelvegas.com) and test-enforced. Remaining `href="#"` placeholders
-  are non-trust utility links only (map, tickets, calendar, nearby chips) —
-  they exist only inside these non-shipping comps and are implemented as
-  real links at Step 9.
+- TRUST affordances are never stubbed, even in comps (test-enforced):
+  uncertainty-sheet venue links are REAL absolute URLs (elephantroom.com,
+  texashotelvegas.com) and "Something off?" — the correction/dispute entry
+  point — is an operable disclosure control explaining the human-review
+  path, not a dead anchor. Spark-line critic attribution uses a
+  clearly-fictional "(fixture)" source; attributing invented copy to a
+  real outlet is fabricated provenance and is test-banned.
+- Remaining `href="#"` placeholders are genuinely non-trust utility links
+  (map, tickets, calendar, nearby chips), exist only inside these
+  non-shipping comps, and become real links at Step 9.
 - Non-`<details>` controls in these comps are visual-only placeholders
   (marked in each file's header comment); implement as real, focusable,
   keyboard-operable elements.

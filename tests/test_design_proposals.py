@@ -70,9 +70,12 @@ def test_all_three_directions_exist():
 
 
 def test_verbatim_canon_copy_present(direction):
+    # Checked against VISIBLE text (round-5 nit): copy hidden in comments
+    # or header prose must not satisfy canon-copy requirements.
     name, html = direction
+    text = _visible_text(html)
     for phrase in REQUIRED_VERBATIM:
-        assert phrase in html, f"{name}: verbatim canon copy missing: {phrase!r}"
+        assert phrase in text, f"{name}: verbatim canon copy missing from visible text: {phrase!r}"
 
 
 def test_all_eight_genres_present(direction):
@@ -157,8 +160,10 @@ def test_uncertainty_sheets_link_real_venue_sites(direction):
     and a test that doesn't inspect href passes the broken thing)."""
     name, html = direction
     sheets = re.findall(r'<div class="sheet-body">.*?</div>', html, flags=re.S)
-    assert sheets, f"{name}: no uncertainty sheet bodies found"
-    for sheet in sheets:
+    assert sheets, f"{name}: no sheet bodies found"
+    corroboration_sheets = [s for s in sheets if "double-check" in s]
+    assert corroboration_sheets, f"{name}: no uncertainty (corroboration) sheets found"
+    for sheet in corroboration_sheets:
         hrefs = re.findall(r'href="([^"]*)"', sheet)
         assert hrefs, f"{name}: uncertainty sheet has no venue link at all"
         for href in hrefs:
@@ -166,6 +171,9 @@ def test_uncertainty_sheets_link_real_venue_sites(direction):
                 f"{name}: uncertainty-sheet venue link must be a real "
                 f"absolute URL, got {href!r}"
             )
+    # No sheet of any kind may contain a dead anchor.
+    for sheet in sheets:
+        assert 'href="#"' not in sheet, f"{name}: dead anchor inside a trust sheet"
 
 
 def test_light_mode_is_implemented_not_promised(direction):
@@ -190,7 +198,38 @@ def test_every_emotion_glyph_has_accessible_text(direction):
 
 
 def test_spark_lines_carry_attribution(direction):
+    """Attributions must be honest: the artist's own words, the tier-C
+    machine-draft mark, or a CLEARLY-fictional fixture critic. Attributing
+    invented copy to a real outlet is fabricated provenance (evaluator
+    round 5) — the same defect class as a fake corroboration link."""
     name, html = direction
-    assert "— their words" in html or "— Austin Chronicle" in html, (
-        f"{name}: spark lines must carry source attribution"
+    assert "— their words" in html, f"{name}: artist-own-words attribution missing"
+    text = _visible_text(html)
+    for real_outlet in ("Austin Chronicle", "Chronicle", "Statesman", "KUTX"):
+        assert real_outlet not in text, (
+            f"{name}: real outlet {real_outlet!r} attributed for fixture "
+            f"content — fabricated provenance is banned even in comps"
+        )
+    critic_attrs = re.findall(r"— a local critic \(fixture\)", html)
+    assert critic_attrs, (
+        f"{name}: the named-critic spark-line pattern must be demonstrated "
+        f"with a clearly-fictional attribution"
     )
+
+
+def test_something_off_is_a_real_control_not_a_dead_anchor(direction):
+    """'Something off?' is the correction/dispute entry point — a trust
+    affordance, not a utility link. It must never be a dead anchor
+    (evaluator round 5)."""
+    name, html = direction
+    assert 'class="something-off" href="#"' not in html and not re.search(
+        r'<a[^>]*href="#"[^>]*>\s*Something off\?', html
+    ), f"{name}: 'Something off?' is a dead anchor — trust paths don't stub"
+    wraps = re.findall(
+        r'<details class="sheet something-off-wrap">.*?</details>', html, flags=re.S
+    )
+    assert wraps, f"{name}: 'Something off?' must be an operable disclosure control"
+    for w in wraps:
+        assert "sheet-body" in w and "human" in w, (
+            f"{name}: correction sheet must explain the human-review path"
+        )
