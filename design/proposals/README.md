@@ -147,18 +147,20 @@ round 3: a stub there is a fake corroboration link).
 
 - **These comps are non-shipping visual artifacts. No file in
   `design/proposals/` may be copied into `web/` unchanged.** Step 9 is a
-  translation into Next.js/Tailwind with real elements, real data, and
-  real links — never a paste.
-- TRUST affordances are never stubbed, even in comps (test-enforced):
-  uncertainty-sheet venue links are REAL absolute URLs (elephantroom.com,
-  texashotelvegas.com) and "Something off?" — the correction/dispute entry
-  point — is an operable disclosure control explaining the human-review
-  path, not a dead anchor. Spark-line critic attribution uses a
-  clearly-fictional "(fixture)" source; attributing invented copy to a
-  real outlet is fabricated provenance and is test-banned.
-- Remaining `href="#"` placeholders are genuinely non-trust utility links
-  (map, tickets, calendar, nearby chips), exist only inside these
-  non-shipping comps, and become real links at Step 9.
+  translation into Next.js/Tailwind with live data wiring — never a paste.
+- **Zero stubs, globally (round 6, test-enforced):** no `href="#"` exists
+  anywhere in the comps — placeholder destinations (map, tickets) render
+  as honest non-link text, never fake links. No `role="button"`/`role="tab"`
+  on dead spans — every control is a real, focusable `<button>`. Trust
+  affordances go further: uncertainty-sheet venue links are REAL absolute
+  URLs (elephantroom.com, texashotelvegas.com) and "Something off?" is an
+  operable disclosure explaining the human-review path. Spark-line critic
+  attribution uses a clearly-fictional "(fixture)" source; every frame
+  carries a visible "fixture data" label.
+- Step 9 acceptance (implementation, not missing behavior): wire the real
+  destinations (map/tickets/calendar/nearby) and handlers onto the already-
+  real controls; license the faces; capture the winner's light+dark
+  visual-regression baselines (closes R-002). Tracked as a P1 TODOS item.
 - Non-`<details>` controls in these comps are visual-only placeholders
   (marked in each file's header comment); implement as real, focusable,
   keyboard-operable elements.

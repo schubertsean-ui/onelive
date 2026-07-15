@@ -176,6 +176,34 @@ def test_uncertainty_sheets_link_real_venue_sites(direction):
         assert 'href="#"' not in sheet, f"{name}: dead anchor inside a trust sheet"
 
 
+def test_no_dead_anchors_or_false_affordances_anywhere(direction):
+    """Round 6: the bar is global. Zero href="#" in the entire file —
+    placeholder destinations are honest non-link text, never fake links.
+    And zero role="button"/role="tab" on non-interactive spans — controls
+    are real <button> elements (focusable, keyboard-operable), because
+    committed ARIA semantics on a dead span is a false affordance."""
+    name, html = direction
+    assert 'href="#"' not in html, f"{name}: dead anchor present"
+    assert 'role="button"' not in html, f"{name}: role=button on a non-button"
+    assert 'role="tab"' not in html, f"{name}: fake tab semantics"
+    for cls in ("tab", "grail", "fopt", "apply", "clear", "d-btn", "play-btn", "filter-entry"):
+        assert not re.search(rf'<span class="{cls}[" ]', html), (
+            f"{name}: control class {cls!r} on a <span> — must be a real <button>"
+        )
+    assert html.count("<button") >= 30, (
+        f"{name}: expected the comp's controls to be real buttons"
+    )
+
+
+def test_fixture_labeling_visible_in_frames(direction):
+    """Round 6 nit: real venues + fictional artists must be labeled as
+    fixture content inside the frames, not only in README prose."""
+    name, html = direction
+    assert _visible_text(html).count("fixture data") >= 3, (
+        f"{name}: every screen frame must carry a visible fixture-data label"
+    )
+
+
 def test_light_mode_is_implemented_not_promised(direction):
     name, html = direction
     assert "html.light{" in html, (

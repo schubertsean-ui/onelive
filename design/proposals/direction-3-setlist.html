@@ -34,6 +34,7 @@
   html.light [fill="#121214"]{fill:var(--surface)}
   html.light [stroke="#9C978C"]{stroke:#6B675E}
   *{margin:0;padding:0;box-sizing:border-box}
+  button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:inherit;letter-spacing:inherit;text-transform:inherit}
   body{background:var(--page);color:var(--ink);font-family:ui-sans-serif,system-ui,"Segoe UI",Helvetica,Arial,sans-serif;padding:24px;line-height:1.45}
   .direction-header{max-width:1200px;margin:0 auto 28px}
   .direction-header h1{font-size:28px;font-weight:800;letter-spacing:.01em;font-stretch:condensed}
@@ -52,7 +53,7 @@
   .tagline{color:var(--muted);font-size:12px;letter-spacing:.06em;margin:8px 0 12px}
   .tabs{display:flex;gap:0;margin-bottom:6px;border-bottom:1px solid var(--line)}
   .tab{padding:12px 14px;min-height:44px;display:flex;align-items:center;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
-  .tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--stamp);font-weight:700}
+  .tab[aria-pressed="true"]{color:var(--ink);border-bottom-color:var(--stamp);font-weight:700}
   .filter-entry{margin-left:auto;padding:12px 4px;min-height:44px;display:flex;align-items:center;gap:6px;color:var(--stamp);font-weight:800;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
   .genre-rail{display:flex;gap:8px;overflow-x:auto;margin:0 -16px 4px;padding:10px 16px 8px;-webkit-overflow-scrolling:touch}
   .grail{flex:none;padding:10px 15px;min-height:44px;display:flex;align-items:center;border:1px solid var(--line);color:var(--ink);font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:700}
@@ -126,7 +127,7 @@
   .fact{display:flex;justify-content:space-between;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line);font-size:13.5px}
   .fact .k{color:var(--muted);font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding-top:2px}
   .fact .v{text-align:right}
-  .fact .v a{color:var(--stamp);text-decoration:none}
+  .fact .v a, .fact .v .link{color:var(--stamp);text-decoration:none}
   .d-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
   .d-btn{min-height:46px;padding:0 16px;border:1px solid var(--line);background:transparent;color:var(--ink);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:7px}
   .d-btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:800}
@@ -158,20 +159,20 @@
 
   <!-- ============ SCREEN 1: TONIGHT FEED ============ -->
   <section class="frame" aria-label="Screen 1: Tonight feed">
-    <div class="frame-label">Screen 1 · Tonight Feed</div>
+    <div class="frame-label">Screen 1 · Tonight Feed · fixture data</div>
     <div class="app">
       <div class="edition">
         <div class="no"><span class="num">No. 197</span><span>Tue · Jul 15</span></div>
         <h2>Tonight in Austin</h2>
       </div>
       <div class="tagline">Less chaos. Real shows.</div>
-      <div class="tabs" role="tablist">
-        <span class="tab" role="tab" aria-selected="true">Today</span>
-        <span class="tab" role="tab" aria-selected="false">Tomorrow</span>
-        <span class="tab" role="tab" aria-selected="false">This Week</span>
-        <span class="filter-entry" role="button" aria-label="Open filters">Filters</span>
+      <div class="tabs">
+        <button class="tab" type="button" aria-pressed="true">Today</button>
+        <button class="tab" type="button" aria-pressed="false">Tomorrow</button>
+        <button class="tab" type="button" aria-pressed="false">This Week</button>
+        <button class="filter-entry" type="button" aria-label="Open filters">Filters</span>
       </div>
-      <div class="genre-rail" role="navigation" aria-label="Browse by genre — one tap filters tonight"><span class="grail on">All</span><span class="grail">Rock</span><span class="grail">Hip-Hop</span><span class="grail">Jazz</span><span class="grail">Electronic</span><span class="grail">Country</span><span class="grail">Metal</span><span class="grail">Experimental</span><span class="grail">Latin</span></div>
+      <div class="genre-rail" role="navigation" aria-label="Browse by genre — one tap filters tonight"><button class="grail on" type="button" aria-pressed="true">All</button><button class="grail" type="button" aria-pressed="false">Rock</button><button class="grail" type="button" aria-pressed="false">Hip-Hop</button><button class="grail" type="button" aria-pressed="false">Jazz</button><button class="grail" type="button" aria-pressed="false">Electronic</button><button class="grail" type="button" aria-pressed="false">Country</button><button class="grail" type="button" aria-pressed="false">Metal</button><button class="grail" type="button" aria-pressed="false">Experimental</button><button class="grail" type="button" aria-pressed="false">Latin</button></div>
 
       <div class="setlist">
         <!-- Entry 1 -->
@@ -244,19 +245,19 @@
 
   <!-- ============ SCREEN 2: FILTER PANEL ============ -->
   <section class="frame" aria-label="Screen 2: Filter panel">
-    <div class="frame-label">Screen 2 · Filters (slide-in)</div>
+    <div class="frame-label">Screen 2 · Filters (slide-in) · fixture data</div>
     <div class="app">
       <h2 class="panel-title">Tune Tonight</h2>
       <div class="panel-sub">Edition No. 197 · applies instantly</div>
       <div class="fgroup">
         <div class="flabel">Genre</div>
         <div class="fgrid">
-          <span class="fopt on">Rock</span><span class="fopt">Hip-Hop</span><span class="fopt on">Jazz</span><span class="fopt">Electronic</span><span class="fopt">Country</span><span class="fopt">Metal</span><span class="fopt">Experimental</span><span class="fopt">Latin</span>
+          <button class="fopt on" type="button" aria-pressed="true">Rock</button><button class="fopt" type="button" aria-pressed="false">Hip-Hop</button><button class="fopt on" type="button" aria-pressed="true">Jazz</button><button class="fopt" type="button" aria-pressed="false">Electronic</button><button class="fopt" type="button" aria-pressed="false">Country</button><button class="fopt" type="button" aria-pressed="false">Metal</button><button class="fopt" type="button" aria-pressed="false">Experimental</button><button class="fopt" type="button" aria-pressed="false">Latin</button>
         </div>
       </div>
       <div class="fgroup">
         <div class="flabel">Show type</div>
-        <div class="fgrid"><span class="fopt on">Free</span><span class="fopt">Ticketed</span></div>
+        <div class="fgrid"><button class="fopt on" type="button" aria-pressed="true">Free</button><button class="fopt" type="button" aria-pressed="false">Ticketed</button></div>
       </div>
       <div class="fgroup">
         <div class="flabel">Venue</div>
@@ -264,11 +265,11 @@
       </div>
       <div class="fgroup">
         <div class="flabel">Neighborhood</div>
-        <div class="fgrid"><span class="fopt">Downtown</span><span class="fopt on">East Austin</span><span class="fopt">South Austin</span></div>
+        <div class="fgrid"><button class="fopt" type="button" aria-pressed="false">Downtown</button><button class="fopt on" type="button" aria-pressed="true">East Austin</button><button class="fopt" type="button" aria-pressed="false">South Austin</button></div>
       </div>
       <div class="panel-actions">
-        <span class="apply" role="button">Show 14 Shows</span>
-        <span class="clear" role="button">Clear all</span>
+        <button class="apply" type="button">Show 14 Shows</button>
+        <button class="clear" type="button">Clear all</button>
       </div>
       <p style="color:var(--muted);font-size:11.5px;margin-top:14px;text-align:center">Nothing is ever hidden for money.</p>
     </div>
@@ -276,15 +277,15 @@
 
   <!-- ============ SCREEN 3: EVENT DETAIL ============ -->
   <section class="frame" aria-label="Screen 3: Event detail">
-    <div class="frame-label">Screen 3 · Event Detail</div>
+    <div class="frame-label">Screen 3 · Event Detail · fixture data</div>
     <div class="app">
-      <a class="back" href="#">← Tonight · No. 197</a>
+      <span class="back">← Tonight · No. 197</span>
       <h2 class="d-artist">Culebra Canyon</h2>
       <p class="spark" style="margin-top:10px">doom-laden desert blues, slow and holy <span class="attr">— their words</span></p>
       <div class="entry-foot" style="margin-top:10px"><span class="genre">Rock</span><span class="ticketed">Ticketed</span></div>
 
       <div class="player" aria-label="music preview player">
-        <span class="play-btn"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5 3.5v9l8-4.5-8-4.5Z" fill="#121214"/></svg></span>
+        <button class="play-btn" type="button" aria-label="Play sample"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5 3.5v9l8-4.5-8-4.5Z" fill="#121214"/></svg></button>
         <div class="wave" aria-hidden="true"></div>
         <span style="color:var(--muted);font-size:12px">0:23</span>
       </div>
@@ -294,13 +295,13 @@
         <div class="fact"><span class="k">Date</span><span class="v">Tuesday, July 15</span></div>
         <div class="fact"><span class="k">Doors / Start</span><span class="v">8:30 PM / 9:00 PM</span></div>
         <div class="fact"><span class="k">Duration</span><span class="v">~2 hrs with opener</span></div>
-        <div class="fact"><span class="k">Venue</span><span class="v">Hotel Vegas<br><span style="color:var(--muted);font-size:12px">1502 E 6th St · <a href="#">Map</a></span></span></div>
+        <div class="fact"><span class="k">Venue</span><span class="v">Hotel Vegas<br><span style="color:var(--muted);font-size:12px">1502 E 6th St · <span class="link">Map</span></span></span></div>
         <div class="fact"><span class="k">From you</span><span class="v"><span class="locpill" role="img" aria-label="Hotel Vegas on the Austin map — 1.4 miles from you"><svg class="citymap" viewBox="0 0 34 22" aria-hidden="true"><path d="M3 14C4 8 9 4 15 4c6-1 12 2 15 6 2 3 0 7-4 8-6 2-18 2-21 0-2-1-2.5-2-2-4Z" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".55"/><circle cx="22" cy="12" r="2.4"/></svg>1.4 mi</span></span></div>
         <div class="fact"><span class="k">Parking</span><span class="v">Street + lot on Comal</span></div>
-        <div class="fact"><span class="k">Tickets</span><span class="v"><a href="#">$12 advance ↗</a></span></div>
+        <div class="fact"><span class="k">Tickets</span><span class="v"><span class="link">$12 advance ↗</span></span></div>
       </div>
 
-      <div class="fgroup" style="margin-top:18px"><div class="flabel">Nearby</div><div class="fgrid"><span class="fopt">Restaurants</span><span class="fopt">Bars</span><span class="fopt">Coffee</span><span class="fopt">More venues</span></div></div>
+      <div class="fgroup" style="margin-top:18px"><div class="flabel">Nearby</div><div class="fgrid"><button class="fopt" type="button" aria-pressed="false">Restaurants</button><button class="fopt" type="button" aria-pressed="false">Bars</button><button class="fopt" type="button" aria-pressed="false">Coffee</button><button class="fopt" type="button" aria-pressed="false">More venues</button></div></div>
 
       <details class="sheet" style="margin-top:16px">
         <summary style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12.5px;min-height:44px">
@@ -314,8 +315,8 @@
       </details>
 
       <div class="d-actions">
-        <span class="d-btn primary">Add to calendar</span>
-        <span class="d-btn">Share</span>
+        <button class="d-btn primary" type="button">Add to calendar</button>
+        <button class="d-btn" type="button">Share</button>
       </div>
       <details class="sheet something-off-wrap"><summary class="something-off" style="display:flex;align-items:center;justify-content:center;min-height:44px">Something off?</summary><div class="sheet-body">Tell us what looks wrong — corrections are reviewed by a human and checked with the venue before anything changes. Nothing real is ever hidden.</div></details>
     </div>
