@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 
 # Bump when EXTRACTION_SYSTEM_PROMPT changes materially, so provenance on stored
 # candidates records which prompt produced them.
-PROMPT_VERSION = "2026-07-15.1"
+PROMPT_VERSION = "2026-07-15.2"
 
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
@@ -87,6 +87,13 @@ def _resolve_extraction_model(explicit: Optional[str], exam_mode: bool = False) 
     """
     import tools.model_router as _router
     if exam_mode:
+        if not _exam_caller_allowed():
+            raise ExtractionConfigError(
+                "exam_mode may only be invoked from ai/golden_exam.py or "
+                "tests/ — runtime caller verification failed (this channel "
+                "bypasses the extraction ratification gate; production paths "
+                "are mechanically excluded, not merely policy-excluded)."
+            )
         # THE EXAM CHANNEL — deliberately narrow (R-013's own measurement
         # instrument): the golden-set runner must exercise the REAL provider
         # path against a candidate model BEFORE the gate can open, so this
@@ -121,6 +128,30 @@ def _resolve_extraction_model(explicit: Optional[str], exam_mode: bool = False) 
         raise ExtractionConfigError(str(exc)) from exc
 
 
+def _exam_caller_allowed() -> bool:
+    """Runtime confinement of the exam channel (evaluator, PR #25 r3).
+
+    Walks the call stack past this module's own frames and allows the
+    construction ONLY when the first external caller is the golden-exam
+    runner or test code. Fail-closed: any other caller — worker, api,
+    tools, a REPL — gets ExtractionConfigError even if it found a
+    syntactic disguise past the static trust_gate scan (defense in depth:
+    this is layer 1 at runtime; the text scan remains layer 2 in CI).
+    """
+    import inspect
+    own = pathlib_basename = "claude_provider.py"
+    for frame in inspect.stack():
+        fn = frame.filename.replace("\\", "/")
+        if fn.endswith(own):
+            continue
+        return (
+            fn.endswith("ai/golden_exam.py")
+            or "/tests/" in fn
+            or "/_pytest/" in fn or "/pytest" in fn
+        )
+    return False
+
+
 class ExtractionConfigError(RuntimeError):
     """Raised for misconfiguration/structural failures that must fail loudly
     rather than degrade to a silent empty extraction (see module docstring)."""
@@ -134,6 +165,7 @@ class ClaudeProvider(AIProvider):
         max_tokens: int = 1024,
         client=None,
         max_retries: int = MAX_RETRIES,
+        *,
         exam_mode: bool = False,
     ):
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")

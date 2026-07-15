@@ -61,8 +61,20 @@ def load_golden(path: pathlib.Path = GOLDEN_PATH) -> list[dict]:
 
 
 def comparable(d: dict) -> dict:
-    """Project onto the scored fields only (drop meta/free-text/defaults)."""
-    return {k: d.get(k) for k in COMPARABLE_FIELDS if d.get(k) not in (None, [], "", {})}
+    """Project onto the scored fields only (drop meta/free-text/defaults).
+
+    Time fields compare whitespace-insensitively ("7:45 PM" == "7:45PM"):
+    pure spacing is presentation, not information — but any digit/word
+    change ("8PM" -> "8:00 PM") remains a real discrepancy."""
+    out = {}
+    for k in COMPARABLE_FIELDS:
+        v = d.get(k)
+        if v in (None, [], "", {}):
+            continue
+        if k in ("start_time", "end_time") and isinstance(v, str):
+            v = v.replace(" ", "")
+        out[k] = v
+    return out
 
 
 def find_forbidden(predicted: dict, forbidden: list[str]) -> list[str]:
@@ -129,9 +141,14 @@ def run_exam(provider, examples: list[dict]) -> dict:
         })
     agg = aggregate(scores)
     asserted = sum(s.true_positives + s.false_positives for s in scores)
+    expected_facts = sum(
+        1 for exm in examples for k in COMPARABLE_FIELDS
+        if exm["expected"].get(k) not in (None, [], "")
+    )
     report = {
         "n_examples": len(examples),
         "asserted_facts": asserted,
+        "expected_facts": expected_facts,
         "sample_floor": SAMPLE_FLOOR,
         "sample_valid": asserted >= SAMPLE_FLOOR,
         "hallucination_rate": agg["hallucination_rate"],

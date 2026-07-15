@@ -180,6 +180,36 @@ def test_runner_imports_no_pipeline_or_db_modules():
             f"golden_exam.py imports {mod} — exam output must not reach the pipeline"
 
 
+# --- CLI behavior (exit codes, not just report fields) --------------------------
+def test_cli_exit_2_on_undersized_run(monkeypatch, capsys):
+    import ai.golden_exam as ge
+    monkeypatch.setattr(ge, "ClaudeProvider", lambda **kw: PerfectFake(GOLDEN))
+    assert ge.main(["--model", "claude-test", "--limit", "5"]) == 2
+    assert "INVALID" in capsys.readouterr().err
+
+
+def test_cli_exit_2_on_unanswered(monkeypatch, capsys):
+    import ai.golden_exam as ge
+    monkeypatch.setattr(ge, "ClaudeProvider",
+                        lambda **kw: SometimesNoneFake(GOLDEN, none_on=GOLDEN[0]["text"]))
+    assert ge.main(["--model", "claude-test"]) == 2
+    assert "unanswered" in capsys.readouterr().err
+
+
+def test_cli_exit_0_on_pass_and_1_on_fail(monkeypatch, capsys):
+    import ai.golden_exam as ge
+    monkeypatch.setattr(ge, "ClaudeProvider", lambda **kw: PerfectFake(GOLDEN))
+    assert ge.main(["--model", "claude-test"]) == 0
+    monkeypatch.setattr(ge, "ClaudeProvider", lambda **kw: HallucinatingFake(GOLDEN))
+    assert ge.main(["--model", "claude-test"]) == 1
+    capsys.readouterr()
+
+
+def test_time_comparison_is_whitespace_insensitive():
+    got = comparable({"start_time": "7:45 PM"})
+    assert got["start_time"] == "7:45PM"
+
+
 # --- golden set structural lint --------------------------------------------------
 def test_golden_set_is_structurally_sound():
     ids = [r["id"] for r in GOLDEN]
