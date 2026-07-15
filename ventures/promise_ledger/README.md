@@ -1,6 +1,6 @@
 # Promise Ledger — venture workspace (pre-build groundwork)
 
-**Status:** GROUNDWORK ONLY (Session Contract #7). The venture go/no-go is an
+**Status:** GROUNDWORK ONLY (Session Contract #16, orig #7). The venture go/no-go is an
 open founder decision; nothing in this directory is deployed, spends money, or
 contracts a provider (R-016 gates all of that). This workspace lives inside the
 OneLive repo for gate coverage (evaluator + trust-gate + tests) and will be
