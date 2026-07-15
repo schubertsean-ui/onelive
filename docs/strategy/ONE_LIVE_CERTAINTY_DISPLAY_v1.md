@@ -1,6 +1,6 @@
 # ONE LIVE — Certainty, Trust & the Fifth-State Question (v1)
 
-**Compiled 2026-07-15 · Status: PROPOSAL — a researched RECOMMENDATION (answer: NO fifth state) to the founder's question "Do we need a fifth state?". NOT yet ratified: FOUNDER ACCEPTANCE (one line) is the ONLY path to canon — no design process, review, or agent may ratify it. If unanswered by Step 7, the design review RE-PRESENTS the question to the founder and proceeds with the confirmed 4-state canon alone until answered. What IS already canon, independent of this doc: the 4-state model itself (founder, 2026-07-15: "confirmed") — nothing here may be read as license to add states.**
+**Compiled 2026-07-15 · Status: RATIFIED 2026-07-15 — founder (verbatim): "Display stack accepted." The Certainty Display Stack is canon: epistemic state FROZEN at 4 (unverified · likely · confirmed · disputed — founder-confirmed same day) composing with freshness (Axis 2) and provenance (Axis 3) as attributes, and `event_status` as its own field. Any future fifth-state candidate must pass this doc's decision test AND receive an explicit founder decision — no design process or agent may add states.**
 
 Greppable summary: researched recommendation — **NO fifth state.** The
 things a fifth state would try to express (freshness, event status,
@@ -73,11 +73,9 @@ one of the existing four *plus the attributes below*? Candidates examined:
 - **Separate field — `event_status`:** scheduled · cancelled · postponed
   · moved (each carrying its own confidence state). Design at Step 7.
 
-## Founder ask (one line, whenever convenient — nothing builds before Step 7 either way)
-Reply "display stack accepted" to ratify this recommendation as canon, or
-name a fifth-state candidate to run through the decision test above. Until
-then this remains a PROPOSAL: the confirmed 4-state canon is untouched, no
-build-now work exists (Axis 2/3 + `event_status` ride Step 7's triggers),
-and Step 7's design review RE-PRESENTS this question to the founder if
-unanswered — it cannot ratify on the founder's behalf; unratified means
-Step 7 designs against the 4-state canon alone.
+## Founder ask (HISTORICAL — answered)
+*Asked 2026-07-15, answered same day: "Display stack accepted." Kept
+verbatim for the record.* Original ask: reply "display stack accepted" to
+ratify, or name a fifth-state candidate for the decision test. Build
+timing unchanged: Axis 2/3 + `event_status` ride Step 7's existing
+triggers; nothing builds before then.

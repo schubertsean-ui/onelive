@@ -37,7 +37,7 @@ Check items off in the same commit that completes them; don't batch-remove.
 
 ## Founder decisions needed (cannot be resolved by an agent — do not silently pick one)
 - [x] (P1) Confirm 4-state confidence model finalized — **CONFIRMED by founder 2026-07-15 ("confirmed")**. This closes the 4-state decision ONLY.
-- [ ] (P2) **Certainty Display Stack proposal (fifth-state question)** — owner: FOUNDER — researched recommendation is NO fifth state (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md: state × freshness × provenance compose; event_status its own field). UNRATIFIED until the founder replies ("display stack accepted", or names a candidate for the decision test). Step 7 re-presents this if unanswered; agents must not treat the recommendation as decided.
+- [x] (P2) **Certainty Display Stack proposal (fifth-state question)** — **RATIFIED by founder 2026-07-15 ("Display stack accepted")**: NO fifth state; state (frozen at 4) × freshness × provenance compose; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, now canon). Axes 2/3 + event_status build at Step 7.
 - [ ] (P2) Trust framework naming: drop "ESIM" 3-pillar branding, or relabel as OneLive's own framing — owner: founder.
 - [ ] (P1) Monitoring stack: Vercel Analytics + Supabase logs to start, Sentry before public launch — owner: founder — confirm timing.
 - [ ] (P2) Payments: Stripe Connect only, or keep Trolley for international creator payouts — owner: founder.
