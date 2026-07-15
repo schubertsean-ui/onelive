@@ -25,11 +25,18 @@ STAGE_MODELS = {
     # ESCALATED Cheap->Standard 2026-07-15 (cost-discipline rule 2, logged):
     # claude-haiku-4-5 failed the golden-set exam 3 consecutive cycles after
     # full key/prompt calibration (residual: venue-as-title, city inference,
-    # multi-event confusion — instruction-following, not knowledge). The
-    # tier is earned by passing the same gate, and lost the same way; if a
-    # future cheap model passes the exam, route back down (same evidence
-    # rule both directions).
-    "extraction": "claude-sonnet-4-6",
+    # multi-event confusion — instruction-following, not knowledge).
+    # ESCALATED Standard->Critical 2026-07-15 (same rule, logged):
+    # claude-sonnet-4-6 failed 4 consecutive cycles; the last two oscillated
+    # at 2.3-2.7% (bar: 1%) in whack-a-mole equilibrium on a coherent,
+    # de-contaminated spec with worked examples — each fix regressed a
+    # neighbor, the signature of an instruction-following ceiling on ~10
+    # interacting title/city discriminations, not a spec defect. The tier
+    # is earned by passing the same gate, and lost the same way: once the
+    # gate opens, BOTH cheaper tiers re-sit this exam via workflow_dispatch
+    # and extraction routes to the cheapest passer (TODOS de-escalation
+    # item).
+    "extraction": "claude-opus-4-8",
     # Non-Claude by charter (§0.2) — cost never downgrades the grader.
     "evaluator": "gpt-5.5",
 }
