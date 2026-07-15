@@ -13,12 +13,15 @@ name: Extraction Golden-Set Exam (release-blocking)
 # cheapest tier — well under a dollar; the ANTHROPIC console spend cap
 # bounds the blast radius regardless.
 #
-# Secret-exposure posture (docs/RECORD.md R-014): this job runs PR code
-# with ANTHROPIC_API_KEY. Accepted while the repo is private/solo — fork
-# PRs get no secrets, so only same-repo branches reach the key, and the
-# key is extraction-only behind a console spend cap. R-014's trigger
-# (public repo / outside contributor) moves this to a protected
-# environment or two-phase workflow.
+# Secret handling (R-014 closed mechanically, evaluator r7): this job runs
+# PR-controlled code, so it must NEVER receive an ambient repo-wide secret.
+# It runs inside the `extraction-exam` protected environment and reads the
+# environment-scoped ANTHROPIC_API_KEY_EXAM — which exists ONLY inside that
+# environment, behind its required-reviewer rule. A PR cannot reach the
+# repo-wide ANTHROPIC_API_KEY through this workflow at all (it is not
+# referenced), and every secret-bearing exam run requires an explicit
+# human approval on the environment. No environment secret = the exam
+# fails closed below.
 
 on:
   pull_request:
@@ -43,6 +46,11 @@ jobs:
   golden-exam:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Protected environment: required-reviewer approval gates every
+    # secret-bearing run of PR-controlled code (configured in repo
+    # Settings -> Environments -> extraction-exam by the founder; the
+    # environment-scoped key lives there and nowhere else).
+    environment: extraction-exam
     permissions:
       contents: read
     steps:
@@ -88,10 +96,12 @@ jobs:
 
       - name: Run the golden-set exam (release-blocking)
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Environment-scoped secret ONLY (never the repo-wide key): see
+          # the secret-handling note at the top of this file.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_EXAM }}
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error::ANTHROPIC_API_KEY secret missing — the exam cannot run, and no-exam means no-pass (fail closed)."
+            echo "::error::ANTHROPIC_API_KEY_EXAM is not configured as a secret of the 'extraction-exam' environment — the exam cannot run, and no-exam means no-pass (fail closed). Setup: Settings -> Environments -> extraction-exam (required reviewer + this secret)."
             exit 1
           fi
           python -m ai.golden_exam --model "$EXAM_MODEL" --report exam-report.json

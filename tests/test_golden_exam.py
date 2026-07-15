@@ -87,7 +87,7 @@ class MuteFake:
 # --- exam outcomes -------------------------------------------------------------
 def test_perfect_extractor_passes_at_valid_sample_size():
     report = run_exam(PerfectFake(GOLDEN), GOLDEN)
-    assert report["sample_valid"], f"golden set too small: {report['asserted_facts']}"
+    assert report["sample_valid"], f"golden set too small: {report['expected_facts']}"
     assert report["hallucination_rate"] == 0.0
     assert report["passed"] is True
 
@@ -227,6 +227,17 @@ def test_exam_provenance_is_stamped():
     assert stamped["_provenance"]["exam_mode"] is True
 
 
+def test_provenance_carries_prompt_content_hash():
+    """Drift audit (po harvest, friction #2; evaluator r7): prompt_version
+    says what was intended, the sha256 says what actually ran."""
+    import hashlib
+    from ai.prompts import EXTRACTION_SYSTEM_PROMPT
+    p = ClaudeProvider(api_key="test", model="claude-test", exam_mode=True)
+    stamped = p._stamp({"title": "X"})
+    assert stamped["_provenance"]["prompt_sha256"] == \
+        hashlib.sha256(EXTRACTION_SYSTEM_PROMPT.encode("utf-8")).hexdigest()
+
+
 def test_exam_mode_denied_when_pipeline_frame_is_anywhere_on_stack():
     """Evaluator blocker (PR #25 r5): a production wrapper driving the
     exam runner would make the DIRECT caller look like the allowlisted
@@ -361,7 +372,10 @@ def test_golden_set_is_structurally_sound():
     assert len(ids) == len(set(ids)), "duplicate example ids"
     assert len(GOLDEN) >= 40
     valid_keys = set(COMPARABLE_FIELDS) | {"is_private_rsvp", "private_access", "notes"}
+    documented_shape = {"id", "source_class", "tags", "text", "expected", "forbidden"}
     for r in GOLDEN:
+        assert documented_shape <= set(r), \
+            f"{r['id']}: missing documented row keys {documented_shape - set(r)}"
         assert r["text"].strip(), f"{r['id']}: empty text"
         assert set(r["expected"]) <= valid_keys, f"{r['id']}: unknown expected keys"
     truthy = sum(

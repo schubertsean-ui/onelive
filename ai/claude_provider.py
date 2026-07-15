@@ -45,6 +45,7 @@ independently auditable".
 """
 from datetime import datetime, timezone
 from typing import Optional
+import hashlib
 import html
 import json
 import logging
@@ -152,16 +153,23 @@ def _exam_caller_allowed() -> bool:
     import inspect
     own = "claude_provider.py"
     repo_root = str(pathlib.Path(__file__).resolve().parent.parent).replace("\\", "/")
+    # Repo-internal frames allowed anywhere on the exam-channel stack.
+    # ALLOWLIST, not a blocklist (evaluator r7: banning only worker//api/
+    # left root-level scripts and future trees implicitly trusted): any
+    # repo frame outside these prefixes denies the channel. Frames outside
+    # the repo (stdlib runpy, site-packages pytest) are neutral.
+    allowed_prefixes = (
+        repo_root + "/ai/golden_exam.py",
+        repo_root + "/ai/claude_provider.py",
+        repo_root + "/tests/",
+    )
     direct_caller_ok = False
     seen_external = False
     for frame in inspect.stack():
         fn = frame.filename.replace("\\", "/")
         if fn.endswith(own):
             continue
-        # Condition 2: repo pipeline frames are banned ANYWHERE in the stack.
-        # Scoped to this repo's tree so site-packages paths that happen to
-        # contain /api/ (SDK internals) cannot false-positive.
-        if fn.startswith(repo_root + "/worker/") or fn.startswith(repo_root + "/api/"):
+        if fn.startswith(repo_root + "/") and not fn.startswith(allowed_prefixes):
             return False
         if not seen_external:
             seen_external = True
@@ -374,6 +382,11 @@ class ClaudeProvider(AIProvider):
             "provider": "claude",
             "model": self.model,
             "prompt_version": PROMPT_VERSION,
+            # Content hash catches silent prompt drift BETWEEN version bumps
+            # (po harvest, friction entry #2; evaluator r7 concurred): the
+            # version says what we intended, the hash says what actually ran.
+            "prompt_sha256": hashlib.sha256(
+                EXTRACTION_SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
             "extracted_at": datetime.now(timezone.utc).isoformat(),
         }
         if self.exam_mode:
