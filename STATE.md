@@ -42,6 +42,14 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #5 (2026-07-15, same conversation — founder: "Proceed with Step 6" + "lock and capture all activity prior to compaction")
+
+GOAL: Ship the golden-set gate (R-013) — the exam that unlocks extraction at the ratified 1% bar.
+SCOPE: (1) golden set `ai/golden/golden_set_v1.jsonl` — ≥40 realistic examples across source classes with hand-verified answer keys, deliberate absence-traps, and indirect-prompt-injection cases (SPRINT Step 6 requirement); sample floor ≥~300 scoreable facts (KAIZEN §M7). (2) live-exam runner `ai/golden_exam.py` exercising the REAL ClaudeProvider path via a documented, narrow EXAM CHANNEL past the R-013 entry-point gate (explicit model required; no DB imports; provenance stamped exam; bypass scoped to the ratification flag only). (3) blocking CI `extraction-eval.yml` (dispatch + PRs touching extraction files; ANTHROPIC_API_KEY; report artifact). (4) run the exam for real on the starting model (claude-haiku-4-5); flip `EXTRACTION_THRESHOLD_RATIFIED` ONLY in the commit attaching a PASSING result. Recall floor 0.80 reported+enforced as the anti-gaming pair (starting value, ratchetable).
+NON-GOALS: no cron arming (R-008 separate, friction-attack first); no schema changes; no threshold changes (1% is founder-ratified).
+DONE-CRITERIA: exam runs green in CI on the real model with rate ≤1% at valid sample size · flag flipped with evidence attached · suite+gates green · PR through the evaluator · TotalRunFailure path re-verified via a real capped ingestion run producing candidates.
+CHECKPOINT DISCIPLINE (founder directive): commit+push after every major piece; arc updated before heavy build; nothing exists only in conversation context.
+
 ## Session Contract #4 (2026-07-14, same conversation — founder: "Record it" [scale-out sensor architecture + first-party trust rule])
 
 GOAL: Record the founder-ratified scale-out sensor architecture as canon, with the po battery run against it per the new charter rule.

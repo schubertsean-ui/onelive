@@ -81,3 +81,11 @@ extraction env) — per the ledger rule, a 5th demands a structural fix
 4. Founder one-liners still open: PRs #4/#7 (recommend close both);
    4-state confidence model confirmation ("confirmed").
 5. R-004: GROUND_TRUTH block still machine-unverifiable from this sandbox.
+
+
+## Post-close addendum (2026-07-15, locked pre-compaction at founder direction)
+- PR #22 merged (measured-unit definition: FIELD ASSERTION; recall anti-gaming pair; event-level secondary). PR #23 merged (session bookends). PR #24 merged after 4 rounds — rounds 1–2 were governance-precision catches: "no standing founder blocks" scoped to critical path; **founder acceptance is the ONLY ratification path for founder-facing decisions** (the "Step 7 can ratify" escape hatch was a real authority-leak, sealed everywhere).
+- Founder: "Close both and confirmed" → PRs #4/#7 closed with notes (R-009 RESOLVED); 4-state model CONFIRMED canon.
+- Founder: fifth-state question → researched (van der Bles PNAS 2020: transparent uncertainty doesn't erode source trust; Kent/ICD-203: likelihood vs evidence-confidence deliberately separate) → Certainty Display Stack proposed → **founder: "Display stack accepted" → RATIFIED**: states frozen at 4 × freshness × provenance as attributes; event_status its own field; decision test + explicit founder decision required for any future state candidate.
+- Hourly self-check cron armed (session-scoped, :23, silent no-ops) after founder "Don't sleep"; cadence tradeoffs explained (context/compaction burn vs latency with no consumer; tighten to 10–15 min when merges gain a downstream consumer, e.g. night-shift chains).
+- Founder: "Proceed with Step 6" → Session Contract #5 (this commit). Kaizen M1 for the day's tail: #22: 1 · #23: 1 · #24: 4.
