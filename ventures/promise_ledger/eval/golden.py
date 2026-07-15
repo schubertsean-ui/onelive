@@ -64,6 +64,7 @@ def load_examples(golden_dir: Path = GOLDEN_DIR) -> list[dict]:
     if not files:
         raise GoldenSetError(f"golden set at {golden_dir} is EMPTY — an empty gate proves nothing")
     examples = []
+    seen_ids = set()
     for f in files:
         ex = json.loads(f.read_text(encoding="utf-8"))
         missing = {"example_id", "synthetic", "source_text", "labels"} - set(ex)
@@ -87,6 +88,10 @@ def load_examples(golden_dir: Path = GOLDEN_DIR) -> list[dict]:
             if ss is not None and (not isinstance(ss, str) or not ss.strip()):
                 raise GoldenSetError(
                     f"{f.name}: statement_substring must be a non-empty string when present")
+        if ex["example_id"] in seen_ids:
+            raise GoldenSetError(f"{f.name}: duplicate example_id {ex['example_id']!r} — "
+                                 "prediction mapping would be ambiguous")
+        seen_ids.add(ex["example_id"])
         examples.append(ex)
     return examples
 

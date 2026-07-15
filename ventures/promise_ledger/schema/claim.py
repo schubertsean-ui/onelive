@@ -134,7 +134,8 @@ class Claim:
         errors += self.entity.validate()
         errors += self.provenance.validate()
         if self.kind == ClaimKind.NUMERIC_GUIDANCE:
-            if self.metric is None or (self.target_low is None and self.target_high is None):
+            if (self.metric is None or not self.metric.strip()
+                    or (self.target_low is None and self.target_high is None)):
                 errors.append("numeric_guidance requires metric and at least one target bound")
             if (self.target_low is not None and self.target_high is not None
                     and self.target_low > self.target_high):
@@ -192,18 +193,7 @@ def to_json_schema() -> dict:
     def enum_values(e):
         return [m.value for m in e]
 
-    provenance_schema = {
-        "type": "object",
-        "required": ["source_url", "source_kind", "published_at", "retrieved_at"],
-        "properties": {
-            "source_url": {"type": "string", "format": "uri", "pattern": "^https?://"},
-            "source_kind": {"type": "string", "minLength": 1},
-            "published_at": {"type": "string", "format": "date-time"},
-            "retrieved_at": {"type": "string", "format": "date-time"},
-            "excerpt_sha256": {"type": ["string", "null"]},
-        },
-        "additionalProperties": False,
-    }
+    provenance_schema = _provenance_json_schema()
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": ("https://github.com/schubertsean-ui/onelive/blob/master/"
@@ -218,6 +208,8 @@ def to_json_schema() -> dict:
         ),
         "x-invariants": [
             "provenance.published_at <= provenance.retrieved_at (cross-field date "
+            "comparison; not expressible in JSON Schema 2020-12 without extensions)",
+            "target_low <= target_high when both are present (cross-field numeric "
             "comparison; not expressible in JSON Schema 2020-12 without extensions)",
         ],
         "type": "object",
@@ -284,15 +276,44 @@ def to_json_schema() -> dict:
     }
 
 
+def _provenance_json_schema() -> dict:
+    """Shared by the Claim and LifecycleEvent interchange schemas: evidence IS
+    provenance — a record with no source URL, kind, or timestamps is not
+    evidence, and must not validate as such."""
+    return {
+        "type": "object",
+        "required": ["source_url", "source_kind", "published_at", "retrieved_at"],
+        "properties": {
+            "source_url": {"type": "string", "format": "uri", "pattern": "^https?://"},
+            "source_kind": {"type": "string", "minLength": 1},
+            "published_at": {"type": "string", "format": "date-time"},
+            "retrieved_at": {"type": "string", "format": "date-time"},
+            "excerpt_sha256": {"type": ["string", "null"]},
+        },
+        "additionalProperties": False,
+    }
+
+
 def to_lifecycle_event_json_schema() -> dict:
     """Interchange schema for LifecycleEvent — verdict states require evidence,
-    mirroring LifecycleEvent.validate (the Python validator stays authoritative)."""
+    and evidence items are full Provenance records (an empty object is not
+    evidence; evaluator r19). The Python validator stays authoritative."""
     verdict_states = sorted(s.value for s in LifecycleEvent._VERDICT_STATES)
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": ("https://github.com/schubertsean-ui/onelive/blob/master/"
                 "ventures/promise_ledger/schema/lifecycle_event/v0"),
         "title": "LifecycleEvent",
+        "description": (
+            "Mirrors LifecycleEvent.validate in ventures/promise_ledger/schema/"
+            "claim.py, which remains AUTHORITATIVE. Consumers MUST additionally "
+            "enforce the x-invariants (cross-field comparisons JSON Schema cannot "
+            "express)."
+        ),
+        "x-invariants": [
+            "for every evidence item: published_at <= retrieved_at (cross-field "
+            "date comparison; not expressible in JSON Schema 2020-12)",
+        ],
         "type": "object",
         "required": ["claim_id", "state", "confidence", "observed_at"],
         "properties": {
@@ -300,14 +321,15 @@ def to_lifecycle_event_json_schema() -> dict:
             "state": {"enum": [m.value for m in LifecycleState]},
             "confidence": {"enum": [m.value for m in FulfillmentConfidence]},
             "observed_at": {"type": "string", "format": "date-time"},
-            "evidence": {"type": "array", "items": {"type": "object"}},
+            "evidence": {"type": "array", "items": _provenance_json_schema()},
             "note": {"type": ["string", "null"]},
         },
         "allOf": [{
             # a verdict without evidence is an accusation — mirror the validator
             "if": {"properties": {"state": {"enum": verdict_states}}},
             "then": {"required": ["evidence"],
-                     "properties": {"evidence": {"type": "array", "minItems": 1}}},
+                     "properties": {"evidence": {"type": "array", "minItems": 1,
+                                                  "items": _provenance_json_schema()}}},
         }],
         "additionalProperties": False,
     }

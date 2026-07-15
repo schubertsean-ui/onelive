@@ -319,6 +319,47 @@ def test_lifecycle_event_json_schema_requires_evidence_for_verdicts():
     assert ".example/" not in schema["$id"]
 
 
+def test_lifecycle_evidence_items_are_full_provenance_not_empty_objects():
+    """Evaluator r19: [{}] must not validate as evidence — evidence items are
+    Provenance records with required source/timestamps, in both the base
+    property and the verdict conditional."""
+    schema = claim_schema.to_lifecycle_event_json_schema()
+    for items in (schema["properties"]["evidence"]["items"],
+                  schema["allOf"][0]["then"]["properties"]["evidence"]["items"]):
+        assert set(items["required"]) >= {"source_url", "source_kind",
+                                          "published_at", "retrieved_at"}
+        assert items["additionalProperties"] is False
+    assert any("published_at" in inv for inv in schema["x-invariants"])
+
+
+def test_claim_schema_declares_target_bounds_invariant():
+    """Evaluator r19: target_low <= target_high is cross-field and
+    inexpressible in JSON Schema — it must be DECLARED, not silent."""
+    schema = to_json_schema()
+    assert any("target_low <= target_high" in inv for inv in schema["x-invariants"])
+
+
+def test_numeric_guidance_rejects_whitespace_metric():
+    errs = validate(_claim(metric="   "))
+    assert any("numeric_guidance requires" in e for e in errs)
+
+
+def test_duplicate_example_ids_refused(tmp_path):
+    import json as _json
+    ex = {"example_id": "dup", "synthetic": True, "source_text": "SYNTHETIC: t",
+          "labels": [{"kind": "capability_assertion",
+                      "match_keys": {"statement_substring": "x"}}]}
+    (tmp_path / "a.json").write_text(_json.dumps(ex), encoding="utf-8")
+    (tmp_path / "b.json").write_text(_json.dumps(ex), encoding="utf-8")
+    with pytest.raises(golden.GoldenSetError, match="duplicate example_id"):
+        golden.load_examples(tmp_path)
+
+
+def test_email_shape_requires_domain_dot():
+    with pytest.raises(ValueError, match="fair-access"):
+        edgar.EdgarClient(operator_name="OneLive Research", admin_email="x@y")
+
+
 def test_empty_statement_substring_refused_at_load(tmp_path):
     import json as _json
     bad = {"example_id": "x", "synthetic": True, "source_text": "SYNTHETIC: t",

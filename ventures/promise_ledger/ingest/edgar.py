@@ -47,8 +47,10 @@ class EdgarClient:
     _window_start: float = field(default=0.0, repr=False)
     _window_count: int = field(default=0, repr=False)
 
+    _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
+
     def __post_init__(self):
-        if "@" not in self.admin_email or not self.operator_name.strip():
+        if not self._EMAIL_RE.match(self.admin_email) or not self.operator_name.strip():
             # Fail-closed: an undeclared client WILL be blocked by the SEC and
             # can poison the egress IP for every other user of it.
             raise ValueError("EdgarClient requires a real operator name and admin email "
