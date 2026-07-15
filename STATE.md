@@ -34,6 +34,13 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 
 > **Ground-truth block staleness (2026-07-13):** the JSON block above is machine-maintained and could NOT be refreshed this session — the reconciler needs `gh` (absent in this sandbox) and a DB DSN (not provided). It shows pre-PR#9 state. The 2026-07-13 reality check below records what WAS independently verified (via the GitHub API). Refresh the block with `session_reconcile.py --heal` from an env with `gh` + `ONELIVE_DB_DSN`.
 
+## Session Contract #8 (2026-07-15, same conversation — founder: "Go" [VENTURE GREENLIT — build phase 1, sector-agnostic core])
+
+GOAL: Execute the promise-ledger build phase within this sandbox's hard limits (no sec.gov egress, no vendor-domain egress, no spend, no new services). "Go" resolves the venture go/no-go; it does NOT pick the beachhead sector (still founder's, memo stands) and does NOT waive R-013/R-014 — it FIRES R-013's trigger.
+SCOPE: (1) record the greenlight (TODOS item checked, changelog); (2) R-013 fired-trigger handling: the primary-source pricing/ToS pass is egress-blocked from here — action what IS possible: committed draft redistribution-question letters to the four finalist providers (RTPR, FMP, StockNewsAPI, Benzinga) + R-013 row updated with the fired-but-blocked state and the founder unblock ask; (3) BUILD: point-in-time ledger store v0 (stdlib sqlite3, append-only event log per LEDGER_STORAGE_DESIGN.md — claim_recorded/lifecycle_event/source_retrieved records, as-of-known-when reads, corrections-as-events) + tests; (4) BUILD: due-date parser v0 (deterministic, no LLM — "by Q3 2027" / "in the third quarter of fiscal 2027" / month-year forms → date + kept original text per schema invariant) + tests; (5) VENTURE_SPRINT.md — numbered build plan to MVP with every gate marked (R-013/R-014/sector/friction), attacked by the evaluator through the PR gate; (6) bookends.
+NON-GOALS: no extraction-model calls (R-014 blocks until real EDGAR examples), no provider contracts or spend (R-013 blocks until the re-verification pass runs), no sector choice, no deploy, no new external services.
+DONE-CRITERIA: store + parser green with tests through the armed gate · letters + sprint plan committed · R-013 row updated same-commit · bookends updated.
+
 ## Session Contract #7 (2026-07-14, same conversation — founder: "Keep moving forward" [promise-ledger venture pre-build groundwork])
 
 GOAL: Advance the venture with FREE, REVERSIBLE groundwork only — the items the market analysis (§13/§14) says precede any build decision — without touching founder-crucial territory (no spend, no new services, no provider contracts — R-013 untouched; no beachhead-sector decision — that memo is prepared FOR the founder, not taken).
