@@ -1,0 +1,85 @@
+name: Extraction Golden-Set Exam (release-blocking)
+
+# KAIZEN §M7 / R-013: no extraction change ships without golden-set exam
+# evidence. Runs on every PR that touches the extraction surface, and on
+# demand (workflow_dispatch) to generate the evidence for a model change or
+# the gate-opening flip. Thresholds live in ai/golden_exam.py (hallucination
+# <= 1% founder-ratified; recall >= 0.80; zero forbidden injection markers;
+# >= 300 asserted-fact validity floor — an undersized run is INVALID).
+#
+# Cost note (§14.3): one full exam = 74 small extraction calls on the
+# cheapest tier — well under a dollar; the ANTHROPIC console spend cap
+# bounds the blast radius regardless.
+
+on:
+  pull_request:
+    paths:
+      - "ai/**"
+      - "worker/ai_models.py"
+      - "worker/ai_extract.py"
+      - ".github/workflows/extraction-eval.yml"
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Candidate model id to examine"
+        required: true
+        default: "claude-haiku-4-5"
+
+concurrency:
+  group: extraction-eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  golden-exam:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install worker deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r worker/requirements.txt
+
+      - name: Resolve candidate model (dispatch input, validated; PR default = policy starting tier)
+        env:
+          # Untrusted dispatch input reaches the shell only via env (never
+          # ${{ }}-interpolated into run:) and must look like a model id —
+          # same guards as ingest.yml's budget input (PR #12 lessons).
+          RAW_MODEL: ${{ github.event.inputs.model }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if ! [[ "$RAW_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]]; then
+              echo "::error::model input is not a plausible model id (value redacted)."
+              exit 1
+            fi
+            echo "EXAM_MODEL=$RAW_MODEL" >> "$GITHUB_ENV"
+          else
+            echo "EXAM_MODEL=claude-haiku-4-5" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run the golden-set exam (release-blocking)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY secret missing — the exam cannot run, and no-exam means no-pass (fail closed)."
+            exit 1
+          fi
+          python ai/golden_exam.py --model "$EXAM_MODEL" --report exam-report.json
+
+      - name: Persist the exam report (evidence artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-exam-report-${{ github.run_id }}
+          path: exam-report.json
+          if-no-files-found: warn
