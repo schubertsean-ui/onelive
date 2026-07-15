@@ -2,7 +2,7 @@
 
 **Status:** GROUNDWORK ONLY (Session Contract #7). The venture go/no-go is an
 open founder decision; nothing in this directory is deployed, spends money, or
-contracts a provider (R-013 gates all of that). This workspace lives inside the
+contracts a provider (R-016 gates all of that). This workspace lives inside the
 OneLive repo for gate coverage (evaluator + trust-gate + tests) and will be
 extracted to its own repository if/when the founder greenlights the venture.
 
@@ -24,13 +24,13 @@ buyers.
 - `ingest/` — EDGAR client written to the SEC's documented fair-access
   contract (declared User-Agent, ≤10 req/s budget, bulk-archives-first).
   **Not yet run against live EDGAR:** this sandbox's egress policy blocks
-  sec.gov (verified 2026-07-14: curl and WebFetch both refused) — see R-014.
+  sec.gov (verified 2026-07-14: curl and WebFetch both refused) — see R-017.
   Tests use synthetic fixtures explicitly marked as such.
 - `eval/` — extraction-precision golden-set harness. Fail-closed: below-bar
   precision exits non-zero; an empty golden set exits non-zero (a gate that
   cannot fail proves nothing). Currently seeded with SYNTHETIC labeled
   examples that exercise the harness mechanics only — **no threshold means
-  anything until real EDGAR-sourced examples replace them (R-014)**. The
+  anything until real EDGAR-sourced examples replace them (R-017)**. The
   market analysis names extraction precision the venture's existential risk;
   this harness exists before any extraction model does, per charter
   discipline.

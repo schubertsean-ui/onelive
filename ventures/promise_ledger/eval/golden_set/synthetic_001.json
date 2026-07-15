@@ -1,7 +1,7 @@
 {
   "example_id": "synthetic_001",
   "synthetic": true,
-  "_provenance_note": "SYNTHETIC example authored 2026-07-14 to exercise harness mechanics only (R-014). It imitates the SHAPE of an 8-K EX-99.1 earnings-release paragraph; it is not, and must never be presented as, a real filing.",
+  "_provenance_note": "SYNTHETIC example authored 2026-07-14 to exercise harness mechanics only (R-017). It imitates the SHAPE of an 8-K EX-99.1 earnings-release paragraph; it is not, and must never be presented as, a real filing.",
   "source_text": "SYNTHETIC: ExampleCorp today reaffirmed its full-year fiscal 2027 revenue guidance of $1.2 billion to $1.4 billion and announced that its next-generation platform is expected to launch in the third quarter of fiscal 2027.",
   "labels": [
     {

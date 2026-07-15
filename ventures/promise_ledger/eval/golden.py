@@ -8,7 +8,7 @@ output against hand-labeled examples and FAILS CLOSED:
 - empty golden set -> error (a gate that cannot fail proves nothing);
 - precision below the bar -> non-zero verdict;
 - synthetic-only golden set -> the report SAYS SO, loudly, and refuses to
-  bless thresholds (R-014: real EDGAR-sourced examples are required before
+  bless thresholds (R-017: real EDGAR-sourced examples are required before
   any threshold is meaningful; this sandbox cannot reach sec.gov).
 
 Scoring model (v0, deliberately strict):
@@ -29,7 +29,7 @@ from pathlib import Path
 GOLDEN_DIR = Path(__file__).resolve().parent / "golden_set"
 
 # Release bar (v0 placeholder): meaningless until the golden set carries real
-# examples (R-014). Kept here so the number is versioned and reviewed, not
+# examples (R-017). Kept here so the number is versioned and reviewed, not
 # ambient. The bar may be RAISED without ceremony; lowering it is a gated,
 # founder-visible change.
 PRECISION_BAR = 0.98
@@ -147,7 +147,7 @@ def score(examples: list[dict], predictions_by_example: dict[str, list[dict]]) -
 
 def verdict(report: dict) -> tuple[bool, str]:
     """Fail-closed verdict. Synthetic-only golden sets can FAIL the gate but
-    can never PASS it — passing requires real examples (R-014)."""
+    can never PASS it — passing requires real examples (R-017)."""
     lines = [f"golden-set: {report['examples']} examples, "
              f"precision={report['precision']:.3f} (bar {PRECISION_BAR}), "
              f"recall={report['recall']:.3f} (bar {RECALL_BAR})"]
@@ -156,7 +156,7 @@ def verdict(report: dict) -> tuple[bool, str]:
                      f"matched={k.matched} p={k.precision:.3f} r={k.recall:.3f}")
     ok = report["precision"] >= PRECISION_BAR and report["recall"] >= RECALL_BAR
     if report["synthetic_only"]:
-        lines.append("SYNTHETIC-ONLY GOLDEN SET (R-014): mechanics exercised, thresholds "
+        lines.append("SYNTHETIC-ONLY GOLDEN SET (R-017): mechanics exercised, thresholds "
                      "NOT meaningful — this gate cannot PASS until real EDGAR-sourced "
                      "examples are added.")
         ok = False

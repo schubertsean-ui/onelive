@@ -10,6 +10,16 @@ lock in the trust-critical behavior:
 import pytest
 
 from ai.claude_provider import ClaudeProvider, ExtractionConfigError, PROMPT_VERSION
+
+
+@pytest.fixture(autouse=True)
+def _open_extraction_gate(monkeypatch):
+    """These tests exercise provider MECHANICS (retries, provenance, audit),
+    so they run with the R-013 routing gate explicitly opened. The gate
+    itself — including that explicit model= cannot bypass it — is proven in
+    tests/test_run_outcome_and_extraction_model.py."""
+    import tools.model_router as mr
+    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", True)
 from ai.eval_harness import score_extraction, aggregate, evaluate_extraction
 
 
@@ -60,7 +70,7 @@ class RecordingHook:
 
 # --- config errors fail loudly ----------------------------------------------
 def test_missing_api_key_raises():
-    p = ClaudeProvider(api_key=None)
+    p = ClaudeProvider(api_key=None, model="claude-test")
     with pytest.raises(ExtractionConfigError):
         p.extract_event_json("some text", SCHEMA)
 
@@ -68,7 +78,7 @@ def test_missing_api_key_raises():
 def test_structural_4xx_raises_not_degrades():
     def behavior(attempt, kwargs):
         raise FakeHTTPError(400)  # bad request / malformed schema
-    p = ClaudeProvider(api_key="k", client=FakeAnthropic(behavior))
+    p = ClaudeProvider(api_key="k", model="claude-test", client=FakeAnthropic(behavior))
     with pytest.raises(ExtractionConfigError):
         p.extract_event_json("text", SCHEMA)
     # Must NOT have retried a structural error.
@@ -80,7 +90,7 @@ def test_auth_error_by_typename_raises():
         pass
     def behavior(attempt, kwargs):
         raise AuthenticationError("bad key")
-    p = ClaudeProvider(api_key="k", client=FakeAnthropic(behavior))
+    p = ClaudeProvider(api_key="k", model="claude-test", client=FakeAnthropic(behavior))
     with pytest.raises(ExtractionConfigError):
         p.extract_event_json("text", SCHEMA)
 
@@ -89,7 +99,7 @@ def test_auth_error_by_typename_raises():
 def test_rate_limit_retries_then_degrades_to_none():
     def behavior(attempt, kwargs):
         raise FakeHTTPError(429)  # always rate-limited
-    p = ClaudeProvider(api_key="k", client=FakeAnthropic(behavior),
+    p = ClaudeProvider(api_key="k", model="claude-test", client=FakeAnthropic(behavior),
                        max_retries=3)
     p_sleep = __import__("ai.claude_provider", fromlist=["time"]).time
     p_sleep.sleep = lambda *_: None  # don't actually sleep in tests
@@ -108,7 +118,7 @@ def test_transient_then_success_recovers():
         if attempt == 1:
             raise FakeHTTPError(503)
         return _Resp({"title": "Show at Mohawk"})
-    p = ClaudeProvider(api_key="k", client=FakeAnthropic(behavior), max_retries=3)
+    p = ClaudeProvider(api_key="k", model="claude-test", client=FakeAnthropic(behavior), max_retries=3)
     __import__("ai.claude_provider", fromlist=["time"]).time.sleep = lambda *_: None
     out = p.extract_event_json("text", SCHEMA)
     assert out["title"] == "Show at Mohawk"
@@ -130,7 +140,7 @@ def test_success_is_stamped_with_provenance():
 
 
 def test_empty_text_returns_none_without_calling_api():
-    p = ClaudeProvider(api_key="k", client=FakeAnthropic(lambda *_: None))
+    p = ClaudeProvider(api_key="k", model="claude-test", client=FakeAnthropic(lambda *_: None))
     assert p.extract_event_json("   ", SCHEMA) is None
     assert p._client.messages.calls == 0
 

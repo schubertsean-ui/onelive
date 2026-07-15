@@ -2,7 +2,7 @@
 
 STATUS (2026-07-14): NOT yet exercised against live EDGAR. This sandbox's
 egress policy blocks sec.gov (curl CONNECT refused; WebFetch 403) — recorded
-as R-014. Everything here is built strictly to the documented contract that
+as R-017. Everything here is built strictly to the documented contract that
 the companion research verified 3-0 against sec.gov's own pages:
 
 - declared User-Agent with operator name + admin email, or requests are denied;
@@ -15,7 +15,7 @@ the companion research verified 3-0 against sec.gov's own pages:
   low-latency feed.
 
 The first live run happens from an environment with sec.gov egress, under the
-same budget, and its results seed the golden set (replacing R-014's synthetic
+same budget, and its results seed the golden set (replacing R-017's synthetic
 examples).
 """
 

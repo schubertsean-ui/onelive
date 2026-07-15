@@ -171,3 +171,10 @@ one sandbox).
 (httpbin 403) — swap the smoke URL for an allowlisted/static target or a local
 fixture server so the offline smoke path stays meaningful in restricted
 sandboxes.
+
+## 2026-07-15 — marathon founder session (PRs #14–#22)
+- FRICTION: no webhook fires on CI SUCCESS, and self-scheduled check-ins are blocked in this environment — every green verdict needed either a founder ping or a lucky poll. Automate next: a success-notification path (or permit send_later).
+- FRICTION: GitHub MCP token expired mid-session once (founder had to reconnect); plan for auth interruptions in long sessions.
+- WORKED WELL: the evaluator enforcing KAIZEN §M7 against its own author's PR within hours of merging it — the loop is genuinely self-policing. M1 rounds-to-green trend 5→1 across the arc.
+- WORKED WELL: founder-ergonomics investment (DSN splice) directly unblocked a stuck human step; worth repeating the pattern (make the machine absorb the fiddly part).
+- WATCH: empty-env fail-open class hit its 4th appearance (#21). Ledger rule says the 5th demands the structural fix (env-contract linter for workflows) — do not patch a 5th time.
