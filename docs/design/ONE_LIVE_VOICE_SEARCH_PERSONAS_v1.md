@@ -1,8 +1,8 @@
-# Voice search personas v1 — 20 spoken searches the product must handle (founder-directed 2026-07-15)
+# Voice search personas v1.1 — 23 spoken searches the product must handle (founder-directed 2026-07-15)
 
 Greppable summary: founder-directed catalog ("imagine someone says 'find me
-R&B or good dance music with no or low cover charge'") of 20 spoken search
-personas spanning 1→5+ combined filters plus the common edge shapes
+R&B or good dance music with no or low cover charge'") of 23 spoken search
+personas (v1.1 added the Evening Planner class) spanning 1→5+ combined filters plus the common edge shapes
 (OR-logic, negation, synonyms, subjective terms, price bands, time
 granularity, surprise-me, artist lookup, certainty queries, out-of-scope).
 Each persona = a GOLDEN TEST CASE for the Step 9 voice parser (TODOS: voice

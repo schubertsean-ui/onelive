@@ -80,8 +80,9 @@ founder's "improve on it re: searches people do" made mechanical.
 
 Apple Music genre codes (hierarchical, partner docs): https://itunespartner.apple.com/music/support/5318-updated-genre-codes ·
 https://developer.apple.com/documentation/applemusicapi/music-genres —
-Spotify's two-tier reality (browse layer over ~6,000 microgenres):
-https://www.spudart.org/blog/six-thousand-spotify-genres/ —
+Spotify's two-tier reality (browse layer over thousands of microgenres;
+secondary source — verify against official Spotify documentation/data
+before ratification): https://www.spudart.org/blog/six-thousand-spotify-genres/ —
 Bandsintown live-event genre tagging + Spotify live-events integration:
 https://www.artist.bandsintown.com/integrations/spotify
 
