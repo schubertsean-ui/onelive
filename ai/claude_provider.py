@@ -59,9 +59,50 @@ logger = logging.getLogger(__name__)
 # candidates records which prompt produced them.
 PROMPT_VERSION = "2026-07-10.1"
 
-DEFAULT_MODEL = "claude-3-5-sonnet-latest"
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
+
+
+def _resolve_extraction_model(explicit: Optional[str]) -> str:
+    """Resolve the extraction model THROUGH the routing gate (single source).
+
+    The trust invariant lives at this entry point, not only in the tool
+    (evaluator findings, PR #21 rounds 1-2 — same class as the reviewer-
+    slot fix in PR #14), and it gates EVERY construction path: the R-013
+    block (no extraction until the golden-set gate ships and passes; bar
+    ratified <=1% per R-006) is checked FIRST, so an explicit `model=`
+    argument cannot bypass it — explicit selects WHICH model once
+    extraction is permitted at all, never WHETHER. The flag is read from
+    the live module state so the Step 6 flip (and test fixtures that
+    legitimately open the gate to exercise provider mechanics) take
+    effect without import-order games.
+
+    With no explicit model, resolution delegates to resolve_model(
+    "extraction"): env chain ONELIVE_MODEL_EXTRACTION > legacy
+    ONELIVE_CLAUDE_MODEL > policy default, present-but-empty rejected,
+    id single-sourced so a stale local default cannot drift again (the
+    retired claude-3-5-sonnet-latest 404'd on the first real run).
+    Explicit values fail closed on empty/whitespace — blank is
+    misconfiguration, never "use the default".
+    """
+    import tools.model_router as _router
+    if not _router.EXTRACTION_THRESHOLD_RATIFIED:
+        raise ExtractionConfigError(
+            "extraction is fail-closed until the golden-set gate ships and "
+            "passes (docs/RECORD.md R-013; bar ratified <=1% per R-006) — "
+            "an explicit model argument does not bypass the gate."
+        )
+    if explicit is not None:
+        if not explicit.strip():
+            raise ExtractionConfigError(
+                "explicit model argument is empty/whitespace — pass a real "
+                "model id or pass None to use the routing policy."
+            )
+        return explicit.strip()
+    try:
+        return _router.resolve_model("extraction")
+    except (KeyError, ValueError) as exc:
+        raise ExtractionConfigError(str(exc)) from exc
 
 
 class ExtractionConfigError(RuntimeError):
@@ -79,7 +120,7 @@ class ClaudeProvider(AIProvider):
         max_retries: int = MAX_RETRIES,
     ):
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        self.model = model or os.getenv("ONELIVE_CLAUDE_MODEL", DEFAULT_MODEL)
+        self.model = _resolve_extraction_model(model)
         self.max_tokens = max_tokens
         self._client = client
         self.max_retries = max_retries

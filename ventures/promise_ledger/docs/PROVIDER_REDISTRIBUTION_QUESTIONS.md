@@ -1,7 +1,7 @@
-# R-013 action: written redistribution questions for finalist providers
+# R-016 action: written redistribution questions for finalist providers
 
 **Status:** DRAFT letters, prepared at venture greenlight (2026-07-15) because
-R-013's trigger fired. NOT YET SENT — sending is a founder action (external
+R-016's trigger fired. NOT YET SENT — sending is a founder action (external
 communication), and the accompanying primary-source re-verification of each
 provider's live pricing/ToS pages is egress-blocked from this sandbox. Send
 each letter from a company address after re-reading that provider's current

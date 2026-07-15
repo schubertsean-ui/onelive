@@ -39,7 +39,7 @@ A1 documents are the unit of analysis · A2 the company is the aggregation axis 
   - DIFF: participating issuers get faster corrections; the ledger differentiates verified vs unverified issuers — a trust tier, not a paywall.
 - **Po A7-neg: text is not the medium.**
   - PRIN: claims live wherever executives speak — earnings-call audio, interviews, social posts (often less lawyer-scrubbed). Phase-2 expansion sources ranked by signal-per-cost.
-  - MOM: an exec's off-script conference remark contradicts the 10-K → cross-medium contradiction alert; operationally needs transcript licensing — noted as a licensed-source decision (R-013 class).
+  - MOM: an exec's off-script conference remark contradicts the 10-K → cross-medium contradiction alert; operationally needs transcript licensing — noted as a licensed-source decision (R-016 class).
 - **Po A8-neg: not self-comparison.**
   - DIFF: compare across entities — five companies claiming #1 market share cannot all be right. Intra-sector contradiction detection. → **H11**.
   - POS: cross-entity contradictions are inherently newsworthy — organic distribution.

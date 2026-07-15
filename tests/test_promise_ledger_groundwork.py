@@ -2,7 +2,7 @@
 
 Covers the three pre-build artifacts: Claim Schema v0 (validation + JSON
 Schema lockstep), the fail-closed golden-set harness (including the rule that
-a synthetic-only golden set can never PASS — R-014), and the EDGAR client's
+a synthetic-only golden set can never PASS — R-017), and the EDGAR client's
 contract enforcement (declared identity, budget, CIK padding) — all without
 network access, which this sandbox does not have to sec.gov.
 """
@@ -284,7 +284,7 @@ def test_empty_golden_set_fails_closed(tmp_path):
 
 
 def test_perfect_predictions_on_synthetic_set_still_cannot_pass():
-    """R-014 mechanically enforced: synthetic-only golden sets exercise the
+    """R-017 mechanically enforced: synthetic-only golden sets exercise the
     harness but can never bless an extractor."""
     examples = golden.load_examples()
     def realize(label):
@@ -368,7 +368,7 @@ def test_local_budget_stays_under_sec_cap():
 
 def test_stage1_lists_8k_filings_not_press_releases():
     # Synthetic fixture mirroring the DOCUMENTED data.sec.gov submissions shape
-    # (real fetch blocked from this sandbox — R-014). Note: primaryDocument is
+    # (real fetch blocked from this sandbox — R-017). Note: primaryDocument is
     # the 8-K itself, NOT the press-release exhibit — stage 1 must not claim
     # otherwise (evaluator r17).
     fixture = {

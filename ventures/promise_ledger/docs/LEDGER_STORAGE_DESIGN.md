@@ -49,5 +49,5 @@ stale view is detectable, not silent.
 
 Engine choice (Postgres event table vs log store), hosting, retention/cost
 envelope, and anything that costs money or creates a service — founder-crucial
-or R-013-gated. This design constrains any implementation to the invariant; it
+or R-016-gated. This design constrains any implementation to the invariant; it
 does not pick vendors.
