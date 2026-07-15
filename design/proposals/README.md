@@ -123,7 +123,7 @@ overrides in the same file — class-toggled so both modes render
 deterministically in headless capture; the Step 9 implementation binds it
 to `prefers-color-scheme` plus a user toggle. Light renders for ALL three
 directions are committed alongside the dark ones (see `renders/`), so the
-founder chooses from complete comps. R-014 is RESOLVED by this change.
+founder chooses from complete comps. R-015 is RESOLVED by this change.
 
 ## v2 — founder feedback round (2026-07-15, "more inviting; venues matter; genre forward")
 
