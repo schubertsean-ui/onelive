@@ -204,7 +204,12 @@ def main(argv: list[str] | None = None) -> int:
               "above); an exam that cannot complete proves nothing.", file=sys.stderr)
         return 2
     if args.report:
-        args.report.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        try:
+            args.report.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        except OSError as exc:
+            print(f"golden_exam: INVALID — cannot write report ({exc}); evidence "
+                  "that cannot be persisted is not evidence.", file=sys.stderr)
+            return 2
     summary = (
         f"examples={report['n_examples']} asserted_facts={report['asserted_facts']} "
         f"hallucination_rate={report['hallucination_rate']:.4f} (max {HALLUCINATION_MAX}) "

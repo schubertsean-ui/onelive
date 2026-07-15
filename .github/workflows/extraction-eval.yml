@@ -68,7 +68,12 @@ jobs:
             # table itself, never a duplicated constant (a router change must
             # be examined as the model it actually routes to).
             EXAM_MODEL="$(python3 -c "from tools.model_router import STAGE_MODELS; print(STAGE_MODELS['extraction'])")"
-            test -n "$EXAM_MODEL"
+            # Symmetric validation with the dispatch path — even repo-derived
+            # values get the id regex before touching $GITHUB_ENV.
+            if ! [[ "$EXAM_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]]; then
+              echo "::error::routed extraction model is not a plausible model id."
+              exit 1
+            fi
             echo "EXAM_MODEL=$EXAM_MODEL" >> "$GITHUB_ENV"
           fi
 

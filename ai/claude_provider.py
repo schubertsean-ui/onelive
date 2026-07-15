@@ -139,7 +139,7 @@ def _exam_caller_allowed() -> bool:
     this is layer 1 at runtime; the text scan remains layer 2 in CI).
     """
     import inspect
-    own = pathlib_basename = "claude_provider.py"
+    own = "claude_provider.py"
     for frame in inspect.stack():
         fn = frame.filename.replace("\\", "/")
         if fn.endswith(own):

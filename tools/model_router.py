@@ -22,10 +22,14 @@ STAGE_MODELS = {
     "mechanical": "claude-haiku-4-5",
     "standard": "claude-sonnet-4-6",
     "critical": "claude-opus-4-8",
-    # Starting tier once unblocked (see EXTRACTION_THRESHOLD_RATIFIED below),
-    # governed by eval-harness thresholds (§11.2): keeps its slot while
-    # golden-set gates pass, escalates when they fail.
-    "extraction": "claude-haiku-4-5",
+    # ESCALATED Cheap->Standard 2026-07-15 (cost-discipline rule 2, logged):
+    # claude-haiku-4-5 failed the golden-set exam 3 consecutive cycles after
+    # full key/prompt calibration (residual: venue-as-title, city inference,
+    # multi-event confusion — instruction-following, not knowledge). The
+    # tier is earned by passing the same gate, and lost the same way; if a
+    # future cheap model passes the exam, route back down (same evidence
+    # rule both directions).
+    "extraction": "claude-sonnet-4-6",
     # Non-Claude by charter (§0.2) — cost never downgrades the grader.
     "evaluator": "gpt-5.5",
 }
