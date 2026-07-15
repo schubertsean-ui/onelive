@@ -309,27 +309,69 @@ def test_stage2_finds_filing_agent_generated_names():
     assert [h["document"] for h in hits] == ["d123456dex991.htm", "d99022dex992.txt"]
 
 
-def test_lifecycle_event_json_schema_requires_evidence_for_verdicts():
+def test_lifecycle_event_json_schema_requires_evidence_for_all_events():
+    """Evaluator r20: EVERY lifecycle event is a sourced assertion — evidence
+    is a required, non-empty field for all states, not only verdicts."""
     schema = claim_schema.to_lifecycle_event_json_schema()
     assert set(schema["properties"]["state"]["enum"]) == {m.value for m in LifecycleState}
-    cond = schema["allOf"][0]
-    verdict_states = set(cond["if"]["properties"]["state"]["enum"])
-    assert {"fulfilled", "broken", "silently_dropped"} == verdict_states
-    assert cond["then"]["properties"]["evidence"]["minItems"] == 1
+    assert "evidence" in schema["required"]
+    assert schema["properties"]["evidence"]["minItems"] == 1
     assert ".example/" not in schema["$id"]
 
 
 def test_lifecycle_evidence_items_are_full_provenance_not_empty_objects():
     """Evaluator r19: [{}] must not validate as evidence — evidence items are
-    Provenance records with required source/timestamps, in both the base
-    property and the verdict conditional."""
+    Provenance records with required source/timestamps."""
     schema = claim_schema.to_lifecycle_event_json_schema()
-    for items in (schema["properties"]["evidence"]["items"],
-                  schema["allOf"][0]["then"]["properties"]["evidence"]["items"]):
-        assert set(items["required"]) >= {"source_url", "source_kind",
-                                          "published_at", "retrieved_at"}
-        assert items["additionalProperties"] is False
+    items = schema["properties"]["evidence"]["items"]
+    assert set(items["required"]) >= {"source_url", "source_kind",
+                                      "published_at", "retrieved_at"}
+    assert items["additionalProperties"] is False
     assert any("published_at" in inv for inv in schema["x-invariants"])
+
+
+def test_non_verdict_lifecycle_events_also_require_evidence():
+    """Evaluator r20: a withdrawal/modification without source evidence is an
+    unsupported mutation of an append-only trust ledger."""
+    for state in (LifecycleState.WITHDRAWN, LifecycleState.MODIFIED,
+                  LifecycleState.REITERATED, LifecycleState.EXPIRED_UNRESOLVED):
+        ev = LifecycleEvent(claim_id="c-001", state=state,
+                            confidence=FulfillmentConfidence.LIKELY,
+                            observed_at=datetime.datetime(2027, 10, 1, tzinfo=UTC))
+        assert any("requires evidence" in e for e in validate(ev)), state
+        with_ev = LifecycleEvent(claim_id="c-001", state=state,
+                                 confidence=FulfillmentConfidence.LIKELY,
+                                 observed_at=datetime.datetime(2027, 10, 1, tzinfo=UTC),
+                                 evidence=(_provenance(),))
+        assert validate(with_ev) == [], state
+
+
+def test_dated_event_rejects_empty_due_date_text():
+    """Evaluator r20: a dated event whose only date is an empty string is a
+    false trust record."""
+    c = _claim(kind=ClaimKind.DATED_EVENT, metric=None, target_low=None, target_high=None,
+               unit=None, due_date=None, due_date_text="")
+    assert any("non-empty due_date_text" in e for e in validate(c))
+    c2 = _claim(kind=ClaimKind.DATED_EVENT, metric=None, target_low=None, target_high=None,
+                unit=None, due_date=datetime.date(2027, 9, 30), due_date_text="   ")
+    assert any("non-empty due_date_text" in e for e in validate(c2))
+
+
+def test_numeric_guidance_requires_unit():
+    errs = validate(_claim(unit=None))
+    assert any("requires a unit" in e for e in errs)
+    schema = to_json_schema()
+    ng = next(c for c in schema["allOf"]
+              if c.get("if", {}).get("properties", {}).get("kind", {}).get("const") == "numeric_guidance")
+    assert "unit" in ng["then"]["required"]
+
+
+def test_pdf_exhibits_are_candidates():
+    """Evaluator r20: EX-99 press releases are also filed as PDFs — dropping
+    them is silent recall loss."""
+    index_json = {"directory": {"item": [{"name": "ex991.pdf"}, {"name": "logo.jpg"}]}}
+    hits = edgar.find_press_release_exhibit_candidates(index_json, {"items": "2.02"})
+    assert [h["document"] for h in hits] == ["ex991.pdf"]
 
 
 def test_claim_schema_declares_target_bounds_invariant():

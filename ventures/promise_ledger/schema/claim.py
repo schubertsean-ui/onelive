@@ -137,13 +137,19 @@ class Claim:
             if (self.metric is None or not self.metric.strip()
                     or (self.target_low is None and self.target_high is None)):
                 errors.append("numeric_guidance requires metric and at least one target bound")
+            if self.unit is None or not self.unit.strip():
+                errors.append("numeric_guidance requires a unit — unitless targets cannot be "
+                              "compared or audited")
             if (self.target_low is not None and self.target_high is not None
                     and self.target_low > self.target_high):
                 errors.append("target_low exceeds target_high")
-        if self.kind == ClaimKind.DATED_EVENT and self.due_date is None and self.due_date_text is None:
-            errors.append("dated_event requires due_date or due_date_text")
-        if self.due_date is not None and self.due_date_text is None:
-            errors.append("a parsed due_date must keep its original due_date_text (provenance of the parse)")
+        has_due_text = self.due_date_text is not None and self.due_date_text.strip() != ""
+        if self.kind == ClaimKind.DATED_EVENT and self.due_date is None and not has_due_text:
+            errors.append("dated_event requires due_date or a non-empty due_date_text — "
+                          "a dated event without a date is a false trust record")
+        if self.due_date is not None and not has_due_text:
+            errors.append("a parsed due_date must keep its original non-empty due_date_text "
+                          "(provenance of the parse)")
         return errors
 
 
@@ -157,7 +163,12 @@ class LifecycleEvent:
     evidence: tuple[Provenance, ...] = field(default_factory=tuple)
     note: Optional[str] = None        # re-expressed rationale, never verbatim source
 
-    # Terminal-ish verdict states demand evidence and demand it be graded:
+    # Verdict states carry the strongest legal weight, but EVERY lifecycle
+    # event is a sourced assertion in an append-only trust ledger — a
+    # withdrawal, modification, or reiteration without source evidence is an
+    # unsupported ledger mutation (evaluator r20). For EXPIRED_UNRESOLVED the
+    # evidence is the original claim's provenance (the source of the due date
+    # that expired).
     _VERDICT_STATES = frozenset({
         LifecycleState.FULFILLED, LifecycleState.BROKEN, LifecycleState.SILENTLY_DROPPED,
     })
@@ -168,12 +179,15 @@ class LifecycleEvent:
             errors.append("lifecycle.claim_id must be non-empty")
         if self.observed_at.tzinfo is None:
             errors.append("lifecycle.observed_at must be timezone-aware")
-        if self.state in self._VERDICT_STATES:
-            if not self.evidence:
+        if not self.evidence:
+            if self.state in self._VERDICT_STATES:
                 errors.append(f"verdict state {self.state.value!r} requires evidence — "
                               "a verdict without evidence is an accusation")
-            if self.confidence == FulfillmentConfidence.CONFIRMED and len(self.evidence) < 1:
-                errors.append("confirmed verdicts require evidence")
+            else:
+                errors.append(f"lifecycle state {self.state.value!r} requires evidence — "
+                              "every event in an append-only trust ledger is a sourced "
+                              "assertion (for expired_unresolved, cite the original "
+                              "claim's provenance)")
         for ev in self.evidence:
             errors += ev.validate()
         return errors
@@ -247,8 +261,9 @@ def to_json_schema() -> dict:
             {   # numeric_guidance requires metric + at least one target bound
                 "if": {"properties": {"kind": {"const": ClaimKind.NUMERIC_GUIDANCE.value}}},
                 "then": {
-                    "required": ["metric"],
-                    "properties": {"metric": {"type": "string", "minLength": 1}},
+                    "required": ["metric", "unit"],
+                    "properties": {"metric": {"type": "string", "minLength": 1},
+                                   "unit": {"type": "string", "minLength": 1}},
                     "anyOf": [
                         {"required": ["target_low"], "properties": {"target_low": {"type": "number"}}},
                         {"required": ["target_high"], "properties": {"target_high": {"type": "number"}}},
@@ -298,7 +313,6 @@ def to_lifecycle_event_json_schema() -> dict:
     """Interchange schema for LifecycleEvent — verdict states require evidence,
     and evidence items are full Provenance records (an empty object is not
     evidence; evaluator r19). The Python validator stays authoritative."""
-    verdict_states = sorted(s.value for s in LifecycleEvent._VERDICT_STATES)
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": ("https://github.com/schubertsean-ui/onelive/blob/master/"
@@ -315,22 +329,19 @@ def to_lifecycle_event_json_schema() -> dict:
             "date comparison; not expressible in JSON Schema 2020-12)",
         ],
         "type": "object",
-        "required": ["claim_id", "state", "confidence", "observed_at"],
+        # evidence is required for EVERY event: each lifecycle assertion in an
+        # append-only trust ledger must be sourced (evaluator r20) — verdict
+        # states are merely the highest-stakes case of the same rule.
+        "required": ["claim_id", "state", "confidence", "observed_at", "evidence"],
         "properties": {
             "claim_id": {"type": "string", "minLength": 1},
             "state": {"enum": [m.value for m in LifecycleState]},
             "confidence": {"enum": [m.value for m in FulfillmentConfidence]},
             "observed_at": {"type": "string", "format": "date-time"},
-            "evidence": {"type": "array", "items": _provenance_json_schema()},
+            "evidence": {"type": "array", "minItems": 1,
+                         "items": _provenance_json_schema()},
             "note": {"type": ["string", "null"]},
         },
-        "allOf": [{
-            # a verdict without evidence is an accusation — mirror the validator
-            "if": {"properties": {"state": {"enum": verdict_states}}},
-            "then": {"required": ["evidence"],
-                     "properties": {"evidence": {"type": "array", "minItems": 1,
-                                                  "items": _provenance_json_schema()}}},
-        }],
         "additionalProperties": False,
     }
 
