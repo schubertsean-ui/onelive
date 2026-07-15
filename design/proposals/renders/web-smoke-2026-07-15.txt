@@ -1,0 +1,20 @@
+== web smoke, 2026-07-15, build-session sandbox (commands reproducible from web/) ==
+$ npx tsc --noEmit
+tsc exit: 0
+
+$ npm test
+ Test Files  3 passed (3)
+      Tests  25 passed (25)
+   Start at  15:39:06
+   Duration  281ms (transform 151ms, setup 0ms, import 228ms, tests 36ms, environment 0ms)
+
+
+$ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_... npm run build
+  └ other shared chunks (total)          2.39 kB
+
+
+ƒ Middleware                              167 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

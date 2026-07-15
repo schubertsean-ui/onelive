@@ -92,24 +92,50 @@ the Claude Code session container, NOT in CI — this diff touches no `web/`
 files, so the CI web gate correctly reports "not applicable" for it. The
 same checks re-run mechanically in CI the moment Step 9 touches `web/`.
 
-- Mockup rendering: all three files rendered in headless Chromium
-  (`chromium --headless --screenshot file://…`); the committed evidence is
-  in `renders/` (one PNG per direction, regenerated after every mockup
-  edit). The `<details>` uncertainty sheets work without JavaScript.
+- Mechanical compliance tests that CAN fail: `tests/test_design_proposals.py`
+  runs in CI's pytest on every PR and asserts verbatim canon copy, zero
+  trust-badge vocabulary in visible text, zero banned glyphs/native emoji,
+  the uncertainty icon being a real `<details>` control with a venue-linked
+  sheet, light mode implemented (not promised), and an accessible `mood:`
+  text equivalent on every glyph. Proof it bites: its first run caught
+  direction 2's masthead hardcoding "TONIGHT IN AUSTIN" instead of the
+  verbatim string (now canon text + CSS transform). Pixel-level contrast
+  and target-size verification joins `tools/visual_regression.py` at
+  Step 9 when baselines exist (R-002's standing trigger).
+- Mockup rendering: all three files rendered in headless Chromium in BOTH
+  modes; committed evidence: `design/proposals/renders/<direction>-dark.png`
+  and `design/proposals/renders/<direction>-light.png` (regenerated after
+  every mockup edit). The `<details>` uncertainty sheets work without
+  JavaScript.
 - Web app smoke for Step 9 (`web/`, unchanged by this PR): `npx tsc
   --noEmit` exit 0 · `npm test` 25/25 · `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
   pk_test_… npm run build` green; `/tonight` prerendered static, 184 kB
-  first-load JS. Captured output: `renders/web-smoke-2026-07-15.log`.
-  Anyone can reproduce with those three commands from `web/`.
+  first-load JS. Captured output:
+  `design/proposals/renders/web-smoke-2026-07-15.txt` (`.txt` because the
+  repo `.gitignore` excludes `*.log` — the evaluator caught the original
+  log silently failing to commit). Reproduce with those three commands
+  from `web/`.
 
-## Deferral (recorded, R-014)
+## Light mode (implemented, not deferred)
 
-Light mode ships as palette specifications here, not as rendered comps —
-rendering three full light variants for two directions that will be
-discarded fails least-costly-method-first. Objective trigger in
-`docs/RECORD.md` R-014: the founder picks a direction → the Step 9
-implementation PR ships the WINNER's light-mode render + visual-regression
-baseline (light + dark), closing the gap where it matters.
+All three directions implement light mode via `html.light` variable
+overrides in the same file — class-toggled so both modes render
+deterministically in headless capture; the Step 9 implementation binds it
+to `prefers-color-scheme` plus a user toggle. Light renders for ALL three
+directions are committed alongside the dark ones (see `renders/`), so the
+founder chooses from complete comps. R-014 is RESOLVED by this change.
+
+## Step 9 implementation checklist (carried from these comps)
+
+- Replace every `href="#"` placeholder (venue site, map, tickets) with
+  real links — a dead "double-check with the venue" link would undermine
+  the exact trust affordance it exists for.
+- Non-`<details>` controls in these comps are visual-only placeholders
+  (marked in each file's header comment); implement as real, focusable,
+  keyboard-operable elements.
+- License the specified faces (Fraunces / Space Grotesk / Archivo) —
+  mockups use system fallbacks.
+- Winner's visual-regression baselines: light + dark (closes R-002).
 
 ## What happens next
 

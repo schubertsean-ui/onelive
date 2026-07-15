@@ -22,9 +22,21 @@
   :root{
     --bg:#0A0E16; --surface:#111827; --raised:#182236; --ink:#EAF1FF;
     --muted:#8FA0BD; --live:#63E0D2; --stage:#FF7A9C; --line:#223049;
+    --on-accent:#04110F; --page:#060910; --chrome:#080C13;
   }
+  /* LIGHT MODE — real, class-toggled (html.light); production uses
+     prefers-color-scheme + a toggle. */
+  html.light{--bg:#F4F7FB; --surface:#FFFFFF; --raised:#E7EDF6; --ink:#101826;
+    --muted:#5A6A85; --live:#0E8C7F; --stage:#C6355F; --line:#DCE4F0;
+    --on-accent:#FFFFFF; --page:#E9EEF5; --chrome:#EFF3F9}
+  html.light [stroke="#63E0D2"]{stroke:#0E8C7F}
+  html.light [fill="#63E0D2"]{fill:#0E8C7F}
+  html.light [fill="#111827"]{fill:var(--surface)}
+  html.light [stroke="#8FA0BD"]{stroke:#5A6A85}
+  html.light .genre{border-color:rgba(14,140,127,.5)}
+  .pulse path{stroke:var(--live)}
   *{margin:0;padding:0;box-sizing:border-box}
-  body{background:#060910;color:var(--ink);font-family:ui-sans-serif,system-ui,"Segoe UI",Helvetica,Arial,sans-serif;padding:24px;line-height:1.45}
+  body{background:var(--page);color:var(--ink);font-family:ui-sans-serif,system-ui,"Segoe UI",Helvetica,Arial,sans-serif;padding:24px;line-height:1.45}
   .direction-header{max-width:1200px;margin:0 auto 28px}
   .direction-header h1{font-size:28px;letter-spacing:.04em;font-weight:800;text-transform:uppercase}
   .direction-header p{color:var(--muted);max-width:860px;margin-top:8px;font-size:14px}
@@ -32,11 +44,11 @@
   .chip{width:64px;height:36px;border-radius:6px;border:1px solid var(--line);display:flex;align-items:flex-end;justify-content:center;font-size:8px;color:#000;padding-bottom:2px}
   .frames{display:flex;gap:28px;max-width:1200px;margin:0 auto;flex-wrap:wrap;align-items:flex-start}
   .frame{width:360px;background:var(--bg);border:1px solid var(--line);border-radius:28px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55)}
-  .frame-label{text-align:center;color:var(--muted);font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:10px 0;border-bottom:1px solid var(--line);background:#080C13}
+  .frame-label{text-align:center;color:var(--muted);font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:10px 0;border-bottom:1px solid var(--line);background:var(--chrome)}
   .app{padding:18px 16px 24px;min-height:640px;background:var(--bg)}
 
   .masthead{display:flex;align-items:baseline;justify-content:space-between}
-  .masthead h2{font-size:22px;font-weight:800;letter-spacing:.02em}
+  .masthead h2{font-size:22px;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
   .masthead .date{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
   .tagline{color:var(--muted);font-size:11.5px;margin:2px 0 10px}
   /* THE PULSE — one citywide line, alive right now */
@@ -46,7 +58,7 @@
 
   .tabs{display:flex;gap:6px;margin-bottom:14px}
   .tab{padding:10px 14px;min-height:44px;display:flex;align-items:center;border-radius:10px;font-size:13px;color:var(--muted);border:1px solid var(--line);font-variant-numeric:tabular-nums}
-  .tab[aria-selected="true"]{color:#04110F;background:var(--live);border-color:var(--live);font-weight:700}
+  .tab[aria-selected="true"]{color:var(--on-accent);background:var(--live);border-color:var(--live);font-weight:700}
   .filter-entry{margin-left:auto;padding:10px 12px;min-height:44px;display:flex;align-items:center;gap:6px;border-radius:10px;border:1px solid var(--line);color:var(--muted);font-size:13px}
 
   /* card: angled current-cut corner */
@@ -90,17 +102,18 @@
   .flabel{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
   .fgrid{display:flex;flex-wrap:wrap;gap:8px}
   .fopt{padding:10px 14px;min-height:44px;display:flex;align-items:center;border-radius:10px;border:1px solid var(--line);font-size:13px;color:var(--ink)}
-  .fopt.on{background:var(--live);color:#04110F;border-color:var(--live);font-weight:700}
+  .fopt.on{background:var(--live);color:var(--on-accent);border-color:var(--live);font-weight:700}
   .search{width:100%;min-height:44px;background:var(--surface);border:1px solid var(--line);border-radius:10px;color:var(--muted);padding:0 14px;font-size:13.5px;display:flex;align-items:center}
   .panel-actions{display:flex;gap:10px;margin-top:22px}
-  .apply{flex:1;min-height:48px;border-radius:10px;background:var(--live);color:#04110F;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;letter-spacing:.02em}
+  .apply{flex:1;min-height:48px;border-radius:10px;background:var(--live);color:var(--on-accent);font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;letter-spacing:.02em}
   .clear{min-height:48px;padding:0 18px;border-radius:10px;border:1px solid var(--line);color:var(--muted);font-size:14px;display:flex;align-items:center}
 
   .back{color:var(--muted);font-size:13px;margin-bottom:14px;display:block}
   .d-artist{font-size:26px;font-weight:800;line-height:1.1;letter-spacing:.01em}
   .player{margin-top:16px;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;align-items:center;gap:12px}
   .play-btn{width:44px;height:44px;border-radius:10px;background:var(--live);display:flex;align-items:center;justify-content:center;flex:none}
-  .wave{flex:1;height:26px;background:repeating-linear-gradient(90deg,#2A3A58 0 2px,transparent 2px 6px);border-radius:4px}
+  .play-btn svg path{fill:var(--on-accent)}
+  .wave{flex:1;height:26px;background:repeating-linear-gradient(90deg,var(--line) 0 2px,transparent 2px 6px);border-radius:4px}
   .facts{margin-top:18px;border-top:1px solid var(--line)}
   .fact{display:flex;justify-content:space-between;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line);font-size:13.5px}
   .fact .k{color:var(--muted)}
@@ -108,12 +121,15 @@
   .fact .v a{color:var(--live);text-decoration:none}
   .d-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
   .d-btn{min-height:46px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:13px;display:flex;align-items:center;gap:7px}
-  .d-btn.primary{background:var(--live);color:#04110F;border-color:var(--live);font-weight:800}
+  .d-btn.primary{background:var(--live);color:var(--on-accent);border-color:var(--live);font-weight:800}
   .something-off{display:block;text-align:center;color:var(--muted);font-size:12px;margin-top:20px;text-decoration:none;opacity:.75}
   .lightmode-note{max-width:1200px;margin:26px auto 0;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px}
 </style>
 </head>
 <body>
+<!-- STATIC VISUAL COMP: aside from the <details> uncertainty sheets, controls
+     (tabs, buttons, links) are intentionally non-interactive placeholders here;
+     Step 9 implements them as real, focusable, keyboard-operable elements. -->
 
 <header class="direction-header">
   <h1>Direction 2 of 3 — CURRENT <span style="color:#8FA0BD;font-size:15px;font-weight:400;text-transform:none">electric / kinetic · "city energy, motion implied in stillness"</span></h1>
@@ -136,7 +152,7 @@
     <div class="frame-label">Screen 1 · Tonight Feed</div>
     <div class="app">
       <div class="masthead">
-        <h2>TONIGHT IN AUSTIN</h2>
+        <h2>Tonight in Austin</h2>
         <span class="date">07·15</span>
       </div>
       <div class="tagline">Less chaos. Real shows.</div>

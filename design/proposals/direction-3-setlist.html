@@ -23,9 +23,18 @@
   :root{
     --bg:#121214; --surface:#1A1A1D; --ink:#EDEAE3; --muted:#9C978C;
     --stamp:#E4572E; --line:#2E2E33;
+    --page:#0C0C0E; --chrome:#0E0E10;
   }
+  /* LIGHT MODE — real, class-toggled (html.light); production uses
+     prefers-color-scheme + a toggle. Newsprint is native terrain here. */
+  html.light{--bg:#F7F5F0; --surface:#FFFFFF; --ink:#17171A; --muted:#6B675E;
+    --stamp:#C23A17; --line:#E2DFD7; --page:#ECE9E2; --chrome:#F2EFE9}
+  html.light [stroke="#E4572E"]{stroke:#C23A17}
+  html.light [fill="#E4572E"]{fill:#C23A17}
+  html.light [fill="#121214"]{fill:var(--surface)}
+  html.light [stroke="#9C978C"]{stroke:#6B675E}
   *{margin:0;padding:0;box-sizing:border-box}
-  body{background:#0C0C0E;color:var(--ink);font-family:ui-sans-serif,system-ui,"Segoe UI",Helvetica,Arial,sans-serif;padding:24px;line-height:1.45}
+  body{background:var(--page);color:var(--ink);font-family:ui-sans-serif,system-ui,"Segoe UI",Helvetica,Arial,sans-serif;padding:24px;line-height:1.45}
   .direction-header{max-width:1200px;margin:0 auto 28px}
   .direction-header h1{font-size:28px;font-weight:800;letter-spacing:.01em;font-stretch:condensed}
   .direction-header p{color:var(--muted);max-width:860px;margin-top:8px;font-size:14px}
@@ -33,14 +42,14 @@
   .chip{width:64px;height:36px;border-radius:6px;border:1px solid var(--line);display:flex;align-items:flex-end;justify-content:center;font-size:8px;color:#000;padding-bottom:2px}
   .frames{display:flex;gap:28px;max-width:1200px;margin:0 auto;flex-wrap:wrap;align-items:flex-start}
   .frame{width:360px;background:var(--bg);border:1px solid var(--line);border-radius:28px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
-  .frame-label{text-align:center;color:var(--muted);font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:10px 0;border-bottom:1px solid var(--line);background:#0E0E10}
+  .frame-label{text-align:center;color:var(--muted);font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:10px 0;border-bottom:1px solid var(--line);background:var(--chrome)}
   .app{padding:18px 16px 24px;min-height:640px;background:var(--bg)}
 
   /* EDITION MASTHEAD */
   .edition{border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:2px}
   .edition .no{display:flex;justify-content:space-between;color:var(--muted);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:6px}
   .edition h2{font-size:30px;font-weight:900;letter-spacing:-.01em;line-height:.95;text-transform:uppercase;font-stretch:condensed}
-  .tagline{color:var(--muted);font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin:8px 0 12px}
+  .tagline{color:var(--muted);font-size:12px;letter-spacing:.06em;margin:8px 0 12px}
   .tabs{display:flex;gap:0;margin-bottom:6px;border-bottom:1px solid var(--line)}
   .tab{padding:12px 14px;min-height:44px;display:flex;align-items:center;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
   .tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--stamp);font-weight:700}
@@ -87,13 +96,14 @@
   .fopt.on{border-color:var(--stamp);color:var(--stamp);font-weight:800}
   .search{width:100%;min-height:44px;background:var(--surface);border:1px solid var(--line);color:var(--muted);padding:0 14px;font-size:13.5px;display:flex;align-items:center}
   .panel-actions{display:flex;gap:10px;margin-top:22px}
-  .apply{flex:1;min-height:48px;background:var(--ink);color:#121214;font-weight:900;font-size:13px;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;justify-content:center}
+  .apply{flex:1;min-height:48px;background:var(--ink);color:var(--bg);font-weight:900;font-size:13px;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;justify-content:center}
   .clear{min-height:48px;padding:0 18px;border:1px solid var(--line);color:var(--muted);font-size:13px;display:flex;align-items:center}
 
   .back{color:var(--muted);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:14px;display:block}
   .d-artist{font-size:34px;font-weight:900;line-height:.95;text-transform:uppercase;font-stretch:condensed}
   .player{margin-top:16px;background:var(--surface);border:1px solid var(--line);padding:14px;display:flex;align-items:center;gap:12px}
   .play-btn{width:44px;height:44px;background:var(--ink);display:flex;align-items:center;justify-content:center;flex:none}
+  .play-btn svg path{fill:var(--bg)}
   .wave{flex:1;height:26px;background:repeating-linear-gradient(90deg,var(--line) 0 2px,transparent 2px 7px)}
   .facts{margin-top:18px;border-top:2px solid var(--ink)}
   .fact{display:flex;justify-content:space-between;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line);font-size:13.5px}
@@ -102,12 +112,15 @@
   .fact .v a{color:var(--stamp);text-decoration:none}
   .d-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
   .d-btn{min-height:46px;padding:0 16px;border:1px solid var(--line);background:transparent;color:var(--ink);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:7px}
-  .d-btn.primary{background:var(--ink);color:#121214;border-color:var(--ink);font-weight:800}
+  .d-btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:800}
   .something-off{display:block;text-align:center;color:var(--muted);font-size:12px;margin-top:20px;text-decoration:none;opacity:.75}
   .lightmode-note{max-width:1200px;margin:26px auto 0;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px}
 </style>
 </head>
 <body>
+<!-- STATIC VISUAL COMP: aside from the <details> uncertainty sheets, controls
+     (tabs, buttons, links) are intentionally non-interactive placeholders here;
+     Step 9 implements them as real, focusable, keyboard-operable elements. -->
 
 <header class="direction-header">
   <h1>Direction 3 of 3 — SETLIST <span style="color:#9C978C;font-size:15px;font-weight:400">editorial / monumental · "quiet authority, type-led, archival confidence"</span></h1>
@@ -133,7 +146,7 @@
         <div class="no"><span>No. 197</span><span>Tue · Jul 15</span></div>
         <h2>Tonight in Austin</h2>
       </div>
-      <div class="tagline">Less chaos · Real shows</div>
+      <div class="tagline">Less chaos. Real shows.</div>
       <div class="tabs" role="tablist">
         <span class="tab" role="tab" aria-selected="true">Today</span>
         <span class="tab" role="tab" aria-selected="false">Tomorrow</span>
