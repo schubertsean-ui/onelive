@@ -11,9 +11,11 @@
   computed per venue at Step 9. "More venues" links to OUR OWN Tonight
   feed — OneLive's inventory is the more-venues answer, no third party
   needed.
-- **Tier 2 — objective trigger:** in-app nearby places via
-  OpenStreetMap/Overpass (free, ODbL attribution required, real build:
-  fetch + cache + POI schema). Trigger: Step 9 is live AND usage evidence
+- **Tier 2 — objective trigger:** in-app nearby places from OpenStreetMap
+  data (ODbL attribution required; real build: fetch + cache + POI
+  schema). NOTE: the public Overpass API is a shared courtesy service,
+  not a production backend — Tier 2 means aggressive caching plus either
+  self-hosted extracts or a managed OSM provider, costed at design time. Trigger: Step 9 is live AND usage evidence
   that fans want nearby without leaving the app (e.g. Nearby tap-through
   becomes a top-5 detail-screen action). Not before — building POI
   infrastructure for a stealth-gated site is spend without signal.
@@ -33,7 +35,10 @@ in-app list (reviews, hours, photos).
 
 ## Trust screen
 
-Nearby results in Tiers 1 are the maps provider's own — OneLive neither
-ranks nor filters them, so no pay-to-rank surface can exist. If Tier 2+
-ever renders nearby lists in-app, discovery-neutrality applies: distance
-sort only, no sponsorship, disputed-venue rules unchanged.
+Stated at its true width (corrected per evaluator, PR #20): OneLive does
+not rank, filter, or sell placement in Tier 1 results — but the external
+maps provider controls its own ranking and may include ITS OWN sponsored
+placements. OneLive's guarantee covers OneLive's surfaces; the link-out
+destination is disclosed as the provider's, not ours. If Tier 2+ ever
+renders nearby lists in-app, the full guarantee applies to that surface:
+distance sort only, no sponsorship, disputed-venue rules unchanged.
