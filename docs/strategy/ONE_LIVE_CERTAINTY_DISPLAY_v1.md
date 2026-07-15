@@ -1,6 +1,6 @@
 # ONE LIVE — Certainty, Trust & the Fifth-State Question (v1)
 
-**Compiled 2026-07-15 · Status: PROPOSAL (founder question: "Do we need a fifth state?"). The 4-state model itself is CONFIRMED canon (founder, 2026-07-15: "confirmed") — this doc addresses whether to EXTEND it.**
+**Compiled 2026-07-15 · Status: PROPOSAL — a researched RECOMMENDATION (answer: NO fifth state) to the founder's question "Do we need a fifth state?". NOT yet ratified: it becomes canon on founder acceptance (one line) or via Step 7 design ratification, whichever comes first. What IS already canon, independent of this doc: the 4-state model itself (founder, 2026-07-15: "confirmed") — nothing here may be read as license to add states.**
 
 Greppable summary: researched recommendation — **NO fifth state.** The
 things a fifth state would try to express (freshness, event status,
@@ -25,9 +25,7 @@ trust through consistency; a 5th erodes the schema for marginal precision.
    register. Hedging everything, however, numbs users; states must stay
    few and meaningful.
 2. **Likelihood and confidence are two different judgments.** Intelligence
-   tradecraft ([Kent's words of estimative probability](https://en.wikipedia.org/wiki/Words_of_estimative_probability);
-   [ICD 203 analytic standards](https://factually.co/fact-checks/politics/how-icd-203-intelligence-analytic-standards-confidence-levels-work-why-they-matter-1d3959);
-   [analytic confidence](https://en.wikipedia.org/wiki/Analytic_confidence))
+   tradecraft (primary: [ICD 203, Analytic Standards — ODNI](https://www.dni.gov/files/documents/ICD/ICD-203.pdf); Sherman Kent, "Words of Estimative Probability," *Studies in Intelligence* (CIA, 1964), [accessible text](https://www.globalsecurity.org/intell/ops/probability.htm); orientation: [overview](https://en.wikipedia.org/wiki/Words_of_estimative_probability), [analytic confidence](https://en.wikipedia.org/wiki/Analytic_confidence))
    deliberately separates "how likely is X" from "how good is the
    evidence behind that judgment." Our 4 states are the likelihood-facing
    surface; evidence quality (source count, provenance class, recency)
@@ -75,9 +73,10 @@ one of the existing four *plus the attributes below*? Candidates examined:
 - **Separate field — `event_status`:** scheduled · cancelled · postponed
   · moved (each carrying its own confidence state). Design at Step 7.
 
-## Founder ask
-None required to proceed — this proposal keeps the confirmed 4-state canon
-intact and adds no build-now work (Axis 2/3 + `event_status` ride Step 7's
-existing triggers). If the fifth-state question resurfaces, the decision
-test above is the bar a candidate must pass, with a founder decision
-record either way.
+## Founder ask (one line, whenever convenient — nothing builds before Step 7 either way)
+Reply "display stack accepted" to ratify this recommendation as canon, or
+name a fifth-state candidate to run through the decision test above. Until
+then this remains a PROPOSAL: the confirmed 4-state canon is untouched, no
+build-now work exists (Axis 2/3 + `event_status` ride Step 7's triggers),
+and Step 7's design review re-presents this doc for ratification if the
+founder hasn't answered by then.
