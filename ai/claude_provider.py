@@ -67,20 +67,31 @@ def _resolve_extraction_model(explicit: Optional[str]) -> str:
     """Resolve the extraction model THROUGH the routing gate (single source).
 
     The trust invariant lives at this entry point, not only in the tool
-    (evaluator finding, PR #21 round 1 — same class as the reviewer-slot
-    fix in PR #14): with no explicit model, resolution delegates to
-    tools.model_router.resolve_model("extraction"), which fails closed
-    until the golden-set gate ships and passes (R-013; bar ratified <=1%
-    per R-006), honors ONELIVE_MODEL_EXTRACTION / legacy
-    ONELIVE_CLAUDE_MODEL with present-but-empty rejected, and single-
-    sources the model id so a stale local default cannot drift again
-    (the retired claude-3-5-sonnet-latest 404'd on the first real run).
+    (evaluator findings, PR #21 rounds 1-2 — same class as the reviewer-
+    slot fix in PR #14), and it gates EVERY construction path: the R-013
+    block (no extraction until the golden-set gate ships and passes; bar
+    ratified <=1% per R-006) is checked FIRST, so an explicit `model=`
+    argument cannot bypass it — explicit selects WHICH model once
+    extraction is permitted at all, never WHETHER. The flag is read from
+    the live module state so the Step 6 flip (and test fixtures that
+    legitimately open the gate to exercise provider mechanics) take
+    effect without import-order games.
 
-    An EXPLICIT model argument is the test/caller-owned channel (fakes,
-    harness runs against a specific candidate model): it bypasses the
-    routing gate deliberately but fails closed on empty/whitespace — a
-    blank explicit value is misconfiguration, never "use the default".
+    With no explicit model, resolution delegates to resolve_model(
+    "extraction"): env chain ONELIVE_MODEL_EXTRACTION > legacy
+    ONELIVE_CLAUDE_MODEL > policy default, present-but-empty rejected,
+    id single-sourced so a stale local default cannot drift again (the
+    retired claude-3-5-sonnet-latest 404'd on the first real run).
+    Explicit values fail closed on empty/whitespace — blank is
+    misconfiguration, never "use the default".
     """
+    import tools.model_router as _router
+    if not _router.EXTRACTION_THRESHOLD_RATIFIED:
+        raise ExtractionConfigError(
+            "extraction is fail-closed until the golden-set gate ships and "
+            "passes (docs/RECORD.md R-013; bar ratified <=1% per R-006) — "
+            "an explicit model argument does not bypass the gate."
+        )
     if explicit is not None:
         if not explicit.strip():
             raise ExtractionConfigError(
@@ -88,9 +99,8 @@ def _resolve_extraction_model(explicit: Optional[str]) -> str:
                 "model id or pass None to use the routing policy."
             )
         return explicit.strip()
-    from tools.model_router import resolve_model
     try:
-        return resolve_model("extraction")
+        return _router.resolve_model("extraction")
     except (KeyError, ValueError) as exc:
         raise ExtractionConfigError(str(exc)) from exc
 

@@ -10,6 +10,16 @@ lock in the trust-critical behavior:
 import pytest
 
 from ai.claude_provider import ClaudeProvider, ExtractionConfigError, PROMPT_VERSION
+
+
+@pytest.fixture(autouse=True)
+def _open_extraction_gate(monkeypatch):
+    """These tests exercise provider MECHANICS (retries, provenance, audit),
+    so they run with the R-013 routing gate explicitly opened. The gate
+    itself — including that explicit model= cannot bypass it — is proven in
+    tests/test_run_outcome_and_extraction_model.py."""
+    import tools.model_router as mr
+    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", True)
 from ai.eval_harness import score_extraction, aggregate, evaluate_extraction
 
 

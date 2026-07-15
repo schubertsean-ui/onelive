@@ -74,10 +74,20 @@ def test_provider_empty_env_fails_closed_via_router(monkeypatch):
         ClaudeProvider(api_key="test")
 
 
-def test_explicit_model_channel_fails_closed_on_blank():
-    """The test/caller-owned explicit channel must not fail open either:
+def test_explicit_model_does_not_bypass_the_gate():
+    """R-013 gates WHETHER extraction runs; explicit model= only selects
+    WHICH model once permitted (evaluator finding, PR #21 r2) — while the
+    golden-set gate is unshipped, every construction path is blocked."""
+    with pytest.raises(ExtractionConfigError, match="does not bypass"):
+        ClaudeProvider(api_key="test", model="claude-test")
+
+
+def test_explicit_model_channel_fails_closed_on_blank(monkeypatch):
+    """With the gate open, the explicit channel still must not fail open:
     model="" or whitespace is misconfiguration, never 'use the default'
     (evaluator finding, PR #21 r1)."""
+    import tools.model_router as mr
+    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", True)
     for blank in ("", "   "):
         with pytest.raises(ExtractionConfigError, match="empty/whitespace"):
             ClaudeProvider(api_key="test", model=blank)

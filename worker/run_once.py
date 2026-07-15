@@ -246,7 +246,10 @@ def _run_real(max_sources: int | None = None) -> int:
     print(f"  counts:   {report.counts}")
     for r in report.results:
         print(f"  - {r.source_name}: stage={r.stage_reached} decision={r.decision} detail={r.detail}")
-    enforce_useful_work(report.counts, len(sources))
+    # Attempted = per-source results actually recorded by the loop (a source
+    # skipped before attempt has no result row), falling back to the input
+    # list only if the report carries none — evaluator nit, PR #21 r2.
+    enforce_useful_work(report.counts, len(report.results) or len(sources))
     return 0
 
 
