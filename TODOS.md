@@ -42,6 +42,8 @@ Check items off in the same commit that completes them; don't batch-remove.
 ## Founder decisions needed (cannot be resolved by an agent — do not silently pick one)
 - [x] (P1) Confirm 4-state confidence model finalized — **CONFIRMED by founder 2026-07-15 ("confirmed")**. This closes the 4-state decision ONLY.
 - [x] (P2) **Certainty Display Stack proposal (fifth-state question)** — **RATIFIED by founder 2026-07-15 ("Display stack accepted")**: NO fifth state; state (frozen at 4) × freshness × provenance compose; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, now canon). Axes 2/3 + event_status build at Step 7.
+- [ ] (P1) **Ratify the genre taxonomy Layer-1 eighteen** — docs/strategy/ONE_LIVE_GENRE_TAXONOMY_v1.md (standards-aligned core incl. R&B/Soul; today's 8 map losslessly; Layers 0/2 + synonym lexicon proceed as config once the 18 are set) — owner: founder — resolves the G-VT genre gap the voice personas exposed.
+- [ ] (P1) **Ratify member preferences/connections phasing** — docs/strategy/ONE_LIVE_MEMBER_PREFERENCES_v1.md (P1 on-device defaults at Step 9 · P2 account favorites incl. any-place venue types · P3 Spotify/Apple playlist OAuth = founder-crucial services; personalization is a lens never a gate) — owner: founder.
 - [ ] (P2) Trust framework naming: drop "ESIM" 3-pillar branding, or relabel as OneLive's own framing — owner: founder.
 - [ ] (P1) Monitoring stack: Vercel Analytics + Supabase logs to start, Sentry before public launch — owner: founder — confirm timing.
 - [ ] (P2) Payments: Stripe Connect only, or keep Trolley for international creator payouts — owner: founder.

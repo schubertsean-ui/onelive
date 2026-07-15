@@ -280,6 +280,36 @@ def test_nearby_chips_are_working_deep_links(direction):
     )
 
 
+def test_touch_targets_meet_44px_claim(direction):
+    """Round 10: the comps claim ≥44px touch targets; the suite must be
+    able to fail on a undersized control. Static check: every interactive
+    class's CSS rule must declare min-height (or fixed size) ≥44px."""
+    name, html = direction
+    css = re.search(r"<style\b.*?</style>", html, flags=re.S).group(0)
+    interactive = ["tab", "grail", "fopt", "apply", "clear", "d-btn",
+                   "hear", "sample", "back", "filter-entry", "search"]
+    for cls in interactive:
+        rules = re.findall(rf"[.\w]*\.{cls}\{{([^}}]*)\}}", css)
+        assert rules, f"{name}: no CSS rule found for interactive class .{cls}"
+        sized = any(
+            re.search(r"min-height:\s*(4[4-9]|[5-9]\d)px", r) or
+            re.search(r"height:\s*(4[4-9]|[5-9]\d)px", r)
+            for r in rules
+        )
+        assert sized, f"{name}: .{cls} has no ≥44px target sizing — claim violated"
+    # play button + quiet-icon summary are sized via explicit width/height
+    assert re.search(r"\.play-btn\{[^}]*width:44px;height:44px", css), (
+        f"{name}: play button not 44px"
+    )
+    assert re.search(r"details\.quiet>summary\{[^}]*width:44px;height:44px", css), (
+        f"{name}: uncertainty icon summary not 44px"
+    )
+    # open-hint links get a 44px hit area
+    assert re.search(r"a\.open-hint\{[^}]*min-height:44px", css), (
+        f"{name}: Details › link lacks 44px hit area"
+    )
+
+
 def test_fixture_labeling_visible_in_frames(direction):
     """Round 6 nit: real venues + fictional artists must be labeled as
     fixture content inside the frames, not only in README prose."""
