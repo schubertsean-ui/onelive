@@ -296,6 +296,39 @@ def test_stage2_finds_ex99_exhibits_with_honest_confidence():
     assert all(h["confidence"] == "unverified" for h in hits2)
 
 
+def test_stage2_finds_filing_agent_generated_names():
+    """Evaluator r18: EDGAR archives commonly use filing-agent generated names
+    like d123456dex991.htm with no separator before 'ex99' — those are real
+    press-release exhibits and must not be silently dropped."""
+    index_json = {"directory": {"item": [
+        {"name": "d123456dex991.htm"},
+        {"name": "d99022dex992.txt"},
+        {"name": "d123456d8k.htm"},
+    ]}}
+    hits = edgar.find_press_release_exhibit_candidates(index_json, {"items": "2.02"})
+    assert [h["document"] for h in hits] == ["d123456dex991.htm", "d99022dex992.txt"]
+
+
+def test_lifecycle_event_json_schema_requires_evidence_for_verdicts():
+    schema = claim_schema.to_lifecycle_event_json_schema()
+    assert set(schema["properties"]["state"]["enum"]) == {m.value for m in LifecycleState}
+    cond = schema["allOf"][0]
+    verdict_states = set(cond["if"]["properties"]["state"]["enum"])
+    assert {"fulfilled", "broken", "silently_dropped"} == verdict_states
+    assert cond["then"]["properties"]["evidence"]["minItems"] == 1
+    assert ".example/" not in schema["$id"]
+
+
+def test_empty_statement_substring_refused_at_load(tmp_path):
+    import json as _json
+    bad = {"example_id": "x", "synthetic": True, "source_text": "SYNTHETIC: t",
+           "labels": [{"kind": "capability_assertion",
+                       "match_keys": {"statement_substring": ""}}]}
+    (tmp_path / "bad.json").write_text(_json.dumps(bad), encoding="utf-8")
+    with pytest.raises(golden.GoldenSetError):
+        golden.load_examples(tmp_path)
+
+
 def test_stage2_ignores_non_document_files_and_non_ex99_names():
     index_json = {"directory": {"item": [{"name": "pressrelease.htm"}, {"name": "ex101.htm"}]}}
     assert edgar.find_press_release_exhibit_candidates(index_json, {"items": "2.02"}) == []

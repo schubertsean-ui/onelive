@@ -284,5 +284,34 @@ def to_json_schema() -> dict:
     }
 
 
+def to_lifecycle_event_json_schema() -> dict:
+    """Interchange schema for LifecycleEvent — verdict states require evidence,
+    mirroring LifecycleEvent.validate (the Python validator stays authoritative)."""
+    verdict_states = sorted(s.value for s in LifecycleEvent._VERDICT_STATES)
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": ("https://github.com/schubertsean-ui/onelive/blob/master/"
+                "ventures/promise_ledger/schema/lifecycle_event/v0"),
+        "title": "LifecycleEvent",
+        "type": "object",
+        "required": ["claim_id", "state", "confidence", "observed_at"],
+        "properties": {
+            "claim_id": {"type": "string", "minLength": 1},
+            "state": {"enum": [m.value for m in LifecycleState]},
+            "confidence": {"enum": [m.value for m in FulfillmentConfidence]},
+            "observed_at": {"type": "string", "format": "date-time"},
+            "evidence": {"type": "array", "items": {"type": "object"}},
+            "note": {"type": ["string", "null"]},
+        },
+        "allOf": [{
+            # a verdict without evidence is an accusation — mirror the validator
+            "if": {"properties": {"state": {"enum": verdict_states}}},
+            "then": {"required": ["evidence"],
+                     "properties": {"evidence": {"type": "array", "minItems": 1}}},
+        }],
+        "additionalProperties": False,
+    }
+
+
 def dataclass_field_names(cls) -> set[str]:
     return {f.name for f in dataclasses.fields(cls)}

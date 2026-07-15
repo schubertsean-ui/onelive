@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import re
 import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 
@@ -119,8 +120,14 @@ def list_recent_8k_filings(submissions_json: dict) -> list[dict]:
 # 8-K item codes under which press releases are customarily furnished/filed.
 PRESS_RELEASE_ITEMS = ("2.02", "7.01", "8.01")
 
-# Conservative filename shapes for EX-99.x exhibit documents.
-_EXHIBIT_NAME_RE = re.compile(r"(?:^|[^a-z0-9])(?:ex|exh|exhibit)[-_.]?99", re.IGNORECASE)
+# Filename shapes for EX-99.x exhibit documents. Covers both separator-delimited
+# names (ex99-1.htm, exh_991.txt, exhibit99.htm) and the filing-agent generated
+# shape where "dex99" follows a digit run with no separator (d123456dex991.htm —
+# very common in EDGAR archives; evaluator r18 catch). Recall matters more than
+# precision here because stage-2 confidence is capped at "likely" and the live
+# pipeline confirms exhibit type from the filing index page before use.
+_EXHIBIT_NAME_RE = re.compile(
+    r"(?:^|[^a-z0-9])(?:ex|exh|exhibit)[-_.]?99|(?<=\d)dex99", re.IGNORECASE)
 
 
 def filing_index_url(cik: str, accession: str) -> str:

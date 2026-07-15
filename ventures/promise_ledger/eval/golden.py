@@ -79,10 +79,14 @@ def load_examples(golden_dir: Path = GOLDEN_DIR) -> list[dict]:
             # discriminative (non-null) key; statement_substring is the
             # universal fallback for qualitative/capability claims.
             keys = label.get("match_keys", {})
-            if not any(v is not None for v in keys.values()):
+            if not any(v not in (None, "") for v in keys.values()):
                 raise GoldenSetError(
                     f"{f.name}: label of kind {label.get('kind')!r} has no discriminative "
                     "match key (all null/empty) — add e.g. statement_substring")
+            ss = keys.get("statement_substring")
+            if ss is not None and (not isinstance(ss, str) or not ss.strip()):
+                raise GoldenSetError(
+                    f"{f.name}: statement_substring must be a non-empty string when present")
         examples.append(ex)
     return examples
 
@@ -94,13 +98,13 @@ def _keys_match(label: dict, prediction: dict) -> bool:
     for key, want in label["match_keys"].items():
         if key == "statement_substring":
             statement = prediction.get("statement") or ""
-            if want is None or want.lower() not in statement.lower():
+            if not want or want.lower() not in statement.lower():
                 return False
             matched_discriminative = True
             continue
         if prediction.get(key) != want:
             return False
-        if want is not None:
+        if want not in (None, ""):
             matched_discriminative = True
     # a match must rest on at least one non-null key — kind alone is vacuous
     return matched_discriminative

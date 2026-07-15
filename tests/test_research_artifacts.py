@@ -38,7 +38,7 @@ MONTHS = {m: i + 1 for i, m in enumerate(
 # reviewed change, not a silent loosening.
 EVENT_CONTEXT = re.compile(
     r"appl(?:y|ies|ied)|effective|deadline|due|compliance|begins?|starts?|"
-    r"until|by |from |live |in force|phase|portal|collected?|period|"
+    r"until|by |live |in force|phase|portal|collected?|period|"
     r"expect|planned|target|mandate|wave|comment|postponed|delayed|"
     r"announced for|scheduled", re.IGNORECASE)
 
