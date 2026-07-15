@@ -246,6 +246,28 @@ def test_time_comparison_is_whitespace_insensitive():
     assert got["start_time"] == "7:45PM"
 
 
+def test_prompt_shares_no_surface_forms_with_golden_set():
+    """Prompt-exam contamination guard (the g060 own-goal, cycle 6): a
+    prompt example that even PARAPHRASES a golden text teaches the answer
+    shape for that example, so the exam stops measuring generalization.
+    No golden venue/artist/title/city string may appear in the prompt.
+    'Austin' is exempt: it is the platform's real city, unavoidable in the
+    city-discipline rules, and present in both null and non-null keys, so
+    it teaches no single answer."""
+    from ai.prompts import EXTRACTION_SYSTEM_PROMPT
+    prompt = EXTRACTION_SYSTEM_PROMPT.lower()
+    names = set()
+    for r in GOLDEN:
+        e = r["expected"]
+        for k in ("title", "venue_name", "city"):
+            if e.get(k):
+                names.add(e[k])
+        names.update(e.get("artist_names") or [])
+    offenders = [n for n in sorted(names)
+                 if len(n) > 3 and n.lower() != "austin" and n.lower() in prompt]
+    assert not offenders, f"golden surface forms leaked into the prompt: {offenders}"
+
+
 # --- golden set structural lint --------------------------------------------------
 def test_golden_set_is_structurally_sound():
     ids = [r["id"] for r in GOLDEN]

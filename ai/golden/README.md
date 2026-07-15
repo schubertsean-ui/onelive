@@ -23,10 +23,16 @@ memorize answers instead of generalizing; caught PR #25 r5).
    An extractor that suppresses facts because the event looks past would be
    un-measurable; the pipeline is where stale events are filtered
    (evaluator nit, PR #25 r5 — documented as deliberate).
-3. **Titles**: an explicit distinct event name, whole and verbatim, artist/
-   promoter prefixes included when written as part of the name; a leading
-   "<venue> presents:" label is stripped; bare artist names, billing lines,
-   and re-capitalized prose phrases are never titles.
+3. **Titles — ONE derivation rule** (unified 2026-07-15 after cycle 6
+   showed ad-hoc keys made structurally identical texts carry different
+   shapes): if the text presents a string as the event's NAME, the title is
+   that string whole and verbatim, minus exactly three strippables — a
+   leading "<venue> presents:" label, pure descriptors around the name
+   ("Late Show Added!", "day two", "(extended set)"), and trailing
+   "w/ <act>" billing. Artist/promoter words inside the name stay. If no
+   name exists — billing lines, event-type headers, prose phrases, an
+   album name quoted inside a description — or if only an artist remains
+   after stripping, title is null.
 4. **Times**: clock time only; show/music time over doors; doors-only means
    no start time; vague ("late", "TBA") is null.
 5. **City**: stated-as-place only. Names containing city words (venues,
@@ -59,3 +65,21 @@ Every expected-key change must cite the convention it corrects toward.
     (first act only) encoded the same venue-night shape with opposite
     keys — incoherent canon no model can satisfy. Unified on convention 7
     (venue-night = one bill, all acts).
+- **2026-07-15 (cycle 6, sonnet, PR #25):**
+  - g048 title "Second Sunrise" → null: 'Second Sunrise' names the RECORD
+    being released, not the event; "Artist — 'Album' record release" is a
+    billing-plus-description line with no event name (convention 3 unified
+    rule). The old key forced a quoted-album exception that contradicted
+    g007/g032's whole-name keys — the source of the cycle-5/6 title
+    whack-a-mole.
+  - g064 title "Midnight Cartography (extended set)" → null: an artist
+    name plus a set descriptor is not an event name; keeping it
+    contradicted g031/g023 (artist-as-title = null).
+
+## Prompt hygiene rule (added after the g060 own-goal, cycle 6)
+
+The extraction prompt's conventions and worked examples must share NO
+surface form with this set — no golden venue, artist, title, or distinctive
+text phrase, not even paraphrased ("Gruene Hall presents: The Fall Ramble"
+as a prompt example taught the wrong answer shape for g060's real text).
+Mechanical check: `tests/test_golden_exam.py::test_prompt_shares_no_surface_forms_with_golden_set`.
