@@ -92,8 +92,8 @@ def _resolve_extraction_model(explicit: Optional[str], exam_mode: bool = False) 
         if not _exam_entrypoint_allowed():
             raise ExtractionConfigError(
                 "exam_mode is only available inside the exam program "
-                "(python -m ai.golden_exam) or the test runner — this "
-                "process's entrypoint is neither. The channel bypasses the "
+                "(python -m ai.golden_exam) — this process's entrypoint "
+                "is not it. The channel bypasses the "
                 "extraction ratification gate; production processes are "
                 "excluded by WHAT the process is, not by what its code "
                 "looks like."
@@ -320,7 +320,14 @@ class ClaudeProvider(AIProvider):
         when the source text is plain (observed: claude-opus-4-8, exam
         cycle 8, g002/g030). Encoding artifacts are not content; a single
         html.unescape pass at the provider boundary fixes every field the
-        same way — deterministic code over prompt instructions."""
+        same way — deterministic code over prompt instructions.
+
+        URLs included, deliberately (evaluator r12 nit, documented): the
+        verbatim-links rule targets INVENTED links, not encodings — a
+        query string the model returns as 'a=1&amp;b=2' is the same URL
+        the source wrote as 'a=1&b=2', and query-string ampersands are
+        exactly where this artifact appears most. Unescaping is applied
+        once, so already-plain text is a no-op."""
         if data is None:
             return None
         def dec(v):

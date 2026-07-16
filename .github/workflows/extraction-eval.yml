@@ -1,29 +1,39 @@
 name: Extraction Golden-Set Exam (release-blocking)
 
 # KAIZEN §M7 / R-013: no extraction change ships without golden-set exam
-# evidence. Design v3 (founder-directed v2, tightened by evaluator r9 — environment
-# "required reviewers" is org-plan-only and unavailable on this personal
-# repo): this PR-triggered job carries NO SECRETS AT ALL. The secret-
-# bearing exam runs only in extraction-exam-dispatch.yml, which can only
-# be fired manually by a maintainer (workflow_dispatch = the attended-
-# human property). This job is the release gate's other half: it goes
-# green ONLY when a successful attended run's report BINDS to this PR —
-# subject_sha equals this head SHA, the model equals this PR's routed
-# model, and the prompt hash equals this checkout's prompt. The attended
-# run itself executes only trusted default-branch harness code; the
-# subject contributes its prompt as AST-extracted text. Push a new commit and the evidence expires with the SHA
-# — a maintainer must dispatch the exam again on the new head.
+# evidence. Design v4 (r9→r12 evaluator doctrine, founder-directed
+# personal-repo constraints):
 #
-# Property preserved from the r7/r8 reviews: PR-controlled code is never
-# run with the Anthropic key by any automatic/unattended trigger.
+#   * This PR-triggered job carries NO SECRETS. The secret-bearing exam
+#     runs only in extraction-exam-dispatch.yml — manual, maintainer-
+#     dispatched, default-branch harness only.
+#   * TRUST PLACEMENT: every trust decision below executes from the BASE
+#     checkout. The subject (PR head) contributes only inert data — its
+#     prompt text and routed-model id, lifted by BASE AST extractors that
+#     never import or execute subject code.
+#   * SURFACE CLASSIFICATION: prompt-swap evidence can only certify what
+#     the attended exam actually ran. A PR whose extraction-surface diff
+#     is confined to SUBJECT-CERTIFIABLE files (ai/prompts.py — examined
+#     as data; tools/model_router.py — routing VALUES bound via the
+#     report's model field; the gate flag lives there too) can go green
+#     with binding evidence. A PR that changes HARNESS code (runner,
+#     provider, scoring, golden set, extractors, verifier, these
+#     workflows) FAILS here with split instructions: harness changes
+#     merge first through the mandatory evaluator gate, then subjects are
+#     certified against the merged harness (the PR #11 bootstrap
+#     pattern). The exam never certifies code it did not run.
+#   * Residual, stated honestly: on pull_request triggers GitHub runs the
+#     PR's own copy of this workflow file, so workflow tampering cannot
+#     be excluded mechanically here — it is surfaced in the diff to the
+#     mandatory adversarial review, which runs on every PR with no path
+#     filter (the repo's root trust anchor), and this workflow plus the
+#     verifier/extractors are in the path filter below so any touch also
+#     re-triggers this gate.
 #
 # Bootstrap honesty (r11): on the PR that ARMS this gate, this check is
 # necessarily red — no trusted attended producer exists on the default
-# branch until that PR merges, so no binding evidence can exist for its
-# head. That arming PR merges with this one check red under explicit
-# human review (precedent: PR #11, where the adversarial-review gate
-# itself was bootstrapped the same way). Every later extraction-surface
-# PR is held to the full evidence requirement.
+# branch until that PR merges. That arming PR merges with this one check
+# red under explicit human review (precedent: PR #11).
 
 on:
   pull_request:
@@ -31,7 +41,10 @@ on:
       - "ai/**"
       - "worker/ai_models.py"
       - "worker/ai_extract.py"
-      - "tools/model_router.py"          # the ratification flag + routing table live here
+      - "tools/model_router.py"
+      - "tools/verify_exam_evidence.py"
+      - "tools/extract_prompt_text.py"
+      - "tools/extract_routed_model.py"
       - ".github/workflows/extraction-eval.yml"
       - ".github/workflows/extraction-exam-dispatch.yml"
 
@@ -47,59 +60,118 @@ jobs:
       contents: read
       actions: read      # to find the attended run + download its report artifact
     steps:
+      # TRUSTED code: the base branch the PR merges into.
       - uses: actions/checkout@v4
         with:
-          # Pin to the PR HEAD SHA (not the synthetic merge ref): the
-          # routed-model and prompt-hash expectations below must come from
-          # exactly the commit the evidence certifies.
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+
+      # SUBJECT: checked out only as FILES to read data from — nothing in
+      # this checkout is executed by the trust path below.
+      - uses: actions/checkout@v4
+        with:
           ref: ${{ github.event.pull_request.head.sha }}
+          path: subject
           persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install worker deps (structural lint imports the runner)
+      - name: Install worker deps (for the BASE verifier's threshold imports)
         run: |
           python -m pip install --upgrade pip
-          pip install -r worker/requirements.txt
+          pip install -r base/worker/requirements.txt
 
-      - name: Verify attended exam evidence for this exact head SHA (fail closed)
+      - name: Classify the extraction-surface diff (harness code cannot ride a prompt-swap exam)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -o pipefail
+          git -C base fetch --no-tags origin "$HEAD_SHA"
+          git -C base diff --name-only "$BASE_SHA" "$HEAD_SHA" > changed.txt
+          python3 - <<'PY'
+          import pathlib, sys
+          changed = [l.strip() for l in pathlib.Path("changed.txt").read_text().splitlines() if l.strip()]
+          # The extraction surface this gate guards (mirror of the trigger paths).
+          def on_surface(p):
+              return (p.startswith("ai/") or p in (
+                  "worker/ai_models.py", "worker/ai_extract.py",
+                  "tools/model_router.py", "tools/verify_exam_evidence.py",
+                  "tools/extract_prompt_text.py", "tools/extract_routed_model.py",
+                  ".github/workflows/extraction-eval.yml",
+                  ".github/workflows/extraction-exam-dispatch.yml"))
+          # Files a prompt-swap exam GENUINELY certifies: the prompt is run
+          # as data; the routing values/gate flag are bound via the report's
+          # model field and the flip evidence rule.
+          subject_certifiable = {"ai/prompts.py", "tools/model_router.py"}
+          harness_touched = [p for p in changed if on_surface(p) and p not in subject_certifiable]
+          if harness_touched:
+              print("::error::This PR changes extraction HARNESS code that the "
+                    "attended exam does not execute, so prompt-swap evidence "
+                    "cannot certify it: " + ", ".join(sorted(harness_touched)) +
+                    ". Split the harness change into its own PR, merge it "
+                    "through the mandatory adversarial review first, then "
+                    "re-exam this subject against the merged harness "
+                    "(fail closed; the exam never certifies code it did not run).")
+              sys.exit(1)
+          print("surface diff is subject-certifiable:",
+                ", ".join(sorted(p for p in changed if on_surface(p))) or "(none)")
+          PY
+
+      - name: Lift subject expectations as data (BASE extractors, subject files)
+        run: |
+          set -o pipefail
+          python3 base/tools/extract_prompt_text.py subject/ai/prompts.py > subject_prompt.txt
+          EXPECT_PROMPT_SHA="$(python3 -c "import hashlib,sys; print(hashlib.sha256(open('subject_prompt.txt','rb').read()).hexdigest())")"
+          EXPECT_MODEL="$(python3 base/tools/extract_routed_model.py subject/tools/model_router.py)"
+          if ! [[ "$EXPECT_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]]; then
+            echo "::error::subject routed model is not a plausible model id (fail closed)."
+            exit 1
+          fi
+          echo "EXPECT_PROMPT_SHA=$EXPECT_PROMPT_SHA" >> "$GITHUB_ENV"
+          echo "EXPECT_MODEL=$EXPECT_MODEL" >> "$GITHUB_ENV"
+
+      - name: Verify attended exam evidence binds to this head (BASE verifier, fail closed)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           REPO: ${{ github.repository }}
         run: |
           set -o pipefail
+          cd base
           api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
-          # Attended runs execute on the DEFAULT branch (trusted harness),
-          # so run.head_sha is master's — the binding to THIS PR lives in
-          # the report's subject_sha stamp. Scan recent successful attended
-          # runs, download each report, and accept the first whose
-          # subject_sha is this PR's head AND whose model/prompt-hash match
-          # this checkout (tools/verify_exam_evidence.py).
           RUN_IDS="$(api "https://api.github.com/repos/$REPO/actions/workflows/extraction-exam-dispatch.yml/runs?event=workflow_dispatch&status=success&per_page=15" | python3 -c "import json,sys; print(' '.join(str(r['id']) for r in (json.load(sys.stdin).get('workflow_runs') or [])))")"
           if [ -z "$RUN_IDS" ]; then
-            echo "::error::No successful ATTENDED exam runs exist at all. A maintainer must dispatch 'Extraction Golden-Set Exam — attended run' on the default branch with subject_sha=$HEAD_SHA and the PR's routed model, then re-run this check (fail closed)."
+            echo "::error::No successful ATTENDED exam runs exist at all. A maintainer must dispatch 'Extraction Golden-Set Exam — attended run' on the default branch with subject_sha=$HEAD_SHA and the subject's routed model ($EXPECT_MODEL), then re-run this check (fail closed)."
             exit 1
           fi
           FOUND=""
           for RUN_ID in $RUN_IDS; do
+            rm -f report.zip exam-report.json   # never reuse a previous iteration's file
             ART_URL="$(api "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts" | python3 -c "import json,sys; arts=json.load(sys.stdin).get('artifacts') or []; hits=[a for a in arts if a['name'].startswith('golden-exam-report-')]; print(hits[0]['archive_download_url'] if hits else '')")"
             [ -z "$ART_URL" ] && continue
             api -L -o report.zip "$ART_URL" || continue
             python3 -c "import zipfile; zipfile.ZipFile('report.zip').extractall('.')" || continue
-            if python3 tools/verify_exam_evidence.py exam-report.json --subject-sha "$HEAD_SHA"; then
+            [ -f exam-report.json ] || continue
+            if python3 tools/verify_exam_evidence.py exam-report.json \
+                 --subject-sha "$HEAD_SHA" \
+                 --expect-model "$EXPECT_MODEL" \
+                 --expect-prompt-sha256 "$EXPECT_PROMPT_SHA"; then
               FOUND="$RUN_ID"
               break
             fi
           done
           if [ -z "$FOUND" ]; then
-            echo "::error::No attended exam evidence binds to head SHA $HEAD_SHA with this PR's routed model and exact prompt. Dispatch 'Extraction Golden-Set Exam — attended run' on the default branch with subject_sha=$HEAD_SHA and the routed model, then re-run this check (fail closed)."
+            echo "::error::No attended exam evidence binds to head SHA $HEAD_SHA with the subject's routed model ($EXPECT_MODEL) and exact prompt. Dispatch 'Extraction Golden-Set Exam — attended run' on the default branch with subject_sha=$HEAD_SHA and model=$EXPECT_MODEL, then re-run this check (fail closed)."
             exit 1
           fi
           echo "attended evidence accepted from run $FOUND"
 
-      - name: Golden-set structural lint (no key needed — runs on every PR)
+      - name: Golden-set structural lint (subject checkout, secretless — advisory red, never part of the accept path)
         run: |
+          cd subject
+          pip install -r worker/requirements.txt
           python -m pytest tests/test_golden_exam.py -q -k "structural or injection_and_trap or shingles or surface_forms"
