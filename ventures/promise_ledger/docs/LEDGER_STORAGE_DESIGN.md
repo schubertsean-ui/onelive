@@ -1,6 +1,6 @@
 # Point-in-time ledger storage — design v0 (groundwork, not build authorization)
 
-**Status:** design only (Session Contract #7). Reviewed through the gate; built
+**Status:** design only (Session Contract #16, renumbered from #7). Reviewed through the gate; built
 only after founder go.
 
 ## The one invariant everything serves

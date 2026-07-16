@@ -1,4 +1,4 @@
-"""Build-phase-1 tests (Session Contract #8): point-in-time ledger store v0
+"""Build-phase-1 tests (Session Contract #17, renumbered from #8): point-in-time ledger store v0
 and the deterministic due-date parser."""
 
 import datetime
@@ -59,6 +59,7 @@ def test_as_of_reads_respect_the_knowledge_horizon():
         claim_id="c-001", state=LifecycleState.REITERATED,
         confidence=FulfillmentConfidence.LIKELY,
         observed_at=datetime.datetime(2026, 7, 10, tzinfo=UTC),
+        recorded_at=datetime.datetime(2026, 7, 10, tzinfo=UTC),
         evidence=(_prov(10),)))
     # As of July 5, only the original claim is knowable.
     before = led.events_as_of(datetime.datetime(2026, 7, 5, tzinfo=UTC))
@@ -67,11 +68,67 @@ def test_as_of_reads_respect_the_knowledge_horizon():
     assert [e["event_type"] for e in after] == ["claim_recorded", "lifecycle_event"]
 
 
+def test_late_discovered_outcome_is_invisible_before_its_discovery():
+    """Evaluator r22 — the core point-in-time defect: an outcome OBSERVED in
+    the past but DISCOVERED later must not be readable at times between the
+    two, or backtests time-travel. The knowledge horizon is recorded_at."""
+    led = Ledger()
+    led.record_claim(_claim(retrieved_day=2))
+    led.record_lifecycle(LifecycleEvent(
+        claim_id="c-001", state=LifecycleState.BROKEN,
+        confidence=FulfillmentConfidence.LIKELY,
+        observed_at=datetime.datetime(2026, 7, 4, tzinfo=UTC),   # happened July 4
+        recorded_at=datetime.datetime(2026, 7, 20, tzinfo=UTC),  # learned July 20
+        evidence=(_prov(20),)))
+    # Between occurrence and discovery: the system could NOT have known.
+    mid = led.events_as_of(datetime.datetime(2026, 7, 10, tzinfo=UTC))
+    assert [e["event_type"] for e in mid] == ["claim_recorded"]
+    assert led.current_state("c-001",
+                             datetime.datetime(2026, 7, 10, tzinfo=UTC))["state"] == "made"
+    # After discovery it is knowable.
+    late = led.events_as_of(datetime.datetime(2026, 7, 21, tzinfo=UTC))
+    assert [e["event_type"] for e in late] == ["claim_recorded", "lifecycle_event"]
+
+
+def test_source_retrieval_is_recordable_and_validated_at_the_door():
+    """Evaluator r22: source_retrieved needs a public writer with a payload
+    contract — raw-source custody is the third record type, not a stub."""
+    led = Ledger()
+    seq = led.record_source_retrieval(
+        source_url="https://www.sec.gov/Archives/edgar/data/19617/x/ex991.htm",
+        sha256="c" * 64, size_bytes=207499,
+        retrieved_at=datetime.datetime(2026, 7, 15, 19, 6, tzinfo=UTC),
+        entity_key="CIK:0000019617", note="first live run")
+    events = led.events_as_of(datetime.datetime(2026, 7, 16, tzinfo=UTC))
+    assert [e["event_type"] for e in events] == ["source_retrieved"]
+    assert events[0]["payload"]["sha256"] == "c" * 64
+    assert events[0]["seq"] == seq
+    # Knowledge horizon applies to custody records too.
+    assert led.events_as_of(datetime.datetime(2026, 7, 15, tzinfo=UTC)) == []
+
+
+def test_source_retrieval_rejects_unverifiable_records():
+    led = Ledger()
+    with pytest.raises(LedgerIntegrityError, match="64 lowercase hex"):
+        led.record_source_retrieval(
+            source_url="https://www.sec.gov/x.htm", sha256="NOT-A-HASH",
+            size_bytes=1, retrieved_at=datetime.datetime(2026, 7, 15, tzinfo=UTC))
+    with pytest.raises(LedgerIntegrityError, match="https"):
+        led.record_source_retrieval(
+            source_url="http://insecure.example/x.htm", sha256="c" * 64,
+            size_bytes=1, retrieved_at=datetime.datetime(2026, 7, 15, tzinfo=UTC))
+    with pytest.raises(LedgerIntegrityError, match="positive"):
+        led.record_source_retrieval(
+            source_url="https://www.sec.gov/x.htm", sha256="c" * 64,
+            size_bytes=0, retrieved_at=datetime.datetime(2026, 7, 15, tzinfo=UTC))
+
+
 def test_lifecycle_for_unknown_claim_rejected():
     led = Ledger()
     ev = LifecycleEvent(claim_id="ghost", state=LifecycleState.REITERATED,
                         confidence=FulfillmentConfidence.LIKELY,
                         observed_at=datetime.datetime(2026, 7, 10, tzinfo=UTC),
+                        recorded_at=datetime.datetime(2026, 7, 10, tzinfo=UTC),
                         evidence=(_prov(10),))
     with pytest.raises(LedgerIntegrityError, match="unknown claim_id"):
         led.record_lifecycle(ev)
@@ -105,6 +162,7 @@ def test_current_state_projection_tracks_lifecycle_and_confidence():
         claim_id="c-001", state=LifecycleState.BROKEN,
         confidence=FulfillmentConfidence.LIKELY,
         observed_at=datetime.datetime(2027, 10, 1, tzinfo=UTC),
+        recorded_at=datetime.datetime(2027, 10, 1, tzinfo=UTC),
         evidence=(_prov(2),)))
     state_before = led.current_state("c-001", datetime.datetime(2026, 8, 1, tzinfo=UTC))
     assert (state_before["state"], state_before["confidence"]) == ("made", "unverified")
@@ -132,13 +190,24 @@ def test_naive_timestamps_rejected():
 # ------------------------------------------------------------------ parser
 
 def test_quarter_forms():
-    [p] = parse_due_dates("expected to launch in the third quarter of fiscal 2027")
-    assert p.due_date == datetime.date(2027, 9, 30)
-    assert p.fiscal is True
-    assert "third quarter of fiscal 2027" in p.original_text
     [p2] = parse_due_dates("guidance reaffirmed for Q3 2027 delivery")
     assert p2.due_date == datetime.date(2027, 9, 30)
     assert p2.fiscal is False
+
+
+def test_fiscal_periods_are_never_resolved_to_calendar_dates():
+    """Evaluator r22: issuers' fiscal calendars differ — a guessed calendar
+    date for 'fiscal 2027' feeds a false overdue alert (the product's stated
+    high-blast-radius failure mode). Fiscal phrases parse to due_date=None
+    with the phrase preserved; the claim stays due_date_text-only."""
+    [p] = parse_due_dates("expected to launch in the third quarter of fiscal 2027")
+    assert p.due_date is None
+    assert p.fiscal is True
+    assert "third quarter of fiscal 2027" in p.original_text
+    [q] = parse_due_dates("targets completion in Q4 FY2028")
+    assert q.due_date is None and q.fiscal is True
+    [y] = parse_due_dates("to be finished by the end of fiscal 2027")
+    assert y.due_date is None and y.fiscal is True
 
 
 def test_by_month_forms():
@@ -150,8 +219,11 @@ def test_by_month_forms():
 
 def test_year_end_form_and_fiscal_flag():
     [p] = parse_due_dates("targeting profitability by the end of fiscal 2028")
-    assert p.due_date == datetime.date(2028, 12, 31)
+    assert p.due_date is None            # fiscal periods are never guessed (r22)
     assert p.fiscal is True
+    [c] = parse_due_dates("targeting profitability by the end of 2028")
+    assert c.due_date == datetime.date(2028, 12, 31)
+    assert c.fiscal is False
 
 
 def test_half_year_form():

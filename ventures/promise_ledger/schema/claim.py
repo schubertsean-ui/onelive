@@ -124,6 +124,11 @@ class Claim:
     unit: Optional[str] = None
     due_date: Optional[datetime.date] = None  # parsed from claim language (H9)
     due_date_text: Optional[str] = None       # the original phrasing ("by Q3 2027")
+    due_date_fiscal: bool = False     # True => the deadline is an ISSUER-FISCAL
+                                      # period; a calendar due_date MUST NOT be
+                                      # set until the issuer's fiscal calendar
+                                      # is known (evaluator r22 — a guessed date
+                                      # fires false overdue alerts)
 
     def validate(self) -> list[str]:
         errors = []
@@ -150,16 +155,32 @@ class Claim:
         if self.due_date is not None and not has_due_text:
             errors.append("a parsed due_date must keep its original non-empty due_date_text "
                           "(provenance of the parse)")
+        if self.due_date_fiscal and self.due_date is not None:
+            errors.append("due_date_fiscal claims must not carry a calendar due_date — "
+                          "issuer-fiscal periods resolve only against the issuer's fiscal "
+                          "calendar; a guessed date fires false overdue alerts")
+        if self.due_date_fiscal and not has_due_text:
+            errors.append("due_date_fiscal requires the original fiscal phrasing in "
+                          "due_date_text — the flag without its phrase is unauditable")
         return errors
 
 
 @dataclass(frozen=True)
 class LifecycleEvent:
-    """Append-only lifecycle progression. Events never edit prior events."""
+    """Append-only lifecycle progression. Events never edit prior events.
+
+    Two timestamps, deliberately distinct (evaluator r22 — the point-in-time
+    invariant is the product): `observed_at` is when the real-world outcome
+    occurred or was stated in the source; `recorded_at` is when WE learned it
+    — the ledger's knowledge horizon. An outcome discovered late must not be
+    readable at times before its discovery, so as-of reads key on
+    `recorded_at`, never `observed_at`.
+    """
     claim_id: str
     state: LifecycleState
     confidence: FulfillmentConfidence
-    observed_at: datetime.datetime
+    observed_at: datetime.datetime    # when the outcome occurred / was stated
+    recorded_at: datetime.datetime    # when the system learned it (knowledge horizon)
     evidence: tuple[Provenance, ...] = field(default_factory=tuple)
     note: Optional[str] = None        # re-expressed rationale, never verbatim source
 
@@ -179,6 +200,15 @@ class LifecycleEvent:
             errors.append("lifecycle.claim_id must be non-empty")
         if self.observed_at.tzinfo is None:
             errors.append("lifecycle.observed_at must be timezone-aware")
+        if self.recorded_at.tzinfo is None:
+            errors.append("lifecycle.recorded_at must be timezone-aware")
+        for ev in self.evidence:
+            if (ev.retrieved_at.tzinfo is not None
+                    and self.recorded_at.tzinfo is not None
+                    and self.recorded_at < ev.retrieved_at):
+                errors.append(
+                    "lifecycle.recorded_at precedes evidence retrieved_at — the "
+                    "system cannot have known a fact before its evidence was in hand")
         if not self.evidence:
             if self.state in self._VERDICT_STATES:
                 errors.append(f"verdict state {self.state.value!r} requires evidence — "
@@ -270,6 +300,7 @@ def to_json_schema() -> dict:
             "unit": {"type": ["string", "null"]},
             "due_date": {"type": ["string", "null"], "format": "date"},
             "due_date_text": {"type": ["string", "null"]},
+            "due_date_fiscal": {"type": "boolean", "default": False},
         },
         # mirror Claim.validate's conditional requirements:
         "allOf": [
@@ -297,6 +328,17 @@ def to_json_schema() -> dict:
                 "if": {"required": ["due_date"], "properties": {"due_date": {"type": "string"}}},
                 "then": {"required": ["due_date_text"],
                          "properties": {"due_date_text": _nonblank()}},
+            },
+            {   # issuer-fiscal deadlines carry NO calendar due_date and keep
+                # their fiscal phrasing (evaluator r22 — a guessed calendar
+                # date for a fiscal period fires false overdue alerts)
+                "if": {"required": ["due_date_fiscal"],
+                       "properties": {"due_date_fiscal": {"const": True}}},
+                "then": {
+                    "required": ["due_date_text"],
+                    "properties": {"due_date": {"type": "null"},
+                                   "due_date_text": _nonblank()},
+                },
             },
         ],
         "additionalProperties": False,
@@ -343,17 +385,25 @@ def to_lifecycle_event_json_schema() -> dict:
         "x-invariants": [
             "for every evidence item: published_at <= retrieved_at (cross-field "
             "date comparison; not expressible in JSON Schema 2020-12)",
+            "recorded_at >= every evidence item's retrieved_at (the system cannot "
+            "have known a fact before its evidence was in hand; cross-field date "
+            "comparison; not expressible in JSON Schema 2020-12)",
         ],
         "type": "object",
         # evidence is required for EVERY event: each lifecycle assertion in an
         # append-only trust ledger must be sourced (evaluator r20) — verdict
         # states are merely the highest-stakes case of the same rule.
-        "required": ["claim_id", "state", "confidence", "observed_at", "evidence"],
+        # recorded_at (when WE learned it) is required and distinct from
+        # observed_at (when it happened) — point-in-time reads key on
+        # recorded_at (evaluator r22).
+        "required": ["claim_id", "state", "confidence", "observed_at",
+                     "recorded_at", "evidence"],
         "properties": {
             "claim_id": _nonblank(),
             "state": {"enum": [m.value for m in LifecycleState]},
             "confidence": {"enum": [m.value for m in FulfillmentConfidence]},
             "observed_at": {"type": "string", "format": "date-time"},
+            "recorded_at": {"type": "string", "format": "date-time"},
             "evidence": {"type": "array", "minItems": 1,
                          "items": _provenance_json_schema()},
             "note": {"type": ["string", "null"]},

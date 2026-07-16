@@ -1,9 +1,16 @@
 """EDGAR ingestion client — written to the SEC's documented fair-access contract.
 
-STATUS (2026-07-14): NOT yet exercised against live EDGAR. This sandbox's
-egress policy blocks sec.gov (curl CONNECT refused; WebFetch 403) — recorded
-as R-017. Everything here is built strictly to the documented contract that
-the companion research verified 3-0 against sec.gov's own pages:
+STATUS (2026-07-15): FIRST LIVE RUN EXECUTED (declared UA, budgeted, ~6
+requests) against www.sec.gov after the founder's egress unblock: real JPM +
+BAC Q2-2026 earnings 8-Ks listed via the browse-edgar Atom feed, both EX-99.1
+press releases fetched and stored with provenance (eval/source_material/
+MANIFEST.json). The live run caught a filename-recall bug the synthetic
+fixtures had missed — fixed via the authoritative index-headers path below;
+real fixtures live in tests/fixtures/edgar/. data.sec.gov and efts.sec.gov
+remain proxy-blocked in this sandbox (TODOS allowlist ask), so the bulk-JSON
+endpoints below are still unexercised live. R-017 (real labeled golden set,
+≥20 examples) remains OPEN. The documented contract, verified 3-0 against
+sec.gov's own pages:
 
 - declared User-Agent with operator name + admin email, or requests are denied;
 - hard budget of 10 requests/second across ALL machines, per-IP 403 (~10 min)
@@ -14,9 +21,8 @@ the companion research verified 3-0 against sec.gov's own pages:
 - free endpoints are minutes-latency; this client is a poller, not a
   low-latency feed.
 
-The first live run happens from an environment with sec.gov egress, under the
-same budget, and its results seed the golden set (replacing R-017's synthetic
-examples).
+Live runs stay single-shot and budgeted; their results seed the golden set
+(synthetic examples get marked superseded, never deleted — R-017).
 """
 
 from __future__ import annotations
@@ -175,12 +181,13 @@ def parse_exhibit_documents(index_headers_html: str) -> list[dict]:
     return out
 
 
-def find_press_release_exhibits_authoritative(index_headers_html: str, filing: dict) -> list[dict]:
-    """Select EX-99.x documents from the authoritative type table. Confidence
-    is 'likely' when the parent 8-K carries a customary press-release item —
-    still never 'confirmed': type says press-release-shaped exhibit, not that
-    THIS exhibit is the narrative release (e.g. EX-99.2 is often the
-    supplemental tables)."""
+def find_ex99_exhibits_authoritative(index_headers_html: str, filing: dict) -> list[dict]:
+    """Select EX-99.x documents from the authoritative type table. Named for
+    what it returns (evaluator r22): ALL EX-99.x exhibits — the narrative
+    press release, supplemental tables, presentations — not "the press
+    release"; distinguishing the narrative release needs DESCRIPTION/content
+    filtering that does not exist yet. Confidence is 'likely' when the parent
+    8-K carries a customary press-release item — still never 'confirmed'."""
     items_field = filing.get("items", "") or ""
     has_pr_item = any(code in items_field for code in PRESS_RELEASE_ITEMS)
     out = []

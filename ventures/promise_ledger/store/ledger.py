@@ -1,11 +1,14 @@
 """Point-in-time ledger store v0 — append-only event log over stdlib sqlite3.
 
 Implements docs/LEDGER_STORAGE_DESIGN.md's one invariant structurally:
-**as-of-known-when correctness**. Three record types, INSERT-only (no UPDATE,
-no DELETE — there are no such statements in this module); every record carries
-`retrieved_at` (the knowledge horizon) and reads filter on it. Corrections are
-superseding events that reference the superseded record — the mistake stays
-visible with its correction attached.
+**as-of-known-when correctness**. Three record types with public writers
+(`record_claim`, `record_lifecycle`, `record_source_retrieval`), INSERT-only
+(no UPDATE, no DELETE — there are no such statements in this module); every
+record's knowledge-horizon column holds WHEN THE SYSTEM LEARNED IT (claim:
+provenance.retrieved_at; lifecycle: recorded_at — never observed_at; source:
+retrieved_at) and reads filter on it. Corrections are superseding events that
+reference the superseded record — the mistake stays visible with its
+correction attached.
 
 sqlite3 keeps this dependency-free and file-based: no service, no spend,
 reversible — build-phase-1 appropriate. The engine choice for production is a
@@ -98,8 +101,42 @@ class Ledger:
         payload = json.dumps(dataclasses.asdict(event), default=lambda o: (
             o.isoformat() if isinstance(o, (datetime.datetime, datetime.date))
             else o.value if hasattr(o, "value") else str(o)))
+        # Knowledge horizon = recorded_at (when WE learned it), NEVER
+        # observed_at (when it happened): an outcome discovered late must not
+        # be readable at times before its discovery (evaluator r22 — using
+        # observed_at here time-travels and contaminates backtests).
         return self._append("lifecycle_event", event.claim_id, None,
-                            event.observed_at, payload, supersedes_seq)
+                            event.recorded_at, payload, supersedes_seq)
+
+    _SHA256_HEX = 64
+
+    def record_source_retrieval(self, *, source_url: str, sha256: str,
+                                size_bytes: int, retrieved_at: datetime.datetime,
+                                entity_key: str | None = None,
+                                note: str | None = None) -> int:
+        """Append a source_retrieved event — the raw-source custody record
+        (design doc record type 3). Payload contract mirrors the
+        source_material MANIFEST entries: where the bytes came from, their
+        hash, their size, and when we took custody. Validation at the door,
+        like every other writer — an unverifiable custody record is worse
+        than none."""
+        errors = []
+        if not source_url.startswith("https://"):
+            errors.append("source_url must be an https URL naming the authority")
+        if len(sha256) != self._SHA256_HEX or any(
+                c not in "0123456789abcdef" for c in sha256.lower()) or \
+                sha256 != sha256.lower():
+            errors.append("sha256 must be 64 lowercase hex chars")
+        if size_bytes <= 0:
+            errors.append("size_bytes must be positive")
+        if errors:
+            raise LedgerIntegrityError(f"invalid source retrieval rejected: {errors}")
+        payload = json.dumps({
+            "source_url": source_url, "sha256": sha256, "size_bytes": size_bytes,
+            "retrieved_at": _iso(retrieved_at), "note": note,
+        })
+        return self._append("source_retrieved", None, entity_key,
+                            retrieved_at, payload, None)
 
     def _append(self, event_type, claim_id, entity_key, retrieved_at, payload,
                 supersedes_seq) -> int:

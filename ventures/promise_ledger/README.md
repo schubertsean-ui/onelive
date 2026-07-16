@@ -1,10 +1,13 @@
-# Promise Ledger — venture workspace (pre-build groundwork)
+# Promise Ledger — venture workspace (build phase 1)
 
-**Status:** GROUNDWORK ONLY (Session Contract #7). The venture go/no-go is an
-open founder decision; nothing in this directory is deployed, spends money, or
-contracts a provider (R-016 gates all of that). This workspace lives inside the
-OneLive repo for gate coverage (evaluator + trust-gate + tests) and will be
-extracted to its own repository if/when the founder greenlights the venture.
+**Status:** GREENLIT — founder said "Go" 2026-07-15 (Contract #17), beachhead
+sector = FINANCIALS (Contract #18), first LIVE EDGAR run executed same day.
+Nothing here is deployed, spends money, or contracts a provider — R-016
+(provider redistribution answers + live pricing re-verification) still gates
+step 11, and R-017 (≥20 REAL labeled golden examples) still gates all
+extraction-model work. This workspace lives inside the OneLive repo for gate
+coverage (evaluator + trust-gate + tests) and extraction to its own repository
+is sprint step 12 (a founder call).
 
 **What the product would be** (see `docs/research/PR_AGGREGATOR_MARKET_ANALYSIS.md`):
 a longitudinal, point-in-time ledger of corporate claims — what each public
@@ -23,21 +26,25 @@ buyers.
   trust DNA — never binary.
 - `ingest/` — EDGAR client written to the SEC's documented fair-access
   contract (declared User-Agent, ≤10 req/s budget, bulk-archives-first).
-  **Not yet run against live EDGAR:** this sandbox's egress policy blocks
-  sec.gov (verified 2026-07-14: curl and WebFetch both refused) — see R-017.
-  Tests use synthetic fixtures explicitly marked as such.
+  **First live run executed 2026-07-15** after the founder's egress unblock:
+  real JPM + BAC Q2-2026 earnings 8-Ks listed, both EX-99.1 press releases
+  fetched with provenance. The live run caught a filename-recall bug the
+  synthetic fixtures had missed — fixed via the authoritative index-headers
+  exhibit-type path; real fixtures now live in `tests/fixtures/edgar/`.
 - `eval/` — extraction-precision golden-set harness. Fail-closed: below-bar
   precision exits non-zero; an empty golden set exits non-zero (a gate that
-  cannot fail proves nothing). Currently seeded with SYNTHETIC labeled
-  examples that exercise the harness mechanics only — **no threshold means
-  anything until real EDGAR-sourced examples replace them (R-017)**. The
-  market analysis names extraction precision the venture's existential risk;
-  this harness exists before any extraction model does, per charter
-  discipline.
+  cannot fail proves nothing). Labeled examples are still SYNTHETIC-ONLY
+  (mechanics only); `eval/source_material/` now holds the first 2 REAL press
+  releases (manifest-hashed, stored internally per the never-verbatim rule)
+  awaiting hand-labeling — **no threshold means anything until ≥20 real
+  labeled examples exist (R-017)**. The market analysis names extraction
+  precision the venture's existential risk; this harness exists before any
+  extraction model does, per charter discipline.
 - `docs/LEDGER_STORAGE_DESIGN.md` — point-in-time storage design
   (append-only claim events, as-of-known-when reads, LEI entity keys).
 - `docs/BEACHHEAD_SECTOR_MEMO.md` — decision memo FOR THE FOUNDER (criteria,
-  candidates, tradeoffs). No decision is taken here.
+  candidates, tradeoffs). DECIDED 2026-07-15: FINANCIALS (memo kept as the
+  decision record; the post-decision po battery + harvest live alongside it).
 
 ## Invariants (inherited, non-negotiable)
 

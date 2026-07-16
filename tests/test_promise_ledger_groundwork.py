@@ -1,4 +1,4 @@
-"""Promise-ledger groundwork tests (Session Contract #7).
+"""Promise-ledger groundwork tests (Session Contract #16, renumbered from #7).
 
 Covers the three pre-build artifacts: Claim Schema v0 (validation + JSON
 Schema lockstep), the fail-closed golden-set harness (including the rule that
@@ -89,10 +89,30 @@ def test_parsed_due_date_must_keep_original_text():
     assert any("due_date_text" in e for e in validate(c))
 
 
+def test_fiscal_deadline_claims_carry_the_flag_and_never_a_calendar_date():
+    """Evaluator r22: the parser's fiscal=True warning must survive storage —
+    due_date_fiscal is a Claim field, and a fiscal claim with a guessed
+    calendar due_date is invalid (false-overdue blast radius)."""
+    ok = _claim(kind=ClaimKind.DATED_EVENT, metric=None, target_low=None,
+                target_high=None, unit=None, due_date=None,
+                due_date_text="third quarter of fiscal 2027", due_date_fiscal=True)
+    assert validate(ok) == []
+    guessed = _claim(kind=ClaimKind.DATED_EVENT, metric=None, target_low=None,
+                     target_high=None, unit=None,
+                     due_date=datetime.date(2027, 9, 30),
+                     due_date_text="third quarter of fiscal 2027",
+                     due_date_fiscal=True)
+    assert any("must not carry a calendar due_date" in e for e in validate(guessed))
+    unauditable = _claim(kind=ClaimKind.NUMERIC_GUIDANCE, due_date=None,
+                         due_date_text=None, due_date_fiscal=True)
+    assert any("requires the original fiscal phrasing" in e for e in validate(unauditable))
+
+
 def test_verdict_without_evidence_rejected():
     ev = LifecycleEvent(claim_id="c-001", state=LifecycleState.BROKEN,
                         confidence=FulfillmentConfidence.LIKELY,
-                        observed_at=datetime.datetime(2027, 10, 1, tzinfo=UTC))
+                        observed_at=datetime.datetime(2027, 10, 1, tzinfo=UTC),
+                        recorded_at=datetime.datetime(2027, 10, 2, tzinfo=UTC))
     errs = validate(ev)
     assert any("requires evidence" in e for e in errs)
 
@@ -101,8 +121,35 @@ def test_verdict_with_evidence_passes():
     ev = LifecycleEvent(claim_id="c-001", state=LifecycleState.BROKEN,
                         confidence=FulfillmentConfidence.LIKELY,
                         observed_at=datetime.datetime(2027, 10, 1, tzinfo=UTC),
+                        recorded_at=datetime.datetime(2027, 10, 2, tzinfo=UTC),
                         evidence=(_provenance(),))
     assert validate(ev) == []
+
+
+def test_lifecycle_recorded_at_is_required_and_cannot_precede_evidence():
+    """Evaluator r22: the event's knowledge timestamp (when WE learned it) is
+    distinct from observed_at (when it happened) — and the system cannot have
+    known a fact before its evidence was retrieved."""
+    ev = LifecycleEvent(claim_id="c-001", state=LifecycleState.BROKEN,
+                        confidence=FulfillmentConfidence.LIKELY,
+                        observed_at=datetime.datetime(2027, 10, 1, tzinfo=UTC),
+                        recorded_at=datetime.datetime(2027, 10, 2))  # naive
+    assert any("recorded_at must be timezone-aware" in e for e in validate(ev))
+    too_early = LifecycleEvent(
+        claim_id="c-001", state=LifecycleState.BROKEN,
+        confidence=FulfillmentConfidence.LIKELY,
+        observed_at=datetime.datetime(2026, 6, 1, tzinfo=UTC),
+        recorded_at=datetime.datetime(2026, 6, 15, tzinfo=UTC),
+        evidence=(_provenance(),))  # evidence retrieved 2026-07-02 > recorded_at
+    assert any("precedes evidence retrieved_at" in e for e in validate(too_early))
+    # Late discovery is LEGAL: observed long before recorded.
+    late = LifecycleEvent(
+        claim_id="c-001", state=LifecycleState.BROKEN,
+        confidence=FulfillmentConfidence.LIKELY,
+        observed_at=datetime.datetime(2026, 1, 1, tzinfo=UTC),
+        recorded_at=datetime.datetime(2027, 10, 2, tzinfo=UTC),
+        evidence=(_provenance(),))
+    assert validate(late) == []
 
 
 def test_silently_dropped_is_a_first_class_state():
@@ -174,6 +221,7 @@ def _check(instance, schema) -> bool:
             (t == "null" and instance is None) or
             (t == "string" and isinstance(instance, str)) or
             (t == "number" and isinstance(instance, (int, float)) and not isinstance(instance, bool)) or
+            (t == "boolean" and isinstance(instance, bool)) or
             (t == "object" and isinstance(instance, dict)) or
             (t == "array" and isinstance(instance, list))
             for t in tl)
@@ -260,14 +308,37 @@ def test_exported_schema_rejects_dateless_dated_event():
     assert _check(doc, to_json_schema()), "legitimate dated_event rejected"
 
 
+def test_exported_schema_rejects_fiscal_claim_with_calendar_date():
+    """Evaluator r22 parity: the fiscal-flag invariant must hold for schema
+    consumers too — a due_date_fiscal document carrying a calendar due_date,
+    or lacking its fiscal phrasing, must not validate."""
+    doc = _valid_claim_dict()
+    doc.update(kind="dated_event", metric=None, target_low=None, target_high=None,
+               unit=None, due_date_fiscal=True,
+               due_date_text="third quarter of fiscal 2027", due_date=None)
+    assert _check(doc, to_json_schema()), "legitimate fiscal claim rejected"
+    doc["due_date"] = "2027-09-30"
+    assert not _check(doc, to_json_schema()), (
+        "fiscal claim with a guessed calendar due_date passed the schema")
+    doc["due_date"] = None
+    doc["due_date_text"] = "  "
+    assert not _check(doc, to_json_schema()), (
+        "fiscal claim without its fiscal phrasing passed the schema")
+
+
 def test_exported_lifecycle_schema_rejects_empty_object_evidence():
     doc = {"claim_id": "c-001", "state": "broken", "confidence": "likely",
-           "observed_at": "2027-10-01T00:00:00Z", "evidence": [{}]}
+           "observed_at": "2027-10-01T00:00:00Z",
+           "recorded_at": "2027-10-02T00:00:00Z", "evidence": [{}]}
     assert not _check(doc, claim_schema.to_lifecycle_event_json_schema())
     doc["evidence"] = [{"source_url": "https://x.gov/a.htm", "source_kind": "8-K",
                         "published_at": "2027-09-30T00:00:00Z",
                         "retrieved_at": "2027-10-01T00:00:00Z"}]
     assert _check(doc, claim_schema.to_lifecycle_event_json_schema())
+    # recorded_at is REQUIRED by the exported schema too (evaluator r22).
+    without = {k: v for k, v in doc.items() if k != "recorded_at"}
+    assert not _check(without, claim_schema.to_lifecycle_event_json_schema()), (
+        "lifecycle document without recorded_at must not validate")
 
 
 # ------------------------------------------------------------ golden harness
@@ -453,11 +524,13 @@ def test_non_verdict_lifecycle_events_also_require_evidence():
                   LifecycleState.REITERATED, LifecycleState.EXPIRED_UNRESOLVED):
         ev = LifecycleEvent(claim_id="c-001", state=state,
                             confidence=FulfillmentConfidence.LIKELY,
-                            observed_at=datetime.datetime(2027, 10, 1, tzinfo=UTC))
+                            observed_at=datetime.datetime(2027, 10, 1, tzinfo=UTC),
+                            recorded_at=datetime.datetime(2027, 10, 2, tzinfo=UTC))
         assert any("requires evidence" in e for e in validate(ev)), state
         with_ev = LifecycleEvent(claim_id="c-001", state=state,
                                  confidence=FulfillmentConfidence.LIKELY,
                                  observed_at=datetime.datetime(2027, 10, 1, tzinfo=UTC),
+                                 recorded_at=datetime.datetime(2027, 10, 2, tzinfo=UTC),
                                  evidence=(_provenance(),))
         assert validate(with_ev) == [], state
 
@@ -534,9 +607,9 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures" / "edgar"
 def test_authoritative_exhibit_parsing_on_real_jpm_filing():
     """REAL fixture (live EDGAR, 2026-07-15): JPM's same-day Q2-2026 earnings
     8-K. The filename fallback originally MISSED both exhibits — the
-    authoritative index-headers path is the fix (Contract #9 live-run catch)."""
+    authoritative index-headers path is the fix (Contract #18 live-run catch)."""
     html = (FIXTURES / "0001628280-26-048078-index-headers.html").read_text(encoding="utf-8")
-    hits = edgar.find_press_release_exhibits_authoritative(html, {"items": "2.02,9.01"})
+    hits = edgar.find_ex99_exhibits_authoritative(html, {"items": "2.02,9.01"})
     assert [(h["exhibit_type"], h["document"]) for h in hits] == [
         ("EX-99.1", "a2q26erfexhibit991narrative.htm"),
         ("EX-99.2", "a2q26erfex992supplement.htm"),
@@ -546,7 +619,7 @@ def test_authoritative_exhibit_parsing_on_real_jpm_filing():
 
 def test_authoritative_exhibit_parsing_on_real_bac_filing():
     html = (FIXTURES / "0000070858-26-000353-index-headers.html").read_text(encoding="utf-8")
-    hits = edgar.find_press_release_exhibits_authoritative(html, {"items": "2.02,7.01,9.01"})
+    hits = edgar.find_ex99_exhibits_authoritative(html, {"items": "2.02,7.01,9.01"})
     assert [h["exhibit_type"] for h in hits] == ["EX-99.1", "EX-99.2", "EX-99.3"]
     assert hits[0]["document"] == "bac06302026ex991.htm"
 

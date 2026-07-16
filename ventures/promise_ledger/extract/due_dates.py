@@ -2,7 +2,7 @@
 
 Turns promise language into (due_date, original_text) pairs per the schema
 invariant that a parsed due_date must keep its non-empty original phrasing.
-Deterministic stdlib code only — no LLM, no spend (Contract #8 scope). The
+Deterministic stdlib code only — no LLM, no spend (Contract #17 scope). The
 parser is deliberately CONSERVATIVE: it returns the LATEST day the phrase can
 mean (a promise "by Q3 2027" is not broken until Q3 2027 has fully passed),
 and it returns None rather than guess when the phrase is ambiguous. Precision
@@ -10,11 +10,16 @@ over recall: a wrong due date feeds a wrong "overdue" alert, which is the
 product's failure mode; an unparsed phrase merely stays due_date_text-only,
 which the schema fully supports.
 
-KNOWN LIMIT (stated, not hidden): "fiscal" periods are resolved as CALENDAR
-periods — mapping fiscal quarters/years to dates requires the issuer's
-fiscal-calendar record, which is entity data this parser does not have. Such
-phrases return fiscal=True so callers can defer resolution until the entity's
-fiscal calendar is known.
+FISCAL PERIODS ARE NEVER RESOLVED TO CALENDAR DATES (evaluator r22): mapping
+"fiscal Q3 2027" to a day requires the issuer's fiscal-calendar record, which
+this parser does not have, and issuers' fiscal years end in different months
+— a calendar guess feeds a false "overdue" alert, the product's stated
+high-blast-radius failure mode. Fiscal phrases therefore return
+`due_date=None` with `fiscal=True` and the verbatim phrase: the claim is
+stored due_date_text-only with `Claim.due_date_fiscal=True` (the schema
+validator REJECTS a fiscal claim carrying a calendar due_date), so no guessed
+date can ever enter the ledger. Resolution happens if/when the issuer's
+fiscal calendar becomes entity data.
 """
 
 from __future__ import annotations
@@ -36,10 +41,12 @@ _ORDINALS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "1st": 1, "2nd": 
 
 @dataclass(frozen=True)
 class ParsedDueDate:
-    due_date: datetime.date      # latest day the phrase can mean
-    original_text: str           # verbatim phrase (provenance of the parse)
-    fiscal: bool                 # True => calendar-resolved placeholder; needs
-                                 # the issuer's fiscal calendar to be exact
+    due_date: datetime.date | None  # latest day the phrase can mean; None for
+                                    # fiscal periods (never guessed — see module
+                                    # docstring)
+    original_text: str              # verbatim phrase (provenance of the parse)
+    fiscal: bool                    # True => issuer-fiscal period; due_date is
+                                    # None until the fiscal calendar is known
 
 
 def _end_of_month(year: int, month: int) -> datetime.date:
@@ -71,6 +78,10 @@ def parse_due_dates(text: str) -> list[ParsedDueDate]:
         if not claim_span(m):
             continue
         fiscal = bool(m.group("fiscal1") or m.group("fiscal2") or m.group("fiscal3"))
+        if fiscal:
+            # Never guess a calendar date for an issuer-fiscal period.
+            out.append(ParsedDueDate(None, m.group(0), True))
+            continue
         if m.group("hnum"):
             month, day = _HALF_END[int(m.group("hnum"))]
             year = int(m.group("year3"))
@@ -79,7 +90,7 @@ def parse_due_dates(text: str) -> list[ParsedDueDate]:
                  else _ORDINALS[m.group("qword").lower()])
             month, day = _QUARTER_END[q]
             year = int(m.group("year1") or m.group("year2"))
-        out.append(ParsedDueDate(datetime.date(year, month, day), m.group(0), fiscal))
+        out.append(ParsedDueDate(datetime.date(year, month, day), m.group(0), False))
 
     # "by/before/no later than <Month> <D>?, <YYYY>"  and  "in <Month> <YYYY>"
     for m in re.finditer(
@@ -103,8 +114,12 @@ def parse_due_dates(text: str) -> list[ParsedDueDate]:
             text, re.IGNORECASE):
         if not claim_span(m):
             continue
-        out.append(ParsedDueDate(datetime.date(int(m.group("year")), 12, 31),
-                                 m.group(0), bool(m.group("fiscal"))))
+        if m.group("fiscal"):
+            out.append(ParsedDueDate(None, m.group(0), True))
+        else:
+            out.append(ParsedDueDate(datetime.date(int(m.group("year")), 12, 31),
+                                     m.group(0), False))
 
-    out.sort(key=lambda p: p.due_date)
+    # Dated parses in calendar order; fiscal (unresolved) parses last.
+    out.sort(key=lambda p: (p.due_date is None, p.due_date or datetime.date.min))
     return out
