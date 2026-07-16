@@ -45,6 +45,7 @@ on:
       - "tools/routing_data.py"
       - "tools/pure_data.py"
       - "tools/golden_lint.py"
+      - "tools/trust_gate.py"
       - "tests/test_golden_exam.py"
       - "tools/verify_exam_evidence.py"
       - "tools/extract_prompt_text.py"
@@ -130,7 +131,7 @@ jobs:
                   "tools/model_router.py", "tools/routing_data.py",
                   "tools/pure_data.py", "tools/verify_exam_evidence.py",
                   "tools/extract_prompt_text.py", "tools/extract_routed_model.py",
-                  "tools/golden_lint.py", "tests/test_golden_exam.py",
+                  "tools/golden_lint.py", "tools/trust_gate.py", "tests/test_golden_exam.py",
                   ".github/workflows/extraction-eval.yml",
                   ".github/workflows/extraction-exam-dispatch.yml"))
           # Files a prompt-swap exam GENUINELY certifies: the prompt is run

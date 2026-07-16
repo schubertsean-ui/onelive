@@ -51,7 +51,13 @@ def is_pure_data_module(source: str) -> bool:
             if not _is_const_literal(node.value):
                 return False
         elif isinstance(node, ast.AnnAssign):
-            if not (isinstance(node.target, ast.Name) and node.value is not None
+            # The ANNOTATION itself is evaluated at import time (r17
+            # blocker: `X: __import__("os").system(...) = "safe"` executes
+            # on import while the value literal looks innocent). Only a
+            # bare-name annotation (str, int, ...) is inert enough.
+            if not (isinstance(node.target, ast.Name)
+                    and isinstance(node.annotation, ast.Name)
+                    and node.value is not None
                     and _is_const_literal(node.value)):
                 return False
         else:
