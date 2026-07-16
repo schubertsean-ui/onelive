@@ -127,12 +127,13 @@ jobs:
             echo "# attached web log instead (exceptions: docs/SCA_BASELINE.md)."
             echo "# NOTE to evaluator: golden-set exam evidence for extraction-surface"
             echo "# changes is NOT in these logs — it is produced by the separate"
-            echo "# release-blocking check 'Extraction Golden-Set Exam' running on this"
-            echo "# same PR head SHA (workflow: .github/workflows/extraction-eval.yml),"
-            echo "# which calls the real routed model and uploads exam-report.json as an"
-            echo "# artifact. Merge discipline requires BOTH this review and that exam"
-            echo "# green on the same SHA; absence of exam output here is expected and"
-            echo "# is not absence of the gate."
+            echo "# release-blocking check 'Extraction Golden-Set Exam' on this same PR"
+            echo "# (workflow: .github/workflows/extraction-eval.yml, which pins its"
+            echo "# checkout to the PR HEAD SHA so the report certifies exactly that"
+            echo "# commit), calling the real routed model and uploading"
+            echo "# exam-report.json as an artifact. Merge discipline requires BOTH this"
+            echo "# review and that exam green on the PR's current head; absence of exam"
+            echo "# output here is expected and is not absence of the gate."
             git diff "${{ steps.range.outputs.range }}" -- . ':(exclude)**/package-lock.json'
           } > pr.diff
           wc -c pr.diff

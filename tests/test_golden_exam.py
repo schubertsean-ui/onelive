@@ -238,30 +238,40 @@ def test_provenance_carries_prompt_content_hash():
         hashlib.sha256(EXTRACTION_SYSTEM_PROMPT.encode("utf-8")).hexdigest()
 
 
-def test_exam_mode_denied_when_pipeline_frame_is_anywhere_on_stack():
-    """Evaluator blocker (PR #25 r5): a production wrapper driving the
-    exam runner would make the DIRECT caller look like the allowlisted
-    golden_exam module. Confinement must reject when any worker//api/
-    frame appears anywhere in the stack — synthesized here by compiling
-    an inner constructor under the runner's filename and an outer caller
-    under worker/, without touching real files."""
-    import ai.claude_provider as cp
-    repo_root = pathlib.Path(cp.__file__).resolve().parent.parent
-    inner_ns, outer_ns = {}, {}
-    inner_src = (
+def test_exam_mode_denied_in_a_non_exam_process_even_with_forged_filenames(monkeypatch):
+    """Evaluator blocker (PR #25 r8): the old stack-filename walk was
+    spoofable via compile(..., filename=...). The entrypoint boundary is
+    not: simulate a production process (no pytest env, __main__ is not
+    the exam program) and prove that even code compiled under the
+    runner's own filename is denied — authorization is a property of the
+    PROCESS, not of code shape."""
+    import types
+    import __main__
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setattr(__main__, "__spec__",
+                        types.SimpleNamespace(name="celery.__main__"), raising=False)
+    forged_ns = {}
+    forged_src = (
         "from ai.claude_provider import ClaudeProvider\n"
-        "def inner():\n"
+        "def forged():\n"
         "    return ClaudeProvider(api_key='test', model='claude-test', exam_mode=True)\n"
     )
-    exec(compile(inner_src, str(repo_root / "ai" / "golden_exam.py"), "exec"), inner_ns)
-    exec(compile("def outer(f):\n    return f()\n",
-                 str(repo_root / "worker" / "synthetic_wrapper.py"), "exec"), outer_ns)
-    # Positive control: the same inner frame WITHOUT a pipeline frame above
-    # it is the legitimate runner shape and must construct fine.
-    assert inner_ns["inner"]().exam_mode is True
-    # The wrapper hole: golden_exam frame present, but initiated from worker/.
-    with pytest.raises(ExtractionConfigError, match="caller verification failed"):
-        outer_ns["outer"](inner_ns["inner"])
+    exec(compile(forged_src, "ai/golden_exam.py", "exec"), forged_ns)
+    with pytest.raises(ExtractionConfigError, match="entrypoint"):
+        forged_ns["forged"]()
+
+
+def test_exam_mode_allowed_when_process_is_the_exam_program(monkeypatch):
+    """The one production-shaped entrypoint that must work: a process
+    started as `python -m ai.golden_exam` (its __main__ spec is literally
+    the runner module)."""
+    import types
+    import __main__
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setattr(__main__, "__spec__",
+                        types.SimpleNamespace(name="ai.golden_exam"), raising=False)
+    p = ClaudeProvider(api_key="test", model="claude-test", exam_mode=True)
+    assert p.exam_mode is True
 
 
 def test_full_size_mute_run_fails_on_recall_not_invalid(monkeypatch, capsys):

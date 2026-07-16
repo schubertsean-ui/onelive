@@ -50,7 +50,6 @@ import html
 import json
 import logging
 import os
-import pathlib
 import time
 
 from ai.prompts import EXTRACTION_SYSTEM_PROMPT
@@ -90,12 +89,14 @@ def _resolve_extraction_model(explicit: Optional[str], exam_mode: bool = False) 
     """
     import tools.model_router as _router
     if exam_mode:
-        if not _exam_caller_allowed():
+        if not _exam_entrypoint_allowed():
             raise ExtractionConfigError(
-                "exam_mode may only be invoked from ai/golden_exam.py or "
-                "tests/ — runtime caller verification failed (this channel "
-                "bypasses the extraction ratification gate; production paths "
-                "are mechanically excluded, not merely policy-excluded)."
+                "exam_mode is only available inside the exam program "
+                "(python -m ai.golden_exam) or the test runner — this "
+                "process's entrypoint is neither. The channel bypasses the "
+                "extraction ratification gate; production processes are "
+                "excluded by WHAT the process is, not by what its code "
+                "looks like."
             )
         # THE EXAM CHANNEL — deliberately narrow (R-013's own measurement
         # instrument): the golden-set runner must exercise the REAL provider
@@ -131,56 +132,40 @@ def _resolve_extraction_model(explicit: Optional[str], exam_mode: bool = False) 
         raise ExtractionConfigError(str(exc)) from exc
 
 
-def _exam_caller_allowed() -> bool:
-    """Runtime confinement of the exam channel (evaluator, PR #25 r3+r5).
+def _exam_entrypoint_allowed() -> bool:
+    """Runtime confinement of the exam channel — a PROCESS-ENTRYPOINT
+    boundary (evaluator r8 replaced the earlier stack-filename walk, which
+    was spoofable via compile(..., filename=...)).
 
-    Two conditions, both required, checked over the WHOLE call stack —
-    not just the nearest frame (r5 closed the wrapper hole: production
-    code calling ai.golden_exam.main() would make the nearest external
-    frame look like the allowlisted runner):
+    Authorization is a property of how this PROCESS was started, not of
+    the shape of the calling code. Exactly two entrypoints qualify:
 
-    1. The first non-own frame must be the golden-exam runner or test
-       code (who is directly constructing the provider).
-    2. NO frame anywhere in the stack may come from this repo's worker/
-       or api/ trees (who transitively initiated the call). Pipeline code
-       cannot reach the exam channel even by driving the runner.
+    1. The exam program itself: `python -m ai.golden_exam` makes the
+       interpreter's __main__ module spec literally "ai.golden_exam". A
+       worker/Celery/uvicorn/cron process can never satisfy this without
+       re-exec-ing AS the exam program — at which point it is not
+       sneaking past the gate, it IS the gate's instrument.
+    2. The test runner: pytest stamps PYTEST_CURRENT_TEST into the
+       environment for the duration of each test — the hermetic tests of
+       this channel run there.
 
-    Fail-closed: any violation gets ExtractionConfigError even if it found
-    a syntactic disguise past the static trust_gate scan (defense in depth:
-    this is layer 1 at runtime; the text scan — which also flags any
-    golden_exam reference outside the allowlist — remains layer 2 in CI).
+    Filename spoofing (compile with a forged filename, wrappers, import
+    games) does nothing to either signal. Threat model, stated honestly:
+    CPython offers no in-process capability sealing — code that is ALREADY
+    hostile inside this process could setattr the ratification flag itself
+    and would never need this channel. This boundary therefore targets
+    what is real: ACCIDENTAL production use (a worker constructing an
+    exam-mode provider fails loudly, whatever its code looks like), with
+    adversarial code held instead by the layers that actually bind it —
+    the trust_gate CI scans on every PR, the mandatory evaluator review,
+    and the pipeline invariant that no AI output reaches the public feed
+    without the human promotion gate.
     """
-    import inspect
-    own = "claude_provider.py"
-    repo_root = str(pathlib.Path(__file__).resolve().parent.parent).replace("\\", "/")
-    # Repo-internal frames allowed anywhere on the exam-channel stack.
-    # ALLOWLIST, not a blocklist (evaluator r7: banning only worker//api/
-    # left root-level scripts and future trees implicitly trusted): any
-    # repo frame outside these prefixes denies the channel. Frames outside
-    # the repo (stdlib runpy, site-packages pytest) are neutral.
-    allowed_prefixes = (
-        repo_root + "/ai/golden_exam.py",
-        repo_root + "/ai/claude_provider.py",
-        repo_root + "/tests/",
-    )
-    direct_caller_ok = False
-    seen_external = False
-    for frame in inspect.stack():
-        fn = frame.filename.replace("\\", "/")
-        if fn.endswith(own):
-            continue
-        if fn.startswith(repo_root + "/") and not fn.startswith(allowed_prefixes):
-            return False
-        if not seen_external:
-            seen_external = True
-            direct_caller_ok = (
-                fn.endswith("ai/golden_exam.py")
-                or "/tests/" in fn
-                or "/_pytest/" in fn or "/pytest" in fn
-            )
-            if not direct_caller_ok:
-                return False
-    return direct_caller_ok
+    import __main__
+    spec_name = getattr(getattr(__main__, "__spec__", None), "name", "") or ""
+    if spec_name == "ai.golden_exam":
+        return True
+    return "PYTEST_CURRENT_TEST" in os.environ
 
 
 class ExtractionConfigError(RuntimeError):

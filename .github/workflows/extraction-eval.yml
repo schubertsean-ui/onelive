@@ -53,9 +53,50 @@ jobs:
     environment: extraction-exam
     permissions:
       contents: read
+      # Needed by the protection-proof step below to READ the environment's
+      # protection rules via the REST API (never to change anything).
+      deployments: read
     steps:
+      - name: Prove the environment protection is ACTIVE (fail closed)
+        # Evaluator r8: `environment:` alone is not fail-closed — an
+        # environment created WITHOUT a required-reviewer rule (e.g. a
+        # half-finished setup, or GitHub auto-creating it on first
+        # reference) lets this job run PR code with the secret
+        # automatically. So before any secret-bearing step, ask GitHub's
+        # API whether extraction-exam actually carries a required_reviewers
+        # protection rule; anything else — rule missing, environment
+        # missing, API error — kills the job while the secret is still
+        # untouched. No secrets are in scope for this step.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -o pipefail
+          resp="$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+                       -H "Accept: application/vnd.github+json" \
+                       "https://api.github.com/repos/${{ github.repository }}/environments/extraction-exam")" || {
+            echo "::error::Could not query the extraction-exam environment (API error) — failing closed."
+            exit 1
+          }
+          printf '%s' "$resp" | python3 -c '
+          import json, sys
+          try:
+              d = json.load(sys.stdin)
+          except ValueError:
+              sys.exit(1)
+          rules = d.get("protection_rules") or []
+          sys.exit(0 if any(r.get("type") == "required_reviewers" for r in rules) else 1)
+          ' || {
+            echo "::error::The extraction-exam environment has NO required_reviewers protection rule — the secret-bearing exam must not run PR code without a human approval gate. Configure it: Settings -> Environments -> extraction-exam -> Required reviewers."
+            exit 1
+          }
+          echo "extraction-exam protection verified: required_reviewers rule is active."
+
       - uses: actions/checkout@v4
         with:
+          # Pin to the PR HEAD SHA (not the synthetic merge ref) so the
+          # exam evidence cites exactly the commit the report certifies
+          # (evaluator r8 nit). Dispatch/other events use the pushed SHA.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - uses: actions/setup-python@v5
