@@ -114,7 +114,15 @@ jobs:
                     "file-list cap, this gate cannot prove the surface "
                     "classification (fail closed; split the PR).")
               sys.exit(1)
-          changed = [f["filename"] for f in files]
+          # Renames fail closed (r16): the compare API reports a renamed
+          # file under its NEW path with the old path in previous_filename —
+          # classify BOTH sides, so renaming a harness file out of the
+          # guarded set is still a harness change.
+          changed = []
+          for f in files:
+              changed.append(f["filename"])
+              if f.get("previous_filename"):
+                  changed.append(f["previous_filename"])
           # The extraction surface this gate guards (mirror of the trigger paths).
           def on_surface(p):
               return (p.startswith("ai/") or p in (
@@ -205,8 +213,11 @@ jobs:
           set -euo pipefail
           cd base
           api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
-          # 50-run window (r15 nit): fail-closed either way — if valid
-          # evidence ages out, the remedy is one re-dispatch, never a skip.
+          # 50-run window (r15/r16 nits): fail-closed either way. OPERATOR
+          # NOTE, prominent by design: if many exams ran since yours, valid
+          # evidence can age out of this window — the remedy is always ONE
+          # re-dispatch with the same subject_sha/model; the gate never
+          # skips or degrades.
           RUN_IDS="$(api "https://api.github.com/repos/$REPO/actions/workflows/extraction-exam-dispatch.yml/runs?event=workflow_dispatch&status=success&per_page=50" | python3 -c "import json,sys; print(' '.join(str(r['id']) for r in (json.load(sys.stdin).get('workflow_runs') or [])))")"
           if [ -z "$RUN_IDS" ]; then
             echo "::error::No successful ATTENDED exam runs exist at all. A maintainer must dispatch 'Extraction Golden-Set Exam — attended run' on the default branch with subject_sha=$HEAD_SHA and the subject's routed model ($EXPECT_MODEL), then re-run this check (fail closed)."

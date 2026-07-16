@@ -60,7 +60,7 @@ def extract(source: str) -> str | None:
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if len(argv) != 1:
-        print("usage: extract_routed_model.py <model_router.py>", file=sys.stderr)
+        print("usage: extract_routed_model.py <routing_data.py>", file=sys.stderr)
         return 1
     try:
         text = extract(open(argv[0], encoding="utf-8").read())
