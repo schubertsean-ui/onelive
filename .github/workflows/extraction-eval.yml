@@ -86,15 +86,31 @@ jobs:
 
       - name: Classify the extraction-surface diff (harness code cannot ride a prompt-swap exam)
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
         run: |
           set -o pipefail
-          git -C base fetch --no-tags origin "$HEAD_SHA"
-          git -C base diff --name-only "$BASE_SHA" "$HEAD_SHA" > changed.txt
+          # Compare via the API (the checkouts are credential-less by design,
+          # so a git fetch here would have no auth). The compare API caps the
+          # file list at 300 entries; a bigger diff fails closed below.
+          curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/compare/$BASE_SHA...$HEAD_SHA" > compare.json
           python3 - <<'PY'
-          import pathlib, sys
-          changed = [l.strip() for l in pathlib.Path("changed.txt").read_text().splitlines() if l.strip()]
+          import json, pathlib, sys
+          d = json.loads(pathlib.Path("compare.json").read_text())
+          files = d.get("files")
+          if files is None:
+              print("::error::compare API returned no file list — cannot "
+                    "classify the diff (fail closed).")
+              sys.exit(1)
+          if len(files) >= 300:
+              print("::error::diff has 300+ files — beyond the compare API's "
+                    "file-list cap, this gate cannot prove the surface "
+                    "classification (fail closed; split the PR).")
+              sys.exit(1)
+          changed = [f["filename"] for f in files]
           # The extraction surface this gate guards (mirror of the trigger paths).
           def on_surface(p):
               return (p.startswith("ai/") or p in (
