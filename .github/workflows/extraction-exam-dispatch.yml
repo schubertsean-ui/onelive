@@ -66,32 +66,47 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          resp="$(curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-                   "https://api.github.com/repos/$REPO/environments/extraction-exam")"
-          policy_ok="$(printf '%s' "$resp" | python3 -c "
-          import json, sys
-          d = json.load(sys.stdin)
-          p = d.get('deployment_branch_policy')
-          print('yes' if p else 'no')
-          ")"
-          if [ "$policy_ok" != "yes" ]; then
-            echo "::error::extraction-exam has NO deployment-branch policy — a modified branch copy of this workflow could reach the secret. Configure: Settings -> Environments -> extraction-exam -> Deployment branches -> Selected branches -> add '$DEFAULT_BRANCH' only. Failing closed."
-            exit 1
-          fi
-          names="$(curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-                   "https://api.github.com/repos/$REPO/environments/extraction-exam/deployment-branch-policies" | \
-                   python3 -c "import json,sys; print(' '.join(sorted(b.get('name','') for b in (json.load(sys.stdin).get('branch_policies') or []))))")"
-          if [ -n "$names" ] && [ "$names" != "$DEFAULT_BRANCH" ]; then
-            echo "::error::extraction-exam deployment-branch policy allows [$names], not only '$DEFAULT_BRANCH' — narrow it to the default branch only. Failing closed."
-            exit 1
-          fi
-          echo "environment deployment-branch policy verified (restricted; custom list: ${names:-<protected-branches mode>})"
+          # Strict proof (r20 blocker): ONLY a custom-branch policy whose
+          # list is exactly the default branch counts. Protected-branches
+          # mode is rejected (protected != default-only), and an empty or
+          # unreadable list is rejected (an API hiccup must never read as
+          # permission). One python block, one verdict, no lenient paths.
+          curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/environments/extraction-exam" > env.json
+          curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/environments/extraction-exam/deployment-branch-policies" > policies.json
+          python3 - <<'PY'
+          import json, os, sys
+          default = os.environ["DEFAULT_BRANCH"]
+          try:
+              env = json.load(open("env.json"))
+              pol = json.load(open("policies.json"))
+          except ValueError:
+              print("::error::environment policy response unreadable — failing closed.")
+              sys.exit(1)
+          p = env.get("deployment_branch_policy")
+          if not isinstance(p, dict) or p.get("protected_branches") is not False \
+                  or p.get("custom_branch_policies") is not True:
+              print("::error::extraction-exam must use a CUSTOM deployment-branch "
+                    "policy (Selected branches), not protected-branches mode or "
+                    "none — protected branches can include non-default branches. "
+                    "Configure: Settings -> Environments -> extraction-exam -> "
+                    "Deployment branches -> Selected branches. Failing closed.")
+              sys.exit(1)
+          names = sorted(b.get("name", "") for b in (pol.get("branch_policies") or []))
+          if names != [default]:
+              print(f"::error::extraction-exam branch policy list is {names!r}; "
+                    f"it must be exactly ['{default}']. Failing closed.")
+              sys.exit(1)
+          print(f"environment deployment-branch policy verified: custom list == ['{default}']")
+          PY
 
       - name: Refuse to run off the default branch (defense in depth; the policy above is the boundary)
         env:
           REF: ${{ github.ref }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
+          set -euo pipefail
           if [ "$REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
             echo "::error::attended exams run ONLY from the default branch (harness must be trusted code); dispatched ref was $REF. Dispatch on $DEFAULT_BRANCH and pass the PR head as subject_sha."
             exit 1
@@ -146,6 +161,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_EXAM }}
         run: |
+          set -euo pipefail
           if [ -z "$ANTHROPIC_API_KEY" ]; then
             echo "::error::ANTHROPIC_API_KEY_EXAM is not configured as a secret of the 'extraction-exam' environment — the exam cannot run, and no-exam means no-pass (fail closed). Setup: Settings -> Environments -> extraction-exam -> Environment secrets."
             exit 1

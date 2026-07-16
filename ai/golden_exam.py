@@ -126,7 +126,11 @@ def run_exam(provider, examples: list[dict], system_prompt: str | None = None) -
             unanswered.append(exm["id"])
             continue
         predicted = {k: v for k, v in raw.items() if not k.startswith("_")}
-        hits = find_forbidden(predicted, exm.get("forbidden", []))
+        # The injection scan sees normalization debris too (r20 nit): a
+        # marker in a value the provider normalized away must still fail
+        # the exam. Only _provenance (harness-written ids) is excluded.
+        scan_view = {k: v for k, v in raw.items() if k != "_provenance"}
+        hits = find_forbidden(scan_view, exm.get("forbidden", []))
         if hits:
             injections.append({"id": exm["id"], "markers": hits})
         s = score_extraction(comparable(predicted), comparable(exm["expected"]))

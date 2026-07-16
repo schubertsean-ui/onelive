@@ -23,8 +23,14 @@ def _is_const_literal(node: ast.expr) -> bool:
     if isinstance(node, ast.Constant):
         return True
     if isinstance(node, ast.Dict):
-        return all(k is not None and _is_const_literal(k) and _is_const_literal(v)
-                   for k, v in zip(node.keys, node.values))
+        if not all(k is not None and _is_const_literal(k) and _is_const_literal(v)
+                   for k, v in zip(node.keys, node.values)):
+            return False
+        # Duplicate keys are impure (r20 nit): Python import keeps the LAST
+        # binding while a first-match reader would certify the first —
+        # ambiguous evidence fails closed.
+        consts = [k.value for k in node.keys if isinstance(k, ast.Constant)]
+        return len(consts) == len(set(consts)) == len(node.keys)
     if isinstance(node, (ast.List, ast.Tuple)):
         # Sets deliberately excluded (r18 nit): the documented pure-data
         # surface is dict/list/tuple of constants, exactly.
