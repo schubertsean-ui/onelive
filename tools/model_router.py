@@ -16,44 +16,16 @@ import os
 import re
 import sys
 
-# Cheapest-capable defaults, ratified via docs/MODEL_ROUTING.md. Change them
-# THERE first — this table implements the doc, not the other way around.
-STAGE_MODELS = {
-    "mechanical": "claude-haiku-4-5",
-    "standard": "claude-sonnet-4-6",
-    "critical": "claude-opus-4-8",
-    # ESCALATED Cheap->Standard 2026-07-15 (cost-discipline rule 2, logged):
-    # claude-haiku-4-5 failed the golden-set exam 3 consecutive cycles after
-    # full key/prompt calibration (residual: venue-as-title, city inference,
-    # multi-event confusion — instruction-following, not knowledge).
-    # ESCALATED Standard->Critical 2026-07-15 (same rule, logged):
-    # claude-sonnet-4-6 failed 4 consecutive cycles; the last two oscillated
-    # at 2.3-2.7% (bar: 1%) in whack-a-mole equilibrium on a coherent,
-    # de-contaminated spec with worked examples — each fix regressed a
-    # neighbor, the signature of an instruction-following ceiling on ~10
-    # interacting title/city discriminations, not a spec defect. The tier
-    # is earned by passing the same gate, and lost the same way: once the
-    # gate opens, BOTH cheaper tiers re-sit this exam via workflow_dispatch
-    # and extraction routes to the cheapest passer (TODOS de-escalation
-    # item).
-    "extraction": "claude-opus-4-8",
-    # Non-Claude by charter (§0.2) — cost never downgrades the grader.
-    "evaluator": "gpt-5.5",
-}
-
-# R-013 status 2026-07-15: the golden-set exam gate EXISTS (runner in ai/,
-# release-blocking CI via .github/workflows/extraction-eval.yml) and the
-# routed model claude-opus-4-8 passed the RATE bar on exam cycle 11
-# (hallucination 0.0068 ≤ 0.01, recall 0.9702, zero injections — CI run
-# 29424147665, artifact 8346621357) — but that run asserted 295 facts,
-# below the ≥300 asserted-fact floor the 1% claim is powered by, a
-# fail-open floor mismatch the evaluator caught in round 6 before the
-# flip shipped. The flag therefore STAYS False: it flips ONLY in the
-# commit citing a run that passes the corrected gate (rate bar AND
-# asserted-fact floor). Once open, the gate remains in force on every
-# extraction-surface PR, and the flag returns to False if the routed
-# model ever fails (KAIZEN §M7 one-way ratchet governs the threshold).
-EXTRACTION_THRESHOLD_RATIFIED = False
+# Routing VALUES + the ratification flag live in tools/routing_data.py — a
+# PURE DATA module (docstring + constant assignments only, enforced by
+# tools/pure_data.py) so the exam gate can certify routing changes as
+# AST-extracted data without executing subject code (evaluator r13).
+# Re-exported here so every existing import path keeps working; the flag
+# is read via this module's global so test monkeypatching stays effective.
+from tools.routing_data import (  # noqa: F401  (re-exports)
+    EXTRACTION_THRESHOLD_RATIFIED,
+    STAGE_MODELS,
+)
 
 # Model ids across vendors are ASCII: letters/digits/dot/underscore/colon/
 # slash/hyphen. Anything else (newlines, spaces, shell metacharacters) is a

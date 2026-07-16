@@ -53,9 +53,13 @@ COMPARABLE_FIELDS = (
     "city", "artist_names", "ticket_link", "rsvp_link",
 )
 
-HALLUCINATION_MAX = 0.01   # founder-ratified 2026-07-15 ("BEGIN at 1%"); one-way ratchet
-RECALL_MIN = 0.80          # anti-gaming floor (going mute is not safety); ratchetable
-SAMPLE_FLOOR = 300         # ~3/p asserted facts for a defensible 1% claim (§M7)
+# Thresholds live in ai/exam_thresholds.py (pure data; r13) — re-exported
+# here so tests and callers keep their import paths.
+from ai.exam_thresholds import (  # noqa: F401  (re-exports)
+    HALLUCINATION_MAX,
+    RECALL_MIN,
+    SAMPLE_FLOOR,
+)
 
 
 def load_golden(path: pathlib.Path = GOLDEN_PATH) -> list[dict]:
@@ -129,7 +133,7 @@ def run_exam(provider, examples: list[dict], system_prompt: str | None = None) -
         scores.append(s)
         if s.hallucinated_fields or hits:
             events_with_halluc += 1
-        if s.hallucinated_fields or hits or s.false_negatives:
+        if s.hallucinated_fields or s.mismatched_fields or hits or s.false_negatives:
             events_with_any_error += 1
         exp_cmp = comparable(exm["expected"])
         pred_cmp = comparable(predicted)

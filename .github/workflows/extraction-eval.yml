@@ -13,9 +13,9 @@ name: Extraction Golden-Set Exam (release-blocking)
 #     never import or execute subject code.
 #   * SURFACE CLASSIFICATION: prompt-swap evidence can only certify what
 #     the attended exam actually ran. A PR whose extraction-surface diff
-#     is confined to SUBJECT-CERTIFIABLE files (ai/prompts.py — examined
-#     as data; tools/model_router.py — routing VALUES bound via the
-#     report's model field; the gate flag lives there too) can go green
+#     is confined to SUBJECT-CERTIFIABLE files (ai/prompts.py and
+#     tools/routing_data.py — both PURE DATA modules, enforced by the
+#     extractors: nothing executable may appear in them) can go green
 #     with binding evidence. A PR that changes HARNESS code (runner,
 #     provider, scoring, golden set, extractors, verifier, these
 #     workflows) FAILS here with split instructions: harness changes
@@ -42,6 +42,8 @@ on:
       - "worker/ai_models.py"
       - "worker/ai_extract.py"
       - "tools/model_router.py"
+      - "tools/routing_data.py"
+      - "tools/pure_data.py"
       - "tools/verify_exam_evidence.py"
       - "tools/extract_prompt_text.py"
       - "tools/extract_routed_model.py"
@@ -122,7 +124,7 @@ jobs:
           # Files a prompt-swap exam GENUINELY certifies: the prompt is run
           # as data; the routing values/gate flag are bound via the report's
           # model field and the flip evidence rule.
-          subject_certifiable = {"ai/prompts.py", "tools/model_router.py"}
+          subject_certifiable = {"ai/prompts.py", "tools/routing_data.py"}
           harness_touched = [p for p in changed if on_surface(p) and p not in subject_certifiable]
           if harness_touched:
               print("::error::This PR changes extraction HARNESS code that the "
@@ -142,7 +144,7 @@ jobs:
           set -o pipefail
           python3 base/tools/extract_prompt_text.py subject/ai/prompts.py > subject_prompt.txt
           EXPECT_PROMPT_SHA="$(python3 -c "import hashlib,sys; print(hashlib.sha256(open('subject_prompt.txt','rb').read()).hexdigest())")"
-          EXPECT_MODEL="$(python3 base/tools/extract_routed_model.py subject/tools/model_router.py)"
+          EXPECT_MODEL="$(python3 base/tools/extract_routed_model.py subject/tools/routing_data.py)"
           if ! [[ "$EXPECT_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]]; then
             echo "::error::subject routed model is not a plausible model id (fail closed)."
             exit 1
@@ -186,7 +188,7 @@ jobs:
           fi
           echo "attended evidence accepted from run $FOUND"
 
-      - name: Golden-set structural lint (subject checkout, secretless — advisory red, never part of the accept path)
+      - name: Golden-set structural lint (subject checkout, secretless; BLOCKING, but independent of the evidence accept path)
         run: |
           cd subject
           pip install -r worker/requirements.txt

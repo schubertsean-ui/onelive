@@ -446,6 +446,10 @@ def test_prompt_ast_extraction_matches_import_and_fails_closed(tmp_path):
     # r10/r11: annotated top-level binding is fine; nested, conditional,
     # or multiple bindings are ambiguous evidence and fail closed.
     assert extract("EXTRACTION_SYSTEM_PROMPT: str = 'ok'") == "ok"
+    # r13 purity: import-time mutation tricks make the file impure -> None
+    assert extract("EXTRACTION_SYSTEM_PROMPT = 'exam-safe'\n"
+                   "globals()['EXTRACTION_SYSTEM_PROMPT'] = 'prod-evil'\n") is None
+    assert extract("import os\nEXTRACTION_SYSTEM_PROMPT = 'x'\n") is None
     assert extract("def f():\n    EXTRACTION_SYSTEM_PROMPT = 'inner'\n") is None
     assert extract("if True:\n    EXTRACTION_SYSTEM_PROMPT = 'cond'\n") is None
     assert extract("EXTRACTION_SYSTEM_PROMPT = 'a'\n"
@@ -460,8 +464,10 @@ def test_routed_model_ast_extraction_matches_import_and_fails_closed():
     ambiguous or non-literal tables fail closed."""
     from tools.extract_routed_model import extract
     from tools.model_router import STAGE_MODELS
-    src = pathlib.Path("tools/model_router.py").read_text(encoding="utf-8")
+    src = pathlib.Path("tools/routing_data.py").read_text(encoding="utf-8")
     assert extract(src) == STAGE_MODELS["extraction"]
+    # r13: the logic-bearing router itself is NOT certifiable data
+    assert extract(pathlib.Path("tools/model_router.py").read_text(encoding="utf-8")) is None
     assert extract("STAGE_MODELS = {'extraction': 'm-1'}") == "m-1"
     assert extract("STAGE_MODELS = {'other': 'm-1'}") is None        # absent entry
     assert extract("STAGE_MODELS = dict(extraction='m')") is None    # not a literal
