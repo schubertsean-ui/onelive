@@ -43,8 +43,14 @@ def lint(rows: list[dict], prompt_text: str) -> list[str]:
         if not ROW_SHAPE <= set(r):
             problems.append(f"{rid}: missing documented row keys {ROW_SHAPE - set(r)}")
             continue
-        if not str(r["text"]).strip():
-            problems.append(f"{rid}: empty text")
+        if not isinstance(r["expected"], dict):
+            problems.append(f"{rid}: expected is not an object")
+            continue
+        if not isinstance(r["tags"], list) or not all(isinstance(t, str) for t in r["tags"]):
+            problems.append(f"{rid}: tags is not a list of strings")
+            continue
+        if not isinstance(r["text"], str) or not r["text"].strip():
+            problems.append(f"{rid}: text missing or not a string")
         if not set(r["expected"]) <= VALID_EXPECTED:
             problems.append(f"{rid}: unknown expected keys")
     facts = sum(1 for r in rows for k in COMPARABLE_FIELDS

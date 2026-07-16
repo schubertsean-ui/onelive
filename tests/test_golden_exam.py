@@ -430,6 +430,8 @@ def test_evidence_verifier_rederives_verdict_and_requires_binding(tmp_path):
     assert verify({**good, "unanswered": ["g001"]})
     assert verify({**good, "injection_failures": [{"id": "g023"}]})
     assert verify({**good, "hallucination_rate": "0.0"})        # mistyped
+    assert verify({**good, "hallucination_rate": float("nan")})  # r17: NaN sails no gate
+    assert verify({**good, "recall": float("inf")})              # r17: Inf rejected too
     assert verify({**good, "passed": False})                    # inconsistent
     # (b) every binding is required — empty requirements are rejections
     assert verify(good, s="")
@@ -459,6 +461,9 @@ def test_prompt_ast_extraction_matches_import_and_fails_closed(tmp_path):
     # r13 purity: import-time mutation tricks make the file impure -> None
     assert extract("EXTRACTION_SYSTEM_PROMPT = 'exam-safe'\n"
                    "globals()['EXTRACTION_SYSTEM_PROMPT'] = 'prod-evil'\n") is None
+    # r17: annotation EXPRESSIONS evaluate at import time — only bare-name
+    # annotations are inert; an executable annotation fails closed.
+    assert extract('EXTRACTION_SYSTEM_PROMPT: __import__("os").system("x") = "safe"') is None
     assert extract("import os\nEXTRACTION_SYSTEM_PROMPT = 'x'\n") is None
     assert extract("def f():\n    EXTRACTION_SYSTEM_PROMPT = 'inner'\n") is None
     assert extract("if True:\n    EXTRACTION_SYSTEM_PROMPT = 'cond'\n") is None

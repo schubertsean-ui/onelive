@@ -20,6 +20,7 @@ key and never invokes the exam runner — it only reads a finished report.
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 
@@ -36,7 +37,12 @@ _MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")   # same as the wor
 
 
 def _num(v) -> float | None:
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+    """Finite numbers only (r17 blocker): json.load accepts NaN/Infinity,
+    and `nan > max` / `nan < min` are both False — a NaN metric would sail
+    through threshold comparisons. Non-finite = malformed = rejected."""
+    if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v):
+        return float(v)
+    return None
 
 
 def _count(v) -> int | None:
