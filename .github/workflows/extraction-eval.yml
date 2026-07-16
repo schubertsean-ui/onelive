@@ -117,7 +117,8 @@ jobs:
           def on_surface(p):
               return (p.startswith("ai/") or p in (
                   "worker/ai_models.py", "worker/ai_extract.py",
-                  "tools/model_router.py", "tools/verify_exam_evidence.py",
+                  "tools/model_router.py", "tools/routing_data.py",
+                  "tools/pure_data.py", "tools/verify_exam_evidence.py",
                   "tools/extract_prompt_text.py", "tools/extract_routed_model.py",
                   ".github/workflows/extraction-eval.yml",
                   ".github/workflows/extraction-exam-dispatch.yml"))
