@@ -406,16 +406,16 @@ def test_evidence_verifier_rederives_verdict_and_requires_binding(tmp_path):
     from ai.golden_exam import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
     from tools.verify_exam_evidence import verify as _v
     sha, model, phash = "a" * 40, "claude-routed-x", "c" * 64
-    ghash, schash = "d" * 64, "e" * 64
-    def verify(report, s=sha, m=model, p=phash, g=ghash, sc=schash):
-        return _v(report, s, m, p, g, sc)
+    ghash, hhash = "d" * 64, "e" * 64
+    def verify(report, s=sha, m=model, p=phash, g=ghash, h=hhash):
+        return _v(report, s, m, p, g, h)
     good = {
         "passed": True,
         "model": model,
         "prompt_sha256": phash,
         "subject_sha": sha,
         "golden_sha256": ghash,
-        "scorer_sha256": schash,
+        "harness_sha256": hhash,
         "expected_facts": 322, "asserted_facts": 315,
         "hallucination_rate": 0.0068, "recall": 0.97,
         "unanswered": [], "injection_failures": [],
@@ -438,7 +438,7 @@ def test_evidence_verifier_rederives_verdict_and_requires_binding(tmp_path):
     assert verify({**good, "hallucination_rate": -1})            # r21: proportions live in [0,1]
     assert verify({**good, "recall": 999})                       # r21: impossible metrics reject
     assert verify({**good, "golden_sha256": "f" * 64})           # r22: different exam = no evidence
-    assert verify({**good, "scorer_sha256": "f" * 64})           # r22: different scorer = no evidence
+    assert verify({**good, "harness_sha256": "f" * 64})          # r22/r23: different harness = no evidence
     assert verify(good, g="")                                    # r22: unbound harness = rejection
     assert verify({**good, "passed": False})                    # inconsistent
     # (b) every binding is required — empty requirements are rejections
@@ -524,7 +524,9 @@ def test_cli_report_carries_evidence_identity(monkeypatch, tmp_path):
     assert r["model"] == "claude-test"
     assert r["subject_sha"] == sha
     assert r["prompt_version"] and len(r["prompt_sha256"]) == 64
-    assert len(r["golden_sha256"]) == 64 and len(r["scorer_sha256"]) == 64
+    assert len(r["golden_sha256"]) == 64 and len(r["harness_sha256"]) == 64
+    from ai.golden_exam import compute_harness_sha
+    assert r["harness_sha256"] == compute_harness_sha()
 
 
 # --- golden set structural lint --------------------------------------------------

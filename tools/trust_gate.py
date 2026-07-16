@@ -219,11 +219,11 @@ EXAM_MODE_ALLOWLIST_PREFIXES = (
 def check_exam_mode_confined(findings: Findings) -> None:
     # Repo-root *.py files scan too (evaluator r7): a root-level script
     # driving the exam runner must be as visible as a worker/ one.
-    candidates = list(REPO.glob("*.py"))
-    for d in ("ai", "worker", "api", "tools"):
-        root = REPO / d
-        if root.exists():
-            candidates.extend(root.rglob("*.py"))
+    # REPO-WIDE scan (r23 nit): future directories (scripts/, etc.) are
+    # covered automatically; only dependency/build trees are excluded.
+    skip_parts = {"__pycache__", "node_modules", ".git", ".venv", "venv"}
+    candidates = [p for p in REPO.rglob("*.py")
+                  if not (set(p.parts) & skip_parts)]
     for path in candidates:
         if "__pycache__" in path.parts:
             continue
