@@ -53,7 +53,10 @@ Two tiers (po harvest H3, cost discipline):
    a separate call on its bound family, run independently (see Independence
    below), devil's-advocate pass against any consensus, Blue merge last.
    This is the mandatory shape of the Friction pre-work (charter, Friction
-   Agent bullet).
+   Agent bullet). Until `tools/decision_swarm.py` exists (TODOS), these runs
+   are manual — so the decision record MUST preserve each lens's raw output,
+   captured before any lens saw another's, alongside the merge; a merge
+   without its raw inputs attached is invalid evidence of a run.
 
 ## The one-way valve (trust integration — non-negotiable)
 

@@ -39,8 +39,10 @@ pass is the swarm-article failure mode (arguing from vibes).
 ## Owned memory & assets
 
 The GROUND_TRUTH block in STATE.md (machine-maintained), the golden set
-(shared custody with domain experts once `docs/domain_experts/` exists), and
-`docs/memory/gotchas/` rows about verification itself.
+(an independently custodied EXAM — domain experts may propose candidate
+rows through the normal evaluator-gated path, but no lens co-owns it; see
+the TODOS domain-experts entry), and `docs/memory/gotchas/` rows about
+verification itself.
 
 ## Kaizen
 

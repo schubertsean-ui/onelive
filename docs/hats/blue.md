@@ -41,9 +41,16 @@ fixes).
 ## Model binding
 
 Process: scripts, always. Merge: `standard` tier, on an instance that was
-NOT one of the lenses and — when the merged material is Generator-produced —
-preferably not the Generator's family. Lower randomness than the lenses:
-diverse experts, sober synthesizer.
+NOT one of the lenses. Family constraint, fail-closed (evaluator round 3 —
+a Generator-family merge could launder, soften, or omit Black/Friction
+findings): for Friction, evaluator-adjacent, or founder-crucial runs the
+merge MUST run on a non-generator family; if no non-generator key is
+available, the merge degrades to a **mechanical assembly** — raw lens
+outputs attached verbatim, Black blockers quoted in full and BINDING
+(unmergeable: no summarization, softening, or disposal of Black content;
+each blocker answered in writing per the Friction rule). Ordinary
+non-founder-crucial merges may use any non-lens instance. Lower randomness
+than the lenses: diverse experts, sober synthesizer.
 
 ## Fires when
 
