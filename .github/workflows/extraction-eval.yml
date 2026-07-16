@@ -22,13 +22,15 @@ name: Extraction Golden-Set Exam (release-blocking)
 #     merge first through the mandatory evaluator gate, then subjects are
 #     certified against the merged harness (the PR #11 bootstrap
 #     pattern). The exam never certifies code it did not run.
-#   * Residual, stated honestly: on pull_request triggers GitHub runs the
-#     PR's own copy of this workflow file, so workflow tampering cannot
-#     be excluded mechanically here — it is surfaced in the diff to the
-#     mandatory adversarial review, which runs on every PR with no path
-#     filter (the repo's root trust anchor), and this workflow plus the
-#     verifier/extractors are in the path filter below so any touch also
-#     re-triggers this gate.
+#   * BASE-OWNED TRIGGER (r19): this workflow runs on pull_request_target,
+#     so GitHub executes the DEFAULT BRANCH's copy of this file — a PR
+#     that edits this workflow does not change what runs against it. That
+#     closes the last tamper surface mechanically. pull_request_target is
+#     safe here precisely because of the rule above: no subject code is
+#     ever executed — both trust-path checkouts below are pinned SHAs,
+#     all executed code is base's, and the subject contributes files read
+#     as data. Permissions are read-only; no secret beyond the ambient
+#     read token is requested.
 #
 # Bootstrap honesty (r11): on the PR that ARMS this gate, this check is
 # necessarily red — no trusted attended producer exists on the default
@@ -36,7 +38,7 @@ name: Extraction Golden-Set Exam (release-blocking)
 # red under explicit human review (precedent: PR #11).
 
 on:
-  pull_request:
+  pull_request_target:
     paths:
       - "ai/**"
       - "worker/ai_models.py"

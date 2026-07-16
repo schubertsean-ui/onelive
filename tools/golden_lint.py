@@ -39,6 +39,9 @@ def lint(rows: list[dict], prompt_text: str) -> list[str]:
     if len(rows) < 40:
         problems.append(f"only {len(rows)} examples (need >= 40)")
     for r in rows:
+        if not isinstance(r, dict):
+            problems.append(f"non-object JSONL row: {str(r)[:60]!r}")
+            continue
         rid = r.get("id", "<no id>")
         if not ROW_SHAPE <= set(r):
             problems.append(f"{rid}: missing documented row keys {ROW_SHAPE - set(r)}")

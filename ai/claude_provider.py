@@ -360,6 +360,9 @@ class ClaudeProvider(AIProvider):
             names.append(data["venue_name"])
         if any(t == n.strip().casefold() for n in names):
             data = dict(data)
+            # Auditability (r19 nit): normalization is never silent — the
+            # pre-normalized value rides along in provenance debug.
+            data["_normalized"] = {"dropped_redundant_title": data["title"]}
             data["title"] = None
         return data
 
