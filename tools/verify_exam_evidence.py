@@ -20,6 +20,7 @@ key and never invokes the exam runner — it only reads a finished report.
 from __future__ import annotations
 
 import json
+import re
 import sys
 
 # Entry-point script: put the repo root on the path so package imports
@@ -28,6 +29,10 @@ import pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from ai.exam_thresholds import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
+
+_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+_HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
+_MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")   # same as the workflows
 
 
 def _num(v) -> float | None:
@@ -80,21 +85,22 @@ def verify(report: dict, subject_sha: str, expect_model: str,
         problems.append(f"report.passed={report.get('passed')!r} (need True)")
 
     # 2. Bind the evidence to this exact context. No unbound mode exists.
-    if not expect_model:
-        problems.append("no expected model supplied — unbound verification "
-                        "is not a mode")
+    if not expect_model or not _MODEL_ID_RE.fullmatch(expect_model):
+        problems.append("expected model missing or not a plausible model id — "
+                        "unbound/malformed verification is not a mode")
     elif report.get("model") != expect_model:
         problems.append(
             f"report.model={report.get('model')!r} != expected routed "
             f"{expect_model!r}"
         )
-    if not expect_prompt_sha256:
-        problems.append("no expected prompt hash supplied — unbound "
-                        "verification is not a mode")
+    if not expect_prompt_sha256 or not _HEX64_RE.fullmatch(expect_prompt_sha256):
+        problems.append("expected prompt hash missing or not 64 lowercase hex "
+                        "chars — unbound/malformed verification is not a mode")
     elif report.get("prompt_sha256") != expect_prompt_sha256:
         problems.append("report prompt_sha256 is not the subject's prompt")
-    if not subject_sha:
-        problems.append("no subject_sha requirement supplied — unbound "
+    if not subject_sha or not _SHA_RE.fullmatch(subject_sha):
+        problems.append("subject_sha requirement missing or not a full "
+                        "40-char lowercase SHA — unbound/malformed "
                         "verification is not a mode")
     elif report.get("subject_sha") != subject_sha:
         problems.append(

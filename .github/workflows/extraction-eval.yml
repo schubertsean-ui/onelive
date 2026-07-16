@@ -205,20 +205,34 @@ jobs:
           set -euo pipefail
           cd base
           api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
-          RUN_IDS="$(api "https://api.github.com/repos/$REPO/actions/workflows/extraction-exam-dispatch.yml/runs?event=workflow_dispatch&status=success&per_page=15" | python3 -c "import json,sys; print(' '.join(str(r['id']) for r in (json.load(sys.stdin).get('workflow_runs') or [])))")"
+          # 50-run window (r15 nit): fail-closed either way — if valid
+          # evidence ages out, the remedy is one re-dispatch, never a skip.
+          RUN_IDS="$(api "https://api.github.com/repos/$REPO/actions/workflows/extraction-exam-dispatch.yml/runs?event=workflow_dispatch&status=success&per_page=50" | python3 -c "import json,sys; print(' '.join(str(r['id']) for r in (json.load(sys.stdin).get('workflow_runs') or [])))")"
           if [ -z "$RUN_IDS" ]; then
             echo "::error::No successful ATTENDED exam runs exist at all. A maintainer must dispatch 'Extraction Golden-Set Exam — attended run' on the default branch with subject_sha=$HEAD_SHA and the subject's routed model ($EXPECT_MODEL), then re-run this check (fail closed)."
             exit 1
           fi
           FOUND=""
           for RUN_ID in $RUN_IDS; do
-            rm -f report.zip exam-report.json   # never reuse a previous iteration's file
+            # Evidence is untrusted DATA (r15): extract into a fresh isolated
+            # temp dir, never into the trusted checkout — a hostile archive
+            # must not be able to overwrite the code that judges it. The
+            # archive must contain exactly one member named exam-report.json.
+            TMPD="$(mktemp -d)"
             ART_URL="$(api "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts" | python3 -c "import json,sys; arts=json.load(sys.stdin).get('artifacts') or []; hits=[a for a in arts if a['name'].startswith('golden-exam-report-')]; print(hits[0]['archive_download_url'] if hits else '')")"
             [ -z "$ART_URL" ] && continue
-            api -L -o report.zip "$ART_URL" || continue
-            python3 -c "import zipfile; zipfile.ZipFile('report.zip').extractall('.')" || continue
-            [ -f exam-report.json ] || continue
-            if python3 tools/verify_exam_evidence.py exam-report.json \
+            api -L -o "$TMPD/report.zip" "$ART_URL" || continue
+            python3 - "$TMPD" <<'PYZ' || continue
+          import sys, zipfile
+          tmpd = sys.argv[1]
+          with zipfile.ZipFile(tmpd + "/report.zip") as z:
+              if z.namelist() != ["exam-report.json"]:
+                  print("::warning::artifact is not exactly one exam-report.json — skipping this run")
+                  sys.exit(1)
+              z.extract("exam-report.json", tmpd)
+          PYZ
+            [ -f "$TMPD/exam-report.json" ] || continue
+            if python3 tools/verify_exam_evidence.py "$TMPD/exam-report.json" \
                  --subject-sha "$HEAD_SHA" \
                  --expect-model "$EXPECT_MODEL" \
                  --expect-prompt-sha256 "$EXPECT_PROMPT_SHA"; then
