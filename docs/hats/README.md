@@ -29,8 +29,10 @@ harvest H1–H5 (ledgered under M6).
 
 Hats fire at **divergent and founder-crucial moments only** — Friction
 pre-work before irreversible actions, sprint/architecture planning,
-design-direction selection — and **never inside convergent gates**
-(validate / trust_gate / evaluator verdicts stay purely convergent).
+design-direction selection. The full hat swarm **never runs inside
+convergent gates** — validate / trust_gate / evaluator verdicts stay purely
+convergent; the Black hat's evaluator duty is not a swarm run, it IS the
+existing convergent gate and keeps firing on every PR exactly as before.
 Never for trivial mechanical work: ritual is not insight, and cost
 discipline applies to thinking tools too.
 
@@ -40,6 +42,13 @@ Two tiers (po harvest H3, cost discipline):
    de Bono's original sequence — Blue frames, White facts, Green diverges,
    Yellow then Black argue, Blue merges — for ordinary decisions worth
    structuring but not worth a fleet.
+   **Custody boundary (fail-closed):** sequential mode never discharges the
+   Black hat's custody. A Generator "wearing Black" on its own work is
+   self-critique — useful, but it carries no adversarial authority and
+   satisfies nothing: wherever the charter requires the Independent
+   Evaluator or the Friction attack (every PR; every irreversible action),
+   only the real non-Claude Black hat counts, whatever mode the other hats
+   ran in.
 2. **Dedicated-parallel mode (irreversible / founder-crucial):** each hat is
    a separate call on its bound family, run independently (see Independence
    below), devil's-advocate pass against any consensus, Blue merge last.

@@ -38,6 +38,9 @@ no-silent-deferrals rule. So the goal splits:
 | M6 | Po-sourced ideas surviving gates (docs/skills/po_provocation.md) | Whether divergence is producing adopted value | > 0 over time |
 | M8 | Yellow-hat validated upside (docs/hats/yellow.md) | Whether the deliberate best-case lens produces adopted real value, not hype | asserted→validated conversion rising |
 
+(M7 — the extraction hallucination ratchet — is defined in its own section
+below rather than in this table; the number is not skipped.)
+
 Recording rules: one ledger row per merged PR (M1/M2/M5), plus rows for any
 M3 escape (immediately, not at close), M4 gate-gap fix, or M6 harvest.
 Session close (docs/SESSION_START.md) appends the session's rows; the weekly
