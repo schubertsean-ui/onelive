@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Extract STAGE_MODELS["extraction"] from a model_router.py file as DATA.
+"""Extract STAGE_MODELS["extraction"] from a routing-data file as DATA.
 
-Greppable summary: `python tools/extract_routed_model.py <model_router.py>`
+Greppable summary: `python tools/extract_routed_model.py <routing_data.py>`
 prints the extraction model id from the file's top-level STAGE_MODELS dict
 literal — found by AST parsing only, never by importing or executing the
 subject's code (evaluator r12: the trust decision must run trusted BASE
@@ -15,6 +15,11 @@ from __future__ import annotations
 import ast
 import sys
 
+# Entry-point script: put the repo root on the path so package imports
+# work under direct invocation (python3 tools/<name>.py — how CI calls it).
+import pathlib
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from tools.pure_data import is_pure_data_module
 
 
