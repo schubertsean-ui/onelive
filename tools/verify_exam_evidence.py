@@ -53,7 +53,7 @@ def _count(v) -> int | None:
 
 def verify(report: dict, subject_sha: str, expect_model: str,
            expect_prompt_sha256: str, expect_golden_sha256: str,
-           expect_scorer_sha256: str) -> list[str]:
+           expect_harness_sha256: str) -> list[str]:
     """Return the list of rejection reasons (empty = evidence accepted).
 
     Every check is derived from raw report fields — missing or mistyped
@@ -110,7 +110,7 @@ def verify(report: dict, subject_sha: str, expect_model: str,
         problems.append("report prompt_sha256 is not the subject's prompt")
     for label, want, got in (
         ("golden set", expect_golden_sha256, report.get("golden_sha256")),
-        ("scorer", expect_scorer_sha256, report.get("scorer_sha256")),
+        ("harness", expect_harness_sha256, report.get("harness_sha256")),
     ):
         if not want or not _HEX64_RE.fullmatch(want):
             problems.append(f"expected {label} hash missing/malformed — "
@@ -149,13 +149,13 @@ def main(argv: list[str] | None = None) -> int:
     expect_model = take("--expect-model")
     expect_prompt = take("--expect-prompt-sha256")
     expect_golden = take("--expect-golden-sha256")
-    expect_scorer = take("--expect-scorer-sha256")
+    expect_harness = take("--expect-harness-sha256")
     if len(argv) != 1 or not (subject_sha and expect_model and expect_prompt
-                              and expect_golden and expect_scorer):
+                              and expect_golden and expect_harness):
         print("::error::usage: verify_exam_evidence.py <exam-report.json> "
               "--subject-sha <sha> --expect-model <id> "
               "--expect-prompt-sha256 <hex> --expect-golden-sha256 <hex> "
-              "--expect-scorer-sha256 <hex> (ALL bindings are REQUIRED — "
+              "--expect-harness-sha256 <hex> (ALL bindings are REQUIRED — "
               "unbound verification is not a mode)", file=sys.stderr)
         return 1
     try:
@@ -169,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 1
     problems = verify(report, subject_sha, expect_model, expect_prompt,
-                      expect_golden, expect_scorer)
+                      expect_golden, expect_harness)
     if problems:
         for p in problems:
             print(f"::error::exam evidence REJECTED: {p}", file=sys.stderr)

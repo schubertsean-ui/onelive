@@ -47,6 +47,29 @@ from worker.ai_models import AIEventExtraction
 
 GOLDEN_PATH = pathlib.Path(__file__).resolve().parent / "golden" / "golden_set_v1.jsonl"
 
+# EVERY file whose code executes during an exam run (r23: evidence must
+# bind to the WHOLE harness that ran, not a subset — provider
+# normalizations, the schema, and the thresholds all shape the metrics).
+# Single source: the runner stamps this hash, the PR gate recomputes it
+# from base with this same function.
+HARNESS_MANIFEST = (
+    "ai/claude_provider.py",
+    "ai/eval_harness.py",
+    "ai/exam_thresholds.py",
+    "ai/golden_exam.py",
+    "ai/provider.py",
+    "worker/ai_models.py",
+)
+
+
+def compute_harness_sha() -> str:
+    root = pathlib.Path(__file__).resolve().parent.parent
+    h = hashlib.sha256()
+    for rel in HARNESS_MANIFEST:
+        h.update(rel.encode("utf-8") + b"\x00")
+        h.update((root / rel).read_bytes() + b"\x00")
+    return h.hexdigest()
+
 # The 8 objective factual fields the trust KPI is measured on (§M7).
 COMPARABLE_FIELDS = (
     "title", "start_time", "end_time", "venue_name",
@@ -257,17 +280,15 @@ def main(argv: list[str] | None = None) -> int:
         report["prompt_sha256"] = hashlib.sha256(
             (system_prompt or EXTRACTION_SYSTEM_PROMPT).encode("utf-8")).hexdigest()
         report["subject_sha"] = args.subject_sha
-        # Harness-version binding (r22 blocker): evidence must name WHICH
-        # exam measured it — the golden set's and scorer's content hashes.
+        # Harness-version binding (r22 blocker, widened by r23): evidence
+        # names WHICH exam measured it — the golden set's content hash and
+        # the hash of every file that executes during a run.
         # The verifier requires equality with ITS base checkout, so a
         # report minted under an older set/scorer can never certify a PR
         # against the current one.
         report["golden_sha256"] = hashlib.sha256(
             GOLDEN_PATH.read_bytes()).hexdigest()
-        here = pathlib.Path(__file__).resolve().parent
-        report["scorer_sha256"] = hashlib.sha256(
-            (here / "eval_harness.py").read_bytes() + b"\x00"
-            + (here / "golden_exam.py").read_bytes()).hexdigest()
+        report["harness_sha256"] = compute_harness_sha()
     except (ExtractionConfigError, ValueError, OSError) as exc:
         print(f"golden_exam: INVALID — {exc}", file=sys.stderr)
         return 2
