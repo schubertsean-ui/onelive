@@ -7,7 +7,7 @@ exits 0 only when the report (downloaded by extraction-eval.yml from an
 attended dispatch run) INDEPENDENTLY satisfies every exam invariant AND
 binds to all three REQUIRED expectations. Independence: the verdict is
 re-derived from raw metrics against thresholds imported from
-ai/golden_exam — self-attested `passed: true` is never trusted (r10).
+ai/exam_thresholds (pure data) — self-attested `passed: true` is never trusted (r10).
 Trust placement (r12): in CI this script runs from the BASE checkout,
 never the PR's, and imports nothing whose value the subject controls —
 the expectations are lifted from the subject commit as inert data by the
@@ -22,7 +22,7 @@ from __future__ import annotations
 import json
 import sys
 
-from ai.golden_exam import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
+from ai.exam_thresholds import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
 
 
 def _num(v) -> float | None:

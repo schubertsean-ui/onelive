@@ -15,9 +15,17 @@ from __future__ import annotations
 import ast
 import sys
 
+from tools.pure_data import is_pure_data_module
+
 
 def extract(source: str) -> str | None:
     """Return STAGE_MODELS["extraction"] as a string, else None."""
+    if not is_pure_data_module(source):
+        # Evaluator r13: a file that can EXECUTE anything at import time can
+        # mean something different in production than the literal this tool
+        # returns (globals() tricks, post-binding mutation). Only pure data
+        # modules are certifiable; everything else fails closed.
+        return None
     tree = ast.parse(source)
 
     def binds_name(node) -> bool:
