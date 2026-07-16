@@ -393,44 +393,43 @@ def test_evidence_verifier_rederives_verdict_and_requires_binding(tmp_path):
     metrics is REJECTED (forged-report resistance); (b) has NO unbound
     mode — the subject-SHA binding is a required argument; (c) rejects any
     mismatch of model, prompt hash, or commit."""
-    import hashlib
     from ai.golden_exam import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
-    from ai.prompts import EXTRACTION_SYSTEM_PROMPT
-    from tools.model_router import STAGE_MODELS
-    from tools.verify_exam_evidence import verify
-    sha = "a" * 40
+    from tools.verify_exam_evidence import verify as _v
+    sha, model, phash = "a" * 40, "claude-routed-x", "c" * 64
+    def verify(report, s=sha, m=model, p=phash):
+        return _v(report, s, m, p)
     good = {
         "passed": True,
-        "model": STAGE_MODELS["extraction"],
-        "prompt_sha256": hashlib.sha256(
-            EXTRACTION_SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
+        "model": model,
+        "prompt_sha256": phash,
         "subject_sha": sha,
         "expected_facts": 322, "asserted_facts": 315,
         "hallucination_rate": 0.0068, "recall": 0.97,
         "unanswered": [], "injection_failures": [],
     }
-    assert verify(good, sha) == []
+    assert verify(good) == []
     # (a) forged reports: passed:true alone proves nothing
     forged = {"passed": True, "model": good["model"],
               "prompt_sha256": good["prompt_sha256"], "subject_sha": sha}
-    assert verify(forged, sha), "metric-free report must be rejected"
-    assert verify({**good, "hallucination_rate": HALLUCINATION_MAX + 0.001}, sha)
-    assert verify({**good, "recall": RECALL_MIN - 0.01}, sha)
-    assert verify({**good, "asserted_facts": SAMPLE_FLOOR - 1}, sha)
-    assert verify({**good, "expected_facts": SAMPLE_FLOOR - 1}, sha)
-    assert verify({**good, "unanswered": ["g001"]}, sha)
-    assert verify({**good, "injection_failures": [{"id": "g023"}]}, sha)
-    assert verify({**good, "hallucination_rate": "0.0"}, sha)   # mistyped
-    assert verify({**good, "passed": False}, sha)               # inconsistent
-    # (b) binding is required — empty/None requirement is itself a rejection
-    assert verify(good, "")
+    assert verify(forged), "metric-free report must be rejected"
+    assert verify({**good, "hallucination_rate": HALLUCINATION_MAX + 0.001})
+    assert verify({**good, "recall": RECALL_MIN - 0.01})
+    assert verify({**good, "asserted_facts": SAMPLE_FLOOR - 1})
+    assert verify({**good, "expected_facts": SAMPLE_FLOOR - 1})
+    assert verify({**good, "asserted_facts": 315.0})            # float count = malformed
+    assert verify({**good, "unanswered": ["g001"]})
+    assert verify({**good, "injection_failures": [{"id": "g023"}]})
+    assert verify({**good, "hallucination_rate": "0.0"})        # mistyped
+    assert verify({**good, "passed": False})                    # inconsistent
+    # (b) every binding is required — empty requirements are rejections
+    assert verify(good, s="")
+    assert verify(good, m="")
+    assert verify(good, p="")
     # (c) identity mismatches
-    assert verify(good, "f" * 40)                               # wrong commit
-    not_routed = "claude-3-not-the-routed-model"
-    assert not_routed != STAGE_MODELS["extraction"]
-    assert verify({**good, "model": not_routed}, sha)
-    assert verify({**good, "prompt_sha256": "0" * 64}, sha)
-    assert verify({}, sha)                                      # empty
+    assert verify(good, s="f" * 40)                             # wrong commit
+    assert verify({**good, "model": "claude-other-model"})      # wrong model
+    assert verify({**good, "prompt_sha256": "0" * 64})          # wrong prompt
+    assert verify({})                                           # empty
 
 
 def test_prompt_ast_extraction_matches_import_and_fails_closed(tmp_path):
@@ -453,6 +452,23 @@ def test_prompt_ast_extraction_matches_import_and_fails_closed(tmp_path):
                    "EXTRACTION_SYSTEM_PROMPT = 'b'\n") is None       # rebound
     assert extract("EXTRACTION_SYSTEM_PROMPT = 'top'\n"
                    "def f():\n    EXTRACTION_SYSTEM_PROMPT = 'shadow'\n") is None
+
+
+def test_routed_model_ast_extraction_matches_import_and_fails_closed():
+    """Design v4: the PR-side gate lifts the subject's routed model from
+    tools/model_router.py by AST parsing (never executing subject code);
+    ambiguous or non-literal tables fail closed."""
+    from tools.extract_routed_model import extract
+    from tools.model_router import STAGE_MODELS
+    src = pathlib.Path("tools/model_router.py").read_text(encoding="utf-8")
+    assert extract(src) == STAGE_MODELS["extraction"]
+    assert extract("STAGE_MODELS = {'extraction': 'm-1'}") == "m-1"
+    assert extract("STAGE_MODELS = {'other': 'm-1'}") is None        # absent entry
+    assert extract("STAGE_MODELS = dict(extraction='m')") is None    # not a literal
+    assert extract("STAGE_MODELS = {'extraction': X}") is None       # computed value
+    assert extract("if True:\n    STAGE_MODELS = {'extraction': 'm'}\n") is None
+    assert extract("STAGE_MODELS = {'extraction': 'a'}\n"
+                   "STAGE_MODELS = {'extraction': 'b'}\n") is None   # rebound
 
 
 def test_cli_report_carries_evidence_identity(monkeypatch, tmp_path):

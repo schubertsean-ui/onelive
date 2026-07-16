@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Verify an attended golden-exam report as release evidence (design v3).
+"""Verify an attended golden-exam report as release evidence (design v4).
 
 Greppable summary: `python tools/verify_exam_evidence.py <report.json>
---subject-sha <full-sha>` exits 0 only when the report (downloaded by
-extraction-eval.yml from an attended dispatch run) INDEPENDENTLY satisfies
-every exam invariant AND binds to this exact context. Independence means
-the verdict is re-derived from the report's raw metrics against the
-thresholds imported from ai/golden_exam — a self-attested `passed: true`
-is never trusted (evaluator r10: a forged/malformed report must fail
-closed). Binding means: model == the routing table's extraction model,
-prompt_sha256 == THIS checkout's prompt, subject_sha == the REQUIRED
---subject-sha (there is no unbound mode). Exit codes: 0 evidence
+--subject-sha <sha> --expect-model <id> --expect-prompt-sha256 <hex>`
+exits 0 only when the report (downloaded by extraction-eval.yml from an
+attended dispatch run) INDEPENDENTLY satisfies every exam invariant AND
+binds to all three REQUIRED expectations. Independence: the verdict is
+re-derived from raw metrics against thresholds imported from
+ai/golden_exam — self-attested `passed: true` is never trusted (r10).
+Trust placement (r12): in CI this script runs from the BASE checkout,
+never the PR's, and imports nothing whose value the subject controls —
+the expectations are lifted from the subject commit as inert data by the
+AST extractors and passed in as arguments. Exit codes: 0 evidence
 accepted / 1 rejected or unreadable (fail closed).
 
 Runs in the SECRETLESS PR job: this script never touches the Anthropic
@@ -18,13 +19,10 @@ key and never invokes the exam runner — it only reads a finished report.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import sys
 
 from ai.golden_exam import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
-from ai.prompts import EXTRACTION_SYSTEM_PROMPT
-from tools.model_router import STAGE_MODELS
 
 
 def _num(v) -> float | None:
@@ -37,12 +35,18 @@ def _count(v) -> int | None:
     return v if isinstance(v, int) and not isinstance(v, bool) else None
 
 
-def verify(report: dict, subject_sha: str) -> list[str]:
+def verify(report: dict, subject_sha: str, expect_model: str,
+           expect_prompt_sha256: str) -> list[str]:
     """Return the list of rejection reasons (empty = evidence accepted).
 
     Every check is derived from raw report fields — missing or mistyped
     fields are rejections, never defaults (fail closed on forged or
-    malformed evidence)."""
+    malformed evidence). The EXPECTATIONS (model, prompt hash, subject
+    SHA) are explicit REQUIRED arguments: this module runs as trusted
+    BASE code in CI (evaluator r12 — the trust decision must not execute
+    subject-controlled code), so it must not import anything whose value
+    the subject controls; the caller lifts expectations from the subject
+    commit as inert data (AST extractors) and passes them in."""
     problems = []
 
     # 1. Re-derive the exam verdict from raw metrics (never trust "passed").
@@ -71,14 +75,19 @@ def verify(report: dict, subject_sha: str) -> list[str]:
         problems.append(f"report.passed={report.get('passed')!r} (need True)")
 
     # 2. Bind the evidence to this exact context. No unbound mode exists.
-    routed = STAGE_MODELS["extraction"]
-    if report.get("model") != routed:
+    if not expect_model:
+        problems.append("no expected model supplied — unbound verification "
+                        "is not a mode")
+    elif report.get("model") != expect_model:
         problems.append(
-            f"report.model={report.get('model')!r} != production-routed {routed!r}"
+            f"report.model={report.get('model')!r} != expected routed "
+            f"{expect_model!r}"
         )
-    want = hashlib.sha256(EXTRACTION_SYSTEM_PROMPT.encode("utf-8")).hexdigest()
-    if report.get("prompt_sha256") != want:
-        problems.append("report prompt_sha256 is not this checkout's prompt")
+    if not expect_prompt_sha256:
+        problems.append("no expected prompt hash supplied — unbound "
+                        "verification is not a mode")
+    elif report.get("prompt_sha256") != expect_prompt_sha256:
+        problems.append("report prompt_sha256 is not the subject's prompt")
     if not subject_sha:
         problems.append("no subject_sha requirement supplied — unbound "
                         "verification is not a mode")
@@ -92,19 +101,26 @@ def verify(report: dict, subject_sha: str) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    subject_sha = None
-    if "--subject-sha" in argv:
-        i = argv.index("--subject-sha")
+
+    def take(flag: str) -> str | None:
+        if flag not in argv:
+            return None
+        i = argv.index(flag)
         try:
-            subject_sha = argv[i + 1]
+            value = argv[i + 1]
         except IndexError:
-            print("::error::--subject-sha needs a value", file=sys.stderr)
-            return 1
-        argv = argv[:i] + argv[i + 2:]
-    if len(argv) != 1 or not subject_sha:
+            return None
+        del argv[i:i + 2]
+        return value
+
+    subject_sha = take("--subject-sha")
+    expect_model = take("--expect-model")
+    expect_prompt = take("--expect-prompt-sha256")
+    if len(argv) != 1 or not (subject_sha and expect_model and expect_prompt):
         print("::error::usage: verify_exam_evidence.py <exam-report.json> "
-              "--subject-sha <sha> (the binding is REQUIRED — unbound "
-              "verification is not a mode)", file=sys.stderr)
+              "--subject-sha <sha> --expect-model <id> "
+              "--expect-prompt-sha256 <hex> (ALL bindings are REQUIRED — "
+              "unbound verification is not a mode)", file=sys.stderr)
         return 1
     try:
         report = json.load(open(argv[0], encoding="utf-8"))
@@ -116,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
         print("::error::exam report is not a JSON object (fail closed).",
               file=sys.stderr)
         return 1
-    problems = verify(report, subject_sha)
+    problems = verify(report, subject_sha, expect_model, expect_prompt)
     if problems:
         for p in problems:
             print(f"::error::exam evidence REJECTED: {p}", file=sys.stderr)
