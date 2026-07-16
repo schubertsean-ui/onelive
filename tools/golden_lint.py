@@ -59,6 +59,15 @@ def lint(rows: list[dict], prompt_text: str) -> list[str]:
             problems.append(f"{rid}: text missing or not a string")
         if not set(r["expected"]) <= VALID_EXPECTED:
             problems.append(f"{rid}: unknown expected keys")
+        e = r["expected"]
+        if "artist_names" in e and e["artist_names"] is not None and (
+                not isinstance(e["artist_names"], list)
+                or not all(isinstance(a, str) for a in e["artist_names"])):
+            problems.append(f"{rid}: artist_names must be a list of strings or null")
+        for k in ("title", "start_time", "end_time", "venue_name", "city",
+                  "ticket_link", "rsvp_link", "notes"):
+            if k in e and e[k] is not None and not isinstance(e[k], str):
+                problems.append(f"{rid}: {k} must be a string or null")
     facts = sum(1 for r in rows for k in COMPARABLE_FIELDS
                 if isinstance(r.get("expected"), dict)
                 and r["expected"].get(k) not in (None, [], ""))

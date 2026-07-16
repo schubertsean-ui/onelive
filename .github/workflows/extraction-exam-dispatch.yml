@@ -22,6 +22,9 @@ name: Extraction Golden-Set Exam — attended run
 # harness change merges through the evaluator gate — harness first,
 # subject second (the PR #11 "gate arms itself" bootstrap pattern).
 #
+# Required environment settings live in docs/ops/EXAM_ENVIRONMENT_SETUP.md
+# (out-of-band checklist — the settings, not this file, are the secret
+# boundary; this workflow only PROVES them before using the secret).
 # workflow_dispatch is the attended-human property available on personal
 # repos (environment required-reviewers is org-plan-only). Thresholds live
 # in ai/golden_exam.py; the ANTHROPIC console spend cap bounds cost.
