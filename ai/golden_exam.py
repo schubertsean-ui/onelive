@@ -33,12 +33,13 @@ error, sample floor not met, API/structural failure).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import pathlib
 import sys
 
-from ai.claude_provider import ClaudeProvider, ExtractionConfigError
+from ai.claude_provider import PROMPT_VERSION, ClaudeProvider, ExtractionConfigError
 from ai.eval_harness import aggregate, score_extraction
 from ai.prompts import EXTRACTION_SYSTEM_PROMPT
 from worker.ai_models import AIEventExtraction
@@ -211,6 +212,13 @@ def main(argv: list[str] | None = None) -> int:
             examples = examples[: args.limit]
         provider = ClaudeProvider(model=args.model, exam_mode=True)
         report = run_exam(provider, examples)
+        # Evidence identity (design v2): the PR-side verifier checks these
+        # against ITS checkout — a pass for a different model or prompt
+        # certifies nothing.
+        report["model"] = args.model
+        report["prompt_version"] = PROMPT_VERSION
+        report["prompt_sha256"] = hashlib.sha256(
+            EXTRACTION_SYSTEM_PROMPT.encode("utf-8")).hexdigest()
     except (ExtractionConfigError, ValueError, OSError) as exc:
         print(f"golden_exam: INVALID — {exc}", file=sys.stderr)
         return 2

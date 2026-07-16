@@ -1,27 +1,20 @@
 name: Extraction Golden-Set Exam (release-blocking)
 
 # KAIZEN §M7 / R-013: no extraction change ships without golden-set exam
-# evidence. Runs on every PR that touches the extraction surface, and on
-# demand (workflow_dispatch) to generate the evidence for a model change or
-# the gate-opening flip. Thresholds live in ai/golden_exam.py (hallucination
-# <= 1% founder-ratified; recall >= 0.80; zero forbidden injection markers;
-# two >= 300-fact floors: the set must CARRY >= 300 expected facts or the
-# run is INVALID, and a PASS requires >= 300 ASSERTED facts — the 1%
-# claim's denominator).
+# evidence. Design v2 (founder-directed 2026-07-15 — environment
+# "required reviewers" is org-plan-only and unavailable on this personal
+# repo): this PR-triggered job carries NO SECRETS AT ALL. The secret-
+# bearing exam runs only in extraction-exam-dispatch.yml, which can only
+# be fired manually by a maintainer (workflow_dispatch = the attended-
+# human property). This job is the release gate's other half: it goes
+# green ONLY when a successful attended run exists for this PR's exact
+# head SHA and its report artifact proves the pass was (a) real, (b) for
+# the PRODUCTION-ROUTED model, and (c) against this PR's exact prompt
+# (content hash). Push a new commit and the evidence expires with the SHA
+# — a maintainer must dispatch the exam again on the new head.
 #
-# Cost note (§14.3): one full exam = 74 small extraction calls on the
-# cheapest tier — well under a dollar; the ANTHROPIC console spend cap
-# bounds the blast radius regardless.
-#
-# Secret handling (R-014 closed mechanically, evaluator r7): this job runs
-# PR-controlled code, so it must NEVER receive an ambient repo-wide secret.
-# It runs inside the `extraction-exam` protected environment and reads the
-# environment-scoped ANTHROPIC_API_KEY_EXAM — which exists ONLY inside that
-# environment, behind its required-reviewer rule. A PR cannot reach the
-# repo-wide ANTHROPIC_API_KEY through this workflow at all (it is not
-# referenced), and every secret-bearing exam run requires an explicit
-# human approval on the environment. No environment secret = the exam
-# fails closed below.
+# Property preserved from the r7/r8 reviews: PR-controlled code is never
+# run with the Anthropic key by any automatic/unattended trigger.
 
 on:
   pull_request:
@@ -31,12 +24,7 @@ on:
       - "worker/ai_extract.py"
       - "tools/model_router.py"          # the ratification flag + routing table live here
       - ".github/workflows/extraction-eval.yml"
-  workflow_dispatch:
-    inputs:
-      model:
-        description: "Candidate model id to examine"
-        required: true
-        default: "claude-haiku-4-5"
+      - ".github/workflows/extraction-exam-dispatch.yml"
 
 concurrency:
   group: extraction-eval-${{ github.ref }}
@@ -45,114 +33,58 @@ concurrency:
 jobs:
   golden-exam:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    # Protected environment: required-reviewer approval gates every
-    # secret-bearing run of PR-controlled code (configured in repo
-    # Settings -> Environments -> extraction-exam by the founder; the
-    # environment-scoped key lives there and nowhere else).
-    environment: extraction-exam
+    timeout-minutes: 10
     permissions:
       contents: read
-      # Needed by the protection-proof step below to READ the environment's
-      # protection rules via the REST API (never to change anything).
-      deployments: read
+      actions: read      # to find the attended run + download its report artifact
     steps:
-      - name: Prove the environment protection is ACTIVE (fail closed)
-        # Evaluator r8: `environment:` alone is not fail-closed — an
-        # environment created WITHOUT a required-reviewer rule (e.g. a
-        # half-finished setup, or GitHub auto-creating it on first
-        # reference) lets this job run PR code with the secret
-        # automatically. So before any secret-bearing step, ask GitHub's
-        # API whether extraction-exam actually carries a required_reviewers
-        # protection rule; anything else — rule missing, environment
-        # missing, API error — kills the job while the secret is still
-        # untouched. No secrets are in scope for this step.
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -o pipefail
-          resp="$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
-                       -H "Accept: application/vnd.github+json" \
-                       "https://api.github.com/repos/${{ github.repository }}/environments/extraction-exam")" || {
-            echo "::error::Could not query the extraction-exam environment (API error) — failing closed."
-            exit 1
-          }
-          printf '%s' "$resp" | python3 -c '
-          import json, sys
-          try:
-              d = json.load(sys.stdin)
-          except ValueError:
-              sys.exit(1)
-          rules = d.get("protection_rules") or []
-          sys.exit(0 if any(r.get("type") == "required_reviewers" for r in rules) else 1)
-          ' || {
-            echo "::error::The extraction-exam environment has NO required_reviewers protection rule — the secret-bearing exam must not run PR code without a human approval gate. Configure it: Settings -> Environments -> extraction-exam -> Required reviewers."
-            exit 1
-          }
-          echo "extraction-exam protection verified: required_reviewers rule is active."
-
       - uses: actions/checkout@v4
         with:
-          # Pin to the PR HEAD SHA (not the synthetic merge ref) so the
-          # exam evidence cites exactly the commit the report certifies
-          # (evaluator r8 nit). Dispatch/other events use the pushed SHA.
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Pin to the PR HEAD SHA (not the synthetic merge ref): the
+          # routed-model and prompt-hash expectations below must come from
+          # exactly the commit the evidence certifies.
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install worker deps
+      - name: Install worker deps (structural lint imports the runner)
         run: |
           python -m pip install --upgrade pip
           pip install -r worker/requirements.txt
 
-      - name: Resolve candidate model (dispatch input, validated; PR default = policy starting tier)
+      - name: Verify attended exam evidence for this exact head SHA (fail closed)
         env:
-          # Untrusted dispatch input reaches the shell only via env (never
-          # ${{ }}-interpolated into run:) and must look like a model id —
-          # same guards as ingest.yml's budget input (PR #12 lessons).
-          RAW_MODEL: ${{ github.event.inputs.model }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            if ! [[ "$RAW_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]]; then
-              echo "::error::model input is not a plausible model id (value redacted)."
-              exit 1
-            fi
-            echo "EXAM_MODEL=$RAW_MODEL" >> "$GITHUB_ENV"
-          else
-            # PR runs certify the PRODUCTION-ROUTED model — read the routing
-            # table itself, never a duplicated constant (a router change must
-            # be examined as the model it actually routes to).
-            EXAM_MODEL="$(python3 -c "from tools.model_router import STAGE_MODELS; print(STAGE_MODELS['extraction'])")"
-            # Symmetric validation with the dispatch path — even repo-derived
-            # values get the id regex before touching $GITHUB_ENV.
-            if ! [[ "$EXAM_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]]; then
-              echo "::error::routed extraction model is not a plausible model id."
-              exit 1
-            fi
-            echo "EXAM_MODEL=$EXAM_MODEL" >> "$GITHUB_ENV"
-          fi
-
-      - name: Run the golden-set exam (release-blocking)
-        env:
-          # Environment-scoped secret ONLY (never the repo-wide key): see
-          # the secret-handling note at the top of this file.
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_EXAM }}
-        run: |
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error::ANTHROPIC_API_KEY_EXAM is not configured as a secret of the 'extraction-exam' environment — the exam cannot run, and no-exam means no-pass (fail closed). Setup: Settings -> Environments -> extraction-exam (required reviewer + this secret)."
+          set -o pipefail
+          api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          # 1. A SUCCESSFUL attended (workflow_dispatch) run on this exact SHA.
+          RUN_ID="$(api "https://api.github.com/repos/$REPO/actions/workflows/extraction-exam-dispatch.yml/runs?event=workflow_dispatch&status=success&head_sha=$HEAD_SHA" | python3 -c "import json,sys; runs=json.load(sys.stdin).get('workflow_runs') or []; print(runs[0]['id'] if runs else '')")"
+          if [ -z "$RUN_ID" ]; then
+            echo "::error::No successful ATTENDED exam run exists for head SHA $HEAD_SHA. A maintainer must dispatch 'Extraction Golden-Set Exam — attended run' on this branch (Actions tab -> that workflow -> Run workflow), then re-run this check. No attended evidence means no pass (fail closed)."
             exit 1
           fi
-          python -m ai.golden_exam --model "$EXAM_MODEL" --report exam-report.json
+          echo "found attended run $RUN_ID for $HEAD_SHA"
+          # 2. Download its exam-report artifact.
+          ART_URL="$(api "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts" | python3 -c "import json,sys; arts=json.load(sys.stdin).get('artifacts') or []; hits=[a for a in arts if a['name'].startswith('golden-exam-report-')]; print(hits[0]['archive_download_url'] if hits else '')")"
+          if [ -z "$ART_URL" ]; then
+            echo "::error::Attended run $RUN_ID has no exam-report artifact — evidence that cannot be read is not evidence (fail closed)."
+            exit 1
+          fi
+          api -L -o report.zip "$ART_URL"
+          python3 -c "import zipfile; zipfile.ZipFile('report.zip').extractall('.')"
+          # 3. The report must show a PASS, for the PRODUCTION-ROUTED model
+          #    (the dispatch input can name any model — evidence for a
+          #    different model certifies nothing), against THIS PR's exact
+          #    prompt (content hash — same-SHA pinning makes this redundant
+          #    by construction; kept as cheap defense in depth).
+          python3 tools/verify_exam_evidence.py exam-report.json
 
-      - name: Persist the exam report (evidence artifact)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: golden-exam-report-${{ github.run_id }}
-          path: exam-report.json
-          # Evidence artifact on a release gate: absence on a SUCCESSFUL run
-          # is itself a failure (same rule as the ingest replay log).
-          if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
+      - name: Golden-set structural lint (no key needed — runs on every PR)
+        run: |
+          python -m pytest tests/test_golden_exam.py -q -k "structural or injection_and_trap or shingles or surface_forms"

@@ -376,6 +376,41 @@ def test_prompt_shares_no_text_shingles_with_golden_set():
     assert not hits, f"golden text phrases leaked into the prompt: {hits}"
 
 
+def test_evidence_verifier_accepts_only_routed_model_passes(tmp_path):
+    """Design v2 (r8/personal-repo redesign): the PR-side verifier accepts
+    a report only when it is a PASS, for the production-routed model,
+    against this checkout's exact prompt — anything else is rejected."""
+    import hashlib
+    from ai.prompts import EXTRACTION_SYSTEM_PROMPT
+    from tools.model_router import STAGE_MODELS
+    from tools.verify_exam_evidence import verify
+    good = {
+        "passed": True,
+        "model": STAGE_MODELS["extraction"],
+        "prompt_sha256": hashlib.sha256(
+            EXTRACTION_SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
+        "hallucination_rate": 0.0, "recall": 1.0, "asserted_facts": 322,
+    }
+    assert verify(good) == []
+    assert verify({**good, "passed": False})
+    assert verify({**good, "model": "claude-haiku-4-5"})       # not the routed model
+    assert verify({**good, "prompt_sha256": "0" * 64})          # different prompt
+    assert verify({})                                           # unreadable/empty
+
+
+def test_cli_report_carries_evidence_identity(monkeypatch, tmp_path):
+    """The dispatch run's report must name what it measured — model,
+    prompt_version, prompt content hash — so the verifier can bind the
+    evidence to the PR's checkout."""
+    import ai.golden_exam as ge
+    monkeypatch.setattr(ge, "ClaudeProvider", lambda **kw: PerfectFake(GOLDEN))
+    out = tmp_path / "r.json"
+    assert ge.main(["--model", "claude-test", "--report", str(out)]) == 0
+    r = json.loads(out.read_text(encoding="utf-8"))
+    assert r["model"] == "claude-test"
+    assert r["prompt_version"] and len(r["prompt_sha256"]) == 64
+
+
 # --- golden set structural lint --------------------------------------------------
 def test_golden_set_is_structurally_sound():
     ids = [r["id"] for r in GOLDEN]
