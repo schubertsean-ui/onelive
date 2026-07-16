@@ -31,6 +31,12 @@ def _num(v) -> float | None:
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
+def _count(v) -> int | None:
+    """Counts must be true integers (r11 nit): a float count is a malformed
+    or hand-crafted report and fails closed."""
+    return v if isinstance(v, int) and not isinstance(v, bool) else None
+
+
 def verify(report: dict, subject_sha: str) -> list[str]:
     """Return the list of rejection reasons (empty = evidence accepted).
 
@@ -40,8 +46,8 @@ def verify(report: dict, subject_sha: str) -> list[str]:
     problems = []
 
     # 1. Re-derive the exam verdict from raw metrics (never trust "passed").
-    expected = _num(report.get("expected_facts"))
-    asserted = _num(report.get("asserted_facts"))
+    expected = _count(report.get("expected_facts"))
+    asserted = _count(report.get("asserted_facts"))
     rate = _num(report.get("hallucination_rate"))
     recall = _num(report.get("recall"))
     if expected is None or expected < SAMPLE_FLOOR:

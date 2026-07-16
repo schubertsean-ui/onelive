@@ -1,0 +1,105 @@
+name: Extraction Golden-Set Exam (release-blocking)
+
+# KAIZEN §M7 / R-013: no extraction change ships without golden-set exam
+# evidence. Design v3 (founder-directed v2, tightened by evaluator r9 — environment
+# "required reviewers" is org-plan-only and unavailable on this personal
+# repo): this PR-triggered job carries NO SECRETS AT ALL. The secret-
+# bearing exam runs only in extraction-exam-dispatch.yml, which can only
+# be fired manually by a maintainer (workflow_dispatch = the attended-
+# human property). This job is the release gate's other half: it goes
+# green ONLY when a successful attended run's report BINDS to this PR —
+# subject_sha equals this head SHA, the model equals this PR's routed
+# model, and the prompt hash equals this checkout's prompt. The attended
+# run itself executes only trusted default-branch harness code; the
+# subject contributes its prompt as AST-extracted text. Push a new commit and the evidence expires with the SHA
+# — a maintainer must dispatch the exam again on the new head.
+#
+# Property preserved from the r7/r8 reviews: PR-controlled code is never
+# run with the Anthropic key by any automatic/unattended trigger.
+#
+# Bootstrap honesty (r11): on the PR that ARMS this gate, this check is
+# necessarily red — no trusted attended producer exists on the default
+# branch until that PR merges, so no binding evidence can exist for its
+# head. That arming PR merges with this one check red under explicit
+# human review (precedent: PR #11, where the adversarial-review gate
+# itself was bootstrapped the same way). Every later extraction-surface
+# PR is held to the full evidence requirement.
+
+on:
+  pull_request:
+    paths:
+      - "ai/**"
+      - "worker/ai_models.py"
+      - "worker/ai_extract.py"
+      - "tools/model_router.py"          # the ratification flag + routing table live here
+      - ".github/workflows/extraction-eval.yml"
+      - ".github/workflows/extraction-exam-dispatch.yml"
+
+concurrency:
+  group: extraction-eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  golden-exam:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read      # to find the attended run + download its report artifact
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Pin to the PR HEAD SHA (not the synthetic merge ref): the
+          # routed-model and prompt-hash expectations below must come from
+          # exactly the commit the evidence certifies.
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install worker deps (structural lint imports the runner)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r worker/requirements.txt
+
+      - name: Verify attended exam evidence for this exact head SHA (fail closed)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -o pipefail
+          api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          # Attended runs execute on the DEFAULT branch (trusted harness),
+          # so run.head_sha is master's — the binding to THIS PR lives in
+          # the report's subject_sha stamp. Scan recent successful attended
+          # runs, download each report, and accept the first whose
+          # subject_sha is this PR's head AND whose model/prompt-hash match
+          # this checkout (tools/verify_exam_evidence.py).
+          RUN_IDS="$(api "https://api.github.com/repos/$REPO/actions/workflows/extraction-exam-dispatch.yml/runs?event=workflow_dispatch&status=success&per_page=15" | python3 -c "import json,sys; print(' '.join(str(r['id']) for r in (json.load(sys.stdin).get('workflow_runs') or [])))")"
+          if [ -z "$RUN_IDS" ]; then
+            echo "::error::No successful ATTENDED exam runs exist at all. A maintainer must dispatch 'Extraction Golden-Set Exam — attended run' on the default branch with subject_sha=$HEAD_SHA and the PR's routed model, then re-run this check (fail closed)."
+            exit 1
+          fi
+          FOUND=""
+          for RUN_ID in $RUN_IDS; do
+            ART_URL="$(api "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts" | python3 -c "import json,sys; arts=json.load(sys.stdin).get('artifacts') or []; hits=[a for a in arts if a['name'].startswith('golden-exam-report-')]; print(hits[0]['archive_download_url'] if hits else '')")"
+            [ -z "$ART_URL" ] && continue
+            api -L -o report.zip "$ART_URL" || continue
+            python3 -c "import zipfile; zipfile.ZipFile('report.zip').extractall('.')" || continue
+            if python3 tools/verify_exam_evidence.py exam-report.json --subject-sha "$HEAD_SHA"; then
+              FOUND="$RUN_ID"
+              break
+            fi
+          done
+          if [ -z "$FOUND" ]; then
+            echo "::error::No attended exam evidence binds to head SHA $HEAD_SHA with this PR's routed model and exact prompt. Dispatch 'Extraction Golden-Set Exam — attended run' on the default branch with subject_sha=$HEAD_SHA and the routed model, then re-run this check (fail closed)."
+            exit 1
+          fi
+          echo "attended evidence accepted from run $FOUND"
+
+      - name: Golden-set structural lint (no key needed — runs on every PR)
+        run: |
+          python -m pytest tests/test_golden_exam.py -q -k "structural or injection_and_trap or shingles or surface_forms"

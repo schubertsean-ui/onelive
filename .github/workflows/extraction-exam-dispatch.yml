@@ -113,4 +113,8 @@ jobs:
         with:
           name: golden-exam-report-${{ github.run_id }}
           path: exam-report.json
-          if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}
+          # Always error when the report is missing (r11 nit): whether the
+          # exam passed, failed, or went invalid, forensics require the
+          # report; the only report-less paths are pre-exam guard failures,
+          # where a second explicit error on an already-red job is correct.
+          if-no-files-found: error

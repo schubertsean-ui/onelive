@@ -37,6 +37,7 @@ import hashlib
 import json
 import logging
 import pathlib
+import re
 import sys
 
 from ai.claude_provider import PROMPT_VERSION, ClaudeProvider, ExtractionConfigError
@@ -222,6 +223,12 @@ def main(argv: list[str] | None = None) -> int:
         # unusable evidence rather than let the gap surface downstream.
         print("golden_exam: INVALID — --report (evidence mode) requires "
               "--subject-sha; unbound evidence is not evidence.", file=sys.stderr)
+        return 2
+    if args.subject_sha and not re.fullmatch(r"[0-9a-f]{40}", args.subject_sha):
+        # r11 nit: the CLI fails closed outside GitHub Actions too — the
+        # verifier compares by exact equality to a full PR head SHA.
+        print("golden_exam: INVALID — --subject-sha must be the full "
+              "40-character lowercase commit SHA.", file=sys.stderr)
         return 2
     try:
         examples = load_golden()
