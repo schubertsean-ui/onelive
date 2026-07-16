@@ -9,13 +9,13 @@ This file is read by Claude Code at the start of every session. It is the standi
 
 ## Agent org (who does what)
 - **Generator = this Claude Code session.** Writes code, tests-in-same-PR, small self-contained changes.
-- **Independent Evaluator = GPT-5.5 via `OPENAI_API_KEY`** (script: `tools/adversarial_review.py`; create it in session 1 if absent — it posts the raw diff + test logs and demands APPROVE/REQUEST-CHANGES). MANDATORY for: auth, pipeline, SQL/RLS, data-trust, prompt/model changes. Optional second lens: Gemini via `GEMINI_API_KEY`.
+- **Independent Evaluator = GPT-5.5 via `OPENAI_API_KEY`** (script: `tools/adversarial_review.py`; create it in session 1 if absent — it posts the raw diff + test logs and demands APPROVE/REQUEST-CHANGES). MANDATORY for: auth, pipeline, SQL/RLS, data-trust, prompt/model changes, and **gate custody** — any change to the verification tooling or its thresholds (`tools/validate`, `trust_gate.py`, `deferral_scan.py`, `lint.py`, `adversarial_review.py`, `eval_harness`, the CI gate workflows). The Generator never merges an unreviewed change to its own examiners (added 2026-07-14 at founder direction, from the Weco RSI review; `adversarial-review.yml` already enforces this mechanically by running on EVERY PR with no path filter — stated here so the intent never depends on one workflow file). Optional second lens: Gemini via `GEMINI_API_KEY`.
 - **Friction Agent = non-Claude model, pre-work.** Before any irreversible action (deploy, migration, spend, prompt_version bump), write the plan to `docs/FRICTION_LOG.md` and run it past the evaluator model with the prompt: "Attack this plan: what breaks, who is harmed, cheaper path, founder-crucial or not?" Blockers must be answered in writing.
 - **Sentinel:** Sentry (`SENTRY_DSN`) on web+API+worker; healthchecks.io dead-man ping on any scheduled job. No scheduled loop ships without both.
 - **Librarian:** session bookends, weekly digest appended to docs/FOUNDER_DIGEST.md.
 
 ## Founder-crucial escalations (the ONLY interrupts)
-Money/new services · legal posture · trust-invariant changes · go-live/allowlist pushes · credential minting. Everything else: decide, log the decision record, proceed.
+Money/new services · legal posture · trust-invariant changes · **gate-threshold relaxations** (any loosening of validate/trust_gate/evaluator/eval-harness enforcement — added 2026-07-14; making a gate easier to pass is never an agent decision) · go-live/allowlist pushes · credential minting. Everything else: decide, log the decision record, proceed.
 
 ## Cost discipline (added 2026-07-13 at founder direction)
 Maximally effective AND maximally efficient — highest margin at a world-class bar:
