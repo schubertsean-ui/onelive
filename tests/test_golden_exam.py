@@ -376,31 +376,50 @@ def test_prompt_shares_no_text_shingles_with_golden_set():
     assert not hits, f"golden text phrases leaked into the prompt: {hits}"
 
 
-def test_evidence_verifier_accepts_only_routed_model_passes(tmp_path):
-    """Design v2 (r8/personal-repo redesign): the PR-side verifier accepts
-    a report only when it is a PASS, for the production-routed model,
-    against this checkout's exact prompt — anything else is rejected."""
+def test_evidence_verifier_rederives_verdict_and_requires_binding(tmp_path):
+    """Design v3 + r10 blockers: the verifier (a) re-derives the verdict
+    from raw metrics — a self-attested passed:true with missing/violating
+    metrics is REJECTED (forged-report resistance); (b) has NO unbound
+    mode — the subject-SHA binding is a required argument; (c) rejects any
+    mismatch of model, prompt hash, or commit."""
     import hashlib
+    from ai.golden_exam import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
     from ai.prompts import EXTRACTION_SYSTEM_PROMPT
     from tools.model_router import STAGE_MODELS
     from tools.verify_exam_evidence import verify
+    sha = "a" * 40
     good = {
         "passed": True,
         "model": STAGE_MODELS["extraction"],
         "prompt_sha256": hashlib.sha256(
             EXTRACTION_SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
-        "subject_sha": "abc123def456",
-        "hallucination_rate": 0.0, "recall": 1.0, "asserted_facts": 322,
+        "subject_sha": sha,
+        "expected_facts": 322, "asserted_facts": 315,
+        "hallucination_rate": 0.0068, "recall": 0.97,
+        "unanswered": [], "injection_failures": [],
     }
-    assert verify(good) == []
-    assert verify(good, subject_sha="abc123def456") == []
-    assert verify(good, subject_sha="fff000")                   # wrong commit
-    assert verify({**good, "passed": False})
+    assert verify(good, sha) == []
+    # (a) forged reports: passed:true alone proves nothing
+    forged = {"passed": True, "model": good["model"],
+              "prompt_sha256": good["prompt_sha256"], "subject_sha": sha}
+    assert verify(forged, sha), "metric-free report must be rejected"
+    assert verify({**good, "hallucination_rate": HALLUCINATION_MAX + 0.001}, sha)
+    assert verify({**good, "recall": RECALL_MIN - 0.01}, sha)
+    assert verify({**good, "asserted_facts": SAMPLE_FLOOR - 1}, sha)
+    assert verify({**good, "expected_facts": SAMPLE_FLOOR - 1}, sha)
+    assert verify({**good, "unanswered": ["g001"]}, sha)
+    assert verify({**good, "injection_failures": [{"id": "g023"}]}, sha)
+    assert verify({**good, "hallucination_rate": "0.0"}, sha)   # mistyped
+    assert verify({**good, "passed": False}, sha)               # inconsistent
+    # (b) binding is required — empty/None requirement is itself a rejection
+    assert verify(good, "")
+    # (c) identity mismatches
+    assert verify(good, "f" * 40)                               # wrong commit
     not_routed = "claude-3-not-the-routed-model"
     assert not_routed != STAGE_MODELS["extraction"]
-    assert verify({**good, "model": not_routed})                # not the routed model
-    assert verify({**good, "prompt_sha256": "0" * 64})          # different prompt
-    assert verify({})                                           # unreadable/empty
+    assert verify({**good, "model": not_routed}, sha)
+    assert verify({**good, "prompt_sha256": "0" * 64}, sha)
+    assert verify({}, sha)                                      # empty
 
 
 def test_prompt_ast_extraction_matches_import_and_fails_closed(tmp_path):
@@ -423,9 +442,16 @@ def test_cli_report_carries_evidence_identity(monkeypatch, tmp_path):
     import ai.golden_exam as ge
     monkeypatch.setattr(ge, "ClaudeProvider", lambda **kw: PerfectFake(GOLDEN))
     out = tmp_path / "r.json"
-    assert ge.main(["--model", "claude-test", "--report", str(out)]) == 0
+    # Evidence mode REQUIRES the subject binding (r10 nit): report without
+    # --subject-sha is refused before any API call could even happen.
+    assert ge.main(["--model", "claude-test", "--report", str(out)]) == 2
+    assert not out.exists()
+    sha = "b" * 40
+    assert ge.main(["--model", "claude-test", "--report", str(out),
+                    "--subject-sha", sha]) == 0
     r = json.loads(out.read_text(encoding="utf-8"))
     assert r["model"] == "claude-test"
+    assert r["subject_sha"] == sha
     assert r["prompt_version"] and len(r["prompt_sha256"]) == 64
 
 

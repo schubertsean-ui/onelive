@@ -216,6 +216,13 @@ def main(argv: list[str] | None = None) -> int:
                              "into the report so the PR-side verifier can "
                              "bind evidence to an exact head SHA")
     args = parser.parse_args(argv)
+    if args.report is not None and not args.subject_sha:
+        # Evidence mode (r10 nit): a report artifact without a subject
+        # binding can never be accepted by the verifier — refuse to mint
+        # unusable evidence rather than let the gap surface downstream.
+        print("golden_exam: INVALID — --report (evidence mode) requires "
+              "--subject-sha; unbound evidence is not evidence.", file=sys.stderr)
+        return 2
     try:
         examples = load_golden()
         if args.limit is not None:

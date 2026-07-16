@@ -79,8 +79,8 @@ jobs:
           SUBJECT_SHA: ${{ github.event.inputs.subject_sha }}
           RAW_MODEL: ${{ github.event.inputs.model }}
         run: |
-          if ! [[ "$SUBJECT_SHA" =~ ^[0-9a-f]{7,40}$ ]]; then
-            echo "::error::subject_sha is not a plausible commit SHA (value redacted)."
+          if ! [[ "$SUBJECT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::subject_sha must be the FULL 40-character commit SHA (evidence later binds by exact equality to a PR head; abbreviations invite mismatches)."
             exit 1
           fi
           if ! [[ "$RAW_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]]; then
