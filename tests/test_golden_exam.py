@@ -240,6 +240,16 @@ def test_exam_provenance_is_stamped(exam_process):
     assert stamped["_provenance"]["exam_mode"] is True
 
 
+def test_provenance_hashes_the_prompt_actually_used(exam_process):
+    """r15 nit: exam runs can inject a subject prompt (--prompt-file);
+    provenance must hash what RAN, not this checkout's ai/prompts.py."""
+    import hashlib
+    p = ClaudeProvider(api_key="test", model="claude-test", exam_mode=True)
+    stamped = p._stamp({"title": "X"}, used_prompt="SUBJECT PROMPT TEXT")
+    assert stamped["_provenance"]["prompt_sha256"] == \
+        hashlib.sha256(b"SUBJECT PROMPT TEXT").hexdigest()
+
+
 def test_provenance_carries_prompt_content_hash(exam_process):
     """Drift audit (po harvest, friction #2; evaluator r7): prompt_version
     says what was intended, the sha256 says what actually ran."""

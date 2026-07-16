@@ -87,6 +87,10 @@ jobs:
             echo "::error::model input is not a plausible model id (value redacted)."
             exit 1
           fi
+          # Same-repo commits only (r15 nit): fork PR heads are not reachable
+          # from origin and are OUT OF SCOPE for this solo private repo; fork
+          # support would need an explicit subject repository input reviewed
+          # on its own. Unreachable SHA = this fetch fails = fail closed.
           git fetch --no-tags origin "$SUBJECT_SHA"
           # ONLY the prompt file is taken from the subject, and only as text.
           git show "$SUBJECT_SHA:ai/prompts.py" > subject_prompts.py

@@ -248,7 +248,8 @@ class ClaudeProvider(AIProvider):
                     tool_choice={"type": "tool", "name": "record_event_extraction"},
                     messages=[{"role": "user", "content": text}],
                 )
-                return self._stamp(self._extract_tool_input(resp))
+                return self._stamp(self._extract_tool_input(resp),
+                                   used_prompt=system_prompt or EXTRACTION_SYSTEM_PROMPT)
             except Exception as exc:  # noqa: BLE001 — classified below
                 if self._is_config_error(exc):
                     # Structural failure (e.g. unknown model, malformed schema):
@@ -362,8 +363,13 @@ class ClaudeProvider(AIProvider):
             data["title"] = None
         return data
 
-    def _stamp(self, data: Optional[dict]) -> Optional[dict]:
-        """Attach extraction provenance so the candidate is re-verifiable."""
+    def _stamp(self, data: Optional[dict], used_prompt: Optional[str] = None) -> Optional[dict]:
+        """Attach extraction provenance so the candidate is re-verifiable.
+
+        `used_prompt` is the system prompt that actually produced this
+        output (r15 nit: exam runs can inject a subject prompt via
+        --prompt-file, and provenance must hash what RAN, not what this
+        checkout's ai/prompts.py happens to contain)."""
         if data is None:
             return None
         data = self._decode_entities(data)
@@ -376,7 +382,7 @@ class ClaudeProvider(AIProvider):
             # (po harvest, friction entry #2; evaluator r7 concurred): the
             # version says what we intended, the hash says what actually ran.
             "prompt_sha256": hashlib.sha256(
-                EXTRACTION_SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
+                (used_prompt or EXTRACTION_SYSTEM_PROMPT).encode("utf-8")).hexdigest(),
             "extracted_at": datetime.now(timezone.utc).isoformat(),
         }
         if self.exam_mode:
