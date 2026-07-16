@@ -467,6 +467,9 @@ def test_prompt_ast_extraction_matches_import_and_fails_closed(tmp_path):
     # r18: sets are outside the documented pure-data surface
     from tools.pure_data import is_pure_data_module
     assert not is_pure_data_module("X = {'a', 'b'}")
+    # r20: duplicate dict keys — import keeps last, a reader might take
+    # first; ambiguity is impure
+    assert not is_pure_data_module("X = {'k': 'a', 'k': 'b'}")
     assert extract("import os\nEXTRACTION_SYSTEM_PROMPT = 'x'\n") is None
     assert extract("def f():\n    EXTRACTION_SYSTEM_PROMPT = 'inner'\n") is None
     assert extract("if True:\n    EXTRACTION_SYSTEM_PROMPT = 'cond'\n") is None
