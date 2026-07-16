@@ -396,7 +396,9 @@ def test_evidence_verifier_accepts_only_routed_model_passes(tmp_path):
     assert verify(good, subject_sha="abc123def456") == []
     assert verify(good, subject_sha="fff000")                   # wrong commit
     assert verify({**good, "passed": False})
-    assert verify({**good, "model": "claude-haiku-4-5"})        # not the routed model
+    not_routed = "claude-3-not-the-routed-model"
+    assert not_routed != STAGE_MODELS["extraction"]
+    assert verify({**good, "model": not_routed})                # not the routed model
     assert verify({**good, "prompt_sha256": "0" * 64})          # different prompt
     assert verify({})                                           # unreadable/empty
 
