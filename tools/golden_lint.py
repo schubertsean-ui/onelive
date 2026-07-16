@@ -49,6 +49,9 @@ def lint(rows: list[dict], prompt_text: str) -> list[str]:
         if not isinstance(r["tags"], list) or not all(isinstance(t, str) for t in r["tags"]):
             problems.append(f"{rid}: tags is not a list of strings")
             continue
+        if not isinstance(r["forbidden"], list) or not all(isinstance(m, str) for m in r["forbidden"]):
+            problems.append(f"{rid}: forbidden is not a list of strings (injection markers are security-relevant)")
+            continue
         if not isinstance(r["text"], str) or not r["text"].strip():
             problems.append(f"{rid}: text missing or not a string")
         if not set(r["expected"]) <= VALID_EXPECTED:

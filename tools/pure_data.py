@@ -25,7 +25,9 @@ def _is_const_literal(node: ast.expr) -> bool:
     if isinstance(node, ast.Dict):
         return all(k is not None and _is_const_literal(k) and _is_const_literal(v)
                    for k, v in zip(node.keys, node.values))
-    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+    if isinstance(node, (ast.List, ast.Tuple)):
+        # Sets deliberately excluded (r18 nit): the documented pure-data
+        # surface is dict/list/tuple of constants, exactly.
         return all(_is_const_literal(e) for e in node.elts)
     return False
 

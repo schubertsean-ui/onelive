@@ -21,7 +21,9 @@ Extraction escalation history (cost-discipline rule 2, both logged):
   de-contaminated spec — an instruction-following ceiling. The tier is
   earned by passing the same gate and lost the same way: once the gate
   opens, BOTH cheaper tiers re-sit the exam via workflow_dispatch and
-  extraction routes to the cheapest passer (TODOS de-escalation item).
+  extraction routes to the cheapest passer — a standing, tracked
+  policy: the de-escalation exam procedure is queued in TODOS.md and the
+  routing policy doc (docs/MODEL_ROUTING.md).
 
 EXTRACTION_THRESHOLD_RATIFIED (R-013 status 2026-07-15): the golden-set
 exam gate EXISTS and routed claude-opus-4-8 passed the RATE bar on exam
