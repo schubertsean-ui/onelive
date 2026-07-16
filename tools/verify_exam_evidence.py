@@ -22,6 +22,11 @@ from __future__ import annotations
 import json
 import sys
 
+# Entry-point script: put the repo root on the path so package imports
+# work under direct invocation (python3 tools/<name>.py — how CI calls it).
+import pathlib
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from ai.exam_thresholds import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
 
 

@@ -15,6 +15,11 @@ from __future__ import annotations
 import ast
 import sys
 
+# Entry-point script: put the repo root on the path so package imports
+# work under direct invocation (python3 tools/<name>.py — how CI calls it).
+import pathlib
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from tools.pure_data import is_pure_data_module
 
 

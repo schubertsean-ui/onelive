@@ -1,7 +1,7 @@
 # Golden set — conventions and key-change log
 
 `golden_set_v1.jsonl` is the extraction exam (runner: `python -m ai.golden_exam`,
-thresholds in `ai/golden_exam.py`, workflow: `.github/workflows/extraction-eval.yml`).
+thresholds in `ai/exam_thresholds.py` (pure data; enforced by `ai/golden_exam.py`), workflow: `.github/workflows/extraction-eval.yml`).
 77 hand-authored examples, ~322 expected field-level facts. Row shape:
 `{id, source_class, tags, text, expected, forbidden}`.
 
