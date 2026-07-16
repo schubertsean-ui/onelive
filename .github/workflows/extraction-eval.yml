@@ -16,6 +16,14 @@ name: Extraction Golden-Set Exam (release-blocking)
 #
 # Property preserved from the r7/r8 reviews: PR-controlled code is never
 # run with the Anthropic key by any automatic/unattended trigger.
+#
+# Bootstrap honesty (r11): on the PR that ARMS this gate, this check is
+# necessarily red — no trusted attended producer exists on the default
+# branch until that PR merges, so no binding evidence can exist for its
+# head. That arming PR merges with this one check red under explicit
+# human review (precedent: PR #11, where the adversarial-review gate
+# itself was bootstrapped the same way). Every later extraction-surface
+# PR is held to the full evidence requirement.
 
 on:
   pull_request:

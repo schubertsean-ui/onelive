@@ -19,20 +19,28 @@ import sys
 def extract(source: str) -> str | None:
     """Return the literal assigned to EXTRACTION_SYSTEM_PROMPT, else None."""
     tree = ast.parse(source)
-    for node in ast.walk(tree):
-        targets = []
+
+    def binds_name(node) -> bool:
         if isinstance(node, ast.Assign):
-            targets = node.targets
-        elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            # `EXTRACTION_SYSTEM_PROMPT: str = "..."` (r10 nit: a harmless
-            # annotation refactor must not brick the exam).
-            targets = [node.target]
-        for target in targets:
-            if isinstance(target, ast.Name) and target.id == "EXTRACTION_SYSTEM_PROMPT":
-                if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
-                    return node.value.value
-                return None  # assigned, but not a plain string literal
-    return None
+            return any(isinstance(t, ast.Name) and t.id == "EXTRACTION_SYSTEM_PROMPT"
+                       for t in node.targets)
+        if isinstance(node, ast.AnnAssign):  # `NAME: str = "..."` (r10 nit)
+            return (isinstance(node.target, ast.Name)
+                    and node.target.id == "EXTRACTION_SYSTEM_PROMPT")
+        return False
+
+    # Evaluator r11: only a SINGLE, TOP-LEVEL (Module.body) binding is
+    # acceptable evidence — a nested/conditional binding, or more than one
+    # binding anywhere, means the text this tool would return may not be
+    # what `import ai.prompts` actually yields. Ambiguity fails closed.
+    all_bindings = [n for n in ast.walk(tree) if binds_name(n)]
+    top_level = [n for n in tree.body if binds_name(n)]
+    if len(all_bindings) != 1 or len(top_level) != 1:
+        return None
+    node = top_level[0]
+    if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+        return node.value.value
+    return None  # bound, but not a plain string literal
 
 
 def main(argv: list[str] | None = None) -> int:

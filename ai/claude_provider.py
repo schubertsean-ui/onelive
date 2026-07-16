@@ -138,19 +138,19 @@ def _exam_entrypoint_allowed() -> bool:
     was spoofable via compile(..., filename=...)).
 
     Authorization is a property of how this PROCESS was started, not of
-    the shape of the calling code. Exactly two entrypoints qualify:
-
-    1. The exam program itself: `python -m ai.golden_exam` makes the
-       interpreter's __main__ module spec literally "ai.golden_exam". A
-       worker/Celery/uvicorn/cron process can never satisfy this without
-       re-exec-ing AS the exam program — at which point it is not
-       sneaking past the gate, it IS the gate's instrument.
-    2. The test runner: pytest stamps PYTEST_CURRENT_TEST into the
-       environment for the duration of each test — the hermetic tests of
-       this channel run there.
+    the shape of the calling code. Exactly ONE entrypoint qualifies: the
+    exam program itself — `python -m ai.golden_exam` makes the
+    interpreter's __main__ module spec literally "ai.golden_exam". A
+    worker/Celery/uvicorn/cron process can never satisfy this without
+    re-exec-ing AS the exam program — at which point it is not sneaking
+    past the gate, it IS the gate's instrument.
+    (Tests of this channel simulate this same entrypoint by monkeypatching
+    __main__.__spec__ — there is deliberately NO test-runner escape hatch
+    here; evaluator r11 removed the PYTEST_CURRENT_TEST branch as a
+    production-spoofable env-var backdoor.)
 
     Filename spoofing (compile with a forged filename, wrappers, import
-    games) does nothing to either signal. Threat model, stated honestly:
+    games) does nothing to this signal. Threat model, stated honestly:
     CPython offers no in-process capability sealing — code that is ALREADY
     hostile inside this process could setattr the ratification flag itself
     and would never need this channel. This boundary therefore targets
@@ -163,9 +163,7 @@ def _exam_entrypoint_allowed() -> bool:
     """
     import __main__
     spec_name = getattr(getattr(__main__, "__spec__", None), "name", "") or ""
-    if spec_name == "ai.golden_exam":
-        return True
-    return "PYTEST_CURRENT_TEST" in os.environ
+    return spec_name == "ai.golden_exam"
 
 
 class ExtractionConfigError(RuntimeError):

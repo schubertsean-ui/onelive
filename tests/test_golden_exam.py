@@ -172,12 +172,25 @@ def test_undersized_run_is_invalid_never_a_small_pass():
 
 
 # --- the exam channel ----------------------------------------------------------
-def test_exam_mode_requires_explicit_model():
+@pytest.fixture
+def exam_process(monkeypatch):
+    """Simulate the REAL exam entrypoint (`python -m ai.golden_exam`) by
+    monkeypatching __main__.__spec__ — the exact signal the boundary
+    checks. There is deliberately no test-runner escape hatch inside the
+    production helper (evaluator r11: an env-var branch is a spoofable
+    backdoor); tests opt in per-test through this fixture instead."""
+    import types
+    import __main__
+    monkeypatch.setattr(__main__, "__spec__",
+                        types.SimpleNamespace(name="ai.golden_exam"), raising=False)
+
+
+def test_exam_mode_requires_explicit_model(exam_process):
     with pytest.raises(ExtractionConfigError, match="explicit candidate model"):
         ClaudeProvider(api_key="test", exam_mode=True)
 
 
-def test_exam_mode_constructs_while_ratification_flag_is_false(monkeypatch):
+def test_exam_mode_constructs_while_ratification_flag_is_false(exam_process, monkeypatch):
     """The exam IS the flag's evidence-generator — it must run pre-flip
     (and again whenever a failing model re-closes the gate), so the exam
     channel must construct while the flag is False."""
@@ -188,12 +201,12 @@ def test_exam_mode_constructs_while_ratification_flag_is_false(monkeypatch):
     assert p.exam_mode is True
 
 
-def test_exam_mode_blank_model_still_fails_closed():
+def test_exam_mode_blank_model_still_fails_closed(exam_process):
     with pytest.raises(ExtractionConfigError):
         ClaudeProvider(api_key="test", model="  ", exam_mode=True)
 
 
-def test_html_entities_are_decoded_at_the_provider_boundary():
+def test_html_entities_are_decoded_at_the_provider_boundary(exam_process):
     """Exam cycle 8 (opus) emitted '&amp;' where the source text has '&' —
     an output-encoding artifact, not content. The provider decodes entities
     deterministically on every string field, nested lists/dicts included."""
@@ -206,7 +219,7 @@ def test_html_entities_are_decoded_at_the_provider_boundary():
     assert out["is_private_rsvp"] is False
 
 
-def test_title_duplicating_artist_or_venue_is_nulled():
+def test_title_duplicating_artist_or_venue_is_nulled(exam_process):
     """Production normalization (exam cycles 3-9): every model tier
     sometimes promotes the headline act or the venue to `title`. A title
     equal to an artist/venue name is dropped deterministically; a
@@ -221,13 +234,13 @@ def test_title_duplicating_artist_or_venue_is_nulled():
     assert out["title"] == "The Rewire Tour"
 
 
-def test_exam_provenance_is_stamped():
+def test_exam_provenance_is_stamped(exam_process):
     p = ClaudeProvider(api_key="test", model="claude-test", exam_mode=True)
     stamped = p._stamp({"title": "X"})
     assert stamped["_provenance"]["exam_mode"] is True
 
 
-def test_provenance_carries_prompt_content_hash():
+def test_provenance_carries_prompt_content_hash(exam_process):
     """Drift audit (po harvest, friction #2; evaluator r7): prompt_version
     says what was intended, the sha256 says what actually ran."""
     import hashlib
@@ -247,7 +260,6 @@ def test_exam_mode_denied_in_a_non_exam_process_even_with_forged_filenames(monke
     PROCESS, not of code shape."""
     import types
     import __main__
-    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
     monkeypatch.setattr(__main__, "__spec__",
                         types.SimpleNamespace(name="celery.__main__"), raising=False)
     forged_ns = {}
@@ -267,7 +279,6 @@ def test_exam_mode_allowed_when_process_is_the_exam_program(monkeypatch):
     the runner module)."""
     import types
     import __main__
-    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
     monkeypatch.setattr(__main__, "__spec__",
                         types.SimpleNamespace(name="ai.golden_exam"), raising=False)
     p = ClaudeProvider(api_key="test", model="claude-test", exam_mode=True)
@@ -433,6 +444,15 @@ def test_prompt_ast_extraction_matches_import_and_fails_closed(tmp_path):
         == EXTRACTION_SYSTEM_PROMPT
     assert extract("EXTRACTION_SYSTEM_PROMPT = 'a' + 'b'") is None   # computed
     assert extract("OTHER = 'x'") is None                            # absent
+    # r10/r11: annotated top-level binding is fine; nested, conditional,
+    # or multiple bindings are ambiguous evidence and fail closed.
+    assert extract("EXTRACTION_SYSTEM_PROMPT: str = 'ok'") == "ok"
+    assert extract("def f():\n    EXTRACTION_SYSTEM_PROMPT = 'inner'\n") is None
+    assert extract("if True:\n    EXTRACTION_SYSTEM_PROMPT = 'cond'\n") is None
+    assert extract("EXTRACTION_SYSTEM_PROMPT = 'a'\n"
+                   "EXTRACTION_SYSTEM_PROMPT = 'b'\n") is None       # rebound
+    assert extract("EXTRACTION_SYSTEM_PROMPT = 'top'\n"
+                   "def f():\n    EXTRACTION_SYSTEM_PROMPT = 'shadow'\n") is None
 
 
 def test_cli_report_carries_evidence_identity(monkeypatch, tmp_path):
