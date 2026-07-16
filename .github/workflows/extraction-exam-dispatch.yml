@@ -49,6 +49,12 @@ jobs:
     environment: extraction-exam
     permissions:
       contents: read
+      # The policy-proof step reads the environment + deployment-branch-
+      # policy APIs (r21 blocker: contents alone 403s there, making the
+      # gate unusable rather than fail-closed-on-misconfiguration).
+      # Read-only scopes, no write of any kind.
+      actions: read
+      deployments: read
     steps:
       - name: Prove the environment's deployment-branch policy is ACTIVE (fail closed)
         # r19 blocker: the ref guard below is code inside whatever workflow
