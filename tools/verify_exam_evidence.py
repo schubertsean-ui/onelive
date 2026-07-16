@@ -52,7 +52,8 @@ def _count(v) -> int | None:
 
 
 def verify(report: dict, subject_sha: str, expect_model: str,
-           expect_prompt_sha256: str) -> list[str]:
+           expect_prompt_sha256: str, expect_golden_sha256: str,
+           expect_scorer_sha256: str) -> list[str]:
     """Return the list of rejection reasons (empty = evidence accepted).
 
     Every check is derived from raw report fields — missing or mistyped
@@ -107,6 +108,17 @@ def verify(report: dict, subject_sha: str, expect_model: str,
                         "chars — unbound/malformed verification is not a mode")
     elif report.get("prompt_sha256") != expect_prompt_sha256:
         problems.append("report prompt_sha256 is not the subject's prompt")
+    for label, want, got in (
+        ("golden set", expect_golden_sha256, report.get("golden_sha256")),
+        ("scorer", expect_scorer_sha256, report.get("scorer_sha256")),
+    ):
+        if not want or not _HEX64_RE.fullmatch(want):
+            problems.append(f"expected {label} hash missing/malformed — "
+                            "unbound verification is not a mode")
+        elif got != want:
+            problems.append(f"report {label} hash {str(got)[:12]!r}… is not the "
+                            f"current harness's — evidence measured a different "
+                            f"exam (r22: old metrics never certify the current set)")
     if not subject_sha or not _SHA_RE.fullmatch(subject_sha):
         problems.append("subject_sha requirement missing or not a full "
                         "40-char lowercase SHA — unbound/malformed "
@@ -136,10 +148,14 @@ def main(argv: list[str] | None = None) -> int:
     subject_sha = take("--subject-sha")
     expect_model = take("--expect-model")
     expect_prompt = take("--expect-prompt-sha256")
-    if len(argv) != 1 or not (subject_sha and expect_model and expect_prompt):
+    expect_golden = take("--expect-golden-sha256")
+    expect_scorer = take("--expect-scorer-sha256")
+    if len(argv) != 1 or not (subject_sha and expect_model and expect_prompt
+                              and expect_golden and expect_scorer):
         print("::error::usage: verify_exam_evidence.py <exam-report.json> "
               "--subject-sha <sha> --expect-model <id> "
-              "--expect-prompt-sha256 <hex> (ALL bindings are REQUIRED — "
+              "--expect-prompt-sha256 <hex> --expect-golden-sha256 <hex> "
+              "--expect-scorer-sha256 <hex> (ALL bindings are REQUIRED — "
               "unbound verification is not a mode)", file=sys.stderr)
         return 1
     try:
@@ -152,7 +168,8 @@ def main(argv: list[str] | None = None) -> int:
         print("::error::exam report is not a JSON object (fail closed).",
               file=sys.stderr)
         return 1
-    problems = verify(report, subject_sha, expect_model, expect_prompt)
+    problems = verify(report, subject_sha, expect_model, expect_prompt,
+                      expect_golden, expect_scorer)
     if problems:
         for p in problems:
             print(f"::error::exam evidence REJECTED: {p}", file=sys.stderr)

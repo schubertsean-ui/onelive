@@ -257,6 +257,17 @@ def main(argv: list[str] | None = None) -> int:
         report["prompt_sha256"] = hashlib.sha256(
             (system_prompt or EXTRACTION_SYSTEM_PROMPT).encode("utf-8")).hexdigest()
         report["subject_sha"] = args.subject_sha
+        # Harness-version binding (r22 blocker): evidence must name WHICH
+        # exam measured it — the golden set's and scorer's content hashes.
+        # The verifier requires equality with ITS base checkout, so a
+        # report minted under an older set/scorer can never certify a PR
+        # against the current one.
+        report["golden_sha256"] = hashlib.sha256(
+            GOLDEN_PATH.read_bytes()).hexdigest()
+        here = pathlib.Path(__file__).resolve().parent
+        report["scorer_sha256"] = hashlib.sha256(
+            (here / "eval_harness.py").read_bytes() + b"\x00"
+            + (here / "golden_exam.py").read_bytes()).hexdigest()
     except (ExtractionConfigError, ValueError, OSError) as exc:
         print(f"golden_exam: INVALID — {exc}", file=sys.stderr)
         return 2

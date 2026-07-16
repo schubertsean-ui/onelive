@@ -204,8 +204,18 @@ jobs:
             echo "::error::subject routed model is not a plausible model id (fail closed)."
             exit 1
           fi
+          # Harness-version bindings (r22): the evidence must have been
+          # minted by THIS golden set and scorer (base's), not an older one.
+          EXPECT_GOLDEN_SHA="$(python3 -c "import hashlib; print(hashlib.sha256(open('base/ai/golden/golden_set_v1.jsonl','rb').read()).hexdigest())")"
+          EXPECT_SCORER_SHA="$(python3 -c "
+          import hashlib
+          h = hashlib.sha256(open('base/ai/eval_harness.py','rb').read() + b'\x00' + open('base/ai/golden_exam.py','rb').read())
+          print(h.hexdigest())
+          ")"
           echo "EXPECT_PROMPT_SHA=$EXPECT_PROMPT_SHA" >> "$GITHUB_ENV"
           echo "EXPECT_MODEL=$EXPECT_MODEL" >> "$GITHUB_ENV"
+          echo "EXPECT_GOLDEN_SHA=$EXPECT_GOLDEN_SHA" >> "$GITHUB_ENV"
+          echo "EXPECT_SCORER_SHA=$EXPECT_SCORER_SHA" >> "$GITHUB_ENV"
 
       - name: Verify attended exam evidence binds to this head (BASE verifier, fail closed)
         env:
@@ -260,7 +270,9 @@ jobs:
             if python3 tools/verify_exam_evidence.py "$TMPD/exam-report.json" \
                  --subject-sha "$HEAD_SHA" \
                  --expect-model "$EXPECT_MODEL" \
-                 --expect-prompt-sha256 "$EXPECT_PROMPT_SHA"; then
+                 --expect-prompt-sha256 "$EXPECT_PROMPT_SHA" \
+                 --expect-golden-sha256 "$EXPECT_GOLDEN_SHA" \
+                 --expect-scorer-sha256 "$EXPECT_SCORER_SHA"; then
               FOUND="$RUN_ID"
               break
             fi
