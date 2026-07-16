@@ -1,39 +1,43 @@
 name: Extraction Golden-Set Exam — attended run
 
-# The ONLY secret-bearing exam entry point (design v2, founder-directed
-# 2026-07-15): GitHub environment "required reviewers" is an organization
-# plan feature and unavailable on this personal repo, so the attended-human
-# property is provided by the trigger itself — workflow_dispatch can only
-# be fired manually by an identity with write access, never automatically
-# by a push or PR event. PR-controlled code therefore runs with the
-# Anthropic key ONLY when a maintainer deliberately dispatches it on a
-# chosen branch.
+# The ONLY secret-bearing exam entry point — design v3 (evaluator r9 on the
+# bootstrap PR tightened v2): the key never coexists with ANY untrusted
+# code, attended or not. Mechanics:
 #
-# The PR-side release gate lives in extraction-eval.yml: it carries NO
-# secrets and goes green only when a successful run of THIS workflow
-# exists for the PR's exact head SHA, with a report artifact proving the
-# pass was for the production-routed model and the PR's exact prompt.
+#   * TRUSTED HARNESS: this job refuses to run unless dispatched on the
+#     DEFAULT branch, and everything it executes — runner, provider,
+#     scoring, thresholds, golden set, report writer — is that trusted
+#     checkout's code.
+#   * SUBJECT AS DATA: the commit under examination contributes exactly
+#     one thing, its prompt TEXT, lifted from the subject commit by AST
+#     parsing (tools/extract_prompt_text.py — never imported, never
+#     executed) plus the candidate model id from the dispatch input.
+#   * BINDING: the report artifact records model, prompt_sha256, and
+#     subject_sha; the PR-side secretless verifier (extraction-eval.yml)
+#     accepts evidence only when all three match ITS checkout — so a
+#     forged/mismatched dispatch certifies nothing.
 #
-# Thresholds live in ai/golden_exam.py (hallucination <= 1% founder-
-# ratified; recall >= 0.80; zero forbidden injection markers; two >=300-
-# fact floors — the set must CARRY >=300 expected facts or the run is
-# INVALID, and a PASS requires >=300 ASSERTED facts, the 1% claim's
-# denominator).
+# Consequence, stated plainly: a PR that changes harness CODE (runner,
+# provider, scoring, golden set) cannot be exam-certified until that
+# harness change merges through the evaluator gate — harness first,
+# subject second (the PR #11 "gate arms itself" bootstrap pattern).
 #
-# Cost note (§14.3): one full exam = 77 small extraction calls — well
-# under two dollars at any routed tier; the ANTHROPIC console spend cap
-# bounds the blast radius regardless.
+# workflow_dispatch is the attended-human property available on personal
+# repos (environment required-reviewers is org-plan-only). Thresholds live
+# in ai/golden_exam.py; the ANTHROPIC console spend cap bounds cost.
 
 on:
   workflow_dispatch:
     inputs:
+      subject_sha:
+        description: "Commit SHA whose prompt is under examination (the PR head)"
+        required: true
       model:
-        description: "Candidate model id (leave empty to examine the production-routed model)"
-        required: false
-        default: ""
+        description: "Candidate model id to examine (must equal the subject PR's routed model for release evidence)"
+        required: true
 
 concurrency:
-  group: extraction-exam-dispatch-${{ github.ref }}
+  group: extraction-exam-dispatch
   cancel-in-progress: false
 
 jobs:
@@ -41,15 +45,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # The environment scopes ANTHROPIC_API_KEY_EXAM to exam runs only (the
-    # repo-wide key is never referenced here). No protection rules are
-    # assumed — the attended property comes from the dispatch trigger.
+    # repo-wide key is never referenced here).
     environment: extraction-exam
     permissions:
       contents: read
     steps:
+      - name: Refuse to run off the default branch (trusted harness only)
+        env:
+          REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+            echo "::error::attended exams run ONLY from the default branch (harness must be trusted code); dispatched ref was $REF. Dispatch on $DEFAULT_BRANCH and pass the PR head as subject_sha."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0        # need the subject commit reachable for data extraction
 
       - uses: actions/setup-python@v5
         with:
@@ -60,28 +74,27 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r worker/requirements.txt
 
-      - name: Resolve candidate model (input validated; empty = routed model)
+      - name: Extract SUBJECT data (prompt text via AST — never executed) and validate inputs
         env:
-          # Untrusted input reaches the shell only via env (never ${{ }}
-          # inside run:) and must look like a model id (PR #12 lessons).
+          SUBJECT_SHA: ${{ github.event.inputs.subject_sha }}
           RAW_MODEL: ${{ github.event.inputs.model }}
         run: |
-          if [ -n "$RAW_MODEL" ]; then
-            if ! [[ "$RAW_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]]; then
-              echo "::error::model input is not a plausible model id (value redacted)."
-              exit 1
-            fi
-            EXAM_MODEL="$RAW_MODEL"
-          else
-            EXAM_MODEL="$(python3 -c "from tools.model_router import STAGE_MODELS; print(STAGE_MODELS['extraction'])")"
-            if ! [[ "$EXAM_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]]; then
-              echo "::error::routed extraction model is not a plausible model id."
-              exit 1
-            fi
+          if ! [[ "$SUBJECT_SHA" =~ ^[0-9a-f]{7,40}$ ]]; then
+            echo "::error::subject_sha is not a plausible commit SHA (value redacted)."
+            exit 1
           fi
-          echo "EXAM_MODEL=$EXAM_MODEL" >> "$GITHUB_ENV"
+          if ! [[ "$RAW_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]]; then
+            echo "::error::model input is not a plausible model id (value redacted)."
+            exit 1
+          fi
+          git fetch --no-tags origin "$SUBJECT_SHA"
+          # ONLY the prompt file is taken from the subject, and only as text.
+          git show "$SUBJECT_SHA:ai/prompts.py" > subject_prompts.py
+          python3 tools/extract_prompt_text.py subject_prompts.py > subject_prompt.txt
+          echo "EXAM_MODEL=$RAW_MODEL" >> "$GITHUB_ENV"
+          echo "SUBJECT_SHA=$SUBJECT_SHA" >> "$GITHUB_ENV"
 
-      - name: Run the golden-set exam
+      - name: Run the golden-set exam (trusted harness, subject prompt as data)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_EXAM }}
         run: |
@@ -89,7 +102,10 @@ jobs:
             echo "::error::ANTHROPIC_API_KEY_EXAM is not configured as a secret of the 'extraction-exam' environment — the exam cannot run, and no-exam means no-pass (fail closed). Setup: Settings -> Environments -> extraction-exam -> Environment secrets."
             exit 1
           fi
-          python -m ai.golden_exam --model "$EXAM_MODEL" --report exam-report.json
+          python -m ai.golden_exam --model "$EXAM_MODEL" \
+            --prompt-file subject_prompt.txt \
+            --subject-sha "$SUBJECT_SHA" \
+            --report exam-report.json
 
       - name: Persist the exam report (evidence artifact)
         if: always()
@@ -97,6 +113,4 @@ jobs:
         with:
           name: golden-exam-report-${{ github.run_id }}
           path: exam-report.json
-          # Evidence artifact on a release gate: absence on a SUCCESSFUL
-          # run is itself a failure.
           if-no-files-found: ${{ job.status == 'success' && 'error' || 'warn' }}

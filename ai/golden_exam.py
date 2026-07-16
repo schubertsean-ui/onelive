@@ -99,9 +99,11 @@ def find_forbidden(predicted: dict, forbidden: list[str]) -> list[str]:
     return [m for m in forbidden if m.lower() in blob]
 
 
-def run_exam(provider, examples: list[dict]) -> dict:
+def run_exam(provider, examples: list[dict], system_prompt: str | None = None) -> dict:
     """Grade `provider` over `examples`. Returns the report dict (pure logic —
-    provider is injected, so tests run this hermetically with fakes)."""
+    provider and prompt are injected, so tests run hermetically and the
+    trusted-harness dispatch can supply the SUBJECT prompt as data)."""
+    system_prompt = system_prompt or EXTRACTION_SYSTEM_PROMPT
     schema = AIEventExtraction.model_json_schema()
     scores, injections, per_example = [], [], []
     unanswered = []   # provider returned None: transient/structural failure
@@ -109,7 +111,7 @@ def run_exam(provider, examples: list[dict]) -> dict:
     events_with_any_error = 0
     for exm in examples:
         raw = provider.extract_event_json(
-            exm["text"], schema, system_prompt=EXTRACTION_SYSTEM_PROMPT
+            exm["text"], schema, system_prompt=system_prompt
         )
         if raw is None:
             # A None return is the provider's degraded-transient path — an
@@ -205,20 +207,34 @@ def main(argv: list[str] | None = None) -> int:
                         help="run only the first N examples (smoke; INVALID by design)")
     parser.add_argument("--report", type=pathlib.Path, default=None,
                         help="write the full JSON report here (CI artifact)")
+    parser.add_argument("--prompt-file", type=pathlib.Path, default=None,
+                        help="SUBJECT prompt text to examine (trusted-harness "
+                             "dispatch extracts it from the subject commit as "
+                             "data; default: this checkout's prompt)")
+    parser.add_argument("--subject-sha", default=None,
+                        help="commit the SUBJECT prompt came from; stamped "
+                             "into the report so the PR-side verifier can "
+                             "bind evidence to an exact head SHA")
     args = parser.parse_args(argv)
     try:
         examples = load_golden()
         if args.limit is not None:
             examples = examples[: args.limit]
+        system_prompt = None
+        if args.prompt_file is not None:
+            system_prompt = args.prompt_file.read_text(encoding="utf-8")
+            if not system_prompt.strip():
+                raise ValueError("--prompt-file is empty — no exam without a prompt.")
         provider = ClaudeProvider(model=args.model, exam_mode=True)
-        report = run_exam(provider, examples)
-        # Evidence identity (design v2): the PR-side verifier checks these
-        # against ITS checkout — a pass for a different model or prompt
-        # certifies nothing.
+        report = run_exam(provider, examples, system_prompt=system_prompt)
+        # Evidence identity (design v3): the PR-side verifier checks these
+        # against ITS checkout — a pass for a different model, prompt, or
+        # commit certifies nothing.
         report["model"] = args.model
         report["prompt_version"] = PROMPT_VERSION
         report["prompt_sha256"] = hashlib.sha256(
-            EXTRACTION_SYSTEM_PROMPT.encode("utf-8")).hexdigest()
+            (system_prompt or EXTRACTION_SYSTEM_PROMPT).encode("utf-8")).hexdigest()
+        report["subject_sha"] = args.subject_sha
     except (ExtractionConfigError, ValueError, OSError) as exc:
         print(f"golden_exam: INVALID — {exc}", file=sys.stderr)
         return 2

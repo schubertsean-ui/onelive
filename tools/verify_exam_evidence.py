@@ -24,7 +24,7 @@ from ai.prompts import EXTRACTION_SYSTEM_PROMPT
 from tools.model_router import STAGE_MODELS
 
 
-def verify(report: dict) -> list[str]:
+def verify(report: dict, subject_sha: str | None = None) -> list[str]:
     """Return the list of rejection reasons (empty = evidence accepted)."""
     problems = []
     if report.get("passed") is not True:
@@ -37,14 +37,28 @@ def verify(report: dict) -> list[str]:
     want = hashlib.sha256(EXTRACTION_SYSTEM_PROMPT.encode("utf-8")).hexdigest()
     if report.get("prompt_sha256") != want:
         problems.append("report prompt_sha256 is not this checkout's prompt")
+    if subject_sha is not None and report.get("subject_sha") != subject_sha:
+        problems.append(
+            f"report.subject_sha={report.get('subject_sha')!r} != required "
+            f"{subject_sha!r} (evidence binds to an exact commit)"
+        )
     return problems
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
+    subject_sha = None
+    if "--subject-sha" in argv:
+        i = argv.index("--subject-sha")
+        try:
+            subject_sha = argv[i + 1]
+        except IndexError:
+            print("::error::--subject-sha needs a value", file=sys.stderr)
+            return 1
+        argv = argv[:i] + argv[i + 2:]
     if len(argv) != 1:
-        print("::error::usage: verify_exam_evidence.py <exam-report.json>",
-              file=sys.stderr)
+        print("::error::usage: verify_exam_evidence.py <exam-report.json> "
+              "[--subject-sha <sha>]", file=sys.stderr)
         return 1
     try:
         report = json.load(open(argv[0], encoding="utf-8"))
@@ -52,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"::error::cannot read exam report ({exc}) — unreadable evidence "
               "is not evidence (fail closed).", file=sys.stderr)
         return 1
-    problems = verify(report)
+    problems = verify(report, subject_sha=subject_sha)
     if problems:
         print("::error::attended evidence rejected: " + "; ".join(problems),
               file=sys.stderr)

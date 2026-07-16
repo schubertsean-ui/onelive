@@ -389,13 +389,29 @@ def test_evidence_verifier_accepts_only_routed_model_passes(tmp_path):
         "model": STAGE_MODELS["extraction"],
         "prompt_sha256": hashlib.sha256(
             EXTRACTION_SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
+        "subject_sha": "abc123def456",
         "hallucination_rate": 0.0, "recall": 1.0, "asserted_facts": 322,
     }
     assert verify(good) == []
+    assert verify(good, subject_sha="abc123def456") == []
+    assert verify(good, subject_sha="fff000")                   # wrong commit
     assert verify({**good, "passed": False})
-    assert verify({**good, "model": "claude-haiku-4-5"})       # not the routed model
+    assert verify({**good, "model": "claude-haiku-4-5"})        # not the routed model
     assert verify({**good, "prompt_sha256": "0" * 64})          # different prompt
     assert verify({})                                           # unreadable/empty
+
+
+def test_prompt_ast_extraction_matches_import_and_fails_closed(tmp_path):
+    """Design v3: the trusted-harness dispatch lifts the SUBJECT's prompt
+    by AST parsing, never by executing subject code. The extraction must
+    equal what importing would give, and non-literal assignments fail
+    closed (a prompt that needs code execution is not examinable data)."""
+    from ai.prompts import EXTRACTION_SYSTEM_PROMPT
+    from tools.extract_prompt_text import extract
+    assert extract(pathlib.Path("ai/prompts.py").read_text(encoding="utf-8")) \
+        == EXTRACTION_SYSTEM_PROMPT
+    assert extract("EXTRACTION_SYSTEM_PROMPT = 'a' + 'b'") is None   # computed
+    assert extract("OTHER = 'x'") is None                            # absent
 
 
 def test_cli_report_carries_evidence_identity(monkeypatch, tmp_path):

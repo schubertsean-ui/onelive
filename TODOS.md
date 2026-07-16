@@ -84,3 +84,4 @@ a priority, owner, and one line of context — link the STATE.md section or
 session arc it came from if there is one. **Completing an item:** check the
 box in the same commit that resolves it; leave the line in place (don't
 delete completed items — they're a record of what got done).
+- [ ] (P3) SHA-pin third-party GitHub Actions (checkout/setup-python/upload-artifact) across workflows (evaluator r9 nit, PR #28) — supply-chain hardening; needs verified upstream commit SHAs looked up from a networked session, never guessed.

@@ -1,16 +1,17 @@
 name: Extraction Golden-Set Exam (release-blocking)
 
 # KAIZEN §M7 / R-013: no extraction change ships without golden-set exam
-# evidence. Design v2 (founder-directed 2026-07-15 — environment
+# evidence. Design v3 (founder-directed v2, tightened by evaluator r9 — environment
 # "required reviewers" is org-plan-only and unavailable on this personal
 # repo): this PR-triggered job carries NO SECRETS AT ALL. The secret-
 # bearing exam runs only in extraction-exam-dispatch.yml, which can only
 # be fired manually by a maintainer (workflow_dispatch = the attended-
 # human property). This job is the release gate's other half: it goes
-# green ONLY when a successful attended run exists for this PR's exact
-# head SHA and its report artifact proves the pass was (a) real, (b) for
-# the PRODUCTION-ROUTED model, and (c) against this PR's exact prompt
-# (content hash). Push a new commit and the evidence expires with the SHA
+# green ONLY when a successful attended run's report BINDS to this PR —
+# subject_sha equals this head SHA, the model equals this PR's routed
+# model, and the prompt hash equals this checkout's prompt. The attended
+# run itself executes only trusted default-branch harness code; the
+# subject contributes its prompt as AST-extracted text. Push a new commit and the evidence expires with the SHA
 # — a maintainer must dispatch the exam again on the new head.
 #
 # Property preserved from the r7/r8 reviews: PR-controlled code is never
@@ -63,27 +64,33 @@ jobs:
         run: |
           set -o pipefail
           api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
-          # 1. A SUCCESSFUL attended (workflow_dispatch) run on this exact SHA.
-          RUN_ID="$(api "https://api.github.com/repos/$REPO/actions/workflows/extraction-exam-dispatch.yml/runs?event=workflow_dispatch&status=success&head_sha=$HEAD_SHA" | python3 -c "import json,sys; runs=json.load(sys.stdin).get('workflow_runs') or []; print(runs[0]['id'] if runs else '')")"
-          if [ -z "$RUN_ID" ]; then
-            echo "::error::No successful ATTENDED exam run exists for head SHA $HEAD_SHA. A maintainer must dispatch 'Extraction Golden-Set Exam — attended run' on this branch (Actions tab -> that workflow -> Run workflow), then re-run this check. No attended evidence means no pass (fail closed)."
+          # Attended runs execute on the DEFAULT branch (trusted harness),
+          # so run.head_sha is master's — the binding to THIS PR lives in
+          # the report's subject_sha stamp. Scan recent successful attended
+          # runs, download each report, and accept the first whose
+          # subject_sha is this PR's head AND whose model/prompt-hash match
+          # this checkout (tools/verify_exam_evidence.py).
+          RUN_IDS="$(api "https://api.github.com/repos/$REPO/actions/workflows/extraction-exam-dispatch.yml/runs?event=workflow_dispatch&status=success&per_page=15" | python3 -c "import json,sys; print(' '.join(str(r['id']) for r in (json.load(sys.stdin).get('workflow_runs') or [])))")"
+          if [ -z "$RUN_IDS" ]; then
+            echo "::error::No successful ATTENDED exam runs exist at all. A maintainer must dispatch 'Extraction Golden-Set Exam — attended run' on the default branch with subject_sha=$HEAD_SHA and the PR's routed model, then re-run this check (fail closed)."
             exit 1
           fi
-          echo "found attended run $RUN_ID for $HEAD_SHA"
-          # 2. Download its exam-report artifact.
-          ART_URL="$(api "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts" | python3 -c "import json,sys; arts=json.load(sys.stdin).get('artifacts') or []; hits=[a for a in arts if a['name'].startswith('golden-exam-report-')]; print(hits[0]['archive_download_url'] if hits else '')")"
-          if [ -z "$ART_URL" ]; then
-            echo "::error::Attended run $RUN_ID has no exam-report artifact — evidence that cannot be read is not evidence (fail closed)."
+          FOUND=""
+          for RUN_ID in $RUN_IDS; do
+            ART_URL="$(api "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts" | python3 -c "import json,sys; arts=json.load(sys.stdin).get('artifacts') or []; hits=[a for a in arts if a['name'].startswith('golden-exam-report-')]; print(hits[0]['archive_download_url'] if hits else '')")"
+            [ -z "$ART_URL" ] && continue
+            api -L -o report.zip "$ART_URL" || continue
+            python3 -c "import zipfile; zipfile.ZipFile('report.zip').extractall('.')" || continue
+            if python3 tools/verify_exam_evidence.py exam-report.json --subject-sha "$HEAD_SHA"; then
+              FOUND="$RUN_ID"
+              break
+            fi
+          done
+          if [ -z "$FOUND" ]; then
+            echo "::error::No attended exam evidence binds to head SHA $HEAD_SHA with this PR's routed model and exact prompt. Dispatch 'Extraction Golden-Set Exam — attended run' on the default branch with subject_sha=$HEAD_SHA and the routed model, then re-run this check (fail closed)."
             exit 1
           fi
-          api -L -o report.zip "$ART_URL"
-          python3 -c "import zipfile; zipfile.ZipFile('report.zip').extractall('.')"
-          # 3. The report must show a PASS, for the PRODUCTION-ROUTED model
-          #    (the dispatch input can name any model — evidence for a
-          #    different model certifies nothing), against THIS PR's exact
-          #    prompt (content hash — same-SHA pinning makes this redundant
-          #    by construction; kept as cheap defense in depth).
-          python3 tools/verify_exam_evidence.py exam-report.json
+          echo "attended evidence accepted from run $FOUND"
 
       - name: Golden-set structural lint (no key needed — runs on every PR)
         run: |
