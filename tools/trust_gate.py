@@ -205,12 +205,68 @@ def check_promote_import_allowlist(findings: Findings) -> None:
                 )
 
 
+# The exam channel (R-013's measurement instrument) may only be invoked from
+# the golden-exam runner and tests — pipeline code must never construct an
+# exam-mode provider (it bypasses the extraction ratification gate).
+EXAM_MODE_ALLOWLIST_PREFIXES = (
+    "ai/golden_exam.py",        # the exam runner — the channel's only real caller
+    "tests/",                    # hermetic tests of the channel itself
+    "ai/claude_provider.py",     # where the channel is defined
+    "tools/trust_gate.py",       # this check's own detection string
+)
+
+
+def check_exam_mode_confined(findings: Findings) -> None:
+    # Repo-root *.py files scan too (evaluator r7): a root-level script
+    # driving the exam runner must be as visible as a worker/ one.
+    candidates = list(REPO.glob("*.py"))
+    for d in ("ai", "worker", "api", "tools"):
+        root = REPO / d
+        if root.exists():
+            candidates.extend(root.rglob("*.py"))
+    for path in candidates:
+        if "__pycache__" in path.parts:
+            continue
+        rel = str(path.relative_to(REPO))
+        if any(rel.startswith(pref) for pref in EXAM_MODE_ALLOWLIST_PREFIXES):
+            continue
+        # ANY mention — not just the literal `exam_mode=True` — so
+        # `exam_mode = True`, **{"exam_mode": True}, aliasing, or wrapper
+        # construction cannot slip past (evaluator finding, PR #25 r1).
+        # Deliberately over-broad: this guards a ratification-gate bypass,
+        # and a false positive is a rename away from clean.
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "exam_mode" in text:
+            findings.add(
+                f"{rel}: references exam_mode outside the exam channel "
+                f"allowlist (ai/golden_exam.py, tests/). exam_mode bypasses "
+                f"the extraction ratification gate and is reserved for the "
+                f"golden-set exam runner only — any reference here is a "
+                f"violation, however constructed."
+            )
+        # Same-hole closure at the static layer (evaluator, PR #25 r5):
+        # pipeline code must not import or invoke the exam RUNNER either —
+        # a wrapper that drives ai.golden_exam would put the allowlisted
+        # runner on the call stack without ever containing "exam_mode".
+        # The runtime stack-walk allowlists repo frames (r7); this scan
+        # makes the same wrapper visible in CI before it can run.
+        if "golden_exam" in text:
+            findings.add(
+                f"{rel}: references golden_exam outside the exam channel "
+                f"allowlist. Driving the exam runner from pipeline code "
+                f"would reach the ratification-gate bypass transitively — "
+                f"the runner may only be invoked by CI, tests, or a human "
+                f"(python -m ai.golden_exam), never by pipeline code."
+            )
+
+
 def main() -> int:
     findings = Findings()
     check_no_dynamic_sql(findings)
     check_ads_tastemaker_isolation(findings)
     check_ai_never_promotes(findings)
     check_promote_import_allowlist(findings)
+    check_exam_mode_confined(findings)
 
     if findings.ok():
         print("trust_gate: OK — all trust invariants hold "

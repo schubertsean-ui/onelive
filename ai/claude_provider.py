@@ -45,6 +45,8 @@ independently auditable".
 """
 from datetime import datetime, timezone
 from typing import Optional
+import hashlib
+import html
 import json
 import logging
 import os
@@ -57,13 +59,13 @@ logger = logging.getLogger(__name__)
 
 # Bump when EXTRACTION_SYSTEM_PROMPT changes materially, so provenance on stored
 # candidates records which prompt produced them.
-PROMPT_VERSION = "2026-07-10.1"
+PROMPT_VERSION = "2026-07-15.9"
 
 MAX_RETRIES = 3
 BACKOFF_BASE_S = 1.0
 
 
-def _resolve_extraction_model(explicit: Optional[str]) -> str:
+def _resolve_extraction_model(explicit: Optional[str], exam_mode: bool = False) -> str:
     """Resolve the extraction model THROUGH the routing gate (single source).
 
     The trust invariant lives at this entry point, not only in the tool
@@ -86,7 +88,32 @@ def _resolve_extraction_model(explicit: Optional[str]) -> str:
     misconfiguration, never "use the default".
     """
     import tools.model_router as _router
-    if not _router.EXTRACTION_THRESHOLD_RATIFIED:
+    if exam_mode:
+        if not _exam_entrypoint_allowed():
+            raise ExtractionConfigError(
+                "exam_mode is only available inside the exam program "
+                "(python -m ai.golden_exam) or the test runner — this "
+                "process's entrypoint is neither. The channel bypasses the "
+                "extraction ratification gate; production processes are "
+                "excluded by WHAT the process is, not by what its code "
+                "looks like."
+            )
+        # THE EXAM CHANNEL — deliberately narrow (R-013's own measurement
+        # instrument): the golden-set runner must exercise the REAL provider
+        # path against a candidate model BEFORE the gate can open, so this
+        # bypasses ONLY the ratification-flag check. Constraints, all
+        # enforced: an explicit model is REQUIRED (no policy fallback — the
+        # exam names its candidate); blank still fails closed below; the
+        # string `exam_mode=True` is allowed ONLY in ai/golden_exam.py and
+        # tests/ (tools/trust_gate.py invariant), so no pipeline code can
+        # reach for it; and the runner imports no candidate-store/promote
+        # code, so exam output cannot touch the pipeline or DB.
+        if explicit is None:
+            raise ExtractionConfigError(
+                "exam_mode requires an explicit candidate model — the exam "
+                "names what it measures; there is no policy fallback."
+            )
+    elif not _router.EXTRACTION_THRESHOLD_RATIFIED:
         raise ExtractionConfigError(
             "extraction is fail-closed until the golden-set gate ships and "
             "passes (docs/RECORD.md R-013; bar ratified <=1% per R-006) — "
@@ -105,6 +132,42 @@ def _resolve_extraction_model(explicit: Optional[str]) -> str:
         raise ExtractionConfigError(str(exc)) from exc
 
 
+def _exam_entrypoint_allowed() -> bool:
+    """Runtime confinement of the exam channel — a PROCESS-ENTRYPOINT
+    boundary (evaluator r8 replaced the earlier stack-filename walk, which
+    was spoofable via compile(..., filename=...)).
+
+    Authorization is a property of how this PROCESS was started, not of
+    the shape of the calling code. Exactly two entrypoints qualify:
+
+    1. The exam program itself: `python -m ai.golden_exam` makes the
+       interpreter's __main__ module spec literally "ai.golden_exam". A
+       worker/Celery/uvicorn/cron process can never satisfy this without
+       re-exec-ing AS the exam program — at which point it is not
+       sneaking past the gate, it IS the gate's instrument.
+    2. The test runner: pytest stamps PYTEST_CURRENT_TEST into the
+       environment for the duration of each test — the hermetic tests of
+       this channel run there.
+
+    Filename spoofing (compile with a forged filename, wrappers, import
+    games) does nothing to either signal. Threat model, stated honestly:
+    CPython offers no in-process capability sealing — code that is ALREADY
+    hostile inside this process could setattr the ratification flag itself
+    and would never need this channel. This boundary therefore targets
+    what is real: ACCIDENTAL production use (a worker constructing an
+    exam-mode provider fails loudly, whatever its code looks like), with
+    adversarial code held instead by the layers that actually bind it —
+    the trust_gate CI scans on every PR, the mandatory evaluator review,
+    and the pipeline invariant that no AI output reaches the public feed
+    without the human promotion gate.
+    """
+    import __main__
+    spec_name = getattr(getattr(__main__, "__spec__", None), "name", "") or ""
+    if spec_name == "ai.golden_exam":
+        return True
+    return "PYTEST_CURRENT_TEST" in os.environ
+
+
 class ExtractionConfigError(RuntimeError):
     """Raised for misconfiguration/structural failures that must fail loudly
     rather than degrade to a silent empty extraction (see module docstring)."""
@@ -118,9 +181,12 @@ class ClaudeProvider(AIProvider):
         max_tokens: int = 1024,
         client=None,
         max_retries: int = MAX_RETRIES,
+        *,
+        exam_mode: bool = False,
     ):
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        self.model = _resolve_extraction_model(model)
+        self.exam_mode = exam_mode
+        self.model = _resolve_extraction_model(model, exam_mode=exam_mode)
         self.max_tokens = max_tokens
         self._client = client
         self.max_retries = max_retries
@@ -248,17 +314,71 @@ class ClaudeProvider(AIProvider):
                         return None
         return None
 
+    @staticmethod
+    def _decode_entities(data: Optional[dict]) -> Optional[dict]:
+        """Normalize HTML-entity escaping in model output, deterministically.
+
+        Models sometimes HTML-escape string values ('&' -> '&amp;') even
+        when the source text is plain (observed: claude-opus-4-8, exam
+        cycle 8, g002/g030). Encoding artifacts are not content; a single
+        html.unescape pass at the provider boundary fixes every field the
+        same way — deterministic code over prompt instructions."""
+        if data is None:
+            return None
+        def dec(v):
+            if isinstance(v, str):
+                return html.unescape(v)
+            if isinstance(v, list):
+                return [dec(x) for x in v]
+            if isinstance(v, dict):
+                return {k: dec(x) for k, x in v.items()}
+            return v
+        return {k: dec(v) for k, v in data.items()}
+
+    @staticmethod
+    def _drop_redundant_title(data: Optional[dict]) -> Optional[dict]:
+        """Null a title that merely duplicates an artist or the venue.
+
+        Every model tier tested (exam cycles 3-9) sometimes promotes the
+        headline act or venue to `title` — the industry prior that every
+        listing has a title. A title equal to an artist/venue name carries
+        zero information the other fields don't already assert, and would
+        render as a duplicated line on the event card (design brief: the
+        artist is its own line). Deterministic and case-insensitive; a
+        DISTINCT title is never touched."""
+        if not data or not isinstance(data.get("title"), str):
+            return data
+        t = data["title"].strip().casefold()
+        names = [a for a in (data.get("artist_names") or []) if isinstance(a, str)]
+        if isinstance(data.get("venue_name"), str):
+            names.append(data["venue_name"])
+        if any(t == n.strip().casefold() for n in names):
+            data = dict(data)
+            data["title"] = None
+        return data
+
     def _stamp(self, data: Optional[dict]) -> Optional[dict]:
         """Attach extraction provenance so the candidate is re-verifiable."""
         if data is None:
             return None
-        data = dict(data)
+        data = self._decode_entities(data)
+        data = self._drop_redundant_title(data)
         data["_provenance"] = {
             "provider": "claude",
             "model": self.model,
             "prompt_version": PROMPT_VERSION,
+            # Content hash catches silent prompt drift BETWEEN version bumps
+            # (po harvest, friction entry #2; evaluator r7 concurred): the
+            # version says what we intended, the hash says what actually ran.
+            "prompt_sha256": hashlib.sha256(
+                EXTRACTION_SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
             "extracted_at": datetime.now(timezone.utc).isoformat(),
         }
+        if self.exam_mode:
+            # Exam output must be unmistakable as exam output — if a row with
+            # this marker ever appears in the candidate store, something has
+            # violated the exam channel's no-pipeline constraint.
+            data["_provenance"]["exam_mode"] = True
         return data
 
     @staticmethod
