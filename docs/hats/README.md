@@ -68,9 +68,13 @@ escalation, never an agent decision.
 
 ## Independence (from the swarm-analysis review)
 
-Hats — and review personas generally — run as **independent calls that do
-not see each other's output**; their findings meet only at the Blue merge.
-A lens that has read another lens's findings is conformed, not independent.
+Hats — and review personas generally — run as **independent calls that
+never see another lens's FINDINGS**; their findings meet only at the Blue
+merge. Shared INPUTS are fine and expected: every lens may receive the same
+pre-registered Blue frame, the same White facts pass, and the same Green
+option set — independence is about conclusions, not about starting
+material. A lens that has read another lens's findings is conformed, not
+independent.
 (Parallel execution gives this for free; sequential mode trades it away
 knowingly, which is part of why it is the cheap tier.)
 
@@ -79,7 +83,10 @@ knowingly, which is part of why it is the cheap tier.)
 Each hat file declares three things: its **measure**, its **counter-measure**
 (every measure ships with its Goodhart inverse — a hat rewarded per catch
 will manufacture catches), and its **escape definition** (what it means for
-this hat to have failed). Rows land in `docs/metrics/KAIZEN_LEDGER.md`
+this hat to have failed). One constitutional exception, stated here so it
+never reads as a skipped requirement: the **Red hat is the founder and
+declares no measure** — the harness does not grade the founder; Red's
+Kaizen surface is the AGENTS' interrupt hygiene (see red.md). Rows land in `docs/metrics/KAIZEN_LEDGER.md`
 using the existing M-series — a hat is simply another catcher named in M2,
 another gate-gap source in M4 — because cross-hat trends (a class escaping
 Black but caught by White) are only visible in one table. Yellow's
