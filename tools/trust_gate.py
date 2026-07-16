@@ -213,6 +213,11 @@ EXAM_MODE_ALLOWLIST_PREFIXES = (
     "tests/",                    # hermetic tests of the channel itself
     "ai/claude_provider.py",     # where the channel is defined
     "tools/trust_gate.py",       # this check's own detection string
+    # The secretless evidence verifier imports the runner's THRESHOLD
+    # CONSTANTS so verdict re-derivation can never drift from the exam
+    # (evaluator r10) — it never constructs a provider, never passes
+    # exam_mode, and never invokes the runner.
+    "tools/verify_exam_evidence.py",
 )
 
 

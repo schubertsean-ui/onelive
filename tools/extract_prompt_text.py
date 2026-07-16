@@ -20,12 +20,18 @@ def extract(source: str) -> str | None:
     """Return the literal assigned to EXTRACTION_SYSTEM_PROMPT, else None."""
     tree = ast.parse(source)
     for node in ast.walk(tree):
+        targets = []
         if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "EXTRACTION_SYSTEM_PROMPT":
-                    if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
-                        return node.value.value
-                    return None  # assigned, but not a plain string literal
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            # `EXTRACTION_SYSTEM_PROMPT: str = "..."` (r10 nit: a harmless
+            # annotation refactor must not brick the exam).
+            targets = [node.target]
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id == "EXTRACTION_SYSTEM_PROMPT":
+                if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                    return node.value.value
+                return None  # assigned, but not a plain string literal
     return None
 
 
