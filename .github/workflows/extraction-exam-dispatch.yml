@@ -78,6 +78,7 @@ jobs:
         env:
           SUBJECT_SHA: ${{ github.event.inputs.subject_sha }}
           RAW_MODEL: ${{ github.event.inputs.model }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if ! [[ "$SUBJECT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::subject_sha must be the FULL 40-character commit SHA (evidence later binds by exact equality to a PR head; abbreviations invite mismatches)."
@@ -91,7 +92,13 @@ jobs:
           # from origin and are OUT OF SCOPE for this solo private repo; fork
           # support would need an explicit subject repository input reviewed
           # on its own. Unreachable SHA = this fetch fails = fail closed.
-          git fetch --no-tags origin "$SUBJECT_SHA"
+          # Authenticated for THIS command only (r18 blocker: the checkout
+          # deliberately persists no credentials, so a bare fetch fails on a
+          # private repo — the gate could never mint evidence). The token is
+          # scoped read-only and never written to git config on disk.
+          AUTH_B64="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $AUTH_B64" \
+            fetch --no-tags origin "$SUBJECT_SHA"
           # ONLY the prompt file is taken from the subject, and only as text.
           git show "$SUBJECT_SHA:ai/prompts.py" > subject_prompts.py
           python3 tools/extract_prompt_text.py subject_prompts.py > subject_prompt.txt

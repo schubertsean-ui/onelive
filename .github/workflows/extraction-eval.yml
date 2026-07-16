@@ -210,6 +210,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
           cd base
@@ -219,7 +220,17 @@ jobs:
           # evidence can age out of this window — the remedy is always ONE
           # re-dispatch with the same subject_sha/model; the gate never
           # skips or degrades.
-          RUN_IDS="$(api "https://api.github.com/repos/$REPO/actions/workflows/extraction-exam-dispatch.yml/runs?event=workflow_dispatch&status=success&per_page=50" | python3 -c "import json,sys; print(' '.join(str(r['id']) for r in (json.load(sys.stdin).get('workflow_runs') or [])))")"
+          # Only runs whose head_branch IS the default branch count (r18
+          # blocker): a branch dispatch executes the BRANCH's copy of the
+          # attended workflow — guard stripped, artifacts forgeable. The
+          # trusted-harness guarantee lives in this filter as much as in
+          # the workflow's own ref guard.
+          RUN_IDS="$(api "https://api.github.com/repos/$REPO/actions/workflows/extraction-exam-dispatch.yml/runs?event=workflow_dispatch&status=success&per_page=50" | python3 -c "
+          import json, os, sys
+          default = os.environ['DEFAULT_BRANCH']
+          runs = json.load(sys.stdin).get('workflow_runs') or []
+          print(' '.join(str(r['id']) for r in runs if r.get('head_branch') == default))
+          ")"
           if [ -z "$RUN_IDS" ]; then
             echo "::error::No successful ATTENDED exam runs exist at all. A maintainer must dispatch 'Extraction Golden-Set Exam — attended run' on the default branch with subject_sha=$HEAD_SHA and the subject's routed model ($EXPECT_MODEL), then re-run this check (fail closed)."
             exit 1

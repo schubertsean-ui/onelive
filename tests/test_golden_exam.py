@@ -464,6 +464,9 @@ def test_prompt_ast_extraction_matches_import_and_fails_closed(tmp_path):
     # r17: annotation EXPRESSIONS evaluate at import time — only bare-name
     # annotations are inert; an executable annotation fails closed.
     assert extract('EXTRACTION_SYSTEM_PROMPT: __import__("os").system("x") = "safe"') is None
+    # r18: sets are outside the documented pure-data surface
+    from tools.pure_data import is_pure_data_module
+    assert not is_pure_data_module("X = {'a', 'b'}")
     assert extract("import os\nEXTRACTION_SYSTEM_PROMPT = 'x'\n") is None
     assert extract("def f():\n    EXTRACTION_SYSTEM_PROMPT = 'inner'\n") is None
     assert extract("if True:\n    EXTRACTION_SYSTEM_PROMPT = 'cond'\n") is None
