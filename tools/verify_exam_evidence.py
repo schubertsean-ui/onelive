@@ -76,12 +76,15 @@ def verify(report: dict, subject_sha: str, expect_model: str,
     if asserted is None or asserted < SAMPLE_FLOOR:
         problems.append(f"asserted_facts={report.get('asserted_facts')!r} "
                         f"fails the asserted floor (>= {SAMPLE_FLOOR})")
-    if rate is None or rate > HALLUCINATION_MAX:
+    # Rates are proportions (r21 blocker): anything outside [0, 1] is a
+    # forged/malformed report, not a very good or very bad score —
+    # hallucination_rate=-1 or recall=999 must reject, never impress.
+    if rate is None or not (0.0 <= rate <= 1.0) or rate > HALLUCINATION_MAX:
         problems.append(f"hallucination_rate={report.get('hallucination_rate')!r} "
-                        f"fails the bar (<= {HALLUCINATION_MAX})")
-    if recall is None or recall < RECALL_MIN:
-        problems.append(f"recall={report.get('recall')!r} fails the floor "
-                        f"(>= {RECALL_MIN})")
+                        f"out of range or fails the bar (<= {HALLUCINATION_MAX})")
+    if recall is None or not (0.0 <= recall <= 1.0) or recall < RECALL_MIN:
+        problems.append(f"recall={report.get('recall')!r} out of range or "
+                        f"fails the floor (>= {RECALL_MIN})")
     if report.get("unanswered") != []:
         problems.append(f"unanswered={report.get('unanswered')!r} (need [])")
     if report.get("injection_failures") != []:

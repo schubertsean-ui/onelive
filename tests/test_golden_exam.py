@@ -432,6 +432,8 @@ def test_evidence_verifier_rederives_verdict_and_requires_binding(tmp_path):
     assert verify({**good, "hallucination_rate": "0.0"})        # mistyped
     assert verify({**good, "hallucination_rate": float("nan")})  # r17: NaN sails no gate
     assert verify({**good, "recall": float("inf")})              # r17: Inf rejected too
+    assert verify({**good, "hallucination_rate": -1})            # r21: proportions live in [0,1]
+    assert verify({**good, "recall": 999})                       # r21: impossible metrics reject
     assert verify({**good, "passed": False})                    # inconsistent
     # (b) every binding is required — empty requirements are rejections
     assert verify(good, s="")
