@@ -220,8 +220,10 @@ def check_exam_mode_confined(findings: Findings) -> None:
     # Repo-root *.py files scan too (evaluator r7): a root-level script
     # driving the exam runner must be as visible as a worker/ one.
     # REPO-WIDE scan (r23 nit): future directories (scripts/, etc.) are
-    # covered automatically; only dependency/build trees are excluded.
-    skip_parts = {"__pycache__", "node_modules", ".git", ".venv", "venv"}
+    # covered automatically; only dependency/build trees are excluded
+    # (incl. dist/build — r24 nit: keep the exclusion list honest).
+    skip_parts = {"__pycache__", "node_modules", ".git", ".venv", "venv",
+                  "dist", "build", ".eggs", ".tox"}
     candidates = [p for p in REPO.rglob("*.py")
                   if not (set(p.parts) & skip_parts)]
     for path in candidates:
