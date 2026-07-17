@@ -13,6 +13,11 @@ in your head what the key facts are, THEN look at *Answer key* and mark the box:
 - ✏️ **disagree** — write one line on what's wrong (wrong fact, or a fact it should/shouldn't have pulled)
 - 🤔 **unsure** — the listing is genuinely ambiguous; note why
 
+You are checking whether the EXTRACTED FACTS match the text — not whether the event is
+current, eligible, or worth showing (a listing can be a throwback, sold out, or long past
+and STILL have correct facts; separate gates handle eligibility). If a row keys venue/artist
+facts for a non-current event, that is fine — judge only "do these facts match the words?"
+
 You do NOT need to check every field — flag anything that reads wrong. ∅ means the key
 deliberately expects that field BLANK (often a trap: e.g. a doors-only time is not a
 start time; a band named after a city is not a city).

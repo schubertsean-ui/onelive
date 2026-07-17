@@ -42,7 +42,7 @@ Blue merge last preserving conflict.
 | **White** | Facts only: what the code/config/tests ACTUALLY enforce today (not what docs claim). Reads the closed-attack log and the real workflow files | deterministic extraction preferred; cross-family LLM narrates |
 | **Green (po)** | Provocation: `tools/po_battery.py` operators against each boundary — "po: the exam key is public", "po: the maintainer is the attacker", "po: two AIs share the exact wrong assumption". Provocations are stimuli, never claims | cheap tier, any non-Claude family |
 | **Yellow** | Best-case steelman: where is the design genuinely STRONGER than it looks, so the team doesn't waste rounds on non-issues and doesn't cry wolf | non-generator family (M8 validated-upside) |
-| **Black** | The attacker: tries to REOPEN each closed attack (threat model §5), find a new boundary crossing, or exploit the §6 residual. Hard invariant: non-Claude, AND for this red team specifically, a THIRD family — neither Claude nor the GPT-5.5 that already reviews every PR — so its blind spots are maximally different | **third family**, router-enforced (see custody) |
+| **Black** | The attacker: tries to REOPEN each closed attack (threat model §5), find a new boundary crossing, or exploit the §6 residual. Hard invariant: non-Claude, AND for this red team specifically, a THIRD family — neither Claude nor the GPT-5.5 that already reviews every PR — so its blind spots are maximally different | **third family** — REQUIRED by this charter; router enforcement not yet built (see Custody: design-only today) |
 | **Red** | The founder: go/no-go on whether findings warrant the human review, and on any finding touching money/legal/trust invariants | human, permanently |
 
 **Why a THIRD family for Black (the point of the whole exercise):** the standing
@@ -72,13 +72,19 @@ convergent). The red team fires at:
 
 - **Target:** `docs/security/THREAT_MODEL.md` (kept current — a stale model
   wastes the run). Every finding updates that file in the same change.
-- **Model binding** goes through `tools/model_router.py` families, never a
-  hardcoded vendor — with Black's third-family constraint enforced there
-  (mirrors black.md's non-Claude hard invariant). Until `GEMINI_API_KEY` (or
-  another third-family key) exists, the red team runs DEGRADED and says so
-  loudly: it can still run Black on GPT-5.5, but the run's own report must
-  record that it did NOT achieve third-family diversity that round — a
-  degraded run is not a passed run (fail-loud, no silent substitution).
+- **Model binding — NOT YET IMPLEMENTED, stated plainly (evaluator PR #33 r1):**
+  Black's third-family constraint is a REQUIREMENT this charter sets, not a
+  control that exists in code today. This doc is design; nothing here enforces
+  it. Making it real is its own gate-custody change (evaluator-mandatory,
+  TODOS): a `tools/model_router.py` family binding for the `red-team-black`
+  stage (mirroring black.md's router-enforced non-Claude invariant, extended
+  to exclude the GPT family too) PLUS the runner (`tools/decision_swarm.py`)
+  that fails loud when no third-family key is configured. Until both ship, the
+  red team cannot run in its intended form at all — there is no "degraded"
+  auto-run substituting GPT-5.5 for the third family, because no runner exists
+  to do so; the FIRST red-team run is blocked on that tooling landing, and any
+  interim manual run MUST record in its own report that third-family diversity
+  was not achieved (a manual run without it is not the chartered control).
 - **Independence & raw-output preservation:** manual until
   `tools/decision_swarm.py` (TODOS) — so each hat's raw output is captured
   before any hat sees another's, and the decision record preserves all raw

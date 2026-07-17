@@ -470,7 +470,7 @@
 - R-013 stays OPEN (flip staged, evidence pending) and flips RESOLVED only in a commit citing the passing run id + verifier output. R-018 stays OPEN pending the founder setup.
 - Post-merge queue (TODOS): de-escalation exams for claude-sonnet-4-6 and claude-haiku-4-5 (route extraction to the cheapest passer); capped ingestion re-fire.
 
-## 2026-07-17 — EXTRACTION CERTIFIED ON: R-013 resolved on bound attended exam evidence (PR #31 merged)
+## 2026-07-17 — Extraction ratification flag flipped True: R-013 resolved on bound attended exam evidence (PR #31 merged) — the MECHANICAL gate evidence (run 29586647594) is the certification; this log entry only records it
 - Founder configured the extraction-exam environment (deployment-branch policy master-only + ANTHROPIC_API_KEY_EXAM); the fail-closed boundary was probe-verified before any spend (run 29581813635 refused correctly while unconfigured).
 - Attended exam run 29585733298 (master's harness, subject = PR #31 head 818ad0b, model claude-opus-4-8): PASSED — 77 examples, 314 asserted facts (>=300 floor), hallucination 0.64% (bar 1%), recall 97.2% (floor 80%), zero injections, zero unanswered. Better than cycle 11 (0.68%) on the HARDER corrected exam (g007 gates-time key fixed same day) — cost ~$1.50.
 - The golden-exam release gate went green on the evidence (run 29586647594): all five bindings verified (subject SHA, prompt hash, model, golden hash, harness-manifest hash + dependency lock), verdict re-derived from raw metrics, base-owned golden_lint clean. First green in the gate's existence.

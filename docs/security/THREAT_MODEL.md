@@ -74,12 +74,27 @@ cross-*paradigm*: a flaw-class that AI systems systematically miss — in securi
 reasoning, in what counts as a "fact," in the shape of the whole design — is
 plausibly shared, not caught. And the Generator authored the exam key, the
 "correct"-defining conventions, and the tools that assemble what the reviewer
-sees; the reviewer audits fiercely but inside a Generator-built frame. Standing
-mitigations: (1) production ground truth (Step 7 — reality has no training-data
-bias); (2) human golden-key audit (`GOLDEN_HUMAN_AUDIT_*.md`); (4) the Gemini
-third family. The dedicated de-biasers are the red team (this doc's attacker,
-cross-family) and — the honest ceiling — a one-time human security review before
-go-live, which the red team informs but does not replace.
+sees; the reviewer audits fiercely but inside a Generator-built frame.
+
+Mitigation status — stated by what EXISTS today, never by what is planned
+(crediting a future control as current is exactly the residual-laundering this
+section must avoid):
+
+- **Exists now:** the §4 mechanical invariants (code + tests — the live
+  protection); the human golden-key audit SHEET
+  (`GOLDEN_HUMAN_AUDIT_2026-07-17.md`) is generated, though the human reading
+  is still pending; this doc + the red-team charter exist as target and
+  procedure, but no red-team run has occurred yet.
+- **Planned, NOT yet active (do not count as present protection):** production
+  ground truth (item 1 — gated on Step 7, no real rows yet); the Gemini third
+  family (item 4 — waits on `GEMINI_API_KEY`); the cross-family red team's
+  first run (waits on that key, runs degraded-and-loud until then).
+- **The honest ceiling (R-020, OPEN):** a one-time HUMAN security review
+  before go-live — the AI red team informs it but does not replace it, and
+  go-live requires it completed-or-explicitly-waived, no silent launch.
+
+This §6 NAMES a residual the §4 invariants do not cover; it adds no protection
+by describing one.
 
 ## Change rule
 
