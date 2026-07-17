@@ -80,6 +80,10 @@ HARNESS_MANIFEST = (
     "tools/pure_data.py",
     "tools/routing_data.py",
     "worker/ai_models.py",
+    # requirements.txt is the human-intent spec; requirements.lock is the
+    # FULL transitive resolution CI actually installs (--no-deps) — both
+    # bound, because either changing changes what the exam runs under (r26).
+    "worker/requirements.lock",
     "worker/requirements.txt",
 )
 
@@ -93,19 +97,25 @@ def compute_harness_sha() -> str:
     return h.hexdigest()
 
 
+def normalize_package_name(name: str) -> str:
+    """PEP 503-style normalization so freeze output, metadata names, and
+    the lockfile compare as the same key (pydantic_core == pydantic-core)."""
+    return re.sub(r"[-_.]+", "-", name.strip().lower())
+
+
 def installed_exam_packages() -> dict:
-    """Versions of the exam-relevant packages ACTUALLY importable in this
-    process (r24: evidence must name the dependency set it ran under, not
-    just the source files). A package that is not installed records None —
-    honest evidence the verifier then rejects, since None can never equal
-    an exact pin."""
+    """EVERY distribution actually installed in this process's environment
+    (r24, widened by r26: the exam's behavior depends on the full resolved
+    dependency set — HTTP stack, pydantic-core, the whole closure — not
+    just the two direct packages). The verifier requires each entry of
+    worker/requirements.lock to appear here at exactly the locked version;
+    evidence minted under a different resolution certifies nothing."""
     from importlib import metadata
     out = {}
-    for name in EXAM_PACKAGES:
-        try:
-            out[name] = metadata.version(name)
-        except metadata.PackageNotFoundError:
-            out[name] = None
+    for dist in metadata.distributions():
+        name = (dist.metadata["Name"] or "").strip()
+        if name:
+            out[normalize_package_name(name)] = dist.version
     return out
 
 # The 8 objective factual fields the trust KPI is measured on (§M7).
@@ -117,7 +127,6 @@ COMPARABLE_FIELDS = (
 # Thresholds live in ai/exam_thresholds.py (pure data; r13) — re-exported
 # here so tests and callers keep their import paths.
 from ai.exam_thresholds import (  # noqa: F401  (re-exports)
-    EXAM_PACKAGES,
     HALLUCINATION_MAX,
     RECALL_MIN,
     SAMPLE_FLOOR,
@@ -328,15 +337,32 @@ def main(argv: list[str] | None = None) -> int:
         report["golden_sha256"] = hashlib.sha256(
             GOLDEN_PATH.read_bytes()).hexdigest()
         report["harness_sha256"] = compute_harness_sha()
-        # Dependency binding (r24): the manifest hash covers the PINS
-        # (worker/requirements.txt bytes); this records what was actually
-        # INSTALLED, and the verifier requires the two to agree.
+        # Dependency binding (r24/r26): the manifest hash covers the lock's
+        # BYTES; this records what was actually INSTALLED, and the verifier
+        # requires every locked entry to be recorded at its locked version.
         report["packages"] = installed_exam_packages()
     except (ExtractionConfigError, ValueError, OSError) as exc:
+        # Pre-exam guard failures (bad config, unreadable inputs): nothing
+        # ran, so there is nothing forensic to persist — fail loud only.
         print(f"golden_exam: INVALID — {exc}", file=sys.stderr)
         return 2
     except Exception as exc:  # unknown provider/API failure: structured INVALID, still loud
         logging.getLogger(__name__).exception("golden_exam: unexpected failure")
+        # Forensic record (r26 nit): a MID-exam failure still writes an
+        # explicitly-invalid report so the run leaves evidence of what
+        # broke. It carries no metrics, so the verifier can only reject it
+        # — forensics, never certification. Best-effort: a write failure
+        # here must not mask the original error.
+        if args.report:
+            try:
+                args.report.write_text(json.dumps({
+                    "invalid": True,
+                    "error": f"{type(exc).__name__}: {exc}",
+                    "model": args.model,
+                    "subject_sha": args.subject_sha,
+                }, indent=2), encoding="utf-8")
+            except OSError:
+                pass
         print(f"golden_exam: INVALID — unexpected {type(exc).__name__} (see traceback "
               "above); an exam that cannot complete proves nothing.", file=sys.stderr)
         return 2

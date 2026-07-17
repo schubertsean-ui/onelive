@@ -12,12 +12,3 @@ and, for any loosening, founder-crucial (charter).
 HALLUCINATION_MAX = 0.01   # founder-ratified 2026-07-15 ("BEGIN at 1%"); one-way ratchet
 RECALL_MIN = 0.80          # anti-gaming floor (going mute is not safety); ratchetable
 SAMPLE_FLOOR = 300         # both floors: set must CARRY >=300 facts; a PASS asserts >=300
-
-# Installed packages whose versions shape exam behavior (evaluator r24):
-# the API client (request/response semantics, retry/normalization
-# surface) and the schema validator. The runner records their installed
-# versions in the report; the evidence verifier requires those to equal
-# the exact '=='-pins in worker/requirements.txt (whose bytes are also
-# inside the harness manifest hash), so evidence minted under one
-# dependency set can never certify a PR under another.
-EXAM_PACKAGES = ("anthropic", "pydantic")

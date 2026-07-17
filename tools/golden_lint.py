@@ -33,12 +33,14 @@ VALID_EXPECTED = set(COMPARABLE_FIELDS) | {"is_private_rsvp", "private_access", 
 # Convention 4, mechanical (r25 blocker g007 + nit): a clock time that the
 # text presents ONLY as a venue-access time (doors/gates, either word
 # order) must never be an expected start_time — the oracle would otherwise
-# punish a model for following the production rule. AM/PM-form times only;
+# punish a model for following the production rule. Covers AM/PM forms AND
+# bare 24-hour HH:MM (r26 blocker: "19:00 doors" is the same convention);
 # a check that can't be decided mechanically stays with the evaluator.
-_TIME_RE = re.compile(r"\b\d{1,2}(?::\d{2})?\s*(?:AM|PM)\b", re.IGNORECASE)
+_T = r"(?:\d{1,2}(?::\d{2})?\s*(?:AM|PM)|(?:[01]?\d|2[0-3]):[0-5]\d)"
+_TIME_RE = re.compile(rf"\b{_T}\b", re.IGNORECASE)
 _ACCESS_RE = re.compile(
-    r"\b(?:doors?|gates?)\b[^\S\n]{0,4}[@:]?[^\S\n]{0,4}(\d{1,2}(?::\d{2})?\s*(?:AM|PM))\b"
-    r"|\b(\d{1,2}(?::\d{2})?\s*(?:AM|PM))\b[^\S\n]{0,4}(?:doors?|gates?)\b",
+    rf"\b(?:doors?|gates?)\b[^\S\n]{{0,4}}[@:]?[^\S\n]{{0,4}}({_T})\b"
+    rf"|\b({_T})\b[^\S\n]{{0,4}}(?:doors?|gates?)\b",
     re.IGNORECASE)
 
 
