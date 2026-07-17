@@ -77,7 +77,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       actions: read      # list extraction-eval.yml runs + read the gate job's log
-      checks: read
+      checks: read       # the gate-fired probe: golden-exam check-runs for the head
     steps:
       - name: Fetch the release gate's output for the PR head (no PR code in this job)
         env:
@@ -87,7 +87,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY' > exam-evidence.log
-          import json, os, sys, urllib.error, urllib.request
+          import json, os, sys, time, urllib.error, urllib.request
 
           def api(url):
               req = urllib.request.Request(url, headers={
@@ -117,9 +117,13 @@ jobs:
           print("# ENFORCEMENT is the gate itself (pull_request_target, base-owned);")
           print("# this attachment is review input only.")
           # Identity binding: workflow-file-scoped endpoint + server-side
-          # event filter (r2 nit); paginated, not first-page-only.
-          runs = []
-          try:
+          # event/status filters (r2 nit); paginated. The 3-page bound is
+          # fail-closed (r3 nit): one head SHA accrues a handful of gate
+          # runs at most (a new push is a new head; reruns are attempts),
+          # so 300 is far beyond real use — and if all 3 pages come back
+          # full anyway, we FAIL rather than pick from a truncated view.
+          def list_runs():
+              runs = []
               for page in (1, 2, 3):
                   batch = json.loads(api(
                       f"https://api.github.com/repos/{repo}/actions/workflows/"
@@ -130,20 +134,70 @@ jobs:
                   runs.extend(batch)
                   if len(batch) < 100:
                       break
+              else:
+                  fail("more than 300 completed gate runs for one head — the "
+                       "listing may be truncated; refusing to select evidence "
+                       "from a partial view")
+              return runs
+
+          try:
+              runs = list_runs()
           except urllib.error.HTTPError as e:
               if e.code == 404:
-                  print("NO RELEASE GATE: extraction-eval.yml is not a registered "
-                        "workflow in this repository.")
-                  sys.exit(0)
+                  # r3 blocker: a MISSING release gate is repository
+                  # misconfiguration, never a legitimate no-evidence state.
+                  fail("extraction-eval.yml is not a registered workflow in "
+                       "this repository — the release gate itself is missing "
+                       "(misconfiguration)")
               fail(f"HTTP {e.code} listing extraction-eval.yml runs")
+          except SystemExit:
+              raise
           except Exception as e:
               fail(f"{type(e).__name__}: {e} while listing runs")
+
           if not runs:
-              print("NO COMPLETED RELEASE-GATE RUN exists for this head: either this "
-                    "PR does not touch the extraction surface (the gate's path filter "
-                    "did not fire) or the gate has not finished for this head yet. "
-                    "(An API failure FAILS this job loud, never this message.)")
-              sys.exit(0)
+              # Distinguish the two absences (r3 blocker). checks:read is
+              # used exactly here: no check-run named golden-exam for this
+              # head means the gate's path filter did not fire — the ONE
+              # legitimate green absence. A check-run that exists but is
+              # not completed means required evidence is PENDING (the gate
+              # races this workflow on the same push): poll briefly, then
+              # FAIL rather than attach a stale/ambiguous artifact.
+              def gate_checks():
+                  try:
+                      return json.loads(api(
+                          f"https://api.github.com/repos/{repo}/commits/{head}"
+                          "/check-runs?check_name=golden-exam&per_page=50"
+                      )).get("check_runs") or []
+                  except SystemExit:
+                      raise
+                  except Exception as e:
+                      fail(f"{type(e).__name__}: {e} probing golden-exam "
+                           "check-runs")
+              checks = gate_checks()
+              if not checks:
+                  print("NO RELEASE-GATE CHECK exists for this head: the gate's "
+                        "path filter did not fire — this PR does not touch the "
+                        "extraction surface. (A pending gate or any fetch "
+                        "failure can never produce this message; those fail "
+                        "this job loud.)")
+                  sys.exit(0)
+              for _ in range(6):
+                  if all(c.get("status") == "completed" for c in checks):
+                      break
+                  time.sleep(20)
+                  checks = gate_checks()
+              else:
+                  fail("the golden-exam gate FIRED for this head but has not "
+                       "completed after ~2 minutes — required evidence is "
+                       "PENDING, not attachable; re-run this workflow once the "
+                       "gate finishes")
+              runs = list_runs()
+              if not runs:
+                  fail("golden-exam check-runs are completed for this head but "
+                       "no matching completed pull_request_target run of "
+                       "extraction-eval.yml exists — inconsistent state; "
+                       "refusing to guess")
           runs.sort(key=lambda r: (r.get("run_number") or 0, r.get("run_attempt") or 0))
           run = runs[-1]
           print(f"workflow={run.get('path')} run={run['id']} "
@@ -173,9 +227,12 @@ jobs:
           # context — the decisive evidence can never fall outside the
           # attachment because it moved earlier in a verbose run.
           lines = log.splitlines()
+          # case-insensitive (r3 nit): capitalization/wording drift in the
+          # gate's output must not drop verdict lines from the attachment.
           markers = ("exam evidence", "::error::", "golden_lint", "surface diff",
-                     "EXPECT_", "EVIDENCE", "REJECTED", "accepted")
-          decisive = [l for l in lines if any(m in l for m in markers)][:200]
+                     "expect_", "evidence", "rejected", "accepted", "verdict")
+          decisive = [l for l in lines
+                      if any(m in l.lower() for m in markers)][:200]
           print(f"--- decision-bearing lines ({len(decisive)}) ---")
           print("\n".join(decisive))
           tail = lines[-40:]
