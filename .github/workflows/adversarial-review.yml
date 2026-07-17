@@ -53,8 +53,8 @@ on:
   workflow_dispatch:
     inputs:
       range:
-        description: "git diff range to review (e.g. master...HEAD or <sha>^1..<sha>)"
-        required: true
+        description: "git diff range to review (e.g. master...HEAD or <sha>^1..<sha>). IGNORED in attended mode (exam_head_sha set) — the range is derived from the exam head there."
+        required: false
         default: "origin/master...HEAD"
       exam_head_sha:
         description: "Optional: 40-hex head SHA whose bound golden-exam release-gate output should be fetched and attached as review evidence (attended mode)"
@@ -214,11 +214,18 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          # r8 blocker: workflow_dispatch can be invoked on ANY ref, and a
-          # branch dispatch executes the BRANCH's copy of this workflow
-          # with the reviewer key in scope. Fail closed on anything but
-          # the default branch; the base-owned property this mode claims
-          # is only real when this guard holds.
+          # r8 blocker, bounded honestly per r9: this guard stops MISTAKEN
+          # foreign-ref dispatches; it cannot stop a malicious branch copy
+          # that deletes it — no in-file guard can (the exam workflow's
+          # r19 lesson). That residual is the PRE-EXISTING repo-level
+          # OPENAI_API_KEY surface every workflow ref already has on
+          # master (pull_request + dispatch modes alike), recorded as
+          # R-019 in docs/RECORD.md: the reviewer key can only ever
+          # produce OPINIONS — its output is consumed by humans and gates
+          # that check run provenance, and an attended review is CITABLE
+          # only if its run page shows the default-branch ref (also
+          # printed into the evidence bundle below, so the citation
+          # carries its own provenance).
           if [ "${{ github.ref }}" != "refs/heads/$DEFAULT_BRANCH" ]; then
             echo "::error::attended evidence reviews run ONLY from the default branch's workflow copy (dispatched ref: ${{ github.ref }}). Re-dispatch selecting branch $DEFAULT_BRANCH."
             exit 1
@@ -273,6 +280,22 @@ jobs:
             echo "::error::attended review scope is data-only extraction-surface diffs (ai/prompts.py, tools/routing_data.py, docs/**, TODOS.md, STATE.md); out of scope:$bad — code changes take the normal pull_request review."
             exit 1
           fi
+          # r9 blocker: the two .py entries are admitted as DATA, so prove
+          # it HERE — the subject's copies must satisfy the base checkout's
+          # own purity-enforcing extractors (nothing executable at module
+          # top level; fail closed on any refusal). The base-owned release
+          # gate proves the same thing independently; this makes the
+          # attended job self-sufficient rather than inferential.
+          for f in ai/prompts.py tools/routing_data.py; do
+            if printf '%s\n' "$files" | grep -qx "$f"; then
+              git show "${{ inputs.exam_head_sha }}:$f" > /tmp/subject_data_file.py
+              case "$f" in
+                ai/prompts.py)        python3 tools/extract_prompt_text.py /tmp/subject_data_file.py > /dev/null ;;
+                tools/routing_data.py) python3 tools/extract_routed_model.py /tmp/subject_data_file.py > /dev/null ;;
+              esac
+              echo "purity verified for subject $f (base extractor accepted it as pure data)"
+            fi
+          done
           echo "scope OK: data-only diff ($(printf '%s\n' "$files" | grep -c . || true) files)"
 
       - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
@@ -451,8 +474,12 @@ jobs:
               fail(f"HTTP {e.code} fetching the gate job/log")
           except Exception as e:
               fail(f"{type(e).__name__}: {e} fetching the gate job/log")
-          # Verdict-aware, case-insensitive; truncation is REPORTED and
-          # keeps both ends so final verdict lines always survive.
+          # What is attached (r9 nit — described exactly): the GATE JOB's
+          # own log lines — including the verifier's re-derived verdict
+          # and, within them, the dispatch run id whose exam-report.json
+          # artifact holds the raw metrics for deep audit. Verdict-aware,
+          # case-insensitive; truncation is REPORTED and keeps both ends
+          # so final verdict lines always survive.
           lines = log.splitlines()
           markers = ("exam evidence", "::error::", "golden_lint",
                      "surface diff", "expect_", "evidence", "rejected",
