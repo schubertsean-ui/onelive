@@ -18,7 +18,11 @@ current, eligible, or worth showing (a listing can be a throwback, sold out, or 
 and STILL have correct facts; separate gates handle eligibility). If a row keys venue/artist
 facts for a non-current event, that is fine — judge only "do these facts match the words?"
 
-You do NOT need to check every field — flag anything that reads wrong. ∅ means the key
+This sheet is an INFORMAL, NON-GATING human sanity check — it samples 13 of the 77
+golden rows and does not by itself pass or fail anything. Its VALUE is in the
+disagreements: each ✏️ becomes a golden-key-change PROPOSAL that goes through the full
+gated evaluator review + exam re-run. So you do NOT need to check every field — flag
+anything that reads wrong; a miss here changes nothing on its own. ∅ means the key
 deliberately expects that field BLANK (often a trap: e.g. a doors-only time is not a
 start time; a band named after a city is not a city).
 

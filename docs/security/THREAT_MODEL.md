@@ -53,11 +53,12 @@ exists.
 - **Secret exfiltration via CI:** §3.3 boundaries, all mechanical (pull_request_target base-owned execution; environment deployment-branch policies proven in-run).
 - **Disputed-event suppression:** disputed shown-never-hidden (charter invariant); deletion is not a state.
 
-## 5. Closed-attack log (what the 39 review rounds already killed)
+## 5. Closed-attack log (what those adversarial-review histories already killed)
 
-The evaluator rounds on PR #25 (exam harness, r1–r26) and PR #32 (reviewer
-evidence, r1–r14) are the adversarial history; each closed attack is a test or
-a mechanical boundary today. Load-bearing examples — the red team should try to
+The evaluator review histories on PR #25 (exam harness) and PR #32 (reviewer
+evidence) are the durable adversarial record — see those PRs' adversarial-review
+check runs for the exact rounds; each closed attack is a test or a mechanical
+boundary today. Load-bearing examples — the red team should try to
 REOPEN these, not re-derive them:
 
 - filename/stack-string exam-channel spoofing → process-entrypoint boundary (r8)
@@ -88,10 +89,14 @@ section must avoid):
 - **Planned, NOT yet active (do not count as present protection):** production
   ground truth (item 1 — gated on Step 7, no real rows yet); the Gemini third
   family (item 4 — waits on `GEMINI_API_KEY`); the cross-family red team's
-  first run (waits on that key, runs degraded-and-loud until then).
+  first run (BLOCKED until that key AND its enforcement tooling exist — one
+  fail-closed mode, no degraded GPT-5.5 substitution).
 - **The honest ceiling (R-020, OPEN):** a one-time HUMAN security review
-  before go-live — the AI red team informs it but does not replace it, and
-  go-live requires it completed-or-explicitly-waived, no silent launch.
+  before go-live — the AI red team informs it but does not replace it. Default
+  is fail-closed: this review is REQUIRED before the allowlist opens (R-020
+  blocks go-live sign-off); any decision to launch without it is a new,
+  dated, founder-crucial risk-acceptance recorded at that time — never
+  pre-authorized. No silent launch.
 
 This §6 NAMES a residual the §4 invariants do not cover; it adds no protection
 by describing one.
