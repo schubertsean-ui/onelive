@@ -43,6 +43,7 @@ on:
       - "ai/**"
       - "worker/ai_models.py"
       - "worker/ai_extract.py"
+      - "tools/__init__.py"
       - "tools/model_router.py"
       - "tools/routing_data.py"
       - "tools/pure_data.py"
@@ -138,6 +139,7 @@ jobs:
               return (p.startswith("ai/") or p in (
                   "worker/ai_models.py", "worker/ai_extract.py",
                   "worker/requirements.txt",
+                  "tools/__init__.py",
                   "tools/model_router.py", "tools/routing_data.py",
                   "tools/pure_data.py", "tools/verify_exam_evidence.py",
                   "tools/extract_prompt_text.py", "tools/extract_routed_model.py",
