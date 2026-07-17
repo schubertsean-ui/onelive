@@ -149,8 +149,12 @@ jobs:
           {
             echo "# NOTE to evaluator: machine-generated lockfiles (package-lock.json)"
             echo "# are excluded from this diff by policy — they are npm-generated and"
-            echo "# validated by 'npm ci' + the blocking npm-audit SCA gate in the"
-            echo "# attached web log instead (exceptions: docs/SCA_BASELINE.md)."
+            echo "# validated, WHEN the range touches web/, by 'npm ci' + the blocking"
+            echo "# npm-audit SCA gate whose output is the attached web log (reviewed"
+            echo "# exceptions: docs/SCA_BASELINE.md). The web log states explicitly"
+            echo "# whether those checks ran; in attended mode a web-touching range"
+            echo "# refuses outright and docs/SCA_BASELINE.md is out of scope, so no"
+            echo "# SCA-relevant change can carry a not-applicable web log."
             echo "# NOTE to evaluator: golden-set exam evidence for extraction-surface"
             echo "# changes is NOT in these logs, and the model call + Anthropic secret"
             echo "# do NOT live in the release check. They live in a SEPARATE manual,"
@@ -321,6 +325,7 @@ jobs:
           while IFS= read -r f; do
             [ -z "$f" ] && continue
             case "$f" in
+              docs/SCA_BASELINE.md) bad="$bad $f" ;;  # SCA/audit CONTRACT (r11): its changes need the pull_request review, whose web-and-SCA checks can actually fail
               ai/prompts.py|tools/routing_data.py|TODOS.md|STATE.md|docs/*) ;;
               *) bad="$bad $f" ;;
             esac
@@ -523,10 +528,11 @@ jobs:
               fail(f"HTTP {e.code} fetching the gate job/log")
           except Exception as e:
               fail(f"{type(e).__name__}: {e} fetching the gate job/log")
-          # What is attached (r9 nit — described exactly): the GATE JOB's
-          # own log lines — including the verifier's re-derived verdict
-          # and, within them, the dispatch run id whose exam-report.json
-          # artifact holds the raw metrics for deep audit. Verdict-aware,
+          # What is attached (r9/r11 nits — described exactly): FILTERED
+          # LOG LINES from the gate job — including the verifier's
+          # re-derived verdict — NOT the exam-report.json artifact
+          # itself; those lines name the dispatch run id where that
+          # artifact lives for deep audit. Verdict-aware,
           # case-insensitive; truncation is REPORTED and keeps both ends
           # so final verdict lines always survive.
           lines = log.splitlines()
@@ -553,8 +559,12 @@ jobs:
           {
             echo "# NOTE to evaluator: machine-generated lockfiles (package-lock.json)"
             echo "# are excluded from this diff by policy — they are npm-generated and"
-            echo "# validated by 'npm ci' + the blocking npm-audit SCA gate in the"
-            echo "# attached web log instead (exceptions: docs/SCA_BASELINE.md)."
+            echo "# validated, WHEN the range touches web/, by 'npm ci' + the blocking"
+            echo "# npm-audit SCA gate whose output is the attached web log (reviewed"
+            echo "# exceptions: docs/SCA_BASELINE.md). The web log states explicitly"
+            echo "# whether those checks ran; in attended mode a web-touching range"
+            echo "# refuses outright and docs/SCA_BASELINE.md is out of scope, so no"
+            echo "# SCA-relevant change can carry a not-applicable web log."
             echo "# NOTE to evaluator: golden-set exam evidence for extraction-surface"
             echo "# changes is NOT in these logs, and the model call + Anthropic secret"
             echo "# do NOT live in the release check. They live in a SEPARATE manual,"
