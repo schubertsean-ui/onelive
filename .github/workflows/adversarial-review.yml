@@ -52,6 +52,8 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      checks: read       # exam-evidence attachment: read the golden-exam check run
+      actions: read      # exam-evidence attachment: read that check's job log
     steps:
       - uses: actions/checkout@v4
         with:
@@ -118,6 +120,62 @@ jobs:
             echo "no web/ files in this diff — web checks not applicable" | tee web.log
           fi
 
+      # Exam-evidence visibility (PR #31 reviews r2–r3, TODOS P1): this
+      # reviewer reads only diff + attached logs, so bound attended-exam
+      # evidence — which lives in the base-owned release gate's verifier
+      # output — was structurally invisible, forcing a red verdict on any
+      # staged ratification-flag flip even after the enforcing gate went
+      # green on real evidence. This step fetches that gate's OWN latest
+      # output for the PR head and attaches it as a review input.
+      # Trust framing, stated plainly: this is INFORMATIONAL input to the
+      # review. Enforcement lives in extraction-eval.yml
+      # (pull_request_target — GitHub always runs the BASE branch's copy)
+      # and is unaffected by anything this job does. A PR that tampers
+      # with this step to fabricate the log would show that tampering in
+      # the very diff the evaluator reads. Fetch failures degrade to
+      # "evidence not visible" — never to a fabricated success.
+      - name: Attach the release gate's exam-evidence output (log captured for the evaluator)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          {
+            if [ -z "${HEAD_SHA:-}" ]; then
+              echo "workflow_dispatch review — no PR head; exam-evidence attachment not applicable."
+            else
+              echo "# golden-exam release-gate output for PR head $HEAD_SHA, fetched read-only"
+              echo "# from the base-owned secretless verifier (extraction-eval.yml on"
+              echo "# pull_request_target). ENFORCEMENT is that gate itself; this attachment"
+              echo "# is review input only."
+              api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+              api "https://api.github.com/repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=golden-exam&per_page=10" > checks.json
+              JOB_ID="$(python3 -c "
+          import json
+          runs = json.load(open('checks.json')).get('check_runs') or []
+          runs.sort(key=lambda r: r.get('started_at') or '')
+          if runs:
+              r = runs[-1]
+              print(r['id'])
+              import sys
+              print(f\"check-run {r['id']}: status={r['status']} conclusion={r['conclusion']} url={r['html_url']}\", file=sys.stderr)
+          " 2>gate-status.txt)"
+              cat gate-status.txt
+              if [ -z "$JOB_ID" ]; then
+                echo "no golden-exam check exists for this head: this PR does not touch the"
+                echo "extraction surface (the gate's path filter did not fire), or the gate"
+                echo "has not run yet. Only meaningful for extraction-surface changes."
+              else
+                echo "--- last 100 lines of that gate run's job log (verifier verdict included) ---"
+                curl -sSL -H "Authorization: Bearer $GH_TOKEN" \
+                  "https://api.github.com/repos/$REPO/actions/jobs/$JOB_ID/logs" | tail -n 100
+              fi
+            fi
+          } > exam-evidence.log 2>&1 \
+            || echo "exam-evidence fetch failed (API error) — treat as evidence NOT visible; the enforcing gate is unaffected." >> exam-evidence.log
+          wc -c exam-evidence.log
+
       - name: Extract the diff under review (lockfiles excluded by policy)
         run: |
           {
@@ -135,8 +193,9 @@ jobs:
             echo "# SECRETLESS verifier on pull_request_target (base-owned trigger): it"
             echo "# checks out base+subject data only and confirms a SUCCESSFUL attended"
             echo "# exam run exists for this PR's head SHA. Merge discipline requires BOTH"
-            echo "# this review and that verifier green on the PR's current head; absence"
-            echo "# of exam output here is expected and is not absence of the gate."
+            echo "# this review and that verifier green on the PR's current head. That"
+            echo "# gate's own latest output for this head is ATTACHED as a test log"
+            echo "# (exam-evidence.log) — judge extraction-surface evidence from it."
             git diff "${{ steps.range.outputs.range }}" -- . ':(exclude)**/package-lock.json'
           } > pr.diff
           wc -c pr.diff
@@ -159,4 +218,5 @@ jobs:
           # where the script itself fails loud on empty or Claude-family ids.
         run: |
           python -I /tmp/trusted/adversarial_review.py --require \
-            --diff-file pr.diff --test-log pytest.log --test-log web.log
+            --diff-file pr.diff --test-log pytest.log --test-log web.log \
+            --test-log exam-evidence.log
