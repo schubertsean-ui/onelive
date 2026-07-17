@@ -221,10 +221,14 @@ def test_attended_job_mirrors_review_job():
     EVAL = "Independent evaluator (APPROVE required)"
     FETCH = ("Fetch the bound release-gate output for exam_head_sha "
              "(fail loud on ANY anomaly)")
+    GUARD = ("Refuse to run off the default branch (attended reviews "
+             "execute trusted code only)")
+    SCOPE = "Enforce attended-review scope — data-only diffs (fail closed)"
     assert pr_list == ["actions/checkout", "actions/setup-python",
                        RANGE, PIN, DEPS, TESTS, WEB, DIFF, EVAL], pr_list
     assert at_list == ["actions/checkout", "actions/setup-python",
-                       RANGE, PIN, DEPS, TESTS, WEB, FETCH, DIFF, EVAL], at_list
+                       GUARD, RANGE, SCOPE, PIN, DEPS, TESTS, WEB, FETCH,
+                       DIFF, EVAL], at_list
     pr_steps = {key(s): s for s in wf["jobs"]["adversarial-review"]["steps"]}
     at_steps = {key(s): s for s in wf["jobs"]["attended-review"]["steps"]}
     # Byte-identical shared steps. Documented divergences, each asserted
@@ -236,11 +240,21 @@ def test_attended_job_mirrors_review_job():
               TESTS, DIFF):
         assert pr_steps[k] == at_steps[k], f"attended step drifted: {k}"
     assert "$EXAM_HEAD" in at_steps[RANGE]["run"] \
-        and "origin/master...$EXAM_HEAD" in at_steps[RANGE]["run"], \
-        "attended range must be derived from exam_head_sha"
+        and "origin/$DEFAULT_BRANCH...$EXAM_HEAD" in at_steps[RANGE]["run"], \
+        "attended range must be derived from exam_head_sha off the default branch"
     assert "Refusing to attach logs" in at_steps[WEB]["run"] \
         and "exit 1" in at_steps[WEB]["run"], \
         "attended web step must refuse web-touching ranges, never validate base web code as the PR's"
+    # r8: dispatch ref guard + fail-closed data-only scope are load-bearing
+    assert "refs/heads/$DEFAULT_BRANCH" in at_steps[GUARD]["run"] \
+        and "exit 1" in at_steps[GUARD]["run"], \
+        "attended job must refuse non-default-branch dispatches"
+    scope_run = at_steps[SCOPE]["run"]
+    for needed in ("ai/prompts.py", "tools/routing_data.py", "docs/*",
+                   "exit 1"):
+        assert needed in scope_run, f"scope allowlist lost {needed!r}"
+    assert "web/" not in scope_run.replace("web validation", ""), \
+        "web/ must never enter the attended scope allowlist"
     # the evaluator step: compared STRUCTURALLY, not by substring (PR #32
     # r6: a substring check green-lit a broken `\\` line continuation).
     # shlex parses the command exactly as the shell would: a correct

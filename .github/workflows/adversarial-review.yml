@@ -209,32 +209,71 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Refuse to run off the default branch (attended reviews execute trusted code only)
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          # r8 blocker: workflow_dispatch can be invoked on ANY ref, and a
+          # branch dispatch executes the BRANCH's copy of this workflow
+          # with the reviewer key in scope. Fail closed on anything but
+          # the default branch; the base-owned property this mode claims
+          # is only real when this guard holds.
+          if [ "${{ github.ref }}" != "refs/heads/$DEFAULT_BRANCH" ]; then
+            echo "::error::attended evidence reviews run ONLY from the default branch's workflow copy (dispatched ref: ${{ github.ref }}). Re-dispatch selecting branch $DEFAULT_BRANCH."
+            exit 1
+          fi
+
       - name: Resolve the base ref and diff range
         id: range
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           EXAM_HEAD: ${{ inputs.exam_head_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
           # The attended range is DERIVED from exam_head_sha (r6 blocker):
           # the reviewed diff and the fetched evidence are bound to the
           # same commit by construction — the free-form range input is
-          # deliberately IGNORED in attended mode, so no dispatch mistake
-          # or mischief can pair evidence for commit A with a diff of
-          # commit B. (The web-check and diff steps consume this derived
-          # range too — r6 nit — because they read steps.range outputs.)
+          # deliberately IGNORED in attended mode. Base is the repository
+          # default branch, resolved dynamically (r8 nit).
           if ! [[ "$EXAM_HEAD" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::exam_head_sha must be a full 40-hex lowercase commit SHA (got '$EXAM_HEAD')."
+            echo "::error::exam_head_sha must be a full 40-hex NORMALIZED LOWERCASE commit SHA (uppercase hex must be lowercased; got '$EXAM_HEAD')."
             exit 1
           fi
-          # The head under review lives on a PR branch the default
-          # checkout may not have — single authenticated fetch of exactly
-          # that commit (same pattern as extraction-exam-dispatch.yml).
           AUTH_B64="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH_B64" \
             fetch --no-tags origin "$EXAM_HEAD"
-          echo "base=origin/master" >> "$GITHUB_OUTPUT"
-          echo "range=origin/master...$EXAM_HEAD" >> "$GITHUB_OUTPUT"
+          echo "base=origin/$DEFAULT_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "range=origin/$DEFAULT_BRANCH...$EXAM_HEAD" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce attended-review scope — data-only diffs (fail closed)
+        run: |
+          set -euo pipefail
+          # r8 blockers: this job's checkout is the DEFAULT BRANCH, so the
+          # pytest/web logs exercise base code. That is truthful evidence
+          # ONLY when the reviewed range changes no executable code at
+          # all — attended mode certifies extraction flips (pure-data
+          # files + records). This POLICY allowlist is the mode's scope
+          # definition; anything outside it refuses, and code-bearing PRs
+          # take the normal pull_request review whose tests genuinely run
+          # the subject. The changed-file list is computed in a failing
+          # command first (r8 nit: a git-diff error must not read as
+          # "nothing touched").
+          files="$(git diff --name-only "${{ steps.range.outputs.range }}")"
+          bad=""
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              ai/prompts.py|tools/routing_data.py|TODOS.md|STATE.md|docs/*) ;;
+              *) bad="$bad $f" ;;
+            esac
+          done <<< "$files"
+          if [ -n "$bad" ]; then
+            echo "::error::attended review scope is data-only extraction-surface diffs (ai/prompts.py, tools/routing_data.py, docs/**, TODOS.md, STATE.md); out of scope:$bad — code changes take the normal pull_request review."
+            exit 1
+          fi
+          echo "scope OK: data-only diff ($(printf '%s\n' "$files" | grep -c . || true) files)"
 
       - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
         run: |
@@ -266,7 +305,8 @@ jobs:
       - name: Web checks + SCA when web/ is touched (log captured for the evaluator)
         run: |
           set -euo pipefail
-          if git diff --name-only "${{ steps.range.outputs.range }}" | grep -q '^web/'; then
+          files="$(git diff --name-only "${{ steps.range.outputs.range }}")"
+          if printf '%s\n' "$files" | grep -q '^web/'; then
             echo "::error::attended evidence review covers extraction-surface flips only; this range touches web/ — web validation must come from the normal pull_request review, which builds the PR's own web tree. Refusing to attach logs that would misattribute base web checks to the PR."
             exit 1
           fi
