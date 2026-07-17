@@ -35,7 +35,14 @@ direction — "not ad hoc… world class"):** choosing the HAT SEQUENCE that
 fits the decision is a defining Blue-hat duty in de Bono's method, not a
 constant. The Blue frame MUST name which sequence this run uses and why,
 picking from de Bono's documented guidance rather than always running one
-fixed order:
+fixed order. Fidelity caveat (same status as `README.md`'s fidelity
+section): the specific sequences below are drawn to the best of the
+author's knowledge from de Bono's writing and training materials, but he
+presented sequences as flexible EXAMPLES fitted to purpose, not a fixed
+canon — their exact forms are part of the queued primary-source re-check
+(TODOS), and until an independent lens confirms them, treat them as
+"faithful pending verification," not proven canon. The principle (Blue
+selects to fit the decision) is the load-bearing part and is not in doubt:
 - **Nurturing / developing a new idea:** Yellow BEFORE Black — value first,
   so a fragile idea is understood before it is attacked (de Bono's explicit
   rule; attacking first kills ideas that had value).
@@ -43,14 +50,15 @@ fixed order:
   — surface the danger early (this is the Friction-pre-work default, because
   its trigger IS an irreversible action).
 - **Full exploration / architecture:** Blue → White → Green → Yellow → Black
-  → Red → Blue (the canonical evaluation sequence).
+  → Red → Blue (de Bono's commonly-cited full-exploration order — pending
+  the fidelity re-check above).
 - **Quick call:** Yellow → Black → Red is a complete de Bono short form; do
   not run the full battery on a small decision (cost discipline = de Bono's
   own "keep it short when the decision is small").
-The prior fixed order (White → Green → Yellow → Black) is exactly the
-exploration sequence and stays the DEFAULT for architecture/design runs; the
-change is that Blue now selects deliberately and records the choice, so the
-order is never ad-hoc.
+The prior fixed order (White → Green → Yellow → Black) matches that
+full-exploration order and stays the DEFAULT for architecture/design runs;
+the change is that Blue now selects deliberately and records the choice, so
+the order is never ad-hoc.
 
 ## Exists today
 
