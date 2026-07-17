@@ -64,6 +64,18 @@ def test_extraction_resolves_once_gate_ships(monkeypatch):
     assert mr.resolve_model("extraction") == "claude-haiku-4-5"
 
 
+def test_extraction_gate_requires_exact_boolean_true(monkeypatch):
+    """Router fail-closed on the EXACT boolean, never truthiness (mirrors the
+    r26 provider invariant): a misconfigured truthy non-bool flag must keep
+    extraction CLOSED. Only the literal `True` unlocks it."""
+    monkeypatch.delenv("ONELIVE_MODEL_EXTRACTION", raising=False)
+    monkeypatch.delenv("ONELIVE_CLAUDE_MODEL", raising=False)
+    for truthy_non_true in ("False", "yes", "0", 1, "true", [1], object()):
+        monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", truthy_non_true)
+        with pytest.raises(ValueError, match="R-013"):
+            mr.resolve_model("extraction")
+
+
 def test_env_override_beats_default(monkeypatch):
     monkeypatch.setenv("ONELIVE_MODEL_MECHANICAL", "claude-sonnet-4-6")
     assert mr.resolve_model("mechanical") == "claude-sonnet-4-6"

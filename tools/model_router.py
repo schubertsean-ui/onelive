@@ -71,7 +71,11 @@ def resolve_model(stage: str) -> str:
             f"unknown routing stage {stage!r} — valid stages: "
             f"{', '.join(sorted(STAGE_MODELS))} (docs/MODEL_ROUTING.md)"
         )
-    if stage == "extraction" and not EXTRACTION_THRESHOLD_RATIFIED:
+    if stage == "extraction" and EXTRACTION_THRESHOLD_RATIFIED is not True:
+        # Fail-closed on the EXACT boolean, never truthiness (mirrors the r26
+        # provider-level invariant): a misconfigured truthy non-bool such as
+        # "False", "yes", or 1 must keep extraction CLOSED, not open it. This is
+        # an auth/fail-closed gate — only the literal `True` unlocks extraction.
         # Fail-closed regardless of overrides: the block is about the missing
         # quality gate, not about which model would run. The bar is ratified
         # at 1% (R-006 resolved); the GATE that proves it does not exist yet
