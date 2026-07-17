@@ -63,11 +63,15 @@ jobs:
   # anything here. Provenance binding (r1 blocker): the run is resolved
   # through the workflow-FILE-scoped API for extraction-eval.yml,
   # filtered to the pull_request_target event — a same-named check from
-  # any other workflow can never be selected. Outcomes are DISTINCT (r1
-  # blocker + nit): evidence attached / no completed gate run exists /
-  # EVIDENCE FETCH FAILED — an API error is never presented as absence
-  # of the gate, and a crash of this job surfaces as the review job's
-  # explicit fallback text, never silence.
+  # any other workflow can never be selected. Outcome contract (r1+r2
+  # blockers + nits — three DISTINCT categories with distinct job
+  # results):
+  #   * evidence attached                  -> job green, log carries it
+  #   * no completed gate run for head     -> job green (legitimate:
+  #     path filter did not fire, or gate not finished yet)
+  #   * API/shape/log-fetch failure        -> job RED (exit 1, fail
+  #     loud); the marker log is still uploaded (if: always()) so the
+  #     review bundle carries "EVIDENCE UNAVAILABLE", never silence.
   exam-evidence:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -92,6 +96,16 @@ jobs:
               with urllib.request.urlopen(req, timeout=30) as r:
                   return r.read()
 
+          def fail(msg):
+              # r2 blockers: an API/shape/log failure is NEVER a green
+              # outcome — mark the bundle AND fail this job loud. The
+              # review job still runs (needs + always) and attaches the
+              # marker; the red evidence job is the alarm.
+              print(f"EVIDENCE FETCH FAILED: {msg}")
+              print("Treat evidence as UNAVAILABLE — this is NOT absence of the "
+                    "gate and NOT a pass. This job exits 1 (fail loud).")
+              sys.exit(1)
+
           head = os.environ.get("HEAD_SHA", "")
           repo = os.environ["REPO"]
           if not head:
@@ -102,33 +116,33 @@ jobs:
           print("# Fetched read-only by an isolated job that runs no PR code.")
           print("# ENFORCEMENT is the gate itself (pull_request_target, base-owned);")
           print("# this attachment is review input only.")
+          # Identity binding: workflow-file-scoped endpoint + server-side
+          # event filter (r2 nit); paginated, not first-page-only.
+          runs = []
           try:
-              runs = json.loads(api(
-                  f"https://api.github.com/repos/{repo}/actions/workflows/"
-                  f"extraction-eval.yml/runs?head_sha={head}&per_page=30"
-              )).get("workflow_runs") or []
+              for page in (1, 2, 3):
+                  batch = json.loads(api(
+                      f"https://api.github.com/repos/{repo}/actions/workflows/"
+                      f"extraction-eval.yml/runs?head_sha={head}"
+                      f"&event=pull_request_target&status=completed"
+                      f"&per_page=100&page={page}"
+                  )).get("workflow_runs") or []
+                  runs.extend(batch)
+                  if len(batch) < 100:
+                      break
           except urllib.error.HTTPError as e:
               if e.code == 404:
                   print("NO RELEASE GATE: extraction-eval.yml is not a registered "
                         "workflow in this repository.")
                   sys.exit(0)
-              print(f"EVIDENCE FETCH FAILED: HTTP {e.code} listing extraction-eval.yml "
-                    "runs. Treat evidence as UNAVAILABLE (an API failure) — this is "
-                    "NOT absence of the gate and NOT a pass.")
-              sys.exit(0)
+              fail(f"HTTP {e.code} listing extraction-eval.yml runs")
           except Exception as e:
-              print(f"EVIDENCE FETCH FAILED: {type(e).__name__}: {e}. Treat evidence "
-                    "as UNAVAILABLE (an API failure) — NOT absence of the gate.")
-              sys.exit(0)
-          # Identity binding: workflow-file scope above + event filter here.
-          runs = [r for r in runs
-                  if r.get("status") == "completed"
-                  and r.get("event") == "pull_request_target"]
+              fail(f"{type(e).__name__}: {e} while listing runs")
           if not runs:
               print("NO COMPLETED RELEASE-GATE RUN exists for this head: either this "
                     "PR does not touch the extraction surface (the gate's path filter "
                     "did not fire) or the gate has not finished for this head yet. "
-                    "(An API failure reports FETCH FAILED above, never this message.)")
+                    "(An API failure FAILS this job loud, never this message.)")
               sys.exit(0)
           runs.sort(key=lambda r: (r.get("run_number") or 0, r.get("run_attempt") or 0))
           run = runs[-1]
@@ -138,33 +152,43 @@ jobs:
           try:
               jobs = json.loads(api(
                   f"https://api.github.com/repos/{repo}/actions/runs/{run['id']}/jobs"
-                  "?per_page=30")).get("jobs") or []
+                  "?per_page=100")).get("jobs") or []
               job = next((j for j in jobs if j.get("name") == "golden-exam"), None)
               if job is None:
-                  print("EVIDENCE FETCH FAILED: no job named 'golden-exam' in that "
-                        "run — treat evidence as UNAVAILABLE.")
-                  sys.exit(0)
+                  fail("no job named 'golden-exam' in that run — the verifier "
+                       "workflow's shape changed or is misconfigured; the "
+                       "evidence contract is broken, not merely absent")
               print(f"job={job['id']} conclusion={job.get('conclusion')} "
                     f"url={job.get('html_url')}")
               log = api(f"https://api.github.com/repos/{repo}/actions/jobs/"
                         f"{job['id']}/logs").decode("utf-8", "replace")
+          except SystemExit:
+              raise
           except urllib.error.HTTPError as e:
-              print(f"EVIDENCE FETCH FAILED: HTTP {e.code} fetching the gate job/log. "
-                    "Treat evidence as UNAVAILABLE (an API failure) — NOT absence of "
-                    "the gate and NOT a pass.")
-              sys.exit(0)
+              fail(f"HTTP {e.code} fetching the gate job/log")
           except Exception as e:
-              print(f"EVIDENCE FETCH FAILED: {type(e).__name__}: {e}. Treat evidence "
-                    "as UNAVAILABLE — NOT absence of the gate.")
-              sys.exit(0)
-          tail = log.splitlines()[-100:]
-          print(f"--- last {len(tail)} lines of the gate job log (verifier verdict "
-                "included) ---")
+              fail(f"{type(e).__name__}: {e} fetching the gate job/log")
+          # Verdict-aware extraction (r2 nit): pull every decision-bearing
+          # line wherever it sits in the log, then a bounded tail for
+          # context — the decisive evidence can never fall outside the
+          # attachment because it moved earlier in a verbose run.
+          lines = log.splitlines()
+          markers = ("exam evidence", "::error::", "golden_lint", "surface diff",
+                     "EXPECT_", "EVIDENCE", "REJECTED", "accepted")
+          decisive = [l for l in lines if any(m in l for m in markers)][:200]
+          print(f"--- decision-bearing lines ({len(decisive)}) ---")
+          print("\n".join(decisive))
+          tail = lines[-40:]
+          print(f"--- last {len(tail)} lines (context) ---")
           print("\n".join(tail))
           PY
           wc -c exam-evidence.log
 
       - uses: actions/upload-artifact@v4
+        # always(): on a fetch FAILURE the marker log must still reach the
+        # review bundle — the job result carries the alarm, the artifact
+        # carries the explanation.
+        if: ${{ always() }}
         with:
           name: exam-evidence
           path: exam-evidence.log
