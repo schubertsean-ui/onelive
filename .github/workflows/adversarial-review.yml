@@ -211,9 +211,30 @@ jobs:
 
       - name: Resolve the base ref and diff range
         id: range
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXAM_HEAD: ${{ inputs.exam_head_sha }}
         run: |
+          set -euo pipefail
+          # The attended range is DERIVED from exam_head_sha (r6 blocker):
+          # the reviewed diff and the fetched evidence are bound to the
+          # same commit by construction — the free-form range input is
+          # deliberately IGNORED in attended mode, so no dispatch mistake
+          # or mischief can pair evidence for commit A with a diff of
+          # commit B. (The web-check and diff steps consume this derived
+          # range too — r6 nit — because they read steps.range outputs.)
+          if ! [[ "$EXAM_HEAD" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::exam_head_sha must be a full 40-hex lowercase commit SHA (got '$EXAM_HEAD')."
+            exit 1
+          fi
+          # The head under review lives on a PR branch the default
+          # checkout may not have — single authenticated fetch of exactly
+          # that commit (same pattern as extraction-exam-dispatch.yml).
+          AUTH_B64="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $AUTH_B64" \
+            fetch --no-tags origin "$EXAM_HEAD"
           echo "base=origin/master" >> "$GITHUB_OUTPUT"
-          echo "range=${{ github.event.inputs.range }}" >> "$GITHUB_OUTPUT"
+          echo "range=origin/master...$EXAM_HEAD" >> "$GITHUB_OUTPUT"
 
       - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
         run: |
@@ -272,7 +293,10 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          python3 - <<'PY' > exam-evidence.log
+          # tee, not a bare redirect (r6 blocker): the fail() reasons must
+          # be visible in the Actions step log itself, not only inside an
+          # artifact nobody opens; pipefail preserves the exit code.
+          python3 - <<'PY' 2>&1 | tee exam-evidence.log
           import json, os, re, sys, urllib.error, urllib.request
 
           # Pinned API version: shape assumptions target a dated contract.
@@ -349,6 +373,18 @@ jobs:
               fail("no completed pull_request_target run of "
                    "extraction-eval.yml exists for this head — in attended "
                    "mode absent evidence is an error, not a shrug")
+          # Audit trail (r6 nit): every candidate, then the selection.
+          for r in runs:
+              print(f"candidate run={r.get('id')} "
+                    f"attempt={r.get('run_attempt')} "
+                    f"conclusion={r.get('conclusion')} "
+                    f"started={r.get('run_started_at')}")
+          # Only a SUCCESSFUL verifier run is evidence (r6 blocker): a
+          # failed/cancelled/timed-out gate run proves nothing attachable.
+          runs = [r for r in runs if r.get("conclusion") == "success"]
+          if not runs:
+              fail("release-gate runs exist for this head but NONE concluded "
+                   "success — a failed verifier run is not evidence")
           runs.sort(key=lambda r: (r.get("run_started_at")
                                    or r.get("created_at") or "",
                                    r.get("run_attempt") or 0))
@@ -366,6 +402,12 @@ jobs:
                   fail("no job named 'golden-exam' in that run — the "
                        "verifier workflow's shape changed; the evidence "
                        "contract is broken")
+              if job.get("conclusion") != "success":
+                  # r6 blocker: enforce at the JOB level too — a run can
+                  # succeed while an individual job was skipped/cancelled.
+                  fail(f"golden-exam job conclusion is "
+                       f"{job.get('conclusion')!r}, not 'success' — not "
+                       f"attachable evidence")
               print(f"job={job['id']} conclusion={job.get('conclusion')} "
                     f"url={job.get('html_url')}")
               log = _get(f"https://api.github.com/repos/{repo}/actions/jobs/"
@@ -438,5 +480,5 @@ jobs:
           # where the script itself fails loud on empty or Claude-family ids.
         run: |
           python -I /tmp/trusted/adversarial_review.py --require \
-            --diff-file pr.diff --test-log pytest.log --test-log web.log \\
+            --diff-file pr.diff --test-log pytest.log --test-log web.log \
             --test-log exam-evidence.log

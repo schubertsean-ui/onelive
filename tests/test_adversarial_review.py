@@ -215,15 +215,42 @@ def test_attended_job_mirrors_review_job():
     assert len(shared) >= 6, f"mirror lost shared steps: {sorted(shared)}"
     for k in shared:
         assert pr_steps[k] == at_steps[k], f"attended step drifted: {k}"
-    # the evaluator step: attended = pull_request's flags + the evidence log
-    pr_run = pr_steps["Independent evaluator (APPROVE required)"]["run"]
-    at_run = at_steps["Independent evaluator (APPROVE required)"]["run"]
-    for flag in ("--diff-file pr.diff", "--test-log pytest.log",
-                 "--test-log web.log", "--require"):
-        assert flag in pr_run and flag in at_run
-    assert "--test-log exam-evidence.log" in at_run
-    assert "--test-log exam-evidence.log" not in pr_run, \
+    # the evaluator step: compared STRUCTURALLY, not by substring (PR #32
+    # r6: a substring check green-lit a broken `\\` line continuation).
+    # shlex parses the command exactly as the shell would: a correct
+    # backslash-newline disappears into whitespace; a doubled backslash
+    # survives as a bogus token and fails the no-stray-tokens assert.
+    import shlex
+
+    def evaluator_argv(run_text):
+        cmds = [l for l in run_text.splitlines() if l.strip()]
+        # a correct `\`-newline continuation surfaces as an escaped-newline
+        # token — plain whitespace, dropped; a doubled `\\` survives as a
+        # literal backslash token and fails the assert below.
+        argv = [a for a in shlex.split(run_text) if a.strip()]
+        assert "\\" not in argv, f"broken line continuation in: {cmds}"
+        return argv
+
+    pr_argv = evaluator_argv(
+        pr_steps["Independent evaluator (APPROVE required)"]["run"])
+    at_argv = evaluator_argv(
+        at_steps["Independent evaluator (APPROVE required)"]["run"])
+
+    def attached_logs(argv):
+        return [argv[i + 1] for i, a in enumerate(argv[:-1])
+                if a == "--test-log"]
+
+    assert attached_logs(pr_argv) == ["pytest.log", "web.log"]
+    assert attached_logs(at_argv) == ["pytest.log", "web.log",
+                                      "exam-evidence.log"]
+    assert "exam-evidence.log" not in pr_argv, \
         "pull_request reviews must NOT attach evidence (forgeable there)"
+    # identical apart from the extra evidence pair (removed positionally)
+    idx = at_argv.index("exam-evidence.log")
+    assert at_argv[idx - 1] == "--test-log"
+    trimmed = at_argv[:idx - 1] + at_argv[idx + 1:]
+    assert trimmed == pr_argv, \
+        "attended evaluator invocation drifted beyond the evidence log"
     # the attended job is dispatch-only and demands the exam head input
     cond = wf["jobs"]["attended-review"]["if"]
     assert "workflow_dispatch" in cond and "exam_head_sha" in cond
