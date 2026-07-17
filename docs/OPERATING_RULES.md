@@ -139,6 +139,29 @@ are prior to the need to compact."
   (`docs/session_arcs/YYYY-MM-DD_slug.md`, indexed in the README), mirror to
   memory. Note any new external dependency in STATE.md (CLAUDE.md review rule #3).
 
+### 4a. Sessions are independent — name them so you can tell them apart
+
+Multiple sessions often run in parallel (e.g. the Step-6 gate, the hat registry,
+and a research venture were three concurrent sessions). They do **not** interfere:
+each remote session is an isolated, throwaway container with its own fresh clone
+and its own git branch, so uncommitted files and chat context never leak between
+sessions. The **only** shared state is what is pushed to GitHub — that is the
+intended shared memory ("disk is truth"), not a leak.
+
+Two working rules keep the parallelism legible:
+
+1. **Name each session for its work, not its auto-generated handle.** In the
+   claude.ai session list, rename to `OneLive · <goal> · <date>` (or
+   `OneLive · Contract #NN`), and archive a session once its PR is merged. A short,
+   readable list is the whole defense against "which session was doing what."
+2. **One branch and one Session Contract number per session.** The remote sessions
+   already get unique branch names; the collision risk is the *Contract number* and
+   shared bookkeeping files (STATE.md, TODOS.md). Before claiming a contract number,
+   check STATE.md for the highest one in use and take the next — the #13→#19
+   renumber (2026-07-15) happened because two sessions both grabbed #13. Expect
+   merge conflicts in STATE.md/TODOS.md when parallel sessions land; resolve by
+   union, never by overwrite.
+
 ---
 
 ## 5. Standard of "world-class"
