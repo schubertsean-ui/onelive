@@ -16,29 +16,16 @@ import os
 import re
 import sys
 
-# Cheapest-capable defaults, ratified via docs/MODEL_ROUTING.md. Change them
-# THERE first — this table implements the doc, not the other way around.
-STAGE_MODELS = {
-    "mechanical": "claude-haiku-4-5",
-    "standard": "claude-sonnet-4-6",
-    "critical": "claude-opus-4-8",
-    # Starting tier once unblocked (see EXTRACTION_THRESHOLD_RATIFIED below),
-    # governed by eval-harness thresholds (§11.2): keeps its slot while
-    # golden-set gates pass, escalates when they fail.
-    "extraction": "claude-haiku-4-5",
-    # Non-Claude by charter (§0.2) — cost never downgrades the grader.
-    "evaluator": "gpt-5.5",
-}
-
-# R-006 RESOLVED as to the NUMBER: founder ratified 2026-07-15 — "I'm ok to
-# BEGIN at 1%" (hallucination ≤ 1% on the golden set, release-blocking, with
-# the one-way Kaizen ratchet of docs/KAIZEN.md §M7). The flag stays False
-# because ratifying the bar is not evidence the bar is MET: the golden-set
-# gate does not exist yet (R-013) — no golden data, no live-exam runner, no
-# CI wiring. Flip to True ONLY in the Step 6 commit that ships the gate AND
-# attaches a passing exam result for the starting model (≥ ~300 measured
-# facts per the §M7 sample-size floor for a 1% claim).
-EXTRACTION_THRESHOLD_RATIFIED = False
+# Routing VALUES + the ratification flag live in tools/routing_data.py — a
+# PURE DATA module (docstring + constant assignments only, enforced by
+# tools/pure_data.py) so the exam gate can certify routing changes as
+# AST-extracted data without executing subject code (evaluator r13).
+# Re-exported here so every existing import path keeps working; the flag
+# is read via this module's global so test monkeypatching stays effective.
+from tools.routing_data import (  # noqa: F401  (re-exports)
+    EXTRACTION_THRESHOLD_RATIFIED,
+    STAGE_MODELS,
+)
 
 # Model ids across vendors are ASCII: letters/digits/dot/underscore/colon/
 # slash/hyphen. Anything else (newlines, spaces, shell metacharacters) is a
@@ -84,7 +71,11 @@ def resolve_model(stage: str) -> str:
             f"unknown routing stage {stage!r} — valid stages: "
             f"{', '.join(sorted(STAGE_MODELS))} (docs/MODEL_ROUTING.md)"
         )
-    if stage == "extraction" and not EXTRACTION_THRESHOLD_RATIFIED:
+    if stage == "extraction" and EXTRACTION_THRESHOLD_RATIFIED is not True:
+        # Fail-closed on the EXACT boolean, never truthiness (mirrors the r26
+        # provider-level invariant): a misconfigured truthy non-bool such as
+        # "False", "yes", or 1 must keep extraction CLOSED, not open it. This is
+        # an auth/fail-closed gate — only the literal `True` unlocks extraction.
         # Fail-closed regardless of overrides: the block is about the missing
         # quality gate, not about which model would run. The bar is ratified
         # at 1% (R-006 resolved); the GATE that proves it does not exist yet

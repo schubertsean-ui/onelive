@@ -46,6 +46,19 @@ M3 escape (immediately, not at close), M4 gate-gap fix, or M6 harvest.
 Session close (docs/SESSION_START.md) appends the session's rows; the weekly
 founder digest quotes the trends in plain language.
 
+In-flight repeat-class rule (added 2026-07-17, from the r22–r24 lesson on
+PR #28): class detection must not wait for the merge-time ledger row. After
+EVERY evaluator round, classify the round's findings before fixing them;
+if any finding shares a class with the previous round on the same PR, stop
+patching that instance and fix the CLASS — enumerate or (better) DERIVE the
+complete set the defect lives in, in the same commit. Three consecutive
+rounds of one class on one PR (r22 golden set → r23 scoring files → r24
+dependencies, each round hand-adding one item to a binding list) cost two
+avoidable rounds; a derived-closure check written at r22 would have ended
+the class in one. Corollary for lists specifically: a hand-maintained
+enumeration guarding a trust property (a manifest, an allowlist, a trigger
+list, a mirror of another list) is a defect class waiting to repeat — every
+such list gets a test that derives or cross-checks it against ground truth.
 ## Hat measures (added 2026-07-16 — docs/hats/)
 
 Each dedicated hat (docs/hats/README.md) declares three things in its

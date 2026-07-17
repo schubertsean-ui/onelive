@@ -62,3 +62,64 @@ number which needs a one-line founder ratification.
 
 **Verdict:** plan proceeds to founder review; no step executes before its
 listed gate. Re-attack non-Claude before Step 5.
+
+---
+
+## Entry #2 — 2026-07-15 — Prompt bump v2026-07-15.3 + opening the extraction gate (PR #25)
+
+**Attacker: GPT-5.5 (non-Claude ✓) via the CI adversarial-review job on this
+same PR — its round-5 REQUEST-CHANGES IS the attack on this plan; answers
+below are in the same commit.** (OPENAI_API_KEY remains absent in the local
+session env — R-005 unchanged — so the CI evaluator is the non-Claude channel.)
+
+**Plan under attack:** bump EXTRACTION_SYSTEM_PROMPT to v2026-07-15.3
+(field-convention fixes from exam cycles 1–4), then flip
+`EXTRACTION_THRESHOLD_RATIFIED = True` in a follow-up commit ONLY when
+claude-sonnet-4-6 passes the golden-set exam (≤1% hallucination, recall
+≥0.80, zero injections, ≥300-fact set) — the R-013 evidence rule.
+
+**Po battery (docs/skills/po_provocation.md, seed 20260715, random word
+"anchor") — harvest that survived movement:**
+- *Escape ("po: the exam does not measure hallucination"):* exam texts ≠
+  production distribution. Kept: docs/KAIZEN.md §M7's production sampled
+  audit remains the second measurement leg; the exam alone never claims
+  production truth.
+- *Reversal ("po: the model examines the golden set"):* the candidate's
+  failures grade the SET — happened this cycle (3 key corrections).
+  Adopted: permanent key-change log with per-change justification
+  (ai/golden/README.md).
+- *Distortion ("po: flip the flag first, examine later"):* exactly the
+  failure R-013 forbids; re-affirmed — the flip commit must cite the
+  passing run + artifact.
+- *Random-entry "anchor" ("the anchor drags"):* a passing expensive model
+  gets pinned while cheaper tiers improve. Adopted: after merge, re-run the
+  exam for claude-haiku-4-5 via workflow_dispatch; if it passes the SAME
+  exam, de-escalate routing (cost-discipline rule 4, both directions).
+- *Random+escape ("no anchor"):* silent prompt drift between bumps.
+  Candidate (queued to TODOS, not blocking): stamp a prompt content hash in
+  provenance next to prompt_version.
+
+**Attack findings (evaluator r5) → written answers:**
+1. *Prompt/routing changed without exam evidence attached.* Answer: the
+   evidence channel is the parallel release-blocking exam check on the same
+   SHA; merge requires both green (note now embedded in the review's input;
+   this PR does not merge on a red exam).
+2. *Exam channel confinement not fail-closed (wrapper hole).* Answer:
+   closed at both layers in this commit — runtime stack-walk now rejects any
+   worker//api/ frame anywhere in the stack; trust_gate now also flags any
+   `golden_exam` reference outside the allowlist. Regression test compiles a
+   synthetic worker-frame wrapper and asserts denial.
+3. *Who is harmed if the gate opens on a bad pass?* Fans see wrong events —
+   bounded: extraction output still enters the candidate store behind the
+   human-review gate; AI never publishes. Founder pays sonnet rates —
+   bounded: per-run ceilings + console cap; de-escalation exam queued.
+4. *Cheaper path?* Haiku failed 3 calibrated cycles (logged in the routing
+   table); the cheaper path is the post-merge de-escalation exam above, not
+   shipping an extractor that fails its release gate.
+5. *Founder-crucial?* No: no new money/services (same key, same caps), no
+   trust-invariant change (the gate opens exactly as ratified in R-006/R-013);
+   tier change is logged per cost-discipline rule 2. The flip commit cites
+   run ID + artifact.
+
+**Verdict:** proceed — prompt bump ships now; flag flips only on a passing
+exam for the routed model, citing the evidence.

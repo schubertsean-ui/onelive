@@ -23,6 +23,11 @@ founder digest in plain language.
 | 2026-07-14 | #19 | 3 | evaluator: GITHUB_ENV secret-scope regression ×1, add-mask escaping hole ×1, scope-without-masking ×1, untruthful-record ×1 | credential scoped to one step AND escaped-masked; assembly in tested script; no-secret-in-errors invariant | ~3 evaluator calls | DSN founder-ergonomics |
 | 2026-07-15 | #22 | 1 | — | — | ~1 evaluator call | measured-unit definition (docs-only) |
 | 2026-07-15 | R-006 ratified | — | — | the 1% bar + one-way ratchet codified (KAIZEN §M7); extraction remains BLOCKED under R-013 until the golden-set gate ships and the starting model passes (Step 6) | — | founder: "I'm ok to BEGIN at 1%" — the NUMBER is ratified; the gate that proves it is next |
+| 2026-07-14 | #15 | 2 | evaluator r1: fail-open coverage knob ×1, partial-coverage-as-full ×1 (battery trimmable while claiming "run EVERY prompt") | combos knob removed; tests fail if any P8.x missing | ~2 evaluator calls | row added 2026-07-15 — see record-missing note in class watch |
+| 2026-07-15 | #23 | 1 | — | — | ~1 evaluator call | session-close arc (docs-only); row added 2026-07-15 |
+| 2026-07-15 | #24 | 4 | evaluator: ratification-path governance hole ×1 (founder acceptance is the ONLY ratification path for founder-facing decisions), untruthful-record ×1 (ledger/changelog described intended state as existing), + structural nits | ratification-path rule written into the display-stack canon; records describe what EXISTS | ~4 evaluator calls | certainty display stack; row added 2026-07-15 |
+| 2026-07-15 | #25 (in flight) | 5+ | evaluator r1–r4: exam-channel confinement (grep→runtime) ×2, None-swallowed-as-empty ×1, mismatch-display-only ×1, self-contradicting keys ×3, + nits; r5: wrapper-hole confinement ×2 (runtime + static layers), evidence-channel visibility ×2, sample-floor semantics ×1, secret-on-PR posture ×1 (→ R-014); exam cycles 1–4: prompt–key contradictions ×7 (title conventions), key incoherence ×3 (g004 vs g037/g066; g044), prompt–exam contamination ×1 (golden key strings cited as prompt examples) | two-layer golden_exam confinement; validity = property of the set; key-change log with justifications (ai/golden/README.md); prompt examples must be invented, never golden strings | 5 evaluator calls + 4 real exams (~$2 total) | final row at merge |
+| 2026-07-17 | #25 (merge-coordination land) | 1 | evaluator: gate-truthiness-not-exact-boolean ×1 (`resolve_model` still used `not FLAG` after the r26 provider fix hardened only the provider read — REPEAT CLASS of r26, one production layer missed) | router extraction gate → exact `EXTRACTION_THRESHOLD_RATIFIED is not True`; repo-wide derived-completeness grep confirms BOTH production reads (provider + router) are now exact-boolean; router-level regression test asserts truthy non-bool ("False"/1/"yes") keeps extraction closed | ~1 evaluator call | in-flight repeat-class rule applied: fixed the CLASS by deriving the complete set of flag-reads (2), not just the flagged instance |
 | 2026-07-16 | #27 | 4 | evaluator r1: gate-custody-ambiguity ×1 (sequential mode could look like it discharges Black custody), unverifiable-validation-claim ×1; r2: record-precision ×1 (pytest count didn't match CI log — same class as #20 r18's history-must-match-suite); r3: finding-laundering-path ×1 (generator-family Blue merge allowed on founder-crucial runs), exam-custody ×2 (lens-owned golden-set rows in TODOS + white.md) | fail-closed Blue-merge family constraint; exam custody never lens-owned; raw-outputs-preserved rule for manual hat runs | ~4 evaluator calls + CI | dedicated-hat registry (docs/hats/) — notable: the evaluator enforced custody language in the document that DEFINES custody; the M6 row for the design's po battery merged in the same PR; founder merged ("You merge it"), squash 2c1ef94 |
 
 ## Class watch (M2 repeat classes — these must trend to zero)
@@ -31,6 +36,49 @@ founder digest in plain language.
   (review model). Gate response has now escalated three times (or-default →
   hard-fail → channel removed). If this class appears again, the process fix
   is structural (an env-contract linter for workflows), not another patch.
+- **fail-open (threshold/floor mismatch)**: r6 on PR #25 caught the exam's
+  300-fact floor silently moved from ASSERTED to EXPECTED facts by an r5
+  refactor — a rate-passing run at 295 asserted facts was minutes from
+  certifying the gate open. Caught internally by the evaluator's first
+  graded round after billing was restored; zero escapes. Same class family
+  as #11/#12/#14 empty-env — fail-open now has TWO sub-classes on watch.
+- **incomplete-enumeration (binding/trigger lists)**: PR #28 r22 (evidence
+  didn't bind the golden set), r23 (didn't bind the scoring/provider files),
+  r24 (didn't bind dependencies or the dispatch workflow) — three rounds of
+  one class, each hand-adding one item to a list. Structural response
+  shipped 2026-07-17 (founder-prompted meta-review): the exam's import
+  closure is now COMPUTED by a test and required to be a subset of the
+  manifest, and the release gate's trigger paths are cross-checked against
+  the manifest by a second test — the derived checks immediately found two
+  more instances a fourth hand-audit had missed (tools/__init__.py absent
+  from both the manifest and the trigger list). Process rule added to
+  docs/KAIZEN.md: in-flight per-round class tracking; every hand-maintained
+  trust-guarding list gets a derivation/cross-check test. If this class
+  appears again on any OTHER list, the response is a repo-wide enumerated-
+  list audit (workflow paths filters, allowlists, skip lists), not a patch.
+  TRIGGER FIRED same day (2026-07-17, evaluator r26): the dependency
+  binding enumerated 2 of 23 resolved packages — another mirror-list
+  instance, created pre-rule, discovered post-rule. Escalation executed:
+  the instance became derived (full lockfile installed with --no-deps;
+  verifier requires every locked entry recorded at its locked version),
+  and the repo-wide enumerated-list audit ran. Audit method: classify
+  each list as POLICY (the list IS ground truth: promote/exam allowlists,
+  ads markers — nothing external to derive from) vs MIRROR (tracks
+  external reality — must be derived or swept). Findings: the exam-
+  critical mirrors were already closed by the day's derived tests; the
+  SQL/ads/promote invariant scans were directory-enumerated (ai/
+  production code and any future scripts/ dir unscanned) — widened to a
+  repo-wide-minus-tests production sweep, single-sourced skip list
+  (tests excluded by documented design: they build stub SQL and import
+  promote to test the guard itself). The widened scans surfaced no
+  production violations. Class considered structurally closed; a further
+  instance is a process escape and gets a root-cause row here.
+- **record-missing / untruthful-record**: #19 (untruthful-record), #24 (same),
+  and 2026-07-15: rows for merged PRs #15/#23/#24 were absent from this table
+  while the changelog claimed the #15 row existed (caught during #25 r5
+  bookkeeping; backfilled same commit). Two more appearances of this class
+  and the fix is structural: a validate-gate check that every merged PR
+  number since #11 has a ledger row.
 
 ## M3 escapes (absolute-zero goal)
 

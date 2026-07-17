@@ -44,11 +44,14 @@ def test_zero_attempted_does_not_raise():
 
 
 # --- extraction model resolution: the gate lives AT the entry point ----------
-def test_provider_blocked_while_golden_gate_absent():
+def test_provider_blocked_while_golden_gate_absent(monkeypatch):
     """Integration (evaluator finding, PR #21 r1): constructing the REAL
     provider with no explicit model must consult the routing gate and fail
-    loudly while the golden-set gate is unshipped (R-013) — the invariant
-    is enforced where extraction actually runs, not only in the tool."""
+    loudly whenever the ratification flag is False (as it was pre-R-013,
+    and as it becomes again if a routed model fails the exam) — the
+    invariant is enforced where extraction actually runs."""
+    import tools.model_router as mr
+    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", False)
     with pytest.raises(ExtractionConfigError, match="R-013"):
         ClaudeProvider(api_key="test")
 
@@ -74,10 +77,12 @@ def test_provider_empty_env_fails_closed_via_router(monkeypatch):
         ClaudeProvider(api_key="test")
 
 
-def test_explicit_model_does_not_bypass_the_gate():
-    """R-013 gates WHETHER extraction runs; explicit model= only selects
+def test_explicit_model_does_not_bypass_the_gate(monkeypatch):
+    """The flag gates WHETHER extraction runs; explicit model= only selects
     WHICH model once permitted (evaluator finding, PR #21 r2) — while the
-    golden-set gate is unshipped, every construction path is blocked."""
+    gate is closed, every construction path is blocked."""
+    import tools.model_router as mr
+    monkeypatch.setattr(mr, "EXTRACTION_THRESHOLD_RATIFIED", False)
     with pytest.raises(ExtractionConfigError, match="does not bypass"):
         ClaudeProvider(api_key="test", model="claude-test")
 

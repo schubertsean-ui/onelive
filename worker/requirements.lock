@@ -1,0 +1,32 @@
+# FULL transitive lock (evaluator r26): the golden-exam evidence binds to
+# the COMPLETE resolved dependency set, not just the direct pins — this
+# file's bytes are inside the exam's harness manifest hash, CI installs
+# with `pip install --no-deps -r worker/requirements.lock` so nothing
+# outside this list resolves, the exam report records every installed
+# distribution, and the evidence verifier requires each entry below to be
+# recorded at exactly this version. Regenerate deliberately (fresh venv,
+# `pip install -r worker/requirements.txt && pip freeze`), merge through
+# the mandatory adversarial review, then re-run the attended exam.
+annotated-types==0.7.0
+anthropic==0.117.0
+anyio==4.14.2
+certifi==2026.6.17
+charset-normalizer==3.4.9
+distro==1.9.0
+docstring_parser==0.18.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.18
+jiter==0.16.0
+psycopg2-binary==2.9.12
+pydantic==2.13.4
+pydantic_core==2.46.4
+python-dateutil==2.9.0.post0
+requests==2.34.2
+sentry-sdk==2.66.0
+six==1.17.0
+sniffio==1.3.1
+typing-inspection==0.4.2
+typing_extensions==4.16.0
+urllib3==2.7.0
