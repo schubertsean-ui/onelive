@@ -42,13 +42,37 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
-## Session Contract #13 (2026-07-15, Step-6 session `review-and-execute` — founder: "Proceed with Step 6" + "lock and capture all activity prior to compaction")
+## Session Contract #19 (2026-07-15, Step-6 session `review-and-execute` — renumbered #13→#19 in the merge reconciliation after the hat-registry session took #13; founder: "Proceed with Step 6" + "lock and capture all activity prior to compaction")
 
 GOAL: Ship the golden-set gate (R-013) — the exam that unlocks extraction at the ratified 1% bar.
 SCOPE: (1) golden set `ai/golden/golden_set_v1.jsonl` — ≥40 realistic examples across source classes with hand-verified answer keys, deliberate absence-traps, and indirect-prompt-injection cases (SPRINT Step 6 requirement); sample floor ≥~300 scoreable facts (KAIZEN §M7). (2) live-exam runner `ai/golden_exam.py` exercising the REAL ClaudeProvider path via a documented, narrow EXAM CHANNEL past the R-013 entry-point gate (explicit model required; no DB imports; provenance stamped exam; bypass scoped to the ratification flag only). (3) blocking CI `extraction-eval.yml` (dispatch + PRs touching extraction files; ANTHROPIC_API_KEY; report artifact). (4) run the exam for real on the starting model (claude-haiku-4-5); flip `EXTRACTION_THRESHOLD_RATIFIED` ONLY in the commit attaching a PASSING result. Recall floor 0.80 reported+enforced as the anti-gaming pair (starting value, ratchetable).
 NON-GOALS: no cron arming (R-008 separate, friction-attack first); no schema changes; no threshold changes (1% is founder-ratified).
 DONE-CRITERIA: exam runs green in CI on the real model with rate ≤1% at valid sample size · flag flipped with evidence attached · suite+gates green · PR through the evaluator · TotalRunFailure path re-verified via a real capped ingestion run producing candidates.
 CHECKPOINT DISCIPLINE (founder directive): commit+push after every major piece; arc updated before heavy build; nothing exists only in conversation context.
+## Session Contract #13 (2026-07-16 — founder: "Yes to all — build the hat registry with per-hat Kaizen measures")
+
+GOAL: Codify the dedicated-hat model from the swarm-of-agents evaluation conversation: the six thinking hats as STANDING agents — each hat = fixed prompt + owned memory + model-family binding + custody + its own Kaizen measures — plus the other items the founder approved in the same "yes to all" (Friction pre-work multi-lens restructure; persona-independence convention; domain-experts registry and decision-swarm tool queued).
+SCOPE: `docs/hats/` (README + six hat files: white, red, black, yellow, green, blue) · KAIZEN.md M8 (Yellow validated upside) + hat-measure pointer · KAIZEN_LEDGER.md Yellow upside log table + M6 row for this session's battery (seed 20260716, word "scaffold", harvest H1–H5) · CLAUDE.md amendments (hat registry line, Friction structure, persona independence) · po_provocation.md cross-ref · TODOS.md queue entries (decision_swarm tool P2; domain_experts registry P1 gated on Step 6/Foundry; Weco-pattern inner-loop prompt search P3 gated on the golden set; hat shakedown at the R-008 Friction firing) · changelog · Weco RSI re-evaluation delivered in-conversation.
+NON-GOALS: no decision_swarm code; no domain_experts files (gated); no new gates or threshold changes; NO autonomous outer loop over the harness (forbidden — gate custody, decision 2026-07-14).
+DONE-CRITERIA: registry + amendments committed · TODOS updated · validate green (skips logged) · pushed to `claude/agent-swarm-analysis-b5wst2` + draft PR (evaluator rides every PR mechanically).
+VALIDATE RECORD (2026-07-16; round 1 asked for the record, round 2 made counts exact, round 3 asked for the actual output). Verbatim `tools/validate --allow-skips` summary from the in-session run at this commit:
+
+```
+  STATUS   CHECK                  NOTE
+  PASS     trust_gate
+  PASS     lint
+  PASS     deferral_scan
+  PASS     pytest (full suite)
+  PASS     eval_harness import
+  PASS     perf benchmarks
+  PASS     test_audit
+  PASS     commit_sweep
+  SKIP     visual_regression      app not running / baselines absent
+RESULT: PASS (--allow-skips) — skipped checks present but explicitly acknowledged.
+```
+
+The SKIP is acknowledged (docs-only diff; no app/baselines in this sandbox) and logged here, in the commit message, and the PR body. Pytest counts differ by environment, both exact: LOCAL sandbox = 357 passed / 28 skipped; CI (the attached pytest.log) = 358 passed / 27 skipped — the one-test delta is `tests/test_replay_log.py:95`, which skips under root (chmod 0500 cannot make a directory unwritable to root, so the precondition can't be established) and runs+passes under CI's non-root runner. This record remains Generator self-report and is flagged as such; the deterministic checks re-run independently in CI (trust-gate workflow + the evaluator job's own pytest run).
+
 ## Session Contract #12 (2026-07-15, same conversation — founder: group answers, solo → huge, "hey what if we do this?")
 
 GOAL: Architect how OneLive answers the GROUP version of its founding question without becoming what the charter forbids (a social feed): shortlist → vote → plan.
