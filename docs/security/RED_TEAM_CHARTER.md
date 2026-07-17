@@ -22,7 +22,9 @@ The honest ceiling (founder decided to build this ANYWAY, with eyes open): a
 cross-family AI red team narrows AI-shared bias (threat model §6) but does not
 escape the paradigm — it is still an LLM reasoning about an AI-built system. It
 is a strong COMPLEMENT to, not a full SUBSTITUTE for, the one-time human
-security review, which stays OPEN in the Record (R-020) with a go-live trigger.
+security review, which stays OPEN in the Record (R-020): default fail-closed —
+that review is required before go-live, and only a dated founder risk-acceptance
+recorded at go-live may decide otherwise.
 Value bought: structured adversarial coverage, a third model family's blind
 spots differing from Claude's and GPT-5.5's, and a repeatable cadence — for
 roughly the price of a few model calls instead of a security-engineer
@@ -58,8 +60,9 @@ Never inside a convergent gate (validate/trust_gate/evaluator stay purely
 convergent). The red team fires at:
 
 1. **Pre-go-live (mandatory, once):** full six-hat pass over the whole threat
-   model before the Clerk allowlist opens to non-founder traffic. Output feeds
-   the R-020 human-review go/no-go.
+   model before the Clerk allowlist opens to non-founder traffic. Its output
+   INFORMS the R-020 human security review (default: required before go-live);
+   it does not substitute for that review or by itself clear go-live.
 2. **On any trust-invariant or gate-custody design change** (not every PR — the
    evaluator already covers those; the red team fires when the DESIGN of a
    boundary changes, e.g. a new secret surface, a new external service, an RLS
@@ -82,9 +85,12 @@ convergent). The red team fires at:
   that fails loud when no third-family key is configured. Until both ship, the
   red team cannot run in its intended form at all — there is no "degraded"
   auto-run substituting GPT-5.5 for the third family, because no runner exists
-  to do so; the FIRST red-team run is blocked on that tooling landing, and any
-  interim manual run MUST record in its own report that third-family diversity
-  was not achieved (a manual run without it is not the chartered control).
+  to do so; the mandatory pre-go-live red-team run (and every chartered run) is blocked on
+  that tooling landing. An interim manual run is EXPLORATORY ONLY — a
+  dry-run of the procedure — and can NEVER satisfy the pre-go-live control or
+  any other chartered firing; it must record in its own report that
+  third-family diversity was not achieved. Only a run with the enforced
+  third-family binding counts.
 - **Independence & raw-output preservation:** manual until
   `tools/decision_swarm.py` (TODOS) — so each hat's raw output is captured
   before any hat sees another's, and the decision record preserves all raw
