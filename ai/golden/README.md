@@ -33,8 +33,9 @@ memorize answers instead of generalizing; caught PR #25 r5).
    name exists — billing lines, event-type headers, prose phrases, an
    album name quoted inside a description — or if only an artist remains
    after stripping, title is null.
-4. **Times**: clock time only; show/music time over doors; doors-only means
-   no start time; vague ("late", "TBA") is null.
+4. **Times**: clock time only; show/music time over venue-access times
+   (doors, gates); an access time ALONE means no start time; vague
+   ("late", "TBA") is null.
 5. **City**: stated-as-place only. Names containing city words (venues,
    bands, publications) state no city; greetings/shout-outs state no city;
    "downtown Austin" / "Austin, TX" do state Austin.
@@ -83,6 +84,27 @@ Every expected-key change must cite the convention it corrects toward.
     render as a doubled line on the event card), so the canon is: such
     titles are null everywhere. The tribute-trap's real teeth (artist =
     "Purple Reign", never Prince) are untouched.
+
+- **2026-07-17 (evaluator r25, PR #28):**
+  - g007 start_time "6:00PM" → removed: "gates 6:00PM" is a venue-access
+    time with no show time stated — convention 4 says access-only means
+    no start time, so the old key punished the production rule and
+    rewarded extracting an access time as an event start. The prompt's
+    time rule now names gates explicitly alongside doors (v.10), and the
+    access-time convention is mechanically enforced (below).
+
+## Mechanical enforcement (added after r25 — conventions must not drift)
+
+Unambiguous conventions are enforced by `tools/golden_lint.py`, which the
+release gate runs base-owned over the subject's golden set and prompt:
+row shape and field types, both sample floors, trap minimums, surface-form
+and 5-word-shingle contamination, convention 4's access-time rule
+(an expected start_time that the text presents only as a doors/gates
+time is a lint error), and convention 6's handle rule (no expected venue,
+title, or artist may be a raw @handle). Judgment conventions (3's title
+derivation, 5's stated-as-place, 7's venue-night) cannot be decided
+mechanically; they are enforced by the evaluator's review of every
+key change plus the citation discipline of the log below.
 
 ## Prompt hygiene rule (added after the g060 own-goal, cycle 6)
 

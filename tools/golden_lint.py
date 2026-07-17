@@ -30,6 +30,21 @@ COMPARABLE_FIELDS = (
 ROW_SHAPE = {"id", "source_class", "tags", "text", "expected", "forbidden"}
 VALID_EXPECTED = set(COMPARABLE_FIELDS) | {"is_private_rsvp", "private_access", "notes"}
 
+# Convention 4, mechanical (r25 blocker g007 + nit): a clock time that the
+# text presents ONLY as a venue-access time (doors/gates, either word
+# order) must never be an expected start_time — the oracle would otherwise
+# punish a model for following the production rule. AM/PM-form times only;
+# a check that can't be decided mechanically stays with the evaluator.
+_TIME_RE = re.compile(r"\b\d{1,2}(?::\d{2})?\s*(?:AM|PM)\b", re.IGNORECASE)
+_ACCESS_RE = re.compile(
+    r"\b(?:doors?|gates?)\b[^\S\n]{0,4}[@:]?[^\S\n]{0,4}(\d{1,2}(?::\d{2})?\s*(?:AM|PM))\b"
+    r"|\b(\d{1,2}(?::\d{2})?\s*(?:AM|PM))\b[^\S\n]{0,4}(?:doors?|gates?)\b",
+    re.IGNORECASE)
+
+
+def _norm_time(t: str) -> str:
+    return t.replace(" ", "").upper()
+
 
 def lint(rows: list[dict], prompt_text: str) -> list[str]:
     problems: list[str] = []
@@ -68,6 +83,31 @@ def lint(rows: list[dict], prompt_text: str) -> list[str]:
                   "ticket_link", "rsvp_link", "notes"):
             if k in e and e[k] is not None and not isinstance(e[k], str):
                 problems.append(f"{rid}: {k} must be a string or null")
+        # Convention 4: access-only times are never start times.
+        st = e.get("start_time")
+        if isinstance(st, str) and st.strip():
+            text = str(r.get("text", ""))
+            access = [_norm_time(g1 or g2)
+                      for g1, g2 in _ACCESS_RE.findall(text)]
+            occurrences = [_norm_time(m.group(0)) for m in _TIME_RE.finditer(text)]
+            want = _norm_time(st.strip())
+            if want in occurrences and occurrences.count(want) <= access.count(want):
+                problems.append(
+                    f"{rid}: expected start_time {st!r} appears in the text "
+                    f"only as a doors/gates (venue-access) time — convention 4: "
+                    f"access times are not start times")
+        # Convention 6: social handles are never venues/titles/artists.
+        for k in ("venue_name", "title"):
+            v = e.get(k)
+            if isinstance(v, str) and v.lstrip().startswith("@"):
+                problems.append(f"{rid}: expected {k} {v!r} is a social "
+                                f"handle — handles are not venues or event "
+                                f"names (convention 6)")
+        for a in (e.get("artist_names") or []):
+            if isinstance(a, str) and a.lstrip().startswith("@"):
+                problems.append(f"{rid}: expected artist {a!r} is a raw "
+                                f"social handle — expect the act's name, "
+                                f"never its handle")
     facts = sum(1 for r in rows for k in COMPARABLE_FIELDS
                 if isinstance(r.get("expected"), dict)
                 and r["expected"].get(k) not in (None, [], ""))
