@@ -469,3 +469,10 @@
 - Probe dispatch 29581813635 (secretless first step only): correctly FAILED CLOSED at the deployment-branch-policy proof — environment unconfigured, key never touched, zero spend. The fail-closed boundary works as reviewed.
 - R-013 stays OPEN (flip staged, evidence pending) and flips RESOLVED only in a commit citing the passing run id + verifier output. R-018 stays OPEN pending the founder setup.
 - Post-merge queue (TODOS): de-escalation exams for claude-sonnet-4-6 and claude-haiku-4-5 (route extraction to the cheapest passer); capped ingestion re-fire.
+
+## 2026-07-17 — EXTRACTION CERTIFIED ON: R-013 resolved on bound attended exam evidence (PR #31 merged)
+- Founder configured the extraction-exam environment (deployment-branch policy master-only + ANTHROPIC_API_KEY_EXAM); the fail-closed boundary was probe-verified before any spend (run 29581813635 refused correctly while unconfigured).
+- Attended exam run 29585733298 (master's harness, subject = PR #31 head 818ad0b, model claude-opus-4-8): PASSED — 77 examples, 314 asserted facts (>=300 floor), hallucination 0.64% (bar 1%), recall 97.2% (floor 80%), zero injections, zero unanswered. Better than cycle 11 (0.68%) on the HARDER corrected exam (g007 gates-time key fixed same day) — cost ~$1.50.
+- The golden-exam release gate went green on the evidence (run 29586647594): all five bindings verified (subject SHA, prompt hash, model, golden hash, harness-manifest hash + dependency lock), verdict re-derived from raw metrics, base-owned golden_lint clean. First green in the gate's existence.
+- Founder merged through the one documented adversarial-review red (reviewer input-visibility limitation; fix in flight as PR #32) — squash 29f26c6 carries the full citation record. Extraction is ON behind the pipeline's gates: AI still never publishes; candidates pass evidence -> gate -> human review.
+- Queued next: de-escalation exams (claude-sonnet-4-6, claude-haiku-4-5 — route extraction to the cheapest passer); ingestion re-fire remains gated on R-008's founder items.
