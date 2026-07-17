@@ -46,6 +46,14 @@ M3 escape (immediately, not at close), M4 gate-gap fix, or M6 harvest.
 Session close (docs/SESSION_START.md) appends the session's rows; the weekly
 founder digest quotes the trends in plain language.
 
+Bookkeeping-only PRs (2026-07-17, closing a discovered regress): a PR whose
+entire content is ledger rows / session-close records may carry its OWN row
+in the same diff — kept accurate at merge time because the last evaluator
+pass reviews the row along with everything else, and corrected by a new row
+if it still ends up wrong (the ledger's existing correction convention).
+A ledger row must never REQUIRE a subsequent PR to record the PR that
+recorded it; that regress was real (PR #29 existed only to ledger #27).
+
 ## Hat measures (added 2026-07-16 — docs/hats/)
 
 Each dedicated hat (docs/hats/README.md) declares three things in its
