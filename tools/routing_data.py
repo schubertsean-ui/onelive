@@ -25,22 +25,22 @@ Extraction escalation history (cost-discipline rule 2, both logged):
   policy: the de-escalation exam procedure is queued in TODOS.md and the
   routing policy doc (docs/MODEL_ROUTING.md).
 
-EXTRACTION_THRESHOLD_RATIFIED (R-013 status 2026-07-17): flipped True in
-the PR that carries this line — which is mergeable ONLY with the
-release gate green, and the gate goes green ONLY on a verified attended
-exam run (corrected gate: rate bar AND both >=300 fact floors, zero
-injections, evidence bound to this PR's exact head commit, prompt hash,
-routed model, golden-set hash, harness-manifest hash, and dependency
-lock). The passing run's id lives in the PR body and merge commit, not
-here: evidence binds the head SHA, so writing the id into the tree after
-the run would create a new head the evidence no longer certifies — the
-merge commit is the citation record. Historical context: routed
-claude-opus-4-8 passed the RATE bar on exam cycle 11 (0.0068 <= 0.01,
-recall 0.9702, zero injections — run 29424147665) but asserted 295 < 300
-facts; the corrected-gate attended run this PR cites supersedes it. Once
-open, the gate remains in force on every extraction-surface PR, and the
-flag returns to False if the routed model ever fails (KAIZEN §M7 one-way
-ratchet governs the threshold).
+EXTRACTION_THRESHOLD_RATIFIED (R-013 status 2026-07-17): True is STAGED
+in PR #31, which the release gate holds red until a verified attended
+exam run EXISTS — corrected gate: rate bar AND both >=300 fact floors,
+zero injections, evidence bound to the PR's exact head commit, prompt
+hash, routed model, golden-set hash, harness-manifest hash, and
+dependency lock. The passing run's id is recorded in the PR body and
+merge commit, not here: evidence binds the head SHA, so writing the id
+into the tree after the run would create a new head the evidence no
+longer certifies. R-013 itself stays OPEN until a commit cites that
+run + verifier output (records describe what exists). Historical
+context: routed claude-opus-4-8 passed the RATE bar on exam cycle 11
+(0.0068 <= 0.01, recall 0.9702, zero injections — run 29424147665) but
+asserted 295 < 300 facts; only a corrected-gate attended run counts.
+Once open, the gate remains in force on every extraction-surface PR,
+and the flag returns to False if the routed model ever fails (KAIZEN
+§M7 one-way ratchet governs the threshold).
 """
 
 STAGE_MODELS = {
