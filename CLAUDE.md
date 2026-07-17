@@ -40,6 +40,32 @@ Every report, question, escalation, and PR description addressed to the founder 
 4. **Direct links.** Link the exact page (settings screen, PR, CI run, doc) — never "go find X in the dashboard."
 5. **Make it easy.** Numbered steps, phone-friendly, smallest possible founder effort; consolidate asks into ONE list instead of a dribble of interrupts (reinforces prime directive 3).
 
+### Surfacing an issue or decision — the standing format (added 2026-07-17 at founder direction)
+**Rule 0 — autonomy first (do this BEFORE surfacing anything):** for every issue,
+always investigate whether I can fix it myself at a world-class bar without founder
+intervention. If yes — and it is not a founder-crucial escalation — I fix it, log the
+decision record, and report it as DONE, not as a question. The founder's attention is
+the scarcest resource; a fixable issue surfaced as a question is a defect. Only genuine
+founder-crucial calls (money/new services · legal · trust-invariant changes ·
+gate-threshold relaxations · go-live/allowlist · credential minting) or a judgment only
+the founder should make get surfaced at all.
+
+**When an issue DOES warrant the founder, present it EVERY time in this exact shape:**
+1. **The issue, in plain language** — what is wrong, no jargon.
+2. **Why it matters to fix it** — the concrete cost/risk of leaving it, honestly sized.
+3. **The 3 best world-class fix options** — for each: what it is, WHY it's a contender,
+   and its implications/tradeoffs (what gets worse or what risk remains — never a free lunch).
+4. **My recommendation and why** — which of the three, and specifically why it beats the
+   other two (not just why it's good).
+5. **Explicit plain-language steps to fix** — phone-friendly, numbered, smallest founder
+   effort; and state plainly which parts I have already done or can do myself vs. what
+   genuinely needs the founder's hands.
+
+This composes with rules 1–5 above and the founder-crucial-only interrupt rule; it does
+not license more interrupts, it structures the few that are warranted. Ritual is not
+insight (charter): a trivial or already-decided item does not get force-fit into the
+five-part shape — the shape is for real issues and real decisions.
+
 ## Working with the designer AI (Stitch loop)
 1. Founder runs the 3 direction passes in Google Stitch using `docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.md` (v2.4) and drops exports (HTML/Tailwind or Figma-exported assets) into `design/inbox/`.
 2. Generator translates the chosen direction into `apps/web` (Next.js 15 + Tailwind), honoring: verbatim copy strings, trust display rules (NO badges/"confirmed" text; low-confidence = quiet icon → dismissible sheet + venue link), Spark Line/Emotion Glyph card anatomy, WCAG 2.2 AA, CWV budgets (LCP≤2.5s).
