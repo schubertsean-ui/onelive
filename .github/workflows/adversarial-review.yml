@@ -47,13 +47,138 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Exam-evidence visibility (PR #31 reviews r2–r3, PR #32 review r1;
+  # TODOS P1): the reviewer reads only diff + attached logs, so bound
+  # attended-exam evidence — which lives in the base-owned release
+  # gate's verifier output — was structurally invisible, forcing a red
+  # verdict on any staged ratification-flag flip even after the
+  # enforcing gate went green on real evidence. This ISOLATED job (r1
+  # blocker: least privilege — the expanded read scopes must never
+  # coexist with PR-controlled code, so it checks out NOTHING and runs
+  # no PR code) fetches that gate's own output for the PR head and
+  # publishes it as an artifact the review job attaches.
+  # Trust framing, stated plainly: informational input to the REVIEW.
+  # Enforcement lives in extraction-eval.yml (pull_request_target —
+  # GitHub always runs the BASE branch's copy) and is unaffected by
+  # anything here. Provenance binding (r1 blocker): the run is resolved
+  # through the workflow-FILE-scoped API for extraction-eval.yml,
+  # filtered to the pull_request_target event — a same-named check from
+  # any other workflow can never be selected. Outcomes are DISTINCT (r1
+  # blocker + nit): evidence attached / no completed gate run exists /
+  # EVIDENCE FETCH FAILED — an API error is never presented as absence
+  # of the gate, and a crash of this job surfaces as the review job's
+  # explicit fallback text, never silence.
+  exam-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read      # list extraction-eval.yml runs + read the gate job's log
+      checks: read
+    steps:
+      - name: Fetch the release gate's output for the PR head (no PR code in this job)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > exam-evidence.log
+          import json, os, sys, urllib.error, urllib.request
+
+          def api(url):
+              req = urllib.request.Request(url, headers={
+                  "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                  "Accept": "application/vnd.github+json"})
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  return r.read()
+
+          head = os.environ.get("HEAD_SHA", "")
+          repo = os.environ["REPO"]
+          if not head:
+              print("workflow_dispatch review — no PR head; exam-evidence attachment "
+                    "not applicable.")
+              sys.exit(0)
+          print(f"# Release-gate (extraction-eval.yml) output for PR head {head}.")
+          print("# Fetched read-only by an isolated job that runs no PR code.")
+          print("# ENFORCEMENT is the gate itself (pull_request_target, base-owned);")
+          print("# this attachment is review input only.")
+          try:
+              runs = json.loads(api(
+                  f"https://api.github.com/repos/{repo}/actions/workflows/"
+                  f"extraction-eval.yml/runs?head_sha={head}&per_page=30"
+              )).get("workflow_runs") or []
+          except urllib.error.HTTPError as e:
+              if e.code == 404:
+                  print("NO RELEASE GATE: extraction-eval.yml is not a registered "
+                        "workflow in this repository.")
+                  sys.exit(0)
+              print(f"EVIDENCE FETCH FAILED: HTTP {e.code} listing extraction-eval.yml "
+                    "runs. Treat evidence as UNAVAILABLE (an API failure) — this is "
+                    "NOT absence of the gate and NOT a pass.")
+              sys.exit(0)
+          except Exception as e:
+              print(f"EVIDENCE FETCH FAILED: {type(e).__name__}: {e}. Treat evidence "
+                    "as UNAVAILABLE (an API failure) — NOT absence of the gate.")
+              sys.exit(0)
+          # Identity binding: workflow-file scope above + event filter here.
+          runs = [r for r in runs
+                  if r.get("status") == "completed"
+                  and r.get("event") == "pull_request_target"]
+          if not runs:
+              print("NO COMPLETED RELEASE-GATE RUN exists for this head: either this "
+                    "PR does not touch the extraction surface (the gate's path filter "
+                    "did not fire) or the gate has not finished for this head yet. "
+                    "(An API failure reports FETCH FAILED above, never this message.)")
+              sys.exit(0)
+          runs.sort(key=lambda r: (r.get("run_number") or 0, r.get("run_attempt") or 0))
+          run = runs[-1]
+          print(f"workflow={run.get('path')} run={run['id']} "
+                f"attempt={run.get('run_attempt')} event={run.get('event')} "
+                f"conclusion={run.get('conclusion')} url={run.get('html_url')}")
+          try:
+              jobs = json.loads(api(
+                  f"https://api.github.com/repos/{repo}/actions/runs/{run['id']}/jobs"
+                  "?per_page=30")).get("jobs") or []
+              job = next((j for j in jobs if j.get("name") == "golden-exam"), None)
+              if job is None:
+                  print("EVIDENCE FETCH FAILED: no job named 'golden-exam' in that "
+                        "run — treat evidence as UNAVAILABLE.")
+                  sys.exit(0)
+              print(f"job={job['id']} conclusion={job.get('conclusion')} "
+                    f"url={job.get('html_url')}")
+              log = api(f"https://api.github.com/repos/{repo}/actions/jobs/"
+                        f"{job['id']}/logs").decode("utf-8", "replace")
+          except urllib.error.HTTPError as e:
+              print(f"EVIDENCE FETCH FAILED: HTTP {e.code} fetching the gate job/log. "
+                    "Treat evidence as UNAVAILABLE (an API failure) — NOT absence of "
+                    "the gate and NOT a pass.")
+              sys.exit(0)
+          except Exception as e:
+              print(f"EVIDENCE FETCH FAILED: {type(e).__name__}: {e}. Treat evidence "
+                    "as UNAVAILABLE — NOT absence of the gate.")
+              sys.exit(0)
+          tail = log.splitlines()[-100:]
+          print(f"--- last {len(tail)} lines of the gate job log (verifier verdict "
+                "included) ---")
+          print("\n".join(tail))
+          PY
+          wc -c exam-evidence.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exam-evidence
+          path: exam-evidence.log
+          if-no-files-found: error
+
   adversarial-review:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Run even if the evidence job failed — its absence is then reported
+    # as an explicit fallback line in the bundle, never as silence.
+    needs: [exam-evidence]
+    if: ${{ always() }}
     permissions:
       contents: read
-      checks: read       # exam-evidence attachment: read the golden-exam check run
-      actions: read      # exam-evidence attachment: read that check's job log
     steps:
       - uses: actions/checkout@v4
         with:
@@ -120,60 +245,20 @@ jobs:
             echo "no web/ files in this diff — web checks not applicable" | tee web.log
           fi
 
-      # Exam-evidence visibility (PR #31 reviews r2–r3, TODOS P1): this
-      # reviewer reads only diff + attached logs, so bound attended-exam
-      # evidence — which lives in the base-owned release gate's verifier
-      # output — was structurally invisible, forcing a red verdict on any
-      # staged ratification-flag flip even after the enforcing gate went
-      # green on real evidence. This step fetches that gate's OWN latest
-      # output for the PR head and attaches it as a review input.
-      # Trust framing, stated plainly: this is INFORMATIONAL input to the
-      # review. Enforcement lives in extraction-eval.yml
-      # (pull_request_target — GitHub always runs the BASE branch's copy)
-      # and is unaffected by anything this job does. A PR that tampers
-      # with this step to fabricate the log would show that tampering in
-      # the very diff the evaluator reads. Fetch failures degrade to
-      # "evidence not visible" — never to a fabricated success.
-      - name: Attach the release gate's exam-evidence output (log captured for the evaluator)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          REPO: ${{ github.repository }}
+      # The evidence itself is fetched by the ISOLATED exam-evidence job
+      # above (least privilege: those read scopes never coexist with PR
+      # code). Here we only collect its artifact; if that job failed, the
+      # bundle carries an explicit unavailable-marker, never silence.
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: exam-evidence
+      - name: Ensure the exam-evidence attachment exists (explicit fallback, never silence)
         run: |
-          set -uo pipefail
-          {
-            if [ -z "${HEAD_SHA:-}" ]; then
-              echo "workflow_dispatch review — no PR head; exam-evidence attachment not applicable."
-            else
-              echo "# golden-exam release-gate output for PR head $HEAD_SHA, fetched read-only"
-              echo "# from the base-owned secretless verifier (extraction-eval.yml on"
-              echo "# pull_request_target). ENFORCEMENT is that gate itself; this attachment"
-              echo "# is review input only."
-              api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
-              api "https://api.github.com/repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=golden-exam&per_page=10" > checks.json
-              JOB_ID="$(python3 -c "
-          import json
-          runs = json.load(open('checks.json')).get('check_runs') or []
-          runs.sort(key=lambda r: r.get('started_at') or '')
-          if runs:
-              r = runs[-1]
-              print(r['id'])
-              import sys
-              print(f\"check-run {r['id']}: status={r['status']} conclusion={r['conclusion']} url={r['html_url']}\", file=sys.stderr)
-          " 2>gate-status.txt)"
-              cat gate-status.txt
-              if [ -z "$JOB_ID" ]; then
-                echo "no golden-exam check exists for this head: this PR does not touch the"
-                echo "extraction surface (the gate's path filter did not fire), or the gate"
-                echo "has not run yet. Only meaningful for extraction-surface changes."
-              else
-                echo "--- last 100 lines of that gate run's job log (verifier verdict included) ---"
-                curl -sSL -H "Authorization: Bearer $GH_TOKEN" \
-                  "https://api.github.com/repos/$REPO/actions/jobs/$JOB_ID/logs" | tail -n 100
-              fi
-            fi
-          } > exam-evidence.log 2>&1 \
-            || echo "exam-evidence fetch failed (API error) — treat as evidence NOT visible; the enforcing gate is unaffected." >> exam-evidence.log
+          if [ ! -f exam-evidence.log ]; then
+            echo "EVIDENCE FETCH FAILED: the exam-evidence job produced no artifact." > exam-evidence.log
+            echo "Treat evidence as UNAVAILABLE — this is NOT absence of the gate and NOT a pass." >> exam-evidence.log
+          fi
           wc -c exam-evidence.log
 
       - name: Extract the diff under review (lockfiles excluded by policy)
