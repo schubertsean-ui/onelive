@@ -39,7 +39,7 @@ exists.
 ## 3. Trust boundaries (the lines attacks try to cross)
 
 1. **Untrusted text → extraction.** AI reads attacker-authorable text. Boundary: the AI's output is a *candidate*, never a publish.
-2. **Extraction → publish.** The gate. AI physically cannot import the promote path (`trust_gate.py` enforces); every event crosses via evidence → gate → human review.
+2. **Extraction → publish.** The gate. AI physically cannot import the promote path — enforced by `tools/trust_gate.py::check_ai_never_promotes` (+ `check_promote_import_allowlist`), covered by `tests/test_trust_gate.py::test_catches_ai_promoting` and `::test_promote_allowlist_blocks_new_importer`; every event crosses via evidence → gate → human review.
 3. **PR-controlled code → secrets.** No PR code shares a runner with any key: extraction exam runs default-branch harness only (subject = pure data); reviewer key isolated into a base-owned job (PR #32 r13).
 4. **Candidate data → confidence.** No hat, model, expertise, or enthusiasm raises confidence — only source corroboration. The one-way valve.
 5. **Anon key → private data.** RLS fail-closed; migration 0007 narrowed the `event` public-read policy.
