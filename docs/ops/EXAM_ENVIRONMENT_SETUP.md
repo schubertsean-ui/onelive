@@ -43,8 +43,10 @@ Page: https://github.com/schubertsean-ui/onelive/settings/environments →
    distinct NAME is deliberate: if this environment is missing, the
    attended job gets an EMPTY key and fails loud — it can never silently
    fall back to the repo-level secret.
-3. The ordinary pull_request reviews keep using the repo-level
-   `OPENAI_API_KEY` — do not remove it.
+3. The repo-level `OPENAI_API_KEY` remains in use by the base-owned
+   review job only (pull_request_target: the PR's workflow copy never
+   runs, and no PR code executes in the job that holds the key — PR code
+   runs exclusively in the secretless subject-checks job).
 
 Verification: dispatch "Adversarial Review (non-Claude)" from the default
 branch with an `exam_head_sha`; its first (secretless) step reports the

@@ -5,54 +5,45 @@ name: Adversarial Review (non-Claude)
 # Independent Evaluator (OpenAI, default gpt-5.5) via tools/adversarial_review
 # .py and FAILS unless it answers "VERDICT: APPROVE".
 #
-# Runs on EVERY pull request — no path filter. The evaluator itself judged a
-# path filter bypassable (PR #11 rounds 1-2): trust rules live in CLAUDE.md /
-# docs/** as much as in code, and "mandatory" must not depend on where a file
-# sits. Relationship to the other gates (cross-linked per PR #11 round 2):
-# trust-gate.yml runs the deterministic invariants + pytest + eval-harness
-# import on every PR/push; `bash tools/validate` is the local end-of-shift
-# everything gate. This workflow is the independent non-Claude REVIEW leg —
-# it complements, never replaces, those.
+# Runs on EVERY pull request — no path filter (PR #11 rounds 1-2). Cross-
+# linked gates: trust-gate.yml runs deterministic invariants + pytest on
+# every PR/push; `bash tools/validate` is the local end-of-shift gate.
 #
-# Security posture (from this gate's own evaluator reviews):
-# - The evaluator script executes ONLY from the TRUSTED BASE REF, with
-#   `python -I` (stdlib-only; immune to PYTHONPATH/cwd hijack). If the script
-#   is absent on the base ref (bootstrap: the PR introducing the tool), the
-#   gate HARD-FAILS WITHOUT the secret ever entering the job — a warning is
-#   not enforcement. That bootstrap PR is human-reviewed and merged with this
-#   check red, once; afterwards the gate is self-consistent.
-# - Machine-generated lockfiles are excluded from the diff by policy (noted
-#   to the evaluator); --require refuses truncated diffs outright.
-# - Supply-chain gate: production deps must audit clean at high/critical
-#   (`npm audit --omit=dev --audit-level=high` blocks); the full audit is
-#   shown to the evaluator; accepted exceptions live in docs/SCA_BASELINE.md.
-# - checkout uses persist-credentials: false; OPENAI_API_KEY is exposed only
-#   to the final trusted-script step.
+# KEY CUSTODY (PR #32 rounds 5-13 — the design's spine): PR-controlled
+# code and the reviewer key NEVER share a runner.
+#   * subject-checks (SECRETLESS): checks out and executes the PR's code
+#     (pytest, web/SCA) and publishes the logs as an artifact. No secret
+#     of any kind is in scope in this job.
+#   * adversarial-review (KEYED, base-owned): runs on pull_request_target,
+#     so GitHub executes the BASE branch's copy of this workflow — a PR
+#     editing this file does not change what runs against it. The job
+#     checks out BASE code only, pins the evaluator script from base,
+#     downloads the subject logs as data, builds the diff from pinned
+#     SHAs, and only then exposes OPENAI_API_KEY to the single trusted
+#     step. No PR code ever executes here.
+#   * attended-review (evidence-bearing dispatch mode): its key exists
+#     only in the attended-review ENVIRONMENT (default-branch deployment
+#     policy, proven in-run) under a distinct secret name.
+# Test logs remain what they always were: the subject's own attested
+# output, corroborated by the independent trust-gate workflow — the
+# reviewer weighs them as claims, not as trusted measurements.
 #
-# workflow_dispatch reviews an arbitrary ref/range from the Actions tab
-# (e.g. re-attacking a plan diff or reviewing an already-merged commit).
+# workflow_dispatch reviews an arbitrary ref/range from the Actions tab.
 #
 # ATTENDED REVIEW WITH EXAM EVIDENCE (PR #31 reviews r2-r3, PR #32
 # review r5; TODOS P1): the reviewer reads only diff + attached logs, so
 # bound attended-exam evidence — which lives in the base-owned release
 # gate's verifier output — is structurally invisible on pull_request
-# runs, and MUST stay that way: anything a pull_request-triggered job
-# assembles is assembled by the PR's own workflow copy and is therefore
-# forgeable-by-construction (r5 blocker). The evidence-attached review
-# exists ONLY in workflow_dispatch mode, and its trust does NOT rest on
-# comments or in-file guards (r10 nit — a dispatched workflow runs the
-# copy on whatever ref was selected at dispatch): the attended job runs
-# inside the `attended-review` ENVIRONMENT, whose default-branch-only
-# deployment policy GitHub itself enforces and which the job PROVES via
-# the API before the reviewer key enters scope — a branch-dispatched
-# copy is refused the environment, and with it the key (same mechanism
-# as the exam secret, R-018). Dispatch with exam_head_sha set after the
-# attended exam passes; the attended-review job fails loud on ANY
-# anomaly — missing evidence in attended mode is an error, never a
-# shrug.
+# runs, and MUST stay that way: anything a PR-triggered job assembles
+# from PR-controlled definitions is forgeable-by-construction. The
+# evidence-attached review exists ONLY in dispatch mode; its trust rests
+# on the attended-review ENVIRONMENT (GitHub-enforced default-branch
+# deployment policy, proven in-run before the key enters scope), never
+# on comments or in-file guards. Dispatch with exam_head_sha set after
+# the attended exam passes; the attended job fails loud on ANY anomaly.
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
@@ -66,14 +57,16 @@ on:
         default: ""
 
 concurrency:
-  group: adversarial-review-${{ github.ref }}
+  # PR number under pull_request_target (github.ref is the BASE there);
+  # run id for dispatches so they never collide with anything.
+  group: adversarial-review-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  adversarial-review:
-    # Skipped in attended mode — the attended-review job below is the
-    # evidence-bearing variant and runs instead.
-    if: ${{ github.event_name == 'pull_request' || inputs.exam_head_sha == '' }}
+  # SECRETLESS subject job: the ONLY place PR code executes in this
+  # workflow. Its logs travel to the review job as an artifact.
+  subject-checks:
+    if: ${{ github.event_name == 'pull_request_target' || inputs.exam_head_sha == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -81,7 +74,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Full history so merge-base diffs (base...head) resolve.
+          # The SUBJECT tree: PR head under pull_request_target; the
+          # dispatched ref otherwise. Full history so range diffs resolve.
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -91,24 +86,21 @@ jobs:
 
       - name: Resolve the base ref and diff range
         id: range
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "base=origin/master" >> "$GITHUB_OUTPUT"
             echo "range=${{ github.event.inputs.range }}" >> "$GITHUB_OUTPUT"
           else
-            echo "base=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
-            echo "range=origin/${{ github.base_ref }}...HEAD" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
-        run: |
-          mkdir -p /tmp/trusted
-          if git show "${{ steps.range.outputs.base }}:tools/adversarial_review.py" \
-               > /tmp/trusted/adversarial_review.py 2>/dev/null; then
-            echo "Using tools/adversarial_review.py from ${{ steps.range.outputs.base }} (trusted)."
-          else
-            echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on ${{ steps.range.outputs.base }}. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
-            exit 1
+            # Pinned SHAs, authenticated single fetch (the checkout is
+            # credential-less by design).
+            AUTH_B64="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+            git -c http.extraheader="AUTHORIZATION: basic $AUTH_B64" \
+              fetch --no-tags origin "${{ github.event.pull_request.base.sha }}"
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+            echo "range=${{ github.event.pull_request.base.sha }}...HEAD" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install worker + api deps
@@ -143,6 +135,69 @@ jobs:
           else
             echo "no web/ files in this diff — web checks not applicable" | tee web.log
           fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: subject-logs
+          path: |
+            pytest.log
+            web.log
+          if-no-files-found: error
+
+  # KEYED review job: base-owned definition (pull_request_target), base
+  # code only. The key coexists with NOTHING the PR controls.
+  adversarial-review:
+    needs: [subject-checks]
+    if: ${{ !cancelled() && needs.subject-checks.result == 'success' && (github.event_name == 'pull_request_target' || inputs.exam_head_sha == '') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # BASE code: the default checkout under pull_request_target IS
+          # the base; a dispatch checks out the selected ref.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve the base ref and diff range
+        id: range
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "base=origin/master" >> "$GITHUB_OUTPUT"
+            echo "range=${{ github.event.inputs.range }}" >> "$GITHUB_OUTPUT"
+          else
+            # The PR head enters this job as DIFF DATA only — fetched by
+            # SHA, never checked out, never executed.
+            AUTH_B64="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+            git -c http.extraheader="AUTHORIZATION: basic $AUTH_B64" \
+              fetch --no-tags origin "${{ github.event.pull_request.head.sha }}"
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+            echo "range=${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
+        run: |
+          mkdir -p /tmp/trusted
+          if git show "${{ steps.range.outputs.base }}:tools/adversarial_review.py" \
+               > /tmp/trusted/adversarial_review.py 2>/dev/null; then
+            echo "Using tools/adversarial_review.py from ${{ steps.range.outputs.base }} (trusted)."
+          else
+            echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on ${{ steps.range.outputs.base }}. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: subject-logs
 
       - name: Extract the diff under review (lockfiles excluded by policy)
         run: |
@@ -495,16 +550,17 @@ jobs:
                     f"attempt={r.get('run_attempt')} "
                     f"conclusion={r.get('conclusion')} "
                     f"started={r.get('run_started_at')}")
-          # Only a SUCCESSFUL verifier run is evidence (r6 blocker): a
-          # failed/cancelled/timed-out gate run proves nothing attachable.
-          runs = [r for r in runs if r.get("conclusion") == "success"]
-          if not runs:
-              fail("release-gate runs exist for this head but NONE concluded "
-                   "success — a failed verifier run is not evidence")
+          # The NEWEST completed run must itself be success (r13 nit): an
+          # older success must never mask a newer failure — stale success
+          # is not evidence.
           runs.sort(key=lambda r: (r.get("run_started_at")
                                    or r.get("created_at") or "",
                                    r.get("run_attempt") or 0))
           run = runs[-1]
+          if run.get("conclusion") != "success":
+              fail(f"the NEWEST completed verifier run for this head "
+                   f"concluded {run.get('conclusion')!r} — an older success "
+                   f"cannot stand in for it (stale success is not evidence)")
           print(f"workflow={run.get('path')} run={run['id']} "
                 f"attempt={run.get('run_attempt')} event={run.get('event')} "
                 f"conclusion={run.get('conclusion')} url={run.get('html_url')}")
