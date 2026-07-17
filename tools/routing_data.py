@@ -25,16 +25,22 @@ Extraction escalation history (cost-discipline rule 2, both logged):
   policy: the de-escalation exam procedure is queued in TODOS.md and the
   routing policy doc (docs/MODEL_ROUTING.md).
 
-EXTRACTION_THRESHOLD_RATIFIED (R-013 status 2026-07-15): the golden-set
-exam gate EXISTS and routed claude-opus-4-8 passed the RATE bar on exam
-cycle 11 (hallucination 0.0068 <= 0.01, recall 0.9702, zero injections —
-CI run 29424147665, artifact 8346621357) — but that run asserted 295
-facts, below the >=300 asserted-fact floor the 1% claim is powered by
-(caught by evaluator r6 before the flip shipped). The flag STAYS False:
-it flips ONLY in the commit citing a run that passes the corrected gate
-(rate bar AND asserted floor). Once open, the gate remains in force on
-every extraction-surface PR, and the flag returns to False if the routed
-model ever fails (KAIZEN §M7 one-way ratchet governs the threshold).
+EXTRACTION_THRESHOLD_RATIFIED (R-013 status 2026-07-17): True is STAGED
+in PR #31, which the release gate holds red until a verified attended
+exam run EXISTS — corrected gate: rate bar AND both >=300 fact floors,
+zero injections, evidence bound to the PR's exact head commit, prompt
+hash, routed model, golden-set hash, harness-manifest hash, and
+dependency lock. The passing run's id is recorded in the PR body and
+merge commit, not here: evidence binds the head SHA, so writing the id
+into the tree after the run would create a new head the evidence no
+longer certifies. R-013 itself stays OPEN until a commit cites that
+run + verifier output (records describe what exists). Historical
+context: routed claude-opus-4-8 passed the RATE bar on exam cycle 11
+(0.0068 <= 0.01, recall 0.9702, zero injections — run 29424147665) but
+asserted 295 < 300 facts; only a corrected-gate attended run counts.
+Once open, the gate remains in force on every extraction-surface PR,
+and the flag returns to False if the routed model ever fails (KAIZEN
+§M7 one-way ratchet governs the threshold).
 """
 
 STAGE_MODELS = {
@@ -46,4 +52,4 @@ STAGE_MODELS = {
     "evaluator": "gpt-5.5",
 }
 
-EXTRACTION_THRESHOLD_RATIFIED = False
+EXTRACTION_THRESHOLD_RATIFIED = True
