@@ -54,9 +54,16 @@ on:
       - "tools/extract_routed_model.py"
       - ".github/workflows/extraction-eval.yml"
       - ".github/workflows/extraction-exam-dispatch.yml"
+      # Dependency surface (r24): the exam runs under these installed
+      # packages, so changing them changes extraction behavior — a dep
+      # bump is a harness change and requires fresh exam evidence.
+      - "worker/requirements.txt"
 
 concurrency:
-  group: extraction-eval-${{ github.ref }}
+  # PR number, not github.ref (r24 nit): under pull_request_target the
+  # ref is the BASE branch, which would serialize/cancel unrelated PRs'
+  # evaluations against the same base.
+  group: extraction-eval-pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -130,6 +137,7 @@ jobs:
           def on_surface(p):
               return (p.startswith("ai/") or p in (
                   "worker/ai_models.py", "worker/ai_extract.py",
+                  "worker/requirements.txt",
                   "tools/model_router.py", "tools/routing_data.py",
                   "tools/pure_data.py", "tools/verify_exam_evidence.py",
                   "tools/extract_prompt_text.py", "tools/extract_routed_model.py",

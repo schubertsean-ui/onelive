@@ -130,6 +130,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Dependency binding (r24): requirements.txt carries exact '=='-pins
+      # and its bytes are inside the report's harness manifest hash; the
+      # runner also records the INSTALLED anthropic/pydantic versions in
+      # the report, and the PR-side verifier requires them to equal the
+      # pins — evidence names the dependency set it ran under.
       - name: Install worker deps
         run: |
           python -m pip install --upgrade pip

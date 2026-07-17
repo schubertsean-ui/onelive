@@ -29,11 +29,33 @@ import sys
 import pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-from ai.exam_thresholds import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
+from ai.exam_thresholds import EXAM_PACKAGES, HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 _MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")   # same as the workflows
+
+_REQUIREMENTS = pathlib.Path(__file__).resolve().parent.parent / "worker" / "requirements.txt"
+_PIN_RE = re.compile(r"^([A-Za-z0-9._-]+)==([A-Za-z0-9._!+-]+)$")
+
+
+def _pinned_versions(names: tuple) -> dict:
+    """Exact '=='-pins for `names` from worker/requirements.txt (this
+    checkout's — BASE's in CI, same trust placement as the thresholds
+    import above). A missing file, missing entry, or non-exact pin maps
+    to None, which can never match a recorded version — unpinned exam
+    dependencies are unverifiable and fail closed (r24)."""
+    pins = {n: None for n in names}
+    try:
+        lines = _REQUIREMENTS.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return pins
+    lower_to_name = {n.lower(): n for n in names}
+    for line in lines:
+        m = _PIN_RE.fullmatch(line.split("#", 1)[0].strip())
+        if m and m.group(1).lower() in lower_to_name:
+            pins[lower_to_name[m.group(1).lower()]] = m.group(2)
+    return pins
 
 
 def _num(v) -> float | None:
@@ -128,6 +150,29 @@ def verify(report: dict, subject_sha: str, expect_model: str,
             f"report.subject_sha={report.get('subject_sha')!r} != required "
             f"{subject_sha!r} (evidence binds to an exact commit)"
         )
+
+    # 3. Dependency binding (r24 blocker): the harness hash covers the
+    # dependency PINS (worker/requirements.txt bytes); this check closes
+    # the loop on what was actually INSTALLED when the evidence was
+    # minted. Every exam-relevant package must carry an exact pin here
+    # and the report's recorded version must equal it — evidence minted
+    # under a different dependency set certifies nothing.
+    pkgs = report.get("packages")
+    if not isinstance(pkgs, dict):
+        problems.append(f"packages={pkgs!r} (need the runner's recorded "
+                        "dict of installed exam-package versions)")
+    else:
+        pins = _pinned_versions(EXAM_PACKAGES)
+        for name in EXAM_PACKAGES:
+            if pins[name] is None:
+                problems.append(f"worker/requirements.txt has no exact "
+                                f"'=='-pin for {name} — unpinned exam "
+                                f"dependencies are unverifiable (fail closed)")
+            elif pkgs.get(name) != pins[name]:
+                problems.append(f"report packages[{name!r}]="
+                                f"{pkgs.get(name)!r} != pinned "
+                                f"{pins[name]!r} — evidence was minted "
+                                f"under a different dependency set")
     return problems
 
 

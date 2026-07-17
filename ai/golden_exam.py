@@ -47,18 +47,34 @@ from worker.ai_models import AIEventExtraction
 
 GOLDEN_PATH = pathlib.Path(__file__).resolve().parent / "golden" / "golden_set_v1.jsonl"
 
-# EVERY file whose code executes during an exam run (r23: evidence must
-# bind to the WHOLE harness that ran, not a subset — provider
-# normalizations, the schema, and the thresholds all shape the metrics).
+# EVERY file that executes during an attended exam run (r23, widened by
+# r24: the provider unconditionally imports tools/model_router.py — which
+# imports tools/routing_data.py — at every construction; ai/prompts.py
+# executes at import even when --prompt-file overrides its value; the
+# dispatch workflow runs the prompt extractor + purity checker before the
+# exam and is itself the run's control program; and the dependency
+# manifest worker/requirements.txt shapes behavior via the installed
+# anthropic/pydantic versions, which it pins exactly).
+# .github/workflows/extraction-eval.yml is deliberately ABSENT: it never
+# executes during an exam — it is the verifying gate, and GitHub always
+# runs the BASE branch's copy of it (pull_request_target), so a PR cannot
+# alter the copy that judges it.
 # Single source: the runner stamps this hash, the PR gate recomputes it
 # from base with this same function.
 HARNESS_MANIFEST = (
+    ".github/workflows/extraction-exam-dispatch.yml",
     "ai/claude_provider.py",
     "ai/eval_harness.py",
     "ai/exam_thresholds.py",
     "ai/golden_exam.py",
+    "ai/prompts.py",
     "ai/provider.py",
+    "tools/extract_prompt_text.py",
+    "tools/model_router.py",
+    "tools/pure_data.py",
+    "tools/routing_data.py",
     "worker/ai_models.py",
+    "worker/requirements.txt",
 )
 
 
@@ -70,6 +86,22 @@ def compute_harness_sha() -> str:
         h.update((root / rel).read_bytes() + b"\x00")
     return h.hexdigest()
 
+
+def installed_exam_packages() -> dict:
+    """Versions of the exam-relevant packages ACTUALLY importable in this
+    process (r24: evidence must name the dependency set it ran under, not
+    just the source files). A package that is not installed records None —
+    honest evidence the verifier then rejects, since None can never equal
+    an exact pin."""
+    from importlib import metadata
+    out = {}
+    for name in EXAM_PACKAGES:
+        try:
+            out[name] = metadata.version(name)
+        except metadata.PackageNotFoundError:
+            out[name] = None
+    return out
+
 # The 8 objective factual fields the trust KPI is measured on (§M7).
 COMPARABLE_FIELDS = (
     "title", "start_time", "end_time", "venue_name",
@@ -79,6 +111,7 @@ COMPARABLE_FIELDS = (
 # Thresholds live in ai/exam_thresholds.py (pure data; r13) — re-exported
 # here so tests and callers keep their import paths.
 from ai.exam_thresholds import (  # noqa: F401  (re-exports)
+    EXAM_PACKAGES,
     HALLUCINATION_MAX,
     RECALL_MIN,
     SAMPLE_FLOOR,
@@ -289,6 +322,10 @@ def main(argv: list[str] | None = None) -> int:
         report["golden_sha256"] = hashlib.sha256(
             GOLDEN_PATH.read_bytes()).hexdigest()
         report["harness_sha256"] = compute_harness_sha()
+        # Dependency binding (r24): the manifest hash covers the PINS
+        # (worker/requirements.txt bytes); this records what was actually
+        # INSTALLED, and the verifier requires the two to agree.
+        report["packages"] = installed_exam_packages()
     except (ExtractionConfigError, ValueError, OSError) as exc:
         print(f"golden_exam: INVALID — {exc}", file=sys.stderr)
         return 2

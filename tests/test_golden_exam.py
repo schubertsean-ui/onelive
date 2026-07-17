@@ -403,12 +403,17 @@ def test_evidence_verifier_rederives_verdict_and_requires_binding(tmp_path):
     metrics is REJECTED (forged-report resistance); (b) has NO unbound
     mode — the subject-SHA binding is a required argument; (c) rejects any
     mismatch of model, prompt hash, or commit."""
-    from ai.golden_exam import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
-    from tools.verify_exam_evidence import verify as _v
+    from ai.golden_exam import EXAM_PACKAGES, HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
+    from tools.verify_exam_evidence import _pinned_versions, verify as _v
     sha, model, phash = "a" * 40, "claude-routed-x", "c" * 64
     ghash, hhash = "d" * 64, "e" * 64
     def verify(report, s=sha, m=model, p=phash, g=ghash, h=hhash):
         return _v(report, s, m, p, g, h)
+    # r24: acceptable evidence records the installed exam packages, and
+    # they must equal the exact pins in worker/requirements.txt.
+    pins = _pinned_versions(EXAM_PACKAGES)
+    assert all(pins[n] for n in EXAM_PACKAGES), \
+        f"worker/requirements.txt must '=='-pin every exam package: {pins}"
     good = {
         "passed": True,
         "model": model,
@@ -419,8 +424,18 @@ def test_evidence_verifier_rederives_verdict_and_requires_binding(tmp_path):
         "expected_facts": 322, "asserted_facts": 315,
         "hallucination_rate": 0.0068, "recall": 0.97,
         "unanswered": [], "injection_failures": [],
+        "packages": dict(pins),
     }
     assert verify(good) == []
+    # r24: dependency binding — evidence without a package record, with a
+    # drifted version, or with an uninstalled package (None) is rejected.
+    no_pkgs = {k: v for k, v in good.items() if k != "packages"}
+    assert verify(no_pkgs), "evidence without a package record must be rejected"
+    assert verify({**good, "packages": "2.13.4"})               # mistyped
+    drifted = dict(pins); drifted[EXAM_PACKAGES[0]] = "0.0.1"
+    assert verify({**good, "packages": drifted})                # version drift
+    absent = dict(pins); absent[EXAM_PACKAGES[0]] = None
+    assert verify({**good, "packages": absent})                 # not installed
     # (a) forged reports: passed:true alone proves nothing
     forged = {"passed": True, "model": good["model"],
               "prompt_sha256": good["prompt_sha256"], "subject_sha": sha}
@@ -525,8 +540,35 @@ def test_cli_report_carries_evidence_identity(monkeypatch, tmp_path):
     assert r["subject_sha"] == sha
     assert r["prompt_version"] and len(r["prompt_sha256"]) == 64
     assert len(r["golden_sha256"]) == 64 and len(r["harness_sha256"]) == 64
-    from ai.golden_exam import compute_harness_sha
+    from ai.golden_exam import EXAM_PACKAGES, compute_harness_sha
     assert r["harness_sha256"] == compute_harness_sha()
+    # r24: the report records the installed exam-package versions (the
+    # verifier compares them to the requirements pins — not asserted here
+    # because a dev venv may legitimately differ from CI's pinned install).
+    assert set(r["packages"]) == set(EXAM_PACKAGES)
+
+
+def test_harness_manifest_covers_the_execution_closure():
+    """r24 blocker: evidence must bind to EVERY file that executes during
+    an attended run — the provider unconditionally imports the router
+    (which imports routing data), ai/prompts.py executes at import, the
+    dispatch workflow runs the extractor + purity checker and is the
+    run's control program, and the dependency manifest shapes behavior.
+    Losing any of these from the manifest reopens the hole silently."""
+    from ai.golden_exam import HARNESS_MANIFEST, compute_harness_sha
+    root = pathlib.Path(__file__).resolve().parent.parent
+    for rel in HARNESS_MANIFEST:
+        assert (root / rel).is_file(), f"manifest names a missing file: {rel}"
+    for required in (
+        "ai/claude_provider.py", "ai/eval_harness.py", "ai/exam_thresholds.py",
+        "ai/golden_exam.py", "ai/prompts.py", "ai/provider.py",
+        "tools/extract_prompt_text.py", "tools/model_router.py",
+        "tools/pure_data.py", "tools/routing_data.py",
+        "worker/ai_models.py", "worker/requirements.txt",
+        ".github/workflows/extraction-exam-dispatch.yml",
+    ):
+        assert required in HARNESS_MANIFEST, f"manifest lost {required}"
+    assert len(compute_harness_sha()) == 64
 
 
 # --- golden set structural lint --------------------------------------------------
