@@ -257,35 +257,21 @@ jobs:
           set -o pipefail
           python -m pytest -q 2>&1 | tee pytest.log
 
+      # DOCUMENTED DIVERGENCE from the pull_request job (r7 blocker):
+      # this checkout is MASTER, so running npm ci/tsc/test/build here
+      # would validate BASE web code while attaching the log as if it
+      # validated the PR — misattributed evidence. Attended mode reviews
+      # extraction-surface flips (data-only diffs); a range touching
+      # web/ is out of its scope and REFUSES rather than misattributes.
       - name: Web checks + SCA when web/ is touched (log captured for the evaluator)
         run: |
-          set -o pipefail
+          set -euo pipefail
           if git diff --name-only "${{ steps.range.outputs.range }}" | grep -q '^web/'; then
-            (
-              cd web
-              npm ci
-              # Supply-chain gate: production deps clean at high/critical, or
-              # the job fails here. Full audit (incl. dev/moderate) is shown to
-              # the evaluator below; reviewed exceptions: docs/SCA_BASELINE.md.
-              npm audit --omit=dev --audit-level=high
-              npm audit || true
-              npx tsc --noEmit
-              npm test
-              # Publishable keys are non-secret client identifiers; this dummy
-              # (base64 of clerk.example.com) only satisfies the /ops prerender
-              # so `next build` can complete in CI without real Clerk config.
-              NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k npm run build
-            ) 2>&1 | tee web.log
-          else
-            echo "no web/ files in this diff — web checks not applicable" | tee web.log
+            echo "::error::attended evidence review covers extraction-surface flips only; this range touches web/ — web validation must come from the normal pull_request review, which builds the PR's own web tree. Refusing to attach logs that would misattribute base web checks to the PR."
+            exit 1
           fi
+          echo "no web/ files in this range — web checks not applicable (attended mode reviews extraction-surface flips; a web-touching range fails this job)" | tee web.log
 
-      # Evidence fetch — exists ONLY here, in the base-owned dispatch
-      # context (r5 blocker). Every anomaly fails loud: attended mode is
-      # dispatched BECAUSE evidence exists, so absence, shape drift, a
-      # truncated listing, or any API error is an error — there is no
-      # green-absence path in this job at all (that deletes r5's
-      # minimatch/path-filter-proof concerns whole: nothing is inferred).
       - name: Fetch the bound release-gate output for exam_head_sha (fail loud on ANY anomaly)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -348,12 +334,19 @@ jobs:
           head = os.environ.get("EXAM_HEAD", "")
           repo = os.environ["REPO"]
           if not re.fullmatch(r"[0-9a-f]{40}", head):
-              fail(f"exam_head_sha {head!r} is not a full 40-hex lowercase "
-                   f"commit SHA")
+              fail(f"exam_head_sha {head!r} is not a full 40-hex NORMALIZED "
+                   f"LOWERCASE commit SHA (uppercase hex must be lowercased)")
           print(f"# Release-gate (extraction-eval.yml) output for head {head},")
           print("# fetched by the DEFAULT-BRANCH copy of this workflow")
           print("# (workflow_dispatch — no PR can influence this code path).")
           print("# ENFORCEMENT remains the gate itself; this is review input.")
+          # head_sha semantics PROVEN, not assumed (r7 finding checked
+          # empirically 2026-07-17): pull_request_target runs of
+          # extraction-eval.yml report head_sha == the PR HEAD, not the
+          # base-side SHA — verified against live runs 29582525541 /
+          # 29581978914 / 29581805115, whose head_sha values equal PR
+          # #31's successive heads exactly. This filter therefore finds
+          # the gate runs for the examined head.
           try:
               runs = paged(
                   f"https://api.github.com/repos/{repo}/actions/workflows/"

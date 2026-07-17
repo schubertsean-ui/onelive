@@ -204,17 +204,43 @@ def test_attended_job_mirrors_review_job():
     wf = yaml.safe_load(
         (pathlib.Path(__file__).resolve().parent.parent
          / ".github" / "workflows" / "adversarial-review.yml").read_text())
-    pr_steps = {s.get("name") or s.get("uses"): s
-                for s in wf["jobs"]["adversarial-review"]["steps"]}
-    at_steps = {s.get("name") or s.get("uses"): s
-                for s in wf["jobs"]["attended-review"]["steps"]}
-    shared = [k for k in pr_steps
-              if k in at_steps
-              and "Resolve the base ref" not in str(k)
-              and "Independent evaluator" not in str(k)]
-    assert len(shared) >= 6, f"mirror lost shared steps: {sorted(shared)}"
-    for k in shared:
+    def key(s):
+        return s.get("name") or s.get("uses", "").split("@")[0]
+
+    pr_list = [key(s) for s in wf["jobs"]["adversarial-review"]["steps"]]
+    at_list = [key(s) for s in wf["jobs"]["attended-review"]["steps"]]
+    # EXPLICIT expected shapes (r7 blocker: an intersection compare lets
+    # a silently dropped step vanish from the comparison; these lists
+    # must be edited deliberately when either job legitimately changes).
+    RANGE = "Resolve the base ref and diff range"
+    PIN = "Pin the TRUSTED evaluator script from the base ref (or hard-fail)"
+    DEPS = "Install worker + api deps"
+    TESTS = "Test suite (log captured for the evaluator)"
+    WEB = "Web checks + SCA when web/ is touched (log captured for the evaluator)"
+    DIFF = "Extract the diff under review (lockfiles excluded by policy)"
+    EVAL = "Independent evaluator (APPROVE required)"
+    FETCH = ("Fetch the bound release-gate output for exam_head_sha "
+             "(fail loud on ANY anomaly)")
+    assert pr_list == ["actions/checkout", "actions/setup-python",
+                       RANGE, PIN, DEPS, TESTS, WEB, DIFF, EVAL], pr_list
+    assert at_list == ["actions/checkout", "actions/setup-python",
+                       RANGE, PIN, DEPS, TESTS, WEB, FETCH, DIFF, EVAL], at_list
+    pr_steps = {key(s): s for s in wf["jobs"]["adversarial-review"]["steps"]}
+    at_steps = {key(s): s for s in wf["jobs"]["attended-review"]["steps"]}
+    # Byte-identical shared steps. Documented divergences, each asserted
+    # below instead of ignored: RANGE (dispatch derives from
+    # exam_head_sha), WEB (attended refuses web-touching ranges — its
+    # master checkout cannot validate PR web code), EVAL (the extra
+    # evidence test-log), FETCH (attended-only).
+    for k in ("actions/checkout", "actions/setup-python", PIN, DEPS,
+              TESTS, DIFF):
         assert pr_steps[k] == at_steps[k], f"attended step drifted: {k}"
+    assert "$EXAM_HEAD" in at_steps[RANGE]["run"] \
+        and "origin/master...$EXAM_HEAD" in at_steps[RANGE]["run"], \
+        "attended range must be derived from exam_head_sha"
+    assert "Refusing to attach logs" in at_steps[WEB]["run"] \
+        and "exit 1" in at_steps[WEB]["run"], \
+        "attended web step must refuse web-touching ranges, never validate base web code as the PR's"
     # the evaluator step: compared STRUCTURALLY, not by substring (PR #32
     # r6: a substring check green-lit a broken `\\` line continuation).
     # shlex parses the command exactly as the shell would: a correct
@@ -229,6 +255,8 @@ def test_attended_job_mirrors_review_job():
         # literal backslash token and fails the assert below.
         argv = [a for a in shlex.split(run_text) if a.strip()]
         assert "\\" not in argv, f"broken line continuation in: {cmds}"
+        assert argv[0] == "python" and argv[1] == "-I", \
+            f"evaluator must run as python -I <trusted script>: {argv[:3]}"
         return argv
 
     pr_argv = evaluator_argv(
