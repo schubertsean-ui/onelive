@@ -69,6 +69,12 @@ HARNESS_MANIFEST = (
     "ai/golden_exam.py",
     "ai/prompts.py",
     "ai/provider.py",
+    # tools/__init__.py executes when the provider imports
+    # tools.model_router; today it is only a docstring, but its BYTES are
+    # executable-on-import and therefore bound. Found by the import-closure
+    # TEST below after three hand-audits (r22–r24) missed it — the closure
+    # is now computed, never audited.
+    "tools/__init__.py",
     "tools/extract_prompt_text.py",
     "tools/model_router.py",
     "tools/pure_data.py",

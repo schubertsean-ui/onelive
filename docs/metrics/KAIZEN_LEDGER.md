@@ -40,6 +40,20 @@ founder digest in plain language.
   certifying the gate open. Caught internally by the evaluator's first
   graded round after billing was restored; zero escapes. Same class family
   as #11/#12/#14 empty-env — fail-open now has TWO sub-classes on watch.
+- **incomplete-enumeration (binding/trigger lists)**: PR #28 r22 (evidence
+  didn't bind the golden set), r23 (didn't bind the scoring/provider files),
+  r24 (didn't bind dependencies or the dispatch workflow) — three rounds of
+  one class, each hand-adding one item to a list. Structural response
+  shipped 2026-07-17 (founder-prompted meta-review): the exam's import
+  closure is now COMPUTED by a test and required to be a subset of the
+  manifest, and the release gate's trigger paths are cross-checked against
+  the manifest by a second test — the derived checks immediately found two
+  more instances a fourth hand-audit had missed (tools/__init__.py absent
+  from both the manifest and the trigger list). Process rule added to
+  docs/KAIZEN.md: in-flight per-round class tracking; every hand-maintained
+  trust-guarding list gets a derivation/cross-check test. If this class
+  appears again on any OTHER list, the response is a repo-wide enumerated-
+  list audit (workflow paths filters, allowlists, skip lists), not a patch.
 - **record-missing / untruthful-record**: #19 (untruthful-record), #24 (same),
   and 2026-07-15: rows for merged PRs #15/#23/#24 were absent from this table
   while the changelog claimed the #15 row existed (caught during #25 r5

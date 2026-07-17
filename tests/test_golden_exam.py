@@ -11,6 +11,7 @@ imports no pipeline/DB modules.
 """
 import json
 import pathlib
+import sys
 
 import pytest
 
@@ -569,6 +570,75 @@ def test_harness_manifest_covers_the_execution_closure():
     ):
         assert required in HARNESS_MANIFEST, f"manifest lost {required}"
     assert len(compute_harness_sha()) == 64
+
+
+def test_harness_manifest_is_a_superset_of_the_real_import_closure():
+    """Kaizen class closure (r22–r24 repeat class: 'evidence doesn't bind
+    to everything that matters'). Three rounds each hand-audited one more
+    unbound file; a fourth hand-audit found tools/__init__.py. This test
+    ends the class: it COMPUTES the exam's repo-local import closure in a
+    fresh process and requires every file in it to be bound into the
+    manifest — a new import anywhere in the exam path fails HERE, in the
+    same commit that adds it, not in evaluator round N. (Workflow-executed
+    non-Python artifacts — the dispatch yml, extractors, requirements —
+    can't be traced by import and stay pinned by the explicit test above.)"""
+    import subprocess
+    root = pathlib.Path(__file__).resolve().parent.parent
+    code = (
+        "import sys, pathlib\n"
+        "import ai.golden_exam\n"
+        "import tools.model_router  # the provider's lazy import (r24)\n"
+        "root = pathlib.Path('.').resolve()\n"
+        "for m in list(sys.modules.values()):\n"
+        "    f = getattr(m, '__file__', None)\n"
+        "    if f:\n"
+        "        p = pathlib.Path(f).resolve()\n"
+        "        try:\n"
+        "            print(p.relative_to(root))\n"
+        "        except ValueError:\n"
+        "            pass\n"
+    )
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True,
+                         text=True, cwd=str(root))
+    assert out.returncode == 0, out.stderr
+    closure = {line.strip() for line in out.stdout.splitlines() if line.strip()}
+    assert closure, "closure trace produced nothing — the check itself is broken"
+    from ai.golden_exam import HARNESS_MANIFEST
+    unbound = sorted(closure - set(HARNESS_MANIFEST))
+    assert not unbound, (
+        f"files that EXECUTE during an exam but are not bound into the "
+        f"evidence hash: {unbound} — add them to HARNESS_MANIFEST")
+
+
+def test_eval_gate_triggers_on_every_bound_harness_file():
+    """Same Kaizen class, sibling list: the PR gate's trigger paths and
+    surface classification must cover every manifest file — a bound file
+    the gate doesn't trigger on could merge as 'unrelated' and desync the
+    live harness from what the evidence certified (r24 blocker 2 was this
+    exact shape, for worker/requirements.txt; the derived check then found
+    tools/__init__.py the same day). Derived from the manifest, never
+    hand-mirrored."""
+    import fnmatch
+    root = pathlib.Path(__file__).resolve().parent.parent
+    yml = (root / ".github" / "workflows" / "extraction-eval.yml").read_text(encoding="utf-8")
+    trigger, active = [], False
+    for ln in yml.splitlines():
+        s = ln.strip()
+        if s == "paths:":
+            active = True
+        elif active and s.startswith("- "):
+            trigger.append(s[2:].strip().strip('"'))
+        elif active and s and not s.startswith("#"):
+            break
+    assert trigger, "could not parse trigger paths — the check itself is broken"
+    from ai.golden_exam import HARNESS_MANIFEST
+    for rel in HARNESS_MANIFEST:
+        assert any(fnmatch.fnmatch(rel, pat) for pat in trigger), \
+            f"the release gate does not TRIGGER on {rel} — it could change silently"
+        if not rel.startswith("ai/"):
+            # once in the trigger paths, once in on_surface (both quoted)
+            assert yml.count(f'"{rel}"') >= 2, \
+                f"{rel} is missing from the workflow's on_surface classification"
 
 
 # --- golden set structural lint --------------------------------------------------
