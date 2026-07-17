@@ -31,6 +31,21 @@ name: Adversarial Review (non-Claude)
 #
 # workflow_dispatch reviews an arbitrary ref/range from the Actions tab
 # (e.g. re-attacking a plan diff or reviewing an already-merged commit).
+#
+# ATTENDED REVIEW WITH EXAM EVIDENCE (PR #31 reviews r2-r3, PR #32
+# review r5; TODOS P1): the reviewer reads only diff + attached logs, so
+# bound attended-exam evidence — which lives in the base-owned release
+# gate's verifier output — is structurally invisible on pull_request
+# runs, and MUST stay that way: anything a pull_request-triggered job
+# assembles is assembled by the PR's own workflow copy and is therefore
+# forgeable-by-construction (r5 blocker — "checks out nothing" does not
+# make the workflow definition trusted). The evidence-attached review
+# therefore exists ONLY in workflow_dispatch mode: GitHub always
+# executes the DEFAULT BRANCH's copy of a dispatched workflow, so no PR
+# can influence how the evidence is fetched or attached. Dispatch with
+# exam_head_sha set (and range=master...<that head>) after the attended
+# exam passes; the attended-review job fails loud on ANY anomaly —
+# missing evidence in attended mode is an error, never a shrug.
 
 on:
   pull_request:
@@ -41,302 +56,22 @@ on:
         description: "git diff range to review (e.g. master...HEAD or <sha>^1..<sha>)"
         required: true
         default: "origin/master...HEAD"
+      exam_head_sha:
+        description: "Optional: 40-hex head SHA whose bound golden-exam release-gate output should be fetched and attached as review evidence (attended mode)"
+        required: false
+        default: ""
 
 concurrency:
   group: adversarial-review-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # Exam-evidence visibility (PR #31 reviews r2–r3, PR #32 review r1;
-  # TODOS P1): the reviewer reads only diff + attached logs, so bound
-  # attended-exam evidence — which lives in the base-owned release
-  # gate's verifier output — was structurally invisible, forcing a red
-  # verdict on any staged ratification-flag flip even after the
-  # enforcing gate went green on real evidence. This ISOLATED job (r1
-  # blocker: least privilege — the expanded read scopes must never
-  # coexist with PR-controlled code, so it checks out NOTHING and runs
-  # no PR code) fetches that gate's own output for the PR head and
-  # publishes it as an artifact the review job attaches.
-  # Trust framing, stated plainly: informational input to the REVIEW.
-  # Enforcement lives in extraction-eval.yml (pull_request_target —
-  # GitHub always runs the BASE branch's copy) and is unaffected by
-  # anything here. Provenance binding (r1 blocker): the run is resolved
-  # through the workflow-FILE-scoped API for extraction-eval.yml,
-  # filtered to the pull_request_target event — a same-named check from
-  # any other workflow can never be selected. Outcome contract (r1+r2
-  # blockers + nits — three DISTINCT categories with distinct job
-  # results):
-  #   * evidence attached                  -> job green, log carries it
-  #   * no completed gate run for head     -> job green (legitimate:
-  #     path filter did not fire, or gate not finished yet)
-  #   * API/shape/log-fetch failure        -> job RED (exit 1, fail
-  #     loud); the marker log is still uploaded (if: always()) so the
-  #     review bundle carries "EVIDENCE UNAVAILABLE", never silence.
-  exam-evidence:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      actions: read      # list extraction-eval.yml runs + read the gate job's log
-      checks: read       # the gate-fired probe: golden-exam check-runs for the head
-      contents: read     # the path-filter proof: base gate file + PR compare diff
-                         # (read-only; this job still checks out NOTHING and
-                         # runs no PR code, so the scopes coexist with nothing)
-    steps:
-      - name: Fetch the release gate's output for the PR head (no PR code in this job)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY' > exam-evidence.log
-          import fnmatch, json, os, sys, time, urllib.error, urllib.request
-
-          # Pinned API version (r4 nit): shape assumptions below are made
-          # against this dated contract, not a moving target.
-          HEADERS = {"Accept": "application/vnd.github+json",
-                     "X-GitHub-Api-Version": "2022-11-28"}
-
-          def _get(url, accept=None):
-              h = dict(HEADERS)
-              if accept:
-                  h["Accept"] = accept
-              h["Authorization"] = "Bearer " + os.environ["GH_TOKEN"]
-              req = urllib.request.Request(url, headers=h)
-              with urllib.request.urlopen(req, timeout=30) as r:
-                  return r.read()
-
-          def fail(msg):
-              # An API/shape/log failure is NEVER a green outcome — mark the
-              # bundle AND fail this job loud. The review job still runs
-              # (needs + always) and reports the failure explicitly.
-              print(f"EVIDENCE FETCH FAILED: {msg}")
-              print("Treat evidence as UNAVAILABLE — this is NOT absence of the "
-                    "gate and NOT a pass. This job exits 1 (fail loud).")
-              sys.exit(1)
-
-          def jfield(payload, key):
-              # r4 blocker: a missing/null/mis-typed field is response-shape
-              # DRIFT and fails loud — never coerced to "no results".
-              v = payload.get(key)
-              if not isinstance(v, list):
-                  fail(f"API field {key!r} missing or not a list — "
-                       f"response-shape drift, not absence")
-              return v
-
-          def paged(url_base, key):
-              # 3-page fail-closed bound (r3 nit): one head SHA accrues a
-              # handful of gate runs/jobs/checks at most (a new push is a
-              # new head; reruns are attempts). Three FULL pages means the
-              # view may be truncated -> refuse rather than pick from it.
-              out = []
-              for page in (1, 2, 3):
-                  batch = jfield(json.loads(_get(
-                      f"{url_base}&per_page=100&page={page}")), key)
-                  out.extend(batch)
-                  if len(batch) < 100:
-                      break
-              else:
-                  fail(f"more than 300 {key} for one head — the listing may "
-                       f"be truncated; refusing to select from a partial view")
-              return out
-
-          head = os.environ.get("HEAD_SHA", "")
-          base = os.environ.get("BASE_SHA", "")
-          repo = os.environ["REPO"]
-          if not head:
-              print("workflow_dispatch review — no PR head; exam-evidence "
-                    "attachment not applicable.")
-              sys.exit(0)
-          print(f"# Release-gate (extraction-eval.yml) output for PR head {head}.")
-          print("# Fetched read-only by an isolated job that runs no PR code.")
-          print("# ENFORCEMENT is the gate itself (pull_request_target, base-owned);")
-          print("# this attachment is review input only.")
-
-          def list_runs():
-              # Identity binding: workflow-FILE-scoped endpoint, server-side
-              # event/status filters — a same-named check from any other
-              # workflow can never be selected.
-              try:
-                  return paged(
-                      f"https://api.github.com/repos/{repo}/actions/workflows/"
-                      f"extraction-eval.yml/runs?head_sha={head}"
-                      f"&event=pull_request_target&status=completed",
-                      "workflow_runs")
-              except SystemExit:
-                  raise
-              except urllib.error.HTTPError as e:
-                  if e.code == 404:
-                      # r3 blocker: a MISSING release gate is repository
-                      # misconfiguration, never legitimate absence.
-                      fail("extraction-eval.yml is not a registered workflow "
-                           "in this repository — the release gate itself is "
-                           "missing (misconfiguration)")
-                  fail(f"HTTP {e.code} listing extraction-eval.yml runs")
-              except Exception as e:
-                  fail(f"{type(e).__name__}: {e} while listing runs")
-
-          runs = list_runs()
-
-          if not runs:
-              # Distinguish the absences (r3+r4 blockers), fail-closed at
-              # every fork:
-              #   1. golden-exam check-runs exist but incomplete -> evidence
-              #      PENDING: poll briefly, then fail loud.
-              #   2. no check-runs at all -> NOT taken on faith: positively
-              #      PROVE the gate's path filter did not fire by evaluating
-              #      this PR's changed files against the BASE copy of the
-              #      gate's own paths list (derived from the authoritative
-              #      file, never hand-mirrored). Files touch the surface but
-              #      no check exists = gate disabled/renamed/misconfigured
-              #      -> fail loud.
-              def gate_checks():
-                  try:
-                      return paged(
-                          f"https://api.github.com/repos/{repo}/commits/{head}"
-                          f"/check-runs?check_name=golden-exam", "check_runs")
-                  except SystemExit:
-                      raise
-                  except Exception as e:
-                      fail(f"{type(e).__name__}: {e} probing golden-exam "
-                           f"check-runs")
-              checks = gate_checks()
-              if checks:
-                  for _ in range(6):
-                      if all(c.get("status") == "completed" for c in checks):
-                          break
-                      time.sleep(20)
-                      checks = gate_checks()
-                  else:
-                      fail("the golden-exam gate FIRED for this head but has "
-                           "not completed after ~2 minutes — required evidence "
-                           "is PENDING, not attachable; re-run this workflow "
-                           "once the gate finishes")
-                  runs = list_runs()
-                  if not runs:
-                      fail("golden-exam check-runs are completed for this head "
-                           "but no matching completed pull_request_target run "
-                           "of extraction-eval.yml exists — inconsistent "
-                           "state; refusing to guess")
-              else:
-                  try:
-                      gate_yml = _get(
-                          f"https://api.github.com/repos/{repo}/contents/"
-                          f".github/workflows/extraction-eval.yml?ref={base}",
-                          accept="application/vnd.github.raw").decode(
-                              "utf-8", "replace")
-                      cmp_d = json.loads(_get(
-                          f"https://api.github.com/repos/{repo}/compare/"
-                          f"{base}...{head}"))
-                  except SystemExit:
-                      raise
-                  except Exception as e:
-                      fail(f"{type(e).__name__}: {e} fetching the base gate "
-                           f"file / PR diff for the path-filter proof")
-                  patterns, active = [], False
-                  for ln in gate_yml.splitlines():
-                      s = ln.strip()
-                      if s == "paths:":
-                          active = True
-                      elif active and s.startswith("- "):
-                          patterns.append(s[2:].strip().strip('"'))
-                      elif active and s and not s.startswith("#"):
-                          break
-                  if not patterns:
-                      fail("could not parse the gate's paths filter from the "
-                           "base copy of extraction-eval.yml — cannot prove "
-                           "the filter legitimately did not fire")
-                  files = jfield(cmp_d, "files")
-                  if len(files) >= 300:
-                      fail("PR diff has 300+ files — beyond the compare API "
-                           "cap, the path-filter proof cannot be completed")
-                  names = []
-                  for f in files:
-                      names.append(f.get("filename") or "")
-                      if f.get("previous_filename"):
-                          names.append(f["previous_filename"])
-                  touched = sorted({n for n in names if n and any(
-                      fnmatch.fnmatch(n, p) for p in patterns)})
-                  if touched:
-                      fail("this PR touches the extraction surface "
-                           f"({', '.join(touched)}) per the gate's own paths "
-                           "filter, yet NO golden-exam check exists for the "
-                           "head — the gate is disabled, renamed, or "
-                           "misconfigured")
-                  print("NO RELEASE-GATE CHECK for this head, POSITIVELY "
-                        "legitimate: none of this PR's changed files match "
-                        "the gate's own paths filter (read from the BASE "
-                        "copy of extraction-eval.yml) — not an "
-                        "extraction-surface PR. (Every failure or ambiguity "
-                        "in this proof fails the job loud instead.)")
-                  sys.exit(0)
-
-          runs.sort(key=lambda r: (r.get("created_at") or "",
-                                   r.get("run_attempt") or 0))
-          run = runs[-1]
-          print(f"workflow={run.get('path')} run={run['id']} "
-                f"attempt={run.get('run_attempt')} event={run.get('event')} "
-                f"conclusion={run.get('conclusion')} url={run.get('html_url')}")
-          try:
-              jobs = paged(f"https://api.github.com/repos/{repo}/actions/runs/"
-                           f"{run['id']}/jobs?filter=latest", "jobs")
-              job = next((j for j in jobs if j.get("name") == "golden-exam"),
-                         None)
-              if job is None:
-                  fail("no job named 'golden-exam' in that run — the verifier "
-                       "workflow's shape changed or is misconfigured; the "
-                       "evidence contract is broken, not merely absent")
-              print(f"job={job['id']} conclusion={job.get('conclusion')} "
-                    f"url={job.get('html_url')}")
-              log = _get(f"https://api.github.com/repos/{repo}/actions/jobs/"
-                         f"{job['id']}/logs").decode("utf-8", "replace")
-          except SystemExit:
-              raise
-          except urllib.error.HTTPError as e:
-              fail(f"HTTP {e.code} fetching the gate job/log")
-          except Exception as e:
-              fail(f"{type(e).__name__}: {e} fetching the gate job/log")
-          # Verdict-aware, case-insensitive extraction; truncation is
-          # REPORTED and keeps both ends (r4 blocker: the final
-          # accepted/rejected/verdict lines can never be silently pushed
-          # out by verbose early matches).
-          lines = log.splitlines()
-          markers = ("exam evidence", "::error::", "golden_lint",
-                     "surface diff", "expect_", "evidence", "rejected",
-                     "accepted", "verdict")
-          decisive = [l for l in lines if any(m in l.lower() for m in markers)]
-          if len(decisive) > 200:
-              omitted = len(decisive) - 200
-              decisive = (decisive[:100]
-                          + [f"... TRUNCATED: {omitted} marker lines omitted "
-                             f"(first 100 and last 100 kept) ..."]
-                          + decisive[-100:])
-          print(f"--- decision-bearing lines ---")
-          print("\n".join(decisive))
-          tail = lines[-40:]
-          print(f"--- last {len(tail)} lines (context) ---")
-          print("\n".join(tail))
-          PY
-          wc -c exam-evidence.log
-
-      - uses: actions/upload-artifact@v4
-        # always(): on a fetch FAILURE the marker log must still reach the
-        # review bundle — the job result carries the alarm, the artifact
-        # carries the explanation.
-        if: ${{ always() }}
-        with:
-          name: exam-evidence
-          path: exam-evidence.log
-          if-no-files-found: error
-
   adversarial-review:
+    # Skipped in attended mode — the attended-review job below is the
+    # evidence-bearing variant and runs instead.
+    if: ${{ github.event_name == 'pull_request' || inputs.exam_head_sha == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Run even if the evidence job failed — its absence is then reported
-    # as an explicit fallback line in the bundle, never as silence.
-    needs: [exam-evidence]
-    if: ${{ always() }}
     permissions:
       contents: read
     steps:
@@ -405,27 +140,6 @@ jobs:
             echo "no web/ files in this diff — web checks not applicable" | tee web.log
           fi
 
-      # The evidence itself is fetched by the ISOLATED exam-evidence job
-      # above (least privilege: those read scopes never coexist with PR
-      # code). Two mutually exclusive paths, no swallowed errors (r4
-      # blocker — continue-on-error removed): if the evidence job
-      # SUCCEEDED, its artifact must download or THIS job fails loud; if
-      # it did not succeed, the bundle carries the explicit marker and
-      # the red evidence job is the alarm.
-      - uses: actions/download-artifact@v4
-        if: ${{ needs.exam-evidence.result == 'success' }}
-        with:
-          name: exam-evidence
-      - name: Marker for a failed evidence job (explicit, never silence)
-        if: ${{ needs.exam-evidence.result != 'success' }}
-        run: |
-          {
-            echo "EVIDENCE FETCH FAILED: the exam-evidence job result was '${{ needs.exam-evidence.result }}'."
-            echo "Treat evidence as UNAVAILABLE — this is NOT absence of the gate and NOT a pass."
-            echo "The red exam-evidence job in this run's checks carries the failure detail."
-          } > exam-evidence.log
-          wc -c exam-evidence.log
-
       - name: Extract the diff under review (lockfiles excluded by policy)
         run: |
           {
@@ -443,9 +157,8 @@ jobs:
             echo "# SECRETLESS verifier on pull_request_target (base-owned trigger): it"
             echo "# checks out base+subject data only and confirms a SUCCESSFUL attended"
             echo "# exam run exists for this PR's head SHA. Merge discipline requires BOTH"
-            echo "# this review and that verifier green on the PR's current head. That"
-            echo "# gate's own latest output for this head is ATTACHED as a test log"
-            echo "# (exam-evidence.log) — judge extraction-surface evidence from it."
+            echo "# this review and that verifier green on the PR's current head; absence"
+            echo "# of exam output here is expected and is not absence of the gate."
             git diff "${{ steps.range.outputs.range }}" -- . ':(exclude)**/package-lock.json'
           } > pr.diff
           wc -c pr.diff
@@ -468,5 +181,262 @@ jobs:
           # where the script itself fails loud on empty or Claude-family ids.
         run: |
           python -I /tmp/trusted/adversarial_review.py --require \
-            --diff-file pr.diff --test-log pytest.log --test-log web.log \
+            --diff-file pr.diff --test-log pytest.log --test-log web.log
+
+  # ATTENDED review with exam evidence — dispatch-only, therefore always
+  # the DEFAULT BRANCH's copy of this workflow: no PR can influence how
+  # evidence is fetched, filtered, or attached (r5 blocker). This job
+  # runs ONLY trusted default-branch code (the dispatch checkout IS
+  # master), so the expanded read scopes coexist with no PR code. The
+  # shared steps below are byte-identical mirrors of the pull_request
+  # job's (drift is caught mechanically by
+  # tests/test_adversarial_review.py::test_attended_job_mirrors_review_job).
+  attended-review:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.exam_head_sha != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read      # list extraction-eval.yml runs + read the gate job's log
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so merge-base diffs (base...head) resolve.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve the base ref and diff range
+        id: range
+        run: |
+          echo "base=origin/master" >> "$GITHUB_OUTPUT"
+          echo "range=${{ github.event.inputs.range }}" >> "$GITHUB_OUTPUT"
+
+      - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
+        run: |
+          mkdir -p /tmp/trusted
+          if git show "${{ steps.range.outputs.base }}:tools/adversarial_review.py" \
+               > /tmp/trusted/adversarial_review.py 2>/dev/null; then
+            echo "Using tools/adversarial_review.py from ${{ steps.range.outputs.base }} (trusted)."
+          else
+            echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on ${{ steps.range.outputs.base }}. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
+            exit 1
+          fi
+
+      - name: Install worker + api deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r worker/requirements.txt -r api/requirements.txt pytest
+
+      - name: Test suite (log captured for the evaluator)
+        run: |
+          set -o pipefail
+          python -m pytest -q 2>&1 | tee pytest.log
+
+      - name: Web checks + SCA when web/ is touched (log captured for the evaluator)
+        run: |
+          set -o pipefail
+          if git diff --name-only "${{ steps.range.outputs.range }}" | grep -q '^web/'; then
+            (
+              cd web
+              npm ci
+              # Supply-chain gate: production deps clean at high/critical, or
+              # the job fails here. Full audit (incl. dev/moderate) is shown to
+              # the evaluator below; reviewed exceptions: docs/SCA_BASELINE.md.
+              npm audit --omit=dev --audit-level=high
+              npm audit || true
+              npx tsc --noEmit
+              npm test
+              # Publishable keys are non-secret client identifiers; this dummy
+              # (base64 of clerk.example.com) only satisfies the /ops prerender
+              # so `next build` can complete in CI without real Clerk config.
+              NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k npm run build
+            ) 2>&1 | tee web.log
+          else
+            echo "no web/ files in this diff — web checks not applicable" | tee web.log
+          fi
+
+      # Evidence fetch — exists ONLY here, in the base-owned dispatch
+      # context (r5 blocker). Every anomaly fails loud: attended mode is
+      # dispatched BECAUSE evidence exists, so absence, shape drift, a
+      # truncated listing, or any API error is an error — there is no
+      # green-absence path in this job at all (that deletes r5's
+      # minimatch/path-filter-proof concerns whole: nothing is inferred).
+      - name: Fetch the bound release-gate output for exam_head_sha (fail loud on ANY anomaly)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXAM_HEAD: ${{ inputs.exam_head_sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > exam-evidence.log
+          import json, os, re, sys, urllib.error, urllib.request
+
+          # Pinned API version: shape assumptions target a dated contract.
+          HEADERS = {"Accept": "application/vnd.github+json",
+                     "X-GitHub-Api-Version": "2022-11-28"}
+
+          def _get(url):
+              h = dict(HEADERS)
+              h["Authorization"] = "Bearer " + os.environ["GH_TOKEN"]
+              with urllib.request.urlopen(
+                      urllib.request.Request(url, headers=h), timeout=30) as r:
+                  return r.read()
+
+          def fail(msg):
+              print(f"EVIDENCE FETCH FAILED: {msg}")
+              print("Attended mode asserts bound evidence exists; any anomaly is "
+                    "an error. This job exits 1 (fail loud).")
+              sys.exit(1)
+
+          def jfield(payload, key):
+              # A missing/null/mis-typed field is response-shape drift and
+              # fails loud — never coerced to "no results".
+              v = payload.get(key)
+              if not isinstance(v, list):
+                  fail(f"API field {key!r} missing or not a list — "
+                       f"response-shape drift")
+              return v
+
+          def paged(url_base, key):
+              # Fail-closed bound. Why 300 is safe: re-running a gate run
+              # creates a new ATTEMPT of the same run id, not a new run —
+              # new runs for one head only accrue from distinct trigger
+              # deliveries for that exact commit, realistically tens at
+              # the outside. Three FULL pages of 100 therefore signals
+              # something anomalous; refuse rather than pick from a
+              # possibly truncated view.
+              out = []
+              for page in (1, 2, 3):
+                  batch = jfield(json.loads(_get(
+                      f"{url_base}&per_page=100&page={page}")), key)
+                  out.extend(batch)
+                  if len(batch) < 100:
+                      break
+              else:
+                  fail(f"more than 300 {key} for one head — listing may be "
+                       f"truncated")
+              return out
+
+          head = os.environ.get("EXAM_HEAD", "")
+          repo = os.environ["REPO"]
+          if not re.fullmatch(r"[0-9a-f]{40}", head):
+              fail(f"exam_head_sha {head!r} is not a full 40-hex lowercase "
+                   f"commit SHA")
+          print(f"# Release-gate (extraction-eval.yml) output for head {head},")
+          print("# fetched by the DEFAULT-BRANCH copy of this workflow")
+          print("# (workflow_dispatch — no PR can influence this code path).")
+          print("# ENFORCEMENT remains the gate itself; this is review input.")
+          try:
+              runs = paged(
+                  f"https://api.github.com/repos/{repo}/actions/workflows/"
+                  f"extraction-eval.yml/runs?head_sha={head}"
+                  f"&event=pull_request_target&status=completed",
+                  "workflow_runs")
+          except SystemExit:
+              raise
+          except urllib.error.HTTPError as e:
+              if e.code == 404:
+                  fail("extraction-eval.yml is not a registered workflow — "
+                       "the release gate itself is missing")
+              fail(f"HTTP {e.code} listing extraction-eval.yml runs")
+          except Exception as e:
+              fail(f"{type(e).__name__}: {e} while listing runs")
+          if not runs:
+              fail("no completed pull_request_target run of "
+                   "extraction-eval.yml exists for this head — in attended "
+                   "mode absent evidence is an error, not a shrug")
+          runs.sort(key=lambda r: (r.get("run_started_at")
+                                   or r.get("created_at") or "",
+                                   r.get("run_attempt") or 0))
+          run = runs[-1]
+          print(f"workflow={run.get('path')} run={run['id']} "
+                f"attempt={run.get('run_attempt')} event={run.get('event')} "
+                f"conclusion={run.get('conclusion')} url={run.get('html_url')}")
+          try:
+              jobs = paged(
+                  f"https://api.github.com/repos/{repo}/actions/runs/"
+                  f"{run['id']}/jobs?filter=latest", "jobs")
+              job = next((j for j in jobs if j.get("name") == "golden-exam"),
+                         None)
+              if job is None:
+                  fail("no job named 'golden-exam' in that run — the "
+                       "verifier workflow's shape changed; the evidence "
+                       "contract is broken")
+              print(f"job={job['id']} conclusion={job.get('conclusion')} "
+                    f"url={job.get('html_url')}")
+              log = _get(f"https://api.github.com/repos/{repo}/actions/jobs/"
+                         f"{job['id']}/logs").decode("utf-8", "replace")
+          except SystemExit:
+              raise
+          except urllib.error.HTTPError as e:
+              fail(f"HTTP {e.code} fetching the gate job/log")
+          except Exception as e:
+              fail(f"{type(e).__name__}: {e} fetching the gate job/log")
+          # Verdict-aware, case-insensitive; truncation is REPORTED and
+          # keeps both ends so final verdict lines always survive.
+          lines = log.splitlines()
+          markers = ("exam evidence", "::error::", "golden_lint",
+                     "surface diff", "expect_", "evidence", "rejected",
+                     "accepted", "verdict")
+          decisive = [l for l in lines if any(m in l.lower() for m in markers)]
+          if len(decisive) > 200:
+              omitted = len(decisive) - 200
+              decisive = (decisive[:100]
+                          + [f"... TRUNCATED: {omitted} marker lines omitted "
+                             f"(first 100 and last 100 kept) ..."]
+                          + decisive[-100:])
+          print("--- decision-bearing lines ---")
+          print("\n".join(decisive))
+          tail = lines[-40:]
+          print(f"--- last {len(tail)} lines (context) ---")
+          print("\n".join(tail))
+          PY
+          wc -c exam-evidence.log
+
+      - name: Extract the diff under review (lockfiles excluded by policy)
+        run: |
+          {
+            echo "# NOTE to evaluator: machine-generated lockfiles (package-lock.json)"
+            echo "# are excluded from this diff by policy — they are npm-generated and"
+            echo "# validated by 'npm ci' + the blocking npm-audit SCA gate in the"
+            echo "# attached web log instead (exceptions: docs/SCA_BASELINE.md)."
+            echo "# NOTE to evaluator: golden-set exam evidence for extraction-surface"
+            echo "# changes is NOT in these logs, and the model call + Anthropic secret"
+            echo "# do NOT live in the release check. They live in a SEPARATE manual,"
+            echo "# maintainer-dispatched, default-branch workflow"
+            echo "# (.github/workflows/extraction-exam-dispatch.yml) that runs the real"
+            echo "# routed model and uploads exam-report.json as an artifact. The"
+            echo "# release-blocking check (.github/workflows/extraction-eval.yml) is a"
+            echo "# SECRETLESS verifier on pull_request_target (base-owned trigger): it"
+            echo "# checks out base+subject data only and confirms a SUCCESSFUL attended"
+            echo "# exam run exists for this PR's head SHA. Merge discipline requires BOTH"
+            echo "# this review and that verifier green on the PR's current head; absence"
+            echo "# of exam output here is expected and is not absence of the gate."
+            git diff "${{ steps.range.outputs.range }}" -- . ':(exclude)**/package-lock.json'
+          } > pr.diff
+          wc -c pr.diff
+
+      - name: Independent evaluator (APPROVE required)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # NO runtime model override in CI — deliberately (evaluator finding,
+          # PR #14 round 4): GitHub renders an UNSET repo variable and a
+          # SET-BUT-EMPTY one identically in ${{ vars.* }}, so a workflow can
+          # never fail closed on the difference. Instead of adding an API
+          # existence-check to a trust-critical path, the channel is removed:
+          # CI always runs the trusted script's DEFAULT_MODEL, and changing
+          # the reviewer model is a PR editing that constant — reviewed by the
+          # OLD model via the trusted-base-ref mechanism, exactly how a
+          # write/grade-separation change should land. (If the default model
+          # is ever dead/deprecated, that PR merges with this check red under
+          # the documented human-review bootstrap exception above.) The
+          # OPENAI_REVIEW_MODEL env override still exists for LOCAL runs,
+          # where the script itself fails loud on empty or Claude-family ids.
+        run: |
+          python -I /tmp/trusted/adversarial_review.py --require \
+            --diff-file pr.diff --test-log pytest.log --test-log web.log \\
             --test-log exam-evidence.log

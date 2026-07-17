@@ -187,3 +187,43 @@ def test_ambiguous_verdict_and_empty_diff_are_hard_failures(tmp_path, monkeypatc
     empty = tmp_path / "empty.patch"
     empty.write_text("   \n")
     assert ar.main(["--diff-file", str(empty)]) == 2
+
+
+def test_attended_job_mirrors_review_job():
+    """The attended (dispatch-only, evidence-bearing) review job mirrors
+    the pull_request job's shared steps byte-for-byte — a hand-mirrored
+    step sequence is exactly the enumerated-list class the Kaizen rule
+    covers, so the mirror is enforced here, not by discipline. Documented
+    divergences: the range-resolution step (dispatch has no PR event to
+    inspect) and the evaluator invocation (attended adds the
+    exam-evidence.log test-log); everything else must be identical."""
+    import pathlib
+
+    import yaml
+
+    wf = yaml.safe_load(
+        (pathlib.Path(__file__).resolve().parent.parent
+         / ".github" / "workflows" / "adversarial-review.yml").read_text())
+    pr_steps = {s.get("name") or s.get("uses"): s
+                for s in wf["jobs"]["adversarial-review"]["steps"]}
+    at_steps = {s.get("name") or s.get("uses"): s
+                for s in wf["jobs"]["attended-review"]["steps"]}
+    shared = [k for k in pr_steps
+              if k in at_steps
+              and "Resolve the base ref" not in str(k)
+              and "Independent evaluator" not in str(k)]
+    assert len(shared) >= 6, f"mirror lost shared steps: {sorted(shared)}"
+    for k in shared:
+        assert pr_steps[k] == at_steps[k], f"attended step drifted: {k}"
+    # the evaluator step: attended = pull_request's flags + the evidence log
+    pr_run = pr_steps["Independent evaluator (APPROVE required)"]["run"]
+    at_run = at_steps["Independent evaluator (APPROVE required)"]["run"]
+    for flag in ("--diff-file pr.diff", "--test-log pytest.log",
+                 "--test-log web.log", "--require"):
+        assert flag in pr_run and flag in at_run
+    assert "--test-log exam-evidence.log" in at_run
+    assert "--test-log exam-evidence.log" not in pr_run, \
+        "pull_request reviews must NOT attach evidence (forgeable there)"
+    # the attended job is dispatch-only and demands the exam head input
+    cond = wf["jobs"]["attended-review"]["if"]
+    assert "workflow_dispatch" in cond and "exam_head_sha" in cond
