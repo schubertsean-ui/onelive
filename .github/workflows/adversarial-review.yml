@@ -191,11 +191,14 @@ jobs:
           python -I /tmp/trusted/adversarial_review.py --require \
             --diff-file pr.diff --test-log pytest.log --test-log web.log
 
-  # ATTENDED review with exam evidence — dispatch-only, therefore always
-  # the DEFAULT BRANCH's copy of this workflow: no PR can influence how
-  # evidence is fetched, filtered, or attached (r5 blocker). This job
-  # runs ONLY trusted default-branch code (the dispatch checkout IS
-  # master), so the expanded read scopes coexist with no PR code. The
+  # ATTENDED review with exam evidence — dispatch-only. A dispatch runs
+  # the workflow copy of whatever ref was selected (r12 nit: never claim
+  # otherwise); the REAL boundary is the attended-review ENVIRONMENT
+  # below — GitHub refuses it, and with it the reviewer key, to any ref
+  # but the default branch, and the policy is proven in-run before any
+  # secret step. In the only runnable configuration this job executes
+  # trusted default-branch code, so the expanded read scopes coexist
+  # with no PR code. The
   # shared steps below are byte-identical mirrors of the pull_request
   # job's (drift is caught mechanically by
   # tests/test_adversarial_review.py::test_attended_job_mirrors_review_job).
@@ -453,6 +456,9 @@ jobs:
           if not re.fullmatch(r"[0-9a-f]{40}", head):
               fail(f"exam_head_sha {head!r} is not a full 40-hex NORMALIZED "
                    f"LOWERCASE commit SHA (uppercase hex must be lowercased)")
+          print("# THIS ATTACHMENT IS: filtered verifier log lines from the")
+          print("# base-owned release gate — NOT the full exam-report.json (that")
+          print("# artifact lives on the dispatch run named in the lines below).")
           print(f"# Release-gate (extraction-eval.yml) output for head {head},")
           print("# fetched by the DEFAULT-BRANCH copy of this workflow")
           print("# (workflow_dispatch — no PR can influence this code path).")
