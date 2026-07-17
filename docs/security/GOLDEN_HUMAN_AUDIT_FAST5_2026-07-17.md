@@ -14,6 +14,12 @@ is current/eligible. ∅ = the key expects that field BLANK (usually a trap).
 Mark each: ✅ agree · ✏️ disagree (one line) · 🤔 unsure (why). This sheet is non-gating;
 each ✏️ becomes a reviewed key-change proposal + exam re-run.
 
+**One more thing about ∅ (blank) keys:** some are deliberate CONVENTIONS you may
+disagree with — e.g. a social-media handle (like `@somebandname`) is NOT treated as
+the artist or venue name, so its key can be ∅ even when a human might read the band's
+name right out of the handle. If a ∅ (or any key) reads wrong to you, FLAG it — pressure-
+testing those conventions against a human reading is the whole point, not an error to avoid.
+
 ══════════════════════════════════════
 # PART 1 — the 5 listings (jot first)
 ══════════════════════════════════════

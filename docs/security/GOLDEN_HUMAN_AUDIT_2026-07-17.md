@@ -21,6 +21,12 @@ For each card mark: ✅ agree · ✏️ disagree (one line on what's wrong) · �
 ∅ in a key means the field is deliberately expected BLANK (often a trap — a doors-only
 time is not a start time; a band named after a city is not a city).
 
+**One more thing about ∅ (blank) keys:** some are deliberate CONVENTIONS you may
+disagree with — e.g. a social-media handle (like `@somebandname`) is NOT treated as
+the artist or venue name, so its key can be ∅ even when a human might read the band's
+name right out of the handle. If a ∅ (or any key) reads wrong to you, FLAG it — pressure-
+testing those conventions against a human reading is the whole point, not an error to avoid.
+
 ═══════════════════════════════════════════════════════════════════════
 # PART 1 — the listings (read + jot your reading BEFORE Part 2)
 ═══════════════════════════════════════════════════════════════════════
