@@ -123,6 +123,47 @@ def test_source_retrieval_rejects_unverifiable_records():
             size_bytes=0, retrieved_at=datetime.datetime(2026, 7, 15, tzinfo=UTC))
 
 
+def test_lifecycle_cannot_be_knowable_before_its_claim():
+    """Evaluator r23: a verdict recorded 'earlier' than the claim it judges
+    would surface in events_as_of() before the claim exists — state='broken'
+    with claim=None. The door rejects it."""
+    led = Ledger()
+    led.record_claim(_claim(retrieved_day=10))
+    ev = LifecycleEvent(claim_id="c-001", state=LifecycleState.REITERATED,
+                        confidence=FulfillmentConfidence.LIKELY,
+                        observed_at=datetime.datetime(2026, 7, 5, tzinfo=UTC),
+                        recorded_at=datetime.datetime(2026, 7, 5, tzinfo=UTC),
+                        evidence=(_prov(5),))
+    with pytest.raises(LedgerIntegrityError, match="before the claim it judges"):
+        led.record_lifecycle(ev)
+
+
+def test_corrections_stay_within_type_claim_and_time():
+    """Evaluator r23: supersedes must target the same event type, the same
+    claim, and a record knowable no later than its correction."""
+    led = Ledger()
+    seq_a = led.record_claim(_claim(retrieved_day=5))
+    led.record_claim(_claim(claim_id="c-002", retrieved_day=5))
+    # cross-claim correction refused
+    with pytest.raises(LedgerIntegrityError, match="within one claim"):
+        led.record_claim(_claim(claim_id="c-002", retrieved_day=6), supersedes_seq=seq_a)
+    # cross-type correction refused
+    ev = LifecycleEvent(claim_id="c-001", state=LifecycleState.REITERATED,
+                        confidence=FulfillmentConfidence.LIKELY,
+                        observed_at=datetime.datetime(2026, 7, 6, tzinfo=UTC),
+                        recorded_at=datetime.datetime(2026, 7, 6, tzinfo=UTC),
+                        evidence=(_prov(6),))
+    with pytest.raises(LedgerIntegrityError, match="within one event type"):
+        led.record_lifecycle(ev, supersedes_seq=seq_a)
+    # backdated correction refused: correcting with an EARLIER horizon than
+    # the record it corrects claims knowledge we did not have
+    with pytest.raises(LedgerIntegrityError, match="cannot be\\s+knowable before"):
+        led.record_claim(_claim(retrieved_day=3), supersedes_seq=seq_a)
+    # legitimate same-claim, same-type, later-horizon correction still works
+    seq_b = led.record_claim(_claim(retrieved_day=7), supersedes_seq=seq_a)
+    assert seq_b > seq_a
+
+
 def test_lifecycle_for_unknown_claim_rejected():
     led = Ledger()
     ev = LifecycleEvent(claim_id="ghost", state=LifecycleState.REITERATED,

@@ -672,14 +672,18 @@ def _load_manifest():
     return json.loads((SOURCE_MATERIAL / "MANIFEST.json").read_text(encoding="utf-8"))
 
 
+def _manifest_filename(d):
+    # Extension follows the fetched document's own URL, so .htm/.html/.pdf
+    # corpus files all map without test edits (evaluator r23 nit).
+    ext = d["source_url"].rsplit(".", 1)[-1].lower()
+    return f"{d['ticker']}_{d['accession']}_{d['exhibit_type']}.{ext}"
+
+
 def test_every_source_material_file_is_vouched_for_by_the_manifest():
     import hashlib
 
     manifest = _load_manifest()
-    by_name = {
-        f"{d['ticker']}_{d['accession']}_{d['exhibit_type']}.htm": d
-        for d in manifest["documents"]
-    }
+    by_name = {_manifest_filename(d): d for d in manifest["documents"]}
     on_disk = [p for p in SOURCE_MATERIAL.iterdir() if p.name != "MANIFEST.json"]
     assert on_disk, "source_material committed but empty — manifest would be vacuous"
     for path in on_disk:
@@ -696,7 +700,7 @@ def test_every_manifest_entry_has_its_file_and_a_source_url():
     manifest = _load_manifest()
     assert manifest["documents"], "manifest committed but lists no documents"
     for d in manifest["documents"]:
-        name = f"{d['ticker']}_{d['accession']}_{d['exhibit_type']}.htm"
+        name = _manifest_filename(d)
         assert (SOURCE_MATERIAL / name).exists(), f"manifest vouches for missing file {name}"
         assert d["source_url"].startswith("https://www.sec.gov/"), (
             "provenance must point at the authority the document came from")

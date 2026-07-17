@@ -91,12 +91,23 @@ class Ledger:
         errors = validate(event)
         if errors:
             raise LedgerIntegrityError(f"invalid lifecycle event rejected: {errors}")
-        known_claims = {r[0] for r in self._conn.execute(
-            "SELECT DISTINCT claim_id FROM events WHERE event_type='claim_recorded'")}
-        if event.claim_id not in known_claims:
+        # The claim must not merely exist — it must be KNOWABLE at the
+        # event's own knowledge horizon (evaluator r23): otherwise
+        # events_as_of() can surface a lifecycle verdict before the claim it
+        # judges, yielding state="broken" with claim=None.
+        row = self._conn.execute(
+            "SELECT MIN(retrieved_at) FROM events "
+            "WHERE event_type='claim_recorded' AND claim_id=?",
+            (event.claim_id,)).fetchone()
+        if row is None or row[0] is None:
             raise LedgerIntegrityError(
                 f"lifecycle event references unknown claim_id {event.claim_id!r} — "
                 "a lifecycle assertion needs a recorded claim")
+        if _iso(event.recorded_at) < row[0]:
+            raise LedgerIntegrityError(
+                f"lifecycle recorded_at {_iso(event.recorded_at)} precedes the claim's "
+                f"earliest knowledge horizon {row[0]} — a verdict cannot be knowable "
+                "before the claim it judges")
         import dataclasses
         payload = json.dumps(dataclasses.asdict(event), default=lambda o: (
             o.isoformat() if isinstance(o, (datetime.datetime, datetime.date))
@@ -141,12 +152,31 @@ class Ledger:
     def _append(self, event_type, claim_id, entity_key, retrieved_at, payload,
                 supersedes_seq) -> int:
         if supersedes_seq is not None:
-            row = self._conn.execute("SELECT seq FROM events WHERE seq=?",
-                                     (supersedes_seq,)).fetchone()
+            row = self._conn.execute(
+                "SELECT event_type, claim_id, retrieved_at FROM events WHERE seq=?",
+                (supersedes_seq,)).fetchone()
             if row is None:
                 raise LedgerIntegrityError(
                     f"supersedes_seq {supersedes_seq} does not exist — a correction "
                     "must reference the record it corrects")
+            # A correction corrects a specific prior assertion (evaluator r23):
+            # same event type, same claim, and the superseded record must be
+            # knowable no later than its correction — otherwise the audit
+            # trail claims we corrected something we hadn't yet learned.
+            sup_type, sup_claim, sup_retrieved = row
+            if sup_type != event_type:
+                raise LedgerIntegrityError(
+                    f"a {event_type} record cannot supersede a {sup_type} record — "
+                    "corrections stay within one event type")
+            if sup_claim != claim_id:
+                raise LedgerIntegrityError(
+                    f"correction targets claim {sup_claim!r} but carries claim "
+                    f"{claim_id!r} — corrections stay within one claim")
+            if _iso(retrieved_at) < sup_retrieved:
+                raise LedgerIntegrityError(
+                    f"correction's knowledge horizon {_iso(retrieved_at)} precedes the "
+                    f"superseded record's {sup_retrieved} — a correction cannot be "
+                    "knowable before the record it corrects")
         cur = self._conn.execute(
             "INSERT INTO events (event_type, claim_id, entity_key, retrieved_at, "
             "payload, supersedes_seq) VALUES (?,?,?,?,?,?)",

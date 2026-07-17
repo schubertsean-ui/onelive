@@ -1,4 +1,10 @@
-# Beachhead sector — decision memo (FOR THE FOUNDER; no decision taken here)
+# Beachhead sector — decision memo (DECIDED 2026-07-15: FINANCIALS)
+
+> **Decision record:** the founder chose **FINANCIALS** on 2026-07-15
+> ("Financial"). The memo below is preserved as written — it was the
+> decision input, not the decision — and the charter-mandated po battery
+> ran post-decision (PO_BATTERY_SECTOR_20260715.txt + working notes,
+> harvest H-S1..H-S8 feeding the sector build).
 
 **Why one sector first:** the market analysis (§13) recommends narrow-and-deep
 entry — coverage SLOs, sector-tuned claim taxonomies, and golden-set
