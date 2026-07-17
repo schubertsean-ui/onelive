@@ -175,6 +175,11 @@ jobs:
           # reviewed up to the fail-closed cap below — if a diff ever exceeds
           # it, the run HARD-FAILS rather than truncating (unchanged
           # --require behavior); this is a bigger window, not a softer gate.
+          #
+          # FOUNDER-APPROVED 2026-07-17 ("I approve the 800 KB adversarial-review
+          # diff cap"): the 300000->800000 raise is a sanctioned gate-threshold
+          # relaxation under gate custody (founder-crucial per CLAUDE.md). Record:
+          # docs/memory/decisions/2026-07-17_diff-cap-approval.md.
           python -I /tmp/trusted/adversarial_review.py --require \
             --max-diff-bytes 800000 \
             --diff-file pr.diff --test-log pytest.log --test-log web.log
