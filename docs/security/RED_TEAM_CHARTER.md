@@ -2,8 +2,14 @@
 
 Greppable summary: a standing security red team that attacks
 `docs/security/THREAT_MODEL.md` using de Bono's six-hats + po provocation
-structure, run on a DIFFERENT AI family than both the Generator (Claude) and
-the standing evaluator (GPT-5.5). Founder direction (2026-07-17): after asking
+structure. The load-bearing custody rule (unambiguous): the ATTACKER — the
+Black hat — HARD-requires a THIRD AI family, distinct from BOTH the Generator
+(Claude) and the standing evaluator (GPT-5.5), because its blind-spot diversity
+is the whole point and it is what blocks the run until a third-family key
+exists. The other hats follow their registry family constraints (see the table:
+White may be scripts, Green a cheap non-Claude tier, Yellow a non-generator
+family, Blue cross-family/process) — they are NOT all third-family, and the
+run's cross-paradigm value rests specifically on Black. Founder direction (2026-07-17): after asking
 whether an external reviewer should check for AI-inherent/architectural bias
 (threat model §6), founder chose items 1/2/4 and: "Create a red team for 3 that
 uses the deBono po - 6 hats model via a different AI." This is that red team —
