@@ -80,15 +80,21 @@ exactly where we deliberately DEPART — so no adaptation hides as canon.
 
 **Deliberate ADAPTATIONS (NOT pure de Bono — named here so they are never
 mistaken for the canon):**
-1. **"Dedicated-parallel mode" is NOT de Bono's "parallel thinking."** His
-   parallel thinking = every person wears the SAME hat at the SAME time
-   (parallel across people, sequential across hats), to stop ego-driven
-   adversarial debate among HUMANS. Ours runs each hat as an INDEPENDENT
-   agent simultaneously, blind to the others until the Blue merge, because
-   the failure mode for AI lenses is CONFORMITY, not ego (the cited
-   LLM-diversity research). Both serve de Bono's goal — think each mode
-   purely, without contamination — by opposite mechanics suited to the
-   thinker. Sequential mode still runs de Bono's literal one-hat-at-a-time.
+1. **"Dedicated-parallel mode" adapts, but is closer to de Bono's later
+   work than first stated (corrected 2026-07-17 after researching his
+   expanded corpus, per founder direction).** In *Six Thinking Hats*
+   (1985) parallel thinking = every person wears the SAME hat at the SAME
+   time (parallel across people, sequential across hats), to stop
+   ego-driven human debate — and our SEQUENTIAL mode runs exactly that.
+   But *Parallel Thinking* (1994) expanded the idea to "several parallel
+   tracks (preferably more than two), all contributing in parallel" — so
+   de Bono's own later framing is more flexible about simultaneous tracks
+   than the strict 1985 rule. Our dedicated-parallel mode (each hat an
+   INDEPENDENT agent, blind to the others until the Blue merge) is an
+   AI-specific extension of that direction, motivated by the cited
+   LLM-conformity research (AI's failure mode is conformity, not ego).
+   It is NOT identical to either de Bono form and remains an adaptation —
+   but a smaller one than "not de Bono at all," which overstated it.
 2. **The "absurd" operator** (po P6) extends past de Bono's five into
    category error — a founder addition, labelled as such in
    `po_provocation.md`, not claimed as canonical.
@@ -101,15 +107,36 @@ mistaken for the canon):**
    from, not a mandatory five-step checklist; ≥2 is a floor against lazy
    single-lens harvesting, not a "some of" shortcut.
 
+**The corpus this is checked against is de Bono's FULL body of work, not
+only the early books (founder direction 2026-07-17 — he expanded the ideas
+across decades of later books, talks, seminars, and interviews).** Sources
+that must inform the fidelity re-check, beyond *The Use of Lateral Thinking*
+(1967) and *Six Thinking Hats* (1985): *Lateral Thinking* (1970),
+*Po: Beyond Yes and No* (1972), *Serious Creativity* (1992), *Water Logic*
+(1993, the rock-logic-vs-water-logic perception model that underpins po's
+"movement, not judgement"), *Parallel Thinking* (1994), *Teach Yourself to
+Think* (1995), *Six Value Medals* (2005), plus the de Bono Group's current
+program materials and recorded talks/interviews.
+
+**Concrete enrichment candidate surfaced by that wider corpus:** the Yellow
+hat currently hunts generic "benefits." De Bono's *Six Value Medals* (2005)
+is his OWN later, more rigorous tool for exactly this — value assessment
+across six named lenses (gold = human/core values, silver = organisational,
+steel = quality, glass = innovation, wood = ecological/relational, brass =
+perceptual/appearance). Adopting that taxonomy would make Yellow's output
+structured rather than ad-hoc. Queued as a candidate upgrade (TODOS), to be
+adopted only through the normal gates — not asserted here.
+
 **This fidelity claim is not self-certified.** These docs are authored by the
 Generator; the Generator asserting its own de Bono fidelity is the exact
 self-review bias the trust harness exists to prevent. The claim rides the
 adversarial-review gate like every change, and a primary-source fidelity
-re-check is queued for the cross-family red team's first run (it is a
-`THREAT_MODEL`-adjacent design claim; `RED_TEAM_CHARTER.md`). Until an
-independent lens has checked it against de Bono's primary texts, treat this
-section as "faithful to the best of the author's knowledge, pending
-adversarial verification," not as proven.
+re-check (against the full corpus above) is queued for the cross-family red
+team's first run (it is a `THREAT_MODEL`-adjacent design claim;
+`RED_TEAM_CHARTER.md`). Until an independent lens has checked it against
+de Bono's primary and expanded texts, treat this section as "faithful to the
+best of the author's knowledge, pending adversarial verification," not as
+proven.
 
 ## The one-way valve (trust integration — non-negotiable)
 

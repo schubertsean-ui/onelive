@@ -62,7 +62,7 @@ boundary today. Load-bearing examples — the red team should try to
 REOPEN these, not re-derive them:
 
 - filename/stack-string exam-channel spoofing → process-entrypoint boundary (r8)
-- forged/`passed:true` reports → re-derived verdict + five/six-way binding (r10, r22–r24)
+- forged/`passed:true` reports → re-derived verdict + evidence bound on all six: subject SHA, prompt sha256, model id, golden-set sha256, harness-manifest sha256, and the full dependency lock (r10, r22–r26)
 - truthy-string ratification flag (`"False"` opens the gate) → exact-boolean `is True`, both production reads (r26 + merge-land)
 - incomplete evidence binding (golden set, scorer, deps) → computed import-closure test; full transitive dependency lock (r22–r26)
 - PR-workflow-copy secret exfiltration → base-owned job isolation, key never shares a runner with PR code (PR #32 r13)
