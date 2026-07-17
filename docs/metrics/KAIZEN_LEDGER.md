@@ -54,6 +54,23 @@ founder digest in plain language.
   trust-guarding list gets a derivation/cross-check test. If this class
   appears again on any OTHER list, the response is a repo-wide enumerated-
   list audit (workflow paths filters, allowlists, skip lists), not a patch.
+  TRIGGER FIRED same day (2026-07-17, evaluator r26): the dependency
+  binding enumerated 2 of 23 resolved packages — another mirror-list
+  instance, created pre-rule, discovered post-rule. Escalation executed:
+  the instance became derived (full lockfile installed with --no-deps;
+  verifier requires every locked entry recorded at its locked version),
+  and the repo-wide enumerated-list audit ran. Audit method: classify
+  each list as POLICY (the list IS ground truth: promote/exam allowlists,
+  ads markers — nothing external to derive from) vs MIRROR (tracks
+  external reality — must be derived or swept). Findings: the exam-
+  critical mirrors were already closed by the day's derived tests; the
+  SQL/ads/promote invariant scans were directory-enumerated (ai/
+  production code and any future scripts/ dir unscanned) — widened to a
+  repo-wide-minus-tests production sweep, single-sourced skip list
+  (tests excluded by documented design: they build stub SQL and import
+  promote to test the guard itself). The widened scans surfaced no
+  production violations. Class considered structurally closed; a further
+  instance is a process escape and gets a root-cause row here.
 - **record-missing / untruthful-record**: #19 (untruthful-record), #24 (same),
   and 2026-07-15: rows for merged PRs #15/#23/#24 were absent from this table
   while the changelog claimed the #15 row existed (caught during #25 r5
