@@ -27,3 +27,25 @@ Page: https://github.com/schubertsean-ui/onelive/settings/environments →
 Verification: dispatch "Extraction Golden-Set Exam — attended run" from
 the default branch; its first (secretless) step reports the policy proof
 result and fails with instructions if anything above is missing.
+
+## attended-review environment (added with PR #32 — evidence-bearing reviews)
+
+Same mechanism, second box, for the OpenAI reviewer key used ONLY by
+attended (dispatch-mode) reviews that attach exam evidence:
+
+Page: https://github.com/schubertsean-ui/onelive/settings/environments →
+`attended-review` (create with that exact name)
+
+1. **Deployment branches** → **Selected branches** → add the repository's
+   DEFAULT branch only (currently `master`) — same as extraction-exam.
+2. **Environment secrets** → `OPENAI_API_KEY_ATTENDED` = the same OpenAI
+   API key already used by CI (paste it only into that GitHub form). The
+   distinct NAME is deliberate: if this environment is missing, the
+   attended job gets an EMPTY key and fails loud — it can never silently
+   fall back to the repo-level secret.
+3. The ordinary pull_request reviews keep using the repo-level
+   `OPENAI_API_KEY` — do not remove it.
+
+Verification: dispatch "Adversarial Review (non-Claude)" from the default
+branch with an `exam_head_sha`; its first (secretless) step reports the
+policy proof result and fails with instructions if anything is missing.

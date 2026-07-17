@@ -224,13 +224,27 @@ def test_attended_job_mirrors_review_job():
     GUARD = ("Refuse to run off the default branch (attended reviews "
              "execute trusted code only)")
     SCOPE = "Enforce attended-review scope — data-only diffs (fail closed)"
+    PROOF = ("Prove the attended-review environment's deployment-branch "
+             "policy is ACTIVE (fail closed)")
     assert pr_list == ["actions/checkout", "actions/setup-python",
                        RANGE, PIN, DEPS, TESTS, WEB, DIFF, EVAL], pr_list
-    assert at_list == ["actions/checkout", "actions/setup-python",
+    assert at_list == [PROOF, "actions/checkout", "actions/setup-python",
                        GUARD, RANGE, SCOPE, PIN, DEPS, TESTS, WEB, FETCH,
                        DIFF, EVAL], at_list
     pr_steps = {key(s): s for s in wf["jobs"]["adversarial-review"]["steps"]}
     at_steps = {key(s): s for s in wf["jobs"]["attended-review"]["steps"]}
+    # r10: the attended path's key is mechanically fail-closed — the job
+    # runs in the attended-review environment (default-branch deployment
+    # policy, proven in-run before any secret step) and its key exists
+    # ONLY under the environment-secret name, never the repo-level one.
+    at_job = wf["jobs"]["attended-review"]
+    assert at_job.get("environment") == "attended-review"
+    assert at_steps[EVAL].get("env", {}).get("OPENAI_API_KEY") \
+        == "${{ secrets.OPENAI_API_KEY_ATTENDED }}", at_steps[EVAL].get("env")
+    assert pr_steps[EVAL].get("env", {}).get("OPENAI_API_KEY") \
+        == "${{ secrets.OPENAI_API_KEY }}", pr_steps[EVAL].get("env")
+    assert "OPENAI_API_KEY_ATTENDED" not in str(pr_steps[EVAL].get("env")), \
+        "the environment-scoped key must never leak into pull_request mode"
     # Byte-identical shared steps. Documented divergences, each asserted
     # below instead of ignored: RANGE (dispatch derives from
     # exam_head_sha), WEB (attended refuses web-touching ranges — its

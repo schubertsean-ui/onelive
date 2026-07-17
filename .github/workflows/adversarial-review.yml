@@ -38,14 +38,18 @@ name: Adversarial Review (non-Claude)
 # gate's verifier output — is structurally invisible on pull_request
 # runs, and MUST stay that way: anything a pull_request-triggered job
 # assembles is assembled by the PR's own workflow copy and is therefore
-# forgeable-by-construction (r5 blocker — "checks out nothing" does not
-# make the workflow definition trusted). The evidence-attached review
-# therefore exists ONLY in workflow_dispatch mode: GitHub always
-# executes the DEFAULT BRANCH's copy of a dispatched workflow, so no PR
-# can influence how the evidence is fetched or attached. Dispatch with
-# exam_head_sha set (and range=master...<that head>) after the attended
-# exam passes; the attended-review job fails loud on ANY anomaly —
-# missing evidence in attended mode is an error, never a shrug.
+# forgeable-by-construction (r5 blocker). The evidence-attached review
+# exists ONLY in workflow_dispatch mode, and its trust does NOT rest on
+# comments or in-file guards (r10 nit — a dispatched workflow runs the
+# copy on whatever ref was selected at dispatch): the attended job runs
+# inside the `attended-review` ENVIRONMENT, whose default-branch-only
+# deployment policy GitHub itself enforces and which the job PROVES via
+# the API before the reviewer key enters scope — a branch-dispatched
+# copy is refused the environment, and with it the key (same mechanism
+# as the exam secret, R-018). Dispatch with exam_head_sha set after the
+# attended exam passes; the attended-review job fails loud on ANY
+# anomaly — missing evidence in attended mode is an error, never a
+# shrug.
 
 on:
   pull_request:
@@ -195,10 +199,55 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.exam_head_sha != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The reviewer key for THIS path exists ONLY as the environment
+    # secret OPENAI_API_KEY_ATTENDED in `attended-review` (r10 blocker:
+    # fail-closed, mechanically — a deliberately DIFFERENT name from the
+    # repo-level key, so a missing environment yields an EMPTY key the
+    # trusted script rejects loudly, never a silent fallback to the
+    # repo secret).
+    environment: attended-review
     permissions:
       contents: read
       actions: read      # list extraction-eval.yml runs + read the gate job's log
+      deployments: read  # the environment policy proof below
     steps:
+      - name: Prove the attended-review environment's deployment-branch policy is ACTIVE (fail closed)
+        # Same mechanism and rigor as extraction-exam-dispatch.yml
+        # (r19/r20 there): ONLY a custom-branch policy whose list is
+        # exactly the default branch counts; anything else — protected
+        # mode, empty, unreadable — is a dead job before any secret step.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json"             "https://api.github.com/repos/$REPO/environments/attended-review" > env.json
+          curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json"             "https://api.github.com/repos/$REPO/environments/attended-review/deployment-branch-policies" > policies.json
+          python3 - <<'PY'
+          import json, os, sys
+          default = os.environ["DEFAULT_BRANCH"]
+          try:
+              env = json.load(open("env.json"))
+              pol = json.load(open("policies.json"))
+          except ValueError:
+              print("::error::environment policy response unreadable — failing closed.")
+              sys.exit(1)
+          p = env.get("deployment_branch_policy")
+          if not isinstance(p, dict) or p.get("protected_branches") is not False                   or p.get("custom_branch_policies") is not True:
+              print("::error::attended-review must use a CUSTOM deployment-branch "
+                    "policy (Selected branches). Configure: Settings -> "
+                    "Environments -> attended-review -> Deployment branches -> "
+                    "Selected branches. Failing closed.")
+              sys.exit(1)
+          names = sorted(b.get("name", "") for b in (pol.get("branch_policies") or []))
+          if names != [default]:
+              print(f"::error::attended-review branch policy list is {names!r}; "
+                    f"it must be exactly ['{default}']. Failing closed.")
+              sys.exit(1)
+          print(f"environment deployment-branch policy verified: custom list == ['{default}']")
+          PY
+
       - uses: actions/checkout@v4
         with:
           # Full history so merge-base diffs (base...head) resolve.
@@ -524,7 +573,7 @@ jobs:
 
       - name: Independent evaluator (APPROVE required)
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY_ATTENDED }}
           # NO runtime model override in CI — deliberately (evaluator finding,
           # PR #14 round 4): GitHub renders an UNSET repo variable and a
           # SET-BUT-EMPTY one identically in ${{ vars.* }}, so a workflow can
