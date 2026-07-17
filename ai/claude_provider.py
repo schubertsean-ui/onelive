@@ -113,11 +113,16 @@ def _resolve_extraction_model(explicit: Optional[str], exam_mode: bool = False) 
                 "exam_mode requires an explicit candidate model — the exam "
                 "names what it measures; there is no policy fallback."
             )
-    elif not _router.EXTRACTION_THRESHOLD_RATIFIED:
+    elif _router.EXTRACTION_THRESHOLD_RATIFIED is not True:
+        # Exactly boolean True — never truthiness (r26 blocker): this is a
+        # fail-closed auth gate, and a misconfigured value like the STRING
+        # "False" or "yes" is truthy. Anything but the bool True (including
+        # any truthy non-bool) is a closed gate, loudly.
         raise ExtractionConfigError(
             "extraction is fail-closed until the golden-set gate ships and "
             "passes (docs/RECORD.md R-013; bar ratified <=1% per R-006) — "
-            "an explicit model argument does not bypass the gate."
+            "an explicit model argument does not bypass the gate, and the "
+            "ratification flag opens it only as the exact boolean True."
         )
     if explicit is not None:
         if not explicit.strip():

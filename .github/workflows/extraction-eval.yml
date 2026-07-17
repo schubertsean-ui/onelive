@@ -55,10 +55,11 @@ on:
       - "tools/extract_routed_model.py"
       - ".github/workflows/extraction-eval.yml"
       - ".github/workflows/extraction-exam-dispatch.yml"
-      # Dependency surface (r24): the exam runs under these installed
+      # Dependency surface (r24/r26): the exam runs under these installed
       # packages, so changing them changes extraction behavior — a dep
       # bump is a harness change and requires fresh exam evidence.
       - "worker/requirements.txt"
+      - "worker/requirements.lock"
 
 concurrency:
   # PR number, not github.ref (r24 nit): under pull_request_target the
@@ -76,7 +77,7 @@ jobs:
       actions: read      # to find the attended run + download its report artifact
     steps:
       # TRUSTED code: the base branch the PR merges into.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4  # SHA-pin queued (TODOS P3, r9/r26 nit): pins must be VERIFIED upstream SHAs, and this sandboxed session cannot read actions/* to verify — tag stays until a networked session or the founder confirms the SHAs
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: base
@@ -84,20 +85,22 @@ jobs:
 
       # SUBJECT: checked out only as FILES to read data from — nothing in
       # this checkout is executed by the trust path below.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4  # SHA-pin queued (TODOS P3, r9/r26 nit): pins must be VERIFIED upstream SHAs, and this sandboxed session cannot read actions/* to verify — tag stays until a networked session or the founder confirms the SHAs
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           path: subject
           persist-credentials: false
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5  # SHA-pin queued (TODOS P3) — same constraint as checkout above
         with:
           python-version: "3.12"
 
       - name: Install worker deps (for the BASE verifier's threshold imports)
+        # --no-deps against the FULL transitive lock (r26): the verifier's
+        # own environment resolves from exactly the set the evidence binds.
         run: |
           python -m pip install --upgrade pip
-          pip install -r base/worker/requirements.txt
+          pip install --no-deps -r base/worker/requirements.lock
 
       - name: Classify the extraction-surface diff (harness code cannot ride a prompt-swap exam)
         env:
@@ -138,7 +141,7 @@ jobs:
           def on_surface(p):
               return (p.startswith("ai/") or p in (
                   "worker/ai_models.py", "worker/ai_extract.py",
-                  "worker/requirements.txt",
+                  "worker/requirements.txt", "worker/requirements.lock",
                   "tools/__init__.py",
                   "tools/model_router.py", "tools/routing_data.py",
                   "tools/pure_data.py", "tools/verify_exam_evidence.py",
@@ -178,6 +181,15 @@ jobs:
               def routing_ok(b, s):
                   if b is None or s is None:
                       return False  # new/removed/unparseable file = harness change
+                  # The ratification flag must be an exact BOOL on both sides
+                  # (r26 blocker): pure-data certification accepts any constant
+                  # literal, so a subject could smuggle the truthy STRING
+                  # "False"/"yes" through this exemption. The provider gate
+                  # requires `is True`, and this gate refuses to certify a
+                  # non-bool flag at all (fail closed = harness change).
+                  if not (isinstance(b.get("EXTRACTION_THRESHOLD_RATIFIED"), bool)
+                          and isinstance(s.get("EXTRACTION_THRESHOLD_RATIFIED"), bool)):
+                      return False
                   bm, sm = dict(b.get("STAGE_MODELS") or {}), dict(s.get("STAGE_MODELS") or {})
                   bm.pop("extraction", None); sm.pop("extraction", None)
                   if bm != sm:

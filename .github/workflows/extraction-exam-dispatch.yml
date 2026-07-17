@@ -121,24 +121,26 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4  # SHA-pin queued (TODOS P3, r9/r26 nit): pins must be VERIFIED upstream SHAs, and this sandboxed session cannot read actions/* to verify — tag stays until a networked session or the founder confirms the SHAs
         with:
           persist-credentials: false
           fetch-depth: 0        # need the subject commit reachable for data extraction
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5  # SHA-pin queued (TODOS P3) — same constraint as checkout above
         with:
           python-version: "3.12"
 
-      # Dependency binding (r24): requirements.txt carries exact '=='-pins
-      # and its bytes are inside the report's harness manifest hash; the
-      # runner also records the INSTALLED anthropic/pydantic versions in
-      # the report, and the PR-side verifier requires them to equal the
-      # pins — evidence names the dependency set it ran under.
+      # Dependency binding (r24, widened by r26): requirements.lock is the
+      # FULL transitive resolution — its bytes are inside the report's
+      # harness manifest hash, --no-deps means nothing outside it resolves,
+      # the runner records EVERY installed distribution in the report, and
+      # the PR-side verifier requires each locked entry to be recorded at
+      # exactly its locked version — evidence names the complete dependency
+      # set it ran under.
       - name: Install worker deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r worker/requirements.txt
+          pip install --no-deps -r worker/requirements.lock
 
       - name: Extract SUBJECT data (prompt text via AST — never executed) and validate inputs
         env:
@@ -187,7 +189,7 @@ jobs:
 
       - name: Persist the exam report (evidence artifact)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4  # SHA-pin queued (TODOS P3) — same constraint as checkout above
         with:
           name: golden-exam-report-${{ github.run_id }}
           path: exam-report.json

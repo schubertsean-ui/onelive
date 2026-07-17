@@ -404,17 +404,18 @@ def test_evidence_verifier_rederives_verdict_and_requires_binding(tmp_path):
     metrics is REJECTED (forged-report resistance); (b) has NO unbound
     mode — the subject-SHA binding is a required argument; (c) rejects any
     mismatch of model, prompt hash, or commit."""
-    from ai.golden_exam import EXAM_PACKAGES, HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
-    from tools.verify_exam_evidence import _pinned_versions, verify as _v
+    from ai.golden_exam import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
+    from tools.verify_exam_evidence import _locked_versions, verify as _v
     sha, model, phash = "a" * 40, "claude-routed-x", "c" * 64
     ghash, hhash = "d" * 64, "e" * 64
     def verify(report, s=sha, m=model, p=phash, g=ghash, h=hhash):
         return _v(report, s, m, p, g, h)
-    # r24: acceptable evidence records the installed exam packages, and
-    # they must equal the exact pins in worker/requirements.txt.
-    pins = _pinned_versions(EXAM_PACKAGES)
-    assert all(pins[n] for n in EXAM_PACKAGES), \
-        f"worker/requirements.txt must '=='-pin every exam package: {pins}"
+    # r24/r26: acceptable evidence records the installed distributions,
+    # and every entry of the FULL transitive lock must be recorded at
+    # exactly its locked version.
+    pins = _locked_versions()
+    assert pins and len(pins) > 10, \
+        f"worker/requirements.lock must carry the full transitive closure: {pins}"
     good = {
         "passed": True,
         "model": model,
@@ -428,15 +429,17 @@ def test_evidence_verifier_rederives_verdict_and_requires_binding(tmp_path):
         "packages": dict(pins),
     }
     assert verify(good) == []
-    # r24: dependency binding — evidence without a package record, with a
-    # drifted version, or with an uninstalled package (None) is rejected.
+    # r24/r26: dependency binding — evidence without a package record,
+    # with a drifted version, or missing ANY locked entry (direct or
+    # transitive) is rejected.
     no_pkgs = {k: v for k, v in good.items() if k != "packages"}
     assert verify(no_pkgs), "evidence without a package record must be rejected"
     assert verify({**good, "packages": "2.13.4"})               # mistyped
-    drifted = dict(pins); drifted[EXAM_PACKAGES[0]] = "0.0.1"
+    some = sorted(pins)[0]
+    drifted = dict(pins); drifted[some] = "0.0.1"
     assert verify({**good, "packages": drifted})                # version drift
-    absent = dict(pins); absent[EXAM_PACKAGES[0]] = None
-    assert verify({**good, "packages": absent})                 # not installed
+    missing = {k: v for k, v in pins.items() if k != some}
+    assert verify({**good, "packages": missing})                # transitive dep absent
     # (a) forged reports: passed:true alone proves nothing
     forged = {"passed": True, "model": good["model"],
               "prompt_sha256": good["prompt_sha256"], "subject_sha": sha}
@@ -522,6 +525,43 @@ def test_routed_model_ast_extraction_matches_import_and_fails_closed():
                    "STAGE_MODELS = {'extraction': 'b'}\n") is None   # rebound
 
 
+def test_extraction_gate_requires_exact_boolean_true(monkeypatch):
+    """r26 blocker: the ratification flag is an auth gate, and truthiness
+    is not authorization — a misconfigured STRING like "False" or "yes"
+    is truthy and must fail CLOSED, loudly, never open the gate."""
+    import tools.model_router as router
+    from ai.claude_provider import ExtractionConfigError, _resolve_extraction_model
+    for bad in ("yes", "False", "True", 1, [True]):
+        monkeypatch.setattr(router, "EXTRACTION_THRESHOLD_RATIFIED", bad)
+        with pytest.raises(ExtractionConfigError):
+            _resolve_extraction_model("claude-some-model", exam_mode=False)
+    monkeypatch.setattr(router, "EXTRACTION_THRESHOLD_RATIFIED", True)
+    assert _resolve_extraction_model("claude-some-model", exam_mode=False) \
+        == "claude-some-model"
+
+
+def test_mid_exam_failure_writes_forensic_invalid_report(monkeypatch, tmp_path):
+    """r26 nit: an exam that dies MID-run (provider/API failure) still
+    leaves an explicitly-invalid report naming what broke — forensics the
+    verifier can only reject (no metrics), never certification."""
+    import ai.golden_exam as ge
+
+    class ExplodingFake:
+        def __init__(self, **kw): pass
+        def extract_event_json(self, text, schema, system_prompt=None):
+            raise RuntimeError("api fell over mid-exam")
+
+    monkeypatch.setattr(ge, "ClaudeProvider", ExplodingFake)
+    out = tmp_path / "forensic.json"
+    assert ge.main(["--model", "claude-test", "--report", str(out),
+                    "--subject-sha", "b" * 40]) == 2
+    r = json.loads(out.read_text(encoding="utf-8"))
+    assert r["invalid"] is True and "RuntimeError" in r["error"]
+    from tools.verify_exam_evidence import verify
+    assert verify(r, "b" * 40, "claude-test", "c" * 64, "d" * 64, "e" * 64), \
+        "a forensic report must never verify as evidence"
+
+
 def test_cli_report_carries_evidence_identity(monkeypatch, tmp_path):
     """The dispatch run's report must name what it measured — model,
     prompt_version, prompt content hash — so the verifier can bind the
@@ -541,12 +581,13 @@ def test_cli_report_carries_evidence_identity(monkeypatch, tmp_path):
     assert r["subject_sha"] == sha
     assert r["prompt_version"] and len(r["prompt_sha256"]) == 64
     assert len(r["golden_sha256"]) == 64 and len(r["harness_sha256"]) == 64
-    from ai.golden_exam import EXAM_PACKAGES, compute_harness_sha
+    from ai.golden_exam import compute_harness_sha
     assert r["harness_sha256"] == compute_harness_sha()
-    # r24: the report records the installed exam-package versions (the
-    # verifier compares them to the requirements pins — not asserted here
-    # because a dev venv may legitimately differ from CI's pinned install).
-    assert set(r["packages"]) == set(EXAM_PACKAGES)
+    # r24/r26: the report records EVERY installed distribution (the
+    # verifier compares them to the lock — versions not asserted here
+    # because a dev venv may legitimately differ from CI's locked install).
+    assert isinstance(r["packages"], dict) and len(r["packages"]) > 10
+    assert "anthropic" in r["packages"] and "pydantic" in r["packages"]
 
 
 def test_harness_manifest_covers_the_execution_closure():
@@ -681,6 +722,16 @@ def test_golden_lint_enforces_access_time_and_handle_conventions():
     # show time alongside doors stays legitimate (g001's shape)
     ok = lint([row("VENUE / Doors 8:00 PM / Show 9:00 PM",
                    {"start_time": "9:00 PM"})], "p")
+    assert not any("venue-access" in p for p in ok)
+    # r26: bare 24-hour forms are the same convention — both word orders
+    bad = lint([row("VENUE / doors 19:00 / The Act",
+                    {"start_time": "19:00"})], "p")
+    assert any("venue-access" in p for p in bad)
+    bad = lint([row("VENUE / 19:00 doors / The Act",
+                    {"start_time": "19:00"})], "p")
+    assert any("venue-access" in p for p in bad)
+    ok = lint([row("VENUE / Doors 19:00 / Show 20:00",
+                   {"start_time": "20:00"})], "p")
     assert not any("venue-access" in p for p in ok)
     # a clock time that ALSO appears as a non-access time is legitimate
     ok = lint([row("gates 6:00PM, music from 6:00PM",
