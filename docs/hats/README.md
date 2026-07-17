@@ -58,6 +58,59 @@ Two tiers (po harvest H3, cost discipline):
    captured before any lens saw another's, alongside the merge; a merge
    without its raw inputs attached is invalid evidence of a run.
 
+## Fidelity to de Bono — canonical vs. our adaptations (added 2026-07-17 at founder direction)
+
+Founder demand (2026-07-17): the hats and po must run at world-class
+fidelity, "not ad hoc or interpreted… or 'some of'." This section states,
+without hedging, exactly what is faithful to de Bono's published method and
+exactly where we deliberately DEPART — so no adaptation hides as canon.
+
+**Faithful to the canon (verified against de Bono's *Six Thinking Hats* and
+*Lateral Thinking / Serious Creativity*):**
+- All six hat mandates, each per de Bono: White = facts + named unknowns;
+  Red = feeling with NO justification required; Black = logical-negative
+  caution; Yellow = logical-positive benefit, as disciplined as Black;
+  Green = creativity/provocation; Blue = process control + focus + summary.
+- One hat at a time / separation of thinking types (sequential mode).
+- Po: the full canonical operator set — escape, reversal, exaggeration,
+  distortion, wishful, random entry — with NO sampling (`tools/po_battery.py`
+  refuses to trim), and all five canonical MOVEMENT techniques (extract
+  principle, focus on difference, moment-to-moment, positive aspects, special
+  circumstances). Provocation is never judged, only moved from.
+
+**Deliberate ADAPTATIONS (NOT pure de Bono — named here so they are never
+mistaken for the canon):**
+1. **"Dedicated-parallel mode" is NOT de Bono's "parallel thinking."** His
+   parallel thinking = every person wears the SAME hat at the SAME time
+   (parallel across people, sequential across hats), to stop ego-driven
+   adversarial debate among HUMANS. Ours runs each hat as an INDEPENDENT
+   agent simultaneously, blind to the others until the Blue merge, because
+   the failure mode for AI lenses is CONFORMITY, not ego (the cited
+   LLM-diversity research). Both serve de Bono's goal — think each mode
+   purely, without contamination — by opposite mechanics suited to the
+   thinker. Sequential mode still runs de Bono's literal one-hat-at-a-time.
+2. **The "absurd" operator** (po P6) extends past de Bono's five into
+   category error — a founder addition, labelled as such in
+   `po_provocation.md`, not claimed as canonical.
+3. **Red = the founder ONLY.** De Bono lets anyone wear Red; we forbid an
+   agent from ever holding the Red slot, because a model can simulate a
+   preference but cannot be accountable for one. A constraint, not a
+   liberty — stricter than de Bono, deliberately.
+4. **Movement uses "≥2 techniques per provocation," not all five.** This is
+   faithful — de Bono's movement techniques are a TOOLKIT you draw value
+   from, not a mandatory five-step checklist; ≥2 is a floor against lazy
+   single-lens harvesting, not a "some of" shortcut.
+
+**This fidelity claim is not self-certified.** These docs are authored by the
+Generator; the Generator asserting its own de Bono fidelity is the exact
+self-review bias the trust harness exists to prevent. The claim rides the
+adversarial-review gate like every change, and a primary-source fidelity
+re-check is queued for the cross-family red team's first run (it is a
+`THREAT_MODEL`-adjacent design claim; `RED_TEAM_CHARTER.md`). Until an
+independent lens has checked it against de Bono's primary texts, treat this
+section as "faithful to the best of the author's knowledge, pending
+adversarial verification," not as proven.
+
 ## The one-way valve (trust integration — non-negotiable)
 
 No hat's output is ever **evidence**. Confidence states derive from source

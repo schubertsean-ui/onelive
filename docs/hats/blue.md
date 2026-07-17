@@ -30,6 +30,28 @@ writes down the decision frame — the options on the table, the criteria,
 and what evidence would change the verdict — into the Friction/decision
 record. A frame declared after the opinions arrive can be bent to fit them.
 
+**Sequence selection (de Bono fidelity, added 2026-07-17 at founder
+direction — "not ad hoc… world class"):** choosing the HAT SEQUENCE that
+fits the decision is a defining Blue-hat duty in de Bono's method, not a
+constant. The Blue frame MUST name which sequence this run uses and why,
+picking from de Bono's documented guidance rather than always running one
+fixed order:
+- **Nurturing / developing a new idea:** Yellow BEFORE Black — value first,
+  so a fragile idea is understood before it is attacked (de Bono's explicit
+  rule; attacking first kills ideas that had value).
+- **Assessing / deciding on a risky or irreversible action:** Black may lead
+  — surface the danger early (this is the Friction-pre-work default, because
+  its trigger IS an irreversible action).
+- **Full exploration / architecture:** Blue → White → Green → Yellow → Black
+  → Red → Blue (the canonical evaluation sequence).
+- **Quick call:** Yellow → Black → Red is a complete de Bono short form; do
+  not run the full battery on a small decision (cost discipline = de Bono's
+  own "keep it short when the decision is small").
+The prior fixed order (White → Green → Yellow → Black) is exactly the
+exploration sequence and stays the DEFAULT for architecture/design runs; the
+change is that Blue now selects deliberately and records the choice, so the
+order is never ad-hoc.
+
 ## Exists today
 
 Process half: `docs/SESSION_START.md` bookends, `tools/validate`,
