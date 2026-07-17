@@ -134,7 +134,7 @@ class UnderAssertingFake(PerfectFake):
     of 'answered most examples' — the shape the r6 blocker warned about."""
     def extract_event_json(self, text, schema, system_prompt=None):
         out = super().extract_event_json(text, schema, system_prompt)
-        # Drop the title/end_time/rsvp fact classes (~54 of 322): zero
+        # Drop the title/end_time/rsvp fact classes (~54 of 321): zero
         # hallucinations and recall STILL above RECALL_MIN, but fewer
         # assertions than the documented 1%-claim denominator — the floor
         # must be the binding constraint, not recall.
@@ -588,6 +588,45 @@ def test_golden_set_is_structurally_sound():
         if r["expected"].get(k) not in (None, [], "")
     )
     assert truthy >= SAMPLE_FLOOR, f"golden set carries only {truthy} expected facts"
+
+
+def test_golden_lint_enforces_access_time_and_handle_conventions():
+    """r25 blocker (g007) + nit: conventions 4 and 6 are unambiguous, so
+    they are MECHANICAL — a future expected-key that presents a
+    doors/gates-only time as a start time, or a raw @handle as a
+    venue/title/artist, must fail the base-owned release lint, not wait
+    for a reviewer to notice the oracle drifted."""
+    from tools.golden_lint import lint
+    def row(text, expected, rid="x001"):
+        return {"id": rid, "source_class": "s", "tags": [], "text": text,
+                "expected": expected, "forbidden": []}
+    # the g007 class: an access-only time expected as the start time
+    bad = lint([row("VENUE / 2026-08-01, gates 6:00PM / The Act",
+                    {"start_time": "6:00PM"})], "p")
+    assert any("venue-access" in p for p in bad)
+    # both word orders: "7:00PM doors" is an access time too
+    bad = lint([row("VENUE / 7:00PM doors / The Act",
+                    {"start_time": "7:00PM"})], "p")
+    assert any("venue-access" in p for p in bad)
+    # show time alongside doors stays legitimate (g001's shape)
+    ok = lint([row("VENUE / Doors 8:00 PM / Show 9:00 PM",
+                   {"start_time": "9:00 PM"})], "p")
+    assert not any("venue-access" in p for p in ok)
+    # a clock time that ALSO appears as a non-access time is legitimate
+    ok = lint([row("gates 6:00PM, music from 6:00PM",
+                   {"start_time": "6:00PM"})], "p")
+    assert not any("venue-access" in p for p in ok)
+    # convention 6: handles are never venues, titles, or artists
+    bad = lint([row("show @mohawkaustin tonight",
+                    {"venue_name": "@mohawkaustin"})], "p")
+    assert any("handle" in p for p in bad)
+    bad = lint([row("with @thebandhandle",
+                    {"artist_names": ["@thebandhandle"]})], "p")
+    assert any("handle" in p for p in bad)
+    # and the REAL set is clean against the REAL prompt
+    from ai.prompts import EXTRACTION_SYSTEM_PROMPT
+    assert not [p for p in lint(GOLDEN, EXTRACTION_SYSTEM_PROMPT)
+                if "venue-access" in p or "handle" in p]
 
 
 def test_golden_set_has_injection_and_trap_coverage():
