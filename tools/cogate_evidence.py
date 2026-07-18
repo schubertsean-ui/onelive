@@ -24,17 +24,24 @@ each step's script source into the log, so words like REJECTED appear
 in healthy logs as code text — step conclusions are authoritative.
 
 surface-touched — does a changed-file list touch the co-gate's trigger
-paths? Implements the accepted grammar explicitly: literal paths and
-'**' suffix globs via fnmatch (which matches across '/'). Ordered '!'
-exclusions are NOT supported: if the policy ever contains one, this
-fails closed rather than guessing GitHub's ordered semantics.
+paths? Implements ONLY the grammar the policy actually uses (r6: never
+hand arbitrary patterns to fnmatch and hope it matches GitHub): literal
+paths (no wildcard characters) and '<dir>/**' suffix globs. ANY other
+pattern — ordered '!' exclusions, mid-path wildcards, extglobs — fails
+closed; extend this helper with tests before the policy may use them.
+
+candidate-valid — is an Actions job/run pair the REAL base-owned
+golden-exam verifier for this PR state? Workflow path + event + head
+SHAs, plus (r6) freshness against the CURRENT base: a run that started
+before the current base head commit existed cannot have verified
+against it (stale evidence from an earlier base), and when the run's
+pull_requests list is populated it must include this PR's number.
 
 Exit 0 with "1"/"0" on stdout; exit 1 on unreadable/unsupported input
 (fail closed).
 """
 from __future__ import annotations
 
-import fnmatch
 import json
 import pathlib
 import re
@@ -69,15 +76,65 @@ def refusal_only(job: dict, log_text: str, conclusion: str) -> bool:
     return bool(errs) and all(e.startswith(REFUSAL_PREFIX) for e in errs)
 
 
+_WILDCARDS = set("*?[!]")
+
+
+def _match_pattern(pattern: str, f: str) -> bool:
+    """Exactly two accepted forms; anything else raises (fail closed)."""
+    if pattern.endswith("/**") and not (_WILDCARDS & set(pattern[:-3])):
+        prefix = pattern[:-3]
+        return f == prefix or f.startswith(prefix + "/")
+    if not (_WILDCARDS & set(pattern)):
+        return f == pattern
+    raise ValueError(f"unsupported paths pattern {pattern!r} — only literal "
+                     "paths and '<dir>/**' are implemented; extend "
+                     "tools/cogate_evidence.py with tests before the policy "
+                     "may use this form (fail closed)")
+
+
 def surface_touched(patterns: list, files: list) -> bool:
     if not isinstance(patterns, list) or not patterns or \
             not all(isinstance(p, str) and p for p in patterns):
         raise ValueError("trigger paths missing or malformed — fail closed")
-    if any(p.startswith("!") for p in patterns):
-        raise ValueError("ordered '!' exclusions are not supported by this "
-                         "helper — extend it with tests before using them "
-                         "(fail closed)")
-    return any(fnmatch.fnmatch(f, p) for f in files for p in patterns)
+    hit = False
+    for p in patterns:            # validate EVERY pattern, then match
+        for f in files:
+            if _match_pattern(p, f):
+                hit = True
+    return hit
+
+
+def candidate_valid(job: dict, run: dict, head_sha: str, pr_number: int,
+                    base_epoch: int) -> bool:
+    import datetime
+    if not (isinstance(job, dict) and isinstance(run, dict)):
+        return False
+    if run.get("path") != ".github/workflows/extraction-eval.yml":
+        return False
+    if run.get("event") != "pull_request_target":
+        return False
+    if not head_sha or job.get("head_sha") != head_sha or \
+            run.get("head_sha") != head_sha:
+        return False
+    started = run.get("run_started_at")
+    if not isinstance(started, str):
+        return False
+    try:
+        started_epoch = datetime.datetime.fromisoformat(
+            started.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return False
+    # Freshness (r6): checks attach to COMMITS — the same head can carry a
+    # successful run minted against an older base. A run that started
+    # before the current base head commit existed cannot have used it.
+    if started_epoch < base_epoch:
+        return False
+    prs = run.get("pull_requests")
+    if isinstance(prs, list) and prs:
+        if not any(isinstance(pr, dict) and pr.get("number") == pr_number
+                   for pr in prs):
+            return False
+    return True
 
 
 def main(argv: "list[str] | None" = None) -> int:
@@ -99,6 +156,17 @@ def main(argv: "list[str] | None" = None) -> int:
         print("1" if refusal_only(job, log_text, argv[3]) else "0")
         return 0
 
+    if len(argv) == 6 and argv[0] == "candidate-valid":
+        try:
+            job = json.loads(pathlib.Path(argv[1]).read_text(encoding="utf-8"))
+            run = json.loads(pathlib.Path(argv[2]).read_text(encoding="utf-8"))
+            pr_number = int(argv[4])
+            base_epoch = int(argv[5])
+        except (OSError, ValueError) as exc:
+            return die(f"cannot read candidate inputs ({exc})")
+        print("1" if candidate_valid(job, run, argv[3], pr_number, base_epoch) else "0")
+        return 0
+
     if len(argv) == 3 and argv[0] == "surface-touched":
         try:
             import yaml
@@ -114,7 +182,9 @@ def main(argv: "list[str] | None" = None) -> int:
         return 0
 
     return die("usage: cogate_evidence.py refusal-only <job.json> <log> "
-               "<conclusion> | surface-touched <workflow.yml> <files.txt>")
+               "<conclusion> | surface-touched <workflow.yml> <files.txt> | "
+               "candidate-valid <job.json> <run.json> <head_sha> "
+               "<pr_number> <base_epoch>")
 
 
 if __name__ == "__main__":

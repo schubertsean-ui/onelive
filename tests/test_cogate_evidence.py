@@ -130,3 +130,84 @@ def test_cli_surface_touched(tmp_path, capsys):
     fl.write_text("docs/x.md\n", encoding="utf-8")
     assert ce.main(["surface-touched", str(wf), str(fl)]) == 0
     assert capsys.readouterr().out.strip() == "0"
+
+
+# ---- strict path grammar + candidate identity (PR #37 r6) ------------------
+
+SUBJECT = "0123456789abcdef0123456789abcdef01234567"
+
+
+def test_grammar_accepts_only_literal_and_dir_glob():
+    assert ce._match_pattern("ai/**", "ai/golden/x.json") is True
+    assert ce._match_pattern("ai/**", "ai") is True
+    assert ce._match_pattern("ai/**", "aisle/x.json") is False
+    assert ce._match_pattern("tools/trust_gate.py", "tools/trust_gate.py") is True
+    for bad in ("ai/*.py", "**/x.py", "ai/**/y.py", "a?b", "a[0-9]"):
+        with pytest.raises(ValueError):
+            ce._match_pattern(bad, "anything")
+
+
+def test_unsupported_pattern_fails_closed_even_when_other_patterns_hit():
+    """Validation covers EVERY pattern — a hit on a good pattern must not
+    mask an unsupported one riding in the same policy."""
+    with pytest.raises(ValueError):
+        ce.surface_touched(["ai/**", "ai/*.py"], ["ai/golden/x.json"])
+
+
+def _run_obj(**overrides):
+    run = {
+        "path": ".github/workflows/extraction-eval.yml",
+        "event": "pull_request_target",
+        "head_sha": SUBJECT,
+        "run_started_at": "2026-07-18T21:05:14Z",
+        "pull_requests": [{"number": 37}],
+    }
+    run.update(overrides)
+    return run
+
+
+_EPOCH_BEFORE_RUN = 1784000000   # before the run_started_at above (1784408714)
+_EPOCH_AFTER_RUN = 9999999999    # after it — i.e., base advanced later
+
+
+def test_candidate_valid_accepts_matching_fresh_run():
+    job = {"head_sha": SUBJECT}
+    assert ce.candidate_valid(job, _run_obj(), SUBJECT, 37, _EPOCH_BEFORE_RUN) is True
+
+
+def test_candidate_rejections():
+    job = {"head_sha": SUBJECT}
+    cases = [
+        (_run_obj(path=".github/workflows/other.yml"), 37, _EPOCH_BEFORE_RUN),
+        (_run_obj(event="pull_request"), 37, _EPOCH_BEFORE_RUN),
+        (_run_obj(head_sha="e" * 40), 37, _EPOCH_BEFORE_RUN),
+        (_run_obj(run_started_at=None), 37, _EPOCH_BEFORE_RUN),
+        (_run_obj(run_started_at="not-a-time"), 37, _EPOCH_BEFORE_RUN),
+        # Stale run: base head commit is NEWER than the run start (r6).
+        (_run_obj(), 37, _EPOCH_AFTER_RUN),
+        # Populated pull_requests without this PR's number.
+        (_run_obj(pull_requests=[{"number": 99}]), 37, _EPOCH_BEFORE_RUN),
+    ]
+    for run, prn, epoch in cases:
+        assert ce.candidate_valid(job, run, SUBJECT, prn, epoch) is False, run
+    # job head mismatch
+    assert ce.candidate_valid({"head_sha": "f" * 40}, _run_obj(), SUBJECT,
+                              37, _EPOCH_BEFORE_RUN) is False
+    # Empty pull_requests list is tolerated (API quirk) — other bindings hold.
+    assert ce.candidate_valid({"head_sha": SUBJECT},
+                              _run_obj(pull_requests=[]), SUBJECT,
+                              37, _EPOCH_BEFORE_RUN) is True
+
+
+def test_cli_candidate_valid(tmp_path, capsys):
+    jp = tmp_path / "job.json"; jp.write_text(json.dumps({"head_sha": SUBJECT}), encoding="utf-8")
+    rp = tmp_path / "run.json"; rp.write_text(json.dumps(_run_obj()), encoding="utf-8")
+    assert ce.main(["candidate-valid", str(jp), str(rp), SUBJECT, "37",
+                    str(_EPOCH_BEFORE_RUN)]) == 0
+    assert capsys.readouterr().out.strip() == "1"
+    assert ce.main(["candidate-valid", str(jp), str(rp), SUBJECT, "37",
+                    str(_EPOCH_AFTER_RUN)]) == 0
+    assert capsys.readouterr().out.strip() == "0"
+    assert ce.main(["candidate-valid", str(jp), str(rp), SUBJECT,
+                    "not-a-number", "0"]) == 1
+    capsys.readouterr()
