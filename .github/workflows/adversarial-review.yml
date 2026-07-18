@@ -229,35 +229,68 @@ jobs:
             exit 1
           fi
           # The golden-exam verifier runs base-owned on pull_request_target;
-          # its log IS the authenticator/classifier evidence (record
-          # authentication, surface classification, head-bound evidence
-          # verdicts) the evaluator must see with its own eyes (PR #37 r1:
-          # a record was correctly refused because only the record's own
-          # assertion was in the bundle). Wait for the check to conclude on
-          # THIS head (it finishes in well under a minute; the wait is
-          # capped), then attach its job log verbatim. An absent or
-          # unfinished check is said explicitly — never silently.
-          STATUS="absent"
+          # its log IS the authenticator/classifier evidence the evaluator
+          # must see with its own eyes (r1). Selection is IDENTITY-BOUND
+          # (r3): a check is only accepted if it is a github-actions job
+          # whose parent run is .github/workflows/extraction-eval.yml on
+          # event pull_request_target with run+job head_sha equal to THIS
+          # PR head — never "first check named golden-exam". Ambiguity
+          # (more than one validated candidate) fails closed.
+          #
+          # Conclusion policy is MECHANICAL, not delegated to the AI
+          # reviewer (r3): success -> attach; failure whose log is exactly
+          # the classifier's designed harness-refusal -> attach (the
+          # charter's enumerated exception requires the review to judge
+          # refusal reds — hard-failing here would deadlock it); ANY other
+          # failure (rejected record, verifier error) or a missing/
+          # unfinished check on a PR that touches the extraction-surface
+          # trigger paths -> this step fails, mechanically.
+          SURFACE_TOUCHED="$(python3 -c "import yaml,subprocess,fnmatch; pats=yaml.safe_load(open('.github/workflows/extraction-eval.yml'))[True]['pull_request_target']['paths']; files=subprocess.run(['git','diff','--name-only','HEAD^1','HEAD'],capture_output=True,text=True,check=True).stdout.split(); print('1' if any(fnmatch.fnmatch(f,pp) for f in files for pp in pats) else '0')")"
           for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
             api "https://api.github.com/repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=golden-exam" > gx-checks.json
-            STATUS="$(python3 -c "import json; rs=(json.load(open('gx-checks.json')).get('check_runs') or []); print(rs[0]['status'] if rs else 'absent')")"
-            [ "$STATUS" = "completed" ] && break
+            DONE="$(python3 -c "import json; rs=(json.load(open('gx-checks.json')).get('check_runs') or []); print('1' if any(r.get('status')=='completed' and (r.get('app') or {}).get('slug')=='github-actions' for r in rs) else '0')")"
+            [ "$DONE" = "1" ] && break
             sleep 10
           done
-          CONCLUSION="$(python3 -c "import json; rs=(json.load(open('gx-checks.json')).get('check_runs') or []); print((rs[0].get('conclusion') or 'none') if rs else 'absent')")"
-          GX_JOB_ID="$(python3 -c "import json; rs=(json.load(open('gx-checks.json')).get('check_runs') or []); print(rs[0]['id'] if rs else '')")"
-          GX_URL="$(python3 -c "import json; rs=(json.load(open('gx-checks.json')).get('check_runs') or []); print((rs[0].get('details_url') or '') if rs else '')")"
-          {
-            echo "# golden-exam check on head $HEAD_SHA — fetched verbatim by adversarial-review as co-gate evidence"
-            echo "# binding: review checkout $MERGE_SHA is GitHub's synthetic merge commit whose second parent IS the PR head $HEAD_SHA (asserted above, fail closed) — validate.log's git head and this log describe the same PR state"
-            echo "golden-exam status: $STATUS conclusion: $CONCLUSION $GX_URL"
-            if [ "$STATUS" = "completed" ] && [ -n "$GX_JOB_ID" ]; then
-              # No fallback (r2): a failed log download fails THIS step —
-              # verbatim evidence or a red check, never prose in its place.
-              api -L "https://api.github.com/repos/$REPO/actions/jobs/$GX_JOB_ID/logs"
-            else
-              echo "no completed golden-exam run to attach for this head — treat missing co-gate evidence as unverified (fail closed)"
+          CAND_IDS="$(python3 -c "import json; rs=(json.load(open('gx-checks.json')).get('check_runs') or []); print(' '.join(str(r['id']) for r in rs if r.get('status')=='completed' and (r.get('app') or {}).get('slug')=='github-actions'))")"
+          VALID_ID=""
+          VALID_COUNT=0
+          for CID in $CAND_IDS; do
+            api "https://api.github.com/repos/$REPO/actions/jobs/$CID" > "job-$CID.json"
+            RUN_ID_C="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['run_id'])" "job-$CID.json")"
+            api "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID_C" > "run-$CID.json"
+            OK="$(python3 -c "import json,sys; job=json.load(open(sys.argv[1])); run=json.load(open(sys.argv[2])); print('1' if (run.get('path')=='.github/workflows/extraction-eval.yml' and run.get('event')=='pull_request_target' and job.get('head_sha')==sys.argv[3] and run.get('head_sha')==sys.argv[3]) else '0')" "job-$CID.json" "run-$CID.json" "$HEAD_SHA")"
+            if [ "$OK" = "1" ]; then
+              VALID_COUNT=$((VALID_COUNT+1))
+              VALID_ID="$CID"
             fi
+          done
+          if [ "$VALID_COUNT" = "0" ] && [ "$SURFACE_TOUCHED" = "0" ]; then
+            {
+              echo "# golden-exam: no identity-validated check exists for head $HEAD_SHA and the diff touches no extraction-surface trigger path — the co-gate is not applicable to this PR"
+              echo "# binding: review checkout $MERGE_SHA is GitHub's synthetic merge commit whose second parent IS the PR head $HEAD_SHA (asserted above, fail closed)"
+            } > golden-exam.log
+            wc -c golden-exam.log
+            exit 0
+          fi
+          if [ "$VALID_COUNT" != "1" ]; then
+            echo "::error::expected exactly one identity-validated golden-exam check for head $HEAD_SHA (workflow extraction-eval.yml, pull_request_target, matching head), found $VALID_COUNT — missing or ambiguous co-gate evidence on an extraction-surface PR, failing closed"
+            exit 1
+          fi
+          CONCLUSION="$(python3 -c "import json,sys; rs=json.load(open('gx-checks.json'))['check_runs']; print(([r for r in rs if str(r['id'])==sys.argv[1]][0].get('conclusion')) or 'none')" "$VALID_ID")"
+          GX_URL="$(python3 -c "import json,sys; rs=json.load(open('gx-checks.json'))['check_runs']; print(([r for r in rs if str(r['id'])==sys.argv[1]][0].get('details_url')) or '')" "$VALID_ID")"
+          api -L "https://api.github.com/repos/$REPO/actions/jobs/$VALID_ID/logs" > gx-job.log
+          if [ "$CONCLUSION" != "success" ]; then
+            if ! grep -q "changes extraction HARNESS code that the attended exam does not execute" gx-job.log; then
+              echo "::error::golden-exam concluded '$CONCLUSION' and its log is NOT the classifier's designed harness-refusal — a rejected record or verifier error must block mechanically, failing closed"
+              exit 1
+            fi
+          fi
+          {
+            echo "# golden-exam check on head $HEAD_SHA — identity-validated (job of .github/workflows/extraction-eval.yml, event pull_request_target, run+job head_sha == PR head), log attached verbatim"
+            echo "# binding: review checkout $MERGE_SHA is GitHub's synthetic merge commit whose second parent IS the PR head $HEAD_SHA (asserted above, fail closed) — validate.log's git head and this log describe the same PR state"
+            echo "golden-exam conclusion: $CONCLUSION $GX_URL"
+            cat gx-job.log
           } > golden-exam.log
           wc -c golden-exam.log
 
