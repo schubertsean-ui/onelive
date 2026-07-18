@@ -748,3 +748,57 @@ def test_bracket_syntax_in_run_is_banned():
 """)
     findings = lint_workflow_text(text, "f.yml")
     assert any("EMPTY STRING" in f for f in findings)
+
+
+# ---- Evaluator r12: vars bracket syntax; dead code after exit ---------------
+
+
+def test_vars_bracket_syntax_is_banned():
+    text = _wf("""
+      - name: cfg
+        env:
+          MODEL: ${{ vars['MODEL'] }}
+        run: echo "$MODEL"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("vars." in f or "vars" in f and "forbidden" in f for f in findings)
+
+
+def test_export_after_unconditional_exit_gives_no_credit():
+    text = _wf("""
+      - name: dead-produce
+        run: |
+          exit 0
+          echo "MY_DSN=abc" >> "$GITHUB_ENV"
+      - name: consume
+        run: psql "$MY_DSN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_DSN" in f for f in findings)
+
+
+def test_assignment_after_unconditional_exit_gives_no_credit():
+    text = _wf("""
+      - name: dead-def
+        run: |
+          exit 0
+          MY_TOKEN=abc
+          echo "$MY_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_TOKEN" in f for f in findings)
+
+
+def test_conditional_abort_does_not_kill_later_credit():
+    # `[ -n ] || exit 1` is a conditional abort — later lines still execute
+    # on the success path and their sources still credit.
+    text = _wf("""
+      - name: guarded
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          [ -n "$SECRET_TOKEN" ] || exit 1
+          MY_LOCAL=ok
+          echo "$MY_LOCAL $SECRET_TOKEN"
+""")
+    assert lint_workflow_text(text, "f.yml") == []

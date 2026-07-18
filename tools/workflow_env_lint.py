@@ -84,7 +84,7 @@ AMBIENT = {
 
 _GH_EXPR = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
 _SHELL_VAR = re.compile(r"\$\{?([A-Z][A-Z0-9_]*)\}?")
-_VARS_CONTEXT = re.compile(r"\$\{\{[^}]*\bvars\.", re.DOTALL)
+_VARS_CONTEXT = re.compile(r"\$\{\{[^}]*\bvars\s*[.\[]", re.DOTALL)
 # R3: expression channels that render EMPTY when the underlying value is
 # missing, used directly inside executing shell text.
 _RUN_EXPR_BAN = re.compile(
@@ -227,8 +227,10 @@ def _scan_run_script(
     unguarded: list[str] = []
     _SEP = re.compile(r"[;|&\n]")
     _FUNC_OPEN = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\s*\(\)\s*\{")
+    _TERMINATOR = re.compile(r"\b(?:exit|return)\b")
     cond_depth = 0
     func_depth = 0
+    script_dead = False  # set after an unconditional command-position exit
     for raw_line in run_text.splitlines():
         stripped = raw_line.strip()
         if not stripped or stripped.startswith("#"):
@@ -255,7 +257,7 @@ def _scan_run_script(
         )
         in_cond = (
             cond_depth > 0 or func_depth > 0 or opens > 0 or fopens > 0
-            or same_line_funcs > 0
+            or same_line_funcs > 0 or script_dead
         )
         cond_depth = max(0, cond_depth + opens - closes)
         func_depth = max(0, func_depth + fopens - (1 if unq.strip() == "}" else 0))
@@ -324,6 +326,15 @@ def _scan_run_script(
                 em = _EXPORT_FULL.match(line, m.start())
                 if em:
                     exports.add(em.group(1))
+
+        # An UNCONDITIONAL command-position exit/return ends execution: every
+        # later line is dead code and credits nothing (evaluator r12 — an
+        # export after `exit 0` never runs). Conditional aborts (after ||,
+        # inside if-blocks) do not set this — cmd_pos excludes them.
+        if not in_cond and any(
+            _cmd_pos(unq, m.start()) for m in _TERMINATOR.finditer(unq)
+        ):
+            script_dead = True
     return undeclared, banned, unguarded, exports
 
 
