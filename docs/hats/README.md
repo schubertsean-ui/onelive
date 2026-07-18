@@ -65,8 +65,11 @@ fidelity, "not ad hoc or interpreted… or 'some of'." This section states,
 without hedging, exactly what is faithful to de Bono's published method and
 exactly where we deliberately DEPART — so no adaptation hides as canon.
 
-**Faithful to the canon (verified against de Bono's *Six Thinking Hats* and
-*Lateral Thinking / Serious Creativity*):**
+**Believed faithful to the canon (checked to the best of the author's
+knowledge against de Bono's *Six Thinking Hats* and *Lateral Thinking /
+Serious Creativity*, NOT yet independently verified — the primary-source
+re-check and cross-family red-team pass below are still pending; do not read
+"faithful" here as "verified"):**
 - All six hat mandates, each per de Bono: White = facts + named unknowns;
   Red = feeling with NO justification required; Black = logical-negative
   caution; Yellow = logical-positive benefit, as disciplined as Black;
@@ -121,11 +124,14 @@ program materials and recorded talks/interviews.
 **Concrete enrichment candidate surfaced by that wider corpus:** the Yellow
 hat currently hunts generic "benefits." De Bono's *Six Value Medals* (2005)
 is his OWN later, more rigorous tool for exactly this — value assessment
-across six named lenses (gold = human/core values, silver = organisational,
-steel = quality, glass = innovation, wood = ecological/relational, brass =
-perceptual/appearance). Adopting that taxonomy would make Yellow's output
-structured rather than ad-hoc. Queued as a candidate upgrade (TODOS), to be
-adopted only through the normal gates — not asserted here.
+across six named lenses (the author's reading of the taxonomy: gold =
+human/core values, silver = organisational, steel = quality, glass =
+innovation, wood = ecological/relational, brass = perceptual/appearance —
+this lens list is a CANDIDATE INTERPRETATION pending the same primary-source
+review, not established de Bono structure for this project). Adopting that
+taxonomy would make Yellow's output structured rather than ad-hoc. Queued as
+a candidate upgrade (TODOS), to be adopted only through the normal gates —
+not asserted here.
 
 **This fidelity claim is not self-certified.** These docs are authored by the
 Generator; the Generator asserting its own de Bono fidelity is the exact

@@ -2,10 +2,16 @@
 
 Greppable summary: a claim-by-claim mapping of this repo's hats + po
 (`docs/hats/*`, `docs/skills/po_provocation.md`, `tools/po_battery.py`)
-against de Bono's actual method, with citations. Built 2026-07-17 at founder
-direction ("verify these are world class… not ad hoc or interpreted… or 'some
-of'"). **This is Layer-A evidence, NOT a self-certification** — the Generator
-authored the implementation and cannot grade its own fidelity. The reviewer is
+against **secondary/tertiary summaries** of de Bono's method (deBono.com
+summary pages, Wikipedia, NHS England, Peak Performance Center, Goodreads —
+NOT yet the primary texts or the current de Bono Group program materials).
+Built 2026-07-17 at founder direction ("verify these are world class… not ad
+hoc or interpreted… or 'some of'"). **Citation-basis caveat:** the
+founder-directed bar is fidelity against the FULL de Bono corpus and current
+program materials; the citations here are working summaries, so no row's
+verdict is proven — each is "believed faithful, pending primary-source
+substantiation." **This is Layer-A evidence, NOT a self-certification** — the
+Generator authored the implementation and cannot grade its own fidelity. The reviewer is
 the founder acting as the de Bono practitioner (Layer C — the human who *is*
 the standard, independent of the author); the GPT-5.5 evaluator adjudicates it
 on the PR (interim independent AI); the cross-family red team re-checks it once

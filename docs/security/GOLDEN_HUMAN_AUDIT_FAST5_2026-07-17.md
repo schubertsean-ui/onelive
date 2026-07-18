@@ -4,7 +4,8 @@
 human judgment call — title-from-description, inventing a city, a doors-only time, a
 planted-text security trap, and an is-this-even-an-event case. This is exactly the class
 where two AIs can share a wrong idea (it's where the one real error we already caught
-lived). Getting these 5 right is ~80% of the anti-bias value for a third of the reading.
+lived). Getting these 5 right is the high-leverage subset — the judgment-call rows —
+for a third of the reading; it does not replace the full 13-row audit.
 
 **How (anti-anchoring):** Part 1 = the 5 listings only — read each and jot what YOU'd
 pull, before looking at any answer. Part 2 = the keys, to compare. Don't scroll to Part 2
