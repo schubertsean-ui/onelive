@@ -33,3 +33,12 @@ If any gate is red, pending, or was bypassed, there is no authority to merge
 — that situation is still a hard stop. A merge that later proves wrong is an
 M3/M2 ledger event like any other escape/catch, not a reason to quietly
 reinstate the founder tap; fix the gate that let it through.
+
+## Addendum (founder-ratified 2026-07-18, same day: "Ratified")
+
+The one enumerated exception to "every required check green" is recorded in
+the charter's scope note itself: the golden-exam verifier's designed red on
+exam-harness PRs (it refuses to certify code it did not run) does not count
+as red for that PR class — the adversarial review governs, per the
+verifier's own prescribed path. The exception list is closed; additions are
+gate-threshold relaxations and therefore founder-crucial.
