@@ -91,7 +91,9 @@ depends on an open founder decision. For an autonomous/overnight run, follow
 7. Review `docs/RECORD.md` OPEN rows (the no-silent-deferrals register):
    resolve, re-affirm, or escalate each. A row whose resolution trigger has
    fired but wasn't acted on is a defect, not a backlog item.
-8. Append the session's Kaizen ledger rows (`docs/metrics/KAIZEN_LEDGER.md`):
+8. Run `python tools/kaizen_trends.py` (also runs inside validate) and act on
+   any finding — an alarm is a due fix, not information. Append the session's
+   Kaizen ledger rows (`docs/metrics/KAIZEN_LEDGER.md`):
    M1/M2/M5 per merged PR, M4 gate-gap fixes, M6 po harvests (M3 escapes are
    recorded the moment they're found, never batched). See `docs/KAIZEN.md`.
 

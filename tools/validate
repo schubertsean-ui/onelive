@@ -60,10 +60,14 @@ ANY_SKIP=0
 ANY_ADVISORY=0
 
 record() {
+  # Statuses: PASS/FAIL/ADVISORY/SKIP, plus QSKIP — a STRUCTURED quick-mode
+  # skip recorded ONLY at the two --quick sites below. QSKIP is exempt from
+  # Record binding by status (never by note text — evaluator r3, PR #35) but
+  # still counts as a skip for the exit-code discipline.
   RESULTS+=("$1"$'\t'"$2"$'\t'"${3:-}")
   case "$1" in
-    SKIP)     ANY_SKIP=1 ;;
-    ADVISORY) ANY_ADVISORY=1 ;;
+    SKIP|QSKIP) ANY_SKIP=1 ;;
+    ADVISORY)   ANY_ADVISORY=1 ;;
   esac
 }
 
@@ -133,7 +137,7 @@ run_check "eval_harness import" "$PY" -c \
 if [ "$QUICK" -eq 1 ]; then
   echo "── perf benchmarks ──"
   echo "[SKIP-loud] perf benchmarks skipped by --quick. NOT a pass — rerun without --quick before end-of-shift." >&2
-  record SKIP "perf benchmarks" "--quick (rerun before close)"
+  record QSKIP "perf benchmarks" "--quick (rerun before close)"
   echo
 else
   run_check "perf benchmarks" "$PY" -m pytest -q -m perf
@@ -146,23 +150,33 @@ run_advisory "test_audit" "$PY" tools/test_audit.py
 if [ "$QUICK" -eq 1 ]; then
   echo "── commit_sweep ──"
   echo "[SKIP-loud] commit_sweep skipped by --quick. NOT a pass." >&2
-  record SKIP "commit_sweep" "--quick (rerun before close)"
+  record QSKIP "commit_sweep" "--quick (rerun before close)"
   echo
 else
   run_advisory "commit_sweep" "$PY" tools/commit_sweep.py
 fi
 
+# 7b. Kaizen trend meter — computes the trend report from the ledger
+#     (docs/KAIZEN.md "Trend instrumentation"): escapes must be 0, repeat-class
+#     families at/over threshold must carry a structural fix marker, M1
+#     direction and the judgment->mechanical drain are printed every run.
+#     Findings make the run non-green (advisory semantics; --strict = FAIL).
+run_advisory "kaizen_trends" "$PY" tools/kaizen_trends.py
+
 # 8. Visual regression — needs a booted app + baselines; cannot run headless
 #    here. Detect and SKIP-LOUD (never a silent pass), per the item-15 harness.
 echo "── visual_regression ──"
 VR_NOTE="app not running / baselines absent"
+# Surface the Record binding at FIRST emission (evaluator r3 nit) — computed,
+# never hardcoded, so this message can't drift from the register.
+VR_RID="$("$PY" tools/skip_record_binding.py visual_regression 2>/dev/null || echo 'NO OPEN RECORD ROW — this skip will FAIL below')"
 if [ -n "${ONELIVE_APP_URL:-}" ]; then
   if run_check_vr=$("$PY" tools/visual_regression.py --help >/dev/null 2>&1; echo $?); then :; fi
-  echo "[INFO] ONELIVE_APP_URL set (${ONELIVE_APP_URL}). Run visual_regression.py capture-and-compare manually per docs/../tests/visual_baselines/README.md." 
-  echo "[SKIP-loud] validate does not auto-boot the app; visual regression must be run against a live URL with committed baselines." >&2
+  echo "[INFO] ONELIVE_APP_URL set (${ONELIVE_APP_URL}). Run visual_regression.py capture-and-compare manually per docs/../tests/visual_baselines/README.md."
+  echo "[SKIP-loud] validate does not auto-boot the app; visual regression must be run against a live URL with committed baselines. (Record: ${VR_RID})" >&2
   record SKIP "visual_regression" "run manually vs live URL"
 else
-  echo "[SKIP-loud] visual_regression: ONELIVE_APP_URL not set and no booted app — SKIPPED, NOT passed." >&2
+  echo "[SKIP-loud] visual_regression: ONELIVE_APP_URL not set and no booted app — SKIPPED, NOT passed. (Record: ${VR_RID})" >&2
   echo "            To run: start the web app, set ONELIVE_APP_URL, then (name is positional," >&2
   echo "            --capture-cmd is required and needs {url}/{out} placeholders):" >&2
   echo "            python tools/visual_regression.py capture-and-compare ops_inbox \\" >&2
@@ -175,27 +189,17 @@ echo
 # ---- Skip→Record binding (mechanical, added 2026-07-18) ----------------------
 # Class fixes: skip-report-missing-record-citation (founder-caught) and the
 # unverifiable-claim family (evaluator-caught on PRs #20/#27/#35). Every
-# ENVIRONMENTAL skip must correspond to an OPEN docs/RECORD.md row (deviation
-# + cited bar + objective trigger) or it becomes a FAILURE — --allow-skips
-# never covers an unrecorded skip. Skips self-inflicted by an explicit flag in
-# THIS invocation (--quick) are exempt from the binding: the cause is visible
-# in the invocation itself, and they still block a clean close (exit 2 without
-# --allow-skips, and the note says "rerun before close"). This section only
-# ADDS failure modes; nothing that failed before can pass now.
-BOUND_RESULTS=()
-for row in "${RESULTS[@]}"; do
-  IFS=$'\t' read -r status name note <<< "$row"
-  if [ "$status" = "SKIP" ] && [[ "$note" != *"--quick"* ]]; then
-    if rid=$("$PY" tools/skip_record_binding.py "$name"); then
-      BOUND_RESULTS+=("SKIP"$'\t'"$name"$'\t'"${note:+$note — }${rid}")
-    else
-      BOUND_RESULTS+=("FAIL"$'\t'"$name"$'\t'"SKIP with no OPEN docs/RECORD.md row — record it or fix the check")
-      ANY_FAIL=1
-    fi
-  else
-    BOUND_RESULTS+=("$row")
-  fi
-done
+# ENVIRONMENTAL skip must correspond to an OPEN docs/RECORD.md row that names
+# the check as a backticked token (deviation + cited bar + objective trigger)
+# or it becomes a FAILURE — --allow-skips never covers an unrecorded skip.
+# Quick-mode skips are exempt via the STRUCTURED QSKIP status set only at the
+# two --quick sites above (never via note text — evaluator r3); they still
+# block a clean close without --allow-skips. This section only ADDS failure
+# modes; nothing that failed before can pass now.
+# The loop lives in a sourced, directly-tested file (evaluator r3: the
+# exemption must be structured state, and the loop itself must be testable).
+source "$REPO_ROOT/tools/validate_bind_skips.sh"
+bind_skips
 RESULTS=("${BOUND_RESULTS[@]}")
 
 # ---- Machine-stamped evidence block ------------------------------------------

@@ -46,17 +46,20 @@ def parse_record_rows(record_text: str) -> list[tuple[str, str, str]]:
 
 
 def find_open_record_row(check_name: str, record_text: str) -> str | None:
-    """Return the id of an OPEN Record row whose text names check_name.
+    """Return the id of an OPEN Record row that NAMES check_name as a check.
 
-    Matching is deliberately simple and conservative: literal substring of
-    the check name in the row, and a status cell that starts with OPEN.
-    RESOLVED/closed rows never satisfy the binding — resolved debt cannot
+    Matching requires the STRUCTURED marker `` `check_name` `` (backticked
+    code token) in the row — an incidental prose mention must never satisfy
+    the binding (evaluator r3 on PR #35: raw substring match could falsely
+    bind a skip to an unrelated row and fail open). The status cell must
+    start with OPEN; RESOLVED/closed rows never bind — resolved debt cannot
     excuse a live skip.
     """
     if not check_name.strip():
         return None
+    marker = f"`{check_name}`"
     for row_id, row_text, status in parse_record_rows(record_text):
-        if check_name in row_text and status.upper().startswith("OPEN"):
+        if marker in row_text and status.upper().startswith("OPEN"):
             return row_id
     return None
 
