@@ -6,15 +6,18 @@ catches: #11, #12, #14 ×2 — a gate step consuming an env var that is unset or
 empty silently no-ops instead of failing). Two mechanical rules over every
 workflow in .github/workflows/:
 
-R1 UNDECLARED-ENV: every $UPPER_SNAKE shell variable a `run:` step consumes
+R1 UNDECLARED-ENV: every UPPERCASE shell variable a `run:` step consumes
+   (scope: UPPER_SNAKE names, the workflow/env convention — lowercase
+   script locals are out of scope by design, stated explicitly per r8)
    must have a visible source: step/job/workflow `env:`, an earlier step's
    `>> "$GITHUB_ENV"` export, an assignment/read within the script itself,
    or the ambient runner allowlist below. No visible source = the
    unset-and-silent risk = FAIL.
 R4 SECRET-GUARD: a secret-backed step env var consumed in shell text must
-   carry a visible non-empty guard ([ -n ] / [[ -n ]] / test -n / ${X:?} —
-   NEVER -z, which passes when empty) at-or-before first use, at ANY env
-   declaration scope (workflow, job, or step)
+   carry a visible TERMINATING non-empty guard — ${X:?}, or a -n test
+   with an abort (exit/return) on the same line; a non-terminating -n
+   probe never counts, -z never counts — at-or-before first use, at ANY
+   env declaration scope (workflow, job, or step)
    — declaration alone cannot prove the secret exists at runtime.
    Boundary: env vars inherited implicitly by child processes (never
    expanded in shell text) are the consuming program's fail-loud
@@ -89,12 +92,23 @@ _ASSIGN = re.compile(r"(?:^|;|&&|\|\|)\s*(?:export\s+)?([A-Z][A-Z0-9_]+)=")
 _FOR_VAR = re.compile(r"\bfor\s+([A-Z][A-Z0-9_]+)\s+in\b")
 _READ_VAR = re.compile(r"\bread\s+(?:-r\s+)?([A-Z][A-Z0-9_]+)\b")
 # Non-empty guards that make a secret-backed var fail-loud at runtime.
-# ONLY -n forms and ${X:?} qualify — [ -z "$X" ] is the INVERSE (succeeds
-# when the value is empty) and must never count (evaluator r7).
-_GUARD = re.compile(
-    r"(?:\[\[?|test)\s+-n\s+\"?\$\{?([A-Z][A-Z0-9_]+)\}?\"?|"
-    r"\$\{([A-Z][A-Z0-9_]+):\?"
-)
+# ${X:?} always aborts. A -n test ([ / [[ / test) counts ONLY when the same
+# line carries an abort token (exit/return) after it — a non-terminating
+# probe like `[ -n "$X" ] || true` or a bare `if [ -n "$X" ]; then ...; fi`
+# lets an empty secret flow into later commands (evaluator r8). -z NEVER
+# counts (it succeeds when empty — evaluator r7).
+_GUARD_PARAM = re.compile(r"\$\{([A-Z][A-Z0-9_]+):\?")
+_GUARD_NTEST = re.compile(r"(?:\[\[?|test)\s+-n\s+\"?\$\{?([A-Z][A-Z0-9_]+)\}?\"?")
+_ABORT = re.compile(r"\b(?:exit|return)\b")
+
+
+def _line_guards(line: str) -> list[tuple[int, str]]:
+    """(position, var) for every TERMINATING guard on this line."""
+    out = [(m.start(), m.group(1)) for m in _GUARD_PARAM.finditer(line)]
+    for m in _GUARD_NTEST.finditer(line):
+        if _ABORT.search(line, m.end()):
+            out.append((m.start(), m.group(1)))
+    return out
 _SECRET_VALUE = re.compile(r"\$\{\{[^}]*\bsecrets\.")
 _GITHUB_ENV_EXPORT = re.compile(
     r"(?:echo|printf)\s+[\"']?([A-Z][A-Z0-9_]+)=.*?\$GITHUB_ENV"
@@ -114,11 +128,11 @@ def _scan_run_script(
       counts, but the prefix form `X=a cmd "$X"` does NOT — the shell
       expands "$X" from the PRIOR environment before cmd runs (r6).
     - Vars in must_guard (secret-backed env consumed by this script) need a
-      visible non-empty guard — [ -n "$X" ] / [[ -n "$X" ]] / test -n "$X" /
-      ${X:?} only; -z NEVER counts (it succeeds when empty) — positioned
-      at-or-before their first use, across lines AND within a line (r6/r7:
-      a declared-but-missing secret renders empty; declaration alone proves
-      nothing at runtime).
+      visible TERMINATING guard — ${X:?}, or a -n test with exit/return on
+      the SAME line; a non-terminating -n probe (`|| true`, bare if-then-fi)
+      never counts, -z never counts — positioned at-or-before their first
+      consuming use, across lines AND within a line (r6/r7/r8). A var
+      mention INSIDE a -n/:? test is a probe, not a consuming use.
     Known honest limits (documented, false-negative direction): an export or
     guard inside a conditional branch is credited if its line executes in
     textual order — branch execution is statically undecidable; and
@@ -144,8 +158,11 @@ def _scan_run_script(
         # positions AFTER it — `use; guard` leaves the use unguarded. Guards
         # register into the cross-line set only after this line's uses are
         # checked against positions.
-        line_guards = [(gm.start(), gm.group(1) or gm.group(2)) for gm in _GUARD.finditer(line)]
-        guard_spans = [gm.span() for gm in _GUARD.finditer(line)]
+        line_guards = _line_guards(line)
+        # Spans that are guard EXPRESSIONS (terminating or not) — a var name
+        # inside any -n/:? test is not itself a consuming use.
+        guard_spans = [m.span() for m in _GUARD_PARAM.finditer(line)]
+        guard_spans += [m.span() for m in _GUARD_NTEST.finditer(line)]
         defs = [(m.end(), m.group(1)) for rx in (_ASSIGN, _FOR_VAR, _READ_VAR)
                 for m in rx.finditer(line)]
         for m in _SHELL_VAR.finditer(line):

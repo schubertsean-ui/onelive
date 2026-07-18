@@ -270,6 +270,7 @@ def build_report(ledger_text: str) -> tuple[str, list[str]]:
     for gate, n in sorted(gates.items(), key=lambda kv: -kv[1]):
         lines.append(f"  {gate}: {n}")
     top = sorted(counts.items(), key=lambda kv: -kv[1])[:8]
+    lines.append("note: class counts rely on the kebab-token convention adopted 2026-07-18 — rows written before it may undercount (e.g. empty-env shows 2 here vs 4 in R-019's prose history); treat pre-convention numbers as floors, not history")
     lines.append("top_class_tokens: " + ", ".join(f"{t}×{n}" for t, n in top))
     if alarms:
         lines.append("repeat_class_alarms:")

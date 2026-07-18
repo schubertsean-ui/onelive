@@ -388,3 +388,72 @@ def test_test_dash_n_form_is_recognized():
           curl -H "auth $SECRET_TOKEN" https://x
 """)
     assert lint_workflow_text(text, "f.yml") == []
+
+
+# ---- Evaluator r8: guards must TERMINATE ------------------------------------
+
+
+def test_non_terminating_probe_or_true_is_not_a_guard():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          [ -n "$SECRET_TOKEN" ] || true
+          curl -H "auth $SECRET_TOKEN" https://x
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("no non-empty guard" in f for f in findings)
+
+
+def test_bare_if_then_fi_probe_is_not_a_guard():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          if [ -n "$SECRET_TOKEN" ]; then echo ok; fi
+          curl -H "auth $SECRET_TOKEN" https://x
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("no non-empty guard" in f for f in findings)
+
+
+def test_n_test_with_same_line_exit_is_a_guard():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          [ -n "$SECRET_TOKEN" ] || exit 1
+          curl -H "auth $SECRET_TOKEN" https://x
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_param_expansion_guard_always_terminates():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          : "${SECRET_TOKEN:?missing}"
+          curl -H "auth $SECRET_TOKEN" https://x
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_probe_mention_alone_is_not_a_consuming_use():
+    # A var that appears ONLY inside -n probes is never a consuming use —
+    # no finding even though the probes do not terminate.
+    text = _wf("""
+      - name: preconditions
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          missing=""
+          [ -n "$SECRET_TOKEN" ] || missing="$missing SECRET_TOKEN"
+          [ -n "$missing" ] && { echo "::error::missing:$missing"; exit 1; }
+          echo "all present"
+""")
+    assert lint_workflow_text(text, "f.yml") == []
