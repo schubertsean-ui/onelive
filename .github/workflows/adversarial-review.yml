@@ -74,6 +74,12 @@ jobs:
         run: |
           : "${RESOLVED_BASE:?base unresolved — failing closed}"
           : "${RESOLVED_RANGE:?range unresolved — failing closed}"
+          # Syntax-validate the range (r17): a malformed dispatch input must
+          # die here, not surface later as a swallowed git failure.
+          if ! [[ "$RESOLVED_RANGE" =~ ^[A-Za-z0-9_./^~-]+\.\.\.?[A-Za-z0-9_./^~-]+$ ]]; then
+            echo "::error::invalid diff range syntax (value redacted — expected <base>...<head>)"
+            exit 1
+          fi
           echo "base=$RESOLVED_BASE" >> "$GITHUB_OUTPUT"
           echo "range=$RESOLVED_RANGE" >> "$GITHUB_OUTPUT"
 
@@ -118,9 +124,12 @@ jobs:
         env:
           DIFF_RANGE: ${{ steps.range.outputs.range }}
         run: |
-          set -o pipefail
+          set -euo pipefail
           : "${DIFF_RANGE:?diff range unresolved — failing closed}"
-          if git diff --name-only "$DIFF_RANGE" | grep -q '^web/'; then
+          # A git failure must FAIL this step (r17) — under a plain if, a bad
+          # range read as "no web files touched" and skipped the SCA gate.
+          CHANGED_FILES="$(git diff --name-only "$DIFF_RANGE")"
+          if grep -q '^web/' <<< "$CHANGED_FILES"; then
             (
               cd web
               npm ci
@@ -144,7 +153,12 @@ jobs:
         env:
           DIFF_RANGE: ${{ steps.range.outputs.range }}
         run: |
+          set -euo pipefail
           : "${DIFF_RANGE:?diff range unresolved — failing closed}"
+          # git diff runs standalone FIRST (r17): under set -e a failure
+          # kills the step before any notes-only pr.diff can reach the
+          # evaluator; the subject diff is then appended to the notes.
+          git diff "$DIFF_RANGE" -- . ':(exclude)**/package-lock.json' > subject.diff
           {
             echo "# NOTE to evaluator: machine-generated lockfiles (package-lock.json)"
             echo "# are excluded from this diff by policy — they are npm-generated and"
@@ -162,7 +176,7 @@ jobs:
             echo "# exam run exists for this PR's head SHA. Merge discipline requires BOTH"
             echo "# this review and that verifier green on the PR's current head; absence"
             echo "# of exam output here is expected and is not absence of the gate."
-            git diff "$DIFF_RANGE" -- . ':(exclude)**/package-lock.json'
+            cat subject.diff
           } > pr.diff
           wc -c pr.diff
 
