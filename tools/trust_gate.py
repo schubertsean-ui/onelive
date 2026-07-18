@@ -279,6 +279,68 @@ def check_exam_mode_confined(findings: Findings) -> None:
             )
 
 
+
+
+def check_extraction_certification(findings: Findings, record_path: "pathlib.Path | None" = None) -> None:
+    """Flag-True extraction must be certified against the CURRENT harness.
+
+    Compensating control demanded by the evaluator on PR #36 (and made live
+    by PR #35, which changed a manifest-bound exam file after the flag
+    flipped): EXTRACTION_THRESHOLD_RATIFIED=True is only meaningful while
+    the attended exam's evidence matches the harness as it exists NOW.
+    Mechanics: ai/golden/CERTIFIED_HARNESS.json records the harness sha256
+    the passing attended run certified (plus run id + verifier binding);
+    this check recomputes the tree's harness hash and requires equality.
+    Missing record or mismatch = the certification has drifted = extraction
+    is formally uncertified: FAIL, with the single founder action named.
+    The record file is deliberately NOT in the harness manifest, so writing
+    it cannot change the hash it certifies.
+    """
+    root = pathlib.Path(__file__).resolve().parent.parent
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from tools.routing_data import EXTRACTION_THRESHOLD_RATIFIED
+
+    if EXTRACTION_THRESHOLD_RATIFIED is not True:
+        return  # extraction closed; nothing to certify
+
+    from ai.golden_exam import compute_harness_sha
+
+    if record_path is None:
+        record_path = root / "ai/golden/CERTIFIED_HARNESS.json"
+    current = compute_harness_sha()
+    if not record_path.exists():
+        findings.add(
+            "extraction-certification: EXTRACTION_THRESHOLD_RATIFIED is True "
+            "but ai/golden/CERTIFIED_HARNESS.json does not exist — the flag's "
+            "evidence is bound to a harness this tree can no longer prove. "
+            "Founder action: dispatch the attended exam on the current "
+            "default-branch harness; the passing run's harness_sha256 + run "
+            "id are then committed as the certification record."
+        )
+        return
+    import json as _json
+
+    try:
+        record = _json.loads(record_path.read_text(encoding="utf-8"))
+        certified = record["harness_sha256"]
+        run_id = record["run_id"]
+    except (ValueError, KeyError) as exc:
+        findings.add(
+            f"extraction-certification: certification record unreadable or "
+            f"missing required fields (harness_sha256, run_id): {exc} — "
+            f"fail closed."
+        )
+        return
+    if certified != current:
+        findings.add(
+            f"extraction-certification: harness has DRIFTED since the "
+            f"attended exam (certified {certified[:16]}…, run {run_id}; "
+            f"current {current[:16]}…) — extraction is uncertified against "
+            f"this tree. Re-dispatch the attended exam and update the record."
+        )
+
+
 def main() -> int:
     findings = Findings()
     check_no_dynamic_sql(findings)
@@ -286,10 +348,12 @@ def main() -> int:
     check_ai_never_promotes(findings)
     check_promote_import_allowlist(findings)
     check_exam_mode_confined(findings)
+    check_extraction_certification(findings)
 
     if findings.ok():
         print("trust_gate: OK — all trust invariants hold "
-              "(no dynamic SQL; ads/tastemaker isolated; AI never promotes).")
+              "(no dynamic SQL; ads/tastemaker isolated; AI never promotes; "
+              "extraction certification matches the current harness).")
         return 0
 
     print("trust_gate: FAIL — trust invariant violation(s):", file=sys.stderr)
