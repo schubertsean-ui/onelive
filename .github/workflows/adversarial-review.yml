@@ -270,7 +270,7 @@ jobs:
             cp tools/cogate_evidence.py trusted-cogate.py
             HELPER_SOURCE="subject-bootstrap (helper not yet on base; its code is in THIS diff)"
           fi
-          BASE_EPOCH="$(git show -s --format=%ct HEAD^1)"
+          BASE_SHA_CUR="$(git rev-parse HEAD^1)"
           SURFACE_TOUCHED="$(python3 trusted-cogate.py surface-touched base-extraction-eval.yml changed-files.txt)"
           # Settled, paginated polling (r6 nits): wait until at least one
           # github-actions candidate exists and NONE is still pending, so a
@@ -289,11 +289,11 @@ jobs:
             api "https://api.github.com/repos/$REPO/actions/jobs/$CID" > "job-$CID.json"
             RUN_ID_C="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['run_id'])" "job-$CID.json")"
             api "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID_C" > "run-$CID.json"
-            # Identity + freshness via the TRUSTED helper (r6): workflow
-            # path, event, head SHAs, run started AFTER the current base
-            # head existed (a same-head run minted against an older base is
-            # stale evidence), and PR-number membership when populated.
-            OK="$(python3 trusted-cogate.py candidate-valid "job-$CID.json" "run-$CID.json" "$HEAD_SHA" "$PR_NUMBER" "$BASE_EPOCH")"
+            # Identity via the TRUSTED helper (r6/r7): workflow path,
+            # event, head SHAs, and MANDATORY PR-number membership — an
+            # unpopulated pull_requests list is missing identity, fail
+            # closed. Base binding is proven on the LOG below, not here.
+            OK="$(python3 trusted-cogate.py candidate-valid "job-$CID.json" "run-$CID.json" "$HEAD_SHA" "$PR_NUMBER")"
             if [ "$OK" = "1" ]; then
               VALID_COUNT=$((VALID_COUNT+1))
               VALID_ID="$CID"
@@ -314,6 +314,17 @@ jobs:
           CONCLUSION="$(python3 -c "import json,sys; rs=json.load(open('gx-checks.json'))['check_runs']; print(([r for r in rs if str(r['id'])==sys.argv[1]][0].get('conclusion')) or 'none')" "$VALID_ID")"
           GX_URL="$(python3 -c "import json,sys; rs=json.load(open('gx-checks.json'))['check_runs']; print(([r for r in rs if str(r['id'])==sys.argv[1]][0].get('details_url')) or '')" "$VALID_ID")"
           api -L "https://api.github.com/repos/$REPO/actions/jobs/$VALID_ID/logs" > gx-job.log
+          # Base+head binding PROVEN from the run's own env echoes (r7 —
+          # replaces the r6 timestamp heuristic): the base-owned verifier
+          # declares BASE_SHA/HEAD_SHA in step env and the runner prints
+          # them verbatim; every echo must equal the current merge^1 and
+          # the PR head, at least one of each. A log echoing any other
+          # base is evidence minted against a different base: fail closed.
+          BINDINGS_OK="$(python3 trusted-cogate.py log-bindings gx-job.log "$BASE_SHA_CUR" "$HEAD_SHA")"
+          if [ "$BINDINGS_OK" != "1" ]; then
+            echo "::error::golden-exam log does not prove execution against the current base ($BASE_SHA_CUR) and this head — stale or wrong-base co-gate evidence, failing closed"
+            exit 1
+          fi
           # The refusal judgment is tested code (r5, tools/cogate_evidence.py
           # + tests/test_cogate_evidence.py), judged on the job's STEP
           # conclusions from the Actions API — exactly one failed step and
@@ -331,7 +342,7 @@ jobs:
             fi
           fi
           {
-            echo "# golden-exam check on head $HEAD_SHA — identity-validated by the co-gate helper (source: $HELPER_SOURCE): job of .github/workflows/extraction-eval.yml, event pull_request_target, run+job head_sha == PR head, run started after the current base head ($BASE_EPOCH), PR number bound; log attached verbatim"
+            echo "# golden-exam check on head $HEAD_SHA — identity-validated by the co-gate helper (source: $HELPER_SOURCE): job of .github/workflows/extraction-eval.yml, event pull_request_target, run+job head_sha == PR head, PR number bound, base+head PROVEN from the run env echoes (BASE_SHA == $BASE_SHA_CUR, HEAD_SHA == PR head); log attached verbatim"
             echo "# binding: review checkout $MERGE_SHA is GitHub's synthetic merge commit whose second parent IS the PR head $HEAD_SHA (asserted above, fail closed) — validate.log's git head and this log describe the same PR state"
             echo "golden-exam conclusion: $CONCLUSION $GX_URL"
             cat gx-job.log

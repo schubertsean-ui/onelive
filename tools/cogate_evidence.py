@@ -30,12 +30,20 @@ paths (no wildcard characters) and '<dir>/**' suffix globs. ANY other
 pattern — ordered '!' exclusions, mid-path wildcards, extglobs — fails
 closed; extend this helper with tests before the policy may use them.
 
-candidate-valid — is an Actions job/run pair the REAL base-owned
-golden-exam verifier for this PR state? Workflow path + event + head
-SHAs, plus (r6) freshness against the CURRENT base: a run that started
-before the current base head commit existed cannot have verified
-against it (stale evidence from an earlier base), and when the run's
-pull_requests list is populated it must include this PR's number.
+candidate-valid — is an Actions job/run pair the base-owned
+golden-exam verifier for this PR? Workflow path + event + head SHAs +
+MANDATORY PR membership (r7: an empty pull_requests list is missing
+identity, not an acceptable quirk — fail closed and re-run the co-gate).
+
+log-bindings — does the fetched job log prove the run executed against
+the CURRENT base and this head? The runner echoes each step's env into
+the log; the base-owned verifier declares BASE_SHA and HEAD_SHA there,
+so every `BASE_SHA: <sha>` echo must equal the current merge^1 and
+every `HEAD_SHA: <sha>` echo must equal the PR head, with at least one
+of each present (r7: this replaces the r6 run_started_at timestamp,
+which was a heuristic — a run can start after a commit's timestamp yet
+still be minted against another base; the env echo IS the base the run
+used).
 
 Exit 0 with "1"/"0" on stdout; exit 1 on unreadable/unsupported input
 (fail closed).
@@ -104,9 +112,7 @@ def surface_touched(patterns: list, files: list) -> bool:
     return hit
 
 
-def candidate_valid(job: dict, run: dict, head_sha: str, pr_number: int,
-                    base_epoch: int) -> bool:
-    import datetime
+def candidate_valid(job: dict, run: dict, head_sha: str, pr_number: int) -> bool:
     if not (isinstance(job, dict) and isinstance(run, dict)):
         return False
     if run.get("path") != ".github/workflows/extraction-eval.yml":
@@ -116,23 +122,34 @@ def candidate_valid(job: dict, run: dict, head_sha: str, pr_number: int,
     if not head_sha or job.get("head_sha") != head_sha or \
             run.get("head_sha") != head_sha:
         return False
-    started = run.get("run_started_at")
-    if not isinstance(started, str):
-        return False
-    try:
-        started_epoch = datetime.datetime.fromisoformat(
-            started.replace("Z", "+00:00")).timestamp()
-    except ValueError:
-        return False
-    # Freshness (r6): checks attach to COMMITS — the same head can carry a
-    # successful run minted against an older base. A run that started
-    # before the current base head commit existed cannot have used it.
-    if started_epoch < base_epoch:
-        return False
+    # MANDATORY PR membership (r7): an empty or absent pull_requests list
+    # is missing identity — fail closed, never "API quirk". The remedy is
+    # re-running the co-gate, which regenerates a bound run.
     prs = run.get("pull_requests")
-    if isinstance(prs, list) and prs:
-        if not any(isinstance(pr, dict) and pr.get("number") == pr_number
-                   for pr in prs):
+    if not (isinstance(prs, list) and prs):
+        return False
+    return any(isinstance(pr, dict) and pr.get("number") == pr_number
+               for pr in prs)
+
+
+_SHA_ECHO = {name: re.compile(rf"\b{name}: ([0-9a-f]{{40}})\b")
+             for name in ("BASE_SHA", "HEAD_SHA")}
+
+
+def log_bindings(log_text: str, base_sha: str, head_sha: str) -> bool:
+    """The run's own env echoes are the base+head it executed with
+    (r7): the base-owned verifier declares BASE_SHA/HEAD_SHA in step
+    env, and the runner prints them verbatim. Every echo must match and
+    at least one of each must exist — a log with no echoes, or any
+    echo naming a different base or head, is stale/wrong-base evidence."""
+    if not (isinstance(base_sha, str) and re.fullmatch(r"[0-9a-f]{40}", base_sha)
+            and isinstance(head_sha, str) and re.fullmatch(r"[0-9a-f]{40}", head_sha)):
+        return False
+    expected = {"BASE_SHA": base_sha, "HEAD_SHA": head_sha}
+    for name, rx in _SHA_ECHO.items():
+        found = [m.group(1) for line in log_text.splitlines()
+                 for m in [rx.search(line)] if m]
+        if not found or any(v != expected[name] for v in found):
             return False
     return True
 
@@ -156,15 +173,23 @@ def main(argv: "list[str] | None" = None) -> int:
         print("1" if refusal_only(job, log_text, argv[3]) else "0")
         return 0
 
-    if len(argv) == 6 and argv[0] == "candidate-valid":
+    if len(argv) == 5 and argv[0] == "candidate-valid":
         try:
             job = json.loads(pathlib.Path(argv[1]).read_text(encoding="utf-8"))
             run = json.loads(pathlib.Path(argv[2]).read_text(encoding="utf-8"))
             pr_number = int(argv[4])
-            base_epoch = int(argv[5])
         except (OSError, ValueError) as exc:
             return die(f"cannot read candidate inputs ({exc})")
-        print("1" if candidate_valid(job, run, argv[3], pr_number, base_epoch) else "0")
+        print("1" if candidate_valid(job, run, argv[3], pr_number) else "0")
+        return 0
+
+    if len(argv) == 4 and argv[0] == "log-bindings":
+        try:
+            log_text = pathlib.Path(argv[1]).read_text(encoding="utf-8",
+                                                       errors="replace")
+        except OSError as exc:
+            return die(f"cannot read log ({exc})")
+        print("1" if log_bindings(log_text, argv[2], argv[3]) else "0")
         return 0
 
     if len(argv) == 3 and argv[0] == "surface-touched":
@@ -183,8 +208,8 @@ def main(argv: "list[str] | None" = None) -> int:
 
     return die("usage: cogate_evidence.py refusal-only <job.json> <log> "
                "<conclusion> | surface-touched <workflow.yml> <files.txt> | "
-               "candidate-valid <job.json> <run.json> <head_sha> "
-               "<pr_number> <base_epoch>")
+               "candidate-valid <job.json> <run.json> <head_sha> <pr_number> | "
+               "log-bindings <log> <base_sha> <head_sha>")
 
 
 if __name__ == "__main__":

@@ -159,55 +159,76 @@ def _run_obj(**overrides):
         "path": ".github/workflows/extraction-eval.yml",
         "event": "pull_request_target",
         "head_sha": SUBJECT,
-        "run_started_at": "2026-07-18T21:05:14Z",
         "pull_requests": [{"number": 37}],
     }
     run.update(overrides)
     return run
 
 
-_EPOCH_BEFORE_RUN = 1784000000   # before the run_started_at above (1784408714)
-_EPOCH_AFTER_RUN = 9999999999    # after it — i.e., base advanced later
-
-
-def test_candidate_valid_accepts_matching_fresh_run():
+def test_candidate_valid_accepts_matching_bound_run():
     job = {"head_sha": SUBJECT}
-    assert ce.candidate_valid(job, _run_obj(), SUBJECT, 37, _EPOCH_BEFORE_RUN) is True
+    assert ce.candidate_valid(job, _run_obj(), SUBJECT, 37) is True
 
 
 def test_candidate_rejections():
     job = {"head_sha": SUBJECT}
     cases = [
-        (_run_obj(path=".github/workflows/other.yml"), 37, _EPOCH_BEFORE_RUN),
-        (_run_obj(event="pull_request"), 37, _EPOCH_BEFORE_RUN),
-        (_run_obj(head_sha="e" * 40), 37, _EPOCH_BEFORE_RUN),
-        (_run_obj(run_started_at=None), 37, _EPOCH_BEFORE_RUN),
-        (_run_obj(run_started_at="not-a-time"), 37, _EPOCH_BEFORE_RUN),
-        # Stale run: base head commit is NEWER than the run start (r6).
-        (_run_obj(), 37, _EPOCH_AFTER_RUN),
-        # Populated pull_requests without this PR's number.
-        (_run_obj(pull_requests=[{"number": 99}]), 37, _EPOCH_BEFORE_RUN),
+        _run_obj(path=".github/workflows/other.yml"),
+        _run_obj(event="pull_request"),
+        _run_obj(head_sha="e" * 40),
+        _run_obj(pull_requests=[{"number": 99}]),
+        # MANDATORY membership (r7): empty/absent pull_requests is missing
+        # identity — the earlier "API quirk" tolerance was fail-open and a
+        # test blessed it; both are inverted here.
+        _run_obj(pull_requests=[]),
+        _run_obj(pull_requests=None),
     ]
-    for run, prn, epoch in cases:
-        assert ce.candidate_valid(job, run, SUBJECT, prn, epoch) is False, run
-    # job head mismatch
-    assert ce.candidate_valid({"head_sha": "f" * 40}, _run_obj(), SUBJECT,
-                              37, _EPOCH_BEFORE_RUN) is False
-    # Empty pull_requests list is tolerated (API quirk) — other bindings hold.
-    assert ce.candidate_valid({"head_sha": SUBJECT},
-                              _run_obj(pull_requests=[]), SUBJECT,
-                              37, _EPOCH_BEFORE_RUN) is True
+    for run in cases:
+        assert ce.candidate_valid(job, run, SUBJECT, 37) is False, run
+    assert ce.candidate_valid({"head_sha": "f" * 40}, _run_obj(), SUBJECT, 37) is False
 
 
-def test_cli_candidate_valid(tmp_path, capsys):
+BASE = "d3d08e5b1d95484014c5145545c374e3761629a1"
+
+
+def _gx_log(base=BASE, head=SUBJECT, extra=""):
+    return (f"2026-07-18T21:05:26Z   GH_TOKEN: ***\n"
+            f"2026-07-18T21:05:26Z   BASE_SHA: {base}\n"
+            f"2026-07-18T21:05:26Z   HEAD_SHA: {head}\n"
+            f"2026-07-18T21:05:27Z   HEAD_SHA: {head}\n"
+            f"{extra}"
+            "2026-07-18T21:05:28Z surface diff is subject-certifiable: ai/golden/CERTIFIED_HARNESS.json\n")
+
+
+def test_log_bindings_accepts_matching_echoes():
+    assert ce.log_bindings(_gx_log(), BASE, SUBJECT) is True
+
+
+def test_log_bindings_rejections():
+    # wrong base echoed — run executed against another base
+    assert ce.log_bindings(_gx_log(base="0" * 40), BASE, SUBJECT) is False
+    # wrong head echoed
+    assert ce.log_bindings(_gx_log(head="e" * 40), BASE, SUBJECT) is False
+    # ONE mismatched echo among several consistent ones still rejects
+    assert ce.log_bindings(
+        _gx_log(extra=f"2026-07-18T21:05:29Z   BASE_SHA: {'0' * 40}\n"),
+        BASE, SUBJECT) is False
+    # no echoes at all — cannot prove the base: reject
+    assert ce.log_bindings("a log with no env echoes\n", BASE, SUBJECT) is False
+    # malformed expectations fail closed
+    assert ce.log_bindings(_gx_log(), "short", SUBJECT) is False
+    assert ce.log_bindings(_gx_log(), BASE, "short") is False
+
+
+def test_cli_candidate_valid_and_log_bindings(tmp_path, capsys):
     jp = tmp_path / "job.json"; jp.write_text(json.dumps({"head_sha": SUBJECT}), encoding="utf-8")
     rp = tmp_path / "run.json"; rp.write_text(json.dumps(_run_obj()), encoding="utf-8")
-    assert ce.main(["candidate-valid", str(jp), str(rp), SUBJECT, "37",
-                    str(_EPOCH_BEFORE_RUN)]) == 0
+    assert ce.main(["candidate-valid", str(jp), str(rp), SUBJECT, "37"]) == 0
     assert capsys.readouterr().out.strip() == "1"
-    assert ce.main(["candidate-valid", str(jp), str(rp), SUBJECT, "37",
-                    str(_EPOCH_AFTER_RUN)]) == 0
-    assert capsys.readouterr().out.strip() == "0"
-    assert ce.main(["candidate-valid", str(jp), str(rp), SUBJECT,
-                    "not-a-number", "0"]) == 1
+    assert ce.main(["candidate-valid", str(jp), str(rp), SUBJECT, "nope"]) == 1
     capsys.readouterr()
+    lp = tmp_path / "log.txt"; lp.write_text(_gx_log(), encoding="utf-8")
+    assert ce.main(["log-bindings", str(lp), BASE, SUBJECT]) == 0
+    assert capsys.readouterr().out.strip() == "1"
+    assert ce.main(["log-bindings", str(lp), "0" * 40, SUBJECT]) == 0
+    assert capsys.readouterr().out.strip() == "0"
