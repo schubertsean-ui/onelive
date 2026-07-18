@@ -49,5 +49,40 @@ skip-report-missing-record-citation). Response in the same push: SESSION_START
 skip-citation rule (prose), validate mechanization queued (P2, gate custody),
 send_later approval-block logged as REPEAT friction with a founder-side fix
 queued. Meta-lesson recorded in AGENT_FEEDBACK: any founder catch = gate-gap
-signal by default. CI note: trust-gate + adversarial-review both green on the
-original push; this addendum re-runs both.
+signal by default.
+
+### CI evidence (run ids, verifiable)
+
+- Original push `efe93da`: trust-gate **success**
+  ([run 29645811897](https://github.com/schubertsean-ui/onelive/actions/runs/29645811897/job/88083754350));
+  adversarial-review **success** (APPROVE, gpt-5.5)
+  ([run 29645811894](https://github.com/schubertsean-ui/onelive/actions/runs/29645811894/job/88083754375)),
+  both completed 2026-07-18T13:15Z.
+- Addendum push `f654c0f`: adversarial-review **REQUEST-CHANGES r1**
+  ([run 29648929954](https://github.com/schubertsean-ui/onelive/actions/runs/29648929954/job/88091806173)):
+  blockers gate-evidence-missing + unverifiable-ci-claim (this section is the
+  fix — an earlier version of it asserted "both green" with no run ids, a
+  REPEAT of the unverifiable-claim class from #27 r1); nits ledger-chronology
+  + overstated-gate-gap-wording, both fixed. Ledger row updated.
+
+### tools/validate evidence (local session gate, run at commit time of the fix push)
+
+```
+  STATUS   CHECK                  NOTE
+  ------   -----                  ----
+  PASS     trust_gate
+  PASS     lint
+  PASS     deferral_scan
+  PASS     pytest (full suite)     399 passed, 28 skipped locally; CI: 400/27
+  PASS     eval_harness import
+  PASS     perf benchmarks
+  PASS     test_audit
+  PASS     commit_sweep
+  SKIP     visual_regression      app not running / baselines absent — R-002
+RESULT: PASS (--allow-skips) — human-acknowledged incomplete (R-002 trigger unfired)
+```
+
+Context for the evaluator: CI attaches only pytest/web logs; `tools/validate`
+is the local session-close gate (SESSION_START close step 3), so its evidence
+is recorded here in the arc. The queued P2 mechanization (skip→Record binding)
+will make this stamping machine-generated instead of hand-copied.
