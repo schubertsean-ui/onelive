@@ -100,16 +100,28 @@ def _match_pattern(pattern: str, f: str) -> bool:
                      "may use this form (fail closed)")
 
 
+def _validate_pattern(pattern: str) -> None:
+    """Raise unless the pattern is one of the two accepted forms."""
+    if pattern.endswith("/**") and not (_WILDCARDS & set(pattern[:-3])):
+        return
+    if not (_WILDCARDS & set(pattern)):
+        return
+    raise ValueError(f"unsupported paths pattern {pattern!r} — only literal "
+                     "paths and '<dir>/**' are implemented; extend "
+                     "tools/cogate_evidence.py with tests before the policy "
+                     "may use this form (fail closed)")
+
+
 def surface_touched(patterns: list, files: list) -> bool:
     if not isinstance(patterns, list) or not patterns or \
             not all(isinstance(p, str) and p for p in patterns):
         raise ValueError("trigger paths missing or malformed — fail closed")
-    hit = False
-    for p in patterns:            # validate EVERY pattern, then match
-        for f in files:
-            if _match_pattern(p, f):
-                hit = True
-    return hit
+    # Validation is INDEPENDENT of the changed-file list (r9: with no
+    # changed files the per-file loop never ran, so a malformed policy
+    # silently returned False instead of failing loud on misconfig).
+    for p in patterns:
+        _validate_pattern(p)
+    return any(_match_pattern(p, f) for p in patterns for f in files)
 
 
 def candidate_valid(job: dict, run: dict, head_sha: str, pr_number: int) -> bool:
@@ -132,26 +144,41 @@ def candidate_valid(job: dict, run: dict, head_sha: str, pr_number: int) -> bool
                for pr in prs)
 
 
-_SHA_ECHO = {name: re.compile(rf"\b{name}: ([0-9a-f]{{40}})\b")
-             for name in ("BASE_SHA", "HEAD_SHA")}
+_ENV_ECHO = re.compile(r"^\S+\s+(BASE_SHA|HEAD_SHA): ([0-9a-f]{40})\s*$")
 
 
 def log_bindings(log_text: str, base_sha: str, head_sha: str) -> bool:
-    """The run's own env echoes are the base+head it executed with
-    (r7): the base-owned verifier declares BASE_SHA/HEAD_SHA in step
-    env, and the runner prints them verbatim. Every echo must match and
-    at least one of each must exist — a log with no echoes, or any
-    echo naming a different base or head, is stale/wrong-base evidence."""
+    """The run's env echoes are the base+head it executed with (r7),
+    parsed ONLY from runner-anchored regions (r9: never bare substring
+    over the whole log). Anchoring: the runner prints each step's env
+    inside its `##[group]Run …` … `##[endgroup]` block; step OUTPUT —
+    the only place subject-influenced text (filenames, record contents)
+    can appear in the base-owned job — prints AFTER the endgroup, so
+    echoes are only collected between those markers, and only in the
+    exact runner format (timestamp token, name, 40-hex, nothing else).
+    Two further properties close spoofing: the golden-exam job runs
+    base-owned code under pull_request_target, so no subject code
+    executes in it at all; and acceptance requires EVERY collected echo
+    to match — genuine echoes cannot be removed from a wrong-base log,
+    so injection can only ADD mismatches, i.e. force rejection, never
+    acceptance. At least one echo of each name must exist."""
     if not (isinstance(base_sha, str) and re.fullmatch(r"[0-9a-f]{40}", base_sha)
             and isinstance(head_sha, str) and re.fullmatch(r"[0-9a-f]{40}", head_sha)):
         return False
     expected = {"BASE_SHA": base_sha, "HEAD_SHA": head_sha}
-    for name, rx in _SHA_ECHO.items():
-        found = [m.group(1) for line in log_text.splitlines()
-                 for m in [rx.search(line)] if m]
-        if not found or any(v != expected[name] for v in found):
-            return False
-    return True
+    found = {"BASE_SHA": [], "HEAD_SHA": []}
+    in_group = False
+    for line in log_text.splitlines():
+        if "##[group]Run " in line:
+            in_group = True
+        elif "##[endgroup]" in line:
+            in_group = False
+        elif in_group:
+            m = _ENV_ECHO.match(line)
+            if m:
+                found[m.group(1)].append(m.group(2))
+    return all(found[k] and all(v == expected[k] for v in found[k])
+               for k in expected)
 
 
 def main(argv: "list[str] | None" = None) -> int:

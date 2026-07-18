@@ -154,6 +154,17 @@ def test_unsupported_pattern_fails_closed_even_when_other_patterns_hit():
         ce.surface_touched(["ai/**", "ai/*.py"], ["ai/golden/x.json"])
 
 
+def test_malformed_policy_fails_closed_even_with_no_changed_files():
+    """r9: with files == [] the per-file loop never ran, so a malformed
+    policy silently returned False — validation must be independent of
+    whether anything changed."""
+    with pytest.raises(ValueError):
+        ce.surface_touched(["!ai/**"], [])
+    with pytest.raises(ValueError):
+        ce.surface_touched(["ai/*.py"], [])
+    assert ce.surface_touched(["ai/**"], []) is False
+
+
 def _run_obj(**overrides):
     run = {
         "path": ".github/workflows/extraction-eval.yml",
@@ -191,13 +202,22 @@ def test_candidate_rejections():
 BASE = "d3d08e5b1d95484014c5145545c374e3761629a1"
 
 
-def _gx_log(base=BASE, head=SUBJECT, extra=""):
-    return (f"2026-07-18T21:05:26Z   GH_TOKEN: ***\n"
+def _gx_log(base=BASE, head=SUBJECT, extra_in_group="", extra_output=""):
+    """Runner-shaped log: env echoes INSIDE ##[group]Run blocks; step
+    output (the only subject-influencable region) after ##[endgroup]."""
+    return ("2026-07-18T21:05:26Z ##[group]Run set -euo pipefail\n"
+            "2026-07-18T21:05:26Z \x1b[36;1mset -euo pipefail\x1b[0m\n"
+            "2026-07-18T21:05:26Z env:\n"
+            "2026-07-18T21:05:26Z   GH_TOKEN: ***\n"
             f"2026-07-18T21:05:26Z   BASE_SHA: {base}\n"
             f"2026-07-18T21:05:26Z   HEAD_SHA: {head}\n"
-            f"2026-07-18T21:05:27Z   HEAD_SHA: {head}\n"
-            f"{extra}"
-            "2026-07-18T21:05:28Z surface diff is subject-certifiable: ai/golden/CERTIFIED_HARNESS.json\n")
+            f"{extra_in_group}"
+            "2026-07-18T21:05:26Z ##[endgroup]\n"
+            f"2026-07-18T21:05:28Z surface diff is subject-certifiable: ai/golden/CERTIFIED_HARNESS.json\n"
+            f"{extra_output}"
+            "2026-07-18T21:05:28Z ##[group]Run set -euo pipefail\n"
+            f"2026-07-18T21:05:28Z   HEAD_SHA: {head}\n"
+            "2026-07-18T21:05:28Z ##[endgroup]\n")
 
 
 def test_log_bindings_accepts_matching_echoes():
@@ -211,13 +231,27 @@ def test_log_bindings_rejections():
     assert ce.log_bindings(_gx_log(head="e" * 40), BASE, SUBJECT) is False
     # ONE mismatched echo among several consistent ones still rejects
     assert ce.log_bindings(
-        _gx_log(extra=f"2026-07-18T21:05:29Z   BASE_SHA: {'0' * 40}\n"),
+        _gx_log(extra_in_group=f"2026-07-18T21:05:29Z   BASE_SHA: {'0' * 40}\n"),
         BASE, SUBJECT) is False
     # no echoes at all — cannot prove the base: reject
     assert ce.log_bindings("a log with no env echoes\n", BASE, SUBJECT) is False
     # malformed expectations fail closed
     assert ce.log_bindings(_gx_log(), "short", SUBJECT) is False
     assert ce.log_bindings(_gx_log(), BASE, "short") is False
+
+
+def test_log_bindings_ignores_step_output_region():
+    """r9 anchoring: echo-shaped text in step OUTPUT (after ##[endgroup],
+    where subject-influenced text like filenames can appear) is ignored —
+    it can neither satisfy a binding nor, appearing alone, poison one."""
+    spoof = f"2026-07-18T21:05:29Z   BASE_SHA: {'0' * 40}\n"
+    # Spoofed mismatch OUTSIDE a group does not reject a good log...
+    assert ce.log_bindings(_gx_log(extra_output=spoof), BASE, SUBJECT) is True
+    # ...and spoofed matches outside groups cannot substitute for real
+    # in-group echoes.
+    bare = ("2026-07-18T21:05:29Z   BASE_SHA: " + BASE + "\n"
+            "2026-07-18T21:05:29Z   HEAD_SHA: " + SUBJECT + "\n")
+    assert ce.log_bindings(bare, BASE, SUBJECT) is False
 
 
 def test_cli_candidate_valid_and_log_bindings(tmp_path, capsys):
