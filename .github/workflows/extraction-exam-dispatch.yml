@@ -117,6 +117,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
+          : "${DEFAULT_BRANCH:?default branch unresolved — failing closed}"
           if [ "$REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
             echo "::error::attended exams run ONLY from the default branch (harness must be trusted code); dispatched ref was $REF. Dispatch on $DEFAULT_BRANCH and pass the PR head as subject_sha."
             exit 1
@@ -149,6 +150,8 @@ jobs:
           RAW_MODEL: ${{ github.event.inputs.model }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          : "${SUBJECT_SHA:?subject_sha input missing — failing closed}"
+          : "${RAW_MODEL:?model input missing — failing closed}"
           if ! [[ "$SUBJECT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::subject_sha must be the FULL 40-character commit SHA (evidence later binds by exact equality to a PR head; abbreviations invite mismatches)."
             exit 1
@@ -180,6 +183,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_EXAM }}
         run: |
           set -euo pipefail
+          : "${SUBJECT_SHA:?subject_sha input missing — failing closed}"
           if ! [ -n "$ANTHROPIC_API_KEY" ]; then
             echo "::error::ANTHROPIC_API_KEY_EXAM is not configured as a secret of the 'extraction-exam' environment — the exam cannot run, and no-exam means no-pass (fail closed). Setup: Settings -> Environments -> extraction-exam -> Environment secrets."
             exit 1

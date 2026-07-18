@@ -13,7 +13,10 @@ R1 UNDECLARED-ENV: every UPPERCASE shell variable a `run:` step consumes
    `>> "$GITHUB_ENV"` export, an assignment/read within the script itself,
    or the ambient runner allowlist below. No visible source = the
    unset-and-silent risk = FAIL.
-R4 SECRET-GUARD: a secret-backed step env var consumed in shell text must
+R4 EXPRESSION-GUARD: an env var whose value is ANY GitHub expression that
+   can render empty on misconfig (secrets/env/inputs/needs/steps/event
+   fields — everything except a safelist of always-present github.*
+   platform fields), when consumed in shell text, must
    carry a visible TERMINATING non-empty guard — ${X:?}, or a -n test
    with an abort (exit/return) on the same line; a non-terminating -n
    probe never counts, -z never counts — at-or-before first use, at ANY
@@ -115,6 +118,16 @@ _TERMINATES = re.compile(
     r"(?:(?:exit|return)\b|\{\s*(?:exit|return)\b|\{[^}]*?;\s*(?:exit|return)\b)"
 )
 _SECRET_VALUE = re.compile(r"\$\{\{[^}]*\bsecrets\s*[.\[]")
+# Expression-backed env values that can render EMPTY on misconfig require
+# the terminating guard (evaluator r13: not just secrets — env./inputs./
+# needs./steps./github.event.inputs all render "" when missing). The ONLY
+# exemption is a safelist of platform fields GitHub always populates.
+_ALWAYS_PRESENT = re.compile(
+    r"^\$\{\{\s*github\.(?:repository|repository_owner|sha|ref|ref_name|"
+    r"run_id|run_number|run_attempt|actor|job|workflow|event_name|"
+    r"server_url|api_url|graphql_url|workspace)\s*\}\}$"
+)
+_ANY_EXPR = re.compile(r"\$\{\{")
 _EXPORT_CMD = re.compile(r"(?:echo|printf)\b")
 _EXPORT_FULL = re.compile(
     r"(?:echo|printf)\s+[\"']?([A-Z][A-Z0-9_]*)=.*?\$\{?GITHUB_ENV\}?"
@@ -367,9 +380,15 @@ def lint_workflow_text(text: str, name: str) -> list[str]:
     workflow_env = set(workflow_env_map.keys())
 
     def _secret_keys(mapping) -> set[str]:
+        # Guard duty for ANY expression-backed value that can render empty:
+        # secrets, env, inputs, needs, steps outputs, event fields — all of
+        # them produce "" on misconfig with no shell-visible difference.
+        # Only safelisted always-present github.* fields are exempt.
         return {
             k for k, v in (mapping or {}).items()
-            if isinstance(v, str) and _SECRET_VALUE.search(v)
+            if isinstance(v, str)
+            and _ANY_EXPR.search(v)
+            and not _ALWAYS_PRESENT.match(v.strip())
         }
 
     jobs = doc.get("jobs") or {}
@@ -421,8 +440,8 @@ def lint_workflow_text(text: str, name: str) -> list[str]:
             for var in unguarded:
                 findings.append(
                     f"{name}: job '{job_name}' step #{idx + 1} consumes the "
-                    f"secret-backed ${var} in shell text with no non-empty "
-                    f"guard before first use — a missing secret renders as an "
+                    f"expression-backed ${var} in shell text with no non-empty "
+                    f"guard before first use — a missing/misconfigured value renders as an "
                     f"empty string and this step would proceed silently; add a "
                     f"TERMINATING guard before first use: : \"${{{var}:?}}\" or "
                     f"[ -n \"${var}\" ] || exit 1 (a bare probe does not count)"

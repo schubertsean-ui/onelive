@@ -144,9 +144,12 @@ def test_check_todo_growth_silent_when_flat_or_decreasing():
     assert findings.ok()
 
 
-def test_advisory_exit_code_is_zero_even_with_findings():
+def test_advisory_exit_distinguishes_clean_from_findings():
+    # Evaluator r13 (PR #35): exit 0 = genuinely clean; exit 3 = findings
+    # present but advisory — the caller (tools/validate) must be able to
+    # record an honest ADVISORY row instead of PASS without parsing stdout.
     rc = commit_sweep.main(["--n", "3"])
-    assert rc == 0  # advisory: never fails the run without --strict
+    assert rc in (0, 3)  # never 1 (that is --strict's failure code)
 
 
 def test_strict_exit_code_reflects_findings():

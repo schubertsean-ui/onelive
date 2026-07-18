@@ -243,7 +243,10 @@ def main(argv=None) -> int:
     for item in findings.items:
         print(f"  - {item}")
 
-    return 1 if args.strict else 0
+    # Exit 3 = findings, advisory (same contract as commit_sweep, evaluator
+    # r13 on PR #35): validate records an honest ADVISORY row, never PASS,
+    # without parsing stdout. --strict keeps exit 1.
+    return 1 if args.strict else 3
 
 
 if __name__ == "__main__":

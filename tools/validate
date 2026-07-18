@@ -88,21 +88,25 @@ run_check() {
 
 run_advisory() {
   # run_advisory <name> <cmd...> — advisory (findings don't fail) unless
-  # --strict, in which case exit!=0 becomes a FAIL. Always runs; never silent.
+  # --strict, in which case findings become a FAIL. Always runs; never
+  # silent. Exit contract (evaluator r13): 0 = clean → PASS; 3 = findings,
+  # advisory → ADVISORY row (never plain PASS — evidence must distinguish
+  # clean from findings-present); anything else = the tool itself broke →
+  # FAIL regardless of strictness.
   local name="$1"; shift
   echo "── ${name}$( [ "$STRICT" -eq 1 ] && echo ' (strict)' ) ──────────────"
-  if "$@"; then
+  "$@"
+  local rc=$?
+  if [ "$rc" -eq 0 ]; then
     echo "[PASS] ${name}"
     record PASS "$name"
+  elif [ "$rc" -eq 3 ] && [ "$STRICT" -eq 0 ]; then
+    echo "[ADVISORY] ${name} reported findings — review them (non-blocking)."
+    record ADVISORY "$name" "findings — review"
   else
-    if [ "$STRICT" -eq 1 ]; then
-      echo "[FAIL] ${name} (findings, --strict)" >&2
-      record FAIL "$name" "findings (strict)"
-      ANY_FAIL=1
-    else
-      echo "[ADVISORY] ${name} reported findings — review them (non-blocking)."
-      record ADVISORY "$name" "findings — review"
-    fi
+    echo "[FAIL] ${name} (rc=${rc}$( [ "$STRICT" -eq 1 ] && echo ', --strict' ))" >&2
+    record FAIL "$name" "findings (strict)"
+    ANY_FAIL=1
   fi
   echo
 }

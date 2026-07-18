@@ -56,6 +56,7 @@ jobs:
           # run_once.py (defense in depth, evaluator finding PR #12 round 1).
           MAX_SOURCES: ${{ github.event.inputs.max_sources }}
         run: |
+          : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
           # [[ =~ ]] validates the WHOLE string (POSIX ERE, not line-oriented
           # like grep — a newline-smuggled second line cannot pass), and the
           # raw value is never echoed into an annotation (log-command
@@ -119,6 +120,7 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           MAX_SOURCES: ${{ github.event.inputs.max_sources }}
         run: |
+          : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
           export ONELIVE_DB_DSN
           python worker/run_once.py --real --max-sources "$MAX_SOURCES"

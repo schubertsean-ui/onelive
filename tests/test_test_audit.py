@@ -124,11 +124,13 @@ def test_healthy_test_produces_no_findings(tmp_path):
     assert findings.ok()
 
 
-def test_main_advisory_mode_returns_0_despite_findings(tmp_path, monkeypatch, capsys):
+def test_main_advisory_mode_returns_3_with_findings(tmp_path, monkeypatch, capsys):
+    # Evaluator r13 (PR #35): findings in advisory mode exit 3, never 0 —
+    # validate records an honest ADVISORY row instead of PASS.
     _write(tmp_path, "test_empty.py", "def test_nothing():\n    pass\n")
     rc = test_audit.main(["--tests-dir", str(tmp_path)])
     out = capsys.readouterr().out
-    assert rc == 0
+    assert rc == 3
     assert "finding" in out
     assert "advisory only" in out
 

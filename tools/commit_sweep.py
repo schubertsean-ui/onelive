@@ -214,7 +214,11 @@ def main(argv=None) -> int:
     for item in findings.items:
         print(f"  - {item}")
 
-    return 1 if args.strict else 0
+    # Exit 3 = findings, advisory (evaluator r13 on PR #35: an exit-0 run
+    # with printed findings recorded as PASS in validate's evidence is
+    # misleading — the caller must be able to distinguish clean from
+    # findings-present without parsing stdout). --strict keeps exit 1.
+    return 1 if args.strict else 3
 
 
 if __name__ == "__main__":

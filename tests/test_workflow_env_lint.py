@@ -802,3 +802,56 @@ def test_conditional_abort_does_not_kill_later_credit():
           echo "$MY_LOCAL $SECRET_TOKEN"
 """)
     assert lint_workflow_text(text, "f.yml") == []
+
+
+# ---- Evaluator r13: any empty-able expression-backed env needs the guard ----
+
+
+def test_env_context_backed_env_value_requires_guard():
+    # env: TOKEN: ${{ env.MISSING }} renders "" exactly like a missing
+    # secret — guard duty is about empty-ability, not secrecy.
+    text = _wf("""
+      - name: gate
+        env:
+          TOKEN: ${{ env.MISSING_TOKEN }}
+        run: |
+          curl "$TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("TOKEN" in f and "TERMINATING guard" in f for f in findings)
+
+
+def test_inputs_backed_env_value_requires_guard():
+    text = _wf("""
+      - name: gate
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          echo "$MODE"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MODE" in f and "TERMINATING guard" in f for f in findings)
+
+
+def test_safelisted_github_repository_needs_no_guard():
+    text = _wf("""
+      - name: gate
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          echo "$REPO"
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_event_field_backed_env_value_requires_guard():
+    # github.event.* fields are NOT safelisted — they vary by trigger.
+    text = _wf("""
+      - name: gate
+        env:
+          BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          echo "$BRANCH"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("BRANCH" in f and "TERMINATING guard" in f for f in findings)
