@@ -260,6 +260,8 @@ def test_nonfinite_and_mistyped_metrics_rejected_by_validate_record():
         ("asserted_facts", 316.0),
         ("examples", "77"),
         ("injections", None),
+        ("injections", -1),
+        ("asserted_facts", -316),
     ]
     for key, bad in cases:
         rec = _record()

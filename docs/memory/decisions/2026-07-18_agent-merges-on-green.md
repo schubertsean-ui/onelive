@@ -53,14 +53,19 @@ same condition so the two never diverge):
    `tools/classify_extraction_surface.py` running from the BASE branch —
    never any other failure of that check, never agent judgment.
 2. The classifier partitions the refused files against HARNESS_MANIFEST
-   read as data. MANIFEST-BOUND files are compensated by trust_gate's
-   extraction-certification re-lock: the tree goes red everywhere until
-   an attended exam re-certifies (the red moves). NON-manifest surface
-   files are compensated structurally: base-owned execution + per-run
-   data bindings + the blocking adversarial review on that same PR.
-3. Bootstrap ordering is part of the condition: gate → record → re-lock,
-   separate PRs; a certification record may only enter the tree through
-   the merged base-owned authenticator, and until the re-lock is live no
-   manifest-bound PR merges at all.
+   read as data, and ELIGIBILITY keys on that partition (r4): a refusal
+   is covered ONLY when proven to contain no manifest-bound file (an
+   unreadable manifest = ineligible, printed by the classifier — fail
+   closed). NON-manifest surface files are compensated structurally,
+   TODAY: base-owned execution + per-run data bindings + the blocking
+   adversarial review on that same PR.
+3. MANIFEST-BOUND refusals currently have NO exception — ordinary red,
+   hard stop, founder-crucial to override — because their compensating
+   control (trust_gate's extraction-certification re-lock) is stage 3 of
+   the bootstrap (gate → record → re-lock, separate PRs; a certification
+   record may only enter the tree through the merged base-owned
+   authenticator). The stage-3 PR extends the exception to manifest-bound
+   refusals in the SAME commit that ships the re-lock — the condition is
+   never written ahead of its mechanism.
 4. Every other red or pending check still forbids merging — this
    exception names one check's one designed failure mode, nothing more.

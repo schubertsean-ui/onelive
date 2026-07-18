@@ -60,8 +60,10 @@ def _reject(msg: str) -> None:
 
 
 def _count(v) -> "int | None":
-    """Counts must be true integers — bools and floats are malformed."""
-    return v if isinstance(v, int) and not isinstance(v, bool) else None
+    """Counts must be true NON-NEGATIVE integers — bools, floats, and
+    negatives are malformed (evaluator r4 nit: a record should reject an
+    impossible count structurally, not rely on a later gate)."""
+    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else None
 
 
 def _rate(v) -> "float | None":

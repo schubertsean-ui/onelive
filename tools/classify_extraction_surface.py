@@ -188,25 +188,36 @@ def classify(compare: dict, base_dir: pathlib.Path, subject_dir: pathlib.Path) -
         #     verification (golden/prompt/model/dependency-lock hashes),
         #     and the mandatory non-Claude adversarial review that blocks
         #     THIS very PR (no path filter).
-        # An unreadable manifest classifies everything as unbound — shown,
-        # fail closed, never guessed.
+        # The charter exception's eligibility keys on this partition
+        # (PR #36 r4): a refusal is exception-ELIGIBLE only when it is
+        # proven to contain NO manifest-bound file. An unreadable manifest
+        # therefore makes the refusal INELIGIBLE — never "everything
+        # unbound", which would be fail-open for the exception itself.
         manifest = read_harness_manifest(base_dir)
-        bound = sorted(p for p in harness_touched if manifest and p in manifest)
-        unbound = sorted(p for p in harness_touched if not (manifest and p in manifest))
         detail = []
         if manifest is None:
-            detail.append("HARNESS_MANIFEST unreadable from base — treating "
-                          "every file as certification-hash-UNBOUND (fail closed)")
-        if bound:
-            detail.append("manifest-bound (certification-hash covered; a merge "
-                          "under the charter exception turns trust_gate red "
-                          "everywhere until an attended re-exam): "
-                          + ", ".join(bound))
-        if unbound:
-            detail.append("NOT manifest-bound (re-verified instead by "
-                          "base-owned execution, per-run data bindings, and "
-                          "the blocking adversarial review on this PR): "
-                          + ", ".join(unbound))
+            detail.append("unclassifiable — HARNESS_MANIFEST unreadable from "
+                          "base, so the manifest-bound partition cannot be "
+                          "proven: this refusal is NOT covered by the charter "
+                          "exception (fail closed): "
+                          + ", ".join(sorted(harness_touched)))
+        else:
+            bound = sorted(p for p in harness_touched if p in manifest)
+            unbound = sorted(p for p in harness_touched if p not in manifest)
+            if bound:
+                # Until the stage-3 re-lock is live, this class has no
+                # compensating control — so it has no exception: ordinary
+                # red, hard stop. The stage-3 PR ships the re-lock and
+                # rewrites this message + the charter in the same commit.
+                detail.append("manifest-bound (certification-hash covered; "
+                              "NOT covered by the charter exception until the "
+                              "stage-3 re-lock is live — hard stop): "
+                              + ", ".join(bound))
+            if unbound:
+                detail.append("NOT manifest-bound (re-verified instead by "
+                              "base-owned execution, per-run data bindings, and "
+                              "the blocking adversarial review on this PR): "
+                              + ", ".join(unbound))
         # The first sentence is the charter-referenced classifier output for
         # the enumerated golden-exam exception — change it only with the
         # charter (founder-crucial).

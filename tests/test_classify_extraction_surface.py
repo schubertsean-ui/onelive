@@ -204,17 +204,21 @@ def test_refusal_partitions_manifest_bound_vs_unbound(capsys):
                      _ROOT, _ROOT)
     err = capsys.readouterr().err
     assert "manifest-bound (certification-hash covered" in err
+    assert "NOT covered by the charter exception until the stage-3 re-lock" in err
     assert "ai/golden_exam.py" in err
     assert "NOT manifest-bound (re-verified instead by" in err
     assert "tools/trust_gate.py" in err
 
 
-def test_unreadable_manifest_classifies_unbound_and_says_so(tmp_path, capsys):
+def test_unreadable_manifest_makes_refusal_exception_ineligible(tmp_path, capsys):
+    """Fail closed for the EXCEPTION too (r4): an unreadable manifest must
+    never label files as the exception-eligible unbound class."""
     with pytest.raises(SystemExit):
         ces.classify(_compare("ai/golden_exam.py"), tmp_path, tmp_path)
     err = capsys.readouterr().err
     assert "HARNESS_MANIFEST unreadable" in err
-    assert "fail closed" in err
+    assert "NOT covered by the charter exception" in err
+    assert "NOT manifest-bound (re-verified" not in err
 
 
 def test_read_harness_manifest_fails_closed_on_garbage(tmp_path):
