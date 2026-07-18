@@ -219,6 +219,18 @@ jobs:
           # -f (r2): an HTTP 401/403/404/429 must FAIL the step, never be
           # parsed as JSON and demoted to "absent" evidence.
           api() { curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          # TRUSTED WORKSPACE (stage-3 r2): every intermediate lives in a
+          # fresh tempdir OUTSIDE the checkout — a subject PR can commit
+          # symlinks under predictable names and `>` follows symlinks, so
+          # writing evidence into the checkout would let the subject
+          # clobber trusted tooling or corrupt the evaluator's bundle.
+          # Every python runs with -I (isolated, implies -P: neither the
+          # cwd nor the script dir joins sys.path) so a subject file named
+          # json.py / pathlib.py can never shadow the stdlib inside the
+          # privileged job — same discipline as the pinned evaluator
+          # script above.
+          EVID="$(mktemp -d)"
+          echo "EVID_DIR=$EVID" >> "$GITHUB_ENV"
           # Head binding, proven not narrated (r2): this job checks out
           # GitHub's synthetic merge commit, so validate.log's git head
           # differs from the PR head BY CONSTRUCTION. Assert the relation
@@ -230,76 +242,47 @@ jobs:
             echo "::error::review checkout $MERGE_SHA is not the merge of PR head $HEAD_SHA (parent2=$HEAD_PARENT) — evidence binding broken, failing closed"
             exit 1
           fi
-          # The golden-exam verifier runs base-owned on pull_request_target;
-          # its log IS the authenticator/classifier evidence the evaluator
-          # must see with its own eyes (r1). Selection is IDENTITY-BOUND
-          # (r3): a check is only accepted if it is a github-actions job
-          # whose parent run is .github/workflows/extraction-eval.yml on
-          # event pull_request_target with run+job head_sha equal to THIS
-          # PR head — never "first check named golden-exam". Ambiguity
-          # (more than one validated candidate) fails closed.
-          #
-          # Conclusion policy is MECHANICAL, not delegated to the AI
-          # reviewer (r3): success -> attach; failure whose log is exactly
-          # the classifier's designed harness-refusal -> attach (the
-          # charter's enumerated exception requires the review to judge
-          # refusal reds — hard-failing here would deadlock it); ANY other
-          # failure (rejected record, verifier error) or a missing/
-          # unfinished check on a PR that touches the extraction-surface
-          # trigger paths -> this step fails, mechanically.
-          # Applicability derives from the BASE-owned copy of the co-gate's
-          # trigger paths (r4: reading the merged tree let a PR edit the
-          # paths list and classify itself off-surface — fail-open). The
-          # merge commit's first parent IS the base head; and because the
-          # base paths list includes extraction-eval.yml itself, a PR that
-          # edits the policy is on-surface by the OLD policy regardless.
-          git show HEAD^1:.github/workflows/extraction-eval.yml > base-extraction-eval.yml
-          git diff --name-only HEAD^1 HEAD > changed-files.txt
           # Tested helper, BASE copy ONLY (r9: the subject-bootstrap
           # concept is deleted — the subject under review must never be
-          # able to rewrite the judge of its own co-gate evidence, so the
-          # executing copy is always base's, merge^1). The helper landed
-          # inert in PR #37 before this wiring existed, so base always
-          # has it; if this command ever fails, the step fails closed
-          # with it — there is no fallback path.
-          git show HEAD^1:tools/cogate_evidence.py > trusted-cogate.py
+          # able to rewrite the judge of its own co-gate evidence). The
+          # helper landed inert in PR #37, so base always has it; if this
+          # command ever fails, the step fails closed with it — there is
+          # no fallback path.
+          git show HEAD^1:tools/cogate_evidence.py > "$EVID/cogate_evidence.py"
+          git show HEAD^1:.github/workflows/extraction-eval.yml > "$EVID/base-extraction-eval.yml"
+          git diff --name-only HEAD^1 HEAD > "$EVID/changed-files.txt"
           BASE_SHA_CUR="$(git rev-parse HEAD^1)"
-          SURFACE_TOUCHED="$(python3 trusted-cogate.py surface-touched base-extraction-eval.yml changed-files.txt)"
-          # Settled, paginated polling (r6 nits): wait until at least one
-          # github-actions candidate exists and NONE is still pending, so a
-          # stale completed check cannot race a valid in-flight one into a
-          # false red; per_page=100 keeps ambiguity detection complete.
+          SURFACE_TOUCHED="$(python3 -I "$EVID/cogate_evidence.py" surface-touched "$EVID/base-extraction-eval.yml" "$EVID/changed-files.txt")"
           # Pagination until exhaustion (r8: per_page is a page size, not a
-          # completeness guarantee — an identity-valid run beyond page 1
-          # would make ambiguity detection lie). Every poll refetches all
-          # pages; the merge asserts collected == total_count and fails
-          # closed on any shortfall (including >1000 runs, beyond the cap).
+          # completeness guarantee). Every poll refetches all pages; the
+          # merge asserts collected == total_count and fails closed on any
+          # shortfall (including >1000 runs, beyond the cap).
           for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            rm -f gx-page-*.json
-            api "https://api.github.com/repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=golden-exam&per_page=100&page=1" > gx-page-1.json
-            NEED_PAGES="$(python3 -c "import json,math; print(min(10, math.ceil(json.load(open('gx-page-1.json')).get('total_count',0)/100)))")"
+            rm -f "$EVID"/gx-page-*.json
+            api "https://api.github.com/repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=golden-exam&per_page=100&page=1" > "$EVID/gx-page-1.json"
+            NEED_PAGES="$(python3 -I -c "import json,math,sys; print(min(10, math.ceil(json.load(open(sys.argv[1]+'/gx-page-1.json')).get('total_count',0)/100)))" "$EVID")"
             for PG in 2 3 4 5 6 7 8 9 10; do
               if [ "$PG" -le "$NEED_PAGES" ]; then
-                api "https://api.github.com/repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=golden-exam&per_page=100&page=$PG" > "gx-page-$PG.json"
+                api "https://api.github.com/repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=golden-exam&per_page=100&page=$PG" > "$EVID/gx-page-$PG.json"
               fi
             done
-            python3 -c "import json,glob,sys; pages=[json.load(open(f)) for f in glob.glob('gx-page-*.json')]; total=pages[0].get('total_count',0) if pages else 0; runs=[r for p in pages for r in (p.get('check_runs') or [])]; sys.exit('::error::check-run pagination incomplete — cannot prove ambiguity absence (fail closed)') if len(runs)!=total else json.dump({'total_count':total,'check_runs':runs}, open('gx-checks.json','w'))"
-            DONE="$(python3 -c "import json; rs=[r for r in (json.load(open('gx-checks.json')).get('check_runs') or []) if (r.get('app') or {}).get('slug')=='github-actions']; print('1' if (rs and all(r.get('status')=='completed' for r in rs)) else '0')")"
+            python3 -I -c "import json,glob,sys; d=sys.argv[1]; pages=[json.load(open(f)) for f in glob.glob(d+'/gx-page-*.json')]; total=pages[0].get('total_count',0) if pages else 0; runs=[r for p in pages for r in (p.get('check_runs') or [])]; sys.exit('::error::check-run pagination incomplete — cannot prove ambiguity absence (fail closed)') if len(runs)!=total else json.dump({'total_count':total,'check_runs':runs}, open(d+'/gx-checks.json','w'))" "$EVID"
+            DONE="$(python3 -I -c "import json,sys; rs=[r for r in (json.load(open(sys.argv[1]+'/gx-checks.json')).get('check_runs') or []) if (r.get('app') or {}).get('slug')=='github-actions']; print('1' if (rs and all(r.get('status')=='completed' for r in rs)) else '0')" "$EVID")"
             [ "$DONE" = "1" ] && break
             sleep 10
           done
-          CAND_IDS="$(python3 -c "import json; rs=(json.load(open('gx-checks.json')).get('check_runs') or []); print(' '.join(str(r['id']) for r in rs if r.get('status')=='completed' and (r.get('app') or {}).get('slug')=='github-actions'))")"
+          CAND_IDS="$(python3 -I -c "import json,sys; rs=(json.load(open(sys.argv[1]+'/gx-checks.json')).get('check_runs') or []); print(' '.join(str(r['id']) for r in rs if r.get('status')=='completed' and (r.get('app') or {}).get('slug')=='github-actions'))" "$EVID")"
           VALID_ID=""
           VALID_COUNT=0
           for CID in $CAND_IDS; do
-            api "https://api.github.com/repos/$REPO/actions/jobs/$CID" > "job-$CID.json"
-            RUN_ID_C="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['run_id'])" "job-$CID.json")"
-            api "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID_C" > "run-$CID.json"
+            api "https://api.github.com/repos/$REPO/actions/jobs/$CID" > "$EVID/job-$CID.json"
+            RUN_ID_C="$(python3 -I -c "import json,sys; print(json.load(open(sys.argv[1]))['run_id'])" "$EVID/job-$CID.json")"
+            api "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID_C" > "$EVID/run-$CID.json"
             # Identity via the TRUSTED helper (r6/r7): workflow path,
             # event, head SHAs, and MANDATORY PR-number membership — an
             # unpopulated pull_requests list is missing identity, fail
             # closed. Base binding is proven on the LOG below, not here.
-            OK="$(python3 trusted-cogate.py candidate-valid "job-$CID.json" "run-$CID.json" "$HEAD_SHA" "$PR_NUMBER")"
+            OK="$(python3 -I "$EVID/cogate_evidence.py" candidate-valid "$EVID/job-$CID.json" "$EVID/run-$CID.json" "$HEAD_SHA" "$PR_NUMBER")"
             if [ "$OK" = "1" ]; then
               VALID_COUNT=$((VALID_COUNT+1))
               VALID_ID="$CID"
@@ -309,38 +292,35 @@ jobs:
             {
               echo "# golden-exam: no identity-validated check exists for head $HEAD_SHA and the diff touches no extraction-surface trigger path (judged by the BASE-owned co-gate helper) — the co-gate is not applicable to this PR"
               echo "# binding: review checkout $MERGE_SHA is GitHub's synthetic merge commit whose second parent IS the PR head $HEAD_SHA (asserted above, fail closed)"
-            } > golden-exam.log
-            wc -c golden-exam.log
+            } > "$EVID/golden-exam.log"
+            wc -c "$EVID/golden-exam.log"
             exit 0
           fi
           if [ "$VALID_COUNT" != "1" ]; then
             echo "::error::expected exactly one identity-validated golden-exam check for head $HEAD_SHA (workflow extraction-eval.yml, pull_request_target, matching head), found $VALID_COUNT — missing or ambiguous co-gate evidence on an extraction-surface PR, failing closed"
             exit 1
           fi
-          CONCLUSION="$(python3 -c "import json,sys; rs=json.load(open('gx-checks.json'))['check_runs']; print(([r for r in rs if str(r['id'])==sys.argv[1]][0].get('conclusion')) or 'none')" "$VALID_ID")"
-          GX_URL="$(python3 -c "import json,sys; rs=json.load(open('gx-checks.json'))['check_runs']; print(([r for r in rs if str(r['id'])==sys.argv[1]][0].get('details_url')) or '')" "$VALID_ID")"
-          api -L "https://api.github.com/repos/$REPO/actions/jobs/$VALID_ID/logs" > gx-job.log
-          # Base+head binding PROVEN from the run's own env echoes (r7 —
-          # replaces the r6 timestamp heuristic): the base-owned verifier
-          # declares BASE_SHA/HEAD_SHA in step env and the runner prints
-          # them verbatim; every echo must equal the current merge^1 and
-          # the PR head, at least one of each. A log echoing any other
-          # base is evidence minted against a different base: fail closed.
-          BINDINGS_OK="$(python3 trusted-cogate.py log-bindings gx-job.log "$BASE_SHA_CUR" "$HEAD_SHA")"
+          CONCLUSION="$(python3 -I -c "import json,sys; rs=json.load(open(sys.argv[1]+'/gx-checks.json'))['check_runs']; print(([r for r in rs if str(r['id'])==sys.argv[2]][0].get('conclusion')) or 'none')" "$EVID" "$VALID_ID")"
+          GX_URL="$(python3 -I -c "import json,sys; rs=json.load(open(sys.argv[1]+'/gx-checks.json'))['check_runs']; print(([r for r in rs if str(r['id'])==sys.argv[2]][0].get('details_url')) or '')" "$EVID" "$VALID_ID")"
+          if [ "$CONCLUSION" != "success" ] && [ "$CONCLUSION" != "failure" ]; then
+            echo "::error::golden-exam concluded '$CONCLUSION' — cancelled/timed-out/incomplete co-gate evidence fails closed"
+            exit 1
+          fi
+          api -L "https://api.github.com/repos/$REPO/actions/jobs/$VALID_ID/logs" > "$EVID/gx-job.log"
+          # Base+head binding PROVEN from the run's own env echoes (r7,
+          # anchored parsing r9): every runner env-group echo of
+          # BASE_SHA/HEAD_SHA must equal the current merge^1 and the PR
+          # head. A log echoing any other base is evidence minted against
+          # a different base: fail closed.
+          BINDINGS_OK="$(python3 -I "$EVID/cogate_evidence.py" log-bindings "$EVID/gx-job.log" "$BASE_SHA_CUR" "$HEAD_SHA")"
           if [ "$BINDINGS_OK" != "1" ]; then
             echo "::error::golden-exam log does not prove execution against the current base ($BASE_SHA_CUR) and this head — stale or wrong-base co-gate evidence, failing closed"
             exit 1
           fi
-          # The refusal judgment is tested code (r5, tools/cogate_evidence.py
-          # + tests/test_cogate_evidence.py), judged on the job's STEP
-          # conclusions from the Actions API — exactly one failed step and
-          # it must be the classify step, so a refusal annotation riding
-          # with a second, even UNANNOTATED, failure (rejected record,
-          # traceback) can never pass — plus exact refusal annotations,
-          # and only for conclusion == failure. Cancelled / timed_out /
-          # any other incomplete state fails closed below. Computed
+          # The refusal judgment is the TRUSTED helper's (step-conclusion
+          # ground truth + exact annotations + failure-only). Computed
           # unconditionally so the env lint sees the definition.
-          REFUSAL_ONLY="$(python3 trusted-cogate.py refusal-only "job-$VALID_ID.json" gx-job.log "$CONCLUSION")"
+          REFUSAL_ONLY="$(python3 -I "$EVID/cogate_evidence.py" refusal-only "$EVID/job-$VALID_ID.json" "$EVID/gx-job.log" "$CONCLUSION")"
           if [ "$CONCLUSION" != "success" ]; then
             if [ "$REFUSAL_ONLY" != "1" ]; then
               echo "::error::golden-exam concluded '$CONCLUSION' and is not exactly the classifier's designed harness-refusal (sole failed step = classify, refusal-only annotations, conclusion=failure) — rejected records, verifier errors, mixed or incomplete states block mechanically, failing closed"
@@ -348,12 +328,13 @@ jobs:
             fi
           fi
           {
-            echo "# golden-exam check on head $HEAD_SHA — identity-validated by the BASE-owned co-gate helper (git show HEAD^1): job of .github/workflows/extraction-eval.yml, event pull_request_target, run+job head_sha == PR head, PR number bound, base+head PROVEN from the run env echoes (BASE_SHA == $BASE_SHA_CUR, HEAD_SHA == PR head); log attached verbatim"
+            echo "# golden-exam check on head $HEAD_SHA — identity-validated by the BASE-owned co-gate helper (git show HEAD^1, executed with python -I from a trusted tempdir): job of .github/workflows/extraction-eval.yml, event pull_request_target, run+job head_sha == PR head, PR number bound, base+head PROVEN from the run env echoes (BASE_SHA == $BASE_SHA_CUR, HEAD_SHA == PR head); log attached verbatim"
             echo "# binding: review checkout $MERGE_SHA is GitHub's synthetic merge commit whose second parent IS the PR head $HEAD_SHA (asserted above, fail closed) — validate.log's git head and this log describe the same PR state"
             echo "golden-exam conclusion: $CONCLUSION $GX_URL"
-            cat gx-job.log
-          } > golden-exam.log
-          wc -c golden-exam.log
+            cat "$EVID/gx-job.log"
+          } > "$EVID/golden-exam.log"
+          wc -c "$EVID/golden-exam.log"
+
 
       - name: Independent evaluator (APPROVE required)
         env:
@@ -392,7 +373,8 @@ jobs:
           # docs/memory/decisions/2026-07-17_diff-cap-approval.md. Closes the
           # evaluator r23 gate-custody finding. Changing this value again,
           # either direction, requires a new founder decision.
+          : "${EVID_DIR:?co-gate evidence step did not run — failing closed}"
           python -I /tmp/trusted/adversarial_review.py --require \
             --max-diff-bytes 800000 \
             --diff-file pr.diff --test-log pytest.log --test-log web.log \
-            --test-log validate.log --test-log golden-exam.log
+            --test-log validate.log --test-log "$EVID_DIR/golden-exam.log"

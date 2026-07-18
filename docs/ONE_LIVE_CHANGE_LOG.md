@@ -625,3 +625,4 @@
 
 ## 2026-07-18 — PR #37 MERGED (c1bb564) at r10 APPROVE with zero blockers: the helper lands inert; the wiring PR follows
 - Ten rounds forced the co-gate evidence channel through the same trust discipline as the gates themselves, ending with the subject-bootstrap concept deleted outright. The helper (21 tests) is on master, executed by nothing. Merged fully green — the first merge of this arc needing no exception. Next: the wiring PR executes the helper base-copy-only inside adversarial-review.yml (no fallback path exists), then the record, then the re-lock.
+- Stage-3 r1 (same day): the wiring hardened to the privileged job's real threat model — python -I everywhere (a subject json.py can never shadow the stdlib) and every evidence intermediate in a fresh tempdir outside the checkout (a committed symlink under a predictable name can no longer redirect trusted writes). The bundle path reaches the evaluator step via a guarded env export.
