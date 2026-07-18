@@ -333,7 +333,7 @@ jobs:
             # the classifier's own printed partition in the attached log.
             {
               echo "# co-gate conclusion: $CONCLUSION — mechanically screened as the classifier's DESIGNED harness-refusal (sole failed step = classify; every error annotation is the refusal; any other failure shape already failed this step closed)."
-              echo "# charter exception (CLAUDE.md prime directive 1, founder-ratified 2026-07-18): this designed red does not count against required-checks-green ONLY when the refusal's printed partition lists NO manifest-bound file. Verify against the partition in the refusal text below — manifest-bound entries make the red a hard stop."
+              echo "# charter exception (CLAUDE.md prime directive 1, founder-ratified 2026-07-18; per-class compensation LIVE since the bootstrap completed): NOT-manifest-bound files are compensated by base-owned execution, per-run data bindings, and this review; MANIFEST-BOUND files are compensated by trust_gate's re-lock — merging turns the whole tree red until an attended exam re-certifies. Verify the class against the partition printed in the refusal text below; an unclassifiable refusal (unreadable manifest) is NOT covered."
             } > "$EVID/exception-note.txt"
           else
             : > "$EVID/exception-note.txt"

@@ -59,14 +59,13 @@ same condition so the two never diverge):
    closed). NON-manifest surface files are compensated structurally,
    TODAY: base-owned execution + per-run data bindings + the blocking
    adversarial review on that same PR.
-3. MANIFEST-BOUND refusals currently have NO exception — ordinary red,
-   hard stop, founder-crucial to override — because their compensating
-   control (trust_gate's extraction-certification re-lock) is the FINAL
-   stage of the bootstrap (gate → evidence plumbing → record → re-lock,
-   separate PRs; a certification record may only enter the tree through
-   the merged base-owned authenticator, and no unmerged code ever judges
-   anything). The re-lock PR extends the exception to manifest-bound
-   refusals in the SAME commit that ships the re-lock — the condition is
-   never written ahead of its mechanism.
+3. MANIFEST-BOUND refusals are covered TOO, since the bootstrap's final
+   stage: their compensating control is trust_gate's live
+   extraction-certification re-lock — merging under the exception turns
+   the whole tree red until the founder's attended exam re-certifies
+   (the red moves, it never disappears). The exception was extended to
+   this class in the SAME commit that shipped the re-lock, so the
+   condition was never written ahead of its mechanism. Unclassifiable
+   refusals (unreadable manifest) remain ineligible.
 4. Every other red or pending check still forbids merging — this
    exception names one check's one designed failure mode, nothing more.

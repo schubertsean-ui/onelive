@@ -205,13 +205,13 @@ def classify(compare: dict, base_dir: pathlib.Path, subject_dir: pathlib.Path) -
             bound = sorted(p for p in harness_touched if p in manifest)
             unbound = sorted(p for p in harness_touched if p not in manifest)
             if bound:
-                # Until the stage-3 re-lock is live, this class has no
-                # compensating control — so it has no exception: ordinary
-                # red, hard stop. The stage-3 PR ships the re-lock and
-                # rewrites this message + the charter in the same commit.
-                detail.append("manifest-bound (certification-hash covered; "
-                              "NOT covered by the charter exception until the "
-                              "stage-3 re-lock is live — hard stop): "
+                # Compensated by the LIVE trust_gate re-lock (bootstrap
+                # final stage): merging under the charter exception turns
+                # the whole tree red until an attended re-exam re-certifies.
+                detail.append("manifest-bound (certification-hash covered; a "
+                              "merge under the charter exception turns "
+                              "trust_gate red everywhere until an attended "
+                              "re-exam re-certifies — the red moves): "
                               + ", ".join(bound))
             if unbound:
                 detail.append("NOT manifest-bound (re-verified instead by "

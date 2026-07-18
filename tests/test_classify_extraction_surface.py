@@ -204,7 +204,7 @@ def test_refusal_partitions_manifest_bound_vs_unbound(capsys):
                      _ROOT, _ROOT)
     err = capsys.readouterr().err
     assert "manifest-bound (certification-hash covered" in err
-    assert "NOT covered by the charter exception until the stage-3 re-lock" in err
+    assert "the red moves" in err
     assert "ai/golden_exam.py" in err
     assert "NOT manifest-bound (re-verified instead by" in err
     assert "tools/trust_gate.py" in err

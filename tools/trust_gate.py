@@ -29,6 +29,7 @@ a specific, actionable message per finding — never a vague "check failed").
 from __future__ import annotations
 
 import ast
+import math
 import pathlib
 import re
 import sys
@@ -285,6 +286,150 @@ def check_exam_mode_confined(findings: Findings) -> None:
 
 
 
+def check_extraction_certification(findings: Findings, record_path: "pathlib.Path | None" = None) -> None:
+    """Flag-True extraction must be certified against the CURRENT harness.
+
+    Compensating control demanded by the evaluator on PR #36 (and made live
+    by PR #35, which changed a manifest-bound exam file after the flag
+    flipped): EXTRACTION_THRESHOLD_RATIFIED=True is only meaningful while
+    the attended exam's evidence matches the harness as it exists NOW.
+
+    TWO layers, division of labor explicit (evaluator, PR #36 r2 — a
+    hash-only check accepted a self-authored record):
+
+    * THIS check (offline; every validate/pre-commit run; no network) proves
+      STRUCTURAL VALIDITY and the hash re-lock: the record must be a
+      complete, well-typed PASSED certification whose measured metrics pass
+      the CURRENT thresholds (ai/exam_thresholds — manifest-bound, so a
+      threshold change re-reds this check via drift) and whose
+      harness_sha256 equals the tree's recomputed compute_harness_sha().
+    * AUTHENTICITY — that run_id is a real successful maintainer-dispatched
+      attended run on the default branch, that the artifact zip hashes to
+      artifact_zip_sha256, and that the run's uploaded exam-report.json
+      agrees with every recorded field — is enforced by the BASE-OWNED
+      secretless verifier (.github/workflows/extraction-eval.yml, on
+      pull_request_target: a PR cannot edit the copy that judges it), which
+      authenticates this record against the GitHub Actions API on any PR
+      that changes it. A record can only ENTER the tree authenticated; this
+      offline check keeps it bound to the tree it certifies afterward.
+
+    Missing, malformed, non-PASSED, threshold-failing, or drifted record =
+    extraction is formally uncertified: FAIL, with the founder action named.
+    The record file is deliberately NOT in the harness manifest, so writing
+    it cannot change the hash it certifies.
+    """
+    root = pathlib.Path(__file__).resolve().parent.parent
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from tools.routing_data import EXTRACTION_THRESHOLD_RATIFIED
+
+    if EXTRACTION_THRESHOLD_RATIFIED is not True:
+        return  # extraction closed; nothing to certify
+
+    from ai.exam_thresholds import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
+    from ai.golden_exam import compute_harness_sha
+
+    if record_path is None:
+        record_path = root / "ai/golden/CERTIFIED_HARNESS.json"
+    current = compute_harness_sha()
+    if not record_path.exists():
+        findings.add(
+            "extraction-certification: EXTRACTION_THRESHOLD_RATIFIED is True "
+            "but ai/golden/CERTIFIED_HARNESS.json does not exist — the flag's "
+            "evidence is bound to a harness this tree can no longer prove. "
+            "Founder action: dispatch the attended exam on the current "
+            "default-branch harness; the passing run's harness_sha256 + run "
+            "id are then committed as the certification record."
+        )
+        return
+    import json as _json
+
+    try:
+        record = _json.loads(record_path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        findings.add(
+            f"extraction-certification: certification record unreadable "
+            f"({exc}) — fail closed."
+        )
+        return
+    if not isinstance(record, dict):
+        findings.add(
+            "extraction-certification: certification record is not a JSON "
+            "object — fail closed."
+        )
+        return
+
+    # Shape helpers mirror tools/verify_exam_evidence.py: bools are not
+    # counts, NaN/Infinity are not rates, and every field is validated
+    # before use — a mistyped record fails closed, never crashes.
+    def _hexstr(v, n: int) -> bool:
+        return isinstance(v, str) and re.fullmatch(rf"[0-9a-f]{{{n}}}", v) is not None
+
+    def _digits(v) -> bool:
+        return isinstance(v, str) and v.isdigit()
+
+    def _count(v) -> "int | None":
+        return v if isinstance(v, int) and not isinstance(v, bool) else None
+
+    def _rate(v) -> "float | None":
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v):
+            return float(v)
+        return None
+
+    problems = []
+    if not _hexstr(record.get("harness_sha256"), 64):
+        problems.append("harness_sha256 missing or not 64 lowercase hex")
+    if not _digits(record.get("run_id")):
+        problems.append("run_id missing or not a numeric GitHub run id")
+    if not _digits(record.get("artifact_id")):
+        problems.append("artifact_id missing or not a numeric artifact id")
+    if not _hexstr(record.get("artifact_zip_sha256"), 64):
+        problems.append("artifact_zip_sha256 missing or not 64 lowercase hex")
+    if not _hexstr(record.get("subject_sha"), 40):
+        problems.append("subject_sha missing or not a 40-hex commit sha")
+    if not (isinstance(record.get("model"), str) and record["model"]):
+        problems.append("model missing")
+    if record.get("verdict") != "PASSED":
+        problems.append(f"verdict={record.get('verdict')!r} (only PASSED certifies)")
+    m = record.get("metrics")
+    if not isinstance(m, dict):
+        problems.append("metrics missing or not an object")
+    else:
+        asserted = _count(m.get("asserted_facts"))
+        rate = _rate(m.get("hallucination_rate"))
+        recall = _rate(m.get("recall"))
+        if asserted is None or asserted < SAMPLE_FLOOR:
+            problems.append(f"asserted_facts={m.get('asserted_facts')!r} "
+                            f"fails the >= {SAMPLE_FLOOR} floor")
+        if rate is None or not (0.0 <= rate <= 1.0) or rate > HALLUCINATION_MAX:
+            problems.append(f"hallucination_rate={m.get('hallucination_rate')!r} "
+                            f"out of [0,1] or above {HALLUCINATION_MAX}")
+        if recall is None or not (0.0 <= recall <= 1.0) or recall < RECALL_MIN:
+            problems.append(f"recall={m.get('recall')!r} out of [0,1] or "
+                            f"below {RECALL_MIN}")
+        if _count(m.get("injections")) != 0:
+            problems.append(f"injections={m.get('injections')!r} (need integer 0)")
+        if _count(m.get("unanswered")) != 0:
+            problems.append(f"unanswered={m.get('unanswered')!r} (need integer 0)")
+    if problems:
+        findings.add(
+            "extraction-certification: record is not a valid PASSED "
+            "attended-exam certification — " + "; ".join(problems) + " — an "
+            "invalid record certifies nothing (fail closed; authenticity of "
+            "a CHANGED record is separately enforced by the base-owned "
+            "verifier in .github/workflows/extraction-eval.yml)."
+        )
+        return
+    if record["harness_sha256"] != current:
+        findings.add(
+            f"extraction-certification: harness has DRIFTED since the "
+            f"attended exam (certified {record['harness_sha256'][:16]}…, run "
+            f"{record['run_id']}; current {current[:16]}…) — extraction is "
+            f"uncertified against this tree. Re-dispatch the attended exam "
+            f"and update the record."
+        )
+
+
 def main() -> int:
     findings = Findings()
     check_no_dynamic_sql(findings)
@@ -292,10 +437,12 @@ def main() -> int:
     check_ai_never_promotes(findings)
     check_promote_import_allowlist(findings)
     check_exam_mode_confined(findings)
+    check_extraction_certification(findings)
 
     if findings.ok():
         print("trust_gate: OK — all trust invariants hold "
-              "(no dynamic SQL; ads/tastemaker isolated; AI never promotes).")
+              "(no dynamic SQL; ads/tastemaker isolated; AI never promotes; "
+          "extraction certification matches the current harness).")
         return 0
 
     print("trust_gate: FAIL — trust invariant violation(s):", file=sys.stderr)
