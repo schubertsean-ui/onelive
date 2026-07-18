@@ -52,6 +52,11 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      # Read-only visibility into the co-gates (PR #37 r1: the evaluator
+      # rejected a record it could not see the authenticator accept — the
+      # review's evidence bundle must carry the golden-exam job's log).
+      checks: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -200,6 +205,46 @@ jobs:
           } > pr.diff
           wc -c pr.diff
 
+      - name: Attach the golden-exam check's log (co-gate evidence for the evaluator)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          : "${HEAD_SHA:?head sha unresolved — failing closed}"
+          : "${GH_TOKEN:?GH_TOKEN missing — cannot fetch co-gate evidence, failing closed}"
+          api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          # The golden-exam verifier runs base-owned on pull_request_target;
+          # its log IS the authenticator/classifier evidence (record
+          # authentication, surface classification, head-bound evidence
+          # verdicts) the evaluator must see with its own eyes (PR #37 r1:
+          # a record was correctly refused because only the record's own
+          # assertion was in the bundle). Wait for the check to conclude on
+          # THIS head (it finishes in well under a minute; the wait is
+          # capped), then attach its job log verbatim. An absent or
+          # unfinished check is said explicitly — never silently.
+          STATUS="absent"
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            api "https://api.github.com/repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=golden-exam" > gx-checks.json
+            STATUS="$(python3 -c "import json; rs=(json.load(open('gx-checks.json')).get('check_runs') or []); print(rs[0]['status'] if rs else 'absent')")"
+            [ "$STATUS" = "completed" ] && break
+            sleep 10
+          done
+          CONCLUSION="$(python3 -c "import json; rs=(json.load(open('gx-checks.json')).get('check_runs') or []); print((rs[0].get('conclusion') or 'none') if rs else 'absent')")"
+          GX_JOB_ID="$(python3 -c "import json; rs=(json.load(open('gx-checks.json')).get('check_runs') or []); print(rs[0]['id'] if rs else '')")"
+          GX_URL="$(python3 -c "import json; rs=(json.load(open('gx-checks.json')).get('check_runs') or []); print((rs[0].get('details_url') or '') if rs else '')")"
+          {
+            echo "# golden-exam check on head $HEAD_SHA — fetched verbatim by adversarial-review as co-gate evidence"
+            echo "golden-exam status: $STATUS conclusion: $CONCLUSION $GX_URL"
+            if [ "$STATUS" = "completed" ] && [ -n "$GX_JOB_ID" ]; then
+              api -L "https://api.github.com/repos/$REPO/actions/jobs/$GX_JOB_ID/logs" || echo "(job log fetch failed — the conclusion line above still binds)"
+            else
+              echo "no completed golden-exam run to attach for this head — treat missing co-gate evidence as unverified (fail closed)"
+            fi
+          } > golden-exam.log
+          wc -c golden-exam.log
+
       - name: Independent evaluator (APPROVE required)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -240,4 +285,4 @@ jobs:
           python -I /tmp/trusted/adversarial_review.py --require \
             --max-diff-bytes 800000 \
             --diff-file pr.diff --test-log pytest.log --test-log web.log \
-            --test-log validate.log
+            --test-log validate.log --test-log golden-exam.log
