@@ -326,13 +326,18 @@ jobs:
           # exception may cover (a record change riding the refusal — the
           # authenticator never ran — or an unreadable manifest); this step
           # fails closed on the marker rather than leaving it to memory.
-          INELIGIBLE="$(python3 -I "$EVID/cogate_evidence.py" refusal-ineligible "$EVID/gx-job.log")"
+          # Fixed-string grep, not a helper call (stage-6 r5: this step
+          # runs the PR's workflow but the BASE helper copy, which can
+          # predate a new subcommand — the r4 helper call failed closed on
+          # exactly that skew). The token's semantics are pinned by the
+          # helper's refusal_ineligible tests; grep -F carries no logic of
+          # its own, and marker injection can only force rejection.
           if [ "$CONCLUSION" != "success" ]; then
             if [ "$REFUSAL_ONLY" != "1" ]; then
               echo "::error::golden-exam concluded '$CONCLUSION' and is not exactly the classifier's designed harness-refusal (sole failed step = classify, refusal-only annotations, conclusion=failure) — rejected records, verifier errors, mixed or incomplete states block mechanically, failing closed"
               exit 1
             fi
-            if [ "$INELIGIBLE" = "1" ]; then
+            if grep -qF "EXCEPTION-INELIGIBLE" "$EVID/gx-job.log"; then
               echo "::error::the classifier marked this refusal EXCEPTION-INELIGIBLE (record change riding the refusal, or unprovable partition) — no exception covers it, failing closed"
               exit 1
             fi
