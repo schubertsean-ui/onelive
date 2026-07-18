@@ -38,7 +38,7 @@ def _valid_record(**overrides) -> dict:
         "run_id": "29659010747",
         "artifact_id": "8433778947",
         "artifact_zip_sha256": "ab" * 32,
-        "subject_sha": "0123456789abcdef0123456789abcdef01234567",
+        "subject_sha": "083c4306e71494baa6348084cffbdd09b8682f62",
         "model": "claude-opus-4-8",
         "verdict": "PASSED",
         "metrics": {
@@ -188,3 +188,27 @@ def test_examples_floor_and_current_set_binding(monkeypatch, tmp_path):
         assert any("examples" in v for v in findings.violations), bad
     # the real count (77, matching ai/golden/golden_set_v1.jsonl) passes
     assert _run_record(monkeypatch, tmp_path, _valid_record()).ok()
+
+
+def test_same_count_content_drift_fails(monkeypatch, tmp_path):
+    """stage-6 r2: a SAME-SIZE golden-set edit must re-red — the binding
+    is content, not count. The tampered set keeps the exact line count
+    (so the examples/count check stays green) but changes one byte run."""
+    real = trust_gate._golden_bytes_current(_ROOT)
+    lines = real.decode("utf-8").splitlines()
+    lines[0] = lines[0].replace("{", '{"tampered": true, ', 1)
+    tampered = ("\n".join(lines) + "\n").encode("utf-8")
+    assert tampered != real
+    assert len(lines) == len(real.decode("utf-8").splitlines())
+    monkeypatch.setattr(trust_gate, "_golden_bytes_current", lambda root: tampered)
+    findings = _run_record(monkeypatch, tmp_path, _valid_record())
+    assert any("CONTENT has drifted" in v for v in findings.violations)
+
+
+def test_git_history_unavailable_fails_closed(monkeypatch, tmp_path):
+    import subprocess
+    def boom(root, sha):
+        raise subprocess.CalledProcessError(128, ["git", "show"])
+    monkeypatch.setattr(trust_gate, "_golden_bytes_at_commit", boom)
+    findings = _run_record(monkeypatch, tmp_path, _valid_record())
+    assert any("cannot be proven, fail closed" in v for v in findings.violations)

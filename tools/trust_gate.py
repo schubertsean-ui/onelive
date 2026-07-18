@@ -286,6 +286,21 @@ def check_exam_mode_confined(findings: Findings) -> None:
 
 
 
+def _golden_bytes_current(root: pathlib.Path) -> bytes:
+    """Seam for tests; reads the CURRENT golden set's bytes."""
+    return (root / "ai/golden/golden_set_v1.jsonl").read_bytes()
+
+
+def _golden_bytes_at_commit(root: pathlib.Path, sha: str) -> bytes:
+    """Seam for tests; the golden set AS THE ATTENDED EXAM SAW IT, read
+    from git history at the record's authenticated subject commit
+    (requires full history — CI checkouts fetch-depth 0)."""
+    import subprocess
+    return subprocess.run(
+        ["git", "-C", str(root), "show", f"{sha}:ai/golden/golden_set_v1.jsonl"],
+        capture_output=True, check=True).stdout
+
+
 def check_extraction_certification(findings: Findings, record_path: "pathlib.Path | None" = None) -> None:
     """Flag-True extraction must be certified against the CURRENT harness.
 
@@ -453,6 +468,42 @@ def check_extraction_certification(findings: Findings, record_path: "pathlib.Pat
             "invalid record certifies nothing (fail closed; authenticity of "
             "a CHANGED record is separately enforced by the base-owned "
             "verifier in .github/workflows/extraction-eval.yml)."
+        )
+        return
+    # CONTENT binding for the golden set (stage-6 r2: the count-only
+    # binding was false confidence — a same-size edit stayed green). The
+    # record's subject_sha is AUTHENTICATED against the attended run's
+    # head commit, and the exam verified the report's golden hash against
+    # that commit's set — so the current set must be byte-identical to
+    # the set at subject_sha. Any content change, same-size included,
+    # re-reds this check until a fresh attended exam re-certifies.
+    import hashlib as _hashlib
+    import subprocess as _subprocess
+    try:
+        exam_set = _golden_bytes_at_commit(root, record["subject_sha"])
+    except (OSError, _subprocess.CalledProcessError) as exc:
+        findings.add(
+            f"extraction-certification: cannot read the golden set at the "
+            f"certified subject commit {record['subject_sha'][:12]} from git "
+            f"history ({exc}) — content drift cannot be proven, fail closed "
+            f"(a shallow clone needs full history for this check)."
+        )
+        return
+    try:
+        current_set = _golden_bytes_current(root)
+    except OSError as exc:
+        findings.add(
+            f"extraction-certification: golden set unreadable ({exc}) — "
+            f"fail closed."
+        )
+        return
+    if _hashlib.sha256(current_set).hexdigest() != _hashlib.sha256(exam_set).hexdigest():
+        findings.add(
+            f"extraction-certification: the golden set's CONTENT has drifted "
+            f"since the attended exam (current sha256 differs from the set at "
+            f"the certified subject commit {record['subject_sha'][:12]}) — the "
+            f"recorded metrics no longer describe this set. Re-dispatch the "
+            f"attended exam and land a fresh record."
         )
         return
     if record["harness_sha256"] != current:
