@@ -136,6 +136,7 @@ _EXPORT_FULL = re.compile(
 )
 _IF_OPEN = re.compile(r"\b(?:if|case)\b")
 _IF_CLOSE = re.compile(r"\b(?:fi|esac)\b")
+_COND_CONT = re.compile(r"&&|\|\|")
 
 
 def _cmd_pos(unq: str, pos: int) -> bool:
@@ -280,11 +281,16 @@ def _scan_run_script(
         func_depth = max(0, func_depth + fopens - (1 if unq.strip() == "}" else 0))
 
         # Guard skeletons + probe spans (structure on unq; names from code).
+        # ${X:?} credit requires EXECUTION (evaluator r15): an escaped \${X:?}
+        # never expands, and a && / || continuation before it means the
+        # expansion sits on a branch that may never run — neither credits.
         line_guards: list[tuple[int, str]] = []
         guard_spans: list[tuple[int, int]] = []
         for m in _GUARD_PARAM.finditer(line):
+            if m.start() > 0 and line[m.start() - 1] == "\\":
+                continue  # escaped: literal text, never expands
             guard_spans.append(m.span())
-            if not in_cond:
+            if not in_cond and not _COND_CONT.search(unq[: m.start()]):
                 line_guards.append((m.start(), m.group(1)))
         for m in _NTEST_STRUCT.finditer(unq):
             if not _cmd_pos(unq, m.start()):
@@ -311,6 +317,8 @@ def _scan_run_script(
                         defs.append((m.end(), m.group(1)))
 
         for m in _SHELL_VAR.finditer(line):
+            if m.start() > 0 and line[m.start() - 1] == "\\":
+                continue  # \$X is literal text, not an expansion
             name = m.group(1)
             in_guard = any(a <= m.start() < b for a, b in guard_spans)
             covered = name in defined or any(

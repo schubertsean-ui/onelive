@@ -876,3 +876,81 @@ def test_event_field_backed_env_value_requires_guard():
 """)
     findings = lint_workflow_text(text, "f.yml")
     assert any("BRANCH" in f and "TERMINATING guard" in f for f in findings)
+
+
+# ---- Evaluator r15: param guards must execute -------------------------------
+
+
+def test_param_guard_behind_and_continuation_is_not_credited():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          false && : "${SECRET_TOKEN:?missing}"
+          curl "$SECRET_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("TERMINATING guard" in f for f in findings)
+
+
+def test_param_guard_behind_or_continuation_is_not_credited():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          true || : "${SECRET_TOKEN:?missing}"
+          curl "$SECRET_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("TERMINATING guard" in f for f in findings)
+
+
+def test_escaped_param_guard_is_literal_text_not_a_guard():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          echo "\\${SECRET_TOKEN:?missing}"
+          curl "$SECRET_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("TERMINATING guard" in f for f in findings)
+
+
+def test_param_guard_inside_if_block_is_not_credited():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          if false; then
+            : "${SECRET_TOKEN:?missing}"
+          fi
+          curl "$SECRET_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("TERMINATING guard" in f for f in findings)
+
+
+def test_escaped_dollar_is_not_a_use():
+    text = _wf("""
+      - name: literal
+        run: |
+          echo "\\$UNDECLARED_THING"
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_sequential_param_guard_still_credits():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          set -euo pipefail; : "${SECRET_TOKEN:?missing}"
+          curl "$SECRET_TOKEN"
+""")
+    assert lint_workflow_text(text, "f.yml") == []
