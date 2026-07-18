@@ -88,7 +88,7 @@ _VARS_CONTEXT = re.compile(r"\$\{\{[^}]*\bvars\.", re.DOTALL)
 # R3: expression channels that render EMPTY when the underlying value is
 # missing, used directly inside executing shell text.
 _RUN_EXPR_BAN = re.compile(r"\$\{\{[^}]*\b(secrets\.|env\.|github\.token)")
-_ASSIGN = re.compile(r"(?:^|;|&&|\|\|)\s*(?:export\s+)?([A-Z][A-Z0-9_]*)=")
+_ASSIGN = re.compile(r"(?:^|[;{])\s*(?:export\s+)?([A-Z][A-Z0-9_]*)=")
 _FOR_VAR = re.compile(r"\bfor\s+([A-Z][A-Z0-9_]*)\s+in\b")
 _READ_VAR = re.compile(r"\bread\s+(?:-r\s+)?([A-Z][A-Z0-9_]*)\b")
 # Non-empty guards that make a secret-backed var fail-loud at runtime.
@@ -98,28 +98,39 @@ _READ_VAR = re.compile(r"\bread\s+(?:-r\s+)?([A-Z][A-Z0-9_]*)\b")
 # lets an empty secret flow into later commands (evaluator r8). -z NEVER
 # counts (it succeeds when empty — evaluator r7).
 _GUARD_PARAM = re.compile(r"\$\{([A-Z][A-Z0-9_]*):\?")
-_GUARD_NTEST = re.compile(r"(?:\[\[?|test)\s+-n\s+\"?\$\{?([A-Z][A-Z0-9_]*)\}?\"?")
-# The abort must sit on the FAILURE branch: `-n test || exit` or
-# `-n test || { ...; exit; }`. `&& exit` terminates when the secret is
-# PRESENT (the wrong branch — evaluator r9) and if-then-fi wrappers are
-# never credited (multi-line branch execution is not statically decidable).
-_GUARD_NTEST_TERMINATING = re.compile(
-    r"(?:\[\[?|test)\s+-n\s+\"?\$\{?([A-Z][A-Z0-9_]*)\}?\"?\s*\]{0,2}\s*"
-    r"\|\|\s*(?:\{[^}]*\b(?:exit|return)\b|[^;&|]*\b(?:exit|return)\b)"
+# Structural -n test on the UNQUOTED view: the var lives in a double-quoted
+# span there, so the name is recovered from the code view at the gap.
+# The gap after -n includes the blanked (quoted) variable region — the
+# var itself reads as spaces in the unquoted view, so the gap must not be
+# eaten by whitespace matching; the name is recovered from the code view.
+_NTEST_STRUCT = re.compile(r"(?:\[\[?|test)\s+-n(\s[^\]|&;]*)")
+_TERMINATES = re.compile(
+    r"\s*\]{0,2}\s*\|\|\s*(?:\{[^}]*\b(?:exit|return)\b|[^;&|]*\b(?:exit|return)\b)"
 )
-
-
-def _line_guards(line: str) -> list[tuple[int, str]]:
-    """(position, var) for every guard on this line that provably ABORTS
-    when the value is empty: ${X:?}, or a -n test whose FAILURE branch
-    (after ||) exits/returns."""
-    out = [(m.start(), m.group(1)) for m in _GUARD_PARAM.finditer(line)]
-    out += [(m.start(), m.group(1)) for m in _GUARD_NTEST_TERMINATING.finditer(line)]
-    return out
 _SECRET_VALUE = re.compile(r"\$\{\{[^}]*\bsecrets\.")
-_GITHUB_ENV_EXPORT = re.compile(
-    r"(?:echo|printf)\s+[\"']?([A-Z][A-Z0-9_]*)=.*?\$GITHUB_ENV"
+_EXPORT_CMD = re.compile(r"(?:echo|printf)\b")
+_EXPORT_FULL = re.compile(
+    r"(?:echo|printf)\s+[\"']?([A-Z][A-Z0-9_]*)=.*?\$\{?GITHUB_ENV\}?"
 )
+_IF_OPEN = re.compile(r"\b(?:if|case)\b")
+_IF_CLOSE = re.compile(r"\b(?:fi|esac)\b")
+
+
+def _cmd_pos(unq: str, pos: int) -> bool:
+    """True when pos starts a command in the unquoted view: line start or
+    after ';', '{'. Everything else — after '&&', '||', '|', '(', or as an
+    argument to another word (e.g. `echo [ -n ...`) — does NOT count
+    (evaluator r10: inert arguments and conditional continuations must never
+    credit guards, definitions, or exports)."""
+    before = unq[:pos].rstrip()
+    while before.endswith("!"):
+        before = before[:-1].rstrip()
+    if not before:
+        return True
+    if before[-1] in ";{":
+        return True
+    # Shell keywords that take a command next (negation handled above).
+    return bool(re.search(r"\b(?:if|elif|while|until|then|else|do)$", before))
 
 
 def _line_views(raw_line: str) -> tuple[str, str]:
@@ -128,9 +139,9 @@ def _line_views(raw_line: str) -> tuple[str, str]:
     - code: inline unquoted comments blanked (a `# ...` tail is not shell),
       single-quoted spans blanked (nothing expands in single quotes),
       double-quoted content KEPT ("$X" is a real expansion).
-    - code_unquoted: additionally blanks double-quoted spans — used for
-      definition/assignment scanning so `echo "MY_TOKEN=abc"` (inert output
-      text) can never masquerade as an assignment.
+    - code_unquoted: additionally blanks double-quoted spans — used for ALL
+      STRUCTURE matching (definitions, guard skeletons, export commands,
+      if/fi tracking) so quoted text can never masquerade as executed shell.
     Escape handling inside quotes is not modeled (documented limit,
     false-positive direction: a weird quoted string may produce a spurious
     finding, never a silent pass).
@@ -179,27 +190,27 @@ def _line_views(raw_line: str) -> tuple[str, str]:
 def _scan_run_script(
     run_text: str, declared: set[str], must_guard: set[str]
 ) -> tuple[list[str], list[str], list[str], set[str]]:
-    """Line-order scan of one run: script (evaluator r5/r6 — fail-closed).
+    """Line-order scan of one run: script (evaluator r5–r10 — fail-closed).
 
     Returns (undeclared_uses, banned_expr_lines, unguarded_uses, exports).
-    - Comment lines (first non-space char '#') define nothing, export
-      nothing, and are never scanned.
-    - A same-line definition credits a use only if a command separator
-      (';', '&&', '||', '|', newline) sits between them: `X=a; echo "$X"`
-      counts, but the prefix form `X=a cmd "$X"` does NOT — the shell
-      expands "$X" from the PRIOR environment before cmd runs (r6).
-    - Vars in must_guard (secret-backed env consumed by this script) need a
-      visible TERMINATING guard — ${X:?}, or a -n test with exit/return on
-      the SAME line; a non-terminating -n probe (`|| true`, bare if-then-fi)
-      never counts, -z never counts — positioned at-or-before their first
-      consuming use, across lines AND within a line (r6/r7/r8). A var
-      mention INSIDE a -n/:? test is a probe, not a consuming use.
-    Known honest limits (documented, false-negative direction): an export or
-    guard inside a conditional branch is credited if its line executes in
-    textual order — branch execution is statically undecidable; and
-    expression contexts other than secrets./env./github.token (e.g.
-    inputs.*, steps.*.outputs.*) can also render empty — those channels are
-    out of scope here and owe their own runtime [ -n ] checks.
+    Execution-semantics rules (r10):
+    - Structure (definitions, guard skeletons, export commands, if/case
+      tracking) is matched on the UNQUOTED view at COMMAND POSITION only —
+      quoted text, command arguments, and `&&`/`||` continuations never
+      credit anything.
+    - Lines inside if/elif/else/fi or case/esac regions credit NO
+      definitions, exports, or guards (branch execution is statically
+      undecidable — fail closed); uses there are still checked.
+    - Guards must abort on the FAILURE branch: ${X:?} (aborts wherever it
+      expands), or a command-position -n test followed by `|| exit`/
+      `|| { ...; exit; }`. A var mention inside a -n/:? test is a probe,
+      not a consuming use.
+    - Definitions credit later uses (or same-line uses after a `;`); the
+      prefix form `X=a cmd "$X"` expands the PRIOR value and never counts.
+    Documented remaining limits (false-negative direction, each requiring a
+    deliberate construction: loop bodies (`for`/`while`) credit textually;
+    a `for X in <empty>` leaves X unset. Runtime [ -n ] checks stay the
+    guard for those paths.
     """
     defined = set(declared)
     undeclared: list[str] = []
@@ -208,6 +219,7 @@ def _scan_run_script(
     guarded: set[str] = set()
     unguarded: list[str] = []
     _SEP = re.compile(r"[;|&\n]")
+    cond_depth = 0
     for raw_line in run_text.splitlines():
         stripped = raw_line.strip()
         if not stripped or stripped.startswith("#"):
@@ -216,18 +228,40 @@ def _scan_run_script(
             banned.append(stripped[:80])
         code_view, unq_view = _line_views(raw_line)
         line = _GH_EXPR.sub(lambda m: " " * len(m.group(0)), code_view)
-        defs_line = _GH_EXPR.sub(lambda m: " " * len(m.group(0)), unq_view)
-        # Within-line ordering (evaluator r7): a guard covers only uses at
-        # positions AFTER it — `use; guard` leaves the use unguarded. Guards
-        # register into the cross-line set only after this line's uses are
-        # checked against positions.
-        line_guards = _line_guards(line)
-        # Spans that are guard EXPRESSIONS (terminating or not) — a var name
-        # inside any -n/:? test is not itself a consuming use.
-        guard_spans = [m.span() for m in _GUARD_PARAM.finditer(line)]
-        guard_spans += [m.span() for m in _GUARD_NTEST.finditer(line)]
-        defs = [(m.end(), m.group(1)) for rx in (_ASSIGN, _FOR_VAR, _READ_VAR)
-                for m in rx.finditer(defs_line)]
+        unq = _GH_EXPR.sub(lambda m: " " * len(m.group(0)), unq_view)
+
+        # Conditional-region tracking (unquoted, command-position openers).
+        opens = sum(1 for m in _IF_OPEN.finditer(unq) if _cmd_pos(unq, m.start()))
+        closes = sum(1 for m in _IF_CLOSE.finditer(unq))
+        in_cond = cond_depth > 0 or (opens > 0)
+        cond_depth = max(0, cond_depth + opens - closes)
+
+        # Guard skeletons + probe spans (structure on unq; names from code).
+        line_guards: list[tuple[int, str]] = []
+        guard_spans: list[tuple[int, int]] = []
+        for m in _GUARD_PARAM.finditer(line):
+            guard_spans.append(m.span())
+            if not in_cond:
+                line_guards.append((m.start(), m.group(1)))
+        for m in _NTEST_STRUCT.finditer(unq):
+            if not _cmd_pos(unq, m.start()):
+                continue
+            gap_start, gap_end = m.span(1)
+            vm = _SHELL_VAR.search(line[gap_start:gap_end])
+            if not vm:
+                continue
+            name = vm.group(1)
+            guard_spans.append((m.start(), gap_end + 2))
+            if not in_cond and _TERMINATES.match(unq, m.end()):
+                line_guards.append((m.start(), name))
+
+        # Definitions: command-position anchors only, never in conditionals.
+        defs: list[tuple[int, str]] = []
+        if not in_cond:
+            for rx in (_ASSIGN, _FOR_VAR, _READ_VAR):
+                for m in rx.finditer(unq):
+                    defs.append((m.end(), m.group(1)))
+
         for m in _SHELL_VAR.finditer(line):
             name = m.group(1)
             in_guard = any(a <= m.start() < b for a, b in guard_spans)
@@ -251,8 +285,16 @@ def _scan_run_script(
                 unguarded.append(name)
         defined |= {dname for _, dname in defs}
         guarded |= {gname for _, gname in line_guards}
-        for m in _GITHUB_ENV_EXPORT.finditer(line):
-            exports.add(m.group(1))
+
+        # Exports: command-position echo/printf, outside conditionals, with
+        # the KEY= and $GITHUB_ENV verified on the code view at that anchor.
+        if not in_cond:
+            for m in _EXPORT_CMD.finditer(unq):
+                if not _cmd_pos(unq, m.start()):
+                    continue
+                em = _EXPORT_FULL.match(line, m.start())
+                if em:
+                    exports.add(em.group(1))
     return undeclared, banned, unguarded, exports
 
 

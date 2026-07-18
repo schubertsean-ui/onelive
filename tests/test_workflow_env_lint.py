@@ -545,3 +545,104 @@ def test_single_quoted_dollar_is_not_a_use():
           echo hi | awk '{print $F}'
 """)
     assert lint_workflow_text(text, "f.yml") == []
+
+
+# ---- Evaluator r10: execution semantics — inert text and dead branches ------
+
+
+def test_guard_inside_echo_argument_is_inert():
+    # A guard-shaped string as an argument to echo executes nothing.
+    text = _wf("""
+      - name: fake-guard
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          echo "[ -n $SECRET_TOKEN ] || exit 1"
+          curl "$SECRET_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("no non-empty guard" in f for f in findings)
+
+
+def test_and_chained_assignment_is_not_a_source():
+    # `false && TOKEN=abc` never executes the assignment.
+    text = _wf("""
+      - name: dead-def
+        run: |
+          false && MY_TOKEN=abc
+          curl "$MY_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_TOKEN" in f and "no visible source" in f for f in findings)
+
+
+def test_assignment_inside_if_block_is_not_a_source():
+    text = _wf("""
+      - name: cond-def
+        run: |
+          if false; then
+            MY_TOKEN=abc
+          fi
+          curl "$MY_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_TOKEN" in f and "no visible source" in f for f in findings)
+
+
+def test_and_chained_github_env_export_gives_no_credit():
+    text = _wf("""
+      - name: dead-produce
+        run: |
+          false && echo "MY_DSN=abc" >> "$GITHUB_ENV"
+      - name: consume
+        run: psql "$MY_DSN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_DSN" in f for f in findings)
+
+
+def test_export_inside_if_block_gives_no_credit():
+    text = _wf("""
+      - name: cond-produce
+        run: |
+          if false; then
+            echo "MY_DSN=abc" >> "$GITHUB_ENV"
+          fi
+      - name: consume
+        run: psql "$MY_DSN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_DSN" in f for f in findings)
+
+
+def test_negated_if_probe_mention_is_not_a_use():
+    # `if ! [ -n "$X" ]; then ... exit 1; fi` — the mention is a probe;
+    # with no other shell consumption there is nothing to flag.
+    text = _wf("""
+      - name: check-only
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          if ! [ -n "$SECRET_TOKEN" ]; then
+            echo "::error::missing"
+            exit 1
+          fi
+          python -m tool.run
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_unconditional_export_after_if_block_still_credits():
+    text = _wf("""
+      - name: produce
+        run: |
+          if true; then
+            echo tuning
+          fi
+          echo "MY_DSN=abc" >> "$GITHUB_ENV"
+      - name: consume
+        env:
+          MY_DSN_CHECK: ok
+        run: psql "$MY_DSN"
+""")
+    assert lint_workflow_text(text, "f.yml") == []
