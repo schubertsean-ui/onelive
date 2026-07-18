@@ -79,9 +79,13 @@ depends on an open founder decision. For an autonomous/overnight run, follow
    remembered: validate binds every environmental SKIP to an OPEN Record row
    via `tools/skip_record_binding.py` and goes RED on an unrecorded skip
    (--allow-skips never covers one), and it emits a machine-stamped evidence
-   block (`.validate-evidence.txt` + stdout) — paste THAT verbatim into arcs
-   and PR bodies, never retype results (Kaizen ledger 2026-07-18, classes:
-   skip-report-missing-record-citation, unverifiable-claim family).
+   block (`.validate-evidence.txt` + stdout). **The ONE evidence rule:** when
+   CI ran validate on the commit you're describing, CITE that run (the
+   adversarial-review job's validate.log) by run id/link — never paste a
+   copy, it goes stale; only when no CI run exists for the commit (purely
+   local close) does the machine block from the FINALIZING run get pasted,
+   verbatim, never retyped or hand-edited (Kaizen 2026-07-18, classes:
+   skip-report-missing-record-citation, unverifiable-claim, stale-evidence).
 4. Write the session arc (`docs/session_arcs/YYYY-MM-DD_slug.md`), add it to the
    README index, and **tag it** `arc/YYYY-MM-DD_slug` (see session_arcs/README.md).
    Mirror key decisions to memory.

@@ -119,3 +119,39 @@ def test_real_ledger_parses_and_has_zero_escapes():
     assert "ledger_rows:" in report
     assert "m3_escapes: 0" in report
     assert not any("M3 ESCAPES" in f for f in findings)
+
+
+def test_short_class_tokens_are_counted():
+    # Evaluator r4: a length floor would let `sql ×3`-style trust-critical
+    # classes escape the alarm entirely.
+    ledger = FAKE_LEDGER.replace(
+        "evaluator: empty-env ×1, silent-truncation ×1",
+        "evaluator: sql ×3, empty-env ×1",
+    )
+    counts = class_counts(parse_pr_rows(ledger))
+    assert counts["sql"] == 3
+
+
+def test_m4_credit_requires_exact_token_not_substring():
+    # Evaluator r4: "not-empty-env-fixed" in an M4 cell must NOT credit the
+    # empty-env family (the r3 loose-binding pattern, meter edition).
+    rows = parse_pr_rows(
+        FAKE_LEDGER.replace("| — | ~2 calls |", "| not-empty-env-fixed | ~2 calls |", 1)
+    )
+    assert not family_addressed({"empty-env", "fail-open-empty-env"}, rows)
+    rows2 = parse_pr_rows(
+        FAKE_LEDGER.replace("| — | ~2 calls |", "| empty-env linter shipped | ~2 calls |", 1)
+    )
+    assert family_addressed({"empty-env", "fail-open-empty-env"}, rows2)
+
+
+def test_generic_single_segment_token_does_not_absorb_compounds():
+    # A bare `gap` (from an old prose-style row) must not family with
+    # `coverage-gap`; but exact repeats of short tokens still count, and
+    # multi-segment containment still groups.
+    groups = family_groups(["gap", "coverage-gap", "empty-env", "fail-open-empty-env", "sql"])
+    fams = [sorted(g) for g in groups]
+    assert ["gap"] in fams
+    assert ["coverage-gap"] in fams
+    assert ["empty-env", "fail-open-empty-env"] in fams
+    assert ["sql"] in fams

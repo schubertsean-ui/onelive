@@ -124,6 +124,11 @@ run_check "lint" "$PY" tools/lint.py
 #     rule 2026-07-13; see CLAUDE.md "The Record").
 run_check "deferral_scan" "$PY" tools/deferral_scan.py
 
+# 2c. Env-contract linter for GitHub workflows (R-019, the empty-env class
+#     fix): every env var a run step consumes has a visible reviewed source,
+#     and the vars. context (unset==empty, can't fail closed) is banned.
+run_check "workflow_env_lint" "$PY" tools/workflow_env_lint.py
+
 # 3. Full test suite — must pass. DB-integration tests self-skip without a DSN;
 #    that self-skip is internal to pytest and reported in its own output.
 run_check "pytest (full suite)" "$PY" -m pytest -q
@@ -171,7 +176,6 @@ VR_NOTE="app not running / baselines absent"
 # never hardcoded, so this message can't drift from the register.
 VR_RID="$("$PY" tools/skip_record_binding.py visual_regression 2>/dev/null || echo 'NO OPEN RECORD ROW — this skip will FAIL below')"
 if [ -n "${ONELIVE_APP_URL:-}" ]; then
-  if run_check_vr=$("$PY" tools/visual_regression.py --help >/dev/null 2>&1; echo $?); then :; fi
   echo "[INFO] ONELIVE_APP_URL set (${ONELIVE_APP_URL}). Run visual_regression.py capture-and-compare manually per docs/../tests/visual_baselines/README.md."
   echo "[SKIP-loud] validate does not auto-boot the app; visual regression must be run against a live URL with committed baselines. (Record: ${VR_RID})" >&2
   record SKIP "visual_regression" "run manually vs live URL"
@@ -256,7 +260,14 @@ if [ "$ANY_SKIP" -ne 0 ] || [ "$ANY_ADVISORY" -ne 0 ]; then
   [ "$ANY_SKIP" -ne 0 ]     && reasons="skipped checks"
   [ "$ANY_ADVISORY" -ne 0 ] && reasons="${reasons:+$reasons + }advisory findings"
   if [ "$ALLOW_SKIPS" -eq 1 ]; then
-    emit_evidence "PASS (--allow-skips; every remaining SKIP is bound to an OPEN Record row above)"
+    # Message stays truthful in quick mode (evaluator r4 nit): only
+    # environmental skips are Record-bound; quick-mode skips are
+    # flag-inflicted and must be rerun before close.
+    if [ "$QUICK" -eq 1 ]; then
+      emit_evidence "PASS (--allow-skips; environmental SKIPs Record-bound; --quick skips are flag-inflicted — rerun before close)"
+    else
+      emit_evidence "PASS (--allow-skips; every remaining SKIP is bound to an OPEN Record row above)"
+    fi
     echo "RESULT: PASS (--allow-skips) — ${reasons} present but explicitly acknowledged."
     echo "        This is a human-acknowledged incomplete run, NOT a fully verified one."
     echo "        Resolve them (esp. visual_regression) before the shift is truly closed."

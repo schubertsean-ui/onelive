@@ -43,7 +43,11 @@ from pathlib import Path
 
 ALARM_THRESHOLD = 3
 
-_CLASS_RE = re.compile(r"([A-Za-z0-9][A-Za-z0-9-]{3,})\s*×\s*(\d+)")
+# Any kebab token immediately before ×N — including short trust-critical
+# tokens like `sql`/`rls`/`xss` (evaluator r4: a length floor would let short
+# class names silently escape the repeat-class alarm).
+_CLASS_RE = re.compile(r"([A-Za-z0-9][A-Za-z0-9-]+)\s*×\s*(\d+)")
+_M4_TOKEN_RE = re.compile(r"[A-Za-z0-9-]+")
 _ROW_RE = re.compile(r"^\|\s*(\d{4}-\d{2}-\d{2})")
 
 
@@ -83,13 +87,25 @@ def class_counts(rows: list[dict]) -> dict[str, int]:
     return counts
 
 
+def _related(a: str, b: str) -> bool:
+    """Containment familying, hyphen-aware: `empty-env` ⊂ `fail-open-empty-env`
+    → same family. Single-segment tokens (e.g. `gap`, `sql`) are too generic
+    to claim family over compounds — they match exactly only, so a bare `gap`
+    never absorbs `coverage-gap` while `sql` still counts its own repeats."""
+    if a == b:
+        return True
+    if "-" not in a or "-" not in b:
+        return False
+    return a in b or b in a
+
+
 def family_groups(tokens: list[str]) -> list[set[str]]:
-    """Group tokens into containment families (a ⊂ b or b ⊂ a → same family)."""
+    """Group tokens into containment families (see _related)."""
     groups: list[set[str]] = []
     for tok in tokens:
         merged: set[str] | None = None
         for group in groups:
-            if any(tok in other or other in tok for other in group):
+            if any(_related(tok, other) for other in group):
                 if merged is None:
                     group.add(tok)
                     merged = group
@@ -103,8 +119,15 @@ def family_groups(tokens: list[str]) -> list[set[str]]:
 
 
 def family_addressed(family: set[str], rows: list[dict]) -> bool:
-    """A family is addressed when any M4 column names one of its tokens."""
-    return any(tok in row["m4"] for row in rows for tok in family)
+    """A family is addressed when any M4 column contains one of its tokens
+    as an EXACT token (hyphen-delimited word), never as a substring —
+    "not-empty-env-fixed" must not credit `empty-env` (evaluator r4: same
+    loose-binding fail-open pattern r3 caught in skip_record_binding)."""
+    for row in rows:
+        m4_tokens = set(_M4_TOKEN_RE.findall(row["m4"]))
+        if family & m4_tokens:
+            return True
+    return False
 
 
 def m1_series(rows: list[dict]) -> list[int]:
