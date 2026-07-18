@@ -214,7 +214,20 @@ jobs:
           set -euo pipefail
           : "${HEAD_SHA:?head sha unresolved — failing closed}"
           : "${GH_TOKEN:?GH_TOKEN missing — cannot fetch co-gate evidence, failing closed}"
-          api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          # -f (r2): an HTTP 401/403/404/429 must FAIL the step, never be
+          # parsed as JSON and demoted to "absent" evidence.
+          api() { curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          # Head binding, proven not narrated (r2): this job checks out
+          # GitHub's synthetic merge commit, so validate.log's git head
+          # differs from the PR head BY CONSTRUCTION. Assert the relation
+          # mechanically — the merge commit's second parent must BE the PR
+          # head the golden-exam evidence is keyed to — or fail closed.
+          MERGE_SHA="$(git rev-parse HEAD)"
+          HEAD_PARENT="$(git rev-parse HEAD^2)"
+          if [ "$HEAD_PARENT" != "$HEAD_SHA" ]; then
+            echo "::error::review checkout $MERGE_SHA is not the merge of PR head $HEAD_SHA (parent2=$HEAD_PARENT) — evidence binding broken, failing closed"
+            exit 1
+          fi
           # The golden-exam verifier runs base-owned on pull_request_target;
           # its log IS the authenticator/classifier evidence (record
           # authentication, surface classification, head-bound evidence
@@ -236,9 +249,12 @@ jobs:
           GX_URL="$(python3 -c "import json; rs=(json.load(open('gx-checks.json')).get('check_runs') or []); print((rs[0].get('details_url') or '') if rs else '')")"
           {
             echo "# golden-exam check on head $HEAD_SHA — fetched verbatim by adversarial-review as co-gate evidence"
+            echo "# binding: review checkout $MERGE_SHA is GitHub's synthetic merge commit whose second parent IS the PR head $HEAD_SHA (asserted above, fail closed) — validate.log's git head and this log describe the same PR state"
             echo "golden-exam status: $STATUS conclusion: $CONCLUSION $GX_URL"
             if [ "$STATUS" = "completed" ] && [ -n "$GX_JOB_ID" ]; then
-              api -L "https://api.github.com/repos/$REPO/actions/jobs/$GX_JOB_ID/logs" || echo "(job log fetch failed — the conclusion line above still binds)"
+              # No fallback (r2): a failed log download fails THIS step —
+              # verbatim evidence or a red check, never prose in its place.
+              api -L "https://api.github.com/repos/$REPO/actions/jobs/$GX_JOB_ID/logs"
             else
               echo "no completed golden-exam run to attach for this head — treat missing co-gate evidence as unverified (fail closed)"
             fi
