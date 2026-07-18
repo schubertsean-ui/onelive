@@ -55,7 +55,6 @@ AMBIENT = {
     "GITHUB_RUN_ATTEMPT",
     "GITHUB_EVENT_NAME",
     "GITHUB_EVENT_PATH",
-    "GITHUB_TOKEN",
     "GITHUB_ACTOR",
     "GITHUB_SERVER_URL",
     "GITHUB_API_URL",
@@ -73,15 +72,56 @@ AMBIENT = {
 _GH_EXPR = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
 _SHELL_VAR = re.compile(r"\$\{?([A-Z][A-Z0-9_]{2,})\}?")
 _VARS_CONTEXT = re.compile(r"\$\{\{[^}]*\bvars\.", re.DOTALL)
-# Sources that make a name script-local: assignment, export, for-loop, read.
-_LOCAL_DEF = re.compile(
-    r"(?m)^\s*(?:export\s+)?([A-Z][A-Z0-9_]{2,})=|"
-    r"\bfor\s+([A-Z][A-Z0-9_]{2,})\s+in\b|"
-    r"\bread\s+(?:-r\s+)?([A-Z][A-Z0-9_]{2,})\b"
-)
+# R3: expression channels that render EMPTY when the underlying value is
+# missing, used directly inside executing shell text.
+_RUN_EXPR_BAN = re.compile(r"\$\{\{[^}]*\b(secrets\.|env\.|github\.token)")
+_ASSIGN = re.compile(r"(?:^|;|&&|\|\|)\s*(?:export\s+)?([A-Z][A-Z0-9_]{2,})=")
+_FOR_VAR = re.compile(r"\bfor\s+([A-Z][A-Z0-9_]{2,})\s+in\b")
+_READ_VAR = re.compile(r"\bread\s+(?:-r\s+)?([A-Z][A-Z0-9_]{2,})\b")
 _GITHUB_ENV_EXPORT = re.compile(
-    r"(?m)^\s*(?:echo|printf)\s+[\"']?([A-Z][A-Z0-9_]{2,})=.*?\$GITHUB_ENV"
+    r"(?:echo|printf)\s+[\"']?([A-Z][A-Z0-9_]{2,})=.*?\$GITHUB_ENV"
 )
+
+
+def _scan_run_script(run_text: str, declared: set[str]) -> tuple[list[str], list[str], set[str]]:
+    """Line-order scan of one run: script (evaluator r5 — fail-closed).
+
+    Returns (undeclared_uses, banned_expr_lines, github_env_exports).
+    Comment lines (first non-space char '#') define nothing, export nothing,
+    and are never scanned — commented-out assignments/exports give no credit.
+    Definitions only count at or before (by position) the use they cover:
+    `echo "$X"; X=5` flags X. Known honest limit (documented, false-negative
+    direction): a definition inside a conditional branch is credited if its
+    line executes-in-order textually — static analysis cannot decide branch
+    execution, and the step's own [ -n ] checks remain the runtime guard.
+    """
+    defined = set(declared)
+    undeclared: list[str] = []
+    banned: list[str] = []
+    exports: set[str] = set()
+    for raw_line in run_text.splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if _RUN_EXPR_BAN.search(raw_line):
+            banned.append(stripped[:80])
+        line = _GH_EXPR.sub("", raw_line)
+        defs = []  # (position, name)
+        for rx in (_ASSIGN, _FOR_VAR, _READ_VAR):
+            for m in rx.finditer(line):
+                defs.append((m.start(), m.group(1)))
+        for m in _SHELL_VAR.finditer(line):
+            name = m.group(1)
+            if name in defined:
+                continue
+            if any(pos <= m.start() and dname == name for pos, dname in defs):
+                continue
+            if name not in undeclared:
+                undeclared.append(name)
+        defined |= {dname for _, dname in defs}
+        for m in _GITHUB_ENV_EXPORT.finditer(line):
+            exports.add(m.group(1))
+    return undeclared, banned, exports
 
 
 def _env_keys(mapping) -> set[str]:
@@ -123,21 +163,28 @@ def lint_workflow_text(text: str, name: str) -> list[str]:
             if not isinstance(run, str):
                 continue
             step_env = _env_keys(step.get("env"))
-            script = _GH_EXPR.sub("", run)  # ${{ ... }} resolves before shell
-            local = {m for g in _LOCAL_DEF.findall(script) for m in g if m}
             declared = (
-                AMBIENT | workflow_env | job_env | step_env | exported | local
+                AMBIENT | workflow_env | job_env | step_env | exported
             )
-            for var in sorted(set(_SHELL_VAR.findall(script))):
-                if var not in declared:
-                    findings.append(
-                        f"{name}: job '{job_name}' step #{idx + 1} consumes "
-                        f"${var} with no visible source (not in workflow/job/"
-                        f"step env, not exported by an earlier step, not "
-                        f"script-local, not runner-ambient) — an unset value "
-                        f"would flow through silently; declare it or remove it"
-                    )
-            exported |= set(_GITHUB_ENV_EXPORT.findall(script))
+            undeclared, banned, new_exports = _scan_run_script(run, declared)
+            for var in undeclared:
+                findings.append(
+                    f"{name}: job '{job_name}' step #{idx + 1} consumes "
+                    f"${var} with no visible source (not in workflow/job/"
+                    f"step env, not exported by an EARLIER executing line/"
+                    f"step, not script-local before use, not runner-ambient) "
+                    f"— an unset value would flow through silently; declare "
+                    f"it or remove it"
+                )
+            for frag in banned:
+                findings.append(
+                    f"{name}: job '{job_name}' step #{idx + 1} interpolates a "
+                    f"secrets./env./github.token expression directly into run: "
+                    f"('{frag}') — a missing value renders as an EMPTY STRING "
+                    f"with no way to fail closed; pass it via the step's env: "
+                    f"block and consume it as a shell variable instead"
+                )
+            exported |= new_exports
     return findings
 
 

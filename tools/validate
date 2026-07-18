@@ -162,11 +162,11 @@ else
 fi
 
 # 7b. Kaizen trend meter — computes the trend report from the ledger
-#     (docs/KAIZEN.md "Trend instrumentation"): escapes must be 0, repeat-class
-#     families at/over threshold must carry a structural fix marker, M1
-#     direction and the judgment->mechanical drain are printed every run.
-#     Findings make the run non-green (advisory semantics; --strict = FAIL).
-run_advisory "kaizen_trends" "$PY" tools/kaizen_trends.py
+#     (docs/KAIZEN.md "Trend instrumentation"). HARD GATE (evaluator r5: an
+#     M3 escape or an unaddressed repeat-class alarm must never be waivable
+#     by --allow-skips — an alarm is a due fix, not information): findings
+#     turn the run RED outright.
+run_check "kaizen_trends" "$PY" tools/kaizen_trends.py
 
 # 8. Visual regression — needs a booted app + baselines; cannot run headless
 #    here. Detect and SKIP-LOUD (never a silent pass), per the item-15 harness.

@@ -99,9 +99,11 @@ jobs:
         # Added 2026-07-18 (evaluator r2 on PR #35, unverifiable-claim class
         # fix): the evaluator receives tools/validate's own machine-generated
         # log instead of hand-copied summaries. --allow-skips acknowledges
-        # Record-bound environmental skips (e.g. visual_regression → R-002);
-        # a SKIP with no OPEN docs/RECORD.md row FAILS regardless of the
-        # flag, so this step can actually go red on an unrecorded skip.
+        # Record-bound environmental skips (e.g. visual_regression → R-002)
+        # ONLY: a SKIP with no OPEN docs/RECORD.md row, any kaizen_trends
+        # finding (M3 escape / unaddressed repeat-class alarm), and any
+        # workflow_env_lint finding are hard FAILs the flag cannot waive
+        # (evaluator r5) — this step can actually go red on all of them.
         run: |
           set -o pipefail
           bash tools/validate --allow-skips 2>&1 | tee validate.log

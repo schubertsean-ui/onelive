@@ -153,3 +153,96 @@ def test_cli_missing_dir_fails_closed():
         cwd=REPO_ROOT,
     )
     assert proc.returncode == 2
+
+
+# ---- Evaluator r5 bypass regressions (fail-closed semantics) ----------------
+
+
+def test_github_token_is_not_ambient():
+    # Actions does NOT expose shell $GITHUB_TOKEN by default — consuming it
+    # undeclared is exactly the empty-env class.
+    text = _wf("""
+      - name: api
+        run: |
+          curl -H "Authorization: Bearer $GITHUB_TOKEN" "$GITHUB_API_URL"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("GITHUB_TOKEN" in f and "no visible source" in f for f in findings)
+
+
+def test_direct_secrets_expression_in_run_is_banned():
+    text = _wf("""
+      - name: leaky
+        run: |
+          curl -H "Authorization: ${{ secrets.MISSING_TOKEN }}" https://x
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("EMPTY STRING" in f for f in findings)
+
+
+def test_direct_env_expression_and_github_token_in_run_are_banned():
+    text = _wf("""
+      - name: leaky
+        run: |
+          echo "${{ env.SOMETHING }}"
+          echo "${{ github.token }}"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert len([f for f in findings if "EMPTY STRING" in f]) == 2
+
+
+def test_use_before_local_assignment_is_a_finding():
+    text = _wf("""
+      - name: order
+        run: |
+          echo "$MY_TOKEN"
+          MY_TOKEN=abc
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_TOKEN" in f for f in findings)
+
+
+def test_use_before_assignment_on_same_line_is_a_finding():
+    text = _wf("""
+      - name: order
+        run: echo "$MY_TOKEN"; MY_TOKEN=abc
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_TOKEN" in f for f in findings)
+
+
+def test_commented_out_assignment_gives_no_credit():
+    text = _wf("""
+      - name: dead
+        run: |
+          # MY_TOKEN=abc
+          echo "$MY_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_TOKEN" in f for f in findings)
+
+
+def test_commented_out_github_env_export_gives_no_credit():
+    text = _wf("""
+      - name: dead-produce
+        run: |
+          # echo "MY_DSN=abc" >> "$GITHUB_ENV"
+          echo nothing
+      - name: consume
+        run: psql "$MY_DSN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_DSN" in f for f in findings)
+
+
+def test_vars_ban_message_still_fires_on_live_value():
+    # R2 and R3 overlap on intent; R2's parsed-document check must survive
+    # the scanner rewrite.
+    text = _wf("""
+      - name: cfg
+        env:
+          MODEL: ${{ vars.MODEL }}
+        run: echo "$MODEL"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("vars." in f for f in findings)
