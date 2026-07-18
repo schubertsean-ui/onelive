@@ -144,12 +144,29 @@ def test_check_todo_growth_silent_when_flat_or_decreasing():
     assert findings.ok()
 
 
-def test_advisory_exit_distinguishes_clean_from_findings():
-    # Evaluator r13 (PR #35): exit 0 = genuinely clean; exit 3 = findings
-    # present but advisory — the caller (tools/validate) must be able to
-    # record an honest ADVISORY row instead of PASS without parsing stdout.
-    rc = commit_sweep.main(["--n", "3"])
-    assert rc in (0, 3)  # never 1 (that is --strict's failure code)
+def test_advisory_findings_exit_3_deterministically():
+    # Evaluator r14 (PR #35): the r13 contract must be pinned by tests that
+    # FAIL on regression — findings present MUST exit 3, clean MUST exit 0,
+    # each forced deterministically rather than sampled from live history.
+    orig = commit_sweep.CHECKS
+    commit_sweep.CHECKS = [
+        lambda commits, findings: findings.add("FIXTURE: injected finding")
+    ]
+    try:
+        rc = commit_sweep.main(["--n", "1"])
+    finally:
+        commit_sweep.CHECKS = orig
+    assert rc == 3
+
+
+def test_advisory_clean_exits_0_deterministically():
+    orig = commit_sweep.CHECKS
+    commit_sweep.CHECKS = []
+    try:
+        rc = commit_sweep.main(["--n", "1"])
+    finally:
+        commit_sweep.CHECKS = orig
+    assert rc == 0
 
 
 def test_strict_exit_code_reflects_findings():

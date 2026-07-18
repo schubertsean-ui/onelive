@@ -103,9 +103,13 @@ run_advisory() {
   elif [ "$rc" -eq 3 ] && [ "$STRICT" -eq 0 ]; then
     echo "[ADVISORY] ${name} reported findings — review them (non-blocking)."
     record ADVISORY "$name" "findings — review"
-  else
-    echo "[FAIL] ${name} (rc=${rc}$( [ "$STRICT" -eq 1 ] && echo ', --strict' ))" >&2
+  elif [ "$rc" -eq 3 ]; then
+    echo "[FAIL] ${name} (findings, --strict)" >&2
     record FAIL "$name" "findings (strict)"
+    ANY_FAIL=1
+  else
+    echo "[FAIL] ${name} — the tool itself failed (rc=${rc}), not a findings exit" >&2
+    record FAIL "$name" "tool failed (rc=${rc})"
     ANY_FAIL=1
   fi
   echo

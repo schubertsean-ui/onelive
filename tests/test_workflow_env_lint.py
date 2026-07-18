@@ -174,13 +174,34 @@ def test_vars_context_in_comment_is_not_banned():
     assert lint_workflow_text(text, "f.yml") == []
 
 
-def test_github_expressions_are_not_shell_vars():
-    # ${{ steps.x.outputs.y }} resolves before the shell sees it.
+def test_safelisted_expression_in_run_is_not_a_shell_var():
+    # A safelisted always-present field resolves before the shell sees it
+    # and is exempt from the R3 ban.
+    text = _wf("""
+      - name: expr
+        run: git log -1 "${{ github.sha }}"
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_steps_output_expression_in_run_is_banned():
+    # r14: ${{ steps.*.outputs.* }} directly in run: renders "" when the
+    # producing step failed/skipped — and is the script-injection surface.
     text = _wf("""
       - name: expr
         run: git diff "${{ steps.range.outputs.range }}" -- .
 """)
-    assert lint_workflow_text(text, "f.yml") == []
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("EMPTY STRING" in f for f in findings)
+
+
+def test_inputs_expression_in_run_is_banned():
+    text = _wf("""
+      - name: expr
+        run: echo "${{ inputs.mode }}"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("EMPTY STRING" in f for f in findings)
 
 
 def test_unparseable_yaml_fails_loud():

@@ -24,9 +24,8 @@ R4 EXPRESSION-GUARD: an env var whose value is ANY GitHub expression that
    — declaration alone cannot prove the secret exists at runtime.
    Boundary: env vars inherited implicitly by child processes (never
    expanded in shell text) are the consuming program's fail-loud
-   responsibility, and non-secret expression contexts (inputs.*,
-   steps.*.outputs.*) owe their own runtime checks — both documented here
-   deliberately rather than guessed at statically.
+   responsibility — the ONLY remaining out-of-scope channel after r13/r14
+   closed env-value and direct-run expressions.
 R2 VARS-CONTEXT-BAN: `${{ vars.* }}` is forbidden outright — GitHub renders
    an unset repo variable and a set-but-empty one identically, so a workflow
    can never fail closed on the difference (evaluator finding, PR #14 r4;
@@ -90,9 +89,12 @@ _SHELL_VAR = re.compile(r"\$\{?([A-Z][A-Z0-9_]*)\}?")
 _VARS_CONTEXT = re.compile(r"\$\{\{[^}]*\bvars\s*[.\[]", re.DOTALL)
 # R3: expression channels that render EMPTY when the underlying value is
 # missing, used directly inside executing shell text.
-_RUN_EXPR_BAN = re.compile(
-    r"\$\{\{[^}]*\b(?:secrets\s*[.\[]|env\s*[.\[]|github\s*\.\s*token\b|github\s*\[\s*[\"\']token)"
-)
+# R3 (generalized at r14): ANY GitHub expression directly inside run: is
+# banned unless it is a safelisted always-present platform field — every
+# other context can render "" (and un-quoted interpolation is also GitHub's
+# documented script-injection surface). Route values through env: where R4
+# enforces the terminating guard.
+_ANY_EXPR_FULL = re.compile(r"\$\{\{[^}]*\}\}")
 _ASSIGN = re.compile(r"(?:^|;)\s*(?:export\s+)?([A-Z][A-Z0-9_]*)=")
 _FOR_VAR = re.compile(r"\bfor\s+([A-Z][A-Z0-9_]*)\s+in\b")
 _READ_VAR = re.compile(r"\bread\s+(?:-r\s+)?([A-Z][A-Z0-9_]*)\b")
@@ -248,8 +250,10 @@ def _scan_run_script(
         stripped = raw_line.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        if _RUN_EXPR_BAN.search(raw_line):
-            banned.append(stripped[:80])
+        for em in _ANY_EXPR_FULL.finditer(raw_line):
+            if not _ALWAYS_PRESENT.match(em.group(0).strip()):
+                banned.append(stripped[:80])
+                break
         code_view, unq_view = _line_views(raw_line)
         line = _GH_EXPR.sub(lambda m: " " * len(m.group(0)), code_view)
         unq = _GH_EXPR.sub(lambda m: " " * len(m.group(0)), unq_view)
@@ -432,10 +436,11 @@ def lint_workflow_text(text: str, name: str) -> list[str]:
             for frag in banned:
                 findings.append(
                     f"{name}: job '{job_name}' step #{idx + 1} interpolates a "
-                    f"secrets./env./github.token expression directly into run: "
-                    f"('{frag}') — a missing value renders as an EMPTY STRING "
-                    f"with no way to fail closed; pass it via the step's env: "
-                    f"block and consume it as a shell variable instead"
+                    f"GitHub expression directly into run: ('{frag}') — a "
+                    f"missing value renders as an EMPTY STRING (and direct "
+                    f"interpolation is the script-injection surface); pass it "
+                    f"via the step's env: block with a terminating guard, or "
+                    f"use a safelisted always-present github.* field"
                 )
             for var in unguarded:
                 findings.append(
