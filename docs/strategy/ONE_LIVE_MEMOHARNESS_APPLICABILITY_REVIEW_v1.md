@@ -160,6 +160,10 @@ mechanism pointed at our gates is the threat model above.
 - Paper: arXiv:2607.14159v1 [cs.AI], 14 Jul 2026 — https://arxiv.org/abs/2607.14159
   (reviewed from founder-supplied PDF 2026-07-17; arxiv.org is blocked by
   this sandbox's network policy and the ID was not yet search-indexed).
+  Reviewed-copy provenance: 20 pp, sha256
+  `4a4db733f007fea3b035d00226b551587819177458086bf54f665f18faa507cc` —
+  future auditors can distinguish "source temporarily unreachable" from
+  "unverifiable summary" by hashing their copy against this.
 - Code (per paper): https://github.com/HowieHwong/MemoHarness
 - Closest prior work the paper names: Meta-Harness (Lee et al., 2026,
   arXiv:2603.28052 — training-time harness search, no test-time adaptation);

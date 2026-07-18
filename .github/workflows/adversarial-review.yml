@@ -95,6 +95,17 @@ jobs:
           set -o pipefail
           python -m pytest -q 2>&1 | tee pytest.log
 
+      - name: Full validate gate (machine evidence for the evaluator)
+        # Added 2026-07-18 (evaluator r2 on PR #35, unverifiable-claim class
+        # fix): the evaluator receives tools/validate's own machine-generated
+        # log instead of hand-copied summaries. --allow-skips acknowledges
+        # Record-bound environmental skips (e.g. visual_regression → R-002);
+        # a SKIP with no OPEN docs/RECORD.md row FAILS regardless of the
+        # flag, so this step can actually go red on an unrecorded skip.
+        run: |
+          set -o pipefail
+          bash tools/validate --allow-skips 2>&1 | tee validate.log
+
       - name: Web checks + SCA when web/ is touched (log captured for the evaluator)
         run: |
           set -o pipefail
@@ -159,4 +170,5 @@ jobs:
           # where the script itself fails loud on empty or Claude-family ids.
         run: |
           python -I /tmp/trusted/adversarial_review.py --require \
-            --diff-file pr.diff --test-log pytest.log --test-log web.log
+            --diff-file pr.diff --test-log pytest.log --test-log web.log \
+            --test-log validate.log

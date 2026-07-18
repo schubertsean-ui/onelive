@@ -75,12 +75,13 @@ depends on an open founder decision. For an autonomous/overnight run, follow
    visual_regression). RESULT: FAIL → you are not done. A SKIPPED check is NOT a
    pass — resolve it or hand it to the founder explicitly, and **every skip you
    report (chat, PR body, changelog) must cite its `docs/RECORD.md` row by id
-   (e.g. "visual_regression skipped — R-002")**. A skip with no OPEN Record row
-   is a violation: open the row (deviation + cited bar + objective trigger) in
-   the same commit, or fix the check. A skip reported without its R-### reads
-   as an ad-hoc excuse even when the debt is properly booked — cite it every
-   time (Kaizen ledger 2026-07-18, class: skip-report-missing-record-citation;
-   mechanical enforcement inside tools/validate is queued in TODOS).
+   (e.g. "visual_regression skipped — R-002")**. This is MECHANICAL, not
+   remembered: validate binds every environmental SKIP to an OPEN Record row
+   via `tools/skip_record_binding.py` and goes RED on an unrecorded skip
+   (--allow-skips never covers one), and it emits a machine-stamped evidence
+   block (`.validate-evidence.txt` + stdout) — paste THAT verbatim into arcs
+   and PR bodies, never retype results (Kaizen ledger 2026-07-18, classes:
+   skip-report-missing-record-citation, unverifiable-claim family).
 4. Write the session arc (`docs/session_arcs/YYYY-MM-DD_slug.md`), add it to the
    README index, and **tag it** `arc/YYYY-MM-DD_slug` (see session_arcs/README.md).
    Mirror key decisions to memory.
