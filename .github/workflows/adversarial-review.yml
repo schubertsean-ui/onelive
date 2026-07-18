@@ -272,12 +272,34 @@ jobs:
           fi
           BASE_SHA_CUR="$(git rev-parse HEAD^1)"
           SURFACE_TOUCHED="$(python3 trusted-cogate.py surface-touched base-extraction-eval.yml changed-files.txt)"
+          # Bootstrap containment (r8): while the helper is not yet on base,
+          # it is subject-owned code — it may never judge a PR that touches
+          # the extraction surface (that would authenticate the subject's
+          # own evidence with the subject's own judge). Bootstrap PRs are
+          # plumbing-only, mechanically.
+          if [ "$HELPER_SOURCE" != "base (HEAD^1)" ] && [ "$SURFACE_TOUCHED" = "1" ]; then
+            echo "::error::the co-gate helper is not yet on base while this PR touches the extraction surface — a subject-owned judge may never authenticate subject evidence (bootstrap PRs must be plumbing-only), failing closed"
+            exit 1
+          fi
           # Settled, paginated polling (r6 nits): wait until at least one
           # github-actions candidate exists and NONE is still pending, so a
           # stale completed check cannot race a valid in-flight one into a
           # false red; per_page=100 keeps ambiguity detection complete.
+          # Pagination until exhaustion (r8: per_page is a page size, not a
+          # completeness guarantee — an identity-valid run beyond page 1
+          # would make ambiguity detection lie). Every poll refetches all
+          # pages; the merge asserts collected == total_count and fails
+          # closed on any shortfall (including >1000 runs, beyond the cap).
           for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            api "https://api.github.com/repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=golden-exam&per_page=100" > gx-checks.json
+            rm -f gx-page-*.json
+            api "https://api.github.com/repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=golden-exam&per_page=100&page=1" > gx-page-1.json
+            NEED_PAGES="$(python3 -c "import json,math; print(min(10, math.ceil(json.load(open('gx-page-1.json')).get('total_count',0)/100)))")"
+            for PG in 2 3 4 5 6 7 8 9 10; do
+              if [ "$PG" -le "$NEED_PAGES" ]; then
+                api "https://api.github.com/repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=golden-exam&per_page=100&page=$PG" > "gx-page-$PG.json"
+              fi
+            done
+            python3 -c "import json,glob,sys; pages=[json.load(open(f)) for f in glob.glob('gx-page-*.json')]; total=pages[0].get('total_count',0) if pages else 0; runs=[r for p in pages for r in (p.get('check_runs') or [])]; sys.exit('::error::check-run pagination incomplete — cannot prove ambiguity absence (fail closed)') if len(runs)!=total else json.dump({'total_count':total,'check_runs':runs}, open('gx-checks.json','w'))"
             DONE="$(python3 -c "import json; rs=[r for r in (json.load(open('gx-checks.json')).get('check_runs') or []) if (r.get('app') or {}).get('slug')=='github-actions']; print('1' if (rs and all(r.get('status')=='completed' for r in rs)) else '0')")"
             [ "$DONE" = "1" ] && break
             sleep 10
