@@ -29,6 +29,7 @@ a specific, actionable message per finding — never a vague "check failed").
 from __future__ import annotations
 
 import ast
+import hashlib
 import math
 import pathlib
 import re
@@ -286,6 +287,48 @@ def check_exam_mode_confined(findings: Findings) -> None:
 
 
 
+# The re-lock's OWN manifest copy + hasher (stage-6 r3): the re-lock must
+# never trust ai/golden_exam.py — that file is itself manifest-bound, so
+# the exact PR class this control compensates could otherwise alter the
+# hasher or manifest to preserve the certified hash (circular trust).
+# Kept in lockstep with the runner's HARNESS_MANIFEST by a sync test in
+# tests/test_trust_gate_certification.py: single-sided drift fails pytest
+# in the same PR; a coordinated change of both copies necessarily touches
+# tools/trust_gate.py — trust-path class, whose named compensation is the
+# mandatory adversarial review on that very PR. Threshold imports from
+# ai/exam_thresholds stay safe for the same reason: that file's BYTES are
+# pinned by this independent hash, so lowering a threshold re-reds drift
+# before the lowered value could ever judge a record.
+_RELOCK_HARNESS_MANIFEST = (
+    ".github/workflows/extraction-exam-dispatch.yml",
+    "ai/claude_provider.py",
+    "ai/eval_harness.py",
+    "ai/exam_thresholds.py",
+    "ai/golden_exam.py",
+    "ai/prompts.py",
+    "ai/provider.py",
+    "tools/__init__.py",
+    "tools/extract_prompt_text.py",
+    "tools/model_router.py",
+    "tools/pure_data.py",
+    "tools/routing_data.py",
+    "worker/ai_models.py",
+    "worker/requirements.lock",
+    "worker/requirements.txt",
+)
+
+
+def _compute_harness_sha_independent(root: pathlib.Path,
+                                     manifest: tuple = _RELOCK_HARNESS_MANIFEST) -> str:
+    """Same algorithm as the runner's compute_harness_sha, implemented
+    here so no manifest-bound code participates in verifying itself."""
+    h = hashlib.sha256()
+    for rel in manifest:
+        h.update(rel.encode("utf-8") + b"\x00")
+        h.update((root / rel).read_bytes() + b"\x00")
+    return h.hexdigest()
+
+
 def _golden_bytes_current(root: pathlib.Path) -> bytes:
     """Seam for tests; reads the CURRENT golden set's bytes."""
     return (root / "ai/golden/golden_set_v1.jsonl").read_bytes()
@@ -353,11 +396,17 @@ def check_extraction_certification(findings: Findings, record_path: "pathlib.Pat
         return
 
     from ai.exam_thresholds import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
-    from ai.golden_exam import compute_harness_sha
 
     if record_path is None:
         record_path = root / "ai/golden/CERTIFIED_HARNESS.json"
-    current = compute_harness_sha()
+    try:
+        current = _compute_harness_sha_independent(root)
+    except OSError as exc:
+        findings.add(
+            f"extraction-certification: cannot hash the harness manifest "
+            f"({exc}) — a missing manifest file is drift, fail closed."
+        )
+        return
     if not record_path.exists():
         findings.add(
             "extraction-certification: EXTRACTION_THRESHOLD_RATIFIED is True "

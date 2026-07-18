@@ -34,7 +34,7 @@ def _valid_record(**overrides) -> dict:
     isolates exactly one violated bar.
     """
     rec = {
-        "harness_sha256": golden_exam.compute_harness_sha(),
+        "harness_sha256": trust_gate._compute_harness_sha_independent(_ROOT),
         "run_id": "29659010747",
         "artifact_id": "8433778947",
         "artifact_zip_sha256": "ab" * 32,
@@ -166,7 +166,7 @@ def test_mistyped_fields_fail_closed_without_crashing(monkeypatch, tmp_path):
 
 
 def test_malformed_flag_fails_loud(monkeypatch, tmp_path):
-    """stage-6 r2: 'true', 1, None, or any non-bool flag is misconfig,
+    """stage-6 r1: 'true', 1, None, or any non-bool flag is misconfig,
     never a safely-closed state."""
     for bad in ("true", 1, None, "False", 0.0):
         findings = _run(monkeypatch, tmp_path, bad, None)
@@ -212,3 +212,39 @@ def test_git_history_unavailable_fails_closed(monkeypatch, tmp_path):
     monkeypatch.setattr(trust_gate, "_golden_bytes_at_commit", boom)
     findings = _run_record(monkeypatch, tmp_path, _valid_record())
     assert any("cannot be proven, fail closed" in v for v in findings.violations)
+
+
+def test_relock_manifest_matches_runner_manifest():
+    """Lockstep sync (stage-6 r3): the re-lock's own manifest copy must
+    equal the runner's. Single-sided drift fails HERE in the same PR;
+    changing both copies touches trust_gate.py — trust-path class, whose
+    compensation is the mandatory adversarial review."""
+    assert trust_gate._RELOCK_HARNESS_MANIFEST == golden_exam.HARNESS_MANIFEST
+
+
+def test_relock_never_consults_the_runner_hasher(monkeypatch, tmp_path):
+    """stage-6 r3 adversarial case: even if the manifest-bound runner's
+    hasher LIES (returns garbage or the certified hash), the re-lock's
+    verdict is unchanged — it computes independently."""
+    monkeypatch.setattr(golden_exam, "compute_harness_sha", lambda: "0" * 64)
+    assert _run_record(monkeypatch, tmp_path, _valid_record()).ok()
+    monkeypatch.setattr(
+        golden_exam, "compute_harness_sha",
+        lambda: trust_gate._compute_harness_sha_independent(_ROOT))
+    findings = _run_record(
+        monkeypatch, tmp_path, _valid_record(harness_sha256="0" * 64))
+    assert any("DRIFTED" in v for v in findings.violations)
+
+
+def test_independent_hasher_detects_any_byte_change(tmp_path):
+    """The re-lock's hasher reds on any byte change of any manifest file,
+    with no imported code involved."""
+    for rel in ("a.py", "b/c.yml"):
+        f = tmp_path / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b"original-" + rel.encode())
+    manifest = ("a.py", "b/c.yml")
+    before = trust_gate._compute_harness_sha_independent(tmp_path, manifest)
+    (tmp_path / "a.py").write_bytes(b"original-a.pX")  # same length, one byte
+    after = trust_gate._compute_harness_sha_independent(tmp_path, manifest)
+    assert before != after
