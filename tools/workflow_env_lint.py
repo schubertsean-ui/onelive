@@ -83,36 +83,97 @@ AMBIENT = {
 }
 
 _GH_EXPR = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
-_SHELL_VAR = re.compile(r"\$\{?([A-Z][A-Z0-9_]+)\}?")
+_SHELL_VAR = re.compile(r"\$\{?([A-Z][A-Z0-9_]*)\}?")
 _VARS_CONTEXT = re.compile(r"\$\{\{[^}]*\bvars\.", re.DOTALL)
 # R3: expression channels that render EMPTY when the underlying value is
 # missing, used directly inside executing shell text.
 _RUN_EXPR_BAN = re.compile(r"\$\{\{[^}]*\b(secrets\.|env\.|github\.token)")
-_ASSIGN = re.compile(r"(?:^|;|&&|\|\|)\s*(?:export\s+)?([A-Z][A-Z0-9_]+)=")
-_FOR_VAR = re.compile(r"\bfor\s+([A-Z][A-Z0-9_]+)\s+in\b")
-_READ_VAR = re.compile(r"\bread\s+(?:-r\s+)?([A-Z][A-Z0-9_]+)\b")
+_ASSIGN = re.compile(r"(?:^|;|&&|\|\|)\s*(?:export\s+)?([A-Z][A-Z0-9_]*)=")
+_FOR_VAR = re.compile(r"\bfor\s+([A-Z][A-Z0-9_]*)\s+in\b")
+_READ_VAR = re.compile(r"\bread\s+(?:-r\s+)?([A-Z][A-Z0-9_]*)\b")
 # Non-empty guards that make a secret-backed var fail-loud at runtime.
 # ${X:?} always aborts. A -n test ([ / [[ / test) counts ONLY when the same
 # line carries an abort token (exit/return) after it — a non-terminating
 # probe like `[ -n "$X" ] || true` or a bare `if [ -n "$X" ]; then ...; fi`
 # lets an empty secret flow into later commands (evaluator r8). -z NEVER
 # counts (it succeeds when empty — evaluator r7).
-_GUARD_PARAM = re.compile(r"\$\{([A-Z][A-Z0-9_]+):\?")
-_GUARD_NTEST = re.compile(r"(?:\[\[?|test)\s+-n\s+\"?\$\{?([A-Z][A-Z0-9_]+)\}?\"?")
-_ABORT = re.compile(r"\b(?:exit|return)\b")
+_GUARD_PARAM = re.compile(r"\$\{([A-Z][A-Z0-9_]*):\?")
+_GUARD_NTEST = re.compile(r"(?:\[\[?|test)\s+-n\s+\"?\$\{?([A-Z][A-Z0-9_]*)\}?\"?")
+# The abort must sit on the FAILURE branch: `-n test || exit` or
+# `-n test || { ...; exit; }`. `&& exit` terminates when the secret is
+# PRESENT (the wrong branch — evaluator r9) and if-then-fi wrappers are
+# never credited (multi-line branch execution is not statically decidable).
+_GUARD_NTEST_TERMINATING = re.compile(
+    r"(?:\[\[?|test)\s+-n\s+\"?\$\{?([A-Z][A-Z0-9_]*)\}?\"?\s*\]{0,2}\s*"
+    r"\|\|\s*(?:\{[^}]*\b(?:exit|return)\b|[^;&|]*\b(?:exit|return)\b)"
+)
 
 
 def _line_guards(line: str) -> list[tuple[int, str]]:
-    """(position, var) for every TERMINATING guard on this line."""
+    """(position, var) for every guard on this line that provably ABORTS
+    when the value is empty: ${X:?}, or a -n test whose FAILURE branch
+    (after ||) exits/returns."""
     out = [(m.start(), m.group(1)) for m in _GUARD_PARAM.finditer(line)]
-    for m in _GUARD_NTEST.finditer(line):
-        if _ABORT.search(line, m.end()):
-            out.append((m.start(), m.group(1)))
+    out += [(m.start(), m.group(1)) for m in _GUARD_NTEST_TERMINATING.finditer(line)]
     return out
 _SECRET_VALUE = re.compile(r"\$\{\{[^}]*\bsecrets\.")
 _GITHUB_ENV_EXPORT = re.compile(
-    r"(?:echo|printf)\s+[\"']?([A-Z][A-Z0-9_]+)=.*?\$GITHUB_ENV"
+    r"(?:echo|printf)\s+[\"']?([A-Z][A-Z0-9_]*)=.*?\$GITHUB_ENV"
 )
+
+
+def _line_views(raw_line: str) -> tuple[str, str]:
+    """Return (code, code_unquoted) with POSITIONS PRESERVED (blanked spans
+    become spaces), per evaluator r9:
+    - code: inline unquoted comments blanked (a `# ...` tail is not shell),
+      single-quoted spans blanked (nothing expands in single quotes),
+      double-quoted content KEPT ("$X" is a real expansion).
+    - code_unquoted: additionally blanks double-quoted spans — used for
+      definition/assignment scanning so `echo "MY_TOKEN=abc"` (inert output
+      text) can never masquerade as an assignment.
+    Escape handling inside quotes is not modeled (documented limit,
+    false-positive direction: a weird quoted string may produce a spurious
+    finding, never a silent pass).
+    """
+    code: list[str] = []
+    unq: list[str] = []
+    in_s = in_d = False
+    prev_ws = True
+    for ch in raw_line:
+        if in_s:
+            code.append(" ")
+            unq.append(" ")
+            if ch == "'":
+                in_s = False
+            prev_ws = False
+            continue
+        if in_d:
+            code.append(ch)
+            unq.append(" ")
+            if ch == '"':
+                in_d = False
+                code[-1] = '"'
+            prev_ws = False
+            continue
+        if ch == "'":
+            in_s = True
+            code.append(" ")
+            unq.append(" ")
+            prev_ws = False
+            continue
+        if ch == '"':
+            in_d = True
+            code.append('"')
+            unq.append(" ")
+            prev_ws = False
+            continue
+        if ch == "#" and prev_ws:
+            pad = " " * (len(raw_line) - len(code))
+            return "".join(code) + pad, "".join(unq) + pad
+        code.append(ch)
+        unq.append(ch)
+        prev_ws = ch.isspace()
+    return "".join(code), "".join(unq)
 
 
 def _scan_run_script(
@@ -153,7 +214,9 @@ def _scan_run_script(
             continue
         if _RUN_EXPR_BAN.search(raw_line):
             banned.append(stripped[:80])
-        line = _GH_EXPR.sub("", raw_line)
+        code_view, unq_view = _line_views(raw_line)
+        line = _GH_EXPR.sub(lambda m: " " * len(m.group(0)), code_view)
+        defs_line = _GH_EXPR.sub(lambda m: " " * len(m.group(0)), unq_view)
         # Within-line ordering (evaluator r7): a guard covers only uses at
         # positions AFTER it — `use; guard` leaves the use unguarded. Guards
         # register into the cross-line set only after this line's uses are
@@ -164,7 +227,7 @@ def _scan_run_script(
         guard_spans = [m.span() for m in _GUARD_PARAM.finditer(line)]
         guard_spans += [m.span() for m in _GUARD_NTEST.finditer(line)]
         defs = [(m.end(), m.group(1)) for rx in (_ASSIGN, _FOR_VAR, _READ_VAR)
-                for m in rx.finditer(line)]
+                for m in rx.finditer(defs_line)]
         for m in _SHELL_VAR.finditer(line):
             name = m.group(1)
             in_guard = any(a <= m.start() < b for a, b in guard_spans)

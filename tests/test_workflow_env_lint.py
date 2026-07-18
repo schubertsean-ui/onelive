@@ -457,3 +457,91 @@ def test_probe_mention_alone_is_not_a_consuming_use():
           echo "all present"
 """)
     assert lint_workflow_text(text, "f.yml") == []
+
+
+# ---- Evaluator r9: wrong-branch aborts, quoted text, inline comments --------
+
+
+def test_and_exit_terminates_wrong_branch_not_a_guard():
+    # `[ -n "$X" ] && exit 1` exits when the secret IS present — inverse.
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          [ -n "$SECRET_TOKEN" ] && exit 1
+          curl -H "auth $SECRET_TOKEN" https://x
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("no non-empty guard" in f for f in findings)
+
+
+def test_if_then_exit_fi_one_liner_not_a_guard():
+    # Positive-branch exit inside if-then-fi: exits when present, not when
+    # empty. Never credited.
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          if [ -n "$SECRET_TOKEN" ]; then exit 1; fi
+          curl -H "auth $SECRET_TOKEN" https://x
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("no non-empty guard" in f for f in findings)
+
+
+def test_or_braced_abort_still_a_guard():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          [ -n "$SECRET_TOKEN" ] || { echo "::error::missing"; exit 1; }
+          curl -H "auth $SECRET_TOKEN" https://x
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_quoted_fake_assignment_is_not_a_definition():
+    # `echo "ok; MY_TOKEN=abc"` is inert output text, not shell assignment.
+    text = _wf("""
+      - name: fake
+        run: |
+          echo "ok; MY_TOKEN=abc"
+          curl "$MY_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_TOKEN" in f and "no visible source" in f for f in findings)
+
+
+def test_inline_comment_github_env_export_gives_no_credit():
+    text = _wf("""
+      - name: dead-produce
+        run: |
+          echo ok # echo "MY_DSN=abc" >> "$GITHUB_ENV"
+      - name: consume
+        run: psql "$MY_DSN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_DSN" in f for f in findings)
+
+
+def test_single_letter_uppercase_var_is_scanned():
+    text = _wf("""
+      - name: short
+        run: |
+          psql "$D"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("$D" in f and "no visible source" in f for f in findings)
+
+
+def test_single_quoted_dollar_is_not_a_use():
+    # Nothing expands inside single quotes — awk '{print $1}' etc.
+    text = _wf("""
+      - name: awk
+        run: |
+          echo hi | awk '{print $F}'
+""")
+    assert lint_workflow_text(text, "f.yml") == []
