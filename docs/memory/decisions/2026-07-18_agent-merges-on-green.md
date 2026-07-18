@@ -61,10 +61,11 @@ same condition so the two never diverge):
    adversarial review on that same PR.
 3. MANIFEST-BOUND refusals currently have NO exception — ordinary red,
    hard stop, founder-crucial to override — because their compensating
-   control (trust_gate's extraction-certification re-lock) is stage 3 of
-   the bootstrap (gate → record → re-lock, separate PRs; a certification
-   record may only enter the tree through the merged base-owned
-   authenticator). The stage-3 PR extends the exception to manifest-bound
+   control (trust_gate's extraction-certification re-lock) is the FINAL
+   stage of the bootstrap (gate → evidence plumbing → record → re-lock,
+   separate PRs; a certification record may only enter the tree through
+   the merged base-owned authenticator, and no unmerged code ever judges
+   anything). The re-lock PR extends the exception to manifest-bound
    refusals in the SAME commit that ships the re-lock — the condition is
    never written ahead of its mechanism.
 4. Every other red or pending check still forbids merging — this
