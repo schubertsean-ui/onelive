@@ -236,9 +236,11 @@ def test_relock_never_consults_the_runner_hasher(monkeypatch, tmp_path):
     assert any("DRIFTED" in v for v in findings.violations)
 
 
-def test_independent_hasher_detects_any_byte_change(tmp_path):
-    """The re-lock's hasher reds on any byte change of any manifest file,
-    with no imported code involved."""
+def test_independent_hasher_detects_a_byte_change(tmp_path):
+    """Smoke test: the re-lock's hasher changes when one byte of one
+    manifest file changes, with no imported code involved (the algorithm
+    hashes every listed file's bytes, so the property generalizes, but
+    this test exercises a single mutation)."""
     for rel in ("a.py", "b/c.yml"):
         f = tmp_path / rel
         f.parent.mkdir(parents=True, exist_ok=True)

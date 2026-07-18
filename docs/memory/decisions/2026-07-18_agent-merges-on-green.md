@@ -59,13 +59,17 @@ same condition so the two never diverge):
    closed). NON-manifest surface files are compensated structurally,
    TODAY: base-owned execution + per-run data bindings + the blocking
    adversarial review on that same PR.
-3. MANIFEST-BOUND refusals are covered TOO, since the bootstrap's final
-   stage: their compensating control is trust_gate's live
-   extraction-certification re-lock — merging under the exception turns
-   the whole tree red until the founder's attended exam re-certifies
-   (the red moves, it never disappears). The exception was extended to
-   this class in the SAME commit that shipped the re-lock, so the
-   condition was never written ahead of its mechanism. Unclassifiable
-   refusals (unreadable manifest) remain ineligible.
+3. MANIFEST-BOUND refusals are covered ONLY when the same PR closes
+   extraction (EXTRACTION_THRESHOLD_RATIFIED = literal False, verified
+   by the classifier from subject routing data): with the re-lock live,
+   a certified-but-changed harness is trust_gate-red on the PR itself,
+   so the closure is the only green-at-merge path — the CLOSURE moves,
+   not the red. Extraction stays off, fail-closed, until the standing
+   three-step re-opens it: founder's attended exam on the new harness →
+   authenticated record PR → head-bound flag-flip PR. There is no
+   double-red merge path, ever. Record changes riding a refusal,
+   unprovable partitions, and still-ratified manifest-bound refusals
+   all carry the classifier's EXCEPTION-INELIGIBLE marker, and the
+   review's evidence step fails closed on it mechanically.
 4. Every other red or pending check still forbids merging — this
    exception names one check's one designed failure mode, nothing more.

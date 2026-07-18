@@ -220,14 +220,44 @@ def classify(compare: dict, base_dir: pathlib.Path, subject_dir: pathlib.Path) -
             bound = sorted(p for p in harness_touched if p in manifest)
             unbound = sorted(p for p in harness_touched if p not in manifest)
             if bound:
-                # Compensated by the LIVE trust_gate re-lock (bootstrap
-                # final stage): merging under the charter exception turns
-                # the whole tree red until an attended re-exam re-certifies.
-                detail.append("manifest-bound (certification-hash covered; a "
-                              "merge under the charter exception turns "
-                              "trust_gate red everywhere until an attended "
-                              "re-exam re-certifies — the red moves): "
-                              + ", ".join(bound))
+                # Manifest-bound eligibility requires CLOSURE (stage-6 r6):
+                # with the re-lock live, a certified-but-changed harness
+                # makes trust_gate red on the PR itself — so the only
+                # green-at-merge path is the same PR setting
+                # EXTRACTION_THRESHOLD_RATIFIED to literal False (the flag
+                # flip is subject-certifiable; a closed extraction needs no
+                # certification, and the uncertified harness cannot run).
+                # Re-opening is the standing three-step: attended exam →
+                # authenticated record → head-bound flag flip.
+                flag_closed = False
+                try:
+                    subj_routing = load_routing_data(
+                        subject_dir / "tools/routing_data.py")
+                    flag_closed = subj_routing.get(
+                        "EXTRACTION_THRESHOLD_RATIFIED") is False
+                except (OSError, ValueError, SyntaxError):
+                    flag_closed = False  # unparseable = not provably closed
+                if flag_closed:
+                    detail.append("manifest-bound (certification-hash "
+                                  "covered; ELIGIBLE because this same PR "
+                                  "CLOSES extraction — "
+                                  "EXTRACTION_THRESHOLD_RATIFIED is literal "
+                                  "False — so the uncertified harness cannot "
+                                  "run and trust_gate stays green; re-opening "
+                                  "requires attended exam, authenticated "
+                                  "record, then head-bound flag flip): "
+                                  + ", ".join(bound))
+                else:
+                    detail.append("EXCEPTION-INELIGIBLE — manifest-bound "
+                                  "files refused while extraction remains "
+                                  "ratified (EXTRACTION_THRESHOLD_RATIFIED "
+                                  "is not literal False in this PR): merging "
+                                  "would leave a certified-but-changed "
+                                  "harness, and trust_gate is red on this "
+                                  "very PR; the exception covers "
+                                  "manifest-bound changes ONLY when the same "
+                                  "PR closes extraction: "
+                                  + ", ".join(bound))
             if unbound:
                 detail.append("NOT manifest-bound (re-verified instead by "
                               "base-owned execution, per-run data bindings, and "
