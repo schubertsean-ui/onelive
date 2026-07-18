@@ -65,10 +65,10 @@ def test_parse_extracts_ids_and_statuses():
 
 
 def test_real_register_binding_is_consistent_for_visual_regression():
-    # Integration against the live register, without pinning live debt
-    # forever (evaluator r4 nit): expectation is derived by an independent
-    # line scan, so the test keeps passing when R-002 is eventually resolved
-    # — the semantics themselves are pinned by the fixture tests above.
+    # Integration against the live register, without pinning a specific row
+    # id (evaluator r4 nit): the expectation is derived by an independent
+    # line scan, so the test tracks the register's actual state — binding
+    # semantics themselves are pinned by the fixture tests above.
     text = REAL_RECORD.read_text(encoding="utf-8")
     expected = None
     for line in text.splitlines():
