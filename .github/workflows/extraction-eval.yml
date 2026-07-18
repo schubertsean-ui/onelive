@@ -119,7 +119,7 @@ jobs:
           # file list at 300 entries; a bigger diff fails closed in the
           # classifier.
           : "${GH_TOKEN:?GH_TOKEN missing — cannot verify evidence, failing closed}"
-          curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+          curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$REPO/compare/$BASE_SHA...$HEAD_SHA" > compare.json
           # BASE-owned classifier, moved out of an inline heredoc (PR #36 r2):
           # as a file it is unit-testable — the CLASSIFIER the charter's
@@ -129,28 +129,28 @@ jobs:
           # call is the blocking refusal gate (harness code cannot ride a
           # prompt-swap exam); the --print calls re-run the same full
           # classification and emit one flag each for the later steps.
-          python3 base/tools/classify_extraction_surface.py compare.json --base-dir base --subject-dir subject
-          RECORD_CHANGED="$(python3 base/tools/classify_extraction_surface.py compare.json --base-dir base --subject-dir subject --print record-changed)"
-          SURFACE_BEYOND_RECORD="$(python3 base/tools/classify_extraction_surface.py compare.json --base-dir base --subject-dir subject --print surface-beyond-record)"
+          python3 -I base/tools/classify_extraction_surface.py compare.json --base-dir base --subject-dir subject
+          RECORD_CHANGED="$(python3 -I base/tools/classify_extraction_surface.py compare.json --base-dir base --subject-dir subject --print record-changed)"
+          SURFACE_BEYOND_RECORD="$(python3 -I base/tools/classify_extraction_surface.py compare.json --base-dir base --subject-dir subject --print surface-beyond-record)"
           echo "RECORD_CHANGED=$RECORD_CHANGED" >> "$GITHUB_ENV"
           echo "SURFACE_BEYOND_RECORD=$SURFACE_BEYOND_RECORD" >> "$GITHUB_ENV"
 
       - name: Lift subject expectations as data (BASE extractors, subject files)
         run: |
           set -euo pipefail
-          python3 base/tools/extract_prompt_text.py subject/ai/prompts.py > subject_prompt.txt
-          EXPECT_PROMPT_SHA="$(python3 -c "import hashlib,sys; print(hashlib.sha256(open('subject_prompt.txt','rb').read()).hexdigest())")"
-          EXPECT_MODEL="$(python3 base/tools/extract_routed_model.py subject/tools/routing_data.py)"
+          python3 -I base/tools/extract_prompt_text.py subject/ai/prompts.py > subject_prompt.txt
+          EXPECT_PROMPT_SHA="$(python3 -I -c "import hashlib,sys; print(hashlib.sha256(open('subject_prompt.txt','rb').read()).hexdigest())")"
+          EXPECT_MODEL="$(python3 -I base/tools/extract_routed_model.py subject/tools/routing_data.py)"
           if ! [[ "$EXPECT_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]]; then
             echo "::error::subject routed model is not a plausible model id (fail closed)."
             exit 1
           fi
           # Harness-version bindings (r22): the evidence must have been
           # minted by THIS golden set and scorer (base's), not an older one.
-          EXPECT_GOLDEN_SHA="$(python3 -c "import hashlib; print(hashlib.sha256(open('base/ai/golden/golden_set_v1.jsonl','rb').read()).hexdigest())")"
+          EXPECT_GOLDEN_SHA="$(python3 -I -c "import hashlib; print(hashlib.sha256(open('base/ai/golden/golden_set_v1.jsonl','rb').read()).hexdigest())")"
           # The same single-source function the runner used, run from BASE
           # (r23: the manifest covers every file executing during a run).
-          EXPECT_HARNESS_SHA="$(cd base && python3 -c "from ai.golden_exam import compute_harness_sha; print(compute_harness_sha())")"
+          EXPECT_HARNESS_SHA="$(cd base && python3 -I -c "from ai.golden_exam import compute_harness_sha; print(compute_harness_sha())")"
           echo "EXPECT_PROMPT_SHA=$EXPECT_PROMPT_SHA" >> "$GITHUB_ENV"
           echo "EXPECT_MODEL=$EXPECT_MODEL" >> "$GITHUB_ENV"
           echo "EXPECT_GOLDEN_SHA=$EXPECT_GOLDEN_SHA" >> "$GITHUB_ENV"
@@ -197,26 +197,27 @@ jobs:
           # printed fields are shape-validated (digits / 40-hex), so the
           # captures below are shell-safe; under set -e any rejection kills
           # this step.
-          REC_RUN_ID="$(python3 tools/authenticate_certification_record.py field "$RECORD" run_id --expect-harness-sha256 "$EXPECT_HARNESS_SHA" --expect-model "$EXPECT_MODEL")"
-          REC_SUBJECT_SHA="$(python3 tools/authenticate_certification_record.py field "$RECORD" subject_sha --expect-harness-sha256 "$EXPECT_HARNESS_SHA" --expect-model "$EXPECT_MODEL")"
-          api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          REC_RUN_ID="$(python3 -I tools/authenticate_certification_record.py field "$RECORD" run_id --expect-harness-sha256 "$EXPECT_HARNESS_SHA" --expect-model "$EXPECT_MODEL")"
+          REC_SUBJECT_SHA="$(python3 -I tools/authenticate_certification_record.py field "$RECORD" subject_sha --expect-harness-sha256 "$EXPECT_HARNESS_SHA" --expect-model "$EXPECT_MODEL")"
+          api() { curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
           api "https://api.github.com/repos/$REPO/actions/runs/$REC_RUN_ID" > run.json
           api "https://api.github.com/repos/$REPO/actions/runs/$REC_RUN_ID/artifacts" > artifacts.json
-          ART_URL="$(python3 tools/authenticate_certification_record.py run "$RECORD" run.json artifacts.json --expect-harness-sha256 "$EXPECT_HARNESS_SHA" --expect-model "$EXPECT_MODEL" --default-branch "$DEFAULT_BRANCH")"
+          ART_URL="$(python3 -I tools/authenticate_certification_record.py run "$RECORD" run.json artifacts.json --expect-harness-sha256 "$EXPECT_HARNESS_SHA" --expect-model "$EXPECT_MODEL" --default-branch "$DEFAULT_BRANCH")"
           # Evidence is untrusted DATA (r15): downloaded and extracted in an
           # isolated temp dir, never into the trusted checkout; the zip must
           # hash to the recorded digest and contain exactly one
           # exam-report.json, and every recorded metric must agree with it.
           TMPD="$(mktemp -d)"
+          trap 'rm -rf "$TMPD"' EXIT
           api -L -o "$TMPD/report.zip" "$ART_URL"
-          python3 tools/authenticate_certification_record.py report "$RECORD" "$TMPD/report.zip" "$TMPD" --expect-harness-sha256 "$EXPECT_HARNESS_SHA" --expect-model "$EXPECT_MODEL"
+          python3 -I tools/authenticate_certification_record.py report "$RECORD" "$TMPD/report.zip" "$TMPD" --expect-harness-sha256 "$EXPECT_HARNESS_SHA" --expect-model "$EXPECT_MODEL"
           # Full independent evidence verification — the SAME verifier and
           # bindings as the head-bound path, anchored to the record's
           # default-branch subject commit. EXPECT_* are subject-derived and
           # equal base's for a record-only PR; a PR that pairs a record with
           # a prompt change fails here BY DESIGN: records land in their own
           # PR, after the harness they certify has merged.
-          python3 tools/verify_exam_evidence.py "$TMPD/exam-report.json" \
+          python3 -I tools/verify_exam_evidence.py "$TMPD/exam-report.json" \
             --subject-sha "$REC_SUBJECT_SHA" \
             --expect-model "$EXPECT_MODEL" \
             --expect-prompt-sha256 "$EXPECT_PROMPT_SHA" \
@@ -244,7 +245,12 @@ jobs:
           : "${HEAD_SHA:?head sha unresolved — failing closed}"
           cd base
           : "${GH_TOKEN:?GH_TOKEN missing — cannot verify evidence, failing closed}"
-          api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          api() { curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
+          # Evidence tempdirs live under one root with a cleanup trap
+          # (r-hygiene): nothing evidence-related is left on disk after
+          # the step, success or failure.
+          TMPD_ROOT="$(mktemp -d)"
+          trap 'rm -rf "$TMPD_ROOT"' EXIT
           # 50-run window (r15/r16 nits): fail-closed either way. OPERATOR
           # NOTE, prominent by design: if many exams ran since yours, valid
           # evidence can age out of this window — the remedy is always ONE
@@ -255,7 +261,7 @@ jobs:
           # attended workflow — guard stripped, artifacts forgeable. The
           # trusted-harness guarantee lives in this filter as much as in
           # the workflow's own ref guard.
-          RUN_IDS="$(api "https://api.github.com/repos/$REPO/actions/workflows/extraction-exam-dispatch.yml/runs?event=workflow_dispatch&status=success&per_page=50" | python3 -c "
+          RUN_IDS="$(api "https://api.github.com/repos/$REPO/actions/workflows/extraction-exam-dispatch.yml/runs?event=workflow_dispatch&status=success&per_page=50" | python3 -I -c "
           import json, os, sys
           default = os.environ['DEFAULT_BRANCH']
           runs = json.load(sys.stdin).get('workflow_runs') or []
@@ -271,11 +277,11 @@ jobs:
             # temp dir, never into the trusted checkout — a hostile archive
             # must not be able to overwrite the code that judges it. The
             # archive must contain exactly one member named exam-report.json.
-            TMPD="$(mktemp -d)"
-            ART_URL="$(api "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts" | python3 -c "import json,sys; arts=json.load(sys.stdin).get('artifacts') or []; hits=[a for a in arts if a['name'].startswith('golden-exam-report-')]; print(hits[0]['archive_download_url'] if hits else '')")"
+            TMPD="$(mktemp -d -p "$TMPD_ROOT")"
+            ART_URL="$(api "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts" | python3 -I -c "import json,sys; arts=json.load(sys.stdin).get('artifacts') or []; hits=[a for a in arts if a['name'].startswith('golden-exam-report-')]; print(hits[0]['archive_download_url'] if hits else '')")"
             [ -z "$ART_URL" ] && continue
             api -L -o "$TMPD/report.zip" "$ART_URL" || continue
-            python3 - "$TMPD" <<'PYZ' || continue
+            python3 -I - "$TMPD" <<'PYZ' || continue
           import sys, zipfile
           tmpd = sys.argv[1]
           with zipfile.ZipFile(tmpd + "/report.zip") as z:
@@ -285,7 +291,7 @@ jobs:
               z.extract("exam-report.json", tmpd)
           PYZ
             [ -f "$TMPD/exam-report.json" ] || continue
-            if python3 tools/verify_exam_evidence.py "$TMPD/exam-report.json" \
+            if python3 -I tools/verify_exam_evidence.py "$TMPD/exam-report.json" \
                  --subject-sha "$HEAD_SHA" \
                  --expect-model "$EXPECT_MODEL" \
                  --expect-prompt-sha256 "$EXPECT_PROMPT_SHA" \
@@ -308,4 +314,4 @@ jobs:
         run: |
           set -euo pipefail
           cd base
-          python3 tools/golden_lint.py ../subject/ai/golden/golden_set_v1.jsonl ../subject_prompt.txt
+          python3 -I tools/golden_lint.py ../subject/ai/golden/golden_set_v1.jsonl ../subject_prompt.txt

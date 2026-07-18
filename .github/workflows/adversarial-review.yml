@@ -328,7 +328,7 @@ jobs:
             fi
           fi
           {
-            echo "# golden-exam check on head $HEAD_SHA — identity-validated by the BASE-owned co-gate helper (git show HEAD^1, executed with python -I from a trusted tempdir): job of .github/workflows/extraction-eval.yml, event pull_request_target, run+job head_sha == PR head, PR number bound, base+head PROVEN from the run env echoes (BASE_SHA == $BASE_SHA_CUR, HEAD_SHA == PR head); log attached verbatim"
+            echo "# golden-exam check on head $HEAD_SHA — identity-validated by the review-side BASE-owned co-gate helper (git show HEAD^1, python -I, trusted tempdir — this claim covers the REVIEW side; the verifier's own hardening is visible in its log below): job of .github/workflows/extraction-eval.yml, event pull_request_target, run+job head_sha == PR head, PR number bound, base+head PROVEN from the run env echoes (BASE_SHA == $BASE_SHA_CUR, HEAD_SHA == PR head); log attached verbatim"
             echo "# binding: review checkout $MERGE_SHA is GitHub's synthetic merge commit whose second parent IS the PR head $HEAD_SHA (asserted above, fail closed) — validate.log's git head and this log describe the same PR state"
             echo "golden-exam conclusion: $CONCLUSION $GX_URL"
             cat "$EVID/gx-job.log"
