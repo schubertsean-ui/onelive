@@ -178,3 +178,8 @@ sandboxes.
 - WORKED WELL: the evaluator enforcing KAIZEN §M7 against its own author's PR within hours of merging it — the loop is genuinely self-policing. M1 rounds-to-green trend 5→1 across the arc.
 - WORKED WELL: founder-ergonomics investment (DSN splice) directly unblocked a stuck human step; worth repeating the pattern (make the machine absorb the fiddly part).
 - WATCH: empty-env fail-open class hit its 4th appearance (#21). Ledger rule says the 5th demands the structural fix (env-contract linter for workflows) — do not patch a 5th time.
+
+## 2026-07-17 — MemoHarness paper review session
+- FRICTION: the sandbox network policy blocks arxiv.org (and mirrors: Hugging Face papers, Semantic Scholar) — a founder-supplied research link produced four dead-end fetch attempts before the founder had to upload the PDF by hand. Automate next: allowlist arxiv.org (read-only research domain) in the environment's network settings, or note in the charter that papers reach the agent as uploads.
+- FRICTION: `Read` on the uploaded PDF failed until poppler-utils was apt-installed (and the first install 404'd until `apt-get update`). Worth adding poppler-utils to the environment's base image/setup script if paper review recurs.
+- WORKED WELL: the standing decision records did their exact job — the 2026-07-14 gate-custody note and the 2026-07-16 Weco AIDE² TODO item let this session classify MemoHarness's outer-loop search as already-adjudicated in minutes, instead of re-litigating the safety question from scratch. Disk beat chat memory, again.

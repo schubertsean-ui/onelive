@@ -34,7 +34,9 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 
 > **Ground-truth block staleness (2026-07-13):** the JSON block above is machine-maintained and could NOT be refreshed this session — the reconciler needs `gh` (absent in this sandbox) and a DB DSN (not provided). It shows pre-PR#9 state. The 2026-07-13 reality check below records what WAS independently verified (via the GitHub API). Refresh the block with `session_reconcile.py --heal` from an env with `gh` + `ONELIVE_DB_DSN`.
 
-## Where we are (updated 2026-07-15, session close — see arc 2026-07-14_first-real-run-ratchet-and-sensor-canon)
+## Where we are (updated 2026-07-17: MemoHarness review session — see arc 2026-07-17_memoharness-review; prior update 2026-07-15, arc 2026-07-14_first-real-run-ratchet-and-sensor-canon)
+
+DONE 2026-07-17 (research-review session, docs-only): founder-requested deep review of MemoHarness (arXiv 2607.14159) vs the Loop-Harness-Brain model — docs/strategy/ONE_LIVE_MEMOHARNESS_APPLICABILITY_REVIEW_v1.md. Outcome: architecture independently validated; two cheap adoptions queued (D1–D6 defect tags P3; Brain 1B spec amended — success+failure recall, cacheable memory prefixes); outer-loop harness search re-confirmed FORBIDDEN under the 2026-07-14 gate-custody decision. No code, no gates, no thresholds touched.
 
 DONE this arc: PRs #14–#22 merged through the armed gate (M1 trend 5→1). All four Actions secrets landed (founder). FIRST REAL RUN: DB connected (266 sources), caps enforced, dead-man pinged, replay persisted; extraction failed LOUD on a retired model id (~$0, nothing false entered). R-006 RATIFIED at 1% + one-way ratchet (KAIZEN §M7, field-assertion unit). Sensor architecture + po/Kaizen are canon.
 
