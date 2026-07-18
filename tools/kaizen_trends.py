@@ -42,6 +42,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ALARM_THRESHOLD = 3
+# Single-segment class tokens that are REAL classes (declared registry —
+# docs/KAIZEN.md): trust-critical shorts the r4 fix must keep counting.
+# Any OTHER single English word before ×N is prose over-capture (r18: the
+# merged PR #18 rows counted "provenance job ×5" as class `job`) and never
+# alarms on its own — multi-segment kebab tokens always count.
+SHORT_TOKEN_REGISTRY = {"sql", "rls", "xss", "auth", "csrf", "ssrf", "race", "leak"}
 
 # Any kebab token immediately before ×N — including short trust-critical
 # tokens like `sql`/`rls`/`xss` (evaluator r4: a length floor would let short
@@ -177,6 +183,8 @@ def family_alarm(family: set[str], rows: list[dict], threshold: int) -> str | No
     if not counts:
         return None
     name = min(family, key=len)
+    if all("-" not in t and t not in SHORT_TOKEN_REGISTRY for t in family):
+        return None  # prose over-capture, never a class (registry misses are added there)
     last_marker = family_marker_last_row(family, rows)
     if last_marker is None:
         total = sum(n for _, n in counts)

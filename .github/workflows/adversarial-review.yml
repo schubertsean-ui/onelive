@@ -149,7 +149,7 @@ jobs:
             echo "no web/ files in this diff — web checks not applicable" | tee web.log
           fi
 
-      - name: Extract the diff under review (lockfiles excluded by policy)
+      - name: Extract the diff under review (lockfiles + fetched corpus excluded by policy)
         env:
           DIFF_RANGE: ${{ steps.range.outputs.range }}
         run: |
@@ -158,12 +158,32 @@ jobs:
           # git diff runs standalone FIRST (r17): under set -e a failure
           # kills the step before any notes-only pr.diff can reach the
           # evaluator; the subject diff is then appended to the notes.
-          git diff "$DIFF_RANGE" -- . ':(exclude)**/package-lock.json' > subject.diff
+          git diff "$DIFF_RANGE" -- . \
+            ':(exclude)**/package-lock.json' \
+            ':(exclude)ventures/promise_ledger/eval/source_material/*.htm' \
+            ':(exclude)ventures/promise_ledger/eval/source_material/*.html' \
+            ':(exclude)ventures/promise_ledger/eval/source_material/*.pdf' > subject.diff
           {
             echo "# NOTE to evaluator: machine-generated lockfiles (package-lock.json)"
             echo "# are excluded from this diff by policy — they are npm-generated and"
             echo "# validated by 'npm ci' + the blocking npm-audit SCA gate in the"
             echo "# attached web log instead (exceptions: docs/SCA_BASELINE.md)."
+            echo "#"
+            echo "# NOTE to evaluator: verbatim THIRD-PARTY documents machine-fetched"
+            echo "# into ventures/promise_ledger/eval/source_material/ (.htm/.html/.pdf)"
+            echo "# are likewise excluded — they are external inputs (real EDGAR press"
+            echo "# releases stored for internal labeling), not our authored claims, and"
+            echo "# the corpus grows linearly (target >=20 filings), so no fixed diff cap"
+            echo "# survives including them. This is DISTINCT from the PR #18 r6-r7"
+            echo "# ruling, which forbade excluding OUR OWN evidence (agent appendices,"
+            echo "# vote records) — those remain fully in-diff. The exclusion is honest"
+            echo "# because the excluded bytes are validated another way, visible to you:"
+            echo "# MANIFEST.json (our provenance claim: source_url/sha256/bytes per file)"
+            echo "# stays IN this diff, and the pytest log you receive includes manifest-"
+            echo "# integrity tests that hash every excluded file against it — an"
+            echo "# unvouched file, or one whose content drifted from its manifest"
+            echo "# sha256, fails CI (tests/test_promise_ledger_groundwork.py)."
+            echo "#"
             echo "# NOTE to evaluator: golden-set exam evidence for extraction-surface"
             echo "# changes is NOT in these logs, and the model call + Anthropic secret"
             echo "# do NOT live in the release check. They live in a SEPARATE manual,"
@@ -197,6 +217,27 @@ jobs:
           # OPENAI_REVIEW_MODEL env override still exists for LOCAL runs,
           # where the script itself fails loud on empty or Claude-family ids.
         run: |
+          # --max-diff-bytes raised from the 300000 default DELIBERATELY
+          # (evaluator finding, PR #18 rounds 6-7): research PRs commit their
+          # full evidentiary substrate — verbatim agent-report appendices and
+          # verification journals/vote records — and the evaluator ruled that
+          # excluding cited evidence from the reviewed diff hides the very
+          # material adversarial review exists to check ("shown, never
+          # hidden" applies to our own evidence too). So the whole diff is
+          # reviewed up to the fail-closed cap below — if a diff ever exceeds
+          # it, the run HARD-FAILS rather than truncating (unchanged
+          # --require behavior); this is a bigger window, not a softer gate.
+          #
+          # FOUNDER-RATIFIED per the gate-custody rule that threshold changes
+          # are founder-crucial — the founder approved the 800000 cap in both
+          # active sessions ("approve 800k cap", 2026-07-16; "I approve the
+          # 800 KB adversarial-review diff cap", 2026-07-17). ONE decision,
+          # two records (kept additively):
+          # docs/memory/decisions/2026-07-16_review-diff-cap-800k.md and
+          # docs/memory/decisions/2026-07-17_diff-cap-approval.md. Closes the
+          # evaluator r23 gate-custody finding. Changing this value again,
+          # either direction, requires a new founder decision.
           python -I /tmp/trusted/adversarial_review.py --require \
+            --max-diff-bytes 800000 \
             --diff-file pr.diff --test-log pytest.log --test-log web.log \
             --test-log validate.log

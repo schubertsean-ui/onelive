@@ -173,7 +173,11 @@ Machine-readable conventions the meter relies on (naming discipline IS the
 enforcement surface):
 1. **Class tokens are single kebab-case tokens** immediately before "×N" in
    M2 (`empty-env ×1`, never "empty env issues ×1"); REUSE the exact token
-   for a repeat. Matching is exact-token + containment families
+   for a repeat. Single-word tokens count as classes ONLY from the declared
+   short-token registry (`tools/kaizen_trends.py::SHORT_TOKEN_REGISTRY`:
+   sql, rls, xss, auth, csrf, ssrf, race, leak — extend it there, in a
+   reviewed diff); any other bare word before ×N is prose and must use a
+   plain x ("records x4") so it never enters the class grammar. Matching is exact-token + containment families
    (`empty-env` ⊂ `fail-open-empty-env`).
 2. **A class fix is marked** by naming the class token in the fixing row's
    M4 column — no marker, no credit, alarm keeps firing. Markers are
