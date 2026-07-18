@@ -163,3 +163,28 @@ def test_mistyped_fields_fail_closed_without_crashing(monkeypatch, tmp_path):
     for i, case in enumerate(cases):
         findings = _run_record(monkeypatch, tmp_path, case)
         assert any("not a valid PASSED" in v for v in findings.violations), i
+
+
+def test_malformed_flag_fails_loud(monkeypatch, tmp_path):
+    """stage-6 r2: 'true', 1, None, or any non-bool flag is misconfig,
+    never a safely-closed state."""
+    for bad in ("true", 1, None, "False", 0.0):
+        findings = _run(monkeypatch, tmp_path, bad, None)
+        assert any("must be a literal bool" in v for v in findings.violations), bad
+    # literal False stays a clean closed state
+    assert _run(monkeypatch, tmp_path, False, None).ok()
+
+
+def test_examples_floor_and_current_set_binding(monkeypatch, tmp_path):
+    """stage-6 r2: examples must exist, be >= the 40-example floor, and
+    equal the CURRENT golden set's size — set drift re-reds offline."""
+    rec = _valid_record()
+    del rec["metrics"]["examples"]
+    assert not _run_record(monkeypatch, tmp_path, rec).ok()
+    for bad in (0, 39, 76, "77", True):
+        rec = _valid_record()
+        rec["metrics"]["examples"] = bad
+        findings = _run_record(monkeypatch, tmp_path, rec)
+        assert any("examples" in v for v in findings.violations), bad
+    # the real count (77, matching ai/golden/golden_set_v1.jsonl) passes
+    assert _run_record(monkeypatch, tmp_path, _valid_record()).ok()

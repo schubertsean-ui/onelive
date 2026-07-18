@@ -323,8 +323,19 @@ def check_extraction_certification(findings: Findings, record_path: "pathlib.Pat
         sys.path.insert(0, str(root))
     from tools.routing_data import EXTRACTION_THRESHOLD_RATIFIED
 
-    if EXTRACTION_THRESHOLD_RATIFIED is not True:
+    if EXTRACTION_THRESHOLD_RATIFIED is False:
         return  # extraction closed; nothing to certify
+    if EXTRACTION_THRESHOLD_RATIFIED is not True:
+        # Fail LOUD on misconfig (evaluator, stage-6 r2): "true", 1, None,
+        # or any non-bool is a malformed flag, not a safely-closed state —
+        # the same rule the classifier applies to routing_data's flag.
+        findings.add(
+            f"extraction-certification: EXTRACTION_THRESHOLD_RATIFIED is "
+            f"{EXTRACTION_THRESHOLD_RATIFIED!r} — the ratification flag "
+            f"must be a literal bool; a malformed flag is a "
+            f"misconfiguration, fail closed."
+        )
+        return
 
     from ai.exam_thresholds import HALLUCINATION_MAX, RECALL_MIN, SAMPLE_FLOOR
     from ai.golden_exam import compute_harness_sha
@@ -411,6 +422,30 @@ def check_extraction_certification(findings: Findings, record_path: "pathlib.Pat
             problems.append(f"injections={m.get('injections')!r} (need integer 0)")
         if _count(m.get("unanswered")) != 0:
             problems.append(f"unanswered={m.get('unanswered')!r} (need integer 0)")
+        # Examples floor + current-set binding (evaluator, stage-6 r2: a
+        # record with passing asserted_facts but zero/missing examples was
+        # a false-confidence certification). The 40-example floor is
+        # R-013's documented requirement (also pinned by
+        # tests/test_golden_exam.py); the golden set is NOT in the harness
+        # manifest, so the exam-time binding (golden_sha in the report,
+        # verified per-run) is invisible offline — requiring the recorded
+        # example count to equal the CURRENT set's size closes that gap:
+        # growing or shrinking the set re-reds this check until a fresh
+        # attended exam re-certifies.
+        golden_path = root / "ai/golden/golden_set_v1.jsonl"
+        try:
+            golden_count = sum(
+                1 for line in golden_path.read_text(encoding="utf-8").splitlines()
+                if line.strip())
+        except OSError:
+            golden_count = -1  # unreadable set can never match a real count
+        examples = _count(m.get("examples"))
+        if examples is None or examples < 40 or examples != golden_count:
+            problems.append(
+                f"examples={m.get('examples')!r} missing, below the "
+                f"40-example floor (R-013), or != the current golden set's "
+                f"{golden_count} examples — the certification does not "
+                f"describe the current set")
     if problems:
         findings.add(
             "extraction-certification: record is not a valid PASSED "
@@ -441,7 +476,7 @@ def main() -> int:
 
     if findings.ok():
         print("trust_gate: OK — all trust invariants hold "
-              "(no dynamic SQL; ads/tastemaker isolated; AI never promotes; "
+          "(no dynamic SQL; ads/tastemaker isolated; AI never promotes; "
           "extraction certification matches the current harness).")
         return 0
 
