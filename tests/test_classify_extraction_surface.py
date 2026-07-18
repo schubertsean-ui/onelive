@@ -230,3 +230,25 @@ def test_read_harness_manifest_fails_closed_on_garbage(tmp_path):
     (tmp_path / "ai" / "golden_exam.py").write_text(
         "import os\nHARNESS_MANIFEST = os.environ\n", encoding="utf-8")
     assert ces.read_harness_manifest(tmp_path) is None
+
+
+def test_record_riding_a_refusal_is_marked_exception_ineligible(capsys):
+    """stage-6 r4: a record change accompanying ANY harness refusal must
+    carry the canonical EXCEPTION-INELIGIBLE marker — the refusal
+    precedes authentication, so the changed record would enter
+    unverified. This is the forged-complete-record bypass shape."""
+    with pytest.raises(SystemExit):
+        ces.classify(
+            _compare("ai/golden/CERTIFIED_HARNESS.json", "ai/golden_exam.py"),
+            _ROOT, _ROOT)
+    err = capsys.readouterr().err
+    assert "EXCEPTION-INELIGIBLE" in err
+    assert "authenticator" in err
+    # and the manifest-bound partition is still printed for the harness file
+    assert "manifest-bound" in err
+
+
+def test_unreadable_manifest_uses_the_same_canonical_marker(tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        ces.classify(_compare("ai/golden_exam.py"), tmp_path, tmp_path)
+    assert "EXCEPTION-INELIGIBLE" in capsys.readouterr().err

@@ -266,3 +266,13 @@ def test_cli_candidate_valid_and_log_bindings(tmp_path, capsys):
     assert capsys.readouterr().out.strip() == "1"
     assert ce.main(["log-bindings", str(lp), "0" * 40, SUBJECT]) == 0
     assert capsys.readouterr().out.strip() == "0"
+
+
+def test_refusal_ineligible_marker_detection(tmp_path, capsys):
+    """stage-6 r4: the canonical marker fails the review step closed."""
+    assert ce.refusal_ineligible("... EXCEPTION-INELIGIBLE — record rides refusal ...") is True
+    assert ce.refusal_ineligible("plain designed refusal text") is False
+    lp = tmp_path / "log.txt"
+    lp.write_text("EXCEPTION-INELIGIBLE — reason", encoding="utf-8")
+    assert ce.main(["refusal-ineligible", str(lp)]) == 0
+    assert capsys.readouterr().out.strip() == "1"

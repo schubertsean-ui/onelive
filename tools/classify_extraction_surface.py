@@ -195,11 +195,26 @@ def classify(compare: dict, base_dir: pathlib.Path, subject_dir: pathlib.Path) -
         # unbound", which would be fail-open for the exception itself.
         manifest = read_harness_manifest(base_dir)
         detail = []
+        # Combined harness+record case (stage-6 r4): a refusal PRECEDES the
+        # record-authentication step, so a record change riding any refusal
+        # would enter unauthenticated — trust_gate's re-lock only ever
+        # compensates the UNCHANGED, previously-authenticated record. The
+        # canonical EXCEPTION-INELIGIBLE marker below is machine-checked by
+        # the review's evidence step, which fails closed on it.
+        if record_changed:
+            detail.append("EXCEPTION-INELIGIBLE — this refusal is accompanied "
+                          "by a change to ai/golden/CERTIFIED_HARNESS.json, "
+                          "which can only enter through the base-owned "
+                          "authenticator that this refusal precludes from "
+                          "running: NOT covered by the charter exception "
+                          "(fail closed; land the record separately, after "
+                          "its harness merges and an attended exam certifies "
+                          "it)")
         if manifest is None:
-            detail.append("unclassifiable — HARNESS_MANIFEST unreadable from "
-                          "base, so the manifest-bound partition cannot be "
-                          "proven: this refusal is NOT covered by the charter "
-                          "exception (fail closed): "
+            detail.append("EXCEPTION-INELIGIBLE — HARNESS_MANIFEST unreadable "
+                          "from base, so the manifest-bound partition cannot "
+                          "be proven: this refusal is NOT covered by the "
+                          "charter exception (fail closed): "
                           + ", ".join(sorted(harness_touched)))
         else:
             bound = sorted(p for p in harness_touched if p in manifest)

@@ -375,6 +375,14 @@ def check_extraction_certification(findings: Findings, record_path: "pathlib.Pat
     extraction is formally uncertified: FAIL, with the founder action named.
     The record file is deliberately NOT in the harness manifest, so writing
     it cannot change the hash it certifies.
+
+    SCOPE, stated precisely (stage-6 r4): this offline layer compensates
+    harness drift for the UNCHANGED, previously-authenticated record. It
+    cannot and does not authenticate a CHANGED record — that is entry-time
+    work: the base-owned authenticator runs on record-changing PRs, and a
+    record change riding a harness refusal (where the authenticator never
+    runs) is EXCEPTION-INELIGIBLE by the classifier's canonical marker,
+    failed closed mechanically by the review's evidence step.
     """
     root = pathlib.Path(__file__).resolve().parent.parent
     if str(root) not in sys.path:
