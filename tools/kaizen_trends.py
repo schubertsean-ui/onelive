@@ -51,8 +51,19 @@ _M4_TOKEN_RE = re.compile(r"[A-Za-z0-9-]+")
 _ROW_RE = re.compile(r"^\|\s*(\d{4}-\d{2}-\d{2})")
 
 
+_CODE_SPAN = re.compile(r"`[^`]*`")
+_PIPE_MASK = "\x00PIPE\x00"
+
+
 def parse_pr_rows(ledger_text: str) -> list[dict]:
-    """Extract the PR-rows table: date, pr, m1, m2, m4, m5, notes per row."""
+    """Extract the PR-rows table: date, pr, m1, m2, m4, m5, notes per row.
+
+    Markdown pipes inside `code spans` are cell CONTENT, not separators
+    (evaluator r16: rows quoting shell like `|| exit` silently shifted
+    columns under a naive split, corrupting class tokens and M4 markers).
+    A row that still does not split into exactly 7 cells is MALFORMED and
+    raises — the meter must never compute trends from misread columns.
+    """
     rows: list[dict] = []
     in_pr_rows = False
     for line in ledger_text.splitlines():
@@ -61,9 +72,17 @@ def parse_pr_rows(ledger_text: str) -> list[dict]:
             continue
         if not in_pr_rows or not _ROW_RE.match(line):
             continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) < 7:
-            continue
+        masked = _CODE_SPAN.sub(lambda m: m.group(0).replace("|", _PIPE_MASK), line)
+        cells = [
+            c.strip().replace(_PIPE_MASK, "|")
+            for c in masked.strip().strip("|").split("|")
+        ]
+        if len(cells) != 7:
+            raise ValueError(
+                f"malformed ledger row ({len(cells)} cells after code-span "
+                f"masking, need 7) — escape raw pipes or backtick shell "
+                f"snippets: {line[:100]}"
+            )
         rows.append(
             {
                 "date": cells[0],

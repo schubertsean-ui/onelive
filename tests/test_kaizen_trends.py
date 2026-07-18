@@ -183,3 +183,26 @@ def test_generic_single_segment_token_does_not_absorb_compounds():
     assert ["coverage-gap"] in fams
     assert ["empty-env", "fail-open-empty-env"] in fams
     assert ["sql"] in fams
+
+
+def test_code_span_pipes_do_not_shift_columns():
+    # Evaluator r16: a row quoting shell like `|| exit` must parse into the
+    # SAME 7 columns — class tokens and M4 markers read from the right cells.
+    extra = (
+        "| 2026-07-07 | #7 | 1 | evaluator: pipe-class ×1 (caught `[ -n ] || exit` form) "
+        "| pipe-class fixed via `|| exit` rule | ~1 call | notes |\n"
+    )
+    ledger = FAKE_LEDGER.replace("\n## Other section", "\n" + extra + "\n## Other section")
+    rows = parse_pr_rows(ledger)
+    row = next(r for r in rows if r["pr"] == "#7")
+    assert "pipe-class" in row["m2"]
+    assert "pipe-class" in row["m4"]
+    assert row["m5"] == "~1 call"
+
+
+def test_malformed_row_fails_loud():
+    import pytest as _pytest
+    extra = "| 2026-07-08 | #8 | 1 | raw | pipe | breaks | cells | badly | notes |\n"
+    ledger = FAKE_LEDGER.replace("\n## Other section", "\n" + extra + "\n## Other section")
+    with _pytest.raises(ValueError):
+        parse_pr_rows(ledger)

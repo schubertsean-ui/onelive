@@ -210,6 +210,39 @@ def _line_views(raw_line: str) -> tuple[str, str]:
     return "".join(code), "".join(unq)
 
 
+def _standalone_assignment(raw: str, value_start: int) -> bool:
+    """True when the assignment at value_start is standalone (persists in
+    the shell) rather than a `X=v cmd` prefix (child-process-only). The
+    value extent is parsed on the RAW line with a quote+paren automaton so
+    `X="$(cmd "$Y" | z)"` reads as one value — the position-preserving
+    views cannot model quote re-nesting inside command substitution
+    (evaluator r16)."""
+    i = value_start
+    sq = dq = False
+    depth = 0
+    while i < len(raw):
+        ch = raw[i]
+        if ch == "\\" and not sq:
+            i += 2
+            continue
+        if sq:
+            if ch == "'":
+                sq = False
+        elif ch == "'" and not dq:
+            sq = True
+        elif ch == '"':
+            dq = not dq
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif not dq and depth == 0 and (ch.isspace() or ch in ";&|#"):
+            break
+        i += 1
+    rest = raw[i:].lstrip()
+    return not rest or rest[0] in ";&|#"
+
+
 def _scan_run_script(
     run_text: str, declared: set[str], must_guard: set[str]
 ) -> tuple[list[str], list[str], list[str], set[str]]:
@@ -308,6 +341,15 @@ def _scan_run_script(
         defs: list[tuple[int, str]] = []
         if not in_cond:
             for m in _ASSIGN.finditer(unq):
+                # Standalone assignments only (evaluator r16): the prefix
+                # form `X=abc cmd` sets X for THAT child process, not for
+                # the shell — it must never credit later lines. Standalone
+                # means: after the value (parsed with $()/() depth so
+                # `X=$(mktemp -d)` stays one value; quoted values are
+                # already blanked to spaces) comes a separator, a comment,
+                # or the end of the line — not another command word.
+                if not _standalone_assignment(raw_line, m.end()):
+                    continue  # prefix form — affects only the child process
                 defs.append((m.end(), m.group(1)))
             # for/read define only as COMMANDS, never as words inside another
             # command's arguments (r11: `echo read MY_TOKEN` defines nothing).

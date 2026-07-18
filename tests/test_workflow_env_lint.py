@@ -954,3 +954,54 @@ def test_sequential_param_guard_still_credits():
           curl "$SECRET_TOKEN"
 """)
     assert lint_workflow_text(text, "f.yml") == []
+
+
+# ---- Evaluator r16: prefix assignments never persist ------------------------
+
+
+def test_prefix_assignment_does_not_persist_to_later_lines():
+    # `MY_TOKEN=abc true` sets MY_TOKEN for `true` only — the shell never
+    # sees it, so a later line consuming it is unsourced.
+    text = _wf("""
+      - name: prefix
+        run: |
+          MY_TOKEN=abc true
+          echo "$MY_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_TOKEN" in f and "no visible source" in f for f in findings)
+
+
+def test_standalone_assignment_persists_to_later_lines():
+    text = _wf("""
+      - name: standalone
+        run: |
+          MY_TOKEN=abc
+          echo "$MY_TOKEN"
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_command_substitution_assignment_is_standalone():
+    # X=$(cmd -flag) is one value — the automaton must not read the
+    # substitution's arguments as a following command word.
+    text = _wf("""
+      - name: subst
+        run: |
+          TMP_DIR=$(mktemp -d)
+          echo "$TMP_DIR"
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_quoted_substitution_with_inner_quotes_is_standalone():
+    text = _wf("""
+      - name: nested
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          : "${GH_TOKEN:?missing}"
+          AUTH_HDR="$(printf 'x:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "$AUTH_HDR"
+""")
+    assert lint_workflow_text(text, "f.yml") == []
