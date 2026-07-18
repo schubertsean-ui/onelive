@@ -296,3 +296,95 @@ def test_vars_ban_message_still_fires_on_live_value():
 """)
     findings = lint_workflow_text(text, "f.yml")
     assert any("vars." in f for f in findings)
+
+
+# ---- Evaluator r7 bypass regressions ----------------------------------------
+
+
+def test_z_test_is_never_a_guard():
+    # [ -z "$X" ] SUCCEEDS when X is empty — the inverse of a guard.
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          [ -z "$SECRET_TOKEN" ]
+          curl -H "auth $SECRET_TOKEN" https://x
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("no non-empty guard" in f for f in findings)
+
+
+def test_z_with_fail_branch_rewritten_as_n_idiom_is_clean():
+    # The sanctioned equivalent of the -z-then-exit idiom.
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          [ -n "$SECRET_TOKEN" ] || { echo missing; exit 1; }
+          curl -H "auth $SECRET_TOKEN" https://x
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_same_line_post_use_guard_does_not_cover_the_use():
+    # r7: use-then-guard on one line leaves the use unguarded.
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          curl -H "auth $SECRET_TOKEN" https://x; : "${SECRET_TOKEN:?}"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("no non-empty guard" in f for f in findings)
+
+
+def test_job_level_secret_env_requires_guard():
+    text = _wf("""
+      - name: gate
+        run: |
+          curl -H "auth $JOB_SECRET" https://x
+""").replace(
+        "runs-on: ubuntu-latest",
+        "runs-on: ubuntu-latest\n    env:\n      JOB_SECRET: ${{ secrets.X }}",
+    )
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("JOB_SECRET" in f and "no non-empty guard" in f for f in findings)
+
+
+def test_workflow_level_secret_env_requires_guard():
+    text = _wf(
+        """
+      - name: gate
+        run: |
+          curl -H "auth $TOP_SECRET" https://x
+""",
+        extra="env:\n  TOP_SECRET: ${{ secrets.X }}",
+    )
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("TOP_SECRET" in f and "no non-empty guard" in f for f in findings)
+
+
+def test_two_char_variable_names_are_scanned():
+    # r7: `$DB`-style short names must not escape R1.
+    text = _wf("""
+      - name: short
+        run: |
+          psql "$DB"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("$DB" in f and "no visible source" in f for f in findings)
+
+
+def test_test_dash_n_form_is_recognized():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          test -n "$SECRET_TOKEN" || exit 1
+          curl -H "auth $SECRET_TOKEN" https://x
+""")
+    assert lint_workflow_text(text, "f.yml") == []

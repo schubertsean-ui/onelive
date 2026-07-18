@@ -264,9 +264,9 @@ if [ "$ANY_SKIP" -ne 0 ] || [ "$ANY_ADVISORY" -ne 0 ]; then
     # environmental skips are Record-bound; quick-mode skips are
     # flag-inflicted and must be rerun before close.
     if [ "$QUICK" -eq 1 ]; then
-      emit_evidence "PASS (--allow-skips; environmental SKIPs Record-bound; --quick skips are flag-inflicted — rerun before close)"
+      emit_evidence "INCOMPLETE-ACKNOWLEDGED (--allow-skips; environmental SKIPs Record-bound; --quick skips are flag-inflicted — rerun before close)"
     else
-      emit_evidence "PASS (--allow-skips; every remaining SKIP is bound to an OPEN Record row above)"
+      emit_evidence "INCOMPLETE-ACKNOWLEDGED (--allow-skips; every remaining SKIP is bound to an OPEN Record row above — not fully green, not release evidence)"
     fi
     echo "RESULT: PASS (--allow-skips) — ${reasons} present but explicitly acknowledged."
     echo "        This is a human-acknowledged INCOMPLETE run — NOT fully green and NOT release evidence."

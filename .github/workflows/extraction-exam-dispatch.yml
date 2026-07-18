@@ -180,7 +180,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_EXAM }}
         run: |
           set -euo pipefail
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
+          if ! [ -n "$ANTHROPIC_API_KEY" ]; then
             echo "::error::ANTHROPIC_API_KEY_EXAM is not configured as a secret of the 'extraction-exam' environment — the exam cannot run, and no-exam means no-pass (fail closed). Setup: Settings -> Environments -> extraction-exam -> Environment secrets."
             exit 1
           fi

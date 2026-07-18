@@ -12,7 +12,9 @@ R1 UNDECLARED-ENV: every $UPPER_SNAKE shell variable a `run:` step consumes
    or the ambient runner allowlist below. No visible source = the
    unset-and-silent risk = FAIL.
 R4 SECRET-GUARD: a secret-backed step env var consumed in shell text must
-   carry a visible non-empty guard ([ -n ] / ${X:?}) at-or-before first use
+   carry a visible non-empty guard ([ -n ] / [[ -n ]] / test -n / ${X:?} —
+   NEVER -z, which passes when empty) at-or-before first use, at ANY env
+   declaration scope (workflow, job, or step)
    — declaration alone cannot prove the secret exists at runtime.
    Boundary: env vars inherited implicitly by child processes (never
    expanded in shell text) are the consuming program's fail-loud
@@ -78,22 +80,24 @@ AMBIENT = {
 }
 
 _GH_EXPR = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
-_SHELL_VAR = re.compile(r"\$\{?([A-Z][A-Z0-9_]{2,})\}?")
+_SHELL_VAR = re.compile(r"\$\{?([A-Z][A-Z0-9_]+)\}?")
 _VARS_CONTEXT = re.compile(r"\$\{\{[^}]*\bvars\.", re.DOTALL)
 # R3: expression channels that render EMPTY when the underlying value is
 # missing, used directly inside executing shell text.
 _RUN_EXPR_BAN = re.compile(r"\$\{\{[^}]*\b(secrets\.|env\.|github\.token)")
-_ASSIGN = re.compile(r"(?:^|;|&&|\|\|)\s*(?:export\s+)?([A-Z][A-Z0-9_]{2,})=")
-_FOR_VAR = re.compile(r"\bfor\s+([A-Z][A-Z0-9_]{2,})\s+in\b")
-_READ_VAR = re.compile(r"\bread\s+(?:-r\s+)?([A-Z][A-Z0-9_]{2,})\b")
+_ASSIGN = re.compile(r"(?:^|;|&&|\|\|)\s*(?:export\s+)?([A-Z][A-Z0-9_]+)=")
+_FOR_VAR = re.compile(r"\bfor\s+([A-Z][A-Z0-9_]+)\s+in\b")
+_READ_VAR = re.compile(r"\bread\s+(?:-r\s+)?([A-Z][A-Z0-9_]+)\b")
 # Non-empty guards that make a secret-backed var fail-loud at runtime.
+# ONLY -n forms and ${X:?} qualify — [ -z "$X" ] is the INVERSE (succeeds
+# when the value is empty) and must never count (evaluator r7).
 _GUARD = re.compile(
-    r"\[\[?\s+-[nz]\s+\"?\$\{?([A-Z][A-Z0-9_]{2,})\}?\"?|"
-    r"\$\{([A-Z][A-Z0-9_]{2,}):\?"
+    r"(?:\[\[?|test)\s+-n\s+\"?\$\{?([A-Z][A-Z0-9_]+)\}?\"?|"
+    r"\$\{([A-Z][A-Z0-9_]+):\?"
 )
 _SECRET_VALUE = re.compile(r"\$\{\{[^}]*\bsecrets\.")
 _GITHUB_ENV_EXPORT = re.compile(
-    r"(?:echo|printf)\s+[\"']?([A-Z][A-Z0-9_]{2,})=.*?\$GITHUB_ENV"
+    r"(?:echo|printf)\s+[\"']?([A-Z][A-Z0-9_]+)=.*?\$GITHUB_ENV"
 )
 
 
@@ -110,9 +114,11 @@ def _scan_run_script(
       counts, but the prefix form `X=a cmd "$X"` does NOT — the shell
       expands "$X" from the PRIOR environment before cmd runs (r6).
     - Vars in must_guard (secret-backed env consumed by this script) need a
-      visible non-empty guard ([ -n "$X" ] / [ -z "$X" ] / ${X:?} / test -n)
-      on a line at-or-before their first use (r6: a declared-but-missing
-      secret renders empty; declaration alone proves nothing at runtime).
+      visible non-empty guard — [ -n "$X" ] / [[ -n "$X" ]] / test -n "$X" /
+      ${X:?} only; -z NEVER counts (it succeeds when empty) — positioned
+      at-or-before their first use, across lines AND within a line (r6/r7:
+      a declared-but-missing secret renders empty; declaration alone proves
+      nothing at runtime).
     Known honest limits (documented, false-negative direction): an export or
     guard inside a conditional branch is credited if its line executes in
     textual order — branch execution is statically undecidable; and
@@ -134,10 +140,11 @@ def _scan_run_script(
         if _RUN_EXPR_BAN.search(raw_line):
             banned.append(stripped[:80])
         line = _GH_EXPR.sub("", raw_line)
-        # Guards register BEFORE uses on the same line (a guard mentions the
-        # var, so it must not count as an unguarded use itself).
-        for gm in _GUARD.finditer(line):
-            guarded.add(gm.group(1) or gm.group(2))
+        # Within-line ordering (evaluator r7): a guard covers only uses at
+        # positions AFTER it — `use; guard` leaves the use unguarded. Guards
+        # register into the cross-line set only after this line's uses are
+        # checked against positions.
+        line_guards = [(gm.start(), gm.group(1) or gm.group(2)) for gm in _GUARD.finditer(line)]
         guard_spans = [gm.span() for gm in _GUARD.finditer(line)]
         defs = [(m.end(), m.group(1)) for rx in (_ASSIGN, _FOR_VAR, _READ_VAR)
                 for m in rx.finditer(line)]
@@ -151,15 +158,19 @@ def _scan_run_script(
             if not covered and not in_guard:
                 if name not in undeclared:
                     undeclared.append(name)
+            guarded_here = name in guarded or any(
+                gpos <= m.start() and gname == name for gpos, gname in line_guards
+            )
             if (
                 covered
                 and not in_guard
                 and name in must_guard
-                and name not in guarded
+                and not guarded_here
                 and name not in unguarded
             ):
                 unguarded.append(name)
         defined |= {dname for _, dname in defs}
+        guarded |= {gname for _, gname in line_guards}
         for m in _GITHUB_ENV_EXPORT.finditer(line):
             exports.add(m.group(1))
     return undeclared, banned, unguarded, exports
@@ -190,12 +201,21 @@ def lint_workflow_text(text: str, name: str) -> list[str]:
             f"difference; ship config as reviewed file content instead)"
         )
 
-    workflow_env = _env_keys(doc.get("env"))
+    workflow_env_map = doc.get("env") if isinstance(doc.get("env"), dict) else {}
+    workflow_env = set(workflow_env_map.keys())
+
+    def _secret_keys(mapping) -> set[str]:
+        return {
+            k for k, v in (mapping or {}).items()
+            if isinstance(v, str) and _SECRET_VALUE.search(v)
+        }
+
     jobs = doc.get("jobs") or {}
     for job_name, job in jobs.items():
         if not isinstance(job, dict):
             continue
-        job_env = _env_keys(job.get("env"))
+        job_env_map = job.get("env") if isinstance(job.get("env"), dict) else {}
+        job_env = set(job_env_map.keys())
         exported: set[str] = set()  # names earlier steps wrote to $GITHUB_ENV
         for idx, step in enumerate(job.get("steps") or []):
             if not isinstance(step, dict):
@@ -205,10 +225,14 @@ def lint_workflow_text(text: str, name: str) -> list[str]:
                 continue
             step_env_map = step.get("env") if isinstance(step.get("env"), dict) else {}
             step_env = set(step_env_map.keys())
-            secret_backed = {
-                k for k, v in step_env_map.items()
-                if isinstance(v, str) and _SECRET_VALUE.search(v)
-            }
+            # Secret-backed at ANY declaration scope needs the guard
+            # (evaluator r7: a workflow/job-level secret env renders just as
+            # empty when the secret is missing).
+            secret_backed = (
+                _secret_keys(workflow_env_map)
+                | _secret_keys(job_env_map)
+                | _secret_keys(step_env_map)
+            )
             declared = (
                 AMBIENT | workflow_env | job_env | step_env | exported
             )
