@@ -33,3 +33,39 @@ If any gate is red, pending, or was bypassed, there is no authority to merge
 — that situation is still a hard stop. A merge that later proves wrong is an
 M3/M2 ledger event like any other escape/catch, not a reason to quietly
 reinstate the founder tap; fix the gate that let it through.
+
+## Addendum (founder-ratified 2026-07-18, same day: "Ratified")
+
+The one enumerated exception to "every required check green" is recorded in
+the charter's scope note itself: the golden-exam verifier's designed red on
+exam-harness PRs (it refuses to certify code it did not run) does not count
+as red for that PR class — the adversarial review governs, per the
+verifier's own prescribed path. The exception list is closed; additions are
+gate-threshold relaxations and therefore founder-crucial.
+
+Executable condition, mirrored from the charter (PR #36 r3 — the precise
+mechanics live in prime directive 1; this note carries the why and the
+same condition so the two never diverge):
+
+1. The RED that the exception excuses is exactly the classifier's own
+   harness-refusal output ("changes extraction HARNESS code that the
+   attended exam does not execute"), emitted by
+   `tools/classify_extraction_surface.py` running from the BASE branch —
+   never any other failure of that check, never agent judgment.
+2. The classifier partitions the refused files against HARNESS_MANIFEST
+   read as data, and ELIGIBILITY keys on that partition (r4): a refusal
+   is covered ONLY when proven to contain no manifest-bound file (an
+   unreadable manifest = ineligible, printed by the classifier — fail
+   closed). NON-manifest surface files are compensated structurally,
+   TODAY: base-owned execution + per-run data bindings + the blocking
+   adversarial review on that same PR.
+3. MANIFEST-BOUND refusals currently have NO exception — ordinary red,
+   hard stop, founder-crucial to override — because their compensating
+   control (trust_gate's extraction-certification re-lock) is stage 3 of
+   the bootstrap (gate → record → re-lock, separate PRs; a certification
+   record may only enter the tree through the merged base-owned
+   authenticator). The stage-3 PR extends the exception to manifest-bound
+   refusals in the SAME commit that ships the re-lock — the condition is
+   never written ahead of its mechanism.
+4. Every other red or pending check still forbids merging — this
+   exception names one check's one designed failure mode, nothing more.

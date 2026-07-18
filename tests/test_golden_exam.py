@@ -673,13 +673,15 @@ def test_eval_gate_triggers_on_every_bound_harness_file():
             break
     assert trigger, "could not parse trigger paths — the check itself is broken"
     from ai.golden_exam import HARNESS_MANIFEST
+    # on_surface classification moved out of the inline YAML into the
+    # base-owned classifier module (PR #36 r2) — assert against the REAL
+    # predicate, not a string count of the workflow text.
+    from tools.classify_extraction_surface import on_surface
     for rel in HARNESS_MANIFEST:
         assert any(fnmatch.fnmatch(rel, pat) for pat in trigger), \
             f"the release gate does not TRIGGER on {rel} — it could change silently"
-        if not rel.startswith("ai/"):
-            # once in the trigger paths, once in on_surface (both quoted)
-            assert yml.count(f'"{rel}"') >= 2, \
-                f"{rel} is missing from the workflow's on_surface classification"
+        assert on_surface(rel), \
+            f"{rel} is missing from the classifier's on_surface classification"
 
 
 # --- golden set structural lint --------------------------------------------------

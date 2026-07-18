@@ -231,6 +231,10 @@ EXAM_MODE_ALLOWLIST_PREFIXES = (
     "tests/",                    # hermetic tests of the channel itself
     "ai/claude_provider.py",     # where the channel is defined
     "tools/trust_gate.py",       # this check's own detection string
+    # CI diff classifier (PR #36 r2): NAMES exam files as inert data in its
+    # guarded-surface list — it never imports or invokes the runner. Runs
+    # only inside extraction-eval.yml's base checkout, not pipeline code.
+    "tools/classify_extraction_surface.py",
 )
 
 
@@ -277,6 +281,8 @@ def check_exam_mode_confined(findings: Findings) -> None:
                 f"the runner may only be invoked by CI, tests, or a human "
                 f"(python -m ai.golden_exam), never by pipeline code."
             )
+
+
 
 
 def main() -> int:
