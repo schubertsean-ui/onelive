@@ -176,7 +176,11 @@ enforcement surface):
    for a repeat. Matching is exact-token + containment families
    (`empty-env` ⊂ `fail-open-empty-env`).
 2. **A class fix is marked** by naming the class token in the fixing row's
-   M4 column — no marker, no credit, alarm keeps firing.
+   M4 column — no marker, no credit, alarm keeps firing. Markers are
+   EPOCH-scoped, never permanent waivers (evaluator r6): a marker covers
+   catches at-or-before its own row only; ANY catch of the family in a later
+   row alarms immediately as a post-fix recurrence ("the fix escaped") and
+   demands a root-cause plus a NEW marker row.
 3. **M3 escape rows carry the literal token `M3-ESCAPE`.**
 4. Rows stay append-only; marker backfills for already-shipped fixes land as
    correction rows referencing the original (see 2026-07-18 backfill row).

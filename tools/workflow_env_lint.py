@@ -11,6 +11,14 @@ R1 UNDECLARED-ENV: every $UPPER_SNAKE shell variable a `run:` step consumes
    `>> "$GITHUB_ENV"` export, an assignment/read within the script itself,
    or the ambient runner allowlist below. No visible source = the
    unset-and-silent risk = FAIL.
+R4 SECRET-GUARD: a secret-backed step env var consumed in shell text must
+   carry a visible non-empty guard ([ -n ] / ${X:?}) at-or-before first use
+   — declaration alone cannot prove the secret exists at runtime.
+   Boundary: env vars inherited implicitly by child processes (never
+   expanded in shell text) are the consuming program's fail-loud
+   responsibility, and non-secret expression contexts (inputs.*,
+   steps.*.outputs.*) owe their own runtime checks — both documented here
+   deliberately rather than guessed at statically.
 R2 VARS-CONTEXT-BAN: `${{ vars.* }}` is forbidden outright — GitHub renders
    an unset repo variable and a set-but-empty one identically, so a workflow
    can never fail closed on the difference (evaluator finding, PR #14 r4;
@@ -78,27 +86,47 @@ _RUN_EXPR_BAN = re.compile(r"\$\{\{[^}]*\b(secrets\.|env\.|github\.token)")
 _ASSIGN = re.compile(r"(?:^|;|&&|\|\|)\s*(?:export\s+)?([A-Z][A-Z0-9_]{2,})=")
 _FOR_VAR = re.compile(r"\bfor\s+([A-Z][A-Z0-9_]{2,})\s+in\b")
 _READ_VAR = re.compile(r"\bread\s+(?:-r\s+)?([A-Z][A-Z0-9_]{2,})\b")
+# Non-empty guards that make a secret-backed var fail-loud at runtime.
+_GUARD = re.compile(
+    r"\[\[?\s+-[nz]\s+\"?\$\{?([A-Z][A-Z0-9_]{2,})\}?\"?|"
+    r"\$\{([A-Z][A-Z0-9_]{2,}):\?"
+)
+_SECRET_VALUE = re.compile(r"\$\{\{[^}]*\bsecrets\.")
 _GITHUB_ENV_EXPORT = re.compile(
     r"(?:echo|printf)\s+[\"']?([A-Z][A-Z0-9_]{2,})=.*?\$GITHUB_ENV"
 )
 
 
-def _scan_run_script(run_text: str, declared: set[str]) -> tuple[list[str], list[str], set[str]]:
-    """Line-order scan of one run: script (evaluator r5 — fail-closed).
+def _scan_run_script(
+    run_text: str, declared: set[str], must_guard: set[str]
+) -> tuple[list[str], list[str], list[str], set[str]]:
+    """Line-order scan of one run: script (evaluator r5/r6 — fail-closed).
 
-    Returns (undeclared_uses, banned_expr_lines, github_env_exports).
-    Comment lines (first non-space char '#') define nothing, export nothing,
-    and are never scanned — commented-out assignments/exports give no credit.
-    Definitions only count at or before (by position) the use they cover:
-    `echo "$X"; X=5` flags X. Known honest limit (documented, false-negative
-    direction): a definition inside a conditional branch is credited if its
-    line executes-in-order textually — static analysis cannot decide branch
-    execution, and the step's own [ -n ] checks remain the runtime guard.
+    Returns (undeclared_uses, banned_expr_lines, unguarded_uses, exports).
+    - Comment lines (first non-space char '#') define nothing, export
+      nothing, and are never scanned.
+    - A same-line definition credits a use only if a command separator
+      (';', '&&', '||', '|', newline) sits between them: `X=a; echo "$X"`
+      counts, but the prefix form `X=a cmd "$X"` does NOT — the shell
+      expands "$X" from the PRIOR environment before cmd runs (r6).
+    - Vars in must_guard (secret-backed env consumed by this script) need a
+      visible non-empty guard ([ -n "$X" ] / [ -z "$X" ] / ${X:?} / test -n)
+      on a line at-or-before their first use (r6: a declared-but-missing
+      secret renders empty; declaration alone proves nothing at runtime).
+    Known honest limits (documented, false-negative direction): an export or
+    guard inside a conditional branch is credited if its line executes in
+    textual order — branch execution is statically undecidable; and
+    expression contexts other than secrets./env./github.token (e.g.
+    inputs.*, steps.*.outputs.*) can also render empty — those channels are
+    out of scope here and owe their own runtime [ -n ] checks.
     """
     defined = set(declared)
     undeclared: list[str] = []
     banned: list[str] = []
     exports: set[str] = set()
+    guarded: set[str] = set()
+    unguarded: list[str] = []
+    _SEP = re.compile(r"[;|&\n]")
     for raw_line in run_text.splitlines():
         stripped = raw_line.strip()
         if not stripped or stripped.startswith("#"):
@@ -106,22 +134,35 @@ def _scan_run_script(run_text: str, declared: set[str]) -> tuple[list[str], list
         if _RUN_EXPR_BAN.search(raw_line):
             banned.append(stripped[:80])
         line = _GH_EXPR.sub("", raw_line)
-        defs = []  # (position, name)
-        for rx in (_ASSIGN, _FOR_VAR, _READ_VAR):
-            for m in rx.finditer(line):
-                defs.append((m.start(), m.group(1)))
+        # Guards register BEFORE uses on the same line (a guard mentions the
+        # var, so it must not count as an unguarded use itself).
+        for gm in _GUARD.finditer(line):
+            guarded.add(gm.group(1) or gm.group(2))
+        guard_spans = [gm.span() for gm in _GUARD.finditer(line)]
+        defs = [(m.end(), m.group(1)) for rx in (_ASSIGN, _FOR_VAR, _READ_VAR)
+                for m in rx.finditer(line)]
         for m in _SHELL_VAR.finditer(line):
             name = m.group(1)
-            if name in defined:
-                continue
-            if any(pos <= m.start() and dname == name for pos, dname in defs):
-                continue
-            if name not in undeclared:
-                undeclared.append(name)
+            in_guard = any(a <= m.start() < b for a, b in guard_spans)
+            covered = name in defined or any(
+                dend <= m.start() and dname == name and _SEP.search(line[dend:m.start()])
+                for dend, dname in defs
+            )
+            if not covered and not in_guard:
+                if name not in undeclared:
+                    undeclared.append(name)
+            if (
+                covered
+                and not in_guard
+                and name in must_guard
+                and name not in guarded
+                and name not in unguarded
+            ):
+                unguarded.append(name)
         defined |= {dname for _, dname in defs}
         for m in _GITHUB_ENV_EXPORT.finditer(line):
             exports.add(m.group(1))
-    return undeclared, banned, exports
+    return undeclared, banned, unguarded, exports
 
 
 def _env_keys(mapping) -> set[str]:
@@ -162,11 +203,18 @@ def lint_workflow_text(text: str, name: str) -> list[str]:
             run = step.get("run")
             if not isinstance(run, str):
                 continue
-            step_env = _env_keys(step.get("env"))
+            step_env_map = step.get("env") if isinstance(step.get("env"), dict) else {}
+            step_env = set(step_env_map.keys())
+            secret_backed = {
+                k for k, v in step_env_map.items()
+                if isinstance(v, str) and _SECRET_VALUE.search(v)
+            }
             declared = (
                 AMBIENT | workflow_env | job_env | step_env | exported
             )
-            undeclared, banned, new_exports = _scan_run_script(run, declared)
+            undeclared, banned, unguarded, new_exports = _scan_run_script(
+                run, declared, secret_backed
+            )
             for var in undeclared:
                 findings.append(
                     f"{name}: job '{job_name}' step #{idx + 1} consumes "
@@ -183,6 +231,14 @@ def lint_workflow_text(text: str, name: str) -> list[str]:
                     f"('{frag}') — a missing value renders as an EMPTY STRING "
                     f"with no way to fail closed; pass it via the step's env: "
                     f"block and consume it as a shell variable instead"
+                )
+            for var in unguarded:
+                findings.append(
+                    f"{name}: job '{job_name}' step #{idx + 1} consumes the "
+                    f"secret-backed ${var} in shell text with no non-empty "
+                    f"guard before first use — a missing secret renders as an "
+                    f"empty string and this step would proceed silently; add "
+                    f"[ -n \"${var}\" ] (or ${{{var}:?}}) before using it"
                 )
             exported |= new_exports
     return findings

@@ -118,16 +118,65 @@ def family_groups(tokens: list[str]) -> list[set[str]]:
     return groups
 
 
-def family_addressed(family: set[str], rows: list[dict]) -> bool:
-    """A family is addressed when any M4 column contains one of its tokens
-    as an EXACT token (hyphen-delimited word), never as a substring —
-    "not-empty-env-fixed" must not credit `empty-env` (evaluator r4: same
-    loose-binding fail-open pattern r3 caught in skip_record_binding)."""
-    for row in rows:
+def family_marker_last_row(family: set[str], rows: list[dict]) -> int | None:
+    """Index of the LAST row whose M4 column names a family token exactly
+    (hyphen-delimited word, never substring — evaluator r4). None = no
+    structural fix marker exists."""
+    last: int | None = None
+    for i, row in enumerate(rows):
         m4_tokens = set(_M4_TOKEN_RE.findall(row["m4"]))
         if family & m4_tokens:
-            return True
-    return False
+            last = i
+    return last
+
+
+def family_row_counts(family: set[str], rows: list[dict]) -> list[tuple[int, int]]:
+    """(row_index, catch_count) for every row catching a family token."""
+    out: list[tuple[int, int]] = []
+    for i, row in enumerate(rows):
+        n = sum(
+            int(cnt)
+            for tok, cnt in _CLASS_RE.findall(row["m2"])
+            if tok in family
+        )
+        if n:
+            out.append((i, n))
+    return out
+
+
+def family_alarm(family: set[str], rows: list[dict], threshold: int) -> str | None:
+    """Epoch-aware repeat-class alarm (evaluator r6: a fix marker is credit
+    for catches AT-OR-BEFORE its row only, never a permanent waiver).
+
+    - No marker: alarm when total catches >= threshold (fix is due).
+    - Marker exists: any catch in a row AFTER the last marker row alarms
+      IMMEDIATELY — a recurrence after a claimed structural fix means the
+      fix escaped, the exact condition the meter must surface loudest.
+    Returns the alarm description, or None.
+    """
+    counts = family_row_counts(family, rows)
+    if not counts:
+        return None
+    name = min(family, key=len)
+    last_marker = family_marker_last_row(family, rows)
+    if last_marker is None:
+        total = sum(n for _, n in counts)
+        if total >= threshold:
+            return (
+                f"family '{name}' caught {total}x with no structural fix "
+                f"marker in any M4 column — the CLASS fix is due (threshold "
+                f"{threshold}); ship the fix and name the class token in "
+                f"that row's M4 column"
+            )
+        return None
+    post = sum(n for i, n in counts if i > last_marker)
+    if post:
+        return (
+            f"family '{name}' RECURRED {post}x AFTER its structural fix "
+            f"marker (ledger row {last_marker + 1}) — the fix escaped; "
+            f"root-cause it, harden the fix, and add a NEW M4 marker row"
+        )
+    return None
 
 
 def m1_series(rows: list[dict]) -> list[int]:
@@ -185,18 +234,12 @@ def build_report(ledger_text: str) -> tuple[str, list[str]]:
 
     counts = class_counts(rows)
     families = family_groups(list(counts))
-    alarms: list[tuple[str, int]] = []
+    alarms: list[str] = []
     for family in families:
-        total = sum(counts[t] for t in family)
-        if total >= ALARM_THRESHOLD and not family_addressed(family, rows):
-            name = min(family, key=len)
-            alarms.append((name, total))
-            findings.append(
-                f"REPEAT-CLASS ALARM: family '{name}' caught {total}x with no "
-                f"structural fix marker in any M4 column — the CLASS fix is due "
-                f"(threshold {ALARM_THRESHOLD}); ship the fix and name the class "
-                f"token in that row's M4 column"
-            )
+        alarm = family_alarm(family, rows, ALARM_THRESHOLD)
+        if alarm:
+            alarms.append(alarm)
+            findings.append(f"REPEAT-CLASS ALARM: {alarm}")
 
     series = m1_series(rows)
     direction = m1_direction(series)
@@ -229,12 +272,11 @@ def build_report(ledger_text: str) -> tuple[str, list[str]]:
     top = sorted(counts.items(), key=lambda kv: -kv[1])[:8]
     lines.append("top_class_tokens: " + ", ".join(f"{t}×{n}" for t, n in top))
     if alarms:
-        lines.append(
-            "repeat_class_alarms: "
-            + ", ".join(f"{name} ({total}x, UNADDRESSED)" for name, total in alarms)
-        )
+        lines.append("repeat_class_alarms:")
+        for alarm in alarms:
+            lines.append(f"  {alarm}")
     else:
-        lines.append("repeat_class_alarms: none — every family at/over threshold has a structural fix marker")
+        lines.append("repeat_class_alarms: none — thresholds respected and no post-fix recurrences")
     lines.append(f"result: {'FINDINGS' if findings else 'CLEAN'}")
     lines.append("--------------------------------------------------------------------------")
     return "\n".join(lines), findings

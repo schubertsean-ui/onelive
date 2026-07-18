@@ -269,7 +269,7 @@ if [ "$ANY_SKIP" -ne 0 ] || [ "$ANY_ADVISORY" -ne 0 ]; then
       emit_evidence "PASS (--allow-skips; every remaining SKIP is bound to an OPEN Record row above)"
     fi
     echo "RESULT: PASS (--allow-skips) — ${reasons} present but explicitly acknowledged."
-    echo "        This is a human-acknowledged incomplete run, NOT a fully verified one."
+    echo "        This is a human-acknowledged INCOMPLETE run — NOT fully green and NOT release evidence."
     echo "        Resolve them (esp. visual_regression) before the shift is truly closed."
     exit 0
   fi

@@ -15,8 +15,9 @@ from pathlib import Path
 from tools.kaizen_trends import (
     build_report,
     class_counts,
-    family_addressed,
+    family_alarm,
     family_groups,
+    family_marker_last_row,
     m1_direction,
     parse_pr_rows,
 )
@@ -70,10 +71,34 @@ def test_unaddressed_family_over_threshold_raises_finding():
     assert any("empty-env" in f and "REPEAT-CLASS ALARM" in f for f in findings)
 
 
-def test_family_with_m4_marker_is_addressed():
+def test_marker_row_is_located_exactly():
     rows = parse_pr_rows(FAKE_LEDGER)
-    assert family_addressed({"addressed-thing"}, rows)
-    assert not family_addressed({"empty-env", "fail-open-empty-env"}, rows)
+    assert family_marker_last_row({"addressed-thing"}, rows) == 3
+    assert family_marker_last_row({"empty-env", "fail-open-empty-env"}, rows) is None
+
+
+def test_recurrence_after_marker_alarms_immediately():
+    # Evaluator r6: a fix marker covers catches at-or-before its row ONLY.
+    # One recurrence after it = "the fix escaped" — alarms at count 1, not 3.
+    extra = (
+        "| 2026-07-05 | #5 | 1 | evaluator: coverage-gap ×2 | coverage-gap floor v2 | — | fix row |\n"
+        "| 2026-07-06 | #6 | 1 | evaluator: coverage-gap ×1 | — | — | recurrence |\n"
+    )
+    ledger = FAKE_LEDGER.replace(
+        "\n## Other section", "\n" + extra + "\n## Other section"
+    )
+    rows = parse_pr_rows(ledger)
+    alarm = family_alarm({"coverage-gap"}, rows, 3)
+    assert alarm is not None and "RECURRED" in alarm and "fix escaped" in alarm
+
+
+def test_marker_covers_prior_catches_without_alarm():
+    ledger = FAKE_LEDGER.replace(
+        "\n## Other section",
+        "\n| 2026-07-05 | #5 | 1 | — | empty-env linter shipped | — | fix row |\n\n## Other section",
+    )
+    rows = parse_pr_rows(ledger)
+    assert family_alarm({"empty-env", "fail-open-empty-env"}, rows, 3) is None
 
 
 def test_m1_direction_falling_is_improving():
@@ -83,7 +108,10 @@ def test_m1_direction_falling_is_improving():
 
 
 def test_escape_token_is_a_hard_finding():
-    ledger = FAKE_LEDGER + "\n| 2026-07-06 | #5 | 1 | M3-ESCAPE prod-bad-fact ×1 | — | — | escape |\n"
+    ledger = FAKE_LEDGER.replace(
+        "\n## Other section",
+        "\n| 2026-07-06 | #5 | 1 | M3-ESCAPE prod-bad-fact ×1 | — | — | escape |\n\n## Other section",
+    )
     _, findings = build_report(ledger)
     assert any("M3 ESCAPES" in f for f in findings)
 
@@ -138,11 +166,11 @@ def test_m4_credit_requires_exact_token_not_substring():
     rows = parse_pr_rows(
         FAKE_LEDGER.replace("| — | ~2 calls |", "| not-empty-env-fixed | ~2 calls |", 1)
     )
-    assert not family_addressed({"empty-env", "fail-open-empty-env"}, rows)
+    assert family_marker_last_row({"empty-env", "fail-open-empty-env"}, rows) is None
     rows2 = parse_pr_rows(
         FAKE_LEDGER.replace("| — | ~2 calls |", "| empty-env linter shipped | ~2 calls |", 1)
     )
-    assert family_addressed({"empty-env", "fail-open-empty-env"}, rows2)
+    assert family_marker_last_row({"empty-env", "fail-open-empty-env"}, rows2) is not None
 
 
 def test_generic_single_segment_token_does_not_absorb_compounds():

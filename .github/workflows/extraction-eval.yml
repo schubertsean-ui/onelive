@@ -113,6 +113,7 @@ jobs:
           # Compare via the API (the checkouts are credential-less by design,
           # so a git fetch here would have no auth). The compare API caps the
           # file list at 300 entries; a bigger diff fails closed below.
+          : "${GH_TOKEN:?GH_TOKEN missing — cannot verify evidence, failing closed}"
           curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$REPO/compare/$BASE_SHA...$HEAD_SHA" > compare.json
           python3 - <<'PY'
@@ -246,6 +247,7 @@ jobs:
         run: |
           set -euo pipefail
           cd base
+          : "${GH_TOKEN:?GH_TOKEN missing — cannot verify evidence, failing closed}"
           api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$@"; }
           # 50-run window (r15/r16 nits): fail-closed either way. OPERATOR
           # NOTE, prominent by design: if many exams ran since yours, valid

@@ -80,6 +80,7 @@ jobs:
           # mode is rejected (protected != default-only), and an empty or
           # unreadable list is rejected (an API hiccup must never read as
           # permission). One python block, one verdict, no lenient paths.
+          : "${GH_TOKEN:?GH_TOKEN missing — cannot prove environment protection, failing closed}"
           curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$REPO/environments/extraction-exam" > env.json
           curl -sS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
@@ -164,6 +165,7 @@ jobs:
           # deliberately persists no credentials, so a bare fetch fails on a
           # private repo — the gate could never mint evidence). The token is
           # scoped read-only and never written to git config on disk.
+          : "${GH_TOKEN:?GH_TOKEN missing — cannot fetch the subject commit, failing closed}"
           AUTH_B64="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           git -c http.extraheader="AUTHORIZATION: basic $AUTH_B64" \
             fetch --no-tags origin "$SUBJECT_SHA"

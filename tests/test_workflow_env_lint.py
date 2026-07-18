@@ -42,13 +42,63 @@ def test_undeclared_env_var_is_a_finding():
     assert any("SECRET_TOKEN" in f and "no visible source" in f for f in findings)
 
 
-def test_step_env_declaration_satisfies_r1():
+def test_guarded_secret_backed_consumption_is_clean():
+    # r6: declaration alone is NOT enough for secret-backed vars — the
+    # clean form carries a non-empty guard before first use.
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          : "${SECRET_TOKEN:?missing — failing closed}"
+          curl -H "Authorization: $SECRET_TOKEN" https://example.com
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_unguarded_secret_backed_consumption_is_a_finding():
+    # r6 false-confidence fix: a declared-but-missing secret renders empty;
+    # shell consumption without a [ -n ]/${X:?} guard must FAIL.
     text = _wf("""
       - name: gate
         env:
           SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
         run: |
           curl -H "Authorization: $SECRET_TOKEN" https://example.com
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("no non-empty guard" in f for f in findings)
+
+
+def test_bracket_n_guard_also_satisfies_r4():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          [ -n "$SECRET_TOKEN" ] || { echo missing; exit 1; }
+          curl -H "Authorization: $SECRET_TOKEN" https://example.com
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_prefix_assignment_does_not_credit_same_command_use():
+    # r6: TOKEN=abc cmd "$TOKEN" expands $TOKEN from the PRIOR environment —
+    # the prefix assignment must not credit the use.
+    text = _wf("""
+      - name: order
+        run: |
+          MY_TOKEN=abc curl "$MY_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_TOKEN" in f for f in findings)
+
+
+def test_separator_assignment_credits_same_line_use():
+    text = _wf("""
+      - name: order
+        run: |
+          MY_TOKEN=abc; curl "$MY_TOKEN"
 """)
     assert lint_workflow_text(text, "f.yml") == []
 
