@@ -46,6 +46,12 @@ founder digest in plain language.
 | 2026-07-15 | #22 | 1 | — | — | ~1 evaluator call | measured-unit definition (docs-only) |
 | 2026-07-15 | R-006 ratified | — | — | the 1% bar + one-way ratchet codified (KAIZEN §M7); extraction remains BLOCKED under R-013 until the golden-set gate ships and the starting model passes (Step 6) | — | founder: "I'm ok to BEGIN at 1%" — the NUMBER is ratified; the gate that proves it is next |
 | 2026-07-16 | #18 (in review, r23) | 23 | evaluator r23: **gate-threshold-without-founder-record ×1** (the r6–r7 --max-diff-bytes raise 300000→800000 predates the 2026-07-14 gate-custody charter amendment but carries no recorded founder approval — escalated to the founder, **founder-approved 2026-07-17** (docs/memory/decisions/2026-07-17_diff-cap-approval.md)), knowability-ordering ×2 (a lifecycle event could be recorded with a knowledge horizon EARLIER than its claim's — events_as_of could show a verdict before the claim it judges; supersedes accepted any existing seq — cross-claim/cross-type/backdated corrections all possible), stale-design-contract ×1 (LEDGER_STORAGE_DESIGN.md still described the pre-r22 timestamp model that caused the time-travel bug), overstated-timing ×1 (STATE said JPM/BAC filed "TODAY"; they filed 2026-07-14, retrieved 2026-07-15), stale-cross-reference ×3 (research-doc headers + M6 ledger row still cited orig contract numbers after the renumber sweep), stale-decision-banner ×1 (sector memo still said "no decision taken here"); nits: manifest newline, extension-agnostic manifest tests, fallback-regex breadth, grep-based SQL guard, hash-vs-authority provenance job ×5 | store now refuses a lifecycle event knowable before its claim AND constrains corrections to same-type/same-claim/never-earlier-horizon (negative tests for each); design doc rewritten to the observed_at/recorded_at model; STATE timing corrected visibly; research headers now cite renumbered contracts; sector memo carries the decision record; manifest tests extension-agnostic | ~1 evaluator call | the renumber-sweep lesson (r22) applied incompletely AGAIN — headers of the deliverables themselves were missed; a sweep checklist must grep the ORIGINAL number, not just known ledger files. Gate-custody finding escalated, not self-resolved: cap changes are founder-crucial |
+| 2026-07-14 | #15 | 2 | evaluator r1: fail-open coverage knob ×1, partial-coverage-as-full ×1 (battery trimmable while claiming "run EVERY prompt") | combos knob removed; tests fail if any P8.x missing | ~2 evaluator calls | row added 2026-07-15 — see record-missing note in class watch |
+| 2026-07-15 | #23 | 1 | — | — | ~1 evaluator call | session-close arc (docs-only); row added 2026-07-15 |
+| 2026-07-15 | #24 | 4 | evaluator: ratification-path governance hole ×1 (founder acceptance is the ONLY ratification path for founder-facing decisions), untruthful-record ×1 (ledger/changelog described intended state as existing), + structural nits | ratification-path rule written into the display-stack canon; records describe what EXISTS | ~4 evaluator calls | certainty display stack; row added 2026-07-15 |
+| 2026-07-15 | #25 (in flight) | 5+ | evaluator r1–r4: exam-channel confinement (grep→runtime) ×2, None-swallowed-as-empty ×1, mismatch-display-only ×1, self-contradicting keys ×3, + nits; r5: wrapper-hole confinement ×2 (runtime + static layers), evidence-channel visibility ×2, sample-floor semantics ×1, secret-on-PR posture ×1 (→ R-014); exam cycles 1–4: prompt–key contradictions ×7 (title conventions), key incoherence ×3 (g004 vs g037/g066; g044), prompt–exam contamination ×1 (golden key strings cited as prompt examples) | two-layer golden_exam confinement; validity = property of the set; key-change log with justifications (ai/golden/README.md); prompt examples must be invented, never golden strings | 5 evaluator calls + 4 real exams (~$2 total) | final row at merge |
+| 2026-07-17 | #25 (merge-coordination land) | 1 | evaluator: gate-truthiness-not-exact-boolean ×1 (`resolve_model` still used `not FLAG` after the r26 provider fix hardened only the provider read — REPEAT CLASS of r26, one production layer missed) | router extraction gate → exact `EXTRACTION_THRESHOLD_RATIFIED is not True`; repo-wide derived-completeness grep confirms BOTH production reads (provider + router) are now exact-boolean; router-level regression test asserts truthy non-bool ("False"/1/"yes") keeps extraction closed | ~1 evaluator call | in-flight repeat-class rule applied: fixed the CLASS by deriving the complete set of flag-reads (2), not just the flagged instance |
+| 2026-07-16 | #27 | 4 | evaluator r1: gate-custody-ambiguity ×1 (sequential mode could look like it discharges Black custody), unverifiable-validation-claim ×1; r2: record-precision ×1 (pytest count didn't match CI log — same class as #20 r18's history-must-match-suite); r3: finding-laundering-path ×1 (generator-family Blue merge allowed on founder-crucial runs), exam-custody ×2 (lens-owned golden-set rows in TODOS + white.md) | fail-closed Blue-merge family constraint; exam custody never lens-owned; raw-outputs-preserved rule for manual hat runs | ~4 evaluator calls + CI | dedicated-hat registry (docs/hats/) — notable: the evaluator enforced custody language in the document that DEFINES custody; the M6 row for the design's po battery merged in the same PR; founder merged ("You merge it"), squash 2c1ef94 |
 
 ## Class watch (M2 repeat classes — these must trend to zero)
 
@@ -58,6 +64,49 @@ founder digest in plain language.
   STATED GAP is non-numeric counts ("S&P-500-class × $10–25k"). Trigger: if a
   wrong-arithmetic catch ever involves a non-numeric count form, extend the
   gate to require such phrasings be rewritten to numeric counts before commit.
+- **fail-open (threshold/floor mismatch)**: r6 on PR #25 caught the exam's
+  300-fact floor silently moved from ASSERTED to EXPECTED facts by an r5
+  refactor — a rate-passing run at 295 asserted facts was minutes from
+  certifying the gate open. Caught internally by the evaluator's first
+  graded round after billing was restored; zero escapes. Same class family
+  as #11/#12/#14 empty-env — fail-open now has TWO sub-classes on watch.
+- **incomplete-enumeration (binding/trigger lists)**: PR #28 r22 (evidence
+  didn't bind the golden set), r23 (didn't bind the scoring/provider files),
+  r24 (didn't bind dependencies or the dispatch workflow) — three rounds of
+  one class, each hand-adding one item to a list. Structural response
+  shipped 2026-07-17 (founder-prompted meta-review): the exam's import
+  closure is now COMPUTED by a test and required to be a subset of the
+  manifest, and the release gate's trigger paths are cross-checked against
+  the manifest by a second test — the derived checks immediately found two
+  more instances a fourth hand-audit had missed (tools/__init__.py absent
+  from both the manifest and the trigger list). Process rule added to
+  docs/KAIZEN.md: in-flight per-round class tracking; every hand-maintained
+  trust-guarding list gets a derivation/cross-check test. If this class
+  appears again on any OTHER list, the response is a repo-wide enumerated-
+  list audit (workflow paths filters, allowlists, skip lists), not a patch.
+  TRIGGER FIRED same day (2026-07-17, evaluator r26): the dependency
+  binding enumerated 2 of 23 resolved packages — another mirror-list
+  instance, created pre-rule, discovered post-rule. Escalation executed:
+  the instance became derived (full lockfile installed with --no-deps;
+  verifier requires every locked entry recorded at its locked version),
+  and the repo-wide enumerated-list audit ran. Audit method: classify
+  each list as POLICY (the list IS ground truth: promote/exam allowlists,
+  ads markers — nothing external to derive from) vs MIRROR (tracks
+  external reality — must be derived or swept). Findings: the exam-
+  critical mirrors were already closed by the day's derived tests; the
+  SQL/ads/promote invariant scans were directory-enumerated (ai/
+  production code and any future scripts/ dir unscanned) — widened to a
+  repo-wide-minus-tests production sweep, single-sourced skip list
+  (tests excluded by documented design: they build stub SQL and import
+  promote to test the guard itself). The widened scans surfaced no
+  production violations. Class considered structurally closed; a further
+  instance is a process escape and gets a root-cause row here.
+- **record-missing / untruthful-record**: #19 (untruthful-record), #24 (same),
+  and 2026-07-15: rows for merged PRs #15/#23/#24 were absent from this table
+  while the changelog claimed the #15 row existed (caught during #25 r5
+  bookkeeping; backfilled same commit). Two more appearances of this class
+  and the fix is structural: a validate-gate check that every merged PR
+  number since #11 has a ledger row.
 
 ## M3 escapes (absolute-zero goal)
 
@@ -75,3 +124,10 @@ founder digest in plain language.
 | 2026-07-14 | Global sensing challenge (founder research note — PROPOSAL) | Full battery, seed 20260715, word "anchor" — all P1–P8.6, 2 dead ends logged | 12 candidates H1–H12 in docs/strategy/ONE_LIVE_GLOBAL_SENSING_PO_AND_PEIRCE_NOTE_v1.md (two-phase crawl→push; coverage denominator; aggregators-first; second-county drill; zero-result queue; two-tier sensing; source-portfolio economics; anchor-institution bootstrap; community sighting channel; recurrence-as-polling-optimizer; link-graph discovery; sparse-market mode) — all screened against trust invariants, converge at Step 7 |
 | 2026-07-15 | Design directions v1 (founder-directed in-house generation) | Full battery, seed 20260716, word "scaffold" — all P1–P8.6, 2 dead ends logged | Adopted into the mockups: first-door rule, fixed control geography, Doorlight signature (P5), Time Rule signature (P7), uniform glyph sky-corner (P8.6). Parked candidates: quiet-night sparse spec (→H12 tie), sequential preview autoplay (white-hat test needed). design/proposals/README.md |
 | 2026-07-16 | Correction (append-only) to the 2026-07-14 market-analysis row above | — | that row's "(Contract #6)" refers to the ORIGINAL numbering; the contract is #15 (orig #6) after the 2026-07-15 merge reconciliation (STATE.md). Row preserved unedited per ledger convention; this row is the correction (evaluator r23) |
+| 2026-07-16 | Dedicated-hat registry design (docs/hats/) | Full battery, seed 20260716, word "scaffold" — all P1–P8.6, 2 dead ends logged | 5 harvested, ALL adopted into the registry: H1 memory-informs-checklists-never-verdicts (P1); H2 vendor-agnostic model bindings via the router (P2); H3 two-tier ritual — sequential cheap mode vs dedicated-parallel for founder-crucial (P3-down); H4 Blue merge pre-registers the decision frame before lenses run (P4); H5 per-hat retirement condition (P7 "scaffold": removed when the building stands) |
+
+## M8 Yellow-hat validated upside (docs/hats/yellow.md)
+
+| Date | Decision | Upside argued | Validated (what shipped and performed) |
+|---|---|---|---|
+| — | none recorded to date (first firing: the R-008 cron-arming Friction pre-work — see TODOS hat shakedown) | | |

@@ -140,6 +140,19 @@ jobs:
             echo "# integrity tests that hash every excluded file against it — an"
             echo "# unvouched file, or one whose content drifted from its manifest"
             echo "# sha256, fails CI (tests/test_promise_ledger_groundwork.py)."
+            echo "#"
+            echo "# NOTE to evaluator: golden-set exam evidence for extraction-surface"
+            echo "# changes is NOT in these logs, and the model call + Anthropic secret"
+            echo "# do NOT live in the release check. They live in a SEPARATE manual,"
+            echo "# maintainer-dispatched, default-branch workflow"
+            echo "# (.github/workflows/extraction-exam-dispatch.yml) that runs the real"
+            echo "# routed model and uploads exam-report.json as an artifact. The"
+            echo "# release-blocking check (.github/workflows/extraction-eval.yml) is a"
+            echo "# SECRETLESS verifier on pull_request_target (base-owned trigger): it"
+            echo "# checks out base+subject data only and confirms a SUCCESSFUL attended"
+            echo "# exam run exists for this PR's head SHA. Merge discipline requires BOTH"
+            echo "# this review and that verifier green on the PR's current head; absence"
+            echo "# of exam output here is expected and is not absence of the gate."
             git diff "${{ steps.range.outputs.range }}" -- . \
               ':(exclude)**/package-lock.json' \
               ':(exclude)ventures/promise_ledger/eval/source_material/*.htm' \

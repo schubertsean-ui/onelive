@@ -92,3 +92,7 @@ tasks (cost discipline — ritual is not insight).
   + provocations that produced them) to the decision record / FRICTION_LOG
   entry, so the Kaizen ledger can count po-sourced ideas that survived gates
   (docs/KAIZEN.md measure M6).
+- Registry: po is the GREEN HAT of the dedicated-hat registry
+  (`docs/hats/green.md`, added 2026-07-16). This document remains the single
+  source of truth for operators and firing rules; the registry adds only the
+  hat-level obligations (owned memory, Kaizen M6, the one-way valve restated).

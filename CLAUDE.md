@@ -10,7 +10,7 @@ This file is read by Claude Code at the start of every session. It is the standi
 ## Agent org (who does what)
 - **Generator = this Claude Code session.** Writes code, tests-in-same-PR, small self-contained changes.
 - **Independent Evaluator = GPT-5.5 via `OPENAI_API_KEY`** (script: `tools/adversarial_review.py`; create it in session 1 if absent — it posts the raw diff + test logs and demands APPROVE/REQUEST-CHANGES). MANDATORY for: auth, pipeline, SQL/RLS, data-trust, prompt/model changes, and **gate custody** — any change to the verification tooling or its thresholds (`tools/validate`, `trust_gate.py`, `deferral_scan.py`, `lint.py`, `adversarial_review.py`, `eval_harness`, the CI gate workflows). The Generator never merges an unreviewed change to its own examiners (added 2026-07-14 at founder direction, from the Weco RSI review; `adversarial-review.yml` already enforces this mechanically by running on EVERY PR with no path filter — stated here so the intent never depends on one workflow file). Optional second lens: Gemini via `GEMINI_API_KEY`.
-- **Friction Agent = non-Claude model, pre-work.** Before any irreversible action (deploy, migration, spend, prompt_version bump), write the plan to `docs/FRICTION_LOG.md` and run it past the evaluator model with the prompt: "Attack this plan: what breaks, who is harmed, cheaper path, founder-crucial or not?" Blockers must be answered in writing.
+- **Friction Agent = non-Claude model, pre-work.** Before any irreversible action (deploy, migration, spend, prompt_version bump), write the plan to `docs/FRICTION_LOG.md` and run it past the evaluator model with the prompt: "Attack this plan: what breaks, who is harmed, cheaper path, founder-crucial or not?" Structure (2026-07-16 at founder direction, from the swarm-analysis review; registry: `docs/hats/`): Blue frame pre-registered → White facts pass → po battery (unchanged) → independent parallel lenses that never see each other's output, at least one Yellow best-case, cross-family where keys allow → devil's-advocate attack on any consensus → Blue merge that preserves conflict, never averages. Blockers must be answered in writing.
 - **Sentinel:** Sentry (`SENTRY_DSN`) on web+API+worker; healthchecks.io dead-man ping on any scheduled job. No scheduled loop ships without both.
 - **Librarian:** session bookends, weekly digest appended to docs/FOUNDER_DIGEST.md.
 
@@ -30,6 +30,7 @@ Everything is checked against the documented world-class bar for that item, so d
 ## Thinking tools & Kaizen (added 2026-07-14 at founder direction)
 1. **Po battery at divergent moments** (`docs/skills/po_provocation.md`, generator `tools/po_battery.py`): before irreversible actions the Friction pre-work OPENS with the full provocation battery (all operators, standalone + random-combos), then attacks; also mandatory for sprint/architecture planning, design-direction selection, Descriptor Foundry ideation. Provocations are stimuli, never facts — nothing po-generated enters memory, candidate data, or user-facing copy except through the normal gates. Convergent gates (validate/trust_gate/evaluator) stay purely convergent.
 2. **Kaizen measures** (`docs/KAIZEN.md`, ledger `docs/metrics/KAIZEN_LEDGER.md`): zero ESCAPED defects is absolute; internally-caught defects are treasure — every catch gets a ledger row (gate, class); repeat classes must trend to zero via gate-gap fixes. Ledger row per merged PR + at session close; trends in the weekly founder digest. Maturity levels deferred behind R-012's objective trigger.
+3. **Dedicated-hat registry** (`docs/hats/`, added 2026-07-16 at founder direction): the six thinking hats as standing agents — each hat = fixed prompt + owned memory + model binding via the router + custody + its own Kaizen measures (measure, counter-measure, escape definition; all rows in the existing ledger, M8 = Yellow validated upside). Black = the Independent Evaluator/Friction attack (non-Claude, hard invariant); White = the reconcile/eval-harness scripts; Green = the po battery; Blue = the session loop plus the conflict-preserving merge; Yellow = the deliberate best-case lens (new — the harness previously had only attackers); Red = the founder, never an agent. Hats fire at divergent/founder-crucial moments only; no hat's output is ever evidence, and using a hat to relax any gate is founder-crucial.
 
 ## Communicating with the founder (added 2026-07-13 at founder direction)
 Every report, question, escalation, and PR description addressed to the founder follows these rules — they outrank brevity:
@@ -98,7 +99,10 @@ runs `lint.py --fix` + `trust_gate.py` and blocks the commit on any violation.)
    `tools/agent_review --persona <p> --target <ref>`, choosing the persona(s) in
    `docs/review_personas/` that own the risk (security, performance,
    maintainability, code-quality, ai-smells, domain-truth-and-trust). Each persona
-   also owns and maintains a set of system docs — see its file.
+   also owns and maintains a set of system docs — see its file. When multiple
+   personas review one change, they run as independent calls that never see each
+   other's findings; outputs meet only at the merge (`docs/hats/README.md`,
+   Independence — added 2026-07-16).
 
 ## Where to look first
 Quick map of the harness (all discoverable, none orphaned):

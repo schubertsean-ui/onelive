@@ -36,11 +36,40 @@ no-silent-deferrals rule. So the goal splits:
 | M4 | Gate-gap fixes shipped (a catch that produced a new/tightened gate) | Compounding improvement | steady > 0 |
 | M5 | Cost per merged PR (evaluator calls + CI minutes, est.) | Efficiency at the same bar (charter Cost discipline) | falling at flat quality |
 | M6 | Po-sourced ideas surviving gates (docs/skills/po_provocation.md) | Whether divergence is producing adopted value | > 0 over time |
+| M8 | Yellow-hat validated upside (docs/hats/yellow.md) | Whether the deliberate best-case lens produces adopted real value, not hype | asserted→validated conversion rising |
+
+(M7 — the extraction hallucination ratchet — is defined in its own section
+below rather than in this table; the number is not skipped.)
 
 Recording rules: one ledger row per merged PR (M1/M2/M5), plus rows for any
 M3 escape (immediately, not at close), M4 gate-gap fix, or M6 harvest.
 Session close (docs/SESSION_START.md) appends the session's rows; the weekly
 founder digest quotes the trends in plain language.
+
+In-flight repeat-class rule (added 2026-07-17, from the r22–r24 lesson on
+PR #28): class detection must not wait for the merge-time ledger row. After
+EVERY evaluator round, classify the round's findings before fixing them;
+if any finding shares a class with the previous round on the same PR, stop
+patching that instance and fix the CLASS — enumerate or (better) DERIVE the
+complete set the defect lives in, in the same commit. Three consecutive
+rounds of one class on one PR (r22 golden set → r23 scoring files → r24
+dependencies, each round hand-adding one item to a binding list) cost two
+avoidable rounds; a derived-closure check written at r22 would have ended
+the class in one. Corollary for lists specifically: a hand-maintained
+enumeration guarding a trust property (a manifest, an allowlist, a trigger
+list, a mirror of another list) is a defect class waiting to repeat — every
+such list gets a test that derives or cross-checks it against ground truth.
+## Hat measures (added 2026-07-16 — docs/hats/)
+
+Each dedicated hat (docs/hats/README.md) declares three things in its
+registry file: its **measure**, its **counter-measure** (the Goodhart
+inverse — a hat rewarded per catch will manufacture catches), and its
+**escape definition** (what it means for that hat to have failed). No new
+ledgers: hats are catchers named in M2 (e.g. gate `blue-merge`, class
+`smoothed-conflict`), gate-gap sources in M4 (each hat's drain toward
+mechanization), and M6/M8 hold the Green/Yellow harvests — everything in
+the one ledger so cross-hat trends (a class escaping one hat, caught by
+another) stay visible in one table.
 
 ## Per-step application (founder: "to each step in the process")
 

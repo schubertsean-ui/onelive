@@ -1,6 +1,12 @@
-psycopg2-binary
-pydantic
-python-dateutil
-requests
-anthropic>=0.39,<1.0  # Claude API for weak-signal event extraction (ai/claude_provider.py)
-sentry-sdk  # Sentinel: no-op unless SENTRY_DSN is set (worker/sentinel.py)
+# Exact pins (evaluator r24): golden-exam evidence binds to the installed
+# dependency set — this file's bytes are inside the exam's harness
+# manifest hash, and the evidence verifier requires the report's recorded
+# anthropic/pydantic versions to equal the pins below. An upgrade is a
+# deliberate harness change: bump the pin, merge through the mandatory
+# adversarial review, then re-run the attended exam.
+psycopg2-binary==2.9.12
+pydantic==2.13.4  # AIEventExtraction schema validation (exam-bound: ai/exam_thresholds.EXAM_PACKAGES)
+python-dateutil==2.9.0.post0
+requests==2.34.2
+anthropic==0.117.0  # Claude API for weak-signal event extraction (ai/claude_provider.py; exam-bound)
+sentry-sdk==2.66.0  # Sentinel: no-op unless SENTRY_DSN is set (worker/sentinel.py)
