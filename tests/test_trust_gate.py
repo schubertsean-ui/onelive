@@ -22,29 +22,14 @@ _spec.loader.exec_module(trust_gate)
 
 
 def test_real_repo_passes():
-    """Every trust invariant must hold on the real repo right now.
-
-    Bootstrap window (PR #36): while the extraction-certification record
-    (ai/golden/CERTIFIED_HARNESS.json) is absent or drifted, trust_gate is
-    correctly RED with exactly that one finding — all OTHER invariants must
-    still hold, and nothing here treats the red as green. The moment the
-    founder's attended exam lands the record, this test self-tightens back
-    to requiring full exit 0.
-    """
-    findings = trust_gate.Findings()
-    trust_gate.check_no_dynamic_sql(findings)
-    trust_gate.check_ads_tastemaker_isolation(findings)
-    trust_gate.check_ai_never_promotes(findings)
-    trust_gate.check_promote_import_allowlist(findings)
-    trust_gate.check_exam_mode_confined(findings)
-    assert findings.ok(), findings.violations
-
-    cert = trust_gate.Findings()
-    trust_gate.check_extraction_certification(cert)
-    if cert.ok():
-        assert trust_gate.main() == 0
-    else:
-        assert all("extraction-certification" in v for v in cert.violations)
+    """Every trust invariant must hold on the real repo right now —
+    including extraction certification: the committed attended-exam record
+    (ai/golden/CERTIFIED_HARNESS.json) must be a valid PASSED record
+    matching the current harness hash. No tolerated-red branch (evaluator,
+    PR #36 r2: the earlier conditional that accepted any
+    extraction-certification failure was swallowed gate red in the test
+    layer, not "self-tightening")."""
+    assert trust_gate.main() == 0
 
 
 def _write(root: pathlib.Path, rel: str, body: str) -> pathlib.Path:
