@@ -87,8 +87,10 @@ _SHELL_VAR = re.compile(r"\$\{?([A-Z][A-Z0-9_]*)\}?")
 _VARS_CONTEXT = re.compile(r"\$\{\{[^}]*\bvars\.", re.DOTALL)
 # R3: expression channels that render EMPTY when the underlying value is
 # missing, used directly inside executing shell text.
-_RUN_EXPR_BAN = re.compile(r"\$\{\{[^}]*\b(secrets\.|env\.|github\.token)")
-_ASSIGN = re.compile(r"(?:^|[;{])\s*(?:export\s+)?([A-Z][A-Z0-9_]*)=")
+_RUN_EXPR_BAN = re.compile(
+    r"\$\{\{[^}]*\b(?:secrets\s*[.\[]|env\s*[.\[]|github\s*\.\s*token\b|github\s*\[\s*[\"\']token)"
+)
+_ASSIGN = re.compile(r"(?:^|;)\s*(?:export\s+)?([A-Z][A-Z0-9_]*)=")
 _FOR_VAR = re.compile(r"\bfor\s+([A-Z][A-Z0-9_]*)\s+in\b")
 _READ_VAR = re.compile(r"\bread\s+(?:-r\s+)?([A-Z][A-Z0-9_]*)\b")
 # Non-empty guards that make a secret-backed var fail-loud at runtime.
@@ -104,10 +106,15 @@ _GUARD_PARAM = re.compile(r"\$\{([A-Z][A-Z0-9_]*):\?")
 # var itself reads as spaces in the unquoted view, so the gap must not be
 # eaten by whitespace matching; the name is recovered from the code view.
 _NTEST_STRUCT = re.compile(r"(?:\[\[?|test)\s+-n(\s[^\]|&;]*)")
+# The abort must be a COMMAND in the || branch, not a word inside another
+# command's arguments (evaluator r11: `|| echo exit 1` terminates nothing).
+# Accepted: `|| exit`, `|| return`, `|| { exit ... }`,
+# `|| { anything; exit ... }` — exit/return at brace-start or after `;`.
 _TERMINATES = re.compile(
-    r"\s*\]{0,2}\s*\|\|\s*(?:\{[^}]*\b(?:exit|return)\b|[^;&|]*\b(?:exit|return)\b)"
+    r"\s*\]{0,2}\s*\|\|\s*"
+    r"(?:(?:exit|return)\b|\{\s*(?:exit|return)\b|\{[^}]*?;\s*(?:exit|return)\b)"
 )
-_SECRET_VALUE = re.compile(r"\$\{\{[^}]*\bsecrets\.")
+_SECRET_VALUE = re.compile(r"\$\{\{[^}]*\bsecrets\s*[.\[]")
 _EXPORT_CMD = re.compile(r"(?:echo|printf)\b")
 _EXPORT_FULL = re.compile(
     r"(?:echo|printf)\s+[\"']?([A-Z][A-Z0-9_]*)=.*?\$\{?GITHUB_ENV\}?"
@@ -219,7 +226,9 @@ def _scan_run_script(
     guarded: set[str] = set()
     unguarded: list[str] = []
     _SEP = re.compile(r"[;|&\n]")
+    _FUNC_OPEN = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\s*\(\)\s*\{")
     cond_depth = 0
+    func_depth = 0
     for raw_line in run_text.splitlines():
         stripped = raw_line.strip()
         if not stripped or stripped.startswith("#"):
@@ -233,8 +242,23 @@ def _scan_run_script(
         # Conditional-region tracking (unquoted, command-position openers).
         opens = sum(1 for m in _IF_OPEN.finditer(unq) if _cmd_pos(unq, m.start()))
         closes = sum(1 for m in _IF_CLOSE.finditer(unq))
-        in_cond = cond_depth > 0 or (opens > 0)
+        # Function bodies are code that may never run (evaluator r11):
+        # tracked like conditionals, approximately — `name() {` opens, a
+        # bare `}` line closes (false-positive direction on exotic layouts).
+        # A one-line function (`api() { ...; }`) opens and closes on the
+        # same line: no lasting region (its line still credits nothing).
+        fopens = sum(
+            1 for m in _FUNC_OPEN.finditer(unq) if "}" not in unq[m.end():]
+        )
+        same_line_funcs = sum(
+            1 for m in _FUNC_OPEN.finditer(unq) if "}" in unq[m.end():]
+        )
+        in_cond = (
+            cond_depth > 0 or func_depth > 0 or opens > 0 or fopens > 0
+            or same_line_funcs > 0
+        )
         cond_depth = max(0, cond_depth + opens - closes)
+        func_depth = max(0, func_depth + fopens - (1 if unq.strip() == "}" else 0))
 
         # Guard skeletons + probe spans (structure on unq; names from code).
         line_guards: list[tuple[int, str]] = []
@@ -258,9 +282,14 @@ def _scan_run_script(
         # Definitions: command-position anchors only, never in conditionals.
         defs: list[tuple[int, str]] = []
         if not in_cond:
-            for rx in (_ASSIGN, _FOR_VAR, _READ_VAR):
+            for m in _ASSIGN.finditer(unq):
+                defs.append((m.end(), m.group(1)))
+            # for/read define only as COMMANDS, never as words inside another
+            # command's arguments (r11: `echo read MY_TOKEN` defines nothing).
+            for rx in (_FOR_VAR, _READ_VAR):
                 for m in rx.finditer(unq):
-                    defs.append((m.end(), m.group(1)))
+                    if _cmd_pos(unq, m.start()):
+                        defs.append((m.end(), m.group(1)))
 
         for m in _SHELL_VAR.finditer(line):
             name = m.group(1)
@@ -383,8 +412,9 @@ def lint_workflow_text(text: str, name: str) -> list[str]:
                     f"{name}: job '{job_name}' step #{idx + 1} consumes the "
                     f"secret-backed ${var} in shell text with no non-empty "
                     f"guard before first use — a missing secret renders as an "
-                    f"empty string and this step would proceed silently; add "
-                    f"[ -n \"${var}\" ] (or ${{{var}:?}}) before using it"
+                    f"empty string and this step would proceed silently; add a "
+                    f"TERMINATING guard before first use: : \"${{{var}:?}}\" or "
+                    f"[ -n \"${var}\" ] || exit 1 (a bare probe does not count)"
                 )
             exported |= new_exports
     return findings

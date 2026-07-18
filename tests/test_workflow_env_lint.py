@@ -646,3 +646,105 @@ def test_unconditional_export_after_if_block_still_credits():
         run: psql "$MY_DSN"
 """)
     assert lint_workflow_text(text, "f.yml") == []
+
+
+# ---- Evaluator r11: abort must be a command; defs are commands; brackets ----
+
+
+def test_or_echo_exit_is_not_a_terminator():
+    # `|| echo exit 1` prints the word exit; it terminates nothing.
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          [ -n "$SECRET_TOKEN" ] || echo exit 1
+          curl "$SECRET_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("TERMINATING guard" in f for f in findings)
+
+
+def test_braced_echo_exit_word_is_not_a_terminator():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          [ -n "$SECRET_TOKEN" ] || { echo exit; }
+          curl "$SECRET_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("TERMINATING guard" in f for f in findings)
+
+
+def test_braced_message_then_real_exit_is_a_terminator():
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          [ -n "$SECRET_TOKEN" ] || { echo "::error::missing"; exit 1; }
+          curl "$SECRET_TOKEN"
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_echo_read_or_for_words_do_not_define():
+    text = _wf("""
+      - name: fake-defs
+        run: |
+          echo read MY_TOKEN
+          echo for OTHER_VAR in x
+          curl "$MY_TOKEN$OTHER_VAR"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_TOKEN" in f for f in findings)
+    assert any("OTHER_VAR" in f for f in findings)
+
+
+def test_assignment_inside_function_body_is_not_a_source():
+    text = _wf("""
+      - name: func
+        run: |
+          setup() {
+            MY_TOKEN=abc
+          }
+          curl "$MY_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("MY_TOKEN" in f for f in findings)
+
+
+def test_one_line_function_does_not_poison_later_lines():
+    text = _wf("""
+      - name: oneliner
+        run: |
+          api() { curl -sS "$@"; }
+          MY_TOKEN=abc
+          echo "$MY_TOKEN"
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_bracket_syntax_secret_expression_is_secret_backed():
+    # ${{ secrets['X'] }} must trigger R4 exactly like secrets.X.
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets['SECRET_TOKEN'] }}
+        run: |
+          curl "$SECRET_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("TERMINATING guard" in f for f in findings)
+
+
+def test_bracket_syntax_in_run_is_banned():
+    text = _wf("""
+      - name: leaky
+        run: |
+          echo "${{ secrets['MISSING'] }}"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("EMPTY STRING" in f for f in findings)
