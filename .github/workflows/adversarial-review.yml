@@ -252,7 +252,13 @@ jobs:
           # base paths list includes extraction-eval.yml itself, a PR that
           # edits the policy is on-surface by the OLD policy regardless.
           git show HEAD^1:.github/workflows/extraction-eval.yml > base-extraction-eval.yml
-          SURFACE_TOUCHED="$(python3 -c "import yaml,subprocess,fnmatch; pats=yaml.safe_load(open('base-extraction-eval.yml'))[True]['pull_request_target']['paths']; files=subprocess.run(['git','diff','--name-only','HEAD^1','HEAD'],capture_output=True,text=True,check=True).stdout.split(); print('1' if any(fnmatch.fnmatch(f,pp) for f in files for pp in pats) else '0')")"
+          git diff --name-only HEAD^1 HEAD > changed-files.txt
+          # Tested helper (r5): the path grammar and the refusal judgment
+          # below are security-critical gate logic — they live in
+          # tools/cogate_evidence.py with their own failing tests, not in
+          # shell one-liners. Unsupported grammar ('!' exclusions) fails
+          # closed inside the helper.
+          SURFACE_TOUCHED="$(python3 tools/cogate_evidence.py surface-touched base-extraction-eval.yml changed-files.txt)"
           for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
             api "https://api.github.com/repos/$REPO/commits/$HEAD_SHA/check-runs?check_name=golden-exam" > gx-checks.json
             DONE="$(python3 -c "import json; rs=(json.load(open('gx-checks.json')).get('check_runs') or []); print('1' if any(r.get('status')=='completed' and (r.get('app') or {}).get('slug')=='github-actions' for r in rs) else '0')")"
@@ -287,16 +293,19 @@ jobs:
           CONCLUSION="$(python3 -c "import json,sys; rs=json.load(open('gx-checks.json'))['check_runs']; print(([r for r in rs if str(r['id'])==sys.argv[1]][0].get('conclusion')) or 'none')" "$VALID_ID")"
           GX_URL="$(python3 -c "import json,sys; rs=json.load(open('gx-checks.json'))['check_runs']; print(([r for r in rs if str(r['id'])==sys.argv[1]][0].get('details_url')) or '')" "$VALID_ID")"
           api -L "https://api.github.com/repos/$REPO/actions/jobs/$VALID_ID/logs" > gx-job.log
-          # Exact, not substring (r4): EVERY error a failed job emitted
-          # must be the classifier's designed harness-refusal. A log that
-          # mixes the refusal with any other failure (rejected record,
-          # authenticator error, API failure) is a disputed co-gate red
-          # and blocks here mechanically. Computed unconditionally so the
-          # env lint can see the definition; consumed only on failure.
-          REFUSAL_ONLY="$(python3 -c "import re; txt=open('gx-job.log',encoding='utf-8',errors='replace').read(); errs=[re.sub(r'^.*?##\[error\]','',l) for l in txt.splitlines() if '##[error]' in l]; errs=[e for e in errs if not e.startswith('Process completed with exit code')]; print('1' if (errs and all(e.startswith('This PR changes extraction HARNESS code that the attended exam does not execute') for e in errs)) else '0')")"
+          # The refusal judgment is tested code (r5, tools/cogate_evidence.py
+          # + tests/test_cogate_evidence.py), judged on the job's STEP
+          # conclusions from the Actions API — exactly one failed step and
+          # it must be the classify step, so a refusal annotation riding
+          # with a second, even UNANNOTATED, failure (rejected record,
+          # traceback) can never pass — plus exact refusal annotations,
+          # and only for conclusion == failure. Cancelled / timed_out /
+          # any other incomplete state fails closed below. Computed
+          # unconditionally so the env lint sees the definition.
+          REFUSAL_ONLY="$(python3 tools/cogate_evidence.py refusal-only "job-$VALID_ID.json" gx-job.log "$CONCLUSION")"
           if [ "$CONCLUSION" != "success" ]; then
             if [ "$REFUSAL_ONLY" != "1" ]; then
-              echo "::error::golden-exam concluded '$CONCLUSION' and its error output is not exactly the classifier's designed harness-refusal — a rejected record, verifier error, or mixed failure must block mechanically, failing closed"
+              echo "::error::golden-exam concluded '$CONCLUSION' and is not exactly the classifier's designed harness-refusal (sole failed step = classify, refusal-only annotations, conclusion=failure) — rejected records, verifier errors, mixed or incomplete states block mechanically, failing closed"
               exit 1
             fi
           fi
