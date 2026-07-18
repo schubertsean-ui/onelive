@@ -176,3 +176,53 @@ def test_surface_list_mirrors_workflow_triggers():
         assert p in explicit, f"{p} guarded by classifier but not a trigger path"
     for p in explicit:
         assert ces.on_surface(p), f"{p} triggers the workflow but is off-surface"
+
+
+# ---- manifest partition (evaluator, PR #36 r3) -----------------------------
+
+def test_manifest_read_as_data_matches_the_runner_single_source():
+    """MECHANICAL identity: the classifier's AST read of HARNESS_MANIFEST
+    must equal the tuple the exam runner actually stamps — scope drift
+    between the classifier's partition and the certification hash becomes
+    a failing test, not a prose promise."""
+    from ai.golden_exam import HARNESS_MANIFEST
+    assert ces.read_harness_manifest(_ROOT) == HARNESS_MANIFEST
+
+
+def test_manifest_files_are_all_on_surface():
+    from ai.golden_exam import HARNESS_MANIFEST
+    for rel in HARNESS_MANIFEST:
+        assert ces.on_surface(rel), rel
+
+
+def test_refusal_partitions_manifest_bound_vs_unbound(capsys):
+    """The refusal message must label each refused file's compensation
+    class: manifest-bound (re-lock red moves) vs NOT manifest-bound
+    (base-owned execution + data bindings + blocking review)."""
+    with pytest.raises(SystemExit):
+        ces.classify(_compare("ai/golden_exam.py", "tools/trust_gate.py"),
+                     _ROOT, _ROOT)
+    err = capsys.readouterr().err
+    assert "manifest-bound (certification-hash covered" in err
+    assert "ai/golden_exam.py" in err
+    assert "NOT manifest-bound (re-verified instead by" in err
+    assert "tools/trust_gate.py" in err
+
+
+def test_unreadable_manifest_classifies_unbound_and_says_so(tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        ces.classify(_compare("ai/golden_exam.py"), tmp_path, tmp_path)
+    err = capsys.readouterr().err
+    assert "HARNESS_MANIFEST unreadable" in err
+    assert "fail closed" in err
+
+
+def test_read_harness_manifest_fails_closed_on_garbage(tmp_path):
+    assert ces.read_harness_manifest(tmp_path) is None
+    (tmp_path / "ai").mkdir()
+    (tmp_path / "ai" / "golden_exam.py").write_text(
+        "HARNESS_MANIFEST = 'not-a-tuple'\n", encoding="utf-8")
+    assert ces.read_harness_manifest(tmp_path) is None
+    (tmp_path / "ai" / "golden_exam.py").write_text(
+        "import os\nHARNESS_MANIFEST = os.environ\n", encoding="utf-8")
+    assert ces.read_harness_manifest(tmp_path) is None

@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import pathlib
 import re
 import sys
@@ -56,6 +57,22 @@ ATTENDED_WORKFLOW = ".github/workflows/extraction-exam-dispatch.yml"
 def _reject(msg: str) -> None:
     print(f"::error::certification record REJECTED: {msg} (fail closed)",
           file=sys.stderr)
+
+
+def _count(v) -> "int | None":
+    """Counts must be true integers — bools and floats are malformed."""
+    return v if isinstance(v, int) and not isinstance(v, bool) else None
+
+
+def _rate(v) -> "float | None":
+    """Finite numbers in [0, 1] only (evaluator, PR #36 r3): json.loads
+    accepts NaN/Infinity, and `abs(nan - x) > tol` is False — a NaN rate
+    would sail through the agreement check. Non-finite or out-of-range =
+    malformed = rejected here, never left for another gate to catch."""
+    if isinstance(v, (int, float)) and not isinstance(v, bool) \
+            and math.isfinite(v) and 0.0 <= float(v) <= 1.0:
+        return float(v)
+    return None
 
 
 def validate_record(record, expect_harness_sha256: str, expect_model: str) -> "list[str]":
@@ -81,8 +98,19 @@ def validate_record(record, expect_harness_sha256: str, expect_model: str) -> "l
     if not (isinstance(record.get("model"), str)
             and _MODEL_ID_RE.fullmatch(record["model"])):
         problems.append("model missing or not a plausible model id")
-    if not isinstance(record.get("metrics"), dict):
+    m = record.get("metrics")
+    if not isinstance(m, dict):
         problems.append("metrics missing or not an object")
+    else:
+        # Metric values are validated HERE, fail closed (evaluator, PR #36
+        # r3): every count a true int, every rate a finite number in [0,1].
+        for key in ("examples", "asserted_facts", "injections", "unanswered"):
+            if _count(m.get(key)) is None:
+                problems.append(f"metrics.{key}={m.get(key)!r} is not an integer count")
+        for key in ("hallucination_rate", "recall"):
+            if _rate(m.get(key)) is None:
+                problems.append(f"metrics.{key}={m.get(key)!r} is not a finite "
+                                "number in [0, 1]")
     if problems:
         return problems
     # Bind to the BASE tree the PR merges into: a record certifies the
@@ -187,20 +215,20 @@ def validate_report_zip(record: dict, zip_path: pathlib.Path,
     # verify_exam_evidence.py, re-derived from the report's exact values,
     # never from the record.
     for label, want, got_v in (
-        ("examples", m.get("examples"), report.get("n_examples")),
-        ("asserted_facts", m.get("asserted_facts"), report.get("asserted_facts")),
-        ("injections", m.get("injections"), len(report.get("injection_failures") or [])),
-        ("unanswered", m.get("unanswered"), len(report.get("unanswered") or [])),
+        ("examples", _count(m.get("examples")), _count(report.get("n_examples"))),
+        ("asserted_facts", _count(m.get("asserted_facts")), _count(report.get("asserted_facts"))),
+        ("injections", _count(m.get("injections")), len(report.get("injection_failures") or [])),
+        ("unanswered", _count(m.get("unanswered")), len(report.get("unanswered") or [])),
     ):
-        if not isinstance(want, int) or isinstance(want, bool) or want != got_v:
+        if want is None or got_v is None or want != got_v:
             problems.append(f"record metrics.{label}={want!r} != report's {got_v!r}")
+    # BOTH sides finite-validated (evaluator, PR #36 r3): a NaN on either
+    # side makes `abs(a - b) > tol` False and would slip a mismatch through.
     for label in ("hallucination_rate", "recall"):
-        want, got_v = m.get(label), report.get(label)
-        if not isinstance(want, (int, float)) or isinstance(want, bool) \
-                or not isinstance(got_v, (int, float)) or isinstance(got_v, bool) \
-                or abs(float(want) - float(got_v)) > 5e-5:
-            problems.append(f"record metrics.{label}={want!r} disagrees "
-                            f"with report's {got_v!r}")
+        want, got_v = _rate(m.get(label)), _rate(report.get(label))
+        if want is None or got_v is None or abs(want - got_v) > 5e-5:
+            problems.append(f"record metrics.{label}={m.get(label)!r} disagrees "
+                            f"with report's {report.get(label)!r}")
     return problems
 
 

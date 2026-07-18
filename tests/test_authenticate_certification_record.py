@@ -243,3 +243,36 @@ def test_cli_run_subcommand(tmp_path, capsys):
     assert acr.main(["run", str(rp), str(rj), str(aj),
                      "--default-branch", "feature"] + common) == 1
     capsys.readouterr()
+
+
+# ---- non-finite / mistyped metrics (evaluator, PR #36 r3) ------------------
+
+def test_nonfinite_and_mistyped_metrics_rejected_by_validate_record():
+    """json.loads accepts NaN/Infinity, and abs(nan - x) > tol is False —
+    the authenticator must reject them itself, fail closed."""
+    cases = [
+        ("hallucination_rate", float("nan")),
+        ("hallucination_rate", float("inf")),
+        ("recall", float("nan")),
+        ("recall", 1.5),
+        ("recall", "0.9782"),
+        ("asserted_facts", True),
+        ("asserted_facts", 316.0),
+        ("examples", "77"),
+        ("injections", None),
+    ]
+    for key, bad in cases:
+        rec = _record()
+        rec["metrics"][key] = bad
+        problems = acr.validate_record(rec, HARNESS, MODEL)
+        assert any(key in p for p in problems), (key, bad, problems)
+
+
+def test_nan_report_rate_rejected_in_agreement_check(tmp_path):
+    """A NaN on the REPORT side must also reject — both sides of the
+    agreement comparison are finite-validated."""
+    report = _report()
+    report["hallucination_rate"] = float("nan")
+    zp, digest = _zip_with(tmp_path, report)
+    problems = acr.validate_report_zip(_record(artifact_zip_sha256=digest), zp, tmp_path)
+    assert any("hallucination_rate" in p for p in problems)

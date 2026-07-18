@@ -156,10 +156,15 @@ jobs:
           echo "EXPECT_GOLDEN_SHA=$EXPECT_GOLDEN_SHA" >> "$GITHUB_ENV"
           echo "EXPECT_HARNESS_SHA=$EXPECT_HARNESS_SHA" >> "$GITHUB_ENV"
 
-      # ---- Certification-record authentication (evaluator, PR #36 r2) ----
-      # trust_gate's offline re-lock proves a committed record is complete,
-      # PASSED, threshold-passing, and hash-bound — but offline code cannot
-      # prove the record is REAL. This step closes that: any PR that changes
+      # ---- Certification-record authentication (evaluator, PR #36 r2/r3) ----
+      # Stage 1 of the gate→record→re-lock bootstrap (r3: the gate must
+      # land BEFORE the record — under pull_request_target only a MERGED
+      # copy of this step can authenticate anything, so a record riding in
+      # the same PR as its authenticator would enter unverified). The
+      # offline trust_gate re-lock (stage 3) will prove a committed record
+      # stays complete, PASSED, threshold-passing, and hash-bound — but
+      # offline code cannot prove a record is REAL. This step is the
+      # online half: any PR that changes
       # ai/golden/CERTIFIED_HARNESS.json must present a record whose run_id
       # is an actual successful maintainer-dispatched attended run on the
       # default branch, whose artifact zip hashes to the recorded digest,

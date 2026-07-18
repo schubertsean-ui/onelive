@@ -70,6 +70,30 @@ def _err(msg: str) -> None:
     print(f"::error::{msg}", file=sys.stderr)
 
 
+def read_harness_manifest(base_dir: "pathlib.Path | str") -> "tuple | None":
+    """HARNESS_MANIFEST read AS DATA from base's ai/golden_exam.py (AST,
+    never import — the exam channel stays confined). This is the
+    MECHANICAL identity the charter exception's scope split keys on
+    (evaluator, PR #36 r3): manifest-bound files are the exact set the
+    certification hash covers, derived from the same single source the
+    runner stamps — never hand-mirrored. None = unreadable (callers
+    fail closed)."""
+    try:
+        src = (pathlib.Path(base_dir) / "ai" / "golden_exam.py").read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        for node in tree.body:
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 \
+                    and isinstance(node.targets[0], ast.Name) \
+                    and node.targets[0].id == "HARNESS_MANIFEST":
+                value = ast.literal_eval(node.value)
+                if isinstance(value, tuple) and value and \
+                        all(isinstance(v, str) for v in value):
+                    return value
+        return None
+    except (OSError, ValueError, SyntaxError):
+        return None
+
+
 def load_routing_data(path: "pathlib.Path | str"):
     """Both routing_data versions are PURE DATA — diff them AS DATA (r14)."""
     src = pathlib.Path(path).read_text(encoding="utf-8")
@@ -147,7 +171,43 @@ def classify(compare: dict, base_dir: pathlib.Path, subject_dir: pathlib.Path) -
                                    "routing values changed — the exam does "
                                    "not certify those)")
     if harness_touched:
-        # This refusal text is the charter-referenced classifier output for
+        # The refusal is PARTITIONED (evaluator, PR #36 r3: the classified
+        # surface is broader than the certification hash, so "the red moves
+        # to trust_gate" was only true for part of it — the exception's
+        # compensation must name each class's own executable channel):
+        #   * MANIFEST-BOUND — in HARNESS_MANIFEST, read as data from the
+        #     same single source the runner stamps: covered by the
+        #     certification hash, so merging under the charter exception
+        #     turns trust_gate red EVERYWHERE until an attended re-exam
+        #     re-certifies (the red moves).
+        #   * NOT manifest-bound (verifier/trust-path code and exam data
+        #     outside the manifest): never covered by that hash — their
+        #     re-verification channels are base-owned execution
+        #     (pull_request_target: a PR's copy never judges itself), the
+        #     per-run data bindings re-derived from base at every evidence
+        #     verification (golden/prompt/model/dependency-lock hashes),
+        #     and the mandatory non-Claude adversarial review that blocks
+        #     THIS very PR (no path filter).
+        # An unreadable manifest classifies everything as unbound — shown,
+        # fail closed, never guessed.
+        manifest = read_harness_manifest(base_dir)
+        bound = sorted(p for p in harness_touched if manifest and p in manifest)
+        unbound = sorted(p for p in harness_touched if not (manifest and p in manifest))
+        detail = []
+        if manifest is None:
+            detail.append("HARNESS_MANIFEST unreadable from base — treating "
+                          "every file as certification-hash-UNBOUND (fail closed)")
+        if bound:
+            detail.append("manifest-bound (certification-hash covered; a merge "
+                          "under the charter exception turns trust_gate red "
+                          "everywhere until an attended re-exam): "
+                          + ", ".join(bound))
+        if unbound:
+            detail.append("NOT manifest-bound (re-verified instead by "
+                          "base-owned execution, per-run data bindings, and "
+                          "the blocking adversarial review on this PR): "
+                          + ", ".join(unbound))
+        # The first sentence is the charter-referenced classifier output for
         # the enumerated golden-exam exception — change it only with the
         # charter (founder-crucial).
         _err("This PR changes extraction HARNESS code that the "
@@ -156,7 +216,8 @@ def classify(compare: dict, base_dir: pathlib.Path, subject_dir: pathlib.Path) -
              ". Split the harness change into its own PR, merge it "
              "through the mandatory adversarial review first, then "
              "re-exam this subject against the merged harness "
-             "(fail closed; the exam never certifies code it did not run).")
+             "(fail closed; the exam never certifies code it did not run). "
+             + " | ".join(detail))
         raise SystemExit(1)
     surface_beyond_record = [p for p in changed if on_surface(p) and p != RECORD]
     return {
