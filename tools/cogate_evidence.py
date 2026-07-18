@@ -112,6 +112,19 @@ def _validate_pattern(pattern: str) -> None:
                      "may use this form (fail closed)")
 
 
+INELIGIBLE_MARKER = "EXCEPTION-INELIGIBLE"
+
+
+def refusal_ineligible(log_text: str) -> bool:
+    """True when the classifier's refusal printed the canonical
+    EXCEPTION-INELIGIBLE marker (stage-6 r4: a record change riding a
+    refusal, or an unreadable manifest). The review step fails closed on
+    it — eligibility is mechanics, not evaluator memory. Injection of
+    the marker via subject-controlled text can only force REJECTION,
+    never acceptance (monotone fail-closed)."""
+    return INELIGIBLE_MARKER in log_text
+
+
 def surface_touched(patterns: list, files: list) -> bool:
     if not isinstance(patterns, list) or not patterns or \
             not all(isinstance(p, str) and p for p in patterns):
@@ -217,6 +230,15 @@ def main(argv: "list[str] | None" = None) -> int:
         except OSError as exc:
             return die(f"cannot read log ({exc})")
         print("1" if log_bindings(log_text, argv[2], argv[3]) else "0")
+        return 0
+
+    if len(argv) == 2 and argv[0] == "refusal-ineligible":
+        try:
+            log_text = pathlib.Path(argv[1]).read_text(encoding="utf-8",
+                                                       errors="replace")
+        except OSError as exc:
+            return die(f"cannot read log ({exc})")
+        print("1" if refusal_ineligible(log_text) else "0")
         return 0
 
     if len(argv) == 3 and argv[0] == "surface-touched":

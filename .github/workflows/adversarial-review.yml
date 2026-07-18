@@ -321,9 +321,24 @@ jobs:
           # ground truth + exact annotations + failure-only). Computed
           # unconditionally so the env lint sees the definition.
           REFUSAL_ONLY="$(python3 -I "$EVID/cogate_evidence.py" refusal-only "$EVID/job-$VALID_ID.json" "$EVID/gx-job.log" "$CONCLUSION")"
+          # Ineligibility is mechanics (stage-6 r4): the classifier prints
+          # a canonical EXCEPTION-INELIGIBLE marker for refusals no
+          # exception may cover (a record change riding the refusal — the
+          # authenticator never ran — or an unreadable manifest); this step
+          # fails closed on the marker rather than leaving it to memory.
+          # Fixed-string grep, not a helper call (stage-6 r5: this step
+          # runs the PR's workflow but the BASE helper copy, which can
+          # predate a new subcommand — the r4 helper call failed closed on
+          # exactly that skew). The token's semantics are pinned by the
+          # helper's refusal_ineligible tests; grep -F carries no logic of
+          # its own, and marker injection can only force rejection.
           if [ "$CONCLUSION" != "success" ]; then
             if [ "$REFUSAL_ONLY" != "1" ]; then
               echo "::error::golden-exam concluded '$CONCLUSION' and is not exactly the classifier's designed harness-refusal (sole failed step = classify, refusal-only annotations, conclusion=failure) — rejected records, verifier errors, mixed or incomplete states block mechanically, failing closed"
+              exit 1
+            fi
+            if grep -qF "EXCEPTION-INELIGIBLE" "$EVID/gx-job.log"; then
+              echo "::error::the classifier marked this refusal EXCEPTION-INELIGIBLE (record change riding the refusal, or unprovable partition) — no exception covers it, failing closed"
               exit 1
             fi
           fi
@@ -333,7 +348,7 @@ jobs:
             # the classifier's own printed partition in the attached log.
             {
               echo "# co-gate conclusion: $CONCLUSION — mechanically screened as the classifier's DESIGNED harness-refusal (sole failed step = classify; every error annotation is the refusal; any other failure shape already failed this step closed)."
-              echo "# charter exception (CLAUDE.md prime directive 1, founder-ratified 2026-07-18): this designed red does not count against required-checks-green ONLY when the refusal's printed partition lists NO manifest-bound file. Verify against the partition in the refusal text below — manifest-bound entries make the red a hard stop."
+              echo "# charter exception (CLAUDE.md prime directive 1, founder-ratified 2026-07-18; per-class compensation LIVE): NOT-manifest-bound files are compensated by base-owned execution, per-run data bindings, and this review. MANIFEST-BOUND files are eligible ONLY when the same PR closes extraction (EXTRACTION_THRESHOLD_RATIFIED = literal False, verified by the classifier from subject routing data) — the closure moves, not the red: extraction stays off until attended exam + authenticated record + head-bound flag flip re-open it, and there is NO double-red merge path. Record changes riding a refusal, unprovable partitions, and still-ratified manifest-bound refusals all carry the EXCEPTION-INELIGIBLE marker, on which this step has ALREADY failed closed. Verify the class against the partition printed below."
             } > "$EVID/exception-note.txt"
           else
             : > "$EVID/exception-note.txt"

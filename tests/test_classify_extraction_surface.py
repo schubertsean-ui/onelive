@@ -196,19 +196,20 @@ def test_manifest_files_are_all_on_surface():
 
 
 def test_refusal_partitions_manifest_bound_vs_unbound(capsys):
-    """The refusal message must label each refused file's compensation
-    class: manifest-bound (re-lock red moves) vs NOT manifest-bound
-    (base-owned execution + data bindings + blocking review)."""
+    """The refusal message must label each refused file's class. With the
+    real repo as subject (flag ratified True), a manifest-bound file now
+    lands in the still-ratified EXCEPTION-INELIGIBLE branch (stage-6 r6:
+    no double-red merge path); the closure-eligible wording is covered by
+    test_manifest_bound_refusal_with_closure_is_eligible."""
     with pytest.raises(SystemExit):
         ces.classify(_compare("ai/golden_exam.py", "tools/trust_gate.py"),
                      _ROOT, _ROOT)
     err = capsys.readouterr().err
-    assert "manifest-bound (certification-hash covered" in err
-    assert "NOT covered by the charter exception until the stage-3 re-lock" in err
+    assert "EXCEPTION-INELIGIBLE" in err
+    assert "remains ratified" in err
     assert "ai/golden_exam.py" in err
     assert "NOT manifest-bound (re-verified instead by" in err
     assert "tools/trust_gate.py" in err
-
 
 def test_unreadable_manifest_makes_refusal_exception_ineligible(tmp_path, capsys):
     """Fail closed for the EXCEPTION too (r4): an unreadable manifest must
@@ -230,3 +231,64 @@ def test_read_harness_manifest_fails_closed_on_garbage(tmp_path):
     (tmp_path / "ai" / "golden_exam.py").write_text(
         "import os\nHARNESS_MANIFEST = os.environ\n", encoding="utf-8")
     assert ces.read_harness_manifest(tmp_path) is None
+
+
+def test_record_riding_a_refusal_is_marked_exception_ineligible(capsys):
+    """stage-6 r4: a record change accompanying ANY harness refusal must
+    carry the canonical EXCEPTION-INELIGIBLE marker — the refusal
+    precedes authentication, so the changed record would enter
+    unverified. This is the forged-complete-record bypass shape."""
+    with pytest.raises(SystemExit):
+        ces.classify(
+            _compare("ai/golden/CERTIFIED_HARNESS.json", "ai/golden_exam.py"),
+            _ROOT, _ROOT)
+    err = capsys.readouterr().err
+    assert "EXCEPTION-INELIGIBLE" in err
+    assert "authenticator" in err
+    # and the manifest-bound partition is still printed for the harness file
+    assert "manifest-bound" in err
+
+
+def test_unreadable_manifest_uses_the_same_canonical_marker(tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        ces.classify(_compare("ai/golden_exam.py"), tmp_path, tmp_path)
+    assert "EXCEPTION-INELIGIBLE" in capsys.readouterr().err
+
+
+def test_manifest_bound_refusal_requires_closure(tmp_path, capsys):
+    """stage-6 r6: with the re-lock live, a certified-but-changed harness
+    is trust_gate-red on the PR itself — a manifest-bound refusal is
+    eligible ONLY when the same PR closes extraction (flag literal
+    False). Still-ratified manifest-bound refusals carry the marker."""
+    base, subj = _routing_pair(
+        tmp_path,
+        _ROUTING % ("claude-opus-4-8", "True"),
+        _ROUTING % ("claude-opus-4-8", "True"),
+    )
+    (base / "ai").mkdir(exist_ok=True)
+    (base / "ai" / "golden_exam.py").write_text(
+        pathlib.Path(_ROOT / "ai" / "golden_exam.py").read_text(encoding="utf-8"),
+        encoding="utf-8")
+    with pytest.raises(SystemExit):
+        ces.classify(_compare("ai/golden_exam.py"), base, subj)
+    err = capsys.readouterr().err
+    assert "EXCEPTION-INELIGIBLE" in err
+    assert "remains ratified" in err
+
+
+def test_manifest_bound_refusal_with_closure_is_eligible(tmp_path, capsys):
+    base, subj = _routing_pair(
+        tmp_path,
+        _ROUTING % ("claude-opus-4-8", "True"),
+        _ROUTING % ("claude-opus-4-8", "False"),
+    )
+    (base / "ai").mkdir(exist_ok=True)
+    (base / "ai" / "golden_exam.py").write_text(
+        pathlib.Path(_ROOT / "ai" / "golden_exam.py").read_text(encoding="utf-8"),
+        encoding="utf-8")
+    with pytest.raises(SystemExit):
+        ces.classify(_compare("ai/golden_exam.py", "tools/routing_data.py"),
+                     base, subj)
+    err = capsys.readouterr().err
+    assert "ELIGIBLE because this same PR CLOSES extraction" in err
+    assert "EXCEPTION-INELIGIBLE" not in err

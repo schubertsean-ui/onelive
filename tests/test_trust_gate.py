@@ -22,13 +22,13 @@ _spec.loader.exec_module(trust_gate)
 
 
 def test_real_repo_passes():
-    """Every trust invariant must hold on the real repo right now. No
-    tolerated-red branch, ever (evaluator, PR #36 r2: an earlier
-    conditional that accepted a class of failure was swallowed gate red in
-    the test layer, not "self-tightening"). The extraction-certification
-    re-lock lands in stage 3 of the gate→record→re-lock bootstrap
-    (evaluator r3) and will be asserted here — flat, through main() — in
-    that same PR."""
+    """Every trust invariant must hold on the real repo right now —
+    including extraction certification: the committed attended-exam
+    record must be a complete, PASSED, threshold-passing record matching
+    the current harness hash (the re-lock, live since the bootstrap's
+    final stage). No tolerated-red branch, ever (evaluator, PR #36 r2:
+    an earlier conditional that accepted a class of failure was
+    swallowed gate red in the test layer, not "self-tightening")."""
     assert trust_gate.main() == 0
 
 

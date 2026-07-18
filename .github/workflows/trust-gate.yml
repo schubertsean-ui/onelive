@@ -23,6 +23,11 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history (stage-6 r2): trust_gate's golden-set content
+          # binding hashes the set AT THE CERTIFIED SUBJECT COMMIT from git
+          # history — a shallow clone would fail that check closed.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
