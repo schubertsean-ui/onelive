@@ -82,11 +82,17 @@ AMBIENT = {
     "SHELL",
     "TMPDIR",
     "IFS",
+    "RANDOM",
+    "SECONDS",
+    "LINENO",
+    "HOSTNAME",
+    "OSTYPE",
+    "REPLY",
 }
 
 _GH_EXPR = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
-_SHELL_VAR = re.compile(r"\$\{?([A-Z][A-Z0-9_]*)\}?")
-_VARS_CONTEXT = re.compile(r"\$\{\{[^}]*\bvars\s*[.\[]", re.DOTALL)
+_SHELL_VAR = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
+_VARS_CONTEXT = re.compile(r"\$\{\{(?:(?!\}\}).)*\bvars\s*[.\[]", re.DOTALL)
 # R3: expression channels that render EMPTY when the underlying value is
 # missing, used directly inside executing shell text.
 # R3 (generalized at r14): ANY GitHub expression directly inside run: is
@@ -94,17 +100,17 @@ _VARS_CONTEXT = re.compile(r"\$\{\{[^}]*\bvars\s*[.\[]", re.DOTALL)
 # other context can render "" (and un-quoted interpolation is also GitHub's
 # documented script-injection surface). Route values through env: where R4
 # enforces the terminating guard.
-_ANY_EXPR_FULL = re.compile(r"\$\{\{[^}]*\}\}")
-_ASSIGN = re.compile(r"(?:^|;)\s*(?:export\s+)?([A-Z][A-Z0-9_]*)=")
-_FOR_VAR = re.compile(r"\bfor\s+([A-Z][A-Z0-9_]*)\s+in\b")
-_READ_VAR = re.compile(r"\bread\s+(?:-r\s+)?([A-Z][A-Z0-9_]*)\b")
+_ANY_EXPR_FULL = re.compile(r"\$\{\{.*?\}\}", re.DOTALL)
+_ASSIGN = re.compile(r"(?:^|;)\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=")
+_FOR_VAR = re.compile(r"\bfor\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\b")
+_READ_VAR = re.compile(r"\bread\s+(?:-r\s+)?([A-Za-z_][A-Za-z0-9_]*)\b")
 # Non-empty guards that make a secret-backed var fail-loud at runtime.
 # ${X:?} always aborts. A -n test ([ / [[ / test) counts ONLY when the same
 # line carries an abort token (exit/return) after it — a non-terminating
 # probe like `[ -n "$X" ] || true` or a bare `if [ -n "$X" ]; then ...; fi`
 # lets an empty secret flow into later commands (evaluator r8). -z NEVER
 # counts (it succeeds when empty — evaluator r7).
-_GUARD_PARAM = re.compile(r"\$\{([A-Z][A-Z0-9_]*):\?")
+_GUARD_PARAM = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*):\?")
 # Structural -n test on the UNQUOTED view: the var lives in a double-quoted
 # span there, so the name is recovered from the code view at the gap.
 # The gap after -n includes the blanked (quoted) variable region — the
@@ -117,9 +123,9 @@ _NTEST_STRUCT = re.compile(r"(?:\[\[?|test)\s+-n(\s[^\]|&;]*)")
 # `|| { anything; exit ... }` — exit/return at brace-start or after `;`.
 _TERMINATES = re.compile(
     r"\s*\]{0,2}\s*\|\|\s*"
-    r"(?:(?:exit|return)\b|\{\s*(?:exit|return)\b|\{[^}]*?;\s*(?:exit|return)\b)"
+    r"(?:exit\b|\{\s*exit\b|\{[^}]*?;\s*exit\b)"
 )
-_SECRET_VALUE = re.compile(r"\$\{\{[^}]*\bsecrets\s*[.\[]")
+_SECRET_VALUE = re.compile(r"\$\{\{(?:(?!\}\}).)*\bsecrets\s*[.\[]", re.DOTALL)
 # Expression-backed env values that can render EMPTY on misconfig require
 # the terminating guard (evaluator r13: not just secrets — env./inputs./
 # needs./steps./github.event.inputs all render "" when missing). The ONLY
@@ -132,7 +138,7 @@ _ALWAYS_PRESENT = re.compile(
 _ANY_EXPR = re.compile(r"\$\{\{")
 _EXPORT_CMD = re.compile(r"(?:echo|printf)\b")
 _EXPORT_FULL = re.compile(
-    r"(?:echo|printf)\s+[\"']?([A-Z][A-Z0-9_]*)=.*?\$\{?GITHUB_ENV\}?"
+    r"(?:echo|printf)\s+[\"']?([A-Za-z_][A-Za-z0-9_]*)=.*?\$\{?GITHUB_ENV\}?"
 )
 _IF_OPEN = re.compile(r"\b(?:if|case)\b")
 _IF_CLOSE = re.compile(r"\b(?:fi|esac)\b")
@@ -276,7 +282,7 @@ def _scan_run_script(
     unguarded: list[str] = []
     _SEP = re.compile(r"[;|&\n]")
     _FUNC_OPEN = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\s*\(\)\s*\{")
-    _TERMINATOR = re.compile(r"\b(?:exit|return)\b")
+    _TERMINATOR = re.compile(r"\bexit\b")
     cond_depth = 0
     func_depth = 0
     script_dead = False  # set after an unconditional command-position exit

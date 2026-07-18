@@ -1005,3 +1005,92 @@ def test_quoted_substitution_with_inner_quotes_is_standalone():
           echo "$AUTH_HDR"
 """)
     assert lint_workflow_text(text, "f.yml") == []
+
+
+# ---- Post-merge round: lowercase names, format() wrappers, return -----------
+
+
+def test_lowercase_env_names_are_scanned():
+    text = _wf("""
+      - name: gate
+        env:
+          token: ${{ secrets.TOKEN }}
+        run: |
+          curl "$token"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("token" in f and "TERMINATING guard" in f for f in findings)
+
+
+def test_lowercase_undeclared_consumption_is_a_finding():
+    text = _wf("""
+      - name: gate
+        run: |
+          curl "$mystery_value"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("mystery_value" in f and "no visible source" in f for f in findings)
+
+
+def test_lowercase_local_assignment_still_clean():
+    text = _wf("""
+      - name: local
+        run: |
+          missing=""
+          [ -n "$missing" ] || echo none
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_format_wrapper_does_not_evade_vars_ban():
+    text = _wf("""
+      - name: cfg
+        env:
+          MODEL: ${{ format('{0}', vars.MODEL) }}
+        run: |
+          : "${MODEL:?}"
+          echo "$MODEL"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("vars" in f and "forbidden" in f for f in findings)
+
+
+def test_format_wrapper_does_not_evade_run_expression_ban():
+    text = _wf("""
+      - name: leaky
+        run: |
+          echo "${{ format('{0}', github.event.inputs.range) }}"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("EMPTY STRING" in f for f in findings)
+
+
+def test_or_return_is_not_a_terminating_guard():
+    # run: scripts are not sourced functions — return does not abort them.
+    text = _wf("""
+      - name: gate
+        env:
+          SECRET_TOKEN: ${{ secrets.SECRET_TOKEN }}
+        run: |
+          [ -n "$SECRET_TOKEN" ] || return 1
+          curl "$SECRET_TOKEN"
+""")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("TERMINATING guard" in f for f in findings)
+
+
+def test_no_expression_regex_uses_the_fragile_no_brace_class():
+    # Sibling-completeness counter-move (4th occurrence of the class:
+    # r9 short-names, r12 vars-bracket, r15 param-guards, r18
+    # format-wrapper): `[^}]*` inside a `${{ ... }}` matcher breaks on any
+    # single `}` in the expression (format('{0}')). This source-level test
+    # bans the pattern in EVERY matcher at once, so a future sibling regex
+    # cannot reintroduce it silently.
+    src = TOOL.read_text(encoding="utf-8")
+    import re as _re
+    for m in _re.finditer(r're\.compile\(\s*r?"((?:[^"\\]|\\.)*)"', src):
+        pattern = m.group(1)
+        if "\\{\\{" in pattern:
+            assert "[^}]" not in pattern, (
+                f"expression matcher uses fragile [^}}] class: {pattern[:60]}"
+            )
