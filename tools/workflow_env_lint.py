@@ -6,9 +6,9 @@ catches: #11, #12, #14 ×2 — a gate step consuming an env var that is unset or
 empty silently no-ops instead of failing). Two mechanical rules over every
 workflow in .github/workflows/:
 
-R1 UNDECLARED-ENV: every UPPERCASE shell variable a `run:` step consumes
-   (scope: UPPER_SNAKE names, the workflow/env convention — lowercase
-   script locals are out of scope by design, stated explicitly per r8)
+R1 UNDECLARED-ENV: every shell variable a `run:` step consumes — ANY case
+   (r18: GitHub env names are case-sensitive and lowercase is valid shell;
+   an invisible name class was the fail-open)
    must have a visible source: step/job/workflow `env:`, an earlier step's
    `>> "$GITHUB_ENV"` export, an assignment/read within the script itself,
    or the ambient runner allowlist below. No visible source = the
@@ -18,9 +18,9 @@ R4 EXPRESSION-GUARD: an env var whose value is ANY GitHub expression that
    fields — everything except a safelist of always-present github.*
    platform fields), when consumed in shell text, must
    carry a visible TERMINATING non-empty guard — ${X:?}, or a -n test
-   with an abort (exit/return) on the same line; a non-terminating -n
-   probe never counts, -z never counts — at-or-before first use, at ANY
-   env declaration scope (workflow, job, or step)
+   whose FAILURE branch exits on the same line (exit only: run: scripts
+   are not sourced functions, so return aborts nothing — r18); probes and
+   -z never count — at-or-before first use, at ANY env declaration scope
    — declaration alone cannot prove the secret exists at runtime.
    Boundary: env vars inherited implicitly by child processes (never
    expanded in shell text) are the consuming program's fail-loud
