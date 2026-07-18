@@ -37,5 +37,17 @@ review doc + queue amendments committed.
 
 ## Open threads
 
-- None new. Session's validate/PR status recorded in the changelog entry
-  and PR description.
+- Session's validate/PR status recorded in the changelog entry and PR
+  description.
+
+## Addendum 2026-07-18 — Kaizen turned on the session itself (founder challenge)
+
+The founder challenged the visual_regression skip report. The skip was
+legitimate (R-002, trigger unfired), but the report omitted the citation —
+ledgered as the first founder(Red)-caught process defect (class:
+skip-report-missing-record-citation). Response in the same push: SESSION_START
+skip-citation rule (prose), validate mechanization queued (P2, gate custody),
+send_later approval-block logged as REPEAT friction with a founder-side fix
+queued. Meta-lesson recorded in AGENT_FEEDBACK: any founder catch = gate-gap
+signal by default. CI note: trust-gate + adversarial-review both green on the
+original push; this addendum re-runs both.
