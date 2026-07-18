@@ -64,24 +64,36 @@ jobs:
           python-version: "3.12"
 
       - name: Resolve the base ref and diff range
+        # Values computed in the expression layer, consumed via guarded env
+        # (r14: no direct expressions in run: — empty-able values must fail
+        # loud, and direct interpolation is the script-injection surface).
         id: range
+        env:
+          RESOLVED_BASE: ${{ github.event_name == 'workflow_dispatch' && 'origin/master' || format('origin/{0}', github.base_ref) }}
+          RESOLVED_RANGE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.range || format('origin/{0}...HEAD', github.base_ref) }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "base=origin/master" >> "$GITHUB_OUTPUT"
-            echo "range=${{ github.event.inputs.range }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "base=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
-            echo "range=origin/${{ github.base_ref }}...HEAD" >> "$GITHUB_OUTPUT"
+          : "${RESOLVED_BASE:?base unresolved — failing closed}"
+          : "${RESOLVED_RANGE:?range unresolved — failing closed}"
+          # Syntax-validate the range (r17): a malformed dispatch input must
+          # die here, not surface later as a swallowed git failure.
+          if ! [[ "$RESOLVED_RANGE" =~ ^[A-Za-z0-9_./^~-]+\.\.\.?[A-Za-z0-9_./^~-]+$ ]]; then
+            echo "::error::invalid diff range syntax (value redacted — expected <base>...<head>)"
+            exit 1
           fi
+          echo "base=$RESOLVED_BASE" >> "$GITHUB_OUTPUT"
+          echo "range=$RESOLVED_RANGE" >> "$GITHUB_OUTPUT"
 
       - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
+        env:
+          TRUSTED_BASE: ${{ steps.range.outputs.base }}
         run: |
+          : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
           mkdir -p /tmp/trusted
-          if git show "${{ steps.range.outputs.base }}:tools/adversarial_review.py" \
+          if git show "$TRUSTED_BASE:tools/adversarial_review.py" \
                > /tmp/trusted/adversarial_review.py 2>/dev/null; then
-            echo "Using tools/adversarial_review.py from ${{ steps.range.outputs.base }} (trusted)."
+            echo "Using tools/adversarial_review.py from $TRUSTED_BASE (trusted)."
           else
-            echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on ${{ steps.range.outputs.base }}. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
+            echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on $TRUSTED_BASE. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
             exit 1
           fi
 
@@ -95,10 +107,29 @@ jobs:
           set -o pipefail
           python -m pytest -q 2>&1 | tee pytest.log
 
-      - name: Web checks + SCA when web/ is touched (log captured for the evaluator)
+      - name: Full validate gate (machine evidence for the evaluator)
+        # Added 2026-07-18 (evaluator r2 on PR #35, unverifiable-claim class
+        # fix): the evaluator receives tools/validate's own machine-generated
+        # log instead of hand-copied summaries. --allow-skips acknowledges
+        # Record-bound environmental skips (e.g. visual_regression → R-002)
+        # ONLY: a SKIP with no OPEN docs/RECORD.md row, any kaizen_trends
+        # finding (M3 escape / unaddressed repeat-class alarm), and any
+        # workflow_env_lint finding are hard FAILs the flag cannot waive
+        # (evaluator r5) — this step can actually go red on all of them.
         run: |
           set -o pipefail
-          if git diff --name-only "${{ steps.range.outputs.range }}" | grep -q '^web/'; then
+          bash tools/validate --allow-skips 2>&1 | tee validate.log
+
+      - name: Web checks + SCA when web/ is touched (log captured for the evaluator)
+        env:
+          DIFF_RANGE: ${{ steps.range.outputs.range }}
+        run: |
+          set -euo pipefail
+          : "${DIFF_RANGE:?diff range unresolved — failing closed}"
+          # A git failure must FAIL this step (r17) — under a plain if, a bad
+          # range read as "no web files touched" and skipped the SCA gate.
+          CHANGED_FILES="$(git diff --name-only "$DIFF_RANGE")"
+          if grep -q '^web/' <<< "$CHANGED_FILES"; then
             (
               cd web
               npm ci
@@ -119,7 +150,19 @@ jobs:
           fi
 
       - name: Extract the diff under review (lockfiles + fetched corpus excluded by policy)
+        env:
+          DIFF_RANGE: ${{ steps.range.outputs.range }}
         run: |
+          set -euo pipefail
+          : "${DIFF_RANGE:?diff range unresolved — failing closed}"
+          # git diff runs standalone FIRST (r17): under set -e a failure
+          # kills the step before any notes-only pr.diff can reach the
+          # evaluator; the subject diff is then appended to the notes.
+          git diff "$DIFF_RANGE" -- . \
+            ':(exclude)**/package-lock.json' \
+            ':(exclude)ventures/promise_ledger/eval/source_material/*.htm' \
+            ':(exclude)ventures/promise_ledger/eval/source_material/*.html' \
+            ':(exclude)ventures/promise_ledger/eval/source_material/*.pdf' > subject.diff
           {
             echo "# NOTE to evaluator: machine-generated lockfiles (package-lock.json)"
             echo "# are excluded from this diff by policy — they are npm-generated and"
@@ -153,11 +196,7 @@ jobs:
             echo "# exam run exists for this PR's head SHA. Merge discipline requires BOTH"
             echo "# this review and that verifier green on the PR's current head; absence"
             echo "# of exam output here is expected and is not absence of the gate."
-            git diff "${{ steps.range.outputs.range }}" -- . \
-              ':(exclude)**/package-lock.json' \
-              ':(exclude)ventures/promise_ledger/eval/source_material/*.htm' \
-              ':(exclude)ventures/promise_ledger/eval/source_material/*.html' \
-              ':(exclude)ventures/promise_ledger/eval/source_material/*.pdf'
+            cat subject.diff
           } > pr.diff
           wc -c pr.diff
 
@@ -200,4 +239,5 @@ jobs:
           # either direction, requires a new founder decision.
           python -I /tmp/trusted/adversarial_review.py --require \
             --max-diff-bytes 800000 \
-            --diff-file pr.diff --test-log pytest.log --test-log web.log
+            --diff-file pr.diff --test-log pytest.log --test-log web.log \
+            --test-log validate.log

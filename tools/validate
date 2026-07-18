@@ -60,10 +60,14 @@ ANY_SKIP=0
 ANY_ADVISORY=0
 
 record() {
+  # Statuses: PASS/FAIL/ADVISORY/SKIP, plus QSKIP — a STRUCTURED quick-mode
+  # skip recorded ONLY at the two --quick sites below. QSKIP is exempt from
+  # Record binding by status (never by note text — evaluator r3, PR #35) but
+  # still counts as a skip for the exit-code discipline.
   RESULTS+=("$1"$'\t'"$2"$'\t'"${3:-}")
   case "$1" in
-    SKIP)     ANY_SKIP=1 ;;
-    ADVISORY) ANY_ADVISORY=1 ;;
+    SKIP|QSKIP) ANY_SKIP=1 ;;
+    ADVISORY)   ANY_ADVISORY=1 ;;
   esac
 }
 
@@ -84,21 +88,29 @@ run_check() {
 
 run_advisory() {
   # run_advisory <name> <cmd...> — advisory (findings don't fail) unless
-  # --strict, in which case exit!=0 becomes a FAIL. Always runs; never silent.
+  # --strict, in which case findings become a FAIL. Always runs; never
+  # silent. Exit contract (evaluator r13): 0 = clean → PASS; 3 = findings,
+  # advisory → ADVISORY row (never plain PASS — evidence must distinguish
+  # clean from findings-present); anything else = the tool itself broke →
+  # FAIL regardless of strictness.
   local name="$1"; shift
   echo "── ${name}$( [ "$STRICT" -eq 1 ] && echo ' (strict)' ) ──────────────"
-  if "$@"; then
+  "$@"
+  local rc=$?
+  if [ "$rc" -eq 0 ]; then
     echo "[PASS] ${name}"
     record PASS "$name"
+  elif [ "$rc" -eq 3 ] && [ "$STRICT" -eq 0 ]; then
+    echo "[ADVISORY] ${name} reported findings — review them (non-blocking)."
+    record ADVISORY "$name" "findings — review"
+  elif [ "$rc" -eq 3 ]; then
+    echo "[FAIL] ${name} (findings, --strict)" >&2
+    record FAIL "$name" "findings (strict)"
+    ANY_FAIL=1
   else
-    if [ "$STRICT" -eq 1 ]; then
-      echo "[FAIL] ${name} (findings, --strict)" >&2
-      record FAIL "$name" "findings (strict)"
-      ANY_FAIL=1
-    else
-      echo "[ADVISORY] ${name} reported findings — review them (non-blocking)."
-      record ADVISORY "$name" "findings — review"
-    fi
+    echo "[FAIL] ${name} — the tool itself failed (rc=${rc}), not a findings exit" >&2
+    record FAIL "$name" "tool failed (rc=${rc})"
+    ANY_FAIL=1
   fi
   echo
 }
@@ -120,6 +132,11 @@ run_check "lint" "$PY" tools/lint.py
 #     rule 2026-07-13; see CLAUDE.md "The Record").
 run_check "deferral_scan" "$PY" tools/deferral_scan.py
 
+# 2c. Env-contract linter for GitHub workflows (R-019, the empty-env class
+#     fix): every env var a run step consumes has a visible reviewed source,
+#     and the vars. context (unset==empty, can't fail closed) is banned.
+run_check "workflow_env_lint" "$PY" tools/workflow_env_lint.py
+
 # 3. Full test suite — must pass. DB-integration tests self-skip without a DSN;
 #    that self-skip is internal to pytest and reported in its own output.
 run_check "pytest (full suite)" "$PY" -m pytest -q
@@ -133,7 +150,7 @@ run_check "eval_harness import" "$PY" -c \
 if [ "$QUICK" -eq 1 ]; then
   echo "── perf benchmarks ──"
   echo "[SKIP-loud] perf benchmarks skipped by --quick. NOT a pass — rerun without --quick before end-of-shift." >&2
-  record SKIP "perf benchmarks" "--quick (rerun before close)"
+  record QSKIP "perf benchmarks" "--quick (rerun before close)"
   echo
 else
   run_check "perf benchmarks" "$PY" -m pytest -q -m perf
@@ -146,23 +163,32 @@ run_advisory "test_audit" "$PY" tools/test_audit.py
 if [ "$QUICK" -eq 1 ]; then
   echo "── commit_sweep ──"
   echo "[SKIP-loud] commit_sweep skipped by --quick. NOT a pass." >&2
-  record SKIP "commit_sweep" "--quick (rerun before close)"
+  record QSKIP "commit_sweep" "--quick (rerun before close)"
   echo
 else
   run_advisory "commit_sweep" "$PY" tools/commit_sweep.py
 fi
 
+# 7b. Kaizen trend meter — computes the trend report from the ledger
+#     (docs/KAIZEN.md "Trend instrumentation"). HARD GATE (evaluator r5: an
+#     M3 escape or an unaddressed repeat-class alarm must never be waivable
+#     by --allow-skips — an alarm is a due fix, not information): findings
+#     turn the run RED outright.
+run_check "kaizen_trends" "$PY" tools/kaizen_trends.py
+
 # 8. Visual regression — needs a booted app + baselines; cannot run headless
 #    here. Detect and SKIP-LOUD (never a silent pass), per the item-15 harness.
 echo "── visual_regression ──"
 VR_NOTE="app not running / baselines absent"
+# Surface the Record binding at FIRST emission (evaluator r3 nit) — computed,
+# never hardcoded, so this message can't drift from the register.
+VR_RID="$("$PY" tools/skip_record_binding.py visual_regression 2>/dev/null || echo 'NO OPEN RECORD ROW — this skip will FAIL below')"
 if [ -n "${ONELIVE_APP_URL:-}" ]; then
-  if run_check_vr=$("$PY" tools/visual_regression.py --help >/dev/null 2>&1; echo $?); then :; fi
-  echo "[INFO] ONELIVE_APP_URL set (${ONELIVE_APP_URL}). Run visual_regression.py capture-and-compare manually per docs/../tests/visual_baselines/README.md." 
-  echo "[SKIP-loud] validate does not auto-boot the app; visual regression must be run against a live URL with committed baselines." >&2
+  echo "[INFO] ONELIVE_APP_URL set (${ONELIVE_APP_URL}). Run visual_regression.py capture-and-compare manually per docs/../tests/visual_baselines/README.md."
+  echo "[SKIP-loud] validate does not auto-boot the app; visual regression must be run against a live URL with committed baselines. (Record: ${VR_RID})" >&2
   record SKIP "visual_regression" "run manually vs live URL"
 else
-  echo "[SKIP-loud] visual_regression: ONELIVE_APP_URL not set and no booted app — SKIPPED, NOT passed." >&2
+  echo "[SKIP-loud] visual_regression: ONELIVE_APP_URL not set and no booted app — SKIPPED, NOT passed. (Record: ${VR_RID})" >&2
   echo "            To run: start the web app, set ONELIVE_APP_URL, then (name is positional," >&2
   echo "            --capture-cmd is required and needs {url}/{out} placeholders):" >&2
   echo "            python tools/visual_regression.py capture-and-compare ops_inbox \\" >&2
@@ -171,6 +197,49 @@ else
   record SKIP "visual_regression" "$VR_NOTE"
 fi
 echo
+
+# ---- Skip→Record binding (mechanical, added 2026-07-18) ----------------------
+# Class fixes: skip-report-missing-record-citation (founder-caught) and the
+# unverifiable-claim family (evaluator-caught on PRs #20/#27/#35). Every
+# ENVIRONMENTAL skip must correspond to an OPEN docs/RECORD.md row that names
+# the check as a backticked token (deviation + cited bar + objective trigger)
+# or it becomes a FAILURE — --allow-skips never covers an unrecorded skip.
+# Quick-mode skips are exempt via the STRUCTURED QSKIP status set only at the
+# two --quick sites above (never via note text — evaluator r3); they still
+# block a clean close without --allow-skips. This section only ADDS failure
+# modes; nothing that failed before can pass now.
+# The loop lives in a sourced, directly-tested file (evaluator r3: the
+# exemption must be structured state, and the loop itself must be testable).
+source "$REPO_ROOT/tools/validate_bind_skips.sh"
+bind_skips
+RESULTS=("${BOUND_RESULTS[@]}")
+
+# ---- Machine-stamped evidence block ------------------------------------------
+# Evidence is GENERATED, never hand-copied (the unverifiable-claim class fix):
+# printed to stdout and written to .validate-evidence.txt (gitignored) for
+# verbatim paste into session arcs / PR bodies. In CI this whole run is teed
+# to a log the evaluator receives, so the block also arrives as a command
+# artifact that can actually fail.
+emit_evidence() {
+  local result="$1"
+  local out=".validate-evidence.txt"
+  {
+    echo "---- VALIDATE EVIDENCE (machine-generated by tools/validate; paste verbatim) ----"
+    echo "generated_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "git_head: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+    echo "git_branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+    echo "worktree: $(git status --porcelain 2>/dev/null | grep -q . && echo dirty || echo clean)"
+    echo "flags: strict=${STRICT} quick=${QUICK} allow_skips=${ALLOW_SKIPS}"
+    local row status name note
+    for row in "${RESULTS[@]}"; do
+      IFS=$'\t' read -r status name note <<< "$row"
+      echo "check: ${name} = ${status}${note:+ (${note})}"
+    done
+    echo "result: ${result}"
+    echo "--------------------------------------------------------------------------------"
+  } | tee "$out"
+  echo "(evidence also written to ${out} — gitignored; paste it verbatim, never retype)"
+}
 
 # ---- Summary table -----------------------------------------------------------
 echo "================================================================"
@@ -185,6 +254,7 @@ done
 echo "----------------------------------------------------------------"
 
 if [ "$ANY_FAIL" -ne 0 ]; then
+  emit_evidence "FAIL"
   echo "RESULT: FAIL — at least one check failed. Do not finish/sleep on red." >&2
   exit 1
 fi
@@ -198,16 +268,26 @@ if [ "$ANY_SKIP" -ne 0 ] || [ "$ANY_ADVISORY" -ne 0 ]; then
   [ "$ANY_SKIP" -ne 0 ]     && reasons="skipped checks"
   [ "$ANY_ADVISORY" -ne 0 ] && reasons="${reasons:+$reasons + }advisory findings"
   if [ "$ALLOW_SKIPS" -eq 1 ]; then
-    echo "RESULT: PASS (--allow-skips) — ${reasons} present but explicitly acknowledged."
-    echo "        This is a human-acknowledged incomplete run, NOT a fully verified one."
+    # Message stays truthful in quick mode (evaluator r4 nit): only
+    # environmental skips are Record-bound; quick-mode skips are
+    # flag-inflicted and must be rerun before close.
+    if [ "$QUICK" -eq 1 ]; then
+      emit_evidence "INCOMPLETE-ACKNOWLEDGED (--allow-skips; environmental SKIPs Record-bound; --quick skips are flag-inflicted — rerun before close)"
+    else
+      emit_evidence "INCOMPLETE-ACKNOWLEDGED (--allow-skips; every remaining SKIP is bound to an OPEN Record row above — not fully green, not release evidence)"
+    fi
+    echo "RESULT: INCOMPLETE-ACKNOWLEDGED (exit 0 because --allow-skips) — ${reasons} present, explicitly acknowledged."
+    echo "        This is a human-acknowledged INCOMPLETE run — NOT fully green and NOT release evidence."
     echo "        Resolve them (esp. visual_regression) before the shift is truly closed."
     exit 0
   fi
+  emit_evidence "INCOMPLETE"
   echo "RESULT: INCOMPLETE — ${reasons}. This is NOT a pass." >&2
   echo "        Resolve the SKIP/ADVISORY rows above, or re-run with --allow-skips" >&2
   echo "        to record a human-acknowledged incomplete run (exit 0)." >&2
   exit 2
 fi
 
+emit_evidence "PASS"
 echo "RESULT: PASS — every check ran and passed. Safe to finish."
 exit 0

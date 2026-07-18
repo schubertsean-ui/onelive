@@ -153,6 +153,48 @@ Improvement levers between steps: per-source extraction templates (po
 harvest), prompt hardening from each error class, structured-output
 constraints, and model upgrades that pass the same exam.
 
+
+## Trend instrumentation (added 2026-07-18 at founder direction — trends are computed, never asserted)
+
+Founder: everything — every action, decision, non-action, the loop, the
+harness, the meta — trends toward zero/perfect, and the trend itself must be
+measured. The meter: `tools/kaizen_trends.py`, run on every `tools/validate`
+pass (advisory: findings make the run non-green; --strict makes them FAIL).
+It computes, from the ledger alone:
+- **M3 escapes** — 0, absolute (any `M3-ESCAPE` token = hard finding).
+- **Repeat-class alarm** — any class family caught ≥3 times with no
+  structural-fix marker = finding (the rule the evaluator enforced by
+  judgment on PR #35 r2, now mechanical).
+- **M1 rounds-to-green direction**, **founder(Red) catches** (must trend to
+  0 — each one means every automated layer missed it), **catches per gate**
+  (the judgment→mechanical drain, visible), **M4 cumulative**.
+
+Machine-readable conventions the meter relies on (naming discipline IS the
+enforcement surface):
+1. **Class tokens are single kebab-case tokens** immediately before "×N" in
+   M2 (`empty-env ×1`, never "empty env issues ×1"); REUSE the exact token
+   for a repeat. Single-word tokens count as classes ONLY from the declared
+   short-token registry (`tools/kaizen_trends.py::SHORT_TOKEN_REGISTRY`:
+   sql, rls, xss, auth, csrf, ssrf, race, leak — extend it there, in a
+   reviewed diff); any other bare word before ×N is prose and must use a
+   plain x ("records x4") so it never enters the class grammar. Matching is exact-token + containment families
+   (`empty-env` ⊂ `fail-open-empty-env`).
+2. **A class fix is marked** by naming the class token in the fixing row's
+   M4 column — no marker, no credit, alarm keeps firing. Markers are
+   EPOCH-scoped, never permanent waivers (evaluator r6): a marker covers
+   catches at-or-before its own row only; ANY catch of the family in a later
+   row alarms immediately as a post-fix recurrence ("the fix escaped") and
+   demands a root-cause plus a NEW marker row.
+3. **M3 escape rows carry the literal token `M3-ESCAPE`.**
+4. Rows stay append-only; marker backfills for already-shipped fixes land as
+   correction rows referencing the original (see 2026-07-18 backfill row).
+
+What must trend to zero: escapes, repeat classes, founder catches,
+rounds-to-green, judgment-dependent catches per class (each hat's drain to
+mechanization, docs/hats/). What must NOT be minimized: raw internal catches
+— treasure, per the two-goal structure above; suppressing them is the
+Deming failure mode this file opens with.
+
 ## Levels (deferred — R-012)
 
 Maturity levels per stage (ad-hoc → measured → self-correcting) are real

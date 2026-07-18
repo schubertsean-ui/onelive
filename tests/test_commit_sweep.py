@@ -144,9 +144,29 @@ def test_check_todo_growth_silent_when_flat_or_decreasing():
     assert findings.ok()
 
 
-def test_advisory_exit_code_is_zero_even_with_findings():
-    rc = commit_sweep.main(["--n", "3"])
-    assert rc == 0  # advisory: never fails the run without --strict
+def test_advisory_findings_exit_3_deterministically():
+    # Evaluator r14 (PR #35): the r13 contract must be pinned by tests that
+    # FAIL on regression — findings present MUST exit 3, clean MUST exit 0,
+    # each forced deterministically rather than sampled from live history.
+    orig = commit_sweep.CHECKS
+    commit_sweep.CHECKS = [
+        lambda commits, findings: findings.add("FIXTURE: injected finding")
+    ]
+    try:
+        rc = commit_sweep.main(["--n", "1"])
+    finally:
+        commit_sweep.CHECKS = orig
+    assert rc == 3
+
+
+def test_advisory_clean_exits_0_deterministically():
+    orig = commit_sweep.CHECKS
+    commit_sweep.CHECKS = []
+    try:
+        rc = commit_sweep.main(["--n", "1"])
+    finally:
+        commit_sweep.CHECKS = orig
+    assert rc == 0
 
 
 def test_strict_exit_code_reflects_findings():

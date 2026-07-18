@@ -73,7 +73,19 @@ depends on an open founder decision. For an autonomous/overnight run, follow
 3. **Run `bash tools/validate`** — the single "run everything" gate (trust_gate,
    lint, full pytest, eval_harness, perf, test_audit, commit_sweep,
    visual_regression). RESULT: FAIL → you are not done. A SKIPPED check is NOT a
-   pass — resolve it or hand it to the founder explicitly.
+   pass — resolve it or hand it to the founder explicitly, and **every skip you
+   report (chat, PR body, changelog) must cite its `docs/RECORD.md` row by id
+   (e.g. "visual_regression skipped — R-002")**. This is MECHANICAL, not
+   remembered: validate binds every environmental SKIP to an OPEN Record row
+   via `tools/skip_record_binding.py` and goes RED on an unrecorded skip
+   (--allow-skips never covers one), and it emits a machine-stamped evidence
+   block (`.validate-evidence.txt` + stdout). **The ONE evidence rule:** when
+   CI ran validate on the commit you're describing, CITE that run (the
+   adversarial-review job's validate.log) by run id/link — never paste a
+   copy, it goes stale; only when no CI run exists for the commit (purely
+   local close) does the machine block from the FINALIZING run get pasted,
+   verbatim, never retyped or hand-edited (Kaizen 2026-07-18, classes:
+   skip-report-missing-record-citation, unverifiable-claim, stale-evidence).
 4. Write the session arc (`docs/session_arcs/YYYY-MM-DD_slug.md`), add it to the
    README index, and **tag it** `arc/YYYY-MM-DD_slug` (see session_arcs/README.md).
    Mirror key decisions to memory.
@@ -83,7 +95,9 @@ depends on an open founder decision. For an autonomous/overnight run, follow
 7. Review `docs/RECORD.md` OPEN rows (the no-silent-deferrals register):
    resolve, re-affirm, or escalate each. A row whose resolution trigger has
    fired but wasn't acted on is a defect, not a backlog item.
-8. Append the session's Kaizen ledger rows (`docs/metrics/KAIZEN_LEDGER.md`):
+8. Run `python tools/kaizen_trends.py` (also runs inside validate) and act on
+   any finding — an alarm is a due fix, not information. Append the session's
+   Kaizen ledger rows (`docs/metrics/KAIZEN_LEDGER.md`):
    M1/M2/M5 per merged PR, M4 gate-gap fixes, M6 po harvests (M3 escapes are
    recorded the moment they're found, never batched). See `docs/KAIZEN.md`.
 

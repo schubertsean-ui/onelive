@@ -56,6 +56,7 @@ jobs:
           # run_once.py (defense in depth, evaluator finding PR #12 round 1).
           MAX_SOURCES: ${{ github.event.inputs.max_sources }}
         run: |
+          : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
           # [[ =~ ]] validates the WHOLE string (POSIX ERE, not line-oriented
           # like grep — a newline-smuggled second line cannot pass), and the
           # raw value is never echoed into an annotation (log-command
@@ -72,9 +73,9 @@ jobs:
           ORCHESTRATOR_PING_URL: ${{ secrets.ORCHESTRATOR_PING_URL }}
         run: |
           missing=""
-          [ -z "$ONELIVE_DB_DSN" ] && missing="$missing ONELIVE_DB_DSN"
-          [ -z "$ANTHROPIC_API_KEY" ] && missing="$missing ANTHROPIC_API_KEY"
-          [ -z "$ORCHESTRATOR_PING_URL" ] && missing="$missing ORCHESTRATOR_PING_URL"
+          [ -n "$ONELIVE_DB_DSN" ] || missing="$missing ONELIVE_DB_DSN"
+          [ -n "$ANTHROPIC_API_KEY" ] || missing="$missing ANTHROPIC_API_KEY"
+          [ -n "$ORCHESTRATOR_PING_URL" ] || missing="$missing ORCHESTRATOR_PING_URL"
           if [ -n "$missing" ]; then
             echo "::error::Ingestion refused — missing Actions secret(s):$missing. Minting keys is founder-crucial; the Anthropic key requires a console spend cap FIRST (§14.3). See docs/SPRINT_LIVE_SITE.md Step 5."
             exit 1
@@ -119,6 +120,7 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           MAX_SOURCES: ${{ github.event.inputs.max_sources }}
         run: |
+          : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
           export ONELIVE_DB_DSN
           python worker/run_once.py --real --max-sources "$MAX_SOURCES"

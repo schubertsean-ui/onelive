@@ -154,8 +154,9 @@ Stop the autonomous run and leave a clear arc note + notification when:
 - An item requires an **open founder decision** (STATE.md "Open founder decisions").
 - `tools/validate` is **red** and the fix is not obvious/safe within the iteration cap.
 - Any **irreversible action** is needed (deploy, migration apply, sending anything,
-  merging a PR, moving money). Per OPERATING_RULES §9 and CLAUDE.md, these are
+  moving money). Per OPERATING_RULES §9 and CLAUDE.md, these are
   human-checkpoint gated — draft/PR it, never execute it autonomously.
+  **Exception — PR merges (founder-directed 2026-07-18, `docs/memory/decisions/2026-07-18_agent-merges-on-green.md`):** the agent merges its own PR once EVERY gate is green (evaluator APPROVE + all required checks on the final head) and notifies the founder; merging on red or with any gate pending stays forbidden.
 - The trust invariants (`trust_gate.py`) would have to be weakened to proceed.
 
 The point of the loop is leverage, not recklessness. Park cleanly, checkpoint, and
