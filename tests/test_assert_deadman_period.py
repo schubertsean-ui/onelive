@@ -96,9 +96,21 @@ def test_period_mismatch_fails_closed(env, capsys):
     assert "period mismatch" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("bad_grace", [601, 86400, None, "600"])
-def test_grace_over_bound_or_mistyped_fails_closed(env, bad_grace):
+@pytest.mark.parametrize("bad_grace", [601, 86400, None, "600", -1, True])
+def test_grace_out_of_bounds_or_mistyped_fails_closed(env, bad_grace):
+    """r12: 0 <= grace <= max_grace, int only — negative and bool fail too."""
     assert _run(env, [_check(grace=bad_grace)]) == 2
+
+
+@pytest.mark.parametrize("var,bad", [
+    ("EXPECTED_PERIOD_SECONDS", "0"), ("EXPECTED_PERIOD_SECONDS", "-1200"),
+    ("MAX_GRACE_SECONDS", "0"), ("MAX_GRACE_SECONDS", "-600"),
+    ("EXPECTED_PERIOD_SECONDS", "twenty"),
+])
+def test_nonpositive_or_garbage_bounds_fail_closed(env, var, bad):
+    """r12: non-positive declared bounds are misconfig, never satisfiable."""
+    env.setenv(var, bad)
+    assert _run(env, [_check()]) == 2
 
 
 def test_secret_material_never_in_failure_output(env, capsys):

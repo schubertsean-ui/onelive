@@ -80,10 +80,14 @@ def main() -> int:
         expected_period = int(os.environ["EXPECTED_PERIOD_SECONDS"])
         max_grace = int(os.environ["MAX_GRACE_SECONDS"])
     except (KeyError, ValueError):
+        expected_period = max_grace = -1
+    if expected_period <= 0 or max_grace <= 0:
         return _fail(
             "EXPECTED_PERIOD_SECONDS / MAX_GRACE_SECONDS must be set "
-            "integers — they are declared next to the cron line in "
-            "ingest.yml so cadence and alarm period move together."
+            "POSITIVE integers — they are declared next to the cron line "
+            "in ingest.yml so cadence and alarm period move together "
+            "(r12: non-positive bounds would make the assertion "
+            "unsatisfiable or meaningless, fail closed)."
         )
     if not ping_url:
         return _fail("ORCHESTRATOR_PING_URL is not set — failing closed.")
@@ -128,10 +132,12 @@ def main() -> int:
             "Update the check's Period, or change both cadence and "
             "declaration together through review."
         )
-    if not isinstance(grace, int) or grace > max_grace:
+    if not isinstance(grace, int) or isinstance(grace, bool) \
+            or not 0 <= grace <= max_grace:
         return _fail(
-            f"grace {grace!r}s exceeds the declared bound {max_grace}s — "
-            "alarms must fire within period+grace of a dead cron."
+            f"grace {grace!r}s is outside [0, {max_grace}]s — alarms must "
+            "fire within period+grace of a dead cron (r12: negative or "
+            "mistyped grace fails closed too)."
         )
     print(
         f"assert_deadman_period: OK — check {_elide(ping_uuid)} period "

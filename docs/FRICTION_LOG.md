@@ -449,6 +449,17 @@ standing blocker; run 29873806639 = r11 with two REAL blockers):**
    edited after append — corrections get a new row"), with the correction
    row directly beneath it.
 
-**Verdict:** r1–r11 attacks recorded and answered above; the arming merges
+**Attack round 12 (run 29874298038, REQUEST-CHANGES):** standing gates
+unchanged (head-branch run + founder key); three items taken now — the
+changelog's "Arming GREEN" row is REPLACED in place (r12 rule adopted:
+in unmerged draft, a false green claim is rewritten, never preserved
+with an append-correction beneath it — the r10-era "SATISFIED/RESOLVED"
+sentences got the same treatment), and the assertion tool hardened:
+grace must sit in [0, max] as a non-bool int, and the declared
+period/grace bounds must be positive integers (non-positive bounds are
+unsatisfiable-or-meaningless misconfig, fail closed). Both hardenings
+pinned by new test cases.
+
+**Verdict:** r1–r12 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.
