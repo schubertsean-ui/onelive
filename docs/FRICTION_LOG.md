@@ -369,6 +369,30 @@ answers:**
    evaluator's APPROVE (blocking check) and the committed green-run id;
    the prose narrates them, it never substitutes for them.
 
-**Verdict:** r1–r4 attacks recorded and answered above; the arming merges
+**Attack rounds 5–8 (runs 29870179043, 29870503527, 29871406408,
+29871731363, each REQUEST-CHANGES):** standing founder-gated blockers
+unchanged; per-round catches all fixed in place — r5: schema-fixture
+test binding attempt-row assumptions to migration 0003's real text +
+numeric rotation-revisit trigger (>2,000 enabled sources, printed every
+capped run); r6: rotation docstring trimmed to the executable invariant;
+r7: stale "hourly" purged from four governance records after the
+founder's 20-minute cadence directive (top Kaizen class,
+stale-cross-reference); r8: attempt-row bookkeeping failures upgraded
+from quiet warning to ERROR log + traceback note riding the original
+exception, plus the last two stale-cadence sentences.
+
+**Attack round 9 (run 29872115251, REQUEST-CHANGES) — the one new
+finding:** the healthchecks period/grace was a prose-only "founder step
+at merge" — live alarm config arming a recurring cron cannot rest on
+future prose. Answer: recorded honestly as R-020 (docs/RECORD.md) — the
+config lives in the founder's healthchecks account outside the repo's
+mechanical reach; mechanical assertion requires a read-only healthchecks
+API key (new credential = founder-crucial, the row's trigger); until
+then the failure mode is BOUNDED, never silent (success pings every ~20
+min mean even a stale period alarms within ~period+grace of a dead
+cron), and the founder's period confirmation is recorded in the
+post-merge R-008 evidence commit.
+
+**Verdict:** r1–r9 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.

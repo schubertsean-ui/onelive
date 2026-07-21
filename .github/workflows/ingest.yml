@@ -14,10 +14,15 @@ name: Ingestion Run
 # Friction pre-work attack of the arming plan is logged and answered in
 # that same entry (attacker: the non-Claude CI evaluator on the arming PR
 # itself). Dead-man ping: worker/sentinel.py wraps the run in
-# start/success/fail pings; the healthchecks.io check period matches the
-# 20-minute cadence (period 20 min, grace ~10 — the founder step at
-# merge; a stale period would hide missed slots, so cadence and period
-# move together).
+# start/success/fail pings. The check's period/grace (20 min + ~10 for
+# this cadence) live in the founder's healthchecks.io account — OUTSIDE
+# this repo's mechanical reach, an honest deferral recorded as R-020
+# (docs/RECORD.md): founder-confirmed and recorded in the post-merge
+# R-008 evidence commit, mechanically asserted only once a read-only
+# healthchecks API key exists (founder-crucial). The failure mode is
+# bounded, not silent: success pings arrive every ~20 min, so even a
+# stale period alarms within ~period+grace of a dead cron — degraded
+# latency, never a missing alarm.
 #
 # Budget shape (§14.3): `schedule` events run with a fixed 10-source
 # ceiling (keyed on event_name below — dispatch inputs don't exist on
