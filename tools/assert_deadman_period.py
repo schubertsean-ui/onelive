@@ -119,12 +119,18 @@ def main() -> int:
                 "read-only key in the project that contains the dead-man "
                 "check. Refusing to run unwatched."
             )
+        visible = ", ".join(
+            f"name={c.get('name')!r} slug={c.get('slug')!r}"
+            for c in checks[:10]
+        )
         return _fail(
-            f"the API key sees {len(checks)} check(s), but none match the "
-            f"ping URL (id {_elide(ping_uuid)}) by ping_url, unique_key "
-            "(sha1 of uuid), or slug — the dead-man URL points at a check "
-            "in another project, or a deleted one. Refusing to run "
-            "unwatched."
+            f"the API key sees {len(checks)} check(s) [{visible}], but "
+            f"none match the ping URL (id {_elide(ping_uuid)}) by "
+            "ping_url, unique_key (sha1 of uuid), or slug. Healthchecks "
+            "API keys are per-PROJECT: create the read-only key inside "
+            "the project that contains THIS check (the one receiving the "
+            "pings), or update ORCHESTRATOR_PING_URL if the check was "
+            "recreated. Refusing to run unwatched."
         )
     if check.get("status") == "paused":
         return _fail(
