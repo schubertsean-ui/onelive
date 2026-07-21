@@ -123,3 +123,116 @@ claude-sonnet-4-6 passes the golden-set exam (≤1% hallucination, recall
 
 **Verdict:** proceed — prompt bump ships now; flag flips only on a passing
 exam for the routed model, citing the evidence.
+
+---
+
+## Entry #3 — 2026-07-21 — Arming the hourly ingestion cron (Step 5; resolves R-005 + R-008)
+
+**Attacker: GPT-5.5 (non-Claude ✓) via the CI adversarial-review job on the
+arming PR itself — this entry is IN that PR's diff, so the evaluator's
+verdict IS the written attack outcome, and the PR merges only at APPROVE
+(Entry #2 precedent; OPENAI_API_KEY remains absent in the local sandbox, so
+CI is the only non-Claude channel).** This entry also submits Entry #1's
+Step-5 attack surface for the non-Claude re-attack R-005 requires: every
+Step-5 answer in Entry #1 (budget caps precede scheduling; dead-man ping;
+manual runs before cron; blast radius bounded to candidate rows) is
+restated and mechanized below — an APPROVE on this PR discharges R-005's
+blocking function for the step it blocks.
+
+**Plan under attack:** (1) add least-recently-fetched rotation to
+`worker/run_once.py`'s enabled-source query (unit-tested pure ordering);
+(2) add the hourly `schedule:` trigger to `.github/workflows/ingest.yml`
+with a fixed 10-source ceiling for scheduled runs (dispatch keeps its
+required explicit ceiling); (3) after evaluator APPROVE and BEFORE merge,
+one manual `workflow_dispatch` smoke run capped at 5 sources must go green
+end-to-end (DSN assembly, extraction, gate3, candidate rows, dead-man
+success ping, replay artifact) — spend occurs only after the non-Claude
+verdict; (4) merge arms the cron; founder notified with the
+healthchecks.io period step (1 hour + grace).
+
+**Hat structure (first live shakedown per docs/hats/ — TODOS row):**
+- *Blue frame (pre-registered before any lens ran):* decision = "arm the
+  hourly cron now, or hold?"; options = arm hourly / arm at lower cadence /
+  stay manual; success = a scheduled loop that cannot overspend, cannot die
+  silently, cannot starve coverage, and cannot publish; the frame was fixed
+  before the White pass below.
+- *White (facts, script-verified):* assemble_dsn.py passes a placeholder-free
+  DSN through untouched (line 67–68 — the founder's as-stored secret works
+  unchanged); sentinel.deadman() pings start/success/fail around the run;
+  the enabled-source query had NO ORDER BY while the cap "truncates the
+  tail" — the starvation fact that became this PR's main code change;
+  raw_fetch(source_id, fetched_at) + its index support rotation;
+  OPENAI/GEMINI keys absent in the sandbox (Black must fire from CI).
+- *Yellow (deliberate best-case, first live firing → M8):* argued upside —
+  a capped hourly loop compounds into the launch asset: fresh same-night
+  candidates for /tonight, a real per-run cost curve (routing decisions
+  get data instead of guesses), daily full-catalog freshness telemetry
+  that surfaces dead sources within 24h, and R-012's "one cron week"
+  maturity trigger finally starts running. Validation criterion for the
+  M8 row: after the first cron week — full catalog swept daily, zero
+  dead-man alarms, cost-per-run within the console cap's daily share.
+- *Black:* the CI evaluator's attack on this PR (see header) — the only
+  non-Claude lens available; the local lenses above are Claude-run and say
+  so (independence limitation logged; cross-family lenses need keys that
+  don't exist locally).
+- *Blue merge (conflict preserved):* Yellow wants hourly for freshness;
+  Black-side cost pressure wants fewer runs. Not averaged: hourly ships
+  because both caps bound the downside mechanically, and the LOGGED
+  fallback (drop to 2-hourly) fires on measured cost, not on fear.
+
+**Po battery (seed 20260721, random word "windmill") — harvest that
+survived movement:**
+- *Escape ("po: source order does not exist"):* under a per-run cap, order
+  IS coverage — plain DB order starves the tail of the ~230-source catalog
+  forever. Adopted as the PR's main code change: least-recently-fetched
+  rotation, never-fetched first, deterministic tiebreak (10/run × 24
+  runs/day ≥ catalog daily).
+- *Exaggeration ("po: the cron fires every second / once a decade"):*
+  overlapping runs when one exceeds the hour. Already bounded: concurrency
+  group `ingest` queues (never doubles) and the 60-min timeout kills
+  hangs; the dead-man check flags the missing success ping.
+- *Distortion ("po: the ping fires before the run"):* it does — `deadman()`
+  pings start/success/fail, so a run that dies mid-flight leaves a started-
+  but-never-succeeded check. Adopted: founder step at merge — set the
+  healthchecks.io check Period to 1 hour, Grace ~20 min, so a silently
+  skipped GitHub cron slot also alarms.
+- *Random "windmill" (feathering in storms):* a storm = a source page that
+  balloons or turns hostile. Bounded: sensors strip boilerplate, extraction
+  output is schema-validated, gate3 ESCALATEs weak signals, and nothing AI
+  writes leaves the candidate store without a human. Watch item for the
+  supervised first runs: per-run token cost vs the console cap.
+- *Wishful ("po: the cron costs nothing"):* the 5-source smoke run measures
+  real cost-per-run before the cron ever fires; if cost surprises, the
+  cheaper path is dropping cadence (2-hourly), a logged decision — never
+  raising the cap silently.
+
+**Attack — what breaks?** Runaway spend → per-run ceiling (fail-closed
+validation at both the workflow and `run_once.py` layers) + founder-set
+console monthly cap. Silent death → dead-man start/success/fail pings +
+founder-set period/grace. Tail starvation → rotation (above). Prompt
+injection from fetched pages → gate3 + human-only promotion: worst case is
+wrong CANDIDATE rows, never published events (AI never publishes — the
+invariant is untouched by this PR). Secret leakage → unchanged PR #19
+scope+masking design; arming adds no new secret surface.
+
+**Who is harmed if wrong?** Founder (spend) — double-capped. Fans/venues
+(wrong data) — bounded by the human gate; disputed-shown-never-hidden
+unchanged. The on-call human (alert fatigue) — one check, one period; no
+new alert channels.
+
+**Cheaper path?** Considered: stay manual-only (rejected — Step 5's
+done-criterion is a green SCHEDULED run, and manual-only rots into
+nobody-runs-it); daily instead of hourly (rejected for launch freshness —
+/tonight sells same-night accuracy; cadence drop stays the named fallback
+if cost demands it). The smoke-run-before-merge IS the adopted cheaper
+path from Entry #1.
+
+**Founder-crucial or not?** The founder-crucial parts already happened at
+founder hands: key minted with console cap first, secrets stored, dead-man
+check created ("done", 2026-07-21). Arming itself is the charter's current
+mission executed through the mandatory evaluator gate; merge-at-APPROVE +
+notify is the ratified merge protocol. No gate threshold moves.
+
+**Verdict:** pending the CI evaluator's APPROVE on the arming PR — which
+is this entry's attack verdict. REQUEST-CHANGES rounds and their written
+answers land as commits on the same PR, per Entry #2.

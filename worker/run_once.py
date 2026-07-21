@@ -140,6 +140,30 @@ def apply_source_ceiling(sources: Sequence[dict], cap: int | None) -> list:
     return list(sources[:cap])
 
 
+def order_for_rotation(rows: Sequence[tuple]) -> list:
+    """Order source rows least-recently-fetched FIRST (never-fetched before
+    everything), deterministic tiebreak by source_id.
+
+    Why this exists (Step 5 arming, FRICTION_LOG entry #3): the per-run
+    budget ceiling truncates the source list, so under a recurring cron the
+    ORDER decides coverage. Plain DB order would feed the same head-of-table
+    sources every hour and STARVE the tail forever; rotating on the last
+    raw_fetch timestamp makes the capped window sweep the whole catalog
+    (10/run x 24 runs/day >= the ~230-source catalog daily).
+
+    Rows are (source_id, name, base_url, source_type, last_fetched_at) —
+    the SELECT below. Sorting happens in Python, not SQL, so the rotation
+    contract is unit-testable without a live DB. The key tuple's first
+    element separates the never-fetched bucket, so the mixed-type second
+    element (0 vs datetime) is never compared across buckets.
+    """
+    return sorted(
+        rows,
+        key=lambda r: (r[4] is not None, r[4] if r[4] is not None else 0,
+                       str(r[0])),
+    )
+
+
 def _resolve_source_cap(cli_value: int | None) -> int | None:
     """--max-sources wins; else ONELIVE_MAX_SOURCES_PER_RUN; else uncapped
     (logged loudly by the caller). Any non-positive or non-integer value from
@@ -205,14 +229,21 @@ def _run_real(max_sources: int | None = None) -> int:
     # skipped loudly (it cannot be fetched) rather than fed a None url.
     with candidate_db() as conn:
         with conn.cursor() as cur:
+            # last_fetched_at feeds order_for_rotation() below — the capped
+            # recurring loop must sweep the catalog, not re-fetch the same
+            # head-of-table slice every run. The correlated max() rides
+            # idx_raw_fetch_source_time (migration 0003).
             cur.execute(
-                "select source_id, name, base_url, source_type "
-                "from source where enabled = true"
+                "select s.source_id, s.name, s.base_url, s.source_type, "
+                "       (select max(rf.fetched_at) from raw_fetch rf "
+                "         where rf.source_id = s.source_id) as last_fetched_at "
+                "from source s where s.enabled = true"
             )
             rows = cur.fetchall()
+    rows = order_for_rotation(rows)
     sources = []
     skipped_no_url = []
-    for (sid, name, base_url, source_type) in rows:
+    for (sid, name, base_url, source_type, _last_fetched_at) in rows:
         if not base_url:
             skipped_no_url.append(name)
             continue

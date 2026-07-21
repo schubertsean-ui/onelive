@@ -4,13 +4,22 @@ Pure logic, no DB/network: proves the per-run source ceiling truncates
 deterministically and loudly, FAILS CLOSED on 0/negative/garbage values from
 every input channel (CLI flag, argparse type, env var — a budget guard must
 never fail open; evaluator finding PR #12 round 1), and that CLI beats env
-beats uncapped-with-loud-warning in _resolve_source_cap.
+beats uncapped-with-loud-warning in _resolve_source_cap. Also pins the
+Step-5 arming rotation contract (FRICTION_LOG entry #3): under a recurring
+capped run, source order IS coverage, so ordering must be
+least-recently-fetched-first with never-fetched ahead of everything.
 """
 import argparse
+import datetime as _dt
 
 import pytest
 
-from worker.run_once import _positive_int, _resolve_source_cap, apply_source_ceiling
+from worker.run_once import (
+    _positive_int,
+    _resolve_source_cap,
+    apply_source_ceiling,
+    order_for_rotation,
+)
 
 _SOURCES = [{"name": f"s{i}"} for i in range(5)]
 
@@ -65,3 +74,41 @@ def test_argparse_type_rejects_nonpositive_and_garbage(bad_arg):
 
 def test_argparse_type_accepts_positive():
     assert _positive_int("25") == 25
+
+
+def _row(sid, last):
+    return (sid, f"name-{sid}", f"https://x/{sid}", "venue_site", last)
+
+
+_TZ = _dt.timezone.utc
+
+
+def test_rotation_never_fetched_first_then_stalest():
+    """Never-fetched sources lead; fetched ones follow stalest-first. This is
+    the property that makes an hourly capped cron sweep the catalog instead
+    of starving the tail (the cap truncates AFTER this ordering)."""
+    fresh = _row("c", _dt.datetime(2026, 7, 21, 12, 0, tzinfo=_TZ))
+    stale = _row("b", _dt.datetime(2026, 7, 1, 12, 0, tzinfo=_TZ))
+    never = _row("a", None)
+    assert order_for_rotation([fresh, stale, never]) == [never, stale, fresh]
+
+
+def test_rotation_tiebreak_is_deterministic_by_source_id():
+    same_ts = _dt.datetime(2026, 7, 20, 9, 0, tzinfo=_TZ)
+    rows = [_row("z", same_ts), _row("m", same_ts), _row("a", same_ts),
+            _row("q", None), _row("b", None)]
+    ordered = order_for_rotation(rows)
+    assert [r[0] for r in ordered] == ["b", "q", "a", "m", "z"]
+
+
+def test_rotation_composes_with_ceiling_to_rotate_coverage():
+    """Simulate two consecutive capped runs: run 1 takes the never-fetched
+    pair; once they carry fresh timestamps, run 2's window moves on to the
+    previously-starved stale source — coverage rotates, never pins."""
+    t = lambda d: _dt.datetime(2026, 7, d, 12, 0, tzinfo=_TZ)
+    rows = [_row("s1", None), _row("s2", None), _row("s3", t(1))]
+    run1 = apply_source_ceiling(order_for_rotation(rows), 2)
+    assert [r[0] for r in run1] == ["s1", "s2"]
+    rows2 = [_row("s1", t(21)), _row("s2", t(21)), _row("s3", t(1))]
+    run2 = apply_source_ceiling(order_for_rotation(rows2), 2)
+    assert run2[0][0] == "s3"

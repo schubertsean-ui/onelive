@@ -1,27 +1,34 @@
-name: Ingestion Run (manual only — cron deliberately not armed)
+name: Ingestion Run
 
-# SPRINT Step 5 scaffolding. This workflow runs the real ingestion loop
+# SPRINT Step 5. This workflow runs the real ingestion loop
 # (fetch -> sensors -> extract -> gate3 -> candidate store; NEVER promotes —
 # promotion is an authenticated human ops action only).
 #
-# THERE IS NO `schedule:` TRIGGER YET, ON PURPOSE. The charter forbids
-# scheduling a recurring loop until ALL of these exist (docs/SPRINT_LIVE_SITE
-# .md preconditions; CLAUDE.md Sentinel rule; §14.3 budget caps):
-#   1. ANTHROPIC_API_KEY minted with a monthly spend cap set in the console
-#      FIRST (founder-crucial), stored as an Actions secret.
-#   2. ONELIVE_DB_DSN stored as an Actions secret.
-#   3. ORCHESTRATOR_PING_URL (healthchecks.io dead-man check) stored as an
-#      Actions secret — a cron that dies silently violates the
-#      no-silent-degradation invariant.
-#   4. A Friction pre-work attack of the arming plan logged in
-#      docs/FRICTION_LOG.md and answered in writing.
-# Arming = a follow-up PR that adds the `schedule:` block (hourly cron) and
-# deletes this notice; that PR gets the mandatory adversarial review.
+# ARMED 2026-07-21. Every charter precondition for scheduling a recurring
+# loop (CLAUDE.md Sentinel rule; §14.3 budget caps) is satisfied and
+# verified: the spend-capped ANTHROPIC_API_KEY, ONELIVE_DB_DSN, and
+# ORCHESTRATOR_PING_URL Actions secrets exist (founder-minted; the
+# preconditions step below still fail-louds if any goes missing), and the
+# Friction pre-work attack of the arming plan is logged and answered in
+# docs/FRICTION_LOG.md entry #3 (attacker: the non-Claude CI evaluator on
+# the arming PR itself). Dead-man ping: worker/sentinel.py wraps the run in
+# start/success/fail pings; the healthchecks.io check period matches the
+# hourly cadence.
 #
-# Until then, a maintainer can run it manually from the Actions tab; every
-# guard below fails LOUD when a precondition is missing.
+# Budget shape (§14.3): scheduled runs are capped at 10 sources per run
+# (the `|| '10'` fallback below — dispatch inputs don't exist on schedule
+# events); with least-recently-fetched rotation in worker/run_once.py,
+# 10/run x 24 runs/day sweeps the full ~230-source catalog daily instead
+# of starving the tail. Manual dispatch still requires an explicit
+# ceiling. The Anthropic console monthly cap is the spend backstop above
+# both.
 
 on:
+  schedule:
+    # Hourly at :23 — off the :00 congestion window where GitHub delays or
+    # drops scheduled runs. A missed run is caught by the dead-man check
+    # (period 1h + grace), not by log-reading.
+    - cron: "23 * * * *"
   workflow_dispatch:
     inputs:
       max_sources:
@@ -54,7 +61,9 @@ jobs:
           # ${{ }}-interpolated into run: — shell-injection surface) and must
           # be a positive integer; 0/negative is rejected here AND in
           # run_once.py (defense in depth, evaluator finding PR #12 round 1).
-          MAX_SOURCES: ${{ github.event.inputs.max_sources }}
+          # On `schedule` events inputs don't exist, so the expression falls
+          # back to the fixed 10-source scheduled ceiling (header comment).
+          MAX_SOURCES: ${{ github.event.inputs.max_sources || '10' }}
         run: |
           : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
           # [[ =~ ]] validates the WHOLE string (POSIX ERE, not line-oriented
@@ -118,7 +127,10 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ORCHESTRATOR_PING_URL: ${{ secrets.ORCHESTRATOR_PING_URL }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          MAX_SOURCES: ${{ github.event.inputs.max_sources }}
+          # Same fallback as the validation step: scheduled runs use the
+          # fixed 10-source ceiling; both steps must agree or the validated
+          # value wouldn't be the executed value.
+          MAX_SOURCES: ${{ github.event.inputs.max_sources || '10' }}
         run: |
           : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
