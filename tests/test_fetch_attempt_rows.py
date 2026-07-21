@@ -167,6 +167,14 @@ def test_attempt_rows_satisfy_the_real_migration_schema():
     assert "storage_ref" in cols and "not null" not in cols["storage_ref"]
     assert "headers" in cols and "jsonb" in cols["headers"]
     assert "source_id" in cols and "references source" in cols["source_id"]
+    # Repeated attempt rows reuse constant hashes ("attempt:failed"), so
+    # raw_fetch must have NO uniqueness over source_id/content_hash — pin
+    # that assumption against the whole migration text (r13 nit): the only
+    # allowed unique-ish construct is the primary key.
+    assert "unique" not in sql.lower().split("raw_fetch", 1)[1].split(");", 1)[0]
+    for line in table.splitlines():
+        if "content_hash" in line or "source_id" in line:
+            assert "unique" not in line.lower()
 
 
 def test_successful_fetch_row_shape_unchanged(monkeypatch, db_rows, tmp_path):
