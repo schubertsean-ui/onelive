@@ -11,10 +11,17 @@ declared bound. A paused/mispointed/stale-period check can no longer hide:
 the run refuses to proceed, which is itself a loud red on every scheduled
 slot.
 
-Matching: the check is identified from ORCHESTRATOR_PING_URL's UUID —
-directly against `ping_url` when the API key exposes it, or against
-`unique_key` (the SHA1 of the UUID) which is what healthchecks returns for
-read-only keys. No secret material (API key, full ping UUID) ever appears
+Matching: the check is identified from ORCHESTRATOR_PING_URL's last path
+segment — directly against `ping_url` when the API key exposes it, against
+`unique_key` for read-only keys (per the healthchecks.io API docs,
+https://healthchecks.io/docs/api/#list-checks: read-only keys omit
+sensitive fields and identify checks by `unique_key`, "a field derived
+from the check's unique UUID" via SHA1), or against `slug` for slug-style
+ping URLs. If healthchecks ever changes that shape, every match path
+misses and this asserter FAILS CLOSED — the cron refuses to run rather
+than running unwatched, which is the intended failure direction (PR #43
+r14 nit; the pre-merge head smoke run is the live-API proof of the
+current shape). No secret material (API key, full ping UUID) ever appears
 in output; identifiers are elided to their last 4 characters.
 
 Env contract (all required, fail closed):
