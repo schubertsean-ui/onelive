@@ -126,7 +126,7 @@ exam for the routed model, citing the evidence.
 
 ---
 
-## Entry #3 — 2026-07-21 — Arming the hourly ingestion cron (Step 5; advances R-005 + R-008 — both rows stay OPEN until the post-merge evidence commit)
+## Entry #3 — 2026-07-21 — Arming the scheduled ingestion cron (every 20 minutes by founder amendment below; hourly at first authoring) (Step 5; advances R-005 + R-008 — both rows stay OPEN until the post-merge evidence commit)
 
 **Attacker: the non-Claude CI evaluator on arming PR #43 (Entry #2
 precedent — OPENAI_API_KEY remains absent in the local sandbox, so CI is
@@ -144,7 +144,9 @@ never in this PR's own diff (r1 finding #3, answered below).
 
 **Plan under attack:** (1) add least-recently-fetched rotation to
 `worker/run_once.py`'s enabled-source query (unit-tested pure ordering);
-(2) add the hourly `schedule:` trigger to `.github/workflows/ingest.yml`
+(2) add the `schedule:` trigger to `.github/workflows/ingest.yml` (hourly
+at first authoring; every 20 minutes since the founder's cadence
+amendment below)
 with a fixed 10-source ceiling for scheduled runs (dispatch keeps its
 required explicit ceiling); (3) after evaluator APPROVE and BEFORE merge,
 one manual `workflow_dispatch` smoke run capped at 5 sources must go green
