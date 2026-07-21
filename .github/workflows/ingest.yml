@@ -15,7 +15,9 @@ name: Ingestion Run
 # that same entry (attacker: the non-Claude CI evaluator on the arming PR
 # itself). Dead-man ping: worker/sentinel.py wraps the run in
 # start/success/fail pings; the healthchecks.io check period matches the
-# hourly cadence.
+# 20-minute cadence (period 20 min, grace ~10 — the founder step at
+# merge; a stale period would hide missed slots, so cadence and period
+# move together).
 #
 # Budget shape (§14.3): `schedule` events run with a fixed 10-source
 # ceiling (keyed on event_name below — dispatch inputs don't exist on

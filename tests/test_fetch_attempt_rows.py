@@ -105,15 +105,20 @@ def test_not_modified_records_attempt_and_returns(monkeypatch, db_rows):
     assert _params_of(db_rows)[2] == "attempt:not_modified"
 
 
-def test_recorder_never_masks_the_original_error(monkeypatch):
-    """DB down during the attempt write on the FAILED path: the caller must
-    still see the FETCH failure, and the bookkeeping failure must not
-    escape (strict=False mode)."""
+def test_recorder_never_masks_but_is_loud_and_attached(monkeypatch, caplog):
+    """DB down during the attempt write on the FAILED path (r8 contract):
+    the caller still sees the FETCH failure, but the bookkeeping failure is
+    (a) logged at ERROR level and (b) attached to the original exception as
+    a traceback note — loud structured evidence, never a quiet swallow."""
     monkeypatch.setattr(http_fetch, "db", lambda: _FakeConn([], fail=True))
     monkeypatch.setattr(http_fetch.requests, "get", lambda *a, **k: _Resp(503))
-    with pytest.raises(requests.HTTPError):
-        http_fetch.fetch_url(source_id="sid-4", url="https://x/4",
-                             min_interval_s=0.0)
+    with caplog.at_level("ERROR"):
+        with pytest.raises(requests.HTTPError) as excinfo:
+            http_fetch.fetch_url(source_id="sid-4", url="https://x/4",
+                                 min_interval_s=0.0)
+    assert any("attempt-row write FAILED" in r.message for r in caplog.records)
+    notes = getattr(excinfo.value, "__notes__", [])
+    assert any("attempt-row write failed" in n for n in notes)
 
 
 def test_304_attempt_write_failure_fails_loud(monkeypatch):

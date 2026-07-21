@@ -41,25 +41,30 @@ ATTEMPT_HASH_PREFIX = "attempt:"
 
 def record_fetch_attempt(
     source_id, url: str, outcome: str, detail: str = "", *, strict: bool,
-) -> None:
+) -> Optional[Exception]:
     """raw_fetch ATTEMPT row (outcome: 'failed'/'not_modified').
 
-    Two deliberate modes (PR #43 r3 — one blanket mode was wrong in each
-    direction):
+    Two deliberate modes (PR #43 r3/r8 — one blanket mode was wrong in
+    each direction, and a quiet swallow was wrong even in the tolerant
+    one):
     - strict=False — the FAILED-fetch path: an original fetch error is in
-      flight and must reach the caller, so a bookkeeping failure here is
-      logged and swallowed, never masking it.
+      flight and must reach the caller, so a bookkeeping failure here
+      never masks it — but it is NOT swallowed quietly (r8): it is logged
+      at ERROR level and RETURNED, and fetch_url attaches it to the
+      original exception as a traceback note, so the degraded-rotation
+      risk rides the error evidence instead of hiding in a warning.
     - strict=True — the 304 path: there is NO original error, and a
       silently lost attempt row would quietly re-introduce the exact
       capped-window starvation bug this row exists to prevent. The write
       failure propagates; run_loop's per-source isolation treats it as
       that source's loud failure.
 
-    A source with no source_id (e.g. the smoke stub) records nothing —
-    it is not in the rotation.
+    Returns the bookkeeping exception when strict=False and the write
+    failed, else None. A source with no source_id (e.g. the smoke stub)
+    records nothing — it is not in the rotation.
     """
     if source_id is None:
-        return
+        return None
     try:
         with db() as conn:
             with conn.cursor() as cur:
@@ -78,13 +83,16 @@ def record_fetch_attempt(
                     ),
                 )
             conn.commit()
-    except Exception as exc:  # noqa: BLE001 — swallowed ONLY when not strict
+    except Exception as exc:  # noqa: BLE001 — tolerated ONLY when not strict
         if strict:
             raise
-        logging.getLogger(__name__).warning(
-            "could not record fetch attempt for source %s (%s): %s",
+        logging.getLogger(__name__).error(
+            "attempt-row write FAILED for source %s (%s) — rotation may "
+            "under-rotate this source until a write succeeds: %s",
             source_id, outcome, exc,
         )
+        return exc
+    return None
 
 
 def fetch_url(
@@ -110,10 +118,19 @@ def fetch_url(
         if r.status_code != 304:
             r.raise_for_status()
     except Exception as exc:
-        # Stamp the attempt (best-effort — the ORIGINAL error must reach
-        # the caller), then fail exactly as before: run_loop's per-source
-        # isolation policy is unchanged.
-        record_fetch_attempt(source_id, url, "failed", str(exc), strict=False)
+        # Stamp the attempt — the ORIGINAL error must reach the caller,
+        # so run_loop's per-source isolation policy is unchanged. If the
+        # stamp itself fails, that bookkeeping failure rides the original
+        # exception as a traceback note (r8: loud structured evidence in
+        # logs/Sentry/replay detail, never a quiet warning).
+        bookkeeping_exc = record_fetch_attempt(
+            source_id, url, "failed", str(exc), strict=False)
+        if bookkeeping_exc is not None:
+            exc.add_note(
+                "ALSO: raw_fetch attempt-row write failed "
+                f"({bookkeeping_exc!r}) — rotation may under-rotate this "
+                "source until a write succeeds."
+            )
         raise
     if r.status_code == 304:
         # An attempt row keeps 304-stable sources rotating instead of
