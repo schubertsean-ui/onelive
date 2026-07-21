@@ -52,6 +52,18 @@ def test_readonly_key_unique_key_match_passes(env, capsys):
     assert "OK" in out and _UUID not in out  # uuid elided, never printed
 
 
+def test_readonly_key_undashed_hex_hash_matches(env):
+    """The live PR #43 failure mode: healthchecks hashes the UUID's
+    undashed hex form. Both dash conventions must match."""
+    undashed = hashlib.sha1(_UUID.replace("-", "").encode()).hexdigest()
+    assert _run(env, [_check(unique_key=undashed)]) == 0
+
+
+def test_uppercase_ping_url_still_matches(env):
+    env.setenv("ORCHESTRATOR_PING_URL", _PING.upper().replace("HTTPS", "https"))
+    assert _run(env, [_check()]) == 0
+
+
 def test_readwrite_key_ping_url_match_passes(env):
     checks = [_check(unique_key="not-the-hash", ping_url=_PING)]
     assert _run(env, checks) == 0

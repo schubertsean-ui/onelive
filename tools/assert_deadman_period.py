@@ -68,17 +68,26 @@ def fetch_checks(api_key: str) -> list:
 
 def match_check(checks: list, ping_id: str) -> dict | None:
     """Find the check for the ping URL's last path segment: by ping_url
-    when present (read-write key), by unique_key == sha1(uuid) (read-only
-    key, the documented stable hash), or by slug (slug-style ping URLs,
-    hc-ping.com/<ping-key>/<slug>)."""
-    id_sha1 = hashlib.sha1(ping_id.encode("utf-8")).hexdigest()
+    when present (read-write key), by unique_key for read-only keys, or by
+    slug (slug-style ping URLs, hc-ping.com/<ping-key>/<slug>).
+
+    unique_key is healthchecks' stable SHA1 of the check's UUID, but the
+    exact input form (dashed vs undashed hex, case) is an implementation
+    detail that bit us live (PR #43: one project, one check, no match —
+    the dashed-only hash was wrong). We therefore try every reasonable
+    form; a miss on all of them still fails closed at the caller."""
+    ping_id = ping_id.strip().lower()
+    candidates = {
+        hashlib.sha1(form.encode("utf-8")).hexdigest()
+        for form in (ping_id, ping_id.replace("-", ""))
+    }
     for check in checks:
-        ping_url = (check.get("ping_url") or "").rstrip("/")
+        ping_url = (check.get("ping_url") or "").rstrip("/").lower()
         if ping_url.endswith("/" + ping_id):
             return check
-        if check.get("unique_key") == id_sha1:
+        if (check.get("unique_key") or "").lower() in candidates:
             return check
-        if check.get("slug") and check["slug"] == ping_id:
+        if check.get("slug") and check["slug"].lower() == ping_id:
             return check
     return None
 
