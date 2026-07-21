@@ -39,13 +39,24 @@ def sha256(b: bytes) -> str:
 ATTEMPT_HASH_PREFIX = "attempt:"
 
 
-def record_fetch_attempt(source_id, url: str, outcome: str, detail: str = "") -> None:
-    """Best-effort raw_fetch ATTEMPT row (outcome: 'failed'/'not_modified').
+def record_fetch_attempt(
+    source_id, url: str, outcome: str, detail: str = "", *, strict: bool,
+) -> None:
+    """raw_fetch ATTEMPT row (outcome: 'failed'/'not_modified').
 
-    Best-effort by design: this runs on error paths (including DB-broken
-    ones), so it must never mask the original failure — any exception here
-    is logged and swallowed, and the caller re-raises its own error. A
-    source with no source_id (e.g. the smoke stub) records nothing.
+    Two deliberate modes (PR #43 r3 — one blanket mode was wrong in each
+    direction):
+    - strict=False — the FAILED-fetch path: an original fetch error is in
+      flight and must reach the caller, so a bookkeeping failure here is
+      logged and swallowed, never masking it.
+    - strict=True — the 304 path: there is NO original error, and a
+      silently lost attempt row would quietly re-introduce the exact
+      capped-window starvation bug this row exists to prevent. The write
+      failure propagates; run_loop's per-source isolation treats it as
+      that source's loud failure.
+
+    A source with no source_id (e.g. the smoke stub) records nothing —
+    it is not in the rotation.
     """
     if source_id is None:
         return
@@ -67,7 +78,9 @@ def record_fetch_attempt(source_id, url: str, outcome: str, detail: str = "") ->
                     ),
                 )
             conn.commit()
-    except Exception as exc:  # noqa: BLE001 — never mask the original error
+    except Exception as exc:  # noqa: BLE001 — swallowed ONLY when not strict
+        if strict:
+            raise
         logging.getLogger(__name__).warning(
             "could not record fetch attempt for source %s (%s): %s",
             source_id, outcome, exc,
@@ -94,17 +107,22 @@ def fetch_url(
 
     try:
         r = requests.get(url, headers=headers, timeout=timeout_s)
-        if r.status_code == 304:
-            # An attempt row keeps 304-stable sources rotating instead of
-            # looking ever-staler and re-claiming a budget slot every run.
-            record_fetch_attempt(source_id, url, "not_modified")
-            return {"status": "not_modified", "url": url}
-        r.raise_for_status()
+        if r.status_code != 304:
+            r.raise_for_status()
     except Exception as exc:
-        # Stamp the attempt (best-effort, never masks), then fail exactly
-        # as before — run_loop's per-source isolation policy is unchanged.
-        record_fetch_attempt(source_id, url, "failed", str(exc))
+        # Stamp the attempt (best-effort — the ORIGINAL error must reach
+        # the caller), then fail exactly as before: run_loop's per-source
+        # isolation policy is unchanged.
+        record_fetch_attempt(source_id, url, "failed", str(exc), strict=False)
         raise
+    if r.status_code == 304:
+        # An attempt row keeps 304-stable sources rotating instead of
+        # looking ever-staler and re-claiming a budget slot every run.
+        # STRICT: with no original error in flight, a lost row would
+        # silently re-introduce the starvation bug (r3 finding) — a write
+        # failure is this source's loud per-source failure.
+        record_fetch_attempt(source_id, url, "not_modified", strict=True)
+        return {"status": "not_modified", "url": url}
 
     content = r.content
     ch = sha256(content)

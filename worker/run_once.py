@@ -163,10 +163,15 @@ def order_for_rotation(rows: Sequence[tuple]) -> list:
     the SELECT below; the key unpacks first/last positionally-by-name so a
     middle-column change cannot silently shift what gets sorted (r2 nit).
     Sorting happens in Python, not SQL, so the rotation contract is
-    unit-testable without a live DB. The key tuple's first element
-    separates the never-fetched bucket, so the sentinel below is only ever
-    compared to itself, never to a datetime (r1 nit: named sentinel over a
-    bare magic 0).
+    unit-testable without a live DB — deliberately fine for this table's
+    scale (catalog target ~230 rows, capacity thousands; an in-memory sort
+    of the enabled-source list is microseconds against a network round
+    trip). If the catalog ever materially outgrows that, move this exact
+    ordering into the SELECT (r3 nit — ceiling documented here so the
+    revisit trigger is visible). The key tuple's first element separates
+    the never-fetched bucket, so the sentinel below is only ever compared
+    to itself, never to a datetime (r1 nit: named sentinel over a bare
+    magic 0).
     """
     def _key(row):
         source_id, *_middle, last_fetched_at = row

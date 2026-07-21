@@ -126,7 +126,7 @@ exam for the routed model, citing the evidence.
 
 ---
 
-## Entry #3 — 2026-07-21 — Arming the hourly ingestion cron (Step 5; resolves R-005 + R-008)
+## Entry #3 — 2026-07-21 — Arming the hourly ingestion cron (Step 5; advances R-005 + R-008 — both rows stay OPEN until the post-merge evidence commit)
 
 **Attacker: the non-Claude CI evaluator on arming PR #43 (Entry #2
 precedent — OPENAI_API_KEY remains absent in the local sandbox, so CI is
@@ -160,8 +160,12 @@ healthchecks.io period step (1 hour + grace).
   silently, cannot starve coverage, and cannot publish; the frame was fixed
   before the White pass below.
 - *White (facts, script-verified):* assemble_dsn.py passes a placeholder-free
-  DSN through untouched (line 67–68 — the founder's as-stored secret works
-  unchanged); sentinel.deadman() pings start/success/fail around the run;
+  DSN through untouched (line 67–68 — a CODE fact about the passthrough
+  path only; the live smoke attempt below DISPROVED the stored
+  credential itself, so end-to-end correctness is owned exclusively by a
+  green run, never by this passthrough property — corrected at r3, the
+  original wording overclaimed); sentinel.deadman() pings
+  start/success/fail around the run;
   the enabled-source query had NO ORDER BY while the cap "truncates the
   tail" — the starvation fact that became this PR's main code change;
   raw_fetch(source_id, fetched_at) + its index support rotation;
@@ -305,6 +309,30 @@ answers:**
    header states presence-checked, correctness owned by the recorded
    green smoke run.
 
-**Verdict:** r1+r2 attacks recorded and answered above; the arming merges
+**Attack round 3 (run 29869450208, REQUEST-CHANGES) — findings → written
+answers:**
+1. *Armed cron + known-bad credential + no green smoke (standing).*
+   Answer: unchanged and agreed — founder-gated; the green run gates the
+   merge, exactly as this entry states.
+2. *The entry's own heading and White-facts bullet still overclaimed*
+   ("resolves R-005 + R-008"; "the as-stored secret works unchanged").
+   Answer: both corrected in place with the correction noted — heading
+   now says "advances … rows stay OPEN"; the White fact is scoped to the
+   code passthrough property with the live disproof cited beside it.
+3. *record_fetch_attempt swallowed write failures unconditionally — on
+   the 304 path there is no original error to protect, so a lost attempt
+   row silently degrades the rotation invariant.* Answer: real hole,
+   fixed with two explicit modes — the failed-fetch path stays
+   best-effort (original error must reach the caller); the 304 path is
+   STRICT (write failure propagates as that source's loud per-source
+   failure). The demanded regression test (304 + broken DB → raises) is
+   added and passing.
+4. *Nits:* Python-side sort ceiling documented in the rotation docstring
+   (fine to catalog scales orders of magnitude beyond target; revisit in
+   SQL if the catalog materially outgrows it); changelog "sweeps daily"
+   rephrased as capacity-to-sweep with the dead-man check named as the
+   alarm for missed slots.
+
+**Verdict:** r1–r3 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.

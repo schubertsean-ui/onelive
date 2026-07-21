@@ -106,12 +106,25 @@ def test_not_modified_records_attempt_and_returns(monkeypatch, db_rows):
 
 
 def test_recorder_never_masks_the_original_error(monkeypatch):
-    """DB down during the attempt write: the caller must still see the
-    FETCH failure, and the bookkeeping failure must not escape."""
+    """DB down during the attempt write on the FAILED path: the caller must
+    still see the FETCH failure, and the bookkeeping failure must not
+    escape (strict=False mode)."""
     monkeypatch.setattr(http_fetch, "db", lambda: _FakeConn([], fail=True))
     monkeypatch.setattr(http_fetch.requests, "get", lambda *a, **k: _Resp(503))
     with pytest.raises(requests.HTTPError):
         http_fetch.fetch_url(source_id="sid-4", url="https://x/4",
+                             min_interval_s=0.0)
+
+
+def test_304_attempt_write_failure_fails_loud(monkeypatch):
+    """r3 finding: on the 304 path there is NO original error, so a
+    swallowed attempt-write failure would silently re-introduce the
+    capped-window starvation bug. The write failure must propagate as this
+    source's loud failure — never a quiet 'not_modified' success."""
+    monkeypatch.setattr(http_fetch, "db", lambda: _FakeConn([], fail=True))
+    monkeypatch.setattr(http_fetch.requests, "get", lambda *a, **k: _Resp(304))
+    with pytest.raises(RuntimeError, match="db is down"):
+        http_fetch.fetch_url(source_id="sid-304", url="https://x/304",
                              min_interval_s=0.0)
 
 
