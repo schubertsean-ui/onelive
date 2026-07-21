@@ -85,8 +85,8 @@ _TZ = _dt.timezone.utc
 
 def test_rotation_never_fetched_first_then_stalest():
     """Never-fetched sources lead; fetched ones follow stalest-first. This is
-    the property that makes an hourly capped cron sweep the catalog instead
-    of starving the tail (the cap truncates AFTER this ordering)."""
+    the property that makes the capped scheduled cron sweep the catalog
+    instead of starving the tail (the cap truncates AFTER this ordering)."""
     fresh = _row("c", _dt.datetime(2026, 7, 21, 12, 0, tzinfo=_TZ))
     stale = _row("b", _dt.datetime(2026, 7, 1, 12, 0, tzinfo=_TZ))
     never = _row("a", None)
