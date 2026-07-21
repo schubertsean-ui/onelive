@@ -526,6 +526,44 @@ answers:**
    TODOS — it touches tools/ (runtime), which the binding above forbids
    changing on this head.
 
-**Verdict:** r1–r16 attacks recorded and answered above; the arming merges
+**Attack round 17 (run 29876963353, REQUEST-CHANGES) — the arc's
+sharpest catch, and the binding harness's first live cycle:**
+1. *Declared-name matching verified check A's config while the worker
+   could ping check B or a stale URL — a one-time n_pings docs note is
+   not a standing invariant against silent secret drift.* Answer: closed
+   with an every-run live proof — after config verification the asserter
+   POSTs a /log event to ORCHESTRATOR_PING_URL (a /log ping records an
+   event WITHOUT signalling success or resetting the schedule, so it can
+   never mask a dead loop) and requires the verified check's n_pings to
+   move; misbound URL, undeliverable probe, unreadable recheck, and
+   missing counter all fail closed. The formerly-blessing test is
+   INVERTED into the contract (misbound ⇒ exit 2); docstrings state the
+   two-half contract; period-mismatch errors carry the check name; the
+   contract test's NameError diagnostic fixed.
+2. *The binding harness then did its job live:* the r17 fix touched
+   runtime (tools/), so test_arming_smoke_binding went RED in trust-gate
+   and pytest on that head — exactly as designed — until a fresh head
+   run re-certified.
+
+**Attempt 5 — run 29877305892, 2026-07-21T23:30Z, SUCCESS — the current
+head run (mechanical evidence, supersedes attempt 4):**
+run 29877305892 (workflow_dispatch, branch @ 00901ebd, max_sources=5),
+conclusion SUCCESS, job 88790546342, every step green — executed THIS
+head's asserter INCLUDING the r17 ping-URL binding probe against the
+live check (step green 23:30:18–20Z). Rotation swept onward again: five
+NEW sources (Texas Performing Arts, Smithville Chamber, Sagebrush,
+Visit Bastrop, Taylor Studio Tour). gate3: 2 held on insufficient
+corroboration; 3 per-source isolated errors, ALL the R-021 datetime
+class ("06:00 PM", "8:00 a.m.", "6pm") — R-021 recurred ×3, confirming
+it as the top post-merge fix (row updated; trigger unchanged: these
+were manual runs, and the fix lands in the next worker PR). RunReport
+bfc26f31-ff52-47a2-9c67-a29c15dcc719; counts {fetched 2, extracted 2,
+held 2, errors 3}; replay artifact 8513472626, zip sha256
+8dfd3f60ef68d13023a4df4128524845b154bc9066561b75d6f1bfb047339da4.
+docs/evidence/ARMING_SMOKE_RUN.json now records THIS run;
+tests/test_arming_smoke_binding.py re-greens on this docs-only commit
+and re-REDs on any future runtime change.
+
+**Verdict:** r1–r17 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.
