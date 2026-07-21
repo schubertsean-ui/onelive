@@ -66,28 +66,39 @@ def fetch_checks(api_key: str) -> list:
         return json.loads(resp.read().decode("utf-8")).get("checks", [])
 
 
-def match_check(checks: list, ping_id: str) -> dict | None:
-    """Find the check for the ping URL's last path segment: by ping_url
-    when present (read-write key), by unique_key for read-only keys, or by
-    slug (slug-style ping URLs, hc-ping.com/<ping-key>/<slug>).
+def match_check(checks: list, ping_id: str, declared_slug: str) -> dict | None:
+    """Find the dead-man check. PRIMARY path: the workflow DECLARES the
+    check by slug/name (DEADMAN_CHECK_SLUG env, reviewed next to the cron
+    line) and we match that declaration — no inference. This replaced
+    hash-guessing after it failed live twice (PR #43: read-only keys
+    identify checks by unique_key, whose derivation from the UUID is an
+    undocumented implementation detail; both dashed and undashed sha1
+    forms missed against the real API). The uuid-hash and ping_url paths
+    remain as secondary matches for configurations where they do work; a
+    miss on every path still fails closed at the caller.
 
-    unique_key is healthchecks' stable SHA1 of the check's UUID, but the
-    exact input form (dashed vs undashed hex, case) is an implementation
-    detail that bit us live (PR #43: one project, one check, no match —
-    the dashed-only hash was wrong). We therefore try every reasonable
-    form; a miss on all of them still fails closed at the caller."""
+    The declared-slug path does not itself prove the PING URL targets the
+    matched check — that binding is proven operationally: only this loop
+    pings anything, so the named check's n_pings/last_ping (printed in
+    the OK line) rise exactly when runs succeed, and a mis-pointed ping
+    URL self-announces by the named check going down. The alarm property
+    holds in every branch."""
     ping_id = ping_id.strip().lower()
     candidates = {
         hashlib.sha1(form.encode("utf-8")).hexdigest()
         for form in (ping_id, ping_id.replace("-", ""))
     }
     for check in checks:
+        slug = (check.get("slug") or "").lower()
+        name = (check.get("name") or "").lower()
+        if declared_slug and declared_slug in (slug, name):
+            return check
         ping_url = (check.get("ping_url") or "").rstrip("/").lower()
         if ping_url.endswith("/" + ping_id):
             return check
         if (check.get("unique_key") or "").lower() in candidates:
             return check
-        if check.get("slug") and check["slug"].lower() == ping_id:
+        if slug and slug == ping_id:
             return check
     return None
 
@@ -117,6 +128,13 @@ def main() -> int:
             "Actions secret — R-020's mechanical closure requires it. "
             "Failing closed: the cron must not run unwatched."
         )
+    declared_slug = os.environ.get("DEADMAN_CHECK_SLUG", "").strip().lower()
+    if not declared_slug:
+        return _fail(
+            "DEADMAN_CHECK_SLUG is not set — the workflow must DECLARE "
+            "which check is the dead-man (reviewed next to the cron line). "
+            "Failing closed."
+        )
     ping_uuid = ping_url.rstrip("/").rsplit("/", 1)[-1]
     try:
         checks = fetch_checks(api_key)
@@ -125,7 +143,7 @@ def main() -> int:
             f"could not read check configuration from healthchecks.io "
             f"({type(exc).__name__}) — refusing to run unwatched."
         )
-    check = match_check(checks, ping_uuid)
+    check = match_check(checks, ping_uuid, declared_slug)
     if check is None:
         if not checks:
             return _fail(
@@ -141,12 +159,11 @@ def main() -> int:
         )
         return _fail(
             f"the API key sees {len(checks)} check(s) [{visible}], but "
-            f"none match the ping URL (id {_elide(ping_uuid)}) by "
-            "ping_url, unique_key (sha1 of uuid), or slug. Healthchecks "
-            "API keys are per-PROJECT: create the read-only key inside "
-            "the project that contains THIS check (the one receiving the "
-            "pings), or update ORCHESTRATOR_PING_URL if the check was "
-            "recreated. Refusing to run unwatched."
+            f"none match the DECLARED slug {declared_slug!r} or the ping "
+            f"URL (id {_elide(ping_uuid)}). Either rename the check (or "
+            "fix DEADMAN_CHECK_SLUG through review) so declaration and "
+            "reality agree, or the key is from another project. Refusing "
+            "to run unwatched."
         )
     if check.get("status") == "paused":
         return _fail(
@@ -175,8 +192,11 @@ def main() -> int:
             "mistyped grace fails closed too)."
         )
     print(
-        f"assert_deadman_period: OK — check {_elide(ping_uuid)} period "
-        f"{period}s, grace {grace}s: matches the armed cadence."
+        f"assert_deadman_period: OK — check name={check.get('name')!r} "
+        f"period {period}s, grace {grace}s: matches the armed cadence. "
+        f"Ping-binding evidence: n_pings={check.get('n_pings')!r}, "
+        f"last_ping={check.get('last_ping')!r} (rises only when this "
+        "loop's pings land on this check)."
     )
     return 0
 

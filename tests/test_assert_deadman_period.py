@@ -22,7 +22,7 @@ _PING = f"https://hc-ping.com/{_UUID}"
 
 def _check(**over):
     base = {
-        "name": "onelive-ingest",
+        "name": "onelive-ingest",  # matches the declared slug fixture
         "unique_key": hashlib.sha1(_UUID.encode()).hexdigest(),
         "status": "up",
         "timeout": 1200,
@@ -36,6 +36,7 @@ def _check(**over):
 def env(monkeypatch):
     monkeypatch.setenv("ORCHESTRATOR_PING_URL", _PING)
     monkeypatch.setenv("HEALTHCHECKS_API_KEY_RO", "ro-key")
+    monkeypatch.setenv("DEADMAN_CHECK_SLUG", "onelive-ingest")
     monkeypatch.setenv("EXPECTED_PERIOD_SECONDS", "1200")
     monkeypatch.setenv("MAX_GRACE_SECONDS", "600")
     return monkeypatch
@@ -144,3 +145,23 @@ def test_secret_material_never_in_failure_output(env, capsys):
     _run(env, [_check(timeout=999)])
     err = capsys.readouterr().err
     assert "ro-key" not in err and _UUID not in err
+
+
+def test_declared_slug_is_required(env):
+    env.delenv("DEADMAN_CHECK_SLUG")
+    assert _run(env, [_check()]) == 2
+
+
+def test_declared_slug_matches_by_name_or_slug(env):
+    env.setenv("DEADMAN_CHECK_SLUG", "Named-Check")
+    checks = [{"name": "named-check", "slug": "x", "status": "up",
+               "timeout": 1200, "grace": 600, "unique_key": "zzz"}]
+    assert _run(env, checks) == 0
+
+
+def test_wrong_declaration_and_no_other_match_fails_closed(env, capsys):
+    env.setenv("DEADMAN_CHECK_SLUG", "some-other-check")
+    checks = [{"name": "unrelated", "slug": "unrelated", "status": "up",
+               "timeout": 1200, "grace": 600, "unique_key": "zzz"}]
+    assert _run(env, checks) == 2
+    assert "DECLARED slug" in capsys.readouterr().err

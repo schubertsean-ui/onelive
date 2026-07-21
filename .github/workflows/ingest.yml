@@ -122,6 +122,10 @@ jobs:
         env:
           ORCHESTRATOR_PING_URL: ${{ secrets.ORCHESTRATOR_PING_URL }}
           HEALTHCHECKS_API_KEY_RO: ${{ secrets.HEALTHCHECKS_API_KEY_RO }}
+          # The dead-man check, DECLARED by name/slug (primary match path —
+          # read-only keys don't expose ping URLs and the unique_key hash
+          # derivation proved undocumented; declaration beats inference).
+          DEADMAN_CHECK_SLUG: "onelive-ingestion"
           EXPECTED_PERIOD_SECONDS: "1200"
           MAX_GRACE_SECONDS: "600"
         run: |
