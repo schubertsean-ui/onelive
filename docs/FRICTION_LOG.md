@@ -607,8 +607,11 @@ and the blocking adversarial review on this PR): worker/ai_extract.py".
 Per the founder-ratified charter exception (prime directive 1, per-class
 mechanics), a refusal PROVEN to contain no manifest-bound file is the
 one enumerated red that does not count against every-check-green; no
-record change rides this PR; the review's base-owned evidence channel
-screens eligibility mechanically. The red stands by design until merge.
+change to the CERTIFICATION record — ai/golden/CERTIFIED_HARNESS.json,
+the file the ineligibility clause governs — rides this PR (0 files
+under ai/golden/ in the diff; docs/RECORD.md is the deferral register,
+a different artifact entirely); the review's base-owned evidence
+channel screens eligibility mechanically. The red stands by design until merge.
 
 **Attempt 7 — run 29878215502 @ 0c7de33e, SUCCESS — the FINAL head
 run:** every step green incl. the dead-man assertion + /log binding
@@ -619,6 +622,36 @@ trust_gate's (correct) ban on exam-channel references in pipeline code;
 this run re-certifies the identical runtime. Evidence file updated;
 binding test green on this head.
 
-**Verdict:** r1–r18 attacks recorded and answered above; the arming merges
+**Attack round 20 (run 29878436733, REQUEST-CHANGES) — findings →
+answers, mechanical:**
+1. *"RECORD changes ride the refusal", citing docs/RECORD.md edits.*
+   The charter's ineligibility clause — prime directive 1, verbatim —
+   reads: "a refusal accompanied by ANY change to
+   ai/golden/CERTIFIED_HARNESS.json is INELIGIBLE (the refusal precludes
+   the authenticator from running, so the changed record would enter
+   unverified)". That file is the exam CERTIFICATION record. This head
+   changes ZERO files under ai/golden/ (verifiable:
+   `git diff origin/master...HEAD --name-only | grep -c '^ai/golden/'`
+   → 0). docs/RECORD.md is the deferral register — a governance doc
+   nearly every PR edits, with no role in certification. The friction
+   sentence that invited the conflation now names the file precisely.
+2. *"Extraction-surface changes cannot merge on a self-asserted
+   exception."* The exception is not self-asserted — its arbiter is
+   mechanical by founder ratification: "the CLASSIFIER is the verifier's
+   own harness-refusal output … never agent judgment … eligibility is
+   read off the classifier's own printed partition." The classifier
+   printed worker/ai_extract.py as NOT manifest-bound and printed no
+   EXCEPTION-INELIGIBLE marker; the review workflow's own base-owned
+   evidence step, which fails closed on that marker, passed. For this
+   enumerated class the ratified compensating control IS this review's
+   APPROVE (base-owned execution + per-run data bindings + review) —
+   plus, concretely on this PR, live end-to-end head runs that executed
+   the changed ai_extract path against real sources (29878035857,
+   29878215502), including the R-021 class handled live. The charter
+   texts quoted here (CLAUDE.md prime directive 1;
+   docs/memory/decisions/2026-07-18_agent-merges-on-green.md) are
+   in-repo, base-branch, unchanged by this PR — verifiable against base.
+
+**Verdict:** r1–r20 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.
