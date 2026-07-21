@@ -333,6 +333,28 @@ answers:**
    rephrased as capacity-to-sweep with the dead-man check named as the
    alarm for missed slots.
 
-**Verdict:** r1–r3 attacks recorded and answered above; the arming merges
+**Attack round 4 (run 29869864335, REQUEST-CHANGES) — findings → written
+answers:**
+1. *Standing founder-gated blockers (armed cron, failed-only smoke
+   evidence).* Answer: unchanged — the green run gates the merge; waiting
+   on the re-stored secret.
+2. *The r1-era changelog row still described the OLD ordering ("APPROVE →
+   smoke → merge"), which would put the evidence after the reviewed
+   head.* Answer: real sequencing catch — corrected in place; the
+   protocol everywhere now reads evidence-first: green smoke committed to
+   this entry → APPROVE on that exact head → merge.
+3. *Nit — attempt rows must satisfy the real schema, not just fake
+   cursors.* Answer, from migration 0003 read directly: content_hash is
+   `text not null` ("attempt:failed" satisfies it), storage_ref is
+   nullable (attempt rows pass NULL), headers is jsonb with the detail
+   payload, source_id is the real uuid FK — and the green smoke run
+   exercises the genuine insert path against the live schema before any
+   merge.
+4. *Nit — governance-doc churn means live gates must not rest on prose
+   sequencing.* Answer: they don't — the mechanical gates are the
+   evaluator's APPROVE (blocking check) and the committed green-run id;
+   the prose narrates them, it never substitutes for them.
+
+**Verdict:** r1–r4 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.
