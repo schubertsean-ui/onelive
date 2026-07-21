@@ -34,7 +34,7 @@ def _cron_minutes() -> list:
         f"ingest.yml must declare exactly one quoted cron expression, "
         f"found {len(crons)} (r16 nit: counted, not just first-matched)")
     fields = crons[0].split()
-    assert len(fields) == 5, f"malformed cron: {m.group(1)!r}"
+    assert len(fields) == 5, f"malformed cron: {crons[0]!r}"
     assert fields[1:] == ["*", "*", "*", "*"], (
         "contract assumes an every-N-minutes cron (hour/day fields '*'); "
         "a different shape needs this test updated in the same PR")

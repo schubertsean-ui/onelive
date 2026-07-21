@@ -9,7 +9,7 @@ mismatch, grace over bound. Matching: the DECLARED slug/name
 tested here are legacy SECONDARY paths kept for configurations where
 they happen to work (the sha1 derivation failed against the live API,
 which is exactly why declaration replaced inference — r16 wording fix).
-No secret material in output.
+The r17 binding contract is pinned: a /log probe to the ping URL must move the verified check's counter, so a misbound/stale secret fails closed even when the named check's config is perfect. No secret material in output.
 
 Hermetic: fetch_checks is monkeypatched; no network.
 """
@@ -30,6 +30,7 @@ def _check(**over):
         "status": "up",
         "timeout": 1200,
         "grace": 600,
+        "n_pings": 8,
     }
     base.update(over)
     return base
@@ -45,8 +46,20 @@ def env(monkeypatch):
     return monkeypatch
 
 
-def _run(monkeypatch, checks):
+def _run(monkeypatch, checks, bound=True):
+    """Drive main() with a fake API and a fake /log probe.
+
+    bound=True simulates ORCHESTRATOR_PING_URL actually delivering to the
+    matched check (its n_pings rises after the probe); bound=False
+    simulates a misbound/stale URL (no counter moves) — r17's blocker
+    demands the latter FAIL, never pass."""
     monkeypatch.setattr(adp, "fetch_checks", lambda key: checks)
+
+    def _probe(url):
+        if bound:
+            for c in checks:
+                c["n_pings"] = c.get("n_pings", 0) + 1
+    monkeypatch.setattr(adp, "send_binding_probe", _probe)
     return adp.main()
 
 
@@ -155,11 +168,38 @@ def test_declared_slug_is_required(env):
     assert _run(env, [_check()]) == 2
 
 
-def test_declared_slug_matches_by_name_or_slug(env):
+def test_declared_slug_matches_when_ping_url_is_bound(env):
     env.setenv("DEADMAN_CHECK_SLUG", "Named-Check")
     checks = [{"name": "named-check", "slug": "x", "status": "up",
-               "timeout": 1200, "grace": 600, "unique_key": "zzz"}]
-    assert _run(env, checks) == 0
+               "timeout": 1200, "grace": 600, "unique_key": "zzz",
+               "n_pings": 3}]
+    assert _run(env, checks, bound=True) == 0
+
+
+def test_misbound_ping_url_fails_even_with_matching_name(env, capsys):
+    """r17 BLOCKER inverted into the contract: a check whose name matches
+    the declaration but whose ping counter does not move after the probe
+    means ORCHESTRATOR_PING_URL feeds some other check — fail closed."""
+    env.setenv("DEADMAN_CHECK_SLUG", "Named-Check")
+    checks = [{"name": "named-check", "slug": "x", "status": "up",
+               "timeout": 1200, "grace": 600, "unique_key": "zzz",
+               "n_pings": 3}]
+    assert _run(env, checks, bound=False) == 2
+    assert "misbound" in capsys.readouterr().err
+
+
+def test_probe_delivery_failure_fails_closed(env):
+    def boom(url):
+        raise OSError("connection refused")
+    env.setattr(adp, "send_binding_probe", boom)
+    env.setattr(adp, "fetch_checks", lambda key: [_check()])
+    assert adp.main() == 2
+
+
+def test_missing_n_pings_fails_closed(env):
+    c = _check()
+    del c["n_pings"]
+    assert _run(env, [c]) == 2
 
 
 def test_wrong_declaration_and_no_other_match_fails_closed(env, capsys):

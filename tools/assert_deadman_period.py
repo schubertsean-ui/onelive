@@ -11,18 +11,20 @@ declared bound. A paused/mispointed/stale-period check can no longer hide:
 the run refuses to proceed, which is itself a loud red on every scheduled
 slot.
 
-Matching: the check is identified from ORCHESTRATOR_PING_URL's last path
-segment — directly against `ping_url` when the API key exposes it, against
-`unique_key` for read-only keys (per the healthchecks.io API docs,
-https://healthchecks.io/docs/api/#list-checks: read-only keys omit
-sensitive fields and identify checks by `unique_key`, "a field derived
-from the check's unique UUID" via SHA1), or against `slug` for slug-style
-ping URLs. If healthchecks ever changes that shape, every match path
-misses and this asserter FAILS CLOSED — the cron refuses to run rather
-than running unwatched, which is the intended failure direction (PR #43
-r14 nit; the pre-merge head smoke run is the live-API proof of the
-current shape). No secret material (API key, full ping UUID) ever appears
-in output; identifiers are elided to their last 4 characters.
+The enforced contract (r17 — two halves, both required, both fail-closed):
+1. CONFIG: the check DECLARED by the workflow (DEADMAN_CHECK_SLUG, with
+   uuid-hash/ping_url as secondary match paths) must exist, be unpaused,
+   and carry the declared period/grace.
+2. BINDING: a /log probe POSTed to ORCHESTRATOR_PING_URL must move THAT
+   check's ping counter within this run — proving the worker's ping URL
+   and the config-verified check are the same object, every run, immune
+   to silent Actions-secret drift. /log records an event without
+   signalling success or resetting the schedule, so the probe can never
+   mask a dead loop.
+If healthchecks changes any of these API shapes, the assertion misses and
+FAILS CLOSED — the cron refuses to run rather than running unwatched. No
+secret material (API key, full ping UUID) ever appears in output;
+identifiers are elided to their last 4 characters.
 
 Env contract (all required, fail closed):
   ORCHESTRATOR_PING_URL      the check's ping URL (existing secret)
@@ -64,6 +66,25 @@ def fetch_checks(api_key: str) -> list:
     req = urllib.request.Request(API_URL, headers={"X-Api-Key": api_key})
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.loads(resp.read().decode("utf-8")).get("checks", [])
+
+
+def send_binding_probe(ping_url: str) -> None:
+    """POST a /log event to the worker's ping URL (PR #43 r17).
+
+    /log records a ping WITHOUT signalling success or resetting the
+    dead-man schedule — so probing here can never mask a dead loop. The
+    caller then re-reads the verified check and requires its ping counter
+    to have moved: a standing, every-run proof that ORCHESTRATOR_PING_URL
+    and the config-verified check are the SAME object, immune to silent
+    secret drift. Any delivery failure is the caller's fail-closed path."""
+    req = urllib.request.Request(
+        ping_url.rstrip("/") + "/log",
+        data=b"assert_deadman_period: ping-url binding probe",
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        if resp.status != 200:
+            raise RuntimeError(f"probe returned HTTP {resp.status}")
 
 
 def match_check(checks: list, ping_id: str, declared_slug: str) -> dict | None:
@@ -179,10 +200,11 @@ def main() -> int:
     grace = check.get("grace")
     if period != expected_period:
         return _fail(
-            f"period mismatch: check has {period}s, armed cadence needs "
-            f"{expected_period}s — a stale period hides missed slots. "
-            "Update the check's Period, or change both cadence and "
-            "declaration together through review."
+            f"period mismatch on check name={check.get('name')!r} "
+            f"slug={check.get('slug')!r}: it has {period}s, the armed "
+            f"cadence needs {expected_period}s — a stale period hides "
+            "missed slots. Update the check's Period, or change both "
+            "cadence and declaration together through review."
         )
     if not isinstance(grace, int) or isinstance(grace, bool) \
             or not 0 <= grace <= max_grace:
@@ -191,12 +213,50 @@ def main() -> int:
             "fire within period+grace of a dead cron (r12: negative or "
             "mistyped grace fails closed too)."
         )
+
+    # PING-URL BINDING PROOF (r17 blocker: name-matching alone would go
+    # green for check A while the worker pings check B or a dead URL —
+    # secrets drift without review). A /log probe to ORCHESTRATOR_PING_URL
+    # must move THIS check's ping counter, every run, or we refuse to run.
+    n_before = check.get("n_pings")
+    if not isinstance(n_before, int) or isinstance(n_before, bool):
+        return _fail(
+            "the API did not expose an integer n_pings for the verified "
+            "check — the ping-URL binding cannot be proven. Refusing to "
+            "run unwatched."
+        )
+    try:
+        send_binding_probe(ping_url)
+    except Exception as exc:  # noqa: BLE001 — any probe failure is closed
+        return _fail(
+            f"binding probe to ORCHESTRATOR_PING_URL failed "
+            f"({type(exc).__name__}) — the worker's ping URL is not "
+            "deliverable, so the loop would run unwatched. Refusing."
+        )
+    try:
+        checks_after = fetch_checks(api_key)
+    except Exception as exc:  # noqa: BLE001
+        return _fail(
+            f"could not re-read the check after the binding probe "
+            f"({type(exc).__name__}) — binding unproven, refusing."
+        )
+    check_after = match_check(checks_after, ping_uuid, declared_slug)
+    n_after = (check_after or {}).get("n_pings")
+    if not isinstance(n_after, int) or isinstance(n_after, bool) \
+            or n_after <= n_before:
+        return _fail(
+            f"the verified check {check.get('name')!r} did NOT receive the "
+            f"probe (n_pings {n_before} -> {n_after!r}) — "
+            "ORCHESTRATOR_PING_URL targets a DIFFERENT check or a stale "
+            "URL, i.e. the alarm is misbound. Fix the secret to the "
+            "verified check's ping URL. Refusing to run unwatched."
+        )
     print(
         f"assert_deadman_period: OK — check name={check.get('name')!r} "
         f"period {period}s, grace {grace}s: matches the armed cadence. "
-        f"Ping-binding evidence: n_pings={check.get('n_pings')!r}, "
-        f"last_ping={check.get('last_ping')!r} (rises only when this "
-        "loop's pings land on this check)."
+        f"Ping-URL binding PROVEN this run: /log probe moved n_pings "
+        f"{n_before} -> {n_after} on the verified check (a /log event "
+        "never signals success, so this cannot mask a dead loop)."
     )
     return 0
 
