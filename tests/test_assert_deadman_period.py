@@ -4,9 +4,12 @@ The rule under test: the ingestion cron must refuse to run unless the
 healthchecks.io check's live period/grace provably match the cadence the
 workflow declares. Every failure path exits 2 (closed): missing config,
 API failure, no matching check, paused check, cron-type check, period
-mismatch, grace over bound. Matching works for both key types (ping_url
-for read-write, unique_key == sha1(uuid) for read-only). No secret
-material in output.
+mismatch, grace over bound. Matching: the DECLARED slug/name
+(DEADMAN_CHECK_SLUG) is the PRIMARY contract — the uuid-hash forms
+tested here are legacy SECONDARY paths kept for configurations where
+they happen to work (the sha1 derivation failed against the live API,
+which is exactly why declaration replaced inference — r16 wording fix).
+No secret material in output.
 
 Hermetic: fetch_checks is monkeypatched; no network.
 """

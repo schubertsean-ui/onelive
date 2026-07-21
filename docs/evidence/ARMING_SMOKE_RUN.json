@@ -1,0 +1,12 @@
+{
+  "purpose": "PR #43 arming evidence: the head-branch smoke run that proves the armed ingestion code end-to-end. tests/test_arming_smoke_binding.py mechanically verifies the reviewed head is runtime-code-identical to this run's commit (only docs/, TODOS.md, tests/ may differ - none of which execute in the armed workflow).",
+  "run_id": "29876232668",
+  "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29876232668",
+  "job_id": "88787267401",
+  "run_head_sha": "91eacd21af5dfd9cfda9bbb329b61376237e4055",
+  "conclusion": "success",
+  "runreport_run_id": "c2d8b101-3e67-42ea-9ab7-7f57bcf11f3d",
+  "artifact_id": "8513085429",
+  "artifact_zip_sha256": "03a9e0f0d946fe688ddbb121b4c5f11411bd0dc337b984ecd6f0e98ed3c19882",
+  "deadman_assertion": "OK - check name='onelive-ingestion' period 1200s, grace 600s; n_pings=8, last_ping=2026-07-21T22:20:55+00:00"
+}

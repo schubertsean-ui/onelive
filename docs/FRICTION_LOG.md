@@ -506,6 +506,26 @@ artifact id 8513085429, zip sha256
 Every element the section header requires is present, on this head's
 code.
 
-**Verdict:** r1–r15 attacks recorded and answered above; the arming merges
+**Attack round 16 (run 29876642179, REQUEST-CHANGES) — findings →
+answers:**
+1. *The head-equivalence claim ("evidence commit is docs-only") was
+   governance prose, not machine verification.* Answer: now mechanical —
+   docs/evidence/ARMING_SMOKE_RUN.json records the green run's identity
+   (run id, head sha, artifact id + zip sha256, dead-man assertion line),
+   and tests/test_arming_smoke_binding.py recomputes FROM GIT that every
+   path changed since that commit lies in the non-runtime set (docs/,
+   TODOS.md, tests/ — nothing the armed workflow executes). It fails
+   closed when the recorded commit is unreachable (shallow clone) and
+   runs authoritatively in trust-gate (full-history checkout, REQUIRED
+   check) and local validate — any future runtime change re-REDs the
+   suite until a fresh green head run updates the evidence file.
+2. *Nits:* cron declaration now counted with findall (exactly one); the
+   asserter-test docstring now states declaration-primary/hash-secondary
+   (the stale wording that presented sha1 matching as the normal
+   contract is gone). The period-mismatch-name nit remains queued in
+   TODOS — it touches tools/ (runtime), which the binding above forbids
+   changing on this head.
+
+**Verdict:** r1–r16 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.

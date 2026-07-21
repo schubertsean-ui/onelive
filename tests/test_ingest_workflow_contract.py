@@ -29,9 +29,11 @@ _SCHEDULE_EXPR = ("${{ github.event_name == 'schedule' && '10' || "
 
 
 def _cron_minutes() -> list:
-    m = re.search(r'-\s*cron:\s*"([^"]+)"', _WF)
-    assert m, "ingest.yml must declare exactly one quoted cron expression"
-    fields = m.group(1).split()
+    crons = re.findall(r'-\s*cron:\s*"([^"]+)"', _WF)
+    assert len(crons) == 1, (
+        f"ingest.yml must declare exactly one quoted cron expression, "
+        f"found {len(crons)} (r16 nit: counted, not just first-matched)")
+    fields = crons[0].split()
     assert len(fields) == 5, f"malformed cron: {m.group(1)!r}"
     assert fields[1:] == ["*", "*", "*", "*"], (
         "contract assumes an every-N-minutes cron (hour/day fields '*'); "
