@@ -15,13 +15,14 @@ name: Ingestion Run
 # start/success/fail pings; the healthchecks.io check period matches the
 # hourly cadence.
 #
-# Budget shape (§14.3): scheduled runs are capped at 10 sources per run
-# (the `|| '10'` fallback below — dispatch inputs don't exist on schedule
-# events); with least-recently-fetched rotation in worker/run_once.py,
-# 10/run x 24 runs/day sweeps the full ~230-source catalog daily instead
-# of starving the tail. Manual dispatch still requires an explicit
-# ceiling. The Anthropic console monthly cap is the spend backstop above
-# both.
+# Budget shape (§14.3): `schedule` events run with a fixed 10-source
+# ceiling (keyed on event_name below — dispatch inputs don't exist on
+# schedule events); with least-recently-fetched rotation in
+# worker/run_once.py, 10/run x 24 runs/day sweeps the full ~230-source
+# catalog daily instead of starving the tail. Manual dispatch still
+# requires an explicit ceiling and FAILS LOUD without one — the fixed
+# fallback never applies outside `schedule`. The Anthropic console
+# monthly cap is the spend backstop above both.
 
 on:
   schedule:
@@ -61,9 +62,14 @@ jobs:
           # ${{ }}-interpolated into run: — shell-injection surface) and must
           # be a positive integer; 0/negative is rejected here AND in
           # run_once.py (defense in depth, evaluator finding PR #12 round 1).
-          # On `schedule` events inputs don't exist, so the expression falls
-          # back to the fixed 10-source scheduled ceiling (header comment).
-          MAX_SOURCES: ${{ github.event.inputs.max_sources || '10' }}
+          # The fixed 10-source ceiling applies to `schedule` events ONLY
+          # (keyed on event_name, which callers cannot influence) — every
+          # other event type, including manual/API dispatch with a missing
+          # or empty input, still FAILS LOUD below. A bare `||` fallback
+          # would have silently substituted 10 for any empty dispatch input,
+          # weakening the fail-closed budget contract (evaluator finding,
+          # PR #43 round 1).
+          MAX_SOURCES: ${{ github.event_name == 'schedule' && '10' || github.event.inputs.max_sources }}
         run: |
           : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
           # [[ =~ ]] validates the WHOLE string (POSIX ERE, not line-oriented
@@ -127,10 +133,10 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ORCHESTRATOR_PING_URL: ${{ secrets.ORCHESTRATOR_PING_URL }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          # Same fallback as the validation step: scheduled runs use the
-          # fixed 10-source ceiling; both steps must agree or the validated
-          # value wouldn't be the executed value.
-          MAX_SOURCES: ${{ github.event.inputs.max_sources || '10' }}
+          # IDENTICAL expression to the validation step (schedule-only fixed
+          # ceiling; dispatch stays fail-loud) — both steps must agree or the
+          # validated value wouldn't be the executed value.
+          MAX_SOURCES: ${{ github.event_name == 'schedule' && '10' || github.event.inputs.max_sources }}
         run: |
           : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"

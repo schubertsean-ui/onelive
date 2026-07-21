@@ -128,16 +128,19 @@ exam for the routed model, citing the evidence.
 
 ## Entry #3 — 2026-07-21 — Arming the hourly ingestion cron (Step 5; resolves R-005 + R-008)
 
-**Attacker: GPT-5.5 (non-Claude ✓) via the CI adversarial-review job on the
-arming PR itself — this entry is IN that PR's diff, so the evaluator's
-verdict IS the written attack outcome, and the PR merges only at APPROVE
-(Entry #2 precedent; OPENAI_API_KEY remains absent in the local sandbox, so
-CI is the only non-Claude channel).** This entry also submits Entry #1's
-Step-5 attack surface for the non-Claude re-attack R-005 requires: every
-Step-5 answer in Entry #1 (budget caps precede scheduling; dead-man ping;
-manual runs before cron; blast radius bounded to candidate rows) is
-restated and mechanized below — an APPROVE on this PR discharges R-005's
-blocking function for the step it blocks.
+**Attacker: the non-Claude CI evaluator on arming PR #43 (Entry #2
+precedent — OPENAI_API_KEY remains absent in the local sandbox, so CI is
+the only non-Claude channel). The attack HAS RUN: round-1 REQUEST-CHANGES,
+run 29867512512, job 88759307805, 2026-07-21T20:54Z, model printed by the
+job log as gpt-5.5. Its findings and the written answers are recorded
+below (r1 section); each subsequent round lands the same way, per Entry
+#2.** This entry also carries Entry #1's Step-5 attack surface into that
+non-Claude attack (the re-attack R-005 requires): every Step-5 answer in
+Entry #1 (budget caps precede scheduling; dead-man ping; manual runs
+before cron; blast radius bounded to candidate rows) is restated and
+mechanized below, and the r1 attack judged this text. R-005 flips only
+in the post-merge bookkeeping commit, citing the PR's final APPROVE run —
+never in this PR's own diff (r1 finding #3, answered below).
 
 **Plan under attack:** (1) add least-recently-fetched rotation to
 `worker/run_once.py`'s enabled-source query (unit-tested pure ordering);
@@ -233,6 +236,51 @@ check created ("done", 2026-07-21). Arming itself is the charter's current
 mission executed through the mandatory evaluator gate; merge-at-APPROVE +
 notify is the ratified merge protocol. No gate threshold moves.
 
-**Verdict:** pending the CI evaluator's APPROVE on the arming PR — which
-is this entry's attack verdict. REQUEST-CHANGES rounds and their written
-answers land as commits on the same PR, per Entry #2.
+**Attack round 1 (run 29867512512, REQUEST-CHANGES) — findings → written
+answers, in the same commit:**
+1. *Scheduled fallback also applied to manual dispatch* — the `|| '10'`
+   expression substituted 10 for ANY empty input, silently weakening the
+   fail-closed budget contract for dispatch/API callers. Answer: real
+   defect, fixed — the fixed ceiling now keys on
+   `github.event_name == 'schedule'` (not caller-influenceable); every
+   other event with a missing/empty input fails loud exactly as before.
+2. *The entry self-certified the attack before it ran.* Answer: accepted
+   and rewritten — this entry now records the attack that actually ran
+   (ids above), each round appended as fact, never in advance.
+3. *R-005 flipped RESOLVED inside the diff whose merge is the evidence.*
+   Answer: accepted — R-005 and R-008 are back to OPEN-with-progress in
+   docs/RECORD.md; they flip only in the post-merge bookkeeping commit
+   citing the final APPROVE run id and the arming evidence.
+4. *R-008 recorded future process as completed state.* Answer: same fix
+   as #3; the row now states exactly what exists (PR in flight) and what
+   evidence closes it.
+5. *The pre-merge smoke run was deferred and non-mechanical.* Answer: the
+   smoke run is no longer a promise — it has been EXECUTED and its
+   evidence recorded in this entry (section below), so the reviewed diff
+   carries the verifiable run id/URL/outcome instead of intent. Nits also
+   taken: rotation wiring is now regression-tested through _run_real
+   (fake DB, freshest-first rows, cap=2 → rotation-before-cap is the only
+   passing order); the never-fetched sort sentinel is named; the model
+   name above cites the CI log that prints it; the validate run is cited
+   as INCOMPLETE-ACKNOWLEDGED (R-002), never as fully green.
+
+**Smoke-run evidence (executed before merge, after the r1 attack +
+written answers — spend followed the non-Claude attack, not preceded
+it).** A green run must show DSN assembly, extraction, gate3 decisions,
+candidate rows, the dead-man success ping, and the replay artifact.
+- *Attempt 1 — run 29868035764, 2026-07-21T20:58Z, FAILED (fail-loud
+  path proven, $0 AI spend):* psycopg2 `password authentication failed
+  for user "postgres"` at aws-0-us-east-1.pooler.supabase.com:5432 —
+  the stored DSN's credential is wrong (the founder hand-spliced the
+  password at the generator's earlier instruction, the exact error mode
+  tools/assemble_dsn.py exists to prevent; the generator owns that
+  instruction as the likely cause). No Anthropic call was made; the job
+  died at DB connect and went red, never green — the guard behaved
+  exactly as designed. Founder asked (numbered steps, session chat) to
+  re-store the DSN AS-PASTED from Supabase plus a separate
+  ONELIVE_DB_PASSWORD secret, the designed path. A green attempt is
+  still REQUIRED before merge and will be appended here.
+
+**Verdict:** r1 attack recorded and answered above; the arming merges
+only at the evaluator's APPROVE on the final head with the smoke evidence
+in this entry — REQUEST-CHANGES rounds keep appending here until then.

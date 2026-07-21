@@ -154,14 +154,24 @@ def order_for_rotation(rows: Sequence[tuple]) -> list:
     Rows are (source_id, name, base_url, source_type, last_fetched_at) —
     the SELECT below. Sorting happens in Python, not SQL, so the rotation
     contract is unit-testable without a live DB. The key tuple's first
-    element separates the never-fetched bucket, so the mixed-type second
-    element (0 vs datetime) is never compared across buckets.
+    element separates the never-fetched bucket, so the sentinel below is
+    only ever compared to itself, never to a datetime (PR #43 r1 nit:
+    named sentinel over a bare magic 0).
     """
-    return sorted(
-        rows,
-        key=lambda r: (r[4] is not None, r[4] if r[4] is not None else 0,
-                       str(r[0])),
-    )
+    def _key(row):
+        last = row[4]
+        never_fetched = last is None
+        return (not never_fetched,
+                _NEVER_FETCHED_SENTINEL if never_fetched else last,
+                str(row[0]))
+
+    return sorted(rows, key=_key)
+
+
+# Placeholder sort value for never-fetched sources. Any constant works: the
+# bucket element of the key above guarantees it is never compared against a
+# real timestamp — it only ties with itself, then source_id breaks the tie.
+_NEVER_FETCHED_SENTINEL = 0
 
 
 def _resolve_source_cap(cli_value: int | None) -> int | None:

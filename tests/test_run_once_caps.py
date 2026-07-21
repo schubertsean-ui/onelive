@@ -112,3 +112,60 @@ def test_rotation_composes_with_ceiling_to_rotate_coverage():
     rows2 = [_row("s1", t(21)), _row("s2", t(21)), _row("s3", t(1))]
     run2 = apply_source_ceiling(order_for_rotation(rows2), 2)
     assert run2[0][0] == "s3"
+
+
+def test_run_real_wires_rotation_before_the_cap(monkeypatch):
+    """PR #43 r1 nit made regression-proof: _run_real must pass the DB rows
+    through order_for_rotation() BEFORE apply_source_ceiling(). The fake DB
+    returns fresh-first rows; with cap=2, only rotation-before-cap yields
+    [never-fetched, stalest] — a cap applied to raw DB order would keep
+    'fresh' and starve the tail, which is the exact defect rotation fixes."""
+    import contextlib
+
+    import ai.claude_provider as claude_provider
+    import worker.candidate_store as candidate_store
+    import worker.run_once as run_once
+
+    fresh = _row("fresh", _dt.datetime(2026, 7, 21, tzinfo=_TZ))
+    stale = _row("stale", _dt.datetime(2026, 7, 1, tzinfo=_TZ))
+    never = _row("never", None)
+
+    class _Cursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def execute(self, sql):
+            assert "last_fetched_at" in sql  # the rotation column is queried
+
+        def fetchall(self):
+            return [fresh, stale, never]  # deliberately freshest-first
+
+    class _Conn:
+        def cursor(self):
+            return _Cursor()
+
+    @contextlib.contextmanager
+    def _fake_db():
+        yield _Conn()
+
+    captured = {}
+
+    class _Report:
+        run_id = "wiring-test"
+        counts = {"errors": 0}
+        results = []
+
+    def _fake_run_loop(ai, sources, sxsw_mode, dsn):
+        captured["sources"] = sources
+        return _Report()
+
+    monkeypatch.setenv("ONELIVE_DB_DSN", "postgresql://unused")
+    monkeypatch.setattr(claude_provider, "ClaudeProvider", lambda: object())
+    monkeypatch.setattr(candidate_store, "db", _fake_db)
+    monkeypatch.setattr(run_once, "run_loop", _fake_run_loop)
+
+    assert run_once._run_real(max_sources=2) == 0
+    assert [s["source_id"] for s in captured["sources"]] == ["never", "stale"]
