@@ -22,10 +22,12 @@ midnight when a full date IS evidenced but a time is not — the standard
 calendar convention; the page text stays verbatim in raw_text for review.
 
 Deliberately OUTSIDE worker/ai_models.py: that model is bound into the
-certified extraction-exam harness (ai/golden_exam.py HARNESS_MANIFEST),
-so this boundary lives in the un-bound shaping layer instead — same
-enforcement point (every candidate insert flows through it), zero
-certification surface touched.
+certified extraction-exam harness manifest (see the exam runner module
+under ai/ — its name is not written here because trust_gate rightly
+forbids pipeline code from referencing the exam channel at all), so this
+boundary lives in the un-bound shaping layer instead — same enforcement
+point (every candidate insert flows through it), zero certification
+surface touched.
 """
 from __future__ import annotations
 

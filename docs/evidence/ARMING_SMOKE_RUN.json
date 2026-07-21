@@ -1,16 +1,18 @@
 {
   "purpose": "PR #43 arming evidence: the head-branch smoke run that proves the armed ingestion code end-to-end. tests/test_arming_smoke_binding.py mechanically verifies the reviewed head is runtime-code-identical to this run's commit (only docs/, TODOS.md, tests/ may differ - none of which execute in the armed workflow).",
-  "run_id": "29877305892",
-  "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29877305892",
-  "job_id": "88790546342",
-  "run_head_sha": "00901ebd5cdce697df359b761f3cf3aa8e9df06a",
+  "run_id": "29878035857",
+  "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29878035857",
+  "job_id": "88792719341",
+  "run_head_sha": "81cf939bb5ec516d05fec963421f1bda2e4d813b",
   "conclusion": "success",
-  "runreport_run_id": "bfc26f31-ff52-47a2-9c67-a29c15dcc719",
-  "artifact_id": "8513472626",
-  "artifact_zip_sha256": "8dfd3f60ef68d13023a4df4128524845b154bc9066561b75d6f1bfb047339da4",
-  "deadman_assertion": "step 'Assert dead-man period matches the armed cadence (R-020, fail closed)' conclusion=success (23:30:18-20Z) - includes the r17 ping-URL binding probe: a /log event to ORCHESTRATOR_PING_URL must move the verified check's n_pings, and the step passed",
+  "runreport_run_id": "1e062527-86fb-4c80-8399-56a931c4dd8f",
+  "artifact_id": "8513714623",
+  "artifact_zip_sha256": "1faa3f5cc772b35a819d49df21c8d54dfa59891fa799baf3792d23cd350db787",
+  "deadman_assertion": "step 6 conclusion=success (23:44:04-05Z) incl. the r17 /log binding probe",
   "superseded_runs": [
+    "29877305892 (head 00901ebd - pre-R-021-fix)",
     "29876232668 (head 91eacd21 - pre-r17 asserter; rotation + pipeline proof)",
     "29873390712 (master@1244783f - infrastructure proof)"
-  ]
+  ],
+  "r021_fix_live_proof": "two sources hit the time-only class in THIS run (Bullock: 12:00pm/2:00pm; Round Rock: 7:00 pm/10:00 pm) and both logged loudly, stored NULL with raw preserved in provenance, and produced HELD candidates at gate3 - zero datetime insert errors (the identical class crashed runs 29876232668/29877305892)"
 }

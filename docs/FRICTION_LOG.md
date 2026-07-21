@@ -584,6 +584,32 @@ answers:**
    probe-binds stated); the binding test's file matching is exact-match
    for files, prefix only for directories.
 
+**Attempt 6 — run 29878035857, 2026-07-21T23:44Z, SUCCESS — the final
+head run (mechanical evidence, supersedes attempt 5):**
+run 29878035857 (branch @ 81cf939b, max_sources=5), conclusion SUCCESS,
+job 88792719341, every step green incl. the dead-man assertion with the
+/log binding probe. THE R-021 FIX PROVED ITSELF LIVE: two of this run's
+five sources hit the time-only class (Bullock Texas State History
+Museum '12:00pm'/'2:00pm'; Round Rock Arts and Culture '7:00 pm'/'10:00
+pm') and both logged loudly, stored NULL with the raw claim preserved
+in provenance, and produced HELD candidates at gate3 — zero datetime
+insert errors, where the identical class crashed the two prior runs.
+Rotation swept five NEW sources again. Counts {fetched 4, extracted 4,
+held 4, errors 1 (Tixr 403, isolated)}; RunReport
+1e062527-86fb-4c80-8399-56a931c4dd8f; replay artifact 8513714623 (zip
+sha256 1faa3f5cc772b35a819d49df21c8d54dfa59891fa799baf3792d23cd350db787).
+
+**Golden-exam designed refusal (this head onward):** touching
+worker/ai_extract.py put this PR on the exam's classified surface; the
+classifier refused with its own printed partition — "NOT manifest-bound
+(re-verified instead by base-owned execution, per-run data bindings,
+and the blocking adversarial review on this PR): worker/ai_extract.py".
+Per the founder-ratified charter exception (prime directive 1, per-class
+mechanics), a refusal PROVEN to contain no manifest-bound file is the
+one enumerated red that does not count against every-check-green; no
+record change rides this PR; the review's base-owned evidence channel
+screens eligibility mechanically. The red stands by design until merge.
+
 **Verdict:** r1–r18 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.
