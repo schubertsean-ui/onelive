@@ -14,15 +14,15 @@ name: Ingestion Run
 # Friction pre-work attack of the arming plan is logged and answered in
 # that same entry (attacker: the non-Claude CI evaluator on the arming PR
 # itself). Dead-man ping: worker/sentinel.py wraps the run in
-# start/success/fail pings. The check's period/grace (20 min + ~10 for
-# this cadence) live in the founder's healthchecks.io account — OUTSIDE
-# this repo's mechanical reach, an honest deferral recorded as R-020
-# (docs/RECORD.md): founder-confirmed and recorded in the post-merge
-# R-008 evidence commit, mechanically asserted only once a read-only
-# healthchecks API key exists (founder-crucial). The failure mode is
-# bounded, not silent: success pings arrive every ~20 min, so even a
-# stale period alarms within ~period+grace of a dead cron — degraded
-# latency, never a missing alarm.
+# start/success/fail pings, and the alarm's configuration is asserted
+# MECHANICALLY before every run (PR #43 r11 — prose confirmation was
+# correctly rejected for a live cron): the "Assert dead-man period"
+# step reads the check's live period/grace through the founder-minted
+# READ-ONLY healthchecks API key and fails CLOSED on any mismatch,
+# pause, or unreadable state — the loop never runs unwatched. R-020
+# tracks this contract; tests/test_ingest_workflow_contract.py derives
+# the expected period from the cron line itself, so cadence, declared
+# period, and the live check cannot drift apart silently.
 #
 # Budget shape (§14.3): `schedule` events run with a fixed 10-source
 # ceiling (keyed on event_name below — dispatch inputs don't exist on
@@ -108,6 +108,24 @@ jobs:
             echo "::error::Ingestion refused — missing Actions secret(s):$missing. Minting keys is founder-crucial; the Anthropic key requires a console spend cap FIRST (§14.3). See docs/SPRINT_LIVE_SITE.md Step 5."
             exit 1
           fi
+
+      - name: Assert dead-man period matches the armed cadence (R-020, fail closed)
+        # PR #43 r11: a live recurring cron must not run with its Sentinel
+        # alarm config unverified. tools/assert_deadman_period.py (tested)
+        # reads the check's LIVE period/grace via the founder-minted
+        # READ-ONLY healthchecks API key and refuses the run on mismatch,
+        # pause, missing key, unreadable API, or a check the key cannot
+        # see — unwatched is not an option. EXPECTED_PERIOD_SECONDS is
+        # bound to the cron line above by
+        # tests/test_ingest_workflow_contract.py, which recomputes it from
+        # the cron minutes — editing one without the other fails the suite.
+        env:
+          ORCHESTRATOR_PING_URL: ${{ secrets.ORCHESTRATOR_PING_URL }}
+          HEALTHCHECKS_API_KEY_RO: ${{ secrets.HEALTHCHECKS_API_KEY_RO }}
+          EXPECTED_PERIOD_SECONDS: "1200"
+          MAX_GRACE_SECONDS: "600"
+        run: |
+          python3 tools/assert_deadman_period.py
 
       - name: Validate DSN + register log mask (before anything installs)
         # Founder ergonomics (2026-07-14): the Supabase Connect panel emits a

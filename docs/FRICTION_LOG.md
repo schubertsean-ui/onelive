@@ -419,6 +419,36 @@ min mean even a stale period alarms within ~period+grace of a dead
 cron), and the founder's period confirmation is recorded in the
 post-merge R-008 evidence commit.
 
-**Verdict:** r1–r9 attacks recorded and answered above; the arming merges
+**Attack rounds 10–11 (runs 29872791024/29872480446 duplicates of the
+standing blocker; run 29873806639 = r11 with two REAL blockers):**
+1. *r11: the green run proved the WRONG code — run 29873390712 executed
+   master @ 1244783f, while this PR changes the workflow, rotation, and
+   fetch-attempt behavior it was supposed to prove; the review-side log
+   binding (base parent 1244783f vs PR head) caught it mechanically.*
+   Answer: accepted in full — attempt 3 is re-scoped as INFRASTRUCTURE
+   evidence only (secrets, DSN assembly, DB reachability, extraction,
+   gate3, dead-man, artifact — all on base code). The required run is
+   attempt 4, dispatched on THE PR BRANCH so it executes this head's
+   ingest.yml + worker code; its evidence commit will be docs-only, with
+   the docs-only delta stated so "the code the run exercised == the code
+   under review" is checkable from the diff itself.
+2. *r11: arming with alarm config deferred to R-020 prose is not
+   acceptable for a live cron.* Answer: agreed and closed mechanically —
+   tools/assert_deadman_period.py now runs as a BLOCKING precondition
+   (live period/grace read via a READ-ONLY healthchecks API key; fails
+   closed on mismatch, pause, missing key, or unreadable API — the loop
+   can never run unwatched), and the workflow-contract test recomputes
+   the expected period from the cron minutes, so cadence, declaration,
+   and live check are triply coupled. Requires one founder step (read-
+   only key minted as HEALTHCHECKS_API_KEY_RO — credential minting stays
+   founder-crucial), asked in the consolidated list.
+3. *Nits:* MAX_SOURCES expression now structurally pinned (exactly twice,
+   bare fail-open form banned) by the same contract test; the attempt-row
+   error log carries exc_info for the bookkeeping stack; the ledger's
+   stale M8 row stays UNEDITED by explicit convention ("rows are never
+   edited after append — corrections get a new row"), with the correction
+   row directly beneath it.
+
+**Verdict:** r1–r11 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.

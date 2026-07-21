@@ -89,7 +89,7 @@ def record_fetch_attempt(
         logging.getLogger(__name__).error(
             "attempt-row write FAILED for source %s (%s) — rotation may "
             "under-rotate this source until a write succeeds: %s",
-            source_id, outcome, exc,
+            source_id, outcome, exc, exc_info=True,
         )
         return exc
     return None
