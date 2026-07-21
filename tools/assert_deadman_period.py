@@ -59,16 +59,19 @@ def fetch_checks(api_key: str) -> list:
         return json.loads(resp.read().decode("utf-8")).get("checks", [])
 
 
-def match_check(checks: list, ping_uuid: str) -> dict | None:
-    """Find the check for ping_uuid: by ping_url when present (read-write
-    key), else by unique_key == sha1(uuid) (read-only key, the documented
-    stable hash)."""
-    uuid_sha1 = hashlib.sha1(ping_uuid.encode("utf-8")).hexdigest()
+def match_check(checks: list, ping_id: str) -> dict | None:
+    """Find the check for the ping URL's last path segment: by ping_url
+    when present (read-write key), by unique_key == sha1(uuid) (read-only
+    key, the documented stable hash), or by slug (slug-style ping URLs,
+    hc-ping.com/<ping-key>/<slug>)."""
+    id_sha1 = hashlib.sha1(ping_id.encode("utf-8")).hexdigest()
     for check in checks:
         ping_url = (check.get("ping_url") or "").rstrip("/")
-        if ping_url.endswith("/" + ping_uuid):
+        if ping_url.endswith("/" + ping_id):
             return check
-        if check.get("unique_key") == uuid_sha1:
+        if check.get("unique_key") == id_sha1:
+            return check
+        if check.get("slug") and check["slug"] == ping_id:
             return check
     return None
 
@@ -108,10 +111,20 @@ def main() -> int:
         )
     check = match_check(checks, ping_uuid)
     if check is None:
+        if not checks:
+            return _fail(
+                "the API key sees ZERO checks — healthchecks API keys are "
+                "per-PROJECT, so this read-only key was almost certainly "
+                "created in a different project than the check. Create the "
+                "read-only key in the project that contains the dead-man "
+                "check. Refusing to run unwatched."
+            )
         return _fail(
-            f"no check matches the ping URL (uuid {_elide(ping_uuid)}) — "
-            "the dead-man URL points at a check this API key cannot see "
-            "(deleted? wrong project?). Refusing to run unwatched."
+            f"the API key sees {len(checks)} check(s), but none match the "
+            f"ping URL (id {_elide(ping_uuid)}) by ping_url, unique_key "
+            "(sha1 of uuid), or slug — the dead-man URL points at a check "
+            "in another project, or a deleted one. Refusing to run "
+            "unwatched."
         )
     if check.get("status") == "paused":
         return _fail(

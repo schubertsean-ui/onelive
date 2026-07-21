@@ -77,7 +77,22 @@ def test_api_failure_fails_closed(env, capsys):
 def test_no_matching_check_fails_closed(env, capsys):
     assert _run(env, [_check(unique_key="other", name="unrelated")]) == 2
     err = capsys.readouterr().err
-    assert "no check matches" in err and _UUID not in err
+    assert "none match" in err and _UUID not in err
+
+
+def test_zero_checks_names_the_wrong_project_cause(env, capsys):
+    """r13 field failure: an empty list means the key is from another
+    healthchecks PROJECT — the error must say so, actionably."""
+    assert _run(env, []) == 2
+    assert "different project" in capsys.readouterr().err
+
+
+def test_slug_style_ping_url_matches_by_slug(env):
+    """Slug-based ping URLs (hc-ping.com/<ping-key>/<slug>) carry the slug
+    as the last segment; matching must work without uuid or ping_url."""
+    env.setenv("ORCHESTRATOR_PING_URL", "https://hc-ping.com/pk_abc/onelive-ingest")
+    checks = [_check(unique_key="not-a-uuid-hash", slug="onelive-ingest")]
+    assert _run(env, checks) == 0
 
 
 def test_paused_check_fails_closed(env):
