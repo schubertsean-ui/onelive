@@ -460,6 +460,52 @@ period/grace bounds must be positive integers (non-positive bounds are
 unsatisfiable-or-meaningless misconfig, fail closed). Both hardenings
 pinned by new test cases.
 
-**Verdict:** r1–r12 attacks recorded and answered above; the arming merges
+**Attack rounds 13–15 (runs 29875019845/29875277058/29875535188 +
+ingest diagnostics; the alarm-assertion field saga):** the new dead-man
+gate FIRED CORRECTLY on its first three live encounters — r13: key from
+the wrong healthchecks project (founder's account has two; error now
+names the visible checks); then two hash attempts proved unique_key's
+derivation from the UUID is not inferable (dashed and undashed sha1
+both missed the real API); final design: the workflow DECLARES its
+check by name (DEADMAN_CHECK_SLUG next to the cron line), the asserter
+verifies THAT check's live config, and the ping-URL binding is proven
+by the check's own counters. Two code nits from r15 (findall count in
+the contract test; check name in the period-mismatch message) are
+deliberately NOT fixed on this head — the head must stay byte-identical
+to the code the green run exercised — and are queued in TODOS.md for
+the next worker PR.
+
+**Attempt 4 — run 29876232668, 2026-07-21T23:10Z, SUCCESS — THE
+required head-branch run (mechanical evidence):**
+run 29876232668 (workflow_dispatch, branch
+claude/loop-harness-brain-review-5ty730 @ 91eacd21, max_sources=5),
+conclusion SUCCESS, job 88787267401, all steps green — this run
+executed THIS PR's ingest.yml, rotation, attempt-row, and assertion
+code. Dead-man assertion (R-020, live API): "OK — check
+name='onelive-ingestion' period 1200s, grace 600s: matches the armed
+cadence. Ping-binding evidence: n_pings=8,
+last_ping='2026-07-21T22:20:55+00:00'" — last_ping is the exact second
+attempt 3's success ping landed, proving ORCHESTRATOR_PING_URL targets
+this same check: declared check == pinged check, config exact.
+ROTATION PROVEN LIVE: attempt 3 (base code, no rotation) processed the
+DB-order head (SXSW, Ticketmaster, Eventbrite, AXS, DICE); attempt 4,
+with those five carrying fresh raw_fetch rows, processed the NEXT
+least-recently-fetched five (C-Boy's Heart & Soul, Austin Convention
+Center, H-E-B Center at Cedar Park, Austin Film Festival, Lockhart
+Post-Register) — the capped window visibly swept on. RunReport
+c2d8b101-3e67-42ea-9ab7-7f57bcf11f3d; counts {fetched 4, extracted 4,
+passed 3, held 1, sensor_rejected 0, errors 1}: three candidates at
+ready_to_promote awaiting authenticated human promote; one HELD by
+gate3 (insufficient corroboration, 1 of 2) — the corroboration gate
+observed live; one per-source error (Austin Film Festival,
+InvalidDatetimeFormat: bare "7:00 pm" reached a timestamptz column —
+recorded as R-021, isolated and loud exactly as designed); two no-URL
+sources skipped loudly. Replay artifact replay-log-29876232668,
+artifact id 8513085429, zip sha256
+03a9e0f0d946fe688ddbb121b4c5f11411bd0dc337b984ecd6f0e98ed3c19882.
+Every element the section header requires is present, on this head's
+code.
+
+**Verdict:** r1–r15 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.
