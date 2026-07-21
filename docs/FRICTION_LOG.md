@@ -284,8 +284,34 @@ candidate rows, the dead-man success ping, and the replay artifact.
   died at DB connect and went red, never green — the guard behaved
   exactly as designed. Founder asked (numbered steps, session chat) to
   re-store the DSN AS-PASTED from Supabase plus a separate
-  ONELIVE_DB_PASSWORD secret, the designed path. A green attempt is
-  still REQUIRED before merge and will be appended here.
+  ONELIVE_DB_PASSWORD secret, the designed path.
+- *Attempt 2 — intermediate, run 29871230418, 2026-07-21T21:45Z, FAILED
+  ($0 AI spend):* founder re-stored the DIRECT-connection URI; the host
+  resolves IPv6-only and GitHub runners have no IPv6 ("Network is
+  unreachable"). Corrected instruction: the SESSION-POOLER URI.
+- *Attempt 3 — run 29873390712, 2026-07-21T22:20Z, SUCCESS (the required
+  green run; mechanical evidence):*
+  run 29873390712 (workflow_dispatch, master @ 1244783f, max_sources=5),
+  conclusion SUCCESS, job 88778460292, every step green. DSN assembly:
+  step "Validate DSN + register log mask" green on the Session-pooler
+  URI + spliced password. Loop: "processing 5 of 266 enabled sources"
+  (live catalog count, printed by the budget guard); RunReport run_id
+  05139cf6-3969-4e66-8eca-d8d5a0dbf7c1; counts {fetched 4, extracted 3,
+  passed 3, escalated 0, held 0, sensor_rejected 1, errors 1}. gate3
+  decisions: SXSW Official Schedule, Ticketmaster Discovery API,
+  Eventbrite API → ready_to_promote, "awaiting authenticated ops
+  promote" — candidate rows written, AI-never-publishes held live.
+  Defenses fired on real input: DICE rejected by the sensor with a
+  prompt-injection marker ("you are now") before reaching the extractor;
+  AXS 403 isolated per-source with the loud partial-error warning while
+  the run stayed green. Dead-man: the pinged step green and no
+  "dead-man ping failed" warning in the log (ping failures log loudly)
+  → success ping delivered. Replay audit artifact:
+  replay-log-29873390712, artifact id 8512039208, zip sha256
+  5590f9c51202540096eb876522b17be0fbef88aeba013e4ed5655b8badd6c598.
+  Every element the section header requires is present: DSN assembly,
+  extraction, gate3 decisions, candidate rows, dead-man success ping,
+  replay artifact.
 
 **Attack round 2 (run 29868188958, REQUEST-CHANGES) — findings → written
 answers:**
