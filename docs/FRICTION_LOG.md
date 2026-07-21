@@ -281,6 +281,30 @@ candidate rows, the dead-man success ping, and the replay artifact.
   ONELIVE_DB_PASSWORD secret, the designed path. A green attempt is
   still REQUIRED before merge and will be appended here.
 
-**Verdict:** r1 attack recorded and answered above; the arming merges
+**Attack round 2 (run 29868188958, REQUEST-CHANGES) — findings → written
+answers:**
+1. *Armed cron + known-bad DB credential is unmergeable, loud failure or
+   not.* Answer: agreed without reservation — the merge gate in this
+   entry already required a green run; the founder is re-storing the DSN
+   the designed way (as-pasted URI + separate ONELIVE_DB_PASSWORD), and
+   no merge happens before a green attempt is appended here.
+2. *Draft changelog contradicted the live evidence* ("resolves
+   R-005/R-008"; "the as-stored secret works"). Answer: corrected in
+   place — the entry is unmerged draft in this same PR, so fixing the
+   text IS the record staying true; the r2 round row documents both
+   corrections.
+3. *Rotation nit (real bug): only successful fetches left raw_fetch rows,
+   so permanently-failing or perpetually-304 sources would lead the
+   rotation forever and monopolize the capped window.* Answer: fixed at
+   the adapter, not deferred — failed and not-modified fetches now record
+   best-effort ATTEMPT rows (content_hash "attempt:<outcome>"), rotation
+   thereby sweeps on last-attempted; regression tests pin the attempt
+   writes and the never-masks-original-error property.
+4. *Positional tuple fragility in the sort key; "verified" overclaim in
+   the workflow header.* Answer: key now unpacks first/last by name;
+   header states presence-checked, correctness owned by the recorded
+   green smoke run.
+
+**Verdict:** r1+r2 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.

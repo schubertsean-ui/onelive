@@ -4,14 +4,16 @@ name: Ingestion Run
 # (fetch -> sensors -> extract -> gate3 -> candidate store; NEVER promotes —
 # promotion is an authenticated human ops action only).
 #
-# ARMED 2026-07-21. Every charter precondition for scheduling a recurring
-# loop (CLAUDE.md Sentinel rule; §14.3 budget caps) is satisfied and
-# verified: the spend-capped ANTHROPIC_API_KEY, ONELIVE_DB_DSN, and
-# ORCHESTRATOR_PING_URL Actions secrets exist (founder-minted; the
-# preconditions step below still fail-louds if any goes missing), and the
+# ARMED 2026-07-21. Charter preconditions for scheduling a recurring loop
+# (CLAUDE.md Sentinel rule; §14.3 budget caps): the spend-capped
+# ANTHROPIC_API_KEY, ONELIVE_DB_DSN, and ORCHESTRATOR_PING_URL Actions
+# secrets exist, founder-minted (the preconditions step below checks
+# PRESENCE and fail-louds if any goes missing — presence is all a workflow
+# can check; end-to-end CORRECTNESS is proven by the green pre-merge smoke
+# run whose id is recorded in docs/FRICTION_LOG.md entry #3), and the
 # Friction pre-work attack of the arming plan is logged and answered in
-# docs/FRICTION_LOG.md entry #3 (attacker: the non-Claude CI evaluator on
-# the arming PR itself). Dead-man ping: worker/sentinel.py wraps the run in
+# that same entry (attacker: the non-Claude CI evaluator on the arming PR
+# itself). Dead-man ping: worker/sentinel.py wraps the run in
 # start/success/fail pings; the healthchecks.io check period matches the
 # hourly cadence.
 #

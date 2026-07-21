@@ -5,6 +5,7 @@ Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/fetch
 from typing import Optional, Dict, Any
 import hashlib
 import json
+import logging
 import os
 import time
 
@@ -22,6 +23,55 @@ def db():
 
 def sha256(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
+
+
+# raw_fetch.content_hash for ATTEMPT rows (failed / not-modified fetches):
+# successful fetches store the sha256 hex of the fetched bytes; attempt rows
+# store "attempt:<outcome>" instead, with the detail in headers jsonb. Why
+# attempts are recorded at all (PR #43 r2 nit, real coverage bug): the
+# capped scheduled loop rotates on max(raw_fetch.fetched_at) per source
+# (worker/run_once.py) — if only SUCCESSES left rows, a permanently-failing
+# or perpetually-304 source would look never/least-fetched forever, lead
+# every rotation window, and monopolize the per-run budget while healthy
+# sources starve. Recording the attempt makes the rotation sweep on "last
+# tried", which is the semantics a budget window needs, and gives the audit
+# trail the failures it was missing.
+ATTEMPT_HASH_PREFIX = "attempt:"
+
+
+def record_fetch_attempt(source_id, url: str, outcome: str, detail: str = "") -> None:
+    """Best-effort raw_fetch ATTEMPT row (outcome: 'failed'/'not_modified').
+
+    Best-effort by design: this runs on error paths (including DB-broken
+    ones), so it must never mask the original failure — any exception here
+    is logged and swallowed, and the caller re-raises its own error. A
+    source with no source_id (e.g. the smoke stub) records nothing.
+    """
+    if source_id is None:
+        return
+    try:
+        with db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    insert into raw_fetch(source_id, fetch_url, content_hash,
+                                          headers, storage_ref)
+                    values (%s,%s,%s,%s::jsonb,%s)
+                    """,
+                    (
+                        source_id,
+                        url,
+                        f"{ATTEMPT_HASH_PREFIX}{outcome}",
+                        json.dumps({"attempt": outcome, "detail": detail[:500]}),
+                        None,
+                    ),
+                )
+            conn.commit()
+    except Exception as exc:  # noqa: BLE001 — never mask the original error
+        logging.getLogger(__name__).warning(
+            "could not record fetch attempt for source %s (%s): %s",
+            source_id, outcome, exc,
+        )
 
 
 def fetch_url(
@@ -42,10 +92,19 @@ def fetch_url(
     if last_modified:
         headers["If-Modified-Since"] = last_modified
 
-    r = requests.get(url, headers=headers, timeout=timeout_s)
-    if r.status_code == 304:
-        return {"status": "not_modified", "url": url}
-    r.raise_for_status()
+    try:
+        r = requests.get(url, headers=headers, timeout=timeout_s)
+        if r.status_code == 304:
+            # An attempt row keeps 304-stable sources rotating instead of
+            # looking ever-staler and re-claiming a budget slot every run.
+            record_fetch_attempt(source_id, url, "not_modified")
+            return {"status": "not_modified", "url": url}
+        r.raise_for_status()
+    except Exception as exc:
+        # Stamp the attempt (best-effort, never masks), then fail exactly
+        # as before — run_loop's per-source isolation policy is unchanged.
+        record_fetch_attempt(source_id, url, "failed", str(exc))
+        raise
 
     content = r.content
     ch = sha256(content)

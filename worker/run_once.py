@@ -151,19 +151,29 @@ def order_for_rotation(rows: Sequence[tuple]) -> list:
     raw_fetch timestamp makes the capped window sweep the whole catalog
     (10/run x 24 runs/day >= the ~230-source catalog daily).
 
+    "Fetched" means ATTEMPTED, not just succeeded: the fetch adapter also
+    records failed and not-modified attempts as raw_fetch rows (see
+    worker/fetch/http_fetch.py ATTEMPT_HASH_PREFIX), so a permanently-dead
+    source cannot sit in the never-fetched bucket and monopolize the capped
+    window forever (PR #43 r2 nit — a real coverage bug, fixed at the
+    adapter, inherited here for free because max(fetched_at) sees attempt
+    rows too).
+
     Rows are (source_id, name, base_url, source_type, last_fetched_at) —
-    the SELECT below. Sorting happens in Python, not SQL, so the rotation
-    contract is unit-testable without a live DB. The key tuple's first
-    element separates the never-fetched bucket, so the sentinel below is
-    only ever compared to itself, never to a datetime (PR #43 r1 nit:
-    named sentinel over a bare magic 0).
+    the SELECT below; the key unpacks first/last positionally-by-name so a
+    middle-column change cannot silently shift what gets sorted (r2 nit).
+    Sorting happens in Python, not SQL, so the rotation contract is
+    unit-testable without a live DB. The key tuple's first element
+    separates the never-fetched bucket, so the sentinel below is only ever
+    compared to itself, never to a datetime (r1 nit: named sentinel over a
+    bare magic 0).
     """
     def _key(row):
-        last = row[4]
-        never_fetched = last is None
+        source_id, *_middle, last_fetched_at = row
+        never_fetched = last_fetched_at is None
         return (not never_fetched,
-                _NEVER_FETCHED_SENTINEL if never_fetched else last,
-                str(row[0]))
+                _NEVER_FETCHED_SENTINEL if never_fetched else last_fetched_at,
+                str(source_id))
 
     return sorted(rows, key=_key)
 
