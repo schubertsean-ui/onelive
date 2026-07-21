@@ -333,6 +333,18 @@ answers:**
    rephrased as capacity-to-sweep with the dead-man check named as the
    alarm for missed slots.
 
+**Cadence amendment (founder-directed, 2026-07-21, session chat:
+"Can you accelerate the ingestion to every 15 or 20 minutes?"):** the
+schedule is every 20 minutes (7,27,47 past the hour), not hourly — the
+gentler end of the founder's stated range. This supersedes the Blue
+merge's hourly choice above BY THE RED HAT'S OWNER: spend escalation is
+the founder's own decision (charter cost-discipline rule 2 — deliberate,
+logged, never silent; ~3x hourly cost, still double-capped by the
+10-source per-run ceiling and the console monthly cap). The dead-man
+check period becomes 20 minutes + ~10 grace. The cadence-drop fallback
+on measured cost stays the logged fallback, now with hourly as its first
+step down.
+
 **Attack round 4 (run 29869864335, REQUEST-CHANGES) — findings → written
 answers:**
 1. *Standing founder-gated blockers (armed cron, failed-only smoke

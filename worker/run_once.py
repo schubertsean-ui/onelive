@@ -141,37 +141,24 @@ def apply_source_ceiling(sources: Sequence[dict], cap: int | None) -> list:
 
 
 def order_for_rotation(rows: Sequence[tuple]) -> list:
-    """Order source rows least-recently-fetched FIRST (never-fetched before
-    everything), deterministic tiebreak by source_id.
+    """Order source rows least-recently-ATTEMPTED first (never-attempted
+    before everything), deterministic tiebreak by source_id.
 
-    Why this exists (Step 5 arming, FRICTION_LOG entry #3): the per-run
-    budget ceiling truncates the source list, so under a recurring cron the
-    ORDER decides coverage. Plain DB order would feed the same head-of-table
-    sources every hour and STARVE the tail forever; rotating on the last
-    raw_fetch timestamp makes the capped window sweep the whole catalog
-    (10/run x 24 runs/day >= the ~230-source catalog daily).
+    The invariant: under a per-run budget cap, ORDER IS COVERAGE — this
+    ordering makes the capped recurring loop sweep the whole catalog
+    instead of re-feeding the same head-of-table slice. "Attempted"
+    includes failed and not-modified fetches (the adapter records them as
+    raw_fetch attempt rows — worker/fetch/http_fetch.py), so a
+    permanently-dead source cannot monopolize the window.
 
-    "Fetched" means ATTEMPTED, not just succeeded: the fetch adapter also
-    records failed and not-modified attempts as raw_fetch rows (see
-    worker/fetch/http_fetch.py ATTEMPT_HASH_PREFIX), so a permanently-dead
-    source cannot sit in the never-fetched bucket and monopolize the capped
-    window forever (PR #43 r2 nit — a real coverage bug, fixed at the
-    adapter, inherited here for free because max(fetched_at) sees attempt
-    rows too).
-
-    Rows are (source_id, name, base_url, source_type, last_fetched_at) —
-    the SELECT below; the key unpacks first/last positionally-by-name so a
-    middle-column change cannot silently shift what gets sorted (r2 nit).
-    Sorting happens in Python, not SQL, so the rotation contract is
-    unit-testable without a live DB — deliberately fine for this table's
-    scale (catalog target ~230 rows, capacity thousands; an in-memory sort
-    of the enabled-source list is microseconds against a network round
-    trip). If the catalog ever materially outgrows that, move this exact
-    ordering into the SELECT (r3 nit — ceiling documented here so the
-    revisit trigger is visible). The key tuple's first element separates
-    the never-fetched bucket, so the sentinel below is only ever compared
-    to itself, never to a datetime (r1 nit: named sentinel over a bare
-    magic 0).
+    Rows are (source_id, name, base_url, source_type, last_fetched_at);
+    the key unpacks first/last by position-name so middle-column changes
+    cannot shift what gets sorted, and its leading bucket element keeps
+    the never-attempted sentinel from ever meeting a datetime. Python-side
+    sort is deliberate (unit-testable, microseconds at this scale);
+    revisit trigger: enabled-source count > 2,000 (printed by every capped
+    run's budget-ceiling log line) -> move this ordering into the SELECT.
+    Design history: FRICTION_LOG entry #3, PR #43 rounds 1-5.
     """
     def _key(row):
         source_id, *_middle, last_fetched_at = row

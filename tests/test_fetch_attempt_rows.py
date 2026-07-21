@@ -138,6 +138,32 @@ def test_recorder_is_noop_without_source_id(monkeypatch, db_rows):
     assert db_rows == []
 
 
+def test_attempt_rows_satisfy_the_real_migration_schema():
+    """r5 nit: bind the adapter's schema assumptions to the REAL migration
+    text, not prose. Attempt rows rely on exactly three properties of
+    supabase/migrations/0003_raw_fetch.sql: content_hash is text (accepts
+    the 'attempt:<outcome>' token) and not-null (we always provide it),
+    storage_ref is NULLABLE (attempt rows pass NULL), headers is jsonb
+    (carries the outcome/detail payload). If the migration ever changes any
+    of these, this test — not a production insert — is what breaks."""
+    import pathlib
+    sql = (pathlib.Path(__file__).resolve().parent.parent
+           / "supabase" / "migrations" / "0003_raw_fetch.sql").read_text()
+    table = sql.split("create table if not exists raw_fetch", 1)[1]
+    table = table.split(");", 1)[0]
+    cols = {}
+    for line in table.splitlines():
+        line = line.strip().rstrip(",")
+        if line and not line.startswith(("(", "--")):
+            name = line.split()[0]
+            cols[name] = line
+    assert "content_hash" in cols and "text" in cols["content_hash"]
+    assert "not null" in cols["content_hash"]
+    assert "storage_ref" in cols and "not null" not in cols["storage_ref"]
+    assert "headers" in cols and "jsonb" in cols["headers"]
+    assert "source_id" in cols and "references source" in cols["source_id"]
+
+
 def test_successful_fetch_row_shape_unchanged(monkeypatch, db_rows, tmp_path):
     """Success still writes the real content row (sha256 hash, storage ref)
     — attempt rows are additive, not a rewrite of the success path."""
