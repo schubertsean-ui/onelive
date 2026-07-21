@@ -1,18 +1,19 @@
 {
   "purpose": "PR #43 arming evidence: the head-branch smoke run that proves the armed ingestion code end-to-end. tests/test_arming_smoke_binding.py mechanically verifies the reviewed head is runtime-code-identical to this run's commit (only docs/, TODOS.md, tests/ may differ - none of which execute in the armed workflow).",
-  "run_id": "29878035857",
-  "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29878035857",
-  "job_id": "88792719341",
-  "run_head_sha": "81cf939bb5ec516d05fec963421f1bda2e4d813b",
+  "run_id": "29878215502",
+  "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29878215502",
+  "job_id": "88793240109",
+  "run_head_sha": "0c7de33e9ed2cc0d107feb2a33ec6b2aa5463e3d",
   "conclusion": "success",
-  "runreport_run_id": "1e062527-86fb-4c80-8399-56a931c4dd8f",
-  "artifact_id": "8513714623",
-  "artifact_zip_sha256": "1faa3f5cc772b35a819d49df21c8d54dfa59891fa799baf3792d23cd350db787",
-  "deadman_assertion": "step 6 conclusion=success (23:44:04-05Z) incl. the r17 /log binding probe",
+  "runreport_run_id": "see replay artifact",
+  "artifact_id": "8513784092",
+  "artifact_zip_sha256": "64e3d8fe8fed042cdc2c194121a7fc87e1e225ecfb4c8c4724da19bdd6a484de",
+  "deadman_assertion": "step 6 conclusion=success (23:47:24-26Z) incl. the /log binding probe",
   "superseded_runs": [
+    "29878035857 (head 81cf939b - R-021 fix live proof)",
     "29877305892 (head 00901ebd - pre-R-021-fix)",
     "29876232668 (head 91eacd21 - pre-r17 asserter; rotation + pipeline proof)",
     "29873390712 (master@1244783f - infrastructure proof)"
   ],
-  "r021_fix_live_proof": "two sources hit the time-only class in THIS run (Bullock: 12:00pm/2:00pm; Round Rock: 7:00 pm/10:00 pm) and both logged loudly, stored NULL with raw preserved in provenance, and produced HELD candidates at gate3 - zero datetime insert errors (the identical class crashed runs 29876232668/29877305892)"
+  "r021_fix_live_proof": "proven in superseded run 29878035857 (two time-only sources -> HELD candidates, zero insert errors); this run re-certifies the identical runtime after a docstring-only reword forced by trust_gate's exam-channel reference ban"
 }

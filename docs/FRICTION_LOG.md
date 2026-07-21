@@ -610,6 +610,15 @@ one enumerated red that does not count against every-check-green; no
 record change rides this PR; the review's base-owned evidence channel
 screens eligibility mechanically. The red stands by design until merge.
 
+**Attempt 7 — run 29878215502 @ 0c7de33e, SUCCESS — the FINAL head
+run:** every step green incl. the dead-man assertion + /log binding
+probe (23:47:24–26Z); artifact 8513784092, zip sha256
+64e3d8fe8fed042cdc2c194121a7fc87e1e225ecfb4c8c4724da19bdd6a484de. The
+head differs from attempt 6's only by a docstring reword forced by
+trust_gate's (correct) ban on exam-channel references in pipeline code;
+this run re-certifies the identical runtime. Evidence file updated;
+binding test green on this head.
+
 **Verdict:** r1–r18 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.
