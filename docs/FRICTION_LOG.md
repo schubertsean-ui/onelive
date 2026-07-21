@@ -564,6 +564,26 @@ docs/evidence/ARMING_SMOKE_RUN.json now records THIS run;
 tests/test_arming_smoke_binding.py re-greens on this docs-only commit
 and re-REDs on any future runtime change.
 
-**Verdict:** r1–r17 attacks recorded and answered above; the arming merges
+**Attack round 18 (run 29877576656, REQUEST-CHANGES) — findings →
+answers:**
+1. *R-021 cannot ride as a post-merge fix: the arming evidence itself
+   shows a recurring data-loss class (×4 across two runs, ~4 of 10
+   sampled sources) in the very path being scheduled.* Answer: agreed —
+   fixed IN THIS PR. worker/datetime_normalize.py enforces the trust
+   rule at the shaping boundary (worker/ai_extract.py — deliberately not
+   worker/ai_models.py, which is bound into the certified exam harness;
+   changing it would trip the re-lock and force extraction closed):
+   store a timestamp ONLY when the string evidences a full calendar
+   date; time-only/weekday/month-day-without-year claims become NULL
+   with the raw preserved in extracted._provenance.undated_time_claims
+   and the candidate kept for ops review — no fabricated date (a guessed
+   "today"/"this year" would be exactly the unverified fact this
+   pipeline exists to refuse), no lost event, no insert error. 17 tests
+   including the four exact live failure strings. R-021 → RESOLVED.
+2. *Nits:* match_check's stale binding rationale replaced (selection vs
+   probe-binds stated); the binding test's file matching is exact-match
+   for files, prefix only for directories.
+
+**Verdict:** r1–r18 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.

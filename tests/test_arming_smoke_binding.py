@@ -27,7 +27,14 @@ _EVIDENCE = _ROOT / "docs" / "evidence" / "ARMING_SMOKE_RUN.json"
 
 # Paths that never execute inside the armed workflow. Everything else is
 # runtime surface and must be byte-identical to the run's commit.
-_NON_RUNTIME_PREFIXES = ("docs/", "tests/", "TODOS.md")
+# Directories are prefix-matched; files exactly (r18 nit: a bare
+# startswith would have blessed e.g. TODOS.md.bak).
+_NON_RUNTIME_DIR_PREFIXES = ("docs/", "tests/")
+_NON_RUNTIME_FILES = ("TODOS.md",)
+
+
+def _is_non_runtime(path: str) -> bool:
+    return path.startswith(_NON_RUNTIME_DIR_PREFIXES) or path in _NON_RUNTIME_FILES
 
 
 def _git(*args: str) -> subprocess.CompletedProcess:
@@ -63,9 +70,7 @@ def test_reviewed_head_is_runtime_code_identical_to_the_smoke_run():
     diff = _git("diff", "--name-only", f"{run_sha}..{head}")
     assert diff.returncode == 0, diff.stderr
     changed = [p for p in diff.stdout.splitlines() if p.strip()]
-    runtime_changes = [
-        p for p in changed if not p.startswith(_NON_RUNTIME_PREFIXES)
-    ]
+    runtime_changes = [p for p in changed if not _is_non_runtime(p)]
     assert not runtime_changes, (
         "runtime code changed since the recorded green smoke run — the "
         f"evidence no longer covers this head: {runtime_changes}. Re-run "

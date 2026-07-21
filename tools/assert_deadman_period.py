@@ -98,12 +98,10 @@ def match_check(checks: list, ping_id: str, declared_slug: str) -> dict | None:
     remain as secondary matches for configurations where they do work; a
     miss on every path still fails closed at the caller.
 
-    The declared-slug path does not itself prove the PING URL targets the
-    matched check — that binding is proven operationally: only this loop
-    pings anything, so the named check's n_pings/last_ping (printed in
-    the OK line) rise exactly when runs succeed, and a mis-pointed ping
-    URL self-announces by the named check going down. The alarm property
-    holds in every branch."""
+    The declared-slug path identifies the check; it does NOT prove the
+    ping URL targets it — that proof is main()'s /log binding probe
+    (r17), which must move this check's counter within the run or the
+    run is refused. This function only selects; the probe binds."""
     ping_id = ping_id.strip().lower()
     candidates = {
         hashlib.sha1(form.encode("utf-8")).hexdigest()
