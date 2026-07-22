@@ -37,6 +37,22 @@ Env contract (all required, fail closed):
                              cadence and this declaration cannot drift apart
   MAX_GRACE_SECONDS          upper bound for the check's grace
 
+Optional (purely additive — unset means behavior identical to before):
+  REPORT_FLIPS               set to literal "1" to run the R-023 PATH A
+                             alarm-verification probe (trigger part 2)
+                             AFTER every assertion above has passed
+                             unchanged: reads the verified check's flip
+                             (status-change) history for the last 24h via
+                             the same RO key and prints a plain table with
+                             every DOWN event marked. The flips endpoint's
+                             readability under a read-only key is exactly
+                             what R-023 calls UNTESTED [R-023]; therefore a
+                             401/403/404 from it is the probe's ANSWER, not
+                             a failure — it prints FLIPS-UNREADABLE (naming
+                             PATH B as the only remaining verification
+                             path) and exits 0. Any OTHER flips failure
+                             (network, malformed response) fails loud.
+
 Exit codes per tools/README.md: 0 asserted / 2 misconfiguration, API
 failure, no matching check, or period/grace mismatch — every path closed.
 """
@@ -46,9 +62,15 @@ import hashlib
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 
 API_URL = "https://healthchecks.io/api/v3/checks/"
+
+# R-023 trigger part 2 asks for "at least the last 24h" of flip history;
+# the endpoint's `seconds` filter makes the window explicit rather than
+# relying on the server's unfiltered default.
+FLIPS_WINDOW_SECONDS = 86400
 
 
 def _fail(msg: str) -> int:
@@ -85,6 +107,104 @@ def send_binding_probe(ping_url: str) -> None:
     with urllib.request.urlopen(req, timeout=30) as resp:
         if resp.status != 200:
             raise RuntimeError(f"probe returned HTTP {resp.status}")
+
+
+def fetch_flips(api_key: str, check_id: str) -> list:
+    """GET the check's status-change (flip) history for the probe window
+    (healthchecks API v3: GET /api/v3/checks/<uuid|unique_key>/flips/,
+    documented as readable by read-only keys — the live truth of that
+    claim is what R-023 PATH A exists to establish [R-023]). Separated
+    for testability like fetch_checks; every failure disposition —
+    including the 401/403/404 that IS the probe's answer — belongs to
+    the caller. The response body is a bare JSON array of
+    {"timestamp": <iso8601>, "up": 0|1} objects."""
+    url = f"{API_URL}{check_id}/flips/?seconds={FLIPS_WINDOW_SECONDS}"
+    req = urllib.request.Request(url, headers={"X-Api-Key": api_key})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def report_flips(api_key: str, check: dict) -> int:
+    """R-023 PATH A alarm-verification probe (trigger part 2): after the
+    period/grace/binding assertions have ALL passed unchanged, print the
+    verified check's flips (status changes) for the last 24h, marking
+    every DOWN event — the mechanical evidence for whether the dead-man
+    alarm actually flipped during the sparse-delivery gaps.
+
+    Dispositions, deliberately asymmetric:
+    - 200 + well-formed list: print the table, exit 0.
+    - 401/403/404: the RO key cannot read flip history. That is the
+      probe's ANSWER (R-023 names this readability UNTESTED [R-023]) —
+      print the single unambiguous FLIPS-UNREADABLE line naming PATH B
+      (founder confirmation) as the only remaining verification path,
+      and exit 0: a probe that REPORTS inaccessibility has succeeded.
+    - anything else (network fault, malformed body, no usable check
+      identifier): fail LOUD via the standard closed path — a broken
+      probe must never masquerade as a completed one.
+    No secret material in output: the check is identified by name only,
+    never by uuid/unique_key/ping URL."""
+    # Prefer unique_key (the identifier read-only list responses carry;
+    # a sha1 derivative, so nothing pingable leaks into the request URL);
+    # uuid is the fallback for read-write keys, which do expose it.
+    check_id = (check.get("unique_key") or check.get("uuid") or "").strip()
+    if not check_id:
+        return _fail(
+            "flips probe: the verified check exposes neither unique_key "
+            "nor uuid, so no flips URL can be formed — probe broken, "
+            "failing loud (this is not the R-023 inaccessibility answer)."
+        )
+    try:
+        flips = fetch_flips(api_key, check_id)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403, 404):
+            print(
+                f"FLIPS-UNREADABLE: read-only key cannot access flip "
+                f"history (HTTP {exc.code}) — R-023 PATH B (founder "
+                f"confirmation) is the only remaining verification path"
+            )
+            return 0
+        return _fail(
+            f"flips probe: unexpected HTTP {exc.code} from the flips "
+            "endpoint — neither readable history nor the documented "
+            "access-denied answer. Probe inconclusive, failing loud."
+        )
+    except Exception as exc:  # noqa: BLE001 — non-HTTP faults fail loud
+        return _fail(
+            f"flips probe: could not fetch flip history "
+            f"({type(exc).__name__}) — network/parse fault, NOT an "
+            "access answer. Probe inconclusive, failing loud."
+        )
+    if not isinstance(flips, list) or not all(
+        isinstance(f, dict)
+        and isinstance(f.get("timestamp"), str)
+        and isinstance(f.get("up"), (int, bool))
+        for f in flips
+    ):
+        return _fail(
+            "flips probe: the flips endpoint answered 200 but the body "
+            "is not the documented list of {timestamp, up} objects — "
+            "malformed response, failing loud."
+        )
+    name = check.get("name")
+    print(
+        f"FLIP REPORT (R-023 PATH A, trigger part 2) — check "
+        f"name={name!r}, window last {FLIPS_WINDOW_SECONDS}s (24h):"
+    )
+    if not flips:
+        print(
+            "  (no flips: the check's status never changed in the "
+            "window — no DOWN events recorded)"
+        )
+        return 0
+    down_count = 0
+    for flip in flips:
+        if flip["up"]:
+            print(f"  {flip['timestamp']:<32} UP")
+        else:
+            down_count += 1
+            print(f"  {flip['timestamp']:<32} DOWN   <-- DOWN event")
+    print(f"  total: {len(flips)} flip(s), {down_count} DOWN")
+    return 0
 
 
 def match_check(checks: list, ping_id: str, declared_slug: str) -> dict | None:
@@ -256,6 +376,11 @@ def main() -> int:
         f"{n_before} -> {n_after} on the verified check (a /log event "
         "never signals success, so this cannot mask a dead loop)."
     )
+    # R-023 PATH A (trigger part 2): OPTIONAL report mode, additive only —
+    # it runs strictly AFTER every assertion above passed unchanged, so
+    # with REPORT_FLIPS unset the tool's effect is identical to before.
+    if os.environ.get("REPORT_FLIPS", "").strip() == "1":
+        return report_flips(api_key, check_after)
     return 0
 
 

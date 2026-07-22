@@ -56,6 +56,10 @@ on:
         description: "Budget ceiling: max sources this run (required; §14.3)"
         required: true
         default: "10"
+      report_flips:
+        description: "Set 1 to print the dead-man check's 24h flip history after the assertion (R-023 PATH A probe; read-only, additive)"
+        required: false
+        default: "0"
 
 concurrency:
   group: ingest
@@ -135,6 +139,12 @@ jobs:
           DEADMAN_CHECK_SLUG: "onelive-ingestion"
           EXPECTED_PERIOD_SECONDS: "1200"
           MAX_GRACE_SECONDS: "600"
+          # R-023 PATH A probe: dispatch-only, read-only, additive — runs
+          # AFTER the assertion passes and only prints the check's flip
+          # history (did the alarm actually fire?). Schedule events never
+          # set it (callers cannot influence event_name), so the armed
+          # cadence's behavior is unchanged.
+          REPORT_FLIPS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.report_flips || '0' }}
         run: |
           python3 tools/assert_deadman_period.py
 

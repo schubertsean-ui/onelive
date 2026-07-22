@@ -32,7 +32,13 @@ _EVIDENCE = _ROOT / "docs" / "evidence" / "ARMING_SMOKE_RUN.json"
 # Directories are prefix-matched; files exactly (r18 nit: a bare
 # startswith would have blessed e.g. TODOS.md.bak).
 _NON_RUNTIME_DIR_PREFIXES = ("docs/", "tests/", "design/")
-_NON_RUNTIME_FILES = ("TODOS.md", "STATE.md")
+# .gitignore never executes in the armed workflow either — it shapes only
+# the local working tree (untracked-file hygiene; the workflow's checkout,
+# python steps, and artifact upload are unaffected by it). Added when the
+# parallel-agent worktree ignore line correctly tripped this binding
+# (PR #51): the gate was right to stop and ask; the answer is that this
+# file is not runtime surface.
+_NON_RUNTIME_FILES = ("TODOS.md", "STATE.md", ".gitignore")
 
 
 def _is_non_runtime(path: str) -> bool:

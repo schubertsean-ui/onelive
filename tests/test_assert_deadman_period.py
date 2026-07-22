@@ -11,9 +11,17 @@ they happen to work (the sha1 derivation failed against the live API,
 which is exactly why declaration replaced inference — r16 wording fix).
 The r17 binding contract is pinned: a /log probe to the ping URL must move the verified check's counter, so a misbound/stale secret fails closed even when the named check's config is perfect. No secret material in output.
 
-Hermetic: fetch_checks is monkeypatched; no network.
+Also pinned: the R-023 PATH A alarm-verification probe (trigger part 2,
+REPORT_FLIPS=1) — additive-only (unset means fetch_flips is NEVER called),
+flip table printed with DOWN marked on success, 401/403/404 answered by
+the FLIPS-UNREADABLE line at exit 0 (inaccessibility reported IS probe
+success), and every other flips fault (network, malformed body) loud
+nonzero.
+
+Hermetic: fetch_checks/fetch_flips are monkeypatched; no network.
 """
 import hashlib
+import urllib.error
 
 import pytest
 
@@ -208,3 +216,122 @@ def test_wrong_declaration_and_no_other_match_fails_closed(env, capsys):
                "timeout": 1200, "grace": 600, "unique_key": "zzz"}]
     assert _run(env, checks) == 2
     assert "DECLARED slug" in capsys.readouterr().err
+
+
+# --- R-023 PATH A alarm-verification probe (trigger part 2) -----------------
+# The rule under test: REPORT_FLIPS=1 adds a flip report strictly AFTER the
+# existing assertions pass; unset, the flips endpoint is never touched (the
+# mode is purely additive). 401/403/404 = the probe's answer (exit 0 with the
+# FLIPS-UNREADABLE line naming PATH B); any other flips fault = loud nonzero.
+
+_FLIPS = [
+    {"timestamp": "2026-07-22T14:17:02+00:00", "up": 1},
+    {"timestamp": "2026-07-22T12:47:02+00:00", "up": 0},
+]
+
+
+def test_report_flips_prints_table_and_marks_down(env, capsys):
+    env.setenv("REPORT_FLIPS", "1")
+    env.setattr(adp, "fetch_flips", lambda key, cid: list(_FLIPS))
+    assert _run(env, [_check()]) == 0
+    out = capsys.readouterr().out
+    assert "OK" in out  # the existing assertion output is unchanged
+    assert "FLIP REPORT" in out and "R-023" in out
+    assert "2026-07-22T14:17:02+00:00" in out
+    assert "2026-07-22T12:47:02+00:00" in out
+    assert "DOWN event" in out and "1 DOWN" in out
+
+
+def test_report_flips_empty_history_reports_no_down_events(env, capsys):
+    env.setenv("REPORT_FLIPS", "1")
+    env.setattr(adp, "fetch_flips", lambda key, cid: [])
+    assert _run(env, [_check()]) == 0
+    assert "no DOWN events" in capsys.readouterr().out
+
+
+def test_report_flips_uses_unique_key_and_never_prints_it(env, capsys):
+    """The RO list response identifies checks by unique_key — the flips URL
+    must be formed from it, and it must never reach output."""
+    seen = {}
+
+    def _spy(key, cid):
+        seen["cid"] = cid
+        return []
+    env.setenv("REPORT_FLIPS", "1")
+    env.setattr(adp, "fetch_flips", _spy)
+    checks = [_check()]
+    assert _run(env, checks) == 0
+    assert seen["cid"] == checks[0]["unique_key"]
+    out = capsys.readouterr().out
+    assert seen["cid"] not in out and _UUID not in out
+
+
+@pytest.mark.parametrize("code", [401, 403, 404])
+def test_report_flips_access_denied_is_the_answer_exit_zero(env, capsys, code):
+    """R-023: the RO key's ability to read flips is the UNTESTED question —
+    a 401/403/404 answers it. The probe reports and succeeds (exit 0)."""
+    def _denied(key, cid):
+        raise urllib.error.HTTPError("url", code, "denied", None, None)
+    env.setenv("REPORT_FLIPS", "1")
+    env.setattr(adp, "fetch_flips", _denied)
+    assert _run(env, [_check()]) == 0
+    out = capsys.readouterr().out
+    assert f"FLIPS-UNREADABLE: read-only key cannot access flip history " \
+           f"(HTTP {code})" in out
+    assert "PATH B" in out
+
+
+def test_report_flips_network_error_fails_loud(env, capsys):
+    def _boom(key, cid):
+        raise OSError("connection reset")
+    env.setenv("REPORT_FLIPS", "1")
+    env.setattr(adp, "fetch_flips", _boom)
+    assert _run(env, [_check()]) == 2
+    assert "failing loud" in capsys.readouterr().err
+
+
+def test_report_flips_unexpected_http_code_fails_loud(env):
+    """5xx is neither history nor an access answer — inconclusive, loud."""
+    def _boom(key, cid):
+        raise urllib.error.HTTPError("url", 500, "server error", None, None)
+    env.setenv("REPORT_FLIPS", "1")
+    env.setattr(adp, "fetch_flips", _boom)
+    assert _run(env, [_check()]) == 2
+
+
+@pytest.mark.parametrize("bad_body", [
+    {"flips": []},                                   # object, not the array
+    [{"timestamp": "2026-07-22T14:17:02+00:00"}],    # entry missing "up"
+    [{"up": 1}],                                     # entry missing timestamp
+    "nonsense",
+])
+def test_report_flips_malformed_response_fails_loud(env, bad_body):
+    env.setenv("REPORT_FLIPS", "1")
+    env.setattr(adp, "fetch_flips", lambda key, cid: bad_body)
+    assert _run(env, [_check()]) == 2
+
+
+@pytest.mark.parametrize("value", [None, "0", "true", "yes", ""])
+def test_report_flips_off_never_touches_the_flips_endpoint(env, value):
+    """Purely-additive guarantee: anything but the literal '1' (including
+    unset) must leave the flips endpoint completely uncontacted."""
+    calls = []
+    if value is None:
+        env.delenv("REPORT_FLIPS", raising=False)
+    else:
+        env.setenv("REPORT_FLIPS", value)
+    env.setattr(adp, "fetch_flips",
+                lambda key, cid: calls.append(cid) or [])
+    assert _run(env, [_check()]) == 0
+    assert calls == []
+
+
+def test_report_flips_skipped_when_assertions_fail(env):
+    """The probe runs only AFTER the existing assertions pass — a failing
+    tree must exit 2 without ever consulting the flips endpoint."""
+    calls = []
+    env.setenv("REPORT_FLIPS", "1")
+    env.setattr(adp, "fetch_flips",
+                lambda key, cid: calls.append(cid) or [])
+    assert _run(env, [_check(timeout=3600)]) == 2  # period mismatch
+    assert calls == []
