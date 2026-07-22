@@ -1,12 +1,20 @@
 # Incident narrative: GitHub scheduler pickup + sparse delivery (2026-07-22)
 
-Extracted VERBATIM from docs/RECORD.md's R-008 row at PR #49 r2 (the
-evaluator's row-length audit nit, raised twice) — the row now carries
-the resolution citations and pointers; this file preserves the full
-incident history unchanged. The ACTIVE sparse-delivery deviation is
+PROVENANCE (corrected at PR #49 r3 — the first version of this header
+claimed copy fidelity it did not have, and tests/
+test_doc_provenance_claims.py now forbids that claim class in ops docs):
+this file is an ASSEMBLED, EDITED narrative. It consolidates the R-008
+row's status fragments as they stood at PR #49 r1 — fragments that were
+themselves written and edited across the day, including the r1
+scope-boundary rewording that replaced earlier reassuring dead-man
+prose. It is NOT a copy-fidelity artifact; the exact history of every
+wording is git history for docs/RECORD.md (pre-#49 master 6f8b12b, then
+this branch's commits a5424cd → b4f3898 → onward). Extracted here at the
+evaluator's row-length audit nit (raised twice) so the R-008 row could
+shrink to citations + pointers. The ACTIVE sparse-delivery deviation is
 tracked in R-023 (OPEN), not here.
 
-## The R-008 status narrative, as accumulated in the row
+## The R-008 status narrative, as accumulated and edited in the row
 
 STATUS 2026-07-21: trigger conditions met at founder hands (spend-capped
 key, DSN, dead-man URL stored; console cap first; healthchecks check
