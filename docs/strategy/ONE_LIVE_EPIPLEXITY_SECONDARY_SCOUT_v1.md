@@ -1,31 +1,44 @@
-# Epiplexity applicability review — arXiv 2601.03220 vs the OneLive pipeline
+# Epiplexity secondary-source applicability scout (pre-review) — arXiv 2601.03220 vs the OneLive pipeline
 
-Greppable summary: deep review of "From Entropy to Epiplexity: Rethinking
-Information for Computationally Bounded Intelligence" (Finzi, Qiu, Jiang,
-Izmailov, Kolter, Wilson; arXiv:2601.03220, January 2026), founder-requested
-2026-07-22. Verdict: serious, credible theory work that reframes "information"
-for compute-limited learners; its practical payoff for OneLive is a LENS, not
-a mechanism — it independently validates three standing OneLive positions
+Greppable summary: SECONDARY-SOURCE SCOUT (pre-review, NOT a completed deep
+review — see the provenance banner below) of "From Entropy to Epiplexity:
+Rethinking Information for Computationally Bounded Intelligence" (Finzi, Qiu,
+Jiang, Izmailov, Kolter, Wilson; arXiv:2601.03220, January 2026),
+founder-requested 2026-07-22. Provisional verdict, to be confirmed at R-024's
+trigger: serious, credible theory work that reframes "information" for
+compute-limited learners; its practical payoff for OneLive is a LENS, not a
+mechanism — it is consistent with three standing OneLive positions
 (cost-tiered model routing by measured difficulty; golden-set curation by
 structure/diversity rather than volume; the Descriptor Foundry's "style new,
-facts never" rule) and yields ONE cheap adoption candidate (a compression-gain
-source-yield signal for ingestion triage, queued P3, observability-only).
-Explicitly REJECTED: any use of epiplexity/compressibility as a trust or
+facts never" rule) and suggests ONE cheap adoption candidate (a
+compression-gain source-yield signal for ingestion triage, queued P3,
+observability-only, justified independently of the paper — see §5.1). Also
+recorded: a REJECTION of any use of epiplexity/compressibility as a trust or
 confidence signal — structure is not truth; a fabricated listing is highly
-structured. That rejection is stated here so it never has to be re-derived.
-Status: REVIEW/ANALYSIS — no proposal requiring ratification; no gate,
-threshold, or pipeline change rides on this document.
+structured. That rejection is an application of the standing trust invariants
+(CLAUDE.md prime directive 1; the 4-state model), cited here for
+discoverability — this scout creates no canon.
+Status: SECONDARY-SOURCE SCOUT — no proposal requiring ratification; no
+gate, threshold, or pipeline change rides on this document. It becomes a
+completed review (v1.1) only when R-024's trigger fires and §2's claims are
+verified against the primary paper.
 
-Evidence-strength note (same discipline as the PR-aggregator research
-precedent): this sandbox's egress policy 403-blocks arxiv.org (and the mirror
-hosts), so the primary PDF could NOT be read from here. Every load-bearing
-claim below was cross-checked across ≥2 independent secondary reads
-(search-index retrievals of the arXiv abstract/HTML, emergentmind's paper and
-topic digests, three independent paper-notes writeups, and two follow-on
-papers that restate the definitions). Definitions and named theorems should
-be re-verified against the paper itself before anyone builds ON the math (as
-opposed to the qualitative lens, which is consistently reported everywhere).
-Recorded as R-024 in docs/RECORD.md with an objective trigger.
+## PROVENANCE BANNER — read before citing anything below
+
+The founder asked for deep research of this paper. That contract is NOT
+fully satisfiable from this sandbox and this document does not claim to
+satisfy it: the egress policy 403-blocks arxiv.org and every mirror host, so
+THE PRIMARY PAPER WAS NEVER READ HERE. What this document is: a structured
+scout built from cross-checked secondary sources, explicit about what each
+source corroborates (§6 maps claims to sources), with the completion path
+recorded as R-024 in docs/RECORD.md (read the paper → verify §2 → amend
+v1→v1.1). Until then: §1's bibliographic facts are corroborated by the arXiv
+listing itself (via search-index) and are solid; §2–§3's formal details
+(definitions, named theorems, estimator) are REPORTED, not verified — do not
+build on the math from this document; §4–§5's assessments are PROVISIONAL
+readings of consistently-reported qualitative claims. Same discipline as the
+PR-aggregator precedent (Session Contract #14: egress-blocked scope is
+recorded as incomplete, never absorbed).
 
 ## 1. What the paper is
 
@@ -64,7 +77,7 @@ observer can compress to nothing, a bounded observer must LEARN, and the
 learning can be cheap or expensive depending on form, order, and origin of
 the data.
 
-## 2. The formal core (as cross-checked from secondary sources)
+## 2. The formal core — REPORTED by secondary sources, unverified against the primary (R-024)
 
 - **Setup:** minimum description length (MDL), two-part codes, with an
   explicit time budget T. Among programs/models that run within budget T,
@@ -132,8 +145,9 @@ the data.
 | MDL / prequential coding (Rissanen, Dawid) | codelength of data under a model class | practical | incompressible | supplies the estimator; epiplexity is the interpretation layer (WHICH part of the codelength is the valuable part) |
 | Predictive information / information bottleneck (Bialek–Nemenman–Tishby) | ensemble statistics of sequences | unbounded | none | same instinct (structure = what past tells you about future) without compute-boundedness |
 
-What is genuinely new is not any single ingredient — every ingredient has a
-literature — but the combination: (a) the two-part structure/noise split made
+What is genuinely new — AS THIS SCOUT PROVISIONALLY READS THE SECONDARY
+REPORTS — is not any single ingredient (every ingredient has a literature)
+but the combination: (a) the two-part structure/noise split made
 RELATIVE TO A COMPUTE BUDGET, (b) anchored to cryptographic hardness so
 "looks random" is a theorem rather than a shrug, and (c) shipped with an
 estimator (area under the excess-loss curve) that any ML practitioner can
@@ -199,7 +213,12 @@ counters, feeding the source-ranking review that already exists. stdlib-only
 for the human/agent source-catalog review, nothing more. Why this and not an
 LLM-scored triage pass: the LLM pass costs the very tokens triage is meant to
 save; compression is free and captures the redundancy half of the signal,
-which is where the waste is.
+which is where the waste is. Independence note (why this item survives the
+scout's provisional status): the metric's justification does not depend on
+any theorem in the paper — "a fetch that compresses to nothing against the
+previous fetch is a re-crawl of boilerplate" is elementary compression
+practice; the paper supplied the PROMPT to look here, not the evidence the
+item rests on.
 
 ### 5.2 Extraction eval / golden set (Step 6 — live) — ALIGNS, no change
 
@@ -210,8 +229,10 @@ perfectly contribute ~zero learnable signal to an exam; discriminative
 examples are the ones carrying structure. The already-queued de-escalation
 exam (route to the cheapest tier passing the SAME exam) is the practical twin
 of the paper's budget-relative framing: difficulty is measured against a
-bounded observer, never assumed. No change needed; the review simply gives
-the standing design independent theoretical footing.
+bounded observer, never assumed. No change needed; if the reported
+framing survives R-024's primary-source check, it gives the standing design
+independent theoretical footing — and if it doesn't, the design loses
+nothing, since it never depended on the paper.
 
 ### 5.3 Cost discipline / model routing — ALIGNS, no change
 
@@ -231,21 +252,24 @@ value: the synthesis creates STYLISTIC structure a bounded reader benefits
 from. The same theorem sharpens the standing rule rather than relaxing it:
 the structure created is exactly and only style — generation cannot create
 FACTS, and fluency (high epiplexity) is what makes fabrication persuasive.
-"Style new, facts never" is therefore not just policy but the correct reading
-of the theory. No change; the connection is recorded so the Foundry's rule
-has one more independent leg.
+"Style new, facts never" therefore reads as the correct application of the
+theory — provisionally, pending R-024. No change; the connection is recorded
+so the Foundry's rule can gain one more independent leg once verified, and
+the rule stands on its own ratified footing either way.
 
-### 5.5 Trust surfaces — REJECTED, permanently
+### 5.5 Trust surfaces — REJECTED (by the standing invariants, which this scout merely cites)
 
-No epiplexity-, compressibility-, perplexity-, or structure-derived quantity
-may ever serve as evidence in the gate, the 4-state confidence model, or any
-trust display. Structure measures learnability; the gate adjudicates truth;
-these are orthogonal, and their conflation is precisely how fluent fabricated
-listings would launder themselves into "confirmed". This rejection is an
-application of the existing trust invariants, not a new rule — recorded here
-so no future session re-opens it from first principles. Any proposal to
-couple a structure signal to gating is a gate-threshold change: founder-
-crucial, full stop.
+This scout creates no rule; it points at ones that already exist. Under the
+standing trust invariants (CLAUDE.md prime directive 1; the founder-confirmed
+4-state confidence model; the gate-custody decision 2026-07-14), no
+epiplexity-, compressibility-, perplexity-, or structure-derived quantity can
+serve as evidence in the gate, the confidence states, or any trust display:
+structure measures learnability, the gate adjudicates truth, and conflating
+them is precisely how fluent fabricated listings would launder themselves
+into "confirmed". The observation is recorded here for discoverability — so
+a future session encountering "epiplexity" reaches this cross-reference
+instead of re-deriving it — and any proposal to couple a structure signal to
+gating falls under the existing gate-threshold rule: founder-crucial.
 
 ### 5.6 Emotion/Vibe layer, matching (Phase 3, PROPOSAL-stage) — WATCH only
 
@@ -256,7 +280,24 @@ to do at PROPOSAL stage; the follow-on literature (e.g., learnable-
 information-gain conditions for self-improving pipelines) is the thing to
 re-check if/when that build is greenlit.
 
-## 6. Sources
+## 6. Sources, and what each one corroborates
+
+These are heterogeneous secondary reads (an aggregator, personal paper
+notes, review newsletters, a critical essay, citing papers) — they are NOT
+collectively equivalent to the unread primary, and no single claim below
+rests on only one of them. Claim-to-source map:
+
+| Claim cluster in this scout | Corroborated by |
+|---|---|
+| Bibliographic facts: title, authors, arXiv id, Jan-2026 date, v2 exists (§1) | arXiv abstract listing (via search-index) · ResearchGate record · Cornell seminar listing |
+| Three motivating paradoxes (§1) | arXiv abstract text · emergentmind paper digest · arXiviq review |
+| S_T/H_T two-part MDL definitions + crypto/pseudoentropy anchor (§2) | emergentmind paper digest AND topic page · aiwithmike writeup · Financial Epiplexity (restates the definitions formally) |
+| Prequential estimator = area between loss curve and asymptote; NN/SGD program class (§2) | emergentmind digest · binaryverseai explainer · NCA pre-training paper (uses the measure) |
+| Named theorem details (reported Thm. 13; non-monotonicity in T) (§2) | emergentmind digest ONLY at theorem-number granularity — weakest-sourced claims in this scout, flagged as such |
+| Cellular-automata results (rules 15/30/54 regimes) (§2) | Lixin Xu paper notes · AI Nest quick-read · emergentmind digest |
+| Order-dependence + computation-creates-information framing (§2–§3) | arXiv abstract text · arXiviq · aiwithmike · self-play follow-on paper |
+| Critiques: observer-relativity, under-defined "structure", circularity (§4) | Medium critical essay (single-source opinion, attributed as such) |
+| Follow-on adoption signal (§4) | Financial Epiplexity · self-play learnable-gain paper · NCA paper — each independently cites/extends the frame |
 
 Primary (egress-blocked from this sandbox — R-024):
 - arXiv abstract/PDF: https://arxiv.org/abs/2601.03220

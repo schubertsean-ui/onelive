@@ -56,6 +56,7 @@ below; keep it current in the same commit that adds/changes a script.
 | `tools/profile_target.py` | Time/profile one pure-logic function by dotted `module:function` path; `--profile` for cProfile top-20 | 0 ran / 2 bad target or demo call failed |
 | `tools/visual_regression.py` | Pure-stdlib PNG decode + pixel-diff engine; `compare` two PNGs or `capture-and-compare` against a named baseline | 0 match / 1 diff / 2 hard failure |
 | `tools/agent_review` (bash) | Cross-agent code-review kickoff: loads a persona doc + prints the review prompt + diff for any agent/model to consume | 0 printed / 2 persona missing or bad target |
+| `tools/provenance_lint.py` | Overstated-provenance class fix (PR #18 r1 + PR #50 r1): research/strategy docs declaring an unread/unreachable primary source must self-identify as scout/pre-review in their first heading and cite an R-### Record tag | 0 clean / 1 findings |
 | `tools/validate` (bash) | Single "run everything" end-of-shift entrypoint: trust_gate, lint, full pytest, eval_harness import check, perf benchmarks, test_audit, commit_sweep, in order, with a PASS/FAIL summary table | 0 all passed / 1 any check failed |
 | `tools/install_hooks.sh` (bash) | Installs a real git pre-commit hook (framework-free fallback) that runs `lint.py --fix` then `trust_gate.py`, blocking the commit on failure | n/a (installer) |
 | `tools/import_sources.py` | Source-catalog import for the pipeline's source registry | see script's own `--help` |
