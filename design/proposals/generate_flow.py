@@ -181,9 +181,11 @@ def card(s):
     special = (f'<span class="vspecial"><small>venue special — sample, not from the venue</small>{E(v["special"])}</span>'
                if v["special"] else "")
     unc_text = (
-        "Sample card — this show is a prototype fixture, not a real listing. "
-        "In the product this panel shows the listing's real source and when it "
-        "was last seen, with the venue's own site as the last word"
+        "Sample card — this show is a prototype fixture, not a real listing, "
+        "and the venue details shown (distance, street, description) are "
+        "illustrative too. In the product this panel shows the listing's real "
+        "source and when it was last seen, with the venue's own site as the "
+        "last word"
         + (" — this card demonstrates the low-confidence ✳ register (one source so far)"
            if tier_c else "")
         + ". Venue site: ")
@@ -254,6 +256,7 @@ def venue_lens(vk):
   <a class="chip back" href="{back}">‹ Back</a>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)">{ven_photo(hue, go_label=False)}<figcaption>{E(v["name"])}</figcaption></figure>
   <h3 class="who">{E(v["name"])}</h3><p class="spark">{E(v["char"])}</p>
+  <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
   <div class="mapline"><span class="minimap" aria-hidden="true">{austin_svg(v["dot"])}</span>
   <dl style="margin:0"><dt>Address</dt><dd>{E(v["addr"])} · {v["dist"]}</dd>
   <dt>Tonight here</dt><dd>{here}</dd>
@@ -301,6 +304,7 @@ def nearby_lens(k):
 <section class="lens" id="n-{k}" role="region" aria-label="{E(nb["title"])}">
   <a class="chip back" href="#_">‹ Back</a>
   <h3 class="who">{E(nb["title"])}</h3><p class="spark">{E(nb["sub"])}</p>
+  <p class="gnote" style="margin:2px 0 8px">Sample guidance — these businesses are real, but every distance, walk time, transport suggestion, and hours claim here is illustrative for this prototype, not verified. The product draws nearby data live from the mapping layer with freshness shown.</p>
   <div class="nearmap" aria-hidden="true"><svg viewBox="0 0 160 80">
     <path class="near-street" d="{nb["streets"]}"/>
     <circle class="near-ring" cx="80" cy="44" r="34"/><text class="near-label" x="80" y="12" text-anchor="middle">— 5-MIN WALK —</text>
@@ -464,6 +468,7 @@ page = f'''<!DOCTYPE html>
 <section class="sky" id="sky">
   <h2>Tonight: {len(SHOWS)} shows, {venue_count} rooms.</h2>
   <p class="sub">Tap a part of town or a genre — or scroll for all of tonight, by start time.</p>
+  <p class="sub" style="font-size:11px">Prototype — every listing and detail on this page is sample data.</p>
   <div class="citymap" role="group" aria-label="Austin, by part of town">
     <svg viewBox="0 0 44 50">
       <path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/>
@@ -478,7 +483,7 @@ page = f'''<!DOCTYPE html>
 <section class="fin" id="fin">
   <h2>End of tonight's list.</h2>
   <p id="finline">{len(SHOWS)} shows listed above, by start time.</p>
-  <p>Prototype fixture data: every artist and listing is fictional; venues are real Austin rooms used as setting. Specials and provenance panels are samples of the layout, not facts about these businesses.</p>
+  <p>Prototype fixture data: every artist and listing is fictional; venues are real Austin rooms used as setting. Venue details (addresses, distances, character lines), specials, provenance panels, and all nearby guidance are illustrative samples of the layout — not verified facts about these businesses. In the product, every one of these comes from a sourced, freshness-stamped pipeline.</p>
   <div class="rail" style="justify-content:center">
     <a class="chip" href="#sky">↑ Top</a>
   </div>

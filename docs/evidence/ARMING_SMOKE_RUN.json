@@ -1,5 +1,5 @@
 {
-  "purpose": "Step-5 arming evidence: the green ingest.yml run that proves the ARMED (merged) ingestion code end-to-end on master. tests/test_arming_smoke_binding.py mechanically verifies the reviewed head is runtime-code-identical to this run's commit (only docs/, tests/, design/, TODOS.md may differ - none of which execute in the armed workflow) and authenticates the run against the live Actions API (REQUIRED in trust-gate).",
+  "purpose": "Step-5 arming evidence: the green ingest.yml run that proves the ARMED (merged) ingestion code end-to-end on master. tests/test_arming_smoke_binding.py mechanically verifies the reviewed head is runtime-code-identical to this run's commit (only docs/, tests/, design/, TODOS.md, STATE.md may differ - none of which execute in the armed workflow) and authenticates the run against the live Actions API (REQUIRED in trust-gate).",
   "run_id": "29885464970",
   "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29885464970",
   "job_id": "88815013067",

@@ -62,7 +62,15 @@ def test_cron_minutes_evenly_spaced_within_the_hour():
 
 def test_declared_period_equals_cron_spacing():
     minutes = _cron_minutes()
-    spacing = (minutes[1] - minutes[0]) if len(minutes) > 1 else 60
+    if len(minutes) > 1:
+        # All intervals, wrap-around included (PR #45 r2 nit: first-pair-only
+        # would miss a last-to-first mismatch if minutes ever went non-uniform).
+        intervals = {(b - a) % 60 for a, b in zip(minutes, minutes[1:])}
+        intervals.add((minutes[0] + 60 - minutes[-1]) % 60)
+        assert len(intervals) == 1, f"non-uniform cron minutes {minutes}"
+        spacing = intervals.pop()
+    else:
+        spacing = 60
     declared = re.search(r'EXPECTED_PERIOD_SECONDS:\s*"(\d+)"', _WF)
     assert declared, "EXPECTED_PERIOD_SECONDS must be declared in ingest.yml"
     assert int(declared.group(1)) == spacing * 60, (
