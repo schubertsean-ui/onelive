@@ -141,9 +141,33 @@ manifesto signs itself" and P8.3 "10000× reports" yielded nothing beyond
 M-C's cadence). Questions now Q1–Q17. The Report/Mirror legal conflict
 preserved in Blue, deferred to the Phase-A friction gate.
 
+## Sixth directive (same session): Alternative S — the standalone B2A model
+
+Founder directed a draft of the alternative where OneLive's pipes are not
+in the picture (why is B2A good absent OneLive; the substrate thesis:
+widespread agents facilitate our data gathering), with standalone SWOT +
+deep competitive analysis, then that SWOT evaluated back to OneLive.
+Delivered: `docs/strategy/ONE_LIVE_B2A_STANDALONE_v1.md` (PROPOSAL, same
+PR). Key findings: S's value absent OneLive is real (all output on owner
+property — markup, feeds, pipe consistency, own-domain doorman; lock-in
+impossible by construction); the substrate thesis works mechanically AND
+the ratified sensor canon's verified-external-channel rule means domain
+provenance alone reaches the first-party fast lane, no claim needed. But
+the standalone frame changes the competitor set to actors with total
+distribution (site builders shipping natively: Squarespace AIO Scanner,
+Wix AI Visibility Overview, Shopify agentic storefronts; the
+Cloudflare-tolled read path), adds the spam-capture threat (an ungated
+consistency tool is also a spam cannon), and — evaluated back to OneLive
+if truly separate — funds a commons our better-distributed competitors
+harvest while the claim flywheel, trust machinery, and mantle all
+transfer away. Synthesis: S as ARCHITECTURE yes (Q18: "delete OneLive
+and they keep everything" as a Phase-A acceptance test), S as separate
+venture no (Q19, revisitable at scale signals), the Standard alone goes
+standalone via site-builder adoption (Q20). Questions now Q1–Q20.
+
 ## Open threads carried forward
 
-- Founder Q1–Q17 across the three strategy docs — nothing in the Owned Agent section of TODOS is
+- Founder Q1–Q20 across the four strategy docs — nothing in the Owned Agent section of TODOS is
   buildable until answered.
 - R-023 — fold Contract #20 into STATE.md when the trigger fires.
 - Gate-custody decision queued: STATE.md classification in the arming
