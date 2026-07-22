@@ -323,6 +323,46 @@ _REVIEWED_PROSE_MENTIONS = {
 }
 
 
+# Dynamic primitives the static proof cannot see through (PR #47 r6
+# blocker: known incompleteness in the enforcement path is a silent
+# fail-open class, not a nit). The armed closure uses NONE today, so the
+# reviewed set is EMPTY — any introduction of a dynamic import, dynamic
+# path construction, directory iteration, or subprocess into the armed
+# closure fails this proof closed until a human enumerates it here with
+# a justification the evaluator reviews.
+_DYNAMIC_PRIMITIVE_BASES = ("importlib", "subprocess", "glob")
+_DYNAMIC_PRIMITIVE_CALLEES = (
+    "__import__", "exec", "eval", "os.system", "os.popen", "os.walk",
+    "os.listdir", "os.scandir",
+)
+_DYNAMIC_PRIMITIVE_ATTRS = (
+    "glob", "rglob", "iglob", "import_module", "iterdir", "walk",
+    "listdir", "scandir",
+)
+_REVIEWED_DYNAMIC_PRIMITIVES: set = set()  # MUST stay empty until a
+# reviewed entry (file, callee, sha256(unparsed call)) is added through
+# an evaluator-adjudicated PR.
+
+
+def _dynamic_primitive_hits(source: str) -> list[tuple]:
+    import ast
+    hits = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Call):
+            try:
+                callee = ast.unparse(node.func)
+            except Exception:  # noqa: BLE001 — unparse failure = suspicious, flag it
+                hits.append(("<unparseable-call>", f"line {node.lineno}"))
+                continue
+            base = callee.split(".")[0]
+            attr = callee.rsplit(".", 1)[-1]
+            if (base in _DYNAMIC_PRIMITIVE_BASES
+                    or callee in _DYNAMIC_PRIMITIVE_CALLEES
+                    or attr in _DYNAMIC_PRIMITIVE_ATTRS):
+                hits.append((callee, _pin(ast.unparse(node))))
+    return hits
+
+
 def _literal_tokens(s: str) -> list[str]:
     """All allowlisted-path tokens in a Python string literal: prefix
     tokens, bare directory-name literals, AND bare shell-word operands
@@ -347,12 +387,16 @@ def test_non_runtime_set_is_proven_against_workflow_closure():
        by call-site context so a reviewed prose literal reused inside a
        file-access call becomes an unreviewed key.
 
-    Reviewed prose mentions are enumerated + hash/context-pinned above.
-    Static analysis is not a sandbox — a dynamically assembled path can
-    evade any static check (dynamic-primitive detection is queued,
-    TODOS P3) — but every straightforward consumption spelling turns
-    this red, and test_proof_signals_catch_known_evasion_classes pins
-    each closed evasion class so it cannot silently regress.
+    4. DYNAMIC PRIMITIVES (r6): any use of dynamic import, dynamic path
+       construction (glob/iterdir/walk), exec/eval, or subprocess inside
+       the closure fails closed — these are the mechanisms static
+       literal analysis cannot see through, so their mere presence
+       requires enumerated human classification (the set is empty
+       today; the armed workflow uses none).
+
+    Reviewed prose mentions are enumerated + hash/context-pinned above,
+    and test_proof_signals_catch_known_evasion_classes pins each closed
+    evasion class so it cannot silently regress.
     """
     entries = _workflow_entry_scripts()
     assert entries, "no entry scripts derived from ingest.yml — proof impossible, failing closed"
@@ -401,6 +445,22 @@ def test_non_runtime_set_is_proven_against_workflow_closure():
         f"{lit_unreviewed} — reclassify before trusting the smoke binding"
     )
 
+    # Signal 4 (r6): dynamic primitives the static signals cannot see
+    # through — fail closed on ANY unreviewed use in the closure.
+    dyn_unreviewed = []
+    for rel in sorted(closure):
+        for callee, pin in _dynamic_primitive_hits(
+                (_ROOT / rel).read_text()):
+            key = (str(rel), callee, pin)
+            if key not in _REVIEWED_DYNAMIC_PRIMITIVES:
+                dyn_unreviewed.append(key)
+    assert not dyn_unreviewed, (
+        f"dynamic import/path/subprocess primitives entered the armed "
+        f"closure — the static proof cannot see through them: "
+        f"{dyn_unreviewed}. Enumerate with justification through an "
+        "evaluator-reviewed PR, or remove the primitive."
+    )
+
 
 def test_proof_signals_catch_known_evasion_classes():
     """Every evasion class closed in PR #47 r1-r5 is pinned here so it
@@ -433,3 +493,12 @@ def test_proof_signals_catch_known_evasion_classes():
     assert pathlib.Path("worker/orchestrator.py") in closure
     # r3 blocker 1: script-dir sibling resolution is part of closure bases
     assert pathlib.Path("worker/sentinel.py") in closure
+    # r6: dynamic primitives flag — each mechanism class fires
+    assert _dynamic_primitive_hits('__import__("worker.gating")')
+    assert _dynamic_primitive_hits('importlib.import_module(name)')
+    assert _dynamic_primitive_hits('subprocess.run(cmd, shell=True)')
+    assert _dynamic_primitive_hits('pathlib.Path("x").rglob("*.md")')
+    assert _dynamic_primitive_hits('glob.glob(pattern)')
+    assert _dynamic_primitive_hits('os.walk(top)')
+    assert not _dynamic_primitive_hits('json.loads(text)')
+    assert not _dynamic_primitive_hits('logging.getLogger(__name__)')

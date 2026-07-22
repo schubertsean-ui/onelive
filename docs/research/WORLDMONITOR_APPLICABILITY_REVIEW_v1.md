@@ -261,7 +261,10 @@ the new gate can actually fail).
 ## 8. Sources
 
 - Clone: github.com/koala73/worldmonitor @ `040424f` (2026-07-22, v2.10.0),
-  read in-session (single-pass agent sweep + direct reads). Key files cited
+  read in-session (single-pass agent sweep + direct reads); the sweep agent's
+  full dossier is committed VERBATIM at
+  `docs/research/worldmonitor_sources/APPENDIX_A_CODE_SWEEP_DOSSIER.md`
+  (in-diff evidence rule, PR #47 r6 nit). Key files cited
   inline: `ARCHITECTURE.md`, `CONCEPTS.md`, `AGENTS.md`, `SELF_HOSTING.md`,
   the package manifest, `scripts/seed-regulatory-actions.mjs`,
   `scripts/check-unicode-safety.mjs`, `scripts/check-seed-freshness.mjs`,
