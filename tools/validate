@@ -278,17 +278,23 @@ if [ "$ANY_SKIP" -ne 0 ] || [ "$ANY_ADVISORY" -ne 0 ]; then
       echo "        Quick-mode skips are flag-inflicted — rerun without --quick before close."
       exit 0
     fi
-    # Precision (PR #46 r2/r5): when NOT in quick mode, every surviving SKIP
-    # has already passed the skip->Record binding (an unrecorded skip is a
-    # hard FAIL above), i.e. each is bound to an OPEN Record row whose gate
-    # cannot run in this environment. Say exactly that: every gate that RAN
-    # passed; the skips are enumerated, Record-bound debt — not silent
-    # incompleteness. Exit semantics unchanged; release evidence still
-    # requires the skipped gates to run (see their Record triggers).
-    emit_evidence "EXECUTED-GATES-GREEN (--allow-skips; every gate that ran PASSED; every SKIP is bound to an OPEN Record row above and cannot run in this environment — release evidence still requires those gates to run)"
-    echo "RESULT: EXECUTED-GATES-GREEN (exit 0 via --allow-skips) — every gate that RAN passed; ${reasons} are Record-bound (rows above)."
-    echo "        Skipped gates are enumerated, Record-bound debt with objective triggers — not silent incompleteness."
-    echo "        Release evidence still requires the skipped gates to run (see their Record rows)."
+    # Precision (PR #46 r2/r5/r6): when NOT in quick mode, every surviving
+    # SKIP has already passed the skip->Record binding (an unrecorded skip
+    # is a hard FAIL above) — Record-bound debt, enumerated in rows above.
+    # ADVISORY gates are DIFFERENT (r6): they RAN and surfaced non-blocking
+    # findings — they are neither passes nor Record-bound, and the terminal
+    # state must never describe them as either. Exit semantics unchanged in
+    # both branches; release evidence still requires skipped gates to run.
+    if [ "$ANY_ADVISORY" -eq 0 ]; then
+      emit_evidence "EXECUTED-GATES-GREEN (--allow-skips; every executed gate PASSED; every SKIP is bound to an OPEN Record row above — release evidence still requires those gates to run)"
+      echo "RESULT: EXECUTED-GATES-GREEN (exit 0 via --allow-skips) — every executed gate PASSED; every SKIP is Record-bound (rows above)."
+      echo "        Release evidence still requires the skipped gates to run (see their Record rows)."
+    else
+      emit_evidence "EXECUTED-GATES-ACKNOWLEDGED (--allow-skips; no gate FAILED; ADVISORY findings present — those gates ran and surfaced non-blocking findings, which are NOT passes and NOT Record-bound (rows above); any SKIP is bound to an OPEN Record row — release evidence still requires skipped gates to run)"
+      echo "RESULT: EXECUTED-GATES-ACKNOWLEDGED (exit 0 via --allow-skips) — no gate FAILED."
+      echo "        ADVISORY findings present (rows above): those gates ran and surfaced non-blocking findings — not passes, not Record-bound; review them."
+      [ "$ANY_SKIP" -ne 0 ] && echo "        Every SKIP is Record-bound (rows above); release evidence still requires those gates to run."
+    fi
     exit 0
   fi
   emit_evidence "INCOMPLETE"
