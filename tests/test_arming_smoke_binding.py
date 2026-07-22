@@ -168,8 +168,13 @@ def _workflow_entry_scripts() -> list[pathlib.Path]:
 def _import_closure(entries: list[pathlib.Path]) -> set[pathlib.Path]:
     """Transitive intra-repo import closure by static AST parse (no
     execution). Third-party/stdlib imports are ignored; only names that
-    resolve to files inside the repo are followed."""
+    resolve to files inside the repo are followed. Bare imports are
+    resolved from the repo root AND from every entry script's own
+    directory (PR #47 r3 blocker 1: `python worker/run_once.py` puts
+    worker/ on sys.path for the whole process, so any module in the
+    closure can import siblings of any entry script by bare name)."""
     import ast
+    bases = [pathlib.Path("")] + sorted({e.parent for e in entries})
     seen: set[pathlib.Path] = set()
     queue = list(entries)
     while queue:
@@ -201,11 +206,12 @@ def _import_closure(entries: list[pathlib.Path]) -> set[pathlib.Path]:
         for name in names:
             parts = name.split(".")
             for cut in range(len(parts), 0, -1):
-                cand = pathlib.Path(*parts[:cut]).with_suffix(".py")
-                init = pathlib.Path(*parts[:cut]) / "__init__.py"
-                for c in (cand, init):
-                    if (_ROOT / c).is_file() and c not in seen:
-                        queue.append(c)
+                for base in bases:
+                    cand = (base / pathlib.Path(*parts[:cut])).with_suffix(".py")
+                    init = base / pathlib.Path(*parts[:cut]) / "__init__.py"
+                    for c in (cand, init):
+                        if (_ROOT / c).is_file() and c not in seen:
+                            queue.append(c)
     return seen
 
 
@@ -239,7 +245,16 @@ def _allowlisted_path_tokens(text: str) -> list[str]:
         files = "|".join(re.escape(f) for f in _NON_RUNTIME_FILES)
         dirs = "|".join(re.escape(d) for d in _NON_RUNTIME_DIR_PREFIXES)
         _PATH_TOKEN_RE = re.compile(rf"(?:{files})|(?:{dirs})[\w./-]*")
-    return _PATH_TOKEN_RE.findall(text)
+    hits = _PATH_TOKEN_RE.findall(text)
+    # PR #47 r3 blocker 2: ordinary path construction splits the slash
+    # away from the directory name — Path("docs") / "RECORD.md",
+    # os.path.join("docs", ...), "docs" + "/...". The dangerous atom is
+    # a literal that IS the directory name; flag it exactly (prose
+    # virtually never uses a bare directory-name literal).
+    bare = text.strip().lstrip("./")
+    if bare + "/" in _NON_RUNTIME_DIR_PREFIXES:
+        hits.append(f"{bare} (bare directory-name literal)")
+    return hits
 
 
 def _pin(text: str) -> str:
@@ -312,6 +327,8 @@ def test_non_runtime_set_is_proven_against_workflow_closure():
     wf_unreviewed = []
     for ln in wf_lines:
         for tok in _allowlisted_path_tokens(ln):
+            if tok.endswith("(bare directory-name literal)"):
+                continue  # a whole shell LINE equal to a bare name is meaningless
             key = ("ingest.yml", tok, _pin(ln.strip()))
             if key not in _REVIEWED_PROSE_MENTIONS:
                 wf_unreviewed.append(key)
