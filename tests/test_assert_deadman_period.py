@@ -12,11 +12,13 @@ which is exactly why declaration replaced inference — r16 wording fix).
 The r17 binding contract is pinned: a /log probe to the ping URL must move the verified check's counter, so a misbound/stale secret fails closed even when the named check's config is perfect. No secret material in output.
 
 Also pinned: the R-023 PATH A alarm-verification probe (trigger part 2,
-REPORT_FLIPS=1) — additive-only (unset means fetch_flips is NEVER called),
-flip table printed with DOWN marked on success, 401/403/404 answered by
-the FLIPS-UNREADABLE line at exit 0 (inaccessibility reported IS probe
-success), and every other flips fault (network, malformed body) loud
-nonzero.
+REPORT_FLIPS=1) — additive-only (unset/''/'0' mean fetch_flips is NEVER
+called; any OTHER value fails loud rather than silently skipping), flip
+table printed with DOWN marked on success, 401/403 answered by the
+FLIPS-UNREADABLE line at exit 0 (access revocation reported IS probe
+success), 404 failed loud as ambiguous (identifier-not-found vs denial,
+readability already live-proven), and every other flips fault (network,
+malformed body, out-of-domain 'up') loud nonzero.
 
 Hermetic: fetch_checks/fetch_flips are monkeypatched; no network.
 """
@@ -51,6 +53,9 @@ def env(monkeypatch):
     monkeypatch.setenv("DEADMAN_CHECK_SLUG", "onelive-ingest")
     monkeypatch.setenv("EXPECTED_PERIOD_SECONDS", "1200")
     monkeypatch.setenv("MAX_GRACE_SECONDS", "600")
+    # Hermeticity (pre-attack nit): an ambient REPORT_FLIPS on the host
+    # must never reach the real network path in unrelated tests.
+    monkeypatch.delenv("REPORT_FLIPS", raising=False)
     return monkeypatch
 
 
@@ -266,10 +271,11 @@ def test_report_flips_uses_unique_key_and_never_prints_it(env, capsys):
     assert seen["cid"] not in out and _UUID not in out
 
 
-@pytest.mark.parametrize("code", [401, 403, 404])
+@pytest.mark.parametrize("code", [401, 403])
 def test_report_flips_access_denied_is_the_answer_exit_zero(env, capsys, code):
-    """R-023: the RO key's ability to read flips is the UNTESTED question —
-    a 401/403/404 answers it. The probe reports and succeeds (exit 0)."""
+    """401/403 = the RO key's access was revoked — the probe's access
+    answer; it reports and succeeds (exit 0). 404 is NOT in this group
+    (see the dedicated ambiguity test)."""
     def _denied(key, cid):
         raise urllib.error.HTTPError("url", code, "denied", None, None)
     env.setenv("REPORT_FLIPS", "1")
@@ -279,6 +285,19 @@ def test_report_flips_access_denied_is_the_answer_exit_zero(env, capsys, code):
     assert f"FLIPS-UNREADABLE: read-only key cannot access flip history " \
            f"(HTTP {code})" in out
     assert "PATH B" in out
+
+
+def test_report_flips_404_is_ambiguous_and_fails_loud(env, capsys):
+    """Pre-attack nit (PR #51): 404 can mean identifier-not-found at least
+    as plausibly as denial — and readability is already live-proven — so
+    it must never masquerade as the access answer."""
+    def _notfound(key, cid):
+        raise urllib.error.HTTPError("url", 404, "not found", None, None)
+    env.setenv("REPORT_FLIPS", "1")
+    env.setattr(adp, "fetch_flips", _notfound)
+    assert _run(env, [_check()]) == 2
+    err = capsys.readouterr().err
+    assert "404" in err and "Ambiguous" in err
 
 
 def test_report_flips_network_error_fails_loud(env, capsys):
@@ -317,6 +336,10 @@ def test_report_flips_wrapped_body_is_normalized(env, capsys):
     {"flips": "nope"},                               # wrapper, wrong payload
     [{"timestamp": "2026-07-22T14:17:02+00:00"}],    # entry missing "up"
     [{"up": 1}],                                     # entry missing timestamp
+    # out-of-domain "up": documented domain is 0|1 — 2/-1 must be malformed,
+    # never silently read as UP (evaluator r5 nit)
+    [{"timestamp": "2026-07-22T14:17:02+00:00", "up": 2}],
+    [{"timestamp": "2026-07-22T14:17:02+00:00", "up": -1}],
     "nonsense",
 ])
 def test_report_flips_malformed_response_fails_loud(env, bad_body):
@@ -339,7 +362,7 @@ def test_report_flips_malformed_failure_diagnoses_structure_only(env, capsys):
     assert "secret-value-never-logged" not in err
 
 
-@pytest.mark.parametrize("value", [None, "0", "true", "yes", ""])
+@pytest.mark.parametrize("value", [None, "0", ""])
 def test_report_flips_off_never_touches_the_flips_endpoint(env, value):
     """Purely-additive guarantee: anything but the literal '1' (including
     unset) must leave the flips endpoint completely uncontacted."""
@@ -352,6 +375,19 @@ def test_report_flips_off_never_touches_the_flips_endpoint(env, value):
                 lambda key, cid: calls.append(cid) or [])
     assert _run(env, [_check()]) == 0
     assert calls == []
+
+
+@pytest.mark.parametrize("value", ["true", "yes", "2", " on "])
+def test_report_flips_out_of_domain_value_fails_loud(env, capsys, value):
+    """Pre-attack nit (PR #51): a dispatch typo ('true'/'yes') must not
+    silently skip the probe while the run reports overall success."""
+    calls = []
+    env.setenv("REPORT_FLIPS", value)
+    env.setattr(adp, "fetch_flips",
+                lambda key, cid: calls.append(cid) or [])
+    assert _run(env, [_check()]) == 2
+    assert calls == []
+    assert "REPORT_FLIPS must be unset" in capsys.readouterr().err
 
 
 def test_report_flips_skipped_when_assertions_fail(env):

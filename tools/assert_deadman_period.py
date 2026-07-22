@@ -44,11 +44,12 @@ Optional (purely additive — unset means behavior identical to before):
                              unchanged: reads the verified check's flip
                              (status-change) history for the last 24h via
                              the same RO key and prints a plain table with
-                             every DOWN event marked. The flips endpoint's
-                             readability under a read-only key is exactly
-                             what R-023 calls UNTESTED [R-023]; therefore a
-                             401/403/404 from it is the probe's ANSWER, not
-                             a failure — it prints FLIPS-UNREADABLE (naming
+                             every DOWN event marked. Readability under the
+                             RO key was unverified when R-023 was filed and
+                             was PROVEN by the first live dispatch (HTTP
+                             200, run 29963320514); a 401/403 is still
+                             treated as the access-revoked ANSWER, not a
+                             failure — it prints FLIPS-UNREADABLE (naming
                              PATH B as the only remaining verification
                              path) and exits 0. Any OTHER flips failure
                              (network, malformed response) fails loud.
@@ -112,11 +113,12 @@ def send_binding_probe(ping_url: str) -> None:
 def fetch_flips(api_key: str, check_id: str) -> list:
     """GET the check's status-change (flip) history for the probe window
     (healthchecks API v3: GET /api/v3/checks/<uuid|unique_key>/flips/,
-    documented as readable by read-only keys — the live truth of that
-    claim is what R-023 PATH A exists to establish [R-023]). Separated
+    documented as readable by read-only keys — proven live by the first
+    dispatch's HTTP 200, run 29963320514; R-023 part 2 closed on the
+    second dispatch's flip table [R-023]). Separated
     for testability like fetch_checks; every failure disposition —
-    including the 401/403/404 that IS the probe's answer — belongs to
-    the caller. The response body is a JSON array of
+    including the 401/403 that IS the probe's access answer — belongs
+    to the caller. The response body is a JSON array of
     {"timestamp": <iso8601>, "up": 0|1} objects, either bare (upstream
     repo docs) or wrapped as {"flips": [...]} (the hosted service wraps
     exactly as its checks endpoint wraps in {"checks": [...]} — the
@@ -137,11 +139,15 @@ def report_flips(api_key: str, check: dict) -> int:
 
     Dispositions, deliberately asymmetric:
     - 200 + well-formed list: print the table, exit 0.
-    - 401/403/404: the RO key cannot read flip history. That is the
-      probe's ANSWER (R-023 names this readability UNTESTED [R-023]) —
-      print the single unambiguous FLIPS-UNREADABLE line naming PATH B
-      (founder confirmation) as the only remaining verification path,
-      and exit 0: a probe that REPORTS inaccessibility has succeeded.
+    - 401/403: the RO key's access was revoked/changed. That is the
+      probe's access ANSWER (readability itself was live-proven by run
+      29963320514 [R-023]) — print the single unambiguous
+      FLIPS-UNREADABLE line naming PATH B (founder confirmation) as the
+      only remaining verification path, and exit 0: a probe that
+      REPORTS inaccessibility has succeeded.
+    - 404: AMBIGUOUS (identifier-not-found vs denial, and readability
+      is already proven) — fails loud, never masquerades as the access
+      answer (pre-attack nit, PR #51).
     - anything else (network fault, malformed body, no usable check
       identifier): fail LOUD via the standard closed path — a broken
       probe must never masquerade as a completed one.
@@ -160,13 +166,26 @@ def report_flips(api_key: str, check: dict) -> int:
     try:
         flips = fetch_flips(api_key, check_id)
     except urllib.error.HTTPError as exc:
-        if exc.code in (401, 403, 404):
+        if exc.code in (401, 403):
             print(
                 f"FLIPS-UNREADABLE: read-only key cannot access flip "
                 f"history (HTTP {exc.code}) — R-023 PATH B (founder "
                 f"confirmation) is the only remaining verification path"
             )
             return 0
+        if exc.code == 404:
+            # Pre-attack nit (PR #51): 404 is ambiguous — identifier not
+            # found (stale unique_key, endpoint moved) is at least as
+            # plausible as access denial, and readability is already
+            # live-proven (200, run 29963320514). An ambiguous signal may
+            # not masquerade as the access answer: fail loud.
+            return _fail(
+                "flips probe: HTTP 404 from the flips endpoint — "
+                "identifier-not-found is indistinguishable from access "
+                "denial here, and readability was already proven live "
+                "(HTTP 200). Ambiguous, NOT the access answer; failing "
+                "loud."
+            )
         return _fail(
             f"flips probe: unexpected HTTP {exc.code} from the flips "
             "endpoint — neither readable history nor the documented "
@@ -187,7 +206,9 @@ def report_flips(api_key: str, check: dict) -> int:
     if not isinstance(flips, list) or not all(
         isinstance(f, dict)
         and isinstance(f.get("timestamp"), str)
-        and isinstance(f.get("up"), (int, bool))
+        and f.get("up") in (0, 1, True, False)  # documented domain is 0|1 —
+        # an out-of-domain int (2, -1) is a malformed response, not an UP
+        # (evaluator r5 nit: bare isinstance would have read it as UP)
         for f in flips
     ):
         # Diagnose with STRUCTURE ONLY (types and key names, never
@@ -407,8 +428,16 @@ def main() -> int:
     # R-023 PATH A (trigger part 2): OPTIONAL report mode, additive only —
     # it runs strictly AFTER every assertion above passed unchanged, so
     # with REPORT_FLIPS unset the tool's effect is identical to before.
-    if os.environ.get("REPORT_FLIPS", "").strip() == "1":
+    report_flips_value = os.environ.get("REPORT_FLIPS", "").strip()
+    if report_flips_value == "1":
         return report_flips(api_key, check_after)
+    if report_flips_value not in ("", "0"):
+        # Pre-attack nit (PR #51): a dispatch typo ("true"/"yes") must not
+        # silently skip the probe while reporting overall success.
+        return _fail(
+            f"REPORT_FLIPS must be unset, '', '0', or '1' — got "
+            f"{report_flips_value!r}. Refusing to guess; failing loud."
+        )
     return 0
 
 
