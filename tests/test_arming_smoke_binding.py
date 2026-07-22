@@ -77,3 +77,73 @@ def test_reviewed_head_is_runtime_code_identical_to_the_smoke_run():
         "the head smoke run and update docs/evidence/ARMING_SMOKE_RUN.json "
         "in the same (docs-only) commit."
     )
+
+
+def test_recorded_run_is_authentic_via_actions_api():
+    """PR #43 r21 blocker: the evidence JSON is self-authored — a
+    fabricated run_id/conclusion would pass the git-side binding. This
+    half verifies the RUN against the live Actions API: it exists, it
+    succeeded, it ran the ingest workflow at exactly the recorded head
+    SHA, and the recorded artifact belongs to it (digest compared when
+    the API exposes one). REQUIRED (fail closed, no skip) wherever
+    ARMING_SMOKE_VERIFY=required — which the trust-gate job sets, making
+    the required check the authoritative venue for this half exactly as
+    it is for the git half. Environments with no token and no
+    requirement flag skip LOUDLY, deferring to trust-gate."""
+    import json as _json
+    import os
+    import urllib.request
+
+    import pytest
+
+    evidence = _json.loads(_EVIDENCE.read_text())
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    required = os.environ.get("ARMING_SMOKE_VERIFY") == "required"
+    if not token:
+        assert not required, (
+            "ARMING_SMOKE_VERIFY=required but no GH_TOKEN/GITHUB_TOKEN — "
+            "the run evidence CANNOT be authenticated; failing closed."
+        )
+        pytest.skip(
+            "no Actions API token here — authoritative venue is the "
+            "trust-gate required check (ARMING_SMOKE_VERIFY=required)."
+        )
+    repo = os.environ.get("GITHUB_REPOSITORY", "schubertsean-ui/onelive")
+
+    def _get(url):
+        req = urllib.request.Request(url, headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+        })
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return _json.loads(resp.read().decode("utf-8"))
+
+    try:
+        run = _get(f"https://api.github.com/repos/{repo}/actions/runs/"
+                   f"{evidence['run_id']}")
+    except Exception as exc:  # noqa: BLE001 — tolerated ONLY when not required
+        assert not required, (
+            f"ARMING_SMOKE_VERIFY=required but the Actions API is "
+            f"unreachable ({type(exc).__name__}) — failing closed."
+        )
+        pytest.skip(
+            f"Actions API unreachable here ({type(exc).__name__}; this "
+            "sandbox's proxy forbids api.github.com) — authoritative venue "
+            "is the trust-gate required check."
+        )
+    assert run["conclusion"] == "success", run["conclusion"]
+    assert run["head_sha"] == evidence["run_head_sha"]
+    assert run["path"] == ".github/workflows/ingest.yml"
+
+    arts = _get(f"https://api.github.com/repos/{repo}/actions/runs/"
+                f"{evidence['run_id']}/artifacts")["artifacts"]
+    match = [a for a in arts if str(a["id"]) == str(evidence["artifact_id"])]
+    assert match, (
+        f"recorded artifact {evidence['artifact_id']} not found on run "
+        f"{evidence['run_id']}"
+    )
+    art = match[0]
+    assert art["name"] == f"replay-log-{evidence['run_id']}"
+    digest = art.get("digest")
+    if digest:
+        assert digest == f"sha256:{evidence['artifact_zip_sha256']}", digest

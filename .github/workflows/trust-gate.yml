@@ -21,6 +21,11 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      # actions:read powers the arming-evidence API authentication in
+      # tests/test_arming_smoke_binding.py (PR #43 r21: self-authored run
+      # evidence must be machine-verified against the Actions API — run
+      # exists, succeeded, on the recorded SHA, artifact matches).
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,6 +47,14 @@ jobs:
         run: python tools/trust_gate.py
 
       - name: Test suite
+        env:
+          # The arming-evidence binding test verifies the recorded smoke
+          # run against the live Actions API here — REQUIRED in this job
+          # (fail closed if the token is missing), because trust-gate is a
+          # required check with full history: the authoritative venue for
+          # both halves of the binding proof (PR #43 r21).
+          GH_TOKEN: ${{ github.token }}
+          ARMING_SMOKE_VERIFY: "required"
         run: python -m pytest -q
 
       - name: Extraction eval harness (precision/recall/F1/hallucination)
