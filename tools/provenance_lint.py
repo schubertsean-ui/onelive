@@ -27,12 +27,14 @@ accepted any R-token as "Record-bound"):
        docs/RECORD.md's table and its text must reference this doc's
        basename (r3 blocker: a bare R-token, R-999, or an unrelated row
        is not a resolution path).
-2. SURFACE RULE (r3 blocker: the r1 catch had four surfaces) — every
-   line in docs/ONE_LIVE_CHANGE_LOG.md, docs/RECORD.md, TODOS.md, and
-   STATE.md that references an unread-primary artifact's filename must
-   carry an honest-frame marker word or an R-### tag on that same line,
-   so bookkeeping cannot describe a scout as a completed review while
-   validate stays green.
+2. SURFACE RULE (r3 blocker: the r1 catch had four surfaces; r4
+   blocker: surface tags must BIND like artifact tags) — every line in
+   docs/ONE_LIVE_CHANGE_LOG.md, docs/RECORD.md, TODOS.md, and STATE.md
+   that references an unread-primary artifact's filename must carry a
+   BOUND R-### tag (resolving to a RECORD row naming that artifact) or
+   an honest-frame marker outside the filename with no overstrong frame
+   token on the line, so bookkeeping cannot describe a scout as a
+   completed review while validate stays green.
 
 Exit 0 clean / 1 findings (blocking in tools/validate). Widening or
 relaxing these rules is a gate change: evaluator-mandatory, relaxation
@@ -154,30 +156,53 @@ def scan_doc(text: str, basename: str, record_text: str) -> list[str]:
 
 
 def scan_surface_lines(surface_text: str, surface_name: str,
-                       scout_basenames: list[str]) -> list[str]:
-    """SURFACE RULE findings: mentions of scout docs must stay honest."""
+                       scout_basenames: list[str],
+                       record_text: str) -> list[str]:
+    """SURFACE RULE findings: mentions of scout docs must stay honest.
+
+    A line mentioning an unread-primary artifact passes ONLY via:
+    (a) a BOUND R-### tag — one resolving to a docs/RECORD.md row that
+        names that artifact (r4 blocker: a bare R-999 or an unrelated
+        row on the line is the same false-confidence hole the artifact
+        rule closed one round earlier), or
+    (b) an honest-frame marker OUTSIDE the filename itself (a scout
+        named *_SCOUT_v1.md would otherwise mark every mention of
+        itself — caught red-handed by this rule's own test fixture),
+        AND no overstrong frame token on the line (r4 nit:
+        "provisional completed review" may not launder bookkeeping any
+        more than it may launder a title).
+    """
+    rows = record_rows(record_text)
     findings = []
     for lineno, line in enumerate(surface_text.splitlines(), start=1):
         low = line.lower()
         for base in scout_basenames:
             if base.lower() not in low:
                 continue
-            # Markers must appear OUTSIDE the filename itself — a scout
-            # named *_SCOUT_v1.md would otherwise mark every mention of
-            # itself and make this rule vacuous (caught red-handed by
-            # this rule's own test fixture).
+            tags = _RECORD_TAG_RE.findall(line)
+            if any(t in rows and base in rows[t] for t in tags):
+                continue
             stripped = low.replace(base.lower(), "")
-            if any(mk in stripped for mk in LINE_MARKERS):
+            has_marker = any(mk in stripped for mk in LINE_MARKERS)
+            overstrong = [tok for tok in OVERSTRONG_TITLE if tok in stripped]
+            if has_marker and not overstrong:
                 continue
-            if _RECORD_TAG_RE.search(line):
-                continue
-            findings.append(
-                f"{surface_name}:{lineno} references unread-primary "
-                f"artifact {base} without an honest-frame marker "
-                f"{LINE_MARKERS} or R-### tag on the line — bookkeeping "
-                f"may not describe a scout more strongly than its "
-                f"provenance"
-            )
+            if overstrong:
+                findings.append(
+                    f"{surface_name}:{lineno} references unread-primary "
+                    f"artifact {base} with overstrong frame token(s) "
+                    f"{overstrong} and no BOUND R-### tag — bookkeeping "
+                    f"may not describe a scout as a completed review"
+                )
+            else:
+                findings.append(
+                    f"{surface_name}:{lineno} references unread-primary "
+                    f"artifact {base} without an honest-frame marker "
+                    f"outside the filename or a BOUND R-### tag (one "
+                    f"resolving to a docs/RECORD.md row naming {base}) — "
+                    f"bookkeeping may not describe a scout more strongly "
+                    f"than its provenance"
+                )
     return findings
 
 
@@ -200,7 +225,8 @@ def main() -> int:
             if not path.exists():
                 continue
             findings.extend(scan_surface_lines(
-                path.read_text(encoding="utf-8"), surface, scout_basenames))
+                path.read_text(encoding="utf-8"), surface, scout_basenames,
+                record_text))
     if findings:
         print("provenance_lint: FAIL — research framing ahead of its "
               "evidence (class: overstated-provenance):", file=sys.stderr)

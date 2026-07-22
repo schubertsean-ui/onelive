@@ -101,27 +101,53 @@ def test_negation_variants_trigger():
 
 # ---------------- SURFACE RULE ----------------
 
+def _surface(line: str) -> list:
+    return pl.scan_surface_lines(line, "docs/ONE_LIVE_CHANGE_LOG.md",
+                                 [_BASENAME], _RECORD_FIXTURE)
+
+
 def test_surface_mention_without_marker_or_tag_fails():
     # r3 blocker shape: a changelog line calling the scout a deep review.
     line = f"- Deep review committed: docs/strategy/{_BASENAME} covering it all."
-    findings = pl.scan_surface_lines(line, "docs/ONE_LIVE_CHANGE_LOG.md",
-                                     [_BASENAME])
-    assert len(findings) == 1 and "bookkeeping" in findings[0]
+    findings = _surface(line)
+    assert len(findings) == 1 and "completed review" in findings[0]
 
 
 def test_surface_mention_with_marker_is_clean():
     line = f"- Secondary-source scout committed: docs/strategy/{_BASENAME}."
-    assert pl.scan_surface_lines(line, "TODOS.md", [_BASENAME]) == []
+    assert _surface(line) == []
 
 
-def test_surface_mention_with_record_tag_is_clean():
-    line = f"| R-024 | ... {_BASENAME} built from secondary reads | OPEN |"
-    assert pl.scan_surface_lines(line, "docs/RECORD.md", [_BASENAME]) == []
+def test_surface_unbound_tags_fail():
+    # r4 blocker: any-R-token acceptance recreated the false-confidence
+    # hole on the bookkeeping surfaces. R-999 does not exist; R-001
+    # exists but does not name the artifact — both must fail.
+    for tag in ("R-999", "R-001"):
+        line = f"- Deep review committed: docs/strategy/{_BASENAME}; see {tag}."
+        findings = _surface(line)
+        assert len(findings) == 1, tag
+
+
+def test_surface_bound_tag_is_clean_even_with_strong_wording():
+    # The genuine resolution row may legitimately say "completed review"
+    # — the BOUND tag (row exists and names the artifact) is what makes
+    # it honest.
+    line = (f"| R-024 | the completed review superseding {_BASENAME} "
+            f"is v1_1 | RESOLVED |")
+    assert _surface(line) == []
+
+
+def test_surface_overstrong_not_laundered_by_marker():
+    # r4 nit: "provisional completed review" may not launder bookkeeping.
+    line = (f"- Provisional completed review shipped: "
+            f"docs/strategy/{_BASENAME}.")
+    findings = _surface(line)
+    assert len(findings) == 1 and "overstrong" in findings[0]
 
 
 def test_surface_lines_not_mentioning_scout_are_unconstrained():
     text = "- Deep review of the completed pipeline shipped today.\n"
-    assert pl.scan_surface_lines(text, "TODOS.md", [_BASENAME]) == []
+    assert _surface(text) == []
 
 
 # ---------------- WHOLE TREE ----------------

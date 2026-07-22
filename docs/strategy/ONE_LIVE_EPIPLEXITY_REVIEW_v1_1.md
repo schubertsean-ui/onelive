@@ -365,12 +365,26 @@ the two things to revisit. Nothing to build at PROPOSAL stage.
 ## 10. Sources
 
 Primary (READ IN FULL for this review): founder-supplied PDF of
-arXiv:2601.03220v2 (upload `8af430a0-Optimizing_Epiplexity__Levin.pdf`,
-65 pages, arXiv stamp "arXiv:2601.03220v2 [cs.LG] 16 Mar 2026" on p.1),
-read 2026-07-22 — main text, references, and appendices A–H including all
-proofs. Note on the upload filename: it is the founder's local filename;
-the document itself is the Finzi et al. paper, verified by title page,
-arXiv stamp, and content.
+arXiv:2601.03220v2, read 2026-07-22 — main text, references, and
+appendices A–H including all proofs. Manifest-style provenance record
+(evaluator r4 nit — out-of-repo source, so identity is pinned here, not
+prose-only):
+
+- filename (founder's local name): `8af430a0-Optimizing_Epiplexity__Levin.pdf`
+- sha256: `6454c356b27720fb8a0259f11b42299142a617c41159556935c33c103530848c`
+- size: 8,480,510 bytes · pages: 65 (pdfinfo; the upload banner's "83"
+  was wrong — pages 1–65 all read)
+- identity: title page "From Entropy to Epiplexity: Rethinking
+  Information for Computationally Bounded Intelligence", author list
+  Finzi/Qiu/Jiang/Izmailov/Kolter/Wilson, margin stamp
+  "arXiv:2601.03220v2 [cs.LG] 16 Mar 2026", code-link footnote
+  github.com/shikaiqiu/epiplexity — the upload filename is the
+  founder's, the document is the Finzi et al. paper.
+- residual caveat, stated once: the PDF arrived via founder upload, not
+  from arxiv.org (still egress-blocked); the hash above lets anyone with
+  arXiv access confirm byte-identity with the published v2 later, and
+  nothing in this review depends on that confirmation beyond ordinary
+  trust in the founder's own upload.
 
 Secondary sources consulted by the superseded scout are listed in
 ONE_LIVE_EPIPLEXITY_SECONDARY_SCOUT_v1.md §6 with the claim-to-source map;
