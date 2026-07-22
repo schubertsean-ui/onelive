@@ -11,7 +11,10 @@ from ai.prompts import EXTRACTION_SYSTEM_PROMPT
 from ai.provider import AIProvider
 from worker.ai_models import AIEventExtraction
 from worker.candidate_store import create_candidate, add_evidence, record_ai_degradation
-from worker.datetime_normalize import normalize_extracted_datetimes
+from worker.datetime_normalize import (
+    normalize_extracted_datetimes,
+    preserve_discarded_claims,
+)
 from worker.gating import multi_confirm_gate
 
 logger = logging.getLogger(__name__)
@@ -87,9 +90,15 @@ def extract_candidate(
             "stored as NULL, raw preserved in provenance: %s",
             source_name, discarded_times,
         )
-        prov = meta.setdefault("_provenance", {})
-        if isinstance(prov, dict):
-            prov["undated_time_claims"] = discarded_times
+        # preserve_discarded_claims REPLACES a malformed _provenance rather
+        # than silently skipping preservation (PR #44 r1 blocker) — the
+        # malformed original is kept under _provenance_malformed_original.
+        if preserve_discarded_claims(meta, discarded_times):
+            logger.error(
+                "source %r: _provenance was malformed (non-dict) — replaced "
+                "so the undated time claims stay preserved; original kept "
+                "under _provenance_malformed_original.", source_name,
+            )
     # Re-attach provider meta so it persists in the `extracted` jsonb column.
     shaped.update(meta)
 
