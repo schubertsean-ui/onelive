@@ -1,6 +1,6 @@
 # ONE LIVE — The Owned Agent v1 (an AI agent artists, venues, and event organizers own and control)
 
-**Compiled 2026-07-22 · Status: PROPOSAL — research response to the founder's 2026-07-22 question ("How might we create an AI agent that is 'owned' by and 'works for' artists and events and venues?"). Nothing here is license to build; every build item is gated below. Builds directly on RATIFIED canon: `ONE_LIVE_SCALEOUT_SENSOR_ARCHITECTURE_v1.md` (first-party fast lane, watcher records, scoped authority + dispute override).**
+**Compiled 2026-07-22 · Status: PROPOSAL — research response to the founder's 2026-07-22 question ("How might we create an AI agent that is 'owned' by and 'works for' artists and events and venues?"). Part II added same day from the founder's follow-up (agent-facing representation, the adoption-gap belief, essential needs, open + private). Nothing here is license to build; every build item is gated below. Builds directly on RATIFIED canon: `ONE_LIVE_SCALEOUT_SENSOR_ARCHITECTURE_v1.md` (first-party fast lane, watcher records, scoped authority + dispute override).**
 
 Greppable summary: the founder's "owned agent" decomposes into three layers —
 (1) the PIPE: verified first-party channels feeding the existing pipeline
@@ -291,7 +291,7 @@ platform risk, so it goes last and behind explicit decisions.
 Anything the flow cannot auto-discover, it asks for in one consolidated
 step — the same one-question-set discipline we hold for the founder.
 
-## 10. Consolidated founder questions (the ONLY asks in this doc)
+## 10. Consolidated founder questions (Q1–Q5; the same-day addendum adds Q6–Q8 in §17 — one combined list, nothing else asked anywhere in this doc)
 
 1. **Ratify the concept?** The three-layer decomposition (pipe = ratified
    sensor canon, gift = F0–F4, skin = agent-framed onboarding) as the
@@ -318,7 +318,186 @@ step — the same one-question-set discipline we hold for the founder.
    outbound email are new services and will come back as separate
    decision records with friction attacks when Phase B proves demand.
 
-## 11. Sources
+---
+
+# Part II — Addendum (2026-07-22, same day): the founder's follow-up, researched
+
+## 12. The follow-up ask (verbatim anchors, 2026-07-22)
+
+1. "The agent should be the venue/artist/events 'agent' to interact with the coming wave of AI agents who will be [doing] work on other people and orgs behalf, including OneLive … We can help them ensure their brand, their content, etc is represented as they choose."
+2. "My belief is that — research to verify or dispute or enhance understanding — most small businesses and artists have no real understanding of how to use AI or they think it may cost a lot or they may be charged a setup and ongoing monthly fee by someone to 'manage' the 'AI' capabilities."
+3. "We should be able to deliver so much value that we are seen as the 80/20 or even 90/10 of basic needs — need to define (research) basic or essential needs and then build to that standard."
+4. "We, as an open platform and not a closed or walled off platform like Facebook … and that activity can stay on device and really emphasize our privacy focus, should also be attractive to consumers."
+
+## 13. The agent-facing layer (B2A): representing the business to other agents
+
+The follow-up names something the v1 sections underweighted: the owned agent
+is not only a pipe INTO OneLive — it is the business's REPRESENTATIVE to
+every OTHER agent now arriving on the web. The industry has a name for this:
+[Business-to-Agent (B2A)](https://www.averi.ai/blog/business-to-agent-b2a-agentic-web)
+— making a brand legible and actionable to AI agents acting on users'
+behalf, so that when an agent browses, evaluates, or books, it reads the
+business's data correctly and can select it. The standards are forming NOW:
+
+- **llms.txt** — a plain-text agent briefing at the domain root; [844,000+
+  sites have adopted it and Google merged an llms.txt check into Chrome's
+  Lighthouse in April 2026](https://www.platinum.ai/what-is-llms-txt),
+  making it a formal web-quality signal. Small venues will not write these
+  themselves — we can generate them, correctly, from verified data.
+- **NLWeb** — [an emerging convention for exposing a site as a
+  conversational endpoint agents can query](https://techcommunity.microsoft.com/blog/azure-ai-foundry-blog/the-future-of-ai-optimize-your-site-for-agents---its-cool-to-be-a-tool/4434189)
+  (MCP-compatible under the hood).
+- **WebMCP** — [a browser-level standard in development at Google letting
+  pages register callable tools](https://www.platinum.ai/ai-agent-web-standards)
+  ("check_dates", "get_events") that browsing agents discover live.
+
+**Proposed function F6 · Agent-readable presence.** The owned agent
+generates and maintains the business's agent-facing artifacts from their
+verified, gated data: (a) an llms.txt-style profile + correct Event JSON-LD
+(extends F3) they host with one paste — cheap, static, Phase B; (b) OneLive's
+own agent endpoint (MCP and/or NLWeb-style) that answers any consumer
+agent's question about the entity with the owner-approved, gate-verified
+version — Phase C, and the strategic prize: **OneLive becomes the trust
+anchor other agents cite.** A consumer agent planning someone's Friday night
+gets the venue's events as the venue chose to state them, certified by our
+gate, instead of a hallucinated summary of a stale webpage.
+
+Two trust notes, stated before anyone asks: (1) "represented as they choose"
+ends where the dispute rule begins — the agent endpoint serves `disputed` as
+disputed, to machines as to humans (§4.2 applies verbatim; an agent-facing
+surface that hid disputes would be a second, dishonest product surface).
+(2) The endpoint serves the same gated truth the site serves — no
+agent-only fast path around the gate, ever (it is a READ surface of
+promoted data, nothing more).
+
+## 14. The adoption-gap belief: VERIFIED, with one artist-shaped nuance
+
+**Verified — the understanding gap is real and large.** Among small-business
+non-adopters, [77% see no applicable use case, 62% cite lack of
+understanding, 60% no in-house expertise](https://www.omago.ai/blog/sme-ai-adoption-2026-data);
+[34% name lack of technical knowledge as the primary barrier and 38% name
+cost](https://epiphanydynamics.ai/blog/state-of-ai-adoption-us-small-business-2026/);
+even among adopters, [45% cite lack of expertise and 47% say choosing tools
+is hard](https://capsulecrm.com/blog/small-business-ai-adoption-statistics/).
+Roughly [half of owners are "Explorers" — at the cusp, waiting on clearer
+ROI and easier tools](https://www.bluevine.com/blog/small-business-ai-trends-report-2026).
+The cost FEAR outruns the cost reality (median small-business AI spend has
+fallen to ~$28/month) — which is exactly a perception gap a free,
+no-setup agent walks straight through.
+
+**Verified hard — the "someone will charge them monthly to manage the AI"
+fear is already an industry.** Generative-engine-optimization (GEO/AEO)
+agencies now sell AI-visibility retainers at
+[$1,500–$5,000/month for small businesses](https://www.webfx.com/blog/ai/generative-engine-optimization-cost/),
+with [typical engagements $3,000–$25,000/month](https://thedigitalelevator.com/blog/aeo-and-geo-pricing-guide/).
+This is the fee wave about to hit venues. The owned agent's F3/F4/F6 —
+correct structured data, accuracy monitoring, agent-readable presence — IS
+the essential core of what those retainers sell, delivered free. "The
+80/20 of what a GEO agency would charge you $2,000/month for, free, from
+the platform that verifies your events anyway" is a pitch a venue owner
+understands in one sentence.
+
+**The nuance — artists are not SMBs on this topic.** Artist sentiment on AI
+is split and emotionally loaded: in one industry survey [60% of independent
+artists had never used AI in their process, with the top fears being
+devaluation of human creativity (42%) and copyright infringement
+(31%)](https://info.xposuremusic.com/article/music-industry-report-2025),
+while workflow-focused surveys find [87% use AI somewhere, led by younger
+artists](https://www.hypebot.com/new-survey-reveals-how-87-of-artists-really-use-ai/).
+Practical implication, adopted into this proposal: **artist-facing copy
+leads with representation, accuracy, and control — never "AI-powered."**
+The agent protects how they're represented (including against sloppy
+AI summaries elsewhere — it is partly a defense AGAINST the AI wave);
+it does not generate their art or their voice. Descriptor Foundry rules
+already govern any AI-generated descriptor text; nothing here touches that.
+Exact naming/wording goes to copy testing at design time with this
+sensitivity pre-registered.
+
+## 15. Essential needs — defining the 80/20 we build to (E1–E7)
+
+From the small-business marketing research ([channel usage and
+lowest-cost-essentials data](https://localiq.com/blog/small-business-marketing-trends-report-2026/);
+[consistency/accuracy effects on customer trust](https://www.hookle.net/post/grow-your-small-business-by-combining-google-business-profile-with-social-media)),
+the essential presence needs of a venue/artist/organizer, ranked:
+
+| # | Essential need | Owned-agent coverage |
+|---|---|---|
+| E1 | Be findable with accurate basics — hours, location, dates consistent everywhere (inconsistency measurably drives customers away) | F1 + F2 (one source of truth, synced out) |
+| E2 | Events published once, appearing everywhere | F1 + F3 widget + OneLive surfaces |
+| E3 | Look alive — recent activity signals a reliable business | F3 (widget always current) + F4 (silence alerts) |
+| E4 | Be represented correctly in search AND in AI answers | F3 (JSON-LD) + F6 (agent-readable presence) |
+| E5 | Know what's working, in plain language | F4 digest |
+| E6 | Maintained social presence (the most-used channel: ~66% unpaid social; 90%+ of social-active SMBs on Facebook, 74% Instagram) | Partial by design — F5 drafts, Phase C; v1 assists, never posts |
+| E7 | Not getting ripped off — free, plain language, no lock-in, data exportable | The model itself (free-forever, Q4) |
+
+Read: **F0–F4 + F6 covers E1–E5 and E7 — that IS the 80/20** (arguably
+90/10 for a venue whose bottleneck is presence, not content). E6 is the
+deliberately deferred tail: it is the most labor-intensive need, the most
+platform-dependent (Meta), and the one where "assist, owner publishes"
+is the only posture consistent with our physics. **"Build to that
+standard" becomes mechanical:** each E above turns into an acceptance
+criterion in the Phase A/B build contracts (e.g. E1: a venue's canonical
+hours/dates change propagates to every OneLive surface and the widget
+within one sync cycle; E5: digest readable by a smart non-engineer —
+same bar as founder comms). The E-list is the rubric evaluators review
+Phase A/B PRs against, alongside the design brief's rubric.
+
+## 16. Open platform + privacy: the consumer-side mirror
+
+The research supports privacy-forward positioning as genuinely
+differentiating, not just virtuous: [65% of consumers are concerned about
+big-tech assistants collecting their data; 27% currently refuse to share
+any data with AI agents](https://sqmagazine.co.uk/consumer-trust-in-technology-statistics/);
+[74% would switch to a competitor over a privacy line-crossing, and 47%
+took a revenue-consequence action in the past six months over AI data
+use](https://www.einpresswire.com/article/917170714/state-of-consumer-data-2026-americans-want-big-tech-to-come-clean-on-smart-device-tracking);
+[only ~23% trust companies using AI with their data, and 51% want the
+ability to limit AI features](https://usercentrics.com/press/usercentrics-state-of-digital-trust-2026-report/).
+
+Proposed positioning, stated with its costs:
+
+1. **Open where Facebook is walled:** event truth is public, exportable,
+   and agent-readable (F6). The business's data remains theirs — leaving
+   takes their data with them (E7). Tradeoff, honestly: openness means
+   competitors can consume our verified feed. The moat is the verified
+   first-party NETWORK and the gate's trust record, not a data hoard —
+   consistent with how we already treat the pipeline. Attribution/licensing
+   terms on the open feed are a design decision at Phase B (flagged, not
+   decided here).
+2. **On-device-first personalization for consumers:** taste preferences and
+   browsing behavior stay on the device by default; the feed personalizes
+   client-side against the public event stream. Precedent in canon: the
+   voice-navigation requirement already prefers on-device recognition with
+   plain-language disclosure. Tradeoff, honestly: default-local
+   personalization limits cross-device sync and our own analytics; any
+   sync-across-devices feature becomes opt-in with the same plain-language
+   disclosure. Detailed design belongs with the member-preferences work
+   (`ONE_LIVE_MEMBER_PREFERENCES_v1.md`), not this doc.
+3. **The two sides reinforce:** businesses get an agent that never charges
+   them and represents them faithfully; consumers get an open feed that
+   never profiles them by default. Both are the same sentence: *the
+   platform's incentives point at accurate representation, not attention
+   capture.* That sentence is only true while no-pay-to-rank and
+   no-connect-to-rank hold — which is why Q4 asks to make them a public
+   promise.
+
+## 17. Additions to the consolidated founder questions
+
+- **Q6 — F6 ratification:** adopt "agent-readable presence" (llms.txt-style
+  profile + JSON-LD in Phase B; OneLive agent endpoint serving gated truth
+  in Phase C) into the function set, with the two trust notes in §13
+  (disputes served to machines as to humans; read-only surface of promoted
+  data) as binding conditions?
+- **Q7 — the E-standard:** adopt E1–E7 (§15) as the definition of "essential
+  needs" and the acceptance rubric Phase A/B build contracts are written
+  and evaluated against?
+- **Q8 — open + private as canon:** ratify the §16 positioning (open/
+  exportable event truth; on-device-first consumer personalization with
+  opt-in sync; the honest tradeoffs listed) as product canon guiding
+  Step 9+ design — knowing it constrains analytics and monetization to
+  consent-based, non-rank surfaces?
+
+## 18. Sources (Parts I and II)
 
 - [Billboard — Bandsintown launches free analytics tools for artists](https://www.billboard.com/music/music-news/bandsintown-launches-analytics-tools-for-artists-exclusive-6458292/)
 - [The Music Universe — Bandsintown for Artists (510k artists, free)](https://themusicuniverse.com/bandsintown-unveils-bandsintown-artists/)
@@ -328,3 +507,12 @@ step — the same one-question-set discipline we hold for the founder.
 - [WP Event Aggregator — commodity ICS/feed ingestion](https://wordpress.org/plugins/wp-event-aggregator/)
 - [Elfsight — Instagram Graph API developer guide 2026 (requirements, review, limits)](https://elfsight.com/blog/instagram-graph-api-complete-developer-guide-for-2026/) · [Storrito — Instagram API changes 2026](https://storrito.com/resources/instagram-api-2026/) · [Meta — Instagram Platform overview](https://developers.facebook.com/docs/instagram-platform/overview/)
 - [Digital Applied — AI agent protocol ecosystem map 2026 (MCP/A2A/ACP/UCP)](https://www.digitalapplied.com/blog/ai-agent-protocol-ecosystem-map-2026-mcp-a2a-acp-ucp) · [State of agentic AI standards 2026](https://amdatalakehouse.substack.com/p/the-state-of-agentic-ai-standards)
+
+Part II additions:
+
+- [Averi — Business-to-Agent (B2A): preparing a brand for the agentic web](https://www.averi.ai/blog/business-to-agent-b2a-agentic-web) · [Platinum.ai — what is llms.txt (adoption, Lighthouse)](https://www.platinum.ai/what-is-llms-txt) · [Platinum.ai — llms.txt vs WebMCP vs SDF vs CAP compared](https://www.platinum.ai/ai-agent-web-standards) · [Microsoft — making your website agent-ready with NLWeb and MCP](https://techcommunity.microsoft.com/blog/azure-ai-foundry-blog/the-future-of-ai-optimize-your-site-for-agents---its-cool-to-be-a-tool/4434189) · [Wix — llms.txt guide](https://www.wix.com/studio/ai-search-lab/llms-txt) · [Search Engine Journal — the agentic web's identity/capability split](https://www.searchenginejournal.com/the-agentic-web-is-splitting-into-two-bets-identity-and-capability/578685/)
+- [Epiphany Dynamics — US small-business AI adoption 2026 (barrier percentages)](https://epiphanydynamics.ai/blog/state-of-ai-adoption-us-small-business-2026/) · [Omago — SME AI adoption 2026 (non-adopter reasons)](https://www.omago.ai/blog/sme-ai-adoption-2026-data) · [Capsule — small-business AI adoption statistics](https://capsulecrm.com/blog/small-business-ai-adoption-statistics/) · [Bluevine — 2026 small-business AI trends report](https://www.bluevine.com/blog/small-business-ai-trends-report-2026)
+- [WebFX — GEO cost guide](https://www.webfx.com/blog/ai/generative-engine-optimization-cost/) · [Digital Elevator — AEO/GEO pricing guide 2026](https://thedigitalelevator.com/blog/aeo-and-geo-pricing-guide/) · [TeamAI — cost of GEO 2026](https://teamai.com/blog/generative-ai-and-business/what-is-the-cost-of-geo/)
+- [Xposure Music — Independent Music Industry Report 2025 (artist AI sentiment)](https://info.xposuremusic.com/article/music-industry-report-2025) · [Hypebot — how 87% of artists really use AI](https://www.hypebot.com/new-survey-reveals-how-87-of-artists-really-use-ai/) · [Ditto Music — 60% of musicians using AI](https://press.dittomusic.com/60-of-musicians-are-already-using-ai-to-make-music)
+- [LocaliQ — small-business marketing trends report 2026 (channel usage)](https://localiq.com/blog/small-business-marketing-trends-report-2026/) · [Hookle — Google Business Profile + social consistency effects](https://www.hookle.net/post/grow-your-small-business-by-combining-google-business-profile-with-social-media)
+- [SQ Magazine — consumer trust in technology statistics 2026](https://sqmagazine.co.uk/consumer-trust-in-technology-statistics/) · [State of Consumer Data 2026 (smart-device tracking, switching behavior)](https://www.einpresswire.com/article/917170714/state-of-consumer-data-2026-americans-want-big-tech-to-come-clean-on-smart-device-tracking) · [Usercentrics — State of Digital Trust 2026](https://usercentrics.com/press/usercentrics-state-of-digital-trust-2026-report/)

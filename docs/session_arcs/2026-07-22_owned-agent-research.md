@@ -51,6 +51,35 @@ source and owner channel, never a publisher; disputed stays
 owner-unsuppressible; a no-connect-to-rank corollary is PROPOSED for
 ratification (Q4), not assumed.
 
+## Same-day follow-up (Part II addendum)
+
+The founder extended the ask in-session with three theses; researched and
+folded into the doc as Part II (§§12–17), same PR:
+
+1. **B2A / agent-facing representation** — the owned agent as the business's
+   representative to the incoming wave of consumer/org AI agents. Standards
+   are forming now (llms.txt at 844k+ sites with a Chrome Lighthouse check;
+   NLWeb; WebMCP). Proposed as function F6 (static profile in Phase B, live
+   gated-truth endpoint in Phase C) with two binding trust notes: disputes
+   served to machines as to humans; read-only surface of promoted data.
+2. **The adoption-gap belief: VERIFIED** (non-adopter barrier data; GEO/AEO
+   agencies already charging small businesses $1,500–$5,000/month for AI
+   visibility — the exact fee wave the free agent undercuts) **with one
+   nuance:** artist AI sentiment is split and loaded (displacement/copyright
+   fears) → artist-facing copy leads with representation/accuracy/control,
+   never "AI-powered"; sensitivity pre-registered for copy testing.
+3. **Essential needs defined as E1–E7** (doc §15): F0–F4+F6 covers E1–E5+E7
+   — the 80/20; E6 (social posting) is the deliberate Phase C tail. E-list
+   proposed as the Phase A/B acceptance rubric ("build to that standard"
+   made mechanical).
+4. **Open + private positioning** (§16): open/exportable event truth vs
+   walled gardens; on-device-first consumer personalization (opt-in sync),
+   with the costs stated (competitors can consume the open feed; analytics
+   constrained). Consumer-trust data supports it as differentiation.
+
+Founder questions extended to Q1–Q8 (Q6 F6 ratification, Q7 the E-standard,
+Q8 open+private as canon).
+
 ## Open threads carried forward
 
 - Founder Q1–Q5 (doc §10) — nothing in the Owned Agent section of TODOS is
