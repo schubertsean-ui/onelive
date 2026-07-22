@@ -42,7 +42,13 @@ on:
     # :00 congestion window where GitHub delays or drops scheduled runs. A
     # missed run is caught by the dead-man check (period 20min + grace),
     # not by log-reading.
-    - cron: "7,27,47 * * * *"
+    # Minutes shifted 7,27,47 -> 9,29,49 on 2026-07-22 (founder-approved):
+    # GitHub's scheduler never picked up the original schedule (zero
+    # schedule-event runs across 9+ slots; workflow active, disable/enable
+    # performed by the founder without effect). A byte-change to this file
+    # on the default branch forces full schedule re-registration — the
+    # cadence itself is unchanged at every 20 minutes.
+    - cron: "9,29,49 * * * *"
   workflow_dispatch:
     inputs:
       max_sources:
