@@ -229,7 +229,7 @@ def card(s):
       </div>
     </div>
     <div class="rail">
-      <a class="chip genre" href="#g-{slug(s["genre"])}" aria-label="{genre_counts[s["genre"]] - 1} other {E(s["genre"])} show{"s" if genre_counts[s["genre"]] - 1 != 1 else ""} tonight"><b>{genre_counts[s["genre"]] - 1}</b><small>other</small>{E(s["genre"])}</a>
+      <a class="chip genre" href="#g-{slug(s["genre"])}" aria-label="{genre_counts[s["genre"]] - 1} more {E(s["genre"])} show{"s" if genre_counts[s["genre"]] - 1 != 1 else ""} tonight"><b>{genre_counts[s["genre"]] - 1}</b><small>more</small>{E(s["genre"])}</a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>{unc_text}<a href="https://{v["site"]}">{v["site"]}</a> <em>(tap ? again to close)</em></p></div></details>
     </div>
