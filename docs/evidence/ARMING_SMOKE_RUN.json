@@ -6,7 +6,7 @@
   "approval_record": "docs/memory/decisions/2026-07-22_cron-reregistration-approved.md (founder 'Approved', option A)",
   "run_id": "29892147090",
   "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29892147090",
-  "job_id": "see run (single ingest job)",
+  "job_id": "88834537512",
   "run_head_sha": "6b651be0f8d3bc86ee9a8c245501ad215c098668",
   "run_head_note": "PR #46 head after the r1 claim-rescope (workflow comment trim) - this run executed the final reviewed workflow bytes end-to-end",
   "conclusion": "success",

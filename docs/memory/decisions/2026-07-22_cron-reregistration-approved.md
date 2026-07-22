@@ -36,12 +36,15 @@ byte-identical validate evidence. The label's "not release evidence"
 sentence is true and stays: PR-merge evidence ≠ release evidence, and
 nobody cites it as the latter. A validate reporting refinement that
 names "all diff-applicable gates green; skips = Record-bound
-non-applicable (R-002)" is a good idea and is QUEUED as its own
-gate-custody PR — it does not ride a one-line cron change (the
+non-applicable (R-002)" is a good idea and is RECORDED as R-022
+(docs/RECORD.md) with an objective trigger — the charter's lawful form
+for deferred work — rather than riding a one-line cron change (the
 scope-mixing this channel itself flagged on PR #45).
 
-**Also acknowledged from r2:** the review packet's raw-diff preamble
+**Also acknowledged from r2/r3:** the review packet's raw-diff preamble
 claims npm/SCA validation is visible in the web log even when the web
-log reports not-applicable — a wording fix to `adversarial-review.yml`
-(base-owned), queued with the validate refinement above rather than
-mixed into this PR.
+log reports not-applicable — a false packet claim, recorded in the same
+R-022 row. Structural fact, not preference: `adversarial-review.yml` is
+BASE-owned (`pull_request_target` — a PR's copy never judges itself),
+so a fix inside this PR cannot change this PR's own packet; a separate
+PR is the only path on which the fix can ever operate.
