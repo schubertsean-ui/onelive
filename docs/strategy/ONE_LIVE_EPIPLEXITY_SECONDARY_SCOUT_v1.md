@@ -23,6 +23,13 @@ gate, threshold, or pipeline change rides on this document. It becomes a
 completed review (v1.1) only when R-024's trigger fires and §2's claims are
 verified against the primary paper.
 
+SUPERSEDED same day (2026-07-22): R-024's trigger FIRED — the founder
+supplied the primary paper by direct PDF upload, and it was read in full.
+The completed review, with a claim-by-claim verification ledger over this
+scout, is docs/strategy/ONE_LIVE_EPIPLEXITY_REVIEW_v1_1.md (R-024
+RESOLVED). This scout is retained unchanged below as the historical
+pre-review record; where the two differ, v1.1 governs.
+
 ## PROVENANCE BANNER — read before citing anything below
 
 The founder asked for deep research of this paper. That contract is NOT

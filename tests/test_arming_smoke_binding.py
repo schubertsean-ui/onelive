@@ -60,12 +60,19 @@ def test_non_runtime_tool_exceptions_absent_from_ingest_workflow():
     list cannot silently outlive the fact that justifies it."""
     workflow_text = (_ROOT / _INGEST_WORKFLOW).read_text(encoding="utf-8")
     for excepted in _NON_RUNTIME_TOOL_EXCEPTIONS:
-        assert excepted not in workflow_text, (
-            f"{excepted} is in the non-runtime exception list but "
-            f"{_INGEST_WORKFLOW} references it — the exception is no "
-            "longer valid; remove it and re-run the head smoke run "
-            "instead."
-        )
+        # Check both the path spelling and the python-module spelling
+        # (r3 nit: `python -m tools.provenance_lint` would dodge a
+        # path-only substring check).
+        spellings = [excepted]
+        if excepted.endswith(".py"):
+            spellings.append(excepted[:-3].replace("/", "."))
+        for spelling in spellings:
+            assert spelling not in workflow_text, (
+                f"{excepted} (as '{spelling}') is in the non-runtime "
+                f"exception list but {_INGEST_WORKFLOW} references it — "
+                "the exception is no longer valid; remove it and re-run "
+                "the head smoke run instead."
+            )
     # The inverse guard: the tools ingest.yml DOES execute must never
     # appear in the exception list (belt for future edits).
     for runtime_tool in ("tools/assert_deadman_period.py",
