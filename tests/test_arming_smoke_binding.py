@@ -4,9 +4,10 @@ PR #43 r16: prose claiming "the evidence commit is docs-only" is not
 verification. This test recomputes the claim FROM GIT on every run: every
 path changed between the recorded smoke-run commit
 (docs/evidence/ARMING_SMOKE_RUN.json) and the code under test must lie in
-the non-runtime set — docs/, TODOS.md, tests/ — none of which execute in
-the armed workflow (ingest.yml runs run_once.py; tests never ship into
-that path). Any change to workflows, worker/, tools/, ai/, or anything
+the non-runtime set — docs/, TODOS.md, tests/, design/ — none of which
+execute in the armed workflow (ingest.yml runs run_once.py; tests never
+ship into that path; design/ holds founder-facing HTML proposals nothing
+in the pipeline imports). Any change to workflows, worker/, tools/, ai/, or anything
 else runtime re-REDs this test until a fresh green head run updates the
 evidence file.
 
@@ -29,7 +30,7 @@ _EVIDENCE = _ROOT / "docs" / "evidence" / "ARMING_SMOKE_RUN.json"
 # runtime surface and must be byte-identical to the run's commit.
 # Directories are prefix-matched; files exactly (r18 nit: a bare
 # startswith would have blessed e.g. TODOS.md.bak).
-_NON_RUNTIME_DIR_PREFIXES = ("docs/", "tests/")
+_NON_RUNTIME_DIR_PREFIXES = ("docs/", "tests/", "design/")
 _NON_RUNTIME_FILES = ("TODOS.md",)
 
 
