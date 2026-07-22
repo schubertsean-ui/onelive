@@ -5,8 +5,8 @@ world class options in terms of how best to have email inbox(s) set up to
 manage the potentially massive volume of artists, venues, and the like").
 Design for a founder-owned email ingestion channel: how agents subscribe,
 how mail becomes pipeline input, and how the system stays governable at
-10 subscriptions or 100,000. STATUS: PROPOSAL. Po battery run seed
-20260723 word "windmill" (harvest H1–H10 in
+10 subscriptions or 100,000. STATUS: PROPOSAL. Po battery run (seed 20260723 —
+an arbitrary reproducibility seed, not a date) word "windmill" (harvest H1–H10 in
 ONE_LIVE_SIGNAL_ACQUISITION_PO_NOTES; H1/H3/H4 land here). New service +
 domain custody = founder-crucial at build.
 

@@ -151,7 +151,13 @@ a deploy callback):
   founder ask goes out NOW — options, recommendation, tradeoffs, links. Never
   wait for a round number of misses or an "escalation checkpoint" hours out.
 - **Watching cadence:** watch interval = ONE expected-event interval + provider
-  lag allowance, never multi-interval windows. Bridging actions (manual runs,
+  lag allowance, never multi-interval windows.
+- **A watch turn never ends unarmed:** success is silent (CI success and
+  merges deliver no webhook) — before ending ANY turn that awaits an
+  external outcome, arm a wake-up for it; if the preferred scheduling
+  mechanism is unavailable or declined, use the best available fallback
+  and SAY SO. (Added 2026-07-22 after the 05:28Z→11:56Z gap: an APPROVE
+  sat unmerged 6.5h because the awaiting turn ended with no timer.) Bridging actions (manual runs,
   pings) buy time; they never substitute for the escalation.
 - Origin: the 2026-07-22 cron-arming stall — first missed slot 01:07Z,
   founder ask not delivered until 04:02Z, while the fix (a two-tap

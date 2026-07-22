@@ -1,6 +1,6 @@
 # Signal-acquisition specs — po battery working notes (2026-07-22)
 
-Battery: full P1–P8.6, seed 20260723, random word "windmill", target
+Battery: full P1–P8.6, seed 20260723 (arbitrary reproducibility seed, not a date), random word "windmill", target
 statement = the three-part signal-acquisition expansion (ingest inbox ·
 social composite enrichment · non-music). Provocations are stimuli,
 never facts; harvest converges through the normal gates. ≥2 movement
