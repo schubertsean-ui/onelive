@@ -182,9 +182,22 @@ def _import_closure(entries: list[pathlib.Path]) -> set[pathlib.Path]:
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 names += [a.name for a in node.names]
-            elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-                names.append(node.module)
-                names += [f"{node.module}.{a.name}" for a in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                if node.level == 0 and node.module:
+                    names.append(node.module)
+                    names += [f"{node.module}.{a.name}" for a in node.names]
+                elif node.level > 0:
+                    # PR #47 r2 blocker: package-relative imports must
+                    # resolve too. level=1 is the module's own package;
+                    # each extra level climbs one package higher.
+                    base = rel.parent
+                    for _ in range(node.level - 1):
+                        base = base.parent
+                    prefix = ".".join(base.parts)
+                    mod = f"{prefix}.{node.module}" if node.module else prefix
+                    if mod:
+                        names.append(mod)
+                        names += [f"{mod}.{a.name}" for a in node.names]
         for name in names:
             parts = name.split(".")
             for cut in range(len(parts), 0, -1):
@@ -213,19 +226,75 @@ def _non_docstring_strings(path: pathlib.Path) -> list[str]:
             and id(n) not in doc_nodes]
 
 
+_PATH_TOKEN_RE = None  # compiled lazily below
+
+
+def _allowlisted_path_tokens(text: str) -> list[str]:
+    """Tokens in text that name an allowlisted file or a path under an
+    allowlisted directory prefix (PR #47 r2 blockers 1+3: files AND
+    directory prefixes, in Python literals AND workflow shell)."""
+    import re
+    global _PATH_TOKEN_RE
+    if _PATH_TOKEN_RE is None:
+        files = "|".join(re.escape(f) for f in _NON_RUNTIME_FILES)
+        dirs = "|".join(re.escape(d) for d in _NON_RUNTIME_DIR_PREFIXES)
+        _PATH_TOKEN_RE = re.compile(rf"(?:{files})|(?:{dirs})[\w./-]*")
+    return _PATH_TOKEN_RE.findall(text)
+
+
+def _pin(text: str) -> str:
+    import hashlib
+    return hashlib.sha256(text.encode()).hexdigest()[:12]
+
+
+# Reviewed PROSE mentions of allowlisted paths in executable contexts —
+# each is a doc-pointer inside a human-facing message, not file I/O, and
+# each is pinned to the sha256 of its exact containing literal/line: any
+# NEW mention, or any EDIT to a pinned one, fails the proof closed until
+# a human reclassifies it here (boundary-ignore pattern: enumerated,
+# visible in diff, evaluator-reviewed).
+_REVIEWED_PROSE_MENTIONS = {
+    # ingest.yml preconditions step: "See docs/SPRINT_LIVE_SITE.md Step 5."
+    # inside the missing-secrets ::error echo — a doc pointer in a
+    # human-facing refusal message; the line performs no file access.
+    ("ingest.yml", "docs/SPRINT_LIVE_SITE.md", "21dffb6d5c99"),
+    # ai/claude_provider.py extraction-blocked error message cites the
+    # Record row and bar ("docs/RECORD.md R-013 ... R-006") — message
+    # text; the module performs no docs/ file access.
+    ("ai/claude_provider.py", "docs/RECORD.md", "708b66db190e"),
+    # tools/model_router.py cites its policy doc in an unknown-stage
+    # error and a routing-policy message; STAGE_MODELS is hardcoded in
+    # the module — verified: no open()/read_text in the file, the doc
+    # is documentation OF the mapping, never parsed as config.
+    ("tools/model_router.py", "docs/MODEL_ROUTING.md", "542b03cae0e9"),
+    ("tools/model_router.py", "docs/MODEL_ROUTING.md", "8ecdcaeef40d"),
+    ("tools/model_router.py", "docs/RECORD.md", "739f350469b9"),
+}
+
+
 def test_non_runtime_set_is_proven_against_workflow_closure():
-    """PR #47 r1 blocker: allowlist entries must be mechanically proven,
-    not asserted. This derives the armed workflow's execution surface —
-    every repo script ingest.yml invokes plus its transitive intra-repo
-    import closure — and fails if (a) any closure file LIVES in an
-    allowlisted path (the classifier would then exempt executing code
-    from the binding), or (b) any closure file's non-docstring string
-    literals mention an allowlisted FILE (the conservative static signal
-    that runtime code consumes it; a docstring mention is commentary,
-    an executable literal is a file path waiting to be opened). Static
-    analysis is not a sandbox — dynamically built paths would evade it —
-    but any straightforward consumption turns this red, which is the
-    failure mode the r1 finding demanded the classifier have.
+    """PR #47 r1 blocker (extended at r2): allowlist entries must be
+    mechanically proven, not asserted. Three signals, all fail-closed:
+
+    1. WORKFLOW TEXT (r2 blocker 1): every non-comment line of ingest.yml
+       is scanned for allowlisted-path tokens — the workflow's own shell
+       consuming STATE.md/TODOS.md/docs//tests/ turns this red.
+    2. CLOSURE PLACEMENT: no file in the derived execution closure
+       (ingest.yml entry scripts + transitive intra-repo imports,
+       INCLUDING package-relative imports — r2 blocker 2) may live under
+       an allowlisted path.
+    3. CLOSURE LITERALS (r2 blocker 3): every non-docstring string
+       literal in the closure is scanned for allowlisted-path tokens —
+       files AND directory prefixes.
+
+    Existing PROSE mentions (doc pointers inside error messages) are
+    enumerated in _REVIEWED_PROSE_MENTIONS, pinned to the sha256 of
+    their exact containing text: any new mention or edit re-REDs this
+    test for human reclassification. Static analysis is not a sandbox —
+    a dynamically assembled path evades any static check — but every
+    straightforward consumption shape (a path token reaching executable
+    text) turns this red, which is the failure property the classifier
+    must have.
     """
     entries = _workflow_entry_scripts()
     assert entries, "no entry scripts derived from ingest.yml — proof impossible, failing closed"
@@ -234,18 +303,42 @@ def test_non_runtime_set_is_proven_against_workflow_closure():
         "the workflow contract changed; re-derive this proof before trusting "
         "the non-runtime classification"
     )
+
+    # Signal 1: the workflow's own executable text.
+    wf_lines = [ln for ln in
+                (_ROOT / ".github" / "workflows" / "ingest.yml")
+                .read_text().splitlines()
+                if not ln.lstrip().startswith("#")]
+    wf_unreviewed = []
+    for ln in wf_lines:
+        for tok in _allowlisted_path_tokens(ln):
+            key = ("ingest.yml", tok, _pin(ln.strip()))
+            if key not in _REVIEWED_PROSE_MENTIONS:
+                wf_unreviewed.append(key)
+    assert not wf_unreviewed, (
+        f"ingest.yml's executable lines reference allowlisted paths not "
+        f"enumerated as reviewed prose: {wf_unreviewed} — reclassify "
+        "before trusting the smoke binding"
+    )
+
+    # Signal 2: closure placement.
     closure = _import_closure(entries)
     inside = [str(p) for p in closure if _is_non_runtime(str(p))]
     assert not inside, (
         f"files under allowlisted non-runtime paths are part of the armed "
         f"workflow's execution closure: {inside} — the allowlist is wrong"
     )
+
+    # Signal 3: closure executable literals.
+    lit_unreviewed = []
     for rel in sorted(closure):
-        hits = [s for s in _non_docstring_strings(rel)
-                for f in _NON_RUNTIME_FILES if f in s]
-        assert not hits, (
-            f"{rel} references allowlisted governance file(s) in executable "
-            f"string literals {hits!r} — the non-runtime classification of "
-            "that file is no longer proven; reclassify before trusting the "
-            "smoke binding"
-        )
+        for s in _non_docstring_strings(rel):
+            for tok in _allowlisted_path_tokens(s):
+                key = (str(rel), tok, _pin(s))
+                if key not in _REVIEWED_PROSE_MENTIONS:
+                    lit_unreviewed.append(key)
+    assert not lit_unreviewed, (
+        f"executable string literals in the armed closure reference "
+        f"allowlisted paths not enumerated as reviewed prose: "
+        f"{lit_unreviewed} — reclassify before trusting the smoke binding"
+    )
