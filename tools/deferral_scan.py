@@ -32,7 +32,11 @@ RECORD = REPO / "docs" / "RECORD.md"
 # Trees that hold code. Prose lives in docs/ and is deliberately not scanned.
 SCAN_DIRS = ["api", "worker", "ai", "tools", "web", "tests", ".github", "supabase"]
 EXTRA_FILES = ["tools/validate"]  # bash, no extension
-SKIP_PARTS = {"node_modules", ".next", "__pycache__", ".pytest_cache", "var"}
+# ".claude": transient parallel-agent worktrees (gitignored scratch clones)
+# — same exclusion class as trust_gate's SKIP_PARTS; the scan's subject is
+# the repository's own tree, never embedded scratch copies (PR #51).
+SKIP_PARTS = {"node_modules", ".next", "__pycache__", ".pytest_cache", "var",
+              ".claude"}
 
 # suffix → line-comment marker. Extensionless files (tools/validate) are bash.
 COMMENT_MARKERS = {
