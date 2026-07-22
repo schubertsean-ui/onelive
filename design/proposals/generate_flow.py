@@ -26,7 +26,10 @@ the output.
 import html
 import pathlib
 
-OUT = pathlib.Path(__file__).parent / "direction-4-flow.html"
+import sys
+
+OUT = (pathlib.Path(sys.argv[1]) if len(sys.argv) > 1
+       else pathlib.Path(__file__).parent / "direction-4-flow.html")
 
 AREAS = {
     "dt": {"name": "Downtown", "dot": (21, 26)},
@@ -171,10 +174,19 @@ def card(s):
     tier_c = s.get("tier") == "c"
     doors = f' <span class="doors">· doors {t_fmt(s["doors"])}</span>' if s.get("doors") else ""
     snips = "".join(f'<span class="chip snip"><i>♪</i>{E(t)}</span>' for t in s["snips"])
-    special = (f'<span class="vspecial"><small>from the venue</small>{E(v["special"])}</span>'
+    # Provenance truth (evaluator r1, PR #45): these are FIXTURES — fictional
+    # shows and invented specials staged at real venues. The visible labels
+    # must say so; a prototype may not attribute fabricated data to a real
+    # business as sourced fact.
+    special = (f'<span class="vspecial"><small>venue special — sample, not from the venue</small>{E(v["special"])}</span>'
                if v["special"] else "")
-    unc_text = ("One listing so far; waiting on a second source. Check the room: "
-                if tier_c else "From the venue’s public calendar. The room is the last word: ")
+    unc_text = (
+        "Sample card — this show is a prototype fixture, not a real listing. "
+        "In the product this panel shows the listing's real source and when it "
+        "was last seen, with the venue's own site as the last word"
+        + (" — this card demonstrates the low-confidence ✳ register (one source so far)"
+           if tier_c else "")
+        + ". Venue site: ")
     spark = f'{"✳ " if tier_c else ""}{E(s["spark"])}{" <small>— first notes</small>" if tier_c else ""}'
     return f'''
   <section class="room" id="{s["id"]}" data-start="{s["start"]}"
@@ -234,7 +246,7 @@ def venue_lens(vk):
     here_shows = sorted((s for s in SHOWS if s["v"] == vk), key=lambda s: t_min(s["start"]))
     hue = here_shows[0]["hue"]
     here = " · ".join(f'<a href="#a-{s["id"]}">{E(s["artist"])} {t_fmt(s["start"])}</a>' for s in here_shows)
-    special = (f'<p class="vspecial" style="margin-top:12px"><small>from the venue</small>{E(v["special"])}</p>'
+    special = (f'<p class="vspecial" style="margin-top:12px"><small>venue special — sample, not from the venue</small>{E(v["special"])}</p>'
                if v["special"] else "")
     back = f'#{here_shows[0]["id"]}'
     return f'''
@@ -466,6 +478,7 @@ page = f'''<!DOCTYPE html>
 <section class="fin" id="fin">
   <h2>End of tonight's list.</h2>
   <p id="finline">{len(SHOWS)} shows listed above, by start time.</p>
+  <p>Prototype fixture data: every artist and listing is fictional; venues are real Austin rooms used as setting. Specials and provenance panels are samples of the layout, not facts about these businesses.</p>
   <div class="rail" style="justify-content:center">
     <a class="chip" href="#sky">↑ Top</a>
   </div>
@@ -490,7 +503,7 @@ page = f'''<!DOCTYPE html>
     if(lbl){{var h=Math.floor(nm/60)%24,m=nm%60,ap=h>=12?'PM':'AM';lbl.textContent='now '+((h%12)||12)+':'+String(m).padStart(2,'0')+' '+ap;}}
     if(gone){{var f=document.getElementById('finline');
       f.textContent=gone+' earlier show'+(gone>1?'s':'')+' ended and are hidden. '+({len(SHOWS)}-gone)+' listed above, by start time.';}}
-  }}catch(e){{}}
+  }}catch(e){{console.error('flow clock enhancement failed (page remains complete without it):',e)}}
 }})();
 </script>
 </body>
