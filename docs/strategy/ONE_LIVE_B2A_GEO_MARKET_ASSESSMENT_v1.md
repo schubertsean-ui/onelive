@@ -16,7 +16,9 @@ Doorman); recommendation: they compose as one funnel — A (Mirror: "how AI
 sees you" report card) as the no-brainer hook on top of B (Feed: verified
 presence kit, already Phases A/B) with C (Doorman: live agent endpoint) as
 the Phase-C moat. Method note and single-model caveat in §1. Founder
-questions Q9–Q12 at the end.
+questions Q9–Q13 at the end (Q13 covers §14's beyond-core consultant
+catalog: what paid B2A consultants deliver beyond our free core, with a
+NEVER/REFER/LATER/EDGE stance on each).
 
 ---
 
@@ -449,7 +451,86 @@ and you hold the string."* That is the no-brainer sentence, and each
 clause is a mechanism this stack actually delivers (Mirror; Feed;
 pipes+widget; $0 promise; revocable authority token).
 
-## 14. Additions to the consolidated founder list (Q9–Q12)
+## 14. Beyond our core: the full B2A consultant service catalog (what a paid consultant could deliver that we deliberately don't — and our stance on each)
+
+The founder's directive: name the specific services a B2A consultant could
+deliver, beyond the core we've defined (F0–F6, Mirror/Feed/Doorman), that
+would still be of real value to a business or artist. This matters for
+three reasons: (1) it defines the honest boundary of our "80/20" — what
+the free agent will NOT do, said out loud; (2) it maps the ecosystem that
+will grow around the gap — some of it complementary, some of it the fee
+wave we're protecting members from; (3) it is a future partner/referral
+surface that must be designed to never contaminate the trust invariants.
+
+Stance legend: **NEVER** (conflicts with invariants or physics) ·
+**REFER** (real value, not our business — candidate for a vetted-referral
+list) · **LATER** (could become ours in a later phase, founder-gated) ·
+**EDGE** (partially covered by our core already; consultant adds the rest).
+
+### 14.1 Visibility & data (adjacent to our core)
+| Service | What the consultant does | Typical market price | Value to business | Our stance |
+|---|---|---|---|---|
+| Review strategy & response management | Solicitation flows, response SLAs, recovery campaigns to clear the ~4.3★ AI confidence threshold (§3.4) | $300–$1,500/mo | HIGH — reviews are the #1 AI-visibility lever we DON'T touch | **REFER** — F4 can alert ("your rating is below the AI threshold") but soliciting/responding is voice work we must not automate for them |
+| Conversational content engineering | Rewriting site/FAQ content to answer the "best patio for eight" query shapes (79% of AI local prompts) | $1–5k one-time + retainer | MEDIUM-HIGH | **EDGE** — our JSON-LD + event data covers the factual layer; narrative content is theirs; F4 could someday flag gaps (LATER) |
+| Competitor share-of-voice analysis | Which rivals appear in the 3–5 answer slots and why | in $2–8k/mo retainers | MEDIUM | **NEVER as a paid tier**; a neutral market-level version could be public data (H8 scoreboard); per-business competitive targeting sits badly beside no-pay-to-rank |
+| Wikipedia/Wikidata/knowledge-graph presence | Notability-compliant entity entries AI models actually train on and cite | $2–10k one-time | HIGH for established entities | **REFER** — editing on behalf of subjects is COI-fraught; we should never ghost-edit knowledge bases |
+| AI-crawler technical config | robots.txt/CDN/bot-access settings so AI crawlers can read the site at all (a silent killer) | $500–2k one-time | HIGH when broken | **EDGE** — the Mirror should DETECT "your site blocks AI crawlers" and show the fix; doing the server work is theirs/their webhost's |
+| Hallucination correction filings | Formal feedback/correction submissions to OpenAI/Google/Perplexity and data providers (Foursquare/Yelp/Bing) when AI states falsehoods | emerging; hourly | HIGH when it bites | **LATER (Phase C candidate)** — a natural Doorman extension: we already hold the verified truth and the diff; founder decision because it makes us an agent-of-record |
+
+### 14.2 Marketing execution (the classic agency stack, now AI-flavored)
+| Service | Typical market price | Value | Our stance |
+|---|---|---|---|
+| Social media management (calendars, posting, community/DMs) | $500–$3k/mo | HIGH but labor-heavy | **NEVER as full service** — F5 drafts only, owner publishes (our physics); the E6 tail is deliberately theirs |
+| Paid media (social ads, search ads, emerging AI-surface placements) | 10–20% of spend + fees | MEDIUM-HIGH | **NEVER** — pay-to-reach adjacency; also the first AI-surface ad markets are exactly the pay-to-rank world we refuse |
+| Email/SMS/fan-club CRM (list building, newsletters, drops) | $200–$1k/mo + tools | HIGH for artists | **REFER** — real gap for artists; our F3 widget/feed can SUPPLY the content (next shows auto-populate their newsletter template) without us becoming their CRM |
+| Photography/video/creative assets | $500–$5k/shoot | HIGH | **REFER** — pure creative services; note Descriptor Foundry governs only OUR descriptor text, never their creative |
+| Brand strategy (positioning, naming, identity, voice) | $5–50k engagements | MEDIUM-HIGH for growth-stage | **REFER** — Neumaier-style work; ironically the discipline this doc uses is one we'd never sell |
+| Influencer/creator collabs & seeding | $500–$5k/campaign | MEDIUM | **NEVER facilitate for pay**; Tastemaker posts remain a fully separate human trust category (standing architecture rule) — no commercial bridge, ever |
+
+### 14.3 Revenue & operations (deep value, far from our lane)
+| Service | Typical market price | Value | Our stance |
+|---|---|---|---|
+| Ticketing strategy, pricing/yield, comps policy | consulting rates; % deals | HIGH for venues | **NEVER advise; LATER hand off** — ACP-era ticketing handoff (§3.5) is infrastructure, not advice; pricing advice from the neutral truth-keeper is a conflict |
+| Agentic-commerce enablement (ACP/AP2 checkout readiness, payments setup) | $2–10k implementations | HIGH within 1–2 yrs | **LATER (Phase C)** — Doorman's ACP-readiness covers discovery/handoff; merchant-side payment integration is theirs/Stripe's |
+| Sponsorship & partnership brokering | 10–20% commissions | HIGH for festivals/series | **NEVER** — brokering with a fee against our own data is a rank-adjacent conflict |
+| Grant writing / arts funding applications | $1–5k or % | HIGH for nonprofits/artists | **REFER** — genuinely valuable, entirely outside our physics |
+| Staff AI-literacy training | $1–3k/workshop | MEDIUM | **REFER**; our plain-language digests and docs quietly do the 80% version for free |
+| Web design/build, accessibility (WCAG), performance (CWV) | $3–30k | HIGH when the site is the bottleneck | **EDGE** — the widget gives them a correct, fast events section inside whatever site they have; whole-site work is theirs. Mirror can flag "your site is unreadable/slow for crawlers" |
+
+### 14.4 Artist-specific services
+| Service | Typical market price | Value | Our stance |
+|---|---|---|---|
+| EPK (electronic press kit) creation & maintenance | $300–$1,500 | HIGH for booking | **LATER-lite** — a verified OneLive artist page with accurate dates/venues/links IS 70% of an EPK; a "share as EPK" view is a cheap Phase-B+ candidate (queued as an idea, not a promise) |
+| DSP profile management (Spotify for Artists, Apple Music) & playlist pitching | $200–$1k/mo; per-pitch fees | HIGH (and scam-dense) | **REFER with a warning label** — payola-adjacent pitching is exactly the ecosystem our members need protecting from; any referral list must exclude pay-for-placement operators |
+| Sync licensing representation | 20–50% commissions | MEDIUM-HIGH | **NEVER** (already in the founder-decision backlog as its own P3 question — unchanged here) |
+| Tour routing & demand analytics | tools + consulting | MEDIUM | **LATER-lite** — aggregate, privacy-clean demand signals from our consumer side could someday inform artists ("Austin indexes high for your genre") — founder-gated, Phase 3+, never individual-user data |
+| Merch strategy & fulfillment | % or retainers | MEDIUM | **REFER** — commerce operations, not our lane |
+
+### 14.5 What this catalog means strategically
+1. **The 80/20 boundary is now explicit and defensible.** Our free core =
+   presence, accuracy, representation (the universal substrate every
+   entity needs). The paid world = judgment, creative, negotiation, and
+   labor (reviews, content voice, ads, brokering, brand). We should SAY
+   this boundary in partner-facing copy — it makes "free forever" credible
+   because the business model behind the free tier is legible.
+2. **A vetted-referral surface is a real future asset with a live wire in
+   it.** Businesses will ask "who should I hire for the rest?" A referral
+   list monetized in ANY way (fees, commissions, placement) recreates
+   pay-to-rank one layer out. If we ever do this: unpaid, criteria
+   published, no-payola exclusions explicit (especially playlist
+   pitching), and founder-ratified. Logged as Q13 — not proposed for now.
+3. **Three LATER items are genuine roadmap candidates** because they ride
+   machinery we already build: hallucination-correction filings (Doorman +
+   verified diffs), EPK-view (artist page reskin), AI-crawler diagnostics
+   in the Mirror. Each returns through the normal gates when its phase
+   arrives.
+4. **The NEVERs are load-bearing.** Ads brokering, competitive targeting,
+   sponsored placement, commission brokering, ghost-editing knowledge
+   bases — each is a real revenue line competitors will take, and each
+   would cost us the only thing that makes the whole strategy work. The
+   catalog doubles as a pre-registered list of temptations refused.
+
+## 15. Additions to the consolidated founder list (Q9–Q13)
 
 - **Q9 — Sequencing ratification:** adopt §13 (B first as already gated;
   A as B's front door behind legal + cap; C per Q6 with H1/H2/H5)?
@@ -464,8 +545,13 @@ pipes+widget; $0 promise; revocable authority token).
 - **Q12 — Public accuracy scoreboard (H8):** adopt per-metro answer-
   accuracy as a published mission metric (with the vendor-stat haircut
   noted in §10 Black)?
+- **Q13 — Beyond-core stance ratification (§14):** confirm the
+  NEVER/REFER/LATER/EDGE stances as standing policy — in particular the
+  NEVERs (§14.5.4) as pre-registered refusals, and that any future
+  vetted-referral list is unpaid, criteria-published, payola-excluding,
+  and founder-ratified before it exists in any form?
 
-## 15. Sources
+## 16. Sources
 
 Landscape/actors: [Search Influence — AI SEO tracking tools 2026](https://www.searchinfluence.com/blog/ai-seo-tracking-tools-2026-analysis-platforms/) · [Surmado — Profound vs Peec vs Otterly](https://www.surmado.com/blog/best-ai-visibility-tools-2026) · [Ayzeo — GEO platforms compared](https://ayzeo.com/comparisons/geo-platforms-compared) · [WebFX — GEO cost](https://www.webfx.com/blog/ai/generative-engine-optimization-cost/) · [Digital Elevator — AEO/GEO pricing](https://thedigitalelevator.com/blog/aeo-and-geo-pricing-guide/) · [SocialPilot — BrightLocal vs Yext pricing](https://www.socialpilot.co/reviews/comparison/brightlocal-vs-yext) · [Guideflow — listings tools 2026](https://www.guideflow.com/blog/local-listing-management-software-tools)
 Market/demand: [Valuates via Yahoo — GEO services $7.3B by 2031](https://finance.yahoo.com/news/generative-engine-optimization-geo-services-151200019.html) · [Dimension MR — GEO CAGR 40.6%](https://dimensionmarketresearch.com/report/generative-engine-optimization-geo-market/) · [Omnibound — 60+ GEO statistics](https://www.omnibound.ai/blog/generative-engine-optimization-statistics) · [Bloom Intelligence — AI restaurant discovery data](https://bloomintelligence.com/blog/ai-restaurant-discovery/) · [Uberall via BusinessWire — 83% invisible](https://www.businesswire.com/news/home/20260507962493/en/83-of-Restaurants-Are-Invisible-in-AI-Search-New-Uberall-Report-Reveals-the-Discovery-Gap-Reshaping-the-Quick-Service-Restaurant-Industry) · [Local Falcon — the AI visibility crisis](https://www.localfalcon.com/blog/the-ai-visibility-crisis-why-83-percent-of-restaurants-dont-exist-in-chatgpt)

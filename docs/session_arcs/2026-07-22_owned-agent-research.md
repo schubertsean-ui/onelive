@@ -121,7 +121,7 @@ PR. Highlights:
 
 ## Open threads carried forward
 
-- Founder Q1–Q5 (doc §10) — nothing in the Owned Agent section of TODOS is
+- Founder Q1–Q13 across the two strategy docs — nothing in the Owned Agent section of TODOS is
   buildable until answered.
 - R-023 — fold Contract #20 into STATE.md when the trigger fires.
 - Gate-custody decision queued: STATE.md classification in the arming
