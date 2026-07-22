@@ -28,9 +28,6 @@ import pathlib
 
 import sys
 
-OUT = (pathlib.Path(sys.argv[1]) if len(sys.argv) > 1
-       else pathlib.Path(__file__).parent / "direction-4-flow.html")
-
 AREAS = {
     "dt": {"name": "Downtown", "dot": (21, 26)},
     "rr": {"name": "Red River", "dot": (25, 22)},
@@ -237,6 +234,7 @@ def card(s):
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>{unc_text}<a href="https://{v["site"]}">{v["site"]}</a> <em>(tap ? again to close)</em></p></div></details>
     </div>
+    <p class="fixnote" style="margin:4px 12px 0">prototype sample — fictional listing at a real venue</p>
   </section>'''
 
 
@@ -681,7 +679,7 @@ page = f'''<!DOCTYPE html>
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     var mic=document.getElementById('micbtn'), note=document.getElementById('voicenote'), heard=document.getElementById('heard');
     if(!mic)return;
-    if(!SR){{return}}
+    if(!SR){{note.textContent='Voice isn\\u2019t available in this browser \\u2014 the options below are the way in.';return}}
     mic.hidden=false; note.textContent='Tap Speak it, allow the mic, and say what you feel like — or use the chips.';
     mic.addEventListener('click',function(){{
       var r=new SR(); r.lang='en-US'; r.maxAlternatives=1;
@@ -712,5 +710,14 @@ page = f'''<!DOCTYPE html>
 </html>
 '''
 
-OUT.write_text(page)
-print(f"wrote {OUT} ({len(page):,} bytes)")
+def main():
+    # All writing lives here (evaluator r4 nit): importing this module
+    # yields the dataset and the composed page with zero side effects.
+    out = (pathlib.Path(sys.argv[1]) if len(sys.argv) > 1
+           else pathlib.Path(__file__).parent / "direction-4-flow.html")
+    out.write_text(page)
+    print(f"wrote {out} ({len(page):,} bytes)")
+
+
+if __name__ == "__main__":
+    main()
