@@ -119,9 +119,31 @@ PR. Highlights:
   B first (already gated), A as B's front door (behind legal + scan cap),
   C in Phase C. Founder questions Q9–Q13 added (Q13: §14 beyond-core consultant catalog stances — added at the founder's fourth directive with the PDF delivery).
 
+## Fifth directive (same session): the Mantle — thought leadership + execution default
+
+Founder directed an assessment of claiming the thought-leadership AND
+execution mantle: OneLive as the "default"/"no-brainer" for AI-era basics
+in local culture, with "you shouldn't pay for table stakes" as the claim.
+Delivered: `docs/strategy/ONE_LIVE_MANTLE_v1.md` (PROPOSAL, same PR).
+Highlights: the mantle is structurally unclaimed (every incumbent is
+barred from the claim by its own business model); category-design
+economics justify taking it (creators captured 51% of growth/80% of
+market cap among fast growers); precedents mapped — Let's Encrypt
+(execution mantle: free HTTPS default, 700M+ sites) and HubSpot
+(thought-leadership mantle: named "inbound", gave away the academy).
+Seven mantle assets (Standard/Manifesto/Report/Roadshow/Curriculum/
+Vocabulary/Scoreboard), all ~zero cash, founder-time-funded. Sequencing
+LAW (Black hat): never claim execution mantle ahead of execution —
+narrative prep now, publish WITH Phase A, the word "default" only when
+coverage metrics earn it. Po battery run #3 (seed 2026072202, word
+"telescope", harvest H-M1–M6, M6 ledger row; dead ends: P6 absurd "the
+manifesto signs itself" and P8.3 "10000× reports" yielded nothing beyond
+M-C's cadence). Questions now Q1–Q17. The Report/Mirror legal conflict
+preserved in Blue, deferred to the Phase-A friction gate.
+
 ## Open threads carried forward
 
-- Founder Q1–Q13 across the two strategy docs — nothing in the Owned Agent section of TODOS is
+- Founder Q1–Q17 across the three strategy docs — nothing in the Owned Agent section of TODOS is
   buildable until answered.
 - R-023 — fold Contract #20 into STATE.md when the trigger fires.
 - Gate-custody decision queued: STATE.md classification in the arming
