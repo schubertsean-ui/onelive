@@ -1,5 +1,9 @@
 {
-  "purpose": "Step-5 arming evidence: the green ingest.yml run proving the ARMED workflow BODY executes end-to-end (fetch->extract->gate3->candidate store->dead-man assertion->artifact). SCOPE (PR #46 r1): this run is workflow_dispatch \u2014 it proves the changed workflow body and runtime, and deliberately does NOT claim to prove GitHub schedule REGISTRATION, which cannot be exercised from a PR branch (schedules register only from the default branch). Registration has its own fail-closed verification chain: the success criterion is the first schedule-event run id (docs/RECORD.md R-008, OPEN until recorded), and ABSENCE of scheduled runs is not invisible \u2014 the healthchecks dead-man alarm fires within period+grace (~30 min) of the last ping, as it demonstrably did throughout the 2026-07-22 scheduler stall. tests/test_arming_smoke_binding.py mechanically verifies the reviewed head is runtime-code-identical to this run's commit and authenticates the run via the Actions API (REQUIRED in trust-gate).",
+  "purpose": "Step-5 arming evidence for the reviewed head. Each claim is a separate field below; tests/test_arming_smoke_binding.py verifies head/run identity (git half) and authenticates the run via the live Actions API (REQUIRED in trust-gate).",
+  "proves": "the reviewed workflow BODY and runtime execute end-to-end on this head: fetch -> extract -> gate3 -> candidate store -> dead-man assertion (incl. /log ping-binding probe) -> replay artifact",
+  "does_not_prove": "GitHub schedule REGISTRATION - unprovable from a PR branch (schedules register only from the default branch); see registration_verification",
+  "registration_verification": "success criterion = first schedule-event run id, recorded in docs/RECORD.md R-008 (OPEN until then); absence of scheduled runs is fail-closed VISIBLE via the healthchecks dead-man alarm within period+grace (~30 min) of the last ping, as demonstrated live during the 2026-07-22 stall",
+  "approval_record": "docs/memory/decisions/2026-07-22_cron-reregistration-approved.md (founder 'Approved', option A)",
   "run_id": "29892147090",
   "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29892147090",
   "job_id": "see run (single ingest job)",
@@ -10,6 +14,7 @@
   "artifact_id": "8518626754",
   "artifact_zip_sha256": "426cd777fefcdfc56af0392bd3a18363866700ef9ec4e871f037a81bf3310c41",
   "deadman_assertion": "'Assert dead-man period' step GREEN (04:51Z; period 1200s/grace 600s; /log ping-binding probe included)",
+  "incident": "Incident: zero schedule-event runs across 9+ slots (01:07-04:47Z) on cron 7,27,47 despite active workflow, verified config, and founder disable/enable at ~04:07Z; this PR's minute shift is the strongest remaining re-registration signal. Full record: R-008 row + FRICTION/changelog on the session branch.",
   "superseded_runs": [
     "29891680942 (PR #46 pre-r1 head 85274fb)",
     "29885464970 (master ab6819a - the standing master evidence, superseded on THIS branch only by the workflow change under review)",
@@ -18,6 +23,5 @@
     "29877305892 (head 00901ebd - pre-R-021-fix)",
     "29876232668 (head 91eacd21 - pre-r17 asserter; rotation + pipeline proof)",
     "29873390712 (master@1244783f - infrastructure proof)"
-  ],
-  "registration_note": "Incident: zero schedule-event runs across 9+ slots (01:07-04:47Z) on cron 7,27,47 despite active workflow, verified config, and founder disable/enable at ~04:07Z; this PR's minute shift is the strongest remaining re-registration signal. Full record: R-008 row + FRICTION/changelog on the session branch."
+  ]
 }
