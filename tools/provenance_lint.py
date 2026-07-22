@@ -88,11 +88,20 @@ def scanned_docs() -> list[pathlib.Path]:
     return docs
 
 
+_PARAGRAPH_SPLIT = re.compile(r"\n\s*\n")
+
+
 def declares_unread_primary(text: str) -> str | None:
-    """Return the declaring sentence if the doc records an unread primary."""
-    for sentence in _SENTENCE_SPLIT.split(text):
-        if _SUBJECT_RE.search(sentence) and _NEGATION_RE.search(sentence):
-            return sentence.strip()
+    """Return the declaring passage if the doc records an unread primary.
+
+    Detection is PARAGRAPH-level (r5 nit): a same-sentence rule missed
+    multi-sentence admissions like "Primary paper: X. Egress blocked.
+    We never read it." A paragraph containing both the subject and a
+    negation declares; same-sentence co-occurrence is a special case.
+    """
+    for paragraph in _PARAGRAPH_SPLIT.split(text):
+        if _SUBJECT_RE.search(paragraph) and _NEGATION_RE.search(paragraph):
+            return " ".join(paragraph.split())[:200]
     return None
 
 
@@ -160,17 +169,21 @@ def scan_surface_lines(surface_text: str, surface_name: str,
                        record_text: str) -> list[str]:
     """SURFACE RULE findings: mentions of scout docs must stay honest.
 
-    A line mentioning an unread-primary artifact passes ONLY via:
-    (a) a BOUND R-### tag — one resolving to a docs/RECORD.md row that
-        names that artifact (r4 blocker: a bare R-999 or an unrelated
-        row on the line is the same false-confidence hole the artifact
-        rule closed one round earlier), or
-    (b) an honest-frame marker OUTSIDE the filename itself (a scout
-        named *_SCOUT_v1.md would otherwise mark every mention of
-        itself — caught red-handed by this rule's own test fixture),
-        AND no overstrong frame token on the line (r4 nit:
-        "provisional completed review" may not launder bookkeeping any
-        more than it may launder a title).
+    Rules, in order (r5 blocker: NOTHING short-circuits the overstrong
+    check — at r4 a bound tag did, so "Deep review committed: SCOUT.md;
+    see R-024" laundered through the GENUINE tag):
+
+    1. An overstrong frame token on the line fails UNCONDITIONALLY —
+       no marker, no tag, nothing rescues it. Genuine resolution
+       records reference the successor artifact by name/version
+       ("primary-verified review v1_1"), never by a completed-review
+       phrase on a scout-mentioning line.
+    2. Otherwise the line passes with an honest-frame marker OUTSIDE
+       the filename itself (a scout named *_SCOUT_v1.md would
+       otherwise mark every mention of itself — caught red-handed by
+       this rule's own test fixture), or with a BOUND R-### tag — one
+       resolving to a docs/RECORD.md row that names that artifact (r4
+       blocker: bare R-999 or an unrelated row is not a binding).
     """
     rows = record_rows(record_text)
     findings = []
@@ -179,30 +192,31 @@ def scan_surface_lines(surface_text: str, surface_name: str,
         for base in scout_basenames:
             if base.lower() not in low:
                 continue
-            tags = _RECORD_TAG_RE.findall(line)
-            if any(t in rows and base in rows[t] for t in tags):
-                continue
             stripped = low.replace(base.lower(), "")
-            has_marker = any(mk in stripped for mk in LINE_MARKERS)
             overstrong = [tok for tok in OVERSTRONG_TITLE if tok in stripped]
-            if has_marker and not overstrong:
-                continue
             if overstrong:
                 findings.append(
                     f"{surface_name}:{lineno} references unread-primary "
                     f"artifact {base} with overstrong frame token(s) "
-                    f"{overstrong} and no BOUND R-### tag — bookkeeping "
-                    f"may not describe a scout as a completed review"
+                    f"{overstrong} — unconditional: no marker or R-tag "
+                    f"launders a completed-review phrase on a "
+                    f"scout-mentioning line; name the successor artifact "
+                    f"instead"
                 )
-            else:
-                findings.append(
-                    f"{surface_name}:{lineno} references unread-primary "
-                    f"artifact {base} without an honest-frame marker "
-                    f"outside the filename or a BOUND R-### tag (one "
-                    f"resolving to a docs/RECORD.md row naming {base}) — "
-                    f"bookkeeping may not describe a scout more strongly "
-                    f"than its provenance"
-                )
+                continue
+            tags = _RECORD_TAG_RE.findall(line)
+            if any(t in rows and base in rows[t] for t in tags):
+                continue
+            if any(mk in stripped for mk in LINE_MARKERS):
+                continue
+            findings.append(
+                f"{surface_name}:{lineno} references unread-primary "
+                f"artifact {base} without an honest-frame marker "
+                f"outside the filename or a BOUND R-### tag (one "
+                f"resolving to a docs/RECORD.md row naming {base}) — "
+                f"bookkeeping may not describe a scout more strongly "
+                f"than its provenance"
+            )
     return findings
 
 

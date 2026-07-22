@@ -84,10 +84,12 @@ def test_both_defects_planted_yields_title_and_binding_findings():
     assert len(findings) == 3  # no marker + overstrong + unbound tag
 
 
-def test_subject_and_negation_in_different_sentences_do_not_trigger():
+def test_subject_and_negation_in_separate_paragraphs_do_not_trigger():
+    # Detection is paragraph-level (r5): co-occurrence within a
+    # paragraph triggers; separate paragraphs do not.
     text = _doc("Review of X",
-                "The primary source is the vendor filing. The mirror "
-                "site was unreachable during testing.")
+                "The primary source is the vendor filing.\n\n"
+                "The mirror site was unreachable during testing.")
     assert pl.scan_doc(text, _BASENAME, _RECORD_FIXTURE) == []
 
 
@@ -97,6 +99,21 @@ def test_negation_variants_trigger():
         text = _doc("Plain review title",
                     f"The primary PDF {negation}. See R-024.")
         assert pl.scan_doc(text, _BASENAME, _RECORD_FIXTURE), negation
+
+
+def test_multisentence_admission_in_one_paragraph_triggers():
+    # r5 nit: same-sentence-only detection missed multi-sentence
+    # admissions. Same paragraph must trigger; separate paragraphs with
+    # unrelated negations must not.
+    text = _doc("Plain review title",
+                "Primary paper: the Smith study. Egress blocked. "
+                "We never read it. See R-024.")
+    assert pl.declares_unread_primary(text) is not None
+    assert pl.scan_doc(text, _BASENAME, _RECORD_FIXTURE)
+    apart = _doc("Review of X",
+                 "The primary source is the vendor filing.\n\n"
+                 "The mirror site was unreachable during testing.")
+    assert pl.declares_unread_primary(apart) is None
 
 
 # ---------------- SURFACE RULE ----------------
@@ -110,7 +127,7 @@ def test_surface_mention_without_marker_or_tag_fails():
     # r3 blocker shape: a changelog line calling the scout a deep review.
     line = f"- Deep review committed: docs/strategy/{_BASENAME} covering it all."
     findings = _surface(line)
-    assert len(findings) == 1 and "completed review" in findings[0]
+    assert len(findings) == 1 and "overstrong" in findings[0]
 
 
 def test_surface_mention_with_marker_is_clean():
@@ -128,21 +145,31 @@ def test_surface_unbound_tags_fail():
         assert len(findings) == 1, tag
 
 
-def test_surface_bound_tag_is_clean_even_with_strong_wording():
-    # The genuine resolution row may legitimately say "completed review"
-    # — the BOUND tag (row exists and names the artifact) is what makes
-    # it honest.
-    line = (f"| R-024 | the completed review superseding {_BASENAME} "
-            f"is v1_1 | RESOLVED |")
+def test_surface_overclaim_with_genuine_bound_tag_still_fails():
+    # r5 blocker: the bound tag must NOT short-circuit the overclaim
+    # check — "Deep review committed: SCOUT.md; see R-024" laundered
+    # through the GENUINE tag at r4. Overstrong is unconditional.
+    line = f"- Deep review committed: docs/strategy/{_BASENAME}; see R-024."
+    findings = _surface(line)
+    assert len(findings) == 1 and "unconditional" in findings[0]
+
+
+def test_surface_bound_tag_rescues_markerless_nonoverstrong_line():
+    # The legitimate role of a bound tag: a resolution-record line with
+    # neither marker vocabulary nor overstrong phrasing.
+    line = (f"| R-024 | resolution record for {_BASENAME}, checked "
+            f"against the supplied paper | RESOLVED |")
     assert _surface(line) == []
 
 
 def test_surface_overstrong_not_laundered_by_marker():
-    # r4 nit: "provisional completed review" may not launder bookkeeping.
-    line = (f"- Provisional completed review shipped: "
-            f"docs/strategy/{_BASENAME}.")
-    findings = _surface(line)
-    assert len(findings) == 1 and "overstrong" in findings[0]
+    # r4 nit: "provisional completed review" may not launder bookkeeping
+    # — and per r5, adding a bound tag must not save it either.
+    for suffix in ("", " (R-024)"):
+        line = (f"- Provisional completed review shipped: "
+                f"docs/strategy/{_BASENAME}.{suffix}")
+        findings = _surface(line)
+        assert len(findings) == 1 and "overstrong" in findings[0], suffix
 
 
 def test_surface_lines_not_mentioning_scout_are_unconstrained():
