@@ -139,6 +139,32 @@ are prior to the need to compact."
   (`docs/session_arcs/YYYY-MM-DD_slug.md`, indexed in the README), mirror to
   memory. Note any new external dependency in STATE.md (CLAUDE.md review rule #3).
 
+**External-stall escalation ladder (founder-directed 2026-07-22: "Do not let
+things run for so long without firing. Troubleshoot faster. Fix faster."):**
+When an external system misses an expected event (a scheduler slot, a webhook,
+a deploy callback):
+- **First miss:** verify our own configuration immediately and completely
+  (config on the authoritative branch, service state via API). Apply every
+  self-serve mitigation in the same pass — do not save any available action
+  for later.
+- **Second miss:** if the remaining fix needs founder hands, the consolidated
+  founder ask goes out NOW — options, recommendation, tradeoffs, links. Never
+  wait for a round number of misses or an "escalation checkpoint" hours out.
+- **Watching cadence:** watch interval = ONE expected-event interval + provider
+  lag allowance, never multi-interval windows.
+- **A watch turn never ends unarmed:** success is silent (CI success and
+  merges deliver no webhook) — before ending ANY turn that awaits an
+  external outcome, arm a wake-up for it; if the preferred scheduling
+  mechanism is unavailable or declined, use the best available fallback
+  and SAY SO. (Added 2026-07-22 after the 05:28Z→11:56Z gap: an APPROVE
+  sat unmerged 6.5h because the awaiting turn ended with no timer.) Bridging actions (manual runs,
+  pings) buy time; they never substitute for the escalation.
+- Origin: the 2026-07-22 cron-arming stall — first missed slot 01:07Z,
+  founder ask not delivered until 04:02Z, while the fix (a two-tap
+  disable/enable only the founder could perform) was available from the first
+  miss. Three hours of patience with a stuck external scheduler was a process
+  defect, not diligence (founder(Red) catch; Kaizen ledger row same date).
+
 ---
 
 ## 5. Standard of "world-class"
