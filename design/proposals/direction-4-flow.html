@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ONE LIVE — Direction 4: FLOW (interactive prototype)</title>
+<!--
+  DIRECTION 4 · FLOW — founder redirect 2026-07-22: "flowing up down back
+  forward, easy, cool, awesome, fast, satisfaction" + full width/height/
+  flexibility of mobile. Spatial model, not a page: every show owns the
+  whole viewport (100dvh snap), vertical momentum moves through TONIGHT,
+  forward-tap expands INTO a show (same surface, no page load), back
+  releases. A thin time-thread tethers the flight. Bounded edition: the
+  feed ENDS. PART A canon honored: verbatim copy, no badges, quiet
+  uncertainty control (real, ≥44px), Spark Lines incl. tier-C ✳, inline
+  SVG glyphs, Free/Ticketed, Hear it, WCAG AA, fictional artists — real
+  Austin venues as setting only. Zero dependencies. Open on a PHONE.
+-->
+<style>
+  :root{
+    --ink:#F4EFE6; --ink-dim:#B8B0A2; --night:#0B0B10; --night2:#14141C;
+    --ember:#FF7A45; --glow:#FFC77D; --thread:#5B5B70; --card-r:22px;
+    --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{height:100%}
+  body{
+    background:var(--night); color:var(--ink);
+    font:16px/1.45 "Space Grotesk",system-ui,-apple-system,sans-serif;
+    height:100dvh; overflow:hidden;
+  }
+  /* ---------- the river: vertical snap through tonight ---------- */
+  .river{
+    height:100dvh; overflow-y:auto; scroll-snap-type:y mandatory;
+    overscroll-behavior-y:contain; scroll-behavior:smooth;
+  }
+  .room{
+    position:relative; height:100dvh; scroll-snap-align:start; scroll-snap-stop:always;
+    display:flex; flex-direction:column; justify-content:flex-end;
+    padding:calc(var(--safe-t) + 14px) 20px calc(var(--safe-b) + 86px);
+    isolation:isolate; overflow:hidden;
+  }
+  /* full-bleed "roomlight" — each show fills the frame with its own weather */
+  .room::before{content:""; position:absolute; inset:0; z-index:-2; background:var(--bg,radial-gradient(120% 90% at 70% 12%, #2A1B3D 0%, var(--night) 62%))}
+  .room::after{ /* grain so full-bleed color feels analog, not app-chrome */
+    content:""; position:absolute; inset:0; z-index:-1; opacity:.5; mix-blend-mode:overlay; pointer-events:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
+  }
+  /* masthead floats over the first room only */
+  .masthead{position:fixed; top:calc(var(--safe-t) + 10px); left:20px; right:20px; z-index:5;
+    display:flex; justify-content:space-between; align-items:baseline; pointer-events:none}
+  .masthead h1{font-size:15px; letter-spacing:.14em; text-transform:uppercase; font-weight:600}
+  .masthead .tag{font-size:12px; color:var(--ink-dim); font-style:italic}
+  /* the time-thread: a tether up the right edge showing where in tonight you are */
+  .thread{position:fixed; right:9px; top:16dvh; bottom:16dvh; width:2px; background:linear-gradient(var(--thread),transparent); border-radius:2px; z-index:5}
+  .thread i{position:absolute; left:-3px; width:8px; height:8px; border-radius:50%; background:var(--ink-dim); transition:background .3s,box-shadow .3s}
+  .thread i.on{background:var(--ember); box-shadow:0 0 12px var(--ember)}
+  /* card content rises to meet the thumb */
+  .rise{transform:translateY(26px); opacity:0; transition:transform .55s cubic-bezier(.2,.8,.2,1),opacity .55s}
+  .room.here .rise{transform:none; opacity:1}
+  .when{font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--glow); margin-bottom:6px}
+  .who{font-family:Georgia,'Times New Roman',serif; font-size:clamp(34px,9.5vw,44px); line-height:1.04; letter-spacing:-.01em; margin-bottom:8px}
+  .where{font-size:15px; color:var(--ink); opacity:.92; margin-bottom:10px}
+  .spark{font-family:Georgia,serif; font-style:italic; font-size:17px; color:var(--ink); opacity:.94; max-width:30ch; margin-bottom:14px}
+  .spark.tierc{color:var(--ink-dim); font-size:15.5px}
+  .spark.tierc small{font-style:normal; font-size:12px}
+  .rowline{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .chip,button.chip{
+    appearance:none; border:1px solid #ffffff2e; background:#ffffff14; color:var(--ink);
+    min-height:44px; padding:10px 16px; border-radius:999px; font:600 14px/1 inherit;
+    display:inline-flex; align-items:center; gap:8px; cursor:pointer; backdrop-filter:blur(6px);
+  }
+  button.chip:active{transform:scale(.97)}
+  .chip.free{border-color:#7BE0AD55; color:#CFF5E2}
+  .glyph{width:18px;height:18px;flex:none}
+  /* forward: the room expands into its own detail — same surface, no page */
+  .room .more{position:absolute; inset:0; z-index:3; display:flex; flex-direction:column;
+    justify-content:flex-end; padding:calc(var(--safe-t) + 18px) 20px calc(var(--safe-b) + 24px);
+    background:linear-gradient(180deg,#000000d9,#000000f2 55%); opacity:0; pointer-events:none;
+    transform:translateX(6%); transition:opacity .38s,transform .45s cubic-bezier(.2,.8,.2,1)}
+  .room.open .more{opacity:1; pointer-events:auto; transform:none}
+  .room.open .facecontent{transform:translateX(-4%); opacity:.25}
+  .facecontent{transition:transform .45s cubic-bezier(.2,.8,.2,1),opacity .4s}
+  .more .who{font-size:clamp(28px,8vw,36px)}
+  .more dl{margin:12px 0 18px; display:grid; grid-template-columns:auto 1fr; gap:6px 14px; font-size:15px}
+  .more dt{color:var(--ink-dim)} .more dd a{color:var(--glow)}
+  .back{position:absolute; top:calc(var(--safe-t) + 12px); left:14px}
+  /* uncertainty: one quiet icon, a real ≥44px disclosure, dismissible sheet */
+  details.unc{display:inline-block}
+  details.unc summary{list-style:none; cursor:pointer; min-width:44px; min-height:44px;
+    display:inline-flex; align-items:center; justify-content:center; border-radius:50%;
+    color:var(--ink-dim); border:1px dashed #ffffff2b}
+  details.unc summary::-webkit-details-marker{display:none}
+  details.unc .sheet{position:fixed; left:14px; right:14px; bottom:calc(var(--safe-b) + 14px);
+    background:var(--night2); border:1px solid #ffffff22; border-radius:16px; padding:18px; z-index:9;
+    font-size:14.5px; color:var(--ink)}
+  .sheet a{color:var(--glow)} .sheet form{margin-top:10px}
+  .sheet button{min-height:44px}
+  /* the edition closes — tonight is finite */
+  .room.fin{justify-content:center; text-align:center}
+  .fin .who{font-size:clamp(26px,7vw,34px)}
+  .fin .tag{color:var(--ink-dim); font-style:italic; margin-top:10px}
+  .hint{position:fixed; bottom:calc(var(--safe-b) + 16px); left:0; right:0; text-align:center;
+    font-size:12px; color:var(--ink-dim); z-index:4; animation:bob 2.4s ease-in-out infinite}
+  @keyframes bob{50%{transform:translateY(-6px)}}
+  @media (prefers-reduced-motion:reduce){
+    .rise,.facecontent,.room .more{transition:none} .river{scroll-behavior:auto} .hint{animation:none}
+  }
+</style>
+</head>
+<body>
+<header class="masthead">
+  <h1>Tonight in Austin</h1><span class="tag">Less chaos. Real shows.</span>
+</header>
+<nav class="thread" aria-hidden="true"><i style="top:0%"></i><i style="top:33%"></i><i style="top:66%"></i><i style="top:100%"></i></nav>
+
+<main class="river" id="river">
+
+  <!-- ROOM 1 -->
+  <section class="room here" data-dot="0" style="--bg:radial-gradient(130% 95% at 30% 8%, #3D1F14 0%, var(--night) 64%)">
+    <div class="facecontent">
+      <p class="when rise">9:00 PM · Red River</p>
+      <h2 class="who rise">Velvet Casket</h2>
+      <p class="where rise">Elephant Room · 0.4 mi</p>
+      <p class="spark rise">swamp-gospel stomp with brass and menace</p>
+      <div class="rowline rise">
+        <button class="chip" type="button">
+          <svg class="glyph" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>
+          Hear it</button>
+        <span class="chip free">Free</span>
+        <details class="unc">
+          <summary aria-label="Something off? See how we know about this show">?</summary>
+          <div class="sheet" role="dialog" aria-label="How we know">
+            <p>Listed from the venue's public calendar, seen 40 minutes ago. Times can drift — the room itself is the last word: <a href="https://elephantroom.com">elephantroom.com</a></p>
+            <form method="dialog"><button class="chip" type="button" onclick="this.closest('details').removeAttribute('open')">Got it</button></form>
+          </div>
+        </details>
+      </div>
+    </div>
+    <button class="chip more-btn rise" type="button" style="position:absolute;right:20px;bottom:calc(var(--safe-b) + 86px)" aria-expanded="false">Details ›</button>
+    <div class="more" role="region" aria-label="Show detail">
+      <button class="chip back" type="button">‹ Back</button>
+      <h3 class="who">Velvet Casket</h3>
+      <p class="spark">swamp-gospel stomp with brass and menace</p>
+      <dl>
+        <dt>Doors</dt><dd>8:30 PM · music 9:00</dd>
+        <dt>Room</dt><dd>Elephant Room, 315 Congress Ave</dd>
+        <dt>Cover</dt><dd>Free</dd>
+        <dt>Sounds like</dt><dd>a revival tent two blocks off Bourbon</dd>
+      </dl>
+      <div class="rowline">
+        <button class="chip" type="button">Save for tonight</button>
+        <button class="chip" type="button">
+          <svg class="glyph" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>
+          Hear it</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROOM 2 -->
+  <section class="room" data-dot="1" style="--bg:radial-gradient(130% 95% at 70% 10%, #14283D 0%, var(--night) 66%)">
+    <div class="facecontent">
+      <p class="when rise">10:30 PM · East Side</p>
+      <h2 class="who rise">Reina Cortez y Los Fantasmas</h2>
+      <p class="where rise">Sagebrush · 2.1 mi</p>
+      <p class="spark rise">cumbia noir — organ smoke over a two-step</p>
+      <div class="rowline rise">
+        <button class="chip" type="button">
+          <svg class="glyph" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>
+          Hear it</button>
+        <span class="chip">Ticketed · $12</span>
+      </div>
+    </div>
+    <button class="chip more-btn rise" type="button" style="position:absolute;right:20px;bottom:calc(var(--safe-b) + 86px)" aria-expanded="false">Details ›</button>
+    <div class="more" role="region" aria-label="Show detail">
+      <button class="chip back" type="button">‹ Back</button>
+      <h3 class="who">Reina Cortez y Los Fantasmas</h3>
+      <p class="spark">cumbia noir — organ smoke over a two-step</p>
+      <dl>
+        <dt>Doors</dt><dd>10:00 PM</dd>
+        <dt>Room</dt><dd>Sagebrush, 5500 S Congress</dd>
+        <dt>Cover</dt><dd>$12 at the door</dd>
+      </dl>
+      <div class="rowline"><button class="chip" type="button">Save for tonight</button></div>
+    </div>
+  </section>
+
+  <!-- ROOM 3 — tier-C machine-drafted register -->
+  <section class="room" data-dot="2" style="--bg:radial-gradient(130% 95% at 40% 6%, #262038 0%, var(--night) 66%)">
+    <div class="facecontent">
+      <p class="when rise">11:45 PM · Downtown</p>
+      <h2 class="who rise">Glass Anthem</h2>
+      <p class="where rise">The Parish · 0.7 mi</p>
+      <p class="spark tierc rise">✳ shoegaze wall, patient and enormous <small>— first notes</small></p>
+      <div class="rowline rise">
+        <button class="chip" type="button">
+          <svg class="glyph" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>
+          Hear it</button>
+        <span class="chip">Ticketed · $15</span>
+        <details class="unc">
+          <summary aria-label="Something off? See how we know about this show">?</summary>
+          <div class="sheet" role="dialog" aria-label="How we know">
+            <p>One listing so far; we're waiting on a second source. Check the room: <a href="https://theparishaustin.com">theparishaustin.com</a></p>
+            <form method="dialog"><button class="chip" type="button" onclick="this.closest('details').removeAttribute('open')">Got it</button></form>
+          </div>
+        </details>
+      </div>
+    </div>
+    <button class="chip more-btn rise" type="button" style="position:absolute;right:20px;bottom:calc(var(--safe-b) + 86px)" aria-expanded="false">Details ›</button>
+    <div class="more" role="region" aria-label="Show detail">
+      <button class="chip back" type="button">‹ Back</button>
+      <h3 class="who">Glass Anthem</h3>
+      <p class="spark tierc">✳ shoegaze wall, patient and enormous <small>— first notes</small></p>
+      <dl><dt>Doors</dt><dd>11:00 PM</dd><dt>Room</dt><dd>The Parish, 601 Brazos St</dd><dt>Cover</dt><dd>$15</dd></dl>
+      <div class="rowline"><button class="chip" type="button">Save for tonight</button></div>
+    </div>
+  </section>
+
+  <!-- THE EDITION CLOSES -->
+  <section class="room fin" data-dot="3" style="--bg:radial-gradient(100% 80% at 50% 30%, #1A1510 0%, var(--night) 70%)">
+    <div class="facecontent">
+      <h2 class="who rise">That's tonight.</h2>
+      <p class="tag rise">Three rooms, one city. Gone tomorrow — back at dusk.</p>
+      <div class="rowline rise" style="justify-content:center; margin-top:18px">
+        <button class="chip" type="button">Share my night</button>
+        <button class="chip" type="button" onclick="document.getElementById('river').scrollTo({top:0})">↑ Back to the top</button>
+      </div>
+    </div>
+  </section>
+</main>
+<p class="hint" id="hint">glide ↓</p>
+
+<script>
+  // Which room are we in? Light its dot, raise its content, retire the hint.
+  const rooms=[...document.querySelectorAll('.room')], dots=[...document.querySelectorAll('.thread i')];
+  const io=new IntersectionObserver(es=>es.forEach(e=>{
+    if(e.isIntersecting){
+      rooms.forEach(r=>r.classList.toggle('here',r===e.target));
+      dots.forEach((d,i)=>d.classList.toggle('on',i===+e.target.dataset.dot));
+      if(+e.target.dataset.dot>0) document.getElementById('hint').style.display='none';
+    }
+  }),{threshold:.6});
+  rooms.forEach(r=>io.observe(r));
+  // Forward into the room; back releases. (Buttons are the accessible path;
+  // a left-swipe opens, right-swipe closes, for the thumb.)
+  document.querySelectorAll('.more-btn').forEach(b=>b.addEventListener('click',()=>{b.closest('.room').classList.add('open');b.setAttribute('aria-expanded','true')}));
+  document.querySelectorAll('.back').forEach(b=>b.addEventListener('click',()=>{const r=b.closest('.room');r.classList.remove('open');r.querySelector('.more-btn').setAttribute('aria-expanded','false')}));
+  let x0=null;
+  addEventListener('touchstart',e=>x0=e.touches[0].clientX,{passive:true});
+  addEventListener('touchend',e=>{
+    if(x0===null)return; const dx=e.changedTouches[0].clientX-x0; x0=null;
+    const r=rooms.find(r=>r.classList.contains('here')); if(!r||r.classList.contains('fin'))return;
+    if(dx<-70) r.classList.add('open');
+    if(dx>70) r.classList.remove('open');
+  },{passive:true});
+</script>
+</body>
+</html>
