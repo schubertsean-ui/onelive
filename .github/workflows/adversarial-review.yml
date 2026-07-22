@@ -170,9 +170,13 @@ jobs:
             ':(exclude)ventures/promise_ledger/eval/source_material/*.pdf' > subject.diff
           {
             echo "# NOTE to evaluator: machine-generated lockfiles (package-lock.json)"
-            echo "# are excluded from this diff by policy — they are npm-generated and"
-            echo "# validated by 'npm ci' + the blocking npm-audit SCA gate in the"
-            echo "# attached web log instead (exceptions: docs/SCA_BASELINE.md)."
+            echo "# are excluded from this diff by policy. WHEN the diff touches web/"
+            echo "# files, they are validated by 'npm ci' + the blocking npm-audit SCA"
+            echo "# gate whose output is in the attached web log (exceptions:"
+            echo "# docs/SCA_BASELINE.md). When the diff touches no web/ files, the web"
+            echo "# log states not-applicable and no lockfile changes are in play —"
+            echo "# this note asserts SCA evidence ONLY in the web-diff case (PR #46"
+            echo "# r3: a packet claim must never outrun its attached logs)."
             echo "#"
             echo "# NOTE to evaluator: verbatim THIRD-PARTY documents machine-fetched"
             echo "# into ventures/promise_ledger/eval/source_material/ (.htm/.html/.pdf)"
