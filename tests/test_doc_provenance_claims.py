@@ -25,7 +25,11 @@ from pathlib import Path
 
 OPS = Path(__file__).resolve().parent.parent / "docs" / "ops"
 
-_FORBIDDEN = re.compile(r"verbatim|byte-for-byte|byte-identical", re.IGNORECASE)
+_FORBIDDEN = re.compile(
+    r"verbatim|byte-for-byte|byte-identical|copied exactly|"
+    r"unchanged excerpt|exact copy",
+    re.IGNORECASE,
+)  # r4 nit: cover the class's equivalent phrasings, not just the r3 token
 
 
 def offending_lines(text: str) -> list[str]:

@@ -34,8 +34,11 @@ sources, zero errors, dead-man assertion + ping-binding proven, artifact
 ZERO schedule-event runs through 02:17Z despite four elapsed slots
 (01:07–02:07) — known first-pickup lag for a newly added cron (workflow
 state "active", cron verified on master). The dead-man alarm covers
-exactly this gap by design; a manual capped dispatch at 02:18Z re-pinged
-it. Row flips on the first green schedule-event run — if none fires by
+exactly this gap by design [SUPERSEDED at PR #49 r4: this sentence was
+written when alarm coverage was assumed; whether the alarm actually
+ALERTED during the later coverage gaps is UNVERIFIED and is R-023's
+trigger part (2) — an unqualified coverage claim may not stand in an
+ops narrative]; a manual capped dispatch at 02:18Z re-pinged it. Row flips on the first green schedule-event run — if none fires by
 ~04:00Z (12+ slots), escalate: the nudge options (touch ingest.yml = new
 smoke evidence cycle; disable/enable the workflow via founder's UI) go
 to the founder as a consolidated ask.
