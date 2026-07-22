@@ -59,3 +59,12 @@ comment trim is deliberately NOT taken in this PR: the comment is inert
 bytes, but any edit to the file resets the run-evidence binding and
 costs a fresh verification run for zero functional change — the trim
 rides the next legitimate runtime change to ingest.yml instead.
+
+**r5 disposition — deferral withdrawn:** the evaluator held that this
+PR cannot rely on a report whose imprecision it admits, nor merge past
+a known false packet claim. Both fixes shipped IN THIS PR (r5): the
+validate terminal state (EXECUTED-GATES-GREEN, exit semantics
+unchanged) and the truthful conditional packet preamble. R-022 →
+RESOLVED same day. Gate-custody review requirement is satisfied by this
+PR's own mandatory adversarial review — the same channel that demanded
+the changes.
