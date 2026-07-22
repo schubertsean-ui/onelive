@@ -155,14 +155,36 @@ def test_recorded_run_is_authentic_via_actions_api():
         assert digest == f"sha256:{evidence['artifact_zip_sha256']}", digest
 
 
-def _workflow_entry_scripts() -> list[pathlib.Path]:
-    """Repo .py files invoked by non-comment lines of ingest.yml."""
+# Non-Python repo files ingest.yml's executable lines may reference —
+# each enumerated with WHY it cannot consume allowlisted paths (PR #47
+# r7 blocker 1: a shell/Node/other helper invoked by the workflow would
+# never enter the Python import closure, so ANY unenumerated repo-file
+# reference that this proof cannot analyze fails closed).
+_REVIEWED_WORKFLOW_FILES = {
+    # pip dependency manifest consumed BY pip install — data, not an
+    # executor; it names PyPI packages, not repo paths (and it is
+    # runtime surface: any edit to it re-REDs the byte-identity test).
+    "worker/requirements.txt",
+    # doc pointer inside the missing-secrets ::error echo — the same
+    # prose mention pinned in _REVIEWED_WORKFLOW_MENTIONS; no execution.
+    "docs/SPRINT_LIVE_SITE.md",
+}
+
+
+def _workflow_repo_file_tokens() -> list[str]:
+    """Every token in ingest.yml's non-comment lines that resolves to an
+    existing repo file, of ANY type."""
     import re
     text = (_ROOT / ".github" / "workflows" / "ingest.yml").read_text()
     lines = [ln for ln in text.splitlines() if not ln.lstrip().startswith("#")]
-    tokens = re.findall(r"[\w/.-]+\.py\b", "\n".join(lines))
-    entries = sorted({t for t in tokens if (_ROOT / t).is_file()})
-    return [pathlib.Path(t) for t in entries]
+    tokens = re.findall(r"[\w/.-]+\.[A-Za-z0-9]+\b", "\n".join(lines))
+    return sorted({t for t in tokens if (_ROOT / t).is_file()})
+
+
+def _workflow_entry_scripts() -> list[pathlib.Path]:
+    """Repo .py files invoked by non-comment lines of ingest.yml."""
+    return [pathlib.Path(t) for t in _workflow_repo_file_tokens()
+            if t.endswith(".py")]
 
 
 def _import_closure(entries: list[pathlib.Path]) -> set[pathlib.Path]:
@@ -344,10 +366,37 @@ _REVIEWED_DYNAMIC_PRIMITIVES: set = set()  # MUST stay empty until a
 # an evaluator-adjudicated PR.
 
 
+_DYNAMIC_OS_NAMES = ("walk", "listdir", "scandir", "system", "popen")
+
+
 def _dynamic_primitive_hits(source: str) -> list[tuple]:
     import ast
     hits = []
     for node in ast.walk(ast.parse(source)):
+        # r7 blocker 2: aliased imports evade callee-string detection
+        # (`from subprocess import run; run(...)`) — so the IMPORT of a
+        # dangerous module/name is itself the flagged event; no alias
+        # can hide what was imported.
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                if a.name.split(".")[0] in _DYNAMIC_PRIMITIVE_BASES:
+                    hits.append((f"import {a.name}", _pin(ast.unparse(node))))
+            continue
+        if isinstance(node, ast.ImportFrom) and node.module:
+            base = node.module.split(".")[0]
+            if base in _DYNAMIC_PRIMITIVE_BASES:
+                hits.append((f"from {node.module} import ...",
+                             _pin(ast.unparse(node))))
+            elif node.module == "os":
+                for a in node.names:
+                    if a.name in _DYNAMIC_OS_NAMES:
+                        hits.append((f"from os import {a.name}",
+                                     _pin(ast.unparse(node))))
+            for a in node.names:
+                if a.name == "__import__":
+                    hits.append((f"from {node.module} import __import__",
+                                 _pin(ast.unparse(node))))
+            continue
         if isinstance(node, ast.Call):
             try:
                 callee = ast.unparse(node.func)
@@ -404,6 +453,18 @@ def test_non_runtime_set_is_proven_against_workflow_closure():
         f"ingest.yml no longer invokes worker/run_once.py (got {entries}) — "
         "the workflow contract changed; re-derive this proof before trusting "
         "the non-runtime classification"
+    )
+
+    # Signal 1a (r7): every repo file the workflow references must be a
+    # Python entry (analyzed below) or an enumerated, justified non-code
+    # file — an uninspectable shell/Node helper fails closed.
+    unanalyzed = [t for t in _workflow_repo_file_tokens()
+                  if not t.endswith(".py")
+                  and t not in _REVIEWED_WORKFLOW_FILES]
+    assert not unanalyzed, (
+        f"ingest.yml references repo files this proof cannot analyze: "
+        f"{unanalyzed} — enumerate with justification through an "
+        "evaluator-reviewed PR, or remove the reference."
     )
 
     wf_lines = [ln for ln in
@@ -502,3 +563,16 @@ def test_proof_signals_catch_known_evasion_classes():
     assert _dynamic_primitive_hits('os.walk(top)')
     assert not _dynamic_primitive_hits('json.loads(text)')
     assert not _dynamic_primitive_hits('logging.getLogger(__name__)')
+    # r7 blocker 2: aliased/from-imports flag at the import site
+    assert _dynamic_primitive_hits('from subprocess import run')
+    assert _dynamic_primitive_hits('from glob import glob')
+    assert _dynamic_primitive_hits('from os import walk')
+    assert _dynamic_primitive_hits('from importlib import import_module as im')
+    assert _dynamic_primitive_hits('import subprocess')
+    assert _dynamic_primitive_hits('from builtins import __import__')
+    assert not _dynamic_primitive_hits('import os')
+    assert not _dynamic_primitive_hits('from os import environ')
+    # r7 blocker 1: non-Python workflow file references are enumerated
+    assert set(_workflow_repo_file_tokens()) - {
+        t for t in _workflow_repo_file_tokens() if t.endswith(".py")
+    } <= _REVIEWED_WORKFLOW_FILES
