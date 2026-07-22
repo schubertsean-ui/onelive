@@ -1,5 +1,5 @@
 {
-  "purpose": "Step-5 arming evidence for the reviewed head. Each claim is a separate field below; tests/test_arming_smoke_binding.py verifies head/run identity (git half) and authenticates the run via the live Actions API (REQUIRED in trust-gate).",
+  "purpose": "Step-5 arming evidence for the reviewed head. PRECISE CLAIM (PR #46 r4): the reviewed head is RUNTIME-code-identical to this run's commit \u2014 commits after the run may touch ONLY the non-runtime set (docs/, tests/, TODOS.md), none of which execute in the armed workflow. That claim is not prose: tests/test_arming_smoke_binding.py recomputes it FROM GIT on every trust-gate run (required check) and fails on any runtime drift, and authenticates the run itself via the live Actions API. Each further claim is a separate field below.",
   "proves": "the reviewed workflow BODY and runtime execute end-to-end on this head: fetch -> extract -> gate3 -> candidate store -> dead-man assertion (incl. /log ping-binding probe) -> replay artifact",
   "does_not_prove": "GitHub schedule REGISTRATION - unprovable from a PR branch (schedules register only from the default branch); see registration_verification",
   "registration_verification": "success criterion = first schedule-event run id, recorded in docs/RECORD.md R-008 (OPEN until then); absence of scheduled runs is fail-closed VISIBLE via the healthchecks dead-man alarm within period+grace (~30 min) of the last ping, as demonstrated live during the 2026-07-22 stall",
@@ -8,7 +8,7 @@
   "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29892147090",
   "job_id": "88834537512",
   "run_head_sha": "6b651be0f8d3bc86ee9a8c245501ad215c098668",
-  "run_head_note": "PR #46 head after the r1 claim-rescope (workflow comment trim) - this run executed the final reviewed workflow bytes end-to-end",
+  "run_head_note": "6b651be is the LAST commit to touch any runtime byte on this PR (the r1 workflow-comment trim); every later commit is docs-only (evidence/decision/Record edits), verified mechanically by the binding test in trust-gate \u2014 so the workflow bytes under review are byte-identical to the workflow bytes this run executed. The run itself executed the full changed workflow end-to-end.",
   "conclusion": "success",
   "event": "workflow_dispatch (max_sources=5; PR #46 r1-head verification run)",
   "artifact_id": "8518626754",

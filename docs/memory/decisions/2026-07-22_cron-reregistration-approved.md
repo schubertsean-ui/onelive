@@ -48,3 +48,14 @@ R-022 row. Structural fact, not preference: `adversarial-review.yml` is
 BASE-owned (`pull_request_target` — a PR's copy never judges itself),
 so a fix inside this PR cannot change this PR's own packet; a separate
 PR is the only path on which the fix can ever operate.
+
+**r4 nits, dispositions:** (a) approval auditability — the founder's
+approval was given in the working session, not on GitHub; this decision
+record follows the repo's established convention for founder decisions
+(e.g. `2026-07-18_agent-merges-on-green.md`, the ratified merge-protocol
+record), which the founder can confirm or repudiate at any time — the
+notification of this PR's merge names this record. (b) The workflow
+comment trim is deliberately NOT taken in this PR: the comment is inert
+bytes, but any edit to the file resets the run-evidence binding and
+costs a fresh verification run for zero functional change — the trim
+rides the next legitimate runtime change to ingest.yml instead.
