@@ -274,12 +274,27 @@ if [ "$ANY_SKIP" -ne 0 ] || [ "$ANY_ADVISORY" -ne 0 ]; then
     # flag-inflicted and must be rerun before close.
     if [ "$QUICK" -eq 1 ]; then
       emit_evidence "INCOMPLETE-ACKNOWLEDGED (--allow-skips; environmental SKIPs Record-bound; --quick skips are flag-inflicted — rerun before close)"
-    else
-      emit_evidence "INCOMPLETE-ACKNOWLEDGED (--allow-skips; every remaining SKIP is bound to an OPEN Record row above — not fully green, not release evidence)"
+      echo "RESULT: INCOMPLETE-ACKNOWLEDGED (exit 0 because --allow-skips) — ${reasons} present, explicitly acknowledged."
+      echo "        Quick-mode skips are flag-inflicted — rerun without --quick before close."
+      exit 0
     fi
-    echo "RESULT: INCOMPLETE-ACKNOWLEDGED (exit 0 because --allow-skips) — ${reasons} present, explicitly acknowledged."
-    echo "        This is a human-acknowledged INCOMPLETE run — NOT fully green and NOT release evidence."
-    echo "        Resolve them (esp. visual_regression) before the shift is truly closed."
+    # Precision (PR #46 r2/r5/r6): when NOT in quick mode, every surviving
+    # SKIP has already passed the skip->Record binding (an unrecorded skip
+    # is a hard FAIL above) — Record-bound debt, enumerated in rows above.
+    # ADVISORY gates are DIFFERENT (r6): they RAN and surfaced non-blocking
+    # findings — they are neither passes nor Record-bound, and the terminal
+    # state must never describe them as either. Exit semantics unchanged in
+    # both branches; release evidence still requires skipped gates to run.
+    if [ "$ANY_ADVISORY" -eq 0 ]; then
+      emit_evidence "EXECUTED-GATES-GREEN (--allow-skips; every executed gate PASSED; every SKIP is bound to an OPEN Record row above — release evidence still requires those gates to run)"
+      echo "RESULT: EXECUTED-GATES-GREEN (exit 0 via --allow-skips) — every executed gate PASSED; every SKIP is Record-bound (rows above)."
+      echo "        Release evidence still requires the skipped gates to run (see their Record rows)."
+    else
+      emit_evidence "EXECUTED-GATES-ACKNOWLEDGED (--allow-skips; no gate FAILED; ADVISORY findings present — those gates ran and surfaced non-blocking findings, which are NOT passes and NOT Record-bound (rows above); any SKIP is bound to an OPEN Record row — release evidence still requires skipped gates to run)"
+      echo "RESULT: EXECUTED-GATES-ACKNOWLEDGED (exit 0 via --allow-skips) — no gate FAILED."
+      echo "        ADVISORY findings present (rows above): those gates ran and surfaced non-blocking findings — not passes, not Record-bound; review them."
+      [ "$ANY_SKIP" -ne 0 ] && echo "        Every SKIP is Record-bound (rows above); release evidence still requires those gates to run."
+    fi
     exit 0
   fi
   emit_evidence "INCOMPLETE"
