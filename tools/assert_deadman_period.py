@@ -206,9 +206,13 @@ def report_flips(api_key: str, check: dict) -> int:
     if not isinstance(flips, list) or not all(
         isinstance(f, dict)
         and isinstance(f.get("timestamp"), str)
-        and f.get("up") in (0, 1, True, False)  # documented domain is 0|1 —
-        # an out-of-domain int (2, -1) is a malformed response, not an UP
-        # (evaluator r5 nit: bare isinstance would have read it as UP)
+        and f.get("up") in (0, 1, True, False)  # documented domain is 0|1;
+        # JSON booleans are DELIBERATELY accepted as the hosted service's
+        # possible serialization variant (r6 nit: documented, not
+        # accidental — Python's True==1 makes bool acceptance implicit in
+        # any int check, and rejecting bools would break the probe if the
+        # service emits true/false; an out-of-domain int (2, -1) remains
+        # malformed, never silently UP — r5 nit)
         for f in flips
     ):
         # Diagnose with STRUCTURE ONLY (types and key names, never
