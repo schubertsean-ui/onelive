@@ -141,8 +141,10 @@ persistence debate (SSRN 4751735, JFQA 2024); Russian-sanctions event studies
 al. QJE 2019 (PRisk); Kalshi calibration (CEPR DP20631, 2025); RavenPack decay
 research (vendor); GDELT critiques (MDPI Data 2025, et al.); backtest-
 overfitting canon (Bailey & López de Prado); AGPL internal-use posture
-(GNU/FSF-adjacent + compliance guides, primaries unfetched). Full URL list
-preserved in the session's research output; ALL SEARCH-SNIPPET (R-024).
+(GNU/FSF-adjacent + compliance guides, primaries unfetched). The agent's full
+report with the complete URL list is committed VERBATIM at
+`docs/research/multibagger_worldmonitor_sources/APPENDIX_A_OSINT_EVIDENCE_REPORT.md`
+(in-diff evidence rule, PR #47 evaluator r1); ALL SEARCH-SNIPPET (R-024).
 Internal: docs/research/WORLDMONITOR_APPLICABILITY_REVIEW_v1.md,
 docs/research/PR_AGGREGATOR_RESEARCH.md §11,
 ventures/promise_ledger/docs/LEDGER_STORAGE_DESIGN.md.

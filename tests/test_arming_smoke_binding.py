@@ -4,11 +4,12 @@ PR #43 r16: prose claiming "the evidence commit is docs-only" is not
 verification. This test recomputes the claim FROM GIT on every run: every
 path changed between the recorded smoke-run commit
 (docs/evidence/ARMING_SMOKE_RUN.json) and the code under test must lie in
-the non-runtime set — docs/, TODOS.md, STATE.md, tests/, design/ — none
-of which execute in the armed workflow (ingest.yml runs run_once.py;
-tests never ship into that path; design/ holds founder-facing HTML
-proposals nothing in the pipeline imports; TODOS.md/STATE.md are the
-work-queue and status rollup governance docs). Any change to workflows, worker/, tools/, ai/, or anything
+the non-runtime set — docs/, TODOS.md, STATE.md, tests/ — none of which
+execute in the armed workflow. This classification is NOT asserted prose:
+test_non_runtime_set_is_proven_against_workflow_closure below DERIVES it
+from ingest.yml's actual execution closure on every run (PR #47 r1 — an
+allowlist entry justified only by assertion is a classifier relaxation).
+Any change to workflows, worker/, tools/, ai/, or anything
 else runtime re-REDs this test until a fresh green head run updates the
 evidence file.
 
@@ -31,7 +32,10 @@ _EVIDENCE = _ROOT / "docs" / "evidence" / "ARMING_SMOKE_RUN.json"
 # runtime surface and must be byte-identical to the run's commit.
 # Directories are prefix-matched; files exactly (r18 nit: a bare
 # startswith would have blessed e.g. TODOS.md.bak).
-_NON_RUNTIME_DIR_PREFIXES = ("docs/", "tests/", "design/")
+# Every entry here must be justified by the closure-proof test below,
+# which derives the armed workflow's execution surface from ingest.yml
+# and fails if any allowlisted path is part of it or consumed by it.
+_NON_RUNTIME_DIR_PREFIXES = ("docs/", "tests/")
 _NON_RUNTIME_FILES = ("TODOS.md", "STATE.md")
 
 
@@ -149,3 +153,99 @@ def test_recorded_run_is_authentic_via_actions_api():
     digest = art.get("digest")
     if digest:
         assert digest == f"sha256:{evidence['artifact_zip_sha256']}", digest
+
+
+def _workflow_entry_scripts() -> list[pathlib.Path]:
+    """Repo .py files invoked by non-comment lines of ingest.yml."""
+    import re
+    text = (_ROOT / ".github" / "workflows" / "ingest.yml").read_text()
+    lines = [ln for ln in text.splitlines() if not ln.lstrip().startswith("#")]
+    tokens = re.findall(r"[\w/.-]+\.py\b", "\n".join(lines))
+    entries = sorted({t for t in tokens if (_ROOT / t).is_file()})
+    return [pathlib.Path(t) for t in entries]
+
+
+def _import_closure(entries: list[pathlib.Path]) -> set[pathlib.Path]:
+    """Transitive intra-repo import closure by static AST parse (no
+    execution). Third-party/stdlib imports are ignored; only names that
+    resolve to files inside the repo are followed."""
+    import ast
+    seen: set[pathlib.Path] = set()
+    queue = list(entries)
+    while queue:
+        rel = queue.pop()
+        if rel in seen:
+            continue
+        seen.add(rel)
+        tree = ast.parse((_ROOT / rel).read_text())
+        names: list[str] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names += [a.name for a in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                names.append(node.module)
+                names += [f"{node.module}.{a.name}" for a in node.names]
+        for name in names:
+            parts = name.split(".")
+            for cut in range(len(parts), 0, -1):
+                cand = pathlib.Path(*parts[:cut]).with_suffix(".py")
+                init = pathlib.Path(*parts[:cut]) / "__init__.py"
+                for c in (cand, init):
+                    if (_ROOT / c).is_file() and c not in seen:
+                        queue.append(c)
+    return seen
+
+
+def _non_docstring_strings(path: pathlib.Path) -> list[str]:
+    import ast
+    tree = ast.parse((_ROOT / path).read_text())
+    doc_nodes = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                             ast.AsyncFunctionDef)):
+            body = getattr(node, "body", [])
+            if body and isinstance(body[0], ast.Expr) and isinstance(
+                    body[0].value, ast.Constant) and isinstance(
+                    body[0].value.value, str):
+                doc_nodes.add(id(body[0].value))
+    return [n.value for n in ast.walk(tree)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str)
+            and id(n) not in doc_nodes]
+
+
+def test_non_runtime_set_is_proven_against_workflow_closure():
+    """PR #47 r1 blocker: allowlist entries must be mechanically proven,
+    not asserted. This derives the armed workflow's execution surface —
+    every repo script ingest.yml invokes plus its transitive intra-repo
+    import closure — and fails if (a) any closure file LIVES in an
+    allowlisted path (the classifier would then exempt executing code
+    from the binding), or (b) any closure file's non-docstring string
+    literals mention an allowlisted FILE (the conservative static signal
+    that runtime code consumes it; a docstring mention is commentary,
+    an executable literal is a file path waiting to be opened). Static
+    analysis is not a sandbox — dynamically built paths would evade it —
+    but any straightforward consumption turns this red, which is the
+    failure mode the r1 finding demanded the classifier have.
+    """
+    entries = _workflow_entry_scripts()
+    assert entries, "no entry scripts derived from ingest.yml — proof impossible, failing closed"
+    assert pathlib.Path("worker/run_once.py") in entries, (
+        f"ingest.yml no longer invokes worker/run_once.py (got {entries}) — "
+        "the workflow contract changed; re-derive this proof before trusting "
+        "the non-runtime classification"
+    )
+    closure = _import_closure(entries)
+    inside = [str(p) for p in closure if _is_non_runtime(str(p))]
+    assert not inside, (
+        f"files under allowlisted non-runtime paths are part of the armed "
+        f"workflow's execution closure: {inside} — the allowlist is wrong"
+    )
+    for rel in sorted(closure):
+        hits = [s for s in _non_docstring_strings(rel)
+                for f in _NON_RUNTIME_FILES if f in s]
+        assert not hits, (
+            f"{rel} references allowlisted governance file(s) in executable "
+            f"string literals {hits!r} — the non-runtime classification of "
+            "that file is no longer proven; reclassify before trusting the "
+            "smoke binding"
+        )

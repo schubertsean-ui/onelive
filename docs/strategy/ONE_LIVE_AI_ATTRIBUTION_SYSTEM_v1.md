@@ -221,8 +221,11 @@ Credentials spec + adoption; EU AI Act Art. 50 Commission FAQ/guidelines
 trackers; IPTC Digital Source Type; AP/Reuters/Guardian policies; Trust
 Project; Toff & Simon IJPP 2025; FAccT 2026; arXiv 2506.16202; SynthID-Text
 Nature 2024 + robustness critiques; NIST AI 600-1; CycloneDX ML-BOM; SPDX 3.0
-AI; W3C PROV-O) — full URL list preserved in the session's research output;
-ALL SEARCH-SNIPPET, re-verification gated by R-023.
+AI; W3C PROV-O) — the agent's full report with the complete URL list is
+committed VERBATIM at
+`docs/strategy/attribution_sources/APPENDIX_A_ATTRIBUTION_STANDARDS_REPORT.md`
+(in-diff evidence rule, PR #47 evaluator r1); ALL SEARCH-SNIPPET,
+re-verification gated by R-023.
 Internal: CLAUDE.md (prime directive 1, Descriptor Foundry, Kaizen),
 docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, docs/KAIZEN.md,
 worker/ai_extract.py, docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md,
