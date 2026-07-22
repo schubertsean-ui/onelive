@@ -217,7 +217,7 @@ def card(s):
         <span class="minimap" aria-hidden="true">{austin_svg(v["dot"])}</span>
         <span class="vtext"><span class="vname">{E(v["name"])}</span>
           <span class="vchar">{E(v["char"])}</span>
-          <span class="vmeta">{v["dist"]} · {E(v["street"])}</span></span>
+          <span class="vmeta">{E(v["addr"])} · {v["dist"]}</span></span>
       </span></a>
       <div class="vfoot">
         {special}
@@ -344,31 +344,74 @@ def _price_num(s):
     return 0 if s["price"] == "Free" else int(s["price"].lstrip("$"))
 
 
+# Venues whose fixture data includes food (drives "dinner and a show").
+_FOOD = {
+    "stubbs": "BBQ inside, kitchen open til 11 (sample)",
+    "sagebrush": "taco truck on the patio til 1 AM (sample)",
+    "parish": "late-nite menu after midnight (sample)",
+}
+_OUTDOOR_WORDS = ("outdoor", "backyard", "amphitheater", "patio", "oaks")
+# Sample memory: rooms the member has already been (drives "somewhere new").
+_BEEN = ("elephant", "sagebrush")
+
+# Chips are phrased as the example searches a member would actually say —
+# each one is a pre-computed lens (founder round 10: "more expansive in
+# terms of options - use the example searches to guide the options").
 DESIRES = {
-    "closecheap": dict(
-        label="Close & cheap",
-        title="Close and cheap tonight",
+    "cheapclose": dict(
+        label="“Cheap and close by”",
+        title="Cheap and close tonight",
         match=lambda s: _price_num(s) <= 10 and _dist_mi(VENUES[s["v"]]) <= 1.0,
         why=lambda s: f'{s["price"]} · {VENUES[s["v"]]["dist"]} away',
         memory=None),
+    "free": dict(
+        label="“Something free tonight”",
+        title="Free tonight",
+        match=lambda s: s["price"] == "Free",
+        why=lambda s: f'Free · {VENUES[s["v"]]["dist"]} · {s["genre"]}',
+        memory=None),
     "dance": dict(
-        label="Somewhere to dance",
+        label="“Somewhere to dance”",
         title="Dance floors tonight",
         match=lambda s: s["genre"] in ("Cumbia", "Honky-tonk"),
         why=lambda s: f'{s["genre"]} · {VENUES[s["v"]]["char"].split(",")[0]}',
         memory="you two-stepped at Sagebrush two Fridays running"),
     "quiet": dict(
-        label="Quiet & candle-lit",
+        label="“A quiet spot for a date”",
         title="Quiet rooms tonight",
         match=lambda s: s["genre"] == "Jazz",
         why=lambda s: f'{s["genre"]} · {VENUES[s["v"]]["char"].split(",")[0]}',
         memory="you saved two candle-lit listening rooms"),
     "loud": dict(
-        label="Loud & close to the stage",
+        label="“Loud guitars, close to the stage”",
         title="Loud rooms tonight",
         match=lambda s: s["genre"] in ("Shoegaze", "Gospel-punk"),
         why=lambda s: f'{s["genre"]} · {VENUES[s["v"]]["char"].split(",")[0]}',
         memory="you stay past midnight when the room is loud"),
+    "dinner": dict(
+        label="“Dinner and a show”",
+        title="Dinner and a show tonight",
+        match=lambda s: s["v"] in _FOOD,
+        why=lambda s: _FOOD[s["v"]],
+        memory=None),
+    "outdoors": dict(
+        label="“Outside under the lights”",
+        title="Open-air rooms tonight",
+        match=lambda s: any(w in VENUES[s["v"]]["char"] for w in _OUTDOOR_WORDS),
+        why=lambda s: VENUES[s["v"]]["char"].split(",")[0],
+        memory=None),
+    "late": dict(
+        label="“Starting late”",
+        title="Late starts tonight",
+        match=lambda s: t_min(s["start"]) >= t_min("22:30"),
+        why=lambda s: f'{t_fmt(s["start"])} start · {s["genre"]}',
+        memory="you usually head out after 10"),
+    "new": dict(
+        label="“Somewhere I haven't been”",
+        title="New rooms for you",
+        match=lambda s: s["v"] not in _BEEN,
+        why=lambda s: f'{VENUES[s["v"]]["name"]} — not in your nights yet',
+        memory="you've been to Elephant Room and Sagebrush; these are new"),
 }
 
 
@@ -395,11 +438,11 @@ ASK_LENS = f'''
 <section class="lens" id="ask" role="region" aria-label="Ask for tonight">
   <a class="chip back" href="#_">‹ Back</a>
   {FIXNOTE}
-  <h3 class="who">What do you feel like?</h3>
-  <p class="spark">Say it — or tap it. The city answers with options, and says why.</p>
+  <h3 class="who">What are you feeling?</h3>
+  <p class="spark">Tell me or tap below</p>
   <div class="rail" style="padding:0;margin:10px 0 2px">
-    <button class="chip" id="micbtn" type="button" hidden><svg class="glyph" viewBox="0 0 20 20"><path d="M10 2a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm-5 8a5 5 0 0 0 10 0h1.6a6.6 6.6 0 0 1-5.8 6.55V19H8.2v-2.45A6.6 6.6 0 0 1 3.4 10z" fill="currentColor"/></svg>Speak it</button>
-    <span class="gnote" id="voicenote">Voice works in a browser (Safari: tap Speak it and allow the mic). The chips below do the same thing by touch.</span>
+    <button class="chip" id="micbtn" type="button" hidden><svg class="glyph" viewBox="0 0 20 20"><path d="M10 2a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm-5 8a5 5 0 0 0 10 0h1.6a6.6 6.6 0 0 1-5.8 6.55V19H8.2v-2.45A6.6 6.6 0 0 1 3.4 10z" fill="currentColor"/></svg>Tell me what to find</button>
+    <span class="gnote" id="voicenote">Voice works in a browser (Safari: tap "Tell me what to find" and allow the mic). The options below do the same thing by touch.</span>
   </div>
   <p class="gnote" id="heard" style="min-height:1em"></p>
   <div class="desires">
@@ -586,7 +629,7 @@ page = f'''<!DOCTYPE html>
   </div>
   <div class="constellation" role="group" aria-label="Genres playing tonight">{sky_chips}</div>
   <div class="rail" style="justify-content:center;padding:0">
-    <a class="chip" href="#ask"><svg class="glyph" viewBox="0 0 20 20"><path d="M10 2a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm-5 8a5 5 0 0 0 10 0h1.6a6.6 6.6 0 0 1-5.8 6.55V19H8.2v-2.45A6.6 6.6 0 0 1 3.4 10z" fill="currentColor"/></svg>Ask for tonight</a>
+    <a class="chip" href="#ask"><svg class="glyph" viewBox="0 0 20 20"><path d="M10 2a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm-5 8a5 5 0 0 0 10 0h1.6a6.6 6.6 0 0 1-5.8 6.55V19H8.2v-2.45A6.6 6.6 0 0 1 3.4 10z" fill="currentColor"/></svg>Tell me what you're interested in</a>
     <a class="chip" href="#{ordered[0]["id"]}">All shows ↓</a>
   </div>
 </section>
@@ -640,10 +683,15 @@ page = f'''<!DOCTYPE html>
         var t=ev.results[0][0].transcript;
         heard.textContent='heard: “'+t+'”';
         var s=t.toLowerCase();
-        var dest=/danc|two.?step|cumbia|move/.test(s)?'#ask-dance'
+        var dest=/free/.test(s)?'#ask-free'
+          :/danc|two.?step|cumbia|move/.test(s)?'#ask-dance'
           :/quiet|chill|candle|jazz|listen|date/.test(s)?'#ask-quiet'
-          :/cheap|free|close|near|walk/.test(s)?'#ask-closecheap'
-          :/loud|heavy|punk|wall|rock/.test(s)?'#ask-loud':null;
+          :/dinner|food|eat|taco|bbq|kitchen|menu/.test(s)?'#ask-dinner'
+          :/outside|outdoor|patio|open.?air|backyard/.test(s)?'#ask-outdoors'
+          :/late|midnight|after.?hours/.test(s)?'#ask-late'
+          :/new|never been|somewhere else|different/.test(s)?'#ask-new'
+          :/cheap|close|near|walk/.test(s)?'#ask-cheapclose'
+          :/loud|heavy|punk|wall|rock|guitar/.test(s)?'#ask-loud':null;
         if(dest)location.hash=dest;
         else heard.textContent+=' — no match yet in this prototype; try a chip below.';
       }};
