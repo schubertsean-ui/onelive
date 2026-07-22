@@ -1,20 +1,24 @@
 {
-  "purpose": "PR #43 arming evidence: the head-branch smoke run that proves the armed ingestion code end-to-end. tests/test_arming_smoke_binding.py mechanically verifies the reviewed head is runtime-code-identical to this run's commit (only docs/, TODOS.md, tests/ may differ - none of which execute in the armed workflow).",
-  "run_id": "29880824040",
-  "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29880824040",
-  "job_id": "88801108515",
-  "run_head_sha": "ced27571b3ea7745200506d9db237bdaa0bc8431",
+  "purpose": "Step-5 arming evidence: the green ingest.yml run that proves the ARMED (merged) ingestion code end-to-end on master. tests/test_arming_smoke_binding.py mechanically verifies the reviewed head is runtime-code-identical to this run's commit (only docs/, tests/, design/, TODOS.md may differ - none of which execute in the armed workflow) and authenticates the run against the live Actions API (REQUIRED in trust-gate).",
+  "run_id": "29885464970",
+  "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29885464970",
+  "job_id": "88815013067",
+  "run_head_sha": "ab6819a9d6d0f72a321ff96a74497f9723c10b4c",
+  "run_head_note": "master merge commit of PR #43 - permanently reachable (the prior evidence cited a branch commit orphaned by the squash-merge force-push, which correctly failed the binding closed in CI)",
   "conclusion": "success",
-  "runreport_run_id": "see replay artifact",
-  "artifact_id": "8514695783",
-  "artifact_zip_sha256": "4f70f3342191d0fe920419ba9617b4628c579bf68511593c9d88d0e130beec13",
-  "deadman_assertion": "step 6 conclusion=success (00:38:49-50Z) incl. the /log binding probe",
+  "event": "workflow_dispatch (max_sources=10; dispatched while awaiting GitHub's first scheduler pickup of the new cron - four slots had passed unfired 01:07-02:07Z)",
+  "runreport_run_id": "a3499da7-f34d-497d-8e43-972e0f0438eb",
+  "counts": {"fetched": 10, "not_modified": 0, "extracted": 10, "passed": 3, "escalated": 0, "held": 7, "sensor_rejected": 0, "errors": 0},
+  "artifact_id": "8516375568",
+  "artifact_zip_sha256": "52ec0667f003a3f1586943094ecadbac08136d34e992444d213778d538a1f9f6",
+  "deadman_assertion": "assert_deadman_period: OK - check name='onelive-ingestion' period 1200s, grace 600s: matches the armed cadence. Ping-URL binding PROVEN this run: /log probe moved n_pings 22 -> 23 on the verified check (02:18:50Z)",
+  "r021_live": "three more time-only sources handled with zero insert errors this run (Kingdom Nightclub '6:30pm'; Cactus Cafe '7:30 pm'/'9:30 pm'; Round Top '9am'/'6pm') - NULL stored, raw + reason preserved in provenance, candidates held/passed at gate3",
   "superseded_runs": [
+    "29880824040 (branch ced27571 - unreachable post-squash; cycle-4 pre-merge proof)",
     "29878215502 (head 0c7de33e - pre-split final combined head)",
     "29878035857 (head 81cf939b - R-021 fix live proof)",
     "29877305892 (head 00901ebd - pre-R-021-fix)",
     "29876232668 (head 91eacd21 - pre-r17 asserter; rotation + pipeline proof)",
     "29873390712 (master@1244783f - infrastructure proof)"
-  ],
-  "r021_fix_live_proof": "the R-021 fix now enters via MASTER (PR #44 merged, 53f6f9f); this run executed the slimmed arming head that includes it"
+  ]
 }
