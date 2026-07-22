@@ -116,6 +116,16 @@
   .ncard .ntype{color:var(--dim);font-size:12px;font-style:italic}
   .ncard .nhow{margin-left:auto;text-align:right;font-size:12px;color:var(--mint);white-space:nowrap}
   .gnote{font-size:12px;color:var(--dim);margin-top:10px}
+  .fixnote{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+  .gcard{flex-wrap:wrap}
+  .gwhy{flex-basis:100%;font-size:12px;color:var(--mint);margin-top:3px}
+  .gwhy em{color:var(--dim);font-style:italic}
+  .desires{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+  .memory{border:1px dashed #7BE0AD44;border-radius:12px;padding:10px 12px;font-size:13px;color:var(--mint);margin-top:8px}
+  .memory small{display:block;color:var(--dim);font-size:10px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}
+  .askfab{position:fixed;right:14px;bottom:calc(var(--safe-b) + 14px);z-index:8;border:1px solid #ffffff2b;background:#15151df0;
+    color:var(--ink);min-height:48px;padding:12px 16px;border-radius:999px;font:600 13.5px/1 "Space Grotesk",system-ui,sans-serif;
+    display:inline-flex;align-items:center;gap:8px;box-shadow:0 4px 18px #00000080}
   details.unc{display:inline-block;margin-left:auto}
   details.unc summary{list-style:none;cursor:pointer;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:var(--dim);border:1px dashed #ffffff2b}
   details.unc summary::-webkit-details-marker{display:none}
@@ -142,7 +152,10 @@
     </svg>
   </div>
   <div class="constellation" role="group" aria-label="Genres playing tonight"><a class="chip" href="#g-jazz">Jazz<b>4</b></a><a class="chip" href="#g-cumbia">Cumbia<b>4</b></a><a class="chip" href="#g-honky-tonk">Honky-tonk<b>3</b></a><a class="chip" href="#g-gospel-punk">Gospel-punk<b>3</b></a><a class="chip" href="#g-shoegaze">Shoegaze<b>2</b></a><a class="chip" href="#g-hip-hop">Hip-hop<b>2</b></a></div>
-  <a class="chip" href="#s01">All shows ↓</a>
+  <div class="rail" style="justify-content:center;padding:0">
+    <a class="chip" href="#ask"><svg class="glyph" viewBox="0 0 20 20"><path d="M10 2a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm-5 8a5 5 0 0 0 10 0h1.6a6.6 6.6 0 0 1-5.8 6.55V19H8.2v-2.45A6.6 6.6 0 0 1 3.4 10z" fill="currentColor"/></svg>Ask for tonight</a>
+    <a class="chip" href="#s01">All shows ↓</a>
+  </div>
 </section>
 
   <section class="room" id="s01" data-start="19:30"
@@ -729,9 +742,11 @@
     <a class="chip" href="#sky">↑ Top</a>
   </div>
 </section>
+<a class="askfab" href="#ask" aria-label="Ask for tonight"><svg class="glyph" viewBox="0 0 20 20"><path d="M10 2a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm-5 8a5 5 0 0 0 10 0h1.6a6.6 6.6 0 0 1-5.8 6.55V19H8.2v-2.45A6.6 6.6 0 0 1 3.4 10z" fill="currentColor"/></svg>Ask</a>
 
 <section class="lens" id="a-s01" role="region" aria-label="Artist: Marfa Lights Trio">
   <a class="chip back" href="#s01">‹ Back</a><a class="chip switch" href="#v-elephant">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(28 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(28 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(28 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Marfa Lights Trio</figcaption></figure>
   <h3 class="who">Marfa Lights Trio</h3>
   <p class="spark">brushes-and-upright jazz, conversation-quiet</p>
@@ -741,6 +756,7 @@
 </section>
 <section class="lens" id="a-s02" role="region" aria-label="Artist: The Deep End">
   <a class="chip back" href="#s02">‹ Back</a><a class="chip switch" href="#v-saxon">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(200 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(200 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(200 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>The Deep End</figcaption></figure>
   <h3 class="who">The Deep End</h3>
   <p class="spark">organ-trio soul jazz, simmering</p>
@@ -750,6 +766,7 @@
 </section>
 <section class="lens" id="a-s03" role="region" aria-label="Artist: Hondo Wells">
   <a class="chip back" href="#s03">‹ Back</a><a class="chip switch" href="#v-continental">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(16 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(16 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(16 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Hondo Wells</figcaption></figure>
   <h3 class="who">Hondo Wells</h3>
   <p class="spark">barroom country, a voice like worn leather</p>
@@ -759,6 +776,7 @@
 </section>
 <section class="lens" id="a-s04" role="region" aria-label="Artist: Velvet Casket">
   <a class="chip back" href="#s04">‹ Back</a><a class="chip switch" href="#v-elephant">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(12 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(12 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(12 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Velvet Casket</figcaption></figure>
   <h3 class="who">Velvet Casket</h3>
   <p class="spark">swamp-gospel stomp with brass and menace</p>
@@ -768,6 +786,7 @@
 </section>
 <section class="lens" id="a-s05" role="region" aria-label="Artist: Silver Spur Sisters">
   <a class="chip back" href="#s05">‹ Back</a><a class="chip switch" href="#v-whitehorse">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(40 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(40 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(40 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Silver Spur Sisters</figcaption></figure>
   <h3 class="who">Silver Spur Sisters</h3>
   <p class="spark">three-part harmony over pedal steel</p>
@@ -777,6 +796,7 @@
 </section>
 <section class="lens" id="a-s06" role="region" aria-label="Artist: Orquesta Nube">
   <a class="chip back" href="#s06">‹ Back</a><a class="chip switch" href="#v-farout">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(150 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(150 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(150 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Orquesta Nube</figcaption></figure>
   <h3 class="who">Orquesta Nube</h3>
   <p class="spark">nine-piece cumbia, horns like weather</p>
@@ -786,6 +806,7 @@
 </section>
 <section class="lens" id="a-s07" role="region" aria-label="Artist: Knuckle Rose">
   <a class="chip back" href="#s07">‹ Back</a><a class="chip switch" href="#v-stubbs">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(350 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(350 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(350 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Knuckle Rose</figcaption></figure>
   <h3 class="who">Knuckle Rose</h3>
   <p class="spark">outlaw country with a punk backbeat</p>
@@ -795,6 +816,7 @@
 </section>
 <section class="lens" id="a-s08" role="region" aria-label="Artist: La Marea">
   <a class="chip back" href="#s08">‹ Back</a><a class="chip switch" href="#v-flamingo">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(170 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(170 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(170 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>La Marea</figcaption></figure>
   <h3 class="who">La Marea</h3>
   <p class="spark">coastal cumbia, accordion up front</p>
@@ -804,6 +826,7 @@
 </section>
 <section class="lens" id="a-s09" role="region" aria-label="Artist: Brass Ordinance">
   <a class="chip back" href="#s09">‹ Back</a><a class="chip switch" href="#v-mohawk">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(32 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(32 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(32 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Brass Ordinance</figcaption></figure>
   <h3 class="who">Brass Ordinance</h3>
   <p class="spark">street-brass gospel-punk, twelve feet of horn</p>
@@ -813,6 +836,7 @@
 </section>
 <section class="lens" id="a-s10" role="region" aria-label="Artist: Sonido Cascabel">
   <a class="chip back" href="#s10">‹ Back</a><a class="chip switch" href="#v-coral">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(130 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(130 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(130 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Sonido Cascabel</figcaption></figure>
   <h3 class="who">Sonido Cascabel</h3>
   <p class="spark">psychedelic cumbia, snake-rattle percussion</p>
@@ -822,6 +846,7 @@
 </section>
 <section class="lens" id="a-s11" role="region" aria-label="Artist: Blue Prescription">
   <a class="chip back" href="#s11">‹ Back</a><a class="chip switch" href="#v-antones">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(220 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(220 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(220 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Blue Prescription</figcaption></figure>
   <h3 class="who">Blue Prescription</h3>
   <p class="spark">electric blues, heavy on the B-bender</p>
@@ -831,6 +856,7 @@
 </section>
 <section class="lens" id="a-s12" role="region" aria-label="Artist: Bellhollow">
   <a class="chip back" href="#s12">‹ Back</a><a class="chip switch" href="#v-cheerup">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(280 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(280 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(280 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Bellhollow</figcaption></figure>
   <h3 class="who">Bellhollow</h3>
   <p class="spark">chorus-drenched shoegaze, slow-blooming</p>
@@ -840,6 +866,7 @@
 </section>
 <section class="lens" id="a-s13" role="region" aria-label="Artist: Reina Cortez y Los Fantasmas">
   <a class="chip back" href="#s13">‹ Back</a><a class="chip switch" href="#v-sagebrush">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(190 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(190 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(190 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Reina Cortez y Los Fantasmas</figcaption></figure>
   <h3 class="who">Reina Cortez y Los Fantasmas</h3>
   <p class="spark">cumbia noir — organ smoke over a two-step</p>
@@ -849,6 +876,7 @@
 </section>
 <section class="lens" id="a-s14" role="region" aria-label="Artist: Moon Court">
   <a class="chip back" href="#s14">‹ Back</a><a class="chip switch" href="#v-volstead">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(240 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(240 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(240 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Moon Court</figcaption></figure>
   <h3 class="who">Moon Court</h3>
   <p class="spark">late-night modal jazz, hushed and electric</p>
@@ -858,6 +886,7 @@
 </section>
 <section class="lens" id="a-s15" role="region" aria-label="Artist: DJ Cielo">
   <a class="chip back" href="#s15">‹ Back</a><a class="chip switch" href="#v-speakeasy">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(300 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(300 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(300 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>DJ Cielo</figcaption></figure>
   <h3 class="who">DJ Cielo</h3>
   <p class="spark">Latin trap into house, rooftop set</p>
@@ -867,6 +896,7 @@
 </section>
 <section class="lens" id="a-s16" role="region" aria-label="Artist: The Ninth Hour">
   <a class="chip back" href="#s16">‹ Back</a><a class="chip switch" href="#v-hotelvegas">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(8 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(8 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(8 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>The Ninth Hour</figcaption></figure>
   <h3 class="who">The Ninth Hour</h3>
   <p class="spark">doom-gospel choir over punk drums</p>
@@ -876,6 +906,7 @@
 </section>
 <section class="lens" id="a-s17" role="region" aria-label="Artist: Glass Anthem">
   <a class="chip back" href="#s17">‹ Back</a><a class="chip switch" href="#v-parish">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(260 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(260 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(260 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Glass Anthem</figcaption></figure>
   <h3 class="who">Glass Anthem</h3>
   <p class="spark tierc">✳ shoegaze wall, patient and enormous <small>— first notes</small></p>
@@ -885,6 +916,7 @@
 </section>
 <section class="lens" id="a-s18" role="region" aria-label="Artist: Vantablonde">
   <a class="chip back" href="#s18">‹ Back</a><a class="chip switch" href="#v-empire">the venue ›</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph "><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice"><rect width="160" height="60" fill="hsl(320 36% 15%)"/><polygon points="80,0 40,60 120,60" fill="hsl(320 70% 70%)" opacity=".13"/><ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(320 70% 70%)" opacity=".12"/><path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/><path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/></svg><figcaption>Vantablonde</figcaption></figure>
   <h3 class="who">Vantablonde</h3>
   <p class="spark">blackout-pop rap, strobe-lit</p>
@@ -894,6 +926,7 @@
 </section>
 <section class="lens" id="v-elephant" role="region" aria-label="Venue: Elephant Room">
   <a class="chip back" href="#s01">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(28 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(28 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Elephant Room</figcaption></figure>
   <h3 class="who">Elephant Room</h3><p class="spark">basement jazz cellar, candle-dark, standing</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -906,6 +939,7 @@
 </section>
 <section class="lens" id="v-saxon" role="region" aria-label="Venue: Saxon Pub">
   <a class="chip back" href="#s02">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(200 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(200 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Saxon Pub</figcaption></figure>
   <h3 class="who">Saxon Pub</h3><p class="spark">small listening room, all ages of regulars</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -918,6 +952,7 @@
 </section>
 <section class="lens" id="v-continental" role="region" aria-label="Venue: Continental Club">
   <a class="chip back" href="#s03">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(16 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(16 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Continental Club</figcaption></figure>
   <h3 class="who">Continental Club</h3><p class="spark">50s dance hall, tight floor, no phones up front</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -930,6 +965,7 @@
 </section>
 <section class="lens" id="v-whitehorse" role="region" aria-label="Venue: The White Horse">
   <a class="chip back" href="#s05">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(40 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(40 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>The White Horse</figcaption></figure>
   <h3 class="who">The White Horse</h3><p class="spark">two-step bar, free dance lessons early</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -942,6 +978,7 @@
 </section>
 <section class="lens" id="v-farout" role="region" aria-label="Venue: Far Out Lounge">
   <a class="chip back" href="#s06">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(150 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(150 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Far Out Lounge</figcaption></figure>
   <h3 class="who">Far Out Lounge</h3><p class="spark">big backyard stage under the oaks</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -954,6 +991,7 @@
 </section>
 <section class="lens" id="v-stubbs" role="region" aria-label="Venue: Stubb&#x27;s">
   <a class="chip back" href="#s07">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(350 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(350 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Stubb&#x27;s</figcaption></figure>
   <h3 class="who">Stubb&#x27;s</h3><p class="spark">outdoor amphitheater + BBQ inside</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -966,6 +1004,7 @@
 </section>
 <section class="lens" id="v-flamingo" role="region" aria-label="Venue: Flamingo Cantina">
   <a class="chip back" href="#s08">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(170 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(170 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Flamingo Cantina</figcaption></figure>
   <h3 class="who">Flamingo Cantina</h3><p class="spark">reggae-rooted room, bleacher seats</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -978,6 +1017,7 @@
 </section>
 <section class="lens" id="v-mohawk" role="region" aria-label="Venue: Mohawk">
   <a class="chip back" href="#s09">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(32 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(32 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Mohawk</figcaption></figure>
   <h3 class="who">Mohawk</h3><p class="spark">indoor/outdoor stack, balcony views</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -990,6 +1030,7 @@
 </section>
 <section class="lens" id="v-coral" role="region" aria-label="Venue: Coral Snake">
   <a class="chip back" href="#s10">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(130 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(130 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Coral Snake</figcaption></figure>
   <h3 class="who">Coral Snake</h3><p class="spark">narrow bar, loud back room</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -1002,6 +1043,7 @@
 </section>
 <section class="lens" id="v-antones" role="region" aria-label="Venue: Antone&#x27;s">
   <a class="chip back" href="#s11">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(220 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(220 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Antone&#x27;s</figcaption></figure>
   <h3 class="who">Antone&#x27;s</h3><p class="spark">home of the blues since 1975</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -1014,6 +1056,7 @@
 </section>
 <section class="lens" id="v-cheerup" role="region" aria-label="Venue: Cheer Up Charlies">
   <a class="chip back" href="#s12">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(280 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(280 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Cheer Up Charlies</figcaption></figure>
   <h3 class="who">Cheer Up Charlies</h3><p class="spark">queer-forward patio, two stages</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -1026,6 +1069,7 @@
 </section>
 <section class="lens" id="v-sagebrush" role="region" aria-label="Venue: Sagebrush">
   <a class="chip back" href="#s13">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(190 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(190 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Sagebrush</figcaption></figure>
   <h3 class="who">Sagebrush</h3><p class="spark">honky-tonk roadhouse, big floor, dancers welcome</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -1038,6 +1082,7 @@
 </section>
 <section class="lens" id="v-volstead" role="region" aria-label="Venue: The Volstead">
   <a class="chip back" href="#s14">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(240 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(240 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>The Volstead</figcaption></figure>
   <h3 class="who">The Volstead</h3><p class="spark">velvet lounge beside the Hotel Vegas patio</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -1050,6 +1095,7 @@
 </section>
 <section class="lens" id="v-speakeasy" role="region" aria-label="Venue: Speakeasy">
   <a class="chip back" href="#s15">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(300 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(300 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Speakeasy</figcaption></figure>
   <h3 class="who">Speakeasy</h3><p class="spark">three floors, rooftop over Congress</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -1062,6 +1108,7 @@
 </section>
 <section class="lens" id="v-hotelvegas" role="region" aria-label="Venue: Hotel Vegas">
   <a class="chip back" href="#s16">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(8 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(8 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Hotel Vegas</figcaption></figure>
   <h3 class="who">Hotel Vegas</h3><p class="spark">garage-rock patio compound</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -1074,6 +1121,7 @@
 </section>
 <section class="lens" id="v-parish" role="region" aria-label="Venue: The Parish">
   <a class="chip back" href="#s17">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(260 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(260 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>The Parish</figcaption></figure>
   <h3 class="who">The Parish</h3><p class="spark">upstairs ballroom, famous ceiling, loud and close</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -1086,6 +1134,7 @@
 </section>
 <section class="lens" id="v-empire" role="region" aria-label="Venue: Empire Control Room">
   <a class="chip back" href="#s18">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <figure class="ph" style="height:clamp(100px,16dvh,160px)"><div class="vphoto" aria-hidden="true"><svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice"><rect width="160" height="40" fill="hsl(320 25% 11%)"/><path d="M18 40V18q62-13 124 0v22z" fill="hsl(320 24% 8%)"/><circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/><ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div><figcaption>Empire Control Room</figcaption></figure>
   <h3 class="who">Empire Control Room</h3><p class="spark">club room + garage stage</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -1095,9 +1144,10 @@
   <dt>Their site</dt><dd><a href="https://empireatx.com" target="_blank" rel="noopener">empireatx.com&thinsp;↗</a></dd></dl></div>
   
   <div class="rail" style="margin-top:14px"><a class="vnearby" href="#n-rr">See nearby ›</a></div>
-</section><section class="lens" id="g-jazz" role="region" aria-label="Jazz tonight"><a class="chip back" href="#_">‹ Back</a><h3 class="who">Jazz tonight</h3><p class="spark">4 shows, by start time</p><a class="gcard" href="#s01" data-start="19:30"><span class="gwho">Marfa Lights Trio</span><span class="livetag"></span><span class="gmeta"><b>Elephant Room</b> · 7:30 PM · Free<br>0.4 mi · Congress Ave</span></a><a class="gcard" href="#s02" data-start="20:00"><span class="gwho">The Deep End</span><span class="livetag"></span><span class="gmeta"><b>Saxon Pub</b> · 8:00 PM · $10<br>2.6 mi · S Lamar</span></a><a class="gcard" href="#s11" data-start="22:00"><span class="gwho">Blue Prescription</span><span class="livetag"></span><span class="gmeta"><b>Antone&#x27;s</b> · 10:00 PM · $15<br>0.3 mi · E 5th</span></a><a class="gcard" href="#s14" data-start="22:30"><span class="gwho">Moon Court</span><span class="livetag"></span><span class="gmeta"><b>The Volstead</b> · 10:30 PM · Free<br>1.3 mi · E 6th</span></a></section><section class="lens" id="g-honky-tonk" role="region" aria-label="Honky-tonk tonight"><a class="chip back" href="#_">‹ Back</a><h3 class="who">Honky-tonk tonight</h3><p class="spark">3 shows, by start time</p><a class="gcard" href="#s03" data-start="20:30"><span class="gwho">Hondo Wells</span><span class="livetag"></span><span class="gmeta"><b>Continental Club</b> · 8:30 PM · $8<br>1.8 mi · S Congress</span></a><a class="gcard" href="#s05" data-start="21:00"><span class="gwho">Silver Spur Sisters</span><span class="livetag"></span><span class="gmeta"><b>The White Horse</b> · 9:00 PM · Free<br>1.4 mi · E 6th</span></a><a class="gcard" href="#s07" data-start="21:30"><span class="gwho">Knuckle Rose</span><span class="livetag"></span><span class="gmeta"><b>Stubb&#x27;s</b> · 9:30 PM · $12<br>0.6 mi · Red River</span></a></section><section class="lens" id="g-gospel-punk" role="region" aria-label="Gospel-punk tonight"><a class="chip back" href="#_">‹ Back</a><h3 class="who">Gospel-punk tonight</h3><p class="spark">3 shows, by start time</p><a class="gcard" href="#s04" data-start="21:00"><span class="gwho">Velvet Casket</span><span class="livetag"></span><span class="gmeta"><b>Elephant Room</b> · 9:00 PM · Free<br>0.4 mi · Congress Ave</span></a><a class="gcard" href="#s09" data-start="22:00"><span class="gwho">Brass Ordinance</span><span class="livetag"></span><span class="gmeta"><b>Mohawk</b> · 10:00 PM · $10<br>0.5 mi · Red River</span></a><a class="gcard" href="#s16" data-start="23:00"><span class="gwho">The Ninth Hour</span><span class="livetag"></span><span class="gmeta"><b>Hotel Vegas</b> · 11:00 PM · $8<br>1.2 mi · E 6th</span></a></section><section class="lens" id="g-cumbia" role="region" aria-label="Cumbia tonight"><a class="chip back" href="#_">‹ Back</a><h3 class="who">Cumbia tonight</h3><p class="spark">4 shows, by start time</p><a class="gcard" href="#s06" data-start="21:00"><span class="gwho">Orquesta Nube</span><span class="livetag"></span><span class="gmeta"><b>Far Out Lounge</b> · 9:00 PM · $12<br>4.8 mi · S Congress</span></a><a class="gcard" href="#s08" data-start="21:30"><span class="gwho">La Marea</span><span class="livetag"></span><span class="gmeta"><b>Flamingo Cantina</b> · 9:30 PM · $10<br>0.6 mi · E 6th</span></a><a class="gcard" href="#s10" data-start="22:00"><span class="gwho">Sonido Cascabel</span><span class="livetag"></span><span class="gmeta"><b>Coral Snake</b> · 10:00 PM · Free<br>1.0 mi · E Cesar Chavez</span></a><a class="gcard" href="#s13" data-start="22:30"><span class="gwho">Reina Cortez y Los Fantasmas</span><span class="livetag"></span><span class="gmeta"><b>Sagebrush</b> · 10:30 PM · $12<br>2.1 mi · S Congress</span></a></section><section class="lens" id="g-shoegaze" role="region" aria-label="Shoegaze tonight"><a class="chip back" href="#_">‹ Back</a><h3 class="who">Shoegaze tonight</h3><p class="spark">2 shows, by start time</p><a class="gcard" href="#s12" data-start="22:15"><span class="gwho">Bellhollow</span><span class="livetag"></span><span class="gmeta"><b>Cheer Up Charlies</b> · 10:15 PM · Free<br>0.8 mi · Red River</span></a><a class="gcard" href="#s17" data-start="23:45"><span class="gwho">Glass Anthem</span><span class="livetag"></span><span class="gmeta"><b>The Parish</b> · 11:45 PM · $15<br>0.7 mi · Brazos St</span></a></section><section class="lens" id="g-hip-hop" role="region" aria-label="Hip-hop tonight"><a class="chip back" href="#_">‹ Back</a><h3 class="who">Hip-hop tonight</h3><p class="spark">2 shows, by start time</p><a class="gcard" href="#s15" data-start="23:00"><span class="gwho">DJ Cielo</span><span class="livetag"></span><span class="gmeta"><b>Speakeasy</b> · 11:00 PM · $10<br>0.4 mi · Congress Ave</span></a><a class="gcard" href="#s18" data-start="24:00"><span class="gwho">Vantablonde</span><span class="livetag"></span><span class="gmeta"><b>Empire Control Room</b> · 12:00 AM · $12<br>0.6 mi · Red River</span></a></section><section class="lens" id="ar-dt" role="region" aria-label="Downtown tonight"><a class="chip back" href="#_">‹ Back</a><h3 class="who">Downtown tonight</h3><p class="spark">5 shows, by start time</p><a class="gcard" href="#s01" data-start="19:30"><span class="gwho">Marfa Lights Trio</span><span class="livetag"></span><span class="gmeta"><b>Elephant Room</b> · 7:30 PM · Jazz · Free<br>0.4 mi · Congress Ave</span></a><a class="gcard" href="#s04" data-start="21:00"><span class="gwho">Velvet Casket</span><span class="livetag"></span><span class="gmeta"><b>Elephant Room</b> · 9:00 PM · Gospel-punk · Free<br>0.4 mi · Congress Ave</span></a><a class="gcard" href="#s11" data-start="22:00"><span class="gwho">Blue Prescription</span><span class="livetag"></span><span class="gmeta"><b>Antone&#x27;s</b> · 10:00 PM · Jazz · $15<br>0.3 mi · E 5th</span></a><a class="gcard" href="#s15" data-start="23:00"><span class="gwho">DJ Cielo</span><span class="livetag"></span><span class="gmeta"><b>Speakeasy</b> · 11:00 PM · Hip-hop · $10<br>0.4 mi · Congress Ave</span></a><a class="gcard" href="#s17" data-start="23:45"><span class="gwho">Glass Anthem</span><span class="livetag"></span><span class="gmeta"><b>The Parish</b> · 11:45 PM · Shoegaze · $15<br>0.7 mi · Brazos St</span></a></section><section class="lens" id="ar-rr" role="region" aria-label="Red River tonight"><a class="chip back" href="#_">‹ Back</a><h3 class="who">Red River tonight</h3><p class="spark">4 shows, by start time</p><a class="gcard" href="#s07" data-start="21:30"><span class="gwho">Knuckle Rose</span><span class="livetag"></span><span class="gmeta"><b>Stubb&#x27;s</b> · 9:30 PM · Honky-tonk · $12<br>0.6 mi · Red River</span></a><a class="gcard" href="#s09" data-start="22:00"><span class="gwho">Brass Ordinance</span><span class="livetag"></span><span class="gmeta"><b>Mohawk</b> · 10:00 PM · Gospel-punk · $10<br>0.5 mi · Red River</span></a><a class="gcard" href="#s12" data-start="22:15"><span class="gwho">Bellhollow</span><span class="livetag"></span><span class="gmeta"><b>Cheer Up Charlies</b> · 10:15 PM · Shoegaze · Free<br>0.8 mi · Red River</span></a><a class="gcard" href="#s18" data-start="24:00"><span class="gwho">Vantablonde</span><span class="livetag"></span><span class="gmeta"><b>Empire Control Room</b> · 12:00 AM · Hip-hop · $12<br>0.6 mi · Red River</span></a></section><section class="lens" id="ar-e" role="region" aria-label="East Side tonight"><a class="chip back" href="#_">‹ Back</a><h3 class="who">East Side tonight</h3><p class="spark">5 shows, by start time</p><a class="gcard" href="#s05" data-start="21:00"><span class="gwho">Silver Spur Sisters</span><span class="livetag"></span><span class="gmeta"><b>The White Horse</b> · 9:00 PM · Honky-tonk · Free<br>1.4 mi · E 6th</span></a><a class="gcard" href="#s08" data-start="21:30"><span class="gwho">La Marea</span><span class="livetag"></span><span class="gmeta"><b>Flamingo Cantina</b> · 9:30 PM · Cumbia · $10<br>0.6 mi · E 6th</span></a><a class="gcard" href="#s10" data-start="22:00"><span class="gwho">Sonido Cascabel</span><span class="livetag"></span><span class="gmeta"><b>Coral Snake</b> · 10:00 PM · Cumbia · Free<br>1.0 mi · E Cesar Chavez</span></a><a class="gcard" href="#s14" data-start="22:30"><span class="gwho">Moon Court</span><span class="livetag"></span><span class="gmeta"><b>The Volstead</b> · 10:30 PM · Jazz · Free<br>1.3 mi · E 6th</span></a><a class="gcard" href="#s16" data-start="23:00"><span class="gwho">The Ninth Hour</span><span class="livetag"></span><span class="gmeta"><b>Hotel Vegas</b> · 11:00 PM · Gospel-punk · $8<br>1.2 mi · E 6th</span></a></section><section class="lens" id="ar-s" role="region" aria-label="South tonight"><a class="chip back" href="#_">‹ Back</a><h3 class="who">South tonight</h3><p class="spark">4 shows, by start time</p><a class="gcard" href="#s02" data-start="20:00"><span class="gwho">The Deep End</span><span class="livetag"></span><span class="gmeta"><b>Saxon Pub</b> · 8:00 PM · Jazz · $10<br>2.6 mi · S Lamar</span></a><a class="gcard" href="#s03" data-start="20:30"><span class="gwho">Hondo Wells</span><span class="livetag"></span><span class="gmeta"><b>Continental Club</b> · 8:30 PM · Honky-tonk · $8<br>1.8 mi · S Congress</span></a><a class="gcard" href="#s06" data-start="21:00"><span class="gwho">Orquesta Nube</span><span class="livetag"></span><span class="gmeta"><b>Far Out Lounge</b> · 9:00 PM · Cumbia · $12<br>4.8 mi · S Congress</span></a><a class="gcard" href="#s13" data-start="22:30"><span class="gwho">Reina Cortez y Los Fantasmas</span><span class="livetag"></span><span class="gmeta"><b>Sagebrush</b> · 10:30 PM · Cumbia · $12<br>2.1 mi · S Congress</span></a></section>
+</section><section class="lens" id="g-jazz" role="region" aria-label="Jazz tonight"><a class="chip back" href="#_">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">Jazz tonight</h3><p class="spark">4 shows, by start time</p><a class="gcard" href="#s01" data-start="19:30"><span class="gwho">Marfa Lights Trio</span><span class="livetag"></span><span class="gmeta"><b>Elephant Room</b> · 7:30 PM · Free<br>0.4 mi · Congress Ave</span></a><a class="gcard" href="#s02" data-start="20:00"><span class="gwho">The Deep End</span><span class="livetag"></span><span class="gmeta"><b>Saxon Pub</b> · 8:00 PM · $10<br>2.6 mi · S Lamar</span></a><a class="gcard" href="#s11" data-start="22:00"><span class="gwho">Blue Prescription</span><span class="livetag"></span><span class="gmeta"><b>Antone&#x27;s</b> · 10:00 PM · $15<br>0.3 mi · E 5th</span></a><a class="gcard" href="#s14" data-start="22:30"><span class="gwho">Moon Court</span><span class="livetag"></span><span class="gmeta"><b>The Volstead</b> · 10:30 PM · Free<br>1.3 mi · E 6th</span></a></section><section class="lens" id="g-honky-tonk" role="region" aria-label="Honky-tonk tonight"><a class="chip back" href="#_">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">Honky-tonk tonight</h3><p class="spark">3 shows, by start time</p><a class="gcard" href="#s03" data-start="20:30"><span class="gwho">Hondo Wells</span><span class="livetag"></span><span class="gmeta"><b>Continental Club</b> · 8:30 PM · $8<br>1.8 mi · S Congress</span></a><a class="gcard" href="#s05" data-start="21:00"><span class="gwho">Silver Spur Sisters</span><span class="livetag"></span><span class="gmeta"><b>The White Horse</b> · 9:00 PM · Free<br>1.4 mi · E 6th</span></a><a class="gcard" href="#s07" data-start="21:30"><span class="gwho">Knuckle Rose</span><span class="livetag"></span><span class="gmeta"><b>Stubb&#x27;s</b> · 9:30 PM · $12<br>0.6 mi · Red River</span></a></section><section class="lens" id="g-gospel-punk" role="region" aria-label="Gospel-punk tonight"><a class="chip back" href="#_">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">Gospel-punk tonight</h3><p class="spark">3 shows, by start time</p><a class="gcard" href="#s04" data-start="21:00"><span class="gwho">Velvet Casket</span><span class="livetag"></span><span class="gmeta"><b>Elephant Room</b> · 9:00 PM · Free<br>0.4 mi · Congress Ave</span></a><a class="gcard" href="#s09" data-start="22:00"><span class="gwho">Brass Ordinance</span><span class="livetag"></span><span class="gmeta"><b>Mohawk</b> · 10:00 PM · $10<br>0.5 mi · Red River</span></a><a class="gcard" href="#s16" data-start="23:00"><span class="gwho">The Ninth Hour</span><span class="livetag"></span><span class="gmeta"><b>Hotel Vegas</b> · 11:00 PM · $8<br>1.2 mi · E 6th</span></a></section><section class="lens" id="g-cumbia" role="region" aria-label="Cumbia tonight"><a class="chip back" href="#_">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">Cumbia tonight</h3><p class="spark">4 shows, by start time</p><a class="gcard" href="#s06" data-start="21:00"><span class="gwho">Orquesta Nube</span><span class="livetag"></span><span class="gmeta"><b>Far Out Lounge</b> · 9:00 PM · $12<br>4.8 mi · S Congress</span></a><a class="gcard" href="#s08" data-start="21:30"><span class="gwho">La Marea</span><span class="livetag"></span><span class="gmeta"><b>Flamingo Cantina</b> · 9:30 PM · $10<br>0.6 mi · E 6th</span></a><a class="gcard" href="#s10" data-start="22:00"><span class="gwho">Sonido Cascabel</span><span class="livetag"></span><span class="gmeta"><b>Coral Snake</b> · 10:00 PM · Free<br>1.0 mi · E Cesar Chavez</span></a><a class="gcard" href="#s13" data-start="22:30"><span class="gwho">Reina Cortez y Los Fantasmas</span><span class="livetag"></span><span class="gmeta"><b>Sagebrush</b> · 10:30 PM · $12<br>2.1 mi · S Congress</span></a></section><section class="lens" id="g-shoegaze" role="region" aria-label="Shoegaze tonight"><a class="chip back" href="#_">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">Shoegaze tonight</h3><p class="spark">2 shows, by start time</p><a class="gcard" href="#s12" data-start="22:15"><span class="gwho">Bellhollow</span><span class="livetag"></span><span class="gmeta"><b>Cheer Up Charlies</b> · 10:15 PM · Free<br>0.8 mi · Red River</span></a><a class="gcard" href="#s17" data-start="23:45"><span class="gwho">Glass Anthem</span><span class="livetag"></span><span class="gmeta"><b>The Parish</b> · 11:45 PM · $15<br>0.7 mi · Brazos St</span></a></section><section class="lens" id="g-hip-hop" role="region" aria-label="Hip-hop tonight"><a class="chip back" href="#_">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">Hip-hop tonight</h3><p class="spark">2 shows, by start time</p><a class="gcard" href="#s15" data-start="23:00"><span class="gwho">DJ Cielo</span><span class="livetag"></span><span class="gmeta"><b>Speakeasy</b> · 11:00 PM · $10<br>0.4 mi · Congress Ave</span></a><a class="gcard" href="#s18" data-start="24:00"><span class="gwho">Vantablonde</span><span class="livetag"></span><span class="gmeta"><b>Empire Control Room</b> · 12:00 AM · $12<br>0.6 mi · Red River</span></a></section><section class="lens" id="ar-dt" role="region" aria-label="Downtown tonight"><a class="chip back" href="#_">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">Downtown tonight</h3><p class="spark">5 shows, by start time</p><a class="gcard" href="#s01" data-start="19:30"><span class="gwho">Marfa Lights Trio</span><span class="livetag"></span><span class="gmeta"><b>Elephant Room</b> · 7:30 PM · Jazz · Free<br>0.4 mi · Congress Ave</span></a><a class="gcard" href="#s04" data-start="21:00"><span class="gwho">Velvet Casket</span><span class="livetag"></span><span class="gmeta"><b>Elephant Room</b> · 9:00 PM · Gospel-punk · Free<br>0.4 mi · Congress Ave</span></a><a class="gcard" href="#s11" data-start="22:00"><span class="gwho">Blue Prescription</span><span class="livetag"></span><span class="gmeta"><b>Antone&#x27;s</b> · 10:00 PM · Jazz · $15<br>0.3 mi · E 5th</span></a><a class="gcard" href="#s15" data-start="23:00"><span class="gwho">DJ Cielo</span><span class="livetag"></span><span class="gmeta"><b>Speakeasy</b> · 11:00 PM · Hip-hop · $10<br>0.4 mi · Congress Ave</span></a><a class="gcard" href="#s17" data-start="23:45"><span class="gwho">Glass Anthem</span><span class="livetag"></span><span class="gmeta"><b>The Parish</b> · 11:45 PM · Shoegaze · $15<br>0.7 mi · Brazos St</span></a></section><section class="lens" id="ar-rr" role="region" aria-label="Red River tonight"><a class="chip back" href="#_">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">Red River tonight</h3><p class="spark">4 shows, by start time</p><a class="gcard" href="#s07" data-start="21:30"><span class="gwho">Knuckle Rose</span><span class="livetag"></span><span class="gmeta"><b>Stubb&#x27;s</b> · 9:30 PM · Honky-tonk · $12<br>0.6 mi · Red River</span></a><a class="gcard" href="#s09" data-start="22:00"><span class="gwho">Brass Ordinance</span><span class="livetag"></span><span class="gmeta"><b>Mohawk</b> · 10:00 PM · Gospel-punk · $10<br>0.5 mi · Red River</span></a><a class="gcard" href="#s12" data-start="22:15"><span class="gwho">Bellhollow</span><span class="livetag"></span><span class="gmeta"><b>Cheer Up Charlies</b> · 10:15 PM · Shoegaze · Free<br>0.8 mi · Red River</span></a><a class="gcard" href="#s18" data-start="24:00"><span class="gwho">Vantablonde</span><span class="livetag"></span><span class="gmeta"><b>Empire Control Room</b> · 12:00 AM · Hip-hop · $12<br>0.6 mi · Red River</span></a></section><section class="lens" id="ar-e" role="region" aria-label="East Side tonight"><a class="chip back" href="#_">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">East Side tonight</h3><p class="spark">5 shows, by start time</p><a class="gcard" href="#s05" data-start="21:00"><span class="gwho">Silver Spur Sisters</span><span class="livetag"></span><span class="gmeta"><b>The White Horse</b> · 9:00 PM · Honky-tonk · Free<br>1.4 mi · E 6th</span></a><a class="gcard" href="#s08" data-start="21:30"><span class="gwho">La Marea</span><span class="livetag"></span><span class="gmeta"><b>Flamingo Cantina</b> · 9:30 PM · Cumbia · $10<br>0.6 mi · E 6th</span></a><a class="gcard" href="#s10" data-start="22:00"><span class="gwho">Sonido Cascabel</span><span class="livetag"></span><span class="gmeta"><b>Coral Snake</b> · 10:00 PM · Cumbia · Free<br>1.0 mi · E Cesar Chavez</span></a><a class="gcard" href="#s14" data-start="22:30"><span class="gwho">Moon Court</span><span class="livetag"></span><span class="gmeta"><b>The Volstead</b> · 10:30 PM · Jazz · Free<br>1.3 mi · E 6th</span></a><a class="gcard" href="#s16" data-start="23:00"><span class="gwho">The Ninth Hour</span><span class="livetag"></span><span class="gmeta"><b>Hotel Vegas</b> · 11:00 PM · Gospel-punk · $8<br>1.2 mi · E 6th</span></a></section><section class="lens" id="ar-s" role="region" aria-label="South tonight"><a class="chip back" href="#_">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">South tonight</h3><p class="spark">4 shows, by start time</p><a class="gcard" href="#s02" data-start="20:00"><span class="gwho">The Deep End</span><span class="livetag"></span><span class="gmeta"><b>Saxon Pub</b> · 8:00 PM · Jazz · $10<br>2.6 mi · S Lamar</span></a><a class="gcard" href="#s03" data-start="20:30"><span class="gwho">Hondo Wells</span><span class="livetag"></span><span class="gmeta"><b>Continental Club</b> · 8:30 PM · Honky-tonk · $8<br>1.8 mi · S Congress</span></a><a class="gcard" href="#s06" data-start="21:00"><span class="gwho">Orquesta Nube</span><span class="livetag"></span><span class="gmeta"><b>Far Out Lounge</b> · 9:00 PM · Cumbia · $12<br>4.8 mi · S Congress</span></a><a class="gcard" href="#s13" data-start="22:30"><span class="gwho">Reina Cortez y Los Fantasmas</span><span class="livetag"></span><span class="gmeta"><b>Sagebrush</b> · 10:30 PM · Cumbia · $12<br>2.1 mi · S Congress</span></a></section>
 <section class="lens" id="n-dt" role="region" aria-label="Near Downtown rooms">
   <a class="chip back" href="#_">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <h3 class="who">Near Downtown rooms</h3><p class="spark">Congress to Brazos — dense blocks, easy walking</p>
   <p class="gnote" style="margin:2px 0 8px">Sample guidance — these businesses are real, but every distance, walk time, transport suggestion, and hours claim here is illustrative for this prototype, not verified. The product draws nearby data live from the mapping layer with freshness shown.</p>
   <div class="nearmap" aria-hidden="true"><svg viewBox="0 0 160 80">
@@ -1110,6 +1160,7 @@
 </section>
 <section class="lens" id="n-rr" role="region" aria-label="Near Red River rooms">
   <a class="chip back" href="#_">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <h3 class="who">Near Red River rooms</h3><p class="spark">the club strip — everything within a few blocks</p>
   <p class="gnote" style="margin:2px 0 8px">Sample guidance — these businesses are real, but every distance, walk time, transport suggestion, and hours claim here is illustrative for this prototype, not verified. The product draws nearby data live from the mapping layer with freshness shown.</p>
   <div class="nearmap" aria-hidden="true"><svg viewBox="0 0 160 80">
@@ -1122,6 +1173,7 @@
 </section>
 <section class="lens" id="n-e" role="region" aria-label="Near East Side rooms">
   <a class="chip back" href="#_">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <h3 class="who">Near East Side rooms</h3><p class="spark">E 6th and Cesar Chavez — flat, bikeable, patio-dense</p>
   <p class="gnote" style="margin:2px 0 8px">Sample guidance — these businesses are real, but every distance, walk time, transport suggestion, and hours claim here is illustrative for this prototype, not verified. The product draws nearby data live from the mapping layer with freshness shown.</p>
   <div class="nearmap" aria-hidden="true"><svg viewBox="0 0 160 80">
@@ -1134,6 +1186,7 @@
 </section>
 <section class="lens" id="n-s" role="region" aria-label="Near South rooms">
   <a class="chip back" href="#_">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
   <h3 class="who">Near South rooms</h3><p class="spark">S Congress and S Lamar — spread out, plan the hop</p>
   <p class="gnote" style="margin:2px 0 8px">Sample guidance — these businesses are real, but every distance, walk time, transport suggestion, and hours claim here is illustrative for this prototype, not verified. The product draws nearby data live from the mapping layer with freshness shown.</p>
   <div class="nearmap" aria-hidden="true"><svg viewBox="0 0 160 80">
@@ -1144,6 +1197,25 @@
   <div class="ncard"><span class="nwho">Cosmic Coffee + Beer</span><span class="ntype">garden bar, food trucks</span><span class="nhow">0.3 mi · 6-min walk</span></div><div class="ncard"><span class="nwho">Little Darlin&#x27;</span><span class="ntype">bar, backyard</span><span class="nhow">0.5 mi · 10-min walk</span></div><div class="ncard"><span class="nwho">Torchy&#x27;s SoCo</span><span class="ntype">late tacos</span><span class="nhow">0.4 mi · 8-min walk</span></div><div class="ncard"><span class="nwho">Downtown</span><span class="ntype">everything else tonight</span><span class="nhow">ride ~12 min</span></div>
   <p class="gnote">This stretch is spread out — walk the near spots, pedicab the strip, ride downtown.</p>
 </section>
+<section class="lens" id="ask" role="region" aria-label="Ask for tonight">
+  <a class="chip back" href="#_">‹ Back</a>
+  <p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p>
+  <h3 class="who">What do you feel like?</h3>
+  <p class="spark">Say it — or tap it. The city answers with options, and says why.</p>
+  <div class="rail" style="padding:0;margin:10px 0 2px">
+    <button class="chip" id="micbtn" type="button" hidden><svg class="glyph" viewBox="0 0 20 20"><path d="M10 2a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm-5 8a5 5 0 0 0 10 0h1.6a6.6 6.6 0 0 1-5.8 6.55V19H8.2v-2.45A6.6 6.6 0 0 1 3.4 10z" fill="currentColor"/></svg>Speak it</button>
+    <span class="gnote" id="voicenote">Voice works in a browser (Safari: tap Speak it and allow the mic). The chips below do the same thing by touch.</span>
+  </div>
+  <p class="gnote" id="heard" style="min-height:1em"></p>
+  <div class="desires">
+    <a class="chip" href="#ask-closecheap">Close &amp; cheap</a><a class="chip" href="#ask-dance">Somewhere to dance</a><a class="chip" href="#ask-quiet">Quiet &amp; candle-lit</a><a class="chip" href="#ask-loud">Loud &amp; close to the stage</a>
+  </div>
+  <div class="memory">
+    <small>from your prior nights — sample memory</small>
+    Your scene so far: candle-lit jazz rooms and cumbia floors · usually out after 10 · Downtown and East.
+    <span class="gnote" style="display:block;margin-top:6px">In the product this is your on-device "My defaults" plus your saves — provenance shown on every suggestion ("because you saved…"), yours alone, never sold, never used to rank anyone else's feed.</span>
+  </div>
+</section><section class="lens" id="ask-closecheap" role="region" aria-label="Close and cheap tonight"><a class="chip back" href="#ask">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">Close and cheap tonight</h3><p class="spark">7 matches, by start time</p><p class="gnote" style="margin:2px 0 4px">A lens, never a gate — this narrows nothing away; the full night stays one Back-tap below. Every match says why.</p><a class="gcard" href="#s01" data-start="19:30"><span class="gwho">Marfa Lights Trio</span><span class="livetag"></span><span class="gmeta"><b>Elephant Room</b> · 7:30 PM · Free</span><span class="gwhy">why: Free · 0.4 mi away</span></a><a class="gcard" href="#s04" data-start="21:00"><span class="gwho">Velvet Casket</span><span class="livetag"></span><span class="gmeta"><b>Elephant Room</b> · 9:00 PM · Free</span><span class="gwhy">why: Free · 0.4 mi away</span></a><a class="gcard" href="#s08" data-start="21:30"><span class="gwho">La Marea</span><span class="livetag"></span><span class="gmeta"><b>Flamingo Cantina</b> · 9:30 PM · $10</span><span class="gwhy">why: $10 · 0.6 mi away</span></a><a class="gcard" href="#s09" data-start="22:00"><span class="gwho">Brass Ordinance</span><span class="livetag"></span><span class="gmeta"><b>Mohawk</b> · 10:00 PM · $10</span><span class="gwhy">why: $10 · 0.5 mi away</span></a><a class="gcard" href="#s10" data-start="22:00"><span class="gwho">Sonido Cascabel</span><span class="livetag"></span><span class="gmeta"><b>Coral Snake</b> · 10:00 PM · Free</span><span class="gwhy">why: Free · 1.0 mi away</span></a><a class="gcard" href="#s12" data-start="22:15"><span class="gwho">Bellhollow</span><span class="livetag"></span><span class="gmeta"><b>Cheer Up Charlies</b> · 10:15 PM · Free</span><span class="gwhy">why: Free · 0.8 mi away</span></a><a class="gcard" href="#s15" data-start="23:00"><span class="gwho">DJ Cielo</span><span class="livetag"></span><span class="gmeta"><b>Speakeasy</b> · 11:00 PM · $10</span><span class="gwhy">why: $10 · 0.4 mi away</span></a></section><section class="lens" id="ask-dance" role="region" aria-label="Dance floors tonight"><a class="chip back" href="#ask">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">Dance floors tonight</h3><p class="spark">7 matches, by start time</p><p class="gnote" style="margin:2px 0 4px">A lens, never a gate — this narrows nothing away; the full night stays one Back-tap below. Every match says why.</p><a class="gcard" href="#s03" data-start="20:30"><span class="gwho">Hondo Wells</span><span class="livetag"></span><span class="gmeta"><b>Continental Club</b> · 8:30 PM · $8</span><span class="gwhy">why: Honky-tonk · 50s dance hall · <em>you two-stepped at Sagebrush two Fridays running (sample memory)</em></span></a><a class="gcard" href="#s05" data-start="21:00"><span class="gwho">Silver Spur Sisters</span><span class="livetag"></span><span class="gmeta"><b>The White Horse</b> · 9:00 PM · Free</span><span class="gwhy">why: Honky-tonk · two-step bar · <em>you two-stepped at Sagebrush two Fridays running (sample memory)</em></span></a><a class="gcard" href="#s06" data-start="21:00"><span class="gwho">Orquesta Nube</span><span class="livetag"></span><span class="gmeta"><b>Far Out Lounge</b> · 9:00 PM · $12</span><span class="gwhy">why: Cumbia · big backyard stage under the oaks · <em>you two-stepped at Sagebrush two Fridays running (sample memory)</em></span></a><a class="gcard" href="#s07" data-start="21:30"><span class="gwho">Knuckle Rose</span><span class="livetag"></span><span class="gmeta"><b>Stubb&#x27;s</b> · 9:30 PM · $12</span><span class="gwhy">why: Honky-tonk · outdoor amphitheater + BBQ inside · <em>you two-stepped at Sagebrush two Fridays running (sample memory)</em></span></a><a class="gcard" href="#s08" data-start="21:30"><span class="gwho">La Marea</span><span class="livetag"></span><span class="gmeta"><b>Flamingo Cantina</b> · 9:30 PM · $10</span><span class="gwhy">why: Cumbia · reggae-rooted room · <em>you two-stepped at Sagebrush two Fridays running (sample memory)</em></span></a><a class="gcard" href="#s10" data-start="22:00"><span class="gwho">Sonido Cascabel</span><span class="livetag"></span><span class="gmeta"><b>Coral Snake</b> · 10:00 PM · Free</span><span class="gwhy">why: Cumbia · narrow bar · <em>you two-stepped at Sagebrush two Fridays running (sample memory)</em></span></a><a class="gcard" href="#s13" data-start="22:30"><span class="gwho">Reina Cortez y Los Fantasmas</span><span class="livetag"></span><span class="gmeta"><b>Sagebrush</b> · 10:30 PM · $12</span><span class="gwhy">why: Cumbia · honky-tonk roadhouse · <em>you two-stepped at Sagebrush two Fridays running (sample memory)</em></span></a></section><section class="lens" id="ask-quiet" role="region" aria-label="Quiet rooms tonight"><a class="chip back" href="#ask">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">Quiet rooms tonight</h3><p class="spark">4 matches, by start time</p><p class="gnote" style="margin:2px 0 4px">A lens, never a gate — this narrows nothing away; the full night stays one Back-tap below. Every match says why.</p><a class="gcard" href="#s01" data-start="19:30"><span class="gwho">Marfa Lights Trio</span><span class="livetag"></span><span class="gmeta"><b>Elephant Room</b> · 7:30 PM · Free</span><span class="gwhy">why: Jazz · basement jazz cellar · <em>you saved two candle-lit listening rooms (sample memory)</em></span></a><a class="gcard" href="#s02" data-start="20:00"><span class="gwho">The Deep End</span><span class="livetag"></span><span class="gmeta"><b>Saxon Pub</b> · 8:00 PM · $10</span><span class="gwhy">why: Jazz · small listening room · <em>you saved two candle-lit listening rooms (sample memory)</em></span></a><a class="gcard" href="#s11" data-start="22:00"><span class="gwho">Blue Prescription</span><span class="livetag"></span><span class="gmeta"><b>Antone&#x27;s</b> · 10:00 PM · $15</span><span class="gwhy">why: Jazz · home of the blues since 1975 · <em>you saved two candle-lit listening rooms (sample memory)</em></span></a><a class="gcard" href="#s14" data-start="22:30"><span class="gwho">Moon Court</span><span class="livetag"></span><span class="gmeta"><b>The Volstead</b> · 10:30 PM · Free</span><span class="gwhy">why: Jazz · velvet lounge beside the Hotel Vegas patio · <em>you saved two candle-lit listening rooms (sample memory)</em></span></a></section><section class="lens" id="ask-loud" role="region" aria-label="Loud rooms tonight"><a class="chip back" href="#ask">‹ Back</a><p class="fixnote">Prototype sample — fictional listings staged at real venues; details illustrative, not verified.</p><h3 class="who">Loud rooms tonight</h3><p class="spark">5 matches, by start time</p><p class="gnote" style="margin:2px 0 4px">A lens, never a gate — this narrows nothing away; the full night stays one Back-tap below. Every match says why.</p><a class="gcard" href="#s04" data-start="21:00"><span class="gwho">Velvet Casket</span><span class="livetag"></span><span class="gmeta"><b>Elephant Room</b> · 9:00 PM · Free</span><span class="gwhy">why: Gospel-punk · basement jazz cellar · <em>you stay past midnight when the room is loud (sample memory)</em></span></a><a class="gcard" href="#s09" data-start="22:00"><span class="gwho">Brass Ordinance</span><span class="livetag"></span><span class="gmeta"><b>Mohawk</b> · 10:00 PM · $10</span><span class="gwhy">why: Gospel-punk · indoor/outdoor stack · <em>you stay past midnight when the room is loud (sample memory)</em></span></a><a class="gcard" href="#s12" data-start="22:15"><span class="gwho">Bellhollow</span><span class="livetag"></span><span class="gmeta"><b>Cheer Up Charlies</b> · 10:15 PM · Free</span><span class="gwhy">why: Shoegaze · queer-forward patio · <em>you stay past midnight when the room is loud (sample memory)</em></span></a><a class="gcard" href="#s16" data-start="23:00"><span class="gwho">The Ninth Hour</span><span class="livetag"></span><span class="gmeta"><b>Hotel Vegas</b> · 11:00 PM · $8</span><span class="gwhy">why: Gospel-punk · garage-rock patio compound · <em>you stay past midnight when the room is loud (sample memory)</em></span></a><a class="gcard" href="#s17" data-start="23:45"><span class="gwho">Glass Anthem</span><span class="livetag"></span><span class="gmeta"><b>The Parish</b> · 11:45 PM · $15</span><span class="gwhy">why: Shoegaze · upstairs ballroom · <em>you stay past midnight when the room is loud (sample memory)</em></span></a></section>
 <script>
 // Progressive enhancement only — the page is complete without this.
 // In a JS-capable browser: hide ended shows, tag live ones, stamp the clock.
@@ -1164,6 +1236,36 @@
     if(gone){var f=document.getElementById('finline');
       f.textContent=gone+' earlier show'+(gone>1?'s':'')+' ended and are hidden. '+(18-gone)+' listed above, by start time.';}
   }catch(e){console.error('flow clock enhancement failed (page remains complete without it):',e)}
+})();
+// Voice enhancement (founder round 9): browser speech recognition mapped
+// onto the SAME pre-computed desire lenses the chips reach by touch —
+// voice adds an input mode, never a different answer. Hidden when the
+// browser has no recognizer; failures log loudly.
+(function(){
+  try{
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    var mic=document.getElementById('micbtn'), note=document.getElementById('voicenote'), heard=document.getElementById('heard');
+    if(!mic)return;
+    if(!SR){return}
+    mic.hidden=false; note.textContent='Tap Speak it, allow the mic, and say what you feel like — or use the chips.';
+    mic.addEventListener('click',function(){
+      var r=new SR(); r.lang='en-US'; r.maxAlternatives=1;
+      heard.textContent='listening…';
+      r.onresult=function(ev){
+        var t=ev.results[0][0].transcript;
+        heard.textContent='heard: “'+t+'”';
+        var s=t.toLowerCase();
+        var dest=/danc|two.?step|cumbia|move/.test(s)?'#ask-dance'
+          :/quiet|chill|candle|jazz|listen|date/.test(s)?'#ask-quiet'
+          :/cheap|free|close|near|walk/.test(s)?'#ask-closecheap'
+          :/loud|heavy|punk|wall|rock/.test(s)?'#ask-loud':null;
+        if(dest)location.hash=dest;
+        else heard.textContent+=' — no match yet in this prototype; try a chip below.';
+      };
+      r.onerror=function(e){heard.textContent='voice error: '+e.error+' — the chips below do the same thing.';console.error('voice recognition:',e.error)};
+      r.start();
+    });
+  }catch(e){console.error('voice enhancement failed (chips remain fully functional):',e)}
 })();
 </script>
 </body>

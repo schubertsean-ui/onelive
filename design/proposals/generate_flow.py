@@ -160,6 +160,15 @@ def slug(g):
     return g.lower().replace(" ", "-")
 
 
+# The local truth boundary EVERY lens carries (evaluator r3, PR #45): each
+# lens is deep-linkable (#a-s01, #g-jazz, ...), so a disclaimer elsewhere
+# on the page does not fail closed — the boundary must be on the surface
+# itself. Rendered by construction into every lens builder;
+# tests/test_flow_static_integrity.py fails any lens without it.
+FIXNOTE = ('<p class="fixnote">Prototype sample — fictional listings staged '
+           'at real venues; details illustrative, not verified.</p>')
+
+
 genre_counts, area_counts = {}, {}
 for s in SHOWS:
     genre_counts[s["genre"]] = genre_counts.get(s["genre"], 0) + 1
@@ -234,6 +243,7 @@ def artist_lens(s):
     return f'''
 <section class="lens" id="a-{s["id"]}" role="region" aria-label="Artist: {E(s["artist"])}">
   <a class="chip back" href="#{s["id"]}">‹ Back</a><a class="chip switch" href="#v-{s["v"]}">the venue ›</a>
+  {FIXNOTE}
   {art_photo(s["hue"], s["artist"], cls="")}
   <h3 class="who">{E(s["artist"])}</h3>
   <p class="spark{" tierc" if tier_c else ""}">{spark}</p>
@@ -254,6 +264,7 @@ def venue_lens(vk):
     return f'''
 <section class="lens" id="v-{vk}" role="region" aria-label="Venue: {E(v["name"])}">
   <a class="chip back" href="{back}">‹ Back</a>
+  {FIXNOTE}
   <figure class="ph" style="height:clamp(100px,16dvh,160px)">{ven_photo(hue, go_label=False)}<figcaption>{E(v["name"])}</figcaption></figure>
   <h3 class="who">{E(v["name"])}</h3><p class="spark">{E(v["char"])}</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
@@ -279,7 +290,7 @@ def genre_lens(g):
     rows = sorted((s for s in SHOWS if s["genre"] == g), key=lambda s: t_min(s["start"]))
     n = len(rows)
     return (f'<section class="lens" id="g-{slug(g)}" role="region" aria-label="{E(g)} tonight">'
-            f'<a class="chip back" href="#_">‹ Back</a>'
+            f'<a class="chip back" href="#_">‹ Back</a>{FIXNOTE}'
             f'<h3 class="who">{E(g)} tonight</h3><p class="spark">{n} show{"s" if n > 1 else ""}, by start time</p>'
             + "".join(row(s) for s in rows) + '</section>')
 
@@ -288,7 +299,7 @@ def area_lens(k):
     rows = sorted((s for s in SHOWS if VENUES[s["v"]]["area"] == k), key=lambda s: t_min(s["start"]))
     n = len(rows)
     return (f'<section class="lens" id="ar-{k}" role="region" aria-label="{E(AREAS[k]["name"])} tonight">'
-            f'<a class="chip back" href="#_">‹ Back</a>'
+            f'<a class="chip back" href="#_">‹ Back</a>{FIXNOTE}'
             f'<h3 class="who">{E(AREAS[k]["name"])} tonight</h3><p class="spark">{n} show{"s" if n > 1 else ""}, by start time</p>'
             + "".join(row(s, with_genre=True) for s in rows) + '</section>')
 
@@ -303,6 +314,7 @@ def nearby_lens(k):
     return f'''
 <section class="lens" id="n-{k}" role="region" aria-label="{E(nb["title"])}">
   <a class="chip back" href="#_">‹ Back</a>
+  {FIXNOTE}
   <h3 class="who">{E(nb["title"])}</h3><p class="spark">{E(nb["sub"])}</p>
   <p class="gnote" style="margin:2px 0 8px">Sample guidance — these businesses are real, but every distance, walk time, transport suggestion, and hours claim here is illustrative for this prototype, not verified. The product draws nearby data live from the mapping layer with freshness shown.</p>
   <div class="nearmap" aria-hidden="true"><svg viewBox="0 0 160 80">
@@ -314,6 +326,91 @@ def nearby_lens(k):
   <p class="gnote">{E(nb["note"])}</p>
 </section>'''
 
+
+# ---- The Ask layer (founder round 9: "voice ability for the site to
+# surface options based on someone's desires - as captured in prior
+# sessions"). Canon: docs/strategy/ONE_LIVE_MEMBER_PREFERENCES_v1.md —
+# personalization is a LENS never a GATE; every recommendation carries
+# provenance; preference data is the member's alone, never sold, never
+# ranking anyone else's feed. Static-first: desire chips anchor to
+# pre-computed result lenses; voice is a browser enhancement that lands
+# on the same lenses. "Prior sessions" memory here is a SAMPLE of the
+# P1 "My defaults" on-device layer.
+def _dist_mi(v):
+    return float(v["dist"].split()[0])
+
+
+def _price_num(s):
+    return 0 if s["price"] == "Free" else int(s["price"].lstrip("$"))
+
+
+DESIRES = {
+    "closecheap": dict(
+        label="Close & cheap",
+        title="Close and cheap tonight",
+        match=lambda s: _price_num(s) <= 10 and _dist_mi(VENUES[s["v"]]) <= 1.0,
+        why=lambda s: f'{s["price"]} · {VENUES[s["v"]]["dist"]} away',
+        memory=None),
+    "dance": dict(
+        label="Somewhere to dance",
+        title="Dance floors tonight",
+        match=lambda s: s["genre"] in ("Cumbia", "Honky-tonk"),
+        why=lambda s: f'{s["genre"]} · {VENUES[s["v"]]["char"].split(",")[0]}',
+        memory="you two-stepped at Sagebrush two Fridays running"),
+    "quiet": dict(
+        label="Quiet & candle-lit",
+        title="Quiet rooms tonight",
+        match=lambda s: s["genre"] == "Jazz",
+        why=lambda s: f'{s["genre"]} · {VENUES[s["v"]]["char"].split(",")[0]}',
+        memory="you saved two candle-lit listening rooms"),
+    "loud": dict(
+        label="Loud & close to the stage",
+        title="Loud rooms tonight",
+        match=lambda s: s["genre"] in ("Shoegaze", "Gospel-punk"),
+        why=lambda s: f'{s["genre"]} · {VENUES[s["v"]]["char"].split(",")[0]}',
+        memory="you stay past midnight when the room is loud"),
+}
+
+
+def ask_result_lens(key):
+    d = DESIRES[key]
+    rows = sorted((s for s in SHOWS if d["match"](s)), key=lambda s: t_min(s["start"]))
+    mem = (f' · <em>{E(d["memory"])} (sample memory)</em>' if d["memory"] else "")
+    body = "".join(
+        f'<a class="gcard" href="#{s["id"]}" data-start="{s["start"]}">'
+        f'<span class="gwho">{E(s["artist"])}</span><span class="livetag"></span>'
+        f'<span class="gmeta"><b>{E(VENUES[s["v"]]["name"])}</b> · {t_fmt(s["start"])} · {s["price"]}</span>'
+        f'<span class="gwhy">why: {E(d["why"](s))}{mem}</span></a>'
+        for s in rows)
+    return (f'<section class="lens" id="ask-{key}" role="region" aria-label="{E(d["title"])}">'
+            f'<a class="chip back" href="#ask">‹ Back</a>{FIXNOTE}'
+            f'<h3 class="who">{E(d["title"])}</h3>'
+            f'<p class="spark">{len(rows)} match{"es" if len(rows) != 1 else ""}, by start time</p>'
+            f'<p class="gnote" style="margin:2px 0 4px">A lens, never a gate — this narrows nothing away; '
+            f'the full night stays one Back-tap below. Every match says why.</p>'
+            + body + '</section>')
+
+
+ASK_LENS = f'''
+<section class="lens" id="ask" role="region" aria-label="Ask for tonight">
+  <a class="chip back" href="#_">‹ Back</a>
+  {FIXNOTE}
+  <h3 class="who">What do you feel like?</h3>
+  <p class="spark">Say it — or tap it. The city answers with options, and says why.</p>
+  <div class="rail" style="padding:0;margin:10px 0 2px">
+    <button class="chip" id="micbtn" type="button" hidden><svg class="glyph" viewBox="0 0 20 20"><path d="M10 2a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm-5 8a5 5 0 0 0 10 0h1.6a6.6 6.6 0 0 1-5.8 6.55V19H8.2v-2.45A6.6 6.6 0 0 1 3.4 10z" fill="currentColor"/></svg>Speak it</button>
+    <span class="gnote" id="voicenote">Voice works in a browser (Safari: tap Speak it and allow the mic). The chips below do the same thing by touch.</span>
+  </div>
+  <p class="gnote" id="heard" style="min-height:1em"></p>
+  <div class="desires">
+    {"".join(f'<a class="chip" href="#ask-{k}">{E(d["label"])}</a>' for k, d in DESIRES.items())}
+  </div>
+  <div class="memory">
+    <small>from your prior nights — sample memory</small>
+    Your scene so far: candle-lit jazz rooms and cumbia floors · usually out after 10 · Downtown and East.
+    <span class="gnote" style="display:block;margin-top:6px">In the product this is your on-device "My defaults" plus your saves — provenance shown on every suggestion ("because you saved…"), yours alone, never sold, never used to rank anyone else's feed.</span>
+  </div>
+</section>''' + "".join(ask_result_lens(k) for k in DESIRES)
 
 sky_parts = "".join(
     f'<a class="part" href="#ar-{k}" aria-label="{E(a["name"])}: {area_counts.get(k, 0)} shows tonight">'
@@ -331,7 +428,8 @@ lenses_html = ("".join(artist_lens(s) for s in ordered)
                + "".join(venue_lens(vk) for vk in VENUES if any(s["v"] == vk for s in SHOWS))
                + "".join(genre_lens(g) for g in genre_counts)
                + "".join(area_lens(k) for k in AREAS)
-               + "".join(nearby_lens(k) for k in NEARBY))
+               + "".join(nearby_lens(k) for k in NEARBY)
+               + ASK_LENS)
 
 page = f'''<!DOCTYPE html>
 <html lang="en">
@@ -451,6 +549,16 @@ page = f'''<!DOCTYPE html>
   .ncard .ntype{{color:var(--dim);font-size:12px;font-style:italic}}
   .ncard .nhow{{margin-left:auto;text-align:right;font-size:12px;color:var(--mint);white-space:nowrap}}
   .gnote{{font-size:12px;color:var(--dim);margin-top:10px}}
+  .fixnote{{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}}
+  .gcard{{flex-wrap:wrap}}
+  .gwhy{{flex-basis:100%;font-size:12px;color:var(--mint);margin-top:3px}}
+  .gwhy em{{color:var(--dim);font-style:italic}}
+  .desires{{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}}
+  .memory{{border:1px dashed #7BE0AD44;border-radius:12px;padding:10px 12px;font-size:13px;color:var(--mint);margin-top:8px}}
+  .memory small{{display:block;color:var(--dim);font-size:10px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:3px}}
+  .askfab{{position:fixed;right:14px;bottom:calc(var(--safe-b) + 14px);z-index:8;border:1px solid #ffffff2b;background:#15151df0;
+    color:var(--ink);min-height:48px;padding:12px 16px;border-radius:999px;font:600 13.5px/1 "Space Grotesk",system-ui,sans-serif;
+    display:inline-flex;align-items:center;gap:8px;box-shadow:0 4px 18px #00000080}}
   details.unc{{display:inline-block;margin-left:auto}}
   details.unc summary{{list-style:none;cursor:pointer;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:var(--dim);border:1px dashed #ffffff2b}}
   details.unc summary::-webkit-details-marker{{display:none}}
@@ -477,7 +585,10 @@ page = f'''<!DOCTYPE html>
     </svg>
   </div>
   <div class="constellation" role="group" aria-label="Genres playing tonight">{sky_chips}</div>
-  <a class="chip" href="#{ordered[0]["id"]}">All shows ↓</a>
+  <div class="rail" style="justify-content:center;padding:0">
+    <a class="chip" href="#ask"><svg class="glyph" viewBox="0 0 20 20"><path d="M10 2a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm-5 8a5 5 0 0 0 10 0h1.6a6.6 6.6 0 0 1-5.8 6.55V19H8.2v-2.45A6.6 6.6 0 0 1 3.4 10z" fill="currentColor"/></svg>Ask for tonight</a>
+    <a class="chip" href="#{ordered[0]["id"]}">All shows ↓</a>
+  </div>
 </section>
 {cards_html}
 <section class="fin" id="fin">
@@ -488,6 +599,7 @@ page = f'''<!DOCTYPE html>
     <a class="chip" href="#sky">↑ Top</a>
   </div>
 </section>
+<a class="askfab" href="#ask" aria-label="Ask for tonight"><svg class="glyph" viewBox="0 0 20 20"><path d="M10 2a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3zm-5 8a5 5 0 0 0 10 0h1.6a6.6 6.6 0 0 1-5.8 6.55V19H8.2v-2.45A6.6 6.6 0 0 1 3.4 10z" fill="currentColor"/></svg>Ask</a>
 {lenses_html}
 <script>
 // Progressive enhancement only — the page is complete without this.
@@ -509,6 +621,36 @@ page = f'''<!DOCTYPE html>
     if(gone){{var f=document.getElementById('finline');
       f.textContent=gone+' earlier show'+(gone>1?'s':'')+' ended and are hidden. '+({len(SHOWS)}-gone)+' listed above, by start time.';}}
   }}catch(e){{console.error('flow clock enhancement failed (page remains complete without it):',e)}}
+}})();
+// Voice enhancement (founder round 9): browser speech recognition mapped
+// onto the SAME pre-computed desire lenses the chips reach by touch —
+// voice adds an input mode, never a different answer. Hidden when the
+// browser has no recognizer; failures log loudly.
+(function(){{
+  try{{
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    var mic=document.getElementById('micbtn'), note=document.getElementById('voicenote'), heard=document.getElementById('heard');
+    if(!mic)return;
+    if(!SR){{return}}
+    mic.hidden=false; note.textContent='Tap Speak it, allow the mic, and say what you feel like — or use the chips.';
+    mic.addEventListener('click',function(){{
+      var r=new SR(); r.lang='en-US'; r.maxAlternatives=1;
+      heard.textContent='listening…';
+      r.onresult=function(ev){{
+        var t=ev.results[0][0].transcript;
+        heard.textContent='heard: “'+t+'”';
+        var s=t.toLowerCase();
+        var dest=/danc|two.?step|cumbia|move/.test(s)?'#ask-dance'
+          :/quiet|chill|candle|jazz|listen|date/.test(s)?'#ask-quiet'
+          :/cheap|free|close|near|walk/.test(s)?'#ask-closecheap'
+          :/loud|heavy|punk|wall|rock/.test(s)?'#ask-loud':null;
+        if(dest)location.hash=dest;
+        else heard.textContent+=' — no match yet in this prototype; try a chip below.';
+      }};
+      r.onerror=function(e){{heard.textContent='voice error: '+e.error+' — the chips below do the same thing.';console.error('voice recognition:',e.error)}};
+      r.start();
+    }});
+  }}catch(e){{console.error('voice enhancement failed (chips remain fully functional):',e)}}
 }})();
 </script>
 </body>
