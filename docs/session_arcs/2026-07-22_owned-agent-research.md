@@ -117,7 +117,7 @@ PR. Highlights:
   assists), C "Doorman" (gate-served agent endpoint + agent-traffic log +
   revocable authority; the Phase-C moat). Recommendation: one funnel —
   B first (already gated), A as B's front door (behind legal + scan cap),
-  C in Phase C. Founder questions Q9–Q12 added.
+  C in Phase C. Founder questions Q9–Q13 added (Q13: §14 beyond-core consultant catalog stances — added at the founder's fourth directive with the PDF delivery).
 
 ## Open threads carried forward
 
