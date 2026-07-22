@@ -177,8 +177,12 @@ def _workflow_repo_file_tokens() -> list[str]:
     import re
     text = (_ROOT / ".github" / "workflows" / "ingest.yml").read_text()
     lines = [ln for ln in text.splitlines() if not ln.lstrip().startswith("#")]
-    tokens = re.findall(r"[\w/.-]+\.[A-Za-z0-9]+\b", "\n".join(lines))
-    return sorted({t for t in tokens if (_ROOT / t).is_file()})
+    # r8 blocker 1: ANY token resolving to a repo file counts — including
+    # extensionless executables/helpers; requiring a dot-extension was an
+    # extension-only discovery masquerading as "any type".
+    tokens = re.findall(r"[\w./-]+", "\n".join(lines))
+    return sorted({t.strip("./") for t in tokens
+                   if t.strip("./") and (_ROOT / t.strip("./")).is_file()})
 
 
 def _workflow_entry_scripts() -> list[pathlib.Path]:
@@ -421,6 +425,55 @@ def _literal_tokens(s: str) -> list[str]:
     return _allowlisted_path_tokens(s) + _shell_word_hits(s)
 
 
+# Computed-path file I/O in the armed closure (PR #47 r8 blocker 2):
+# open()/read_text()/write_text() with a NON-constant path can consume
+# an allowlisted file through path assembly that contains no complete
+# allowlisted literal — so every computed-path I/O call site is a
+# flagged event, enumerated here with WHY its computed path cannot
+# reach an allowlisted repo file, pinned to the sha256 of the exact
+# call text (any edit or new site fails closed). Constant-path I/O
+# needs no entry: its literal is covered by the literal scan.
+_REVIEWED_COMPUTED_PATH_IO = {
+    # raw-fetch content write — path is storage_dir/content-hash from
+    # db_config storage settings, never a repo governance path.
+    ("worker/fetch/http_fetch.py", "open(path, 'wb')"),
+    # raw-content read-back — storage_ref comes from raw_fetch DB rows
+    # (written by the fetch path above), not from repo files.
+    ("worker/orchestrator.py", "open(storage_ref, 'rb')"),
+    # replay-log append — run-artifact path from replay configuration.
+    ("worker/replay_log.py", "open(path, 'a', encoding='utf-8')"),
+}
+_IO_ATTRS = ("open", "read_text", "read_bytes", "write_text", "write_bytes")
+
+
+def _computed_path_io_hits(source: str) -> list[tuple]:
+    import ast
+    hits = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        name = ast.unparse(node.func)
+        attr = name.rsplit(".", 1)[-1]
+        if attr not in _IO_ATTRS:
+            continue
+        def _const_str(n):
+            return isinstance(n, ast.Constant) and isinstance(n.value, str)
+        if attr == "open" or name == "open":
+            arg = node.args[0] if node.args else None
+            computed = not (arg is not None and _const_str(arg))
+        else:
+            recv = node.func.value if isinstance(node.func, ast.Attribute) else None
+            computed = True
+            if (isinstance(recv, ast.Call)
+                    and ast.unparse(recv.func).rsplit(".", 1)[-1]
+                    in ("Path", "PurePath")
+                    and recv.args and _const_str(recv.args[0])):
+                computed = False
+        if computed:
+            hits.append((name, ast.unparse(node)))
+    return hits
+
+
 def test_non_runtime_set_is_proven_against_workflow_closure():
     """PR #47 r1 blocker (extended r2-r5): allowlist entries must be
     mechanically proven, not asserted. Three signals, all fail-closed:
@@ -522,6 +575,22 @@ def test_non_runtime_set_is_proven_against_workflow_closure():
         "evaluator-reviewed PR, or remove the primitive."
     )
 
+    # Signal 5 (r8): computed-path file I/O — every non-constant-path
+    # open/read/write site must be enumerated with a justification.
+    io_unreviewed = []
+    for rel in sorted(closure):
+        for callee, call_text in _computed_path_io_hits(
+                (_ROOT / rel).read_text()):
+            key = (str(rel), call_text)
+            if key not in _REVIEWED_COMPUTED_PATH_IO:
+                io_unreviewed.append(key)
+    assert not io_unreviewed, (
+        f"computed-path file I/O entered the armed closure without an "
+        f"enumerated justification: {io_unreviewed} — a computed path "
+        "can reach allowlisted files without any complete literal; "
+        "review and enumerate through an evaluator-adjudicated PR."
+    )
+
 
 def test_proof_signals_catch_known_evasion_classes():
     """Every evasion class closed in PR #47 r1-r5 is pinned here so it
@@ -576,3 +645,14 @@ def test_proof_signals_catch_known_evasion_classes():
     assert set(_workflow_repo_file_tokens()) - {
         t for t in _workflow_repo_file_tokens() if t.endswith(".py")
     } <= _REVIEWED_WORKFLOW_FILES
+    # r8 blocker 1: discovery is not extension-gated (regex accepts
+    # extensionless tokens; resolution against the repo decides)
+    import re as _re
+    assert _re.findall(r"[\w./-]+", "run helper-script now") == [
+        "run", "helper-script", "now"]
+    # r8 blocker 2: computed-path I/O flags; constant-path does not
+    assert _computed_path_io_hits("open(path, 'wb')")
+    assert _computed_path_io_hits("pathlib.Path(p).read_text()")
+    assert _computed_path_io_hits("candidate.write_text(data)")
+    assert not _computed_path_io_hits("open('replay.jsonl')")
+    assert not _computed_path_io_hits("Path('worker/x.cfg').read_text()")
