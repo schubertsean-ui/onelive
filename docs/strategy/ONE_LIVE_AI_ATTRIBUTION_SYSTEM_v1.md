@@ -206,6 +206,34 @@ classifiers, no agent judgment in the gate):
   ratified sheet; the gates are small scripts. The real cost is discipline —
   which is the point of M9.
 
+## 6b. Cross-venture applicability — the Promise Ledger (founder-directed addendum, 2026-07-22: "This work should also be useful re: press release aggregator")
+
+The ledger is arguably this system's FIRST-best consumer, not its second:
+
+1. **Its failure mode demands it.** The venture's stated defamation-adjacent
+   risk — a wrong "broken promise" stamp — is precisely an attribution
+   failure. Invariant 2 (verdicts graded and evidence-linked, never binary)
+   already requires per-claim provenance; the Layer-1 record is its formal
+   shape: filed document (accession-numbered Entity) → extraction Activity
+   (model, prompt_sha256, golden-set certification) → verdict + reviewing
+   Agent. One record schema serves both products.
+2. **It IS the whitespace.** Market-analysis whitespace row 5
+   ("text-disclosure provenance/verification — 'matches the filed 8-K,
+   verified issuer, unaltered' as a product property") and combinatorial play
+   #4 (verification × AI-slop crisis, Art. 50 turning compliance into brand)
+   describe exactly Layers 1–2 sold as a feature. The attribution engine
+   built for OneLive's gate is the mechanism behind that product property —
+   build once, deploy twice.
+3. **Art. 50 lands harder there.** The ledger publishes AI-derived text about
+   public companies — squarely the "public interest" deployer-disclosure
+   territory (human-review carve-out likely applies via the gate; disclose
+   anyway, per §2.3). Its agent-facing MCP feed should carry the Layer-1
+   record inline: agent consumers are the audience that READS machine
+   attribution, making the record itself a differentiator (Daloopa-class
+   buyers pay for auditability).
+4. **M9 transfers unchanged** — attribution integrity coverage/escape
+   semantics apply to claims exactly as to events.
+
 ## 7. Founder asks (consolidated — nothing proceeds without these)
 
 1. Ratify the three-layer design direction (§4) as the attribution canon.
