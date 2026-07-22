@@ -37,7 +37,8 @@
   .part text.n{fill:var(--glow);font-size:4.6px;font-weight:700}
   .constellation{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:360px}
   .constellation .chip b{color:var(--glow);font-weight:700;margin-left:5px}
-  .room{position:relative;min-height:70dvh;margin:0 10px 12px;border-radius:20px;overflow:hidden;
+  .room{position:relative;min-height:70dvh;margin:0 10px 18px;border-radius:20px;overflow:hidden;
+    border:1px solid #ffffff2e;box-shadow:0 6px 22px #00000066;
     display:flex;flex-direction:column;justify-content:flex-end;gap:2px;padding:14px 14px 12px;isolation:isolate}
   .room::before{content:"";position:absolute;inset:0;z-index:-2;background:var(--bg,#181822)}
   .room::after{content:"";position:absolute;inset:0;z-index:-1;opacity:.4;mix-blend-mode:overlay;pointer-events:none;
@@ -52,7 +53,9 @@
   .zone:active{background:#ffffff10}
   .zone .go,.vphoto .go{position:absolute;right:10px;top:12px;color:var(--dim);font-size:13px}
   .z-artist .who{font-family:Georgia,serif;font-size:clamp(24px,6.6vw,31px);line-height:1.05;margin-bottom:2px;padding-right:64px}
-  .times{color:var(--glow);font-weight:600;font-size:14.5px;margin-bottom:3px}
+  .times{color:var(--glow);font-weight:600;font-size:14.5px;margin-bottom:3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .pricetag{border:1px solid #ffffff30;border-radius:999px;padding:3px 10px;font-size:12px;color:var(--ink);font-weight:700}
+  .pricetag.free{border-color:#7BE0AD55;color:var(--mint)}
   .times .doors{color:var(--dim);font-weight:400}
   .livetag{color:var(--mint);font-weight:600}
   .spark{font-family:Georgia,serif;font-style:italic;font-size:15px;opacity:.94;max-width:34ch}
@@ -65,7 +68,7 @@
   .chip.snip i{font-style:normal;color:var(--glow)}
   .chip.free{border-color:#7BE0AD55;color:var(--mint)}
   .chip.genre b{color:var(--glow);font-weight:700}
-  .z-venue{display:block;border-top:1px solid #ffffff1c;margin:6px 0 0;background:#ffffff0a;border-radius:14px;overflow:hidden}
+  .z-venue{display:block;border:1px solid #ffffff22;margin:14px 0 0;background:#ffffff0d;border-radius:14px;overflow:hidden}
   .vphoto{position:relative;height:clamp(60px,8dvh,92px)}
   .vphoto svg{width:100%;height:100%;display:block}
   .vphoto .go{top:8px;background:#000000a8;padding:4px 10px;border-radius:999px}
@@ -165,7 +168,7 @@
     <a class="zone z-artist" href="#a-s01" aria-label="Artist: Marfa Lights Trio">
       <span class="go">artist ›</span>
       <h2 class="who">Marfa Lights Trio</h2>
-      <p class="times">7:30 PM<span class="livetag"></span></p>
+      <p class="times"><span>7:30 PM</span><span class="pricetag free">Free</span><span class="livetag"></span></p>
       <p class="spark">brushes-and-upright jazz, conversation-quiet</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Desert Static</span><span class="chip snip"><i>♪</i>Two Headlights</span></div>
@@ -185,7 +188,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip free">Free</span>
       <a class="chip genre" href="#g-jazz">Jazz <b>4</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://elephantroom.com">elephantroom.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -198,7 +200,7 @@
     <a class="zone z-artist" href="#a-s02" aria-label="Artist: The Deep End">
       <span class="go">artist ›</span>
       <h2 class="who">The Deep End</h2>
-      <p class="times">8:00 PM<span class="livetag"></span></p>
+      <p class="times"><span>8:00 PM</span><span class="pricetag">$10</span><span class="livetag"></span></p>
       <p class="spark">organ-trio soul jazz, simmering</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Undertow</span><span class="chip snip"><i>♪</i>Green Hammond</span><span class="chip snip"><i>♪</i>Last Call Waltz</span></div>
@@ -218,7 +220,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip">$10</span>
       <a class="chip genre" href="#g-jazz">Jazz <b>4</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://thesaxonpub.com">thesaxonpub.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -231,7 +232,7 @@
     <a class="zone z-artist" href="#a-s03" aria-label="Artist: Hondo Wells">
       <span class="go">artist ›</span>
       <h2 class="who">Hondo Wells</h2>
-      <p class="times">8:30 PM<span class="livetag"></span></p>
+      <p class="times"><span>8:30 PM</span><span class="pricetag">$8</span><span class="livetag"></span></p>
       <p class="spark">barroom country, a voice like worn leather</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Bexar County Line</span><span class="chip snip"><i>♪</i>Neon Novena</span></div>
@@ -251,7 +252,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip">$8</span>
       <a class="chip genre" href="#g-honky-tonk">Honky-tonk <b>3</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://continentalclub.com">continentalclub.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -264,7 +264,7 @@
     <a class="zone z-artist" href="#a-s04" aria-label="Artist: Velvet Casket">
       <span class="go">artist ›</span>
       <h2 class="who">Velvet Casket</h2>
-      <p class="times">9:00 PM <span class="doors">· doors 8:00 PM</span><span class="livetag"></span></p>
+      <p class="times"><span>9:00 PM <span class="doors">· doors 8:00 PM</span></span><span class="pricetag free">Free</span><span class="livetag"></span></p>
       <p class="spark">swamp-gospel stomp with brass and menace</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Graveyard Hymn</span><span class="chip snip"><i>♪</i>Brass Devil</span><span class="chip snip"><i>♪</i>Low Water</span></div>
@@ -284,7 +284,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip free">Free</span>
       <a class="chip genre" href="#g-gospel-punk">Gospel-punk <b>3</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://elephantroom.com">elephantroom.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -297,7 +296,7 @@
     <a class="zone z-artist" href="#a-s05" aria-label="Artist: Silver Spur Sisters">
       <span class="go">artist ›</span>
       <h2 class="who">Silver Spur Sisters</h2>
-      <p class="times">9:00 PM<span class="livetag"></span></p>
+      <p class="times"><span>9:00 PM</span><span class="pricetag free">Free</span><span class="livetag"></span></p>
       <p class="spark">three-part harmony over pedal steel</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Spur of the Moment</span><span class="chip snip"><i>♪</i>Dancehall Dust</span></div>
@@ -317,7 +316,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip free">Free</span>
       <a class="chip genre" href="#g-honky-tonk">Honky-tonk <b>3</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://thewhitehorseaustin.com">thewhitehorseaustin.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -330,7 +328,7 @@
     <a class="zone z-artist" href="#a-s06" aria-label="Artist: Orquesta Nube">
       <span class="go">artist ›</span>
       <h2 class="who">Orquesta Nube</h2>
-      <p class="times">9:00 PM<span class="livetag"></span></p>
+      <p class="times"><span>9:00 PM</span><span class="pricetag">$12</span><span class="livetag"></span></p>
       <p class="spark">nine-piece cumbia, horns like weather</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Nube Nueve</span><span class="chip snip"><i>♪</i>Tormenta</span></div>
@@ -350,7 +348,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip">$12</span>
       <a class="chip genre" href="#g-cumbia">Cumbia <b>4</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://thefaroutaustin.com">thefaroutaustin.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -363,7 +360,7 @@
     <a class="zone z-artist" href="#a-s07" aria-label="Artist: Knuckle Rose">
       <span class="go">artist ›</span>
       <h2 class="who">Knuckle Rose</h2>
-      <p class="times">9:30 PM <span class="doors">· doors 8:30 PM</span><span class="livetag"></span></p>
+      <p class="times"><span>9:30 PM <span class="doors">· doors 8:30 PM</span></span><span class="pricetag">$12</span><span class="livetag"></span></p>
       <p class="spark">outlaw country with a punk backbeat</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Rose Tattoo</span><span class="chip snip"><i>♪</i>Dead Man&#x27;s Hand</span><span class="chip snip"><i>♪</i>44 Blues</span></div>
@@ -383,7 +380,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip">$12</span>
       <a class="chip genre" href="#g-honky-tonk">Honky-tonk <b>3</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://stubbsaustin.com">stubbsaustin.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -396,7 +392,7 @@
     <a class="zone z-artist" href="#a-s08" aria-label="Artist: La Marea">
       <span class="go">artist ›</span>
       <h2 class="who">La Marea</h2>
-      <p class="times">9:30 PM<span class="livetag"></span></p>
+      <p class="times"><span>9:30 PM</span><span class="pricetag">$10</span><span class="livetag"></span></p>
       <p class="spark">coastal cumbia, accordion up front</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Marea Alta</span><span class="chip snip"><i>♪</i>Sal y Sol</span></div>
@@ -416,7 +412,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip">$10</span>
       <a class="chip genre" href="#g-cumbia">Cumbia <b>4</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://flamingocantina.com">flamingocantina.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -429,7 +424,7 @@
     <a class="zone z-artist" href="#a-s09" aria-label="Artist: Brass Ordinance">
       <span class="go">artist ›</span>
       <h2 class="who">Brass Ordinance</h2>
-      <p class="times">10:00 PM<span class="livetag"></span></p>
+      <p class="times"><span>10:00 PM</span><span class="pricetag">$10</span><span class="livetag"></span></p>
       <p class="spark">street-brass gospel-punk, twelve feet of horn</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Ordinance 9</span><span class="chip snip"><i>♪</i>Processional</span><span class="chip snip"><i>♪</i>Third Ward Stomp</span></div>
@@ -449,7 +444,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip">$10</span>
       <a class="chip genre" href="#g-gospel-punk">Gospel-punk <b>3</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://mohawkaustin.com">mohawkaustin.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -462,7 +456,7 @@
     <a class="zone z-artist" href="#a-s10" aria-label="Artist: Sonido Cascabel">
       <span class="go">artist ›</span>
       <h2 class="who">Sonido Cascabel</h2>
-      <p class="times">10:00 PM<span class="livetag"></span></p>
+      <p class="times"><span>10:00 PM</span><span class="pricetag free">Free</span><span class="livetag"></span></p>
       <p class="spark">psychedelic cumbia, snake-rattle percussion</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Cascabel</span><span class="chip snip"><i>♪</i>Vibora Verde</span></div>
@@ -482,7 +476,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip free">Free</span>
       <a class="chip genre" href="#g-cumbia">Cumbia <b>4</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://coralsnakebar.com">coralsnakebar.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -495,7 +488,7 @@
     <a class="zone z-artist" href="#a-s11" aria-label="Artist: Blue Prescription">
       <span class="go">artist ›</span>
       <h2 class="who">Blue Prescription</h2>
-      <p class="times">10:00 PM <span class="doors">· doors 9:00 PM</span><span class="livetag"></span></p>
+      <p class="times"><span>10:00 PM <span class="doors">· doors 9:00 PM</span></span><span class="pricetag">$15</span><span class="livetag"></span></p>
       <p class="spark">electric blues, heavy on the B-bender</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Refill</span><span class="chip snip"><i>♪</i>Night Nurse</span><span class="chip snip"><i>♪</i>Downtown Dosage</span></div>
@@ -515,7 +508,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip">$15</span>
       <a class="chip genre" href="#g-jazz">Jazz <b>4</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://antonesnightclub.com">antonesnightclub.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -528,7 +520,7 @@
     <a class="zone z-artist" href="#a-s12" aria-label="Artist: Bellhollow">
       <span class="go">artist ›</span>
       <h2 class="who">Bellhollow</h2>
-      <p class="times">10:15 PM<span class="livetag"></span></p>
+      <p class="times"><span>10:15 PM</span><span class="pricetag free">Free</span><span class="livetag"></span></p>
       <p class="spark">chorus-drenched shoegaze, slow-blooming</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Hollow Bell</span><span class="chip snip"><i>♪</i>Fadeout</span></div>
@@ -548,7 +540,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip free">Free</span>
       <a class="chip genre" href="#g-shoegaze">Shoegaze <b>2</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://cheerupcharlies.com">cheerupcharlies.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -561,7 +552,7 @@
     <a class="zone z-artist" href="#a-s13" aria-label="Artist: Reina Cortez y Los Fantasmas">
       <span class="go">artist ›</span>
       <h2 class="who">Reina Cortez y Los Fantasmas</h2>
-      <p class="times">10:30 PM<span class="livetag"></span></p>
+      <p class="times"><span>10:30 PM</span><span class="pricetag">$12</span><span class="livetag"></span></p>
       <p class="spark">cumbia noir — organ smoke over a two-step</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Fantasma Mío</span><span class="chip snip"><i>♪</i>Órgano Negro</span></div>
@@ -581,7 +572,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip">$12</span>
       <a class="chip genre" href="#g-cumbia">Cumbia <b>4</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://sagebrushtexas.com">sagebrushtexas.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -594,7 +584,7 @@
     <a class="zone z-artist" href="#a-s14" aria-label="Artist: Moon Court">
       <span class="go">artist ›</span>
       <h2 class="who">Moon Court</h2>
-      <p class="times">10:30 PM<span class="livetag"></span></p>
+      <p class="times"><span>10:30 PM</span><span class="pricetag free">Free</span><span class="livetag"></span></p>
       <p class="spark">late-night modal jazz, hushed and electric</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Recess</span><span class="chip snip"><i>♪</i>Lunar Docket</span></div>
@@ -614,7 +604,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip free">Free</span>
       <a class="chip genre" href="#g-jazz">Jazz <b>4</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://texashotelvegas.com">texashotelvegas.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -627,7 +616,7 @@
     <a class="zone z-artist" href="#a-s15" aria-label="Artist: DJ Cielo">
       <span class="go">artist ›</span>
       <h2 class="who">DJ Cielo</h2>
-      <p class="times">11:00 PM<span class="livetag"></span></p>
+      <p class="times"><span>11:00 PM</span><span class="pricetag">$10</span><span class="livetag"></span></p>
       <p class="spark">Latin trap into house, rooftop set</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Cielo Abierto</span></div>
@@ -647,7 +636,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip">$10</span>
       <a class="chip genre" href="#g-hip-hop">Hip-hop <b>2</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://speakeasyaustin.com">speakeasyaustin.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -660,7 +648,7 @@
     <a class="zone z-artist" href="#a-s16" aria-label="Artist: The Ninth Hour">
       <span class="go">artist ›</span>
       <h2 class="who">The Ninth Hour</h2>
-      <p class="times">11:00 PM<span class="livetag"></span></p>
+      <p class="times"><span>11:00 PM</span><span class="pricetag">$8</span><span class="livetag"></span></p>
       <p class="spark">doom-gospel choir over punk drums</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Nona</span><span class="chip snip"><i>♪</i>Canonical</span></div>
@@ -680,7 +668,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip">$8</span>
       <a class="chip genre" href="#g-gospel-punk">Gospel-punk <b>3</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://texashotelvegas.com">texashotelvegas.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -693,7 +680,7 @@
     <a class="zone z-artist" href="#a-s17" aria-label="Artist: Glass Anthem">
       <span class="go">artist ›</span>
       <h2 class="who">Glass Anthem</h2>
-      <p class="times">11:45 PM <span class="doors">· doors 11:00 PM</span><span class="livetag"></span></p>
+      <p class="times"><span>11:45 PM <span class="doors">· doors 11:00 PM</span></span><span class="pricetag">$15</span><span class="livetag"></span></p>
       <p class="spark tierc">✳ shoegaze wall, patient and enormous <small>— first notes</small></p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Pale Cathedral</span></div>
@@ -713,7 +700,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip">$15</span>
       <a class="chip genre" href="#g-shoegaze">Shoegaze <b>2</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word — this card demonstrates the low-confidence ✳ register (one source so far). Venue site: <a href="https://theparishaustin.com">theparishaustin.com</a> <em>(tap ? again to close)</em></p></div></details>
@@ -726,7 +712,7 @@
     <a class="zone z-artist" href="#a-s18" aria-label="Artist: Vantablonde">
       <span class="go">artist ›</span>
       <h2 class="who">Vantablonde</h2>
-      <p class="times">12:00 AM<span class="livetag"></span></p>
+      <p class="times"><span>12:00 AM</span><span class="pricetag">$12</span><span class="livetag"></span></p>
       <p class="spark">blackout-pop rap, strobe-lit</p>
     </a>
     <div class="snips"><span class="chip snip"><i>♪</i>Vanta</span><span class="chip snip"><i>♪</i>Peroxide</span></div>
@@ -746,7 +732,6 @@
       </div>
     </div>
     <div class="rail">
-      <span class="chip">$12</span>
       <a class="chip genre" href="#g-hip-hop">Hip-hop <b>2</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>Sample card — this show is a prototype fixture, not a real listing, and the venue details shown (distance, street, description) are illustrative too. In the product this panel shows the listing's real source and when it was last seen, with the venue's own site as the last word. Venue site: <a href="https://empireatx.com">empireatx.com</a> <em>(tap ? again to close)</em></p></div></details>

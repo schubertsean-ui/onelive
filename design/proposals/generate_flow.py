@@ -209,7 +209,7 @@ def card(s):
     <a class="zone z-artist" href="#a-{s["id"]}" aria-label="Artist: {E(s["artist"])}">
       <span class="go">artist ›</span>
       <h2 class="who">{E(s["artist"])}</h2>
-      <p class="times">{t_fmt(s["start"])}{doors}<span class="livetag"></span></p>
+      <p class="times"><span>{t_fmt(s["start"])}{doors}</span><span class="pricetag{" free" if s["price"] == "Free" else ""}">{s["price"]}</span><span class="livetag"></span></p>
       <p class="spark{" tierc" if tier_c else ""}">{spark}</p>
     </a>
     <div class="snips">{snips}</div>
@@ -229,7 +229,6 @@ def card(s):
       </div>
     </div>
     <div class="rail">
-      <span class="chip{" free" if s["price"] == "Free" else ""}">{s["price"]}</span>
       <a class="chip genre" href="#g-{slug(s["genre"])}">{E(s["genre"])} <b>{genre_counts[s["genre"]]}</b></a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>{unc_text}<a href="https://{v["site"]}">{v["site"]}</a> <em>(tap ? again to close)</em></p></div></details>
@@ -517,7 +516,8 @@ page = f'''<!DOCTYPE html>
   .part text.n{{fill:var(--glow);font-size:4.6px;font-weight:700}}
   .constellation{{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:360px}}
   .constellation .chip b{{color:var(--glow);font-weight:700;margin-left:5px}}
-  .room{{position:relative;min-height:70dvh;margin:0 10px 12px;border-radius:20px;overflow:hidden;
+  .room{{position:relative;min-height:70dvh;margin:0 10px 18px;border-radius:20px;overflow:hidden;
+    border:1px solid #ffffff2e;box-shadow:0 6px 22px #00000066;
     display:flex;flex-direction:column;justify-content:flex-end;gap:2px;padding:14px 14px 12px;isolation:isolate}}
   .room::before{{content:"";position:absolute;inset:0;z-index:-2;background:var(--bg,#181822)}}
   .room::after{{content:"";position:absolute;inset:0;z-index:-1;opacity:.4;mix-blend-mode:overlay;pointer-events:none;
@@ -532,7 +532,9 @@ page = f'''<!DOCTYPE html>
   .zone:active{{background:#ffffff10}}
   .zone .go,.vphoto .go{{position:absolute;right:10px;top:12px;color:var(--dim);font-size:13px}}
   .z-artist .who{{font-family:Georgia,serif;font-size:clamp(24px,6.6vw,31px);line-height:1.05;margin-bottom:2px;padding-right:64px}}
-  .times{{color:var(--glow);font-weight:600;font-size:14.5px;margin-bottom:3px}}
+  .times{{color:var(--glow);font-weight:600;font-size:14.5px;margin-bottom:3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}}
+  .pricetag{{border:1px solid #ffffff30;border-radius:999px;padding:3px 10px;font-size:12px;color:var(--ink);font-weight:700}}
+  .pricetag.free{{border-color:#7BE0AD55;color:var(--mint)}}
   .times .doors{{color:var(--dim);font-weight:400}}
   .livetag{{color:var(--mint);font-weight:600}}
   .spark{{font-family:Georgia,serif;font-style:italic;font-size:15px;opacity:.94;max-width:34ch}}
@@ -545,7 +547,7 @@ page = f'''<!DOCTYPE html>
   .chip.snip i{{font-style:normal;color:var(--glow)}}
   .chip.free{{border-color:#7BE0AD55;color:var(--mint)}}
   .chip.genre b{{color:var(--glow);font-weight:700}}
-  .z-venue{{display:block;border-top:1px solid #ffffff1c;margin:6px 0 0;background:#ffffff0a;border-radius:14px;overflow:hidden}}
+  .z-venue{{display:block;border:1px solid #ffffff22;margin:14px 0 0;background:#ffffff0d;border-radius:14px;overflow:hidden}}
   .vphoto{{position:relative;height:clamp(60px,8dvh,92px)}}
   .vphoto svg{{width:100%;height:100%;display:block}}
   .vphoto .go{{top:8px;background:#000000a8;padding:4px 10px;border-radius:999px}}
