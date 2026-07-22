@@ -116,8 +116,12 @@ def fetch_flips(api_key: str, check_id: str) -> list:
     claim is what R-023 PATH A exists to establish [R-023]). Separated
     for testability like fetch_checks; every failure disposition —
     including the 401/403/404 that IS the probe's answer — belongs to
-    the caller. The response body is a bare JSON array of
-    {"timestamp": <iso8601>, "up": 0|1} objects."""
+    the caller. The response body is a JSON array of
+    {"timestamp": <iso8601>, "up": 0|1} objects, either bare (upstream
+    repo docs) or wrapped as {"flips": [...]} (the hosted service wraps
+    exactly as its checks endpoint wraps in {"checks": [...]} — the
+    first live probe run answered 200 with a non-bare body, PR #51);
+    the caller normalizes both."""
     url = f"{API_URL}{check_id}/flips/?seconds={FLIPS_WINDOW_SECONDS}"
     req = urllib.request.Request(url, headers={"X-Api-Key": api_key})
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -174,16 +178,40 @@ def report_flips(api_key: str, check: dict) -> int:
             f"({type(exc).__name__}) — network/parse fault, NOT an "
             "access answer. Probe inconclusive, failing loud."
         )
+    # Normalize the two documented shapes: bare array (upstream repo
+    # docs) or {"flips": [...]} wrapper (the hosted service, mirroring
+    # its {"checks": [...]} wrapper — live-confirmed by the first probe
+    # run's 200-with-non-bare-body failure, PR #51).
+    if isinstance(flips, dict) and isinstance(flips.get("flips"), list):
+        flips = flips["flips"]
     if not isinstance(flips, list) or not all(
         isinstance(f, dict)
         and isinstance(f.get("timestamp"), str)
         and isinstance(f.get("up"), (int, bool))
         for f in flips
     ):
+        # Diagnose with STRUCTURE ONLY (types and key names, never
+        # values) so the next shape variant is one-look fixable without
+        # ever logging response content.
+        if isinstance(flips, dict):
+            shape = f"dict with keys {sorted(flips.keys())}"
+        elif isinstance(flips, list) and flips:
+            first = flips[0]
+            shape = (
+                f"list of {type(first).__name__}"
+                + (
+                    f" with keys {sorted(first.keys())}"
+                    if isinstance(first, dict)
+                    else ""
+                )
+            )
+        else:
+            shape = type(flips).__name__
         return _fail(
             "flips probe: the flips endpoint answered 200 but the body "
-            "is not the documented list of {timestamp, up} objects — "
-            "malformed response, failing loud."
+            "matches neither documented shape (bare array or {'flips': "
+            f"[...]}} wrapper of {{timestamp, up}} objects) — got {shape}. "
+            "Malformed response, failing loud."
         )
     name = check.get("name")
     print(

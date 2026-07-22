@@ -299,8 +299,22 @@ def test_report_flips_unexpected_http_code_fails_loud(env):
     assert _run(env, [_check()]) == 2
 
 
+def test_report_flips_wrapped_body_is_normalized(env, capsys):
+    """The hosted service wraps the array as {"flips": [...]} — mirroring
+    its {"checks": [...]} wrapper — while the upstream repo docs show a
+    bare array. The FIRST live probe run answered 200 with the wrapped
+    shape and the strict parser failed loud (PR #51, run 29963320514);
+    both shapes must now parse identically."""
+    env.setenv("REPORT_FLIPS", "1")
+    env.setattr(adp, "fetch_flips", lambda key, cid: {"flips": list(_FLIPS)})
+    assert _run(env, [_check()]) == 0
+    out = capsys.readouterr().out
+    assert "FLIP REPORT" in out and "1 DOWN" in out
+
+
 @pytest.mark.parametrize("bad_body", [
-    {"flips": []},                                   # object, not the array
+    {"other": []},                                   # dict without a flips list
+    {"flips": "nope"},                               # wrapper, wrong payload
     [{"timestamp": "2026-07-22T14:17:02+00:00"}],    # entry missing "up"
     [{"up": 1}],                                     # entry missing timestamp
     "nonsense",
@@ -309,6 +323,20 @@ def test_report_flips_malformed_response_fails_loud(env, bad_body):
     env.setenv("REPORT_FLIPS", "1")
     env.setattr(adp, "fetch_flips", lambda key, cid: bad_body)
     assert _run(env, [_check()]) == 2
+
+
+def test_report_flips_malformed_failure_diagnoses_structure_only(env, capsys):
+    """An unrecognized 200 body must fail with type/key-name structure in
+    the message (one-look fixable next time) and NEVER response values."""
+    env.setenv("REPORT_FLIPS", "1")
+    env.setattr(
+        adp, "fetch_flips",
+        lambda key, cid: {"surprise": ["secret-value-never-logged"]},
+    )
+    assert _run(env, [_check()]) == 2
+    err = capsys.readouterr().err
+    assert "dict with keys ['surprise']" in err
+    assert "secret-value-never-logged" not in err
 
 
 @pytest.mark.parametrize("value", [None, "0", "true", "yes", ""])
