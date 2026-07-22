@@ -229,7 +229,7 @@ def card(s):
       </div>
     </div>
     <div class="rail">
-      <a class="chip genre" href="#g-{slug(s["genre"])}">{E(s["genre"])} <b>{genre_counts[s["genre"]]}</b></a>
+      <a class="chip genre" href="#g-{slug(s["genre"])}" aria-label="{genre_counts[s["genre"]] - 1} other {E(s["genre"])} show{"s" if genre_counts[s["genre"]] - 1 != 1 else ""} tonight"><b>{genre_counts[s["genre"]] - 1}</b>other {E(s["genre"])}</a>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>{unc_text}<a href="https://{v["site"]}">{v["site"]}</a> <em>(tap ? again to close)</em></p></div></details>
     </div>
@@ -546,7 +546,7 @@ page = f'''<!DOCTYPE html>
   .chip.snip{{min-height:38px;padding:7px 12px;font-size:12.5px}}
   .chip.snip i{{font-style:normal;color:var(--glow)}}
   .chip.free{{border-color:#7BE0AD55;color:var(--mint)}}
-  .chip.genre b{{color:var(--glow);font-weight:700}}
+  .chip.genre b{{color:var(--glow);font-weight:700;font-size:11px;align-self:center}}
   .z-venue{{display:block;border:1px solid #ffffff22;margin:14px 0 0;background:#ffffff0d;border-radius:14px;overflow:hidden}}
   .vphoto{{position:relative;height:clamp(60px,8dvh,92px)}}
   .vphoto svg{{width:100%;height:100%;display:block}}
