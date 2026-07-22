@@ -96,7 +96,7 @@ def extract_candidate(
         if preserve_discarded_claims(meta, discarded_times):
             logger.error(
                 "source %r: _provenance was malformed (non-dict) — replaced "
-                "so the undated time claims stay preserved; original kept "
+                "so the unstored datetime claims stay preserved; original kept "
                 "under _provenance_malformed_original.", source_name,
             )
     # Re-attach provider meta so it persists in the `extracted` jsonb column.
