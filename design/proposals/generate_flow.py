@@ -128,6 +128,12 @@ def t_fmt(t):
     return f"{h}:{m:02d} {ap}"
 
 
+def map_url(v):
+    # Apple Maps universal link — native app on iOS, web map elsewhere.
+    from urllib.parse import quote
+    return "https://maps.apple.com/?q=" + quote(f'{v["addr"]}, Austin TX')
+
+
 def austin_svg(dot):
     return (f'<svg viewBox="0 0 44 50">'
             f'<path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/>'
@@ -216,9 +222,9 @@ def card(s):
       <span class="vrow">
         <span class="minimap" aria-hidden="true">{austin_svg(v["dot"])}</span>
         <span class="vtext"><span class="vname">{E(v["name"])}</span>
-          <span class="vchar">{E(v["char"])}</span>
-          <span class="vmeta">{E(v["addr"])} · {v["dist"]}</span></span>
+          <span class="vchar">{E(v["char"])}</span></span>
       </span></a>
+      <p class="vmeta" style="padding:0 12px 2px"><a class="maplink" href="{map_url(v)}" target="_blank" rel="noopener">{E(v["addr"])}&thinsp;↗</a> · {v["dist"]}</p>
       <div class="vfoot">
         {special}
         <a class="vnearby" href="#n-{v["area"]}">See nearby ›</a>
@@ -269,7 +275,7 @@ def venue_lens(vk):
   <h3 class="who">{E(v["name"])}</h3><p class="spark">{E(v["char"])}</p>
   <p class="gnote" style="margin:2px 0 8px">Sample venue details — the address, distance, and description here are illustrative for this prototype, not verified facts about the business. The product draws them from a sourced, freshness-stamped pipeline.</p>
   <div class="mapline"><span class="minimap" aria-hidden="true">{austin_svg(v["dot"])}</span>
-  <dl style="margin:0"><dt>Address</dt><dd>{E(v["addr"])} · {v["dist"]}</dd>
+  <dl style="margin:0"><dt>Address</dt><dd><a class="maplink" href="{map_url(v)}" target="_blank" rel="noopener">{E(v["addr"])}&thinsp;↗</a> · {v["dist"]}</dd>
   <dt>Tonight here</dt><dd>{here}</dd>
   <dt>Their site</dt><dd><a href="https://{v["site"]}" target="_blank" rel="noopener">{v["site"]}&thinsp;↗</a></dd></dl></div>
   {special}
@@ -557,6 +563,7 @@ page = f'''<!DOCTYPE html>
   .vspecial small{{display:block;color:var(--dim);font-size:10px;letter-spacing:.06em;text-transform:uppercase}}
   .vnearby{{border:1px solid #ffffff2b;background:#ffffff12;min-height:40px;padding:10px 13px;border-radius:999px;font:600 12.5px/1 inherit;display:inline-flex;align-items:center}}
   .vsite{{font-size:12.5px;color:var(--glow);text-decoration:underline;text-underline-offset:2px}}
+  .maplink{{color:var(--glow);text-decoration:underline;text-underline-offset:2px}}
   .minimap{{flex:none;width:48px;height:52px;border-radius:10px;background:#ffffff10;display:grid;place-items:center}}
   .minimap svg{{width:40px;height:46px}}
   .minimap .austin-shape{{fill:#ffffff14;stroke-width:1.4}}
