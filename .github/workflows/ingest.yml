@@ -42,12 +42,13 @@ on:
     # :00 congestion window where GitHub delays or drops scheduled runs. A
     # missed run is caught by the dead-man check (period 20min + grace),
     # not by log-reading.
-    # Minutes shifted 7,27,47 -> 9,29,49 on 2026-07-22 (founder-approved):
-    # GitHub's scheduler never picked up the original schedule (zero
-    # schedule-event runs across 9+ slots; workflow active, disable/enable
-    # performed by the founder without effect). A byte-change to this file
-    # on the default branch forces full schedule re-registration — the
-    # cadence itself is unchanged at every 20 minutes.
+    # Minutes shifted 7,27,47 -> 9,29,49 on 2026-07-22 (founder-approved)
+    # to prompt scheduler re-registration; cadence unchanged (every 20
+    # min). Registration cannot be proven pre-merge (schedules register
+    # only from the default branch): the success criterion is the first
+    # schedule-event run id (docs/RECORD.md R-008), and continued absence
+    # is detected FAIL-CLOSED by the dead-man alarm within period+grace
+    # (~30 min) of the last ping. Incident record: R-008 row, 2026-07-22.
     - cron: "9,29,49 * * * *"
   workflow_dispatch:
     inputs:

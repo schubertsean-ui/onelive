@@ -1,5 +1,5 @@
 {
-  "purpose": "PR #43 arming evidence: the head-branch smoke run that proves the armed ingestion code end-to-end. tests/test_arming_smoke_binding.py mechanically verifies the reviewed head is runtime-code-identical to this run's commit (only docs/, TODOS.md, tests/ may differ - none of which execute in the armed workflow).",
+  "purpose": "Step-5 arming evidence: the green ingest.yml run proving the ARMED workflow BODY executes end-to-end (fetch->extract->gate3->candidate store->dead-man assertion->artifact). SCOPE (PR #46 r1): this run is workflow_dispatch \u2014 it proves the changed workflow body and runtime, and deliberately does NOT claim to prove GitHub schedule REGISTRATION, which cannot be exercised from a PR branch (schedules register only from the default branch). Registration has its own fail-closed verification chain: the success criterion is the first schedule-event run id (docs/RECORD.md R-008, OPEN until recorded), and ABSENCE of scheduled runs is not invisible \u2014 the healthchecks dead-man alarm fires within period+grace (~30 min) of the last ping, as it demonstrably did throughout the 2026-07-22 scheduler stall. tests/test_arming_smoke_binding.py mechanically verifies the reviewed head is runtime-code-identical to this run's commit and authenticates the run via the Actions API (REQUIRED in trust-gate).",
   "run_id": "29891680942",
   "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29891680942",
   "job_id": "88833207273",
@@ -17,5 +17,6 @@
     "29877305892 (head 00901ebd - pre-R-021-fix)",
     "29876232668 (head 91eacd21 - pre-r17 asserter; rotation + pipeline proof)",
     "29873390712 (master@1244783f - infrastructure proof)"
-  ]
+  ],
+  "registration_note": "Incident: zero schedule-event runs across 9+ slots (01:07-04:47Z) on cron 7,27,47 despite active workflow, verified config, and founder disable/enable at ~04:07Z; this PR's minute shift is the strongest remaining re-registration signal. Full record: R-008 row + FRICTION/changelog on the session branch."
 }
