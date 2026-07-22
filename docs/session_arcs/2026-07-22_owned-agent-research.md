@@ -80,6 +80,45 @@ folded into the doc as Part II (§§12–17), same PR:
 Founder questions extended to Q1–Q8 (Q6 F6 ratification, Q7 the E-standard,
 Q8 open+private as canon).
 
+## Third directive (same session): B2A/GEO market assessment + toolkit options
+
+Founder directed a full market assessment (McKinsey-style opportunity,
+SWOT + Porter, Value Prop Design + Neumaier onliness, po + Six Hats,
+consumer cost/margins, best-3 toolkit options at ~zero customer cost,
+"no-brainer" bar). Delivered:
+`docs/strategy/ONE_LIVE_B2A_GEO_MARKET_ASSESSMENT_v1.md` (PROPOSAL), same
+PR. Highlights:
+
+- **Landscape:** Profound ($1B valuation, enterprise), Peec, Scrunch,
+  Otterly; agencies at $1.5k–$25k/mo; Yext-class listings incumbents at
+  $200–500/yr/location; ACP/AP2 agentic-commerce rails live. Nobody serves
+  local live culture; the window is ~12–18 months.
+- **Demand:** 45% of consumers use AI for local recommendations (from 6%
+  YoY); 83% of restaurant locations invisible in AI answers; answers name
+  only 3–5 businesses.
+- **CORRECTION (Kaizen M2 row, caught pre-merge):** Part II's llms.txt
+  adoption/Lighthouse claim was vendor-sourced and is contradicted by
+  Ahrefs' 137k-site study (97% unread) and Google's own statements —
+  tempered in the same commit; the real levers are pipe consistency
+  (Foursquare ~70% of ChatGPT local, Yelp, Bing Places), reviews as a
+  confidence threshold, JSON-LD, and OneLive as a citable source.
+- **Po battery run** (mandatory, divergent moment): seed 20260722, word
+  "kite", full P1–P8.6; harvest H1–H8 in the doc §9; M6 ledger row added.
+  Dead ends logged: P6 absurd ("the toolkit performs the concerts") and
+  P8.5 ("every AI is always right about everyone") produced no adoptable
+  candidates beyond H8's scoreboard framing.
+- **Six Hats** with the single-model independence caveat stated in-doc;
+  Black hat explicitly defers to the PR's non-Claude evaluator; standing
+  Blue conflict preserved (Mirror hook value vs engine-TOS/cost risk),
+  resolution deferred to the Phase-A friction gate with legal input.
+- **Three options:** A "Mirror" (report-card hook, max no-brainer force,
+  the only real COGS + a TOS/legal question), B "Feed" (verified presence
+  kit = the already-gated Phases A/B, upgraded with pipe-consistency
+  assists), C "Doorman" (gate-served agent endpoint + agent-traffic log +
+  revocable authority; the Phase-C moat). Recommendation: one funnel —
+  B first (already gated), A as B's front door (behind legal + scan cap),
+  C in Phase C. Founder questions Q9–Q12 added.
+
 ## Open threads carried forward
 
 - Founder Q1–Q5 (doc §10) — nothing in the Owned Agent section of TODOS is

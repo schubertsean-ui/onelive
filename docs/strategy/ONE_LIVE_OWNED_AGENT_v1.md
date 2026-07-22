@@ -339,11 +339,19 @@ every OTHER agent now arriving on the web. The industry has a name for this:
 behalf, so that when an agent browses, evaluates, or books, it reads the
 business's data correctly and can select it. The standards are forming NOW:
 
-- **llms.txt** — a plain-text agent briefing at the domain root; [844,000+
-  sites have adopted it and Google merged an llms.txt check into Chrome's
-  Lighthouse in April 2026](https://www.platinum.ai/what-is-llms-txt),
-  making it a formal web-quality signal. Small venues will not write these
-  themselves — we can generate them, correctly, from verified data.
+- **llms.txt** — a plain-text agent briefing at the domain root. CLAIM
+  CORRECTED 2026-07-22 (same day, deeper research for the B2A market
+  assessment — see `ONE_LIVE_B2A_GEO_MARKET_ASSESSMENT_v1.md` §1): the
+  adoption/Lighthouse framing here came from a vendor source and is
+  contradicted by stronger evidence — [Ahrefs' 137k-site study found 97%
+  of llms.txt files get zero AI-bot reads](https://ahrefs.com/blog/llmstxt-study/)
+  and [Google states no AI system currently uses
+  llms.txt](https://www.seroundtable.com/google-ai-llms-txt-39607.html).
+  Status accordingly: a zero-cost HEDGE we can emit for free, never a
+  promise or a headline feature. The real B2A levers are entity
+  consistency across the pipes agents actually read (Foursquare, Yelp,
+  Bing Places) + JSON-LD + our own citable verified surface — assessment
+  doc §3.4.
 - **NLWeb** — [an emerging convention for exposing a site as a
   conversational endpoint agents can query](https://techcommunity.microsoft.com/blog/azure-ai-foundry-blog/the-future-of-ai-optimize-your-site-for-agents---its-cool-to-be-a-tool/4434189)
   (MCP-compatible under the hood).
