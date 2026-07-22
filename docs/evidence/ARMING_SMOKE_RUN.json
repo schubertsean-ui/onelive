@@ -1,20 +1,21 @@
 {
   "purpose": "PR #43 arming evidence: the head-branch smoke run that proves the armed ingestion code end-to-end. tests/test_arming_smoke_binding.py mechanically verifies the reviewed head is runtime-code-identical to this run's commit (only docs/, TODOS.md, tests/ may differ - none of which execute in the armed workflow).",
-  "run_id": "29880824040",
-  "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29880824040",
-  "job_id": "88801108515",
-  "run_head_sha": "ced27571b3ea7745200506d9db237bdaa0bc8431",
+  "run_id": "29891680942",
+  "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29891680942",
+  "job_id": "88833207273",
+  "run_head_sha": "85274fb13706205227a2aa37e5a415462859609a",
+  "run_head_note": "PR #46 head - the cron re-registration change (minutes 7,27,47 -> 9,29,49, cadence unchanged); this run executed the changed workflow end-to-end on the PR branch",
   "conclusion": "success",
-  "runreport_run_id": "see replay artifact",
-  "artifact_id": "8514695783",
-  "artifact_zip_sha256": "4f70f3342191d0fe920419ba9617b4628c579bf68511593c9d88d0e130beec13",
-  "deadman_assertion": "step 6 conclusion=success (00:38:49-50Z) incl. the /log binding probe",
+  "event": "workflow_dispatch (max_sources=5; PR #46 verification run)",
+  "artifact_id": "8518472541",
+  "artifact_zip_sha256": "76261f4f9d82912e1e9c5ec8d9f9fa208de0a0c44c0d2afff6c7726c77a0f86b",
+  "deadman_assertion": "step 6 'Assert dead-man period' GREEN 04:40:31-33Z (period 1200s/grace 600s unchanged by the minute shift; /log ping-binding probe included)",
   "superseded_runs": [
+    "29885464970 (master ab6819a - the standing master evidence, superseded on THIS branch only by the workflow change under review)",
     "29878215502 (head 0c7de33e - pre-split final combined head)",
     "29878035857 (head 81cf939b - R-021 fix live proof)",
     "29877305892 (head 00901ebd - pre-R-021-fix)",
     "29876232668 (head 91eacd21 - pre-r17 asserter; rotation + pipeline proof)",
     "29873390712 (master@1244783f - infrastructure proof)"
-  ],
-  "r021_fix_live_proof": "the R-021 fix now enters via MASTER (PR #44 merged, 53f6f9f); this run executed the slimmed arming head that includes it"
+  ]
 }
