@@ -11,6 +11,10 @@ from ai.prompts import EXTRACTION_SYSTEM_PROMPT
 from ai.provider import AIProvider
 from worker.ai_models import AIEventExtraction
 from worker.candidate_store import create_candidate, add_evidence, record_ai_degradation
+from worker.datetime_normalize import (
+    normalize_extracted_datetimes,
+    preserve_discarded_claims,
+)
 from worker.gating import multi_confirm_gate
 
 logger = logging.getLogger(__name__)
@@ -74,6 +78,27 @@ def extract_candidate(
     # null case, which is the common one when the model finds no city).
     if not shaped.get("city"):
         shaped["city"] = "Austin"
+    # R-021 (PR #43): store a timestamp ONLY when the extracted string
+    # evidences a full calendar date — never fabricate one. Time-only
+    # claims ("6pm") become NULL with the raw claim preserved in
+    # provenance; the candidate row still reaches ops review, so no false
+    # fact is asserted and no event is lost to a formatting detail.
+    discarded_times = normalize_extracted_datetimes(shaped)
+    if discarded_times:
+        logger.warning(
+            "source %r: datetime claim(s) refused (stored as NULL, raw + "
+            "reason preserved in provenance): %s",
+            source_name, discarded_times,
+        )
+        # preserve_discarded_claims REPLACES a malformed _provenance rather
+        # than silently skipping preservation (PR #44 r1 blocker) — the
+        # malformed original is kept under _provenance_malformed_original.
+        if preserve_discarded_claims(meta, discarded_times):
+            logger.error(
+                "source %r: _provenance was malformed (non-dict) — replaced "
+                "so the unstored datetime claims stay preserved; original kept "
+                "under _provenance_malformed_original.", source_name,
+            )
     # Re-attach provider meta so it persists in the `extracted` jsonb column.
     shaped.update(meta)
 
