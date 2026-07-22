@@ -3,127 +3,134 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ONE LIVE — Direction 4: FLOW v2.3 (interactive prototype)</title>
+<title>ONE LIVE — Direction 4: FLOW v3 (interactive prototype)</title>
 <!--
-  FLOW v2.3.1 — founder round 6 (2026-07-22): "Less chaos. Real shows."
-  REMOVED at founder direction — a founder edit to the ratified brief's
-  verbatim-copy canon, logged in the changelog (the product is about
-  finding and engaging in experiences, helping individuals and the
-  culture thrive — not about chaos). Masthead is now the edition name
-  alone.
-  FLOW v2.3 — founder round 5 (2026-07-22): venue photo COMBINED into the
-  venue block below the band name (photo cap + listing + specials + See
-  nearby, one door); up to 3 SnipTunes per artist (named-track listen
-  chips under the tagline); start time moved beside the artist name with
-  "doors X:XX" when relevant; per-venue NEARBY lens — bars, restaurants,
-  clubs around the room with a street-level map, 5-min-walk ring, and
-  honest transport guidance (walk / pedicab / ride by distance); a
-  labeled "from the venue" specials slot in every venue section (display
-  space only — specials NEVER touch ranking, per the no-pay-to-rank
-  invariant).
-  FLOW v2.2 — founder round 4 (2026-07-22):
-  1. DEFAULT ORDER IS TIME, FROM NOW: with no user-directed choice the
-     river lists shows by start time, current to later, using the
-     phone's real clock. Shows that already ENDED (start + ~3h) are
-     never rendered — nobody scrolls through a night that's over. A
-     show that has STARTED but is plausibly still on stays, tagged
-     "on now". (All three demo shows are evening; open this during the
-     day and nothing hides — that's the rule working.)
-  2. START SCREEN — the city as the universe: a full-screen Austin
-     outline with the Colorado River, four tappable parts of town
-     (Downtown / Red River / East Side / South) each with tonight's
-     count, and under it the genre constellation — every genre playing
-     the city today with a number beside it.
-  3. Tap a genre -> ALL of tonight's cards in that genre, nearest-first
-     inside each time slot; rows that are in the flow below jump to
-     their room.
-  4. Tap a part of the city -> every venue and artist playing that part
-     of town tonight, by start time.
-  Everything from v2.1 kept: photo tiles, venue site links, Austin
-  mini-maps, dual-anchored doors, either-order lenses, dense peeking
-  rooms, bounded edition. Fictional artists; real Austin venues as
-  setting (PART A). Zero dependencies. Open on a PHONE.
+  FLOW v3 — founder round 7 (2026-07-22): "I'm only seeing the first and
+  last page. And not everything at night. Don't embellish with branding
+  or taglines. Stay focused on the cards and the information."
+  Two root causes fixed:
+  1. RENDER BUG: card content was hidden at opacity 0 until an
+     IntersectionObserver applied a reveal class at 55% visibility —
+     cards taller than the viewport can never reach 55%, so middle
+     cards showed as empty color fields. Content is now ALWAYS visible;
+     no reveal gating.
+  2. NOT EVERYTHING: the river carried 3 hand-built cards while the
+     city dataset had 18 shows. The river now renders EVERY show
+     tonight as a card, in one time-ordered flow, from a single data
+     array — cards, sky counts, genre lists, and area lists all derive
+     from the same data so they cannot disagree.
+  Also: all flourish/tagline copy stripped; remaining text is
+  information or plain instruction. Retained from rounds 3-6: combined
+  venue block (photo cap + listing + labeled venue special + See
+  nearby), SnipTunes (up to 3), start time + doors beside the artist
+  name, Austin outline maps, genre counts, area lenses, time-truth
+  (ended shows never render in the river; lens rows mark them "ended";
+  started-and-live shows tagged "on now").
+  Fictional artists; real Austin venues as setting. Zero dependencies.
 -->
 <style>
   :root{
     --ink:#F4EFE6; --dim:#BDB5A6; --night:#0B0B10; --night2:#15151D;
-    --ember:#FF7A45; --glow:#FFC77D; --mint:#CFF5E2; --thread:#5B5B70; --river:#7FB4D6;
+    --ember:#FF7A45; --glow:#FFC77D; --mint:#CFF5E2; --river:#7FB4D6;
     --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:var(--night);color:var(--ink);font:15.5px/1.42 "Space Grotesk",system-ui,sans-serif;height:100dvh;overflow:hidden}
-  .river{height:100dvh;overflow-y:auto;scroll-snap-type:y proximity;overscroll-behavior-y:contain;scroll-behavior:smooth;padding-bottom:20dvh}
+  .river{height:100dvh;overflow-y:auto;scroll-snap-type:y proximity;overscroll-behavior-y:contain;scroll-behavior:smooth;padding-bottom:16dvh}
   .masthead{position:sticky;top:0;z-index:6;display:flex;justify-content:space-between;align-items:baseline;
     padding:calc(var(--safe-t) + 10px) 18px 10px;background:linear-gradient(#0B0B10f2,#0B0B10e6 70%,transparent);backdrop-filter:blur(8px)}
   .masthead h1{font-size:14px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
-  .masthead .tag{font-size:11.5px;color:var(--dim);font-style:italic}
-  .thread{position:fixed;right:8px;top:18dvh;bottom:18dvh;width:2px;background:linear-gradient(var(--thread),transparent);z-index:6}
-  .thread i{position:absolute;left:-3px;width:8px;height:8px;border-radius:50%;background:var(--dim);transition:.3s}
-  .thread i.on{background:var(--ember);box-shadow:0 0 12px var(--ember)}
+  .masthead .now{font-size:11.5px;color:var(--dim)}
 
-  /* ---- START SCREEN: the city as the universe ---- */
-  .sky{position:relative;min-height:92dvh;scroll-snap-align:start;display:flex;flex-direction:column;align-items:center;
+  .sky{position:relative;min-height:88dvh;scroll-snap-align:start;display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:10px;padding:10px 16px 24px;text-align:center}
-  .sky h2{font-family:Georgia,serif;font-size:clamp(24px,6.4vw,31px)}
-  .sky .sub{color:var(--dim);font-style:italic;font-size:13.5px}
-  .citymap{width:min(78vw,340px)}
+  .sky h2{font-family:Georgia,serif;font-size:clamp(22px,6vw,29px)}
+  .sky .sub{color:var(--dim);font-size:13.5px}
+  .citymap{width:min(74vw,330px)}
   .citymap svg{width:100%;height:auto;display:block}
   .austin-shape{fill:#ffffff0d;stroke:#BDB5A6;stroke-width:.9}
   .austin-river{fill:none;stroke:var(--river);stroke-width:1.2;opacity:.85}
   .austin-dot{fill:var(--ember)} .austin-ring{fill:none;stroke:var(--ember);opacity:.5}
   .part{cursor:pointer}
-  .part circle{fill:#FF7A4522;stroke:#FF7A4577;stroke-width:.7;transition:.2s}
-  .part:active circle,.part:focus circle{fill:#FF7A4544}
+  .part circle{fill:#FF7A4522;stroke:#FF7A4577;stroke-width:.7}
+  .part:active circle{fill:#FF7A4544}
   .part text{fill:var(--ink);font:600 3.4px "Space Grotesk",system-ui,sans-serif;letter-spacing:.04em}
   .part text.n{fill:var(--glow);font-size:4.6px;font-weight:700}
   .constellation{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:360px}
   .constellation .chip b{color:var(--glow);font-weight:700;margin-left:5px}
-  .flowdown{margin-top:6px;color:var(--dim)}
 
-  /* rooms: dense, next one peeking under the fold */
-  .room{position:relative;min-height:80dvh;scroll-snap-align:start;margin:0 10px 12px;border-radius:20px;overflow:hidden;
+  .room{position:relative;min-height:72dvh;scroll-snap-align:start;margin:0 10px 12px;border-radius:20px;overflow:hidden;
     display:flex;flex-direction:column;justify-content:flex-end;gap:2px;padding:14px 14px 12px;isolation:isolate}
   .room::before{content:"";position:absolute;inset:0;z-index:-2;background:var(--bg,#181822)}
-  .room::after{content:"";position:absolute;inset:0;z-index:-1;opacity:.45;mix-blend-mode:overlay;pointer-events:none;
+  .room::after{content:"";position:absolute;inset:0;z-index:-1;opacity:.4;mix-blend-mode:overlay;pointer-events:none;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E")}
-  .rise{transform:translateY(18px);opacity:0;transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .5s}
-  .room.here .rise{transform:none;opacity:1}
-  .onnow{border-color:#7BE0AD88;color:var(--mint)}
 
-  .media{display:flex;gap:8px;margin-bottom:6px}
-  .ph{flex:1;position:relative;border-radius:12px;overflow:hidden;height:clamp(84px,12dvh,118px);background:#000}
+  .ph{position:relative;border-radius:12px;overflow:hidden;background:#000}
   .ph svg{width:100%;height:100%;display:block}
   .ph figcaption{position:absolute;left:8px;bottom:6px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
     color:#F4EFE6;background:#000000a8;padding:3px 8px;border-radius:999px}
+  .aphoto{height:clamp(76px,10dvh,110px);margin-bottom:6px}
 
   .zone{border-radius:14px;padding:10px 12px;position:relative;cursor:pointer;background:none;border:0;color:inherit;font:inherit;text-align:left;width:100%}
   .zone:active{background:#ffffff10}
   .zone .go{position:absolute;right:10px;top:12px;color:var(--dim);font-size:13px}
-  .z-artist .who{font-family:Georgia,serif;font-size:clamp(26px,7vw,33px);line-height:1.05;margin-bottom:2px;padding-right:64px}
+  .z-artist .who{font-family:Georgia,serif;font-size:clamp(24px,6.6vw,31px);line-height:1.05;margin-bottom:2px;padding-right:64px}
   .times{color:var(--glow);font-weight:600;font-size:14.5px;margin-bottom:3px}
   .times .doors{color:var(--dim);font-weight:400}
-  .times.onnow{color:var(--mint)}
-  .spark{font-family:Georgia,serif;font-style:italic;font-size:15.5px;opacity:.94;max-width:34ch}
-  .spark.tierc{color:var(--dim);font-size:14.5px}.spark.tierc small{font-style:normal;font-size:11px}
+  .times .onnow{color:var(--mint)}
+  .spark{font-family:Georgia,serif;font-style:italic;font-size:15px;opacity:.94;max-width:34ch}
+  .spark.tierc{color:var(--dim);font-size:14px}.spark.tierc small{font-style:normal;font-size:11px}
   .snips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
   .snips .chip{min-height:38px;padding:7px 12px;font-size:12.5px;font-weight:600}
   .snips .chip i{font-style:normal;color:var(--glow)}
-  /* venue block: photo + listing combined under the band (round 5) */
+
   .z-venue{display:block;border-top:1px solid #ffffff1c;margin-top:6px;background:#ffffff0a;border-radius:14px;overflow:hidden;padding:0}
-  .vphoto{position:relative;height:clamp(72px,10dvh,104px)}
+  .vphoto{position:relative;height:clamp(60px,8dvh,92px)}
   .vphoto svg{width:100%;height:100%;display:block}
   .vphoto .go{top:8px;right:10px;background:#000000a8;padding:4px 10px;border-radius:999px}
   .vrow{display:flex;align-items:center;gap:10px;padding:8px 12px 6px}
   .vtext{display:flex;flex-direction:column;gap:1px;min-width:0}
-  .vname{font-weight:700;font-size:16.5px}
-  .vchar{color:var(--dim);font-size:13.5px;font-style:italic}
+  .vname{font-weight:700;font-size:16px}
+  .vchar{color:var(--dim);font-size:13px;font-style:italic}
   .vmeta{font-size:12.5px;color:var(--glow)}
   .vmeta a{color:var(--glow);text-decoration:underline;text-underline-offset:2px}
   .vfoot{display:flex;align-items:center;gap:8px;padding:0 12px 10px;flex-wrap:wrap}
-  .vspecial{flex:1;min-width:180px;font-size:12.5px;color:var(--mint);border:1px dashed #7BE0AD44;border-radius:10px;padding:7px 10px}
+  .vspecial{flex:1;min-width:170px;font-size:12.5px;color:var(--mint);border:1px dashed #7BE0AD44;border-radius:10px;padding:7px 10px}
   .vspecial small{display:block;color:var(--dim);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
   .vnearby{appearance:none;border:1px solid #ffffff2b;background:#ffffff12;color:var(--ink);min-height:40px;padding:8px 13px;border-radius:999px;font:600 12.5px/1 inherit;cursor:pointer}
-  /* nearby lens: street-level map + spots + how-to-get-there */
+  .minimap{flex:none;width:48px;height:52px;border-radius:10px;background:#ffffff10;display:grid;place-items:center}
+  .minimap svg{width:40px;height:46px}
+  .minimap .austin-shape{fill:#ffffff14;stroke-width:1.4}
+  .minimap .austin-river{stroke-width:1.6}
+
+  .rail{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
+  .chip,button.chip{appearance:none;border:1px solid #ffffff2b;background:#ffffff12;color:var(--ink);
+    min-height:44px;padding:9px 14px;border-radius:999px;font:600 13.5px/1 inherit;display:inline-flex;align-items:center;gap:7px;cursor:pointer}
+  button.chip:active{transform:scale(.97)}
+  .chip.free{border-color:#7BE0AD55;color:var(--mint)}
+  .chip.genre b{color:var(--glow);font-weight:700}
+
+  .lens{position:fixed;inset:0;z-index:20;background:#000000f4;display:none;flex-direction:column;
+    padding:calc(var(--safe-t) + 60px) 20px calc(var(--safe-b) + 20px);overflow-y:auto}
+  .lens.on{display:flex}
+  .lens .who{font-family:Georgia,serif;font-size:clamp(24px,6.6vw,32px);margin-bottom:4px}
+  .lens .ph{flex:none;height:clamp(100px,16dvh,160px);margin-bottom:12px}
+  .lens dl{margin:10px 0 14px;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px}
+  .lens dt{color:var(--dim)} .lens dd a{color:var(--glow)}
+  .lens .back{position:fixed;top:calc(var(--safe-t) + 12px);left:14px;z-index:2}
+  .lens .switch{position:fixed;top:calc(var(--safe-t) + 12px);right:14px;z-index:2}
+  .lens .mapline{display:flex;align-items:center;gap:12px}
+  .lens .mapline .minimap{width:60px;height:66px}.lens .mapline .minimap svg{width:50px;height:58px}
+
+  .gcard{display:flex;align-items:baseline;gap:10px;border:1px solid #ffffff22;background:#ffffff0d;border-radius:14px;padding:12px 14px;margin-top:8px;
+    width:100%;color:inherit;font:inherit;text-align:left;cursor:pointer;appearance:none}
+  .gcard:active{background:#ffffff1a}
+  .gcard .gwho{font-family:Georgia,serif;font-size:17px}
+  .gcard .gmeta{margin-left:auto;text-align:right;font-size:12.5px;color:var(--dim);white-space:nowrap}
+  .gcard .gmeta b{color:var(--glow);font-weight:600}
+  .gcard.ended{opacity:.45;cursor:default}
+  .gcard .etag{font-size:10.5px;color:var(--dim);border:1px solid #ffffff33;border-radius:999px;padding:2px 7px;white-space:nowrap}
+
   .nearmap{position:relative;border-radius:14px;overflow:hidden;background:#101018;margin-bottom:10px}
   .nearmap svg{width:100%;height:auto;display:block}
   .near-street{stroke:#ffffff18;stroke-width:1.6;fill:none}
@@ -135,39 +142,6 @@
   .ncard .nwho{font-weight:700}
   .ncard .ntype{color:var(--dim);font-size:12px;font-style:italic}
   .ncard .nhow{margin-left:auto;text-align:right;font-size:12px;color:var(--mint);white-space:nowrap}
-  .minimap{flex:none;width:52px;height:56px;border-radius:10px;background:#ffffff10;display:grid;place-items:center}
-  .minimap svg{width:44px;height:50px}
-  .minimap .austin-shape{fill:#ffffff14;stroke-width:1.4}
-  .minimap .austin-river{stroke-width:1.6}
-
-  .rail{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
-  .chip,button.chip{appearance:none;border:1px solid #ffffff2b;background:#ffffff12;color:var(--ink);
-    min-height:44px;padding:9px 14px;border-radius:999px;font:600 13.5px/1 inherit;display:inline-flex;align-items:center;gap:7px;cursor:pointer}
-  button.chip:active{transform:scale(.97)}
-  .chip.t{color:var(--glow)} .chip.free{border-color:#7BE0AD55;color:var(--mint)}
-  .chip.genre b{color:var(--glow);font-weight:700}
-  .glyph{width:16px;height:16px;flex:none}
-
-  .lens{position:fixed;inset:0;z-index:20;background:#000000f2;display:flex;flex-direction:column;justify-content:flex-end;
-    padding:calc(var(--safe-t) + 60px) 20px calc(var(--safe-b) + 20px);
-    opacity:0;pointer-events:none;transform:translateX(7%);transition:opacity .32s,transform .4s cubic-bezier(.2,.8,.2,1);overflow-y:auto}
-  .lens.on{opacity:1;pointer-events:auto;transform:none}
-  .lens .who{font-family:Georgia,serif;font-size:clamp(26px,7vw,34px);margin-bottom:6px}
-  .lens .ph{flex:none;height:clamp(110px,18dvh,170px);margin-bottom:12px}
-  .lens dl{margin:10px 0 16px;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px}
-  .lens dt{color:var(--dim)} .lens dd a{color:var(--glow)}
-  .lens .back{position:absolute;top:calc(var(--safe-t) + 12px);left:14px;z-index:2}
-  .lens .switch{position:absolute;top:calc(var(--safe-t) + 12px);right:14px;z-index:2}
-  .lens .mapline{display:flex;align-items:center;gap:12px}
-  .lens .mapline .minimap{width:64px;height:70px}.lens .mapline .minimap svg{width:54px;height:62px}
-
-  .gcard{display:flex;align-items:baseline;gap:10px;border:1px solid #ffffff22;background:#ffffff0d;border-radius:14px;padding:12px 14px;margin-top:8px;
-    width:100%;cursor:default;color:inherit;font:inherit;text-align:left}
-  button.gcard{cursor:pointer}button.gcard:active{background:#ffffff1a}
-  .gcard .gwho{font-family:Georgia,serif;font-size:18px}
-  .gcard .gflow{font-size:10.5px;color:var(--mint);border:1px solid #7BE0AD55;border-radius:999px;padding:2px 7px;white-space:nowrap}
-  .gcard .gmeta{margin-left:auto;text-align:right;font-size:12.5px;color:var(--dim);white-space:nowrap}
-  .gcard .gmeta b{color:var(--glow);font-weight:600}
   .gnote{font-size:12px;color:var(--dim);margin-top:10px}
 
   details.unc{display:inline-block}
@@ -176,465 +150,294 @@
   details.unc .sheet{position:fixed;left:14px;right:14px;bottom:calc(var(--safe-b) + 14px);background:var(--night2);border:1px solid #ffffff22;border-radius:16px;padding:16px;z-index:30;font-size:14px}
   .sheet a{color:var(--glow)} .sheet button{min-height:44px;margin-top:8px}
 
-  .fin{min-height:50dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;scroll-snap-align:start}
-  .fin h2{font-family:Georgia,serif;font-size:clamp(24px,6.5vw,30px)}
-  .fin p{color:var(--dim);font-style:italic;margin:8px 0 16px}
-  @media (prefers-reduced-motion:reduce){.rise,.lens{transition:none}.river{scroll-behavior:auto}}
+  .fin{min-height:40dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;scroll-snap-align:start;gap:6px}
+  .fin h2{font-family:Georgia,serif;font-size:clamp(22px,6vw,28px)}
+  .fin p{color:var(--dim);font-size:14px}
+  @media (prefers-reduced-motion:reduce){.river{scroll-behavior:auto}}
 </style>
 </head>
 <body>
 <div class="river" id="river">
-  <header class="masthead"><h1>Tonight in Austin</h1></header>
-  <nav class="thread" aria-hidden="true"><i class="on" style="top:0%"></i><i style="top:25%"></i><i style="top:50%"></i><i style="top:75%"></i><i style="top:100%"></i></nav>
+  <header class="masthead"><h1>Tonight in Austin</h1><span class="now" id="nowlabel"></span></header>
 
-  <!-- START SCREEN: the city tonight -->
-  <section class="sky" data-dot="0" id="sky">
-    <h2 id="skyline">Tonight: 18 bands, 16 rooms.</h2>
-    <p class="sub">Tap a part of town, a genre — or just flow.</p>
-    <div class="citymap" role="group" aria-label="Austin, by part of town">
-      <svg viewBox="0 0 44 50">
-        <path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/>
-        <path class="austin-river" d="M2 20q10 3 16 7t24 9"/>
-        <g class="part" role="button" tabindex="0" data-lens="ar-dt" aria-label="Downtown: 5 shows tonight">
-          <circle cx="19" cy="24" r="6"/><text x="19" y="23" text-anchor="middle">DOWN—</text><text x="19" y="26.6" text-anchor="middle">TOWN</text><text class="n" x="19" y="31.4" text-anchor="middle">5</text>
-        </g>
-        <g class="part" role="button" tabindex="0" data-lens="ar-rr" aria-label="Red River: 4 shows tonight">
-          <circle cx="28" cy="17" r="5"/><text x="28" y="16.4" text-anchor="middle">RED</text><text x="28" y="20" text-anchor="middle">RIVER</text><text class="n" x="28" y="24.4" text-anchor="middle">4</text>
-        </g>
-        <g class="part" role="button" tabindex="0" data-lens="ar-e" aria-label="East Side: 5 shows tonight">
-          <circle cx="34" cy="30" r="5.6"/><text x="34" y="29.6" text-anchor="middle">EAST</text><text class="n" x="34" y="34" text-anchor="middle">5</text>
-        </g>
-        <g class="part" role="button" tabindex="0" data-lens="ar-s" aria-label="South: 4 shows tonight">
-          <circle cx="19" cy="40" r="5.6"/><text x="19" y="39.6" text-anchor="middle">SOUTH</text><text class="n" x="19" y="44" text-anchor="middle">4</text>
-        </g>
-      </svg>
-    </div>
-    <div class="constellation" role="group" aria-label="Genres playing tonight">
-      <button class="chip" type="button" data-lens="g1">Gospel-punk<b>3</b></button>
-      <button class="chip" type="button" data-lens="g2">Cumbia<b>4</b></button>
-      <button class="chip" type="button" data-lens="g4">Jazz<b>4</b></button>
-      <button class="chip" type="button" data-lens="g5">Honky-tonk<b>3</b></button>
-      <button class="chip" type="button" data-lens="g6">Hip-hop<b>2</b></button>
-      <button class="chip" type="button" data-lens="g3">Shoegaze<b>2</b></button>
-    </div>
-    <button class="chip flowdown" type="button" onclick="document.getElementById('r1').scrollIntoView()">flow ↓</button>
+  <section class="sky" id="sky">
+    <h2 id="skyline"></h2>
+    <p class="sub">Tap a part of town or a genre — or scroll for all of tonight, by start time.</p>
+    <div class="citymap" role="group" aria-label="Austin, by part of town" id="citymap"></div>
+    <div class="constellation" role="group" aria-label="Genres playing tonight" id="genrechips"></div>
+    <button class="chip" type="button" onclick="document.querySelector('.room')?.scrollIntoView()">All shows ↓</button>
   </section>
 
-  <!-- ROOM 1 -->
-  <section class="room" id="r1" data-dot="1" data-start="21:00" style="--bg:radial-gradient(140% 110% at 28% 0%, #3D1F14 0%, #14101A 70%)">
-    <div class="media rise" aria-hidden="true">
-      <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
-        <defs><linearGradient id="s1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4A2418"/><stop offset="1" stop-color="#120C0E"/></linearGradient></defs>
-        <rect width="160" height="100" fill="url(#s1)"/>
-        <polygon points="80,0 34,100 126,100" fill="#FFC77D" opacity=".14"/>
-        <ellipse cx="80" cy="96" rx="60" ry="8" fill="#FFC77D" opacity=".12"/>
-        <path d="M62 62q4-14 10-14t8 12l2 40h-22z" fill="#0A0708"/><circle cx="72" cy="44" r="7" fill="#0A0708"/>
-        <path d="M96 66q3-10 8-10t7 9l2 35h-19z" fill="#0A0708"/><circle cx="104" cy="52" r="6" fill="#0A0708"/>
-        <path d="M42 70q3-8 7-8t6 8l2 30h-17z" fill="#0A0708"/><circle cx="49" cy="58" r="5.5" fill="#0A0708"/>
-        <rect x="70" y="30" width="2" height="26" fill="#0A0708"/><circle cx="71" cy="28" r="3" fill="#0A0708"/>
-      </svg><figcaption>Velvet Casket</figcaption></figure>
-    </div>
-    <div class="zone z-artist rise" role="button" tabindex="0" data-lens="a1" aria-label="Learn the artist: Velvet Casket">
-      <span class="go">artist ›</span>
-      <h2 class="who">Velvet Casket</h2>
-      <p class="times">9:00 PM <span class="doors">· doors 8:00</span></p>
-      <p class="spark">swamp-gospel stomp with brass and menace</p>
-      <div class="snips" aria-label="SnipTunes — three listens">
-        <button class="chip" type="button"><i>♪</i>Graveyard Hymn</button>
-        <button class="chip" type="button"><i>♪</i>Brass Devil</button>
-        <button class="chip" type="button"><i>♪</i>Low Water</button>
-      </div>
-    </div>
-    <div class="zone z-venue rise" role="button" tabindex="0" data-lens="v1" aria-label="Learn the venue: Elephant Room">
-      <div class="vphoto" aria-hidden="true"><span class="go">venue ›</span><svg viewBox="0 0 160 44" preserveAspectRatio="xMidYMid slice">
-        <defs><linearGradient id="r1g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#241812"/><stop offset="1" stop-color="#0C0809"/></linearGradient></defs>
-        <rect width="160" height="44" fill="url(#r1g)"/>
-        <path d="M20 44V20q60-14 120 0v24z" fill="#160F0C"/>
-        <circle cx="46" cy="28" r="2" fill="#FFC77D"/><circle cx="80" cy="25" r="2" fill="#FFC77D"/><circle cx="116" cy="28" r="2" fill="#FFC77D"/>
-        <ellipse cx="80" cy="36" rx="40" ry="3" fill="#FFC77D" opacity=".2"/>
-      </svg></div>
-      <div class="vrow">
-        <span class="minimap" aria-hidden="true"><svg viewBox="0 0 44 50">
-          <path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/>
-          <path class="austin-river" d="M2 20q10 3 16 7t24 9"/>
-          <circle class="austin-ring" cx="21" cy="26" r="5"/><circle class="austin-dot" cx="21" cy="26" r="2.6"/>
-        </svg></span>
-        <span class="vtext"><span class="vname">Elephant Room</span>
-          <span class="vchar">basement jazz cellar, candle-dark, standing</span>
-          <span class="vmeta">0.4 mi · Congress Ave · <a href="https://elephantroom.com" target="_blank" rel="noopener">elephantroom.com&thinsp;↗</a></span></span>
-      </div>
-      <div class="vfoot">
-        <span class="vspecial"><small>from the venue</small>Happy hour til 8 — well drinks $5</span>
-        <button class="vnearby" type="button" data-lens="n1">See nearby ›</button>
-      </div>
-    </div>
-    <div class="rail rise">
-      <span class="chip free">Free</span>
-      <button class="chip genre" type="button" data-lens="g1" aria-label="Gospel-punk: 3 bands tonight — see them all">Gospel-punk <b>3 tonight</b></button>
-      <details class="unc"><summary aria-label="Something off? How we know">?</summary>
-        <div class="sheet" role="dialog" aria-label="How we know"><p>From the venue's public calendar, seen 40 minutes ago. The room is the last word: <a href="https://elephantroom.com">elephantroom.com</a></p>
-        <button class="chip" type="button" onclick="this.closest('details').removeAttribute('open')">Got it</button></div></details>
-    </div>
-  </section>
-
-  <!-- ROOM 2 -->
-  <section class="room" id="r2" data-dot="2" data-start="22:30" style="--bg:radial-gradient(140% 110% at 72% 0%, #14283D 0%, #10141C 70%)">
-    <div class="media rise" aria-hidden="true">
-      <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
-        <defs><linearGradient id="s2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1A3550"/><stop offset="1" stop-color="#0A1018"/></linearGradient></defs>
-        <rect width="160" height="100" fill="url(#s2)"/>
-        <polygon points="50,0 20,100 90,100" fill="#7FB4D6" opacity=".12"/><polygon points="112,0 82,100 152,100" fill="#FF7A45" opacity=".10"/>
-        <path d="M52 60q4-12 9-12t7 11l2 41h-20z" fill="#060A0E"/><circle cx="60" cy="44" r="6.5" fill="#060A0E"/>
-        <path d="M88 64q3-9 7-9t6 9l2 36h-17z" fill="#060A0E"/><circle cx="95" cy="50" r="5.5" fill="#060A0E"/>
-        <path d="M116 66q3-8 6-8t6 8l1 34h-15z" fill="#060A0E"/><circle cx="122" cy="53" r="5" fill="#060A0E"/>
-        <rect x="30" y="76" width="14" height="20" rx="2" fill="#060A0E"/>
-      </svg><figcaption>Reina Cortez</figcaption></figure>
-    </div>
-    <div class="zone z-artist rise" role="button" tabindex="0" data-lens="a2" aria-label="Learn the artist: Reina Cortez y Los Fantasmas">
-      <span class="go">artist ›</span>
-      <h2 class="who">Reina Cortez y Los Fantasmas</h2>
-      <p class="times">10:30 PM</p>
-      <p class="spark">cumbia noir — organ smoke over a two-step</p>
-      <div class="snips" aria-label="SnipTunes — two listens">
-        <button class="chip" type="button"><i>♪</i>Fantasma Mío</button>
-        <button class="chip" type="button"><i>♪</i>Órgano Negro</button>
-      </div>
-    </div>
-    <div class="zone z-venue rise" role="button" tabindex="0" data-lens="v2" aria-label="Learn the venue: Sagebrush">
-      <div class="vphoto" aria-hidden="true"><span class="go">venue ›</span><svg viewBox="0 0 160 44" preserveAspectRatio="xMidYMid slice">
-        <defs><linearGradient id="r2g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#26170F"/><stop offset="1" stop-color="#0E0806"/></linearGradient></defs>
-        <rect width="160" height="44" fill="url(#r2g)"/>
-        <rect x="0" y="36" width="160" height="8" fill="#191009"/>
-        <path d="M10 36V12h20v24zM130 36V12h20v24z" fill="#130C08"/>
-        <circle cx="55" cy="22" r="2" fill="#FFC77D"/><circle cx="80" cy="19" r="2" fill="#FFC77D"/><circle cx="105" cy="22" r="2" fill="#FFC77D"/>
-        <path d="M40 36q40-10 80 0" fill="none" stroke="#FFC77D" stroke-width="1" opacity=".3"/>
-      </svg></div>
-      <div class="vrow">
-        <span class="minimap" aria-hidden="true"><svg viewBox="0 0 44 50">
-          <path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/>
-          <path class="austin-river" d="M2 20q10 3 16 7t24 9"/>
-          <circle class="austin-ring" cx="20" cy="40" r="5"/><circle class="austin-dot" cx="20" cy="40" r="2.6"/>
-        </svg></span>
-        <span class="vtext"><span class="vname">Sagebrush</span>
-          <span class="vchar">honky-tonk roadhouse, big floor, dancers welcome</span>
-          <span class="vmeta">2.1 mi · S Congress · <a href="https://sagebrushtexas.com" target="_blank" rel="noopener">sagebrushtexas.com&thinsp;↗</a></span></span>
-      </div>
-      <div class="vfoot">
-        <span class="vspecial"><small>from the venue</small>Late-nite taco truck on the patio til 1 AM</span>
-        <button class="vnearby" type="button" data-lens="n2">See nearby ›</button>
-      </div>
-    </div>
-    <div class="rail rise">
-      <span class="chip">$12</span>
-      <button class="chip genre" type="button" data-lens="g2" aria-label="Cumbia: 4 bands tonight — see them all">Cumbia <b>4 tonight</b></button>
-    </div>
-  </section>
-
-  <!-- ROOM 3 (tier-C register) -->
-  <section class="room" id="r3" data-dot="3" data-start="23:45" style="--bg:radial-gradient(140% 110% at 45% 0%, #262038 0%, #100F16 70%)">
-    <div class="media rise" aria-hidden="true">
-      <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
-        <defs><linearGradient id="s3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#332B4E"/><stop offset="1" stop-color="#0E0C14"/></linearGradient></defs>
-        <rect width="160" height="100" fill="url(#s3)"/>
-        <rect x="0" y="0" width="160" height="100" fill="#8F7FD6" opacity=".08"/>
-        <path d="M66 58q4-13 9-13t8 12l2 43h-21z" fill="#08060C"/><circle cx="75" cy="41" r="7" fill="#08060C"/>
-        <path d="M100 64q3-9 6-9t6 9l2 36h-16z" fill="#08060C"/><circle cx="106" cy="51" r="5.5" fill="#08060C"/>
-        <ellipse cx="80" cy="98" rx="70" ry="6" fill="#8F7FD6" opacity=".15"/>
-        <rect x="36" y="60" width="3" height="38" fill="#08060C"/><rect x="30" y="56" width="16" height="8" rx="2" fill="#08060C"/>
-      </svg><figcaption>Glass Anthem</figcaption></figure>
-    </div>
-    <div class="zone z-artist rise" role="button" tabindex="0" data-lens="a3" aria-label="Learn the artist: Glass Anthem">
-      <span class="go">artist ›</span>
-      <h2 class="who">Glass Anthem</h2>
-      <p class="times">11:45 PM <span class="doors">· doors 11:00</span></p>
-      <p class="spark tierc">✳ shoegaze wall, patient and enormous <small>— first notes</small></p>
-      <div class="snips" aria-label="SnipTunes — one listen">
-        <button class="chip" type="button"><i>♪</i>Pale Cathedral</button>
-      </div>
-    </div>
-    <div class="zone z-venue rise" role="button" tabindex="0" data-lens="v3" aria-label="Learn the venue: The Parish">
-      <div class="vphoto" aria-hidden="true"><span class="go">venue ›</span><svg viewBox="0 0 160 44" preserveAspectRatio="xMidYMid slice">
-        <defs><linearGradient id="r3g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1E1A2C"/><stop offset="1" stop-color="#0B0910"/></linearGradient></defs>
-        <rect width="160" height="44" fill="url(#r3g)"/>
-        <path d="M20 44V18q28-12 60-12t60 12v26z" fill="#141020"/>
-        <path d="M35 20q45-13 90 0" fill="none" stroke="#FFC77D" stroke-width="1" opacity=".5"/>
-        <circle cx="80" cy="14" r="2.4" fill="#FFC77D" opacity=".8"/>
-        <rect x="0" y="40" width="160" height="4" fill="#191426"/>
-      </svg></div>
-      <div class="vrow">
-        <span class="minimap" aria-hidden="true"><svg viewBox="0 0 44 50">
-          <path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/>
-          <path class="austin-river" d="M2 20q10 3 16 7t24 9"/>
-          <circle class="austin-ring" cx="24" cy="24" r="5"/><circle class="austin-dot" cx="24" cy="24" r="2.6"/>
-        </svg></span>
-        <span class="vtext"><span class="vname">The Parish</span>
-          <span class="vchar">upstairs ballroom, famous ceiling, loud and close</span>
-          <span class="vmeta">0.7 mi · Brazos St · <a href="https://theparishaustin.com" target="_blank" rel="noopener">theparishaustin.com&thinsp;↗</a></span></span>
-      </div>
-      <div class="vfoot">
-        <span class="vspecial"><small>from the venue</small>Late-nite menu after midnight</span>
-        <button class="vnearby" type="button" data-lens="n3">See nearby ›</button>
-      </div>
-    </div>
-    <div class="rail rise">
-      <span class="chip">$15</span>
-      <button class="chip genre" type="button" data-lens="g3" aria-label="Shoegaze: 2 bands tonight — see them all">Shoegaze <b>2 tonight</b></button>
-      <details class="unc"><summary aria-label="Something off? How we know">?</summary>
-        <div class="sheet" role="dialog" aria-label="How we know"><p>One listing so far; waiting on a second source. Check the room: <a href="https://theparishaustin.com">theparishaustin.com</a></p>
-        <button class="chip" type="button" onclick="this.closest('details').removeAttribute('open')">Got it</button></div></details>
-    </div>
-  </section>
-
-  <section class="fin" data-dot="4">
-    <h2>That's tonight.</h2><p id="finline">Three rooms in the flow, sixteen in the city. Gone tomorrow — back at dusk.</p>
+  <section class="fin" id="fin">
+    <h2>End of tonight's list.</h2>
+    <p id="finline"></p>
     <div class="rail" style="justify-content:center">
       <button class="chip" type="button">Share my night</button>
-      <button class="chip" type="button" onclick="document.getElementById('river').scrollTo({top:0})">↑ Back to the city</button>
+      <button class="chip" type="button" onclick="document.getElementById('river').scrollTo({top:0})">↑ Top</button>
     </div>
   </section>
 </div>
 
-<!-- ARTIST / VENUE LENSES -->
-<div class="lens" id="a1" role="region" aria-label="Artist: Velvet Casket">
-  <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button" data-to="v1">the venue ›</button>
-  <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><rect width="160" height="100" fill="#2C1710"/><polygon points="80,0 30,100 130,100" fill="#FFC77D" opacity=".15"/><path d="M62 58q4-14 10-14t8 12l2 44h-22z" fill="#0A0708"/><circle cx="72" cy="40" r="7.5" fill="#0A0708"/><path d="M96 64q3-10 8-10t7 9l2 37h-19z" fill="#0A0708"/><circle cx="104" cy="49" r="6" fill="#0A0708"/></svg><figcaption>Velvet Casket</figcaption></figure>
-  <h3 class="who">Velvet Casket</h3><p class="spark">swamp-gospel stomp with brass and menace</p>
-  <dl><dt>Sounds like</dt><dd>a revival tent two blocks off Bourbon</dd><dt>Tonight</dt><dd>9:00 PM · Free · Elephant Room</dd></dl>
-  <div class="rail"><button class="chip" type="button"><svg class="glyph" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>Hear it</button><button class="chip" type="button">Save for tonight</button></div>
+<!-- Reusable lenses, filled from data -->
+<div class="lens" id="Lartist" role="region" aria-label="Artist detail">
+  <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button">the venue ›</button>
+  <div class="lbody"></div>
 </div>
-<div class="lens" id="v1" role="region" aria-label="Venue: Elephant Room">
-  <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button" data-to="a1">the artist ›</button>
-  <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><rect width="160" height="100" fill="#1C110B"/><path d="M20 100V44q60-30 120 0v56z" fill="#140D09"/><circle cx="46" cy="68" r="2.6" fill="#FFC77D"/><circle cx="80" cy="64" r="2.6" fill="#FFC77D"/><circle cx="116" cy="69" r="2.6" fill="#FFC77D"/><ellipse cx="80" cy="80" rx="46" ry="5" fill="#FFC77D" opacity=".2"/></svg><figcaption>Elephant Room</figcaption></figure>
-  <h3 class="who">Elephant Room</h3><p class="spark">basement jazz cellar, candle-dark, standing room</p>
-  <div class="mapline"><span class="minimap" aria-hidden="true"><svg viewBox="0 0 44 50"><path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/><path class="austin-river" d="M2 20q10 3 16 7t24 9"/><circle class="austin-ring" cx="21" cy="26" r="5"/><circle class="austin-dot" cx="21" cy="26" r="2.6"/></svg></span>
-  <dl style="margin:0"><dt>Address</dt><dd>315 Congress Ave · 0.4 mi</dd><dt>Tonight here</dt><dd>Marfa Lights Trio 7:30 · Velvet Casket 9:00</dd><dt>Their site</dt><dd><a href="https://elephantroom.com" target="_blank" rel="noopener">elephantroom.com&thinsp;↗</a></dd></dl></div>
-  <p class="vspecial" style="margin-top:12px"><small>from the venue</small>Happy hour til 8 — well drinks $5</p>
-  <div class="rail" style="margin-top:14px"><button class="vnearby" type="button" data-lens="n1">See nearby ›</button><button class="chip" type="button">Save for tonight</button></div>
+<div class="lens" id="Lvenue" role="region" aria-label="Venue detail">
+  <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button">the artist ›</button>
+  <div class="lbody"></div>
 </div>
-<div class="lens" id="a2" role="region" aria-label="Artist: Reina Cortez y Los Fantasmas">
-  <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button" data-to="v2">the venue ›</button>
-  <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><rect width="160" height="100" fill="#122438"/><polygon points="54,0 24,100 94,100" fill="#7FB4D6" opacity=".14"/><path d="M52 56q4-12 9-12t7 11l2 45h-20z" fill="#060A0E"/><circle cx="60" cy="40" r="7" fill="#060A0E"/><path d="M88 62q3-9 7-9t6 9l2 38h-17z" fill="#060A0E"/><circle cx="95" cy="47" r="5.5" fill="#060A0E"/></svg><figcaption>Reina Cortez y Los Fantasmas</figcaption></figure>
-  <h3 class="who">Reina Cortez y Los Fantasmas</h3><p class="spark">cumbia noir — organ smoke over a two-step</p>
-  <dl><dt>Tonight</dt><dd>10:30 PM · $12 · Sagebrush</dd></dl>
-  <div class="rail"><button class="chip" type="button"><svg class="glyph" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>Hear it</button><button class="chip" type="button">Save for tonight</button></div>
-</div>
-<div class="lens" id="v2" role="region" aria-label="Venue: Sagebrush">
-  <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button" data-to="a2">the artist ›</button>
-  <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><rect width="160" height="100" fill="#20130C"/><rect x="0" y="82" width="160" height="18" fill="#170E08"/><path d="M10 82V28h22v54zM128 82V28h22v54z" fill="#110B07"/><circle cx="56" cy="50" r="2.4" fill="#FFC77D"/><circle cx="80" cy="46" r="2.4" fill="#FFC77D"/><circle cx="104" cy="50" r="2.4" fill="#FFC77D"/><path d="M40 82q40-14 80 0" fill="none" stroke="#FFC77D" opacity=".3"/></svg><figcaption>Sagebrush</figcaption></figure>
-  <h3 class="who">Sagebrush</h3><p class="spark">honky-tonk roadhouse, big floor, dancers welcome</p>
-  <div class="mapline"><span class="minimap" aria-hidden="true"><svg viewBox="0 0 44 50"><path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/><path class="austin-river" d="M2 20q10 3 16 7t24 9"/><circle class="austin-ring" cx="20" cy="40" r="5"/><circle class="austin-dot" cx="20" cy="40" r="2.6"/></svg></span>
-  <dl style="margin:0"><dt>Address</dt><dd>5500 S Congress · 2.1 mi</dd><dt>Tonight here</dt><dd>Reina Cortez, 10:30 PM · $12</dd><dt>Their site</dt><dd><a href="https://sagebrushtexas.com" target="_blank" rel="noopener">sagebrushtexas.com&thinsp;↗</a></dd></dl></div>
-  <p class="vspecial" style="margin-top:12px"><small>from the venue</small>Late-nite taco truck on the patio til 1 AM</p>
-  <div class="rail" style="margin-top:14px"><button class="vnearby" type="button" data-lens="n2">See nearby ›</button><button class="chip" type="button">Save for tonight</button></div>
-</div>
-<div class="lens" id="a3" role="region" aria-label="Artist: Glass Anthem">
-  <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button" data-to="v3">the venue ›</button>
-  <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><rect width="160" height="100" fill="#251F3C"/><rect width="160" height="100" fill="#8F7FD6" opacity=".08"/><path d="M66 56q4-13 9-13t8 12l2 45h-21z" fill="#08060C"/><circle cx="75" cy="39" r="7.5" fill="#08060C"/><ellipse cx="80" cy="98" rx="70" ry="6" fill="#8F7FD6" opacity=".16"/></svg><figcaption>Glass Anthem</figcaption></figure>
-  <h3 class="who">Glass Anthem</h3><p class="spark tierc">✳ shoegaze wall, patient and enormous <small>— first notes</small></p>
-  <dl><dt>Tonight</dt><dd>11:45 PM · $15 · The Parish</dd></dl>
-  <div class="rail"><button class="chip" type="button"><svg class="glyph" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>Hear it</button><button class="chip" type="button">Save for tonight</button></div>
-</div>
-<div class="lens" id="v3" role="region" aria-label="Venue: The Parish">
-  <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button" data-to="a3">the artist ›</button>
-  <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><rect width="160" height="100" fill="#191527"/><path d="M20 100V38q28-24 60-24t60 24v62z" fill="#120E1E"/><path d="M35 42q45-26 90 0" fill="none" stroke="#FFC77D" stroke-width="1.2" opacity=".5"/><path d="M42 50q38-20 76 0" fill="none" stroke="#FFC77D" opacity=".35"/><circle cx="80" cy="32" r="3" fill="#FFC77D" opacity=".8"/></svg><figcaption>The Parish</figcaption></figure>
-  <h3 class="who">The Parish</h3><p class="spark">upstairs ballroom, famous ceiling, loud and close</p>
-  <div class="mapline"><span class="minimap" aria-hidden="true"><svg viewBox="0 0 44 50"><path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/><path class="austin-river" d="M2 20q10 3 16 7t24 9"/><circle class="austin-ring" cx="24" cy="24" r="5"/><circle class="austin-dot" cx="24" cy="24" r="2.6"/></svg></span>
-  <dl style="margin:0"><dt>Address</dt><dd>601 Brazos St · 0.7 mi</dd><dt>Tonight here</dt><dd>Glass Anthem, 11:45 PM · $15</dd><dt>Their site</dt><dd><a href="https://theparishaustin.com" target="_blank" rel="noopener">theparishaustin.com&thinsp;↗</a></dd></dl></div>
-  <p class="vspecial" style="margin-top:12px"><small>from the venue</small>Late-nite menu after midnight</p>
-  <div class="rail" style="margin-top:14px"><button class="vnearby" type="button" data-lens="n3">See nearby ›</button><button class="chip" type="button">Save for tonight</button></div>
-</div>
-
-<!-- NEARBY LENSES: what's around the room, and how to get there -->
-<div class="lens" id="n1" role="region" aria-label="Nearby Elephant Room">
+<div class="lens" id="Llist" role="region" aria-label="Show list">
   <button class="chip back" type="button">‹ Back</button>
-  <h3 class="who">Near Elephant Room</h3><p class="spark">Congress &amp; 4th — dense blocks, easy walking</p>
-  <div class="nearmap" aria-hidden="true"><svg viewBox="0 0 160 80">
-    <path class="near-street" d="M20 0v80M50 0v80M80 0v80M110 0v80M140 0v80M0 20h160M0 44h160M0 68h160"/>
-    <circle class="near-ring" cx="80" cy="44" r="34"/><text class="near-label" x="80" y="12" text-anchor="middle">— 5-min walk —</text>
-    <circle class="near-venue" cx="80" cy="44" r="4"/><text class="near-label" x="80" y="55" text-anchor="middle">ELEPHANT ROOM</text>
-    <circle class="near-spot" cx="66" cy="34" r="2.6"/><text class="near-label" x="66" y="29" text-anchor="middle">SMALL VICTORY</text>
-    <circle class="near-spot" cx="103" cy="38" r="2.6"/><text class="near-label" x="103" y="33" text-anchor="middle">SPEAKEASY</text>
-    <circle class="near-spot" cx="58" cy="60" r="2.6"/><text class="near-label" x="58" y="70" text-anchor="middle">LA CONDESA</text>
-    <circle class="near-spot" cx="118" cy="58" r="2.6"/><text class="near-label" x="118" y="68" text-anchor="middle">ANTONE'S</text>
-  </svg></div>
-  <div class="ncard"><span class="nwho">Small Victory</span><span class="ntype">cocktail bar</span><span class="nhow">350 ft · 1-min walk</span></div>
-  <div class="ncard"><span class="nwho">Speakeasy</span><span class="ntype">club · DJ Cielo 11 PM</span><span class="nhow">500 ft · 2-min walk</span></div>
-  <div class="ncard"><span class="nwho">La Condesa</span><span class="ntype">restaurant, late kitchen</span><span class="nhow">0.2 mi · 4-min walk</span></div>
-  <div class="ncard"><span class="nwho">Antone's</span><span class="ntype">club · Blue Prescription 10 PM</span><span class="nhow">0.2 mi · 4-min walk</span></div>
-  <div class="ncard"><span class="nwho">Half Step</span><span class="ntype">cocktail bar, Rainey St</span><span class="nhow">0.6 mi · pedicab ~4 min</span></div>
-  <p class="gnote">Under half a mile: walk it. Rainey or East 6th: flag a pedicab. South Congress: grab a ride.</p>
+  <div class="lbody"></div>
 </div>
-<div class="lens" id="n2" role="region" aria-label="Nearby Sagebrush">
+<div class="lens" id="Lnearby" role="region" aria-label="Nearby">
   <button class="chip back" type="button">‹ Back</button>
-  <h3 class="who">Near Sagebrush</h3><p class="spark">far South Congress — spread out, pedicabs cruise til close</p>
-  <div class="nearmap" aria-hidden="true"><svg viewBox="0 0 160 80">
-    <path class="near-street" d="M80 0v80M30 0l20 80M130 0l-20 80M0 30h160M0 60h160"/>
-    <circle class="near-ring" cx="80" cy="44" r="34"/><text class="near-label" x="80" y="12" text-anchor="middle">— 5-min walk —</text>
-    <circle class="near-venue" cx="80" cy="44" r="4"/><text class="near-label" x="80" y="55" text-anchor="middle">SAGEBRUSH</text>
-    <circle class="near-spot" cx="70" cy="24" r="2.6"/><text class="near-label" x="70" y="19" text-anchor="middle">COSMIC</text>
-    <circle class="near-spot" cx="96" cy="66" r="2.6"/><text class="near-label" x="96" y="76" text-anchor="middle">LITTLE DARLIN'</text>
-    <circle class="near-spot" cx="52" cy="8" r="2.6"/><text class="near-label" x="38" y="8">CONTINENTAL ↑</text>
-  </svg></div>
-  <div class="ncard"><span class="nwho">Cosmic Coffee + Beer</span><span class="ntype">garden bar, food trucks</span><span class="nhow">0.3 mi · 6-min walk</span></div>
-  <div class="ncard"><span class="nwho">Little Darlin'</span><span class="ntype">bar, backyard</span><span class="nhow">0.5 mi · 10-min walk</span></div>
-  <div class="ncard"><span class="nwho">Continental Club</span><span class="ntype">club · Hondo Wells 8:30</span><span class="nhow">1.7 mi · pedicab ~10 min</span></div>
-  <div class="ncard"><span class="nwho">Downtown</span><span class="ntype">everything else tonight</span><span class="nhow">2.1 mi · ride ~12 min</span></div>
-  <p class="gnote">This stretch is spread out — walk the near spots, pedicab the strip, ride back downtown.</p>
-</div>
-<div class="lens" id="n3" role="region" aria-label="Nearby The Parish">
-  <button class="chip back" type="button">‹ Back</button>
-  <h3 class="who">Near The Parish</h3><p class="spark">6th &amp; Brazos — everything here is walkable</p>
-  <div class="nearmap" aria-hidden="true"><svg viewBox="0 0 160 80">
-    <path class="near-street" d="M20 0v80M50 0v80M80 0v80M110 0v80M140 0v80M0 24h160M0 48h160"/>
-    <circle class="near-ring" cx="80" cy="44" r="34"/><text class="near-label" x="80" y="12" text-anchor="middle">— 5-min walk —</text>
-    <circle class="near-venue" cx="80" cy="44" r="4"/><text class="near-label" x="80" y="55" text-anchor="middle">THE PARISH</text>
-    <circle class="near-spot" cx="93" cy="36" r="2.6"/><text class="near-label" x="93" y="31" text-anchor="middle">EASY TIGER</text>
-    <circle class="near-spot" cx="64" cy="34" r="2.6"/><text class="near-label" x="64" y="29" text-anchor="middle">MIDNIGHT COWBOY</text>
-    <circle class="near-spot" cx="70" cy="62" r="2.6"/><text class="near-label" x="70" y="72" text-anchor="middle">VOODOO</text>
-    <circle class="near-spot" cx="126" cy="20" r="2.6"/><text class="near-label" x="126" y="15" text-anchor="middle">STUBB'S</text>
-  </svg></div>
-  <div class="ncard"><span class="nwho">Easy Tiger</span><span class="ntype">beer garden + bakery</span><span class="nhow">350 ft · 1-min walk</span></div>
-  <div class="ncard"><span class="nwho">Midnight Cowboy</span><span class="ntype">reservation cocktail bar</span><span class="nhow">400 ft · 2-min walk</span></div>
-  <div class="ncard"><span class="nwho">Voodoo Doughnut</span><span class="ntype">late-nite food</span><span class="nhow">0.1 mi · 2-min walk</span></div>
-  <div class="ncard"><span class="nwho">Stubb's</span><span class="ntype">club · Knuckle Rose 9:30</span><span class="nhow">0.4 mi · walk 8 or pedicab 3</span></div>
-  <p class="gnote">Everything here is walkable; pedicab if you're crossing I-35 to the East Side.</p>
-</div>
-
-<!-- GENRE LENSES: ALL of tonight's cards in the genre, by start time -->
-<div class="lens" id="g1" role="region" aria-label="Gospel-punk tonight: 3 bands">
-  <button class="chip back" type="button">‹ Back</button>
-  <h3 class="who">Gospel-punk tonight</h3><p class="spark">three bands, by start time</p>
-  <button class="gcard" type="button" data-jump="r1"><span class="gwho">Velvet Casket</span><span class="gflow">in the flow ↓</span><span class="gmeta"><b>Elephant Room</b> · 9:00 PM · Free<br>0.4 mi · Congress Ave</span></button>
-  <div class="gcard"><span class="gwho">Brass Ordinance</span><span class="gmeta"><b>Mohawk</b> · 10:00 PM · $10<br>0.5 mi · Red River</span></div>
-  <div class="gcard"><span class="gwho">The Ninth Hour</span><span class="gmeta"><b>Hotel Vegas</b> · 11:00 PM · $8<br>1.2 mi · E 6th</span></div>
-  <p class="gnote">In the build every row opens its own card — same doors, same rules.</p>
-</div>
-<div class="lens" id="g2" role="region" aria-label="Cumbia tonight: 4 bands">
-  <button class="chip back" type="button">‹ Back</button>
-  <h3 class="who">Cumbia tonight</h3><p class="spark">four bands, by start time</p>
-  <div class="gcard"><span class="gwho">Orquesta Nube</span><span class="gmeta"><b>Far Out Lounge</b> · 9:00 PM · $12<br>4.8 mi · S Congress</span></div>
-  <div class="gcard"><span class="gwho">La Marea</span><span class="gmeta"><b>Flamingo Cantina</b> · 9:30 PM · $10<br>0.6 mi · E 6th</span></div>
-  <div class="gcard"><span class="gwho">Sonido Cascabel</span><span class="gmeta"><b>Coral Snake</b> · 10:00 PM · Free<br>1.0 mi · E Cesar Chavez</span></div>
-  <button class="gcard" type="button" data-jump="r2"><span class="gwho">Reina Cortez y Los Fantasmas</span><span class="gflow">in the flow ↓</span><span class="gmeta"><b>Sagebrush</b> · 10:30 PM · $12<br>2.1 mi · S Congress</span></button>
-  <p class="gnote">In the build every row opens its own card — same doors, same rules.</p>
-</div>
-<div class="lens" id="g3" role="region" aria-label="Shoegaze tonight: 2 bands">
-  <button class="chip back" type="button">‹ Back</button>
-  <h3 class="who">Shoegaze tonight</h3><p class="spark">two bands, by start time</p>
-  <div class="gcard"><span class="gwho">Bellhollow</span><span class="gmeta"><b>Cheer Up Charlies</b> · 10:15 PM · Free<br>0.8 mi · Red River</span></div>
-  <button class="gcard" type="button" data-jump="r3"><span class="gwho">Glass Anthem</span><span class="gflow">in the flow ↓</span><span class="gmeta"><b>The Parish</b> · 11:45 PM · $15<br>0.7 mi · Brazos St</span></button>
-  <p class="gnote">In the build every row opens its own card — same doors, same rules.</p>
-</div>
-<div class="lens" id="g4" role="region" aria-label="Jazz tonight: 4 bands">
-  <button class="chip back" type="button">‹ Back</button>
-  <h3 class="who">Jazz tonight</h3><p class="spark">four bands, by start time</p>
-  <div class="gcard"><span class="gwho">Marfa Lights Trio</span><span class="gmeta"><b>Elephant Room</b> · 7:30 PM · Free<br>0.4 mi · Congress Ave</span></div>
-  <div class="gcard"><span class="gwho">The Deep End</span><span class="gmeta"><b>Saxon Pub</b> · 8:00 PM · $10<br>2.6 mi · S Lamar</span></div>
-  <div class="gcard"><span class="gwho">Blue Prescription</span><span class="gmeta"><b>Antone's</b> · 10:00 PM · $15<br>0.3 mi · E 5th</span></div>
-  <div class="gcard"><span class="gwho">Moon Court</span><span class="gmeta"><b>The Volstead</b> · 10:30 PM · Free<br>1.3 mi · E 6th</span></div>
-  <p class="gnote">In the build every row opens its own card — same doors, same rules.</p>
-</div>
-<div class="lens" id="g5" role="region" aria-label="Honky-tonk tonight: 3 bands">
-  <button class="chip back" type="button">‹ Back</button>
-  <h3 class="who">Honky-tonk tonight</h3><p class="spark">three bands, by start time</p>
-  <div class="gcard"><span class="gwho">Hondo Wells</span><span class="gmeta"><b>Continental Club</b> · 8:30 PM · $8<br>1.8 mi · S Congress</span></div>
-  <div class="gcard"><span class="gwho">Silver Spur Sisters</span><span class="gmeta"><b>The White Horse</b> · 9:00 PM · Free<br>1.4 mi · E 6th</span></div>
-  <div class="gcard"><span class="gwho">Knuckle Rose</span><span class="gmeta"><b>Stubb's</b> · 9:30 PM · $12<br>0.6 mi · Red River</span></div>
-  <p class="gnote">In the build every row opens its own card — same doors, same rules.</p>
-</div>
-<div class="lens" id="g6" role="region" aria-label="Hip-hop tonight: 2 bands">
-  <button class="chip back" type="button">‹ Back</button>
-  <h3 class="who">Hip-hop tonight</h3><p class="spark">two bands, by start time</p>
-  <div class="gcard"><span class="gwho">DJ Cielo</span><span class="gmeta"><b>Speakeasy</b> · 11:00 PM · $10<br>0.4 mi · Congress Ave</span></div>
-  <div class="gcard"><span class="gwho">Vantablonde</span><span class="gmeta"><b>Empire Control Room</b> · 12:00 AM · $12<br>0.6 mi · Red River</span></div>
-  <p class="gnote">In the build every row opens its own card — same doors, same rules.</p>
-</div>
-
-<!-- AREA LENSES: every venue + artist in that part of town tonight, by start time -->
-<div class="lens" id="ar-dt" role="region" aria-label="Downtown tonight: 5 shows">
-  <button class="chip back" type="button">‹ Back</button>
-  <h3 class="who">Downtown tonight</h3><p class="spark">five shows, by start time</p>
-  <div class="gcard"><span class="gwho">Marfa Lights Trio</span><span class="gmeta"><b>Elephant Room</b> · 7:30 PM · Jazz · Free</span></div>
-  <button class="gcard" type="button" data-jump="r1"><span class="gwho">Velvet Casket</span><span class="gflow">in the flow ↓</span><span class="gmeta"><b>Elephant Room</b> · 9:00 PM · Gospel-punk · Free</span></button>
-  <div class="gcard"><span class="gwho">Blue Prescription</span><span class="gmeta"><b>Antone's</b> · 10:00 PM · Jazz · $15</span></div>
-  <div class="gcard"><span class="gwho">DJ Cielo</span><span class="gmeta"><b>Speakeasy</b> · 11:00 PM · Hip-hop · $10</span></div>
-  <button class="gcard" type="button" data-jump="r3"><span class="gwho">Glass Anthem</span><span class="gflow">in the flow ↓</span><span class="gmeta"><b>The Parish</b> · 11:45 PM · Shoegaze · $15</span></button>
-</div>
-<div class="lens" id="ar-rr" role="region" aria-label="Red River tonight: 4 shows">
-  <button class="chip back" type="button">‹ Back</button>
-  <h3 class="who">Red River tonight</h3><p class="spark">four shows, by start time</p>
-  <div class="gcard"><span class="gwho">Knuckle Rose</span><span class="gmeta"><b>Stubb's</b> · 9:30 PM · Honky-tonk · $12</span></div>
-  <div class="gcard"><span class="gwho">Brass Ordinance</span><span class="gmeta"><b>Mohawk</b> · 10:00 PM · Gospel-punk · $10</span></div>
-  <div class="gcard"><span class="gwho">Bellhollow</span><span class="gmeta"><b>Cheer Up Charlies</b> · 10:15 PM · Shoegaze · Free</span></div>
-  <div class="gcard"><span class="gwho">Vantablonde</span><span class="gmeta"><b>Empire Control Room</b> · 12:00 AM · Hip-hop · $12</span></div>
-</div>
-<div class="lens" id="ar-e" role="region" aria-label="East Side tonight: 5 shows">
-  <button class="chip back" type="button">‹ Back</button>
-  <h3 class="who">East Side tonight</h3><p class="spark">five shows, by start time</p>
-  <div class="gcard"><span class="gwho">Silver Spur Sisters</span><span class="gmeta"><b>The White Horse</b> · 9:00 PM · Honky-tonk · Free</span></div>
-  <div class="gcard"><span class="gwho">La Marea</span><span class="gmeta"><b>Flamingo Cantina</b> · 9:30 PM · Cumbia · $10</span></div>
-  <div class="gcard"><span class="gwho">Sonido Cascabel</span><span class="gmeta"><b>Coral Snake</b> · 10:00 PM · Cumbia · Free</span></div>
-  <div class="gcard"><span class="gwho">Moon Court</span><span class="gmeta"><b>The Volstead</b> · 10:30 PM · Jazz · Free</span></div>
-  <div class="gcard"><span class="gwho">The Ninth Hour</span><span class="gmeta"><b>Hotel Vegas</b> · 11:00 PM · Gospel-punk · $8</span></div>
-</div>
-<div class="lens" id="ar-s" role="region" aria-label="South tonight: 4 shows">
-  <button class="chip back" type="button">‹ Back</button>
-  <h3 class="who">South tonight</h3><p class="spark">four shows, by start time</p>
-  <div class="gcard"><span class="gwho">The Deep End</span><span class="gmeta"><b>Saxon Pub</b> · 8:00 PM · Jazz · $10</span></div>
-  <div class="gcard"><span class="gwho">Hondo Wells</span><span class="gmeta"><b>Continental Club</b> · 8:30 PM · Honky-tonk · $8</span></div>
-  <div class="gcard"><span class="gwho">Orquesta Nube</span><span class="gmeta"><b>Far Out Lounge</b> · 9:00 PM · Cumbia · $12</span></div>
-  <button class="gcard" type="button" data-jump="r2"><span class="gwho">Reina Cortez y Los Fantasmas</span><span class="gflow">in the flow ↓</span><span class="gmeta"><b>Sagebrush</b> · 10:30 PM · Cumbia · $12</span></button>
+  <div class="lbody"></div>
 </div>
 
 <script>
-  // ---- Time truth: order from NOW, never show a finished night (round 4, note 1) ----
-  // A show "ended" ~3h after start (no end times in the demo data). Ended
-  // rooms are removed; started-but-live rooms stay, tagged "on now"; the
-  // rest sort ascending by start. Times before 5 AM belong to tonight.
-  (function(){
-    const river=document.getElementById('river'), fin=document.querySelector('.fin');
-    const now=new Date(); let nowMin=now.getHours()*60+now.getMinutes(); if(nowMin<300)nowMin+=1440;
-    const parse=t=>{let[h,m]=t.split(':').map(Number); if(h<5)h+=24; return h*60+m};
-    const rs=[...document.querySelectorAll('.room')];
-    let gone=0;
-    rs.forEach(r=>{
-      const s=parse(r.dataset.start);
-      if(s+180<nowMin){r.remove();gone++;return}
-      if(s<=nowMin){const t=r.querySelector('.times'); if(t)t.textContent+=' · on now', t.classList.add('onnow')}
-    });
-    [...document.querySelectorAll('.room')]
-      .sort((a,b)=>parse(a.dataset.start)-parse(b.dataset.start))
-      .forEach(r=>river.insertBefore(r,fin));
-    if(gone)document.getElementById('finline').textContent=
-      `${gone} show${gone>1?'s':''} already came and went — the river only flows forward. Back at dusk.`;
-    const first=document.querySelector('.room'); if(first)first.classList.add('here');
-  })();
+// ================= DATA: every show tonight =================
+// One array drives the river, the sky counts, and every lens.
+const AREAS={
+  dt:{name:'Downtown', dot:[21,26]},
+  rr:{name:'Red River', dot:[25,22]},
+  e:{name:'East Side', dot:[31,30]},
+  s:{name:'South', dot:[20,40]},
+};
+const VENUES={
+  elephant:{name:'Elephant Room', area:'dt', char:'basement jazz cellar, candle-dark, standing', addr:'315 Congress Ave', dist:'0.4 mi', street:'Congress Ave', site:'elephantroom.com', special:'Happy hour til 8 — well drinks $5', dot:[21,26]},
+  saxon:{name:'Saxon Pub', area:'s', char:'small listening room, all ages of regulars', addr:'1320 S Lamar', dist:'2.6 mi', street:'S Lamar', site:'thesaxonpub.com', special:null, dot:[17,38]},
+  continental:{name:'Continental Club', area:'s', char:'50s dance hall, tight floor, no phones up front', addr:'1315 S Congress', dist:'1.8 mi', street:'S Congress', site:'continentalclub.com', special:null, dot:[20,36]},
+  whitehorse:{name:'The White Horse', area:'e', char:'two-step bar, free dance lessons early', addr:'500 Comal St', dist:'1.4 mi', street:'E 6th', site:'thewhitehorseaustin.com', special:'Lone Star + well shot $7 all night', dot:[30,28]},
+  farout:{name:'Far Out Lounge', area:'s', char:'big backyard stage under the oaks', addr:'8504 S Congress', dist:'4.8 mi', street:'S Congress', site:'thefaroutaustin.com', special:null, dot:[19,45]},
+  stubbs:{name:"Stubb's", area:'rr', char:'outdoor amphitheater + BBQ inside', addr:'801 Red River', dist:'0.6 mi', street:'Red River', site:'stubbsaustin.com', special:'Kitchen open til 11', dot:[25,21]},
+  flamingo:{name:'Flamingo Cantina', area:'e', char:'reggae-rooted room, bleacher seats', addr:'515 E 6th St', dist:'0.6 mi', street:'E 6th', site:'flamingocantina.com', special:null, dot:[28,27]},
+  mohawk:{name:'Mohawk', area:'rr', char:'indoor/outdoor stack, balcony views', addr:'912 Red River', dist:'0.5 mi', street:'Red River', site:'mohawkaustin.com', special:null, dot:[25,20]},
+  coral:{name:'Coral Snake', area:'e', char:'narrow bar, loud back room', addr:'2709 E Cesar Chavez', dist:'1.0 mi', street:'E Cesar Chavez', site:'coralsnakebar.com', special:'Mezcal happy hour til 10', dot:[33,31]},
+  antones:{name:"Antone's", area:'dt', char:'home of the blues since 1975', addr:'305 E 5th St', dist:'0.3 mi', street:'E 5th', site:'antonesnightclub.com', special:null, dot:[22,25]},
+  cheerup:{name:'Cheer Up Charlies', area:'rr', char:'queer-forward patio, two stages', addr:'900 Red River', dist:'0.8 mi', street:'Red River', site:'cheerupcharlies.com', special:'Frozen ranch water $8', dot:[25,22]},
+  sagebrush:{name:'Sagebrush', area:'s', char:'honky-tonk roadhouse, big floor, dancers welcome', addr:'5500 S Congress', dist:'2.1 mi', street:'S Congress', site:'sagebrushtexas.com', special:'Late-nite taco truck on the patio til 1 AM', dot:[20,41]},
+  volstead:{name:'The Volstead', area:'e', char:'velvet lounge beside the Hotel Vegas patio', addr:'1500 E 6th St', dist:'1.3 mi', street:'E 6th', site:'texashotelvegas.com', special:null, dot:[31,29]},
+  speakeasy:{name:'Speakeasy', area:'dt', char:'three floors, rooftop over Congress', addr:'412 Congress Ave', dist:'0.4 mi', street:'Congress Ave', site:'speakeasyaustin.com', special:'Rooftop opens 10 PM', dot:[21,25]},
+  hotelvegas:{name:'Hotel Vegas', area:'e', char:'garage-rock patio compound', addr:'1502 E 6th St', dist:'1.2 mi', street:'E 6th', site:'texashotelvegas.com', special:null, dot:[31,28]},
+  parish:{name:'The Parish', area:'dt', char:'upstairs ballroom, famous ceiling, loud and close', addr:'601 Brazos St', dist:'0.7 mi', street:'Brazos St', site:'theparishaustin.com', special:'Late-nite menu after midnight', dot:[24,24]},
+  empire:{name:'Empire Control Room', area:'rr', char:'club room + garage stage', addr:'606 E 7th St', dist:'0.6 mi', street:'Red River', site:'empireatx.com', special:null, dot:[26,23]},
+};
+// start "HH:MM" 24h (times before 05:00 belong to tonight); end = start+set length
+const SHOWS=[
+  {id:'s01', artist:'Marfa Lights Trio', spark:'brushes-and-upright jazz, conversation-quiet', start:'19:30', doors:null, price:'Free', genre:'Jazz', v:'elephant', hue:28, snips:['Desert Static','Two Headlights']},
+  {id:'s02', artist:'The Deep End', spark:'organ-trio soul jazz, simmering', start:'20:00', doors:null, price:'$10', genre:'Jazz', v:'saxon', hue:200, snips:['Undertow','Green Hammond','Last Call Waltz']},
+  {id:'s03', artist:'Hondo Wells', spark:'barroom country, a voice like worn leather', start:'20:30', doors:null, price:'$8', genre:'Honky-tonk', v:'continental', hue:16, snips:['Bexar County Line','Neon Novena']},
+  {id:'s04', artist:'Velvet Casket', spark:'swamp-gospel stomp with brass and menace', start:'21:00', doors:'20:00', price:'Free', genre:'Gospel-punk', v:'elephant', hue:12, snips:['Graveyard Hymn','Brass Devil','Low Water']},
+  {id:'s05', artist:'Silver Spur Sisters', spark:'three-part harmony over pedal steel', start:'21:00', doors:null, price:'Free', genre:'Honky-tonk', v:'whitehorse', hue:40, snips:['Spur of the Moment','Dancehall Dust']},
+  {id:'s06', artist:'Orquesta Nube', spark:'nine-piece cumbia, horns like weather', start:'21:00', doors:null, price:'$12', genre:'Cumbia', v:'farout', hue:150, snips:['Nube Nueve','Tormenta']},
+  {id:'s07', artist:'Knuckle Rose', spark:'outlaw country with a punk backbeat', start:'21:30', doors:'20:30', price:'$12', genre:'Honky-tonk', v:'stubbs', hue:350, snips:['Rose Tattoo','Dead Man\'s Hand','44 Blues']},
+  {id:'s08', artist:'La Marea', spark:'coastal cumbia, accordion up front', start:'21:30', doors:null, price:'$10', genre:'Cumbia', v:'flamingo', hue:170, snips:['Marea Alta','Sal y Sol']},
+  {id:'s09', artist:'Brass Ordinance', spark:'street-brass gospel-punk, twelve feet of horn', start:'22:00', doors:null, price:'$10', genre:'Gospel-punk', v:'mohawk', hue:32, snips:['Ordinance 9','Processional','Third Ward Stomp']},
+  {id:'s10', artist:'Sonido Cascabel', spark:'psychedelic cumbia, snake-rattle percussion', start:'22:00', doors:null, price:'Free', genre:'Cumbia', v:'coral', hue:130, snips:['Cascabel','Vibora Verde']},
+  {id:'s11', artist:'Blue Prescription', spark:'electric blues, heavy on the B-bender', start:'22:00', doors:'21:00', price:'$15', genre:'Jazz', v:'antones', hue:220, snips:['Refill','Night Nurse','Downtown Dosage']},
+  {id:'s12', artist:'Bellhollow', spark:'chorus-drenched shoegaze, slow-blooming', start:'22:15', doors:null, price:'Free', genre:'Shoegaze', v:'cheerup', hue:280, snips:['Hollow Bell','Fadeout']},
+  {id:'s13', artist:'Reina Cortez y Los Fantasmas', spark:'cumbia noir — organ smoke over a two-step', start:'22:30', doors:null, price:'$12', genre:'Cumbia', v:'sagebrush', hue:190, snips:['Fantasma Mío','Órgano Negro']},
+  {id:'s14', artist:'Moon Court', spark:'late-night modal jazz, hushed and electric', start:'22:30', doors:null, price:'Free', genre:'Jazz', v:'volstead', hue:240, snips:['Recess','Lunar Docket']},
+  {id:'s15', artist:'DJ Cielo', spark:'Latin trap into house, rooftop set', start:'23:00', doors:null, price:'$10', genre:'Hip-hop', v:'speakeasy', hue:300, snips:['Cielo Abierto']},
+  {id:'s16', artist:'The Ninth Hour', spark:'doom-gospel choir over punk drums', start:'23:00', doors:null, price:'$8', genre:'Gospel-punk', v:'hotelvegas', hue:8, snips:['Nona','Canonical']},
+  {id:'s17', artist:'Glass Anthem', spark:'shoegaze wall, patient and enormous', tier:'c', start:'23:45', doors:'23:00', price:'$15', genre:'Shoegaze', v:'parish', hue:260, snips:['Pale Cathedral']},
+  {id:'s18', artist:'Vantablonde', spark:'blackout-pop rap, strobe-lit', start:'24:00', doors:null, price:'$12', genre:'Hip-hop', v:'empire', hue:320, snips:['Vanta','Peroxide']},
+];
+const SET_MIN=120; // demo assumption: a set runs ~2h; real end times come from the pipeline
+const NEARBY={
+  dt:{title:'Near Downtown rooms', sub:'Congress to Brazos — dense blocks, easy walking',
+      streets:'M20 0v80M50 0v80M80 0v80M110 0v80M140 0v80M0 20h160M0 44h160M0 68h160',
+      spots:[['Small Victory','cocktail bar','350 ft · 1-min walk',66,34],['Easy Tiger','beer garden + bakery','400 ft · 2-min walk',103,38],['La Condesa','restaurant, late kitchen','0.2 mi · 4-min walk',58,60],['Voodoo Doughnut','late-nite food','0.2 mi · 4-min walk',118,58]],
+      note:'Under half a mile: walk. Rainey or East 6th: pedicab. South Congress: ride.'},
+  rr:{title:'Near Red River rooms', sub:'the club strip — everything within a few blocks',
+      streets:'M30 0v80M65 0v80M100 0v80M135 0v80M0 24h160M0 48h160',
+      spots:[['Easy Tiger','beer garden','0.2 mi · 4-min walk',60,30],['Voodoo Doughnut','late-nite food','0.3 mi · 6-min walk',52,60],['Casino El Camino','burgers til late','0.3 mi · 6-min walk',110,34],['Hoboken Pie','slices til 3 AM',"0.2 mi · 4-min walk",96,62]],
+      note:'All walkable; pedicab if you cross I-35 to the East Side.'},
+  e:{title:'Near East Side rooms', sub:'E 6th and Cesar Chavez — flat, bikeable, patio-dense',
+      streets:'M20 0v80M60 0v80M100 0v80M140 0v80M0 30h160M0 58h160',
+      spots:[['Whisler\'s','cocktail bar','0.2 mi · 4-min walk',60,26],['Cuantos Tacos','late-nite tacos','0.2 mi · 4-min walk',96,28],['Zilker Brewing','taproom','0.3 mi · 6-min walk',56,64],['Justine\'s','late French kitchen','0.9 mi · pedicab ~5 min',126,66]],
+      note:'Walk the near blocks; pedicabs run E 6th; ride back downtown ~7 min.'},
+  s:{title:'Near South rooms', sub:'S Congress and S Lamar — spread out, plan the hop',
+      streets:'M80 0v80M30 0l20 80M130 0l-20 80M0 30h160M0 60h160',
+      spots:[['Cosmic Coffee + Beer','garden bar, food trucks','0.3 mi · 6-min walk',70,24],['Little Darlin\'','bar, backyard','0.5 mi · 10-min walk',96,66],['Torchy\'s SoCo','late tacos','0.4 mi · 8-min walk',52,58],['Downtown','everything else tonight','ride ~12 min',80,8]],
+      note:'This stretch is spread out — walk the near spots, pedicab the strip, ride downtown.'},
+};
 
-  const rooms=[...document.querySelectorAll('.sky,.room,.fin')],dots=[...document.querySelectorAll('.thread i')];
-  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){
-    rooms.forEach(r=>r.classList.toggle('here',r===e.target));
-    dots.forEach((d,i)=>d.classList.toggle('on',i===+(e.target.dataset.dot||0)));
-  }}),{threshold:.55});
-  rooms.forEach(r=>io.observe(r));
-  const open=id=>{document.querySelectorAll('.lens.on').forEach(l=>l.classList.remove('on'));const l=document.getElementById(id);if(l)l.classList.add('on')};
-  document.querySelectorAll('[data-lens]').forEach(z=>{
-    z.addEventListener('click',e=>{if(e.target.closest('a,button:not([data-lens])'))return;
-      if(e.target.closest('[data-lens]')!==z)return; // inner door (See nearby) wins over the zone
-      open(z.dataset.lens)});
-    z.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===z){e.preventDefault();open(z.dataset.lens)}});
-  });
-  document.querySelectorAll('.lens .back').forEach(b=>b.addEventListener('click',()=>b.closest('.lens').classList.remove('on')));
-  document.querySelectorAll('.lens .switch').forEach(b=>b.addEventListener('click',()=>open(b.dataset.to)));
-  document.querySelectorAll('[data-jump]').forEach(b=>b.addEventListener('click',()=>{
-    document.querySelectorAll('.lens.on').forEach(l=>l.classList.remove('on'));
-    const r=document.getElementById(b.dataset.jump); if(r)r.scrollIntoView();
-  }));
-  let x0=null;
-  addEventListener('touchstart',e=>x0=e.touches[0].clientX,{passive:true});
-  addEventListener('touchend',e=>{if(x0===null)return;const dx=e.changedTouches[0].clientX-x0;x0=null;
-    const on=document.querySelector('.lens.on'); if(dx>70&&on){on.classList.remove('on');return}
-    if(dx<-70&&!on){const r=[...document.querySelectorAll('.room')].find(r=>r.classList.contains('here'));const z=r&&r.querySelector('.z-artist');if(z)open(z.dataset.lens)}
-  },{passive:true});
+// ================= helpers =================
+const $=s=>document.querySelector(s);
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const parseT=t=>{let[h,m]=t.split(':').map(Number);if(h<5)h+=24;return h*60+m};
+const fmtT=t=>{let[h,m]=t.split(':').map(Number);h=h%24;const ap=h>=12?'PM':'AM';h=h%12||12;return h+':'+String(m).padStart(2,'0')+' '+ap};
+const austinSVG=(dot,cls)=>`<svg viewBox="0 0 44 50" class="${cls||''}">
+  <path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/>
+  <path class="austin-river" d="M2 20q10 3 16 7t24 9"/>
+  <circle class="austin-ring" cx="${dot[0]}" cy="${dot[1]}" r="5"/><circle class="austin-dot" cx="${dot[0]}" cy="${dot[1]}" r="2.6"/></svg>`;
+const artPhoto=(hue,label)=>`<figure class="ph aphoto"><svg viewBox="0 0 160 60" preserveAspectRatio="xMidYMid slice">
+  <rect width="160" height="60" fill="hsl(${hue} 36% 15%)"/>
+  <polygon points="80,0 40,60 120,60" fill="hsl(${hue} 70% 70%)" opacity=".13"/>
+  <ellipse cx="80" cy="57" rx="52" ry="5" fill="hsl(${hue} 70% 70%)" opacity=".12"/>
+  <path d="M64 34q4-10 8-10t7 9l2 27h-19z" fill="#0A0709"/><circle cx="73" cy="20" r="5.6" fill="#0A0709"/>
+  <path d="M94 38q3-8 6-8t6 8l2 22h-16z" fill="#0A0709"/><circle cx="100" cy="26" r="4.8" fill="#0A0709"/>
+  </svg><figcaption>${esc(label)}</figcaption></figure>`;
+const venPhoto=(hue,label,cap)=>`<div class="vphoto" aria-hidden="true">${cap?'<span class="go">venue ›</span>':''}<svg viewBox="0 0 160 40" preserveAspectRatio="xMidYMid slice">
+  <rect width="160" height="40" fill="hsl(${hue} 25% 11%)"/>
+  <path d="M18 40V18q62-13 124 0v22z" fill="hsl(${hue} 24% 8%)"/>
+  <circle cx="48" cy="24" r="1.8" fill="#FFC77D"/><circle cx="80" cy="21" r="1.8" fill="#FFC77D"/><circle cx="114" cy="24" r="1.8" fill="#FFC77D"/>
+  <ellipse cx="80" cy="33" rx="38" ry="2.6" fill="#FFC77D" opacity=".2"/></svg></div>`;
+
+// ================= time truth =================
+const now=new Date(); let nowMin=now.getHours()*60+now.getMinutes(); if(nowMin<300)nowMin+=1440;
+// Demo override for daytime review: ?at=21:40 simulates a clock.
+const at=new URLSearchParams(location.search).get('at'); if(at){nowMin=parseT(at)}
+const state=s=>{const st=parseT(s.start);return st+SET_MIN<nowMin?'ended':st<=nowMin?'on':'up'};
+$('#nowlabel').textContent='now '+fmtT(String(Math.floor(nowMin/60)%24).padStart(2,'0')+':'+String(nowMin%60).padStart(2,'0'));
+
+// ================= render: sky =================
+const live=SHOWS.filter(s=>state(s)!=='ended');
+const ended=SHOWS.length-live.length;
+const venueCount=new Set(SHOWS.map(s=>s.v)).size;
+$('#skyline').textContent=`Tonight: ${SHOWS.length} shows, ${venueCount} rooms.`+(ended?` ${live.length} still to come.`:'');
+const areaCounts={},genreCounts={};
+SHOWS.forEach(s=>{const a=VENUES[s.v].area;areaCounts[a]=(areaCounts[a]||0)+1;genreCounts[s.genre]=(genreCounts[s.genre]||0)+1});
+$('#citymap').innerHTML=`<svg viewBox="0 0 44 50">
+  <path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/>
+  <path class="austin-river" d="M2 20q10 3 16 7t24 9"/>
+  ${Object.entries(AREAS).map(([k,a])=>`<g class="part" role="button" tabindex="0" data-area="${k}" aria-label="${a.name}: ${areaCounts[k]||0} shows tonight">
+    <circle cx="${a.dot[0]}" cy="${a.dot[1]}" r="${4.5+(areaCounts[k]||0)*.35}"/>
+    <text x="${a.dot[0]}" y="${a.dot[1]-1}" text-anchor="middle">${a.name.toUpperCase()}</text>
+    <text class="n" x="${a.dot[0]}" y="${a.dot[1]+4}" text-anchor="middle">${areaCounts[k]||0}</text></g>`).join('')}
+</svg>`;
+$('#genrechips').innerHTML=Object.entries(genreCounts).sort((a,b)=>b[1]-a[1])
+  .map(([g,n])=>`<button class="chip" type="button" data-genre="${esc(g)}">${esc(g)}<b>${n}</b></button>`).join('');
+
+// ================= render: the river (every show, by start time) =================
+const fin=$('#fin');
+[...live].sort((a,b)=>parseT(a.start)-parseT(b.start)).forEach(s=>{
+  const v=VENUES[s.v], st=state(s);
+  const sec=document.createElement('section');
+  sec.className='room'; sec.id=s.id;
+  sec.style.setProperty('--bg',`radial-gradient(140% 110% at 40% 0%, hsl(${s.hue} 30% 16%) 0%, hsl(${s.hue} 20% 7%) 70%)`);
+  sec.innerHTML=`
+    ${artPhoto(s.hue,s.artist)}
+    <div class="zone z-artist" role="button" tabindex="0" data-artist="${s.id}" aria-label="Artist: ${esc(s.artist)}">
+      <span class="go">artist ›</span>
+      <h2 class="who">${esc(s.artist)}</h2>
+      <p class="times">${fmtT(s.start)}${s.doors?` <span class="doors">· doors ${fmtT(s.doors)}</span>`:''}${st==='on'?' <span class="onnow">· on now</span>':''}</p>
+      <p class="spark${s.tier==='c'?' tierc':''}">${s.tier==='c'?'✳ ':''}${esc(s.spark)}${s.tier==='c'?' <small>— first notes</small>':''}</p>
+      <div class="snips">${s.snips.map(t=>`<button class="chip" type="button"><i>♪</i>${esc(t)}</button>`).join('')}</div>
+    </div>
+    <div class="zone z-venue" role="button" tabindex="0" data-venue="${s.id}" aria-label="Venue: ${esc(v.name)}">
+      ${venPhoto(s.hue,v.name,true)}
+      <div class="vrow">
+        <span class="minimap" aria-hidden="true">${austinSVG(v.dot)}</span>
+        <span class="vtext"><span class="vname">${esc(v.name)}</span>
+          <span class="vchar">${esc(v.char)}</span>
+          <span class="vmeta">${v.dist} · ${esc(v.street)} · <a href="https://${v.site}" target="_blank" rel="noopener">${v.site}&thinsp;↗</a></span></span>
+      </div>
+      <div class="vfoot">
+        ${v.special?`<span class="vspecial"><small>from the venue</small>${esc(v.special)}</span>`:''}
+        <button class="vnearby" type="button" data-nearby="${VENUES[s.v].area}">See nearby ›</button>
+      </div>
+    </div>
+    <div class="rail">
+      <span class="chip${s.price==='Free'?' free':''}">${s.price}</span>
+      <button class="chip genre" type="button" data-genre="${esc(s.genre)}">${esc(s.genre)} <b>${genreCounts[s.genre]}</b></button>
+      <details class="unc"><summary aria-label="Something off? How we know">?</summary>
+        <div class="sheet" role="dialog" aria-label="How we know"><p>${s.tier==='c'?'One listing so far; waiting on a second source. Check the room: ':'From the venue’s public calendar. The room is the last word: '}<a href="https://${v.site}">${v.site}</a></p>
+        <button class="chip" type="button" onclick="this.closest('details').removeAttribute('open')">Got it</button></div></details>
+    </div>`;
+  fin.parentNode.insertBefore(sec,fin);
+});
+$('#finline').textContent=(ended?`${ended} earlier show${ended>1?'s':''} ended. `:'')+`${live.length} listed above, by start time.`;
+
+// ================= lenses =================
+const open=id=>{document.querySelectorAll('.lens.on').forEach(l=>l.classList.remove('on'));const l=document.getElementById(id);if(l)l.classList.add('on');l?.scrollTo(0,0)};
+const closeAll=()=>document.querySelectorAll('.lens.on').forEach(l=>l.classList.remove('on'));
+let current=null;
+function showArtist(id){
+  current=id; const s=SHOWS.find(x=>x.id===id), v=VENUES[s.v];
+  $('#Lartist .lbody').innerHTML=`${artPhoto(s.hue,s.artist).replace('aphoto','')}
+    <h3 class="who">${esc(s.artist)}</h3>
+    <p class="spark${s.tier==='c'?' tierc':''}">${s.tier==='c'?'✳ ':''}${esc(s.spark)}${s.tier==='c'?' <small>— first notes</small>':''}</p>
+    <dl><dt>Tonight</dt><dd>${fmtT(s.start)}${s.doors?` (doors ${fmtT(s.doors)})`:''} · ${s.price} · ${esc(v.name)}</dd>
+    <dt>Genre</dt><dd>${esc(s.genre)} — ${genreCounts[s.genre]} playing tonight</dd></dl>
+    <div class="snips">${s.snips.map(t=>`<button class="chip" type="button"><i>♪</i>${esc(t)}</button>`).join('')}</div>`;
+  open('Lartist');
+}
+function showVenue(id){
+  current=id; const s=SHOWS.find(x=>x.id===id), v=VENUES[s.v];
+  const here=SHOWS.filter(x=>x.v===s.v).sort((a,b)=>parseT(a.start)-parseT(b.start))
+    .map(x=>`${esc(x.artist)} ${fmtT(x.start)}`).join(' · ');
+  $('#Lvenue .lbody').innerHTML=`<figure class="ph">${venPhoto(s.hue,v.name,false).match(/<svg[\s\S]*<\/svg>/)[0]}<figcaption>${esc(v.name)}</figcaption></figure>
+    <h3 class="who">${esc(v.name)}</h3><p class="spark">${esc(v.char)}</p>
+    <div class="mapline"><span class="minimap" aria-hidden="true">${austinSVG(v.dot)}</span>
+    <dl style="margin:0"><dt>Address</dt><dd>${esc(v.addr)} · ${v.dist}</dd>
+    <dt>Tonight here</dt><dd>${here}</dd>
+    <dt>Their site</dt><dd><a href="https://${v.site}" target="_blank" rel="noopener">${v.site}&thinsp;↗</a></dd></dl></div>
+    ${v.special?`<p class="vspecial" style="margin-top:12px"><small>from the venue</small>${esc(v.special)}</p>`:''}
+    <div class="rail" style="margin-top:14px"><button class="vnearby" type="button" data-nearby="${v.area}">See nearby ›</button><button class="chip" type="button">Save for tonight</button></div>`;
+  open('Lvenue');
+}
+function rowHTML(s){
+  const v=VENUES[s.v], st=state(s);
+  const meta=`<b>${esc(v.name)}</b> · ${fmtT(s.start)} · ${s.price}<br>${v.dist} · ${esc(v.street)}`;
+  if(st==='ended')return `<div class="gcard ended"><span class="gwho">${esc(s.artist)}</span><span class="etag">ended</span><span class="gmeta">${meta}</span></div>`;
+  return `<button class="gcard" type="button" data-jump="${s.id}"><span class="gwho">${esc(s.artist)}</span>${st==='on'?'<span class="etag" style="color:var(--mint);border-color:#7BE0AD55">on now</span>':''}<span class="gmeta">${meta}</span></button>`;
+}
+function showGenre(g){
+  const rows=SHOWS.filter(s=>s.genre===g).sort((a,b)=>parseT(a.start)-parseT(b.start));
+  $('#Llist .lbody').innerHTML=`<h3 class="who">${esc(g)} tonight</h3><p class="spark">${rows.length} show${rows.length>1?'s':''}, by start time</p>`+rows.map(rowHTML).join('');
+  open('Llist');
+}
+function showArea(k){
+  const rows=SHOWS.filter(s=>VENUES[s.v].area===k).sort((a,b)=>parseT(a.start)-parseT(b.start));
+  $('#Llist .lbody').innerHTML=`<h3 class="who">${esc(AREAS[k].name)} tonight</h3><p class="spark">${rows.length} show${rows.length>1?'s':''}, by start time</p>`+
+    rows.map(s=>{const v=VENUES[s.v],st=state(s);const meta=`<b>${esc(v.name)}</b> · ${fmtT(s.start)} · ${esc(s.genre)} · ${s.price}`;
+      return st==='ended'?`<div class="gcard ended"><span class="gwho">${esc(s.artist)}</span><span class="etag">ended</span><span class="gmeta">${meta}</span></div>`
+        :`<button class="gcard" type="button" data-jump="${s.id}"><span class="gwho">${esc(s.artist)}</span>${st==='on'?'<span class="etag" style="color:var(--mint);border-color:#7BE0AD55">on now</span>':''}<span class="gmeta">${meta}</span></button>`}).join('');
+  open('Llist');
+}
+function showNearby(k){
+  const n=NEARBY[k];
+  $('#Lnearby .lbody').innerHTML=`<h3 class="who">${esc(n.title)}</h3><p class="spark">${esc(n.sub)}</p>
+    <div class="nearmap" aria-hidden="true"><svg viewBox="0 0 160 80">
+      <path class="near-street" d="${n.streets}"/>
+      <circle class="near-ring" cx="80" cy="44" r="34"/><text class="near-label" x="80" y="12" text-anchor="middle">— 5-MIN WALK —</text>
+      <circle class="near-venue" cx="80" cy="44" r="4"/>
+      ${n.spots.map(sp=>`<circle class="near-spot" cx="${sp[3]}" cy="${sp[4]}" r="2.6"/><text class="near-label" x="${sp[3]}" y="${sp[4]-5}" text-anchor="middle">${esc(sp[0].toUpperCase())}</text>`).join('')}
+    </svg></div>`+
+    n.spots.map(sp=>`<div class="ncard"><span class="nwho">${esc(sp[0])}</span><span class="ntype">${esc(sp[1])}</span><span class="nhow">${esc(sp[2])}</span></div>`).join('')+
+    `<p class="gnote">${esc(n.note)}</p>`;
+  open('Lnearby');
+}
+
+// ================= wiring =================
+document.addEventListener('click',e=>{
+  const jump=e.target.closest('[data-jump]');
+  if(jump){closeAll();document.getElementById(jump.dataset.jump)?.scrollIntoView();return}
+  const nb=e.target.closest('[data-nearby]'); if(nb){showNearby(nb.dataset.nearby);return}
+  const g=e.target.closest('[data-genre]'); if(g){showGenre(g.dataset.genre);return}
+  const ar=e.target.closest('[data-area]'); if(ar){showArea(ar.dataset.area);return}
+  if(e.target.closest('a,button:not([data-artist]):not([data-venue])'))return;
+  const za=e.target.closest('[data-artist]'); if(za){showArtist(za.dataset.artist);return}
+  const zv=e.target.closest('[data-venue]'); if(zv){showVenue(zv.dataset.venue)}
+});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'&&e.key!==' ')return; const t=e.target;
+  if(t.dataset?.artist){e.preventDefault();showArtist(t.dataset.artist)}
+  else if(t.dataset?.venue){e.preventDefault();showVenue(t.dataset.venue)}
+  else if(t.dataset?.area){e.preventDefault();showArea(t.dataset.area)}
+});
+document.querySelectorAll('.lens .back').forEach(b=>b.addEventListener('click',closeAll));
+$('#Lartist .switch').addEventListener('click',()=>showVenue(current));
+$('#Lvenue .switch').addEventListener('click',()=>showArtist(current));
+let x0=null;
+addEventListener('touchstart',e=>x0=e.touches[0].clientX,{passive:true});
+addEventListener('touchend',e=>{if(x0===null)return;const dx=e.changedTouches[0].clientX-x0;x0=null;
+  if(dx>70&&document.querySelector('.lens.on'))closeAll();
+},{passive:true});
 </script>
 </body>
 </html>
