@@ -233,7 +233,7 @@ def card(s):
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>{unc_text}<a href="https://{v["site"]}">{v["site"]}</a> <em>(tap ? again to close)</em></p></div></details>
     </div>
-    <p class="fixnote" style="margin:4px 12px 0">prototype sample — fictional listing at a real venue</p>
+    <p class="fixnote" style="margin:4px 12px 0">prototype sample — fictional listing; venue details, distances &amp; specials illustrative, not verified</p>
   </section>'''
 
 
@@ -684,7 +684,7 @@ page = f'''<!DOCTYPE html>
     var mic=document.getElementById('micbtn'), note=document.getElementById('voicenote'), heard=document.getElementById('heard');
     if(!mic)return;
     if(!SR){{note.textContent='Voice isn\\u2019t available in this browser \\u2014 the options below are the way in.';return}}
-    mic.hidden=false; note.textContent='Tap Speak it, allow the mic, and say what you feel like — or use the chips.';
+    mic.hidden=false; note.textContent='Tap \\u201cTell me what to find\\u201d, allow the mic, and say what you feel like \\u2014 or use the options below. Voice recognition is your browser\\u2019s own, processed by its vendor \\u2014 not by OneLive.';
     mic.addEventListener('click',function(){{
       var r=new SR(); r.lang='en-US'; r.maxAlternatives=1;
       heard.textContent='listening…';

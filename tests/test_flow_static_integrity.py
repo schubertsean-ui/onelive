@@ -45,12 +45,14 @@ class _Scan(HTMLParser):
         super().__init__()
         self.ids = set()
         self.hrefs = []
-        self.rooms = {}           # room id -> {"title": str|None, "fixnote": bool}
-        self.lenses = {}          # lens id -> has_fixnote
+        self.rooms = {}           # room id -> {"title": str|None, "fixnote": str|None}
+        self.lenses = {}          # lens id -> fixnote text | None
         self._room = None         # id of the room section we are inside
         self._lens = None         # id of the lens section we are inside
         self._who_depth = 0
         self._who_buf = []
+        self._fix_depth = 0
+        self._fix_buf = []
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
@@ -61,15 +63,13 @@ class _Scan(HTMLParser):
             self.hrefs.append(a["href"][1:])
         if tag == "section" and "room" in cls:
             self._room = a.get("id", "?")
-            self.rooms[self._room] = {"title": None, "fixnote": False}
+            self.rooms[self._room] = {"title": None, "fixnote": None}
         if tag == "section" and "lens" in cls:
             self._lens = a.get("id", "?")
-            self.lenses[self._lens] = False
+            self.lenses[self._lens] = None
         if "fixnote" in cls:
-            if self._room is not None:
-                self.rooms[self._room]["fixnote"] = True
-            elif self._lens is not None:
-                self.lenses[self._lens] = True
+            self._fix_depth += 1
+            self._fix_buf = []
         if "who" in cls and self._room is not None:
             self._who_depth += 1
             self._who_buf = []
@@ -85,10 +85,19 @@ class _Scan(HTMLParser):
             self._who_depth -= 1
             if self._room is not None and self.rooms[self._room]["title"] is None:
                 self.rooms[self._room]["title"] = " ".join(self._who_buf).strip()
+        if self._fix_depth and tag == "p":
+            self._fix_depth -= 1
+            text = " ".join(self._fix_buf).strip()
+            if self._room is not None and self.rooms[self._room]["fixnote"] is None:
+                self.rooms[self._room]["fixnote"] = text
+            elif self._lens is not None and self.lenses[self._lens] is None:
+                self.lenses[self._lens] = text
 
     def handle_data(self, data):
         if self._who_depth and data.strip():
             self._who_buf.append(data.strip())
+        if self._fix_depth and data.strip():
+            self._fix_buf.append(data.strip())
 
 
 _scan = _Scan()
@@ -106,11 +115,19 @@ def test_every_show_renders_as_a_card_with_its_title():
             "title in a lens does not count (r4)")
 
 
-def test_every_card_carries_the_onsurface_fixture_note():
-    missing = sorted(rid for rid, r in _scan.rooms.items() if not r["fixnote"])
-    assert not missing, (
-        "cards without the visible local truth boundary (evaluator r4: the "
-        f"? sheet is not a visible boundary): {missing}")
+# The boundary must NAME what it covers (evaluator r5: a note that exists
+# but omits the venue-metadata claims blesses the false-provenance hole).
+_CARD_NOTE_MUST_SAY = ("fictional listing", "venue details", "not verified")
+_LENS_NOTE_MUST_SAY = ("fictional listing", "not verified")
+
+
+def test_every_card_carries_a_covering_fixture_note():
+    bad = {rid: r["fixnote"] for rid, r in _scan.rooms.items()
+           if not r["fixnote"]
+           or not all(k in r["fixnote"].lower() for k in _CARD_NOTE_MUST_SAY)}
+    assert not bad, (
+        "cards whose visible truth boundary is missing or does not cover the "
+        f"real-business claims shown (must name: {_CARD_NOTE_MUST_SAY}): {bad}")
 
 
 def test_every_anchor_resolves():
@@ -118,11 +135,12 @@ def test_every_anchor_resolves():
     assert not broken, f"anchors pointing at nothing (dead taps, no-JS): {broken}"
 
 
-def test_every_lens_carries_the_onsurface_fixture_note():
-    missing = sorted(k for k, ok in _scan.lenses.items() if not ok)
-    assert not missing, (
-        "lenses without the local truth boundary (evaluator r3: deep-linkable "
-        f"surfaces need their own fixture note): {missing}")
+def test_every_lens_carries_a_covering_fixture_note():
+    bad = {k: t for k, t in _scan.lenses.items()
+           if not t or not all(w in t.lower() for w in _LENS_NOTE_MUST_SAY)}
+    assert not bad, (
+        "lenses whose truth boundary is missing or does not name what it "
+        f"covers (must name: {_LENS_NOTE_MUST_SAY}): {bad}")
 
 
 def test_lenses_open_via_css_target_without_js():
