@@ -3,23 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ONE LIVE — Direction 4: FLOW v2 (interactive prototype)</title>
+<title>ONE LIVE — Direction 4: FLOW v2.1 (interactive prototype)</title>
 <!--
-  FLOW v2 — founder round 2 (2026-07-22): "too much empty space and not
-  enough of the 'help me learn/explore/decide whether this venue and this
-  artist, not always in that order'". Kept: full-bleed glide, forward/back,
-  time-thread, bounded edition. Changed: rooms compress to ~78dvh with the
-  next room PEEKING (density + momentum); every card is DUAL-ANCHORED —
-  the ARTIST zone and the VENUE zone are coequal doors, each expanding
-  into its own lens (learn the artist / learn the room), in either order.
-  Decision rail on every card: time · price · distance · genre. v2-ratified
-  elements restored: venue as headliner row, distance + mini-map chip.
-  PART A canon intact. Zero dependencies. Open on a PHONE.
+  FLOW v2.1 — founder round 3 (2026-07-22, marked-up screenshot):
+  1. Venue site link on the card itself (and in the venue lens).
+  2. Photos of artist and venue: photo tiles per room + lens banners.
+     Artists are fictional (PART A canon), so tiles are placeholder art;
+     real press/venue photography slots here at build time, with rights
+     and provenance handled in the pipeline.
+  3. Mini-map is now an AUSTIN OUTLINE (city-limits silhouette + Colorado
+     River) with the venue's approximate locale dotted; larger map in
+     the venue lens.
+  4. The white box was a BUG — the venue zone button never got its UA
+     chrome reset (the artist zone did), so iOS painted default white +
+     blue. Both zones are now reset divs with role=button; venue block
+     compact and dark, AA contrast.
+  5. Genre chip shows how many OTHER same-genre bands play the city
+     tonight ("+2 tonight"); tapping opens a listing of those cards,
+     nearest first (the "Nearby" note).
+  6. Hear-it moved into the artist zone under the tagline (the circled
+     arrow on the markup).
+  Everything from v2 kept: dense ~80dvh rooms with the next one peeking,
+  dual-anchored artist/venue doors, either-order lens switching, decision
+  rail, time-thread, bounded edition. Zero dependencies. Open on a PHONE.
 -->
 <style>
   :root{
-    --ink:#F4EFE6; --dim:#B5AD9F; --night:#0B0B10; --night2:#15151D;
-    --ember:#FF7A45; --glow:#FFC77D; --mint:#CFF5E2; --thread:#5B5B70;
+    --ink:#F4EFE6; --dim:#BDB5A6; --night:#0B0B10; --night2:#15151D;
+    --ember:#FF7A45; --glow:#FFC77D; --mint:#CFF5E2; --thread:#5B5B70; --river:#7FB4D6;
     --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
   }
   *{margin:0;padding:0;box-sizing:border-box}
@@ -34,46 +45,73 @@
   .thread i.on{background:var(--ember);box-shadow:0 0 12px var(--ember)}
 
   /* rooms: dense, next one peeking under the fold */
-  .room{position:relative;min-height:78dvh;scroll-snap-align:start;margin:0 10px 12px;border-radius:20px;overflow:hidden;
-    display:flex;flex-direction:column;justify-content:flex-end;padding:16px 16px 14px;isolation:isolate}
+  .room{position:relative;min-height:80dvh;scroll-snap-align:start;margin:0 10px 12px;border-radius:20px;overflow:hidden;
+    display:flex;flex-direction:column;justify-content:flex-end;gap:2px;padding:14px 14px 12px;isolation:isolate}
   .room::before{content:"";position:absolute;inset:0;z-index:-2;background:var(--bg,#181822)}
   .room::after{content:"";position:absolute;inset:0;z-index:-1;opacity:.45;mix-blend-mode:overlay;pointer-events:none;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E")}
   .rise{transform:translateY(18px);opacity:0;transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .5s}
   .room.here .rise{transform:none;opacity:1}
 
-  /* dual anchors: two coequal doors */
-  .zone{border-radius:14px;padding:12px 12px 10px;position:relative}
+  /* photo tiles: artist + venue, placeholder art standing in for press/venue photography */
+  .media{display:flex;gap:8px;margin-bottom:6px}
+  .ph{flex:1;position:relative;border-radius:12px;overflow:hidden;height:clamp(88px,13dvh,124px);background:#000}
+  .ph svg{width:100%;height:100%;display:block}
+  .ph figcaption{position:absolute;left:8px;bottom:6px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+    color:#F4EFE6;background:#000000a8;padding:3px 8px;border-radius:999px}
+
+  /* dual anchors: two coequal doors (both fully reset — round-3 bug fix) */
+  .zone{border-radius:14px;padding:10px 12px;position:relative;cursor:pointer;background:none;border:0;color:inherit;font:inherit;text-align:left;width:100%}
   .zone:active{background:#ffffff10}
   .zone .go{position:absolute;right:10px;top:12px;color:var(--dim);font-size:13px}
-  .z-artist .who{font-family:Georgia,serif;font-size:clamp(27px,7.4vw,34px);line-height:1.05;margin-bottom:4px}
+  .z-artist .who{font-family:Georgia,serif;font-size:clamp(26px,7vw,33px);line-height:1.05;margin-bottom:3px;padding-right:64px}
   .spark{font-family:Georgia,serif;font-style:italic;font-size:15.5px;opacity:.94;max-width:34ch}
   .spark.tierc{color:var(--dim);font-size:14.5px}.spark.tierc small{font-style:normal;font-size:11px}
-  .z-venue{display:flex;align-items:center;gap:10px;border-top:1px solid #ffffff1c;margin-top:8px}
-  .minimap{flex:none;width:44px;height:44px;border-radius:10px;background:#ffffff10;display:grid;place-items:center}
-  .minimap svg{width:34px;height:34px}
-  .z-venue .vname{font-weight:700;font-size:16.5px}
-  .z-venue .vchar{color:var(--dim);font-size:13.5px;font-style:italic}
-  .z-venue .vdist{font-size:12.5px;color:var(--glow)}
+  .hear{margin-top:9px}
+  .z-venue{display:flex;align-items:center;gap:10px;border-top:1px solid #ffffff1c;margin-top:6px;background:#ffffff0a;border-radius:0 0 14px 14px}
+  .vtext{display:flex;flex-direction:column;gap:1px;min-width:0;padding-right:56px}
+  .vname{font-weight:700;font-size:16.5px}
+  .vchar{color:var(--dim);font-size:13.5px;font-style:italic}
+  .vmeta{font-size:12.5px;color:var(--glow)}
+  .vmeta a{color:var(--glow);text-decoration:underline;text-underline-offset:2px}
+  .z-venue .go{top:50%;transform:translateY(-50%)}
+
+  /* the Austin outline mini-map: city silhouette + Colorado River + venue dot */
+  .minimap{flex:none;width:52px;height:56px;border-radius:10px;background:#ffffff10;display:grid;place-items:center}
+  .minimap svg{width:44px;height:50px}
+  .austin-shape{fill:#ffffff14;stroke:#BDB5A6;stroke-width:1.4}
+  .austin-river{fill:none;stroke:var(--river);stroke-width:1.6;opacity:.85}
+  .austin-dot{fill:var(--ember)} .austin-ring{fill:none;stroke:var(--ember);opacity:.5}
 
   /* decision rail */
-  .rail{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .rail{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
   .chip,button.chip{appearance:none;border:1px solid #ffffff2b;background:#ffffff12;color:var(--ink);
     min-height:44px;padding:9px 14px;border-radius:999px;font:600 13.5px/1 inherit;display:inline-flex;align-items:center;gap:7px;cursor:pointer}
   button.chip:active{transform:scale(.97)}
   .chip.t{color:var(--glow)} .chip.free{border-color:#7BE0AD55;color:var(--mint)}
+  .chip.genre b{color:var(--glow);font-weight:700}
   .glyph{width:16px;height:16px;flex:none}
 
-  /* forward lenses: artist or venue, either order, same surface */
-  .lens{position:fixed;inset:0;z-index:20;background:#000000f0;display:flex;flex-direction:column;justify-content:flex-end;
+  /* forward lenses: artist, venue, or genre — same surface, either order */
+  .lens{position:fixed;inset:0;z-index:20;background:#000000f2;display:flex;flex-direction:column;justify-content:flex-end;
     padding:calc(var(--safe-t) + 16px) 20px calc(var(--safe-b) + 20px);
-    opacity:0;pointer-events:none;transform:translateX(7%);transition:opacity .32s,transform .4s cubic-bezier(.2,.8,.2,1)}
+    opacity:0;pointer-events:none;transform:translateX(7%);transition:opacity .32s,transform .4s cubic-bezier(.2,.8,.2,1);overflow-y:auto}
   .lens.on{opacity:1;pointer-events:auto;transform:none}
   .lens .who{font-family:Georgia,serif;font-size:clamp(26px,7vw,34px);margin-bottom:6px}
+  .lens .ph{flex:none;height:clamp(120px,20dvh,180px);margin-bottom:12px}
   .lens dl{margin:10px 0 16px;display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px}
   .lens dt{color:var(--dim)} .lens dd a{color:var(--glow)}
-  .lens .back{position:absolute;top:calc(var(--safe-t) + 12px);left:14px}
-  .lens .switch{position:absolute;top:calc(var(--safe-t) + 12px);right:14px}
+  .lens .back{position:absolute;top:calc(var(--safe-t) + 12px);left:14px;z-index:2}
+  .lens .switch{position:absolute;top:calc(var(--safe-t) + 12px);right:14px;z-index:2}
+  .lens .mapline{display:flex;align-items:center;gap:12px}
+  .lens .mapline .minimap{width:64px;height:70px}.lens .mapline .minimap svg{width:54px;height:62px}
+
+  /* genre listing: the other same-genre cards tonight, nearest first */
+  .gcard{display:flex;align-items:baseline;gap:10px;border:1px solid #ffffff22;background:#ffffff0d;border-radius:14px;padding:12px 14px;margin-top:8px}
+  .gcard .gwho{font-family:Georgia,serif;font-size:18px}
+  .gcard .gmeta{margin-left:auto;text-align:right;font-size:12.5px;color:var(--dim);white-space:nowrap}
+  .gcard .gmeta b{color:var(--glow);font-weight:600}
+  .gnote{font-size:12px;color:var(--dim);margin-top:10px}
 
   details.unc{display:inline-block}
   details.unc summary{list-style:none;cursor:pointer;min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:var(--dim);border:1px dashed #ffffff2b}
@@ -94,21 +132,46 @@
 
   <!-- ROOM 1 -->
   <section class="room here" data-dot="0" style="--bg:radial-gradient(140% 110% at 28% 0%, #3D1F14 0%, #14101A 70%)">
-    <button class="zone z-artist rise" data-lens="a1" aria-label="Learn the artist: Velvet Casket" style="text-align:left;border:0;background:none;color:inherit">
+    <div class="media rise" aria-hidden="true">
+      <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
+        <defs><linearGradient id="s1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4A2418"/><stop offset="1" stop-color="#120C0E"/></linearGradient></defs>
+        <rect width="160" height="100" fill="url(#s1)"/>
+        <polygon points="80,0 34,100 126,100" fill="#FFC77D" opacity=".14"/>
+        <ellipse cx="80" cy="96" rx="60" ry="8" fill="#FFC77D" opacity=".12"/>
+        <path d="M62 62q4-14 10-14t8 12l2 40h-22z" fill="#0A0708"/><circle cx="72" cy="44" r="7" fill="#0A0708"/>
+        <path d="M96 66q3-10 8-10t7 9l2 35h-19z" fill="#0A0708"/><circle cx="104" cy="52" r="6" fill="#0A0708"/>
+        <path d="M42 70q3-8 7-8t6 8l2 30h-17z" fill="#0A0708"/><circle cx="49" cy="58" r="5.5" fill="#0A0708"/>
+        <rect x="70" y="30" width="2" height="26" fill="#0A0708"/><circle cx="71" cy="28" r="3" fill="#0A0708"/>
+      </svg><figcaption>Velvet Casket</figcaption></figure>
+      <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
+        <defs><linearGradient id="r1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#241812"/><stop offset="1" stop-color="#0C0809"/></linearGradient></defs>
+        <rect width="160" height="100" fill="url(#r1)"/>
+        <path d="M20 100V46q60-30 120 0v54z" fill="#160F0C"/>
+        <circle cx="46" cy="70" r="2.4" fill="#FFC77D"/><circle cx="80" cy="66" r="2.4" fill="#FFC77D"/><circle cx="116" cy="71" r="2.4" fill="#FFC77D"/>
+        <ellipse cx="46" cy="79" rx="12" ry="3" fill="#FFC77D" opacity=".25"/><ellipse cx="80" cy="75" rx="12" ry="3" fill="#FFC77D" opacity=".25"/><ellipse cx="116" cy="80" rx="12" ry="3" fill="#FFC77D" opacity=".25"/>
+        <rect x="0" y="90" width="160" height="10" fill="#1C1410"/>
+      </svg><figcaption>Elephant Room</figcaption></figure>
+    </div>
+    <div class="zone z-artist rise" role="button" tabindex="0" data-lens="a1" aria-label="Learn the artist: Velvet Casket">
       <span class="go">artist ›</span>
       <h2 class="who">Velvet Casket</h2>
       <p class="spark">swamp-gospel stomp with brass and menace</p>
-    </button>
-    <button class="zone z-venue rise" data-lens="v1" aria-label="Learn the venue: Elephant Room">
-      <span class="minimap" aria-hidden="true"><svg viewBox="0 0 34 34"><path d="M4 26 Q12 20 16 22 T30 12" fill="none" stroke="#FFC77D" stroke-width="2"/><circle cx="21" cy="18" r="3" fill="#FF7A45"/></svg></span>
-      <span style="text-align:left"><span class="vname">Elephant Room</span><br>
-        <span class="vchar">basement jazz cellar, candle-dark, standing</span><br>
-        <span class="vdist">0.4 mi · Congress Ave</span></span>
-      <span class="go" style="position:static;margin-left:auto">venue ›</span>
-    </button>
+      <button class="chip hear" type="button"><svg class="glyph" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>Hear it</button>
+    </div>
+    <div class="zone z-venue rise" role="button" tabindex="0" data-lens="v1" aria-label="Learn the venue: Elephant Room">
+      <span class="minimap" aria-hidden="true"><svg viewBox="0 0 44 50">
+        <path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/>
+        <path class="austin-river" d="M2 20q10 3 16 7t24 9"/>
+        <circle class="austin-ring" cx="21" cy="26" r="5"/><circle class="austin-dot" cx="21" cy="26" r="2.6"/>
+      </svg></span>
+      <span class="vtext"><span class="vname">Elephant Room</span>
+        <span class="vchar">basement jazz cellar, candle-dark, standing</span>
+        <span class="vmeta">0.4 mi · Congress Ave · <a href="https://elephantroom.com" target="_blank" rel="noopener">elephantroom.com&thinsp;↗</a></span></span>
+      <span class="go">venue ›</span>
+    </div>
     <div class="rail rise">
-      <span class="chip t">9:00 PM</span><span class="chip free">Free</span><span class="chip">Gospel-punk</span>
-      <button class="chip" type="button"><svg class="glyph" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>Hear it</button>
+      <span class="chip t">9:00 PM</span><span class="chip free">Free</span>
+      <button class="chip genre" type="button" data-lens="g1" aria-label="Gospel-punk: 2 more bands tonight — see them">Gospel-punk <b>+2 tonight</b></button>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>From the venue's public calendar, seen 40 minutes ago. The room is the last word: <a href="https://elephantroom.com">elephantroom.com</a></p>
         <button class="chip" type="button" onclick="this.closest('details').removeAttribute('open')">Got it</button></div></details>
@@ -117,41 +180,91 @@
 
   <!-- ROOM 2 -->
   <section class="room" data-dot="1" style="--bg:radial-gradient(140% 110% at 72% 0%, #14283D 0%, #10141C 70%)">
-    <button class="zone z-artist rise" data-lens="a2" aria-label="Learn the artist: Reina Cortez y Los Fantasmas" style="text-align:left;border:0;background:none;color:inherit">
+    <div class="media rise" aria-hidden="true">
+      <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
+        <defs><linearGradient id="s2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1A3550"/><stop offset="1" stop-color="#0A1018"/></linearGradient></defs>
+        <rect width="160" height="100" fill="url(#s2)"/>
+        <polygon points="50,0 20,100 90,100" fill="#7FB4D6" opacity=".12"/><polygon points="112,0 82,100 152,100" fill="#FF7A45" opacity=".10"/>
+        <path d="M52 60q4-12 9-12t7 11l2 41h-20z" fill="#060A0E"/><circle cx="60" cy="44" r="6.5" fill="#060A0E"/>
+        <path d="M88 64q3-9 7-9t6 9l2 36h-17z" fill="#060A0E"/><circle cx="95" cy="50" r="5.5" fill="#060A0E"/>
+        <path d="M116 66q3-8 6-8t6 8l1 34h-15z" fill="#060A0E"/><circle cx="122" cy="53" r="5" fill="#060A0E"/>
+        <rect x="30" y="76" width="14" height="20" rx="2" fill="#060A0E"/>
+      </svg><figcaption>Reina Cortez</figcaption></figure>
+      <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
+        <defs><linearGradient id="r2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#26170F"/><stop offset="1" stop-color="#0E0806"/></linearGradient></defs>
+        <rect width="160" height="100" fill="url(#r2)"/>
+        <rect x="0" y="84" width="160" height="16" fill="#191009"/>
+        <path d="M10 84V30h20v54zM130 84V30h20v54z" fill="#130C08"/>
+        <path d="M30 30h100v6H30z" fill="#130C08"/>
+        <circle cx="55" cy="52" r="2.2" fill="#FFC77D"/><circle cx="80" cy="48" r="2.2" fill="#FFC77D"/><circle cx="105" cy="52" r="2.2" fill="#FFC77D"/>
+        <path d="M40 84q40-14 80 0" fill="none" stroke="#FFC77D" stroke-width="1" opacity=".3"/>
+      </svg><figcaption>Sagebrush</figcaption></figure>
+    </div>
+    <div class="zone z-artist rise" role="button" tabindex="0" data-lens="a2" aria-label="Learn the artist: Reina Cortez y Los Fantasmas">
       <span class="go">artist ›</span>
       <h2 class="who">Reina Cortez y Los Fantasmas</h2>
       <p class="spark">cumbia noir — organ smoke over a two-step</p>
-    </button>
-    <button class="zone z-venue rise" data-lens="v2" aria-label="Learn the venue: Sagebrush">
-      <span class="minimap" aria-hidden="true"><svg viewBox="0 0 34 34"><path d="M6 8 Q14 16 16 20 T28 28" fill="none" stroke="#FFC77D" stroke-width="2"/><circle cx="24" cy="25" r="3" fill="#FF7A45"/></svg></span>
-      <span style="text-align:left"><span class="vname">Sagebrush</span><br>
-        <span class="vchar">honky-tonk roadhouse, big floor, dancers welcome</span><br>
-        <span class="vdist">2.1 mi · S Congress</span></span>
-      <span class="go" style="position:static;margin-left:auto">venue ›</span>
-    </button>
+      <button class="chip hear" type="button"><svg class="glyph" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>Hear it</button>
+    </div>
+    <div class="zone z-venue rise" role="button" tabindex="0" data-lens="v2" aria-label="Learn the venue: Sagebrush">
+      <span class="minimap" aria-hidden="true"><svg viewBox="0 0 44 50">
+        <path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/>
+        <path class="austin-river" d="M2 20q10 3 16 7t24 9"/>
+        <circle class="austin-ring" cx="20" cy="40" r="5"/><circle class="austin-dot" cx="20" cy="40" r="2.6"/>
+      </svg></span>
+      <span class="vtext"><span class="vname">Sagebrush</span>
+        <span class="vchar">honky-tonk roadhouse, big floor, dancers welcome</span>
+        <span class="vmeta">2.1 mi · S Congress · <a href="https://sagebrushtexas.com" target="_blank" rel="noopener">sagebrushtexas.com&thinsp;↗</a></span></span>
+      <span class="go">venue ›</span>
+    </div>
     <div class="rail rise">
-      <span class="chip t">10:30 PM</span><span class="chip">$12</span><span class="chip">Cumbia</span>
-      <button class="chip" type="button"><svg class="glyph" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>Hear it</button>
+      <span class="chip t">10:30 PM</span><span class="chip">$12</span>
+      <button class="chip genre" type="button" data-lens="g2" aria-label="Cumbia: 3 more bands tonight — see them">Cumbia <b>+3 tonight</b></button>
     </div>
   </section>
 
   <!-- ROOM 3 (tier-C register) -->
   <section class="room" data-dot="2" style="--bg:radial-gradient(140% 110% at 45% 0%, #262038 0%, #100F16 70%)">
-    <button class="zone z-artist rise" data-lens="a3" aria-label="Learn the artist: Glass Anthem" style="text-align:left;border:0;background:none;color:inherit">
+    <div class="media rise" aria-hidden="true">
+      <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
+        <defs><linearGradient id="s3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#332B4E"/><stop offset="1" stop-color="#0E0C14"/></linearGradient></defs>
+        <rect width="160" height="100" fill="url(#s3)"/>
+        <rect x="0" y="0" width="160" height="100" fill="#8F7FD6" opacity=".08"/>
+        <path d="M66 58q4-13 9-13t8 12l2 43h-21z" fill="#08060C"/><circle cx="75" cy="41" r="7" fill="#08060C"/>
+        <path d="M100 64q3-9 6-9t6 9l2 36h-16z" fill="#08060C"/><circle cx="106" cy="51" r="5.5" fill="#08060C"/>
+        <ellipse cx="80" cy="98" rx="70" ry="6" fill="#8F7FD6" opacity=".15"/>
+        <rect x="36" y="60" width="3" height="38" fill="#08060C"/><rect x="30" y="56" width="16" height="8" rx="2" fill="#08060C"/>
+      </svg><figcaption>Glass Anthem</figcaption></figure>
+      <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice">
+        <defs><linearGradient id="r3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1E1A2C"/><stop offset="1" stop-color="#0B0910"/></linearGradient></defs>
+        <rect width="160" height="100" fill="url(#r3)"/>
+        <path d="M20 100V40q28-24 60-24t60 24v60z" fill="#141020"/>
+        <path d="M35 44q45-26 90 0" fill="none" stroke="#FFC77D" stroke-width="1.2" opacity=".5"/>
+        <path d="M42 52q38-20 76 0" fill="none" stroke="#FFC77D" stroke-width="1" opacity=".35"/>
+        <circle cx="80" cy="34" r="3" fill="#FFC77D" opacity=".8"/>
+        <rect x="0" y="92" width="160" height="8" fill="#191426"/>
+      </svg><figcaption>The Parish</figcaption></figure>
+    </div>
+    <div class="zone z-artist rise" role="button" tabindex="0" data-lens="a3" aria-label="Learn the artist: Glass Anthem">
       <span class="go">artist ›</span>
       <h2 class="who">Glass Anthem</h2>
       <p class="spark tierc">✳ shoegaze wall, patient and enormous <small>— first notes</small></p>
-    </button>
-    <button class="zone z-venue rise" data-lens="v3" aria-label="Learn the venue: The Parish">
-      <span class="minimap" aria-hidden="true"><svg viewBox="0 0 34 34"><path d="M5 22 Q12 10 18 12 T29 20" fill="none" stroke="#FFC77D" stroke-width="2"/><circle cx="17" cy="12" r="3" fill="#FF7A45"/></svg></span>
-      <span style="text-align:left"><span class="vname">The Parish</span><br>
-        <span class="vchar">upstairs ballroom, famous ceiling, loud and close</span><br>
-        <span class="vdist">0.7 mi · Brazos St</span></span>
-      <span class="go" style="position:static;margin-left:auto">venue ›</span>
-    </button>
+      <button class="chip hear" type="button"><svg class="glyph" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>Hear it</button>
+    </div>
+    <div class="zone z-venue rise" role="button" tabindex="0" data-lens="v3" aria-label="Learn the venue: The Parish">
+      <span class="minimap" aria-hidden="true"><svg viewBox="0 0 44 50">
+        <path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/>
+        <path class="austin-river" d="M2 20q10 3 16 7t24 9"/>
+        <circle class="austin-ring" cx="24" cy="24" r="5"/><circle class="austin-dot" cx="24" cy="24" r="2.6"/>
+      </svg></span>
+      <span class="vtext"><span class="vname">The Parish</span>
+        <span class="vchar">upstairs ballroom, famous ceiling, loud and close</span>
+        <span class="vmeta">0.7 mi · Brazos St · <a href="https://theparishaustin.com" target="_blank" rel="noopener">theparishaustin.com&thinsp;↗</a></span></span>
+      <span class="go">venue ›</span>
+    </div>
     <div class="rail rise">
-      <span class="chip t">11:45 PM</span><span class="chip">$15</span><span class="chip">Shoegaze</span>
-      <button class="chip" type="button"><svg class="glyph" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>Hear it</button>
+      <span class="chip t">11:45 PM</span><span class="chip">$15</span>
+      <button class="chip genre" type="button" data-lens="g3" aria-label="Shoegaze: 1 more band tonight — see it">Shoegaze <b>+1 tonight</b></button>
       <details class="unc"><summary aria-label="Something off? How we know">?</summary>
         <div class="sheet" role="dialog" aria-label="How we know"><p>One listing so far; waiting on a second source. Check the room: <a href="https://theparishaustin.com">theparishaustin.com</a></p>
         <button class="chip" type="button" onclick="this.closest('details').removeAttribute('open')">Got it</button></div></details>
@@ -167,42 +280,74 @@
   </section>
 </div>
 
-<!-- LENSES: artist or venue, either order; switch flips between them -->
+<!-- LENSES: artist / venue / genre — same surface, either order -->
 <div class="lens" id="a1" role="region" aria-label="Artist: Velvet Casket">
   <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button" data-to="v1">the venue ›</button>
+  <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><rect width="160" height="100" fill="#2C1710"/><polygon points="80,0 30,100 130,100" fill="#FFC77D" opacity=".15"/><path d="M62 58q4-14 10-14t8 12l2 44h-22z" fill="#0A0708"/><circle cx="72" cy="40" r="7.5" fill="#0A0708"/><path d="M96 64q3-10 8-10t7 9l2 37h-19z" fill="#0A0708"/><circle cx="104" cy="49" r="6" fill="#0A0708"/></svg><figcaption>Velvet Casket</figcaption></figure>
   <h3 class="who">Velvet Casket</h3><p class="spark">swamp-gospel stomp with brass and menace</p>
   <dl><dt>Sounds like</dt><dd>a revival tent two blocks off Bourbon</dd><dt>Tonight</dt><dd>9:00 PM · Free · Elephant Room</dd></dl>
   <div class="rail"><button class="chip" type="button"><svg class="glyph" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>Hear it</button><button class="chip" type="button">Save for tonight</button></div>
 </div>
 <div class="lens" id="v1" role="region" aria-label="Venue: Elephant Room">
   <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button" data-to="a1">the artist ›</button>
+  <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><rect width="160" height="100" fill="#1C110B"/><path d="M20 100V44q60-30 120 0v56z" fill="#140D09"/><circle cx="46" cy="68" r="2.6" fill="#FFC77D"/><circle cx="80" cy="64" r="2.6" fill="#FFC77D"/><circle cx="116" cy="69" r="2.6" fill="#FFC77D"/><ellipse cx="80" cy="80" rx="46" ry="5" fill="#FFC77D" opacity=".2"/></svg><figcaption>Elephant Room</figcaption></figure>
   <h3 class="who">Elephant Room</h3><p class="spark">basement jazz cellar, candle-dark, standing room</p>
-  <dl><dt>Address</dt><dd>315 Congress Ave · 0.4 mi</dd><dt>Tonight here</dt><dd>Velvet Casket, 9:00 PM · Free</dd><dt>Their site</dt><dd><a href="https://elephantroom.com">elephantroom.com</a></dd></dl>
-  <div class="rail"><button class="chip" type="button">Save for tonight</button></div>
+  <div class="mapline"><span class="minimap" aria-hidden="true"><svg viewBox="0 0 44 50"><path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/><path class="austin-river" d="M2 20q10 3 16 7t24 9"/><circle class="austin-ring" cx="21" cy="26" r="5"/><circle class="austin-dot" cx="21" cy="26" r="2.6"/></svg></span>
+  <dl style="margin:0"><dt>Address</dt><dd>315 Congress Ave · 0.4 mi</dd><dt>Tonight here</dt><dd>Velvet Casket, 9:00 PM · Free</dd><dt>Their site</dt><dd><a href="https://elephantroom.com" target="_blank" rel="noopener">elephantroom.com&thinsp;↗</a></dd></dl></div>
+  <div class="rail" style="margin-top:14px"><button class="chip" type="button">Save for tonight</button></div>
 </div>
 <div class="lens" id="a2" role="region" aria-label="Artist: Reina Cortez y Los Fantasmas">
   <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button" data-to="v2">the venue ›</button>
+  <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><rect width="160" height="100" fill="#122438"/><polygon points="54,0 24,100 94,100" fill="#7FB4D6" opacity=".14"/><path d="M52 56q4-12 9-12t7 11l2 45h-20z" fill="#060A0E"/><circle cx="60" cy="40" r="7" fill="#060A0E"/><path d="M88 62q3-9 7-9t6 9l2 38h-17z" fill="#060A0E"/><circle cx="95" cy="47" r="5.5" fill="#060A0E"/></svg><figcaption>Reina Cortez y Los Fantasmas</figcaption></figure>
   <h3 class="who">Reina Cortez y Los Fantasmas</h3><p class="spark">cumbia noir — organ smoke over a two-step</p>
   <dl><dt>Tonight</dt><dd>10:30 PM · $12 · Sagebrush</dd></dl>
   <div class="rail"><button class="chip" type="button"><svg class="glyph" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>Hear it</button><button class="chip" type="button">Save for tonight</button></div>
 </div>
 <div class="lens" id="v2" role="region" aria-label="Venue: Sagebrush">
   <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button" data-to="a2">the artist ›</button>
+  <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><rect width="160" height="100" fill="#20130C"/><rect x="0" y="82" width="160" height="18" fill="#170E08"/><path d="M10 82V28h22v54zM128 82V28h22v54z" fill="#110B07"/><circle cx="56" cy="50" r="2.4" fill="#FFC77D"/><circle cx="80" cy="46" r="2.4" fill="#FFC77D"/><circle cx="104" cy="50" r="2.4" fill="#FFC77D"/><path d="M40 82q40-14 80 0" fill="none" stroke="#FFC77D" opacity=".3"/></svg><figcaption>Sagebrush</figcaption></figure>
   <h3 class="who">Sagebrush</h3><p class="spark">honky-tonk roadhouse, big floor, dancers welcome</p>
-  <dl><dt>Address</dt><dd>5500 S Congress · 2.1 mi</dd><dt>Tonight here</dt><dd>Reina Cortez, 10:30 PM · $12</dd><dt>Their site</dt><dd><a href="https://sagebrushtexas.com">sagebrushtexas.com</a></dd></dl>
-  <div class="rail"><button class="chip" type="button">Save for tonight</button></div>
+  <div class="mapline"><span class="minimap" aria-hidden="true"><svg viewBox="0 0 44 50"><path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/><path class="austin-river" d="M2 20q10 3 16 7t24 9"/><circle class="austin-ring" cx="20" cy="40" r="5"/><circle class="austin-dot" cx="20" cy="40" r="2.6"/></svg></span>
+  <dl style="margin:0"><dt>Address</dt><dd>5500 S Congress · 2.1 mi</dd><dt>Tonight here</dt><dd>Reina Cortez, 10:30 PM · $12</dd><dt>Their site</dt><dd><a href="https://sagebrushtexas.com" target="_blank" rel="noopener">sagebrushtexas.com&thinsp;↗</a></dd></dl></div>
+  <div class="rail" style="margin-top:14px"><button class="chip" type="button">Save for tonight</button></div>
 </div>
 <div class="lens" id="a3" role="region" aria-label="Artist: Glass Anthem">
   <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button" data-to="v3">the venue ›</button>
+  <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><rect width="160" height="100" fill="#251F3C"/><rect width="160" height="100" fill="#8F7FD6" opacity=".08"/><path d="M66 56q4-13 9-13t8 12l2 45h-21z" fill="#08060C"/><circle cx="75" cy="39" r="7.5" fill="#08060C"/><ellipse cx="80" cy="98" rx="70" ry="6" fill="#8F7FD6" opacity=".16"/></svg><figcaption>Glass Anthem</figcaption></figure>
   <h3 class="who">Glass Anthem</h3><p class="spark tierc">✳ shoegaze wall, patient and enormous <small>— first notes</small></p>
   <dl><dt>Tonight</dt><dd>11:45 PM · $15 · The Parish</dd></dl>
   <div class="rail"><button class="chip" type="button"><svg class="glyph" viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z" fill="currentColor"/></svg>Hear it</button><button class="chip" type="button">Save for tonight</button></div>
 </div>
 <div class="lens" id="v3" role="region" aria-label="Venue: The Parish">
   <button class="chip back" type="button">‹ Back</button><button class="chip switch" type="button" data-to="a3">the artist ›</button>
+  <figure class="ph"><svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice"><rect width="160" height="100" fill="#191527"/><path d="M20 100V38q28-24 60-24t60 24v62z" fill="#120E1E"/><path d="M35 42q45-26 90 0" fill="none" stroke="#FFC77D" stroke-width="1.2" opacity=".5"/><path d="M42 50q38-20 76 0" fill="none" stroke="#FFC77D" opacity=".35"/><circle cx="80" cy="32" r="3" fill="#FFC77D" opacity=".8"/></svg><figcaption>The Parish</figcaption></figure>
   <h3 class="who">The Parish</h3><p class="spark">upstairs ballroom, famous ceiling, loud and close</p>
-  <dl><dt>Address</dt><dd>601 Brazos St · 0.7 mi</dd><dt>Tonight here</dt><dd>Glass Anthem, 11:45 PM · $15</dd><dt>Their site</dt><dd><a href="https://theparishaustin.com">theparishaustin.com</a></dd></dl>
-  <div class="rail"><button class="chip" type="button">Save for tonight</button></div>
+  <div class="mapline"><span class="minimap" aria-hidden="true"><svg viewBox="0 0 44 50"><path class="austin-shape" d="M17 2l9 1 4 5 8 3-1 8 5 6-6 8 1 9-8 5-9-1-6-6 1-8-6-6 3-8-2-6z"/><path class="austin-river" d="M2 20q10 3 16 7t24 9"/><circle class="austin-ring" cx="24" cy="24" r="5"/><circle class="austin-dot" cx="24" cy="24" r="2.6"/></svg></span>
+  <dl style="margin:0"><dt>Address</dt><dd>601 Brazos St · 0.7 mi</dd><dt>Tonight here</dt><dd>Glass Anthem, 11:45 PM · $15</dd><dt>Their site</dt><dd><a href="https://theparishaustin.com" target="_blank" rel="noopener">theparishaustin.com&thinsp;↗</a></dd></dl></div>
+  <div class="rail" style="margin-top:14px"><button class="chip" type="button">Save for tonight</button></div>
+</div>
+
+<!-- GENRE LENSES: every other same-genre card tonight, nearest first -->
+<div class="lens" id="g1" role="region" aria-label="Gospel-punk tonight: 2 more bands">
+  <button class="chip back" type="button">‹ Back</button>
+  <h3 class="who">Gospel-punk tonight</h3><p class="spark">two more rooms in the city — nearest first</p>
+  <div class="gcard"><span class="gwho">Brass Ordinance</span><span class="gmeta"><b>Mohawk</b> · 10:00 PM · $10<br>0.5 mi · Red River</span></div>
+  <div class="gcard"><span class="gwho">The Ninth Hour</span><span class="gmeta"><b>Hotel Vegas</b> · 11:00 PM · $8<br>1.2 mi · E 6th</span></div>
+  <p class="gnote">In the build, each of these opens its own card — same doors, same rules.</p>
+</div>
+<div class="lens" id="g2" role="region" aria-label="Cumbia tonight: 3 more bands">
+  <button class="chip back" type="button">‹ Back</button>
+  <h3 class="who">Cumbia tonight</h3><p class="spark">three more rooms in the city — nearest first</p>
+  <div class="gcard"><span class="gwho">La Marea</span><span class="gmeta"><b>Flamingo Cantina</b> · 9:30 PM · $10<br>0.6 mi · E 6th</span></div>
+  <div class="gcard"><span class="gwho">Sonido Cascabel</span><span class="gmeta"><b>Coral Snake</b> · 10:00 PM · Free<br>1.0 mi · E Cesar Chavez</span></div>
+  <div class="gcard"><span class="gwho">Orquesta Nube</span><span class="gmeta"><b>Far Out Lounge</b> · 9:00 PM · $12<br>4.8 mi · S Congress</span></div>
+  <p class="gnote">In the build, each of these opens its own card — same doors, same rules.</p>
+</div>
+<div class="lens" id="g3" role="region" aria-label="Shoegaze tonight: 1 more band">
+  <button class="chip back" type="button">‹ Back</button>
+  <h3 class="who">Shoegaze tonight</h3><p class="spark">one more room in the city</p>
+  <div class="gcard"><span class="gwho">Bellhollow</span><span class="gmeta"><b>Cheer Up Charlies</b> · 10:15 PM · Free<br>0.8 mi · Red River</span></div>
+  <p class="gnote">In the build, each of these opens its own card — same doors, same rules.</p>
 </div>
 
 <script>
@@ -213,7 +358,10 @@
   }}),{threshold:.55});
   rooms.forEach(r=>io.observe(r));
   const open=id=>{document.querySelectorAll('.lens.on').forEach(l=>l.classList.remove('on'));const l=document.getElementById(id);if(l)l.classList.add('on')};
-  document.querySelectorAll('[data-lens]').forEach(z=>z.addEventListener('click',()=>open(z.dataset.lens)));
+  document.querySelectorAll('[data-lens]').forEach(z=>{
+    z.addEventListener('click',e=>{if(e.target.closest('a,button:not([data-lens])'))return;open(z.dataset.lens)});
+    z.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===z){e.preventDefault();open(z.dataset.lens)}});
+  });
   document.querySelectorAll('.lens .back').forEach(b=>b.addEventListener('click',()=>b.closest('.lens').classList.remove('on')));
   document.querySelectorAll('.lens .switch').forEach(b=>b.addEventListener('click',()=>open(b.dataset.to)));
   let x0=null;
