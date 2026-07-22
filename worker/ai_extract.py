@@ -86,8 +86,8 @@ def extract_candidate(
     discarded_times = normalize_extracted_datetimes(shaped)
     if discarded_times:
         logger.warning(
-            "source %r: datetime claim(s) without a full evidenced date "
-            "stored as NULL, raw preserved in provenance: %s",
+            "source %r: datetime claim(s) refused (stored as NULL, raw + "
+            "reason preserved in provenance): %s",
             source_name, discarded_times,
         )
         # preserve_discarded_claims REPLACES a malformed _provenance rather

@@ -10,7 +10,7 @@ extracted string evidences a full calendar date. We never fabricate one —
 guessing "today"/"this year" for a time-only or month-day-only claim would
 assert an unverified fact, the exact thing the pipeline exists to prevent.
 Instead the structured column gets NULL, the raw claim is preserved in the
-candidate's extracted jsonb (under _provenance.undated_time_claims, wired
+candidate's extracted jsonb (under _provenance.unstored_datetime_claims, wired
 in worker/ai_extract.py), and the candidate row still reaches ops review:
 no false fact asserted, no event lost.
 
@@ -31,6 +31,7 @@ surface touched.
 """
 from __future__ import annotations
 
+import json
 import re
 import warnings
 from datetime import datetime
@@ -60,73 +61,88 @@ _DATETIME_FIELDS = ("start_time", "end_time")
 _NUMERIC_DATE = re.compile(r"^\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\b")
 
 
-def normalize_datetime_claim(raw: Any) -> Tuple[Optional[str], Optional[str]]:
-    """Return (normalized_iso | None, discarded_raw | None).
+def normalize_datetime_claim(
+    raw: Any,
+) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
+    """Return (normalized_iso | None, refusal | None) where refusal is
+    {"raw": <original string>, "reason": <machine-readable code>}.
 
-    - None/empty → (None, None): nothing claimed, nothing discarded.
+    - None/empty → (None, None): nothing claimed, nothing refused.
     - Full-date-evidenced string → (ISO 8601, None).
-    - Time-only / weekday-only / month-day-without-year / unparseable /
-      ambiguous-numeric-date / unrecognized-timezone-abbreviation →
-      (None, the raw string) so the caller can preserve the claim loudly.
+    - Anything we refuse to store carries its reason (r2 nit — a
+      timezone-refused claim is dated but tz-unusable, not "undated"):
+      "unparseable", "ambiguous-numeric-date",
+      "unrecognized-timezone-abbreviation", "no-full-date-evidence".
 
-    The timezone rule (PR #44 r1 nit): dateutil DROPS timezone
-    abbreviations it cannot resolve ("7pm ET" parses as naive 19:00,
-    which a timestamptz column would silently reinterpret — a subtly
-    wrong fact). It emits UnknownTimezoneWarning when doing so; we treat
-    that warning as a refusal — the claim asserted a timezone we cannot
-    honor, so we store nothing rather than a shifted time.
+    The timezone rule (r1 nit): dateutil DROPS timezone abbreviations it
+    cannot resolve ("7pm ET" parses as naive 19:00, which a timestamptz
+    column would silently reinterpret — a subtly wrong fact). It emits
+    UnknownTimezoneWarning when doing so; that warning is a refusal —
+    the claim asserted a timezone we cannot honor, so we store nothing
+    rather than a shifted time.
     """
     if raw is None:
         return None, None
     s = str(raw).strip()
     if not s:
         return None, None
+
+    def _refuse(reason: str) -> Tuple[None, Dict[str, str]]:
+        return None, {"raw": s, "reason": reason}
+
     m = _NUMERIC_DATE.match(s)
     if m:
         first, second = int(m.group(1)), int(m.group(2))
         if first <= 12 and second <= 12 and first != second:
-            return None, s  # day/month order unknowable — refuse to guess
+            # day/month order unknowable — refuse to guess
+            return _refuse("ambiguous-numeric-date")
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         try:
             a = _duparser.parse(s, default=_PROBE_A)
             b = _duparser.parse(s, default=_PROBE_B)
         except (ValueError, OverflowError, TypeError):
-            return None, s
+            return _refuse("unparseable")
     if any(issubclass(w.category, _UnknownTz) for w in caught):
-        return None, s
+        return _refuse("unrecognized-timezone-abbreviation")
     if a.date() != b.date():
-        return None, s
+        return _refuse("no-full-date-evidence")
     return a.isoformat(), None
 
 
-def normalize_extracted_datetimes(shaped: Dict[str, Any]) -> Dict[str, str]:
+def normalize_extracted_datetimes(
+    shaped: Dict[str, Any],
+) -> Dict[str, Dict[str, str]]:
     """Normalize start_time/end_time on a shaped extraction IN PLACE.
 
-    Returns {field: discarded_raw} for every claim that could not be
+    Returns {field: {raw, reason}} for every claim that could not be
     stored truthfully — the caller logs it loudly and preserves it in the
     candidate's provenance. An empty dict means nothing was discarded.
     """
-    discarded: Dict[str, str] = {}
+    refused: Dict[str, Dict[str, str]] = {}
     for field in _DATETIME_FIELDS:
-        normalized, raw = normalize_datetime_claim(shaped.get(field))
+        normalized, refusal = normalize_datetime_claim(shaped.get(field))
         shaped[field] = normalized
-        if raw is not None:
-            discarded[field] = raw
-    return discarded
+        if refusal is not None:
+            refused[field] = refusal
+    return refused
 
 
 def preserve_discarded_claims(meta: Dict[str, Any],
-                              discarded: Dict[str, str]) -> bool:
-    """Attach discarded claims under meta['_provenance'].undated_time_claims.
+                              refused: Dict[str, Dict[str, str]]) -> bool:
+    """Attach refused claims under meta['_provenance'].unstored_datetime_claims.
 
-    PR #44 r1 blocker: the previous inline version silently SKIPPED
-    preservation when _provenance existed as a non-dict (setdefault
-    returned the malformed value; the isinstance guard bailed) — breaking
-    the central "NULL with raw preserved" contract exactly when provenance
-    was already suspect. Now malformed provenance is REPLACED with a dict
-    so the claims are always preserved, and the malformed original is kept
-    verbatim under _provenance_malformed_original (shown, never hidden).
+    r1 blocker: the previous inline version silently SKIPPED preservation
+    when _provenance existed as a non-dict — breaking the central "NULL
+    with raw preserved" contract exactly when provenance was already
+    suspect. Malformed provenance is REPLACED with a dict so the claims
+    are always preserved, and the malformed original is kept IN FULL
+    under _provenance_malformed_original (r2 blocker: no truncation —
+    truncating the preserved value is itself data loss; the value is
+    stored as-is when JSON-serializable, else as its complete repr).
+
+    Existing unstored_datetime_claims entries are MERGED, not overwritten
+    (r2 nit) — new refusals win per field, other fields survive.
 
     Returns True when a malformed provenance was encountered, so the
     caller can log it at ERROR level with source context.
@@ -134,9 +150,16 @@ def preserve_discarded_claims(meta: Dict[str, Any],
     prov = meta.get("_provenance")
     malformed = prov is not None and not isinstance(prov, dict)
     if malformed:
-        meta["_provenance_malformed_original"] = repr(prov)[:200]
+        try:
+            json.dumps(prov)
+            meta["_provenance_malformed_original"] = prov
+        except (TypeError, ValueError):
+            meta["_provenance_malformed_original"] = repr(prov)
     if not isinstance(prov, dict):
         prov = {}
-    prov["undated_time_claims"] = dict(discarded)
+    existing = prov.get("unstored_datetime_claims")
+    merged = dict(existing) if isinstance(existing, dict) else {}
+    merged.update(refused)
+    prov["unstored_datetime_claims"] = merged
     meta["_provenance"] = prov
     return malformed
