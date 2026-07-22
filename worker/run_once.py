@@ -140,6 +140,42 @@ def apply_source_ceiling(sources: Sequence[dict], cap: int | None) -> list:
     return list(sources[:cap])
 
 
+def order_for_rotation(rows: Sequence[tuple]) -> list:
+    """Order source rows least-recently-ATTEMPTED first (never-attempted
+    before everything), deterministic tiebreak by source_id.
+
+    The invariant: under a per-run budget cap, ORDER IS COVERAGE — this
+    ordering makes the capped recurring loop sweep the whole catalog
+    instead of re-feeding the same head-of-table slice. "Attempted"
+    includes failed and not-modified fetches (the adapter records them as
+    raw_fetch attempt rows — worker/fetch/http_fetch.py), so a
+    permanently-dead source cannot monopolize the window.
+
+    Rows are (source_id, name, base_url, source_type, last_fetched_at);
+    the key unpacks first/last by position-name so middle-column changes
+    cannot shift what gets sorted, and its leading bucket element keeps
+    the never-attempted sentinel from ever meeting a datetime. Python-side
+    sort is deliberate (unit-testable, microseconds at this scale);
+    revisit trigger: enabled-source count > 2,000 (printed by every capped
+    run's budget-ceiling log line) -> move this ordering into the SELECT.
+    Design history: FRICTION_LOG entry #3, PR #43 rounds 1-5.
+    """
+    def _key(row):
+        source_id, *_middle, last_fetched_at = row
+        never_fetched = last_fetched_at is None
+        return (not never_fetched,
+                _NEVER_FETCHED_SENTINEL if never_fetched else last_fetched_at,
+                str(source_id))
+
+    return sorted(rows, key=_key)
+
+
+# Placeholder sort value for never-fetched sources. Any constant works: the
+# bucket element of the key above guarantees it is never compared against a
+# real timestamp — it only ties with itself, then source_id breaks the tie.
+_NEVER_FETCHED_SENTINEL = 0
+
+
 def _resolve_source_cap(cli_value: int | None) -> int | None:
     """--max-sources wins; else ONELIVE_MAX_SOURCES_PER_RUN; else uncapped
     (logged loudly by the caller). Any non-positive or non-integer value from
@@ -205,14 +241,21 @@ def _run_real(max_sources: int | None = None) -> int:
     # skipped loudly (it cannot be fetched) rather than fed a None url.
     with candidate_db() as conn:
         with conn.cursor() as cur:
+            # last_fetched_at feeds order_for_rotation() below — the capped
+            # recurring loop must sweep the catalog, not re-fetch the same
+            # head-of-table slice every run. The correlated max() rides
+            # idx_raw_fetch_source_time (migration 0003).
             cur.execute(
-                "select source_id, name, base_url, source_type "
-                "from source where enabled = true"
+                "select s.source_id, s.name, s.base_url, s.source_type, "
+                "       (select max(rf.fetched_at) from raw_fetch rf "
+                "         where rf.source_id = s.source_id) as last_fetched_at "
+                "from source s where s.enabled = true"
             )
             rows = cur.fetchall()
+    rows = order_for_rotation(rows)
     sources = []
     skipped_no_url = []
-    for (sid, name, base_url, source_type) in rows:
+    for (sid, name, base_url, source_type, _last_fetched_at) in rows:
         if not base_url:
             skipped_no_url.append(name)
             continue

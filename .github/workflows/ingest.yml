@@ -1,27 +1,48 @@
-name: Ingestion Run (manual only — cron deliberately not armed)
+name: Ingestion Run
 
-# SPRINT Step 5 scaffolding. This workflow runs the real ingestion loop
+# SPRINT Step 5. This workflow runs the real ingestion loop
 # (fetch -> sensors -> extract -> gate3 -> candidate store; NEVER promotes —
 # promotion is an authenticated human ops action only).
 #
-# THERE IS NO `schedule:` TRIGGER YET, ON PURPOSE. The charter forbids
-# scheduling a recurring loop until ALL of these exist (docs/SPRINT_LIVE_SITE
-# .md preconditions; CLAUDE.md Sentinel rule; §14.3 budget caps):
-#   1. ANTHROPIC_API_KEY minted with a monthly spend cap set in the console
-#      FIRST (founder-crucial), stored as an Actions secret.
-#   2. ONELIVE_DB_DSN stored as an Actions secret.
-#   3. ORCHESTRATOR_PING_URL (healthchecks.io dead-man check) stored as an
-#      Actions secret — a cron that dies silently violates the
-#      no-silent-degradation invariant.
-#   4. A Friction pre-work attack of the arming plan logged in
-#      docs/FRICTION_LOG.md and answered in writing.
-# Arming = a follow-up PR that adds the `schedule:` block (hourly cron) and
-# deletes this notice; that PR gets the mandatory adversarial review.
+# ARMED 2026-07-21. Charter preconditions for scheduling a recurring loop
+# (CLAUDE.md Sentinel rule; §14.3 budget caps): the spend-capped
+# ANTHROPIC_API_KEY, ONELIVE_DB_DSN, and ORCHESTRATOR_PING_URL Actions
+# secrets exist, founder-minted (the preconditions step below checks
+# PRESENCE and fail-louds if any goes missing — presence is all a workflow
+# can check; end-to-end CORRECTNESS is proven by the green pre-merge smoke
+# run whose id is recorded in docs/FRICTION_LOG.md entry #3), and the
+# Friction pre-work attack of the arming plan is logged and answered in
+# that same entry (attacker: the non-Claude CI evaluator on the arming PR
+# itself). Dead-man ping: worker/sentinel.py wraps the run in
+# start/success/fail pings, and the alarm's configuration is asserted
+# MECHANICALLY before every run (PR #43 r11 — prose confirmation was
+# correctly rejected for a live cron): the "Assert dead-man period"
+# step reads the check's live period/grace through the founder-minted
+# READ-ONLY healthchecks API key and fails CLOSED on any mismatch,
+# pause, or unreadable state — the loop never runs unwatched. R-020
+# tracks this contract; tests/test_ingest_workflow_contract.py derives
+# the expected period from the cron line itself, so cadence, declared
+# period, and the live check cannot drift apart silently.
 #
-# Until then, a maintainer can run it manually from the Actions tab; every
-# guard below fails LOUD when a precondition is missing.
+# Budget shape (§14.3): `schedule` events run with a fixed 10-source
+# ceiling (keyed on event_name below — dispatch inputs don't exist on
+# schedule events); with least-recently-attempted rotation in
+# worker/run_once.py, 10/run x 72 slots/day gives capacity to visit the
+# ~230-source catalog ~3x daily instead of starving the tail. Manual
+# dispatch still requires an explicit ceiling and FAILS LOUD without one
+# — the fixed fallback never applies outside `schedule`. The Anthropic
+# console monthly cap is the spend backstop above both.
 
 on:
+  schedule:
+    # Every 20 minutes (founder-directed 2026-07-21: "accelerate the
+    # ingestion to every 15 or 20 minutes" — spend escalation is the
+    # founder's own; ~3x hourly-cadence cost, still double-capped by the
+    # per-run ceiling and the console monthly cap). Minutes chosen off the
+    # :00 congestion window where GitHub delays or drops scheduled runs. A
+    # missed run is caught by the dead-man check (period 20min + grace),
+    # not by log-reading.
+    - cron: "7,27,47 * * * *"
   workflow_dispatch:
     inputs:
       max_sources:
@@ -54,7 +75,14 @@ jobs:
           # ${{ }}-interpolated into run: — shell-injection surface) and must
           # be a positive integer; 0/negative is rejected here AND in
           # run_once.py (defense in depth, evaluator finding PR #12 round 1).
-          MAX_SOURCES: ${{ github.event.inputs.max_sources }}
+          # The fixed 10-source ceiling applies to `schedule` events ONLY
+          # (keyed on event_name, which callers cannot influence) — every
+          # other event type, including manual/API dispatch with a missing
+          # or empty input, still FAILS LOUD below. A bare `||` fallback
+          # would have silently substituted 10 for any empty dispatch input,
+          # weakening the fail-closed budget contract (evaluator finding,
+          # PR #43 round 1).
+          MAX_SOURCES: ${{ github.event_name == 'schedule' && '10' || github.event.inputs.max_sources }}
         run: |
           : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
           # [[ =~ ]] validates the WHOLE string (POSIX ERE, not line-oriented
@@ -80,6 +108,28 @@ jobs:
             echo "::error::Ingestion refused — missing Actions secret(s):$missing. Minting keys is founder-crucial; the Anthropic key requires a console spend cap FIRST (§14.3). See docs/SPRINT_LIVE_SITE.md Step 5."
             exit 1
           fi
+
+      - name: Assert dead-man period matches the armed cadence (R-020, fail closed)
+        # PR #43 r11: a live recurring cron must not run with its Sentinel
+        # alarm config unverified. tools/assert_deadman_period.py (tested)
+        # reads the check's LIVE period/grace via the founder-minted
+        # READ-ONLY healthchecks API key and refuses the run on mismatch,
+        # pause, missing key, unreadable API, or a check the key cannot
+        # see — unwatched is not an option. EXPECTED_PERIOD_SECONDS is
+        # bound to the cron line above by
+        # tests/test_ingest_workflow_contract.py, which recomputes it from
+        # the cron minutes — editing one without the other fails the suite.
+        env:
+          ORCHESTRATOR_PING_URL: ${{ secrets.ORCHESTRATOR_PING_URL }}
+          HEALTHCHECKS_API_KEY_RO: ${{ secrets.HEALTHCHECKS_API_KEY_RO }}
+          # The dead-man check, DECLARED by name/slug (primary match path —
+          # read-only keys don't expose ping URLs and the unique_key hash
+          # derivation proved undocumented; declaration beats inference).
+          DEADMAN_CHECK_SLUG: "onelive-ingestion"
+          EXPECTED_PERIOD_SECONDS: "1200"
+          MAX_GRACE_SECONDS: "600"
+        run: |
+          python3 tools/assert_deadman_period.py
 
       - name: Validate DSN + register log mask (before anything installs)
         # Founder ergonomics (2026-07-14): the Supabase Connect panel emits a
@@ -118,7 +168,10 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ORCHESTRATOR_PING_URL: ${{ secrets.ORCHESTRATOR_PING_URL }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          MAX_SOURCES: ${{ github.event.inputs.max_sources }}
+          # IDENTICAL expression to the validation step (schedule-only fixed
+          # ceiling; dispatch stays fail-loud) — both steps must agree or the
+          # validated value wouldn't be the executed value.
+          MAX_SOURCES: ${{ github.event_name == 'schedule' && '10' || github.event.inputs.max_sources }}
         run: |
           : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
