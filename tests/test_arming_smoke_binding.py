@@ -31,12 +31,51 @@ _EVIDENCE = _ROOT / "docs" / "evidence" / "ARMING_SMOKE_RUN.json"
 # runtime surface and must be byte-identical to the run's commit.
 # Directories are prefix-matched; files exactly (r18 nit: a bare
 # startswith would have blessed e.g. TODOS.md.bak).
+# tools/ stays runtime BY PREFIX (ingest.yml executes
+# assert_deadman_period.py and assemble_dsn.py from it); the exact-file
+# exceptions below are the review/validate harness, which ingest.yml
+# never executes — same misclassification-correction as design/ (PR #45)
+# — and test_non_runtime_tool_exceptions_absent_from_ingest_workflow
+# re-proves that FROM THE WORKFLOW TEXT on every run, so the exception
+# self-invalidates if ingest.yml ever starts executing one of them.
 _NON_RUNTIME_DIR_PREFIXES = ("docs/", "tests/", "design/")
 _NON_RUNTIME_FILES = ("TODOS.md", "STATE.md")
+_NON_RUNTIME_TOOL_EXCEPTIONS = (
+    "tools/validate",
+    "tools/provenance_lint.py",
+    "tools/README.md",
+)
+_INGEST_WORKFLOW = pathlib.Path(".github/workflows/ingest.yml")
 
 
 def _is_non_runtime(path: str) -> bool:
-    return path.startswith(_NON_RUNTIME_DIR_PREFIXES) or path in _NON_RUNTIME_FILES
+    return (path.startswith(_NON_RUNTIME_DIR_PREFIXES)
+            or path in _NON_RUNTIME_FILES
+            or path in _NON_RUNTIME_TOOL_EXCEPTIONS)
+
+
+def test_non_runtime_tool_exceptions_absent_from_ingest_workflow():
+    """The tools/ exceptions are legitimate ONLY while ingest.yml never
+    references them. Recomputed from the workflow text so the exception
+    list cannot silently outlive the fact that justifies it."""
+    workflow_text = (_ROOT / _INGEST_WORKFLOW).read_text(encoding="utf-8")
+    for excepted in _NON_RUNTIME_TOOL_EXCEPTIONS:
+        assert excepted not in workflow_text, (
+            f"{excepted} is in the non-runtime exception list but "
+            f"{_INGEST_WORKFLOW} references it — the exception is no "
+            "longer valid; remove it and re-run the head smoke run "
+            "instead."
+        )
+    # The inverse guard: the tools ingest.yml DOES execute must never
+    # appear in the exception list (belt for future edits).
+    for runtime_tool in ("tools/assert_deadman_period.py",
+                         "tools/assemble_dsn.py"):
+        assert runtime_tool in workflow_text, (
+            f"{runtime_tool} expected in {_INGEST_WORKFLOW} — the runtime "
+            "mirror this test assumes has drifted; re-derive the "
+            "partition from the workflow before trusting it."
+        )
+        assert runtime_tool not in _NON_RUNTIME_TOOL_EXCEPTIONS
 
 
 def _git(*args: str) -> subprocess.CompletedProcess:
