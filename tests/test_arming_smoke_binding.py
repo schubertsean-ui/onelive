@@ -160,14 +160,17 @@ def test_recorded_run_is_authentic_via_actions_api():
 # r7 blocker 1: a shell/Node/other helper invoked by the workflow would
 # never enter the Python import closure, so ANY unenumerated repo-file
 # reference that this proof cannot analyze fails closed).
+# r9 blocker 1: path-only entries would bless the same file in a NEW
+# consuming context — each entry pins (path, sha256(consuming line)), so
+# any additional or edited line referencing an enumerated file fails
+# closed for fresh review.
 _REVIEWED_WORKFLOW_FILES = {
-    # pip dependency manifest consumed BY pip install — data, not an
-    # executor; it names PyPI packages, not repo paths (and it is
-    # runtime surface: any edit to it re-REDs the byte-identity test).
-    "worker/requirements.txt",
+    # pip dependency manifest consumed BY `pip install -r` — data, not
+    # an executor; runtime surface (edits re-RED the byte-identity test).
+    ("worker/requirements.txt", "c6e6980d81a3"),
     # doc pointer inside the missing-secrets ::error echo — the same
     # prose mention pinned in _REVIEWED_WORKFLOW_MENTIONS; no execution.
-    "docs/SPRINT_LIVE_SITE.md",
+    ("docs/SPRINT_LIVE_SITE.md", "21dffb6d5c99"),
 }
 
 
@@ -433,15 +436,18 @@ def _literal_tokens(s: str) -> list[str]:
 # reach an allowlisted repo file, pinned to the sha256 of the exact
 # call text (any edit or new site fails closed). Constant-path I/O
 # needs no entry: its literal is covered by the literal scan.
+# r9 blocker 2: keys carry an OCCURRENCE COUNT — a second identical call
+# in the same file changes the count and fails closed for fresh review
+# (collision-resistant without line-number brittleness).
 _REVIEWED_COMPUTED_PATH_IO = {
     # raw-fetch content write — path is storage_dir/content-hash from
     # db_config storage settings, never a repo governance path.
-    ("worker/fetch/http_fetch.py", "open(path, 'wb')"),
+    ("worker/fetch/http_fetch.py", "open(path, 'wb')", 1),
     # raw-content read-back — storage_ref comes from raw_fetch DB rows
     # (written by the fetch path above), not from repo files.
-    ("worker/orchestrator.py", "open(storage_ref, 'rb')"),
+    ("worker/orchestrator.py", "open(storage_ref, 'rb')", 1),
     # replay-log append — run-artifact path from replay configuration.
-    ("worker/replay_log.py", "open(path, 'a', encoding='utf-8')"),
+    ("worker/replay_log.py", "open(path, 'a', encoding='utf-8')", 1),
 }
 _IO_ATTRS = ("open", "read_text", "read_bytes", "write_text", "write_bytes")
 
@@ -458,9 +464,22 @@ def _computed_path_io_hits(source: str) -> list[tuple]:
             continue
         def _const_str(n):
             return isinstance(n, ast.Constant) and isinstance(n.value, str)
-        if attr == "open" or name == "open":
+        if name in ("open", "io.open"):
+            # builtin/module open: the PATH is the first argument
             arg = node.args[0] if node.args else None
             computed = not (arg is not None and _const_str(arg))
+        elif attr == "open":
+            # r9 blocker 3: method-style .open() — Path(p).open("rb") —
+            # carries its path in the RECEIVER; the first argument is
+            # the mode. Analyze the receiver like read_text and treat
+            # anything but Path("<constant>") as computed.
+            recv = node.func.value if isinstance(node.func, ast.Attribute) else None
+            computed = True
+            if (isinstance(recv, ast.Call)
+                    and ast.unparse(recv.func).rsplit(".", 1)[-1]
+                    in ("Path", "PurePath")
+                    and recv.args and _const_str(recv.args[0])):
+                computed = False
         else:
             recv = node.func.value if isinstance(node.func, ast.Attribute) else None
             computed = True
@@ -511,19 +530,23 @@ def test_non_runtime_set_is_proven_against_workflow_closure():
     # Signal 1a (r7): every repo file the workflow references must be a
     # Python entry (analyzed below) or an enumerated, justified non-code
     # file — an uninspectable shell/Node helper fails closed.
-    unanalyzed = [t for t in _workflow_repo_file_tokens()
-                  if not t.endswith(".py")
-                  and t not in _REVIEWED_WORKFLOW_FILES]
-    assert not unanalyzed, (
-        f"ingest.yml references repo files this proof cannot analyze: "
-        f"{unanalyzed} — enumerate with justification through an "
-        "evaluator-reviewed PR, or remove the reference."
-    )
-
     wf_lines = [ln for ln in
                 (_ROOT / ".github" / "workflows" / "ingest.yml")
                 .read_text().splitlines()
                 if not ln.lstrip().startswith("#")]
+    unanalyzed = []
+    for t in _workflow_repo_file_tokens():
+        if t.endswith(".py"):
+            continue
+        for ln in wf_lines:
+            if t in ln and (t, _pin(ln.strip())) not in _REVIEWED_WORKFLOW_FILES:
+                unanalyzed.append((t, _pin(ln.strip())))
+    assert not unanalyzed, (
+        f"ingest.yml references non-Python repo files in lines this proof "
+        f"has not reviewed: {unanalyzed} — a reviewed file in a NEW "
+        "consuming context needs fresh review; enumerate (path, line-pin) "
+        "through an evaluator-adjudicated PR, or remove the reference."
+    )
     wf_unreviewed = []
     for ln in wf_lines:
         toks = [t for t in _allowlisted_path_tokens(ln)
@@ -579,11 +602,13 @@ def test_non_runtime_set_is_proven_against_workflow_closure():
     # open/read/write site must be enumerated with a justification.
     io_unreviewed = []
     for rel in sorted(closure):
+        counts: dict = {}
         for callee, call_text in _computed_path_io_hits(
                 (_ROOT / rel).read_text()):
-            key = (str(rel), call_text)
-            if key not in _REVIEWED_COMPUTED_PATH_IO:
-                io_unreviewed.append(key)
+            counts[call_text] = counts.get(call_text, 0) + 1
+        for call_text, n in counts.items():
+            if (str(rel), call_text, n) not in _REVIEWED_COMPUTED_PATH_IO:
+                io_unreviewed.append((str(rel), call_text, n))
     assert not io_unreviewed, (
         f"computed-path file I/O entered the armed closure without an "
         f"enumerated justification: {io_unreviewed} — a computed path "
@@ -641,10 +666,12 @@ def test_proof_signals_catch_known_evasion_classes():
     assert _dynamic_primitive_hits('from builtins import __import__')
     assert not _dynamic_primitive_hits('import os')
     assert not _dynamic_primitive_hits('from os import environ')
-    # r7 blocker 1: non-Python workflow file references are enumerated
+    # r7 blocker 1 (re-keyed at r9): every non-Python workflow file is
+    # enumerated BY PATH, and the main test additionally binds each to
+    # its exact consuming line pin
     assert set(_workflow_repo_file_tokens()) - {
         t for t in _workflow_repo_file_tokens() if t.endswith(".py")
-    } <= _REVIEWED_WORKFLOW_FILES
+    } <= {path for path, _pin_ in _REVIEWED_WORKFLOW_FILES}
     # r8 blocker 1: discovery is not extension-gated (regex accepts
     # extensionless tokens; resolution against the repo decides)
     import re as _re
@@ -656,3 +683,17 @@ def test_proof_signals_catch_known_evasion_classes():
     assert _computed_path_io_hits("candidate.write_text(data)")
     assert not _computed_path_io_hits("open('replay.jsonl')")
     assert not _computed_path_io_hits("Path('worker/x.cfg').read_text()")
+    # r9 blocker 3: method-style .open() carries its path in the receiver
+    assert _computed_path_io_hits("pathlib.Path(p).open('rb')")
+    assert _computed_path_io_hits("dest.open('wb')")
+    assert not _computed_path_io_hits("Path('worker/x.cfg').open('rb')")
+    # r9 blocker 2: identical duplicate call = different count = new key
+    dup = _computed_path_io_hits("open(a, 'wb')\nopen(a, 'wb')")
+    assert len(dup) == 2
+    # r9 nit: extensionless discovery resolves against a REAL repo file
+    # (tools/validate has no extension and exists)
+    import re as _re
+    toks = _re.findall(r"[\w./-]+", "bash tools/validate --quick")
+    assert "tools/validate" in [t for t in toks
+                                if (pathlib.Path(__file__).parent.parent
+                                    / t).is_file()]
