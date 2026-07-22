@@ -652,6 +652,28 @@ answers, mechanical:**
    docs/memory/decisions/2026-07-18_agent-merges-on-green.md) are
    in-repo, base-branch, unchanged by this PR — verifiable against base.
 
-**Verdict:** r1–r20 attacks recorded and answered above; the arming merges
+**The split (founder-approved 2026-07-22, "Approved") and its
+completion:** r21 held two grounds — extraction change + arming in one
+PR against the classifier's prescribed split, and self-authored run
+evidence. Both closed structurally: PR #44 carried the R-021 fix alone
+and MERGED at evaluator APPROVE r4 (master 53f6f9f) under the ratified
+exception with trust-gate green; master then merged into this branch
+taking its extraction files verbatim, so THIS PR's diff touches zero
+extraction surface (no exam refusal fires here — fully-green merge
+path), and the evidence JSON is now API-AUTHENTICATED: the binding test
+verifies the recorded run against the live Actions API (exists,
+succeeded, recorded head SHA, ingest workflow, artifact + digest) —
+REQUIRED fail-closed in trust-gate (GH_TOKEN + ARMING_SMOKE_VERIFY=
+required, actions:read), loud-skip elsewhere deferring to that required
+check. The API half passed live in trust-gate on its first run.
+
+**Attempt 8 — run 29880824040 @ ced27571, SUCCESS — the slimmed arming
+head's run:** every step green incl. the dead-man assertion + /log
+binding probe (00:38:49–50Z); artifact 8514695783, zip sha256
+4f70f3342191d0fe920419ba9617b4628c579bf68511593c9d88d0e130beec13; the
+head includes the merged R-021 fix via master. Evidence file updated;
+both binding halves verifiable on this head.
+
+**Verdict:** r1–r21 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.
