@@ -46,6 +46,14 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #20 (2026-07-22, research session `artist-owned-ai-agent` — founder: "How might we create an AI agent that is 'owned' by and 'works for' artists and events and venues? … Research how best to execute something like this")
+
+STATUS: DELIVERED same session — docs-only research PROPOSAL on branch `claude/artist-owned-ai-agent-dvdn5c` (draft PR).
+GOAL: Answer the founder's owned-agent question with researched execution options, challenges, and a consolidated question list — a PROPOSAL, not a build.
+SCOPE: `docs/strategy/ONE_LIVE_OWNED_AGENT_v1.md` (precedent research: Bandsintown for Artists, Google Business Profile claim/verify, schema.org/Things-to-do, Meta API 2026 realities, MCP landscape; three-layer decomposition pipe/gift/skin; discrete function set F0–F5; phases A/B/C gated on Steps 6–7; trust-physics section confirming NO invariant changes; founder questions Q1–Q5) + TODOS queue entries + changelog row + this contract.
+NON-GOALS: no code, no schema, no new services, no trust-rule changes (the doc leans entirely on the RATIFIED first-party fast lane from the 2026-07-14 sensor architecture), no preemption of Steps 6–10.
+DONE-CRITERIA: doc lands as PROPOSAL with sources linked · one consolidated founder-question list (Q1–Q5) · queue entries gated so nothing builds before ratification + Step 7 · validate green · draft PR through the evaluator.
+
 ## Session Contract #19 (2026-07-15, Step-6 session `review-and-execute` — renumbered #13→#19 in the merge reconciliation after the hat-registry session took #13; founder: "Proceed with Step 6" + "lock and capture all activity prior to compaction")
 
 GOAL: Ship the golden-set gate (R-013) — the exam that unlocks extraction at the ratified 1% bar.
