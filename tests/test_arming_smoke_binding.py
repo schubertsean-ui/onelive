@@ -215,30 +215,14 @@ def _import_closure(entries: list[pathlib.Path]) -> set[pathlib.Path]:
     return seen
 
 
-def _non_docstring_strings(path: pathlib.Path) -> list[str]:
-    import ast
-    tree = ast.parse((_ROOT / path).read_text())
-    doc_nodes = set()
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
-                             ast.AsyncFunctionDef)):
-            body = getattr(node, "body", [])
-            if body and isinstance(body[0], ast.Expr) and isinstance(
-                    body[0].value, ast.Constant) and isinstance(
-                    body[0].value.value, str):
-                doc_nodes.add(id(body[0].value))
-    return [n.value for n in ast.walk(tree)
-            if isinstance(n, ast.Constant) and isinstance(n.value, str)
-            and id(n) not in doc_nodes]
-
-
 _PATH_TOKEN_RE = None  # compiled lazily below
 
 
 def _allowlisted_path_tokens(text: str) -> list[str]:
     """Tokens in text that name an allowlisted file or a path under an
-    allowlisted directory prefix (PR #47 r2 blockers 1+3: files AND
-    directory prefixes, in Python literals AND workflow shell)."""
+    allowlisted directory prefix (r2: files AND directory prefixes),
+    plus bare directory-name literals (r3: the atoms of ordinary path
+    construction — Path("docs") / "x", os.path.join("docs", ...))."""
     import re
     global _PATH_TOKEN_RE
     if _PATH_TOKEN_RE is None:
@@ -246,11 +230,6 @@ def _allowlisted_path_tokens(text: str) -> list[str]:
         dirs = "|".join(re.escape(d) for d in _NON_RUNTIME_DIR_PREFIXES)
         _PATH_TOKEN_RE = re.compile(rf"(?:{files})|(?:{dirs})[\w./-]*")
     hits = _PATH_TOKEN_RE.findall(text)
-    # PR #47 r3 blocker 2: ordinary path construction splits the slash
-    # away from the directory name — Path("docs") / "RECORD.md",
-    # os.path.join("docs", ...), "docs" + "/...". The dangerous atom is
-    # a literal that IS the directory name; flag it exactly (prose
-    # virtually never uses a bare directory-name literal).
     bare = text.strip().lstrip("./")
     if bare + "/" in _NON_RUNTIME_DIR_PREFIXES:
         hits.append(f"{bare} (bare directory-name literal)")
@@ -258,17 +237,55 @@ def _allowlisted_path_tokens(text: str) -> list[str]:
 
 
 def _shell_word_hits(line: str) -> list[str]:
-    """PR #47 r4 blocker: in shell, bare directory operands are the
-    NORMAL consumption spelling — `find docs -type f`, `ls tests`,
-    `tar -cf x docs`. Tokenize the line into shell words and flag any
-    word that IS an allowlisted directory name (./-prefix tolerated).
-    English prose inside echo strings can collide ("the docs"); real
-    collisions are enumerated + hash-pinned like every other reviewed
-    prose mention, so new ones fail closed."""
+    """r4: in shell, bare directory operands are the NORMAL consumption
+    spelling — `find docs -type f`, `ls tests`, `tar -cf x docs`.
+    Tokenize into shell words and flag any word that IS an allowlisted
+    directory name (./-prefix tolerated). English prose collisions
+    enumerate hash-pinned like every other reviewed mention."""
     import re
     words = re.split(r"""[\s;|&()<>='"`]+""", line)
     return [f"{w} (bare shell word)" for w in words
             if w and w.lstrip("./") + "/" in _NON_RUNTIME_DIR_PREFIXES]
+
+
+def _strings_with_context(source: str):
+    """(value, context) for every non-docstring string literal in source.
+    Context = the dotted callee of the nearest enclosing Call, or
+    "<no-call>" (PR #47 r5 blocker 2: a prose pin without call-site
+    context lets the SAME literal be reused inside open()/Path().read_text()
+    unnoticed — the context makes that reuse a different, unreviewed key)."""
+    import ast
+    tree = ast.parse(source)
+    parent = {}
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            parent[child] = node
+    doc_ids = set()
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if body and isinstance(node, (ast.Module, ast.ClassDef,
+                                      ast.FunctionDef, ast.AsyncFunctionDef)):
+            if isinstance(body[0], ast.Expr) and isinstance(
+                    body[0].value, ast.Constant) and isinstance(
+                    body[0].value.value, str):
+                doc_ids.add(id(body[0].value))
+    out = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) \
+                and id(node) not in doc_ids:
+            ctx = "<no-call>"
+            cur = node
+            while cur in parent:
+                cur = parent[cur]
+                if isinstance(cur, ast.Call):
+                    ctx = ast.unparse(cur.func)
+                    break
+            out.append((node.value, ctx))
+    return out
+
+
+def _non_docstring_strings(path: pathlib.Path):
+    return _strings_with_context((_ROOT / path).read_text())
 
 
 def _pin(text: str) -> str:
@@ -276,54 +293,66 @@ def _pin(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()[:12]
 
 
-# Reviewed PROSE mentions of allowlisted paths in executable contexts —
-# each is a doc-pointer inside a human-facing message, not file I/O, and
-# each is pinned to the sha256 of its exact containing literal/line: any
-# NEW mention, or any EDIT to a pinned one, fails the proof closed until
-# a human reclassifies it here (boundary-ignore pattern: enumerated,
-# visible in diff, evaluator-reviewed).
+# Reviewed PROSE mentions of allowlisted paths in executable text — each
+# is a doc-pointer inside a human-facing message, not file I/O. Python
+# entries pin (file, token, sha256(literal), call-site context); workflow
+# entries pin (token, sha256(line)). Any NEW mention, any EDIT, or the
+# SAME literal reappearing in a DIFFERENT call context (e.g. moved into
+# open()) produces an unreviewed key and fails closed until a human
+# reclassifies it here (boundary-ignore pattern: enumerated, visible in
+# diff, evaluator-reviewed).
+_REVIEWED_WORKFLOW_MENTIONS = {
+    # preconditions step: "See docs/SPRINT_LIVE_SITE.md Step 5." inside
+    # the missing-secrets ::error echo — no file access on the line.
+    ("docs/SPRINT_LIVE_SITE.md", "21dffb6d5c99"),
+}
 _REVIEWED_PROSE_MENTIONS = {
-    # ingest.yml preconditions step: "See docs/SPRINT_LIVE_SITE.md Step 5."
-    # inside the missing-secrets ::error echo — a doc pointer in a
-    # human-facing refusal message; the line performs no file access.
-    ("ingest.yml", "docs/SPRINT_LIVE_SITE.md", "21dffb6d5c99"),
-    # ai/claude_provider.py extraction-blocked error message cites the
-    # Record row and bar ("docs/RECORD.md R-013 ... R-006") — message
-    # text; the module performs no docs/ file access.
-    ("ai/claude_provider.py", "docs/RECORD.md", "708b66db190e"),
-    # tools/model_router.py cites its policy doc in an unknown-stage
-    # error and a routing-policy message; STAGE_MODELS is hardcoded in
-    # the module — verified: no open()/read_text in the file, the doc
-    # is documentation OF the mapping, never parsed as config.
-    ("tools/model_router.py", "docs/MODEL_ROUTING.md", "542b03cae0e9"),
-    ("tools/model_router.py", "docs/MODEL_ROUTING.md", "8ecdcaeef40d"),
-    ("tools/model_router.py", "docs/RECORD.md", "739f350469b9"),
+    # ai/claude_provider.py extraction-blocked RuntimeError message cites
+    # the Record row and bar — message text, no docs/ access.
+    ("ai/claude_provider.py", "docs/RECORD.md", "708b66db190e",
+     "ExtractionConfigError"),
+    # tools/model_router.py cites its policy doc in its CLI description,
+    # an unknown-stage KeyError, and an extraction-blocked RuntimeError;
+    # STAGE_MODELS is hardcoded — verified no open()/read_text in file.
+    ("tools/model_router.py", "docs/MODEL_ROUTING.md", "542b03cae0e9",
+     "argparse.ArgumentParser"),
+    ("tools/model_router.py", "docs/MODEL_ROUTING.md", "8ecdcaeef40d",
+     "KeyError"),
+    ("tools/model_router.py", "docs/RECORD.md", "739f350469b9",
+     "ValueError"),
 }
 
 
+def _literal_tokens(s: str) -> list[str]:
+    """All allowlisted-path tokens in a Python string literal: prefix
+    tokens, bare directory-name literals, AND bare shell-word operands
+    (PR #47 r5 blocker 1: subprocess.run("find docs -type f", shell=True)
+    carries consumption in a command STRING — shell-word detection must
+    apply to Python literals, not only to ingest.yml lines)."""
+    return _allowlisted_path_tokens(s) + _shell_word_hits(s)
+
+
 def test_non_runtime_set_is_proven_against_workflow_closure():
-    """PR #47 r1 blocker (extended at r2): allowlist entries must be
+    """PR #47 r1 blocker (extended r2-r5): allowlist entries must be
     mechanically proven, not asserted. Three signals, all fail-closed:
 
-    1. WORKFLOW TEXT (r2 blocker 1): every non-comment line of ingest.yml
-       is scanned for allowlisted-path tokens — the workflow's own shell
-       consuming STATE.md/TODOS.md/docs//tests/ turns this red.
+    1. WORKFLOW TEXT: every non-comment line of ingest.yml scanned for
+       allowlisted-path tokens AND bare directory shell operands.
     2. CLOSURE PLACEMENT: no file in the derived execution closure
-       (ingest.yml entry scripts + transitive intra-repo imports,
-       INCLUDING package-relative imports — r2 blocker 2) may live under
+       (ingest.yml entry scripts + transitive intra-repo imports incl.
+       package-relative and script-directory resolution) may live under
        an allowlisted path.
-    3. CLOSURE LITERALS (r2 blocker 3): every non-docstring string
-       literal in the closure is scanned for allowlisted-path tokens —
-       files AND directory prefixes.
+    3. CLOSURE LITERALS: every non-docstring string literal in the
+       closure scanned with the SAME token+shell-word detection, keyed
+       by call-site context so a reviewed prose literal reused inside a
+       file-access call becomes an unreviewed key.
 
-    Existing PROSE mentions (doc pointers inside error messages) are
-    enumerated in _REVIEWED_PROSE_MENTIONS, pinned to the sha256 of
-    their exact containing text: any new mention or edit re-REDs this
-    test for human reclassification. Static analysis is not a sandbox —
-    a dynamically assembled path evades any static check — but every
-    straightforward consumption shape (a path token reaching executable
-    text) turns this red, which is the failure property the classifier
-    must have.
+    Reviewed prose mentions are enumerated + hash/context-pinned above.
+    Static analysis is not a sandbox — a dynamically assembled path can
+    evade any static check (dynamic-primitive detection is queued,
+    TODOS P3) — but every straightforward consumption spelling turns
+    this red, and test_proof_signals_catch_known_evasion_classes pins
+    each closed evasion class so it cannot silently regress.
     """
     entries = _workflow_entry_scripts()
     assert entries, "no entry scripts derived from ingest.yml — proof impossible, failing closed"
@@ -333,27 +362,24 @@ def test_non_runtime_set_is_proven_against_workflow_closure():
         "the non-runtime classification"
     )
 
-    # Signal 1: the workflow's own executable text.
     wf_lines = [ln for ln in
                 (_ROOT / ".github" / "workflows" / "ingest.yml")
                 .read_text().splitlines()
                 if not ln.lstrip().startswith("#")]
     wf_unreviewed = []
     for ln in wf_lines:
-        wf_tokens = [t for t in _allowlisted_path_tokens(ln)
-                     if not t.endswith("(bare directory-name literal)")]
-        wf_tokens += _shell_word_hits(ln)  # r4: bare dir operands in shell
-        for tok in wf_tokens:
-            key = ("ingest.yml", tok, _pin(ln.strip()))
-            if key not in _REVIEWED_PROSE_MENTIONS:
-                wf_unreviewed.append(key)
+        toks = [t for t in _allowlisted_path_tokens(ln)
+                if not t.endswith("(bare directory-name literal)")]
+        toks += _shell_word_hits(ln)
+        for tok in toks:
+            if (tok, _pin(ln.strip())) not in _REVIEWED_WORKFLOW_MENTIONS:
+                wf_unreviewed.append((tok, _pin(ln.strip())))
     assert not wf_unreviewed, (
         f"ingest.yml's executable lines reference allowlisted paths not "
         f"enumerated as reviewed prose: {wf_unreviewed} — reclassify "
         "before trusting the smoke binding"
     )
 
-    # Signal 2: closure placement.
     closure = _import_closure(entries)
     inside = [str(p) for p in closure if _is_non_runtime(str(p))]
     assert not inside, (
@@ -361,16 +387,49 @@ def test_non_runtime_set_is_proven_against_workflow_closure():
         f"workflow's execution closure: {inside} — the allowlist is wrong"
     )
 
-    # Signal 3: closure executable literals.
     lit_unreviewed = []
     for rel in sorted(closure):
-        for s in _non_docstring_strings(rel):
-            for tok in _allowlisted_path_tokens(s):
-                key = (str(rel), tok, _pin(s))
+        for s, ctx in _non_docstring_strings(rel):
+            for tok in _literal_tokens(s):
+                key = (str(rel), tok, _pin(s), ctx)
                 if key not in _REVIEWED_PROSE_MENTIONS:
                     lit_unreviewed.append(key)
     assert not lit_unreviewed, (
         f"executable string literals in the armed closure reference "
-        f"allowlisted paths not enumerated as reviewed prose: "
+        f"allowlisted paths not enumerated as reviewed prose (or a "
+        f"reviewed literal moved into a new call context): "
         f"{lit_unreviewed} — reclassify before trusting the smoke binding"
     )
+
+
+def test_proof_signals_catch_known_evasion_classes():
+    """Every evasion class closed in PR #47 r1-r5 is pinned here so it
+    cannot silently regress (r5 nit: the analyzer needs self-tests for
+    the exact classes it claims to close, not prose comments)."""
+    # r1: prefix tokens in one literal
+    assert _allowlisted_path_tokens("docs/RECORD.md")
+    assert _allowlisted_path_tokens("see tests/conftest.py")
+    # r3: bare directory-name literal (path-construction atom)
+    assert any("bare" in t for t in _allowlisted_path_tokens("docs"))
+    assert any("bare" in t for t in _allowlisted_path_tokens("./tests"))
+    assert not _allowlisted_path_tokens("documents")
+    # r4: bare directory operands in shell lines
+    assert _shell_word_hits("find docs -type f")
+    assert _shell_word_hits("ls tests")
+    assert _shell_word_hits("tar -cf x.tar ./docs")
+    assert not _shell_word_hits("pip install -r worker/requirements.txt")
+    assert not _shell_word_hits("documented steps")
+    # r5 blocker 1: shell-word detection applies to Python literals
+    assert _literal_tokens('find docs -type f')
+    # r5 blocker 2: same literal, different call context -> different key
+    prose = _strings_with_context(
+        'raise ValueError("see docs/MODEL_ROUTING.md")')
+    consuming = _strings_with_context(
+        'open("see docs/MODEL_ROUTING.md")')
+    assert prose[0][0] == consuming[0][0] and prose[0][1] != consuming[0][1]
+    # r2: package-relative imports resolve (worker/__init__.py exists ->
+    # a synthetic check via the real closure: orchestrator reached)
+    closure = _import_closure([pathlib.Path("worker/run_once.py")])
+    assert pathlib.Path("worker/orchestrator.py") in closure
+    # r3 blocker 1: script-dir sibling resolution is part of closure bases
+    assert pathlib.Path("worker/sentinel.py") in closure
