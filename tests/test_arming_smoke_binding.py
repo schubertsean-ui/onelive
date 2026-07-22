@@ -257,6 +257,20 @@ def _allowlisted_path_tokens(text: str) -> list[str]:
     return hits
 
 
+def _shell_word_hits(line: str) -> list[str]:
+    """PR #47 r4 blocker: in shell, bare directory operands are the
+    NORMAL consumption spelling — `find docs -type f`, `ls tests`,
+    `tar -cf x docs`. Tokenize the line into shell words and flag any
+    word that IS an allowlisted directory name (./-prefix tolerated).
+    English prose inside echo strings can collide ("the docs"); real
+    collisions are enumerated + hash-pinned like every other reviewed
+    prose mention, so new ones fail closed."""
+    import re
+    words = re.split(r"""[\s;|&()<>='"`]+""", line)
+    return [f"{w} (bare shell word)" for w in words
+            if w and w.lstrip("./") + "/" in _NON_RUNTIME_DIR_PREFIXES]
+
+
 def _pin(text: str) -> str:
     import hashlib
     return hashlib.sha256(text.encode()).hexdigest()[:12]
@@ -326,9 +340,10 @@ def test_non_runtime_set_is_proven_against_workflow_closure():
                 if not ln.lstrip().startswith("#")]
     wf_unreviewed = []
     for ln in wf_lines:
-        for tok in _allowlisted_path_tokens(ln):
-            if tok.endswith("(bare directory-name literal)"):
-                continue  # a whole shell LINE equal to a bare name is meaningless
+        wf_tokens = [t for t in _allowlisted_path_tokens(ln)
+                     if not t.endswith("(bare directory-name literal)")]
+        wf_tokens += _shell_word_hits(ln)  # r4: bare dir operands in shell
+        for tok in wf_tokens:
             key = ("ingest.yml", tok, _pin(ln.strip()))
             if key not in _REVIEWED_PROSE_MENTIONS:
                 wf_unreviewed.append(key)

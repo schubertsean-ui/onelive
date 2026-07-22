@@ -234,7 +234,7 @@ The ledger is arguably this system's FIRST-best consumer, not its second:
 4. **M9 transfers unchanged** — attribution integrity coverage/escape
    semantics apply to claims exactly as to events.
 
-## 7. Founder asks (consolidated — nothing proceeds without these)
+## 7. Founder asks (consolidated — nothing proceeds without these, and NONE is ratifiable before R-023 closes: the external research behind this proposal is snippet-grade until the primary-source re-verification pass runs)
 
 1. Ratify the three-layer design direction (§4) as the attribution canon.
 2. Ratify M9 (attribution integrity) as a KAIZEN.md amendment.

@@ -122,7 +122,7 @@ products with one harness: promise → outcome, and pebble → ripple → price.
 - No paid data source before an R-016-class terms/pricing verification.
 - No reliance on WorldMonitor's mutable state for anything historical.
 
-## 8. Founder asks
+## 8. Founder asks (none executable before R-024 closes — the evidence table is snippet-grade until the primary-source re-verification pass runs; §6's retrodiction protocol is a further, separate gate before any capital influence)
 
 1. Choose the consumption path (§4) — recommendation: option 3 first, option 1
    as sandbox if desired (no money, no external users); option 2 only if speed
