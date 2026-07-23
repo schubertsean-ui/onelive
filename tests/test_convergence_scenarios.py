@@ -746,6 +746,26 @@ class TestExpectedLossAndDecide:
                 mode_probs=probs,
             )
 
+    def test_nonzero_term_under_zero_probability_mode_fails_loud(self):
+        # Evaluator r7 (PR #54): terms[action][mode] = P(mode) * cost, so a
+        # zero-probability mode forces a zero term — a nonzero term there is
+        # impossible under any finite cost matrix. This is the COMPLETE
+        # term-vs-probability consistency condition (a positive P(mode)
+        # admits any non-negative term via cost = term / P(mode)).
+        from worker.convergence.decisions import DecisionRecord
+
+        # P(fully_wrong)=0 but hold's fully_wrong term is 100 (row still
+        # sums to its stated total, so only the r7 check catches it).
+        with pytest.raises(ValueError, match="zero-probability mode forces"):
+            DecisionRecord(
+                chosen="hold",
+                expected_losses={"hold": 115.0},
+                terms={"hold": {"fully_wrong": 100.0, "partially_wrong": 0.0,
+                                "right": 15.0}},
+                mode_probs={"fully_wrong": 0.0, "partially_wrong": 0.0,
+                            "right": 1.0},
+            )
+
     def test_record_with_malformed_mode_probs_fails_loud(self):
         # Evaluator r5 (PR #54): the record CARRIES the distribution its
         # arithmetic was computed under, so a forged record with malformed

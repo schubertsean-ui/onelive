@@ -341,6 +341,26 @@ class DecisionRecord:
                     f"whose arithmetic cannot be recomputed from itself is "
                     f"not audit evidence."
                 )
+        # term-vs-probability consistency (evaluator r7, PR #54). Since
+        # terms[action][mode] = P(mode) * cost(action, mode) and cost is
+        # finite, a zero-probability mode forces a zero term for EVERY
+        # action — a nonzero term there is impossible under any cost matrix.
+        # This is the COMPLETE consistency condition: for a positive
+        # P(mode) any non-negative term is admissible (cost = term/P(mode)
+        # is a valid finite non-negative loss), so the only unsatisfiable
+        # case is P(mode)=0 with a nonzero term. With this check no forged
+        # record can carry terms that contradict the mode_probs it stamps.
+        for mode in MODES:
+            if self.mode_probs[mode] == 0.0:
+                for action, row in self.terms.items():
+                    if abs(row[mode]) > _SUM_EPS:
+                        raise ValueError(
+                            f"DecisionRecord.terms[{action!r}][{mode!r}]="
+                            f"{row[mode]!r} is nonzero while "
+                            f"mode_probs[{mode!r}]=0 — a term is P(mode)*cost, "
+                            f"so a zero-probability mode forces a zero term; "
+                            f"this record is internally contradictory."
+                        )
         best = min(self.expected_losses.values())
         if abs(self.expected_losses[self.chosen] - best) > _SUM_EPS:
             raise ValueError(
@@ -387,9 +407,10 @@ def decide(
         }
         terms[action] = row
         totals[action] = sum(row.values())
-    # min() returns the FIRST minimal element (documented CPython
-    # guarantee), so ties break toward the earliest action in `actions`
-    # with a single O(n) pass — no per-comparison index scans.
+    # min() returns the FIRST minimal element (guaranteed by the Python
+    # language, not a CPython implementation detail — r7 nit), so ties
+    # break toward the earliest action in `actions` with a single O(n)
+    # pass — no per-comparison index scans.
     chosen = min(actions, key=totals.__getitem__)
     return DecisionRecord(
         chosen=chosen,
