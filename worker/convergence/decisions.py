@@ -30,14 +30,17 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Mapping, Sequence
 
 from worker.convergence.scenarios import MODES
 
-# Tolerance for "these probabilities sum to 1" checks. Tight enough that a
-# genuinely malformed distribution fails loudly; loose enough that float
-# dust from n_worlds divisions never trips it.
-_EPS = 1e-9
+# Tolerance for "these probabilities sum to 1" checks ONLY. Individual
+# probabilities are bounds-checked EXACTLY — [0, 1], no epsilon — matching
+# the sl.py component-bound convention (PR #51 r7): float dust accumulates
+# in SUMS, so that is the only place a tolerance is honest; a single
+# probability of -1e-12 is a caller normalization bug, not dust.
+_SUM_EPS = 1e-6
 
 
 def _validate_cost(action: str, mode: str, value: object) -> float:
@@ -69,9 +72,16 @@ class CostMatrix:
     construction — a hole in the value system must never be silently read
     as zero cost. No defaults exist (module docstring: the numbers are the
     founder's C2 ratification, spec §11 decision 1).
+
+    After construction `costs` is a DEEPLY READ-ONLY view (MappingProxyType
+    at both levels over dicts nothing else references): the complete/
+    non-negative/explicit guarantees hold for the object's whole lifetime,
+    not just at validation time — a frozen dataclass wrapping mutable
+    nested dicts would let `matrix.costs[a][m] = x` bypass every check
+    (evaluator r1, PR #54).
     """
 
-    costs: dict[str, dict[str, float]]
+    costs: Mapping[str, Mapping[str, float]]
 
     def __post_init__(self) -> None:
         if not isinstance(self.costs, Mapping) or not self.costs:
@@ -107,12 +117,13 @@ class CostMatrix:
                     f"{sorted(unknown)!r}; the modes are exactly {MODES!r} "
                     f"(spec §5)."
                 )
-            validated[action] = {
+            validated[action] = MappingProxyType({
                 mode: _validate_cost(action, mode, row[mode]) for mode in MODES
-            }
-        # Freeze a validated float copy so later caller-side mutation of the
-        # input dict can never desynchronize a constructed matrix.
-        object.__setattr__(self, "costs", validated)
+            })
+        # Freeze a validated float copy — deeply read-only, and built from
+        # fresh dicts so neither the caller's input dict nor any alias can
+        # desynchronize a constructed matrix after validation.
+        object.__setattr__(self, "costs", MappingProxyType(validated))
 
     @property
     def actions(self) -> tuple[str, ...]:
@@ -140,7 +151,8 @@ class CostMatrix:
 
 def _validate_mode_probs(mode_probs: Mapping[str, float]) -> dict[str, float]:
     """Fail-loud validation of a mode-probability distribution: exactly the
-    three spec-§5 modes, each in [0, 1], summing to 1."""
+    three spec-§5 modes, each EXACTLY in [0, 1] (no epsilon — normalization
+    is the caller's job; see _SUM_EPS), summing to 1 within _SUM_EPS."""
     if set(mode_probs) != set(MODES):
         raise ValueError(
             f"mode_probs keys must be exactly {MODES!r}; got "
@@ -154,13 +166,15 @@ def _validate_mode_probs(mode_probs: Mapping[str, float]) -> dict[str, float]:
                 f"mode_probs[{mode!r}] must be a number; got {p!r}."
             )
         p = float(p)
-        if not (-_EPS <= p <= 1.0 + _EPS):
+        if not (0.0 <= p <= 1.0):
             raise ValueError(
-                f"mode_probs[{mode!r}]={p!r} is outside [0, 1]."
+                f"mode_probs[{mode!r}]={p!r} is outside [0, 1] (exact "
+                f"bounds — a probability out of range by any amount is a "
+                f"normalization bug at the caller, never dust)."
             )
         out[mode] = p
     total = sum(out.values())
-    if abs(total - 1.0) > 1e-6:
+    if abs(total - 1.0) > _SUM_EPS:
         raise ValueError(
             f"mode_probs must sum to 1; got {total!r} from {out!r}."
         )
@@ -238,7 +252,10 @@ def decide(
         }
         terms[action] = row
         totals[action] = sum(row.values())
-    chosen = min(actions, key=lambda a: (totals[a], actions.index(a)))
+    # min() returns the FIRST minimal element (documented CPython
+    # guarantee), so ties break toward the earliest action in `actions`
+    # with a single O(n) pass — no per-comparison index scans.
+    chosen = min(actions, key=totals.__getitem__)
     return DecisionRecord(
         chosen=chosen,
         expected_losses=totals,
@@ -321,10 +338,11 @@ def voi(
                 f"number; got {branch_p!r}."
             )
         branch_p = float(branch_p)
-        if not (-_EPS <= branch_p <= 1.0 + _EPS):
+        if not (0.0 <= branch_p <= 1.0):
             raise ValueError(
                 f"Posterior scenario {i}: branch probability {branch_p!r} "
-                f"is outside [0, 1]."
+                f"is outside [0, 1] (exact bounds — normalization is the "
+                f"caller's job, never dust)."
             )
         branch_decision = decide(actions, branch_probs, matrix)
         posterior_decisions.append((branch_p, branch_decision))
@@ -332,7 +350,7 @@ def voi(
             branch_p * branch_decision.expected_losses[branch_decision.chosen]
         )
         branch_total += branch_p
-    if abs(branch_total - 1.0) > 1e-6:
+    if abs(branch_total - 1.0) > _SUM_EPS:
         raise ValueError(
             f"Posterior scenario branch probabilities must sum to 1; got "
             f"{branch_total!r} — an incomplete fetch-outcome distribution "

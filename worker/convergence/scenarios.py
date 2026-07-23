@@ -240,7 +240,13 @@ def aggregate(
     that never failed still show an explicit 0.0 rate — absence of a row is
     never the encoding of "fine". An outcome citing a field outside
     `field_names` fails loudly: silently dropping it would corrupt the
-    attribution the founder reads.
+    attribution the founder reads. Internally contradictory outcomes fail
+    loudly the same way, in BOTH directions: non-empty `wrong_fields` on a
+    `right` or `fully_wrong` outcome, and empty `wrong_fields` on a
+    `partially_wrong` outcome, are each refused — the WorldOutcome
+    invariant (wrong_fields iff partially_wrong) is enforced here, not
+    assumed, because a summary quietly built from contradictory outcomes
+    would be unauditable scenario evidence (evaluator r1, PR #54).
     """
     if not outcomes:
         raise ValueError(
@@ -260,7 +266,21 @@ def aggregate(
             )
         mode_counts[outcome.mode] += 1
         if outcome.mode == MODE_PARTIALLY_WRONG:
+            if not outcome.wrong_fields:
+                raise ValueError(
+                    f"partially_wrong outcome with empty wrong_fields: the "
+                    f"mode asserts a field failed but names none — an "
+                    f"unattributable partial failure cannot enter the "
+                    f"attribution (spec §5 carries WHICH field)."
+                )
             n_partial += 1
+        elif outcome.wrong_fields:
+            raise ValueError(
+                f"{outcome.mode!r} outcome carries wrong_fields "
+                f"{outcome.wrong_fields!r}: only partially_wrong attributes "
+                f"per-field failures (WorldOutcome invariant); counting "
+                f"these would contradict mode_probs in the same summary."
+            )
         for name in outcome.wrong_fields:
             if name not in known:
                 raise ValueError(

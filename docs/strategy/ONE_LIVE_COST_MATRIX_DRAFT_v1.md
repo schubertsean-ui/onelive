@@ -63,7 +63,7 @@ Each number, argued in one sentence:
 - **hold / fully_wrong = 2** — correctly keeping a phantom off the feed is
   nearly free, priced just above zero for the pipeline and admin-review
   noise it still generates.
-- **hold / partially_wrong = 8** — hiding an event that was real with one
+- **hold / partially_wrong = 10** — hiding an event that was real with one
   wrong detail forfeits most of a real night out for users and audience
   for the venue.
 - **hold / right = 15** — hiding a fully real event is the second-worst

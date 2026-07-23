@@ -112,6 +112,33 @@ class TestSeedDiscipline:
         b = run_scenarios(fo, sr, fs, "exists", 300, seed=2)
         assert a != b
 
+    def test_two_seed_golden_summaries(self):
+        # Evaluator r1 nit (PR #54): "a != b" is probabilistic in
+        # principle; these pinned goldens make the check exact AND double
+        # as a replay-drift detector — if a CPython upgrade ever changes
+        # random.Random's distribution algorithms, spec §9 replayability is
+        # broken and this test says so loudly instead of letting recorded
+        # seeds silently stop reproducing their audited summaries.
+        fo, sr, fs = _stochastic_inputs()
+        a = run_scenarios(fo, sr, fs, "exists", 300, seed=1)
+        b = run_scenarios(fo, sr, fs, "exists", 300, seed=2)
+        assert a.mode_probs == {
+            MODE_FULLY_WRONG: 0.27666666666666667,
+            MODE_PARTIALLY_WRONG: 0.49,
+            MODE_RIGHT: 0.23333333333333334,
+        }
+        assert a.field_failure_rates == {
+            "date": 0.29, "start_time": 0.3566666666666667,
+        }
+        assert b.mode_probs == {
+            MODE_FULLY_WRONG: 0.2633333333333333,
+            MODE_PARTIALLY_WRONG: 0.51,
+            MODE_RIGHT: 0.22666666666666666,
+        }
+        assert b.field_failure_rates == {
+            "date": 0.32, "start_time": 0.3433333333333333,
+        }
+
 
 # --- World sampling: deterministic goldens ------------------------------------
 
@@ -328,6 +355,24 @@ class TestAggregation:
                 ["date"],
             )
 
+    # Evaluator r1 (PR #54): aggregate() must ENFORCE the WorldOutcome
+    # invariant (wrong_fields iff partially_wrong), not assume it — a
+    # summary quietly counting field failures from `right`/`fully_wrong`
+    # outcomes would contradict its own mode_probs.
+    @pytest.mark.parametrize("mode", [MODE_RIGHT, MODE_FULLY_WRONG])
+    def test_wrong_fields_outside_partially_wrong_fails_loud(self, mode):
+        with pytest.raises(ValueError, match="only partially_wrong"):
+            aggregate(
+                [WorldOutcome(mode=mode, wrong_fields=("date",))], ["date"]
+            )
+
+    def test_partially_wrong_without_fields_fails_loud(self):
+        with pytest.raises(ValueError, match="empty wrong_fields"):
+            aggregate(
+                [WorldOutcome(mode=MODE_PARTIALLY_WRONG, wrong_fields=())],
+                ["date"],
+            )
+
 
 # --- CostMatrix: explicit, complete, fail-loud --------------------------------
 
@@ -386,6 +431,24 @@ class TestCostMatrix:
         matrix = CostMatrix(costs=source)
         source["hold"]["right"] = 9999
         assert matrix.costs["hold"]["right"] == 15.0
+
+    def test_constructed_matrix_is_deeply_immutable(self):
+        # Evaluator r1 (PR #54): a frozen dataclass over mutable nested
+        # dicts let `matrix.costs[a][m] = x` (or del) bypass every
+        # validation guarantee post-construction. Both nesting levels must
+        # refuse writes for the object's whole lifetime.
+        matrix = CostMatrix(costs=DRAFT_COSTS)
+        with pytest.raises(TypeError):
+            matrix.costs["hold"]["right"] = 0
+        with pytest.raises(TypeError):
+            del matrix.costs["hold"]["right"]
+        with pytest.raises(TypeError):
+            matrix.costs["hold"] = {}
+        with pytest.raises(TypeError):
+            del matrix.costs["hold"]
+        # And the guarantee held: nothing changed.
+        assert matrix.costs["hold"]["right"] == 15.0
+        assert set(matrix.actions) == set(DRAFT_COSTS)
 
 
 # --- expected_loss / decide: golden arithmetic --------------------------------
@@ -468,6 +531,21 @@ class TestExpectedLossAndDecide:
         matrix = CostMatrix(costs=DRAFT_COSTS)
         with pytest.raises(ValueError):
             expected_loss("hold", bad_probs, matrix)
+
+    @pytest.mark.parametrize("tiny_bad", [-1e-12, 1.0 + 1e-12])
+    def test_tiny_out_of_range_prob_rejected_exactly(self, tiny_bad):
+        # Per-probability bounds are EXACT (sl.py component-bound
+        # convention, PR #51 r7): dust tolerance lives in the SUM check
+        # only. A -1e-12 probability is a caller normalization bug.
+        matrix = CostMatrix(costs=DRAFT_COSTS)
+        rest = (1.0 - tiny_bad) / 2 if tiny_bad < 0 else 0.0
+        probs = {
+            "fully_wrong": tiny_bad,
+            "partially_wrong": rest,
+            "right": (1.0 - tiny_bad - rest),
+        }
+        with pytest.raises(ValueError, match="outside \\[0, 1\\]"):
+            expected_loss("hold", probs, matrix)
 
 
 # --- VoI: golden arithmetic ----------------------------------------------------
