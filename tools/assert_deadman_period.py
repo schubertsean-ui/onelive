@@ -37,6 +37,23 @@ Env contract (all required, fail closed):
                              cadence and this declaration cannot drift apart
   MAX_GRACE_SECONDS          upper bound for the check's grace
 
+Optional (purely additive — unset means behavior identical to before):
+  REPORT_FLIPS               set to literal "1" to run the R-023 PATH A
+                             alarm-verification probe (trigger part 2)
+                             AFTER every assertion above has passed
+                             unchanged: reads the verified check's flip
+                             (status-change) history for the last 24h via
+                             the same RO key and prints a plain table with
+                             every DOWN event marked. Readability under the
+                             RO key was unverified when R-023 was filed and
+                             was PROVEN by the first live dispatch (HTTP
+                             200, run 29963320514); therefore EVERY flips
+                             failure — including 401/403 (a rejected key is
+                             a config regression, r7: auth fail-closed),
+                             404 (ambiguous), network faults, and malformed
+                             bodies — fails LOUD. No probe failure path
+                             exits 0.
+
 Exit codes per tools/README.md: 0 asserted / 2 misconfiguration, API
 failure, no matching check, or period/grace mismatch — every path closed.
 """
@@ -46,9 +63,15 @@ import hashlib
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 
 API_URL = "https://healthchecks.io/api/v3/checks/"
+
+# R-023 trigger part 2 asks for "at least the last 24h" of flip history;
+# the endpoint's `seconds` filter makes the window explicit rather than
+# relying on the server's unfiltered default.
+FLIPS_WINDOW_SECONDS = 86400
 
 
 def _fail(msg: str) -> int:
@@ -85,6 +108,163 @@ def send_binding_probe(ping_url: str) -> None:
     with urllib.request.urlopen(req, timeout=30) as resp:
         if resp.status != 200:
             raise RuntimeError(f"probe returned HTTP {resp.status}")
+
+
+def fetch_flips(api_key: str, check_id: str) -> list:
+    """GET the check's status-change (flip) history for the probe window
+    (healthchecks API v3: GET /api/v3/checks/<uuid|unique_key>/flips/,
+    documented as readable by read-only keys — proven live by the first
+    dispatch's HTTP 200, run 29963320514; R-023 part 2 closed on the
+    second dispatch's flip table [R-023]). Separated
+    for testability like fetch_checks; every failure disposition
+    belongs to the caller, and every one fails loud (r7). The response body is a JSON array of
+    {"timestamp": <iso8601>, "up": 0|1} objects, either bare (upstream
+    repo docs) or wrapped as {"flips": [...]} (the hosted service wraps
+    exactly as its checks endpoint wraps in {"checks": [...]} — the
+    first live probe run answered 200 with a non-bare body, PR #51);
+    the caller normalizes both."""
+    url = f"{API_URL}{check_id}/flips/?seconds={FLIPS_WINDOW_SECONDS}"
+    req = urllib.request.Request(url, headers={"X-Api-Key": api_key})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def report_flips(api_key: str, check: dict) -> int:
+    """R-023 PATH A alarm-verification probe (trigger part 2): after the
+    period/grace/binding assertions have ALL passed unchanged, print the
+    verified check's flips (status changes) for the last 24h, marking
+    every DOWN event — the mechanical evidence for whether the dead-man
+    alarm actually flipped during the sparse-delivery gaps.
+
+    Dispositions (r7: EVERY failure path is loud — auth fail-closed):
+    - 200 + well-formed list: print the table, exit 0.
+    - 401/403: key revoked/changed. Readability was live-proven (run
+      29963320514 [R-023]), so denial is a config REGRESSION — fail
+      loud; a green workflow must never paper over a rejected key.
+    - 404: AMBIGUOUS (identifier-not-found vs denial) — fails loud
+      (pre-attack nit, PR #51).
+    - anything else (network fault, malformed body, no usable check
+      identifier): fail LOUD via the standard closed path — a broken
+      probe must never masquerade as a completed one.
+    No secret material in output: the check is identified by name only,
+    never by uuid/unique_key/ping URL."""
+    # Prefer unique_key (the identifier read-only list responses carry;
+    # a sha1 derivative, so nothing pingable leaks into the request URL);
+    # uuid is the fallback for read-write keys, which do expose it.
+    check_id = (check.get("unique_key") or check.get("uuid") or "").strip()
+    if not check_id:
+        return _fail(
+            "flips probe: the verified check exposes neither unique_key "
+            "nor uuid, so no flips URL can be formed — probe broken, "
+            "failing loud (this is not the R-023 inaccessibility answer)."
+        )
+    try:
+        flips = fetch_flips(api_key, check_id)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            # r7 blocker: exit-0 here was auth-fail-open. The "access
+            # answer" disposition belonged to the UNTESTED state; flips
+            # readability under this key is live-proven (HTTP 200, run
+            # 29963320514), so a denial today means the key was revoked
+            # or changed — a config regression that must fail LOUD, never
+            # a green workflow with a log line.
+            return _fail(
+                f"flips probe: HTTP {exc.code} — the read-only key was "
+                "rejected. Readability was live-proven (run 29963320514), "
+                "so denial is a key/config REGRESSION, not an access "
+                "answer. Fix the key; founder confirmation (R-023 PATH B) "
+                "covers verification meanwhile. Failing loud."
+            )
+        if exc.code == 404:
+            # Pre-attack nit (PR #51): 404 is ambiguous — identifier not
+            # found (stale unique_key, endpoint moved) is at least as
+            # plausible as access denial, and readability is already
+            # live-proven (200, run 29963320514). An ambiguous signal may
+            # not masquerade as the access answer: fail loud.
+            return _fail(
+                "flips probe: HTTP 404 from the flips endpoint — "
+                "identifier-not-found is indistinguishable from access "
+                "denial here, and readability was already proven live "
+                "(HTTP 200). Ambiguous, NOT the access answer; failing "
+                "loud."
+            )
+        return _fail(
+            f"flips probe: unexpected HTTP {exc.code} from the flips "
+            "endpoint — neither readable history nor the documented "
+            "access-denied answer. Probe inconclusive, failing loud."
+        )
+    except Exception as exc:  # noqa: BLE001 — non-HTTP faults fail loud
+        return _fail(
+            f"flips probe: could not fetch flip history "
+            f"({type(exc).__name__}) — network/parse fault, NOT an "
+            "access answer. Probe inconclusive, failing loud."
+        )
+    # Normalize the two documented shapes: bare array (upstream repo
+    # docs) or {"flips": [...]} wrapper (the hosted service, mirroring
+    # its {"checks": [...]} wrapper — live-confirmed by the first probe
+    # run's 200-with-non-bare-body failure, PR #51).
+    if isinstance(flips, dict) and isinstance(flips.get("flips"), list):
+        flips = flips["flips"]
+    if not isinstance(flips, list) or not all(
+        isinstance(f, dict)
+        and isinstance(f.get("timestamp"), str)
+        and f.get("up") in (0, 1, True, False)  # documented domain is 0|1;
+        # NUMERIC-EQUALITY acceptance is deliberate (r8 nit): Python's
+        # `in` uses ==, so bool True/False AND float 0.0/1.0 satisfy this
+        # — both are plausible serializer variants of the same value, and
+        # rejecting them would break the probe on a harmless encoding
+        # difference. Out-of-domain NUMBERS (2, -1, 0.5) remain malformed.
+        # JSON booleans are DELIBERATELY accepted as the hosted service's
+        # possible serialization variant (r6 nit: documented, not
+        # accidental — Python's True==1 makes bool acceptance implicit in
+        # any int check, and rejecting bools would break the probe if the
+        # service emits true/false; an out-of-domain int (2, -1) remains
+        # malformed, never silently UP — r5 nit)
+        for f in flips
+    ):
+        # Diagnose with STRUCTURE ONLY (types and key names, never
+        # values) so the next shape variant is one-look fixable without
+        # ever logging response content.
+        if isinstance(flips, dict):
+            shape = f"dict with keys {sorted(flips.keys())}"
+        elif isinstance(flips, list) and flips:
+            first = flips[0]
+            shape = (
+                f"list of {type(first).__name__}"
+                + (
+                    f" with keys {sorted(first.keys())}"
+                    if isinstance(first, dict)
+                    else ""
+                )
+            )
+        else:
+            shape = type(flips).__name__
+        return _fail(
+            "flips probe: the flips endpoint answered 200 but the body "
+            "matches neither documented shape (bare array or {'flips': "
+            f"[...]}} wrapper of {{timestamp, up}} objects) — got {shape}. "
+            "Malformed response, failing loud."
+        )
+    name = check.get("name")
+    print(
+        f"FLIP REPORT (R-023 PATH A, trigger part 2) — check "
+        f"name={name!r}, window last {FLIPS_WINDOW_SECONDS}s (24h):"
+    )
+    if not flips:
+        print(
+            "  (no flips: the check's status never changed in the "
+            "window — no DOWN events recorded)"
+        )
+        return 0
+    down_count = 0
+    for flip in flips:
+        if flip["up"]:
+            print(f"  {flip['timestamp']:<32} UP")
+        else:
+            down_count += 1
+            print(f"  {flip['timestamp']:<32} DOWN   <-- DOWN event")
+    print(f"  total: {len(flips)} flip(s), {down_count} DOWN")
+    return 0
 
 
 def match_check(checks: list, ping_id: str, declared_slug: str) -> dict | None:
@@ -256,6 +436,19 @@ def main() -> int:
         f"{n_before} -> {n_after} on the verified check (a /log event "
         "never signals success, so this cannot mask a dead loop)."
     )
+    # R-023 PATH A (trigger part 2): OPTIONAL report mode, additive only —
+    # it runs strictly AFTER every assertion above passed unchanged, so
+    # with REPORT_FLIPS unset the tool's effect is identical to before.
+    report_flips_value = os.environ.get("REPORT_FLIPS", "").strip()
+    if report_flips_value == "1":
+        return report_flips(api_key, check_after)
+    if report_flips_value not in ("", "0"):
+        # Pre-attack nit (PR #51): a dispatch typo ("true"/"yes") must not
+        # silently skip the probe while reporting overall success.
+        return _fail(
+            f"REPORT_FLIPS must be unset, '', '0', or '1' — got "
+            f"{report_flips_value!r}. Refusing to guess; failing loud."
+        )
     return 0
 
 

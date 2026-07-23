@@ -98,6 +98,19 @@ def test_deadman_assertion_step_present_with_full_env():
         "run_once.py --real")
 
 
+def test_report_flips_env_is_dispatch_gated_exact_expression():
+    """Pre-attack nit (PR #51): the R-023 probe's schedule-safety rests on
+    this exact guarded expression (callers cannot influence event_name, so
+    schedule events can never reach REPORT_FLIPS=1) — pin its form the way
+    the MAX_SOURCES ceiling expression is pinned."""
+    assert ("REPORT_FLIPS: ${{ github.event_name == 'workflow_dispatch' && "
+            "github.event.inputs.report_flips || '0' }}") in _WF, (
+        "the REPORT_FLIPS env expression changed form — the dispatch-only "
+        "guard is a reviewed safety property; update this pin only with "
+        "the workflow change that justifies it"
+    )
+
+
 # Live-state docs only — the files a reader trusts as CURRENT truth.
 _LIVE_STATE_DOCS = ("STATE.md", "TODOS.md", "docs/RECORD.md", "CLAUDE.md")
 
