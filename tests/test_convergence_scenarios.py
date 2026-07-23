@@ -506,6 +506,14 @@ class TestAggregation:
                 ["date", "date"],
             )
 
+    def test_aggregate_defends_against_bare_string_wrong_fields(self):
+        # Evaluator r14 nit (PR #54): WorldOutcome rejects a bare-string
+        # wrong_fields at construction; aggregate() defends in depth against
+        # a forged outcome (object.__new__ bypass) that would otherwise be
+        # attributed character by character.
+        with pytest.raises(ValueError, match="bare str"):
+            aggregate([_forge_outcome(MODE_PARTIALLY_WRONG, "date")], ["date"])
+
     def test_forged_scenario_summary_fails_loud(self):
         # Evaluator r4 nit (PR #54): aggregate() is always valid, but the
         # public ScenarioSummary constructor must not manufacture
@@ -1170,9 +1178,9 @@ class TestVoi:
     def test_forged_voi_record_mismatched_action_set_rejected(self):
         # Evaluator r11 (PR #54): every embedded decision must be over the
         # same action set as the prior, or the VoI compares different option
-        # sets before vs after the fetch. (The same-cost-matrix half is a
-        # recorded bounded deferral, R-025 — not checkable without storing
-        # the matrix; disproportionate for an in-process-only shadow record.)
+        # sets before vs after the fetch. (The same-cost-matrix half is now
+        # fully closed by self-verifying matrix storage — r13/r14,
+        # test_forged_voi_record_cross_matrix_rejected — not deferred.)
         from worker.convergence.decisions import VoiRecord
 
         matrix = CostMatrix(costs=self.SMALL)          # actions: show, hold
@@ -1229,6 +1237,39 @@ class TestVoi:
             )
         # A genuine single-matrix voi() record still constructs fine.
         assert voi(self.PRIOR, self.PERFECT, 1.0, matrix_a).fetch_cost == 1.0
+
+    def test_forged_voi_record_order_only_matrix_difference_rejected(self):
+        # Evaluator r14 (PR #54): action ORDER is the deterministic
+        # tie-break preference, and CostMatrix value-equality ignores key
+        # order — so two numerically-identical matrices with different
+        # action order are DIFFERENT policies. The same-matrix check must
+        # compare order too.
+        from worker.convergence.decisions import VoiRecord
+
+        cells = self.SMALL
+        matrix_a = CostMatrix(costs={"show": cells["show"], "hold": cells["hold"]})
+        matrix_b = CostMatrix(costs={"hold": cells["hold"], "show": cells["show"]})
+        # Same values, different action order -> value-equal but different
+        # tie-break policy.
+        assert matrix_a == matrix_b
+        assert matrix_a.actions != matrix_b.actions
+        actions = list(matrix_a.actions)
+        prior_dec = decide(actions, self.PRIOR, matrix_a)
+        branch_dec = decide(list(matrix_b.actions), self.PRIOR, matrix_b)
+        p_loss = prior_dec.expected_losses[prior_dec.chosen]
+        b_loss = branch_dec.expected_losses[branch_dec.chosen]
+        gross = p_loss - b_loss
+        with pytest.raises(ValueError, match="tie-break order|DIFFERENT cost"):
+            VoiRecord(
+                prior_decision=prior_dec,
+                posterior_decisions=((1.0, branch_dec),),
+                prior_expected_loss=p_loss,
+                posterior_expected_loss=b_loss,
+                fetch_cost=0.0,
+                gross_value=gross,
+                net_value=gross,
+                fetch_worth_it=gross > 0,
+            )
 
     def test_voi_record_outer_list_frozen_to_tuple(self):
         # Evaluator r5/r8 (PR #54): an OUTER list of (prob, decision) TUPLE

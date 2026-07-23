@@ -618,11 +618,19 @@ class VoiRecord:
         # r12 factory token, which was importable and thus convention-only.
         prior_matrix = self.prior_decision.matrix
         for i, (_, dec) in enumerate(self.posterior_decisions):
-            if dec.matrix != prior_matrix:
+            # Compare BOTH the cost values AND the action ORDER (evaluator
+            # r14): CostMatrix equality is mapping equality and ignores key
+            # order, but CostMatrix.actions IS the deterministic tie-break
+            # preference — so two numerically-identical matrices with
+            # different action order are DIFFERENT decision policies. Match
+            # both, or a VoI could mix choices made under different tie-breaks.
+            if (dec.matrix != prior_matrix
+                    or dec.matrix.actions != prior_matrix.actions):
                 raise ValueError(
                     f"VoiRecord.posterior_decisions[{i}] was decided under a "
-                    f"DIFFERENT cost matrix than the prior — VoI must compare "
-                    f"before and after under ONE value system (evaluator r13)."
+                    f"DIFFERENT cost matrix (values or action tie-break order) "
+                    f"than the prior — VoI must compare before and after under "
+                    f"ONE value system (evaluator r13/r14)."
                 )
         # Cross-field arithmetic must be recomputable from the record:
         # gross = prior - posterior, and net = gross - fetch_cost EXACTLY.

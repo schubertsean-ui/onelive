@@ -492,6 +492,17 @@ def aggregate(
                 f"{MODES!r} (spec §5)."
             )
         mode_counts[outcome.mode] += 1
+        # Defense-in-depth against a forged outcome (WorldOutcome rejects
+        # this at construction; aggregate also defends, evaluator r14 nit):
+        # a bare string is iterable and would be attributed character by
+        # character below. Reject it with an explicit type check.
+        if isinstance(outcome.wrong_fields, (str, bytes)):
+            raise ValueError(
+                f"Outcome wrong_fields is a bare "
+                f"{type(outcome.wrong_fields).__name__} "
+                f"{outcome.wrong_fields!r}; it must be a sequence of field "
+                f"names (a string would be attributed per character)."
+            )
         if outcome.mode == MODE_PARTIALLY_WRONG:
             if not outcome.wrong_fields:
                 raise ValueError(
