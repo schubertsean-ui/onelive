@@ -1,0 +1,613 @@
+"""Tests for the C2 scenario + decision layer (worker/convergence/
+scenarios.py, worker/convergence/decisions.py).
+
+Covers, per the C2 phase definition (docs/strategy/ONE_LIVE_CONVERGENCE_v1.md
+§5, §11): deterministic replayable world sampling with an explicit mandatory
+seed (same seed -> identical output, different seed -> different, absent seed
+-> fail loud), classification of every outcome mode with hand-built worlds,
+aggregation goldens with hand-computed arithmetic, expected-loss / decide /
+VoI goldens matching the worked examples in
+docs/strategy/ONE_LIVE_COST_MATRIX_DRAFT_v1.md, fail-loud CostMatrix
+validation (missing cells above all), and the C1 shadow-isolation AST test
+extended to both new modules. Pure logic — no DB, no markers.
+"""
+import ast
+import json
+import sys
+
+import pytest
+
+from worker.convergence.decisions import (
+    CostMatrix,
+    decide,
+    expected_loss,
+    voi,
+)
+from worker.convergence.scenarios import (
+    MODE_FULLY_WRONG,
+    MODE_PARTIALLY_WRONG,
+    MODE_RIGHT,
+    MODES,
+    World,
+    WorldOutcome,
+    aggregate,
+    classify_world,
+    run_scenarios,
+    sample_worlds,
+)
+from worker.convergence.sl import Opinion
+
+APPROX = 1e-12
+
+# Deterministic building blocks: dogmatic opinions are point masses, so the
+# sampler's output is exactly predictable (worlds become hand-computable
+# goldens instead of statistical checks). a=0.0 so that even a discounted-
+# to-vacuous opinion stays deterministic (Beta(0, W) concentrates at 0).
+ALWAYS_TRUE = Opinion(b=1.0, d=0.0, u=0.0, a=0.0)
+ALWAYS_FALSE = Opinion(b=0.0, d=1.0, u=0.0, a=0.0)
+
+# The DRAFT matrix from docs/strategy/ONE_LIVE_COST_MATRIX_DRAFT_v1.md §2
+# (standard tier). Test data only — NOT ratified product values; the real
+# numbers are the founder's C2 ratification (spec §11 decision 1), which is
+# exactly why decisions.py refuses to bundle any default.
+DRAFT_COSTS = {
+    "surface_confirmed": {"fully_wrong": 100, "partially_wrong": 6, "right": 0},
+    "surface_likely": {"fully_wrong": 40, "partially_wrong": 4, "right": 1},
+    "hold": {"fully_wrong": 2, "partially_wrong": 10, "right": 15},
+    "flag_disputed": {"fully_wrong": 3, "partially_wrong": 6, "right": 8},
+}
+
+
+def _stochastic_inputs():
+    """Non-degenerate opinions so sampling actually varies world to world."""
+    field_opinions = {
+        "exists": Opinion.from_evidence(8, 2, a=0.5),
+        "date": Opinion.from_evidence(4, 1, a=0.5),
+        "start_time": Opinion.from_evidence(2, 2, a=0.5),
+    }
+    source_reliabilities = {
+        "venue_site": Opinion.from_evidence(9, 1, a=0.5),
+        "aggregator": Opinion.from_evidence(3, 3, a=0.5),
+    }
+    field_sources = {
+        "exists": ("venue_site",),
+        "date": ("venue_site", "aggregator"),
+        "start_time": ("aggregator",),
+    }
+    return field_opinions, source_reliabilities, field_sources
+
+
+# --- Seed discipline: explicit, mandatory, replayable -------------------------
+
+class TestSeedDiscipline:
+    def test_missing_seed_fails_loud(self):
+        # Spec §9: stochastic non-replayability is an audit liability. The
+        # seed is keyword-only with NO default: omitting it is a TypeError
+        # at the call site, never a silent nondeterministic run.
+        fo, sr, fs = _stochastic_inputs()
+        with pytest.raises(TypeError):
+            sample_worlds(fo, sr, fs, "exists", 10)
+        with pytest.raises(TypeError):
+            run_scenarios(fo, sr, fs, "exists", 10)
+
+    @pytest.mark.parametrize("bad_seed", [None, "42", 1.5, True])
+    def test_non_int_seed_fails_loud(self, bad_seed):
+        fo, sr, fs = _stochastic_inputs()
+        with pytest.raises(TypeError, match="seed"):
+            sample_worlds(fo, sr, fs, "exists", 10, seed=bad_seed)
+
+    def test_same_seed_identical_output(self):
+        fo, sr, fs = _stochastic_inputs()
+        a = run_scenarios(fo, sr, fs, "exists", 300, seed=42)
+        b = run_scenarios(fo, sr, fs, "exists", 300, seed=42)
+        assert a == b
+        # And at the raw-world level too, including the reliability draws.
+        wa = sample_worlds(fo, sr, fs, "exists", 50, seed=7)
+        wb = sample_worlds(fo, sr, fs, "exists", 50, seed=7)
+        assert wa == wb
+
+    def test_different_seed_different_output(self):
+        fo, sr, fs = _stochastic_inputs()
+        a = run_scenarios(fo, sr, fs, "exists", 300, seed=1)
+        b = run_scenarios(fo, sr, fs, "exists", 300, seed=2)
+        assert a != b
+
+
+# --- World sampling: deterministic goldens ------------------------------------
+
+class TestSampling:
+    def test_dogmatic_true_fields_always_right(self):
+        # Point-mass opinions: p(exists)=1, p(date)=1 in every world, so
+        # every world is classified `right` — mode_probs {0, 0, 1} exactly.
+        summary = run_scenarios(
+            {"exists": ALWAYS_TRUE, "date": ALWAYS_TRUE},
+            {}, {}, "exists", 200, seed=3,
+        )
+        assert summary.mode_probs == {
+            MODE_FULLY_WRONG: 0.0, MODE_PARTIALLY_WRONG: 0.0, MODE_RIGHT: 1.0,
+        }
+        assert summary.field_failure_rates == {"date": 0.0}
+        assert summary.partial_attribution == {}
+
+    def test_dogmatic_false_field_always_partially_wrong(self):
+        # exists always true, date always false -> every world is
+        # partially_wrong and the wrong field is carried by name (spec §5:
+        # "right event, wrong field — carry WHICH field").
+        summary = run_scenarios(
+            {"exists": ALWAYS_TRUE, "date": ALWAYS_FALSE, "price": ALWAYS_TRUE},
+            {}, {}, "exists", 200, seed=3,
+        )
+        assert summary.mode_probs[MODE_PARTIALLY_WRONG] == 1.0
+        assert summary.field_failure_rates == {"date": 1.0, "price": 0.0}
+        assert summary.partial_attribution == {"date": 1.0, "price": 0.0}
+
+    def test_nonexistent_event_always_fully_wrong(self):
+        # exists false dominates: even with another wrong field the mode is
+        # fully_wrong (a phantom has no separately-attributable details).
+        summary = run_scenarios(
+            {"exists": ALWAYS_FALSE, "date": ALWAYS_FALSE},
+            {}, {}, "exists", 100, seed=5,
+        )
+        assert summary.mode_probs[MODE_FULLY_WRONG] == 1.0
+        assert summary.field_failure_rates == {"date": 0.0}
+
+    def test_zero_reliability_source_zeroes_its_field(self):
+        # date is dogmatically true BUT its only source has dogmatic-zero
+        # reliability: trust_discount(t=0) yields the vacuous opinion with
+        # a=0, whose Beta(0, 2) limit concentrates at p=0 -> date is wrong
+        # in every world. Reliability visibly drives outcomes (spec §5:
+        # "failures cluster in worlds where the aggregator feed is stale").
+        summary = run_scenarios(
+            {"exists": ALWAYS_TRUE, "date": ALWAYS_TRUE},
+            {"aggregator": ALWAYS_FALSE},
+            {"date": ("aggregator",)},
+            "exists", 100, seed=9,
+        )
+        assert summary.mode_probs[MODE_PARTIALLY_WRONG] == 1.0
+        assert summary.field_failure_rates == {"date": 1.0}
+
+    def test_full_reliability_source_leaves_field_intact(self):
+        # Same setup with a perfectly reliable source: t=1 discount is the
+        # identity, so date stays right in every world.
+        summary = run_scenarios(
+            {"exists": ALWAYS_TRUE, "date": ALWAYS_TRUE},
+            {"aggregator": Opinion(b=1.0, d=0.0, u=0.0, a=1.0)},
+            {"date": ("aggregator",)},
+            "exists", 100, seed=9,
+        )
+        assert summary.mode_probs[MODE_RIGHT] == 1.0
+
+    def test_sampled_frequency_tracks_opinion_expectation(self):
+        # exists ~ from_evidence(8,2): Beta(alpha=8+1, beta=2+1)=Beta(9,3),
+        # mean 0.75 -> P(fully_wrong) = 0.25. With 4000 worlds the observed
+        # frequency must sit within 0.03 (>4 sigma; deterministic under the
+        # fixed seed, so this cannot flake).
+        summary = run_scenarios(
+            {"exists": Opinion.from_evidence(8, 2, a=0.5)},
+            {}, {}, "exists", 4000, seed=11,
+        )
+        assert abs(summary.mode_probs[MODE_FULLY_WRONG] - 0.25) < 0.03
+
+    def test_worlds_record_reliability_draws(self):
+        fo, sr, fs = _stochastic_inputs()
+        worlds = sample_worlds(fo, sr, fs, "exists", 5, seed=1)
+        assert len(worlds) == 5
+        for w in worlds:
+            assert set(w.source_reliabilities) == {"venue_site", "aggregator"}
+            for t in w.source_reliabilities.values():
+                assert 0.0 <= t <= 1.0
+            assert set(w.field_truths) == {"exists", "date", "start_time"}
+
+    def test_missing_existence_field_fails_loud(self):
+        with pytest.raises(ValueError, match="existence_field"):
+            sample_worlds({"date": ALWAYS_TRUE}, {}, {}, "exists", 10, seed=1)
+
+    def test_unknown_source_fails_loud(self):
+        with pytest.raises(ValueError, match="reliability"):
+            sample_worlds(
+                {"exists": ALWAYS_TRUE}, {}, {"exists": ("ghost_feed",)},
+                "exists", 10, seed=1,
+            )
+
+    def test_unknown_field_in_field_sources_fails_loud(self):
+        with pytest.raises(ValueError, match="unknown field"):
+            sample_worlds(
+                {"exists": ALWAYS_TRUE}, {"s": ALWAYS_TRUE},
+                {"date": ("s",)}, "exists", 10, seed=1,
+            )
+
+    @pytest.mark.parametrize("n", [0, -5, 2.5, True])
+    def test_bad_n_worlds_fails_loud(self, n):
+        with pytest.raises(ValueError, match="n_worlds"):
+            sample_worlds({"exists": ALWAYS_TRUE}, {}, {}, "exists", n, seed=1)
+
+    def test_empty_field_opinions_fails_loud(self):
+        with pytest.raises(ValueError, match="empty"):
+            sample_worlds({}, {}, {}, "exists", 10, seed=1)
+
+
+# --- Outcome classification ----------------------------------------------------
+
+class TestClassification:
+    def test_fully_wrong(self):
+        # Spec §5: event not real / cancelled -> fully_wrong; a phantom's
+        # other fields are not separately attributable (wrong_fields empty).
+        world = World(
+            field_truths={"exists": False, "date": False, "price": True},
+            source_reliabilities={},
+        )
+        outcome = classify_world(world, "exists")
+        assert outcome == WorldOutcome(mode=MODE_FULLY_WRONG, wrong_fields=())
+
+    def test_partially_wrong_carries_which_fields(self):
+        # Spec §5: "right event, wrong start time / wrong tag / wrong price"
+        # — the wrong fields are named, sorted for determinism.
+        world = World(
+            field_truths={"exists": True, "date": True,
+                          "start_time": False, "price": False},
+            source_reliabilities={},
+        )
+        outcome = classify_world(world, "exists")
+        assert outcome.mode == MODE_PARTIALLY_WRONG
+        assert outcome.wrong_fields == ("price", "start_time")
+
+    def test_right(self):
+        world = World(
+            field_truths={"exists": True, "date": True},
+            source_reliabilities={},
+        )
+        assert classify_world(world, "exists") == WorldOutcome(
+            mode=MODE_RIGHT, wrong_fields=()
+        )
+
+    def test_existence_only_claim_can_be_right(self):
+        world = World(field_truths={"exists": True}, source_reliabilities={})
+        assert classify_world(world, "exists").mode == MODE_RIGHT
+
+    def test_missing_existence_field_fails_loud(self):
+        world = World(field_truths={"date": True}, source_reliabilities={})
+        with pytest.raises(ValueError, match="existence_field"):
+            classify_world(world, "exists")
+
+
+# --- Aggregation: hand-computed golden ----------------------------------------
+
+class TestAggregation:
+    def test_golden_hand_computed(self):
+        # 4 worlds: 1 fully_wrong, 2 partially_wrong (one with date wrong;
+        # one with date AND start_time wrong), 1 right.
+        #   mode_probs: fully 1/4=0.25, partial 2/4=0.5, right 1/4=0.25
+        #   field_failure_rates (over ALL 4 worlds):
+        #     date wrong in 2 worlds -> 2/4 = 0.5
+        #     start_time wrong in 1 world -> 1/4 = 0.25
+        #   partial_attribution (over the 2 partial worlds):
+        #     date 2/2 = 1.0; start_time 1/2 = 0.5
+        outcomes = [
+            WorldOutcome(mode=MODE_FULLY_WRONG, wrong_fields=()),
+            WorldOutcome(mode=MODE_PARTIALLY_WRONG, wrong_fields=("date",)),
+            WorldOutcome(mode=MODE_PARTIALLY_WRONG,
+                         wrong_fields=("date", "start_time")),
+            WorldOutcome(mode=MODE_RIGHT, wrong_fields=()),
+        ]
+        summary = aggregate(outcomes, ["date", "start_time"])
+        assert summary.n_worlds == 4
+        assert summary.mode_probs == {
+            MODE_FULLY_WRONG: 0.25, MODE_PARTIALLY_WRONG: 0.5, MODE_RIGHT: 0.25,
+        }
+        assert summary.field_failure_rates == {"date": 0.5, "start_time": 0.25}
+        assert summary.partial_attribution == {"date": 1.0, "start_time": 0.5}
+
+    def test_never_failed_field_gets_explicit_zero(self):
+        # Absence of a row must never be the encoding of "fine".
+        summary = aggregate(
+            [WorldOutcome(mode=MODE_RIGHT, wrong_fields=())], ["date"]
+        )
+        assert summary.field_failure_rates == {"date": 0.0}
+
+    def test_no_partial_worlds_means_empty_attribution(self):
+        # The conditional P(field wrong | partially_wrong) is undefined with
+        # zero partial worlds; the summary says so with an empty dict rather
+        # than fabricating zeros for a distribution that has no denominator.
+        summary = aggregate(
+            [WorldOutcome(mode=MODE_FULLY_WRONG, wrong_fields=())], ["date"]
+        )
+        assert summary.partial_attribution == {}
+
+    def test_empty_outcomes_fails_loud(self):
+        with pytest.raises(ValueError, match="zero outcomes"):
+            aggregate([], ["date"])
+
+    def test_unknown_mode_fails_loud(self):
+        with pytest.raises(ValueError, match="Unknown outcome mode"):
+            aggregate([WorldOutcome(mode="sideways", wrong_fields=())], [])
+
+    def test_wrong_field_outside_field_names_fails_loud(self):
+        with pytest.raises(ValueError, match="not in field_names"):
+            aggregate(
+                [WorldOutcome(mode=MODE_PARTIALLY_WRONG, wrong_fields=("tag",))],
+                ["date"],
+            )
+
+
+# --- CostMatrix: explicit, complete, fail-loud --------------------------------
+
+class TestCostMatrix:
+    def test_valid_matrix_constructs(self):
+        matrix = CostMatrix(costs=DRAFT_COSTS)
+        assert matrix.actions == (
+            "surface_confirmed", "surface_likely", "hold", "flag_disputed",
+        )
+        assert matrix.costs["hold"]["right"] == 15.0
+
+    def test_missing_cell_fails_loud(self):
+        # A hole in the value system must never be silently read as zero
+        # cost (spec §5) — drop one mode from one action and construction
+        # must refuse.
+        broken = {a: dict(row) for a, row in DRAFT_COSTS.items()}
+        del broken["hold"]["right"]
+        with pytest.raises(ValueError, match="missing cost cell"):
+            CostMatrix(costs=broken)
+
+    def test_unknown_mode_fails_loud(self):
+        broken = {a: dict(row) for a, row in DRAFT_COSTS.items()}
+        broken["hold"]["sideways"] = 1
+        with pytest.raises(ValueError, match="unknown outcome mode"):
+            CostMatrix(costs=broken)
+
+    @pytest.mark.parametrize("bad", [-1, float("inf"), float("nan"), "5", True])
+    def test_bad_cost_value_fails_loud(self, bad):
+        broken = {a: dict(row) for a, row in DRAFT_COSTS.items()}
+        broken["hold"]["right"] = bad
+        with pytest.raises(ValueError):
+            CostMatrix(costs=broken)
+
+    def test_empty_matrix_fails_loud(self):
+        with pytest.raises(ValueError, match="non-empty"):
+            CostMatrix(costs={})
+
+    def test_non_mapping_row_fails_loud(self):
+        with pytest.raises(ValueError, match="must map"):
+            CostMatrix(costs={"hold": [1, 2, 3]})
+
+    def test_from_json_round_trip(self):
+        matrix = CostMatrix.from_json(json.dumps(DRAFT_COSTS))
+        assert matrix == CostMatrix(costs=DRAFT_COSTS)
+
+    def test_from_json_invalid_json_fails_loud(self):
+        with pytest.raises(ValueError, match="invalid JSON"):
+            CostMatrix.from_json("{not json")
+
+    def test_from_json_non_object_fails_loud(self):
+        with pytest.raises(ValueError, match="top level"):
+            CostMatrix.from_json("[1, 2]")
+
+    def test_later_mutation_of_input_dict_cannot_alter_matrix(self):
+        source = {a: dict(row) for a, row in DRAFT_COSTS.items()}
+        matrix = CostMatrix(costs=source)
+        source["hold"]["right"] = 9999
+        assert matrix.costs["hold"]["right"] == 15.0
+
+
+# --- expected_loss / decide: golden arithmetic --------------------------------
+
+class TestExpectedLossAndDecide:
+    # Worked example 1 from ONE_LIVE_COST_MATRIX_DRAFT_v1.md §4:
+    # P = {fully_wrong: 0.05, partially_wrong: 0.15, right: 0.80}
+    #   surface_confirmed: 0.05*100 + 0.15*6 + 0.80*0  = 5.00+0.90+0.00 = 5.90
+    #   surface_likely:    0.05*40  + 0.15*4 + 0.80*1  = 2.00+0.60+0.80 = 3.40
+    #   hold:              0.05*2   + 0.15*10 + 0.80*15 = 0.10+1.50+12.0 = 13.60
+    #   flag_disputed:     0.05*3   + 0.15*6 + 0.80*8  = 0.15+0.90+6.40 = 7.45
+    PROBS_1 = {"fully_wrong": 0.05, "partially_wrong": 0.15, "right": 0.80}
+    # Worked example 2 (§5): P = {0.005, 0.035, 0.96}
+    #   surface_confirmed: 0.5+0.21+0     = 0.710
+    #   surface_likely:    0.2+0.14+0.96  = 1.300
+    #   hold:              0.01+0.35+14.4 = 14.760
+    #   flag_disputed:     0.015+0.21+7.68 = 7.905
+    PROBS_2 = {"fully_wrong": 0.005, "partially_wrong": 0.035, "right": 0.96}
+
+    def test_expected_loss_golden(self):
+        matrix = CostMatrix(costs=DRAFT_COSTS)
+        assert expected_loss("surface_confirmed", self.PROBS_1, matrix) == pytest.approx(5.90, abs=APPROX)
+        assert expected_loss("surface_likely", self.PROBS_1, matrix) == pytest.approx(3.40, abs=APPROX)
+        assert expected_loss("hold", self.PROBS_1, matrix) == pytest.approx(13.60, abs=APPROX)
+        assert expected_loss("flag_disputed", self.PROBS_1, matrix) == pytest.approx(7.45, abs=APPROX)
+
+    def test_decide_example_1_chooses_quiet_framing(self):
+        matrix = CostMatrix(costs=DRAFT_COSTS)
+        record = decide(list(matrix.actions), self.PROBS_1, matrix)
+        assert record.chosen == "surface_likely"
+        assert record.expected_losses["surface_likely"] == pytest.approx(3.40, abs=APPROX)
+        # Full arithmetic is returned, not just the winner (spec §5:
+        # auditable rationale): each term is P(mode)*cost.
+        assert record.terms["surface_confirmed"]["fully_wrong"] == pytest.approx(5.00, abs=APPROX)
+        assert record.terms["hold"]["right"] == pytest.approx(12.00, abs=APPROX)
+        assert sum(record.terms["flag_disputed"].values()) == pytest.approx(
+            record.expected_losses["flag_disputed"], abs=APPROX
+        )
+
+    def test_decide_example_2_commits_to_confirmed(self):
+        matrix = CostMatrix(costs=DRAFT_COSTS)
+        record = decide(list(matrix.actions), self.PROBS_2, matrix)
+        assert record.chosen == "surface_confirmed"
+        assert record.expected_losses["surface_confirmed"] == pytest.approx(0.710, abs=APPROX)
+        assert record.expected_losses["flag_disputed"] == pytest.approx(7.905, abs=APPROX)
+
+    def test_tie_breaks_to_earliest_caller_action(self):
+        # Two identically-priced actions: the winner is the first in the
+        # caller's order, deterministically — flip the order, flip the win.
+        matrix = CostMatrix(costs={
+            "a": {"fully_wrong": 1, "partially_wrong": 1, "right": 1},
+            "b": {"fully_wrong": 1, "partially_wrong": 1, "right": 1},
+        })
+        probs = {"fully_wrong": 0.2, "partially_wrong": 0.3, "right": 0.5}
+        assert decide(["a", "b"], probs, matrix).chosen == "a"
+        assert decide(["b", "a"], probs, matrix).chosen == "b"
+
+    def test_unpriced_action_fails_loud(self):
+        matrix = CostMatrix(costs=DRAFT_COSTS)
+        with pytest.raises(ValueError, match="no row"):
+            expected_loss("promote_everything", self.PROBS_1, matrix)
+        with pytest.raises(ValueError, match="no row"):
+            decide(["hold", "promote_everything"], self.PROBS_1, matrix)
+
+    def test_empty_or_duplicate_actions_fail_loud(self):
+        matrix = CostMatrix(costs=DRAFT_COSTS)
+        with pytest.raises(ValueError, match="at least one"):
+            decide([], self.PROBS_1, matrix)
+        with pytest.raises(ValueError, match="duplicates"):
+            decide(["hold", "hold"], self.PROBS_1, matrix)
+
+    @pytest.mark.parametrize("bad_probs", [
+        {"fully_wrong": 0.5, "partially_wrong": 0.2, "right": 0.2},  # sums 0.9
+        {"fully_wrong": 0.5, "right": 0.5},                          # missing mode
+        {"fully_wrong": 0.5, "partially_wrong": 0.2, "right": 0.2,
+         "sideways": 0.1},                                           # unknown mode
+        {"fully_wrong": -0.1, "partially_wrong": 0.3, "right": 0.8}, # negative
+    ])
+    def test_malformed_mode_probs_fail_loud(self, bad_probs):
+        matrix = CostMatrix(costs=DRAFT_COSTS)
+        with pytest.raises(ValueError):
+            expected_loss("hold", bad_probs, matrix)
+
+
+# --- VoI: golden arithmetic ----------------------------------------------------
+
+class TestVoi:
+    # Compact 2-action matrix for hand arithmetic:
+    #   show: fw=10 pw=4 r=0     hold: fw=0 pw=1 r=5
+    SMALL = {
+        "show": {"fully_wrong": 10, "partially_wrong": 4, "right": 0},
+        "hold": {"fully_wrong": 0, "partially_wrong": 1, "right": 5},
+    }
+    # Prior P = {fw 0.4, pw 0.0, r 0.6}:
+    #   EL(show) = 0.4*10 + 0 + 0     = 4.0
+    #   EL(hold) = 0     + 0 + 0.6*5  = 3.0   -> prior best: hold, 3.0
+    PRIOR = {"fully_wrong": 0.4, "partially_wrong": 0.0, "right": 0.6}
+    # A perfectly-resolving fetch: branch fw (p 0.4) -> best is hold at 0;
+    # branch r (p 0.6) -> best is show at 0. Posterior expected loss = 0.
+    PERFECT = [
+        (0.4, {"fully_wrong": 1.0, "partially_wrong": 0.0, "right": 0.0}),
+        (0.6, {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 1.0}),
+    ]
+
+    def test_voi_golden(self):
+        # gross = prior(3.0) - posterior(0.0) = 3.0; net = 3.0 - 1.0 = 2.0.
+        record = voi(self.PRIOR, self.PERFECT, 1.0, CostMatrix(costs=self.SMALL))
+        assert record.prior_expected_loss == pytest.approx(3.0, abs=APPROX)
+        assert record.prior_decision.chosen == "hold"
+        assert record.posterior_expected_loss == pytest.approx(0.0, abs=APPROX)
+        assert record.gross_value == pytest.approx(3.0, abs=APPROX)
+        assert record.net_value == pytest.approx(2.0, abs=APPROX)
+        assert record.fetch_worth_it is True
+        # Per-branch decisions are preserved with their full arithmetic.
+        (p_fw, dec_fw), (p_r, dec_r) = record.posterior_decisions
+        assert (p_fw, dec_fw.chosen) == (0.4, "hold")
+        assert (p_r, dec_r.chosen) == (0.6, "show")
+
+    def test_break_even_fetch_is_not_bought(self):
+        # Spec §5 + cost discipline: spend follows decision value; net must
+        # be STRICTLY positive. gross 3.0 at cost 3.0 -> net 0.0 -> no.
+        record = voi(self.PRIOR, self.PERFECT, 3.0, CostMatrix(costs=self.SMALL))
+        assert record.net_value == pytest.approx(0.0, abs=APPROX)
+        assert record.fetch_worth_it is False
+
+    def test_voi_matches_draft_doc_worked_example(self):
+        # ONE_LIVE_COST_MATRIX_DRAFT_v1.md §6: from example 1's position
+        # (prior best surface_likely at 3.40), a perfect fetch lands at
+        # 0.05*2 (hold) + 0.15*4 (surface_likely) + 0.80*0 (confirmed)
+        # = 0.70. Gross 3.40-0.70 = 2.70; at fetch cost 0.5, net = 2.20.
+        matrix = CostMatrix(costs=DRAFT_COSTS)
+        prior = {"fully_wrong": 0.05, "partially_wrong": 0.15, "right": 0.80}
+        perfect = [
+            (0.05, {"fully_wrong": 1.0, "partially_wrong": 0.0, "right": 0.0}),
+            (0.15, {"fully_wrong": 0.0, "partially_wrong": 1.0, "right": 0.0}),
+            (0.80, {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 1.0}),
+        ]
+        record = voi(prior, perfect, 0.5, matrix)
+        assert record.prior_expected_loss == pytest.approx(3.40, abs=APPROX)
+        assert record.posterior_expected_loss == pytest.approx(0.70, abs=APPROX)
+        assert record.gross_value == pytest.approx(2.70, abs=APPROX)
+        assert record.net_value == pytest.approx(2.20, abs=APPROX)
+        assert record.fetch_worth_it is True
+
+    def test_uninformative_fetch_is_worthless(self):
+        # A fetch whose every branch reproduces the prior teaches nothing:
+        # posterior = prior best (3.0), gross = 0, net = -cost.
+        record = voi(
+            self.PRIOR, [(1.0, self.PRIOR)], 0.25, CostMatrix(costs=self.SMALL)
+        )
+        assert record.gross_value == pytest.approx(0.0, abs=APPROX)
+        assert record.net_value == pytest.approx(-0.25, abs=APPROX)
+        assert record.fetch_worth_it is False
+
+    def test_branch_probabilities_must_sum_to_one(self):
+        with pytest.raises(ValueError, match="sum to 1"):
+            voi(
+                self.PRIOR,
+                [(0.4, self.PERFECT[0][1]), (0.4, self.PERFECT[1][1])],
+                1.0,
+                CostMatrix(costs=self.SMALL),
+            )
+
+    def test_empty_scenarios_fail_loud(self):
+        with pytest.raises(ValueError, match="at least one posterior"):
+            voi(self.PRIOR, [], 1.0, CostMatrix(costs=self.SMALL))
+
+    @pytest.mark.parametrize("bad_cost", [-1.0, float("inf"), float("nan"), "1"])
+    def test_bad_fetch_cost_fails_loud(self, bad_cost):
+        with pytest.raises(ValueError, match="fetch_cost"):
+            voi(self.PRIOR, self.PERFECT, bad_cost, CostMatrix(costs=self.SMALL))
+
+
+# --- Shadow isolation (C2 invariant: zero product-path coupling) --------------
+
+class TestShadowIsolation:
+    # Same AST pattern as C1's suite (tests/test_convergence_sl.py),
+    # extended to both C2 modules: stdlib plus the enumerated convergence-
+    # package siblings only — never the pipeline, gate, or tooling.
+    ALLOWED_PROJECT_IMPORTS = {
+        "worker/convergence/scenarios.py": {"worker.convergence.sl"},
+        "worker/convergence/decisions.py": {
+            "worker.convergence.sl", "worker.convergence.scenarios",
+        },
+    }
+
+    @pytest.mark.parametrize("rel_path", sorted(ALLOWED_PROJECT_IMPORTS))
+    def test_module_imports_nothing_from_the_pipeline(self, rel_path):
+        # Spec §11 C2: "Still shadow." The scenario/decision layer must be
+        # pure stdlib plus its convergence-package siblings — no worker
+        # pipeline, ai, api, or tools imports, no third-party packages.
+        import worker.convergence.scenarios as scen
+        import os
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(scen.__file__))))
+        path = os.path.join(repo_root, *rel_path.split("/"))
+        source = open(path, encoding="utf-8").read()
+        tree = ast.parse(source)
+        imported = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                imported.add(node.module or "")
+        allowed_project = self.ALLOWED_PROJECT_IMPORTS[rel_path]
+        for mod in imported:
+            if mod in allowed_project:
+                continue
+            top = mod.split(".")[0]
+            assert top in sys.stdlib_module_names or mod == "__future__", (
+                f"{rel_path} imports non-stdlib module {mod!r}; C2 must stay "
+                f"standalone (spec §11: shadow, zero pipeline coupling)."
+            )
+            assert top not in ("worker", "ai", "api", "tools"), (
+                f"{rel_path} imports project module {mod!r} outside the "
+                f"allowed convergence substrate {sorted(allowed_project)!r}; "
+                f"C2 forbids pipeline coupling."
+            )
+
+    def test_modes_vocabulary_is_shared_not_duplicated(self):
+        # decisions.py must consume scenarios.MODES (one vocabulary, no
+        # drift): the spec's three modes, in canonical order.
+        from worker.convergence import decisions as dec_module
+        assert dec_module.MODES is MODES
+        assert MODES == ("fully_wrong", "partially_wrong", "right")
