@@ -368,12 +368,31 @@ class DecisionRecord:
                             f"so a zero-probability mode forces a zero term; "
                             f"this record is internally contradictory."
                         )
-        best = min(self.expected_losses.values())
-        if abs(self.expected_losses[self.chosen] - best) > _SUM_EPS:
+        # `chosen` must be the DETERMINISTIC tie-break choice, not merely
+        # SOME minimal action (evaluator r16, PR #54). decide() breaks ties
+        # toward the earliest action in its `actions` argument, recorded here
+        # as the key order of expected_losses — and r15 makes that order
+        # VoiRecord's same-policy invariant. So a record whose chosen is a
+        # LATER tied action (e.g. losses {"a": 1, "b": 1}, chosen "b")
+        # contradicts the very tie-break policy its own key order declares,
+        # and would let a forger pick either arm of a tie. Mirror decide()
+        # EXACTLY: min() over the mapping walks it in key order and returns
+        # the first key holding the minimum value (no eps — expected_losses
+        # ARE the totals decide() compared, so exact reproduction is the
+        # only faithful check; an eps window here could diverge from decide's
+        # own float min and admit a different action).
+        tie_break_choice = min(
+            self.expected_losses, key=self.expected_losses.__getitem__
+        )
+        if self.chosen != tie_break_choice:
             raise ValueError(
-                f"DecisionRecord: chosen {self.chosen!r} "
-                f"(loss {self.expected_losses[self.chosen]!r}) does not "
-                f"achieve the minimum expected loss {best!r}."
+                f"DecisionRecord: chosen {self.chosen!r} is not the tie-break "
+                f"choice {tie_break_choice!r} — under this record's own action "
+                f"order {list(self.expected_losses)!r} the minimum expected "
+                f"loss {self.expected_losses[tie_break_choice]!r} is first "
+                f"achieved by {tie_break_choice!r}. An audit record's choice "
+                f"must match the deterministic first-minimum policy its key "
+                f"order declares (evaluator r16, PR #54)."
             )
         # Matrix truthfulness (evaluator r13): the stored matrix must be the
         # one the terms were computed under — terms[a][m] == P(m)*cost(a,m).
@@ -720,7 +739,17 @@ def voi(
     posterior_loss = 0.0
     mixture = {mode: 0.0 for mode in MODES}
     posterior_decisions: list[tuple[float, DecisionRecord]] = []
-    for i, (branch_p, branch_probs) in enumerate(posterior_scenarios_if_fetched):
+    for i, pair in enumerate(posterior_scenarios_if_fetched):
+        # Validate the pair SHAPE before unpacking (evaluator r16 nit,
+        # PR #54): a malformed scenario entry must fail loud with this
+        # module's explicit message, not a raw unpacking ValueError. Mirrors
+        # VoiRecord.__post_init__'s pair-shape check.
+        if not (isinstance(pair, tuple) and len(pair) == 2):
+            raise ValueError(
+                f"Posterior scenario {i} must be a (branch_probability, "
+                f"mode_distribution) pair; got {pair!r}."
+            )
+        branch_p, branch_probs = pair
         if isinstance(branch_p, bool) or not isinstance(branch_p, (int, float)):
             raise ValueError(
                 f"Posterior scenario {i}: branch probability must be a "

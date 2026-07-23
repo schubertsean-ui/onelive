@@ -350,6 +350,22 @@ def sample_worlds(
         )
     if not field_opinions:
         raise ValueError("field_opinions is empty: nothing to sample.")
+    # Every key that gets sorted below (for the replayable draw order, spec
+    # §9) must be a string, or sorted() raises a raw TypeError on mixed key
+    # types — including inside the error messages that sort these mappings
+    # (evaluator r16 nit, PR #54). Validate explicitly so a misconfigured
+    # key fails loud and clear here, before any sort.
+    for label, mapping in (
+        ("field_opinions", field_opinions),
+        ("source_reliabilities", source_reliabilities),
+    ):
+        for key in mapping:
+            if not isinstance(key, str):
+                raise ValueError(
+                    f"{label} key {key!r} is not a string (type "
+                    f"{type(key).__name__}); field and source names must be "
+                    f"strings for replayable sorted iteration (spec §9)."
+                )
     if existence_field not in field_opinions:
         raise ValueError(
             f"existence_field {existence_field!r} is not among the field "
@@ -473,6 +489,17 @@ def aggregate(
             "undefined (0/0); refusing to emit fabricated numbers."
         )
     field_list = list(field_names)
+    for fname in field_list:
+        # Attribution keys must be field-name strings (evaluator r16 nit,
+        # PR #54): a non-string key would sort/compare-raise below or land
+        # in the summary as an un-citable attribution row. The rest of the
+        # module is strict about public audit-record keys; match it here.
+        if not isinstance(fname, str):
+            raise ValueError(
+                f"aggregate() field_names entry {fname!r} is not a string "
+                f"(type {type(fname).__name__}); attributable-field names "
+                f"must be strings."
+            )
     if len(set(field_list)) != len(field_list):
         # Silently de-duplicating (via set/dict) would hide a malformed
         # attribution request (evaluator r10 nit, PR #54); reject it.

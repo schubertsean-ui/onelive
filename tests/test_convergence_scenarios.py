@@ -317,6 +317,26 @@ class TestSampling:
         with pytest.raises(ValueError, match="empty"):
             sample_worlds({}, {}, {}, "exists", 10, seed=1)
 
+    def test_non_string_mapping_key_fails_loud(self):
+        # Evaluator r16 nit (PR #54): sample_worlds sorts caller-provided
+        # mapping keys for replayable draw order (spec §9); a non-string key
+        # would raise a raw TypeError inside sorted(). Validate explicitly so
+        # a misconfigured key fails loud and clear, in either mapping.
+        with pytest.raises(ValueError, match="field_opinions key .* not a string"):
+            sample_worlds(
+                {"exists": ALWAYS_TRUE, 7: ALWAYS_TRUE}, {}, {},
+                "exists", 10, seed=1,
+            )
+        with pytest.raises(
+            ValueError, match="source_reliabilities key .* not a string"
+        ):
+            sample_worlds(
+                {"exists": ALWAYS_TRUE},
+                {"venue_site": ALWAYS_TRUE, 9: ALWAYS_TRUE},
+                {"exists": ("venue_site",)},
+                "exists", 10, seed=1,
+            )
+
 
 # --- Outcome classification ----------------------------------------------------
 
@@ -504,6 +524,16 @@ class TestAggregation:
             aggregate(
                 [WorldOutcome(mode=MODE_RIGHT, wrong_fields=())],
                 ["date", "date"],
+            )
+
+    def test_aggregate_non_string_field_names_rejected(self):
+        # Evaluator r16 nit (PR #54): a non-string field_names entry would
+        # sort/compare-raise or land as an un-citable attribution key; the
+        # module is strict about public audit-record keys everywhere else.
+        with pytest.raises(ValueError, match="not a string"):
+            aggregate(
+                [WorldOutcome(mode=MODE_RIGHT, wrong_fields=())],
+                ["date", 7],
             )
 
     def test_aggregate_defends_against_bare_string_wrong_fields(self):
@@ -849,6 +879,49 @@ class TestExpectedLossAndDecide:
                 matrix=mtx,
             )
 
+    def test_forged_decision_record_later_tied_minimum_rejected(self):
+        # Evaluator r16 (PR #54): `chosen` must be the DETERMINISTIC tie-break
+        # winner — the FIRST action in expected_losses key order achieving the
+        # minimum — not merely SOME tied minimum. r15 made that key order
+        # VoiRecord's same-policy invariant, so a record whose chosen is a
+        # LATER tied action contradicts the tie-break policy its own order
+        # declares. Two actions both at loss 15.0; the order says "hold" wins,
+        # but the forged record names "flag_disputed".
+        from worker.convergence.decisions import DecisionRecord
+
+        probs = {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 1.0}
+        tied_terms = {
+            "hold": {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 15.0},
+            "flag_disputed": {"fully_wrong": 0.0, "partially_wrong": 0.0,
+                              "right": 15.0},
+        }
+        # Costs that make both actions' right-mode cost 15.0 (P(right)=1), so
+        # the stored matrix self-verifies against the tied terms.
+        tie_costs = {
+            "hold": {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 15.0},
+            "flag_disputed": {"fully_wrong": 0.0, "partially_wrong": 0.0,
+                              "right": 15.0},
+        }
+        tie_mtx = CostMatrix(costs=tie_costs)
+        with pytest.raises(ValueError, match="tie-break choice"):
+            DecisionRecord(
+                chosen="flag_disputed",
+                expected_losses={"hold": 15.0, "flag_disputed": 15.0},
+                terms=tied_terms,
+                mode_probs=probs,
+                matrix=tie_mtx,
+            )
+        # The first-in-order tied action IS accepted (sanity: the check
+        # rejects only later ties, not all ties).
+        ok = DecisionRecord(
+            chosen="hold",
+            expected_losses={"hold": 15.0, "flag_disputed": 15.0},
+            terms=tied_terms,
+            mode_probs=probs,
+            matrix=tie_mtx,
+        )
+        assert ok.chosen == "hold"
+
     def test_nonzero_term_under_zero_probability_mode_fails_loud(self):
         # Evaluator r7 (PR #54): terms[action][mode] = P(mode) * cost, so a
         # zero-probability mode forces a zero term — a nonzero term there is
@@ -1015,6 +1088,18 @@ class TestVoi:
     def test_empty_scenarios_fail_loud(self):
         with pytest.raises(ValueError, match="at least one posterior"):
             voi(self.PRIOR, [], 1.0, CostMatrix(costs=self.SMALL))
+
+    @pytest.mark.parametrize("bad_entry", [
+        (0.5,),                                   # 1-tuple: missing probs
+        (0.5, {"fully_wrong": 1.0}, "extra"),     # 3-tuple: too many
+        "not-a-pair",                             # not a tuple at all
+    ])
+    def test_malformed_scenario_pair_shape_fails_loud(self, bad_entry):
+        # Evaluator r16 nit (PR #54): voi() must validate the scenario pair
+        # SHAPE before unpacking, so a malformed entry fails loud with the
+        # module's explicit message rather than a raw unpacking ValueError.
+        with pytest.raises(ValueError, match="must be a .*pair"):
+            voi(self.PRIOR, [bad_entry], 1.0, CostMatrix(costs=self.SMALL))
 
     def test_incoherent_posterior_scenarios_rejected(self):
         # Evaluator r9 (PR #54): the branch-weighted mixture of posteriors
