@@ -25,6 +25,7 @@ the founder ratifies coupling at C5.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from random import Random
 from types import MappingProxyType
@@ -60,6 +61,34 @@ class World:
     source_reliabilities: Mapping[str, float]
 
     def __post_init__(self) -> None:
+        # A world is replay/audit material and is also fed straight into
+        # classify_world, whose mode decision turns on field truth. Both
+        # fields are validated at construction (evaluator r4, PR #54) so a
+        # forged or mis-deserialized world fails loud HERE rather than
+        # being silently coerced by truthiness downstream:
+        #   - field_truths values must be REAL bools (a non-empty string
+        #     like "False" is truthy and would classify a phantom as real);
+        #   - source_reliabilities must be finite floats in [0, 1] (a
+        #     probability outside the unit interval is malformed evidence).
+        for name, truth in self.field_truths.items():
+            if not isinstance(truth, bool):
+                raise ValueError(
+                    f"World.field_truths[{name!r}]={truth!r} must be a bool; "
+                    f"a non-bool truth would be coerced by truthiness in "
+                    f"classification, hiding malformed input (spec §5)."
+                )
+        for name, rel in self.source_reliabilities.items():
+            if isinstance(rel, bool) or not isinstance(rel, (int, float)):
+                raise ValueError(
+                    f"World.source_reliabilities[{name!r}]={rel!r} must be a "
+                    f"number in [0, 1]."
+                )
+            if not math.isfinite(rel) or not (0.0 <= rel <= 1.0):
+                raise ValueError(
+                    f"World.source_reliabilities[{name!r}]={rel!r} must be a "
+                    f"finite reliability in [0, 1] (it is a sampled "
+                    f"probability — outside the unit interval is malformed)."
+                )
         object.__setattr__(
             self, "field_truths", MappingProxyType(dict(self.field_truths))
         )
@@ -106,6 +135,42 @@ class ScenarioSummary:
     partial_attribution: Mapping[str, float]
 
     def __post_init__(self) -> None:
+        # aggregate() always produces a valid summary, but the public
+        # constructor is a way to manufacture impossible audit evidence —
+        # validated here so a forged summary fails loud (evaluator r4 nit,
+        # PR #54).
+        if isinstance(self.n_worlds, bool) or not isinstance(self.n_worlds, int) \
+                or self.n_worlds <= 0:
+            raise ValueError(
+                f"ScenarioSummary.n_worlds={self.n_worlds!r} must be a "
+                f"positive int."
+            )
+        if set(self.mode_probs) != set(MODES):
+            raise ValueError(
+                f"ScenarioSummary.mode_probs keys must be exactly {MODES!r}; "
+                f"got {sorted(self.mode_probs)!r}."
+            )
+        for label, rates in (
+            ("mode_probs", self.mode_probs),
+            ("field_failure_rates", self.field_failure_rates),
+            ("partial_attribution", self.partial_attribution),
+        ):
+            for key, val in rates.items():
+                if isinstance(val, bool) or not isinstance(val, (int, float)):
+                    raise ValueError(
+                        f"ScenarioSummary.{label}[{key!r}]={val!r} must be a "
+                        f"number."
+                    )
+                if not math.isfinite(val) or not (0.0 <= val <= 1.0):
+                    raise ValueError(
+                        f"ScenarioSummary.{label}[{key!r}]={val!r} must be a "
+                        f"finite rate in [0, 1]."
+                    )
+        mode_total = sum(self.mode_probs.values())
+        if abs(mode_total - 1.0) > 1e-6:
+            raise ValueError(
+                f"ScenarioSummary.mode_probs must sum to 1; got {mode_total!r}."
+            )
         for name in ("mode_probs", "field_failure_rates", "partial_attribution"):
             object.__setattr__(
                 self, name, MappingProxyType(dict(getattr(self, name)))
@@ -197,6 +262,15 @@ def sample_worlds(
             f"field_opinions."
         )
     for fname, sources in field_sources.items():
+        if len(set(sources)) != len(tuple(sources)):
+            raise ValueError(
+                f"field {fname!r} lists duplicate source(s) in {tuple(sources)!r}; "
+                f"sampling applies trust_discount ONCE per entry, so a "
+                f"repeated source would double-discount the field's opinion "
+                f"and corrupt the trust math (the set()-based unknown-source "
+                f"check below would hide it) — evaluator r4, PR #54. Each "
+                f"source backs a field at most once."
+            )
         unknown_sources = set(sources) - set(source_reliabilities)
         if unknown_sources:
             raise ValueError(

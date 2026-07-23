@@ -43,6 +43,26 @@ from worker.convergence.scenarios import MODES
 _SUM_EPS = 1e-6
 
 
+def _require_audit_number(label: str, value: object) -> float:
+    """Every number that enters an audit record must be a finite,
+    non-negative real (evaluator r4, PR #54). This is stricter than a
+    bare `> _SUM_EPS` comparison, which a NaN silently passes (all NaN
+    comparisons are false) — a fabricated record carrying NaN losses
+    would look internally consistent while being un-recomputable."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(
+            f"DecisionRecord: {label} must be a number; got "
+            f"{type(value).__name__}: {value!r}."
+        )
+    num = float(value)
+    if not math.isfinite(num) or num < 0.0:
+        raise ValueError(
+            f"DecisionRecord: {label}={num!r} must be a finite non-negative "
+            f"loss — NaN/inf/negative arithmetic is not audit evidence."
+        )
+    return num
+
+
 def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
     """json.loads object_pairs_hook: refuse duplicate keys at every
     nesting level instead of Python's silent last-wins (evaluator r3,
@@ -176,6 +196,13 @@ def _validate_mode_probs(mode_probs: Mapping[str, float]) -> dict[str, float]:
     """Fail-loud validation of a mode-probability distribution: exactly the
     three spec-§5 modes, each EXACTLY in [0, 1] (no epsilon — normalization
     is the caller's job; see _SUM_EPS), summing to 1 within _SUM_EPS."""
+    if not isinstance(mode_probs, Mapping):
+        raise ValueError(
+            f"mode_probs must be a mapping of mode -> probability; got "
+            f"{type(mode_probs).__name__}: {mode_probs!r} (evaluator r4 "
+            f"nit, PR #54 — a non-mapping caller gets this ValueError, not "
+            f"a raw TypeError from set())."
+        )
     if set(mode_probs) != set(MODES):
         raise ValueError(
             f"mode_probs keys must be exactly {MODES!r}; got "
@@ -273,12 +300,20 @@ class DecisionRecord:
                 f"DecisionRecord: chosen {self.chosen!r} is not among the "
                 f"evaluated actions {sorted(self.expected_losses)!r}."
             )
+        for action, total in self.expected_losses.items():
+            _require_audit_number(f"expected_losses[{action!r}]", total)
         for action, row in self.terms.items():
             if set(row) != set(MODES):
                 raise ValueError(
                     f"DecisionRecord: terms[{action!r}] modes "
                     f"{sorted(row)!r} must be exactly {MODES!r}."
                 )
+            for mode, term in row.items():
+                _require_audit_number(f"terms[{action!r}][{mode!r}]", term)
+            # NB: the sum check below relies on every term being finite —
+            # a NaN slips past `abs(nan) > eps` (nan comparisons are false),
+            # which is exactly the fabricated-evidence hole the per-cell
+            # _require_audit_number above closes (evaluator r4, PR #54).
             if abs(sum(row.values()) - self.expected_losses[action]) > _SUM_EPS:
                 raise ValueError(
                     f"DecisionRecord: expected_losses[{action!r}]="

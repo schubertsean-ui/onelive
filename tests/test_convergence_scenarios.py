@@ -232,6 +232,18 @@ class TestSampling:
                 "exists", 10, seed=1,
             )
 
+    def test_duplicate_source_in_field_sources_fails_loud(self):
+        # Evaluator r4 (PR #54): a duplicated source double-discounts the
+        # field's opinion (trust_discount runs once per entry), and the
+        # set()-based unknown-source check hides it.
+        with pytest.raises(ValueError, match="duplicate source"):
+            sample_worlds(
+                {"exists": ALWAYS_TRUE},
+                {"venue_site": ALWAYS_TRUE},
+                {"exists": ("venue_site", "venue_site")},
+                "exists", 10, seed=1,
+            )
+
     def test_unused_source_reliability_fails_loud(self):
         # Evaluator r2 (PR #54): an unused reliability row would still be
         # sampled, silently shifting the RNG stream — same seed, different
@@ -306,6 +318,23 @@ class TestClassification:
         with pytest.raises(ValueError, match="existence_field"):
             classify_world(world, "exists")
 
+    def test_non_bool_field_truth_fails_at_world_construction(self):
+        # Evaluator r4 (PR #54): a forged/deserialized world with a
+        # non-bool truth ("False" is a truthy string) must fail loud at
+        # construction, never be coerced by truthiness in classification.
+        with pytest.raises(ValueError, match="must be a bool"):
+            World(field_truths={"exists": "False"}, source_reliabilities={})
+        with pytest.raises(ValueError, match="must be a bool"):
+            World(field_truths={"exists": 1}, source_reliabilities={})
+
+    def test_out_of_range_reliability_fails_at_world_construction(self):
+        with pytest.raises(ValueError, match=r"\[0, 1\]"):
+            World(field_truths={"exists": True},
+                  source_reliabilities={"venue_site": 1.5})
+        with pytest.raises(ValueError, match=r"\[0, 1\]"):
+            World(field_truths={"exists": True},
+                  source_reliabilities={"venue_site": float("nan")})
+
 
 # --- Aggregation: hand-computed golden ----------------------------------------
 
@@ -364,6 +393,37 @@ class TestAggregation:
                 [WorldOutcome(mode=MODE_PARTIALLY_WRONG, wrong_fields=("tag",))],
                 ["date"],
             )
+
+    def test_forged_scenario_summary_fails_loud(self):
+        # Evaluator r4 nit (PR #54): aggregate() is always valid, but the
+        # public ScenarioSummary constructor must not manufacture
+        # impossible audit evidence.
+        from worker.convergence.scenarios import ScenarioSummary
+
+        good = {MODE_FULLY_WRONG: 0.25, MODE_PARTIALLY_WRONG: 0.5,
+                MODE_RIGHT: 0.25}
+        # non-positive n_worlds
+        with pytest.raises(ValueError, match="n_worlds"):
+            ScenarioSummary(n_worlds=0, mode_probs=good,
+                            field_failure_rates={}, partial_attribution={})
+        # mode keys wrong
+        with pytest.raises(ValueError, match="mode_probs keys"):
+            ScenarioSummary(n_worlds=4, mode_probs={"x": 1.0},
+                            field_failure_rates={}, partial_attribution={})
+        # probability out of range
+        with pytest.raises(ValueError, match=r"\[0, 1\]"):
+            ScenarioSummary(
+                n_worlds=4,
+                mode_probs={MODE_FULLY_WRONG: -0.1, MODE_PARTIALLY_WRONG: 0.6,
+                            MODE_RIGHT: 0.5},
+                field_failure_rates={}, partial_attribution={})
+        # does not sum to 1
+        with pytest.raises(ValueError, match="sum to 1"):
+            ScenarioSummary(
+                n_worlds=4,
+                mode_probs={MODE_FULLY_WRONG: 0.1, MODE_PARTIALLY_WRONG: 0.1,
+                            MODE_RIGHT: 0.1},
+                field_failure_rates={}, partial_attribution={})
 
     # Evaluator r1 (PR #54): aggregate() must ENFORCE the WorldOutcome
     # invariant (wrong_fields iff partially_wrong), not assume it — a
@@ -629,6 +689,23 @@ class TestExpectedLossAndDecide:
                 mode_probs=probs,
             )
 
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), -1.0])
+    def test_non_finite_or_negative_audit_arithmetic_fails_loud(self, bad):
+        # Evaluator r4 (PR #54): NaN slips past `abs(nan) > eps` (all NaN
+        # comparisons are false), so a fabricated record carrying NaN/inf/
+        # negative losses would look internally consistent. Per-cell
+        # finite-non-negative validation closes that hole — in BOTH the
+        # totals and the terms cells.
+        from worker.convergence.decisions import DecisionRecord
+
+        probs = {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 1.0}
+        with pytest.raises(ValueError, match="finite non-negative"):
+            DecisionRecord(
+                chosen="hold", expected_losses={"hold": bad},
+                terms={"hold": {"fully_wrong": 0.0, "partially_wrong": 0.0,
+                                "right": bad}},
+                mode_probs=probs)
+
     @pytest.mark.parametrize("tiny_bad", [-1e-12, 1.0 + 1e-12])
     def test_tiny_out_of_range_prob_rejected_exactly(self, tiny_bad):
         # Per-probability bounds are EXACT (sl.py component-bound
@@ -643,6 +720,15 @@ class TestExpectedLossAndDecide:
         }
         with pytest.raises(ValueError, match="outside \\[0, 1\\]"):
             expected_loss("hold", probs, matrix)
+
+    @pytest.mark.parametrize("not_a_mapping", [["a", "b"], 5, "probs", None])
+    def test_non_mapping_mode_probs_gives_valueerror(self, not_a_mapping):
+        # Evaluator r4 nit (PR #54): a non-mapping caller must get the
+        # module's explicit ValueError, not a raw TypeError leaking from
+        # set().
+        matrix = CostMatrix(costs=DRAFT_COSTS)
+        with pytest.raises(ValueError, match="must be a mapping"):
+            expected_loss("hold", not_a_mapping, matrix)
 
 
 # --- VoI: golden arithmetic ----------------------------------------------------
