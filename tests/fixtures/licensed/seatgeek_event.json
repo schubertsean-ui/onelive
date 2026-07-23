@@ -1,0 +1,13 @@
+{
+  "id": 6234567,
+  "title": "Spoon",
+  "short_title": "Spoon",
+  "url": "https://seatgeek.com/spoon-tickets/6234567",
+  "datetime_utc": "2026-07-25T02:00:00",
+  "type": "concert",
+  "performers": [
+    {"name": "Spoon", "primary": true, "type": "band", "genres": [{"name": "Indie Rock"}, {"name": "Rock"}], "image": "https://seatgeek.com/images/performers/spoon.jpg"}
+  ],
+  "venue": {"name": "Stubb's", "city": "Austin", "address": "801 Red River St", "location": {"lat": 30.2686, "lon": -97.7361}},
+  "stats": {"lowest_price": 35, "highest_price": 75, "average_price": 52}
+}
