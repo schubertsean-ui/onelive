@@ -205,3 +205,24 @@ founder digest in plain language.
 | — | none recorded to date (first firing: the R-008 cron-arming Friction pre-work — see TODOS hat shakedown) | | |
 | 2026-07-21 | Arm the hourly ingestion cron (FRICTION_LOG entry #3, Yellow's first live firing) | Fresh same-night candidates for /tonight; real per-run cost curve to feed routing decisions; daily full-catalog sweep surfaces dead sources within 24h; starts R-012's "one cron week" maturity clock | PENDING — validated after the first cron week: full catalog swept daily, zero dead-man alarms, cost-per-run within the console cap's daily share (fill via a new row, append-only) |
 | 2026-07-21 | Correction (append-only) to the 2026-07-21 M8 row above | — | that row's "hourly ingestion cron" and "daily full-catalog sweep" reflect the plan at first authoring; the founder amended cadence to every 20 minutes before merge (FRICTION_LOG entry #3, cadence amendment). Validation criteria update accordingly: ~3 visits/source/day capacity, zero dead-man alarms at a 20-min period, cost-per-run within the console cap's daily share. Row preserved unedited per ledger convention; this row is the correction (r7 stale-cross-reference catch) |
+
+## M9 Expected-vs-actual performance (prediction calibration — method in docs/KAIZEN.md)
+
+One row per change that CLAIMS a performance/cost/latency/quality improvement,
+opened as a PREDICTION in the same commit as the claim and MEASURED at its
+objective trigger. Structure enforced by `tools/perf_ledger_scan.py`: a
+PENDING-MEASUREMENT row needs Metric, Baseline, Expected, Basis, Trigger; a
+MEASURED row additionally needs a real Baseline (not "PENDING"), Actual, Delta,
+and a non-PENDING Verdict (MET/UNDER/OVER). The meta-metric is calibration: the
+MET-rate should rise and |actual−expected| shrink over time. Append-only;
+corrections are new rows, never edits (mirrors the ledger convention above).
+
+| ID | Change | Metric (unit) | Baseline | Expected (%Δ) | Basis | Trigger | Actual (%Δ) | Delta | Verdict | Status |
+|---|---|---|---|---|---|---|---|---|---|---|
+| EP-001 | Rung 1 — prompt caching on the extraction prefix (implementing PR to follow; prediction opened at M9 establishment, 2026-07-23, per the founder efficiency directive) | direct-API input-token cost per extraction call, $ | PENDING (measured by the per-call token log that lands with the caching PR — this row cannot go MEASURED without a real baseline) | −45% of direct API spend | Anthropic console estimate (45%) + cache reads bill ~0.1× on the stable-prefix token fraction, break-even at 2 calls, cron reuse guarantees it (docs/MODEL_ROUTING.md §caching) | ≥50 post-merge extraction calls OR 24h of cron traffic on the caching head | PENDING | PENDING | PENDING | PENDING-MEASUREMENT |
+| EP-002 | Rung 2 — Batch API for the batch-shaped jobs (Descriptor Foundry N=6, golden-set regressions); implementing PR to follow | cost per batched job, $ | PENDING (measured on the first batched job) | −50% on the batched slice | Batch API bills 50% off all tokens (docs/MODEL_ROUTING.md §batch); stacks on top of EP-001 caching | first batched Descriptor Foundry run post-merge | PENDING | PENDING | PENDING | PENDING-MEASUREMENT |
+
+(Rung 3 — right-size extraction model/effort — gets its M9 row when the
+golden-set gate opens, R-013: predicting a routing saving before the gate that
+governs which models are admissible would be a guess without basis, which this
+discipline forbids.)

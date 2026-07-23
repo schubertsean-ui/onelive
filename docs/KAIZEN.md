@@ -37,12 +37,16 @@ no-silent-deferrals rule. So the goal splits:
 | M5 | Cost per merged PR (evaluator calls + CI minutes, est.) | Efficiency at the same bar (charter Cost discipline) | falling at flat quality |
 | M6 | Po-sourced ideas surviving gates (docs/skills/po_provocation.md) | Whether divergence is producing adopted value | > 0 over time |
 | M8 | Yellow-hat validated upside (docs/hats/yellow.md) | Whether the deliberate best-case lens produces adopted real value, not hype | asserted→validated conversion rising |
+| M9 | Expected-vs-actual performance (prediction calibration) | Whether a claimed improvement actually landed, AND whether we predict well | prediction MET-rate rising; \|actual−expected\| shrinking |
 
 (M7 — the extraction hallucination ratchet — is defined in its own section
-below rather than in this table; the number is not skipped.)
+below rather than in this table; the number is not skipped. M9 — the
+expected-vs-actual discipline — likewise has its own section below.)
 
 Recording rules: one ledger row per merged PR (M1/M2/M5), plus rows for any
-M3 escape (immediately, not at close), M4 gate-gap fix, or M6 harvest.
+M3 escape (immediately, not at close), M4 gate-gap fix, or M6 harvest, or
+M9 performance prediction (opened in the SAME commit as the change that makes
+the claim; measured at its trigger).
 Session close (docs/SESSION_START.md) appends the session's rows; the weekly
 founder digest quotes the trends in plain language.
 
@@ -194,6 +198,57 @@ rounds-to-green, judgment-dependent catches per class (each hat's drain to
 mechanization, docs/hats/). What must NOT be minimized: raw internal catches
 — treasure, per the two-goal structure above; suppressing them is the
 Deming failure mode this file opens with.
+
+## M9 — Expected-vs-actual performance (added 2026-07-23 at founder direction: "Create 'expected performance improvement' metrics and measure actual vs expected and make it part of the process")
+
+Any change that CLAIMS a performance, cost, latency, or quality improvement
+opens an **M9 row** in `docs/metrics/KAIZEN_LEDGER.md` — a PREDICTION — in the
+SAME commit that makes the claim, and records the ACTUAL at an objective
+trigger. This is the same anti-optimism discipline as M7 (measured, never
+asserted) and the no-silent-deferral rule (a claim without a measurement plan
+is a silent deferral of the proof): "we expect −45%" is not evidence until
+actual-vs-expected is on the ledger.
+
+**The row's fields (every one required for its status; enforced by
+`tools/perf_ledger_scan.py`):**
+- **Metric (unit)** — the precise quantity, in one unit that baseline / expected
+  / actual all share (e.g. "direct-API input-token cost per extraction call, $";
+  "cost-per-verified-event, $"; "LCP, s"; "extraction hallucination rate, %").
+- **Baseline (value + how measured)** — the pre-change value, from a REAL
+  measurement, not a guess. No baseline → the delta is meaningless, so a row
+  may not go MEASURED without one.
+- **Expected (value, %Δ) + Basis** — the predicted post-change value and the
+  WHY (a vendor estimate, an arithmetic model, a prior result). A prediction
+  with no stated basis is rejected — we do not guess in the dark.
+- **Measurement trigger** — the OBJECTIVE condition under which `actual` gets
+  read (e.g. "after ≥50 post-merge extraction calls" / "24h of cron traffic"),
+  never "someday" (mirrors RECORD.md's resolution-trigger rule).
+- **Actual (value, %Δ) + how** — the measured post-change value, once the
+  trigger fires.
+- **Delta (actual − expected)** and **Verdict** — `MET` (within band) / `UNDER`
+  (we over-promised) / `OVER` (we under-promised — money left on the table or a
+  mis-model) / `PENDING`. A large miss either direction is a defect to review,
+  not a shrug: over-prediction is optimism bias (a cousin of overstated
+  evidence); under-prediction means our model was wrong.
+- **Status** — `PENDING-MEASUREMENT` or `MEASURED`.
+
+**The meta-metric (why this is Kaizen, not just a log):** prediction CALIBRATION
+itself trends — the MET-rate should rise and `|actual − expected|` should shrink
+as we learn to predict. A repeatedly-missed prediction class (always optimistic
+on caching, say) is an M2-style repeat class with its own counter-measure.
+
+**Process integration (this is the "part of the process" the founder asked for):**
+1. **At claim time** — open the M9 row (Metric, Baseline, Expected+Basis,
+   Trigger) in the change's own commit. `perf_ledger_scan.py` fails a PENDING
+   row missing any of those, so a bare "this is faster/cheaper" claim cannot
+   ship unmeasured.
+2. **At the trigger** — append Actual, Delta, Verdict (the row goes MEASURED).
+3. **At session close** — review OPEN (PENDING) M9 rows exactly like RECORD.md
+   OPEN rows: a fired-but-unmeasured trigger is a defect, not a backlog item
+   (SESSION_START close step). `perf_ledger_scan.py` runs here (and, once it has
+   proven out, becomes blocking inside `tools/validate` — a gate-custody change,
+   so evaluator-reviewed; tracked, not silently deferred).
+4. **In the founder digest** — the calibration trend + any big misses.
 
 ## Levels (deferred — R-012)
 

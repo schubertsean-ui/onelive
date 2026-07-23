@@ -94,7 +94,10 @@ depends on an open founder decision. For an autonomous/overnight run, follow
 6. Note any new external dependency in STATE.md (CLAUDE.md review rule #3).
 7. Review `docs/RECORD.md` OPEN rows (the no-silent-deferrals register):
    resolve, re-affirm, or escalate each. A row whose resolution trigger has
-   fired but wasn't acted on is a defect, not a backlog item.
+   fired but wasn't acted on is a defect, not a backlog item. Then run
+   `python tools/perf_ledger_scan.py` and review OPEN (PENDING) KAIZEN §M9
+   performance predictions the SAME way: a prediction whose measurement
+   trigger has fired but whose actual-vs-expected wasn't recorded is a defect.
 8. Run `python tools/kaizen_trends.py` (also runs inside validate) and act on
    any finding — an alarm is a due fix, not information. Append the session's
    Kaizen ledger rows (`docs/metrics/KAIZEN_LEDGER.md`):
