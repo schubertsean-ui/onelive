@@ -161,7 +161,12 @@ class WorldOutcome:
                 f"WorldOutcome mode {self.mode!r} carries wrong_fields {wf!r}; "
                 f"only partially_wrong attributes per-field failures."
             )
-        object.__setattr__(self, "wrong_fields", wf)
+        # SORT (evaluator r10 nit, PR #54): the docstring documents a
+        # "sorted tuple" and classify_world() sorts, but a direct
+        # construction with ("start_time", "date") would otherwise be
+        # unequal to the same fields sorted. Normalizing here makes equality
+        # order-independent, matching the documented deterministic semantics.
+        object.__setattr__(self, "wrong_fields", tuple(sorted(wf)))
 
 
 @dataclass(frozen=True)
@@ -467,7 +472,15 @@ def aggregate(
             "aggregate() over zero outcomes: probabilities would be "
             "undefined (0/0); refusing to emit fabricated numbers."
         )
-    fields = sorted(field_names)
+    field_list = list(field_names)
+    if len(set(field_list)) != len(field_list):
+        # Silently de-duplicating (via set/dict) would hide a malformed
+        # attribution request (evaluator r10 nit, PR #54); reject it.
+        raise ValueError(
+            f"aggregate() field_names contains duplicate(s): {field_list!r} — "
+            f"each attributable field must be named exactly once."
+        )
+    fields = sorted(field_list)
     known = set(fields)
     mode_counts = {mode: 0 for mode in MODES}
     field_wrong_counts = {name: 0 for name in fields}

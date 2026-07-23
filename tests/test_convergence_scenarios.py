@@ -415,6 +415,15 @@ class TestWorldOutcomeConstruction:
             mode=MODE_PARTIALLY_WRONG, wrong_fields=("date", "start_time")
         ).mode == MODE_PARTIALLY_WRONG
 
+    def test_wrong_fields_normalized_sorted(self):
+        # Evaluator r10 nit (PR #54): the documented "sorted tuple" holds at
+        # construction, so equality is order-independent.
+        o = WorldOutcome(mode=MODE_PARTIALLY_WRONG,
+                         wrong_fields=("start_time", "date"))
+        assert o.wrong_fields == ("date", "start_time")
+        assert o == WorldOutcome(mode=MODE_PARTIALLY_WRONG,
+                                 wrong_fields=("date", "start_time"))
+
 
 # --- Aggregation: hand-computed golden ----------------------------------------
 
@@ -474,6 +483,15 @@ class TestAggregation:
             aggregate(
                 [WorldOutcome(mode=MODE_PARTIALLY_WRONG, wrong_fields=("tag",))],
                 ["date"],
+            )
+
+    def test_duplicate_field_names_rejected(self):
+        # Evaluator r10 nit (PR #54): silently de-duplicating field_names
+        # would hide a malformed attribution request.
+        with pytest.raises(ValueError, match="duplicate"):
+            aggregate(
+                [WorldOutcome(mode=MODE_RIGHT, wrong_fields=())],
+                ["date", "date"],
             )
 
     def test_forged_scenario_summary_fails_loud(self):
@@ -1095,6 +1113,38 @@ class TestVoi:
                 gross_value=good.prior_expected_loss - bad_post,
                 net_value=good.prior_expected_loss - bad_post - 1.0,
                 fetch_worth_it=(good.prior_expected_loss - bad_post - 1.0) > 0,
+            )
+
+    def test_forged_voi_record_incoherent_mixture_rejected(self):
+        # Evaluator r10 (PR #54): voi() rejects incoherent scenario sets,
+        # but a forged VoiRecord bypasses voi() — the RECORD constructor
+        # must also verify its posterior mixture reproduces the prior
+        # belief. Here the single branch's mode_probs ({fw:1}) do not
+        # average back to PRIOR ({fw 0.4, ...}), though every scalar check
+        # is self-consistent.
+        from worker.convergence.decisions import VoiRecord
+
+        matrix = CostMatrix(costs=self.SMALL)
+        actions = list(matrix.actions)
+        prior_dec = decide(actions, self.PRIOR, matrix)
+        branch_dec = decide(
+            actions,
+            {"fully_wrong": 1.0, "partially_wrong": 0.0, "right": 0.0},
+            matrix,
+        )
+        p_loss = prior_dec.expected_losses[prior_dec.chosen]
+        b_loss = branch_dec.expected_losses[branch_dec.chosen]
+        gross = p_loss - b_loss
+        with pytest.raises(ValueError, match="posterior mixture"):
+            VoiRecord(
+                prior_decision=prior_dec,
+                posterior_decisions=((1.0, branch_dec),),  # mixture = {fw:1}
+                prior_expected_loss=p_loss,
+                posterior_expected_loss=b_loss,
+                fetch_cost=1.0,
+                gross_value=gross,
+                net_value=gross - 1.0,
+                fetch_worth_it=(gross - 1.0) > 0,
             )
 
     def test_voi_record_outer_list_frozen_to_tuple(self):

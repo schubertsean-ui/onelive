@@ -538,6 +538,27 @@ class VoiRecord:
                 f"branch-weighted mixture of the posterior decisions' chosen "
                 f"losses ({posterior_from_decisions!r})."
             )
+        # Coherence at the RECORD level (evaluator r10, PR #54): voi()
+        # rejects incoherent scenario sets, but a forged VoiRecord bypasses
+        # voi() — so the record itself must verify that its posterior
+        # mixture reproduces the prior belief (law of total probability),
+        # or it claims value for a fetch that is not a valid refinement of
+        # the current belief. The record carries both sides (prior_decision
+        # and every branch decision each hold their mode_probs), so this is
+        # fully checkable from the record alone.
+        current_probs = self.prior_decision.mode_probs
+        for mode in MODES:
+            mix = sum(
+                bp * dec.mode_probs[mode] for bp, dec in self.posterior_decisions
+            )
+            if abs(mix - current_probs[mode]) > _SUM_EPS:
+                raise ValueError(
+                    f"VoiRecord: posterior mixture P({mode})={mix!r} does not "
+                    f"reproduce prior_decision.mode_probs[{mode!r}]="
+                    f"{current_probs[mode]!r} (law of total probability) — the "
+                    f"posterior scenarios are not a valid refinement of the "
+                    f"current belief, so the VoI is meaningless."
+                )
         # Cross-field arithmetic must be recomputable from the record:
         # gross = prior - posterior, and net = gross - fetch_cost EXACTLY.
         # Storing fetch_cost (evaluator r9, PR #54) makes net recomputable
