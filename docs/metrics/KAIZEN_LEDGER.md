@@ -210,17 +210,27 @@ founder digest in plain language.
 
 One row per change that CLAIMS a performance/cost/latency/quality improvement,
 opened as a PREDICTION in the same commit as the claim and MEASURED at its
-objective trigger. Structure enforced by `tools/perf_ledger_scan.py`: a
-PENDING-MEASUREMENT row needs Metric, Baseline, Expected, Basis, Trigger; a
-MEASURED row additionally needs a real Baseline (not "PENDING"), Actual, Delta,
-and a non-PENDING Verdict (MET/UNDER/OVER). The meta-metric is calibration: the
-MET-rate should rise and |actual−expected| shrink over time. Append-only;
-corrections are new rows, never edits (mirrors the ledger convention above).
+objective trigger. Hardened 2026-07-23 against a triadic red-team of the M9
+structure vs validated practice (forecasting/Brier, FinOps, SRE SLI, Six Sigma
+SPC, EVM, pre-registration, A/B): the metric must be DIRECT & CAUSAL (a per-call
+ratio, not a confounded aggregate); the MEASUREMENT METHOD and sample size N are
+pre-registered with the prediction (not just the trigger); a MET BAND is declared
+so "MET" is numeric, not vibes; and the recorded error is SIGNED so systematic
+bias (sandbagging) is visible, not hidden inside a MET tally.
 
-| ID | Change | Metric (unit) | Baseline | Expected (%Δ) | Basis | Trigger | Actual (%Δ) | Delta | Verdict | Status |
-|---|---|---|---|---|---|---|---|---|---|---|
-| EP-001 | Rung 1 — prompt caching on the extraction prefix (implementing PR to follow; prediction opened at M9 establishment, 2026-07-23, per the founder efficiency directive) | direct-API input-token cost per extraction call, $ | PENDING (measured by the per-call token log that lands with the caching PR — this row cannot go MEASURED without a real baseline) | −45% of direct API spend | Anthropic console estimate (45%) + cache reads bill ~0.1× on the stable-prefix token fraction, break-even at 2 calls, cron reuse guarantees it (docs/MODEL_ROUTING.md §caching) | ≥50 post-merge extraction calls OR 24h of cron traffic on the caching head | PENDING | PENDING | PENDING | PENDING-MEASUREMENT |
-| EP-002 | Rung 2 — Batch API for the batch-shaped jobs (Descriptor Foundry N=6, golden-set regressions); implementing PR to follow | cost per batched job, $ | PENDING (measured on the first batched job) | −50% on the batched slice | Batch API bills 50% off all tokens (docs/MODEL_ROUTING.md §batch); stacks on top of EP-001 caching | first batched Descriptor Foundry run post-merge | PENDING | PENDING | PENDING | PENDING-MEASUREMENT |
+Structure enforced by `tools/perf_ledger_scan.py`: a PENDING-MEASUREMENT row
+needs Metric, Baseline, Expected, Basis, Trigger&method, and Band; a MEASURED row
+additionally needs a real Baseline (not "PENDING"), Actual (with its N), a signed
+error, a non-PENDING Verdict (MET/UNDER/OVER), and — when the numbers parse —
+Verdict==MET **iff** |signed error| ≤ Band. The calibration meta-metric: mean
+signed error (BIAS — must trend to 0, catches sandbagging in either direction) +
+mean |error| (ACCURACY — shrinks) + MET-rate (readable headline). Append-only;
+corrections are new rows, never edits.
+
+| ID | Change | Metric (DIRECT/causal) | Baseline (how measured, N) | Expected %Δ | Basis (+ confounders excluded) | Trigger & measurement method | Band (MET iff within) | Actual %Δ (N) | Signed error (actual−expected) | Verdict | Status |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| EP-001 | Rung 1 — prompt caching on the extraction prefix (implementing PR to follow; prediction opened 2026-07-23) | per-call input-token cost RATIO from caching = 1 − billed_input_cost / uncached_input_cost (direct causal, per-call, volume-free) | PENDING (per-call token log lands with the caching PR; N target ≥ 50 cached-eligible calls) | −45% of per-call input cost | console 45% aggregate ≈ cache read 0.1× applied to the ~½ of input tokens that are the stable prefix (docs/MODEL_ROUTING.md §caching); AGGREGATE spend deliberately NOT the metric — it is confounded by traffic mix and the spend cap (red-team A3) | ≥50 post-merge cached-eligible calls; actual = mean over calls of (1 − billed_input_cost/uncached_input_cost), paired to the same sources' baseline window | ±10pp | PENDING | PENDING | PENDING | PENDING-MEASUREMENT |
+| EP-002 | Rung 2 — Batch API for batch-shaped jobs (Descriptor Foundry N=6, golden-set regressions); implementing PR to follow | per-job billed cost ÷ same-tokens non-batch price − 1 (direct causal; the Batch discount is contractual, confounder-free) | PENDING (first batched job's invoice line vs the non-batch price of the identical tokens) | −50% | Batch API bills 50% off all tokens (docs/MODEL_ROUTING.md §batch); contractual, so the causal metric is near-deterministic | first batched Descriptor Foundry run post-merge; actual = billed ÷ non-batch − 1 for that job | ±5pp | PENDING | PENDING | PENDING | PENDING-MEASUREMENT |
 
 (Rung 3 — right-size extraction model/effort — gets its M9 row when the
 golden-set gate opens, R-013: predicting a routing saving before the gate that

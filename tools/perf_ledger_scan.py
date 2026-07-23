@@ -23,17 +23,21 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import re
 import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 LEDGER = REPO / "docs" / "metrics" / "KAIZEN_LEDGER.md"
 
 # The columns the M9 table must carry, matched by a keyword in each header
-# cell (so cosmetic header text like "Expected (%Δ)" still resolves).
+# cell (so cosmetic header text like "Expected (%Δ)" still resolves). "band"
+# and the signed "error" column were added in the 2026-07-23 red-team hardening
+# (a MET must be numeric-within-band, and the error must be signed so bias shows).
 COLUMN_KEYWORDS = (
     "id", "change", "metric", "baseline", "expected", "basis", "trigger",
-    "actual", "delta", "verdict", "status",
+    "band", "actual", "error", "verdict", "status",
 )
+_BAND_EPS = 1e-9
 
 # Cell values that count as "not filled in".
 _EMPTY = {"", "—", "-", "–"}
@@ -51,6 +55,17 @@ class LedgerError(Exception):
 
 def _is_empty(cell: str) -> bool:
     return cell.strip() in _EMPTY
+
+
+def _num(cell: str) -> float | None:
+    """Parse a signed number out of a cell like '+2pp', '−3pp', '±10pp', '−45%'.
+
+    Normalizes the unicode minus and drops the ± magnitude marker, then reads
+    the first signed decimal. Returns None if the cell has no number (so the
+    band check is SKIPPED — structural-only — rather than fabricating one)."""
+    s = cell.strip().replace("−", "-").replace("±", "")
+    match = re.search(r"-?\d+(?:\.\d+)?", s)
+    return float(match.group()) if match else None
 
 
 def _split_row(line: str) -> list[str]:
@@ -135,14 +150,16 @@ def scan(text: str) -> list[str]:
             )
             continue
 
-        # Required on EVERY row: the prediction itself must be complete.
+        # Required on EVERY row: the prediction itself must be complete. Band
+        # and the pre-registered method (inside Trigger) were added in the
+        # red-team hardening so MET is numeric and "actual" has no post-hoc DoF.
         for key in ("change", "metric", "baseline", "expected", "basis",
-                    "trigger"):
+                    "trigger", "band"):
             if _is_empty(cell(row, key)):
                 violations.append(
                     f"{rid}: {key} is empty — a PENDING prediction needs "
-                    f"Metric, Baseline, Expected, Basis, and Trigger before "
-                    f"it can ship (KAIZEN §M9)."
+                    f"Metric, Baseline, Expected, Basis, Trigger&method, and "
+                    f"Band before it can ship (KAIZEN §M9)."
                 )
 
         if status == "MEASURED":
@@ -154,13 +171,13 @@ def scan(text: str) -> list[str]:
                     f"actual-vs-expected is meaningless without a real "
                     f"baseline; measure it before declaring the result."
                 )
-            for key in ("actual", "delta"):
+            for key in ("actual", "error"):
                 value = cell(row, key)
                 if _is_empty(value) or value.strip().upper() == _PENDING:
                     violations.append(
                         f"{rid}: MEASURED but {key} is not filled in — the "
                         f"whole point of M9 is the measured actual and its "
-                        f"delta from expected."
+                        f"signed error from expected."
                     )
             verdict = cell(row, "verdict").strip().upper()
             if verdict not in VALID_VERDICT:
@@ -169,6 +186,23 @@ def scan(text: str) -> list[str]:
                     f"{sorted(VALID_VERDICT)} (a large miss either way is a "
                     f"defect to review, not a shrug)."
                 )
+            # Numeric band check (red-team S1/A1): when the signed error and the
+            # band both parse, MET is not a judgment call — it is |error| ≤ Band.
+            err = _num(cell(row, "error"))
+            band = _num(cell(row, "band"))
+            if err is not None and band is not None and verdict in VALID_VERDICT:
+                within = abs(err) <= abs(band) + _BAND_EPS
+                if within and verdict != "MET":
+                    violations.append(
+                        f"{rid}: signed error {err} is within the ±{abs(band)} "
+                        f"band, so the Verdict must be MET, not {verdict}."
+                    )
+                if not within and verdict == "MET":
+                    violations.append(
+                        f"{rid}: Verdict MET but |signed error| {abs(err)} "
+                        f"exceeds the ±{abs(band)} band — MET is arithmetic, "
+                        f"not optimism (red-team S1)."
+                    )
 
     return violations
 
