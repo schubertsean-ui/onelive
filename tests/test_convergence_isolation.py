@@ -53,22 +53,36 @@ def _imports_of(path: pathlib.Path, repo_root: pathlib.Path = REPO) -> list[str]
     tree = ast.parse(path.read_text(encoding="utf-8"))
     pkg_parts = list(path.relative_to(repo_root).parts[:-1])
     names: list[str] = []
+
+    def _expand(base: str, node: ast.ImportFrom) -> None:
+        # Record the base AND base.alias for every imported name (r8
+        # blocker: recording only node.module reduced
+        # `from worker import convergence` to "worker", bypassing the
+        # inbound gate entirely — the imported NAMES are part of what is
+        # imported). A star import contributes just the base.
+        names.append(base)
+        for alias in node.names:
+            if alias.name != "*":
+                names.append(f"{base}.{alias.name}")
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             names.extend(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
             if node.level:
                 # level=1 → current package; each extra level climbs one.
-                base = pkg_parts[: len(pkg_parts) - (node.level - 1)]
-                resolved = ".".join(base + ([node.module] if node.module else []))
+                base_parts = pkg_parts[: len(pkg_parts) - (node.level - 1)]
+                resolved = ".".join(
+                    base_parts + ([node.module] if node.module else [])
+                )
                 if resolved:
-                    names.append(resolved)
+                    _expand(resolved, node)
                 else:
                     # relative import climbing above the repo root —
                     # nonsensical here; surface it rather than dropping it
                     names.append("<unresolvable-relative-import>")
             elif node.module:
-                names.append(node.module)
+                _expand(node.module, node)
     return names
 
 
@@ -196,8 +210,25 @@ def test_sweeps_go_red_on_the_r6_relative_evasion_shapes(tmp_path):
     inside.write_text("from ..ai_extract import extract\n", encoding="utf-8")
     resolved = _imports_of(inside, repo_root=tmp_path)
     assert "worker.ai_extract" in resolved, resolved
-    # Legitimate package-internal relative import stays internal.
+    # Legitimate package-internal relative import stays internal —
+    # alias expansion included (r8), everything resolves inside the pkg.
     good = pkg / "fine.py"
     good.write_text("from . import sl\n", encoding="utf-8")
     resolved = _imports_of(good, repo_root=tmp_path)
-    assert resolved == ["worker.convergence"], resolved
+    assert resolved == ["worker.convergence", "worker.convergence.sl"], resolved
+
+
+def test_from_worker_import_convergence_is_caught(tmp_path):
+    """The r8 blocker shape, pinned: `from worker import convergence`
+    must expand to worker.convergence — recording only the module name
+    reduced it to "worker" and the inbound gate never fired."""
+    consumer = tmp_path / "consumer.py"
+    consumer.write_text("from worker import convergence\n", encoding="utf-8")
+    resolved = _imports_of(consumer, repo_root=tmp_path)
+    assert "worker.convergence" in resolved, resolved
+    aliased = tmp_path / "aliased.py"
+    aliased.write_text(
+        "from worker import convergence as shadow\n", encoding="utf-8"
+    )
+    resolved = _imports_of(aliased, repo_root=tmp_path)
+    assert "worker.convergence" in resolved, resolved

@@ -209,6 +209,11 @@ def report_flips(api_key: str, check: dict) -> int:
         isinstance(f, dict)
         and isinstance(f.get("timestamp"), str)
         and f.get("up") in (0, 1, True, False)  # documented domain is 0|1;
+        # NUMERIC-EQUALITY acceptance is deliberate (r8 nit): Python's
+        # `in` uses ==, so bool True/False AND float 0.0/1.0 satisfy this
+        # — both are plausible serializer variants of the same value, and
+        # rejecting them would break the probe on a harmless encoding
+        # difference. Out-of-domain NUMBERS (2, -1, 0.5) remain malformed.
         # JSON booleans are DELIBERATELY accepted as the hosted service's
         # possible serialization variant (r6 nit: documented, not
         # accidental — Python's True==1 makes bool acceptance implicit in

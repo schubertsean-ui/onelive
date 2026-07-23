@@ -225,8 +225,9 @@ def test_wrong_declaration_and_no_other_match_fails_closed(env, capsys):
 # --- R-023 PATH A alarm-verification probe (trigger part 2) -----------------
 # The rule under test: REPORT_FLIPS=1 adds a flip report strictly AFTER the
 # existing assertions pass; unset, the flips endpoint is never touched (the
-# mode is purely additive). 401/403/404 = the probe's answer (exit 0 with the
-# rejected-key REGRESSION message naming PATH B); every flips fault = loud nonzero (r7).
+# mode is purely additive). EVERY flips fault is loud nonzero (r7/r8):
+# 401/403 = rejected-key config REGRESSION (message names PATH B), 404 =
+# ambiguous, network/malformed/out-of-domain alike — no failure exits 0.
 
 _FLIPS = [
     {"timestamp": "2026-07-22T14:17:02+00:00", "up": 1},
