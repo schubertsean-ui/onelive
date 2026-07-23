@@ -29,11 +29,22 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
 from worker.convergence.scenarios import MODES
+
+# Factory guard for VoiRecord (evaluator r12, PR #54). A VoiRecord is the
+# only place decisions are COMPARED across a fetch, so it is the only place
+# the "prior and posterior decided under different cost matrices" forgery
+# can occur. Making its construction factory-only — voi() is the sole
+# minter, and voi() decides every branch under ONE matrix — closes that
+# forgery at the root (no public constructor path exists to assemble
+# mismatched-matrix decisions). This is the mechanical fix the evaluator
+# named; it replaces the earlier bounded-deferral (former R-025), which was
+# the wrong call because the fix is local, not disproportionate.
+_VOI_MINT = object()
 
 # Tolerance for "these probabilities sum to 1" checks ONLY. Individual
 # probabilities are bounds-checked EXACTLY — [0, 1], no epsilon — matching
@@ -455,8 +466,22 @@ class VoiRecord:
     gross_value: float
     net_value: float
     fetch_worth_it: bool
+    # Factory guard (evaluator r12): must be _VOI_MINT, which only voi()
+    # passes. Excluded from equality/repr and cleared after the check, so
+    # it never appears in the record's value or comparisons.
+    _mint: object = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
+        if self._mint is not _VOI_MINT:
+            raise ValueError(
+                "VoiRecord is factory-only: construct it via voi(), which "
+                "decides every branch under ONE cost matrix. Direct "
+                "construction is refused because it could assemble prior and "
+                "posterior decisions computed under DIFFERENT matrices — a "
+                "forged VoI that compares 'before' and 'after' under "
+                "different value systems (evaluator r12, PR #54)."
+            )
+        object.__setattr__(self, "_mint", None)  # never retained
         if not isinstance(self.prior_decision, DecisionRecord):
             raise ValueError(
                 f"VoiRecord.prior_decision must be a DecisionRecord; got "
@@ -572,14 +597,12 @@ class VoiRecord:
                     f"action set {sorted(prior_actions)!r} — VoI must compare "
                     f"the same options before and after the fetch."
                 )
-        # DEFERRED [R-025]: the SAME-cost-matrix half of r11 (a branch
-        # decided under a different/lower cost matrix) is NOT verifiable from
-        # the record because the matrix is not stored. Full closure needs
-        # either an embedded matrix digest or factory-only construction —
-        # disproportionate for an in-process-only shadow record never
-        # persisted or transmitted (see docs/RECORD.md R-025; trigger: C5
-        # product-path promotion, when these records may become durable
-        # trust artifacts).
+        # The SAME-cost-matrix guarantee (a branch must not be decided under
+        # a different/lower matrix than the prior) is closed at the ROOT by
+        # the factory guard above: voi() is the only minter and decides every
+        # branch under ONE matrix, so no VoiRecord with mismatched matrices
+        # can be constructed (evaluator r12 — the former R-025 deferral,
+        # withdrawn and fixed here).
         # Cross-field arithmetic must be recomputable from the record:
         # gross = prior - posterior, and net = gross - fetch_cost EXACTLY.
         # Storing fetch_cost (evaluator r9, PR #54) makes net recomputable
@@ -714,4 +737,5 @@ def voi(
         gross_value=gross,
         net_value=net,
         fetch_worth_it=net > 0.0,
+        _mint=_VOI_MINT,  # sole minting path — see the factory guard
     )

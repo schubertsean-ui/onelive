@@ -88,6 +88,17 @@ def _forge_outcome(mode, wrong_fields):
     return o
 
 
+def _mk_voi(**kwargs):
+    """Build a VoiRecord past its factory guard, to exercise its OTHER
+    validations directly. Evaluator r12 made VoiRecord factory-only (only
+    voi() may mint one, guaranteeing a single cost matrix); real forgers
+    cannot obtain _VOI_MINT, so these defense-in-depth tests pass it to
+    reach the per-field checks. The guard itself is tested separately
+    (test_voi_record_is_factory_only)."""
+    from worker.convergence.decisions import VoiRecord, _VOI_MINT
+    return VoiRecord(_mint=_VOI_MINT, **kwargs)
+
+
 # --- Seed discipline: explicit, mandatory, replayable -------------------------
 
 class TestSeedDiscipline:
@@ -1027,7 +1038,7 @@ class TestVoi:
         # (fetch_cost = gross - net keeps the arithmetic self-consistent so
         # ONLY the fetch_worth_it check fires.)
         with pytest.raises(ValueError, match="fetch_worth_it"):
-            VoiRecord(
+            _mk_voi(
                 prior_decision=good.prior_decision,
                 posterior_decisions=good.posterior_decisions,
                 prior_expected_loss=good.prior_expected_loss,
@@ -1038,7 +1049,7 @@ class TestVoi:
             )
         # gross must equal prior - posterior.
         with pytest.raises(ValueError, match="does not equal"):
-            VoiRecord(
+            _mk_voi(
                 prior_decision=good.prior_decision,
                 posterior_decisions=good.posterior_decisions,
                 prior_expected_loss=3.0, posterior_expected_loss=0.0,
@@ -1047,7 +1058,7 @@ class TestVoi:
             )
         # NaN loss field.
         with pytest.raises(ValueError, match="finite"):
-            VoiRecord(
+            _mk_voi(
                 prior_decision=good.prior_decision,
                 posterior_decisions=good.posterior_decisions,
                 prior_expected_loss=float("nan"), posterior_expected_loss=0.0,
@@ -1057,7 +1068,7 @@ class TestVoi:
         # branch probabilities that do not sum to 1.
         bad_branches = (good.posterior_decisions[0],)  # only one branch, p=0.4
         with pytest.raises(ValueError, match="sum to 1"):
-            VoiRecord(
+            _mk_voi(
                 prior_decision=good.prior_decision,
                 posterior_decisions=bad_branches,
                 prior_expected_loss=good.prior_expected_loss,
@@ -1069,7 +1080,7 @@ class TestVoi:
         # net must equal gross - fetch_cost (r9): net<=gross alone is not
         # enough — the exact spend arithmetic must be recomputable.
         with pytest.raises(ValueError, match="gross_value - fetch_cost"):
-            VoiRecord(
+            _mk_voi(
                 prior_decision=good.prior_decision,
                 posterior_decisions=good.posterior_decisions,
                 prior_expected_loss=good.prior_expected_loss,
@@ -1091,7 +1102,7 @@ class TestVoi:
         # (Recompute a self-consistent gross/net so ONLY this check fires.)
         bad_prior = good.prior_expected_loss + 1.0
         with pytest.raises(ValueError, match="prior_decision's chosen loss"):
-            VoiRecord(
+            _mk_voi(
                 prior_decision=good.prior_decision,
                 posterior_decisions=good.posterior_decisions,
                 prior_expected_loss=bad_prior,
@@ -1104,7 +1115,7 @@ class TestVoi:
         # posterior_expected_loss disagrees with the branch-weighted mixture.
         bad_post = good.posterior_expected_loss + 1.0
         with pytest.raises(ValueError, match="branch-weighted mixture"):
-            VoiRecord(
+            _mk_voi(
                 prior_decision=good.prior_decision,
                 posterior_decisions=good.posterior_decisions,
                 prior_expected_loss=good.prior_expected_loss,
@@ -1136,7 +1147,7 @@ class TestVoi:
         b_loss = branch_dec.expected_losses[branch_dec.chosen]
         gross = p_loss - b_loss
         with pytest.raises(ValueError, match="posterior mixture"):
-            VoiRecord(
+            _mk_voi(
                 prior_decision=prior_dec,
                 posterior_decisions=((1.0, branch_dec),),  # mixture = {fw:1}
                 prior_expected_loss=p_loss,
@@ -1164,7 +1175,7 @@ class TestVoi:
         o_loss = odd.expected_losses[odd.chosen]
         gross = p_loss - o_loss
         with pytest.raises(ValueError, match="action set"):
-            VoiRecord(
+            _mk_voi(
                 prior_decision=prior_dec,
                 posterior_decisions=((1.0, odd),),
                 prior_expected_loss=p_loss,
@@ -1174,6 +1185,32 @@ class TestVoi:
                 net_value=gross,
                 fetch_worth_it=gross > 0,
             )
+
+    def test_voi_record_is_factory_only(self):
+        # Evaluator r12 (PR #54): VoiRecord is the only place decisions are
+        # compared across a fetch, so it is the only place the
+        # different-cost-matrix forgery can occur. Direct construction is
+        # refused — voi() is the sole minter and decides every branch under
+        # ONE matrix, closing that forgery at the root. (This replaces the
+        # withdrawn R-025 deferral.)
+        from worker.convergence.decisions import VoiRecord
+
+        matrix = CostMatrix(costs=self.SMALL)
+        good = voi(self.PRIOR, self.PERFECT, 1.0, matrix)
+        with pytest.raises(ValueError, match="factory-only"):
+            VoiRecord(  # no _mint -> refused before any other check
+                prior_decision=good.prior_decision,
+                posterior_decisions=good.posterior_decisions,
+                prior_expected_loss=good.prior_expected_loss,
+                posterior_expected_loss=good.posterior_expected_loss,
+                fetch_cost=good.fetch_cost,
+                gross_value=good.gross_value,
+                net_value=good.net_value,
+                fetch_worth_it=good.fetch_worth_it,
+            )
+        # And a genuine voi() record still round-trips (the guard doesn't
+        # break the sole legitimate path).
+        assert voi(self.PRIOR, self.PERFECT, 1.0, matrix).fetch_cost == 1.0
 
     def test_voi_record_outer_list_frozen_to_tuple(self):
         # Evaluator r5/r8 (PR #54): an OUTER list of (prob, decision) TUPLE
@@ -1185,7 +1222,7 @@ class TestVoi:
 
         matrix = CostMatrix(costs=self.SMALL)
         good = voi(self.PRIOR, self.PERFECT, 1.0, matrix)
-        rebuilt = VoiRecord(
+        rebuilt = _mk_voi(
             prior_decision=good.prior_decision,
             posterior_decisions=list(good.posterior_decisions),  # outer LIST
             prior_expected_loss=good.prior_expected_loss,
@@ -1199,7 +1236,7 @@ class TestVoi:
         # shape is exactly (prob, DecisionRecord) tuples.
         bp, dec = good.posterior_decisions[0]
         with pytest.raises(ValueError, match="must be a"):
-            VoiRecord(
+            _mk_voi(
                 prior_decision=good.prior_decision,
                 posterior_decisions=[[bp, dec]],  # list pair, not tuple
                 prior_expected_loss=good.prior_expected_loss,
@@ -1263,3 +1300,48 @@ class TestShadowIsolation:
         from worker.convergence import decisions as dec_module
         assert dec_module.MODES is MODES
         assert MODES == ("fully_wrong", "partially_wrong", "right")
+
+    def test_pipeline_does_not_import_the_convergence_modules(self):
+        # Evaluator r12 nit (PR #54): the forward sweep proves convergence
+        # imports nothing from the pipeline; this REVERSE sweep proves the
+        # pipeline (worker/, api/ — excluding the convergence package
+        # itself and tests) imports nothing FROM worker.convergence. Both
+        # directions together make "shadow-only, zero coupling" mechanical.
+        import os
+        import worker.convergence.scenarios as scen
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(scen.__file__))))
+        offenders = []
+        for pkg in ("worker", "api"):
+            pkg_dir = os.path.join(repo_root, pkg)
+            if not os.path.isdir(pkg_dir):
+                continue
+            for dirpath, _dirs, files in os.walk(pkg_dir):
+                # Skip the convergence package itself (siblings may import
+                # siblings) and any test trees.
+                rel = os.path.relpath(dirpath, repo_root).replace(os.sep, "/")
+                if "convergence" in rel.split("/") or "test" in rel:
+                    continue
+                for fn in files:
+                    if not fn.endswith(".py"):
+                        continue
+                    fp = os.path.join(dirpath, fn)
+                    with open(fp, encoding="utf-8") as f:
+                        tree = ast.parse(f.read())
+                    for node in ast.walk(tree):
+                        mods = []
+                        if isinstance(node, ast.Import):
+                            mods = [a.name for a in node.names]
+                        elif isinstance(node, ast.ImportFrom):
+                            mods = [node.module or ""]
+                        if any(m == "worker.convergence"
+                               or m.startswith("worker.convergence.")
+                               for m in mods):
+                            offenders.append(
+                                os.path.relpath(fp, repo_root).replace(os.sep, "/")
+                            )
+        assert offenders == [], (
+            f"pipeline module(s) import worker.convergence — C2 must stay "
+            f"shadow (spec §11), imported by nothing in the product path: "
+            f"{sorted(set(offenders))!r}"
+        )
