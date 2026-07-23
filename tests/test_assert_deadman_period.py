@@ -14,11 +14,10 @@ The r17 binding contract is pinned: a /log probe to the ping URL must move the v
 Also pinned: the R-023 PATH A alarm-verification probe (trigger part 2,
 REPORT_FLIPS=1) — additive-only (unset/''/'0' mean fetch_flips is NEVER
 called; any OTHER value fails loud rather than silently skipping), flip
-table printed with DOWN marked on success, 401/403 answered by the
-FLIPS-UNREADABLE line at exit 0 (access revocation reported IS probe
-success), 404 failed loud as ambiguous (identifier-not-found vs denial,
-readability already live-proven), and every other flips fault (network,
-malformed body, out-of-domain 'up') loud nonzero.
+table printed with DOWN marked on success, and EVERY failure path loud
+nonzero (r7: auth fail-closed) — 401/403 as a rejected-key config
+regression, 404 as ambiguous, network faults, malformed bodies, and
+out-of-domain 'up' values alike.
 
 Hermetic: fetch_checks/fetch_flips are monkeypatched; no network.
 """
@@ -227,7 +226,7 @@ def test_wrong_declaration_and_no_other_match_fails_closed(env, capsys):
 # The rule under test: REPORT_FLIPS=1 adds a flip report strictly AFTER the
 # existing assertions pass; unset, the flips endpoint is never touched (the
 # mode is purely additive). 401/403/404 = the probe's answer (exit 0 with the
-# FLIPS-UNREADABLE line naming PATH B); any other flips fault = loud nonzero.
+# rejected-key REGRESSION message naming PATH B); every flips fault = loud nonzero (r7).
 
 _FLIPS = [
     {"timestamp": "2026-07-22T14:17:02+00:00", "up": 1},
@@ -272,19 +271,19 @@ def test_report_flips_uses_unique_key_and_never_prints_it(env, capsys):
 
 
 @pytest.mark.parametrize("code", [401, 403])
-def test_report_flips_access_denied_is_the_answer_exit_zero(env, capsys, code):
-    """401/403 = the RO key's access was revoked — the probe's access
-    answer; it reports and succeeds (exit 0). 404 is NOT in this group
-    (see the dedicated ambiguity test)."""
+def test_report_flips_rejected_key_fails_loud(env, capsys, code):
+    """r7 blocker fixed and pinned: a 401/403 means the RO key was
+    revoked/changed — a config REGRESSION (readability is live-proven),
+    and auth failures NEVER exit 0. The prior exit-0 "access answer"
+    disposition belonged to the untested state and was auth-fail-open."""
     def _denied(key, cid):
         raise urllib.error.HTTPError("url", code, "denied", None, None)
     env.setenv("REPORT_FLIPS", "1")
     env.setattr(adp, "fetch_flips", _denied)
-    assert _run(env, [_check()]) == 0
-    out = capsys.readouterr().out
-    assert f"FLIPS-UNREADABLE: read-only key cannot access flip history " \
-           f"(HTTP {code})" in out
-    assert "PATH B" in out
+    assert _run(env, [_check()]) == 2
+    err = capsys.readouterr().err
+    assert f"HTTP {code}" in err and "REGRESSION" in err
+    assert "PATH B" in err  # the founder-confirmation pointer survives
 
 
 def test_report_flips_404_is_ambiguous_and_fails_loud(env, capsys):

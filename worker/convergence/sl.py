@@ -59,11 +59,19 @@ class Opinion:
     def __post_init__(self) -> None:
         for name in ("b", "d", "u", "a"):
             value = getattr(self, name)
-            if not (-_EPS <= value <= 1.0 + _EPS):
+            # EXACT bounds — no epsilon (PR #51 r7 nit): a component of
+            # -1e-12 is a caller bug, not float dust; dust accumulates in
+            # SUMS (the b+d+u check below keeps _EPS), never in a single
+            # already-computed probability, and every internal constructor
+            # (from_evidence's r/kappa divisions) yields values within
+            # [0, 1] exactly under IEEE division of a <= b.
+            if not (0.0 <= value <= 1.0):
                 raise ValueError(
-                    f"Opinion.{name}={value!r} is outside [0, 1]; refusing to "
-                    f"construct a malformed opinion (spec §3: b, d, u, a are "
-                    f"probability masses)."
+                    f"Opinion.{name}={value!r} is outside [0, 1] (exact "
+                    f"bounds, no tolerance); refusing to construct a "
+                    f"malformed opinion (spec §3: b, d, u, a are "
+                    f"probability masses — only the b+d+u SUM tolerates "
+                    f"float dust)."
                 )
         total = self.b + self.d + self.u
         if abs(total - 1.0) > _EPS:

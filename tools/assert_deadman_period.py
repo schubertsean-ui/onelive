@@ -47,12 +47,12 @@ Optional (purely additive — unset means behavior identical to before):
                              every DOWN event marked. Readability under the
                              RO key was unverified when R-023 was filed and
                              was PROVEN by the first live dispatch (HTTP
-                             200, run 29963320514); a 401/403 is still
-                             treated as the access-revoked ANSWER, not a
-                             failure — it prints FLIPS-UNREADABLE (naming
-                             PATH B as the only remaining verification
-                             path) and exits 0. Any OTHER flips failure
-                             (network, malformed response) fails loud.
+                             200, run 29963320514); therefore EVERY flips
+                             failure — including 401/403 (a rejected key is
+                             a config regression, r7: auth fail-closed),
+                             404 (ambiguous), network faults, and malformed
+                             bodies — fails LOUD. No probe failure path
+                             exits 0.
 
 Exit codes per tools/README.md: 0 asserted / 2 misconfiguration, API
 failure, no matching check, or period/grace mismatch — every path closed.
@@ -116,9 +116,8 @@ def fetch_flips(api_key: str, check_id: str) -> list:
     documented as readable by read-only keys — proven live by the first
     dispatch's HTTP 200, run 29963320514; R-023 part 2 closed on the
     second dispatch's flip table [R-023]). Separated
-    for testability like fetch_checks; every failure disposition —
-    including the 401/403 that IS the probe's access answer — belongs
-    to the caller. The response body is a JSON array of
+    for testability like fetch_checks; every failure disposition
+    belongs to the caller, and every one fails loud (r7). The response body is a JSON array of
     {"timestamp": <iso8601>, "up": 0|1} objects, either bare (upstream
     repo docs) or wrapped as {"flips": [...]} (the hosted service wraps
     exactly as its checks endpoint wraps in {"checks": [...]} — the
@@ -137,17 +136,13 @@ def report_flips(api_key: str, check: dict) -> int:
     every DOWN event — the mechanical evidence for whether the dead-man
     alarm actually flipped during the sparse-delivery gaps.
 
-    Dispositions, deliberately asymmetric:
+    Dispositions (r7: EVERY failure path is loud — auth fail-closed):
     - 200 + well-formed list: print the table, exit 0.
-    - 401/403: the RO key's access was revoked/changed. That is the
-      probe's access ANSWER (readability itself was live-proven by run
-      29963320514 [R-023]) — print the single unambiguous
-      FLIPS-UNREADABLE line naming PATH B (founder confirmation) as the
-      only remaining verification path, and exit 0: a probe that
-      REPORTS inaccessibility has succeeded.
-    - 404: AMBIGUOUS (identifier-not-found vs denial, and readability
-      is already proven) — fails loud, never masquerades as the access
-      answer (pre-attack nit, PR #51).
+    - 401/403: key revoked/changed. Readability was live-proven (run
+      29963320514 [R-023]), so denial is a config REGRESSION — fail
+      loud; a green workflow must never paper over a rejected key.
+    - 404: AMBIGUOUS (identifier-not-found vs denial) — fails loud
+      (pre-attack nit, PR #51).
     - anything else (network fault, malformed body, no usable check
       identifier): fail LOUD via the standard closed path — a broken
       probe must never masquerade as a completed one.
@@ -167,12 +162,19 @@ def report_flips(api_key: str, check: dict) -> int:
         flips = fetch_flips(api_key, check_id)
     except urllib.error.HTTPError as exc:
         if exc.code in (401, 403):
-            print(
-                f"FLIPS-UNREADABLE: read-only key cannot access flip "
-                f"history (HTTP {exc.code}) — R-023 PATH B (founder "
-                f"confirmation) is the only remaining verification path"
+            # r7 blocker: exit-0 here was auth-fail-open. The "access
+            # answer" disposition belonged to the UNTESTED state; flips
+            # readability under this key is live-proven (HTTP 200, run
+            # 29963320514), so a denial today means the key was revoked
+            # or changed — a config regression that must fail LOUD, never
+            # a green workflow with a log line.
+            return _fail(
+                f"flips probe: HTTP {exc.code} — the read-only key was "
+                "rejected. Readability was live-proven (run 29963320514), "
+                "so denial is a key/config REGRESSION, not an access "
+                "answer. Fix the key; founder confirmation (R-023 PATH B) "
+                "covers verification meanwhile. Failing loud."
             )
-            return 0
         if exc.code == 404:
             # Pre-attack nit (PR #51): 404 is ambiguous — identifier not
             # found (stale unique_key, endpoint moved) is at least as

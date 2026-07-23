@@ -64,6 +64,18 @@ class TestOpinionValidation:
         with pytest.raises(ValueError):
             Opinion(**kwargs)
 
+    @pytest.mark.parametrize("kwargs", [
+        dict(b=-1e-12, d=0.5, u=0.5 + 1e-12, a=0.5),
+        dict(b=0.5, d=1.0 + 1e-12, u=0.0, a=0.5),
+        dict(b=0.5, d=0.5, u=0.0, a=-1e-15),
+    ])
+    def test_component_bounds_are_exact_no_epsilon(self, kwargs):
+        """r7 nit pinned: component bounds are EXACT [0, 1] — a value of
+        -1e-12 is a caller bug, not float dust (dust lives in sums only;
+        the b+d+u sum keeps its epsilon, tested separately)."""
+        with pytest.raises(ValueError):
+            Opinion(**kwargs)
+
     def test_float_dust_tolerated(self):
         # 0.1+0.2+0.7 != 1.0 exactly in floats; validation must accept dust
         # while still rejecting real errors (previous tests). Assert the

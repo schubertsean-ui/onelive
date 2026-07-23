@@ -12,11 +12,14 @@ package-wide:
   RELATIVE imports resolved to absolute names against each file's
   package location (r6: `from .convergence import sl` in a worker/
   sibling must be caught, not skipped).
-- OUTBOUND: every file in the package may import only the Python
-  standard library or package-internal modules, by AST sweep with the
-  same relative resolution (`from ..ai_extract import x` resolves to
-  worker.ai_extract and is flagged) — new sibling files added later are
-  covered automatically.
+- OUTBOUND: every file in the package — RECURSIVELY, subpackages
+  included (r7: a top-level-only glob left worker/convergence/subpkg/
+  invisible while the prose claimed package-wide coverage) — may import
+  only the Python standard library or package-internal modules, by AST
+  sweep with the same relative resolution (`from ..ai_extract import x`
+  resolves to worker.ai_extract and is flagged); new files and
+  subpackages are covered automatically, with discovery itself pinned
+  by a planted-subpackage red test.
 - DYNAMIC-IMPORT BAN: the tokens importlib/__import__ may not appear in
   package source at all — the AST sweeps read static import statements,
   and stdlib importlib would otherwise be a sanctioned evasion of them.
@@ -103,7 +106,7 @@ def test_inbound_no_production_module_imports_convergence():
 def test_outbound_every_package_file_is_stdlib_or_internal_only():
     assert PACKAGE.is_dir(), "worker/convergence vanished?"
     offenders = {}
-    for p in sorted(PACKAGE.glob("*.py")):
+    for p in sorted(PACKAGE.rglob("*.py")):
         bad = [
             name
             for name in _imports_of(p)
@@ -124,7 +127,7 @@ def test_outbound_every_package_file_is_stdlib_or_internal_only():
 
 def test_dynamic_import_tokens_banned_in_package_source():
     offenders = {}
-    for p in sorted(PACKAGE.glob("*.py")):
+    for p in sorted(PACKAGE.rglob("*.py")):
         text = p.read_text(encoding="utf-8")
         hits = [tok for tok in ("importlib", "__import__") if tok in text]
         if hits:
@@ -152,6 +155,28 @@ def test_sweeps_go_red_on_planted_offenders(tmp_path):
         for n in _imports_of(outbound, repo_root=tmp_path)
         if n.split(".")[0] not in _STDLIB
     ], "outbound sweep failed to see a third-party import"
+
+
+def test_package_discovery_is_recursive(tmp_path):
+    """The r7 blocker shape, pinned at the discovery layer: a file inside
+    a SUBPACKAGE must be found by the same rglob pattern the live sweeps
+    use — a top-level glob left worker/convergence/subpkg/*.py invisible
+    to both the outbound sweep and the dynamic-import ban."""
+    pkg = tmp_path / "worker" / "convergence"
+    sub = pkg / "subpkg"
+    sub.mkdir(parents=True)
+    (pkg / "top.py").write_text("import json\n", encoding="utf-8")
+    offender = sub / "sneaky.py"
+    offender.write_text("import requests\n", encoding="utf-8")
+    found = sorted(pkg.rglob("*.py"))
+    assert offender in found, found
+    # And the sweep logic flags it once discovered.
+    bad = [
+        n
+        for n in _imports_of(offender, repo_root=tmp_path)
+        if n.split(".")[0] not in _STDLIB
+    ]
+    assert bad == ["requests"], bad
 
 
 def test_sweeps_go_red_on_the_r6_relative_evasion_shapes(tmp_path):
