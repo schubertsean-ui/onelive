@@ -205,3 +205,34 @@ founder digest in plain language.
 | — | none recorded to date (first firing: the R-008 cron-arming Friction pre-work — see TODOS hat shakedown) | | |
 | 2026-07-21 | Arm the hourly ingestion cron (FRICTION_LOG entry #3, Yellow's first live firing) | Fresh same-night candidates for /tonight; real per-run cost curve to feed routing decisions; daily full-catalog sweep surfaces dead sources within 24h; starts R-012's "one cron week" maturity clock | PENDING — validated after the first cron week: full catalog swept daily, zero dead-man alarms, cost-per-run within the console cap's daily share (fill via a new row, append-only) |
 | 2026-07-21 | Correction (append-only) to the 2026-07-21 M8 row above | — | that row's "hourly ingestion cron" and "daily full-catalog sweep" reflect the plan at first authoring; the founder amended cadence to every 20 minutes before merge (FRICTION_LOG entry #3, cadence amendment). Validation criteria update accordingly: ~3 visits/source/day capacity, zero dead-man alarms at a 20-min period, cost-per-run within the console cap's daily share. Row preserved unedited per ledger convention; this row is the correction (r7 stale-cross-reference catch) |
+
+## M9 Expected-vs-actual performance (prediction calibration — method in docs/KAIZEN.md)
+
+One row per change that CLAIMS a performance/cost/latency/quality improvement,
+opened as a PREDICTION in the same commit as the claim and MEASURED at its
+objective trigger. Hardened 2026-07-23 against a triadic red-team of the M9
+structure vs validated practice (forecasting/Brier, FinOps, SRE SLI, Six Sigma
+SPC, EVM, pre-registration, A/B): the metric must be DIRECT & CAUSAL (a per-call
+ratio, not a confounded aggregate); the MEASUREMENT METHOD and sample size N are
+pre-registered with the prediction (not just the trigger); a MET BAND is declared
+so "MET" is numeric, not vibes; and the recorded error is SIGNED so systematic
+bias (sandbagging) is visible, not hidden inside a MET tally.
+
+Structure enforced by `tools/perf_ledger_scan.py`: a PENDING-MEASUREMENT row
+needs Metric, Baseline, Expected, Basis, Trigger&method, and Band; a MEASURED row
+additionally needs a real Baseline (not "PENDING"), Actual (with its N), a signed
+error, a non-PENDING Verdict (MET/UNDER/OVER), and — when the numbers parse —
+Verdict==MET **iff** |signed error| ≤ Band. The calibration meta-metric: mean
+signed error (BIAS — must trend to 0, catches sandbagging in either direction) +
+mean |error| (ACCURACY — shrinks) + MET-rate (readable headline). Append-only;
+corrections are new rows, never edits.
+
+| ID | Change | Metric (DIRECT/causal) | Baseline (how measured, N) | Expected %Δ | Basis (+ confounders excluded) | Trigger & measurement method | Band (MET iff within) | Actual %Δ (N) | Signed error (actual−expected) | Verdict | Status |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| EP-001 | Rung 1 — prompt caching on the extraction prefix (implementing PR to follow; prediction opened 2026-07-23) | per-call input-token cost RATIO from caching = 1 − billed_input_cost / uncached_input_cost (direct causal, per-call, volume-free) | PENDING (per-call token log lands with the caching PR; N target ≥ 50 cached-eligible calls) | −45% of per-call input cost | console 45% aggregate ≈ cache read 0.1× applied to the ~½ of input tokens that are the stable prefix (docs/MODEL_ROUTING.md §caching); AGGREGATE spend deliberately NOT the metric — it is confounded by traffic mix and the spend cap (red-team A3) | ≥50 post-merge cached-eligible calls; actual = mean over calls of (1 − billed_input_cost/uncached_input_cost), paired to the same sources' baseline window | ±10pp | PENDING | PENDING | PENDING | PENDING-MEASUREMENT |
+| EP-002 | Rung 2 — Batch API for batch-shaped jobs (Descriptor Foundry N=6, golden-set regressions); implementing PR to follow | per-job billed cost ÷ same-tokens non-batch price − 1 (direct causal; the Batch discount is contractual, confounder-free) | PENDING (first batched job's invoice line vs the non-batch price of the identical tokens) | −50% | Batch API bills 50% off all tokens (docs/MODEL_ROUTING.md §batch); contractual, so the causal metric is near-deterministic | first batched Descriptor Foundry run post-merge; actual = billed ÷ non-batch − 1 for that job | ±5pp | PENDING | PENDING | PENDING | PENDING-MEASUREMENT |
+
+(Rung 3 — right-size extraction model/effort — gets its M9 row when the
+golden-set gate opens, R-013: predicting a routing saving before the gate that
+governs which models are admissible would be a guess without basis, which this
+discipline forbids.)

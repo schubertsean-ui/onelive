@@ -59,6 +59,7 @@ below; keep it current in the same commit that adds/changes a script.
 | `tools/validate` (bash) | Single "run everything" end-of-shift entrypoint: trust_gate, lint, full pytest, eval_harness import check, perf benchmarks, test_audit, commit_sweep, in order, with a PASS/FAIL summary table | 0 all passed / 1 any check failed |
 | `tools/install_hooks.sh` (bash) | Installs a real git pre-commit hook (framework-free fallback) that runs `lint.py --fix` then `trust_gate.py`, blocking the commit on failure | n/a (installer) |
 | `tools/import_sources.py` | Source-catalog import for the pipeline's source registry | see script's own `--help` |
+| `tools/perf_ledger_scan.py` | KAIZEN §M9 mechanical arm: parses the M9 expected-vs-actual table and enforces per-row structural completeness (a PENDING prediction has Metric/Baseline/Expected/Basis/Trigger; a MEASURED row has a real baseline + actual + delta + non-PENDING verdict); prints the calibration summary. Session-close + CI-advisory, mirrors the RECORD.md OPEN-row review | 0 clean / 1 structural violation / 2 M9 section missing or unparseable |
 
 ## Adding a new script
 
