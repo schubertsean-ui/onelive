@@ -391,6 +391,18 @@ def sample_worlds(
                 f"names, not {type(sources).__name__}: {sources!r} (a bare "
                 f"string would be iterated character by character)."
             )
+        # Each source NAME must be a string before the set()/sorted()
+        # operations below (evaluator r17 nit, PR #54): a non-string name
+        # would sort-raise in the unknown-source message, and an unhashable
+        # one would raise a raw TypeError inside set(sources). Validate here
+        # so a misconfigured entry fails loud with a named message.
+        for src in sources:
+            if not isinstance(src, str):
+                raise ValueError(
+                    f"field {fname!r} lists a non-string source name "
+                    f"{src!r} (type {type(src).__name__}); source names must "
+                    f"be strings."
+                )
         if len(set(sources)) != len(tuple(sources)):
             raise ValueError(
                 f"field {fname!r} lists duplicate source(s) in {tuple(sources)!r}; "

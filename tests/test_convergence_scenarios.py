@@ -275,6 +275,18 @@ class TestSampling:
                 "exists", 10, seed=1,
             )
 
+    def test_non_string_source_name_fails_loud(self):
+        # Evaluator r17 nit (PR #54): a non-string source name would sort-raise
+        # in the unknown-source message or raise a raw TypeError inside
+        # set(sources); validate it explicitly.
+        with pytest.raises(ValueError, match="non-string source name"):
+            sample_worlds(
+                {"exists": ALWAYS_TRUE},
+                {"venue_site": ALWAYS_TRUE},
+                {"exists": ("venue_site", 7)},
+                "exists", 10, seed=1,
+            )
+
     def test_duplicate_source_in_field_sources_fails_loud(self):
         # Evaluator r4 (PR #54): a duplicated source double-discounts the
         # field's opinion (trust_discount runs once per entry), and the
@@ -864,8 +876,8 @@ class TestExpectedLossAndDecide:
             DecisionRecord(chosen="hold", expected_losses={"hold": 15.0},
                            terms={"hold": {"right": 15.0}}, mode_probs=probs,
                            matrix=mtx)
-        # chosen does not achieve the minimum
-        with pytest.raises(ValueError, match="minimum expected loss"):
+        # chosen is not the deterministic (ground-truth) minimizer
+        with pytest.raises(ValueError, match="deterministic choice"):
             DecisionRecord(
                 chosen="hold",
                 expected_losses={"hold": 15.0, "flag_disputed": 8.0},
@@ -903,7 +915,7 @@ class TestExpectedLossAndDecide:
                               "right": 15.0},
         }
         tie_mtx = CostMatrix(costs=tie_costs)
-        with pytest.raises(ValueError, match="tie-break choice"):
+        with pytest.raises(ValueError, match="deterministic choice"):
             DecisionRecord(
                 chosen="flag_disputed",
                 expected_losses={"hold": 15.0, "flag_disputed": 15.0},
@@ -921,6 +933,73 @@ class TestExpectedLossAndDecide:
             matrix=tie_mtx,
         )
         assert ok.chosen == "hold"
+
+    def test_forged_decision_record_near_tie_stored_as_exact_tie_rejected(self):
+        # Evaluator r17 (PR #54): the deterministic choice must be recomputed
+        # from the GROUND TRUTH (mode_probs * matrix), not read off the stored
+        # totals which are only validated within _SUM_EPS. A forger sets true
+        # totals a=1.0000005 > b=1.0 (so decide() picks "b") but STORES them as
+        # an exact tie a=b=1.0 (within the 1e-6 row-sum tolerance) and names
+        # "a" first — the r16 stored-total tie-break would have accepted it.
+        # The ground-truth recompute rejects it: the stored total no longer
+        # equals mode_probs*cost.
+        from worker.convergence.decisions import DecisionRecord
+
+        probs = {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 1.0}
+        near_costs = {
+            "a": {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 1.0000005},
+            "b": {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 1.0},
+        }
+        near_mtx = CostMatrix(costs=near_costs)
+        # terms match cost*prob exactly (r13 passes); stored expected_losses
+        # are forged to an exact tie 1.0/1.0 — within 1e-6 of the true sums, so
+        # the row-sum check passes, but NOT exactly equal to the ground truth.
+        near_terms = {
+            "a": {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 1.0000005},
+            "b": {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 1.0},
+        }
+        with pytest.raises(ValueError, match="does not exactly equal"):
+            DecisionRecord(
+                chosen="a",
+                expected_losses={"a": 1.0, "b": 1.0},
+                terms=near_terms,
+                mode_probs=probs,
+                matrix=near_mtx,
+            )
+        # Honest record over the same matrix: decide() picks "b" (true min),
+        # and the ground-truth totals are stored exactly.
+        honest = DecisionRecord(
+            chosen="b",
+            expected_losses={"a": 1.0000005, "b": 1.0},
+            terms=near_terms,
+            mode_probs=probs,
+            matrix=near_mtx,
+        )
+        assert honest.chosen == "b"
+        # And decide() itself agrees.
+        assert decide(["a", "b"], probs, near_mtx).chosen == "b"
+
+    def test_decision_record_non_mapping_fields_fail_loud(self):
+        # Evaluator r17 nit (PR #54): public audit-record fields must be
+        # shape-checked before any dict()/.items() coercion, so a malformed
+        # direct construction fails loud with a named message, not a raw
+        # container error.
+        from worker.convergence.decisions import DecisionRecord
+
+        mtx = CostMatrix(costs=DRAFT_COSTS)
+        probs = {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 1.0}
+        good_terms = {"hold": {"fully_wrong": 0.0, "partially_wrong": 0.0,
+                               "right": 15.0}}
+        with pytest.raises(ValueError, match="expected_losses must be a mapping"):
+            DecisionRecord(chosen="hold", expected_losses=[("hold", 15.0)],
+                           terms=good_terms, mode_probs=probs, matrix=mtx)
+        with pytest.raises(ValueError, match="terms must be a mapping"):
+            DecisionRecord(chosen="hold", expected_losses={"hold": 15.0},
+                           terms="not-a-mapping", mode_probs=probs, matrix=mtx)
+        with pytest.raises(ValueError, match=r"terms\['hold'\] must be a mapping"):
+            DecisionRecord(chosen="hold", expected_losses={"hold": 15.0},
+                           terms={"hold": [("right", 15.0)]}, mode_probs=probs,
+                           matrix=mtx)
 
     def test_nonzero_term_under_zero_probability_mode_fails_loud(self):
         # Evaluator r7 (PR #54): terms[action][mode] = P(mode) * cost, so a

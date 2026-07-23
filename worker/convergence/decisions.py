@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping, Sequence
@@ -277,9 +278,12 @@ class DecisionRecord:
     r3): the public constructor must not be a way to manufacture a record
     whose chosen action, totals, and terms contradict each other — every
     row sums to its stated total, every row carries exactly the three
-    modes, and `chosen` achieves the minimum total. (First-minimal
-    tie-breaking is decide()'s contract over the CALLER's action order,
-    which the record cannot see; the record enforces achieves-the-min.)
+    modes, and `chosen` is the DETERMINISTIC minimizer. The record CAN see
+    the caller's tie-break order — it is the key order of expected_losses
+    (r15/r16) — and it recomputes the choice from its own mode_probs and
+    cost matrix, exactly as decide() does, requiring the stored totals to
+    match that ground truth bit-for-bit (r17); so `chosen` cannot be forged
+    to a near-tie's wrong arm.
     """
 
     chosen: str
@@ -295,6 +299,27 @@ class DecisionRecord:
     matrix: "CostMatrix"
 
     def __post_init__(self) -> None:
+        # Shape-check the public inputs BEFORE any dict()/.items() coercion
+        # (evaluator r17 nit, PR #54): these are public audit-record fields, so
+        # a malformed direct construction must fail loud with a named message,
+        # not a raw container error from dict("...") or .items() on a
+        # non-mapping.
+        for label, value in (
+            ("expected_losses", self.expected_losses),
+            ("mode_probs", self.mode_probs),
+            ("terms", self.terms),
+        ):
+            if not isinstance(value, MappingABC):
+                raise ValueError(
+                    f"DecisionRecord.{label} must be a mapping; got "
+                    f"{type(value).__name__}."
+                )
+        for action, row in self.terms.items():
+            if not isinstance(row, MappingABC):
+                raise ValueError(
+                    f"DecisionRecord.terms[{action!r}] must be a mapping; got "
+                    f"{type(row).__name__}."
+                )
         object.__setattr__(
             self, "expected_losses", MappingProxyType(dict(self.expected_losses))
         )
@@ -368,37 +393,14 @@ class DecisionRecord:
                             f"so a zero-probability mode forces a zero term; "
                             f"this record is internally contradictory."
                         )
-        # `chosen` must be the DETERMINISTIC tie-break choice, not merely
-        # SOME minimal action (evaluator r16, PR #54). decide() breaks ties
-        # toward the earliest action in its `actions` argument, recorded here
-        # as the key order of expected_losses — and r15 makes that order
-        # VoiRecord's same-policy invariant. So a record whose chosen is a
-        # LATER tied action (e.g. losses {"a": 1, "b": 1}, chosen "b")
-        # contradicts the very tie-break policy its own key order declares,
-        # and would let a forger pick either arm of a tie. Mirror decide()
-        # EXACTLY: min() over the mapping walks it in key order and returns
-        # the first key holding the minimum value (no eps — expected_losses
-        # ARE the totals decide() compared, so exact reproduction is the
-        # only faithful check; an eps window here could diverge from decide's
-        # own float min and admit a different action).
-        tie_break_choice = min(
-            self.expected_losses, key=self.expected_losses.__getitem__
-        )
-        if self.chosen != tie_break_choice:
-            raise ValueError(
-                f"DecisionRecord: chosen {self.chosen!r} is not the tie-break "
-                f"choice {tie_break_choice!r} — under this record's own action "
-                f"order {list(self.expected_losses)!r} the minimum expected "
-                f"loss {self.expected_losses[tie_break_choice]!r} is first "
-                f"achieved by {tie_break_choice!r}. An audit record's choice "
-                f"must match the deterministic first-minimum policy its key "
-                f"order declares (evaluator r16, PR #54)."
-            )
         # Matrix truthfulness (evaluator r13): the stored matrix must be the
         # one the terms were computed under — terms[a][m] == P(m)*cost(a,m).
         # This makes the stored matrix self-verifying (a forged matrix would
         # require forged terms), which is what lets VoiRecord's same-matrix
-        # check be real enforcement rather than convention.
+        # check be real enforcement rather than convention. Validated HERE,
+        # before the deterministic choice below, because that choice is
+        # recomputed FROM the matrix, not read off the stored totals
+        # (evaluator r17).
         if not isinstance(self.matrix, CostMatrix):
             raise ValueError(
                 f"DecisionRecord.matrix must be a CostMatrix; got "
@@ -421,6 +423,60 @@ class DecisionRecord:
                         f"stored matrix must be the value system the terms were "
                         f"computed under (evaluator r13)."
                     )
+        # The DETERMINISTIC choice is recomputed from the GROUND TRUTH the
+        # record commits to — its mode_probs and cost matrix — exactly as
+        # decide() does, NOT read off the stored expected_losses (evaluator
+        # r17, PR #54). Every stored-total check above tolerates _SUM_EPS
+        # (the row-sum and term-vs-matrix comparisons), so a forger could
+        # nudge a near-tie's stored totals to an EXACT tie and flip the r16
+        # tie-break winner away from what decide() would actually pick — e.g.
+        # true totals a=1.0000005, b=1.0 stored as a=b=1.0: the stored
+        # tie-break says "a", decide() says "b". mode_probs * cost is the
+        # pure-function input decide() minimizes; recomputing it here (in the
+        # record's own action order, the key order of expected_losses) pins
+        # `chosen` to decide()'s real output regardless of eps-slop in the
+        # stored totals. Same operation order as decide() (sum over MODES), so
+        # a genuine record reproduces this bit-for-bit.
+        true_totals = {
+            action: sum(
+                self.mode_probs[mode] * self.matrix.costs[action][mode]
+                for mode in MODES
+            )
+            for action in self.expected_losses
+        }
+        # The stored totals must MATCH that ground-truth recomputation EXACTLY,
+        # not merely within eps: the tolerated row-sum check alone would let a
+        # near-tie be stored as an exact tie (or otherwise misstate the loss),
+        # which is fabricated audit evidence even before it flips the choice.
+        # decide() is the sole producer and its float arithmetic is
+        # deterministic, so a genuine record is bit-exact here; only a forgery
+        # diverges.
+        for action, true_total in true_totals.items():
+            if self.expected_losses[action] != true_total:
+                raise ValueError(
+                    f"DecisionRecord.expected_losses[{action!r}]="
+                    f"{self.expected_losses[action]!r} does not exactly equal "
+                    f"the loss its own mode_probs and cost matrix produce "
+                    f"({true_total!r}) — audit totals must be the true "
+                    f"arithmetic, not an eps-close value that could store a "
+                    f"near-tie as a tie and flip the deterministic choice "
+                    f"(evaluator r17, PR #54)."
+                )
+        # decide() breaks ties toward the earliest action in its `actions`
+        # argument, recorded here as the key order of expected_losses (r15/r16);
+        # min() walks true_totals in that order and returns the first key
+        # holding the minimum. `chosen` must be exactly that ground-truth
+        # minimizer.
+        deterministic_choice = min(true_totals, key=true_totals.__getitem__)
+        if self.chosen != deterministic_choice:
+            raise ValueError(
+                f"DecisionRecord: chosen {self.chosen!r} is not the "
+                f"deterministic choice {deterministic_choice!r} that decide() "
+                f"produces from this record's mode_probs and cost matrix in its "
+                f"action order {list(self.expected_losses)!r} — an audit "
+                f"record's winner must be the ground-truth minimizer, first in "
+                f"tie-break order (evaluator r16/r17, PR #54)."
+            )
 
 
 def decide(
