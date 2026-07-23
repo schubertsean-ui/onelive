@@ -106,15 +106,11 @@ class TestSeedDiscipline:
         wb = sample_worlds(fo, sr, fs, "exists", 50, seed=7)
         assert wa == wb
 
-    def test_different_seed_different_output(self):
-        fo, sr, fs = _stochastic_inputs()
-        a = run_scenarios(fo, sr, fs, "exists", 300, seed=1)
-        b = run_scenarios(fo, sr, fs, "exists", 300, seed=2)
-        assert a != b
-
     def test_two_seed_golden_summaries(self):
-        # Evaluator r1 nit (PR #54): "a != b" is probabilistic in
-        # principle; these pinned goldens make the check exact AND double
+        # Evaluator r1 nit (PR #54): a bare "a != b" different-seed check
+        # is probabilistic in principle (r3 removed it as redundant);
+        # these pinned goldens make the check exact — the two summaries
+        # differ AND each matches its pin — and they double
         # as a replay-drift detector — if a CPython upgrade ever changes
         # random.Random's distribution algorithms, spec §9 replayability is
         # broken and this test says so loudly instead of letting recorded
@@ -448,6 +444,26 @@ class TestCostMatrix:
         with pytest.raises(ValueError, match="invalid JSON"):
             CostMatrix.from_json("{not json")
 
+    def test_from_json_duplicate_action_key_fails_loud(self):
+        # Evaluator r3 (PR #54): plain json.loads is last-wins on
+        # duplicate keys — in the trust-path value-system config a
+        # duplicated action or mode cell would silently override a
+        # ratified value. Both nesting levels must refuse.
+        doc = (
+            '{"hold": {"fully_wrong": 2, "partially_wrong": 10, "right": 15},'
+            ' "hold": {"fully_wrong": 0, "partially_wrong": 0, "right": 0}}'
+        )
+        with pytest.raises(ValueError, match="duplicate JSON key"):
+            CostMatrix.from_json(doc)
+
+    def test_from_json_duplicate_mode_key_fails_loud(self):
+        doc = (
+            '{"hold": {"fully_wrong": 2, "partially_wrong": 10,'
+            ' "right": 15, "right": 0}}'
+        )
+        with pytest.raises(ValueError, match="duplicate JSON key"):
+            CostMatrix.from_json(doc)
+
     def test_from_json_non_object_fails_loud(self):
         with pytest.raises(ValueError, match="top level"):
             CostMatrix.from_json("[1, 2]")
@@ -576,6 +592,42 @@ class TestExpectedLossAndDecide:
             record.terms["hold"] = {}
         with pytest.raises(TypeError):
             record.mode_probs["right"] = 1.0
+
+    def test_forged_inconsistent_record_fails_loud(self):
+        # Evaluator r3 (PR #54): the public constructor must not be a way
+        # to manufacture bogus audit evidence — a record whose chosen
+        # action, totals, and terms contradict each other fails at
+        # construction.
+        from worker.convergence.decisions import DecisionRecord
+
+        probs = {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 1.0}
+        good_terms = {"hold": {"fully_wrong": 0.0, "partially_wrong": 0.0,
+                               "right": 15.0}}
+        # chosen not among the actions
+        with pytest.raises(ValueError, match="not among"):
+            DecisionRecord(chosen="ghost", expected_losses={"hold": 15.0},
+                           terms=good_terms, mode_probs=probs)
+        # total contradicts its own terms row
+        with pytest.raises(ValueError, match="sum of its terms"):
+            DecisionRecord(chosen="hold", expected_losses={"hold": 1.0},
+                           terms=good_terms, mode_probs=probs)
+        # a terms row missing a mode
+        with pytest.raises(ValueError, match="exactly"):
+            DecisionRecord(chosen="hold", expected_losses={"hold": 15.0},
+                           terms={"hold": {"right": 15.0}}, mode_probs=probs)
+        # chosen does not achieve the minimum
+        with pytest.raises(ValueError, match="minimum expected loss"):
+            DecisionRecord(
+                chosen="hold",
+                expected_losses={"hold": 15.0, "flag_disputed": 8.0},
+                terms={
+                    "hold": {"fully_wrong": 0.0, "partially_wrong": 0.0,
+                             "right": 15.0},
+                    "flag_disputed": {"fully_wrong": 0.0,
+                                      "partially_wrong": 0.0, "right": 8.0},
+                },
+                mode_probs=probs,
+            )
 
     @pytest.mark.parametrize("tiny_bad", [-1e-12, 1.0 + 1e-12])
     def test_tiny_out_of_range_prob_rejected_exactly(self, tiny_bad):

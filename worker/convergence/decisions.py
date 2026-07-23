@@ -43,6 +43,24 @@ from worker.convergence.scenarios import MODES
 _SUM_EPS = 1e-6
 
 
+def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """json.loads object_pairs_hook: refuse duplicate keys at every
+    nesting level instead of Python's silent last-wins (evaluator r3,
+    PR #54 — in the value-system config a duplicate key is an override
+    that must never pass quietly)."""
+    out: dict[str, object] = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError(
+                f"CostMatrix.from_json: duplicate JSON key {key!r} — "
+                f"last-wins parsing would silently override a "
+                f"value-system cell; the config must state every key "
+                f"exactly once."
+            )
+        out[key] = value
+    return out
+
+
 def _validate_cost(action: str, mode: str, value: object) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(
@@ -136,9 +154,14 @@ class CostMatrix:
         """Load a matrix from a JSON document of shape
         {action: {mode: loss}} — the on-disk form the ratified versioned
         config file will use (spec §5). All validation is the constructor's;
-        nothing is defaulted or repaired here."""
+        nothing is defaulted or repaired here — EXCEPT duplicate-key
+        refusal, which only the parser can see: plain json.loads is
+        last-wins on duplicate keys, so a duplicated action or mode cell
+        in the config would silently override a value-system entry
+        (evaluator r3, PR #54 — on a trust-path config that is a hidden
+        loosening vector, and it fails loud here instead)."""
         try:
-            data = json.loads(text)
+            data = json.loads(text, object_pairs_hook=_reject_duplicate_keys)
         except json.JSONDecodeError as exc:
             raise ValueError(f"CostMatrix.from_json: invalid JSON ({exc}).") from exc
         if not isinstance(data, dict):
@@ -211,7 +234,13 @@ class DecisionRecord:
     Like CostMatrix, the mappings are made DEEPLY READ-ONLY at
     construction (evaluator r2, PR #54): a decision record is audit
     evidence, and evidence that can be edited after the fact is not
-    evidence.
+    evidence. And construction VALIDATES internal consistency (evaluator
+    r3): the public constructor must not be a way to manufacture a record
+    whose chosen action, totals, and terms contradict each other — every
+    row sums to its stated total, every row carries exactly the three
+    modes, and `chosen` achieves the minimum total. (First-minimal
+    tie-breaking is decide()'s contract over the CALLER's action order,
+    which the record cannot see; the record enforces achieves-the-min.)
     """
 
     chosen: str
@@ -233,6 +262,38 @@ class DecisionRecord:
         object.__setattr__(
             self, "mode_probs", MappingProxyType(dict(self.mode_probs))
         )
+        if set(self.terms) != set(self.expected_losses) or not self.expected_losses:
+            raise ValueError(
+                f"DecisionRecord: terms actions {sorted(self.terms)!r} and "
+                f"expected_losses actions {sorted(self.expected_losses)!r} "
+                f"must be the same non-empty set."
+            )
+        if self.chosen not in self.expected_losses:
+            raise ValueError(
+                f"DecisionRecord: chosen {self.chosen!r} is not among the "
+                f"evaluated actions {sorted(self.expected_losses)!r}."
+            )
+        for action, row in self.terms.items():
+            if set(row) != set(MODES):
+                raise ValueError(
+                    f"DecisionRecord: terms[{action!r}] modes "
+                    f"{sorted(row)!r} must be exactly {MODES!r}."
+                )
+            if abs(sum(row.values()) - self.expected_losses[action]) > _SUM_EPS:
+                raise ValueError(
+                    f"DecisionRecord: expected_losses[{action!r}]="
+                    f"{self.expected_losses[action]!r} does not equal the "
+                    f"sum of its terms row {sum(row.values())!r} — a record "
+                    f"whose arithmetic cannot be recomputed from itself is "
+                    f"not audit evidence."
+                )
+        best = min(self.expected_losses.values())
+        if abs(self.expected_losses[self.chosen] - best) > _SUM_EPS:
+            raise ValueError(
+                f"DecisionRecord: chosen {self.chosen!r} "
+                f"(loss {self.expected_losses[self.chosen]!r}) does not "
+                f"achieve the minimum expected loss {best!r}."
+            )
 
 
 def decide(

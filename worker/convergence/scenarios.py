@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from random import Random
+from types import MappingProxyType
 from typing import Iterable, Mapping, Sequence
 
 from worker.convergence.sl import PRIOR_WEIGHT, Opinion, trust_discount
@@ -50,11 +51,23 @@ class World:
     this world". `source_reliabilities` records the sampled reliability of
     each source in this world — kept on the world so failure clustering can
     be traced back to its cause ("failures cluster in worlds where the
-    aggregator feed is stale", spec §5) during audit.
+    aggregator feed is stale", spec §5) during audit. Replay/audit
+    material, so both mappings are made read-only at construction
+    (evaluator r3, PR #54 — same discipline as the decision records).
     """
 
-    field_truths: dict[str, bool]
-    source_reliabilities: dict[str, float]
+    field_truths: Mapping[str, bool]
+    source_reliabilities: Mapping[str, float]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "field_truths", MappingProxyType(dict(self.field_truths))
+        )
+        object.__setattr__(
+            self,
+            "source_reliabilities",
+            MappingProxyType(dict(self.source_reliabilities)),
+        )
 
 
 @dataclass(frozen=True)
@@ -83,13 +96,20 @@ class ScenarioSummary:
     same count conditioned on partially_wrong worlds ("failures cluster
     where") — empty when no world was partially wrong, because the
     conditional is undefined there (fail-closed: an empty dict cannot be
-    misread as "every field is fine").
+    misread as "every field is fine"). Audit output, so the mappings are
+    read-only at construction (evaluator r3, PR #54).
     """
 
     n_worlds: int
-    mode_probs: dict[str, float]
-    field_failure_rates: dict[str, float]
-    partial_attribution: dict[str, float]
+    mode_probs: Mapping[str, float]
+    field_failure_rates: Mapping[str, float]
+    partial_attribution: Mapping[str, float]
+
+    def __post_init__(self) -> None:
+        for name in ("mode_probs", "field_failure_rates", "partial_attribution"):
+            object.__setattr__(
+                self, name, MappingProxyType(dict(getattr(self, name)))
+            )
 
 
 def _require_seed(seed: object) -> int:
