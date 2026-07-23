@@ -50,14 +50,20 @@ def tracked_offenders(ls_files_lines: list[str]) -> list[str]:
 
 
 def test_no_tracked_path_hides_behind_the_claude_exclusion():
+    # -z: NUL-delimited RAW paths. Plain `git ls-files` QUOTES unusual
+    # pathnames (embedded newline, non-ASCII) by default, so a force-added
+    # ".claude/evil\n.py" would reach splitlines() as quoted fragments in
+    # which no literal .claude component survives — the guard would pass
+    # while the scanners skip the file (evaluator r4: a fail-open hole in
+    # the compensating guard itself). NUL framing has no quoting mode.
     out = subprocess.run(
-        ["git", "ls-files"],
+        ["git", "ls-files", "-z"],
         cwd=REPO,
         capture_output=True,
         text=True,
         check=True,
     ).stdout
-    offenders = tracked_offenders(out.splitlines())
+    offenders = tracked_offenders(out.split("\0"))
     assert offenders == [], (
         f"tracked file(s) carry a .claude path component outside the "
         f"prose-agent-definition allowlist — the scanner exclusion "
@@ -91,6 +97,16 @@ def test_allowlisted_agent_definitions_pass():
     assert tracked_offenders([".claude/agents/gate-verifier.md"]) == []
 
 
+def test_newline_pathname_cannot_evade_the_component_check():
+    """The r4 evasion shape: with NUL framing, a pathname containing a
+    raw newline arrives as ONE string and its .claude component is seen.
+    (Under quoted+splitlines parsing it arrived as fragments and vanished.)"""
+    raw_nul_output = ".claude/evil\n.py\0worker/run_once.py\0"
+    assert tracked_offenders(raw_nul_output.split("\0")) == [
+        ".claude/evil\n.py"
+    ]
+
+
 def test_exclusion_and_guard_are_literally_paired():
     """Prose said 'neither ships without the other' — make it mechanism
     (pre-attack nit): dropping ".claude" from either scanner's SKIP_PARTS
@@ -105,9 +121,18 @@ def test_exclusion_and_guard_are_literally_paired():
         )
         skip_parts = None
         for node in ast.walk(tree):
+            # Accept plain and annotated assignment (r4 nit: an AnnAssign
+            # refactor must not read as "lost SKIP_PARTS").
             if isinstance(node, ast.Assign) and any(
                 isinstance(t, ast.Name) and t.id == "SKIP_PARTS"
                 for t in node.targets
+            ):
+                skip_parts = ast.literal_eval(node.value)
+            elif (
+                isinstance(node, ast.AnnAssign)
+                and isinstance(node.target, ast.Name)
+                and node.target.id == "SKIP_PARTS"
+                and node.value is not None
             ):
                 skip_parts = ast.literal_eval(node.value)
         assert skip_parts is not None, f"tools/{tool}.py lost SKIP_PARTS?"
