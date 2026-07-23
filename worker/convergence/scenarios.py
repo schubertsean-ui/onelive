@@ -127,6 +127,18 @@ class WorldOutcome:
             raise ValueError(
                 f"WorldOutcome.mode={self.mode!r} must be one of {MODES!r}."
             )
+        # A bare string/bytes is iterable and tuple("date") would silently
+        # become ("d","a","t","e") — every char is a str and none repeat, so
+        # it would sail past the checks below and corrupt field attribution
+        # (evaluator r9, PR #54: a regression in the r8 fix itself). Reject
+        # it before normalizing.
+        if isinstance(self.wrong_fields, (str, bytes)):
+            raise ValueError(
+                f"WorldOutcome.wrong_fields must be a sequence of field-name "
+                f"strings, not a bare {type(self.wrong_fields).__name__} "
+                f"{self.wrong_fields!r} (which would be split into "
+                f"characters)."
+            )
         wf = tuple(self.wrong_fields)  # normalize list -> immutable tuple
         for name in wf:
             if not isinstance(name, str):

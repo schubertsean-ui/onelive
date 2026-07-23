@@ -395,6 +395,13 @@ class TestWorldOutcomeConstruction:
         with pytest.raises(ValueError, match="field-name strings"):
             WorldOutcome(mode=MODE_PARTIALLY_WRONG, wrong_fields=(3,))
 
+    def test_bare_string_wrong_fields_rejected(self):
+        # Evaluator r9 (PR #54): a regression in the r8 fix — tuple("date")
+        # would silently become ("d","a","t","e"). A bare string must fail
+        # loud, not be split into characters.
+        with pytest.raises(ValueError, match="not a bare str"):
+            WorldOutcome(mode=MODE_PARTIALLY_WRONG, wrong_fields="date")
+
     def test_list_wrong_fields_normalized_to_tuple(self):
         # A mutable list is frozen to a tuple so the evidence cannot be
         # edited after construction (the "mutable wrong_fields" concern).
@@ -963,6 +970,29 @@ class TestVoi:
         with pytest.raises(ValueError, match="at least one posterior"):
             voi(self.PRIOR, [], 1.0, CostMatrix(costs=self.SMALL))
 
+    def test_incoherent_posterior_scenarios_rejected(self):
+        # Evaluator r9 (PR #54): the branch-weighted mixture of posteriors
+        # must reproduce the current belief (law of total probability). A
+        # set whose branches sum to 1 but average to a DIFFERENT belief is
+        # not a valid refinement — VoI over it is meaningless and a
+        # spend-gating primitive must refuse it.
+        # PRIOR = {fw 0.4, pw 0, r 0.6}; this mixture averages to
+        # {fw 1.0, r 0.0} != PRIOR though branch probs sum to 1.
+        incoherent = [
+            (1.0, {"fully_wrong": 1.0, "partially_wrong": 0.0, "right": 0.0}),
+        ]
+        with pytest.raises(ValueError, match="Incoherent posterior"):
+            voi(self.PRIOR, incoherent, 1.0, CostMatrix(costs=self.SMALL))
+
+    def test_voi_record_stores_fetch_cost(self):
+        # Evaluator r9 (PR #54): fetch_cost is carried so net is
+        # recomputable (net == gross - fetch_cost).
+        record = voi(self.PRIOR, self.PERFECT, 1.0, CostMatrix(costs=self.SMALL))
+        assert record.fetch_cost == 1.0
+        assert record.net_value == pytest.approx(
+            record.gross_value - record.fetch_cost, abs=APPROX
+        )
+
     @pytest.mark.parametrize("bad_cost", [-1.0, float("inf"), float("nan"), "1"])
     def test_bad_fetch_cost_fails_loud(self, bad_cost):
         with pytest.raises(ValueError, match="fetch_cost"):
@@ -976,12 +1006,15 @@ class TestVoi:
         matrix = CostMatrix(costs=self.SMALL)
         good = voi(self.PRIOR, self.PERFECT, 1.0, matrix)  # net 2.0, worth-it
         # net < 0 marked worth-it: the contradiction the field exists to bar.
+        # (fetch_cost = gross - net keeps the arithmetic self-consistent so
+        # ONLY the fetch_worth_it check fires.)
         with pytest.raises(ValueError, match="fetch_worth_it"):
             VoiRecord(
                 prior_decision=good.prior_decision,
                 posterior_decisions=good.posterior_decisions,
                 prior_expected_loss=good.prior_expected_loss,
                 posterior_expected_loss=good.posterior_expected_loss,
+                fetch_cost=good.gross_value + 1.0,
                 gross_value=good.gross_value,
                 net_value=-1.0, fetch_worth_it=True,
             )
@@ -991,6 +1024,7 @@ class TestVoi:
                 prior_decision=good.prior_decision,
                 posterior_decisions=good.posterior_decisions,
                 prior_expected_loss=3.0, posterior_expected_loss=0.0,
+                fetch_cost=1.0,
                 gross_value=99.0, net_value=98.0, fetch_worth_it=True,
             )
         # NaN loss field.
@@ -999,6 +1033,7 @@ class TestVoi:
                 prior_decision=good.prior_decision,
                 posterior_decisions=good.posterior_decisions,
                 prior_expected_loss=float("nan"), posterior_expected_loss=0.0,
+                fetch_cost=1.0,
                 gross_value=0.0, net_value=0.0, fetch_worth_it=False,
             )
         # branch probabilities that do not sum to 1.
@@ -1009,8 +1044,21 @@ class TestVoi:
                 posterior_decisions=bad_branches,
                 prior_expected_loss=good.prior_expected_loss,
                 posterior_expected_loss=good.posterior_expected_loss,
+                fetch_cost=good.fetch_cost,
                 gross_value=good.gross_value, net_value=good.net_value,
                 fetch_worth_it=good.fetch_worth_it,
+            )
+        # net must equal gross - fetch_cost (r9): net<=gross alone is not
+        # enough — the exact spend arithmetic must be recomputable.
+        with pytest.raises(ValueError, match="gross_value - fetch_cost"):
+            VoiRecord(
+                prior_decision=good.prior_decision,
+                posterior_decisions=good.posterior_decisions,
+                prior_expected_loss=good.prior_expected_loss,
+                posterior_expected_loss=good.posterior_expected_loss,
+                fetch_cost=1.0, gross_value=good.gross_value,
+                net_value=good.gross_value - 0.25,  # != gross - 1.0
+                fetch_worth_it=True,
             )
 
     def test_voi_record_scalar_losses_must_match_embedded_decisions(self):
@@ -1030,6 +1078,7 @@ class TestVoi:
                 posterior_decisions=good.posterior_decisions,
                 prior_expected_loss=bad_prior,
                 posterior_expected_loss=good.posterior_expected_loss,
+                fetch_cost=1.0,
                 gross_value=bad_prior - good.posterior_expected_loss,
                 net_value=bad_prior - good.posterior_expected_loss - 1.0,
                 fetch_worth_it=(bad_prior - good.posterior_expected_loss - 1.0) > 0,
@@ -1042,6 +1091,7 @@ class TestVoi:
                 posterior_decisions=good.posterior_decisions,
                 prior_expected_loss=good.prior_expected_loss,
                 posterior_expected_loss=bad_post,
+                fetch_cost=1.0,
                 gross_value=good.prior_expected_loss - bad_post,
                 net_value=good.prior_expected_loss - bad_post - 1.0,
                 fetch_worth_it=(good.prior_expected_loss - bad_post - 1.0) > 0,
@@ -1062,6 +1112,7 @@ class TestVoi:
             posterior_decisions=list(good.posterior_decisions),  # outer LIST
             prior_expected_loss=good.prior_expected_loss,
             posterior_expected_loss=good.posterior_expected_loss,
+            fetch_cost=good.fetch_cost,
             gross_value=good.gross_value, net_value=good.net_value,
             fetch_worth_it=good.fetch_worth_it,
         )
@@ -1075,6 +1126,7 @@ class TestVoi:
                 posterior_decisions=[[bp, dec]],  # list pair, not tuple
                 prior_expected_loss=good.prior_expected_loss,
                 posterior_expected_loss=good.posterior_expected_loss,
+                fetch_cost=good.fetch_cost,
                 gross_value=good.gross_value, net_value=good.net_value,
                 fetch_worth_it=good.fetch_worth_it,
             )

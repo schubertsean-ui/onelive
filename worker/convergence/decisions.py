@@ -428,9 +428,11 @@ class VoiRecord:
     prior_expected_loss      — best achievable loss acting NOW;
     posterior_expected_loss  — sum over fetch-outcome branches of
                                P(branch) * best loss AFTER seeing it;
+    fetch_cost               — the fetch's price, stored so net_value is
+                               recomputable from the record (evaluator r9);
     gross_value              — prior minus posterior (what the signal is
                                worth before paying for it);
-    net_value                — gross_value minus fetch_cost;
+    net_value                — gross_value minus fetch_cost (checked EXACTLY);
     fetch_worth_it           — net_value strictly positive (spec §5 +
                                cost-discipline charter: spend follows
                                decision value; a fetch that merely breaks
@@ -449,6 +451,7 @@ class VoiRecord:
     posterior_decisions: tuple[tuple[float, DecisionRecord], ...]
     prior_expected_loss: float
     posterior_expected_loss: float
+    fetch_cost: float
     gross_value: float
     net_value: float
     fetch_worth_it: bool
@@ -536,8 +539,13 @@ class VoiRecord:
                 f"losses ({posterior_from_decisions!r})."
             )
         # Cross-field arithmetic must be recomputable from the record:
-        # gross = prior - posterior, and net = gross - (non-negative cost)
-        # so net can never EXCEED gross. fetch_worth_it is exactly net>0.
+        # gross = prior - posterior, and net = gross - fetch_cost EXACTLY.
+        # Storing fetch_cost (evaluator r9, PR #54) makes net recomputable
+        # from the record alone — without it, any net<=gross would pass as
+        # "some implicit non-negative cost", letting forged evidence
+        # silently rewrite the spend/value arithmetic the fetch decision
+        # rests on.
+        cost = _require_audit_number("VoiRecord.fetch_cost", self.fetch_cost)
         if abs(gross - (self.prior_expected_loss - self.posterior_expected_loss)) \
                 > _SUM_EPS:
             raise ValueError(
@@ -545,10 +553,11 @@ class VoiRecord:
                 f"prior_expected_loss - posterior_expected_loss "
                 f"({self.prior_expected_loss - self.posterior_expected_loss!r})."
             )
-        if net > gross + _SUM_EPS:
+        if abs(net - (gross - cost)) > _SUM_EPS:
             raise ValueError(
-                f"VoiRecord.net_value={net!r} exceeds gross_value={gross!r}; "
-                f"net = gross - fetch_cost and fetch_cost is non-negative."
+                f"VoiRecord.net_value={net!r} does not equal "
+                f"gross_value - fetch_cost ({gross - cost!r}); the spend "
+                f"arithmetic must be recomputable from the record."
             )
         if not isinstance(self.fetch_worth_it, bool):
             raise ValueError(
@@ -578,11 +587,17 @@ def voi(
     reveal: (branch probability, posterior mode distribution) pairs whose
     branch probabilities sum to 1. VoI = [best loss now] - [expected best
     loss after fetching] - fetch_cost, decided over every action in the
-    matrix (matrix order is the tie-break order). The caller owns the
-    coherence of its posterior scenarios (for a coherent predictive mixture
-    the gross value is never negative; this function reports whatever the
-    supplied scenarios imply rather than repairing them — the honest number
-    is the auditable one).
+    matrix (matrix order is the tie-break order).
+
+    The scenario set must be COHERENT (evaluator r9, PR #54): by the law of
+    total probability a valid predictive mixture satisfies, for every mode,
+    sum_branches P(branch) * P(mode | branch) == current_mode_probs[mode].
+    An incoherent set is not a refinement of the current belief and its VoI
+    is meaningless — a trust-path primitive that gates real spend must
+    REJECT it, not compute a plausible-looking number from malformed input.
+    (Earlier revisions computed "the honest number from whatever was
+    supplied"; for a spend-gating primitive, refusing incoherent input is
+    the honest behavior.)
     """
     if isinstance(fetch_cost, bool) or not isinstance(fetch_cost, (int, float)):
         raise ValueError(f"fetch_cost must be a number; got {fetch_cost!r}.")
@@ -603,6 +618,7 @@ def voi(
 
     branch_total = 0.0
     posterior_loss = 0.0
+    mixture = {mode: 0.0 for mode in MODES}
     posterior_decisions: list[tuple[float, DecisionRecord]] = []
     for i, (branch_p, branch_probs) in enumerate(posterior_scenarios_if_fetched):
         if isinstance(branch_p, bool) or not isinstance(branch_p, (int, float)):
@@ -622,6 +638,8 @@ def voi(
         posterior_loss += (
             branch_p * branch_decision.expected_losses[branch_decision.chosen]
         )
+        for mode in MODES:
+            mixture[mode] += branch_p * branch_decision.mode_probs[mode]
         branch_total += branch_p
     if abs(branch_total - 1.0) > _SUM_EPS:
         raise ValueError(
@@ -629,6 +647,20 @@ def voi(
             f"{branch_total!r} — an incomplete fetch-outcome distribution "
             f"would silently bias the VoI."
         )
+    # Coherence: the branch-weighted mixture of posteriors must reproduce
+    # the current belief (law of total probability), or the scenario set is
+    # not a valid refinement and its VoI is meaningless (evaluator r9).
+    current = prior_decision.mode_probs
+    for mode in MODES:
+        if abs(mixture[mode] - current[mode]) > _SUM_EPS:
+            raise ValueError(
+                f"Incoherent posterior scenarios: the branch-weighted "
+                f"mixture P({mode})={mixture[mode]!r} does not reproduce "
+                f"current_mode_probs[{mode!r}]={current[mode]!r}. A fetch's "
+                f"outcome branches must average back to the current belief "
+                f"(law of total probability); VoI over an incoherent set is "
+                f"undefined and a spend-gating primitive must refuse it."
+            )
     gross = prior_loss - posterior_loss
     net = gross - fetch_cost
     return VoiRecord(
@@ -636,6 +668,7 @@ def voi(
         posterior_decisions=tuple(posterior_decisions),
         prior_expected_loss=prior_loss,
         posterior_expected_loss=posterior_loss,
+        fetch_cost=fetch_cost,
         gross_value=gross,
         net_value=net,
         fetch_worth_it=net > 0.0,
