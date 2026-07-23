@@ -89,14 +89,15 @@ def _forge_outcome(mode, wrong_fields):
 
 
 def _mk_voi(**kwargs):
-    """Build a VoiRecord past its factory guard, to exercise its OTHER
-    validations directly. Evaluator r12 made VoiRecord factory-only (only
-    voi() may mint one, guaranteeing a single cost matrix); real forgers
-    cannot obtain _VOI_MINT, so these defense-in-depth tests pass it to
-    reach the per-field checks. The guard itself is tested separately
-    (test_voi_record_is_factory_only)."""
-    from worker.convergence.decisions import VoiRecord, _VOI_MINT
-    return VoiRecord(_mint=_VOI_MINT, **kwargs)
+    """Build a VoiRecord directly, to exercise its validations. Evaluator
+    r13 replaced the r12 factory token (importable, convention-only) with
+    self-verifying matrix storage: VoiRecord is publicly constructible, but
+    every embedded DecisionRecord carries its cost matrix (verified against
+    its terms), and VoiRecord rejects decisions under different matrices —
+    so a directly-built VoiRecord can only be a legitimate single-matrix
+    VoI, not a cross-matrix forgery (test_forged_voi_record_cross_matrix)."""
+    from worker.convergence.decisions import VoiRecord
+    return VoiRecord(**kwargs)
 
 
 # --- Seed discipline: explicit, mandatory, replayable -------------------------
@@ -805,21 +806,26 @@ class TestExpectedLossAndDecide:
         # construction.
         from worker.convergence.decisions import DecisionRecord
 
+        # A valid matrix to satisfy the (last) matrix-verify field; each
+        # case below trips an EARLIER consistency check, so the matrix's
+        # exact values are irrelevant here.
+        mtx = CostMatrix(costs=DRAFT_COSTS)
         probs = {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 1.0}
         good_terms = {"hold": {"fully_wrong": 0.0, "partially_wrong": 0.0,
                                "right": 15.0}}
         # chosen not among the actions
         with pytest.raises(ValueError, match="not among"):
             DecisionRecord(chosen="ghost", expected_losses={"hold": 15.0},
-                           terms=good_terms, mode_probs=probs)
+                           terms=good_terms, mode_probs=probs, matrix=mtx)
         # total contradicts its own terms row
         with pytest.raises(ValueError, match="sum of its terms"):
             DecisionRecord(chosen="hold", expected_losses={"hold": 1.0},
-                           terms=good_terms, mode_probs=probs)
+                           terms=good_terms, mode_probs=probs, matrix=mtx)
         # a terms row missing a mode
         with pytest.raises(ValueError, match="exactly"):
             DecisionRecord(chosen="hold", expected_losses={"hold": 15.0},
-                           terms={"hold": {"right": 15.0}}, mode_probs=probs)
+                           terms={"hold": {"right": 15.0}}, mode_probs=probs,
+                           matrix=mtx)
         # chosen does not achieve the minimum
         with pytest.raises(ValueError, match="minimum expected loss"):
             DecisionRecord(
@@ -832,6 +838,7 @@ class TestExpectedLossAndDecide:
                                       "partially_wrong": 0.0, "right": 8.0},
                 },
                 mode_probs=probs,
+                matrix=mtx,
             )
 
     def test_nonzero_term_under_zero_probability_mode_fails_loud(self):
@@ -852,6 +859,7 @@ class TestExpectedLossAndDecide:
                                 "right": 15.0}},
                 mode_probs={"fully_wrong": 0.0, "partially_wrong": 0.0,
                             "right": 1.0},
+                matrix=CostMatrix(costs=DRAFT_COSTS),
             )
 
     def test_record_with_malformed_mode_probs_fails_loud(self):
@@ -862,13 +870,14 @@ class TestExpectedLossAndDecide:
 
         good_terms = {"hold": {"fully_wrong": 0.0, "partially_wrong": 0.0,
                                "right": 15.0}}
+        mtx = CostMatrix(costs=DRAFT_COSTS)
         with pytest.raises(ValueError, match="mode_probs"):
             DecisionRecord(chosen="hold", expected_losses={"hold": 15.0},
-                           terms=good_terms,
+                           terms=good_terms, matrix=mtx,
                            mode_probs={"fully_wrong": 0.5, "right": 0.5})
         with pytest.raises(ValueError, match="sum to 1"):
             DecisionRecord(chosen="hold", expected_losses={"hold": 15.0},
-                           terms=good_terms,
+                           terms=good_terms, matrix=mtx,
                            mode_probs={"fully_wrong": 0.2, "partially_wrong": 0.2,
                                        "right": 0.2})
 
@@ -889,7 +898,7 @@ class TestExpectedLossAndDecide:
                 chosen="hold", expected_losses={"hold": bad},
                 terms={"hold": {"fully_wrong": 0.0, "partially_wrong": 0.0,
                                 "right": bad}},
-                mode_probs=probs)
+                mode_probs=probs, matrix=CostMatrix(costs=DRAFT_COSTS))
 
     @pytest.mark.parametrize("tiny_bad", [-1e-12, 1.0 + 1e-12])
     def test_tiny_out_of_range_prob_rejected_exactly(self, tiny_bad):
@@ -1186,31 +1195,40 @@ class TestVoi:
                 fetch_worth_it=gross > 0,
             )
 
-    def test_voi_record_is_factory_only(self):
-        # Evaluator r12 (PR #54): VoiRecord is the only place decisions are
-        # compared across a fetch, so it is the only place the
-        # different-cost-matrix forgery can occur. Direct construction is
-        # refused — voi() is the sole minter and decides every branch under
-        # ONE matrix, closing that forgery at the root. (This replaces the
-        # withdrawn R-025 deferral.)
+    def test_forged_voi_record_cross_matrix_rejected(self):
+        # Evaluator r13 (PR #54): the cross-matrix forgery — prior decided
+        # under one value system, posterior under another — is closed by
+        # SELF-VERIFYING matrix storage, not by construction privacy. Each
+        # DecisionRecord carries its cost matrix (verified against its
+        # terms), and VoiRecord rejects decisions under different matrices.
+        # This replaces the r12 factory token, which was importable and so
+        # convention-only.
         from worker.convergence.decisions import VoiRecord
 
-        matrix = CostMatrix(costs=self.SMALL)
-        good = voi(self.PRIOR, self.PERFECT, 1.0, matrix)
-        with pytest.raises(ValueError, match="factory-only"):
-            VoiRecord(  # no _mint -> refused before any other check
-                prior_decision=good.prior_decision,
-                posterior_decisions=good.posterior_decisions,
-                prior_expected_loss=good.prior_expected_loss,
-                posterior_expected_loss=good.posterior_expected_loss,
-                fetch_cost=good.fetch_cost,
-                gross_value=good.gross_value,
-                net_value=good.net_value,
-                fetch_worth_it=good.fetch_worth_it,
+        matrix_a = CostMatrix(costs=self.SMALL)
+        matrix_b = CostMatrix(costs={
+            "show": {"fully_wrong": 10, "partially_wrong": 4, "right": 0},
+            "hold": {"fully_wrong": 0, "partially_wrong": 1, "right": 6},  # 5->6
+        })
+        actions = list(matrix_a.actions)
+        prior_dec = decide(actions, self.PRIOR, matrix_a)
+        branch_dec = decide(actions, self.PRIOR, matrix_b)  # DIFFERENT matrix
+        p_loss = prior_dec.expected_losses[prior_dec.chosen]
+        b_loss = branch_dec.expected_losses[branch_dec.chosen]
+        gross = p_loss - b_loss
+        with pytest.raises(ValueError, match="DIFFERENT cost matrix"):
+            VoiRecord(
+                prior_decision=prior_dec,
+                posterior_decisions=((1.0, branch_dec),),  # coherent, 1 branch
+                prior_expected_loss=p_loss,
+                posterior_expected_loss=b_loss,
+                fetch_cost=0.0,
+                gross_value=gross,
+                net_value=gross,
+                fetch_worth_it=gross > 0,
             )
-        # And a genuine voi() record still round-trips (the guard doesn't
-        # break the sole legitimate path).
-        assert voi(self.PRIOR, self.PERFECT, 1.0, matrix).fetch_cost == 1.0
+        # A genuine single-matrix voi() record still constructs fine.
+        assert voi(self.PRIOR, self.PERFECT, 1.0, matrix_a).fetch_cost == 1.0
 
     def test_voi_record_outer_list_frozen_to_tuple(self):
         # Evaluator r5/r8 (PR #54): an OUTER list of (prob, decision) TUPLE

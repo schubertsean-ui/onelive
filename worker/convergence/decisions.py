@@ -29,22 +29,11 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
 from worker.convergence.scenarios import MODES
-
-# Factory guard for VoiRecord (evaluator r12, PR #54). A VoiRecord is the
-# only place decisions are COMPARED across a fetch, so it is the only place
-# the "prior and posterior decided under different cost matrices" forgery
-# can occur. Making its construction factory-only — voi() is the sole
-# minter, and voi() decides every branch under ONE matrix — closes that
-# forgery at the root (no public constructor path exists to assemble
-# mismatched-matrix decisions). This is the mechanical fix the evaluator
-# named; it replaces the earlier bounded-deferral (former R-025), which was
-# the wrong call because the fix is local, not disproportionate.
-_VOI_MINT = object()
 
 # Tolerance for "these probabilities sum to 1" checks ONLY. Individual
 # probabilities are bounds-checked EXACTLY — [0, 1], no epsilon — matching
@@ -297,6 +286,13 @@ class DecisionRecord:
     expected_losses: Mapping[str, float]
     terms: Mapping[str, Mapping[str, float]]
     mode_probs: Mapping[str, float]
+    # The cost matrix the decision was computed under (evaluator r13). It is
+    # STORED and VERIFIED against the terms (terms == mode_probs * cost), so
+    # the stored matrix cannot lie about the value system the decision used —
+    # this is what lets VoiRecord reject a VoI whose prior and posterior were
+    # decided under DIFFERENT matrices, with self-verifying data rather than
+    # convention-only construction "privacy".
+    matrix: "CostMatrix"
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -379,6 +375,33 @@ class DecisionRecord:
                 f"(loss {self.expected_losses[self.chosen]!r}) does not "
                 f"achieve the minimum expected loss {best!r}."
             )
+        # Matrix truthfulness (evaluator r13): the stored matrix must be the
+        # one the terms were computed under — terms[a][m] == P(m)*cost(a,m).
+        # This makes the stored matrix self-verifying (a forged matrix would
+        # require forged terms), which is what lets VoiRecord's same-matrix
+        # check be real enforcement rather than convention.
+        if not isinstance(self.matrix, CostMatrix):
+            raise ValueError(
+                f"DecisionRecord.matrix must be a CostMatrix; got "
+                f"{type(self.matrix).__name__}."
+            )
+        unpriced = set(self.expected_losses) - set(self.matrix.actions)
+        if unpriced:
+            raise ValueError(
+                f"DecisionRecord actions {sorted(unpriced)!r} are not priced "
+                f"by the stored matrix (actions {list(self.matrix.actions)!r})."
+            )
+        for action, row in self.terms.items():
+            for mode in MODES:
+                expected = self.mode_probs[mode] * self.matrix.costs[action][mode]
+                if abs(row[mode] - expected) > _SUM_EPS:
+                    raise ValueError(
+                        f"DecisionRecord.terms[{action!r}][{mode!r}]="
+                        f"{row[mode]!r} does not equal mode_probs[{mode!r}] * "
+                        f"matrix.costs[{action!r}][{mode!r}]={expected!r} — the "
+                        f"stored matrix must be the value system the terms were "
+                        f"computed under (evaluator r13)."
+                    )
 
 
 def decide(
@@ -428,6 +451,7 @@ def decide(
         expected_losses=totals,
         terms=terms,
         mode_probs=probs,
+        matrix=matrix,
     )
 
 
@@ -466,22 +490,8 @@ class VoiRecord:
     gross_value: float
     net_value: float
     fetch_worth_it: bool
-    # Factory guard (evaluator r12): must be _VOI_MINT, which only voi()
-    # passes. Excluded from equality/repr and cleared after the check, so
-    # it never appears in the record's value or comparisons.
-    _mint: object = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
-        if self._mint is not _VOI_MINT:
-            raise ValueError(
-                "VoiRecord is factory-only: construct it via voi(), which "
-                "decides every branch under ONE cost matrix. Direct "
-                "construction is refused because it could assemble prior and "
-                "posterior decisions computed under DIFFERENT matrices — a "
-                "forged VoI that compares 'before' and 'after' under "
-                "different value systems (evaluator r12, PR #54)."
-            )
-        object.__setattr__(self, "_mint", None)  # never retained
         if not isinstance(self.prior_decision, DecisionRecord):
             raise ValueError(
                 f"VoiRecord.prior_decision must be a DecisionRecord; got "
@@ -597,12 +607,23 @@ class VoiRecord:
                     f"action set {sorted(prior_actions)!r} — VoI must compare "
                     f"the same options before and after the fetch."
                 )
-        # The SAME-cost-matrix guarantee (a branch must not be decided under
-        # a different/lower matrix than the prior) is closed at the ROOT by
-        # the factory guard above: voi() is the only minter and decides every
-        # branch under ONE matrix, so no VoiRecord with mismatched matrices
-        # can be constructed (evaluator r12 — the former R-025 deferral,
-        # withdrawn and fixed here).
+        # SAME cost matrix (evaluator r13, PR #54): every embedded decision
+        # must carry the SAME matrix as the prior, or the VoI compares
+        # "before" under one value system to "after" under another —
+        # fabricated value. Each DecisionRecord's stored matrix is
+        # self-verified against its terms (terms == P*cost), so a forger
+        # cannot fake a matching matrix without also matching terms; and this
+        # equality forces one matrix across the record. Together that closes
+        # the cross-matrix forgery with self-verifying data — replacing the
+        # r12 factory token, which was importable and thus convention-only.
+        prior_matrix = self.prior_decision.matrix
+        for i, (_, dec) in enumerate(self.posterior_decisions):
+            if dec.matrix != prior_matrix:
+                raise ValueError(
+                    f"VoiRecord.posterior_decisions[{i}] was decided under a "
+                    f"DIFFERENT cost matrix than the prior — VoI must compare "
+                    f"before and after under ONE value system (evaluator r13)."
+                )
         # Cross-field arithmetic must be recomputable from the record:
         # gross = prior - posterior, and net = gross - fetch_cost EXACTLY.
         # Storing fetch_cost (evaluator r9, PR #54) makes net recomputable
@@ -737,5 +758,4 @@ def voi(
         gross_value=gross,
         net_value=net,
         fetch_worth_it=net > 0.0,
-        _mint=_VOI_MINT,  # sole minting path — see the factory guard
     )
