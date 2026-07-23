@@ -1191,12 +1191,41 @@ class TestVoi:
         p_loss = prior_dec.expected_losses[prior_dec.chosen]
         o_loss = odd.expected_losses[odd.chosen]
         gross = p_loss - o_loss
-        with pytest.raises(ValueError, match="action set"):
+        with pytest.raises(ValueError, match="tie-break order"):
             _mk_voi(
                 prior_decision=prior_dec,
                 posterior_decisions=((1.0, odd),),
                 prior_expected_loss=p_loss,
                 posterior_expected_loss=o_loss,
+                fetch_cost=0.0,
+                gross_value=gross,
+                net_value=gross,
+                fetch_worth_it=gross > 0,
+            )
+
+    def test_forged_voi_record_different_tiebreak_order_rejected(self):
+        # Evaluator r15 (PR #54): the DECISION's action order is its
+        # tie-break policy (decide() breaks ties toward the earliest
+        # action), independent of matrix.actions. Same actions + same matrix
+        # but a different tie-break order is a different policy, and a set
+        # comparison would have missed it — the check compares ordered
+        # action tuples.
+        from worker.convergence.decisions import VoiRecord
+
+        matrix = CostMatrix(costs=self.SMALL)          # show, hold
+        prior_dec = decide(["show", "hold"], self.PRIOR, matrix)
+        # Same matrix, same action SET, DIFFERENT tie-break order.
+        branch_dec = decide(["hold", "show"], self.PRIOR, matrix)
+        assert tuple(prior_dec.expected_losses) != tuple(branch_dec.expected_losses)
+        p_loss = prior_dec.expected_losses[prior_dec.chosen]
+        b_loss = branch_dec.expected_losses[branch_dec.chosen]
+        gross = p_loss - b_loss
+        with pytest.raises(ValueError, match="tie-break order"):
+            VoiRecord(
+                prior_decision=prior_dec,
+                posterior_decisions=((1.0, branch_dec),),
+                prior_expected_loss=p_loss,
+                posterior_expected_loss=b_loss,
                 fetch_cost=0.0,
                 gross_value=gross,
                 net_value=gross,

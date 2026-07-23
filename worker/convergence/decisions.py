@@ -594,18 +594,24 @@ class VoiRecord:
                     f"posterior scenarios are not a valid refinement of the "
                     f"current belief, so the VoI is meaningless."
                 )
-        # Action-set consistency (evaluator r11, PR #54): every embedded
-        # decision must be over the SAME action set, or the VoI compares
-        # apples to oranges (a forger adding/removing actions in a branch
-        # would manufacture value). This is fully checkable from the record.
-        prior_actions = set(self.prior_decision.expected_losses)
+        # Action ORDER consistency (evaluator r11, tightened r15, PR #54):
+        # every embedded decision must be over the same actions IN THE SAME
+        # ORDER. The order is the decision's own tie-break policy — decide()
+        # breaks ties toward the earliest action in its `actions` argument,
+        # which is recorded as the key order of expected_losses (independent
+        # of matrix.actions). A set comparison would let a forger mix a prior
+        # and posterior decided under DIFFERENT tie-break orders while
+        # claiming one policy; comparing ordered tuples closes both the
+        # different-actions and the different-tie-break-order gaps.
+        prior_actions = tuple(self.prior_decision.expected_losses)
         for i, (_, dec) in enumerate(self.posterior_decisions):
-            if set(dec.expected_losses) != prior_actions:
+            if tuple(dec.expected_losses) != prior_actions:
                 raise ValueError(
                     f"VoiRecord.posterior_decisions[{i}] was decided over "
-                    f"actions {sorted(dec.expected_losses)!r}, not the prior's "
-                    f"action set {sorted(prior_actions)!r} — VoI must compare "
-                    f"the same options before and after the fetch."
+                    f"actions {list(dec.expected_losses)!r}, not the prior's "
+                    f"actions IN THE SAME tie-break order {list(prior_actions)!r} "
+                    f"— VoI must compare the same options under one policy "
+                    f"before and after the fetch."
                 )
         # SAME cost matrix (evaluator r13, PR #54): every embedded decision
         # must carry the SAME matrix as the prior, or the VoI compares
