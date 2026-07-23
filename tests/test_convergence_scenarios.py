@@ -77,6 +77,17 @@ def _stochastic_inputs():
     return field_opinions, source_reliabilities, field_sources
 
 
+def _forge_outcome(mode, wrong_fields):
+    """Build a WorldOutcome bypassing __post_init__ (object.__new__), to
+    exercise aggregate()'s OWN defense-in-depth checks — WorldOutcome now
+    rejects these states at construction (evaluator r8), but aggregate must
+    still catch a forged/deserialized outcome that never ran validation."""
+    o = object.__new__(WorldOutcome)
+    object.__setattr__(o, "mode", mode)
+    object.__setattr__(o, "wrong_fields", wrong_fields)
+    return o
+
+
 # --- Seed discipline: explicit, mandatory, replayable -------------------------
 
 class TestSeedDiscipline:
@@ -356,6 +367,48 @@ class TestClassification:
                   source_reliabilities={"venue_site": float("nan")})
 
 
+class TestWorldOutcomeConstruction:
+    """Evaluator r8 (PR #54): WorldOutcome is a public classified-world
+    audit record; its constructor fails loud on impossible states and
+    normalizes wrong_fields to an immutable tuple — the invariant holds at
+    construction, not merely when the outcome later reaches aggregate()."""
+
+    def test_bad_mode_rejected(self):
+        with pytest.raises(ValueError, match="must be one of"):
+            WorldOutcome(mode="sideways", wrong_fields=())
+
+    def test_wrong_fields_outside_partially_wrong_rejected(self):
+        for mode in (MODE_RIGHT, MODE_FULLY_WRONG):
+            with pytest.raises(ValueError, match="only partially_wrong"):
+                WorldOutcome(mode=mode, wrong_fields=("date",))
+
+    def test_partially_wrong_needs_a_field(self):
+        with pytest.raises(ValueError, match="at least one wrong field"):
+            WorldOutcome(mode=MODE_PARTIALLY_WRONG, wrong_fields=())
+
+    def test_duplicate_wrong_fields_rejected(self):
+        with pytest.raises(ValueError, match="duplicate"):
+            WorldOutcome(mode=MODE_PARTIALLY_WRONG,
+                         wrong_fields=("date", "date"))
+
+    def test_non_string_wrong_field_rejected(self):
+        with pytest.raises(ValueError, match="field-name strings"):
+            WorldOutcome(mode=MODE_PARTIALLY_WRONG, wrong_fields=(3,))
+
+    def test_list_wrong_fields_normalized_to_tuple(self):
+        # A mutable list is frozen to a tuple so the evidence cannot be
+        # edited after construction (the "mutable wrong_fields" concern).
+        o = WorldOutcome(mode=MODE_PARTIALLY_WRONG, wrong_fields=["date"])
+        assert isinstance(o.wrong_fields, tuple)
+        assert o.wrong_fields == ("date",)
+
+    def test_valid_outcomes_construct(self):
+        assert WorldOutcome(mode=MODE_RIGHT, wrong_fields=()).wrong_fields == ()
+        assert WorldOutcome(
+            mode=MODE_PARTIALLY_WRONG, wrong_fields=("date", "start_time")
+        ).mode == MODE_PARTIALLY_WRONG
+
+
 # --- Aggregation: hand-computed golden ----------------------------------------
 
 class TestAggregation:
@@ -404,8 +457,10 @@ class TestAggregation:
             aggregate([], ["date"])
 
     def test_unknown_mode_fails_loud(self):
+        # aggregate() still defends against a forged outcome that bypassed
+        # WorldOutcome's own construction check (object.__new__).
         with pytest.raises(ValueError, match="Unknown outcome mode"):
-            aggregate([WorldOutcome(mode="sideways", wrong_fields=())], [])
+            aggregate([_forge_outcome("sideways", ())], [])
 
     def test_wrong_field_outside_field_names_fails_loud(self):
         with pytest.raises(ValueError, match="not in field_names"):
@@ -488,27 +543,24 @@ class TestAggregation:
     # outcomes would contradict its own mode_probs.
     @pytest.mark.parametrize("mode", [MODE_RIGHT, MODE_FULLY_WRONG])
     def test_wrong_fields_outside_partially_wrong_fails_loud(self, mode):
+        # aggregate() defense against a forged outcome (bypasses the
+        # WorldOutcome construction check tested in TestWorldOutcome).
         with pytest.raises(ValueError, match="only partially_wrong"):
-            aggregate(
-                [WorldOutcome(mode=mode, wrong_fields=("date",))], ["date"]
-            )
+            aggregate([_forge_outcome(mode, ("date",))], ["date"])
 
     def test_partially_wrong_without_fields_fails_loud(self):
         with pytest.raises(ValueError, match="empty wrong_fields"):
-            aggregate(
-                [WorldOutcome(mode=MODE_PARTIALLY_WRONG, wrong_fields=())],
-                ["date"],
-            )
+            aggregate([_forge_outcome(MODE_PARTIALLY_WRONG, ())], ["date"])
 
     def test_duplicate_wrong_fields_fail_loud(self):
         # Evaluator r2 (PR #54): a duplicated field name would be counted
         # twice, pushing field_failure_rates / partial_attribution past
         # 1.0 — impossible probabilities in audit evidence. wrong_fields
-        # is a set of names, never a multiset.
+        # is a set of names, never a multiset. (Forged outcome: aggregate
+        # defends even when WorldOutcome's own dedup check was bypassed.)
         with pytest.raises(ValueError, match="duplicate wrong_fields"):
             aggregate(
-                [WorldOutcome(mode=MODE_PARTIALLY_WRONG,
-                              wrong_fields=("date", "date"))],
+                [_forge_outcome(MODE_PARTIALLY_WRONG, ("date", "date"))],
                 ["date"],
             )
 
@@ -995,22 +1047,37 @@ class TestVoi:
                 fetch_worth_it=(good.prior_expected_loss - bad_post - 1.0) > 0,
             )
 
-    def test_voi_record_posterior_decisions_frozen_to_tuple(self):
-        # A list supplied by a forger is frozen to a tuple at construction
-        # (evaluator r5, PR #54 — audit evidence is immutable).
+    def test_voi_record_outer_list_frozen_to_tuple(self):
+        # Evaluator r5/r8 (PR #54): an OUTER list of (prob, decision) TUPLE
+        # pairs is normalized to a tuple at construction (audit evidence is
+        # immutable). Note the accepted shape precisely: each PAIR must
+        # itself be a tuple — a list-pair is rejected, verified below — so
+        # this only freezes the outer container, not inner pairs.
         from worker.convergence.decisions import VoiRecord
 
         matrix = CostMatrix(costs=self.SMALL)
         good = voi(self.PRIOR, self.PERFECT, 1.0, matrix)
         rebuilt = VoiRecord(
             prior_decision=good.prior_decision,
-            posterior_decisions=list(good.posterior_decisions),  # a LIST
+            posterior_decisions=list(good.posterior_decisions),  # outer LIST
             prior_expected_loss=good.prior_expected_loss,
             posterior_expected_loss=good.posterior_expected_loss,
             gross_value=good.gross_value, net_value=good.net_value,
             fetch_worth_it=good.fetch_worth_it,
         )
         assert isinstance(rebuilt.posterior_decisions, tuple)
+        # A list-PAIR (rather than a tuple pair) is rejected — the accepted
+        # shape is exactly (prob, DecisionRecord) tuples.
+        bp, dec = good.posterior_decisions[0]
+        with pytest.raises(ValueError, match="must be a"):
+            VoiRecord(
+                prior_decision=good.prior_decision,
+                posterior_decisions=[[bp, dec]],  # list pair, not tuple
+                prior_expected_loss=good.prior_expected_loss,
+                posterior_expected_loss=good.posterior_expected_loss,
+                gross_value=good.gross_value, net_value=good.net_value,
+                fetch_worth_it=good.fetch_worth_it,
+            )
 
 
 # --- Shadow isolation (C2 invariant: zero product-path coupling) --------------

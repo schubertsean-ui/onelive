@@ -108,10 +108,48 @@ class WorldOutcome:
     `fully_wrong` (the event is not real, so per-field errors inside a
     phantom world are not separately attributable — spec §5 grades partial
     modes only within right-event worlds).
+
+    A classified world is audit evidence, so the public constructor fails
+    loud on impossible states and normalizes `wrong_fields` to an immutable
+    tuple (evaluator r8, PR #54): the mode must be a real mode; wrong_fields
+    must be unique strings; and the WorldOutcome invariant — wrong_fields
+    non-empty iff partially_wrong — holds at construction, not merely when
+    the outcome later reaches aggregate(). aggregate() keeps its own checks
+    as defense in depth (against object.__new__ forgeries and because it
+    ALSO enforces field-membership, which a lone outcome cannot know).
     """
 
     mode: str
     wrong_fields: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if self.mode not in MODES:
+            raise ValueError(
+                f"WorldOutcome.mode={self.mode!r} must be one of {MODES!r}."
+            )
+        wf = tuple(self.wrong_fields)  # normalize list -> immutable tuple
+        for name in wf:
+            if not isinstance(name, str):
+                raise ValueError(
+                    f"WorldOutcome.wrong_fields must be field-name strings; "
+                    f"got {name!r}."
+                )
+        if len(set(wf)) != len(wf):
+            raise ValueError(
+                f"WorldOutcome.wrong_fields has duplicate(s): {wf!r} — a "
+                f"field is wrong once per world."
+            )
+        if self.mode == MODE_PARTIALLY_WRONG and not wf:
+            raise ValueError(
+                "WorldOutcome partially_wrong must name at least one wrong "
+                "field (spec §5 carries WHICH field)."
+            )
+        if self.mode != MODE_PARTIALLY_WRONG and wf:
+            raise ValueError(
+                f"WorldOutcome mode {self.mode!r} carries wrong_fields {wf!r}; "
+                f"only partially_wrong attributes per-field failures."
+            )
+        object.__setattr__(self, "wrong_fields", wf)
 
 
 @dataclass(frozen=True)
