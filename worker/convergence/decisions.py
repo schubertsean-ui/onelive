@@ -207,12 +207,32 @@ class DecisionRecord:
     `terms[action][mode]` = P(mode) * cost(action, mode); summing a row
     gives `expected_losses[action]`; `chosen` is the argmin, ties broken
     deterministically toward the earliest action in the caller's order.
+
+    Like CostMatrix, the mappings are made DEEPLY READ-ONLY at
+    construction (evaluator r2, PR #54): a decision record is audit
+    evidence, and evidence that can be edited after the fact is not
+    evidence.
     """
 
     chosen: str
-    expected_losses: dict[str, float]
-    terms: dict[str, dict[str, float]]
-    mode_probs: dict[str, float]
+    expected_losses: Mapping[str, float]
+    terms: Mapping[str, Mapping[str, float]]
+    mode_probs: Mapping[str, float]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "expected_losses", MappingProxyType(dict(self.expected_losses))
+        )
+        object.__setattr__(
+            self,
+            "terms",
+            MappingProxyType(
+                {a: MappingProxyType(dict(row)) for a, row in self.terms.items()}
+            ),
+        )
+        object.__setattr__(
+            self, "mode_probs", MappingProxyType(dict(self.mode_probs))
+        )
 
 
 def decide(
@@ -279,6 +299,10 @@ class VoiRecord:
                                cost-discipline charter: spend follows
                                decision value; a fetch that merely breaks
                                even is not bought).
+
+    Deeply immutable like DecisionRecord: every mapping it reaches lives
+    inside its (deep-frozen) DecisionRecords, its own fields are scalars
+    and tuples.
     """
 
     prior_decision: DecisionRecord

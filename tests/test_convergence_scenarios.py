@@ -236,6 +236,20 @@ class TestSampling:
                 "exists", 10, seed=1,
             )
 
+    def test_unused_source_reliability_fails_loud(self):
+        # Evaluator r2 (PR #54): an unused reliability row would still be
+        # sampled, silently shifting the RNG stream — same seed, different
+        # worlds whenever an irrelevant source is added, which spec §9
+        # replayability forbids. The input set must be exactly the sampled
+        # set.
+        with pytest.raises(ValueError, match="referenced by no field"):
+            sample_worlds(
+                {"exists": ALWAYS_TRUE},
+                {"venue_site": ALWAYS_TRUE, "idle_feed": ALWAYS_TRUE},
+                {"exists": ("venue_site",)},
+                "exists", 10, seed=1,
+            )
+
     def test_unknown_field_in_field_sources_fails_loud(self):
         with pytest.raises(ValueError, match="unknown field"):
             sample_worlds(
@@ -370,6 +384,18 @@ class TestAggregation:
         with pytest.raises(ValueError, match="empty wrong_fields"):
             aggregate(
                 [WorldOutcome(mode=MODE_PARTIALLY_WRONG, wrong_fields=())],
+                ["date"],
+            )
+
+    def test_duplicate_wrong_fields_fail_loud(self):
+        # Evaluator r2 (PR #54): a duplicated field name would be counted
+        # twice, pushing field_failure_rates / partial_attribution past
+        # 1.0 — impossible probabilities in audit evidence. wrong_fields
+        # is a set of names, never a multiset.
+        with pytest.raises(ValueError, match="duplicate wrong_fields"):
+            aggregate(
+                [WorldOutcome(mode=MODE_PARTIALLY_WRONG,
+                              wrong_fields=("date", "date"))],
                 ["date"],
             )
 
@@ -531,6 +557,25 @@ class TestExpectedLossAndDecide:
         matrix = CostMatrix(costs=DRAFT_COSTS)
         with pytest.raises(ValueError):
             expected_loss("hold", bad_probs, matrix)
+
+    def test_decision_record_is_deeply_immutable(self):
+        # Evaluator r2 (PR #54): a decision record is audit evidence, and
+        # evidence that can be edited after the fact is not evidence —
+        # same discipline as CostMatrix, both nesting levels.
+        matrix = CostMatrix(costs=DRAFT_COSTS)
+        record = decide(
+            ["hold", "surface_likely"],
+            {"fully_wrong": 0.2, "partially_wrong": 0.3, "right": 0.5},
+            matrix,
+        )
+        with pytest.raises(TypeError):
+            record.expected_losses["hold"] = 0.0
+        with pytest.raises(TypeError):
+            record.terms["hold"]["right"] = 0.0
+        with pytest.raises(TypeError):
+            record.terms["hold"] = {}
+        with pytest.raises(TypeError):
+            record.mode_probs["right"] = 1.0
 
     @pytest.mark.parametrize("tiny_bad", [-1e-12, 1.0 + 1e-12])
     def test_tiny_out_of_range_prob_rejected_exactly(self, tiny_bad):

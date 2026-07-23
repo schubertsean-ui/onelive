@@ -184,6 +184,18 @@ def sample_worlds(
                 f"with no reliability opinion; a source without a measured "
                 f"reliability cannot enter the sampler (spec §5/§7)."
             )
+    referenced = {src for sources in field_sources.values() for src in sources}
+    unused = set(source_reliabilities) - referenced
+    if unused:
+        raise ValueError(
+            f"source_reliabilities contains source(s) {sorted(unused)!r} "
+            f"referenced by no field in field_sources; an unused row would "
+            f"still be sampled, silently shifting the RNG stream for every "
+            f"subsequent draw — the same seed would yield different worlds "
+            f"whenever an irrelevant source is added, which spec §9 "
+            f"replayability forbids (evaluator r2, PR #54). Pass exactly "
+            f"the sources the fields cite."
+        )
 
     rng = Random(seed)
     # Sorted iteration order makes the draw sequence a pure function of the
@@ -272,6 +284,15 @@ def aggregate(
                     f"mode asserts a field failed but names none — an "
                     f"unattributable partial failure cannot enter the "
                     f"attribution (spec §5 carries WHICH field)."
+                )
+            if len(set(outcome.wrong_fields)) != len(outcome.wrong_fields):
+                raise ValueError(
+                    f"partially_wrong outcome names duplicate wrong_fields "
+                    f"{outcome.wrong_fields!r}: a field is wrong once per "
+                    f"world, and counting a duplicate would push failure "
+                    f"rates past 1.0 — impossible probabilities in the "
+                    f"audit evidence (evaluator r2, PR #54). wrong_fields "
+                    f"is a set of names, never a multiset."
                 )
             n_partial += 1
         elif outcome.wrong_fields:
