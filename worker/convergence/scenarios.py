@@ -309,6 +309,17 @@ def sample_worlds(
             f"field_opinions."
         )
     for fname, sources in field_sources.items():
+        # A bare string is iterable and would be silently consumed
+        # character-by-character as "sources" (evaluator r6 nit, PR #54):
+        # require an actual list/tuple sequence so a misconfiguration like
+        # {"date": "venue_site"} fails loud with a clear message instead of
+        # citing unknown single-character sources.
+        if isinstance(sources, str) or not isinstance(sources, (list, tuple)):
+            raise ValueError(
+                f"field {fname!r} sources must be a list/tuple of source "
+                f"names, not {type(sources).__name__}: {sources!r} (a bare "
+                f"string would be iterated character by character)."
+            )
         if len(set(sources)) != len(tuple(sources)):
             raise ValueError(
                 f"field {fname!r} lists duplicate source(s) in {tuple(sources)!r}; "

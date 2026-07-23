@@ -241,6 +241,17 @@ class TestSampling:
                 "exists", 10, seed=1,
             )
 
+    def test_string_field_sources_value_fails_loud(self):
+        # Evaluator r6 nit (PR #54): a bare string is iterable and would be
+        # consumed character-by-character; require a real sequence.
+        with pytest.raises(ValueError, match="not str|list/tuple"):
+            sample_worlds(
+                {"exists": ALWAYS_TRUE},
+                {"venue_site": ALWAYS_TRUE},
+                {"exists": "venue_site"},  # string, not ("venue_site",)
+                "exists", 10, seed=1,
+            )
+
     def test_duplicate_source_in_field_sources_fails_loud(self):
         # Evaluator r4 (PR #54): a duplicated source double-discounts the
         # field's opinion (trust_discount runs once per entry), and the
@@ -928,6 +939,40 @@ class TestVoi:
                 posterior_expected_loss=good.posterior_expected_loss,
                 gross_value=good.gross_value, net_value=good.net_value,
                 fetch_worth_it=good.fetch_worth_it,
+            )
+
+    def test_voi_record_scalar_losses_must_match_embedded_decisions(self):
+        # Evaluator r6 (PR #54): the scalar loss summaries must agree with
+        # the DecisionRecords they summarize — otherwise the record holds
+        # two contradictory representations of the same quantity.
+        from worker.convergence.decisions import VoiRecord
+
+        matrix = CostMatrix(costs=self.SMALL)
+        good = voi(self.PRIOR, self.PERFECT, 1.0, matrix)
+        # prior_expected_loss disagrees with prior_decision's chosen loss.
+        # (Recompute a self-consistent gross/net so ONLY this check fires.)
+        bad_prior = good.prior_expected_loss + 1.0
+        with pytest.raises(ValueError, match="prior_decision's chosen loss"):
+            VoiRecord(
+                prior_decision=good.prior_decision,
+                posterior_decisions=good.posterior_decisions,
+                prior_expected_loss=bad_prior,
+                posterior_expected_loss=good.posterior_expected_loss,
+                gross_value=bad_prior - good.posterior_expected_loss,
+                net_value=bad_prior - good.posterior_expected_loss - 1.0,
+                fetch_worth_it=(bad_prior - good.posterior_expected_loss - 1.0) > 0,
+            )
+        # posterior_expected_loss disagrees with the branch-weighted mixture.
+        bad_post = good.posterior_expected_loss + 1.0
+        with pytest.raises(ValueError, match="branch-weighted mixture"):
+            VoiRecord(
+                prior_decision=good.prior_decision,
+                posterior_decisions=good.posterior_decisions,
+                prior_expected_loss=good.prior_expected_loss,
+                posterior_expected_loss=bad_post,
+                gross_value=good.prior_expected_loss - bad_post,
+                net_value=good.prior_expected_loss - bad_post - 1.0,
+                fetch_worth_it=(good.prior_expected_loss - bad_post - 1.0) > 0,
             )
 
     def test_voi_record_posterior_decisions_frozen_to_tuple(self):

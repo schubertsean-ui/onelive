@@ -486,6 +486,34 @@ class VoiRecord:
                 f"{branch_total!r}."
             )
         object.__setattr__(self, "posterior_decisions", tuple(frozen))
+        # Cross-OBJECT consistency (evaluator r6, PR #54): a VoiRecord holds
+        # the same quantities in two representations — scalar loss summaries
+        # AND the embedded DecisionRecords they summarize — so the two must
+        # agree, or the record is internally contradictory audit evidence
+        # while still satisfying the scalar-only checks below. prior loss is
+        # the prior decision's chosen loss; posterior loss is the
+        # branch-probability-weighted mixture of each branch decision's
+        # chosen loss (exactly what voi() computes).
+        prior_from_decision = self.prior_decision.expected_losses[
+            self.prior_decision.chosen
+        ]
+        if abs(self.prior_expected_loss - prior_from_decision) > _SUM_EPS:
+            raise ValueError(
+                f"VoiRecord.prior_expected_loss={self.prior_expected_loss!r} "
+                f"does not match prior_decision's chosen loss "
+                f"{prior_from_decision!r}."
+            )
+        posterior_from_decisions = sum(
+            bp * dec.expected_losses[dec.chosen]
+            for bp, dec in self.posterior_decisions
+        )
+        if abs(self.posterior_expected_loss - posterior_from_decisions) > _SUM_EPS:
+            raise ValueError(
+                f"VoiRecord.posterior_expected_loss="
+                f"{self.posterior_expected_loss!r} does not match the "
+                f"branch-weighted mixture of the posterior decisions' chosen "
+                f"losses ({posterior_from_decisions!r})."
+            )
         # Cross-field arithmetic must be recomputable from the record:
         # gross = prior - posterior, and net = gross - (non-negative cost)
         # so net can never EXCEED gross. fetch_worth_it is exactly net>0.
