@@ -171,6 +171,53 @@ class ScenarioSummary:
             raise ValueError(
                 f"ScenarioSummary.mode_probs must sum to 1; got {mode_total!r}."
             )
+        # Cross-field invariant (evaluator r5, PR #54). A field can only be
+        # wrong INSIDE a partially_wrong world, so by construction
+        #   field_failure_rates[f] = partial_attribution[f] * P(partially_wrong)
+        # exactly (count_f/n = (count_f/n_partial) * (n_partial/n)), and both
+        # collapse to zero when no world is partially wrong. Enforcing the
+        # identity here makes a contradictory summary — e.g. a nonzero
+        # failure rate with P(partially_wrong)=0, or a rate exceeding the
+        # partial probability — unconstructable, not just unproduced.
+        pw = self.mode_probs[MODE_PARTIALLY_WRONG]
+        if self.partial_attribution:
+            if pw <= 1e-9:
+                raise ValueError(
+                    f"ScenarioSummary: partial_attribution is non-empty but "
+                    f"P(partially_wrong)={pw!r} — no partially_wrong world "
+                    f"means no per-field attribution is defined."
+                )
+            if set(self.partial_attribution) != set(self.field_failure_rates):
+                raise ValueError(
+                    f"ScenarioSummary: partial_attribution fields "
+                    f"{sorted(self.partial_attribution)!r} and "
+                    f"field_failure_rates fields "
+                    f"{sorted(self.field_failure_rates)!r} must match."
+                )
+            for f, rate in self.field_failure_rates.items():
+                expected = self.partial_attribution[f] * pw
+                if abs(rate - expected) > 1e-9:
+                    raise ValueError(
+                        f"ScenarioSummary: field_failure_rates[{f!r}]={rate!r} "
+                        f"contradicts partial_attribution[{f!r}] * "
+                        f"P(partially_wrong) = {expected!r} (a field's overall "
+                        f"failure rate is exactly its partial-conditional rate "
+                        f"times the partial probability)."
+                    )
+        else:
+            if pw > 1e-9:
+                raise ValueError(
+                    f"ScenarioSummary: partial_attribution is empty but "
+                    f"P(partially_wrong)={pw!r} > 0 — a partially_wrong world "
+                    f"must carry its per-field attribution."
+                )
+            for f, rate in self.field_failure_rates.items():
+                if rate > 1e-9:
+                    raise ValueError(
+                        f"ScenarioSummary: field_failure_rates[{f!r}]={rate!r} "
+                        f"is nonzero while no world is partially wrong — a "
+                        f"field can only fail inside a partially_wrong world."
+                    )
         for name in ("mode_probs", "field_failure_rates", "partial_attribution"):
             object.__setattr__(
                 self, name, MappingProxyType(dict(getattr(self, name)))

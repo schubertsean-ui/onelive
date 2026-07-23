@@ -115,6 +115,15 @@ class TestSeedDiscipline:
         # random.Random's distribution algorithms, spec §9 replayability is
         # broken and this test says so loudly instead of letting recorded
         # seeds silently stop reproducing their audited summaries.
+        #
+        # SUPPORTED-VERSION BOUNDARY (evaluator r5 nit, PR #54): these
+        # goldens are deliberately coupled to CPython's random.Random
+        # (Mersenne Twister) betavariate/random implementation. They hold
+        # on CPython 3.12 (the CI + worker runtime, worker/requirements +
+        # setup-python 3.12). A CPython minor/major bump that alters those
+        # algorithms is EXPECTED to fail here — that is the drift alarm, not
+        # a flaky test; re-pin the goldens against the new interpreter and
+        # note the version in docs/evidence when replay provenance moves.
         fo, sr, fs = _stochastic_inputs()
         a = run_scenarios(fo, sr, fs, "exists", 300, seed=1)
         b = run_scenarios(fo, sr, fs, "exists", 300, seed=2)
@@ -425,6 +434,43 @@ class TestAggregation:
                             MODE_RIGHT: 0.1},
                 field_failure_rates={}, partial_attribution={})
 
+    def test_scenario_summary_cross_field_invariant_enforced(self):
+        # Evaluator r5 (PR #54): field_failure_rates[f] must equal
+        # partial_attribution[f] * P(partially_wrong) exactly — a field can
+        # only fail inside a partially_wrong world.
+        from worker.convergence.scenarios import ScenarioSummary
+
+        # nonzero failure rate while no world is partially wrong
+        with pytest.raises(ValueError, match="no world is partially wrong"):
+            ScenarioSummary(
+                n_worlds=4,
+                mode_probs={MODE_FULLY_WRONG: 0.5, MODE_PARTIALLY_WRONG: 0.0,
+                            MODE_RIGHT: 0.5},
+                field_failure_rates={"date": 0.5}, partial_attribution={})
+        # partial probability > 0 but no attribution carried
+        with pytest.raises(ValueError, match="partial_attribution is empty"):
+            ScenarioSummary(
+                n_worlds=4,
+                mode_probs={MODE_FULLY_WRONG: 0.25, MODE_PARTIALLY_WRONG: 0.5,
+                            MODE_RIGHT: 0.25},
+                field_failure_rates={"date": 0.0}, partial_attribution={})
+        # rate contradicts the identity (0.9 != 1.0 * 0.5)
+        with pytest.raises(ValueError, match="contradicts"):
+            ScenarioSummary(
+                n_worlds=4,
+                mode_probs={MODE_FULLY_WRONG: 0.25, MODE_PARTIALLY_WRONG: 0.5,
+                            MODE_RIGHT: 0.25},
+                field_failure_rates={"date": 0.9},
+                partial_attribution={"date": 1.0})
+        # the consistent construction is accepted
+        ok = ScenarioSummary(
+            n_worlds=4,
+            mode_probs={MODE_FULLY_WRONG: 0.25, MODE_PARTIALLY_WRONG: 0.5,
+                        MODE_RIGHT: 0.25},
+            field_failure_rates={"date": 0.5},
+            partial_attribution={"date": 1.0})
+        assert ok.field_failure_rates["date"] == 0.5
+
     # Evaluator r1 (PR #54): aggregate() must ENFORCE the WorldOutcome
     # invariant (wrong_fields iff partially_wrong), not assume it — a
     # summary quietly counting field failures from `right`/`fully_wrong`
@@ -689,6 +735,24 @@ class TestExpectedLossAndDecide:
                 mode_probs=probs,
             )
 
+    def test_record_with_malformed_mode_probs_fails_loud(self):
+        # Evaluator r5 (PR #54): the record CARRIES the distribution its
+        # arithmetic was computed under, so a forged record with malformed
+        # mode_probs (missing mode / doesn't sum to 1 / NaN) must fail.
+        from worker.convergence.decisions import DecisionRecord
+
+        good_terms = {"hold": {"fully_wrong": 0.0, "partially_wrong": 0.0,
+                               "right": 15.0}}
+        with pytest.raises(ValueError, match="mode_probs"):
+            DecisionRecord(chosen="hold", expected_losses={"hold": 15.0},
+                           terms=good_terms,
+                           mode_probs={"fully_wrong": 0.5, "right": 0.5})
+        with pytest.raises(ValueError, match="sum to 1"):
+            DecisionRecord(chosen="hold", expected_losses={"hold": 15.0},
+                           terms=good_terms,
+                           mode_probs={"fully_wrong": 0.2, "partially_wrong": 0.2,
+                                       "right": 0.2})
+
     @pytest.mark.parametrize("bad", [float("nan"), float("inf"), -1.0])
     def test_non_finite_or_negative_audit_arithmetic_fails_loud(self, bad):
         # Evaluator r4 (PR #54): NaN slips past `abs(nan) > eps` (all NaN
@@ -699,7 +763,9 @@ class TestExpectedLossAndDecide:
         from worker.convergence.decisions import DecisionRecord
 
         probs = {"fully_wrong": 0.0, "partially_wrong": 0.0, "right": 1.0}
-        with pytest.raises(ValueError, match="finite non-negative"):
+        # NaN/inf trip the finite check; -1.0 trips the non-negative check —
+        # both messages contain "finite".
+        with pytest.raises(ValueError, match="finite"):
             DecisionRecord(
                 chosen="hold", expected_losses={"hold": bad},
                 terms={"hold": {"fully_wrong": 0.0, "partially_wrong": 0.0,
@@ -819,6 +885,68 @@ class TestVoi:
         with pytest.raises(ValueError, match="fetch_cost"):
             voi(self.PRIOR, self.PERFECT, bad_cost, CostMatrix(costs=self.SMALL))
 
+    def test_forged_voi_record_fails_loud(self):
+        # Evaluator r5 (PR #54): VoiRecord is audit evidence — its public
+        # constructor must reject internally contradictory records.
+        from worker.convergence.decisions import VoiRecord
+
+        matrix = CostMatrix(costs=self.SMALL)
+        good = voi(self.PRIOR, self.PERFECT, 1.0, matrix)  # net 2.0, worth-it
+        # net < 0 marked worth-it: the contradiction the field exists to bar.
+        with pytest.raises(ValueError, match="fetch_worth_it"):
+            VoiRecord(
+                prior_decision=good.prior_decision,
+                posterior_decisions=good.posterior_decisions,
+                prior_expected_loss=good.prior_expected_loss,
+                posterior_expected_loss=good.posterior_expected_loss,
+                gross_value=good.gross_value,
+                net_value=-1.0, fetch_worth_it=True,
+            )
+        # gross must equal prior - posterior.
+        with pytest.raises(ValueError, match="does not equal"):
+            VoiRecord(
+                prior_decision=good.prior_decision,
+                posterior_decisions=good.posterior_decisions,
+                prior_expected_loss=3.0, posterior_expected_loss=0.0,
+                gross_value=99.0, net_value=98.0, fetch_worth_it=True,
+            )
+        # NaN loss field.
+        with pytest.raises(ValueError, match="finite"):
+            VoiRecord(
+                prior_decision=good.prior_decision,
+                posterior_decisions=good.posterior_decisions,
+                prior_expected_loss=float("nan"), posterior_expected_loss=0.0,
+                gross_value=0.0, net_value=0.0, fetch_worth_it=False,
+            )
+        # branch probabilities that do not sum to 1.
+        bad_branches = (good.posterior_decisions[0],)  # only one branch, p=0.4
+        with pytest.raises(ValueError, match="sum to 1"):
+            VoiRecord(
+                prior_decision=good.prior_decision,
+                posterior_decisions=bad_branches,
+                prior_expected_loss=good.prior_expected_loss,
+                posterior_expected_loss=good.posterior_expected_loss,
+                gross_value=good.gross_value, net_value=good.net_value,
+                fetch_worth_it=good.fetch_worth_it,
+            )
+
+    def test_voi_record_posterior_decisions_frozen_to_tuple(self):
+        # A list supplied by a forger is frozen to a tuple at construction
+        # (evaluator r5, PR #54 — audit evidence is immutable).
+        from worker.convergence.decisions import VoiRecord
+
+        matrix = CostMatrix(costs=self.SMALL)
+        good = voi(self.PRIOR, self.PERFECT, 1.0, matrix)
+        rebuilt = VoiRecord(
+            prior_decision=good.prior_decision,
+            posterior_decisions=list(good.posterior_decisions),  # a LIST
+            prior_expected_loss=good.prior_expected_loss,
+            posterior_expected_loss=good.posterior_expected_loss,
+            gross_value=good.gross_value, net_value=good.net_value,
+            fetch_worth_it=good.fetch_worth_it,
+        )
+        assert isinstance(rebuilt.posterior_decisions, tuple)
+
 
 # --- Shadow isolation (C2 invariant: zero product-path coupling) --------------
 
@@ -843,7 +971,8 @@ class TestShadowIsolation:
         repo_root = os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.abspath(scen.__file__))))
         path = os.path.join(repo_root, *rel_path.split("/"))
-        source = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as f:  # r5 nit: no leaked fd
+            source = f.read()
         tree = ast.parse(source)
         imported = set()
         for node in ast.walk(tree):

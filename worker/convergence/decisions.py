@@ -43,21 +43,33 @@ from worker.convergence.scenarios import MODES
 _SUM_EPS = 1e-6
 
 
-def _require_audit_number(label: str, value: object) -> float:
-    """Every number that enters an audit record must be a finite,
-    non-negative real (evaluator r4, PR #54). This is stricter than a
-    bare `> _SUM_EPS` comparison, which a NaN silently passes (all NaN
-    comparisons are false) — a fabricated record carrying NaN losses
-    would look internally consistent while being un-recomputable."""
+def _require_finite(label: str, value: object) -> float:
+    """A number that enters an audit record must be a finite real
+    (evaluator r4/r5, PR #54) — NaN silently passes a bare `> _SUM_EPS`
+    comparison (all NaN comparisons are false), so a fabricated record
+    carrying NaN would look internally consistent while being
+    un-recomputable. Sign is NOT constrained here (a VoI gross/net value
+    is legitimately negative)."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(
-            f"DecisionRecord: {label} must be a number; got "
+            f"{label} must be a number; got "
             f"{type(value).__name__}: {value!r}."
         )
     num = float(value)
-    if not math.isfinite(num) or num < 0.0:
+    if not math.isfinite(num):
         raise ValueError(
-            f"DecisionRecord: {label}={num!r} must be a finite non-negative "
+            f"{label}={num!r} must be finite — NaN/inf is not audit evidence."
+        )
+    return num
+
+
+def _require_audit_number(label: str, value: object) -> float:
+    """A loss that enters an audit record must be finite AND non-negative
+    (evaluator r4, PR #54)."""
+    num = _require_finite(label, value)
+    if num < 0.0:
+        raise ValueError(
+            f"{label}={num!r} must be a finite non-negative "
             f"loss — NaN/inf/negative arithmetic is not audit evidence."
         )
     return num
@@ -289,6 +301,13 @@ class DecisionRecord:
         object.__setattr__(
             self, "mode_probs", MappingProxyType(dict(self.mode_probs))
         )
+        # The record CARRIES the distribution its arithmetic was computed
+        # under, so that distribution must itself be well-formed (exactly
+        # the three modes, each in [0, 1], summing to 1) — otherwise the
+        # public constructor could stamp audit evidence with missing/extra
+        # modes or NaN/negative probabilities (evaluator r5, PR #54). decide()
+        # already validates before building, so this only bites forgeries.
+        _validate_mode_probs(self.mode_probs)
         if set(self.terms) != set(self.expected_losses) or not self.expected_losses:
             raise ValueError(
                 f"DecisionRecord: terms actions {sorted(self.terms)!r} and "
@@ -301,7 +320,7 @@ class DecisionRecord:
                 f"evaluated actions {sorted(self.expected_losses)!r}."
             )
         for action, total in self.expected_losses.items():
-            _require_audit_number(f"expected_losses[{action!r}]", total)
+            _require_audit_number(f"DecisionRecord.expected_losses[{action!r}]", total)
         for action, row in self.terms.items():
             if set(row) != set(MODES):
                 raise ValueError(
@@ -309,7 +328,7 @@ class DecisionRecord:
                     f"{sorted(row)!r} must be exactly {MODES!r}."
                 )
             for mode, term in row.items():
-                _require_audit_number(f"terms[{action!r}][{mode!r}]", term)
+                _require_audit_number(f"DecisionRecord.terms[{action!r}][{mode!r}]", term)
             # NB: the sum check below relies on every term being finite —
             # a NaN slips past `abs(nan) > eps` (nan comparisons are false),
             # which is exactly the fabricated-evidence hole the per-cell
@@ -398,7 +417,11 @@ class VoiRecord:
 
     Deeply immutable like DecisionRecord: every mapping it reaches lives
     inside its (deep-frozen) DecisionRecords, its own fields are scalars
-    and tuples.
+    and tuples. And, like the other audit records, the public constructor
+    VALIDATES internal consistency (evaluator r5, PR #54) so a forged
+    VoiRecord — net<0 marked worth-it, NaN losses, branch probabilities
+    that do not sum to 1, a mutable list of posterior decisions — fails
+    loud rather than being manufacturable.
     """
 
     prior_decision: DecisionRecord
@@ -408,6 +431,87 @@ class VoiRecord:
     gross_value: float
     net_value: float
     fetch_worth_it: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.prior_decision, DecisionRecord):
+            raise ValueError(
+                f"VoiRecord.prior_decision must be a DecisionRecord; got "
+                f"{type(self.prior_decision).__name__}."
+            )
+        # Losses are finite non-negative; gross/net are finite but may be
+        # negative (an incoherent-mixture fetch can raise expected loss,
+        # and net is gross minus a non-negative cost).
+        _require_audit_number("VoiRecord.prior_expected_loss",
+                              self.prior_expected_loss)
+        _require_audit_number("VoiRecord.posterior_expected_loss",
+                              self.posterior_expected_loss)
+        gross = _require_finite("VoiRecord.gross_value", self.gross_value)
+        net = _require_finite("VoiRecord.net_value", self.net_value)
+        # Freeze posterior_decisions to a tuple and validate each branch.
+        frozen: list[tuple[float, DecisionRecord]] = []
+        branch_total = 0.0
+        for i, pair in enumerate(self.posterior_decisions):
+            if not (isinstance(pair, tuple) and len(pair) == 2):
+                raise ValueError(
+                    f"VoiRecord.posterior_decisions[{i}] must be a "
+                    f"(branch_prob, DecisionRecord) pair; got {pair!r}."
+                )
+            branch_p, dec = pair
+            if isinstance(branch_p, bool) or not isinstance(branch_p, (int, float)):
+                raise ValueError(
+                    f"VoiRecord.posterior_decisions[{i}] branch probability "
+                    f"must be a number; got {branch_p!r}."
+                )
+            branch_p = float(branch_p)
+            if not math.isfinite(branch_p) or not (0.0 <= branch_p <= 1.0):
+                raise ValueError(
+                    f"VoiRecord.posterior_decisions[{i}] branch probability "
+                    f"{branch_p!r} must be finite in [0, 1]."
+                )
+            if not isinstance(dec, DecisionRecord):
+                raise ValueError(
+                    f"VoiRecord.posterior_decisions[{i}] second element must "
+                    f"be a DecisionRecord; got {type(dec).__name__}."
+                )
+            frozen.append((branch_p, dec))
+            branch_total += branch_p
+        if not frozen:
+            raise ValueError(
+                "VoiRecord.posterior_decisions is empty: a fetch with no "
+                "outcome branch has no defined value."
+            )
+        if abs(branch_total - 1.0) > _SUM_EPS:
+            raise ValueError(
+                f"VoiRecord branch probabilities must sum to 1; got "
+                f"{branch_total!r}."
+            )
+        object.__setattr__(self, "posterior_decisions", tuple(frozen))
+        # Cross-field arithmetic must be recomputable from the record:
+        # gross = prior - posterior, and net = gross - (non-negative cost)
+        # so net can never EXCEED gross. fetch_worth_it is exactly net>0.
+        if abs(gross - (self.prior_expected_loss - self.posterior_expected_loss)) \
+                > _SUM_EPS:
+            raise ValueError(
+                f"VoiRecord.gross_value={gross!r} does not equal "
+                f"prior_expected_loss - posterior_expected_loss "
+                f"({self.prior_expected_loss - self.posterior_expected_loss!r})."
+            )
+        if net > gross + _SUM_EPS:
+            raise ValueError(
+                f"VoiRecord.net_value={net!r} exceeds gross_value={gross!r}; "
+                f"net = gross - fetch_cost and fetch_cost is non-negative."
+            )
+        if not isinstance(self.fetch_worth_it, bool):
+            raise ValueError(
+                f"VoiRecord.fetch_worth_it must be a bool; got "
+                f"{type(self.fetch_worth_it).__name__}."
+            )
+        if self.fetch_worth_it != (net > 0.0):
+            raise ValueError(
+                f"VoiRecord.fetch_worth_it={self.fetch_worth_it} contradicts "
+                f"net_value={net!r} (worth-it is exactly net_value > 0 — spec "
+                f"§5 + cost discipline: a break-even fetch is not bought)."
+            )
 
 
 def voi(
