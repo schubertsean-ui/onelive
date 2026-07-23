@@ -559,6 +559,27 @@ class VoiRecord:
                     f"posterior scenarios are not a valid refinement of the "
                     f"current belief, so the VoI is meaningless."
                 )
+        # Action-set consistency (evaluator r11, PR #54): every embedded
+        # decision must be over the SAME action set, or the VoI compares
+        # apples to oranges (a forger adding/removing actions in a branch
+        # would manufacture value). This is fully checkable from the record.
+        prior_actions = set(self.prior_decision.expected_losses)
+        for i, (_, dec) in enumerate(self.posterior_decisions):
+            if set(dec.expected_losses) != prior_actions:
+                raise ValueError(
+                    f"VoiRecord.posterior_decisions[{i}] was decided over "
+                    f"actions {sorted(dec.expected_losses)!r}, not the prior's "
+                    f"action set {sorted(prior_actions)!r} — VoI must compare "
+                    f"the same options before and after the fetch."
+                )
+        # DEFERRED [R-025]: the SAME-cost-matrix half of r11 (a branch
+        # decided under a different/lower cost matrix) is NOT verifiable from
+        # the record because the matrix is not stored. Full closure needs
+        # either an embedded matrix digest or factory-only construction —
+        # disproportionate for an in-process-only shadow record never
+        # persisted or transmitted (see docs/RECORD.md R-025; trigger: C5
+        # product-path promotion, when these records may become durable
+        # trust artifacts).
         # Cross-field arithmetic must be recomputable from the record:
         # gross = prior - posterior, and net = gross - fetch_cost EXACTLY.
         # Storing fetch_cost (evaluator r9, PR #54) makes net recomputable

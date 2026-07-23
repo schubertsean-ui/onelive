@@ -1147,6 +1147,34 @@ class TestVoi:
                 fetch_worth_it=(gross - 1.0) > 0,
             )
 
+    def test_forged_voi_record_mismatched_action_set_rejected(self):
+        # Evaluator r11 (PR #54): every embedded decision must be over the
+        # same action set as the prior, or the VoI compares different option
+        # sets before vs after the fetch. (The same-cost-matrix half is a
+        # recorded bounded deferral, R-025 — not checkable without storing
+        # the matrix; disproportionate for an in-process-only shadow record.)
+        from worker.convergence.decisions import VoiRecord
+
+        matrix = CostMatrix(costs=self.SMALL)          # actions: show, hold
+        actions = list(matrix.actions)
+        prior_dec = decide(actions, self.PRIOR, matrix)
+        # A branch decided over a DIFFERENT action set (only "hold").
+        odd = decide(["hold"], self.PRIOR, matrix)
+        p_loss = prior_dec.expected_losses[prior_dec.chosen]
+        o_loss = odd.expected_losses[odd.chosen]
+        gross = p_loss - o_loss
+        with pytest.raises(ValueError, match="action set"):
+            VoiRecord(
+                prior_decision=prior_dec,
+                posterior_decisions=((1.0, odd),),
+                prior_expected_loss=p_loss,
+                posterior_expected_loss=o_loss,
+                fetch_cost=0.0,
+                gross_value=gross,
+                net_value=gross,
+                fetch_worth_it=gross > 0,
+            )
+
     def test_voi_record_outer_list_frozen_to_tuple(self):
         # Evaluator r5/r8 (PR #54): an OUTER list of (prob, decision) TUPLE
         # pairs is normalized to a tuple at construction (audit evidence is
