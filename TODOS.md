@@ -112,7 +112,8 @@ delete completed items — they're a record of what got done).
 
 ## Meta carousel engine (Contract #23, 2026-07-24 — spec §9 founder decision list)
 - [ ] (P1, founder) Mint the Meta assets + Graph API credentials: IG professional account + FB Page confirmed, Meta app created, content-publishing + insights tokens with caps set FIRST (credential minting is founder-crucial) — unlocks R-026's trigger (implement MetaPublisher.post + the Insights→PostMetrics importer, evaluator-mandatory).
-- [ ] (P1, founder) Ratify the posting posture: gate-custodied posting go-live (founder or founder-delegated human approves each carousel at L0). Recorded as a decision record when given.
+- [ ] (P1, founder) Mint the approval signing key `ONELIVE_APPROVAL_KEY` (spec §9.2, added at PR #63 r1): the secret that signs approvals and autonomy records — lives wherever approvals happen, NEVER in the repo or agent-session env; without it nothing can be approved or released (fail closed by design).
+- [ ] (P1, founder) Ratify the posting posture: gate-custodied posting go-live (founder or founder-delegated human signs each carousel approval at L0). Recorded as a decision record when given.
 - [ ] (P2, gated on the two above) Arm the carousel cycle's scheduled runner in its own PR: dedicated healthchecks check + budget ceiling + Friction pre-work (R-027; Sentinel rule — never before dead-man + caps exist).
 - [ ] (P2, founder, when ready) Autonomy ladder step: request the L1 evidence pack (spec §10 three-step sign-off) once enough approved posts exist to judge — the agent assembles the pack; the founder signs the decision record and the AUTONOMY_RATIFICATION.json PR. Never agent-initiated beyond assembling evidence.
 - [ ] (P3) Extend geo.py DOMAIN_TAGS to all 22 domains + per-metro tag tables as markets open; watch hashtag performance rows in the metrics ledger before widening.

@@ -29,14 +29,21 @@ class TierThresholds:
 
 CADENCE_BY_TIER = {"T1": "daily", "T2": "weekly", "T3": "biweekly"}
 
+# The truthful copy window per cadence (config.TIMEFRAMES): a daily series
+# claims tonight; a weekly series claims this week; a biweekly long-tail
+# roundup claims this month. The generator excludes events outside the
+# window, so cadence and copy can never disagree.
+TIMEFRAME_BY_CADENCE = {"daily": "tonight", "weekly": "this_week", "biweekly": "this_month"}
+
 
 @dataclass(frozen=True)
 class CarouselSeries:
-    """One recurring carousel: its tier, cadence, and the domains it draws."""
+    """One recurring carousel: its tier, cadence, window, and domains."""
 
     series_key: str
     tier: str
     cadence: str
+    timeframe: str = "tonight"
     domain_ids: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -85,6 +92,7 @@ def plan_portfolio(
                 series_key="tonight_all",
                 tier="T1",
                 cadence=CADENCE_BY_TIER["T1"],
+                timeframe=TIMEFRAME_BY_CADENCE[CADENCE_BY_TIER["T1"]],
                 domain_ids=tuple(sorted(active)),
             )
         )
@@ -94,6 +102,7 @@ def plan_portfolio(
                 series_key=f"t1_{domain}",
                 tier="T1",
                 cadence=CADENCE_BY_TIER["T1"],
+                timeframe=TIMEFRAME_BY_CADENCE[CADENCE_BY_TIER["T1"]],
                 domain_ids=(domain,),
             )
         )
@@ -103,6 +112,7 @@ def plan_portfolio(
                 series_key=f"t2_{domain}",
                 tier="T2",
                 cadence=CADENCE_BY_TIER["T2"],
+                timeframe=TIMEFRAME_BY_CADENCE[CADENCE_BY_TIER["T2"]],
                 domain_ids=(domain,),
             )
         )
@@ -113,6 +123,7 @@ def plan_portfolio(
                 series_key="t3_everything_else",
                 tier="T3",
                 cadence=CADENCE_BY_TIER["T3"],
+                timeframe=TIMEFRAME_BY_CADENCE[CADENCE_BY_TIER["T3"]],
                 domain_ids=t3_domains,
             )
         )

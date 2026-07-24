@@ -82,7 +82,7 @@ FACTORS: dict[str, tuple[str, ...]] = {
         "awe",
         "humor",
         "social_proof",
-        "tonight_anchor",
+        "edition_anchor",
     ),
     "emotion_register": (
         "excitement",
@@ -113,6 +113,23 @@ SLIDE_COUNT_BANDS: dict[str, tuple[int, int]] = {
     "11-14": (11, 14),
 }
 
+# --- Truthful time framing (evaluator r1: no unverified "tonight" claims) ------
+# A carousel's copy claims exactly the window its events were verified to fall
+# in; the generator excludes anything outside the window, so the phrase can
+# never outrun the data.
+TIMEFRAMES: dict[str, dict[str, object]] = {
+    "tonight": {"phrase": "Tonight", "window_days": 0},
+    "this_week": {"phrase": "This week", "window_days": 7},
+    "this_month": {"phrase": "This month", "window_days": 31},
+}
+
+# Event lifecycle canon (Certainty Display Stack, ratified 2026-07-15):
+# event_status is its own axis, separate from confidence. Marketing features
+# only `scheduled`; cancelled/moved are excluded at selection AND re-checked
+# at release (a cancellation after drafting blocks the post).
+KNOWN_EVENT_STATUS = ("scheduled", "cancelled", "moved")
+FEATURABLE_EVENT_STATUS = ("scheduled",)
+
 
 @dataclass(frozen=True)
 class CarouselConfig:
@@ -126,8 +143,13 @@ class CarouselConfig:
     short_link_base: str
     domain_ids: tuple[str, ...] = field(default_factory=tuple)
     tier: str = "T1"
+    timeframe: str = "tonight"
 
     def validate(self) -> None:
+        if self.timeframe not in TIMEFRAMES:
+            raise ValueError(
+                f"unknown timeframe {self.timeframe!r}; known: {sorted(TIMEFRAMES)}"
+            )
         if self.surface not in SURFACE_CONSTRAINTS:
             raise ValueError(
                 f"unknown surface {self.surface!r}; known: "

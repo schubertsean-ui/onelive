@@ -15,18 +15,33 @@ import json
 
 MAX_HASHTAGS = 5
 
-# Domain id -> the community tag that field actually uses (Austin-first;
-# per-metro tables extend this as markets open).
+# Domain id -> the community tag that field actually uses. Ids are the
+# canonical 22 from worker/importers/domain_map.py DOMAINS (hyphenated) so
+# GEO tagging can never drift from the taxonomy the importer stamps.
+# Per-metro tag tables extend this as markets open.
 DOMAIN_TAGS = {
-    "live_music": "livemusic",
-    "comedy": "comedy",
+    "live-music": "livemusic",
+    "performing-arts": "symphony",
     "theater": "theater",
-    "nightlife": "nightlife",
-    "food_drink": "foodie",
-    "visual_arts": "artopening",
+    "comedy": "comedy",
+    "visual-arts": "artopening",
     "film": "filmscreening",
-    "dance": "dance",
+    "literary": "bookish",
+    "ideas": "lecture",
     "festivals": "festival",
+    "food-drink": "foodie",
+    "nightlife": "nightlife",
+    "dance": "dance",
+    "community": "community",
+    "heritage": "culture",
+    "family": "familyfun",
+    "place-based": "explore",
+    "sports": "gameday",
+    "library": "library",
+    "fairs-expos": "expo",
+    "seasonal": "seasonal",
+    "wellness": "wellness",
+    "fashion-design": "makersmarket",
 }
 
 

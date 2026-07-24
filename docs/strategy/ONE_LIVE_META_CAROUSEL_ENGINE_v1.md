@@ -27,21 +27,37 @@ the same physics as `worker/promote.py`:
   unable to import the publisher (`publish_gate`); a test reads the
   module's imports and fails if that ever changes, exactly like the
   orchestrator-cannot-import-promote guard.
-- **Publishing is gate-custodied.** `publish_gate.approve()` requires a
-  human reviewer identity (AI author identities are refused, fail-closed)
-  and binds the approval to a SHA-256 content hash of the exact draft.
-  `publish_gate.release_for_publish()` recomputes the hash, re-checks
-  every featured event's trust state, and refuses on any mismatch. Edit
-  after approval → the approval is void, mechanically.
+- **Publishing is gate-custodied and approvals are AUTHENTICATED.**
+  `publish_gate.approve()` requires a human reviewer identity (AI author
+  identities are refused, fail-closed) AND the founder-held signing key
+  (`ONELIVE_APPROVAL_KEY` — never in the repo, never in agent sessions):
+  the approval is an HMAC-SHA256 signature over the draft's SHA-256
+  content hash, so a name string alone approves nothing and an agent
+  cannot forge a sign-off. `publish_gate.release_for_publish()` verifies
+  the signature, recomputes the hash, re-checks every featured event's
+  CURRENT confidence and event_status (`scheduled` only — a
+  cancellation after drafting blocks the post), and rescans the entire
+  draft text surface for banned claim language. Edit after approval →
+  the approval is void, mechanically.
 - **What carousels may feature** (selection, not hiding — product
   surfaces keep showing everything per canon):
-  - `confirmed` events: yes, freely.
-  - `likely` events: only with the quiet uncertainty affordance the
-    design brief mandates (no "confirmed" language, ever).
-  - `unverified` / `disputed`: never featured in outbound marketing. On
-    the product surface disputed stays visible-as-disputed (canon,
+  - CANONICAL PUBLISHED rows only: every event must carry the
+    canonical-read-path origin marker — candidate/pipeline rows are
+    structurally refused, so marketing can never amplify what has not
+    been promoted.
+  - `confirmed` events: yes, freely. `likely`: only with the quiet
+    uncertainty affordance the design brief mandates (no "confirmed"
+    language, ever). `unverified` / `disputed`: never featured. On the
+    product surface disputed stays visible-as-disputed (canon,
     unchanged); marketing simply does not amplify what the gate has not
     settled.
+  - `event_status` is its own axis (Certainty Display Stack canon):
+    only `scheduled` events are featured; cancelled/moved are excluded
+    at selection and re-checked at release.
+  - TRUTHFUL TIME FRAMING: each series claims exactly its verified
+    window (tonight / this week / this month, from its cadence); events
+    outside the window are excluded, so copy can never say "tonight"
+    about a show next month.
 - **No fabrication.** Slide copy is verbatim event facts (name, venue,
   time, price) from canonical rows, plus optional descriptor text that
   must carry Descriptor Foundry provenance. There is no free-text LLM
@@ -238,17 +254,26 @@ structured source, for classic crawlers and answer engines alike:
 1. **Meta assets + credentials (new service + credential minting =
    founder-crucial):** create/confirm the IG professional account + FB
    Page, a Meta app, and mint Graph API tokens (content publishing +
-   insights) with spend/rate caps — agents never mint keys. Until then
-   the publisher is a dry-run stub and metrics ingestion takes exported
-   JSON.
-2. **Posting posture (go-live class):** ratify gate-custodied posting —
-   founder (or founder-delegated human) taps approve per carousel in
-   v1. A future "standing approval for T1 templates" is a separate,
-   explicit ratification; it is NOT assumed anywhere in code.
-3. **Cadence + Sentinel wiring:** approve the tier cadences (§5) and,
+   insights) with spend/rate caps — agents never mint keys. There is
+   deliberately NO Graph API client in the codebase until then (R-026;
+   nothing stubbed — the posting boundary is built at this trigger, and
+   metrics ingestion takes exported JSON meanwhile).
+2. **Mint the approval signing key** (`ONELIVE_APPROVAL_KEY`): the
+   secret the approving surface uses to sign approvals and autonomy
+   records (HMAC-SHA256 over the draft hash / record payload).
+   Founder-held: it lives wherever approvals happen (your machine, the
+   ops console backend), NEVER in the repo and NEVER in agent-session
+   env — that is what makes an agent-forged approval cryptographically
+   impossible rather than merely filtered.
+3. **Posting posture (go-live class):** ratify gate-custodied posting —
+   founder (or founder-delegated human) approves per carousel in v1
+   with a signed approval. A future "standing approval for T1
+   templates" is a separate, explicit ratification; it is NOT assumed
+   anywhere in code.
+4. **Cadence + Sentinel wiring:** approve the tier cadences (§5) and,
    before any scheduled cycle, the healthchecks.io check + budget caps
    (charter: no scheduled loop without both — R-027).
-4. **Optional:** ratify the interaction-rate north-star definition (§6)
+5. **Optional:** ratify the interaction-rate north-star definition (§6)
    as the standing KPI for the program.
 
 ## 10. Autonomy ratification protocol (founder-directed 2026-07-24: "at some point soon I will want the AI to do everything and remove the human from the loop. So set up a process for me to sign off on that.")
@@ -279,15 +304,21 @@ recorded flip, not a code rewrite:
      trust-rule violations, and the exact template set to be frozen.
   2. Sign the decision record (`docs/memory/decisions/`) with the
      verbatim directive, the target level, and its scope.
-  3. Approve the PR that commits `social/carousel/AUTONOMY_RATIFICATION
-     .json` citing that record — the file names the level, scope,
-     founder identity, date, and decision-record path.
-- **Fail-closed physics:** no file → L0. Malformed/incomplete file →
-  the publisher refuses to release ANYTHING (loud), because a broken
-  ratification must never fail open into autonomy. The gate re-validates
-  the record on every release. Any PR touching `autonomy.py` or the
-  record is trust-path → mandatory non-Claude evaluator review, like
-  every gate-custody change.
+  3. Approve the PR that commits the ratification file
+     (`social/carousel/AUTONOMY_RATIFICATION.json`) citing that record
+     — the file names the level, scope, founder identity, date, and
+     decision-record path, and carries the founder's SIGNATURE: an
+     HMAC-SHA256 over the record payload under `ONELIVE_APPROVAL_KEY`
+     (produced by `sign_autonomy_record()`, run by the founder with the
+     founder-held key — agents never hold it, so an agent cannot mint a
+     grant that verifies).
+- **Fail-closed physics:** no file → L0. Malformed, incomplete,
+  UNSIGNED, or wrong-signature file → the publisher refuses to release
+  ANYTHING (loud), because a broken or unauthenticated ratification
+  must never fail open into autonomy. The gate re-validates the record
+  (signature included) on every release. Any PR touching `autonomy.py`
+  or the record is trust-path → mandatory non-Claude evaluator review,
+  like every gate-custody change.
 - **Reversibility:** the founder can revoke by deleting the record or
   committing `{"level": "L0"}` — one commit, immediate, no negotiation
   surface for the agent.

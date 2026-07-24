@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 from social.carousel.bandit import ThompsonBandit
 from social.carousel.config import CarouselConfig
-from social.carousel.generator import CarouselDraft, build_carousel
+from social.carousel.generator import CarouselDraft, NoFeaturableEvents, build_carousel
 from social.carousel.geo import discovery_bundle
 from social.carousel.metrics import MetricsLedger, PostMetrics
 from social.carousel.tiers import TierThresholds, plan_portfolio
@@ -49,12 +49,14 @@ def run_cycle(
     bandit: ThompsonBandit,
     brand: BrandIdentity,
     max_drafts: int,
+    reference_date: str,
     thresholds: TierThresholds | None = None,
     deadman_ping=None,
 ) -> CycleResult:
     """Generate this cycle's carousel drafts. max_drafts is the hard budget
     cap (charter cost discipline: every loop runs under a ceiling); a
-    non-positive cap is a configuration defect, not a silent no-op."""
+    non-positive cap is a configuration defect, not a silent no-op.
+    reference_date (ISO date) anchors each series' truthful time window."""
     if max_drafts <= 0:
         raise ValueError(f"max_drafts must be positive, got {max_drafts}")
     if deadman_ping is not None:
@@ -75,14 +77,19 @@ def run_cycle(
             short_link_base=brand.short_link_base,
             domain_ids=series.domain_ids,
             tier=series.tier,
+            timeframe=series.timeframe,
         )
         assignment = bandit.sample_assignment()
         try:
-            draft = build_carousel(series_events, config, assignment)
-        except ValueError as exc:
-            # A series with nothing featurable this cycle is expected volume
-            # weather; the skip is RECORDED in telemetry (never silent) and
-            # the portfolio moves on.
+            draft = build_carousel(
+                series_events, config, assignment, reference_date=reference_date
+            )
+        except NoFeaturableEvents as exc:
+            # The ONE expected skip: nothing featurable in this series'
+            # window is volume weather, RECORDED in telemetry (never
+            # silent). Every other generator error — CarouselTrustError,
+            # bad config, unknown states — propagates LOUD (evaluator r1:
+            # the autonomous loop must never swallow a trust failure).
             result.skipped_series.append((series.series_key, str(exc)))
             continue
         featured_ids = {s.event_id for s in draft.slides if s.kind == "event"}
