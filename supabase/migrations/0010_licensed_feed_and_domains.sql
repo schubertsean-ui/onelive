@@ -95,7 +95,14 @@ create policy public_read on licensed_event
   for select to anon, authenticated
   using (true);
 
--- Explicit column privilege (not just the RLS policy) so a Supabase anon/
--- authenticated client can read the table regardless of default-privilege
--- config. Idempotent.
-grant select on licensed_event to anon, authenticated;
+-- COLUMN-LEVEL select grant — everything EXCEPT `raw`. `raw` holds the internal
+-- provider payload (provenance/audit), which must not be publicly selectable
+-- through the anon/authenticated Supabase (PostgREST) key; excluding it from the
+-- grant fails that column closed while the public listing fields stay readable.
+-- Idempotent.
+grant select (
+  licensed_event_id, source_provider, external_id, title, category, subsegment,
+  performer, start_time, end_time, status, on_sale_status, price_min, price_max,
+  currency, is_free, ticket_url, image_url, venue_name, venue_city, venue_area,
+  venue_address, venue_lat, venue_lng, confidence, imported_at, updated_at
+) on licensed_event to anon, authenticated;

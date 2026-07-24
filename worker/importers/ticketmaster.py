@@ -99,6 +99,9 @@ def _summary(argv=None):
     key = os.environ.get("TICKETMASTER_API_KEY", "")
     raws = list(fetch_events(key, size=100, max_pages=4))
     norm = [n for n in (normalize_ticketmaster(e) for e in raws) if n]
+    if not norm:
+        log.error("smoke fetched %d, normalized 0 — bad key / query / drift. Failing loud.", len(raws))
+        return 3
     by_domain = Counter(n["category"] for n in norm)
     log.info("REAL Ticketmaster events fetched (CAPCOG area): %d", len(raws))
     log.info("Normalized OK: %d", len(norm))

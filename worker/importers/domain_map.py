@@ -18,7 +18,11 @@ from __future__ import annotations
 # fabricated category. Charter: ZERO fabricated data on product surfaces.
 UNMAPPED = "unmapped"
 
-# The 22 canonical cultural-domain ids.
+# The 22 canonical cultural-domain ids. The FULL genre-equivalent sub-category
+# taxonomy for each domain (the researched "genre for the other 20+ categories")
+# is docs/strategy/ONE_LIVE_CATEGORY_TAXONOMY_v1.md — the human source of truth;
+# the `subs` here are the current filter subset and are expanded from that doc as
+# the feed consumes them (kept a strict subset so the two never contradict).
 DOMAINS = (
     "live-music", "performing-arts", "theater", "comedy", "visual-arts",
     "film", "literary", "ideas", "festivals", "food-drink", "nightlife",
@@ -38,21 +42,32 @@ _TM_SEGMENT = {
     "miscellaneous": "fairs-expos",    # expos/family/etc.; refined by genre
 }
 
-# Within "Arts & Theatre"/"Miscellaneous", genre picks the finer domain.
+# Within "Arts & Theatre"/"Miscellaneous", genre picks the finer domain. Covers
+# Ticketmaster's documented Arts & Theatre and Miscellaneous genre taxonomy so
+# real events land in a named cultural domain instead of "Other".
 _TM_GENRE_DOMAIN = {
+    # Arts & Theatre
     "theatre": "theater", "theater": "theater", "musical": "theater",
+    "miscellaneous theatre": "theater", "performance art": "theater",
     "classical": "performing-arts", "opera": "performing-arts",
     "orchestra": "performing-arts", "instrumental music": "performing-arts",
+    "choral": "performing-arts",
     "dance": "dance", "ballet": "dance",
-    "comedy": "comedy",
+    "comedy": "comedy", "magic & illusion": "comedy", "magic": "comedy",
     "children's theatre": "family", "childrens theatre": "family",
-    "family": "family",
+    "circus & specialty acts": "family", "spectacular": "family",
+    "puppetry": "family", "family": "family",
     "film": "film",
-    "fine art": "visual-arts", "arts": "visual-arts",
+    "fine art": "visual-arts", "arts": "visual-arts", "multimedia": "visual-arts",
+    "cultural": "heritage",
+    # Miscellaneous segment
     "fairs & festivals": "festivals", "festival": "festivals",
     "food & drink": "food-drink",
     "community/civic": "community",
     "lecture/seminar": "ideas",
+    "health/wellness": "wellness", "health & wellness": "wellness",
+    "home & garden": "fairs-expos", "hobby/special interest expo": "fairs-expos",
+    "expo": "fairs-expos",
 }
 
 

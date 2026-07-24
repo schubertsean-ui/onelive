@@ -46,6 +46,30 @@ def main(argv=None) -> int:
     for dom, c in by_domain.most_common():
         log.info("  %-18s %d", dom, c)
 
+    # Location-data coverage (answers "is real geo actually captured?").
+    with_geo = sum(1 for n in norm if n.get("venue_lat") is not None and n.get("venue_lng") is not None)
+    with_addr = sum(1 for n in norm if n.get("venue_address"))
+    with_city = sum(1 for n in norm if n.get("venue_city"))
+    total = len(norm) or 1
+    log.info("Location coverage: coords %d/%d (%d%%), address %d/%d, city %d/%d",
+             with_geo, len(norm), round(100 * with_geo / total), with_addr, len(norm), with_city, len(norm))
+
+    # Emit the greppable UNMAPPED marker per distinct classification so coverage
+    # gaps are visible and actionable (which provider taxonomy to map next).
+    from collections import Counter as _C
+
+    from worker.importers.domain_map import unmapped as _unmapped
+    unm = _C()
+    for n in norm:
+        if n.get("category") == "unmapped":
+            cls = (n.get("raw") or {}).get("classifications") or [{}]
+            c0 = cls[0] if cls else {}
+            seg = (c0.get("segment") or {}).get("name")
+            gen = (c0.get("genre") or {}).get("name")
+            unm[f"{seg} / {gen}"] += 1
+    for key, n in unm.most_common(20):
+        log.info("%s  (x%d)", _unmapped("ticketmaster", key), n)
+
     # A real-data importer must not exit green on nothing — zero events means a
     # bad key, a provider/CAPCOG scoping error, an API-shape change, or
     # normalization drift. Fail LOUD instead of a silent no-op.
