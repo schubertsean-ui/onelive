@@ -1,6 +1,11 @@
 import { SignedIn, SignedOut, SignInButton, SignOutButton } from "@clerk/nextjs";
 import { BrandMark } from "../../components/BrandMark";
 
+// Not prerendered at build — this screen uses Clerk components, which need the
+// Clerk key at render. In a Clerk-less preview the middleware never routes here,
+// so it is simply rendered on demand (and only when Clerk is configured).
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "OneLive — Private preview",
   description: "OneLive is in a private preview. Access is limited to an invited list.",

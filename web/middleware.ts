@@ -38,7 +38,12 @@ async function resolveEmail(
   }
 }
 
-export default clerkMiddleware(async (auth, req) => {
+// Clerk is optional (see app/layout.tsx). Without a Clerk key the gate is a
+// passthrough so an early Supabase-only preview still deploys; the stealth
+// allowlist gate activates as soon as the Clerk key is configured.
+const clerkEnabled = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+const gate = clerkMiddleware(async (auth, req) => {
   if (isPublicRoute(req)) return NextResponse.next();
 
   const { userId, sessionClaims, redirectToSignIn } = await auth();
@@ -62,6 +67,12 @@ export default clerkMiddleware(async (auth, req) => {
 
   return NextResponse.next();
 });
+
+export default clerkEnabled
+  ? gate
+  : function middleware() {
+      return NextResponse.next();
+    };
 
 export const config = {
   // Run on everything except Next internals and files with an extension (static

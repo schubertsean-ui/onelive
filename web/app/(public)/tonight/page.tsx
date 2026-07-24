@@ -1,113 +1,238 @@
-"use client";
+import "./flow.css";
+import {
+  DOMAINS,
+  domainHue,
+  domainLabel,
+  timeBand,
+} from "../../../lib/domains";
+import {
+  fetchLicensedEvents,
+  supabaseConfigured,
+  type LicensedEvent,
+} from "../../../lib/licensed";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchTonight } from "../../../lib/public-api";
-import { TonightEvent } from "../../../lib/public-types";
-import { formatDayLabel } from "../../../lib/time";
-import { EventCard } from "../../../components/EventCard";
-import { BrandMark } from "../../../components/BrandMark";
-import { FeedSkeleton, FeedEmpty, FeedError } from "../../../components/FeedStates";
+// Server component — reads the REAL licensed events from Supabase at request
+// time. No confidence badges (trust display rule); uncertainty is a quiet
+// <details>. Time-tiered density: rich cards this week, condensed rows later.
+export const dynamic = "force-dynamic";
 
-type Status = "loading" | "ready" | "error";
+function fmtWhen(iso: string | null): string {
+  if (!iso) return "Date TBA";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Date TBA";
+  return d.toLocaleString("en-US", {
+    timeZone: "America/Chicago",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
-const CITY = "Austin";
+function fmtPrice(e: LicensedEvent): { text: string; free: boolean } {
+  if (e.is_free) return { text: "Free", free: true };
+  if (e.price_min != null && e.price_max != null && e.price_max !== e.price_min) {
+    return { text: `$${Math.round(e.price_min)}–$${Math.round(e.price_max)}`, free: false };
+  }
+  if (e.price_min != null) return { text: `$${Math.round(e.price_min)}`, free: false };
+  return { text: "See tickets", free: false };
+}
 
-// Small legend so the confidence vocabulary is explained up front.
-const LEGEND: { tone: string; label: string }[] = [
-  { tone: "confirmed", label: "Confirmed" },
-  { tone: "likely", label: "Likely" },
-  { tone: "unverified", label: "Unverified" },
-  { tone: "disputed", label: "Disputed" },
-];
+function mapUrl(e: LicensedEvent): string | null {
+  if (e.venue_lat != null && e.venue_lng != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${e.venue_lat},${e.venue_lng}`;
+  }
+  const q = [e.venue_name, e.venue_address, e.venue_city].filter(Boolean).join(", ");
+  return q ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}` : null;
+}
 
-export default function TonightPage() {
-  const [status, setStatus] = useState<Status>("loading");
-  const [events, setEvents] = useState<TonightEvent[]>([]);
-  const now = useMemo(() => new Date(), []);
+function focusLine(e: LicensedEvent): string {
+  const parts = [domainLabel(e.category), e.subsegment].filter(Boolean);
+  // Avoid "Live Music · Live Music"-style repeats.
+  return parts.filter((v, i) => parts.indexOf(v) === i).join(" · ");
+}
 
-  const load = useCallback(async () => {
-    setStatus("loading");
-    try {
-      const data = await fetchTonight({ city: CITY, hours: 12, limit: 60 });
-      setEvents(data);
-      setStatus("ready");
-    } catch {
-      setStatus("error");
-    }
-  }, []);
+function RichCard({ e }: { e: LicensedEvent }) {
+  const price = fmtPrice(e);
+  const map = mapUrl(e);
+  return (
+    <div className="card">
+      {e.image_url ? (
+        <div className="ph" style={{ backgroundImage: `url(${e.image_url})` }} />
+      ) : (
+        <div
+          className="noph"
+          style={{ background: `linear-gradient(90deg, hsl(${domainHue(e.category)} 60% 45%), hsl(${(domainHue(e.category) + 40) % 360} 55% 38%))` }}
+        />
+      )}
+      <div className="bd">
+        <span className="when">{fmtWhen(e.start_time)}</span>
+        <span className="ti">{e.title}</span>
+        <span className="focus">{focusLine(e)}</span>
+        <span className="ven">
+          {e.venue_name}
+          {e.venue_area ? <span className="addr"> · {e.venue_area}</span> : null}
+          {e.venue_address ? <span className="addr"> · {e.venue_address}</span> : null}
+        </span>
+        <div className="foot">
+          <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
+          {e.ticket_url ? (
+            <a className="tix" href={e.ticket_url} target="_blank" rel="noopener noreferrer">
+              tickets ↗
+            </a>
+          ) : null}
+          {map ? (
+            <a className="map" href={map} target="_blank" rel="noopener noreferrer">
+              map ↗
+            </a>
+          ) : null}
+        </div>
+        <details className="unc">
+          <summary>How we know</summary>
+          <div className="sheet">
+            Listed by {e.source_provider === "ticketmaster" ? "Ticketmaster" : e.source_provider} —
+            an authoritative ticketing source. Times and prices can change; the
+            venue&rsquo;s own page and the ticket link are the last word.
+          </div>
+        </details>
+      </div>
+    </div>
+  );
+}
 
-  useEffect(() => {
-    load();
-  }, [load]);
+function CondensedRow({ e }: { e: LicensedEvent }) {
+  const price = fmtPrice(e);
+  return (
+    <div className="row">
+      <span className="when">{fmtWhen(e.start_time)}</span>
+      <span className="bd2">
+        <span className="ti">{e.title}</span>
+        <br />
+        <span className="mt">
+          {focusLine(e)} · {e.venue_name}
+          {e.venue_area ? ` · ${e.venue_area}` : ""}
+        </span>
+      </span>
+      <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
+    </div>
+  );
+}
 
-  // Group by day label ("Tonight", "Sat, Jul 12", ...) preserving API order,
-  // which is already sorted by confidence-tier then start_time.
-  const groups = useMemo(() => {
-    const out: { label: string; items: TonightEvent[] }[] = [];
-    for (const ev of events) {
-      const label = formatDayLabel(ev.start_time, now);
-      const last = out[out.length - 1];
-      if (last && last.label === label) last.items.push(ev);
-      else out.push({ label, items: [ev] });
-    }
-    return out;
-  }, [events, now]);
+export default async function TonightPage() {
+  if (!supabaseConfigured()) {
+    return (
+      <main className="flow">
+        <div className="wrap">
+          <div className="mast">
+            <h1>ONE LIVE · Tonight in Austin</h1>
+          </div>
+          <div className="err">
+            Connecting to live data… set <b>NEXT_PUBLIC_SUPABASE_URL</b> and{" "}
+            <b>NEXT_PUBLIC_SUPABASE_ANON_KEY</b> (the Supabase publishable key) in the
+            deployment environment and redeploy.
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  let events: LicensedEvent[] = [];
+  let error: string | null = null;
+  try {
+    const nowISO = new Date().toISOString();
+    events = await fetchLicensedEvents({ fromISO: nowISO, limit: 1000 });
+  } catch (e) {
+    error = e instanceof Error ? e.message : "Could not load events";
+  }
+
+  const nowMs = Date.now();
+  const total = events.length;
+  const freeCount = events.filter((e) => e.is_free).length;
+  const byDomain = new Map<string, LicensedEvent[]>();
+  for (const e of events) {
+    const k = e.category ?? "unmapped";
+    const arr = byDomain.get(k);
+    if (arr) arr.push(e);
+    else byDomain.set(k, [e]);
+  }
+  const activeDomains = DOMAINS.filter((d) => (byDomain.get(d.id)?.length ?? 0) > 0);
 
   return (
-    <main className="pub-wrap">
-      <header className="pub-header">
-        <a className="pub-brand" href="/tonight" aria-label="OneLive home">
-          <BrandMark size={26} />
-          <span className="pub-brand-name">One<b>Live</b></span>
-        </a>
-        <span className="pub-city" data-testid="text-city">{CITY}, TX</span>
-      </header>
-
-      <section className="pub-hero">
-        <p className="pub-kicker">Live right now</p>
-        <h1 className="pub-title">What&rsquo;s happening tonight</h1>
-        <p className="pub-sub">
-          Music, art, food, and culture across Austin and the surrounding counties.
-          Every listing shows how well we&rsquo;ve verified it &mdash; so you always
-          know what you&rsquo;re looking at.
-        </p>
-      </section>
-
-      <div className="pub-legend" aria-label="What the confidence labels mean">
-        <span className="pub-legend-title">How verified is it?</span>
-        {LEGEND.map((l) => (
-          <span className="pub-legend-item" key={l.tone}>
-            <span className="pub-badge" data-tone={l.tone} style={{ padding: "3px 8px" }}>
-              <span className="pub-badge-dot" aria-hidden="true" />
-              {l.label}
-            </span>
-          </span>
-        ))}
+    <main className="flow">
+      <div className="demobar">
+        Real, licensed events for the CAPCOG area — live from Ticketmaster. Private
+        preview: not public, behind the stealth gate before launch.
       </div>
-
-      {status === "loading" ? <FeedSkeleton /> : null}
-      {status === "error" ? <FeedError onRetry={load} /> : null}
-      {status === "ready" && events.length === 0 ? <FeedEmpty city={CITY} /> : null}
-
-      {status === "ready" && events.length > 0 ? (
-        <div data-testid="feed-events">
-          {groups.map((g) => (
-            <section key={g.label} aria-label={g.label}>
-              <h2 className="pub-daygroup-label">{g.label}</h2>
-              <div className="pub-feed">
-                {g.items.map((ev) => (
-                  <EventCard key={ev.event_id} event={ev} now={now} />
-                ))}
-              </div>
-            </section>
-          ))}
+      <div className="wrap">
+        <div className="mast">
+          <h1>ONE LIVE · Tonight in Austin</h1>
+          <p className="lede">
+            Everything on in Central Texas, in one place. Real events, real venues,
+            real prices — grouped by what kind of night you want.
+          </p>
+          <div className="kpis">
+            <div className="kpi"><div className="v">{total.toLocaleString()}</div><div className="l">upcoming events</div></div>
+            <div className="kpi"><div className="v">{activeDomains.length}</div><div className="l">cultural domains</div></div>
+            <div className="kpi"><div className="v">{total ? Math.round((100 * freeCount) / total) : 0}%</div><div className="l">free to attend</div></div>
+          </div>
         </div>
-      ) : null}
 
-      <footer className="pub-footer">
-        OneLive shows verified and unverified listings side by side, each labeled with
-        its verification state. Disputed events are shown on purpose &mdash; verify before you go.
-      </footer>
+        {error ? (
+          <div className="err">Couldn&rsquo;t load events: {error}</div>
+        ) : total === 0 ? (
+          <div className="err">No upcoming events found yet — the next import will populate the feed.</div>
+        ) : (
+          <>
+            <nav className="domnav">
+              {activeDomains.map((d) => (
+                <a key={d.id} href={`#${d.id}`}>
+                  <span className="dot" style={{ background: `hsl(${d.hue} 65% 55%)` }} />
+                  {d.label}
+                  <span className="n">{byDomain.get(d.id)!.length}</span>
+                </a>
+              ))}
+            </nav>
+
+            {activeDomains.map((d) => {
+              const items = byDomain.get(d.id)!;
+              const rich = items.filter((e) => timeBand(e.start_time, nowMs) === "rich");
+              const later = items.filter((e) => timeBand(e.start_time, nowMs) !== "rich");
+              return (
+                <section key={d.id} id={d.id}>
+                  <div className="sec">
+                    <span className="dot" style={{ background: `hsl(${d.hue} 65% 55%)`, width: 12, height: 12 }} />
+                    <h2>{d.label}</h2>
+                    <span className="n">{items.length}</span>
+                  </div>
+                  {rich.length > 0 ? (
+                    <div className="grid">
+                      {rich.slice(0, 12).map((e) => (
+                        <RichCard key={e.licensed_event_id} e={e} />
+                      ))}
+                    </div>
+                  ) : null}
+                  {later.length > 0 ? (
+                    <div style={{ display: "grid", gap: 8, marginTop: rich.length ? 10 : 0 }}>
+                      {later.slice(0, 20).map((e) => (
+                        <CondensedRow key={e.licensed_event_id} e={e} />
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+              );
+            })}
+          </>
+        )}
+
+        <footer>
+          Real, licensed listings from authoritative ticketing sources — never
+          fabricated. Times and prices can change; each listing links to the
+          venue/ticket source as the last word. The long-tail domains (libraries,
+          lectures, readings, heritage, block parties) are being added from OneLive&rsquo;s
+          own pipeline; what you see here is the ticketed spine.
+        </footer>
+      </div>
     </main>
   );
 }
