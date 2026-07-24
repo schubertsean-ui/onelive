@@ -95,11 +95,18 @@ create policy public_read on licensed_event
   for select to anon, authenticated
   using (true);
 
+-- REVOKE any pre-existing table-level SELECT first. An earlier application of
+-- this migration granted table-level `select` (all columns incl. `raw`); a
+-- column-level grant does NOT remove a broader existing grant, so without this
+-- revoke `raw` could stay publicly selectable. Revoke is idempotent (no-op when
+-- nothing is granted), and the column grant below then becomes the ONLY select
+-- privilege for anon/authenticated.
+revoke select on licensed_event from anon, authenticated;
+
 -- COLUMN-LEVEL select grant — everything EXCEPT `raw`. `raw` holds the internal
 -- provider payload (provenance/audit), which must not be publicly selectable
 -- through the anon/authenticated Supabase (PostgREST) key; excluding it from the
 -- grant fails that column closed while the public listing fields stay readable.
--- Idempotent.
 grant select (
   licensed_event_id, source_provider, external_id, title, category, subsegment,
   performer, start_time, end_time, status, on_sale_status, price_min, price_max,
@@ -119,5 +126,14 @@ begin
   if not exists (select 1 from pg_constraint where conname = 'licensed_event_status_chk') then
     alter table licensed_event add constraint licensed_event_status_chk
       check (status in ('scheduled', 'cancelled', 'moved'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'licensed_event_price_chk') then
+    alter table licensed_event add constraint licensed_event_price_chk
+      check (price_min is null or price_max is null or price_min <= price_max);
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'licensed_event_geo_chk') then
+    alter table licensed_event add constraint licensed_event_geo_chk
+      check ((venue_lat is null or venue_lat between -90 and 90)
+             and (venue_lng is null or venue_lng between -180 and 180));
   end if;
 end $$;

@@ -16,7 +16,7 @@ from collections import Counter
 
 from worker.db_config import resolve_dsn
 from worker.importers.normalize import normalize_ticketmaster
-from worker.importers.ticketmaster import fetch_events
+from worker.importers.ticketmaster import CAPCOG_RADIUS_MILES, fetch_events
 
 log = logging.getLogger("licensed_import")
 
@@ -38,6 +38,8 @@ def main(argv=None) -> int:
         log.error("TICKETMASTER_API_KEY is not set — cannot import. Failing closed.")
         return 2
 
+    log.info("scope: CAPCOG ~%d mi radius around Austin — approximate (R-025): outer "
+             "counties may be missed and some non-CAPCOG events included", CAPCOG_RADIUS_MILES)
     raws = list(fetch_events(key, size=100, max_pages=args.max_pages))
     norm = [n for n in (normalize_ticketmaster(e) for e in raws) if n]
     by_domain = Counter(n["category"] for n in norm)
