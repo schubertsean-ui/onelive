@@ -1,4 +1,4 @@
-import { apiGet } from "../../../lib/api";
+import { apiGet } from "../../../lib/ops-api";
 import { CandidateTable } from "../../../components/CandidateTable";
 
 // Ops console reads the FastAPI backend (not part of the preview deploy) —

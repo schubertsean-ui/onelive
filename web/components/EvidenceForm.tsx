@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { apiPost } from "../lib/api";
+import { apiPost } from "../lib/ops-api";
 
 export function EvidenceForm({ candidateId, onDone }: { candidateId: string; onDone: () => void }) {
   const [source_class, setClass] = useState("ticketing");
