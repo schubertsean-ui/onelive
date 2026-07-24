@@ -14,7 +14,15 @@ is now VERIFIED against the primary: the founder supplied the full article
 export (`Boris_Cherny_Jul_16_2026.md` — the explainx.ai post, which embeds
 Cherny's table) directly into the session, satisfying the primary-source gate
 (`docs/memory/decisions/2026-07-24_primary-source-gate.md`); the corrections
-made during verification are itemized at the end of Part 1. History, kept for
+made during verification are itemized at the end of Part 1. The artifact
+itself is committed for audit at
+`docs/research/sources/Boris_Cherny_Jul_16_2026.md` with a SHA-256 manifest
+(`…MANIFEST.json`) alongside — the verification claim is checkable against
+the exact bytes, not "trust me, I saw it." Precision on source identity: the
+verified artifact is the EXPLAINX post; it embeds what it presents as
+Cherny's table and states that Cherny published on Anthropic's site — that
+last claim is the explainx author's, since Cherny's own page remains
+unfetched. History, kept for
 the record: at first writing NO full article text was readable from this
 sandbox — the primary URL
 (<https://www.explainx.ai/blog/boris-cherny-steps-ai-adoption-claude-code-july-2026>)
@@ -53,7 +61,9 @@ it is extracted from our own repo, which we can read directly.
 > record of what the pre-verification draft rested on, marked superseded.
 
 Boris Cherny (creator/head of Claude Code at Anthropic) published "Steps of AI
-Adoption" on 2026-07-16 on Anthropic's site. Five maturity levels; each step
+Adoption" on 2026-07-16 — on Anthropic's site per the explainx post's own
+account (the artifact verified here is the explainx export embedding his
+table; Cherny's original page remains unfetched). Five maturity levels; each step
 names a human role, an approximate concurrent-agent count, what it looks like,
 the binding bottleneck, products that help, and guardrails — plus an explicit
 "how to get to the next step" transition between every pair.
@@ -110,7 +120,8 @@ layer; his lane separation is I1).
 
 ### Part 1b — the companion piece in the same file (the "final 10%" chart)
 
-The founder-supplied file also carries the same-week Kr\$na chart analysis:
+The founder-supplied file also carries the same-week "Kr$na" chart analysis
+(sic — the primary's own spelling of the author's handle):
 idea ≈ 5 min (green) → working demo ≈ 2 h (yellow) → the final 10% ≈ 6 months
 (red: edge cases, security, perf, a11y, migrations, observability) → abandoned
 = ∞ (blue), with the mapping that Step 1–2 teams get "incredible yellow bars

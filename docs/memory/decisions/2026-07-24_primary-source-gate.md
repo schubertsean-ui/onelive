@@ -20,12 +20,20 @@ primary source"): inaccessible primary ⇒ that research thread stops; blocker
 report + smallest founder unblock; no excerpt/mirror/memory reconstruction as a
 substitute. Work not depending on the inaccessible source may continue.
 
-**Retroactive application:** PR #60's Part 1 is marked
-BLOCKED-ON-PRIMARY-VERIFICATION in the doc itself (same commit as this record);
-Parts 2–5 stand where they derive from the repo, and any Part 2 sentence that
-leans on the article inherits the block. Kaizen: founder(Red) catch, class
-`research-without-primary-source`, in the ledger with this record as the
-counter-measure.
+**Retroactive application (as first written):** PR #60's Part 1 was marked
+BLOCKED-ON-PRIMARY-VERIFICATION in the doc itself (same commit as this
+record's first version); Parts 2–5 stood where they derive from the repo, and
+any Part 2 sentence leaning on the article inherited the block. Kaizen:
+founder(Red) catch, class `research-without-primary-source`, in the ledger
+with this record as the counter-measure.
+
+**Update — same day, same PR (2026-07-24):** the founder supplied the primary
+artifact directly into the session ("Review this"). It is committed for audit
+as `docs/research/sources/Boris_Cherny_Jul_16_2026.md` with a SHA-256
+manifest alongside. Verification against it found FIVE substantive deviations
+in the excerpt reconstruction (itemized in the doc's Part 1 corrections
+note) — the concrete evidence for this rule. Part 1 is now VERIFIED and the
+block is lifted; the gate itself stands unchanged for all future research.
 
 **Not narrowed by:** provenance honesty, excerpt agreement across sources,
 appendices, or founder-spot-check asks. None of those convert secondary
