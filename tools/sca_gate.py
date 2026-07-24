@@ -129,7 +129,16 @@ def _load_allowlist(path: Path, today: _dt.date) -> dict[tuple[str, str], dict]:
                 f"allowlist entry {e['package']}/{e['ghsa']}: "
                 f"'expires' is not an ISO date (YYYY-MM-DD): {e['expires']!r}."
             )
-        out[(e["package"], e["ghsa"])] = e
+        key = (e["package"], e["ghsa"])
+        # Duplicate (package, ghsa) is configuration ambiguity in a SECURITY
+        # allowlist — fail closed rather than let a later entry silently shadow
+        # an earlier one (e.g. a longer expiry hiding a stricter one).
+        if key in out:
+            raise GateError(
+                f"duplicate allowlist entry for {e['package']}/{e['ghsa']} — "
+                f"a security exception must be listed exactly once."
+            )
+        out[key] = e
     return out
 
 

@@ -137,6 +137,16 @@ def test_entry_missing_field_fails_closed(tmp_path):
         sca_gate._load_allowlist(p, TODAY)
 
 
+def test_duplicate_entry_fails_closed(tmp_path):
+    al = _allowlist(
+        tmp_path,
+        _entry("postcss", "GHSA-6g55", expires="2026-08-24"),
+        _entry("postcss", "GHSA-6g55", expires="2027-01-01"),  # dup, longer expiry
+    )
+    with pytest.raises(sca_gate.GateError):
+        sca_gate._load_allowlist(al, TODAY)
+
+
 def test_entry_bad_date_fails_closed(tmp_path):
     p = tmp_path / "a.json"
     p.write_text(json.dumps({"entries": [_entry("postcss", "GHSA-6g55", expires="soon")]}))

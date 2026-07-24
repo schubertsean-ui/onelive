@@ -171,7 +171,7 @@ export default async function TonightPage() {
   let error: string | null = null;
   try {
     const nowISO = new Date().toISOString();
-    events = await fetchLicensedEvents({ fromISO: nowISO, limit: 1000 });
+    events = await fetchLicensedEvents({ fromISO: nowISO });
   } catch (e) {
     error = e instanceof Error ? e.message : "Could not load events";
   }

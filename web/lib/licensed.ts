@@ -4,8 +4,14 @@
 // (never `raw`). Errors propagate so the UI renders an honest error state, never
 // a fake-empty feed.
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Read at call time (not module load) so the values are correct per request and
+// the functions are testable.
+function supaEnv(): { url?: string; key?: string } {
+  return {
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  };
+}
 
 // Exactly the columns the migration grants to anon/authenticated (raw excluded).
 const COLUMNS = [
@@ -44,19 +50,21 @@ export type LicensedEvent = {
 };
 
 export function supabaseConfigured(): boolean {
-  return !!SUPABASE_URL && !!SUPABASE_KEY;
+  const { url, key } = supaEnv();
+  return !!url && !!key;
 }
 
 export type LicensedQueryOpts = {
   category?: string;
   fromISO?: string; // start_time >= this
   toISO?: string; // start_time <= this
-  limit?: number;
 };
 
-// Pure PostgREST query-string builder (no env, no network) — unit-tested. The
-// TRUST-CRITICAL rule: this never filters on `confidence`, so no confidence
-// state (disputed included) is ever dropped from the result set.
+// Pure PostgREST query-string builder (no env, no network) — unit-tested. Two
+// TRUST-CRITICAL rules: it never filters on `confidence` (no state, disputed
+// included, is dropped), and it bakes in NO row limit — windowing is done by the
+// pagination loop below via Range headers, so nothing is capped by position. The
+// order carries a unique tiebreaker (licensed_event_id) so paging is stable.
 export function buildLicensedQuery(opts?: LicensedQueryOpts): string {
   const p = new URLSearchParams();
   p.set("select", COLUMNS);
@@ -65,33 +73,57 @@ export function buildLicensedQuery(opts?: LicensedQueryOpts): string {
   if (opts?.category) p.append("category", `eq.${opts.category}`);
   if (opts?.fromISO) p.append("start_time", `gte.${opts.fromISO}`);
   if (opts?.toISO) p.append("start_time", `lte.${opts.toISO}`);
-  p.set("order", "start_time.asc");
-  p.set("limit", String(opts?.limit ?? 1000));
+  p.set("order", "start_time.asc,licensed_event_id.asc");
   return p.toString();
 }
 
+const PAGE = 1000; // Range window per request.
+const SAFETY_MAX = 100_000; // loud stop, never a silent truncation.
+
+// Fetch ALL matching rows, paginating with Range headers until a page comes
+// back empty. PostgREST caps a single response server-side (Supabase default
+// 1000 rows), so a single request WOULD silently drop everything past that cap —
+// including a `disputed` row at position 1001. We advance by the actual rows
+// returned, so no event is ever hidden by position. If the catalog ever exceeds
+// the safety bound we THROW (surfaced as an honest error), never truncate.
 export async function fetchLicensedEvents(
   opts?: LicensedQueryOpts,
 ): Promise<LicensedEvent[]> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
+  const { url, key } = supaEnv();
+  if (!url || !key) {
     throw new Error(
       "Supabase read env not set — configure NEXT_PUBLIC_SUPABASE_URL and " +
       "NEXT_PUBLIC_SUPABASE_ANON_KEY (the publishable key).",
     );
   }
-  const url = `${SUPABASE_URL}/rest/v1/licensed_event?${buildLicensedQuery(opts)}`;
-  const res = await fetch(url, {
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
-    },
-    // Always fresh — the feed reflects the latest import.
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    throw new Error(`Supabase read failed (${res.status}): ${await res.text()}`);
+  const query = buildLicensedQuery(opts);
+  const endpoint = `${url}/rest/v1/licensed_event?${query}`;
+  const all: LicensedEvent[] = [];
+  for (let from = 0; ; ) {
+    const to = from + PAGE - 1;
+    const res = await fetch(endpoint, {
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Range-Unit": "items",
+        Range: `${from}-${to}`,
+      },
+      cache: "no-store", // always fresh — reflects the latest import
+    });
+    if (!res.ok) {
+      throw new Error(`Supabase read failed (${res.status}): ${await res.text()}`);
+    }
+    const batch = (await res.json()) as unknown;
+    if (!Array.isArray(batch)) throw new Error("Unexpected Supabase response shape");
+    all.push(...(batch as LicensedEvent[]));
+    if (batch.length === 0) break; // exhausted
+    from += batch.length; // advance by ACTUAL rows — robust to any server cap
+    if (all.length > SAFETY_MAX) {
+      throw new Error(
+        `licensed feed exceeded ${SAFETY_MAX} rows — refusing to silently ` +
+        `truncate; add narrower filters or paginate the UI.`,
+      );
+    }
   }
-  const data = (await res.json()) as unknown;
-  if (!Array.isArray(data)) throw new Error("Unexpected Supabase response shape");
-  return data as LicensedEvent[];
+  return all;
 }
