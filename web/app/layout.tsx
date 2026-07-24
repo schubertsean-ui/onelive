@@ -1,23 +1,19 @@
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
-import { authConfig } from "../lib/auth";
+import { authProviderActive } from "../lib/auth";
 
 export const metadata = { title: "ONE LIVE — Tonight in Austin" };
 
-// The auth context is applied only when the stealth gate is configured (see
-// lib/auth.ts — the single source of truth). With no provider set the app still
-// builds and renders on just the Supabase read key; the gate is added before any
-// public go-live. This is why the build no longer fails on a missing Clerk key.
+// The Clerk auth context is applied ONLY when a provider is actually configured
+// (see lib/auth.ts — the single source of truth). With no provider the app still
+// builds and renders; access control is then decided by middleware.ts, which
+// fails closed unless an explicit disable is declared. This is why the build no
+// longer fails on a missing Clerk key — WITHOUT silently opening the app.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const shell = (
     <html lang="en">
       <body>{children}</body>
     </html>
   );
-  const auth = authConfig();
-  return auth.enabled && auth.provider === "clerk" ? (
-    <ClerkProvider>{shell}</ClerkProvider>
-  ) : (
-    shell
-  );
+  return authProviderActive() ? <ClerkProvider>{shell}</ClerkProvider> : shell;
 }

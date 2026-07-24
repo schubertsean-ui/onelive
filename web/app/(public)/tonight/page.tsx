@@ -10,6 +10,7 @@ import {
   supabaseConfigured,
   type LicensedEvent,
 } from "../../../lib/licensed";
+import { trustDisplay } from "../../../lib/trust";
 
 // Server component — reads the REAL licensed events from Supabase at request
 // time. No confidence badges (trust display rule); uncertainty is a quiet
@@ -53,6 +54,23 @@ function focusLine(e: LicensedEvent): string {
   return parts.filter((v, i) => parts.indexOf(v) === i).join(" · ");
 }
 
+function providerLabel(e: LicensedEvent): string {
+  return e.source_provider === "ticketmaster" ? "Ticketmaster" : e.source_provider;
+}
+
+// The confidence-state marker, ALWAYS rendered for any non-confirmed state
+// (trust invariant: disputed/unverified are never hidden). No badge for
+// confirmed — a clean card IS the confirmed presentation.
+function TrustMark({ e }: { e: LicensedEvent }) {
+  const t = trustDisplay(e.confidence, providerLabel(e));
+  if (!t.surface || !t.marker) return null;
+  return (
+    <span className={`cau${t.disputed ? " disp" : ""}`} title={t.sheet}>
+      {t.marker}
+    </span>
+  );
+}
+
 function RichCard({ e }: { e: LicensedEvent }) {
   const price = fmtPrice(e);
   const map = mapUrl(e);
@@ -67,7 +85,10 @@ function RichCard({ e }: { e: LicensedEvent }) {
         />
       )}
       <div className="bd">
-        <span className="when">{fmtWhen(e.start_time)}</span>
+        <span className="when">
+          {fmtWhen(e.start_time)}
+          <TrustMark e={e} />
+        </span>
         <span className="ti">{e.title}</span>
         <span className="focus">{focusLine(e)}</span>
         <span className="ven">
@@ -90,11 +111,7 @@ function RichCard({ e }: { e: LicensedEvent }) {
         </div>
         <details className="unc">
           <summary>How we know</summary>
-          <div className="sheet">
-            Listed by {e.source_provider === "ticketmaster" ? "Ticketmaster" : e.source_provider} —
-            an authoritative ticketing source. Times and prices can change; the
-            venue&rsquo;s own page and the ticket link are the last word.
-          </div>
+          <div className="sheet">{trustDisplay(e.confidence, providerLabel(e)).sheet}</div>
         </details>
       </div>
     </div>
@@ -107,7 +124,10 @@ function CondensedRow({ e }: { e: LicensedEvent }) {
     <div className="row">
       <span className="when">{fmtWhen(e.start_time)}</span>
       <span className="bd2">
-        <span className="ti">{e.title}</span>
+        <span className="ti">
+          {e.title}
+          <TrustMark e={e} />
+        </span>
         <br />
         <span className="mt">
           {focusLine(e)} · {e.venue_name}

@@ -43,7 +43,21 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_ALLOWLIST = _REPO_ROOT / "security" / "sca_allowlist.json"
 _BLOCKING = ("high", "critical")
-_REQUIRED_ENTRY_FIELDS = ("package", "ghsa", "severity", "expires", "owner")
+# Every field the policy (docs/EXTERNAL_FINDINGS_POLICY.md) promises is
+# mechanically required — so an exception cannot pass without its written
+# no-fix + exposure justification, owner, and resolution trigger. The gate is
+# only as auditable as the fields it actually enforces.
+_REQUIRED_ENTRY_FIELDS = (
+    "package",
+    "ghsa",
+    "severity",
+    "expires",
+    "owner",
+    "added",
+    "no_fix_reason",
+    "operational_exposure",
+    "resolution_trigger",
+)
 
 
 class GateError(Exception):

@@ -44,6 +44,10 @@ def _entry(package, ghsa, expires="2026-08-24", severity="high"):
         "severity": severity,
         "expires": expires,
         "owner": "test",
+        "added": "2026-07-24",
+        "no_fix_reason": "no released upstream fix (test)",
+        "operational_exposure": "not reachable in our usage (test)",
+        "resolution_trigger": "upstream ships a fix (test)",
     }
 
 

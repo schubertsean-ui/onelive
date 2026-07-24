@@ -149,9 +149,17 @@ jobs:
               npm audit || true
               npx tsc --noEmit
               npm test
-              # Publishable keys are non-secret client identifiers; this dummy
-              # (base64 of clerk.example.com) only satisfies the /ops prerender
-              # so `next build` can complete in CI without real Clerk config.
+              # DEPLOY PARITY (categorical, not per-instance): the app must build
+              # under the SAME env conditions every deploy target runs — otherwise
+              # "CI green" does not imply "it deploys" (this is exactly how a
+              # keyless production build silently broke). So we build BOTH shapes:
+              #   1. KEYLESS — the condition the default branch / production runs
+              #      under (auth is optional + fails closed at RUNTIME, never at
+              #      build). If this fails, a deploy would too.
+              npm run build
+              #   2. WITH a dummy Clerk key (non-secret client id; base64 of
+              #      clerk.example.com) — exercises the Clerk-provider code path.
+              rm -rf .next
               NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k npm run build
             ) 2>&1 | tee web.log
           else

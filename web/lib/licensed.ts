@@ -47,18 +47,17 @@ export function supabaseConfigured(): boolean {
   return !!SUPABASE_URL && !!SUPABASE_KEY;
 }
 
-export async function fetchLicensedEvents(opts?: {
+export type LicensedQueryOpts = {
   category?: string;
   fromISO?: string; // start_time >= this
   toISO?: string; // start_time <= this
   limit?: number;
-}): Promise<LicensedEvent[]> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    throw new Error(
-      "Supabase read env not set — configure NEXT_PUBLIC_SUPABASE_URL and " +
-      "NEXT_PUBLIC_SUPABASE_ANON_KEY (the publishable key).",
-    );
-  }
+};
+
+// Pure PostgREST query-string builder (no env, no network) — unit-tested. The
+// TRUST-CRITICAL rule: this never filters on `confidence`, so no confidence
+// state (disputed included) is ever dropped from the result set.
+export function buildLicensedQuery(opts?: LicensedQueryOpts): string {
   const p = new URLSearchParams();
   p.set("select", COLUMNS);
   // status: show scheduled + moved; never hide anything by confidence.
@@ -68,8 +67,19 @@ export async function fetchLicensedEvents(opts?: {
   if (opts?.toISO) p.append("start_time", `lte.${opts.toISO}`);
   p.set("order", "start_time.asc");
   p.set("limit", String(opts?.limit ?? 1000));
+  return p.toString();
+}
 
-  const url = `${SUPABASE_URL}/rest/v1/licensed_event?${p.toString()}`;
+export async function fetchLicensedEvents(
+  opts?: LicensedQueryOpts,
+): Promise<LicensedEvent[]> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    throw new Error(
+      "Supabase read env not set — configure NEXT_PUBLIC_SUPABASE_URL and " +
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY (the publishable key).",
+    );
+  }
+  const url = `${SUPABASE_URL}/rest/v1/licensed_event?${buildLicensedQuery(opts)}`;
   const res = await fetch(url, {
     headers: {
       apikey: SUPABASE_KEY,

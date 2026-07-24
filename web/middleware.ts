@@ -1,7 +1,7 @@
 import { clerkMiddleware, createRouteMatcher, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { allowlistFromEnv, isAllowlisted } from "./lib/allowlist";
-import { authConfig } from "./lib/auth";
+import { authMode } from "./lib/auth";
 
 // Stealth gate layer 1 (Next.js). The whole app is private during the preview:
 // EVERY route requires an authenticated AND allowlisted user, EXCEPT the
@@ -39,11 +39,18 @@ async function resolveEmail(
   }
 }
 
-// The gate is optional and config-driven (lib/auth.ts is the single source of
-// truth). When no provider is configured the middleware is a passthrough, so an
-// early Supabase-only preview still deploys; the stealth allowlist gate turns on
-// the moment a provider (Clerk today) is configured.
-const authCfg = authConfig();
+// Response for the misconfigured ("unconfigured") state — FAIL CLOSED. A missing
+// provider must never become a public passthrough (evaluator PR #59): if nobody
+// declared how this deployment is protected, we deny rather than open the door.
+function accessNotConfigured(): NextResponse {
+  return new NextResponse(
+    "OneLive is not accepting traffic in this environment: no access gate is " +
+      "configured. Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY to enable the stealth " +
+      "gate, or explicitly set NEXT_PUBLIC_AUTH_DISABLED=1 to run without an " +
+      "app-level gate (e.g. behind host deployment protection).",
+    { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } },
+  );
+}
 
 const gate = clerkMiddleware(async (auth, req) => {
   if (isPublicRoute(req)) return NextResponse.next();
@@ -70,11 +77,21 @@ const gate = clerkMiddleware(async (auth, req) => {
   return NextResponse.next();
 });
 
-export default authCfg.enabled
+// Resolved once at module load (env is fixed for the deployment's lifetime).
+//   clerk        -> run the Clerk + allowlist stealth gate.
+//   disabled     -> DECLARED public/no-app-gate: passthrough (intentional).
+//   unconfigured -> misconfiguration: FAIL CLOSED (deny every route).
+const _mode = authMode();
+
+export default _mode === "clerk"
   ? gate
-  : function middleware() {
-      return NextResponse.next();
-    };
+  : _mode === "disabled"
+    ? function middleware() {
+        return NextResponse.next();
+      }
+    : function middleware() {
+        return accessNotConfigured();
+      };
 
 export const config = {
   // Run on everything except Next internals and files with an extension (static
