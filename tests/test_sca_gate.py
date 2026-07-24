@@ -103,6 +103,20 @@ def test_transitive_only_node_needs_no_own_entry(tmp_path):
     assert ok is True
 
 
+def test_stale_entry_fails(tmp_path):
+    # An allowlist entry for an advisory that is NOT in the current audit is
+    # stale and must FAIL — forcing its deletion once the vuln is fixed/gone.
+    doc = _audit(("postcss", "high", "GHSA-6g55", False))
+    al = _allowlist(
+        tmp_path,
+        _entry("postcss", "GHSA-6g55"),
+        _entry("leftpad", "GHSA-gone-1234"),  # not present in the audit
+    )
+    ok, lines = _run(doc, al)
+    assert ok is False
+    assert any("STALE" in l for l in lines)
+
+
 def test_moderate_below_threshold_passes(tmp_path):
     doc = _audit(("postcss", "moderate", "GHSA-moderate", False))
     ok, lines = _run(doc, _allowlist(tmp_path))  # not even listed

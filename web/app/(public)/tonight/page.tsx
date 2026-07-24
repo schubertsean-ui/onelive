@@ -1,16 +1,24 @@
 import "./flow.css";
-import {
-  DOMAINS,
-  domainHue,
-  domainLabel,
-  timeBand,
-} from "../../../lib/domains";
+import { domainHue, domainLabel, timeBand } from "../../../lib/domains";
 import {
   fetchLicensedEvents,
   supabaseConfigured,
   type LicensedEvent,
 } from "../../../lib/licensed";
+import { groupByDomain } from "../../../lib/feed";
 import { trustDisplay } from "../../../lib/trust";
+
+// Only http(s) links are trusted from imported data — a bad/hostile row must
+// never become a javascript: or other unexpected-scheme link.
+function httpUrl(u: string | null): string | null {
+  if (!u) return null;
+  try {
+    const proto = new URL(u).protocol;
+    return proto === "http:" || proto === "https:" ? u : null;
+  } catch {
+    return null;
+  }
+}
 
 // Server component — reads the REAL licensed events from Supabase at request
 // time. No confidence badges (trust display rule); uncertainty is a quiet
@@ -74,10 +82,12 @@ function TrustMark({ e }: { e: LicensedEvent }) {
 function RichCard({ e }: { e: LicensedEvent }) {
   const price = fmtPrice(e);
   const map = mapUrl(e);
+  const img = httpUrl(e.image_url);
+  const tix = httpUrl(e.ticket_url);
   return (
     <div className="card">
-      {e.image_url ? (
-        <div className="ph" style={{ backgroundImage: `url(${e.image_url})` }} />
+      {img ? (
+        <div className="ph" style={{ backgroundImage: `url(${img})` }} />
       ) : (
         <div
           className="noph"
@@ -98,8 +108,8 @@ function RichCard({ e }: { e: LicensedEvent }) {
         </span>
         <div className="foot">
           <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
-          {e.ticket_url ? (
-            <a className="tix" href={e.ticket_url} target="_blank" rel="noopener noreferrer">
+          {tix ? (
+            <a className="tix" href={tix} target="_blank" rel="noopener noreferrer">
               tickets ↗
             </a>
           ) : null}
@@ -169,14 +179,9 @@ export default async function TonightPage() {
   const nowMs = Date.now();
   const total = events.length;
   const freeCount = events.filter((e) => e.is_free).length;
-  const byDomain = new Map<string, LicensedEvent[]>();
-  for (const e of events) {
-    const k = e.category ?? "unmapped";
-    const arr = byDomain.get(k);
-    if (arr) arr.push(e);
-    else byDomain.set(k, [e]);
-  }
-  const activeDomains = DOMAINS.filter((d) => (byDomain.get(d.id)?.length ?? 0) > 0);
+  // Group every event under a rendered domain (unknown categories fold into
+  // "Other") — nothing is silently dropped. See lib/feed.ts + feed.test.ts.
+  const groups = groupByDomain(events);
 
   return (
     <main className="flow">
@@ -193,7 +198,7 @@ export default async function TonightPage() {
           </p>
           <div className="kpis">
             <div className="kpi"><div className="v">{total.toLocaleString()}</div><div className="l">upcoming events</div></div>
-            <div className="kpi"><div className="v">{activeDomains.length}</div><div className="l">cultural domains</div></div>
+            <div className="kpi"><div className="v">{groups.length}</div><div className="l">cultural domains</div></div>
             <div className="kpi"><div className="v">{total ? Math.round((100 * freeCount) / total) : 0}%</div><div className="l">free to attend</div></div>
           </div>
         </div>
@@ -205,17 +210,18 @@ export default async function TonightPage() {
         ) : (
           <>
             <nav className="domnav">
-              {activeDomains.map((d) => (
+              {groups.map(({ domain: d, items }) => (
                 <a key={d.id} href={`#${d.id}`}>
                   <span className="dot" style={{ background: `hsl(${d.hue} 65% 55%)` }} />
                   {d.label}
-                  <span className="n">{byDomain.get(d.id)!.length}</span>
+                  <span className="n">{items.length}</span>
                 </a>
               ))}
             </nav>
 
-            {activeDomains.map((d) => {
-              const items = byDomain.get(d.id)!;
+            {groups.map(({ domain: d, items }) => {
+              // Render ALL events — rich cards this week, condensed rows later.
+              // No caps: a capped list silently hides rows (disputed included).
               const rich = items.filter((e) => timeBand(e.start_time, nowMs) === "rich");
               const later = items.filter((e) => timeBand(e.start_time, nowMs) !== "rich");
               return (
@@ -227,14 +233,14 @@ export default async function TonightPage() {
                   </div>
                   {rich.length > 0 ? (
                     <div className="grid">
-                      {rich.slice(0, 12).map((e) => (
+                      {rich.map((e) => (
                         <RichCard key={e.licensed_event_id} e={e} />
                       ))}
                     </div>
                   ) : null}
                   {later.length > 0 ? (
                     <div style={{ display: "grid", gap: 8, marginTop: rich.length ? 10 : 0 }}>
-                      {later.slice(0, 20).map((e) => (
+                      {later.map((e) => (
                         <CondensedRow key={e.licensed_event_id} e={e} />
                       ))}
                     </div>

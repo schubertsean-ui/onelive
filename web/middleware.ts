@@ -16,6 +16,13 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
 ]);
 
+// The ops/admin console ALWAYS requires a real authenticated + allowlisted user.
+// It is never covered by the "consumer public" declaration — declaring the feed
+// public must not publish the admin surface (evaluator PR #59). When no auth
+// provider is configured, ops cannot authenticate anyone, so it is denied and
+// hidden (404), never opened.
+const isOpsRoute = createRouteMatcher(["/ops(.*)"]);
+
 async function resolveEmail(
   userId: string,
   sessionClaims: Record<string, unknown> | null,
@@ -52,6 +59,14 @@ function accessNotConfigured(): NextResponse {
   );
 }
 
+// Ops is denied + hidden when no real auth provider can gate it.
+function opsDenied(): NextResponse {
+  return new NextResponse("Not found", {
+    status: 404,
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+}
+
 const gate = clerkMiddleware(async (auth, req) => {
   if (isPublicRoute(req)) return NextResponse.next();
 
@@ -86,8 +101,10 @@ const _mode = authMode();
 export default _mode === "clerk"
   ? gate
   : _mode === "disabled"
-    ? function middleware() {
-        return NextResponse.next();
+    ? function middleware(req: import("next/server").NextRequest) {
+        // Consumer surface is intentionally public; ops stays denied (no auth
+        // provider can gate it, so it must never be exposed by this switch).
+        return isOpsRoute(req) ? opsDenied() : NextResponse.next();
       }
     : function middleware() {
         return accessNotConfigured();

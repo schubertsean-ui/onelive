@@ -195,14 +195,19 @@ def evaluate(doc: dict, allowlist: dict[tuple[str, str], dict], today: _dt.date)
             continue
         suppressed.append(f"{label}  [expires {entry['expires']}]")
 
+    # STALE entries FAIL (self-maintaining, evaluator PR #59): once an advisory
+    # is fixed/gone it drops out of the audit, so its exception must be deleted —
+    # a fatal stale check forces that cleanup instead of letting "No fix
+    # available" become a standing posture with dead entries accreting.
+    unused = sorted(set(allowlist) - used)
+    for pkg, ghsa in unused:
+        failures.append(
+            f"STALE exception (advisory no longer present — DELETE this entry): {pkg} {ghsa}"
+        )
+
     lines = []
     for s in suppressed:
         lines.append(f"  SUPPRESSED (reviewed exception): {s}")
-    unused = sorted(set(allowlist) - used)
-    for pkg, ghsa in unused:
-        # Non-fatal: an unused entry hides nothing (it matched no live advisory).
-        # It just means the vuln is gone and the entry should be cleaned up.
-        lines.append(f"  STALE exception (advisory no longer present — remove it): {pkg} {ghsa}")
     for f in failures:
         lines.append(f"  FAIL: {f}")
     return (len(failures) == 0, lines)

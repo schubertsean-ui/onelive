@@ -36,6 +36,7 @@ Every enforcer built to this policy MUST provide, and prove with tests:
 | **Fail-closed** | An unreadable/malformed allowlist, or unparseable scanner output, **fails** the gate. Absence of proof is never a pass. |
 | **Auto-re-block** | An exception holds **only while the finding is genuinely unfixable**. The instant the scanner reports a fix is available, the gate **fails** — forcing the upgrade. Exceptions cannot rot into permanent blindness. |
 | **Time-boxed** | Every exception has an `expires` date. Past it, the gate **fails** and a human + the evaluator must re-review. |
+| **Self-cleaning** | A **stale** exception (its finding no longer appears — fixed or removed) **fails** the gate, forcing deletion so dead entries cannot accrete into standing blindness. |
 | **Reviewed** | Every allowlist change is a diff that rides the mandatory adversarial review (every PR, no path filter). Adding an exception is a reviewed act, not a quiet edit. |
 | **Auditable** | Every entry carries reason, exposure rationale, owner, added date, and a concrete resolution trigger. |
 
