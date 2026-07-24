@@ -11,7 +11,7 @@ def test_max_pages_below_one_fails_closed():
 
 def test_zero_events_fails_loud(monkeypatch):
     monkeypatch.setenv("TICKETMASTER_API_KEY", "K")
-    monkeypatch.setattr(r, "fetch_events", lambda *a, **k: iter([]))
+    monkeypatch.setattr(r, "fetch_events_capcog", lambda *a, **k: iter([]))
     assert r.main(["--max-pages", "2", "--dry-run"]) == 3
 
 
@@ -22,6 +22,6 @@ def test_missing_key_fails_closed(monkeypatch):
 
 def test_dry_run_with_events_succeeds_without_db(monkeypatch):
     monkeypatch.setenv("TICKETMASTER_API_KEY", "K")
-    monkeypatch.setattr(r, "fetch_events", lambda *a, **k: iter([{"id": "1"}]))
+    monkeypatch.setattr(r, "fetch_events_capcog", lambda *a, **k: iter([{"id": "1"}]))
     monkeypatch.setattr(r, "normalize_ticketmaster", lambda e: {"category": "live-music"})
     assert r.main(["--max-pages", "2", "--dry-run"]) == 0

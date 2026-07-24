@@ -158,3 +158,31 @@ def test_sg_normalize_fields():
 def test_sg_missing_id_or_title_returns_none():
     assert normalize_seatgeek({"title": "no id"}) is None
     assert normalize_seatgeek({"id": 1}) is None
+
+
+def test_capcog_fetch_windows_and_dedupes(monkeypatch):
+    """The comprehensive fetch sweeps multiple time windows and de-dupes by id,
+    breaking the API's ~1000-per-query cap without double-counting a show that
+    appears in overlapping windows."""
+    import datetime as dt
+
+    from worker.importers import ticketmaster as tm
+
+    calls = []
+
+    def fake_fetch_events(api_key, *, start=None, end=None, **kw):
+        calls.append((start, end))
+        # Each window returns two events; id "shared" recurs in every window.
+        yield {"id": f"w-{start[:10]}", "name": "unique per window"}
+        yield {"id": "shared", "name": "same show seen in every window"}
+
+    monkeypatch.setattr(tm, "fetch_events", fake_fetch_events)
+    fixed_now = dt.datetime(2026, 7, 24, tzinfo=dt.timezone.utc)
+    out = list(tm.fetch_events_capcog("k", windows=3, _now=fixed_now))
+
+    assert len(calls) == 3  # swept three windows
+    ids = [e["id"] for e in out]
+    assert ids.count("shared") == 1  # de-duped across windows
+    assert len([i for i in ids if i.startswith("w-")]) == 3  # one unique per window
+    # windows are consecutive and non-overlapping in ordering
+    assert calls[0][0] < calls[1][0] < calls[2][0]
