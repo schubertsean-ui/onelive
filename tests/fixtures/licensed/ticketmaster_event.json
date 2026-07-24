@@ -1,0 +1,22 @@
+{
+  "id": "vvG1zZfbn0aK-A",
+  "name": "Austin Symphony: Beethoven's Ninth",
+  "url": "https://www.ticketmaster.com/event/vvG1zZfbn0aK-A",
+  "images": [
+    {"ratio": "3_2", "width": 640, "height": 427, "url": "https://s1.ticketm.net/img/small.jpg"},
+    {"ratio": "16_9", "width": 1024, "height": 576, "url": "https://s1.ticketm.net/img/wide.jpg"},
+    {"ratio": "16_9", "width": 2048, "height": 1152, "url": "https://s1.ticketm.net/img/widest.jpg"}
+  ],
+  "dates": {
+    "start": {"localDate": "2026-07-24", "localTime": "20:00:00", "dateTime": "2026-07-25T01:00:00Z"},
+    "status": {"code": "onsale"}
+  },
+  "priceRanges": [{"type": "standard", "currency": "USD", "min": 25.0, "max": 95.0}],
+  "classifications": [
+    {"segment": {"name": "Arts & Theatre"}, "genre": {"name": "Classical"}, "subGenre": {"name": "Classical/Vocal"}}
+  ],
+  "_embedded": {
+    "venues": [{"name": "Bass Concert Hall", "city": {"name": "Austin"}, "address": {"line1": "2350 Robert Dedman Dr"}, "postalCode": "78712", "location": {"latitude": "30.2849", "longitude": "-97.7304"}}],
+    "attractions": [{"name": "Austin Symphony Orchestra"}]
+  }
+}

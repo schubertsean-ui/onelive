@@ -1,25 +1,33 @@
 """Mechanical binding: reviewed head == code the arming smoke run exercised.
 
 PR #43 r16: prose claiming "the evidence commit is docs-only" is not
-verification. This test recomputes the claim FROM GIT on every run: every
-path changed between the recorded smoke-run commit
-(docs/evidence/ARMING_SMOKE_RUN.json) and the code under test must lie in
-the non-runtime set — docs/, TODOS.md, STATE.md, tests/, design/ — none
-of which execute in the armed workflow (ingest.yml runs run_once.py;
-tests never ship into that path; design/ holds founder-facing HTML
-proposals nothing in the pipeline imports; TODOS.md/STATE.md are the
-work-queue and status rollup governance docs). Any change to workflows, worker/, tools/, ai/, or anything
-else runtime re-REDs this test until a fresh green head run updates the
-evidence file.
+verification. This test recomputes the claim FROM GIT on every run: every path
+changed between the recorded smoke-run commit
+(docs/evidence/ARMING_SMOKE_RUN.json) and the code under test that lies in the
+ARMED CRON's runtime set re-REDs this test until a fresh green head run updates
+the evidence file.
 
-Where it binds: this test runs in tools/validate locally AND in the
-trust-gate CI job, which checks out FULL history (fetch-depth 0, stage-6
-r2) and is a required check on the PR — so the binding is enforced by a
-blocking check, not narrative. In an environment whose clone lacks the
-recorded commit (shallow checkout), it fails LOUD as unprovable rather
-than passing silently — fail closed, with the trust-gate job as the
-authoritative venue.
+The runtime set is computed PRECISELY (Session Contract #20, 2026-07-24) by
+tools/arming_runtime.py: the transitive first-party import closure of the
+scripts .github/workflows/ingest.yml runs (run_once.py + assemble_dsn.py +
+assert_deadman_period.py) plus ingest.yml itself. It REPLACES the original coarse
+denylist (everything except docs/tests/design was "runtime"), which
+mis-classified code the cron never runs — the consumer web app (web/), SQL
+migrations (supabase/), and the deterministic licensed-feed importer
+(worker/importers/) — as cron runtime and demanded a paid re-smoke for changes
+that cannot affect the armed cron. The closure is NOT fail-open: anything the
+cron begins to import is included automatically, ingest.yml itself is always in
+the set (so any change to how it invokes scripts re-fires), and dynamic imports
+in the closure fail LOUD rather than silently under-including (fail closed).
+
+Where it binds: this test runs in tools/validate locally AND in the trust-gate
+CI job, which checks out FULL history (fetch-depth 0, stage-6 r2) and is a
+required check on the PR — so the binding is enforced by a blocking check, not
+narrative. In an environment whose clone lacks the recorded commit (shallow
+checkout), it fails LOUD as unprovable rather than passing silently — fail
+closed, with the trust-gate job as the authoritative venue.
 """
+import importlib.util
 import json
 import pathlib
 import subprocess
@@ -27,22 +35,15 @@ import subprocess
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _EVIDENCE = _ROOT / "docs" / "evidence" / "ARMING_SMOKE_RUN.json"
 
-# Paths that never execute inside the armed workflow. Everything else is
-# runtime surface and must be byte-identical to the run's commit.
-# Directories are prefix-matched; files exactly (r18 nit: a bare
-# startswith would have blessed e.g. TODOS.md.bak).
-_NON_RUNTIME_DIR_PREFIXES = ("docs/", "tests/", "design/")
-# .gitignore never executes in the armed workflow either — it shapes only
-# the local working tree (untracked-file hygiene; the workflow's checkout,
-# python steps, and artifact upload are unaffected by it). Added when the
-# parallel-agent worktree ignore line correctly tripped this binding
-# (PR #51): the gate was right to stop and ask; the answer is that this
-# file is not runtime surface.
-_NON_RUNTIME_FILES = ("TODOS.md", "STATE.md", ".gitignore")
 
-
-def _is_non_runtime(path: str) -> bool:
-    return path.startswith(_NON_RUNTIME_DIR_PREFIXES) or path in _NON_RUNTIME_FILES
+def _load_arming_runtime():
+    """Load tools/arming_runtime.py (tools/ is not a package) — the single
+    source of truth for the armed cron's runtime file set."""
+    spec = importlib.util.spec_from_file_location(
+        "arming_runtime", _ROOT / "tools" / "arming_runtime.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def _git(*args: str) -> subprocess.CompletedProcess:
@@ -78,10 +79,15 @@ def test_reviewed_head_is_runtime_code_identical_to_the_smoke_run():
     diff = _git("diff", "--name-only", f"{run_sha}..{head}")
     assert diff.returncode == 0, diff.stderr
     changed = [p for p in diff.stdout.splitlines() if p.strip()]
-    runtime_changes = [p for p in changed if not _is_non_runtime(p)]
+
+    # A changed file re-fires the binding ONLY if it is in the armed cron's
+    # true runtime closure. DynamicImportError (a dynamic import in the closure)
+    # propagates as a LOUD failure — fail closed, never silently under-include.
+    runtime = _load_arming_runtime().runtime_files()
+    runtime_changes = [p for p in changed if p in runtime]
     assert not runtime_changes, (
-        "runtime code changed since the recorded green smoke run — the "
-        f"evidence no longer covers this head: {runtime_changes}. Re-run "
+        "armed-cron runtime code changed since the recorded green smoke run — "
+        f"the evidence no longer covers this head: {runtime_changes}. Re-run "
         "the head smoke run and update docs/evidence/ARMING_SMOKE_RUN.json "
         "in the same (docs-only) commit."
     )
