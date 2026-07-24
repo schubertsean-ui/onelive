@@ -16,6 +16,12 @@ import argparse
 import pathlib
 import sys
 
+# Run as a script (`python3 tools/apply_migration.py`), so self-insert the repo
+# root on sys.path — otherwise `import worker` fails (tools/ is not a package).
+_ROOT = pathlib.Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
 
 def apply_sql(conn, sql: str) -> None:
     with conn.cursor() as cur:
