@@ -260,10 +260,29 @@ _BANNER_EXCLUDE_PARTS = {"metrics", "memory"}
 _BANNER_EXCLUDE_NAMES = {"ONE_LIVE_CHANGE_LOG.md"}
 
 
+_HEADING = re.compile(r"#{1,6}\s")
+
+
 def _banner_live_somewhere(doc_texts: list[str]) -> bool:
-    """True when some doc still CARRIES the banner (bold/heading form),
-    as opposed to merely mentioning the marker string in prose."""
-    return any(("**" + LIFECYCLE_MARKER) in t for t in doc_texts)
+    """True when some doc still CARRIES the banner: a line that OPENS with
+    the bold marker (optionally blockquoted) or a markdown heading naming
+    the marker — and whose line does NOT say SUPERSEDED (r5 blocker: a
+    bold historical/superseded mention anywhere must not switch this gate
+    off; substring-anywhere detection was fail-open). Honest limit: a
+    genuinely live banner whose own line contains the word SUPERSEDED is
+    not recognized — acceptable, because that line is self-contradictory
+    and the safe reading of a contradiction is "not live" (the gate then
+    DEMANDS tags rather than granting present-tense license)."""
+    for t in doc_texts:
+        for line in t.splitlines():
+            stripped = line.strip()
+            if stripped.startswith(">"):
+                stripped = stripped.lstrip(">").lstrip()
+            opens_bold = stripped.startswith("**" + LIFECYCLE_MARKER)
+            is_heading = bool(_HEADING.match(stripped)) and LIFECYCLE_MARKER in stripped
+            if (opens_bold or is_heading) and "SUPERSEDED" not in line:
+                return True
+    return False
 
 
 def stale_marker_claims(live_state_texts: dict[str, str],
@@ -353,4 +372,24 @@ def test_marker_gate_allows_tagged_history():
 def test_marker_gate_allows_present_claims_while_banner_is_live():
     claim = "Part 1 is marked BLOCKED-ON-PRIMARY-VERIFICATION in the doc."
     live = "> **BLOCKED-ON-PRIMARY-VERIFICATION (added 2026-07-24…)**"
+    assert stale_marker_claims({"STATE.md": claim}, [live]) == []
+
+
+def test_superseded_or_prose_bold_mentions_do_not_count_as_live():
+    # r5 blocker: none of these may switch the gate off.
+    not_live = [
+        "> **BLOCKED-ON-PRIMARY-VERIFICATION (SUPERSEDED 2026-07-24)** …",
+        "the old **BLOCKED-ON-PRIMARY-VERIFICATION** banner was removed",
+        "## History (SUPERSEDED): BLOCKED-ON-PRIMARY-VERIFICATION era",
+    ]
+    claim = "Part 1 is marked BLOCKED-ON-PRIMARY-VERIFICATION today."
+    for doc in not_live:
+        assert stale_marker_claims({"STATE.md": claim}, [doc]), (
+            f"non-live mention wrongly granted present-tense license: {doc!r}"
+        )
+
+
+def test_heading_form_banner_counts_as_live():
+    live = "### BLOCKED-ON-PRIMARY-VERIFICATION — do not ratify Part 1"
+    claim = "Part 1 is marked BLOCKED-ON-PRIMARY-VERIFICATION today."
     assert stale_marker_claims({"STATE.md": claim}, [live]) == []
