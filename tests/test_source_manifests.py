@@ -26,6 +26,17 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 SOURCES = REPO / "docs" / "research" / "sources"
 
+# Schema (r4 nit): recomputation catches drift in the computed fields, but
+# an UNKNOWN extra field could carry a misleading claim no gate validates —
+# so fields are allowlisted. REQUIRED are recomputed; DESCRIPTIVE are
+# free-text provenance the evaluator reads (their content is prose, not
+# recomputable — that boundary is this gate's honest limit).
+REQUIRED_FIELDS = {"file", "sha256", "bytes", "lines"}
+DESCRIPTIVE_FIELDS = {
+    "supplied_by", "original_upload_basename", "what_it_is", "role",
+    "storage_note",
+}
+
 
 def manifest_mismatches(manifest: dict, artifact_bytes: bytes) -> list[str]:
     """Field-by-field recomputation; returns human-readable mismatches."""
@@ -40,6 +51,15 @@ def manifest_mismatches(manifest: dict, artifact_bytes: bytes) -> list[str]:
         got = manifest.get(field)
         if got != want:
             problems.append(f"{field}: manifest says {got!r}, artifact is {want!r}")
+    missing = REQUIRED_FIELDS - manifest.keys()
+    if missing:
+        problems.append(f"missing required field(s): {sorted(missing)}")
+    unknown = manifest.keys() - REQUIRED_FIELDS - DESCRIPTIVE_FIELDS
+    if unknown:
+        problems.append(
+            f"unknown field(s) {sorted(unknown)} — a manifest may not carry "
+            "claims outside the allowlisted schema (r4 nit)"
+        )
     return problems
 
 
@@ -83,3 +103,15 @@ def test_gate_goes_red_on_content_swap():
         "lines": 1,
     }
     assert any(p.startswith("sha256:") for p in manifest_mismatches(m, content))
+
+
+def test_gate_goes_red_on_unknown_extra_field():
+    content = b"x\n"
+    m = {
+        "file": "x.md",
+        "sha256": hashlib.sha256(content).hexdigest(),
+        "bytes": 2,
+        "lines": 1,
+        "verified_by_founder": True,  # unvalidated claim smuggled as a field
+    }
+    assert any("unknown field" in p for p in manifest_mismatches(m, content))
