@@ -37,6 +37,17 @@ it is extracted from our own repo, which we can read directly.
 
 ## Part 1 — The framework, compactly
 
+> **BLOCKED-ON-PRIMARY-VERIFICATION (added 2026-07-24, founder directive —
+> `docs/memory/decisions/2026-07-24_primary-source-gate.md`):** this part was
+> reconstructed WITHOUT access to the primary article (every fetch 403'd), and
+> the founder has since directed that strategic/deep research must never
+> proceed on secondary excerpts at all. Part 1 — and every sentence elsewhere
+> in this doc that leans on the article rather than on this repo — is
+> therefore NOT to be relied on or ratified until verified against the
+> primary source. Unblock (either works): paste the article text into a
+> session, or read it yourself and confirm/correct this table. The Part 3
+> kernel is unaffected: it derives from this repo, which was read directly.
+
 Boris Cherny (creator/head of Claude Code at Anthropic) published "Steps of AI
 Adoption" on 2026-07-16: five maturity levels for teams building with AI
 agents. Each step names a human role, an approximate concurrent-agent count,

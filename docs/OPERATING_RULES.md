@@ -38,6 +38,19 @@ Concretely, before anything is considered done:
   first, then proceed.
 - **Findings are claims until verified.** Row counts, scores, "it works" — prove
   them against ground truth (DB query, passing test, real run) before asserting.
+- **No research without the primary source.** (Founder directive, verbatim,
+  2026-07-24: "Don't ever assume or summarize or proceed to perform any
+  strategic or deep research that you are unable to access the primary
+  documents or files or information." Decision record:
+  `docs/memory/decisions/2026-07-24_primary-source-gate.md`.) If the primary
+  document/file/data behind a strategic or deep-research task cannot be
+  accessed (paywall, 403, missing attachment, login gate), the research does
+  NOT proceed on excerpts, mirrors, search summaries, or memory — however
+  heavily caveated. STOP that thread, deliver a blocker report naming exactly
+  what was inaccessible and the smallest founder action that unblocks it
+  (paste the text, attach the file, grant access), and only continue work
+  that does not depend on the inaccessible source. Secondary-source
+  reconstruction is not a fallback; it is the defect.
 
 If something is merely "fine," it is not done. State the gap and close it.
 
