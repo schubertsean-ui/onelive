@@ -120,7 +120,7 @@ def test_sg_normalize_fields():
     assert ev["title"] == "Spoon"
     assert ev["category"] == "live-music"
     assert ev["subsegment"] == "Indie Rock"
-    assert ev["start_time"] == "2026-07-25T02:00:00"
+    assert ev["start_time"] == "2026-07-25T02:00:00Z"  # UTC made explicit for timestamptz
     assert ev["price_min"] == 35.0 and ev["price_max"] == 75.0
     assert ev["currency"] == "USD"
     assert ev["venue_name"] == "Stubb's"

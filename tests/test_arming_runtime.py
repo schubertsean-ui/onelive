@@ -28,8 +28,16 @@ def test_closure_includes_the_cron_path():
         "ai/bedrock_provider.py",
         "tools/assemble_dsn.py",
         "tools/assert_deadman_period.py",
+        "worker/requirements.txt",  # a non-Python runtime input the workflow installs
     ):
         assert expected in rt, f"{expected} missing from armed-cron runtime closure"
+
+
+def test_workflow_comment_paths_do_not_leak():
+    # File paths mentioned only in ingest.yml comments must NOT enter the set
+    # (that would reintroduce false positives). docs/ is comment-only there.
+    rt = _mod().runtime_files()
+    assert not any(p.startswith("docs/") for p in rt), sorted(p for p in rt if p.startswith("docs/"))
 
 
 def test_closure_excludes_non_cron_code():

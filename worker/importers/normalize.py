@@ -25,6 +25,18 @@ def _first(seq: Any) -> Any:
     return seq[0] if isinstance(seq, list) and seq else None
 
 
+def _utc_iso(s: Any) -> Optional[str]:
+    """Make a UTC timestamp string unambiguous for a timestamptz column: append
+    'Z' when the value carries no timezone designator. SeatGeek's datetime_utc
+    is UTC but formatted naive (no offset), so without this it would be
+    interpreted in the DB/session timezone."""
+    if not isinstance(s, str) or not s:
+        return s if s else None
+    if s.endswith("Z") or "+" in s[10:] or s[10:].count("-") > 0:
+        return s
+    return s + "Z"
+
+
 def _best_image(images: Any) -> Optional[str]:
     """Pick the widest 16:9 image; fall back to the widest of any ratio."""
     if not isinstance(images, list) or not images:
@@ -135,7 +147,7 @@ def normalize_seatgeek(ev: dict) -> Optional[dict]:
         "category": category,
         "subsegment": subsegment,
         "performer": performer,
-        "start_time": ev.get("datetime_utc"),  # SeatGeek gives naive-UTC ISO
+        "start_time": _utc_iso(ev.get("datetime_utc")),  # SeatGeek gives naive-UTC ISO → make Z-explicit
         "end_time": None,
         "status": "scheduled",
         "on_sale_status": None,
