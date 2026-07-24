@@ -1,0 +1,43 @@
+{
+  "$schema_note": "Machine-enforced allowlist for the SCA (npm audit) gate. Read the policy first: docs/EXTERNAL_FINDINGS_POLICY.md. Enforced by tools/sca_gate.py (blocking CI step in .github/workflows/adversarial-review.yml). This file NEVER covers trust-invariant gates (trust_gate/evaluator/eval-harness/RLS) — it is only for external dependency/tooling findings we cannot fix under our own control.",
+  "policy": {
+    "gate": "npm-audit-prod-high",
+    "blocks_severities": ["high", "critical"],
+    "scope": "production dependencies (npm audit --omit=dev)"
+  },
+  "rules_enforced_by_tool": [
+    "Every high/critical production advisory MUST be either fixed or listed here — an unlisted one FAILS the gate.",
+    "An entry suppresses ONLY while the scanner reports fixAvailable=false for its package. The moment a fix ships, fixAvailable flips and the gate FAILS — forcing the upgrade (anti-rot).",
+    "An entry past its 'expires' date FAILS the gate — forcing periodic human + evaluator re-review.",
+    "A malformed entry or an unreadable allowlist FAILS the gate (fail-closed).",
+    "Entries are scoped to an exact (package, ghsa). No wildcards."
+  ],
+  "entries": [
+    {
+      "package": "postcss",
+      "ghsa": "GHSA-6g55-p6wh-862q",
+      "severity": "high",
+      "title": "PostCSS: arbitrary file read / info disclosure via attacker-controlled sourceMappingURL in CSS comments",
+      "chain": "postcss <=8.5.11  <-  next  <-  (@clerk/nextjs, @sentry/nextjs)",
+      "no_fix_reason": "npm reports fixAvailable=false: every Next.js release in range pins this postcss; postcss cannot be bumped independently without breaking next. No stable upstream fix exists yet.",
+      "operational_exposure": "LOW / not reachable. postcss runs at BUILD time over OUR OWN authored CSS (Tailwind output), never over attacker-controlled input at runtime. The advisory needs an attacker-controlled sourceMappingURL, which our build never ingests.",
+      "owner": "founder-directed 2026-07-24 (schubertsean@gmail.com)",
+      "added": "2026-07-24",
+      "expires": "2026-08-24",
+      "resolution_trigger": "Next.js publishes a release that depends on postcss >= 8.5.12 (npm audit fixAvailable flips to a version) -> bump next, delete this entry. Re-checked automatically on every web dependency change; hard re-review at expiry."
+    },
+    {
+      "package": "sharp",
+      "ghsa": "GHSA-f88m-g3jw-g9cj",
+      "severity": "high",
+      "title": "sharp inherited libvips vulnerabilities (CVE-2026-33327/33328/35590/35591)",
+      "chain": "sharp <0.35.0  <-  next (optional image-optimization dependency)",
+      "no_fix_reason": "npm reports fixAvailable=false: sharp's version is bounded by the installed Next.js, which does not yet accept sharp >= 0.35.0. No stable upstream fix path without a next release.",
+      "operational_exposure": "LOW / not reachable at runtime. The consumer feed renders imagery via CSS background-image, NOT next/image, so sharp is never invoked in the request path. The libvips CVEs require processing attacker-supplied images through sharp, which this product does not do.",
+      "owner": "founder-directed 2026-07-24 (schubertsean@gmail.com)",
+      "added": "2026-07-24",
+      "expires": "2026-08-24",
+      "resolution_trigger": "Next.js publishes a release depending on sharp >= 0.35.0 (npm audit fixAvailable flips) -> bump next, delete this entry. Re-checked automatically on every web dependency change; hard re-review at expiry."
+    }
+  ]
+}

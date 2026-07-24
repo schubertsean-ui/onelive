@@ -139,9 +139,13 @@ jobs:
               cd web
               npm ci
               # Supply-chain gate: production deps clean at high/critical, or
-              # the job fails here. Full audit (incl. dev/moderate) is shown to
-              # the evaluator below; reviewed exceptions: docs/SCA_BASELINE.md.
-              npm audit --omit=dev --audit-level=high
+              # the job fails here. Exceptions are NOT ad hoc — they go through
+              # the managed, self-maintaining allowlist (security/sca_allowlist.json,
+              # enforced by tools/sca_gate.py): each is scoped, expiring, and
+              # auto-re-blocks the instant a fix ships. Policy + guarantees:
+              # docs/EXTERNAL_FINDINGS_POLICY.md. Full audit (incl. dev/moderate)
+              # is still shown to the evaluator below.
+              python3 "$GITHUB_WORKSPACE/tools/sca_gate.py" --web-dir .
               npm audit || true
               npx tsc --noEmit
               npm test
