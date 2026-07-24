@@ -13,17 +13,6 @@ on:
         description: "Ticketmaster pages to fetch (100 events/page; deep-paging caps ~9)"
         required: false
         default: "8"
-  # BOOTSTRAP (removed before merge to master): workflow_dispatch only works from
-  # the default branch, so this branch-scoped push trigger lets the first real
-  # import run from the feature branch to populate licensed_event for review. It
-  # is idempotent and does no AI spend. Post-merge, dispatch is the only trigger.
-  push:
-    branches: [claude/live-site-capcog]
-    paths:
-      - ".github/workflows/import_licensed.yml"
-      - "worker/importers/**"
-      - "tools/apply_migration.py"
-      - "supabase/migrations/0010_licensed_feed_and_domains.sql"
 
 permissions:
   contents: read
