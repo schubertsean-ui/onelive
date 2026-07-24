@@ -1,6 +1,14 @@
 # Universal Development & Operating Model v1 — kernel + overlay
 
-**Status:** PROPOSAL (founder ratification required; PROPOSAL ≠ license to build)
+**Status:** KERNEL RATIFIED (founder, 2026-07-24, verbatim: "Ratify the
+Kernel.") — Part 3's kernel AS MERGED IN PR #61 is canon; each project's
+OVERLAY remains a per-project instrument ratified at that project's
+bootstrap (binding 7). Scope precision (evaluator, PR #62 r1): the
+ratification covers the kernel as it stood when ratified — the K-LOOP-5
+addition drafted AFTER it (from the founder-directed Kaizen review, Part 6)
+is a PROPOSED AMENDMENT pending its own explicit ratification and binds
+nothing until then. Companion decisions from the same founder message are
+annotated in Part 5.
 **Date:** 2026-07-24 · **Session Contract:** #21 (STATE.md) · **Author:** Generator (Claude Code session)
 **Prompted by:** founder request to assess Boris Cherny's "Steps of AI Adoption"
 (July 2026) against the portfolio — OneLive, multibagger, the press-release
@@ -285,7 +293,17 @@ adversarial review. An overlay binds the bracketed parameters.
   this proposal — Cherny's Step-3 bottleneck, made operational.)
 - **K-LOOP-5 Kaizen.** Zero escaped defects is absolute; internally-caught
   defects are treasure — ledger row per catch (gate, class); repeat classes
-  get a structural gate-gap fix, not a promise.
+  get a structural gate-gap fix, not a promise. **PROPOSED AMENDMENT
+  (2026-07-24, generator-drafted from the founder-directed review in
+  Part 6 — PENDING explicit founder ratification; until ratified, K-LOOP-5
+  ends at the previous sentence and this paragraph binds nothing):**
+  counter-measures are context-specific and discrete — each fix scoped to
+  the defect's ACTUAL surface, with the defect shape pinned red in tests
+  and the gate's honest limit stated; one-size-fits-all responses are
+  reserved for TRANSPORT (the composite runner, the evaluator on every PR,
+  the Record rule) and never for judgment; a blanket rule proposed as a
+  class fix is itself a smell; the ledger's class watch is the single
+  index that keeps discrete gates from fragmenting into unfindable pieces.
 
 ### 3.3 Kernel gates (the verification stack)
 
@@ -405,7 +423,7 @@ must attach the repo to a session and ratify its overlay; (2) **Promise
 Ledger** — at sprint step 12 the extraction to its own repo uses this
 checklist instead of inventing one.
 
-## Part 5 — Consolidated founder asks (the ONLY questions from this session)
+## Part 5 — Consolidated founder asks — ANSWERED 2026-07-24 (decisions annotated per ask; decision record: `docs/memory/decisions/2026-07-24_kernel-ratified-and-directives.md`)
 
 1. **Ratify the kernel/overlay split** (Part 3) as the v1 universal model —
    or mark specific invariants/loops you want changed. Nothing here alters
@@ -425,6 +443,80 @@ checklist instead of inventing one.
    this sandbox couldn't read the primary source — 2 minutes; the links are
    in the provenance block. Default: kernel stands anyway (it derives from
    our repo, not the article).
+
+
+**Decisions received (founder message, 2026-07-24; verbatim text lives in
+the decision record only — dissemination of the founder's instructions is
+deliberately minimized to that single home):** ask 1 — **RATIFIED** ("Ratify
+the Kernel."), scope-precise per the status line above: the kernel as merged
+in PR #61. ask 2 — **APPROVED with conditions** recorded in the decision
+record (named owner; private visibility); creation is still pending because
+this session's GitHub scope covers only the onelive repo and holds no
+repo-creation right — smallest unblock: the founder creates the empty
+private repo (~1 min) and attaches it to a session. ask 3 — **ON HOLD**
+("Hold on the Multibagger") — no session scheduled, nothing touched.
+ask 4 — **EXPLICITLY STILL OPEN** (optional, no deadline): a read of
+Cherny's original page can still correct Part 1; this ask survives the
+TODOS closure of asks 1–3, which covered only the decided items. Companion
+decision: the Vercel preview fix is APPROVED ("Good with the Vercel fix") —
+no Vercel/Clerk credentials exist in the agent sandbox, so the 2-minute
+dashboard step stays founder-hands (documented on PR #60). **NEW ask 5
+(created by the evaluator's PR #62 r1 scope correction):** the Kaizen
+review's distilled principle is DRAFTED as a K-LOOP-5 amendment (Part 3.2)
+but is generator-authored — ratify it, edit it, or decline it; until then
+it binds nothing.
+
+## Part 6 — Kaizen application review (founder-directed 2026-07-24: "more context-specific discreet vs. one fits all")
+
+**Question examined:** is OneLive's recent continuous-improvement practice
+appropriately context-specific and discrete, or drifting toward
+one-size-fits-all responses? Grounded in the Kaizen ledger's recent rows and
+its class watch — the primary artifacts, read directly.
+
+**Finding 1 — the practice is decisively context-specific, and it got MORE so
+recently.** Every repeat class in the watch carries its OWN counter-measure
+and its OWN objective trigger, none interchangeable: empty-env fail-open has
+a three-step escalation history ending in "next time it's an env-contract
+linter, not another patch"; wrong-arithmetic has a numeric-forms gate with
+its non-numeric gap STATED and trigger-armed; incomplete-enumeration
+produced the POLICY-vs-MIRROR list taxonomy (mirror lists must be derived or
+swept; policy lists ARE ground truth) — a classification, not a blanket rule
+— and its repo-wide audit ran only when its own trigger fired. This week's
+work sharpened the pattern: one family (stale-live-incident-state) now has
+THREE sibling gates because its recurrences live on three genuinely
+different surfaces — the live NEXT queue vs cadence claims vs lifecycle-
+marker claims — each gate narrow, each with its defect shapes pinned red,
+each stating its honest limit. The ledger's own precedent ("the fix moves to
+the recurrence's actual surface") was upheld three separate times in one
+arc.
+
+**Finding 2 — the one-size-fits-all elements that DO exist are transport,
+not judgment, and that is correct.** The composite validate runner, the
+evaluator riding every PR with no path filter, and the Record rule are
+uniform PIPES; the content flowing through them (which gates, which
+thresholds, which classes) is all discrete. Uniform transport is what makes
+discrete judgment auditable — this split should be preserved, and K-LOOP-5
+now encodes it.
+
+**Finding 3 — the honest costs, so the ratification is eyes-open.** (a)
+Discrete gates accumulate: PR #61 alone added three, and took six evaluator
+rounds — three of which were the evaluator correctly attacking repair gates
+until their claims matched their behavior. That round-cost is the price of
+gates that don't overclaim, and the new claims-discipline meta-gate now
+forces the boundary statement that made those attacks resolvable. (b) The
+blanket-rule temptation appears precisely at repeat-class moments, when a
+sweeping fix feels decisive; the ratified principle names it a smell so the
+temptation is pre-answered. (c) Fragmentation risk is real as gates
+multiply; the class watch is the single index and must stay the only one.
+
+**Verdict:** current practice matches the founder's directive — context-
+specific and discrete, with uniform transport only. No corrective work is
+needed. The distilled principle is DRAFTED as a proposed K-LOOP-5
+amendment (marked as such in Part 3.2, pending explicit founder
+ratification — ask 5 in Part 5): the review directive asked a question and
+stated a preference; it did not ratify canonical wording the generator then
+authored, and the evaluator correctly blocked the first version of this PR
+for conflating the two.
 
 ---
 
