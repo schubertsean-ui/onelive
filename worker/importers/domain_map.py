@@ -72,33 +72,45 @@ _TM_GENRE_DOMAIN = {
 }
 
 
+# Provider placeholders that carry NO sub-bucket signal — never shown as a
+# subsegment (a card must not read "Theater · Miscellaneous").
+_TM_PLACEHOLDER = {"undefined", "none", "other", "miscellaneous", ""}
+
+
 def ticketmaster_domain(segment: str | None, genre: str | None,
                         subgenre: str | None) -> tuple[str, str | None]:
     """Return (domain_id, subsegment) for a Ticketmaster classification.
 
     subsegment is the provider's genre (the human-meaningful sub-bucket), or the
-    subGenre when it adds signal. An unrecognized segment/genre returns
-    (UNMAPPED, ...) — never guessed into a real domain (no fabricated data).
+    subGenre when it adds signal. Mapping uses ONLY the provider's own taxonomy —
+    genre first, then the segment as a coarse fallback (e.g. an "Arts & Theatre"
+    event with a missing/generic genre is theater, not "Other"; that is the
+    provider's own segment, not a guess). A segment with no cultural signal at
+    all ("Undefined", bare "Miscellaneous") stays UNMAPPED — honest, never a
+    fabricated domain on a public feed.
     """
     seg = (segment or "").strip().lower()
     gen = (genre or "").strip()
     sub = (subgenre or "").strip()
     gen_l = gen.lower()
 
-    domain = _TM_SEGMENT.get(seg)
-    # Arts & Theatre / Miscellaneous refine by genre. An UNRECOGNIZED genre here
-    # is NOT guessed into a real domain — it becomes UNMAPPED (honest), never a
-    # fabricated category on a public feed.
-    if seg in ("arts & theatre", "arts & theater", "miscellaneous"):
+    if seg in ("arts & theatre", "arts & theater"):
+        # Refine by genre; fall back to the segment's own coarse domain (theater)
+        # rather than discarding the provider's Arts & Theatre classification.
+        domain = _TM_GENRE_DOMAIN.get(gen_l) or _TM_SEGMENT[seg]
+    elif seg == "miscellaneous":
+        # Miscellaneous only lands in a real domain when its GENRE is recognized
+        # (food & drink, festival, ...). A bare "Miscellaneous" has no signal.
         domain = _TM_GENRE_DOMAIN.get(gen_l, UNMAPPED)
-    if domain is None:
-        domain = UNMAPPED
+    else:
+        domain = _TM_SEGMENT.get(seg, UNMAPPED)
 
     # subsegment: prefer the genre; for music, the genre IS the subsegment
     # (Jazz/Rock/...). subGenre only used when it is more specific and differs.
-    subseg = gen or None
-    if sub and sub.lower() not in ("undefined", "other") and sub != gen:
-        subseg = f"{gen} · {sub}" if gen else sub
+    # Placeholder genres/subgenres are suppressed (no signal).
+    subseg = gen if gen_l not in _TM_PLACEHOLDER else None
+    if sub and sub.lower() not in _TM_PLACEHOLDER and sub != gen:
+        subseg = f"{subseg} · {sub}" if subseg else sub
     return domain, subseg
 
 

@@ -67,7 +67,12 @@ def normalize_ticketmaster(ev: dict) -> Optional[dict]:
     if not ext or not title:
         return None
 
-    cls = _first(ev.get("classifications")) or {}
+    # Prefer the classification Ticketmaster marks primary; else the first.
+    classifications = ev.get("classifications") or []
+    cls = next(
+        (c for c in classifications if isinstance(c, dict) and c.get("primary")),
+        _first(classifications),
+    ) or {}
     seg = (cls.get("segment") or {}).get("name")
     gen = (cls.get("genre") or {}).get("name")
     sub = (cls.get("subGenre") or {}).get("name")

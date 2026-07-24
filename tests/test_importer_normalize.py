@@ -45,13 +45,31 @@ def test_tm_sports_and_film():
 
 
 def test_tm_unknown_segment_is_unmapped_not_fabricated():
-    # The PRODUCTION function must surface an unrecognized classification as
-    # 'unmapped', never guess it into a real cultural domain (no fabricated data).
-    domain, _ = ticketmaster_domain("Nonsense", "Whatever", None)
-    assert domain == "unmapped"
-    domain2, _ = ticketmaster_domain("Arts & Theatre", "SomeGenreWeDontKnow", None)
-    assert domain2 == "unmapped"
+    # An UNRECOGNIZED SEGMENT (no provider taxonomy at all) must surface as
+    # 'unmapped', never guessed into a real domain (no fabricated data).
+    assert ticketmaster_domain("Nonsense", "Whatever", None)[0] == "unmapped"
+    assert ticketmaster_domain("Undefined", None, None)[0] == "unmapped"
+    # A bare "Miscellaneous" (no recognized genre) has no cultural signal.
+    assert ticketmaster_domain("Miscellaneous", None, None)[0] == "unmapped"
     assert "UNMAPPED" in unmapped("ticketmaster", "Nonsense/Whatever")
+
+
+def test_tm_arts_theatre_falls_back_to_segment_not_unmapped():
+    # An "Arts & Theatre" event with a missing/generic genre is theater by the
+    # provider's OWN segment (not a guess) — it must not be dumped into 'Other'.
+    assert ticketmaster_domain("Arts & Theatre", "SomeGenreWeDontKnow", None)[0] == "theater"
+    assert ticketmaster_domain("Arts & Theatre", None, None)[0] == "theater"
+    assert ticketmaster_domain("Arts & Theatre", "Miscellaneous", None)[0] == "theater"
+    # A recognized A&T genre still refines past the segment default.
+    assert ticketmaster_domain("Arts & Theatre", "Opera", None)[0] == "performing-arts"
+
+
+def test_tm_placeholder_genre_is_not_shown_as_subsegment():
+    # A card must never read "Theater · Miscellaneous" / "· Undefined".
+    assert ticketmaster_domain("Arts & Theatre", "Miscellaneous", None)[1] is None
+    assert ticketmaster_domain("Arts & Theatre", None, "Undefined")[1] is None
+    # A real genre is still surfaced.
+    assert ticketmaster_domain("Music", "Jazz", None)[1] == "Jazz"
 
 
 def test_sg_unknown_type_is_unmapped():
