@@ -7,7 +7,8 @@ import pytest
 import worker.importers.ticketmaster as tm
 
 
-def test_missing_key_fails_loud():
+def test_missing_key_fails_loud(monkeypatch):
+    monkeypatch.delenv("TICKETMASTER_API_KEY", raising=False)
     with pytest.raises(RuntimeError):
         list(tm.fetch_events(""))
 

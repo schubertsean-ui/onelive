@@ -80,8 +80,10 @@ def normalize_ticketmaster(ev: dict) -> Optional[dict]:
     on_sale_status, status = _TM_STATUS.get(status_code, (status_code or None, "scheduled"))
 
     prices = ev.get("priceRanges") or []
-    price_min = min((_f(p.get("min")) for p in prices if _f(p.get("min")) is not None), default=None)
-    price_max = max((_f(p.get("max")) for p in prices if _f(p.get("max")) is not None), default=None)
+    mins = [v for v in (_f(p.get("min")) for p in prices) if v is not None]
+    maxs = [v for v in (_f(p.get("max")) for p in prices) if v is not None]
+    price_min = min(mins) if mins else None
+    price_max = max(maxs) if maxs else None
     currency = (_first(prices) or {}).get("currency") if prices else None
     is_free = (price_min == 0) if price_min is not None else None
 

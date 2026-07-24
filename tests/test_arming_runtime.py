@@ -65,3 +65,37 @@ def test_static_imports_parse_cleanly(tmp_path):
     f.write_text("import os\nfrom worker.orchestrator import run_loop\n")
     mods = m._imported_modules(f)
     assert "os" in mods and "worker.orchestrator" in mods
+    # `from pkg import submod` records the submodule too (fail-open fix)
+    assert "worker.orchestrator.run_loop" in mods
+
+
+def test_importlib_in_comment_does_not_trip(tmp_path):
+    # AST-based detection: 'importlib' in a comment/docstring is NOT a dynamic import.
+    m = _mod()
+    f = tmp_path / "c.py"
+    f.write_text('"""mentions importlib in a docstring"""\n# and a comment: importlib\nimport os\n')
+    assert m._imported_modules(f) == ["os"]
+
+
+def test_package_inits_included():
+    rt = _mod().runtime_files()
+    # parent-package __init__.py files Python runs on import are in the set
+    assert any(p.endswith("__init__.py") for p in rt)
+
+
+def test_missing_declared_script_fails_loud(tmp_path, monkeypatch):
+    m = _mod()
+    wf = tmp_path / "ingest.yml"
+    wf.write_text("steps:\n  run: python worker/does_not_exist_xyz.py\n")
+    monkeypatch.setattr(m, "INGEST", wf)
+    with pytest.raises(m.MissingRuntimeInput):
+        m.runtime_files()
+
+
+def test_missing_requirements_fails_loud(tmp_path, monkeypatch):
+    m = _mod()
+    wf = tmp_path / "ingest.yml"
+    wf.write_text("steps:\n  run: pip install -r worker/no_such_reqs.txt\n")
+    monkeypatch.setattr(m, "INGEST", wf)
+    with pytest.raises(m.MissingRuntimeInput):
+        m.runtime_files()

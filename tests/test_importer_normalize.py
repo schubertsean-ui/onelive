@@ -44,10 +44,18 @@ def test_tm_sports_and_film():
     assert ticketmaster_domain("Film", "Miscellaneous", None)[0] == "film"
 
 
-def test_tm_unknown_segment_falls_back_visibly():
+def test_tm_unknown_segment_is_unmapped_not_fabricated():
+    # The PRODUCTION function must surface an unrecognized classification as
+    # 'unmapped', never guess it into a real cultural domain (no fabricated data).
     domain, _ = ticketmaster_domain("Nonsense", "Whatever", None)
-    assert domain == "fairs-expos"
+    assert domain == "unmapped"
+    domain2, _ = ticketmaster_domain("Arts & Theatre", "SomeGenreWeDontKnow", None)
+    assert domain2 == "unmapped"
     assert "UNMAPPED" in unmapped("ticketmaster", "Nonsense/Whatever")
+
+
+def test_sg_unknown_type_is_unmapped():
+    assert seatgeek_domain("totally_unknown_type", None)[0] == "unmapped"
 
 
 def test_sg_type_mapping():

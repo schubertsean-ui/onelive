@@ -34,7 +34,7 @@ def _get(url: str, timeout: int = 30) -> dict:
 
 
 def fetch_events(
-    api_key: str,
+    api_key: Optional[str] = None,
     *,
     extra_params: Optional[dict] = None,
     latlong: str = CAPCOG_LATLONG,
@@ -45,11 +45,14 @@ def fetch_events(
     end: Optional[str] = None,
     sleep: float = 0.25,
 ) -> Iterator[dict]:
-    """Yield raw Ticketmaster event dicts for the CAPCOG area, page by page."""
+    """Yield raw Ticketmaster event dicts for the CAPCOG area, page by page.
+
+    api_key falls back to the TICKETMASTER_API_KEY env var when not passed."""
+    api_key = api_key or os.environ.get("TICKETMASTER_API_KEY", "")
     if not api_key:
         raise RuntimeError(
             "TICKETMASTER_API_KEY is not set — cannot fetch. Set the env var to "
-            "your Ticketmaster Consumer Key."
+            "your Ticketmaster Consumer Key, or pass api_key explicitly."
         )
     page = 0
     while page < max_pages and size * page < 1000:

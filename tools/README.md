@@ -59,6 +59,7 @@ below; keep it current in the same commit that adds/changes a script.
 | `tools/validate` (bash) | Single "run everything" end-of-shift entrypoint: trust_gate, lint, full pytest, eval_harness import check, perf benchmarks, test_audit, commit_sweep, in order, with a PASS/FAIL summary table | 0 all passed / 1 any check failed |
 | `tools/install_hooks.sh` (bash) | Installs a real git pre-commit hook (framework-free fallback) that runs `lint.py --fix` then `trust_gate.py`, blocking the commit on failure | n/a (installer) |
 | `tools/import_sources.py` | Source-catalog import for the pipeline's source registry | see script's own `--help` |
+| `tools/apply_migration.py` | Applies one idempotent SQL migration file to the DB (ONELIVE_DB_DSN) in a single transaction; fails loud on error | 0 applied / 2 file missing |
 | `tools/arming_runtime.py` | Computes the armed ingest-cron's true runtime file set (import closure of ingest.yml's scripts + installed requirements + data files read by literal path) so the arming-evidence binding fires only on code the cron actually runs | 0 prints the set / 2 fail-closed on a dynamic import in the closure |
 
 ## Adding a new script

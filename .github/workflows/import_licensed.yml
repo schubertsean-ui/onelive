@@ -1,0 +1,48 @@
+name: import-licensed
+
+# Deterministic licensed-feed import: Ticketmaster Discovery → licensed_event.
+# NO AI, NO extraction spend (this is not the AI ingest cron; it does not run
+# worker/run_once.py and is not covered by the arming-evidence binding). Runs on
+# GitHub's runners, where egress reaches Ticketmaster (the dev sandbox's network
+# policy blocks it). Triggered manually via workflow_dispatch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_pages:
+        description: "Ticketmaster pages to fetch (100 events/page; deep-paging caps ~9)"
+        required: false
+        default: "8"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: import-licensed
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install worker deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r worker/requirements.txt
+      - name: Apply migration 0010 (idempotent) + import Ticketmaster CAPCOG events
+        env:
+          TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
+          ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
+          ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
+          MAX_PAGES: ${{ github.event.inputs.max_pages || '8' }}
+        run: |
+          : "${TICKETMASTER_API_KEY:?TICKETMASTER_API_KEY secret missing — add it in repo Settings → Secrets → Actions}"
+          : "${MAX_PAGES:?max_pages missing — the fetch bound is required}"
+          ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
+          export ONELIVE_DB_DSN
+          python3 tools/apply_migration.py supabase/migrations/0010_licensed_feed_and_domains.sql
+          python -m worker.importers.run_licensed_import --max-pages "$MAX_PAGES"

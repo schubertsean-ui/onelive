@@ -12,6 +12,12 @@ web/lib and the monitor ontology). Keep this list and the web copy in sync.
 """
 from __future__ import annotations
 
+# Honest catch-all for provider taxonomy we do NOT recognize. It is NOT one of
+# the 22 cultural domains — the feed shows it as "Other / uncategorized" and the
+# runner logs the count via unmapped(), so coverage gaps are visible and never a
+# fabricated category. Charter: ZERO fabricated data on product surfaces.
+UNMAPPED = "unmapped"
+
 # The 22 canonical cultural-domain ids.
 DOMAINS = (
     "live-music", "performing-arts", "theater", "comedy", "visual-arts",
@@ -64,11 +70,13 @@ def ticketmaster_domain(segment: str | None, genre: str | None,
     gen_l = gen.lower()
 
     domain = _TM_SEGMENT.get(seg)
-    # Arts & Theatre / Miscellaneous refine by genre.
+    # Arts & Theatre / Miscellaneous refine by genre. An UNRECOGNIZED genre here
+    # is NOT guessed into a real domain — it becomes UNMAPPED (honest), never a
+    # fabricated category on a public feed.
     if seg in ("arts & theatre", "arts & theater", "miscellaneous"):
-        domain = _TM_GENRE_DOMAIN.get(gen_l, domain or "fairs-expos")
+        domain = _TM_GENRE_DOMAIN.get(gen_l, UNMAPPED)
     if domain is None:
-        domain = "fairs-expos"
+        domain = UNMAPPED
 
     # subsegment: prefer the genre; for music, the genre IS the subsegment
     # (Jazz/Rock/...). subGenre only used when it is more specific and differs.
@@ -120,7 +128,7 @@ def seatgeek_domain(event_type: str | None,
     if domain is None and any(tok in t for tok in _SG_SPORTS_TOKENS):
         domain = "sports"
     if domain is None:
-        domain = "fairs-expos"
+        domain = UNMAPPED  # honest — an unknown type is never a fabricated domain
 
     subseg: str | None = None
     if performer_genres:
@@ -131,6 +139,6 @@ def seatgeek_domain(event_type: str | None,
 
 
 def unmapped(provider: str, raw_classification: str) -> str:
-    """A stable, greppable marker for a classification that hit the fallback,
+    """A stable, greppable marker for a classification that could not be mapped,
     so ingestion can log coverage gaps rather than hide them."""
-    return f"UNMAPPED[{provider}]: {raw_classification!r} -> fairs-expos (fallback)"
+    return f"UNMAPPED[{provider}]: {raw_classification!r} -> {UNMAPPED}"
