@@ -1,8 +1,8 @@
 # 2026-07-24 — K-LOOP-5 amendment RATIFIED AS WRITTEN (founder, verbatim: "Ratify the K-5 as written")
 
 **What was ratified:** the K-LOOP-5 amendment in
-`docs/strategy/UNIVERSAL_DEV_OPERATING_MODEL_v1.md` Part 3.2, exactly as it
-stood on master at ratification (merged by PR #62 in proposed status):
+`docs/strategy/UNIVERSAL_DEV_OPERATING_MODEL_v1.md` Part 3.2, exactly as merged
+to the default branch by PR #62 (squash 607b44b) in proposed status:
 counter-measures are context-specific and discrete — scoped to the defect's
 actual surface, pinned red in tests, honest limit stated; one-size-fits-all
 is reserved for transport (the composite runner, the evaluator on every PR,
