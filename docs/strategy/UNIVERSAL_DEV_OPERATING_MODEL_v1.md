@@ -9,17 +9,23 @@ venture (Promise Ledger / PR-aggregator) — and to define a v1 single
 inherit and then specialize with its own requirements, peculiarities, and
 tribal knowledge.
 
-**Source provenance (honest):** the primary article
+**Source provenance (honest, precisely scoped):** NO full article text was
+readable from this sandbox — the primary article
 (<https://www.explainx.ai/blog/boris-cherny-steps-ai-adoption-claude-code-july-2026>)
-and several mirrors return HTTP 403 through this sandbox's egress proxy, so the
-framework below is reconstructed from public search results and secondary
-coverage, cross-checked across at least four independent write-ups:
-[explainx.ai](https://explainx.ai/blog/boris-cherny-steps-ai-adoption-claude-code-july-2026) ·
-[Shelly Palmer's roadmap piece](https://shellypalmer.com/2026/07/boris-chernys-steps-of-ai-adoption-a-roadmap/) ·
-[Cherny's own LinkedIn post](https://www.linkedin.com/posts/bcherny_steps-of-ai-adoption-activity-7483695059843043328-LBg_) ·
-[a widely-shared summary thread](https://www.threads.com/@carnage4life/post/Da8F151FCdR/boris-chernys-stages-of-ai-adoption-for-software-teams-gated-restricted-access) ·
-[bosio.digital's roadmap article](https://bosio.digital/articles/ai-adoption-roadmap) ·
-[SmartScope's organizational-adoption analysis](https://smartscope.blog/en/blog/ai-adoption-stages-one-person-10x-organization/).
+and every mirror attempted return HTTP 403 through the egress proxy. Part 1 is
+therefore reconstructed ONLY from search-engine result excerpts quoting the
+coverage below; the excerpts from independent write-ups agreed with each other
+on every detail used, which is the sole basis of the cross-check.
+
+- *Primary source, NOT read (403):*
+  [explainx.ai](https://explainx.ai/blog/boris-cherny-steps-ai-adoption-claude-code-july-2026) ·
+  [Cherny's own LinkedIn post](https://www.linkedin.com/posts/bcherny_steps-of-ai-adoption-activity-7483695059843043328-LBg_)
+- *Secondary coverage, read only as search excerpts (direct fetches also 403):*
+  [Shelly Palmer's roadmap piece](https://shellypalmer.com/2026/07/boris-chernys-steps-of-ai-adoption-a-roadmap/) ·
+  [a widely-shared summary thread](https://www.threads.com/@carnage4life/post/Da8F151FCdR/boris-chernys-stages-of-ai-adoption-for-software-teams-gated-restricted-access) ·
+  [bosio.digital's roadmap article](https://bosio.digital/articles/ai-adoption-roadmap) ·
+  [SmartScope's organizational-adoption analysis](https://smartscope.blog/en/blog/ai-adoption-stages-one-person-10x-organization/)
+
 Anyone with normal browser access should spot-check the primary source before
 ratifying anything that leans on a detail below. The kernel in Part 3 does NOT
 depend on the article being reproduced perfectly — it is extracted from our own
@@ -211,9 +217,11 @@ adversarial review. An overlay binds the bracketed parameters.
 3. **Independent adversarial review on every PR** — non-generator family,
    APPROVE/REQUEST-CHANGES, no path filter; mandatory-deeper for auth,
    pipeline, SQL/RLS, data-trust, prompts, and gate custody.
-4. **Merge rule (Step-3 posture, founder-ratified here 2026-07-18):** the
-   agent merges its own PR only at evaluator-APPROVE + every required check
-   green on the final head (red or pending = hard stop), notifying the
+4. **Merge rule (Step-3 posture — ratified for OneLive specifically,
+   2026-07-18; every adopting project must obtain its OWN founder
+   ratification via overlay binding 7 before its agent merges anything):**
+   the agent merges its own PR only at evaluator-APPROVE + every required
+   check green on the final head (red or pending = hard stop), notifying the
    founder. Product publishing stays custodied per I1 regardless.
 5. **Sentinel** — error tracking on every deployed surface + dead-man ping on
    every scheduled job, BEFORE the first scheduled run; budget caps before
