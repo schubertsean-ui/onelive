@@ -10,19 +10,26 @@
 5. "Good with the Vercel fix."
 
 **Dispositions:**
-1. **Kernel RATIFIED.** `docs/strategy/UNIVERSAL_DEV_OPERATING_MODEL_v1.md`
-   Part 3 is canon. Overlays stay per-project instruments ratified at each
-   project's bootstrap (binding 7). The doc's status line carries the
-   ratification verbatim.
+1. **Kernel RATIFIED — scope: the kernel AS MERGED in PR #61.**
+   `docs/strategy/UNIVERSAL_DEV_OPERATING_MODEL_v1.md` Part 3 as it stood at
+   ratification is canon. Overlays stay per-project instruments ratified at
+   each project's bootstrap (binding 7). The doc's status line carries the
+   ratification verbatim and the scope precision. Ratification does NOT
+   extend to text added after it — see disposition 2.
 2. **Kaizen review delivered** as the doc's Part 6, grounded in the ledger's
    rows and class watch: practice is decisively context-specific/discrete
    (per-class counter-measures with own triggers; per-surface sibling gates;
    POLICY-vs-MIRROR list taxonomy); the uniform elements are transport, not
    judgment (validate runner, evaluator-on-every-PR, Record rule) — correct
-   and preserved. The principle is folded into kernel K-LOOP-5 as ratified
-   text: counter-measures scoped to the defect's actual surface, pinned red,
-   honest limit stated; blanket rules as class fixes are a smell; the class
-   watch is the single index.
+   and preserved. The distilled principle (counter-measures scoped to the
+   defect's actual surface, pinned red, honest limit stated; blanket rules
+   as class fixes are a smell; the class watch is the single index) is
+   DRAFTED as a PROPOSED K-LOOP-5 amendment, generator-authored, PENDING
+   explicit founder ratification (the doc's Part 5 ask 5). Correction note
+   (PR #62 r1): the first draft of this record called that principle
+   "ratified" — false; the founder's directive was a review question with a
+   stated preference, not ratification of specific wording, and the
+   evaluator blocked the overclaim before merge.
 3. **Multibagger ON HOLD.** No session scheduled, repo untouched. Reopening
    is a founder call; TODOS carries the hold.
 4. **Template repo APPROVED with conditions:** owner = Sean Schubert,
