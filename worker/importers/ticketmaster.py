@@ -87,27 +87,31 @@ def fetch_events(
 
 def _summary(argv=None):
     """Live smoke summary (no DB): fetch CAPCOG events, classify into the 22
-    domains, print counts + a sample. Proves the real-data path end to end."""
+    domains, log counts + a sample. Proves the real-data path end to end."""
+    import logging
     from collections import Counter
 
     from worker.importers.normalize import normalize_ticketmaster
+
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    log = logging.getLogger("ticketmaster_smoke")
 
     key = os.environ.get("TICKETMASTER_API_KEY", "")
     raws = list(fetch_events(key, size=100, max_pages=4))
     norm = [n for n in (normalize_ticketmaster(e) for e in raws) if n]
     by_domain = Counter(n["category"] for n in norm)
-    print(f"REAL Ticketmaster events fetched (CAPCOG area): {len(raws)}")
-    print(f"Normalized OK: {len(norm)}")
-    print("\nBy cultural domain:")
+    log.info("REAL Ticketmaster events fetched (CAPCOG area): %d", len(raws))
+    log.info("Normalized OK: %d", len(norm))
+    log.info("By cultural domain:")
     for dom, c in by_domain.most_common():
-        print(f"  {dom:18} {c}")
-    print("\nSample (first 12):")
+        log.info("  %-18s %d", dom, c)
+    log.info("Sample (first 12):")
     for n in norm[:12]:
         price = "Free" if n["is_free"] else (
             f"${n['price_min']:.0f}-${n['price_max']:.0f}" if n["price_min"] is not None else "—")
         when = (n["start_time"] or "")[:16].replace("T", " ")
-        print(f"  · {n['title'][:42]:42} | {n['category']:14} | "
-              f"{(n['venue_name'] or '')[:22]:22} | {when} | {price}")
+        log.info("  · %-42s | %-14s | %-22s | %s | %s",
+                 n["title"][:42], n["category"], (n["venue_name"] or "")[:22], when, price)
     return 0
 
 

@@ -67,6 +67,17 @@ def test_upsert_real_normalized_fixture():
     assert params[ls._COLS.index("confidence")] == "confirmed"
 
 
+def test_raw_is_adapted_via_psycopg2_json():
+    # The raw payload must go through psycopg2's Json adapter (jsonb), never a
+    # plain string — guards against the removed fallback silently returning.
+    from psycopg2.extras import Json
+    conn = _FakeConn()
+    ls.upsert_events(conn, [{"source_provider": "ticketmaster", "external_id": "j1",
+                             "title": "T", "raw": {"k": "v"}}])
+    _, params = conn.cur.calls[0]
+    assert isinstance(params[ls._COLS.index("raw")], Json)
+
+
 def test_upsert_multiple_events():
     conn = _FakeConn()
     evs = [{"source_provider": "ticketmaster", "external_id": str(i), "title": f"e{i}"}

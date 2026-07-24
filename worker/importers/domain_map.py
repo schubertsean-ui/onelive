@@ -61,8 +61,8 @@ def ticketmaster_domain(segment: str | None, genre: str | None,
     """Return (domain_id, subsegment) for a Ticketmaster classification.
 
     subsegment is the provider's genre (the human-meaningful sub-bucket), or the
-    subGenre when it adds signal. Falls back to ('fairs-expos', genre) for
-    unrecognized segments so nothing is dropped.
+    subGenre when it adds signal. An unrecognized segment/genre returns
+    (UNMAPPED, ...) — never guessed into a real domain (no fabricated data).
     """
     seg = (segment or "").strip().lower()
     gen = (genre or "").strip()

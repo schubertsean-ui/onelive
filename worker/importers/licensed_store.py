@@ -10,8 +10,9 @@ worker.promote (the guarded promote path stays untouched).
 """
 from __future__ import annotations
 
-import json
 from typing import Iterable
+
+from psycopg2.extras import Json  # hard dep (worker/requirements.txt) — fail loud if broken
 
 # Fixed column order. Not external input — used only to assemble the static
 # statement below once at import; values are always bound as %s parameters.
@@ -36,13 +37,9 @@ UPSERT_SQL = (
 
 
 def _params(n: dict) -> list:
-    # psycopg2 adapts a dict to jsonb via Json; import lazily so unit tests that
-    # only check ordering don't require psycopg2 at import time.
-    try:
-        from psycopg2.extras import Json
-        raw = Json(n.get("raw") or {})
-    except Exception:  # pragma: no cover - fallback for non-psycopg2 test envs
-        raw = json.dumps(n.get("raw") or {})
+    # psycopg2 adapts the raw payload dict to jsonb via Json. No fallback: a
+    # broken adapter must fail loud, not silently change insert semantics.
+    raw = Json(n.get("raw") or {})
     return [
         n["source_provider"], n["external_id"], n["title"], n.get("category"),
         n.get("subsegment"), n.get("performer"), n.get("start_time"),

@@ -13,9 +13,11 @@ The runtime set here is computed precisely AND fail-closed:
   1. the transitive first-party import CLOSURE of the scripts ingest.yml runs
      (incl. `from pkg import submodule` submodule forms, relative imports, and
      every parent package `__init__.py` Python executes on the way in);
-  2. every DATA/CONFIG file a closure source opens by literal path (via AST:
-     `open("...")`, `Path("...").read_text/bytes()`) — included whether or not
-     it currently exists, so a DELETION is still flagged;
+  2. an explicit registry of non-import cron inputs (_EXTRA_RUNTIME) — EMPTY
+     today, because the cron reads no repo data/config file by path. Static
+     analysis cannot exhaustively detect constructed paths (`ROOT / "x" / "y"`,
+     assigned constants, joins), so rather than a FALSE completeness claim this
+     is an explicit list; any future data input the cron reads MUST be added;
   3. the dependency manifests the workflow installs (`pip install -r <file>`);
   4. ingest.yml itself.
 
@@ -24,10 +26,10 @@ Fail-closed guarantees (the evidence gate must never silently under-include):
     that is MISSING at head raises MissingRuntimeInput — a declared runtime input
     disappearing is a runtime change, not something to drop;
   * a dynamic import (`importlib`/`__import__`) anywhere in the closure raises
-    DynamicImportError (detected via AST, so comments/docstrings never trip it);
-  * data files opened by literal path are included regardless of existence, so
-    deleting one re-fires the binding.
-Over-inclusion is fail-closed and harmless.
+    DynamicImportError (detected via AST, so comments/docstrings never trip it).
+Over-inclusion is fail-closed and harmless. The KNOWN scope limit is data files
+the cron reads by a constructed (non-literal) path — covered by _EXTRA_RUNTIME,
+not by guesswork.
 
 Exit 0 and print the sorted set; exit 2 (fail closed) on a dynamic import or a
 missing declared input.
@@ -41,6 +43,14 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 INGEST = ROOT / ".github" / "workflows" / "ingest.yml"
+
+# Explicit registry of NON-import cron runtime inputs (data/config files the
+# armed cron reads by a path static analysis cannot exhaustively resolve).
+# EMPTY today — the cron reads no repo data file. Add a repo-relative posix path
+# here the moment the cron path starts reading one, so its change/deletion
+# re-fires the arming binding. Honest and explicit beats a false completeness
+# claim over constructed paths.
+_EXTRA_RUNTIME: tuple[str, ...] = ()
 
 
 class DynamicImportError(RuntimeError):
@@ -138,40 +148,6 @@ def _imported_modules(pyfile: pathlib.Path) -> list[str]:
     return mods
 
 
-def _data_reads(pyfile: pathlib.Path) -> set[str]:
-    """Repo-relative paths a closure source opens by literal path (AST-precise:
-    open("x"), Path("x").read_text/bytes()). Returned regardless of existence so
-    a deletion is still flagged."""
-    out: set[str] = set()
-
-    def _consider(s: str) -> None:
-        if not s or s.startswith("/") or ".." in s:
-            return
-        rel = (ROOT / s)
-        try:
-            rp = rel.resolve().relative_to(ROOT).as_posix()
-        except (ValueError, OSError):
-            return
-        out.add(rp)
-
-    tree = ast.parse(pyfile.read_text())
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            f = node.func
-            if isinstance(f, ast.Name) and f.id == "open" and node.args:
-                a0 = node.args[0]
-                if isinstance(a0, ast.Constant) and isinstance(a0.value, str):
-                    _consider(a0.value)
-            elif isinstance(f, ast.Attribute) and f.attr in ("read_text", "read_bytes"):
-                recv = f.value
-                if (isinstance(recv, ast.Call) and isinstance(recv.func, ast.Name)
-                        and recv.func.id == "Path" and recv.args):
-                    a0 = recv.args[0]
-                    if isinstance(a0, ast.Constant) and isinstance(a0.value, str):
-                        _consider(a0.value)
-    return out
-
-
 def runtime_files() -> set[str]:
     text = _strip_yaml_comments(INGEST.read_text())
 
@@ -187,13 +163,11 @@ def runtime_files() -> set[str]:
         stack.append(p)
 
     seen: set[pathlib.Path] = set()
-    data: set[str] = set()
     while stack:
         f = stack.pop()
         if f in seen:
             continue
         seen.add(f)
-        data |= _data_reads(f)
         for mod in _imported_modules(f):
             mp = _module_to_path(mod)
             if mp is not None:
@@ -202,7 +176,8 @@ def runtime_files() -> set[str]:
                         stack.append(inc)
 
     rels = {p.relative_to(ROOT).as_posix() for p in seen}
-    rels |= data
+    # (2) explicit non-import cron inputs (empty today; honest > guessed).
+    rels |= set(_EXTRA_RUNTIME)
 
     # (3) dependency manifests the workflow installs — declared inputs MUST exist.
     for reqf in re.findall(r"-r\s+(\S+)", text):

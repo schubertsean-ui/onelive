@@ -29,6 +29,10 @@ def main(argv=None) -> int:
                     help="fetch + normalize + summarize, but do NOT write the DB")
     args = ap.parse_args(argv)
 
+    if args.max_pages < 1:
+        log.error("--max-pages must be >= 1 (got %d) — failing closed.", args.max_pages)
+        return 2
+
     key = os.environ.get("TICKETMASTER_API_KEY")
     if not key:
         log.error("TICKETMASTER_API_KEY is not set — cannot import. Failing closed.")
@@ -41,6 +45,14 @@ def main(argv=None) -> int:
     log.info("Ticketmaster CAPCOG import: fetched %d, normalized %d", len(raws), len(norm))
     for dom, c in by_domain.most_common():
         log.info("  %-18s %d", dom, c)
+
+    # A real-data importer must not exit green on nothing — zero events means a
+    # bad key, a provider/CAPCOG scoping error, an API-shape change, or
+    # normalization drift. Fail LOUD instead of a silent no-op.
+    if not norm:
+        log.error("normalized 0 events from %d fetched — bad key / provider query / "
+                  "CAPCOG scoping / API-shape or normalization drift. Failing loud.", len(raws))
+        return 3
 
     if args.dry_run:
         log.info("dry-run: no DB write")

@@ -94,3 +94,8 @@ drop policy if exists public_read on licensed_event;
 create policy public_read on licensed_event
   for select to anon, authenticated
   using (true);
+
+-- Explicit column privilege (not just the RLS policy) so a Supabase anon/
+-- authenticated client can read the table regardless of default-privilege
+-- config. Idempotent.
+grant select on licensed_event to anon, authenticated;
