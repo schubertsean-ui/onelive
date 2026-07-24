@@ -9,13 +9,18 @@ venture (Promise Ledger / PR-aggregator) — and to define a v1 single
 inherit and then specialize with its own requirements, peculiarities, and
 tribal knowledge.
 
-**Source provenance (honest, precisely scoped):** NO full article text was
-readable from this sandbox — the primary article
+**Source provenance (honest, precisely scoped — updated 2026-07-24):** Part 1
+is now VERIFIED against the primary: the founder supplied the full article
+export (`Boris_Cherny_Jul_16_2026.md` — the explainx.ai post, which embeds
+Cherny's table) directly into the session, satisfying the primary-source gate
+(`docs/memory/decisions/2026-07-24_primary-source-gate.md`); the corrections
+made during verification are itemized at the end of Part 1. History, kept for
+the record: at first writing NO full article text was readable from this
+sandbox — the primary URL
 (<https://www.explainx.ai/blog/boris-cherny-steps-ai-adoption-claude-code-july-2026>)
-and every mirror attempted return HTTP 403 through the egress proxy. Part 1 is
-therefore reconstructed ONLY from search-engine result excerpts quoting the
-coverage below; the excerpts from independent write-ups agreed with each other
-on every detail used, which is the sole basis of the cross-check.
+and every mirror returned HTTP 403 through the egress proxy, and the original
+Part 1 was reconstructed only from search-result excerpts of the coverage
+below — the pattern the founder's directive has since forbidden outright.
 
 - *Primary source, NOT read (403):*
   [explainx.ai](https://explainx.ai/blog/boris-cherny-steps-ai-adoption-claude-code-july-2026) ·
@@ -37,37 +42,88 @@ it is extracted from our own repo, which we can read directly.
 
 ## Part 1 — The framework, compactly
 
-> **BLOCKED-ON-PRIMARY-VERIFICATION (added 2026-07-24, founder directive —
-> `docs/memory/decisions/2026-07-24_primary-source-gate.md`):** this part was
-> reconstructed WITHOUT access to the primary article (every fetch 403'd), and
-> the founder has since directed that strategic/deep research must never
-> proceed on secondary excerpts at all. Part 1 — and every sentence elsewhere
-> in this doc that leans on the article rather than on this repo — is
-> therefore NOT to be relied on or ratified until verified against the
-> primary source. Unblock (either works): paste the article text into a
-> session, or read it yourself and confirm/correct this table. The Part 3
-> kernel is unaffected: it derives from this repo, which was read directly.
+> **VERIFIED AGAINST THE FOUNDER-SUPPLIED PRIMARY (2026-07-24):** the founder
+> supplied the full article export (`Boris_Cherny_Jul_16_2026.md`, the
+> explainx.ai post embedding Cherny's table) after this part had been
+> reconstructed from search excerpts and then BLOCKED under the primary-source
+> gate (`docs/memory/decisions/2026-07-24_primary-source-gate.md`). This
+> section is now corrected against that primary; the corrections themselves
+> are listed at the end of this part so the delta from the excerpt
+> reconstruction is auditable. Appendix A (the excerpts) is retained as the
+> record of what the pre-verification draft rested on, marked superseded.
 
 Boris Cherny (creator/head of Claude Code at Anthropic) published "Steps of AI
-Adoption" on 2026-07-16: five maturity levels for teams building with AI
-agents. Each step names a human role, an approximate concurrent-agent count,
-the binding bottleneck, and the guardrails that unlock the NEXT step.
+Adoption" on 2026-07-16 on Anthropic's site. Five maturity levels; each step
+names a human role, an approximate concurrent-agent count, what it looks like,
+the binding bottleneck, products that help, and guardrails — plus an explicit
+"how to get to the next step" transition between every pair.
 
-| Step | Name | ~Agents/dev | Human role | Bottleneck | What unlocks the next step |
+| Step | Name | ~Agents | Human role | Bottleneck (per the primary) | How you reach the NEXT step (per the primary) |
 |---|---|---|---|---|---|
-| 0 | Gated | 0 | — | Legacy approvals; no real access to capable AI | Access + policy change |
-| 1 | Assisted | 1 | Pair partner (high supervision) | Your attention — you watch the agent work, synchronously | Self-verification loops (tests, auto-review) so you don't read everything |
-| 2 | Parallel | ~10 | Orchestrator (AI codes, humans verify) | Reviewing output | Automated code/security review on by default, worktree isolation, multi-agent management surfaces |
-| 3 | Supervised autonomy | ~100 | Manager of managers (AI verifies, humans handle exceptions) | Trust in the verification loop + the team's decision throughput | Loops/batch/dynamic workflows, routines, cost monitoring — and verified trust in the gates |
-| 4 | AI-native | 1,000+ | Steering by intent (AI identifies the work) | Identifying and automating work at scale | — (frontier; Cherny claims Anthropic is at 3 pushing 4) |
+| 0 | Gated | 0 | — | Legacy security/approval processes; cost-per-token containment vs outcomes; lack of true technical voices in decisionmaking | Executive/buyer alignment + escalation of blockers; frameworks for launching Claude securely |
+| 1 | Assisted | ~1 | You + an agent (a pair) | Your attention and the need to inspect each response/edit; low trust + no self-verification ⇒ work stays synchronous | Run >1 agent; a self-verification loop you TRUST (tests + build + lint + e2e in a real dev env); auto mode; automate code review |
+| 2 | Parallel | ~10 | Orchestrator | Reviewing output (many streams instead of keystrokes); prompting/steering while juggling sessions | Give Claude context pull (code, wikis, discussions); agency + review speed across team boundaries; break work into loops and routines; let Claude kick off Claude |
+| 3 | Supervised autonomy | ~100 | Manager of managers (an org tree) | Trust in the loop + your team's decision throughput; token efficiency at scale; "your trap is scaling agent count before the loop has earned widespread trust" | Scaled automation of domain-specific use cases (code migration, fuzzing, feature-building, feedback remediation) |
+| 4 | AI-native | ~1,000+ | VP steering by intent | Identifying and automating work at scale, AND enforcing the right guardrails for each type of work — not one blanket policy | — (frontier) |
 
-Two theses carry the whole model:
+Load-bearing points, now quoted from the primary rather than paraphrased:
 
-1. **What separates the steps is trust, not the model.** Progression is earned
-   by verification infrastructure, not by buying more tokens or a bigger model.
-2. **The central trap:** scaling the agent count before the verification loop
-   has earned that trust. More agents against weak gates = faster production of
-   unverified work.
+1. Cherny on X: *"There's no one right path through the steps… at each step,
+   tokens aren't enough… you need to find and break down the next set of
+   bottlenecks, and build up the next set of guardrails."* (The earlier
+   draft's "what separates the steps is trust, not the model" was a
+   paraphrase; the trust reading is supported — Step 1's bottleneck is low
+   trust, Step 3's is trust in the loop — but it is OUR inference, labeled as
+   such.)
+2. The scaling trap is Cherny's **Step-3** bottleneck, verbatim: *"your trap
+   is scaling agent count before the loop has earned widespread trust"* (the
+   earlier draft over-generalized it to "the central trap of the whole
+   model").
+3. Cherny's Step-3 test: *"Ask yourself: is this something an engineer would
+   have done?"* — automate if yes, keep a human gate if no.
+4. Step-4 guardrails include *"separation between automation lanes
+   (migrations, triage) and human-gated lanes (production deploys,
+   security-sensitive refactors)"* — the primary's own statement of the
+   distinction our kernel encodes as I1.
+5. Step-2 guardrails include *"Hold the same quality bar for human and
+   agent-generated code"* and Step-3 lists *"CLAUDE.md and Skills to encode
+   standards."*
+6. Status claims: Anthropic says it operates at Step 3; Cherny personally
+   claimed Step 4 (2026-07-17). The article's own caveat: treat that as
+   dogfooding signal, "not a guarantee your team can copy day one without
+   Step 2–3 harness investment." Also his: adoption is measured by BEHAVIOR,
+   not license tier ("We bought Enterprise so we're Step 3" is a named
+   misread).
+
+**Corrections from the excerpt reconstruction (the auditable delta):** (a) the
+"what unlocks the next step" cells for Steps 2 and 3 previously listed those
+steps' own features (review defaults/worktrees; loops/routines/cost
+monitoring) instead of Cherny's actual transitions (context pull + loops +
+Claude-kicks-off-Claude for 2→3; domain-use-case automation for 3→4) — fixed;
+(b) thesis 1 relabeled paraphrase-as-inference per point 1; (c) the trap
+rescoped to Step 3 per point 2; (d) Step 4's bottleneck gains the
+per-work-type-guardrails half; (e) role names corrected to the primary's ("an
+org tree", "VP steering by intent"). Nothing in Parts 2–5 reversed: the
+corrected transitions STRENGTHEN the Part 3.7 mapping (Cherny's 2→3 unlock —
+loops, context, Claude-kicks-off-Claude — is the kernel's loop/orchestration
+layer; his lane separation is I1).
+
+### Part 1b — the companion piece in the same file (the "final 10%" chart)
+
+The founder-supplied file also carries the same-week Kr\$na chart analysis:
+idea ≈ 5 min (green) → working demo ≈ 2 h (yellow) → the final 10% ≈ 6 months
+(red: edge cases, security, perf, a11y, migrations, observability) → abandoned
+= ∞ (blue), with the mapping that Step 1–2 teams get "incredible yellow bars
+and brutal red bars" while Step 3+ runs red-bar work continuously in the
+background. Applicability here is direct and confirming: OneLive's harness IS
+red-bar machinery (validate, evaluator, golden exams, sentinel), the FLOW
+prototype rounds are deliberately-labeled yellow-bar work (sample-data truth
+boundaries on every surface), and the article's mitigation list — define
+red-bar done before yellow, CI fails on missing tests, security review by
+default, kill blue early — is the charter's existing practice restated. One
+adoptable nugget for the overlay contract: its "before you post the demo /
+before you call it production" checklist is a compact template for overlay
+binding 7's per-surface step declaration.
 
 ## Part 2 — Applicability assessment, per effort
 
@@ -281,11 +337,14 @@ An overlay is a single `OVERLAY.md` (plus linked docs) binding:
 
 ### 3.7 Mapping: kernel components → Cherny's "guardrails to advance"
 
-| To reach | Cherny's unlock | Kernel component that provides it |
+(Transitions below are quoted from the primary's "how to get from step N to
+N+1" rows, corrected 2026-07-24 during primary verification.)
+
+| To reach | Cherny's transition (per the primary) | Kernel component that provides it |
 |---|---|---|
-| Step 1→2 | Self-verification so you needn't read everything | K-GATE-1 validate, K-LOOP-3 inner loop, tests-in-same-PR |
-| Step 2→3 | Automated review by default, isolation, trust in gates | K-GATE-3 evaluator on every PR, K-GATE-2 golden exams, I2/I3, K-GATE-4 merge rule |
-| Step 3→4 | Routines, batch, cost monitoring, decision throughput | Sentinel + dead-man + budget caps, model routing, K-LOOP-4, night-shift orchestration |
+| Step 1→2 | Run >1 agent; a self-verification loop you trust (tests+build+lint+e2e); auto mode; automate code review | K-GATE-1 validate, K-LOOP-3 inner loop, tests-in-same-PR, K-GATE-3 evaluator |
+| Step 2→3 | Context pull (code, wikis, discussions); agency + review speed; break work into loops and routines; let Claude kick off Claude | K-LOOP-1/2 bookends + contract, memory/tribal-knowledge dirs (overlay binding 6), K-GATE-2 golden exams + I2/I3 earning the trust, K-GATE-4 merge rule, night-shift orchestration |
+| Step 3→4 | Scaled automation of domain-specific use cases (migration, fuzzing, feature-building, remediation) — with per-work-type guardrails and lane separation | Sentinel + dead-man + budget caps before first scheduled run, model routing, K-LOOP-4 decision throughput, I1 lane separation (automation lanes vs human-gated lanes) |
 
 The kernel is, in Cherny's terms, a complete Step-3 guardrail inventory —
 which is the claim that makes it worth universalizing.
@@ -354,7 +413,15 @@ checklist instead of inventing one.
 
 ---
 
-## Appendix A — the verbatim search excerpts behind Part 1 (evaluator r2 nit)
+## Appendix A — the verbatim search excerpts behind the PRE-verification draft (SUPERSEDED 2026-07-24)
+
+> **SUPERSEDED:** Part 1 is now verified against the founder-supplied primary;
+> these excerpts are retained only as the record of what the original draft
+> rested on (and as the evidence base for the Kaizen `research-without-
+> primary-source` row — the verification found five substantive deviations,
+> itemized in Part 1's corrections note, which is exactly why excerpt
+> reconstruction is forbidden). Do not cite this appendix for framework
+> content.
 
 Everything known about the article in this sandbox is reproduced below,
 verbatim, so the reconstruction is auditable against exactly what was seen.
