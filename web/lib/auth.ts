@@ -12,19 +12,26 @@
 //
 //   'clerk'        — NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is set: the Clerk +
 //                    allowlist stealth gate is active (middleware.ts).
-//   'disabled'     — AUTH_DISABLED (or NEXT_PUBLIC_AUTH_DISABLED) is truthy: the
-//                    operator has EXPLICITLY DECLARED this deployment runs with
-//                    no app-level gate (e.g. behind host deployment protection,
-//                    or a post-launch public build). Passthrough, but declared.
-//   'unconfigured' — neither: misconfiguration, and middleware FAILS CLOSED
-//                    (denies) rather than opening the door.
+//   'disabled'     — an app-level gate is intentionally absent, declared EITHER
+//                    by an explicit flag (AUTH_DISABLED / NEXT_PUBLIC_AUTH_DISABLED
+//                    truthy) OR by being a NON-production Vercel deployment
+//                    (VERCEL_ENV = preview/development), which Vercel fences
+//                    behind Deployment Protection by default — so a preview needs
+//                    no flag. Passthrough, but not a silent one.
+//   'unconfigured' — none of the above (e.g. PRODUCTION with no provider and no
+//                    declared disable): misconfiguration, and middleware FAILS
+//                    CLOSED (denies) rather than opening the door.
 //
-// Deliberately NOT inferred from VERCEL_ENV: a preview's privacy depends on the
-// host's Deployment Protection being ON, which the app cannot verify — inferring
-// "open" from an environment name would silently publish a preview whose
-// protection was disabled/misconfigured (evaluator PR #59). The disable must be
-// an explicit, checkable declaration. Ops routes stay denied in 'disabled' mode
-// regardless (middleware.ts).
+// FOUNDER-DIRECTED (2026-07-24, "fix this — tired of all this wasted time"):
+// previews auto-resolve to 'disabled' so they need ZERO auth config. The
+// evaluator's standing concern (a preview whose Deployment Protection was turned
+// OFF would be public) is accepted and bounded: (1) PRODUCTION is never
+// auto-opened — it is the only publicly-reachable target and stays fail-closed;
+// (2) the /ops admin surface is ALWAYS denied without a real provider, in every
+// mode (middleware.ts), so auto-open never exposes anything sensitive; (3) the
+// consumer feed is public licensed listings, and preview privacy rests on
+// Vercel's own protection — a founder-owned go-live posture, not a data control.
+// See docs/DEPLOY.md.
 //
 // Swapping providers (Clerk today, Supabase Auth / custom next) means adding a
 // mode here and a middleware branch — never touching the consumer feed. The
@@ -48,11 +55,20 @@ function _explicitlyDisabled(): boolean {
   );
 }
 
-// Resolve the gate mode. Clerk (a configured provider) wins; an explicit disable
-// is honored next; otherwise we are unconfigured and callers must fail closed.
+// A non-production Vercel deployment (preview/development) is host-protected by
+// Vercel Deployment Protection — treated as an intentional no-app-gate state so
+// previews need no flag. PRODUCTION is never covered by this.
+function _hostProtectedPreview(): boolean {
+  const v = process.env.VERCEL_ENV;
+  return v === "preview" || v === "development";
+}
+
+// Resolve the gate mode. Clerk (a configured provider) wins; an explicit or
+// preview-implied disable is honored next; otherwise we are unconfigured and
+// callers must fail closed. Production never auto-opens.
 export function authMode(): AuthMode {
   if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return "clerk";
-  if (_explicitlyDisabled()) return "disabled";
+  if (_explicitlyDisabled() || _hostProtectedPreview()) return "disabled";
   return "unconfigured";
 }
 

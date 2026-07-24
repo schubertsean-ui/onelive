@@ -38,16 +38,14 @@ describe("authMode — the fail-closed gate resolver", () => {
     expect(authMode()).toBe("disabled");
   });
 
-  it("a preview is NOT auto-opened by env name — it must be explicitly declared", () => {
-    // Privacy of a preview depends on host protection the app can't verify, so
-    // VERCEL_ENV alone never opens the gate. Fail closed without a flag.
+  it("a non-production Vercel deployment auto-opens (zero-config preview)", () => {
     process.env.VERCEL_ENV = "preview";
-    expect(authMode()).toBe("unconfigured");
-    process.env.AUTH_DISABLED = "1"; // explicit declaration opens it
+    expect(authMode()).toBe("disabled");
+    process.env.VERCEL_ENV = "development";
     expect(authMode()).toBe("disabled");
   });
 
-  it("PRODUCTION with no provider and no declared disable -> unconfigured (fail closed)", () => {
+  it("PRODUCTION never auto-opens — no provider, no flag -> unconfigured (fail closed)", () => {
     process.env.VERCEL_ENV = "production";
     expect(authMode()).toBe("unconfigured");
     expect(authProviderActive()).toBe(false);

@@ -20,14 +20,19 @@ describe("/api/health — resolved config is observable, never guessed", () => {
     vi.restoreAllMocks();
   });
 
-  it("reports unconfigured + not-ok when nothing is set (never leaks a value)", async () => {
+  it("with no auth config -> not-ok + unconfigured; supabase uses the built-in default (never leaks a value)", async () => {
+    // Supabase reads a committed PUBLIC default, so it's always "configured";
+    // stub fetch so the probe doesn't hit the network in a unit test.
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true, headers: new Headers({ "content-range": "0-0/805" }), text: async () => "",
+    }) as unknown as Response));
     const res = await GET();
-    expect(res.status).toBe(503);
     const b = await res.json();
-    expect(b.ok).toBe(false);
+    expect(b.ok).toBe(false); // auth is still unconfigured -> not ok
     expect(b.auth.mode).toBe("unconfigured");
-    expect(b.supabase.configured).toBe(false);
-    expect(JSON.stringify(b)).not.toContain("sb_publishable"); // no secret value
+    expect(b.supabase.configured).toBe(true);
+    expect(b.supabase.source).toBe("built-in-default");
+    expect(JSON.stringify(b)).not.toContain("sb_publishable"); // no value, only the source name
   });
 
   it("names which flag opened the gate (name only) and which var supplied the URL", async () => {

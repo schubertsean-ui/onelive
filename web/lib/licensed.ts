@@ -4,16 +4,25 @@
 // (never `raw`). Errors propagate so the UI renders an honest error state, never
 // a fake-empty feed.
 
+// Built-in PUBLIC defaults so the read path works with ZERO deployment config
+// (founder-directed 2026-07-24). These are NOT secrets: the Supabase URL and the
+// PUBLISHABLE (anon) key are designed to ship in client code — every visitor's
+// browser already carries them — and the real security boundary is row-level
+// security (RLS on `licensed_event`: public read of listing columns only, `raw`
+// revoked, the guarded event/promote path untouched), never the key's secrecy.
+// A real secret (service_role, Clerk secret) is NEVER committed. Any env var
+// OVERRIDES these, so production can point elsewhere without a code change.
+// See docs/DEPLOY.md.
+const _DEFAULT_SUPABASE_URL = "https://vqipjlvzfiwnandjumvx.supabase.co";
+const _DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_cWk_eNqbMWGIIFQf5B5hIg_CFqjAyac";
+
 // Read at call time (not module load) so values are correct per request and the
-// functions are testable. The read is entirely SERVER-SIDE, so it prefers the
-// plain runtime names (SUPABASE_URL / SUPABASE_ANON_KEY) — those work even when
-// marked "Sensitive" in the host, because they are read at runtime rather than
-// inlined at build like NEXT_PUBLIC_ vars. The NEXT_PUBLIC_ forms remain
-// accepted as a fallback for existing setups.
+// functions are testable. Server-side read, so it prefers the plain runtime
+// names (Sensitive-safe), then the NEXT_PUBLIC_ forms, then the public default.
 function supaEnv(): { url?: string; key?: string } {
   return {
-    url: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL,
-    key: process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    url: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? _DEFAULT_SUPABASE_URL,
+    key: process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? _DEFAULT_SUPABASE_ANON_KEY,
   };
 }
 
@@ -58,12 +67,13 @@ export function supabaseConfigured(): boolean {
   return !!url && !!key;
 }
 
-// Which env NAME the Supabase URL resolved from (for the health endpoint — the
-// value is NEVER returned, only which variable supplied it). null = neither set.
-export function supabaseSource(): "SUPABASE_URL" | "NEXT_PUBLIC_SUPABASE_URL" | null {
+// Where the Supabase URL resolved from (for the health endpoint — only the
+// SOURCE name, never the value). "built-in-default" = the committed public
+// fallback (no env override present).
+export function supabaseSource(): "SUPABASE_URL" | "NEXT_PUBLIC_SUPABASE_URL" | "built-in-default" {
   if (process.env.SUPABASE_URL) return "SUPABASE_URL";
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) return "NEXT_PUBLIC_SUPABASE_URL";
-  return null;
+  return "built-in-default";
 }
 
 // Lightweight reachability probe for /api/health: confirms the publishable key

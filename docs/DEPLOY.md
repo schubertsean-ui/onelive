@@ -31,12 +31,20 @@ compatibility only.
 
 ## Two supported deployments
 
-1. **Private preview (today):** `NEXT_PUBLIC_AUTH_DISABLED=1` (non-Sensitive) +
-   `SUPABASE_URL` + `SUPABASE_ANON_KEY`. Privacy comes from Vercel Deployment
-   Protection; the app runs open at the app level, by explicit declaration.
+1. **Private preview (today) — ZERO CONFIG.** A Vercel preview/development
+   deployment needs **no environment variables at all**: the auth gate
+   auto-opens on `VERCEL_ENV=preview|development` (host-protected by Vercel), and
+   the Supabase read uses the committed **public** default. Privacy comes from
+   Vercel Deployment Protection; ops (`/ops`) stays denied regardless. Setting
+   `NEXT_PUBLIC_AUTH_DISABLED=1` still works but is no longer required.
 2. **Stealth gate (before public launch):** `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-   + Clerk secret + `ONELIVE_ALLOWLIST` + the Supabase vars. Remove
-   `NEXT_PUBLIC_AUTH_DISABLED`.
+   + Clerk secret + `ONELIVE_ALLOWLIST` (+ optionally override the Supabase vars
+   for a different project). PRODUCTION never auto-opens — with no provider and
+   no explicit disable it FAILS CLOSED (denies), so a real gate is required.
+
+Note: the two Supabase values are committed as PUBLIC defaults (publishable key
++ URL — safe by design, RLS is the boundary), so data works with no config;
+any env var overrides them. A real secret is never committed.
 
 ## Verify without guessing — `/api/health`
 
