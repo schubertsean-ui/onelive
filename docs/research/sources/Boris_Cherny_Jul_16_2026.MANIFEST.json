@@ -2,10 +2,10 @@
   "file": "Boris_Cherny_Jul_16_2026.md",
   "sha256": "619db1cc89324914c927fed0f0a9b4c715cc7e8ae80393412c892ec8f4bb977c",
   "bytes": 30316,
-  "lines": 376,
+  "lines": 375,
   "supplied_by": "founder (session upload, 2026-07-24, after the primary-source-gate directive)",
   "original_upload_basename": "db7a6f6a-Boris_Cherny_Jul_16_2026.md",
   "what_it_is": "explainx.ai post export embedding Boris Cherny (Anthropic) Steps of AI Adoption table (Jul 16 2026) + companion final-10%-chart piece",
-  "role": "PRIMARY evidence for UNIVERSAL_DEV_OPERATING_MODEL_v1.md Part 1 verification (five deviations corrected against this artifact)",
+  "role": "FOUNDER-SUPPLIED SOURCE ARTIFACT (the explainx export embedding Cherny's table \u2014 not Cherny's unfetched original page) \u2014 the artifact UNIVERSAL_DEV_OPERATING_MODEL_v1.md Part 1 was verified against (five deviations corrected)",
   "storage_note": "internal audit copy in a private repo, per the eval/source_material precedent (stored for verification, never republished)"
 }

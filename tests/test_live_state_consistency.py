@@ -209,60 +209,78 @@ def test_historical_sections_below_the_live_block_are_out_of_scope():
     assert stale_resolved_mentions(state, _RECORD_RESOLVED) == []
 
 
+
 # ---------------------------------------------------------------------------
-# Layer 3 (added 2026-07-24, PR #61 — the repeat-class alarm's demanded
-# hardening): same-diff paper-trail contradictions about LIFECYCLE MARKERS.
+# Layer 3 (added 2026-07-24 PR #61; REBUILT at r3 — the first version was a
+# cue-proximity allow-list that "was previously reviewed and is marked
+# BLOCKED-…" slid straight through, a false-confidence gate offered as the
+# structural fix for a repeat class): same-diff paper-trail contradictions
+# about LIFECYCLE MARKERS.
 #
 # Recurrence surface (4th/5th catches of the stale-live-incident-state
 # family, PR #61 r2): while one diff replaced the universal-model doc's
 # BLOCKED-ON-PRIMARY-VERIFICATION banner with a VERIFIED banner, STATE.md's
 # addendum and the decision record BOTH still asserted the doc "is marked
 # BLOCKED" — the fix's own paper trail contradicted the fix in the same
-# tree. The earlier layers scan only STATE's live NEXT block against
-# RECORD.md rows; this surface is prose claims about ANOTHER doc's marker.
+# tree.
 #
-# DEFAULT-DENY (this family's r2/r3 lesson — no verb list to evade): when
-# NO doc under docs/ actually carries the live banner, EVERY occurrence of
-# the marker string in the live-state docs (STATE.md + docs/memory/
-# decisions/*.md) must read as history — a past-tense cue shortly before
-# it ("was", "first", "then", "previously", "originally") — otherwise it
-# is a stale present-state claim and fails. When some doc DOES carry the
-# banner, present-tense claims are consistent and allowed. Honest limit:
-# cue-word proximity is a heuristic, not grammar parsing; what the gate
-# guarantees is that a marker no doc carries cannot be asserted bare (the
-# exact PR #61 r2 shapes, pinned red below). Semantics stay with the
-# evaluator.
+# The design mirrors this family's proven two-layer shape (layers 1+2
+# above), because that shape survived three adversarial rounds:
+#   A) DEFAULT-DENY + visible tag: while NO doc carries the live banner,
+#      EVERY occurrence of the marker in the live-state docs must be
+#      IMMEDIATELY followed by a literal "(SUPERSEDED" tag — no grammar
+#      guessing, no cue windows; a surviving mention always displays its
+#      supersession to the reader on its face.
+#   B) PRESENT-TENSE DENY-LIST the tag cannot launder: "is/remains/stays
+#      [currently|still|now] [marked]" immediately before the marker fails
+#      REGARDLESS of the tag.
+# Honest limit (stated so the gate never overclaims, this family's own
+# lesson): layer B is a deny-list and deny-lists are incomplete — a novel
+# present-tense construction with a tagged marker can pass B. What the
+# gate guarantees is exactly: while the banner is dead, no untagged
+# mention and no known present-tense assertion laundering; every survivor
+# visibly carries "(SUPERSEDED". Semantics stay with the evaluator.
+#
+# Banner scope (r3 nit): ALL of docs/**/*.md EXCEPT append-only history
+# (docs/metrics/, docs/ONE_LIVE_CHANGE_LOG.md) and the claiming live-state
+# docs themselves (STATE.md is outside docs/; docs/memory/ is excluded) —
+# a history row QUOTING a banner must not count as the banner being live.
 # ---------------------------------------------------------------------------
 
 LIFECYCLE_MARKER = "BLOCKED-ON-PRIMARY-VERIFICATION"
-_PAST_CUE = re.compile(r"\b(was|first|then|previously|originally)\b", re.IGNORECASE)
-_CUE_WINDOW = 60  # chars before the marker occurrence scanned for a cue
+_SUPERSEDED_TAG = re.compile(r"\s*\(SUPERSEDED\b")
+_PRESENT_ASSERT_BEFORE = re.compile(
+    r"\b(?:is|remains|stays)\s+(?:currently\s+|still\s+|now\s+)?(?:marked\s+)?$",
+    re.IGNORECASE,
+)
 
 DECISIONS_DIR = REPO / "docs" / "memory" / "decisions"
-STRATEGY_DIR = REPO / "docs" / "strategy"
+DOCS_DIR = REPO / "docs"
+_BANNER_EXCLUDE_PARTS = {"metrics", "memory"}
+_BANNER_EXCLUDE_NAMES = {"ONE_LIVE_CHANGE_LOG.md"}
 
 
 def _banner_live_somewhere(doc_texts: list[str]) -> bool:
     """True when some doc still CARRIES the banner (bold/heading form),
     as opposed to merely mentioning the marker string in prose."""
-    return any(("**" + LIFECYCLE_MARKER) in t or ("> **" + LIFECYCLE_MARKER) in t
-               for t in doc_texts)
+    return any(("**" + LIFECYCLE_MARKER) in t for t in doc_texts)
 
 
 def stale_marker_claims(live_state_texts: dict[str, str],
                         banner_docs: list[str]) -> list[str]:
-    """Occurrences of the marker asserted as present state while no doc
+    """Marker occurrences the live-state docs mishandle while no doc
     carries the banner. Returns 'name: ...context...' strings."""
     if _banner_live_somewhere(banner_docs):
         return []
     stale: list[str] = []
     for name, text in live_state_texts.items():
         for m in re.finditer(re.escape(LIFECYCLE_MARKER), text):
-            window = text[max(0, m.start() - _CUE_WINDOW):m.start()]
-            # a cue in the window reads as history -> allowed
-            if not _PAST_CUE.search(window):
-                ctx = text[max(0, m.start() - 40):m.end() + 20].replace("\n", " ")
-                stale.append(f"{name}: …{ctx}…")
+            tagged = bool(_SUPERSEDED_TAG.match(text[m.end():]))
+            asserted = bool(_PRESENT_ASSERT_BEFORE.search(text[:m.start()]))
+            if tagged and not asserted:
+                continue
+            ctx = text[max(0, m.start() - 45):m.end() + 25].replace("\n", " ")
+            stale.append(f"{name}: …{ctx}…")
     return stale
 
 
@@ -274,23 +292,27 @@ def _real_live_state_texts() -> dict[str, str]:
 
 
 def _real_banner_docs() -> list[str]:
-    return [p.read_text() for p in sorted(STRATEGY_DIR.glob("*.md"))]
+    out = []
+    for p in sorted(DOCS_DIR.rglob("*.md")):
+        rel = p.relative_to(DOCS_DIR)
+        if rel.parts[0] in _BANNER_EXCLUDE_PARTS or p.name in _BANNER_EXCLUDE_NAMES:
+            continue
+        out.append(p.read_text())
+    return out
 
 
 def test_no_stale_lifecycle_marker_claims_in_live_state_docs():
     stale = stale_marker_claims(_real_live_state_texts(), _real_banner_docs())
     assert not stale, (
-        "live-state docs assert a lifecycle marker no doc carries — the "
+        "live-state docs mishandle a lifecycle marker no doc carries — the "
         "paper trail contradicts the tree (stale-live-incident-state, "
-        "same-diff surface, PR #61 r2):\n" + "\n".join(stale)
+        "same-diff surface, PR #61 r2/r3):\n" + "\n".join(stale)
     )
 
 
 def test_marker_gate_goes_red_on_both_pr61_r2_defect_shapes():
-    # Shape 1 — the decision record's present-tense claim.
     rec = ("PR #60's Part 1 is marked BLOCKED-ON-PRIMARY-VERIFICATION in the "
            "doc itself (same commit as this record);")
-    # Shape 2 — STATE's bare claim (no 'is', no past cue).
     state = ("founder(Red) Kaizen row, and the universal-model doc's Part 1 "
              "marked BLOCKED-ON-PRIMARY-VERIFICATION (not to be relied on)")
     verified_doc = "> **VERIFIED AGAINST THE FOUNDER-SUPPLIED PRIMARY** …"
@@ -300,11 +322,32 @@ def test_marker_gate_goes_red_on_both_pr61_r2_defect_shapes():
     assert len(stale) == 2, f"both r2 shapes must fail, got: {stale}"
 
 
-def test_marker_gate_allows_past_tense_history():
-    hist = ("Part 1 was first marked BLOCKED-ON-PRIMARY-VERIFICATION, then "
-            "verified same day; the record was marked "
-            "BLOCKED-ON-PRIMARY-VERIFICATION at first writing.")
-    assert stale_marker_claims({"STATE.md": hist}, ["no banner here"]) == []
+def test_marker_gate_goes_red_on_the_r3_cue_laundering_shape():
+    # The shape the first (cue-proximity) version of this gate let through:
+    # past-tense words nearby, present-tense assertion at the marker.
+    text = ("Part 1 was previously reviewed and is marked "
+            "BLOCKED-ON-PRIMARY-VERIFICATION per the earlier session.")
+    assert stale_marker_claims({"STATE.md": text}, ["no banner"]), (
+        "cue-word laundering must fail — this exact shape passed the "
+        "rejected r2 implementation"
+    )
+    # And the tag must not launder a present-tense assertion (layer B).
+    tagged = ("Part 1 is marked BLOCKED-ON-PRIMARY-VERIFICATION (SUPERSEDED "
+              "same day) regardless.")
+    assert stale_marker_claims({"STATE.md": tagged}, ["no banner"])
+
+
+def test_marker_gate_goes_red_on_untagged_history():
+    # Default-deny: even genuine past tense fails WITHOUT the visible tag —
+    # the reader must see the supersession on the mention's face.
+    text = "Part 1 was first marked BLOCKED-ON-PRIMARY-VERIFICATION, then…"
+    assert stale_marker_claims({"STATE.md": text}, ["no banner"])
+
+
+def test_marker_gate_allows_tagged_history():
+    text = ("Part 1 was first marked BLOCKED-ON-PRIMARY-VERIFICATION "
+            "(SUPERSEDED same day — verified against the supplied primary).")
+    assert stale_marker_claims({"STATE.md": text}, ["no banner"]) == []
 
 
 def test_marker_gate_allows_present_claims_while_banner_is_live():

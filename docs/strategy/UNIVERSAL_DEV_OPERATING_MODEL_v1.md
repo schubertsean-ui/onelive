@@ -9,7 +9,11 @@ venture (Promise Ledger / PR-aggregator) — and to define a v1 single
 inherit and then specialize with its own requirements, peculiarities, and
 tribal knowledge.
 
-**Source provenance (honest, precisely scoped — updated 2026-07-24):** Part 1
+**Source provenance (honest, precisely scoped — updated 2026-07-24):**
+Terminology, pinned once (evaluator r3 nit): wherever this doc or its
+companion records say "the primary," they mean the FOUNDER-SUPPLIED SOURCE
+ARTIFACT — the explainx export embedding Cherny's table — not Cherny's
+original page, which remains unfetched. Part 1
 is now VERIFIED against the primary: the founder supplied the full article
 export (`Boris_Cherny_Jul_16_2026.md` — the explainx.ai post, which embeds
 Cherny's table) directly into the session, satisfying the primary-source gate

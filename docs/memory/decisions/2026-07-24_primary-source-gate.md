@@ -21,7 +21,8 @@ report + smallest founder unblock; no excerpt/mirror/memory reconstruction as a
 substitute. Work not depending on the inaccessible source may continue.
 
 **Retroactive application (as first written):** PR #60's Part 1 was marked
-BLOCKED-ON-PRIMARY-VERIFICATION in the doc itself (same commit as this
+BLOCKED-ON-PRIMARY-VERIFICATION (SUPERSEDED — see the Update below)
+in the doc itself (same commit as this
 record's first version); Parts 2–5 stood where they derive from the repo, and
 any Part 2 sentence leaning on the article inherited the block. Kaizen:
 founder(Red) catch, class `research-without-primary-source`, in the ledger
