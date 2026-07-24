@@ -120,7 +120,7 @@ def _is_dynamic_import(tree: ast.AST) -> bool:
     return False
 
 
-def _imported_modules(pyfile: pathlib.Path) -> list[str]:
+def _imported_modules(pyfile: pathlib.Path) -> list[tuple[str, bool]]:
     tree = ast.parse(pyfile.read_text())
     if _is_dynamic_import(tree):
         try:

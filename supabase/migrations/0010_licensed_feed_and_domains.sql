@@ -101,7 +101,7 @@ create policy public_read on licensed_event
 -- revoke `raw` could stay publicly selectable. Revoke is idempotent (no-op when
 -- nothing is granted), and the column grant below then becomes the ONLY select
 -- privilege for anon/authenticated.
-revoke select on licensed_event from anon, authenticated;
+revoke select on licensed_event from anon, authenticated, public;
 
 -- COLUMN-LEVEL select grant — everything EXCEPT `raw`. `raw` holds the internal
 -- provider payload (provenance/audit), which must not be publicly selectable
@@ -126,6 +126,12 @@ begin
   if not exists (select 1 from pg_constraint where conname = 'licensed_event_status_chk') then
     alter table licensed_event add constraint licensed_event_status_chk
       check (status in ('scheduled', 'cancelled', 'moved'));
+  end if;
+  -- Known licensed providers. Adding a source is a schema event (update this set
+  -- in a follow-up migration) — the boundary rejects a typo'd/invalid provider.
+  if not exists (select 1 from pg_constraint where conname = 'licensed_event_provider_chk') then
+    alter table licensed_event add constraint licensed_event_provider_chk
+      check (source_provider in ('ticketmaster', 'seatgeek'));
   end if;
   if not exists (select 1 from pg_constraint where conname = 'licensed_event_price_chk') then
     alter table licensed_event add constraint licensed_event_price_chk
