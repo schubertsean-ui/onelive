@@ -29,11 +29,12 @@ class TierThresholds:
 
 CADENCE_BY_TIER = {"T1": "daily", "T2": "weekly", "T3": "biweekly"}
 
-# The truthful copy window per cadence (config.TIMEFRAMES): a daily series
-# claims tonight; a weekly series claims this week; a biweekly long-tail
-# roundup claims this month. The generator excludes events outside the
-# window, so cadence and copy can never disagree.
-TIMEFRAME_BY_CADENCE = {"daily": "tonight", "weekly": "this_week", "biweekly": "this_month"}
+# The truthful copy window per cadence (config.TIMEFRAMES; founder canon
+# 2026-07-24: the only windows are Today, Tonight, This weekend): a daily
+# series claims tonight; weekly and biweekly roundups claim the weekend.
+# The generator excludes events outside the window (and anything already
+# started), so cadence and copy can never disagree.
+TIMEFRAME_BY_CADENCE = {"daily": "tonight", "weekly": "this_weekend", "biweekly": "this_weekend"}
 
 
 @dataclass(frozen=True)

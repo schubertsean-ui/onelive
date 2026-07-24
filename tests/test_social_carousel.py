@@ -1,22 +1,25 @@
 """Meta carousel engine: trust physics, gate custody, learning, GEO.
 
 Covers (spec: docs/strategy/ONE_LIVE_META_CAROUSEL_ENGINE_v1.md; hardened
-at the PR #63 evaluator's r1):
+at the PR #63 evaluator's r1; reshaped by the founder's 2026-07-24
+listicle + future-only directive):
 - selection rules: confirmed/likely featurable, unverified/disputed never,
   CANONICAL-origin rows only, event_status `scheduled` only, unknown
-  states fail loud (the 4-state canon + status axis extended to marketing);
-- truthful time framing: events outside the series window are excluded and
-  copy claims exactly the verified window;
-- publish-gate custody: approvals are HMAC-signed under the founder-held
-  key (a name string alone approves nothing), hash-bound (edit-after-
-  approval voids), release re-checks CURRENT confidence + status and
-  rescans the FULL draft text surface; autonomy records must be signed or
-  everything refuses;
+  states fail loud;
+- FUTURE-ONLY truthful windows at timestamp precision: a 6pm carousel
+  never contains a 5:30pm start, "Tonight" is an evening claim, and the
+  release gate re-checks with its own clock;
+- the listicle canon: every hook is "<N> <blank> to experience <Today |
+  Tonight | This weekend>", N is exactly 5 or 7, never padded;
+- scenario carousels (date night, music & dancing, weekend planner, free
+  tonight, family day) grounded in the voice-search personas;
+- publish-gate custody: HMAC-signed approvals under the founder-held key,
+  hash-bound, current confidence+status+future re-check, full-text rescan;
+  signature-verified autonomy record fail-closed L0/L1/L2;
 - the structural guard: agent_loop cannot import publish_gate/autonomy;
-- the typed error boundary: run_cycle records ONLY NoFeaturableEvents as a
-  skip — every trust error propagates loud;
-- bandit determinism, learning direction, exploration floor, decay;
-- tiering by volume with the no-thin-carousel floor; GEO bundle validity.
+- the typed error boundary: only NoFeaturableEvents skips; trust errors
+  propagate loud;
+- bandit determinism/learning/decay; volume tiering; GEO bundle validity.
 """
 import ast
 import dataclasses
@@ -34,6 +37,7 @@ from social.carousel.autonomy import (
 )
 from social.carousel.bandit import ThompsonBandit
 from social.carousel.config import CarouselConfig, FACTORS, validate_assignment
+from social.carousel.example_fixtures import EXAMPLE_EVENTS, EXAMPLE_REFERENCE_TIME
 from social.carousel.generator import (
     CarouselTrustError,
     NoFeaturableEvents,
@@ -45,10 +49,16 @@ from social.carousel.generator import (
 from social.carousel.geo import DOMAIN_TAGS, discovery_bundle, event_jsonld, hashtags_for
 from social.carousel.metrics import MetricsLedger, PostMetrics
 from social.carousel.publish_gate import Approval, approve, release_for_publish
+from social.carousel.scenarios import (
+    SCENARIOS,
+    scenario_by_key,
+    scenario_config,
+    scenario_events,
+)
 from social.carousel.tiers import TierThresholds, assign_tiers, plan_portfolio
 
 TEST_KEY = "test-founder-approval-key"
-REF_DATE = "2026-07-24"
+REF_TIME = "2026-07-24T12:00:00-05:00"  # Friday noon, Austin
 
 
 def _event(i=1, confidence="confirmed", domain="live-music", **over):
@@ -56,7 +66,7 @@ def _event(i=1, confidence="confirmed", domain="live-music", **over):
         event_id=f"ev-{i}",
         name=f"Test Show {i}",
         venue_name="Mohawk",
-        start_time=f"2026-07-24T2{i % 4}:00:00-05:00",
+        start_time=f"2026-07-24T2{i % 4}:00:00-05:00",  # 20:00-23:00, all tonight
         confidence=confidence,
         event_status="scheduled",
         origin="canonical_event",
@@ -88,7 +98,7 @@ def _assignment(**over):
     base = dict(
         hook_type="edition_anchor",
         emotion_register="excitement",
-        slide_count_band="5-7",
+        listicle_size="5",
         caption_style="short_punch",
         cta_type="send_to_friend",
         post_slot="late_afternoon",
@@ -102,12 +112,12 @@ def _events(n=6, confidence="confirmed"):
     return [_event(i, confidence=confidence) for i in range(1, n + 1)]
 
 
-def _draft(events=None, config=None, **assign_over):
+def _draft(events=None, config=None, reference_time=REF_TIME, **assign_over):
     return build_carousel(
         events or _events(),
         config or _config(),
         _assignment(**assign_over),
-        reference_date=REF_DATE,
+        reference_time=reference_time,
     )
 
 
@@ -123,12 +133,13 @@ def _approve(draft, who="Sean Schubert"):
     return approve(draft, who, "2026-07-24T18:00:00-05:00", signing_key=TEST_KEY)
 
 
-def _release(draft, approval=None, policy=None, states=None):
+def _release(draft, approval=None, policy=None, states=None, reference_time=REF_TIME):
     return release_for_publish(
         draft,
         states if states is not None else _current_states(draft),
         approval,
         policy,
+        reference_time=reference_time,
         verification_key=TEST_KEY,
     )
 
@@ -184,18 +195,13 @@ def test_missing_required_fields_fail_loud():
 
 
 def test_likely_slides_carry_the_uncertainty_marker():
-    draft = _draft([_event(1, "likely"), _event(2, "confirmed"), _event(3)])
+    # Exactly 5 featurable so the likely event is certainly featured.
+    events = [_event(1, "likely")] + [_event(i) for i in range(2, 6)]
+    draft = _draft(events)
     likely = [s for s in draft.slides if s.event_id == "ev-1"]
-    confirmed = [s for s in draft.slides if s.event_id == "ev-2"]
-    assert likely[0].uncertainty_marker is True
-    assert confirmed[0].uncertainty_marker is False
-
-
-def test_empty_or_all_unfeaturable_lineup_refuses_to_build():
-    with pytest.raises(NoFeaturableEvents):
-        build_carousel(
-            [_event(1, "disputed")], _config(), _assignment(), reference_date=REF_DATE
-        )
+    assert likely and likely[0].uncertainty_marker is True
+    confirmed = [s for s in draft.slides if s.kind == "event" and s.event_id != "ev-1"]
+    assert confirmed and all(s.uncertainty_marker is False for s in confirmed)
 
 
 def test_descriptor_without_foundry_provenance_is_refused():
@@ -209,46 +215,176 @@ def test_descriptor_with_provenance_lands_on_slide():
         1,
         foundry_descriptor={"text": "Loud honest rock", "provenance": "foundry:v3:abc"},
     )
-    draft = _draft([good, _event(2), _event(3)])
+    draft = _draft([good] + _events(6)[1:])
     slide = next(s for s in draft.slides if s.event_id == "ev-1")
     assert "Loud honest rock" in slide.overlay_lines
 
 
-# --- Truthful time framing (evaluator r1) --------------------------------------
+# --- Future-only truthful windows (founder directive 2026-07-24) ---------------
 
-def test_timeframe_windows():
-    assert within_timeframe("2026-07-24T21:00:00-05:00", REF_DATE, "tonight")
-    assert not within_timeframe("2026-07-25T21:00:00-05:00", REF_DATE, "tonight")
-    assert within_timeframe("2026-07-29T21:00:00-05:00", REF_DATE, "this_week")
-    assert not within_timeframe("2026-08-10T21:00:00-05:00", REF_DATE, "this_week")
-    assert not within_timeframe("2026-07-23T21:00:00-05:00", REF_DATE, "this_week")  # past
+def test_already_started_events_never_qualify_in_any_window():
+    six_pm = "2026-07-24T18:00:00-05:00"
+    for timeframe in ("today", "tonight", "this_weekend"):
+        assert not within_timeframe("2026-07-24T17:30:00-05:00", six_pm, timeframe)
+        assert not within_timeframe("2026-07-24T12:00:00-05:00", six_pm, timeframe)
 
 
-def test_tonight_carousel_excludes_out_of_window_events():
-    events = [_event(1), _event(2), _event(3, start_time="2026-08-02T20:00:00-05:00")]
-    draft = _draft(events)
-    assert "ev-3" not in {s.event_id for s in draft.slides}
+def test_today_vs_tonight_semantics():
+    morning = "2026-07-24T11:00:00-05:00"
+    matinee = "2026-07-24T14:00:00-05:00"
+    evening = "2026-07-24T20:00:00-05:00"
+    tomorrow = "2026-07-25T20:00:00-05:00"
+    assert within_timeframe(matinee, morning, "today")
+    assert not within_timeframe(matinee, morning, "tonight")  # 2pm is not Tonight
+    assert within_timeframe(evening, morning, "tonight")
+    assert not within_timeframe(tomorrow, morning, "today")
+    assert not within_timeframe(tomorrow, morning, "tonight")
+
+
+def test_weekend_window_covers_fri_through_sun_future_only():
+    thursday = "2026-07-23T12:00:00-05:00"
+    saturday_show = "2026-07-25T20:00:00-05:00"
+    sunday_show = "2026-07-26T12:00:00-05:00"
+    monday_show = "2026-07-27T20:00:00-05:00"
+    assert within_timeframe(saturday_show, thursday, "this_weekend")
+    assert within_timeframe(sunday_show, thursday, "this_weekend")
+    assert not within_timeframe(monday_show, thursday, "this_weekend")
+    # Mid-weekend reference: the remainder of THIS weekend, future-only.
+    saturday_night = "2026-07-25T22:00:00-05:00"
+    assert within_timeframe(sunday_show, saturday_night, "this_weekend")
+    assert not within_timeframe(saturday_show, saturday_night, "this_weekend")  # started
+
+
+def test_timezone_mismatch_fails_loud():
+    with pytest.raises(CarouselTrustError, match="mismatch"):
+        within_timeframe("2026-07-24T20:00:00", REF_TIME, "tonight")
+
+
+def test_six_pm_carousel_excludes_earlier_start():
+    events = _events(6) + [_event(30, start_time="2026-07-24T17:30:00-05:00")]
+    draft = _draft(events, reference_time="2026-07-24T18:00:00-05:00")
+    assert "ev-30" not in {s.event_id for s in draft.slides}
 
 
 def test_all_events_outside_window_is_a_no_featurable_skip():
-    with pytest.raises(NoFeaturableEvents, match="window"):
+    with pytest.raises(NoFeaturableEvents, match="never padded"):
         build_carousel(
             [_event(1, start_time="2026-09-01T20:00:00-05:00")],
             _config(),
             _assignment(),
-            reference_date=REF_DATE,
+            reference_time=REF_TIME,
         )
 
 
-def test_weekly_series_copy_claims_this_week_not_tonight():
-    events = [_event(1, start_time="2026-07-27T20:00:00-05:00"), _event(2, start_time="2026-07-28T20:00:00-05:00")]
-    draft = _draft(events, config=_config(timeframe="this_week"))
-    assert "This week" in draft.caption
+def test_weekend_series_copy_and_dated_slides():
+    events = [
+        _event(i, start_time=f"2026-07-25T2{i % 3}:00:00-05:00") for i in range(1, 7)
+    ]
+    draft = _draft(events, config=_config(timeframe="this_weekend"))
+    assert "This weekend" in draft.slides[0].headline
     copy_body = draft.caption.split("\nReal listings")[0]  # copy, not the URL path
     assert "tonight" not in copy_body.lower()
-    # Beyond tonight the date is part of the fact on every event slide.
     event_slide = next(s for s in draft.slides if s.kind == "event")
-    assert "Jul" in event_slide.overlay_lines[1]
+    assert "Jul" in event_slide.overlay_lines[1]  # the date is part of the fact
+
+
+# --- The listicle canon (founder directive 2026-07-24) -------------------------
+
+def test_hook_is_the_listicle_format():
+    draft = _draft()
+    assert draft.slides[0].headline == "5 shows to experience Tonight"
+
+
+def test_listicle_size_is_exactly_five_or_seven():
+    draft5 = _draft(_events(20), listicle_size="5")
+    assert sum(1 for s in draft5.slides if s.kind == "event") == 5
+    draft7 = _draft(_events(20), listicle_size="7")
+    assert sum(1 for s in draft7.slides if s.kind == "event") == 7
+
+
+def test_sampled_seven_falls_back_to_five_when_supply_is_six():
+    draft = _draft(_events(6), listicle_size="7")
+    assert sum(1 for s in draft.slides if s.kind == "event") == 5
+    assert draft.slides[0].headline.startswith("5 ")  # the promise stays exact
+
+
+def test_below_five_featurable_never_posts():
+    with pytest.raises(NoFeaturableEvents, match="never padded"):
+        _draft(_events(4))
+
+
+def test_price_promise_only_when_every_event_is_priced():
+    draft = _draft(_events(7), hook_type="number_promise")
+    assert "under $20" in draft.slides[0].headline
+    # Exactly 5 featurable, one unpriced -> the unpriced one IS featured,
+    # so the honest fallback drops the price blank.
+    unpriced = [_event(1, price_min=None)] + [_event(i) for i in range(2, 6)]
+    fallback = _draft(unpriced, hook_type="number_promise")
+    assert "under $" not in fallback.slides[0].headline
+    assert "shows to experience Tonight" in fallback.slides[0].headline
+
+
+def test_scenario_noun_lands_in_the_hook():
+    config = _config(listicle_noun="date nights")
+    draft = _draft(config=config)
+    assert draft.slides[0].headline == "5 date nights to experience Tonight"
+
+
+# --- Scenario carousels (founder directive; personas doc) ----------------------
+
+def test_the_five_scenarios_exist():
+    assert {s.key for s in SCENARIOS} == {
+        "date_night",
+        "music_and_dancing",
+        "weekend_planner",
+        "free_tonight",
+        "family_day",
+    }
+
+
+def test_date_night_filters_to_later_starts():
+    scenario = scenario_by_key("date_night")
+    early = _event(1, domain="theater", start_time="2026-07-24T18:00:00-05:00")
+    late = _event(2, domain="theater", start_time="2026-07-24T20:30:00-05:00")
+    off_domain = _event(3, domain="sports", start_time="2026-07-24T21:00:00-05:00")
+    picked = scenario_events([early, late, off_domain], scenario)
+    assert [e["event_id"] for e in picked] == ["ev-2"]
+
+
+def test_free_tonight_is_actually_free():
+    scenario = scenario_by_key("free_tonight")
+    free = _event(1, domain="comedy", price_min=0)
+    cheap = _event(2, domain="comedy", price_min=5)
+    unpriced = _event(3, domain="comedy", price_min=None)
+    picked = scenario_events([free, cheap, unpriced], scenario)
+    assert [e["event_id"] for e in picked] == ["ev-1"]
+
+
+def test_all_five_example_scenarios_render_through_the_engine():
+    for scenario in SCENARIOS:
+        config = scenario_config(
+            scenario,
+            surface="instagram_feed",
+            city="Austin",
+            handle="@onelive.atx",
+            short_link_base="https://onelive.app/tonight",
+        )
+        draft = build_carousel(
+            scenario_events(EXAMPLE_EVENTS, scenario),
+            config,
+            _assignment(),
+            reference_time=EXAMPLE_REFERENCE_TIME,
+        )
+        n = sum(1 for s in draft.slides if s.kind == "event")
+        assert n in (5, 7)
+        assert draft.slides[0].headline.startswith(f"{n} ")
+        assert "to experience" in draft.slides[0].headline
+        # the already-started fixture never appears
+        assert "ex-28" not in {s.event_id for s in draft.slides}
+
+
+def test_example_fixtures_are_marked_synthetic():
+    assert all(e["source"] == "SYNTHETIC-EXAMPLE" for e in EXAMPLE_EVENTS)
 
 
 # --- Draft anatomy + format physics (spec SS2) ---------------------------------
@@ -267,30 +403,13 @@ def test_every_slide_has_alt_text_and_events_have_provenance():
     for slide in draft.slides:
         if slide.kind == "event":
             assert slide.event_id and slide.source and slide.confidence
-
-
-def test_slide_count_respects_band_and_surface_bounds():
-    draft = _draft(_events(20), slide_count_band="5-7")
-    assert len(draft.slides) <= 7
-    fb = build_carousel(
-        _events(20),
-        _config(surface="facebook_page"),
-        _assignment(slide_count_band="11-14"),
-        reference_date=REF_DATE,
-    )
-    assert len(fb.slides) <= 10  # surface cap binds under the wider band
-
-
-def test_number_promise_hook_uses_real_counts_only():
-    events = _events(3)
-    draft = _draft(events, hook_type="number_promise")
-    assert "3" in draft.slides[0].headline
+            assert slide.start_time  # release-gate future check needs it
 
 
 def test_banned_claim_language_refused_at_generation():
     shady = _event(1, name="Confirmed sellout night")
     with pytest.raises(CarouselTrustError, match="banned claim phrase"):
-        _draft([shady, _event(2), _event(3)])
+        _draft([shady] + _events(6)[1:])
 
 
 def test_caption_carries_utm_short_link():
@@ -326,7 +445,9 @@ def test_release_without_key_is_refused(monkeypatch):
     draft = _draft()
     approval = _approve(draft)
     with pytest.raises(ValueError, match="no approval key"):
-        release_for_publish(draft, _current_states(draft), approval)
+        release_for_publish(
+            draft, _current_states(draft), approval, reference_time=REF_TIME
+        )
 
 
 def test_forged_approval_signature_is_refused():
@@ -386,6 +507,13 @@ def test_release_rechecks_current_event_status():
         _release(draft, approval, states=states)
 
 
+def test_release_refuses_already_started_events():
+    draft = _draft()  # events start 20:00-23:00
+    approval = _approve(draft)
+    with pytest.raises(ValueError, match="already started"):
+        _release(draft, approval, reference_time="2026-07-24T23:30:00-05:00")
+
+
 def test_release_refuses_unknown_current_state():
     draft = _draft()
     with pytest.raises(ValueError, match="no current state"):
@@ -394,8 +522,6 @@ def test_release_refuses_unknown_current_state():
 
 def test_release_rescans_full_draft_content():
     draft = _draft()
-    # A mutated/hand-built draft with banned caption language must be caught
-    # by the FINAL guard itself, regardless of what the generator did.
     tampered = dataclasses.replace(draft, caption=draft.caption + " Guaranteed sellout!")
     with pytest.raises(ValueError, match="banned claim phrase"):
         _release(tampered, _approve(tampered))
@@ -445,9 +571,8 @@ def test_signed_l1_scope_enumeration_is_exact(tmp_path):
 
 
 def test_unsigned_record_refuses(tmp_path):
-    payload = _l1_payload()
     record = tmp_path / "a.json"
-    record.write_text(json.dumps(payload))
+    record.write_text(json.dumps(_l1_payload()))
     with pytest.raises(AutonomyRecordError, match="UNSIGNED"):
         load_policy(str(record), verification_key=TEST_KEY)
 
@@ -502,8 +627,6 @@ def test_malformed_record_fails_closed_not_open(tmp_path):
 
 
 def test_no_ratification_record_is_committed_yet():
-    # The repo must ship in L0: the record appears only via the founder's
-    # three-step sign-off (spec SS10).
     from social.carousel.autonomy import DEFAULT_RECORD_PATH
 
     assert not os.path.exists(DEFAULT_RECORD_PATH)
@@ -604,6 +727,7 @@ def _metrics(i, rate, surface="instagram_feed", tier="T1"):
         saves=10,
         shares=5,
         link_clicks=8,
+        impressions=1500,
     )
 
 
@@ -659,13 +783,10 @@ def test_portfolio_shapes_no_thin_solo_carousels_and_truthful_timeframes():
     combined = by_key["t3_everything_else"]
     assert set(combined.domain_ids) == {"dance", "literary"}
     assert not any(k.startswith("t3_") and k != "t3_everything_else" for k in by_key)
-    assert "film" not in {
-        d for s in portfolio for d in s.domain_ids if s.series_key != "tonight_all"
-    }
-    # cadence and claimed window can never disagree
+    # cadence and claimed window can never disagree (founder windows only)
     assert by_key["t1_live-music"].timeframe == "tonight"
-    assert by_key["t2_comedy"].timeframe == "this_week"
-    assert combined.timeframe == "this_month"
+    assert by_key["t2_comedy"].timeframe == "this_weekend"
+    assert combined.timeframe == "this_weekend"
 
 
 def test_threshold_ordering_enforced():
@@ -730,32 +851,42 @@ def _cycle(events, counts, **over):
         weekly_confirmed_counts=counts,
         bandit=ThompsonBandit(seed=11),
         brand=_brand(),
-        max_drafts=10,
-        reference_date=REF_DATE,
+        max_drafts=20,
+        reference_time=REF_TIME,
     )
     base.update(over)
     return run_cycle(**base)
 
 
+def _cycle_events():
+    return _events(8) + [
+        _event(20 + i, domain="comedy", start_time=f"2026-07-24T2{i % 3}:00:00-05:00")
+        for i in range(6)
+    ]
+
+
 def test_run_cycle_produces_drafts_and_telemetry():
-    events = _events(8) + [_event(20, domain="comedy"), _event(21, domain="comedy")]
     pings = []
     result = _cycle(
-        events, {"live-music": 20.0, "comedy": 6.0}, deadman_ping=pings.append
+        _cycle_events(), {"live-music": 20.0, "comedy": 6.0}, deadman_ping=pings.append
     )
     assert pings == ["start", "end"]
     assert result.drafts and len(result.discovery_bundles) == len(result.drafts)
     assert result.posterior_means
     assert all(d.author == "onelive-carousel-agent" for d in result.drafts)
+    # scenario series are attempted; outcomes (draft or recorded skip) exist
+    attempted = {d.series_key for d in result.drafts} | {
+        k for k, _ in result.skipped_series
+    }
+    assert any(k.startswith("scenario_") for k in attempted)
 
 
 def test_run_cycle_budget_cap_is_hard_and_skips_are_recorded():
-    events = _events(8) + [_event(20, domain="comedy"), _event(21, domain="comedy")]
-    result = _cycle(events, {"live-music": 20.0, "comedy": 6.0}, max_drafts=1)
+    result = _cycle(_cycle_events(), {"live-music": 20.0, "comedy": 6.0}, max_drafts=1)
     assert len(result.drafts) == 1
     assert any("budget cap" in reason for _, reason in result.skipped_series)
     with pytest.raises(ValueError, match="max_drafts"):
-        _cycle(events, {"live-music": 20.0}, max_drafts=0)
+        _cycle(_cycle_events(), {"live-music": 20.0}, max_drafts=0)
 
 
 def test_run_cycle_records_only_the_no_featurable_skip():
@@ -768,18 +899,18 @@ def test_run_cycle_propagates_trust_errors_loud():
     # Unknown confidence must NOT become a silent skip (evaluator r1).
     with pytest.raises(CarouselTrustError, match="unknown confidence"):
         _cycle([_event(1, confidence="banana", domain="comedy")], {"comedy": 6.0})
-    # Non-canonical origin propagates.
     with pytest.raises(CarouselTrustError, match="never amplified"):
         _cycle([_event(1, origin="candidate_store", domain="comedy")], {"comedy": 6.0})
-    # Foundry-less descriptor propagates.
     with pytest.raises(CarouselTrustError, match="Descriptor Foundry"):
         _cycle(
             [_event(1, domain="comedy", foundry_descriptor={"text": "vibes"})],
             {"comedy": 6.0},
         )
-    # Banned claim language propagates.
     with pytest.raises(CarouselTrustError, match="banned claim phrase"):
-        _cycle([_event(1, domain="comedy", name="Guaranteed fun")], {"comedy": 6.0})
+        _cycle(
+            [_event(i, domain="comedy", name=f"Guaranteed fun {i}") for i in range(1, 6)],
+            {"comedy": 6.0},
+        )
 
 
 def test_ingest_results_updates_learner_and_reports():

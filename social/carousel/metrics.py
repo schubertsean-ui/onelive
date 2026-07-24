@@ -33,6 +33,10 @@ class PostMetrics:
     profile_visits: int = 0
     link_clicks: int = 0
     follows: int = 0
+    # Total views incl. repeats (Insights "impressions"/"views"): the
+    # impressions/reach ratio is the audience-fatigue dial the cadence
+    # decision reads (spec §5b).
+    impressions: int = 0
 
     def validate(self) -> None:
         if self.reach <= 0:
@@ -46,6 +50,7 @@ class PostMetrics:
             "profile_visits": self.profile_visits,
             "link_clicks": self.link_clicks,
             "follows": self.follows,
+            "impressions": self.impressions,
         }
         for name, value in counters.items():
             if value < 0:

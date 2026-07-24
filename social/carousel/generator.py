@@ -19,7 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import date, timedelta
+from datetime import datetime, timedelta
 
 from social.carousel.config import (
     BANNED_CLAIM_PHRASES,
@@ -29,10 +29,11 @@ from social.carousel.config import (
     HOOK_HEADLINE_MAX_WORDS,
     KNOWN_CONFIDENCE,
     KNOWN_EVENT_STATUS,
-    SLIDE_COUNT_BANDS,
+    LISTICLE_SIZES,
     SLIDE_OVERLAY_MAX_WORDS,
     SURFACE_CONSTRAINTS,
     TIMEFRAMES,
+    TONIGHT_EARLIEST_HOUR,
     validate_assignment,
 )
 from social.carousel.geo import hashtags_for
@@ -76,10 +77,12 @@ class Slide:
     image_ref: str = ""
     alt_text: str = ""
     # Trust plumbing: which event this slide asserts, from which source,
-    # and whether the quiet uncertainty affordance must render (likely).
+    # when it starts (so the release gate can re-check future-ness with its
+    # own clock), and whether the quiet uncertainty affordance must render.
     event_id: str = ""
     source: str = ""
     confidence: str = ""
+    start_time: str = ""
     uncertainty_marker: bool = False
 
 
@@ -151,13 +154,41 @@ def _check_event(event: dict) -> None:
             )
 
 
-def within_timeframe(start_time: str, reference_date: str, timeframe: str) -> bool:
-    """Truthful-window check: does this event's date fall inside the window
-    the carousel's copy will claim? Past events never qualify."""
-    window = TIMEFRAMES[timeframe]["window_days"]
-    event_date = date.fromisoformat(start_time[:10])
-    ref = date.fromisoformat(reference_date[:10])
-    return ref <= event_date <= ref + timedelta(days=int(window))
+def _parse_when(value: str, label: str) -> datetime:
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise CarouselTrustError(f"unparseable {label} timestamp {value!r}") from exc
+
+
+def within_timeframe(start_time: str, reference_time: str, timeframe: str) -> bool:
+    """Truthful-window check at TIMESTAMP precision (founder directive
+    2026-07-24): only events that have NOT yet started at reference_time
+    qualify — a 6pm carousel never includes a 5:30pm start. On top of the
+    future-only floor, the event must fall inside the claimed window:
+    Today = rest of today; Tonight = rest of today from 5pm; This weekend
+    = the current-or-next Fri-Sun block."""
+    if timeframe not in TIMEFRAMES:
+        raise CarouselTrustError(f"unknown timeframe {timeframe!r}")
+    start = _parse_when(start_time, "event start")
+    ref = _parse_when(reference_time, "reference")
+    if (start.tzinfo is None) != (ref.tzinfo is None):
+        raise CarouselTrustError(
+            "timezone-aware/naive mismatch between event start and reference "
+            f"({start_time!r} vs {reference_time!r}) — refusing to compare"
+        )
+    if start < ref:
+        return False  # already started (or over): never shown, in any window
+    if timeframe == "today":
+        return start.date() == ref.date()
+    if timeframe == "tonight":
+        return start.date() == ref.date() and start.hour >= TONIGHT_EARLIEST_HOUR
+    # this_weekend: the Fri-Sun block containing ref (if ref is already in
+    # one) or the next one ahead.
+    days_to_friday = (4 - ref.weekday()) % 7 if ref.weekday() < 4 else 0
+    weekend_start = (ref + timedelta(days=days_to_friday)).date()
+    weekend_end = weekend_start + timedelta(days=6 - weekend_start.weekday())
+    return weekend_start <= start.date() <= weekend_end
 
 
 def select_featurable(events: list[dict]) -> list[dict]:
@@ -201,27 +232,35 @@ def _scan_banned(text: str, context: str) -> None:
 
 
 def _hook_headline(hook_type: str, events: list[dict], config: CarouselConfig) -> str:
-    """Deterministic hook templates over REAL aggregates only — a number
-    promise is computed from the actual lineup, and the time phrase is the
-    verified window, never an asserted 'tonight'."""
+    """The founder's listicle canon (2026-07-24): every hook reads
+    '<N> <blank> to experience <Today | Tonight | This weekend>'. N is the
+    ACTUAL number of event slides (the promise is kept exactly); the hook
+    factor varies only the <blank>. A price blank is computed from the real
+    lineup, never asserted."""
     n = len(events)
     phrase = str(TIMEFRAMES[config.timeframe]["phrase"])
     priced = [e["price_min"] for e in events if e.get("price_min") is not None]
+    blanks = {
+        "edition_anchor": config.listicle_noun,
+        "social_proof": "local picks",
+        "curiosity_gap": "wildcards",
+        "awe": "big rooms",
+        "humor": "couch-defeating plans",
+    }
     if hook_type == "number_promise":
-        if priced:
-            return f"{n} nights out under ${int(max(priced))}"
-        return f"{n} real events, {config.city} {phrase.lower()}"
-    if hook_type == "curiosity_gap":
-        return f"{phrase} in {config.city} hits different"
-    if hook_type == "awe":
-        return f"{config.city} is loud {phrase.lower()}"
-    if hook_type == "humor":
-        return f"Your couch can wait, {config.city}"
-    if hook_type == "social_proof":
-        return f"Where {config.city} actually goes"
-    if hook_type == "edition_anchor":
-        return f"{phrase} in {config.city}"
-    raise CarouselTrustError(f"unknown hook_type {hook_type!r}")
+        if priced and len(priced) == n:
+            top = int(max(priced))
+            # "under $0" is nonsense — an all-free lineup says so plainly.
+            blank = "free nights" if top == 0 else f"nights under ${top}"
+        else:
+            # An honest price promise needs every featured event priced;
+            # otherwise fall back to the plain noun.
+            blank = config.listicle_noun
+    elif hook_type in blanks:
+        blank = blanks[hook_type]
+    else:
+        raise CarouselTrustError(f"unknown hook_type {hook_type!r}")
+    return f"{n} {blank} to experience {phrase}"
 
 
 def _cta_lines(cta_type: str) -> tuple[str, ...]:
@@ -239,13 +278,13 @@ def _cta_lines(cta_type: str) -> tuple[str, ...]:
 
 def _event_overlay(event: dict, timeframe: str) -> tuple[str, ...]:
     """Verbatim facts, one idea per slide: name / venue / when / price.
-    Beyond tonight, the date is part of the fact — time alone would imply
-    tonight (the r1 truthful-framing rule)."""
+    Beyond a same-day window, the date is part of the fact — time alone
+    would imply today (the r1 truthful-framing rule)."""
     clock = event["start_time"][11:16] if len(event["start_time"]) >= 16 else ""
-    if timeframe == "tonight":
+    if timeframe in ("today", "tonight"):
         when = clock
     else:
-        event_date = date.fromisoformat(event["start_time"][:10])
+        event_date = _parse_when(event["start_time"], "event start").date()
         when = f"{event_date.strftime('%b %d')} · {clock}" if clock else event_date.strftime("%b %d")
     lines = [event["name"], f"{event['venue_name']} · {when}"]
     if event.get("price_min") is not None:
@@ -291,31 +330,40 @@ def build_carousel(
     config: CarouselConfig,
     assignment: dict[str, str],
     *,
-    reference_date: str,
+    reference_time: str,
 ) -> CarouselDraft:
-    """Assemble one draft: hook slide, one event per slide, CTA close —
-    under the surface's hard slide bounds, the word caps, and the series'
-    truthful time window (reference_date anchors it; passed in explicitly
-    so cycles are reproducible). Raises CarouselTrustError on any trust or
-    format violation, NoFeaturableEvents when the window is honestly empty
-    — a draft that cannot be built honestly is not built at all."""
+    """Assemble one draft: hook slide, EXACTLY 5 or 7 event slides (the
+    founder's listicle canon — the sampled size falls back 7->5 when supply
+    is short, and below 5 there is no post: a listicle promise is never
+    padded), CTA close — under the surface's hard slide bounds, the word
+    caps, and the series' truthful FUTURE-ONLY time window (reference_time,
+    a full timestamp, anchors it; passed in explicitly so cycles are
+    reproducible). Raises CarouselTrustError on any trust or format
+    violation, NoFeaturableEvents when the window is honestly too thin —
+    a draft that cannot be built honestly is not built at all."""
     config.validate()
     validate_assignment(assignment)
     featurable = [
         e
         for e in select_featurable(events)
-        if within_timeframe(e["start_time"], reference_date, config.timeframe)
+        if within_timeframe(e["start_time"], reference_time, config.timeframe)
     ]
-    if not featurable:
+    sampled_size = int(assignment["listicle_size"])
+    if sampled_size not in LISTICLE_SIZES:
+        raise CarouselTrustError(f"listicle_size {sampled_size} not in {LISTICLE_SIZES}")
+    if len(featurable) >= sampled_size:
+        listicle_n = sampled_size
+    elif len(featurable) >= min(LISTICLE_SIZES):
+        listicle_n = min(LISTICLE_SIZES)
+    else:
         raise NoFeaturableEvents(
-            f"no featurable events inside the {config.timeframe} window from "
-            f"{reference_date} — a carousel never posts thin or empty"
+            f"only {len(featurable)} featurable events inside the "
+            f"{config.timeframe} window from {reference_time} — a listicle "
+            f"promises at least {min(LISTICLE_SIZES)}, and the promise is never padded"
         )
 
     constraints = SURFACE_CONSTRAINTS[config.surface]
-    band_lo, band_hi = SLIDE_COUNT_BANDS[assignment["slide_count_band"]]
-    max_event_slides = min(band_hi, constraints.max_slides) - 2  # hook + CTA
-    featured = featurable[:max_event_slides]
+    featured = featurable[:listicle_n]
 
     hook_text = _cap_words(
         _hook_headline(assignment["hook_type"], featured, config),
@@ -344,6 +392,7 @@ def build_carousel(
                 event_id=event["event_id"],
                 source=event["source"],
                 confidence=event["confidence"],
+                start_time=event["start_time"],
                 uncertainty_marker=event["confidence"] == "likely",
             )
         )

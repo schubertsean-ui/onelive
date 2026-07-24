@@ -54,10 +54,13 @@ the same physics as `worker/promote.py`:
   - `event_status` is its own axis (Certainty Display Stack canon):
     only `scheduled` events are featured; cancelled/moved are excluded
     at selection and re-checked at release.
-  - TRUTHFUL TIME FRAMING: each series claims exactly its verified
-    window (tonight / this week / this month, from its cadence); events
-    outside the window are excluded, so copy can never say "tonight"
-    about a show next month.
+  - TRUTHFUL TIME FRAMING, FUTURE-ONLY (founder canon, same-day
+    directive): the only windows are **Today, Tonight, This weekend**,
+    checked at TIMESTAMP precision — an event that has already started
+    at generation or release time is never shown (a 6pm carousel
+    excludes a 5:30pm start; the release gate re-checks with its own
+    clock), "Tonight" is an evening claim (≥ 5pm), and events outside
+    the claimed window are excluded, so copy can never outrun the data.
 - **No fabrication.** Slide copy is verbatim event facts (name, venue,
   time, price) from canonical rows, plus optional descriptor text that
   must carry Descriptor Foundry provenance. There is no free-text LLM
@@ -86,11 +89,15 @@ Design choices below are constraints in code (`config.py`), not taste:
   slide answers), a number promise ("7 shows under $20 tonight"), awe
   ("the room 2,000 people will be in at 9pm"), or humor. Encoded as the
   `hook_type` factor the bandit learns over.
-- **Chunking (Miller/Cowan).** Working memory holds ~4 chunks
-  comfortably. One event per slide; carousels default to 5–10 slides
-  (Meta allows up to 20 on IG feed, 10 on FB carousel units — encoded as
-  per-surface hard constraints); the bandit learns the count band that
-  actually maximizes completion.
+- **Chunking (Miller/Cowan) + the listicle canon (founder directive
+  2026-07-24).** Working memory holds ~4 chunks comfortably. One event
+  per slide, and every carousel is a LISTICLE with an exact promise:
+  **"5 (or 7) ___ to experience Today / Tonight / This weekend"** — the
+  hook states N, the deck contains exactly N event slides (7 falls back
+  to 5 when supply is short; below 5 there is no post — a promise is
+  never padded), and the bandit learns which size Austin actually
+  completes. Meta's hard caps (20 IG feed / 10 FB) stay encoded as
+  per-surface constraints.
 - **Motion and sound** (video slides, music/audio) are the
   highest-bandwidth attention hooks the format offers; v1 ships
   image-first with the media-type factor present (`video` levels exist
@@ -156,12 +163,19 @@ cycle — its job is to hand off into the product's own loop:
 taxonomy) over a rolling window and assigns cadence by supply — content
 volume IS the tier key, exactly as directed:
 
-| Tier | Rule (defaults, founder-tunable) | Cadence | Shape |
+| Tier | Rule (defaults, founder-tunable) | Cadence | Window / Shape |
 |---|---|---|---|
-| T1 flagship | top domains ≥ 12 confirmed events/wk | daily/near-daily | "Tonight in Austin" + per-domain ("Live Music Tonight") |
-| T2 strong | ≥ 5/wk | weekly | domain roundup ("This week in Comedy") |
-| T3 long tail | ≥ 1/wk | bi-weekly/monthly | combined "Everything else worth leaving the house for" |
-| below floor | < 1/wk | none | events ride T1/T3 combined carousels — no starved solo carousel ever posts thin |
+| T1 flagship | top domains ≥ 12 confirmed events/wk | daily/near-daily | Tonight — "5 shows to experience Tonight", city-wide + per-domain |
+| T2 strong | ≥ 5/wk | weekly | This weekend — domain roundup ("7 comedy nights to experience This weekend") |
+| T3 long tail | ≥ 1/wk | bi-weekly | This weekend — combined "everything else" roundup |
+| below floor | < 1/wk | none | events ride the combined carousels — no starved solo carousel ever posts thin |
+
+On top of the domain tiers, the FIVE SCENARIO SERIES (founder-named
+use-cases, grounded in the voice-search personas): Date Night · Music &
+Dancing · Weekend Planner · Free Tonight · Family Day —
+`social/carousel/scenarios.py`, with full engine-rendered examples,
+the cadence recommendation, and the metrics answer in
+`ONE_LIVE_CAROUSEL_EXAMPLES_v1.md`.
 
 Tiering is re-derived every cycle from live counts, so the portfolio
 follows the data as new domains fill in (same "wind vane" logic as the
@@ -187,7 +201,7 @@ delivery machinery) is adaptive allocation. `bandit.py` implements
 Thompson sampling over per-factor Beta posteriors — the standard,
 inspectable, regret-optimal-in-class choice — with:
 
-- **Factored design space** (hook_type × emotion_register × slide-count
+- **Factored design space** (hook_type × emotion_register × listicle-size
   band × caption_style × cta_type × post_slot × media_type): each factor
   learns independently, so ~30 posts already teach real structure
   (a full factorial would need thousands).

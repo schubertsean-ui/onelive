@@ -19,6 +19,7 @@ from social.carousel.config import CarouselConfig
 from social.carousel.generator import CarouselDraft, NoFeaturableEvents, build_carousel
 from social.carousel.geo import discovery_bundle
 from social.carousel.metrics import MetricsLedger, PostMetrics
+from social.carousel.scenarios import SCENARIOS, scenario_config, scenario_events
 from social.carousel.tiers import TierThresholds, plan_portfolio
 
 
@@ -49,40 +50,32 @@ def run_cycle(
     bandit: ThompsonBandit,
     brand: BrandIdentity,
     max_drafts: int,
-    reference_date: str,
+    reference_time: str,
     thresholds: TierThresholds | None = None,
+    include_scenarios: bool = True,
     deadman_ping=None,
 ) -> CycleResult:
-    """Generate this cycle's carousel drafts. max_drafts is the hard budget
-    cap (charter cost discipline: every loop runs under a ceiling); a
-    non-positive cap is a configuration defect, not a silent no-op.
-    reference_date (ISO date) anchors each series' truthful time window."""
+    """Generate this cycle's carousel drafts: the volume-tiered domain
+    portfolio plus the founder's named scenario series. max_drafts is the
+    hard budget cap (charter cost discipline: every loop runs under a
+    ceiling); a non-positive cap is a configuration defect, not a silent
+    no-op. reference_time (full ISO timestamp) anchors every series'
+    truthful FUTURE-ONLY window — a 6pm cycle never features a 5:30 start."""
     if max_drafts <= 0:
         raise ValueError(f"max_drafts must be positive, got {max_drafts}")
     if deadman_ping is not None:
         deadman_ping("start")
 
-    portfolio = plan_portfolio(weekly_confirmed_counts, thresholds)
     result = CycleResult()
-    for series in portfolio:
+
+    def _attempt(series_key: str, series_events: list[dict], config: CarouselConfig) -> None:
         if len(result.drafts) >= max_drafts:
-            result.skipped_series.append((series.series_key, "budget cap reached"))
-            continue
-        series_events = [e for e in events if e.get("domain_id") in series.domain_ids]
-        config = CarouselConfig(
-            surface=brand.surface,
-            series_key=series.series_key,
-            city=brand.city,
-            handle=brand.handle,
-            short_link_base=brand.short_link_base,
-            domain_ids=series.domain_ids,
-            tier=series.tier,
-            timeframe=series.timeframe,
-        )
+            result.skipped_series.append((series_key, "budget cap reached"))
+            return
         assignment = bandit.sample_assignment()
         try:
             draft = build_carousel(
-                series_events, config, assignment, reference_date=reference_date
+                series_events, config, assignment, reference_time=reference_time
             )
         except NoFeaturableEvents as exc:
             # The ONE expected skip: nothing featurable in this series'
@@ -90,12 +83,41 @@ def run_cycle(
             # silent). Every other generator error — CarouselTrustError,
             # bad config, unknown states — propagates LOUD (evaluator r1:
             # the autonomous loop must never swallow a trust failure).
-            result.skipped_series.append((series.series_key, str(exc)))
-            continue
+            result.skipped_series.append((series_key, str(exc)))
+            return
         featured_ids = {s.event_id for s in draft.slides if s.kind == "event"}
         featured = [e for e in series_events if e["event_id"] in featured_ids]
         result.drafts.append(draft)
         result.discovery_bundles.append(discovery_bundle(draft, featured, brand.city))
+
+    for series in plan_portfolio(weekly_confirmed_counts, thresholds):
+        _attempt(
+            series.series_key,
+            [e for e in events if e.get("domain_id") in series.domain_ids],
+            CarouselConfig(
+                surface=brand.surface,
+                series_key=series.series_key,
+                city=brand.city,
+                handle=brand.handle,
+                short_link_base=brand.short_link_base,
+                domain_ids=series.domain_ids,
+                tier=series.tier,
+                timeframe=series.timeframe,
+            ),
+        )
+    if include_scenarios:
+        for scenario in SCENARIOS:
+            _attempt(
+                f"scenario_{scenario.key}",
+                scenario_events(events, scenario),
+                scenario_config(
+                    scenario,
+                    surface=brand.surface,
+                    city=brand.city,
+                    handle=brand.handle,
+                    short_link_base=brand.short_link_base,
+                ),
+            )
 
     result.posterior_means = bandit.posterior_means()
     if deadman_ping is not None:

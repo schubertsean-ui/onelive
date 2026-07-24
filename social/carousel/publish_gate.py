@@ -32,7 +32,12 @@ from social.carousel.config import (
     FEATURABLE_CONFIDENCE,
     FEATURABLE_EVENT_STATUS,
 )
-from social.carousel.generator import CarouselDraft, all_draft_text, content_hash
+from social.carousel.generator import (
+    CarouselDraft,
+    all_draft_text,
+    content_hash,
+    within_timeframe,
+)
 
 APPROVAL_KEY_ENV = "ONELIVE_APPROVAL_KEY"
 
@@ -114,14 +119,28 @@ def approve(
     )
 
 
-def _recheck_trust(draft: CarouselDraft, current_states: dict[str, dict]) -> None:
+def _recheck_trust(
+    draft: CarouselDraft, current_states: dict[str, dict], reference_time: str
+) -> None:
     """The state that was true at generation must STILL be true at release:
-    an event that went disputed OR got cancelled/moved since the draft was
-    built blocks the post. current_states: event_id -> {"confidence": ...,
-    "event_status": ...}, freshly read from the canonical store."""
+    an event that went disputed OR got cancelled/moved OR has already
+    started since the draft was built blocks the post (founder directive
+    2026-07-24: only ever content that is yet to happen — the release gate
+    re-checks with ITS clock, not the generator's). current_states:
+    event_id -> {"confidence": ..., "event_status": ...}, freshly read from
+    the canonical store; reference_time: the release moment, full ISO
+    timestamp."""
     for slide in draft.slides:
         if slide.kind != "event":
             continue
+        if not slide.start_time or not within_timeframe(
+            slide.start_time, reference_time, draft.timeframe
+        ):
+            raise ValueError(
+                f"release refused: {slide.event_id} (start {slide.start_time!r}) "
+                f"is not strictly ahead within the {draft.timeframe} window at "
+                f"{reference_time} — carousels never show what has already started"
+            )
         current = current_states.get(slide.event_id)
         if current is None:
             raise ValueError(
@@ -162,6 +181,7 @@ def release_for_publish(
     approval: Approval | None = None,
     policy: AutonomyPolicy | None = None,
     *,
+    reference_time: str,
     verification_key: str | bytes | None = None,
 ) -> PublishRelease:
     """The publish decision. Exactly two lawful paths:
@@ -170,11 +190,13 @@ def release_for_publish(
        founder-held key AND whose hash matches this exact draft, or
     2. the founder's authenticated autonomy record covering (surface, tier).
 
-    Everything else refuses. A caller passing policy=None gets the record
-    loaded and signature-verified from disk; AutonomyRecordError propagates
-    — a broken or bogus ratification refuses everything, loudly.
+    Everything else refuses; either path first passes the trust re-check
+    (current confidence + status, future-only at reference_time, full-text
+    rescan). A caller passing policy=None gets the record loaded and
+    signature-verified from disk; AutonomyRecordError propagates — a broken
+    or bogus ratification refuses everything, loudly.
     """
-    _recheck_trust(draft, current_states)
+    _recheck_trust(draft, current_states, reference_time)
     draft_hash = content_hash(draft)
 
     if approval is not None:

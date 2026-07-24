@@ -91,7 +91,11 @@ FACTORS: dict[str, tuple[str, ...]] = {
         "belonging",
         "anticipation",
     ),
-    "slide_count_band": ("5-7", "8-10", "11-14"),
+    # Founder-directed format (2026-07-24): every carousel is a listicle —
+    # "5 (or 7) <blank> to experience <Today | Tonight | This weekend>".
+    # The size is a learned factor; the promise is kept exactly (never
+    # padded, never over-claimed — fewer than 5 featurable = no post).
+    "listicle_size": ("5", "7"),
     "caption_style": ("short_punch", "mini_story", "list"),
     "cta_type": (
         "save_this",
@@ -107,21 +111,23 @@ FACTORS: dict[str, tuple[str, ...]] = {
     "media_type": ("image", "collage", "video"),
 }
 
-SLIDE_COUNT_BANDS: dict[str, tuple[int, int]] = {
-    "5-7": (5, 7),
-    "8-10": (8, 10),
-    "11-14": (11, 14),
+LISTICLE_SIZES = (5, 7)
+
+# --- Truthful time framing (evaluator r1 + founder directive 2026-07-24) -------
+# The founder's canon: carousels speak in exactly three windows — Today,
+# Tonight, This weekend — and only ever contain events that have NOT yet
+# started at the moment of generation AND release (a 6pm carousel excludes a
+# 5:30pm start). The generator excludes anything outside the window, so the
+# phrase can never outrun the data; the publish gate re-checks future-ness at
+# release with its own clock.
+TIMEFRAMES: dict[str, dict[str, str]] = {
+    "today": {"phrase": "Today"},
+    "tonight": {"phrase": "Tonight"},
+    "this_weekend": {"phrase": "This weekend"},
 }
 
-# --- Truthful time framing (evaluator r1: no unverified "tonight" claims) ------
-# A carousel's copy claims exactly the window its events were verified to fall
-# in; the generator excludes anything outside the window, so the phrase can
-# never outrun the data.
-TIMEFRAMES: dict[str, dict[str, object]] = {
-    "tonight": {"phrase": "Tonight", "window_days": 0},
-    "this_week": {"phrase": "This week", "window_days": 7},
-    "this_month": {"phrase": "This month", "window_days": 31},
-}
+# "Tonight" is an evening claim: a 2pm matinee is Today, not Tonight.
+TONIGHT_EARLIEST_HOUR = 17
 
 # Event lifecycle canon (Certainty Display Stack, ratified 2026-07-15):
 # event_status is its own axis, separate from confidence. Marketing features
@@ -144,11 +150,18 @@ class CarouselConfig:
     domain_ids: tuple[str, ...] = field(default_factory=tuple)
     tier: str = "T1"
     timeframe: str = "tonight"
+    # The <blank> in "5 ___ to experience Tonight" — scenario carousels set
+    # their own ("date nights", "dance floors"); domain series default.
+    listicle_noun: str = "shows"
 
     def validate(self) -> None:
         if self.timeframe not in TIMEFRAMES:
             raise ValueError(
                 f"unknown timeframe {self.timeframe!r}; known: {sorted(TIMEFRAMES)}"
+            )
+        if not self.listicle_noun or len(self.listicle_noun.split()) > 2:
+            raise ValueError(
+                f"listicle_noun must be 1-2 words, got {self.listicle_noun!r}"
             )
         if self.surface not in SURFACE_CONSTRAINTS:
             raise ValueError(
