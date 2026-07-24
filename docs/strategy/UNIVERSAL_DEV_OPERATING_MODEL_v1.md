@@ -26,10 +26,12 @@ on every detail used, which is the sole basis of the cross-check.
   [bosio.digital's roadmap article](https://bosio.digital/articles/ai-adoption-roadmap) ·
   [SmartScope's organizational-adoption analysis](https://smartscope.blog/en/blog/ai-adoption-stages-one-person-10x-organization/)
 
-Anyone with normal browser access should spot-check the primary source before
-ratifying anything that leans on a detail below. The kernel in Part 3 does NOT
-depend on the article being reproduced perfectly — it is extracted from our own
-repo, which we can read directly.
+The excerpts themselves are preserved verbatim in Appendix A so the
+reconstruction can be audited against exactly what was seen, not just a claim
+that sources agreed. Anyone with normal browser access should spot-check the
+primary source before ratifying anything that leans on a detail below. The
+kernel in Part 3 does NOT depend on the article being reproduced perfectly —
+it is extracted from our own repo, which we can read directly.
 
 ---
 
@@ -323,8 +325,13 @@ checklist instead of inventing one.
 1. **Ratify the kernel/overlay split** (Part 3) as the v1 universal model —
    or mark specific invariants/loops you want changed. Nothing here alters
    OneLive's ratified charter; for OneLive this document is descriptive.
-2. **Approve creating the template repository** (new repo = repo operation
-   needing your GitHub say-so; no code moves out of OneLive until then).
+2. **Approve creating the template repository AND name its owner** (new repo
+   = repo operation needing your GitHub say-so; no code moves out of OneLive
+   until then). The ownership half is not optional garnish: an unowned
+   template rots silently (Part 4's stated tradeoff), so approval without a
+   named owner + a standing maintenance trigger (proposed: the weekly digest
+   carries a "kernel delta" line, and any kernel-relevant OneLive gate fix
+   opens a template-sync TODO in the same commit) is treated as NOT approved.
    Default if unanswered: nothing happens — this stays a paper spec.
 3. **Pick multibagger's first session** — attach that repo to a session and
    I'll run the bootstrap checklist against it, producing its OVERLAY.md as a
@@ -333,3 +340,66 @@ checklist instead of inventing one.
    this sandbox couldn't read the primary source — 2 minutes; the links are
    in the provenance block. Default: kernel stands anyway (it derives from
    our repo, not the article).
+
+---
+
+## Appendix A — the verbatim search excerpts behind Part 1 (evaluator r2 nit)
+
+Everything known about the article in this sandbox is reproduced below,
+verbatim, so the reconstruction is auditable against exactly what was seen.
+Two kinds of material, labeled honestly: **[verbatim result title]** = the
+literal title/preview text of a search result (author's or platform's own
+words); **[search-tool synthesis]** = the search tool's summary sentences over
+its result set (a machine's paraphrase, one step further from the source).
+Nothing else was readable — every direct fetch returned HTTP 403.
+
+**[verbatim result title]** (threads.com/@carnage4life):
+> "Boris Cherny's 5 stages of AI adoption for software teams: Gated:
+> Restricted access to AI. Assisted: 1 agent per dev(high supervision).
+> Parallel: 10 agents per dev(AI codes, humans verify). Autonomy: 100 agents
+> per dev(AI verifies). AI-Native: 1,000+ agents (AI decides what work to
+> do)."
+
+**[verbatim result title]** (substack.com/@aisupremacy, Michael Spencer):
+> "According to Boris Cherny the Creator and Head of Claude Code he's been
+> watching teams adopt AI, and he keeps seeing the same 4 steps. He mapped
+> them out here: Steps of AI Adoption: He says Anthropic is on step 3 and
+> pushing toward 4. And that personally, he just hit level 4…"
+
+**[search-tool synthesis]** (over the query "Boris Cherny steps AI adoption
+Claude Code July 2026"):
+> "On July 16, 2026, Boris Cherny — creator of Claude Code — published Steps
+> of AI Adoption on Anthropic's site. The framework names five maturity
+> levels for Claude Code teams: Gated (0) → Assisted (~1) → Parallel (~10) →
+> Supervised autonomy (~100) → AI-native (1,000+)." · "the gap is not 'more
+> tokens,' it is bottlenecks and guardrails per maturity step." · "The
+> framework became widely shared, with Lance Martin reposting it July 17; the
+> thread hit 251K+ views in hours."
+
+**[search-tool synthesis]** (over the step-detail query):
+> "Step 0 is Gated: no access, legacy approvals. Step 1 is Assisted, one
+> agent, you and it as a pair. Step 2 is Parallel, about ten agents, and you
+> become an Orchestrator. Step 3 is Supervised autonomy, roughly a hundred
+> agents, and Cherny calls the role Manager of managers. Step 4 is AI-native,
+> a thousand or more, steering by intent." · "The bottlenecks themselves
+> evolve: Your attention. Reviewing output. Trust in the loop and your team's
+> decision throughput. Identifying and automating work at scale." · "What
+> separates them is trust, not the model."
+
+**[search-tool synthesis]** (over the guardrails/unlocks query):
+> "Each step defines your role, the unlock, the bottleneck, Anthropic
+> products, and guardrails to advance. Tokens alone do not move you forward —
+> verification loops, auto mode, automated review, worktree isolation,
+> routines, and cost monitoring do." · "giving Claude ways to verify its own
+> work end to end means enabling auto mode for permissions, defaulting on
+> automated code review and security review, and using interfaces that let
+> you manage multiple agents at once. To get to higher levels it means /loop,
+> /batch, dynamic workflows, and worktree isolation for subagents." · "the
+> bottleneck is trust in the verification loop and the decision speed of the
+> team. This is also where Cherny names the central trap of the whole model:
+> scaling the agent count before the verification loop has earned that
+> trust."
+
+Part 1's table contains NO claim beyond what appears above; where excerpts
+differed in granularity (four steps vs five levels counting Step 0), the doc
+uses the 0–4 numbering the majority of excerpts carry.
