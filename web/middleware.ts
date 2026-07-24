@@ -14,7 +14,13 @@ const isPublicRoute = createRouteMatcher([
   "/access",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/api/health",
 ]);
+
+// The health endpoint is ALWAYS reachable, in every mode (incl. the fail-closed
+// "unconfigured" state) — it reports resolved config so a deploy problem can be
+// diagnosed from truth instead of guessed. It exposes no secret (see route).
+const isHealthRoute = createRouteMatcher(["/api/health"]);
 
 // The ops/admin console ALWAYS requires a real authenticated + allowlisted user.
 // It is never covered by the "consumer public" declaration — declaring the feed
@@ -52,9 +58,10 @@ async function resolveEmail(
 function accessNotConfigured(): NextResponse {
   return new NextResponse(
     "OneLive is not accepting traffic in this environment: no access gate is " +
-      "configured. Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY to enable the stealth " +
-      "gate, or explicitly set NEXT_PUBLIC_AUTH_DISABLED=1 to run without an " +
-      "app-level gate (e.g. behind host deployment protection).",
+      "configured. For a preview set NEXT_PUBLIC_AUTH_DISABLED=1 (NOT marked " +
+      "Sensitive), or set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY for the stealth " +
+      "gate, then redeploy. Open /api/health to see exactly what the app " +
+      "resolved. Full contract: docs/DEPLOY.md.",
     { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } },
   );
 }
@@ -106,8 +113,10 @@ export default _mode === "clerk"
         // provider can gate it, so it must never be exposed by this switch).
         return isOpsRoute(req) ? opsDenied() : NextResponse.next();
       }
-    : function middleware() {
-        return accessNotConfigured();
+    : function middleware(req: import("next/server").NextRequest) {
+        // Even fully unconfigured, the health endpoint stays reachable so the
+        // misconfiguration is diagnosable; everything else fails closed.
+        return isHealthRoute(req) ? NextResponse.next() : accessNotConfigured();
       };
 
 export const config = {

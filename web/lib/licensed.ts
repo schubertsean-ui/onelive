@@ -58,6 +58,34 @@ export function supabaseConfigured(): boolean {
   return !!url && !!key;
 }
 
+// Which env NAME the Supabase URL resolved from (for the health endpoint — the
+// value is NEVER returned, only which variable supplied it). null = neither set.
+export function supabaseSource(): "SUPABASE_URL" | "NEXT_PUBLIC_SUPABASE_URL" | null {
+  if (process.env.SUPABASE_URL) return "SUPABASE_URL";
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL) return "NEXT_PUBLIC_SUPABASE_URL";
+  return null;
+}
+
+// Lightweight reachability probe for /api/health: confirms the publishable key
+// can read `licensed_event` through RLS and returns the row COUNT only (no rows,
+// no secret). Never throws — reports the failure so config problems are visible.
+export async function probeLicensed(): Promise<{ reachable: boolean; count: number | null; error?: string }> {
+  const { url, key } = supaEnv();
+  if (!url || !key) return { reachable: false, count: null, error: "supabase env not set" };
+  try {
+    const res = await fetch(`${url}/rest/v1/licensed_event?select=licensed_event_id`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Range-Unit": "items", Range: "0-0", Prefer: "count=exact" },
+      cache: "no-store",
+    });
+    if (!res.ok) return { reachable: false, count: null, error: `HTTP ${res.status}` };
+    const cr = res.headers.get("content-range"); // e.g. "0-0/755"
+    const n = cr && cr.includes("/") ? Number.parseInt(cr.split("/")[1], 10) : NaN;
+    return { reachable: true, count: Number.isFinite(n) ? n : null };
+  } catch (e) {
+    return { reachable: false, count: null, error: e instanceof Error ? e.message : "fetch failed" };
+  }
+}
+
 export type LicensedQueryOpts = {
   category?: string;
   fromISO?: string; // start_time >= this
