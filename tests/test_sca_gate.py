@@ -154,6 +154,24 @@ def test_entry_bad_date_fails_closed(tmp_path):
         sca_gate._load_allowlist(p, TODAY)
 
 
+def test_malformed_audit_shapes_fail_closed():
+    good = _audit(("postcss", "high", "GHSA-6g55", False))
+    sca_gate._validate_audit_shape(good)  # valid — no raise
+
+    bad_docs = [
+        {"vulnerabilities": {"x": "not-an-object"}},
+        {"vulnerabilities": {"x": {"via": "not-a-list"}}},
+        {"vulnerabilities": {"x": {"severity": "high", "via": [123]}}},
+        # high advisory with no url -> cannot identify (GHSA)
+        {"vulnerabilities": {"x": {"via": [{"severity": "high", "title": "t"}], "fixAvailable": False}}},
+        # blocking direct advisory but missing fixAvailable
+        {"vulnerabilities": {"x": {"via": [{"severity": "high", "url": "a/GHSA-z"}]}}},
+    ]
+    for doc in bad_docs:
+        with pytest.raises(sca_gate.GateError):
+            sca_gate._validate_audit_shape(doc)
+
+
 def test_unparseable_audit_fails_closed(tmp_path):
     bad = tmp_path / "audit.txt"
     bad.write_text("npm ERR! network timeout")

@@ -95,7 +95,51 @@ def _load_audit(args) -> dict:
         raise GateError(f"npm audit output was not valid JSON: {exc}")
     if not isinstance(doc, dict) or "vulnerabilities" not in doc:
         raise GateError("npm audit JSON is missing the 'vulnerabilities' object.")
+    _validate_audit_shape(doc)
     return doc
+
+
+def _validate_audit_shape(doc: dict) -> None:
+    """Fail CLOSED on any unexpected audit shape (evaluator PR #59).
+
+    If npm changes format or emits partial/malformed JSON, we must not silently
+    treat a malformed node as "no advisory". Anything we cannot interpret with
+    certainty raises GateError (caught by the loader → gate fails loud).
+    """
+    vulns = doc.get("vulnerabilities")
+    if not isinstance(vulns, dict):
+        raise GateError("audit 'vulnerabilities' is not an object.")
+    for name, node in vulns.items():
+        if not isinstance(node, dict):
+            raise GateError(f"audit vulnerability {name!r} is not an object.")
+        via = node.get("via")
+        if not isinstance(via, list):
+            raise GateError(f"audit vulnerability {name!r} has a non-list 'via'.")
+        has_blocking_direct = False
+        for v in via:
+            if isinstance(v, str):
+                continue  # transitive reference — normal
+            if isinstance(v, dict):
+                if v.get("severity") in _BLOCKING:
+                    has_blocking_direct = True
+                    if not v.get("url"):
+                        raise GateError(
+                            f"audit {name!r}: a {v.get('severity')} advisory has "
+                            f"no url — cannot identify it (GHSA), failing closed."
+                        )
+                continue
+            raise GateError(
+                f"audit {name!r}: unexpected 'via' entry of type {type(v).__name__}."
+            )
+        # A node carrying a blocking DIRECT advisory must report fixAvailable as a
+        # bool or object so auto-re-block can be evaluated; otherwise fail closed.
+        if has_blocking_direct and not isinstance(
+            node.get("fixAvailable"), (bool, dict)
+        ):
+            raise GateError(
+                f"audit {name!r}: missing/!bool 'fixAvailable' on a "
+                f"high/critical node — cannot evaluate, failing closed."
+            )
 
 
 def _load_allowlist(path: Path, today: _dt.date) -> dict[tuple[str, str], dict]:
