@@ -20,9 +20,11 @@ from typing import Iterator, Optional
 
 ROOT_URL = "https://app.ticketmaster.com/discovery/v2/events.json"
 
-# CAPCOG center (Austin) + a radius covering the council-of-governments area
-# (Travis, Williamson, Hays, Bastrop, Caldwell, Burnet, Blanco, Lee, Fayette,
-# Llano). ~60 mi from downtown reaches the ring cities.
+# CAPCOG center (Austin) + an APPROXIMATE radius over the council-of-governments
+# area (Travis, Williamson, Hays, Bastrop, Caldwell, Burnet, Blanco, Lee,
+# Fayette, Llano). ~60 mi from downtown reaches the ring cities but a single
+# circle both misses outer counties and includes some non-CAPCOG area — tracked
+# as R-025 (county/city-scoped queries are the precise fix).
 CAPCOG_LATLONG = "30.2672,-97.7431"
 CAPCOG_RADIUS_MILES = 60
 

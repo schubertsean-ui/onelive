@@ -119,25 +119,25 @@ grant select (
 -- guarded DO-block (the table already exists) so this stays idempotent.
 do $$
 begin
-  if not exists (select 1 from pg_constraint where conname = 'licensed_event_confidence_chk') then
+  if not exists (select 1 from pg_constraint where conrelid = 'licensed_event'::regclass and conname ='licensed_event_confidence_chk') then
     alter table licensed_event add constraint licensed_event_confidence_chk
       check (confidence in ('confirmed', 'likely', 'unverified', 'disputed'));
   end if;
-  if not exists (select 1 from pg_constraint where conname = 'licensed_event_status_chk') then
+  if not exists (select 1 from pg_constraint where conrelid = 'licensed_event'::regclass and conname ='licensed_event_status_chk') then
     alter table licensed_event add constraint licensed_event_status_chk
       check (status in ('scheduled', 'cancelled', 'moved'));
   end if;
   -- Known licensed providers. Adding a source is a schema event (update this set
   -- in a follow-up migration) — the boundary rejects a typo'd/invalid provider.
-  if not exists (select 1 from pg_constraint where conname = 'licensed_event_provider_chk') then
+  if not exists (select 1 from pg_constraint where conrelid = 'licensed_event'::regclass and conname ='licensed_event_provider_chk') then
     alter table licensed_event add constraint licensed_event_provider_chk
       check (source_provider in ('ticketmaster', 'seatgeek'));
   end if;
-  if not exists (select 1 from pg_constraint where conname = 'licensed_event_price_chk') then
+  if not exists (select 1 from pg_constraint where conrelid = 'licensed_event'::regclass and conname ='licensed_event_price_chk') then
     alter table licensed_event add constraint licensed_event_price_chk
       check (price_min is null or price_max is null or price_min <= price_max);
   end if;
-  if not exists (select 1 from pg_constraint where conname = 'licensed_event_geo_chk') then
+  if not exists (select 1 from pg_constraint where conrelid = 'licensed_event'::regclass and conname ='licensed_event_geo_chk') then
     alter table licensed_event add constraint licensed_event_geo_chk
       check ((venue_lat is null or venue_lat between -90 and 90)
              and (venue_lng is null or venue_lng between -180 and 180));
