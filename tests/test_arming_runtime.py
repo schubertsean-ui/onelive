@@ -63,10 +63,10 @@ def test_static_imports_parse_cleanly(tmp_path):
     m = _mod()
     f = tmp_path / "ok.py"
     f.write_text("import os\nfrom worker.orchestrator import run_loop\n")
-    mods = m._imported_modules(f)
-    assert "os" in mods and "worker.orchestrator" in mods
+    names = [name for name, _spec in m._imported_modules(f)]
+    assert "os" in names and "worker.orchestrator" in names
     # `from pkg import submod` records the submodule too (fail-open fix)
-    assert "worker.orchestrator.run_loop" in mods
+    assert "worker.orchestrator.run_loop" in names
 
 
 def test_importlib_in_comment_does_not_trip(tmp_path):
@@ -74,7 +74,27 @@ def test_importlib_in_comment_does_not_trip(tmp_path):
     m = _mod()
     f = tmp_path / "c.py"
     f.write_text('"""mentions importlib in a docstring"""\n# and a comment: importlib\nimport os\n')
-    assert m._imported_modules(f) == ["os"]
+    assert m._imported_modules(f) == [("os", False)]
+
+
+def test_deleted_first_party_import_fails_loud(tmp_path, monkeypatch):
+    # A definite first-party import that does not resolve must fail closed.
+    m = _mod()
+    wf = tmp_path / "ingest.yml"
+    wf.write_text("steps:\n  run: python worker/run_once.py\n")
+    monkeypatch.setattr(m, "INGEST", wf)
+    # monkeypatch _imported_modules to simulate run_once importing a deleted
+    # first-party module (worker.gone) — top-level 'worker' exists, file doesn't.
+    real = m._imported_modules
+
+    def fake(pyfile):
+        if pyfile.name == "run_once.py":
+            return [("worker.gone_module_xyz", False)]
+        return real(pyfile)
+
+    monkeypatch.setattr(m, "_imported_modules", fake)
+    with pytest.raises(m.MissingRuntimeInput):
+        m.runtime_files()
 
 
 def test_package_inits_included():

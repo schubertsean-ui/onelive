@@ -106,3 +106,18 @@ grant select (
   currency, is_free, ticket_url, image_url, venue_name, venue_city, venue_area,
   venue_address, venue_lat, venue_lng, confidence, imported_at, updated_at
 ) on licensed_event to anon, authenticated;
+
+-- CHECK constraints so the DB rejects invalid trust/status values at the
+-- boundary — a public trust field must not accept 'banana'/'hidden'. Added via a
+-- guarded DO-block (the table already exists) so this stays idempotent.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'licensed_event_confidence_chk') then
+    alter table licensed_event add constraint licensed_event_confidence_chk
+      check (confidence in ('confirmed', 'likely', 'unverified', 'disputed'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'licensed_event_status_chk') then
+    alter table licensed_event add constraint licensed_event_status_chk
+      check (status in ('scheduled', 'cancelled', 'moved'));
+  end if;
+end $$;

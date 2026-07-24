@@ -132,19 +132,21 @@ def _imported_modules(pyfile: pathlib.Path) -> list[str]:
             "runtime closure cannot be proven complete. Make the cron path's "
             "imports static, or extend tools/arming_runtime.py."
         )
-    mods: list[str] = []
+    mods: list[tuple[str, bool]] = []  # (module, speculative)
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            mods += [a.name for a in node.names]
+            mods += [(a.name, False) for a in node.names]
         elif isinstance(node, ast.ImportFrom):
             base = (_resolve_relative(pyfile, node.module, node.level)
                     if node.level and node.level > 0 else node.module)
             if base:
-                mods.append(base)
-                # `from pkg import submod` — submod may be a first-party module
-                # FILE, not just an attribute; record both.
+                mods.append((base, False))
+                # `from pkg import x` — x MIGHT be a submodule file or just an
+                # attribute (function/class). SPECULATIVE so a non-resolving
+                # attribute is ignored, not mistaken for a deleted module; a real
+                # submodule still resolves and is included.
                 for alias in node.names:
-                    mods.append(f"{base}.{alias.name}")
+                    mods.append((f"{base}.{alias.name}", True))
     return mods
 
 
@@ -168,12 +170,25 @@ def runtime_files() -> set[str]:
         if f in seen:
             continue
         seen.add(f)
-        for mod in _imported_modules(f):
+        for mod, speculative in _imported_modules(f):
             mp = _module_to_path(mod)
-            if mp is not None:
-                for inc in _with_package_inits(mp):
-                    if inc not in seen:
-                        stack.append(inc)
+            if mp is None:
+                # A DEFINITE first-party import that does not resolve is a
+                # deleted/broken cron module — fail closed. Third-party/stdlib
+                # (os, psycopg2, requests, …) resolve to None and are ignored;
+                # speculative `from pkg import name` attributes are ignored too.
+                if not speculative:
+                    top = mod.split(".")[0]
+                    if (ROOT / top).is_dir() or (ROOT / f"{top}.py").is_file():
+                        raise MissingRuntimeInput(
+                            f"first-party import {mod!r} does not resolve to a file "
+                            "— a deleted/broken cron module would silently shrink "
+                            "the runtime closure; fail closed."
+                        )
+                continue
+            for inc in _with_package_inits(mp):
+                if inc not in seen:
+                    stack.append(inc)
 
     rels = {p.relative_to(ROOT).as_posix() for p in seen}
     # (2) explicit non-import cron inputs (empty today; honest > guessed).

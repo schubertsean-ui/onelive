@@ -42,7 +42,8 @@ def main(argv=None) -> int:
     norm = [n for n in (normalize_ticketmaster(e) for e in raws) if n]
     by_domain = Counter(n["category"] for n in norm)
 
-    log.info("Ticketmaster CAPCOG import: fetched %d, normalized %d", len(raws), len(norm))
+    log.info("Ticketmaster CAPCOG import: fetched %d, normalized %d (skipped %d missing id/title)",
+             len(raws), len(norm), len(raws) - len(norm))
     for dom, c in by_domain.most_common():
         log.info("  %-18s %d", dom, c)
 

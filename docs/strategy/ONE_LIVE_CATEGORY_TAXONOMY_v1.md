@@ -9,8 +9,13 @@ This doc is the research answer: (A) the genre-equivalent SUB-CATEGORY taxonomy
 for every one of the 22 cultural domains, (B) how external provider taxonomies
 (Ticketmaster now, SeatGeek/others later) map into it, and (C) the volume
 architecture — time-tiered card density + facet model — that keeps a
-high-volume feed legible. Code source of truth for the machine mapping:
-`worker/importers/domain_map.py`; this doc is the human reference it mirrors.
+high-volume feed legible.
+
+**Ownership (to avoid drift):** THIS doc owns the *taxonomy* — the sub-category
+lists per domain (§A). `worker/importers/domain_map.py` owns the *machine
+mapping* — provider taxonomy → domain id (§B) — and mirrors a subset of these
+sub-categories in its `DOMAINS` tuples, kept a strict subset so the two never
+contradict. Change a sub-category here first, then in code.
 
 ## A. The 22 domains and their genre-equivalents (sub-categories)
 

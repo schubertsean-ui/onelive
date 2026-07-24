@@ -54,6 +54,7 @@ _TM_GENRE_DOMAIN = {
     "choral": "performing-arts",
     "dance": "dance", "ballet": "dance",
     "comedy": "comedy", "magic & illusion": "comedy", "magic": "comedy",
+    "variety": "comedy",
     "children's theatre": "family", "childrens theatre": "family",
     "circus & specialty acts": "family", "spectacular": "family",
     "puppetry": "family", "family": "family",
@@ -67,7 +68,7 @@ _TM_GENRE_DOMAIN = {
     "lecture/seminar": "ideas",
     "health/wellness": "wellness", "health & wellness": "wellness",
     "home & garden": "fairs-expos", "hobby/special interest expo": "fairs-expos",
-    "expo": "fairs-expos",
+    "hobby/special interest expos": "fairs-expos", "expo": "fairs-expos",
 }
 
 
