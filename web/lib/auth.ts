@@ -12,12 +12,20 @@
 //
 //   'clerk'        — NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is set: the Clerk +
 //                    allowlist stealth gate is active (middleware.ts).
-//   'disabled'     — NEXT_PUBLIC_AUTH_DISABLED is explicitly set: the operator
-//                    has DECLARED this deployment runs without an app-level gate
-//                    (e.g. behind Vercel Deployment Protection, or a post-launch
-//                    public build). Passthrough — but an intentional, logged one.
-//   'unconfigured' — neither is set: this is misconfiguration, and middleware
-//                    FAILS CLOSED (denies) rather than opening the door.
+//   'disabled'     — an app-level gate is intentionally absent. This is DECLARED,
+//                    two ways: (a) NEXT_PUBLIC_AUTH_DISABLED / AUTH_DISABLED is
+//                    truthy, or (b) the deployment is a NON-production Vercel
+//                    environment (VERCEL_ENV = preview/development), which Vercel
+//                    fences behind Deployment Protection by default — so a
+//                    preview needs no flag. Passthrough, but intentional.
+//   'unconfigured' — none of the above (e.g. PRODUCTION with no provider and no
+//                    declared disable): misconfiguration, and middleware FAILS
+//                    CLOSED (denies) rather than opening the door.
+//
+// Note production is the ONLY publicly-reachable target that ever lands in
+// 'unconfigured' — previews/dev auto-resolve to 'disabled' because they are
+// host-protected; production must be explicitly configured or it denies. Ops
+// routes stay denied in 'disabled' mode regardless (middleware.ts).
 //
 // Swapping providers (Clerk today, Supabase Auth / custom next) means adding a
 // mode here and a middleware branch — never touching the consumer feed. The
@@ -28,17 +36,31 @@ export type AuthMode = "clerk" | "disabled" | "unconfigured";
 
 const _TRUTHY = new Set(["1", "true", "yes", "on"]);
 
-function _explicitlyDisabled(): boolean {
-  const v = process.env.NEXT_PUBLIC_AUTH_DISABLED;
+function _isTruthy(v: string | undefined): boolean {
   return typeof v === "string" && _TRUTHY.has(v.trim().toLowerCase());
 }
 
-// Resolve the gate mode from the environment. Clerk (a configured provider)
-// wins; an explicit disable is honored next; otherwise we are unconfigured and
+function _explicitlyDisabled(): boolean {
+  // Accept the NEXT_PUBLIC_ form (build-inlined) or the plain runtime form.
+  return (
+    _isTruthy(process.env.NEXT_PUBLIC_AUTH_DISABLED) ||
+    _isTruthy(process.env.AUTH_DISABLED)
+  );
+}
+
+// A non-production Vercel deployment is host-protected (Deployment Protection),
+// so it is treated as an intentional no-app-gate state without a flag.
+function _hostProtectedPreview(): boolean {
+  const v = process.env.VERCEL_ENV;
+  return v === "preview" || v === "development";
+}
+
+// Resolve the gate mode. Clerk (a configured provider) wins; an explicit or
+// host-implied disable is honored next; otherwise we are unconfigured and
 // callers must fail closed.
 export function authMode(): AuthMode {
   if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return "clerk";
-  if (_explicitlyDisabled()) return "disabled";
+  if (_explicitlyDisabled() || _hostProtectedPreview()) return "disabled";
   return "unconfigured";
 }
 

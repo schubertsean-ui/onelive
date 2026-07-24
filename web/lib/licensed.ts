@@ -4,12 +4,16 @@
 // (never `raw`). Errors propagate so the UI renders an honest error state, never
 // a fake-empty feed.
 
-// Read at call time (not module load) so the values are correct per request and
-// the functions are testable.
+// Read at call time (not module load) so values are correct per request and the
+// functions are testable. The read is entirely SERVER-SIDE, so it prefers the
+// plain runtime names (SUPABASE_URL / SUPABASE_ANON_KEY) — those work even when
+// marked "Sensitive" in the host, because they are read at runtime rather than
+// inlined at build like NEXT_PUBLIC_ vars. The NEXT_PUBLIC_ forms remain
+// accepted as a fallback for existing setups.
 function supaEnv(): { url?: string; key?: string } {
   return {
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    url: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL,
+    key: process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   };
 }
 
