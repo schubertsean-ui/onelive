@@ -979,7 +979,7 @@ def test_robots_check_uses_the_user_agent_we_actually_send(monkeypatch):
         def set_url(self, u):
             pass
 
-        def read(self):
+        def parse(self, lines):
             pass
 
         def can_fetch(self, ua, url):
@@ -987,6 +987,7 @@ def test_robots_check_uses_the_user_agent_we_actually_send(monkeypatch):
             return True
 
     sf._ROBOTS_CACHE.clear()
+    monkeypatch.setattr(sf, "_fetch_robots_lines", lambda root: ["User-agent: *", "Allow: /"])
     monkeypatch.setattr(sf.urllib.robotparser, "RobotFileParser", _RP)
     assert sf._robots_allows("https://venue.example/events") is True
     assert seen == [sf._USER_AGENT], (
@@ -1387,3 +1388,130 @@ def test_occurrence_fan_out_is_not_counted_as_a_drop(caplog):
         rows = sf.parse_platform_json(doc)
     assert len(rows) == 2
     assert "produced NO row" not in caplog.text
+
+
+# ---- evaluator r10: the robots claim must be TRUE of the code ----------------
+
+def _robots_http_error(code):
+    import urllib.error
+
+    def _open(req, timeout=None):
+        raise urllib.error.HTTPError(req.full_url, code, "nope", {}, None)
+    return _open
+
+
+def test_absent_robots_fails_OPEN_and_SAYS_SO(monkeypatch, caplog):
+    """The single most common case, and the one the claim was false for: a 404
+    robots.txt. RobotFileParser.read() set allow_all and raised NOTHING, so the
+    documented "every fail-open path logs a WARNING" never fired for it
+    (evaluator blocker r10)."""
+    import logging
+    import worker.importers.structured_feed as sf
+
+    sf._ROBOTS_CACHE.clear()
+    monkeypatch.setattr(sf.urllib.request, "urlopen", _robots_http_error(404))
+    with caplog.at_level(logging.WARNING):
+        assert sf._robots_allows("https://venue.example/events") is True
+    assert "ABSENT" in caplog.text and "venue.example" in caplog.text
+    assert "FAIL-OPEN" in caplog.text
+
+
+def test_a_robots_SERVER_ERROR_does_not_become_a_policy_refusal(monkeypatch, caplog):
+    """The dangerous half of the same bug. On a 5xx, read() set neither flag and
+    left last_checked unset — and can_fetch() then returns False for EVERY url.
+    Combined with the r7 change that turns a denial into RobotsDisallowed, a
+    venue whose robots.txt briefly errored would have been reported as
+    policy-REFUSED: a silent fail-CLOSED inside code documenting itself as
+    fail-open."""
+    import logging
+    import worker.importers.structured_feed as sf
+
+    sf._ROBOTS_CACHE.clear()
+    monkeypatch.setattr(sf.urllib.request, "urlopen", _robots_http_error(500))
+    with caplog.at_level(logging.WARNING):
+        assert sf._robots_allows("https://venue.example/events") is True, (
+            "a transient robots.txt 500 was treated as an explicit Disallow")
+    assert "UNREADABLE" in caplog.text and "FAIL-OPEN" in caplog.text
+
+
+def test_an_EXPLICIT_disallow_still_fails_closed(monkeypatch):
+    """The half that must NOT loosen: a robots.txt we actually read, naming our
+    real user agent, still refuses."""
+    import worker.importers.structured_feed as sf
+
+    sf._ROBOTS_CACHE.clear()
+    monkeypatch.setattr(sf, "_fetch_robots_lines",
+                        lambda root: ["User-agent: *", "Disallow: /events"])
+    assert sf._robots_allows("https://venue.example/events/list") is False
+    assert sf._robots_allows("https://venue.example/about") is True
+
+
+def test_robots_is_fetched_once_per_host_with_a_timeout(monkeypatch):
+    """Cached per host (a 64-source run must not refetch), and bounded:
+    RobotFileParser.read() used urllib's default of no timeout, so a hung robots
+    host could stall an import before our own fetch timeout applied."""
+    import worker.importers.structured_feed as sf
+
+    calls = []
+
+    def _open(req, timeout=None):
+        calls.append((req.full_url, timeout, req.get_header("User-agent")))
+        raise OSError("unreachable")
+
+    sf._ROBOTS_CACHE.clear()
+    monkeypatch.setattr(sf.urllib.request, "urlopen", _open)
+    for path in ("/a", "/b", "/c"):
+        assert sf._robots_allows(f"https://venue.example{path}") is True
+    assert len(calls) == 1, f"robots.txt fetched {len(calls)} times for one host"
+    url, timeout, ua = calls[0]
+    assert url == "https://venue.example/robots.txt"
+    assert timeout == sf._ROBOTS_TIMEOUT and timeout > 0
+    assert ua == sf._USER_AGENT, "robots fetched under a different identity"
+
+
+def test_ics_shape_assertion_is_not_satisfied_by_a_stray_marker():
+    """"BEGIN:VEVENT" anywhere in a document let an HTML page quoting a calendar
+    snippet satisfy an ICS assertion and suppress ProviderMismatch (evaluator
+    nit r10). Both markers are now read in a bounded head window."""
+    from worker.importers.structured_feed import PROVIDER_ICS, _matches_asserted_shape
+    real = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:a\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+    assert _matches_asserted_shape(PROVIDER_ICS, real)
+    stray = "<html><body>" + ("filler " * 2000) + "<code>BEGIN:VEVENT</code></body></html>"
+    assert not _matches_asserted_shape(PROVIDER_ICS, stray)
+
+
+def test_a_drop_report_NAMES_the_source(caplog):
+    """"parse_platform_json dropped 4" tells an operator a shape gap exists but
+    not which catalog row to fix (evaluator nit r10). The source id rides the
+    report; direct parser calls say so rather than leaving it blank."""
+    import logging
+    import worker.importers.structured_feed as sf
+
+    doc = ('{"events":[{"id":1,"title":"Kept","utc_start_date":"2026-11-08 02:00:00"},'
+           '{"id":2,"title":"No start"}]}')
+    with caplog.at_level(logging.WARNING):
+        sf.parse_platform_json(doc, source="mohawk")
+    assert "source=mohawk" in caplog.text, caplog.text
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        sf.parse_platform_json(doc)
+    assert "parser called directly" in caplog.text
+
+
+def test_the_source_id_reaches_accounting_through_import_source(monkeypatch, caplog):
+    """The nit is only closed if the id survives the REAL path, not just a direct
+    parser call."""
+    import logging
+    import worker.importers.structured_feed as sf
+
+    ics = ("BEGIN:VCALENDAR\r\n"
+           "BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20260901T180000Z\r\nEND:VEVENT\r\n"
+           "BEGIN:VEVENT\r\nUID:c\r\nSUMMARY:Good\r\nDTSTART:20260901T180000Z\r\n"
+           "END:VEVENT\r\nEND:VCALENDAR\r\n")
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    monkeypatch.setattr(sf, "fetch_url", lambda u, timeout=30: ics)
+    with caplog.at_level(logging.WARNING):
+        out = sf.import_source("https://venue.example/", source_name="paramount")
+    assert len(out) == 1
+    assert "source=paramount" in caplog.text, caplog.text

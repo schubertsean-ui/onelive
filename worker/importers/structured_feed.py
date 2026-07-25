@@ -218,7 +218,7 @@ def _looks_bare_date(value: str) -> bool:
     return v.isdigit() and len(v) == 8
 
 
-def _account(parser: str, seen: int, kept: int) -> None:
+def _account(parser: str, seen: int, kept: int, source: Optional[str] = None) -> None:
     """Report input objects a reader DROPPED, so silent narrowing is visible.
 
     The structural answer to the silent-data-loss class (three instances on PR
@@ -235,14 +235,19 @@ def _account(parser: str, seen: int, kept: int) -> None:
     count. `parse_*` remains pure and return-compatible; only observability moves.
     """
     if seen and kept < seen:
+        # NAME the source, not just the parser: "parse_platform_json dropped 4"
+        # tells an operator a shape gap exists but not which catalog row to fix
+        # (evaluator nit r10). Unknown when a parser is called directly (unit
+        # tests, ad-hoc analysis), which is stated rather than blank.
         logger.warning(
-            "%s: %d of %d event object(s) produced NO row — dropped for missing "
-            "required fields or an unsupported shape. Recorded because a reader "
-            "that silently narrows a feed is indistinguishable from a smaller feed.",
-            parser, seen - kept, seen)
+            "%s [source=%s]: %d of %d event object(s) produced NO row — dropped "
+            "for missing required fields or an unsupported shape. Recorded because "
+            "a reader that silently narrows a feed is indistinguishable from a "
+            "smaller feed.",
+            parser, source or "unknown (parser called directly)", seen - kept, seen)
 
 
-def parse_ics(text: str) -> list[dict]:
+def parse_ics(text: str, *, source: Optional[str] = None) -> list[dict]:
     """Parse VEVENT blocks from iCalendar text into canonical intermediate dicts.
 
     Reads SUMMARY, DTSTART/DTEND (respecting TZID= and VALUE=DATE), LOCATION, URL,
@@ -297,7 +302,7 @@ def parse_ics(text: str) -> list[dict]:
         elif name == "UID":
             cur["uid"] = value or None
             cur["_raw_props"]["uid"] = value
-    _account("parse_ics", seen, len(events))
+    _account("parse_ics", seen, len(events), source)
     return events
 
 
@@ -467,7 +472,7 @@ def _is_date_only(v: Optional[str]) -> bool:
     return len(s) == 10 and s[4] == "-" and s[7] == "-" and "T" not in s
 
 
-def parse_jsonld(html: str) -> list[dict]:
+def parse_jsonld(html: str, *, source: Optional[str] = None) -> list[dict]:
     """Extract schema.org/Event JSON-LD from HTML into canonical intermediate
     dicts. Every <script type="application/ld+json"> block is json.loads'd
     (tolerating a list, a single object, or an @graph array); only nodes whose
@@ -492,7 +497,7 @@ def parse_jsonld(html: str) -> list[dict]:
             if isinstance(obj, dict) and _is_event_type(obj.get("@type")):
                 seen += 1
                 events.append(_jsonld_event_to_intermediate(obj))
-    _account("parse_jsonld", seen, len(events))
+    _account("parse_jsonld", seen, len(events), source)
     return events
 
 
@@ -660,7 +665,7 @@ def _platform_events(doc: Any) -> list:
     return out
 
 
-def parse_platform_json(text: str) -> list[dict]:
+def parse_platform_json(text: str, *, source: Optional[str] = None) -> list[dict]:
     """Parse a Tribe/Localist events JSON API response into intermediate dicts.
 
     These are ORDINARY JSON APIs, not JSON-LD — the JSON-LD parser cannot read
@@ -743,7 +748,7 @@ def parse_platform_json(text: str) -> list[dict]:
         # lost data silently in the first place.
         if len(out) > before:
             kept += 1
-    _account("parse_platform_json", seen, kept)
+    _account("parse_platform_json", seen, kept, source)
     return out
 
 
@@ -809,7 +814,7 @@ def _emit_platform_row(out, ev, title, start, end, occ_id, start_tz,
         })
 
 
-def parse_jsonld_document(text: str) -> list[dict]:
+def parse_jsonld_document(text: str, *, source: Optional[str] = None) -> list[dict]:
     """Parse a BARE schema.org JSON-LD document (not embedded in HTML).
 
     Discovery accepts `application/ld+json` feed links, which serve raw JSON —
@@ -827,7 +832,7 @@ def parse_jsonld_document(text: str) -> list[dict]:
         if isinstance(obj, dict) and _is_event_type(obj.get("@type")):
             seen += 1
             out.append(_jsonld_event_to_intermediate(obj))
-    _account("parse_jsonld_document", seen, len(out))
+    _account("parse_jsonld_document", seen, len(out), source)
     return out
 
 
@@ -967,6 +972,62 @@ _COMMON_FEED_PATHS = (
 _ROBOTS_CACHE: dict = {}
 
 
+# How long we will wait for a robots.txt. RobotFileParser.read() uses urllib's
+# DEFAULT (no) timeout, so a hung robots host could stall an import before the
+# importer's own fetch timeout ever applied (evaluator nit r10). Short on
+# purpose: robots is a courtesy check, not the payload.
+_ROBOTS_TIMEOUT = 10
+
+
+def _fetch_robots_lines(root: str) -> Optional[list[str]]:
+    """Fetch {root}/robots.txt ourselves and return its lines, or None when it is
+    absent / unreachable / unreadable — each case logged, naming host and reason.
+
+    We do NOT use RobotFileParser.read(), and that is the point (evaluator
+    blocker r10). read() swallows HTTP errors internally and sets flags we never
+    see, so the documented behaviour and the real behaviour had drifted apart in
+    two directions at once:
+
+      * a 404 robots.txt set allow_all and raised NOTHING — so the "every
+        fail-open path logs a WARNING" claim in this module and in R-052 was
+        simply false for the single most common case;
+      * a 5xx (or any status >= 500) set NEITHER flag and left last_checked
+        unset, and can_fetch() then returns False for every URL — meaning a host
+        whose robots.txt briefly errored was treated as an explicit Disallow.
+        After r7 that raises RobotsDisallowed, so a transient robots 500 would
+        report a perfectly willing venue as policy-REFUSED. A silent fail-CLOSED
+        inside code documenting itself as fail-open.
+
+    Fetching it ourselves makes every outcome explicit, observable, and matched
+    to what we claim. Sent with the SAME user agent we fetch pages with, so the
+    request a site sees is consistent.
+    """
+    robots_url = f"{root}/robots.txt"
+    req = urllib.request.Request(robots_url, headers={"User-Agent": _USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=_ROBOTS_TIMEOUT) as resp:
+            charset = resp.headers.get_content_charset() or "utf-8"
+            return resp.read().decode(charset, errors="replace").splitlines()
+    except urllib.error.HTTPError as exc:
+        if exc.code in _EXPECTED_ABSENCE_STATUSES:
+            logger.warning(
+                "robots.txt ABSENT for %s (HTTP %s) — fetching under the web "
+                "convention that no robots.txt means no restriction. FAIL-OPEN, "
+                "not verified compliance.", root, exc.code)
+        else:
+            logger.warning(
+                "robots.txt UNREADABLE for %s (HTTP %s) — proceeding. FAIL-OPEN: "
+                "we could not read the policy, so this is not verified compliance.",
+                root, exc.code)
+        return None
+    except OSError as exc:
+        # URLError, TLS failure, DNS, socket timeout.
+        logger.warning(
+            "robots.txt UNREACHABLE for %s (%s: %s) — proceeding. FAIL-OPEN, not "
+            "verified compliance.", root, type(exc).__name__, exc)
+        return None
+
+
 def _robots_allows(url: str, ua: Optional[str] = None) -> bool:
     """True when robots.txt permits fetching `url`.
 
@@ -974,7 +1035,10 @@ def _robots_allows(url: str, ua: Optional[str] = None) -> bool:
     honours an EXPLICIT Disallow — that case fails CLOSED. It FAILS OPEN when
     robots.txt is absent, unreachable, or unparseable, which follows the web's
     convention that no robots.txt means no restriction but does mean a site whose
-    robots we cannot READ is still fetched. Cached per host so a 64-source run
+    robots we cannot READ is still fetched. EVERY fail-open path logs a WARNING
+    naming the host and the reason — a claim that is now true of the code, which
+    it was not while we relied on RobotFileParser.read() (see _fetch_robots_lines,
+    and R-052 which records the boundary). Cached per host so a 64-source run
     fetches each robots.txt once.
     """
     # Evaluate robots for the UA we ACTUALLY send. Checking a different token
@@ -984,28 +1048,27 @@ def _robots_allows(url: str, ua: Optional[str] = None) -> bool:
     ua = ua or _USER_AGENT
     parts = urllib.parse.urlsplit(url)
     root = f"{parts.scheme}://{parts.netloc}"
-    rp = _ROBOTS_CACHE.get(root)
-    if rp is None:
-        rp = urllib.robotparser.RobotFileParser()
-        rp.set_url(f"{root}/robots.txt")
-        try:
-            rp.read()
-        except Exception as exc:  # noqa: BLE001 - absent robots.txt == unrestricted
-            # Logged, not swallowed: we record WHY we are proceeding unrestricted.
-            # WARNING, not debug: we are about to fetch a host whose robots we
-            # could not read. That is a deliberate fail-open, and an operator
-            # should be able to see it rather than infer it (evaluator nit r4).
-            logger.warning("robots.txt unreadable for %s (%s) — proceeding under the "
-                           "convention that absent robots means unrestricted; this "
-                           "is a FAIL-OPEN case, not verified compliance", root, exc)
-            rp = None
-        _ROBOTS_CACHE[root] = rp if rp is not None else False
-        if _ROBOTS_CACHE[root] is False:
-            return True
-    if rp is False:
+    if root not in _ROBOTS_CACHE:
+        lines = _fetch_robots_lines(root)
+        parser = None
+        if lines is not None:
+            parser = urllib.robotparser.RobotFileParser()
+            parser.set_url(f"{root}/robots.txt")
+            try:
+                parser.parse(lines)
+            except Exception as exc:  # noqa: BLE001 - unparseable == unrestricted
+                logger.warning(
+                    "robots.txt UNPARSEABLE for %s (%s: %s) — proceeding. FAIL-OPEN, "
+                    "not verified compliance.", root, type(exc).__name__, exc)
+                parser = None
+        # False is the cache's "no policy to apply" marker (distinct from None,
+        # which would read as "not cached yet" and re-fetch on every candidate).
+        _ROBOTS_CACHE[root] = parser if parser is not None else False
+    parser = _ROBOTS_CACHE[root]
+    if parser is False:
         return True
     try:
-        return rp.can_fetch(ua, url)
+        return parser.can_fetch(ua, url)
     except Exception as exc:  # noqa: BLE001
         # Fail-open, said out loud: we could not EVALUATE the rule, so we proceed
         # — but an operator should see that this was unverified, not compliant.
@@ -1096,7 +1159,12 @@ def _matches_asserted_shape(provider: str, text: str) -> bool:
     """
     text = text or ""
     if provider == PROVIDER_ICS:
-        return "BEGIN:VCALENDAR" in text[:4096].upper() or "BEGIN:VEVENT" in text.upper()
+        # BOUNDED head window for BOTH markers. Scanning the whole document for
+        # "BEGIN:VEVENT" let an HTML page that merely QUOTES a calendar snippet
+        # satisfy an ICS assertion and suppress ProviderMismatch (evaluator nit
+        # r10). A real .ics declares itself in its first bytes.
+        head = text[:4096].upper()
+        return "BEGIN:VCALENDAR" in head or "BEGIN:VEVENT" in head
 
     if provider == PROVIDER_PLATFORM_JSON:
         # "Is this JSON?" was NOT enough (evaluator blocker r9): any JSON body at
@@ -1132,16 +1200,16 @@ def _events_from_text(text: str, *, provider_hint, source_name, cultural_domain)
     provider = _detect_provider(text, provider_hint)
     used_jsonld_fallback = False
     if provider == PROVIDER_ICS:
-        raws = parse_ics(text)
+        raws = parse_ics(text, source=source_name)
     elif provider == PROVIDER_PLATFORM_JSON:
-        raws = parse_platform_json(text)
+        raws = parse_platform_json(text, source=source_name)
         if not raws and provider_hint is None:
             # SNIFFED only. A bare JSON body may be Tribe/Localist OR bare
             # schema.org JSON-LD, so try the other reader before giving up.
             # When the caller ASSERTED a hint we do NOT second-guess it: silently
             # parsing a different format would hide the misconfiguration
             # (evaluator blocker r7, PR #68).
-            raws = parse_jsonld_document(text)
+            raws = parse_jsonld_document(text, source=source_name)
             used_jsonld_fallback = bool(raws)
     else:
         # JSON-LD ships in TWO carriers and both are this one format: embedded in
@@ -1151,9 +1219,9 @@ def _events_from_text(text: str, *, provider_hint, source_name, cultural_domain)
         # normalized to zero and reported EMPTY — silent data loss (evaluator
         # blocker r9). Trying the second CARRIER is not the cross-format fallback
         # r7 removed: the asserted format is still, only, JSON-LD.
-        raws = parse_jsonld(text)
+        raws = parse_jsonld(text, source=source_name)
         if not raws:
-            raws = parse_jsonld_document(text)
+            raws = parse_jsonld_document(text, source=source_name)
     # Platform-JSON keeps its OWN provider token (migration 0014). Storing it as
     # 'jsonld' conflated two different acquisition formats and would have made a
     # shape drift in the Tribe reader indistinguishable from one in the JSON-LD
