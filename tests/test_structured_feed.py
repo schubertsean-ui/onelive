@@ -406,37 +406,37 @@ def test_declared_feed_link_is_tried_first():
     believed before any guessing — it told us where the data is."""
     html = ('<html><head><link rel="alternate" type="text/calendar" '
             'href="/cal/all.ics"></head><body></body></html>')
-    urls = discover_feed_urls("https://venue.example/", html)
+    urls, _ = discover_feed_urls("https://venue.example/", html)
     assert urls[0] == "https://venue.example/cal/all.ics"
 
 
 def test_platform_endpoint_detected_from_markup():
     # WordPress "The Events Calendar" exposes a REST feed at a known path.
     html = '<html><body class="tribe-events-page"></body></html>'
-    urls = discover_feed_urls("https://venue.example/", html)
+    urls, _ = discover_feed_urls("https://venue.example/", html)
     assert any("/wp-json/tribe/events/v1/events" in u for u in urls)
 
 
 def test_conventional_calendar_paths_are_offered():
-    urls = discover_feed_urls("https://venue.example/", "<html></html>")
+    urls, _ = discover_feed_urls("https://venue.example/", "<html></html>")
     joined = " ".join(urls)
     for expected in ("/events", "/calendar", "ical=1"):
         assert expected in joined
 
 
 def test_discovery_never_re_offers_the_base_url():
-    urls = discover_feed_urls("https://venue.example/", "<html></html>")
+    urls, _ = discover_feed_urls("https://venue.example/", "<html></html>")
     assert "https://venue.example/" not in urls
 
 
 def test_relative_links_are_absolutised_against_the_source():
     html = '<link rel="alternate" type="application/rss+xml" href="feed/events">'
-    urls = discover_feed_urls("https://venue.example/whats-on/", html)
+    urls, _ = discover_feed_urls("https://venue.example/whats-on/", html)
     assert "https://venue.example/whats-on/feed/events" in urls
 
 
 def test_malformed_html_does_not_break_discovery():
-    urls = discover_feed_urls("https://venue.example/", "<html><link rel=<<>")
+    urls, _ = discover_feed_urls("https://venue.example/", "<html><link rel=<<>")
     assert isinstance(urls, list) and urls  # still offers the conventions
 
 
@@ -484,9 +484,15 @@ def test_a_dead_candidate_does_not_lose_a_later_one(monkeypatch):
 # would have yielded zero while looking like coverage. These tests parse the real
 # response SHAPES into events, which is the behaviour the discovery layer claims.
 
+# A REAL Tribe payload carries BOTH the site-local wall time and the UTC variant
+# (plus the event's timezone). The earlier fixture omitted the UTC fields and the
+# test asserted the local time as 'Z' — canonizing a wrong-event-time bug rather
+# than catching it (evaluator blocker r2, PR #68).
 TRIBE_JSON = """{"events":[
  {"id":991,"title":"Wednesday Residency","url":"https://venue.example/e/991",
   "start_date":"2026-11-07 20:00:00","end_date":"2026-11-07 23:00:00",
+  "utc_start_date":"2026-11-08 02:00:00","utc_end_date":"2026-11-08 05:00:00",
+  "timezone":"America/Chicago",
   "venue":{"venue":"The Back Room","address":"1 Main St","city":"Austin"}}
 ]}"""
 
@@ -504,7 +510,9 @@ def test_tribe_json_parses_into_events():
     assert len(rows) == 1
     e = rows[0]
     assert e["title"] == "Wednesday Residency"
-    assert e["start_time"] == "2026-11-07T20:00:00Z"
+    # 20:00 America/Chicago (CST, UTC-6 in November) == 02:00Z next day. The UTC
+    # field is preferred; the local field must NEVER be stamped 'Z'.
+    assert e["start_time"] == "2026-11-08T02:00:00Z"
     assert e["venue_name"] == "The Back Room"
     assert e["venue_city"] == "Austin"
 
@@ -604,7 +612,82 @@ def test_robots_disallow_blocks_a_guessed_candidate(monkeypatch):
         return "<html>nothing</html>"
 
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
-    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": False)
+    # Base allowed, every DISCOVERED candidate disallowed — so the base is read
+    # and no guessed path is probed. (Robots blocking the base itself is covered
+    # by test_robots_disallow_blocks_the_BASE_url_too.)
+    monkeypatch.setattr(sf, "_robots_allows",
+                        lambda u, ua="OneLiveBot": u.rstrip("/") == "https://venue.example")
     out = sf.import_source("https://venue.example/", source_name="venue")
     assert out == []
     assert fetched == ["https://venue.example/"]  # base only; no candidate probed
+
+
+# ---- evaluator round 2: time correctness, 429, robots, bare JSON-LD ----------
+
+def test_local_start_without_utc_is_converted_via_the_events_timezone():
+    from worker.importers.structured_feed import parse_platform_json
+    rows = parse_platform_json(
+        '{"events":[{"id":1,"title":"Local Only","start_date":"2026-11-07 20:00:00",'
+        '"timezone":"America/Chicago"}]}')
+    assert rows[0]["start_time"] == "2026-11-08T02:00:00Z"   # same instant as UTC field
+
+
+def test_local_start_with_NO_timezone_is_dropped_not_guessed():
+    """A confidently wrong start time is worse than a missing event."""
+    from worker.importers.structured_feed import parse_platform_json
+    rows = parse_platform_json(
+        '{"events":[{"id":1,"title":"No TZ","start_date":"2026-11-07 20:00:00"}]}')
+    assert rows == []
+
+
+def test_bare_jsonld_feed_is_parsed_not_dropped():
+    """Discovery accepts application/ld+json links, which serve RAW json — those
+    must not be routed to the platform parser and silently lost."""
+    from worker.importers.structured_feed import parse_jsonld_document
+    rows = parse_jsonld_document(
+        '{"@context":"https://schema.org","@type":"MusicEvent","name":"Bare Feed Show",'
+        '"startDate":"2026-11-07T20:00:00-06:00"}')
+    assert len(rows) == 1 and rows[0]["title"] == "Bare Feed Show"
+    assert rows[0]["start_time"] == "2026-11-08T02:00:00Z"
+
+
+def test_a_429_stops_probing_the_host(monkeypatch):
+    """Rate limiting must END discovery for that host, not be downgraded to
+    'no feed here' while we keep hitting it (evaluator blocker r2)."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+    tried = []
+
+    def fake_fetch(u, timeout=30):
+        tried.append(u)
+        if u.rstrip("/") == "https://venue.example":
+            return "<html>nothing</html>"
+        raise urllib.error.HTTPError(u, 429, "Too Many Requests", {}, None)
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    out = sf.import_source("https://venue.example/", source_name="venue")
+    assert out == []
+    # base + exactly ONE candidate: the 429 broke the loop.
+    assert len(tried) == 2, f"kept probing after a 429: {tried}"
+
+
+def test_robots_disallow_blocks_the_BASE_url_too(monkeypatch):
+    """The first path reached must also respect robots (evaluator blocker r2)."""
+    import worker.importers.structured_feed as sf
+    tried = []
+    monkeypatch.setattr(sf, "fetch_url", lambda u, timeout=30: tried.append(u) or "<html/>")
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": False)
+    assert sf.import_source("https://venue.example/", source_name="venue") == []
+    assert tried == [], "base URL was fetched despite a robots Disallow"
+
+
+def test_declared_and_guessed_candidates_have_separate_budgets():
+    """Many declared alternates must not starve the conventional paths."""
+    from worker.importers.structured_feed import discover_feed_urls
+    html = "".join(
+        f'<link rel="alternate" type="text/calendar" href="/d{i}.ics">' for i in range(10))
+    urls, declared = discover_feed_urls("https://venue.example/", html)
+    assert declared == 10
+    # Conventional paths are still present in the full candidate list.
+    assert any("ical=1" in u or u.endswith("/events") for u in urls)

@@ -656,10 +656,31 @@ def parse_platform_json(text: str) -> list[dict]:
     out: list[dict] = []
     for ev in _platform_events(doc):
         title = _ld_str(ev.get("title") or ev.get("name"))
-        # Tribe: start_date "2026-11-07 20:00:00" (+ utc variants). Localist:
-        # event_instances[0].event_instance.start (ISO8601).
-        start = _ld_str(ev.get("start_date") or ev.get("utc_start_date"))
-        end = _ld_str(ev.get("end_date") or ev.get("utc_end_date"))
+        # TIME CORRECTNESS (evaluator blocker r2, PR #68). Tribe's `start_date`
+        # is the SITE-LOCAL wall time; the API exposes `utc_start_date`
+        # separately. Reading the local field and stamping it 'Z' produced event
+        # times that were simply WRONG — unacceptable for a what's-on-tonight
+        # product. Order of trust:
+        #   1. utc_start_date  — already UTC, unambiguous.
+        #   2. start_date + the event's own `timezone` — converted honestly.
+        #   3. neither          — DROP the event. A missing event beats a
+        #                         confidently wrong start time (§5 never fabricate).
+        tzid = _ld_str(ev.get("timezone")) or None
+        utc_start = _ld_str(ev.get("utc_start_date"))
+        utc_end = _ld_str(ev.get("utc_end_date"))
+        local_start = _ld_str(ev.get("start_date"))
+        local_end = _ld_str(ev.get("end_date"))
+        if utc_start:
+            start, end, start_tz = utc_start, utc_end, "UTC"
+        elif local_start and tzid:
+            start, end, start_tz = local_start, local_end, tzid
+        else:
+            start, end, start_tz = "", None, None
+            if local_start:
+                logger.warning(
+                    "platform event %r has only a LOCAL start (%s) and no timezone "
+                    "field — dropping rather than asserting a wrong UTC instant",
+                    title, local_start)
         if not start:
             inst = ev.get("event_instances")
             if isinstance(inst, list) and inst:
@@ -667,8 +688,11 @@ def parse_platform_json(text: str) -> list[dict]:
                 if isinstance(first, dict):
                     ei = first.get("event_instance")
                     ei = ei if isinstance(ei, dict) else first
+                    # Localist instances are ISO8601 WITH an offset, so they are
+                    # self-describing — no tz guess needed.
                     start = _ld_str(ei.get("start"))
                     end = _ld_str(ei.get("end"))
+                    start_tz = None
         if not title or not start:
             continue
         venue = ev.get("venue") if isinstance(ev.get("venue"), dict) else {}
@@ -678,8 +702,12 @@ def parse_platform_json(text: str) -> list[dict]:
         start_all_day = _is_date_only(start)
         out.append({
             "title": title,
-            "start_time": _to_utc_z(start.replace(" ", "T"), is_date=start_all_day),
-            "end_time": (_to_utc_z(end.replace(" ", "T"), is_date=_is_date_only(end))
+            "start_time": _to_utc_z(start.replace(" ", "T"),
+                                    tzid=None if start_tz in ("UTC", None) else start_tz,
+                                    is_date=start_all_day),
+            "end_time": (_to_utc_z(end.replace(" ", "T"),
+                                   tzid=None if start_tz in ("UTC", None) else start_tz,
+                                   is_date=_is_date_only(end))
                          if end else None),
             "all_day": start_all_day,
             "venue_name": _ld_str(loc) or None,
@@ -694,14 +722,36 @@ def parse_platform_json(text: str) -> list[dict]:
     return out
 
 
+def parse_jsonld_document(text: str) -> list[dict]:
+    """Parse a BARE schema.org JSON-LD document (not embedded in HTML).
+
+    Discovery accepts `application/ld+json` feed links, which serve raw JSON —
+    parse_jsonld only scans <script> tags, so those feeds needed their own
+    reader (evaluator blocker r2, PR #68). Reuses the same @graph walker and
+    Event-subtype filter, so the accepted shapes are identical.
+    """
+    try:
+        doc = json.loads(text)
+    except (ValueError, TypeError):
+        return []
+    out: list[dict] = []
+    for obj in _iter_ld_objects(doc):
+        if isinstance(obj, dict) and _is_event_type(obj.get("@type")):
+            out.append(_jsonld_event_to_intermediate(obj))
+    return out
+
+
 def _detect_provider(text: str, provider_hint: Optional[str]) -> str:
     if provider_hint in (PROVIDER_ICS, PROVIDER_JSONLD):
         return provider_hint
     head = text.lstrip()[:512].upper()
     if "BEGIN:VCALENDAR" in head or "BEGIN:VEVENT" in text[:4096].upper():
         return PROVIDER_ICS
-    # A bare JSON document (Tribe/Localist API) is NOT JSON-LD-in-HTML — route it
-    # to the platform parser instead of the HTML scraper that cannot read it.
+    # A bare JSON document is EITHER a platform API payload (Tribe/Localist) OR a
+    # bare schema.org JSON-LD feed — discovery accepts application/ld+json links,
+    # so both arrive here. _events_from_text tries BOTH readers (evaluator blocker
+    # r2, PR #68: routing every bare JSON to the platform parser silently dropped
+    # legitimate declared JSON-LD feeds).
     if text.lstrip()[:1] in ("{", "["):
         return PROVIDER_PLATFORM_JSON
     return PROVIDER_JSONLD
@@ -747,7 +797,21 @@ PROVIDER_PLATFORM_JSON = "platform_json"
 # Bound the per-source discovery fan-out: enough to cover the declared
 # feed + platform endpoint + the likely conventions, without turning one
 # source into a crawl.
-_MAX_DISCOVERY_TRIES = 8
+_MAX_DECLARED_TRIES = 4
+_MAX_GUESSED_TRIES = 6
+
+
+def _log_candidate_failure(source_name, candidate, exc, *, declared: bool) -> None:
+    """A site-DECLARED feed that fails is a real defect (the site advertises it)
+    and warns; a guessed conventional path that 404s is expected and stays at
+    debug. Neither is swallowed — both name the URL and the reason."""
+    if declared:
+        logger.warning("source %s: DECLARED feed %s failed (%s: %s) — the site "
+                       "advertises this feed but it did not serve",
+                       source_name, candidate, type(exc).__name__, exc)
+    else:
+        logger.debug("source %s: guessed candidate %s did not serve a feed (%s: %s)",
+                     source_name, candidate, type(exc).__name__, exc)
 
 _COMMON_FEED_PATHS = (
     "/events/?ical=1", "/events.ics", "/calendar.ics", "/?ical=1",
@@ -756,12 +820,6 @@ _COMMON_FEED_PATHS = (
     "/shows", "/shows/", "/whats-on", "/upcoming-events", "/event-calendar",
 )
 
-
-# How many of a source's candidates were site-DECLARED (vs guessed conventions).
-# A declared feed that fails is a REAL defect worth a warning; a guessed path
-# that 404s is expected. Evaluator blocker (PR #68): logging both at debug made a
-# broken declared feed indistinguishable from "no events".
-_DECLARED_COUNTS: dict = {}
 
 _ROBOTS_CACHE: dict = {}
 
@@ -816,11 +874,15 @@ class _LinkRelParser(HTMLParser):
             self.hrefs.append(href)
 
 
-def discover_feed_urls(base_url: str, html: str) -> list[str]:  # noqa: D401
+def discover_feed_urls(base_url: str, html: str) -> tuple:
     """Ordered, de-duplicated candidate feed URLs for a first-party source.
 
     Order is deliberate — declared feeds first (the site TOLD us where its data
-    is), then platform endpoints, then conventions. Returns absolute URLs.
+    is), then platform endpoints, then conventions.
+
+    Returns ``(urls, declared_count)`` where the first `declared_count` entries
+    are the site's OWN declared feeds — the caller needs that split to log a
+    failing DECLARED feed loudly and an expected 404 on a guess quietly.
     """
     out: list[str] = []
 
@@ -829,7 +891,6 @@ def discover_feed_urls(base_url: str, html: str) -> list[str]:  # noqa: D401
         if absu not in out and absu.rstrip("/") != base_url.rstrip("/"):
             out.append(absu)
 
-    declared_count = 0
     parser = _LinkRelParser()
     try:
         parser.feed(html or "")
@@ -842,7 +903,6 @@ def discover_feed_urls(base_url: str, html: str) -> list[str]:  # noqa: D401
     for href in parser.hrefs:
         add(href)
     declared_count = len(out)  # everything added so far is site-DECLARED
-    _DECLARED_COUNTS[base_url] = declared_count
 
     low = (html or "").lower()
     root = f"{urllib.parse.urlsplit(base_url).scheme}://{urllib.parse.urlsplit(base_url).netloc}"
@@ -852,7 +912,9 @@ def discover_feed_urls(base_url: str, html: str) -> list[str]:  # noqa: D401
 
     for path in _COMMON_FEED_PATHS:
         add(urllib.parse.urljoin(root + "/", path.lstrip("/")))
-    return out
+    # Returned, never stashed in a module global: a global keyed by base URL is a
+    # stale/collision hazard under concurrency (evaluator nit r2, PR #68).
+    return out, declared_count
 
 
 def _events_from_text(text: str, *, provider_hint, source_name, cultural_domain) -> list[dict]:
@@ -861,6 +923,10 @@ def _events_from_text(text: str, *, provider_hint, source_name, cultural_domain)
         raws = parse_ics(text)
     elif provider == PROVIDER_PLATFORM_JSON:
         raws = parse_platform_json(text)
+        if not raws:
+            # Not a Tribe/Localist shape — try it as a BARE schema.org JSON-LD
+            # document before giving up, so a declared ld+json feed is not lost.
+            raws = parse_jsonld_document(text)
     else:
         raws = parse_jsonld(text)
     # Platform-JSON rows are stored under the jsonld provider token: the DB
@@ -893,35 +959,48 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     sniffed (BEGIN:VCALENDAR ⇒ ICS). A candidate that errors is skipped — one
     dead guess must not lose the events another candidate would have found.
     """
+    # ROBOTS FIRST, including the BASE url (evaluator blocker r2, PR #68: the
+    # first path we reached was exempt, which made the robots claim false).
+    if not _robots_allows(url):
+        logger.info("source %s: robots.txt disallows %s — not fetched", source_name, url)
+        return []
     base_text = fetch_url(url)
     out = _events_from_text(base_text, provider_hint=provider_hint,
                             source_name=source_name, cultural_domain=cultural_domain)
     if out:
         return out
 
-    candidates = discover_feed_urls(url, base_text)
-    declared = _DECLARED_COUNTS.get(url, 0)
-    for i, candidate in enumerate(candidates[:_MAX_DISCOVERY_TRIES]):
+    all_candidates, declared = discover_feed_urls(url, base_text)
+    # Separate budgets so a page with many declared alternates cannot starve the
+    # conventional paths that actually tend to serve (evaluator nit r2).
+    candidates = (all_candidates[:declared][:_MAX_DECLARED_TRIES]
+                  + all_candidates[declared:][:_MAX_GUESSED_TRIES])
+    declared = min(declared, _MAX_DECLARED_TRIES)
+    for i, candidate in enumerate(candidates):
         if not _robots_allows(candidate):
             logger.info("source %s: robots.txt disallows %s — skipping",
                         source_name, candidate)
             continue
         try:
             text = fetch_url(candidate)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429:
+                # STOP probing this host. Continuing after a throttle signal would
+                # generate more requests and hide rate limiting as "no feed here"
+                # (evaluator blocker r2, PR #68). Loud, and it ends the loop.
+                logger.warning("source %s: HTTP 429 from %s — rate limited; "
+                               "STOPPING discovery for this host rather than "
+                               "probing further", source_name, candidate)
+                break
+            _log_candidate_failure(source_name, candidate, exc, declared=i < declared)
+            continue
         except Exception as exc:  # noqa: BLE001 - severity depends on the KIND
             # A site-DECLARED feed (<link rel=alternate>) that fails is a real
             # defect — the site advertised it — so it is a WARNING an operator
             # sees. A GUESSED conventional path that 404s is expected control
             # flow and stays at debug. Neither is swallowed: both are logged with
             # the URL and reason (evaluator blocker, PR #68).
-            if i < declared:
-                logger.warning("source %s: DECLARED feed %s failed (%s: %s) — the "
-                               "site advertises this feed but it did not serve",
-                               source_name, candidate, type(exc).__name__, exc)
-            else:
-                logger.debug("source %s: guessed candidate %s did not serve a feed "
-                             "(%s: %s)", source_name, candidate,
-                             type(exc).__name__, exc)
+            _log_candidate_failure(source_name, candidate, exc, declared=i < declared)
             continue
         found = _events_from_text(text, provider_hint=provider_hint,
                                   source_name=source_name,
