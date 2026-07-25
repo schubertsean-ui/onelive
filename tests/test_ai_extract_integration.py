@@ -227,3 +227,33 @@ def test_backcompat_wrapper_returns_first_id(store):
     assert cid == "cand-1"
     # The wrapper still fans out fully (both candidates stored).
     assert len(store["created"]) == 2
+
+
+def test_per_page_extraction_cap_bounds_ai_calls(monkeypatch):
+    """FinOps R-043: the multi-event fan-out makes one real AI call per block, so
+    the per-page cap must HARD-BOUND calls (else a single big calendar defeats the
+    per-run budget). Overflow blocks are deferred, never dropped silently."""
+    monkeypatch.setenv("EXTRACT_MAX_EVENTS_PER_PAGE", "3")
+    # 5 event blocks; the cap is 3 → at most 3 AI calls, 2 deferred.
+    monkeypatch.setattr(
+        ai_extract, "segment_events",
+        lambda text, **kw: [f"Show {i} at Mohawk on 2026-08-0{i}" for i in range(1, 6)],
+    )
+    calls = {"n": 0}
+
+    class CountingProvider:
+        def extract_event_json(self, text, schema_json, system_prompt=None, **kw):
+            calls["n"] += 1
+            return {"title": f"Show {calls['n']}", "venue_name": "Mohawk"}
+
+    created = {"n": 0}
+    monkeypatch.setattr(ai_extract, "create_candidate",
+                        lambda **k: (created.__setitem__("n", created["n"] + 1), f"c{created['n']}")[1])
+    monkeypatch.setattr(ai_extract, "add_evidence", lambda **k: "ev")
+
+    out = ai_extract.extract_candidates(
+        ai=CountingProvider(), text="a page with five shows",
+        source_class="venue_calendar", source_name="Mohawk", source_url="u")
+
+    assert calls["n"] == 3, f"expected 3 AI calls (capped), got {calls['n']} — cost fail-open"
+    assert len(out.candidate_ids) == 3

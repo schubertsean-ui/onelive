@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import copy
 import inspect
 import logging
+import os
 
 from pydantic import TypeAdapter, ValidationError
 
@@ -35,6 +36,28 @@ from worker.datetime_normalize import (
 from worker.segment import segment_events
 
 logger = logging.getLogger(__name__)
+
+# Per-page AI-call COST CAP (FinOps, R-043). The multi-event fan-out makes ONE
+# real extraction call per event block, so an unbounded page could make hundreds
+# of calls — which silently defeated the per-run source ceiling (that caps PAGES,
+# not calls). Capping calls PER PAGE restores a hard, predictable per-run bound:
+# max_sources x this. Event blocks past the cap are DEFERRED (picked up on a
+# later run) and LOGGED — never silently dropped. Env-tunable; the default is
+# conservative and founder-tunable (the exact number is a FinOps decision).
+_DEFAULT_MAX_EVENTS_PER_PAGE = 50
+
+
+def _max_events_per_page() -> int:
+    raw = os.environ.get("EXTRACT_MAX_EVENTS_PER_PAGE", "").strip()
+    if not raw:
+        return _DEFAULT_MAX_EVENTS_PER_PAGE
+    try:
+        n = int(raw)
+    except ValueError:
+        logger.warning("EXTRACT_MAX_EVENTS_PER_PAGE=%r is not an int — using default %d",
+                       raw, _DEFAULT_MAX_EVENTS_PER_PAGE)
+        return _DEFAULT_MAX_EVENTS_PER_PAGE
+    return n if n >= 1 else _DEFAULT_MAX_EVENTS_PER_PAGE
 
 # Meta keys the provider may attach (e.g. Claude provenance). These are NOT event
 # fields, so they are separated out before pydantic validation (which would drop
@@ -199,6 +222,19 @@ def extract_candidates(
     source is never silently dropped.
     """
     blocks = segment_events(text)
+    # FinOps hard bound (R-043): one real extraction call per block, so cap the
+    # calls PER PAGE. Overflow blocks are DEFERRED to a later run + LOGGED loudly,
+    # never silently dropped — so a run's total AI spend stays max_sources x cap.
+    cap = _max_events_per_page()
+    if len(blocks) > cap:
+        logger.warning(
+            "extract_candidates: source %r segmented into %d event blocks; "
+            "extracting the first %d this run (per-page AI-call cost cap "
+            "EXTRACT_MAX_EVENTS_PER_PAGE=%d) — %d block(s) DEFERRED to a later run, "
+            "NOT dropped (R-043).",
+            source_name, len(blocks), cap, cap, len(blocks) - cap,
+        )
+        blocks = blocks[:cap]
     # AIEventExtraction (single-event) schema — the CERTIFIED shape, unchanged.
     schema = AIEventExtraction.model_json_schema()
     extract_kwargs = _extract_kwargs_for(ai, source_name)
