@@ -838,6 +838,91 @@ def test_bad_autonomy_record_refuses_even_human_approval(monkeypatch, tmp_path):
     assert _release(draft, approval).released_by == "Sean Schubert"
 
 
+def test_broken_tzinfo_clock_refuses_release(monkeypatch):
+    # #67 r1: a tzinfo whose utcoffset() is None is NAIVE by Python's own
+    # definition — the aware-moment check must catch it, not just tzinfo.
+    import datetime as _dt
+
+    class _BrokenTz(_dt.tzinfo):
+        def utcoffset(self, dt):
+            return None
+
+        def dst(self, dt):
+            return None
+
+    draft = _draft()
+    approval = _approve(draft)
+    broken = datetime.fromisoformat(REF_TIME).replace(tzinfo=_BrokenTz())
+    monkeypatch.setattr(publish_gate, "_utcnow", lambda: broken)
+    with pytest.raises(ValueError, match="timezone-aware"):
+        _release(draft, approval)
+
+
+def test_event_jsonld_refuses_unscheduled_or_noncanonical_rows():
+    # #67 r1: the public helper must not emit EventScheduled markup for a
+    # cancelled or candidate row, regardless of caller.
+    with pytest.raises(ValueError, match="only ever emitted for scheduled"):
+        event_jsonld(_event(1, event_status="cancelled"), "Austin")
+    with pytest.raises(ValueError, match="never get discovery markup"):
+        event_jsonld(_event(1, origin="candidate_store"), "Austin")
+
+
+def test_event_jsonld_refuses_nonfeaturable_confidence():
+    # #67 r2: the full featurability contract — disputed/unverified rows
+    # never get normal scheduled markup (selection, not hiding: the
+    # product surface still shows disputed-as-disputed).
+    for confidence in ("disputed", "unverified"):
+        with pytest.raises(ValueError, match="not featurable"):
+            event_jsonld(_event(1, confidence=confidence), "Austin")
+    # likely IS featurable — the quiet-uncertainty tier still gets markup.
+    assert event_jsonld(_event(1, confidence="likely"), "Austin")["@type"] == "Event"
+
+
+def test_scenario_price_filter_normalizes_like_every_price_surface():
+    # #67 r1 (adopting the r15 nit): "0" the string is free; garbage
+    # raises the trust-error shape, never a raw TypeError.
+    scenario = scenario_by_key("free_tonight")
+    free_str = _event(1, domain="comedy", price_min="0")
+    assert [e["event_id"] for e in scenario_events([free_str], scenario)] == ["ev-1"]
+    with pytest.raises(CarouselTrustError, match="unparseable price_min"):
+        scenario_events([_event(2, domain="comedy", price_min="abc")], scenario)
+    # #67 r2: Decimal's non-finite footguns — NaN would explode as a raw
+    # comparison error, Infinity would be silently filtered. Both refuse.
+    for corrupt in ("NaN", "Infinity", "-Infinity"):
+        with pytest.raises(CarouselTrustError, match="non-finite price_min"):
+            scenario_events([_event(3, domain="comedy", price_min=corrupt)], scenario)
+
+
+def test_scenario_filter_refuses_negative_prices_loudly():
+    # #67 r3 blocker: a negative price is corrupt data to SURFACE — the
+    # filter must not quietly hide the row from generation.
+    scenario = scenario_by_key("free_tonight")
+    with pytest.raises(CarouselTrustError, match="negative price_min"):
+        scenario_events([_event(1, domain="comedy", price_min=-5)], scenario)
+
+
+def test_misconfigured_scenario_cap_refuses_loudly():
+    # #67 r3 blocker: an Infinity/garbage price_max must refuse, never
+    # silently broaden a capped scenario.
+    scenario = scenario_by_key("free_tonight")
+    for bad_cap in ("Infinity", "NaN", "abc"):
+        broken = dataclasses.replace(scenario, price_max=bad_cap)
+        with pytest.raises(CarouselTrustError, match="price_max"):
+            scenario_events([_event(1, domain="comedy", price_min=0)], broken)
+    negative_cap = dataclasses.replace(scenario, price_max=-1)
+    with pytest.raises(CarouselTrustError, match="negative price_max"):
+        scenario_events([_event(1, domain="comedy", price_min=0)], negative_cap)
+
+
+def test_generator_refuses_corrupt_prices_with_the_trust_shape():
+    # Same class at the generation surface (#67 r2): never a raw
+    # float()/Decimal exception.
+    with pytest.raises(CarouselTrustError, match="unparseable price_min"):
+        _draft([_event(1, price_min="abc")] + [_event(i) for i in range(2, 6)])
+    with pytest.raises(CarouselTrustError, match="non-finite price_min"):
+        _draft([_event(1, price_min="NaN")] + [_event(i) for i in range(2, 6)])
+
+
 def test_utc_gate_clock_releases_market_tonight_after_utc_midnight(monkeypatch):
     # r12 nit: at 21:00 CDT the UTC calendar has already turned — the
     # window must be judged in the event's own timezone or every Austin
@@ -1509,11 +1594,15 @@ def test_run_cycle_propagates_trust_errors_loud():
 
 
 def test_negative_price_fails_loud_everywhere():
-    # r7 blockers: an impossible price is a data defect, never copy.
+    # r7 blockers, tightened at #67 r3: an impossible price is a data
+    # defect, never copy — and the scenario filter REFUSES it loudly too
+    # (this test originally pinned silent filtering there; that was the
+    # r3 no-swallowed-errors blocker).
     with pytest.raises(CarouselTrustError, match="negative price"):
         select_featurable([_event(1, price_min=-5)])
     free = scenario_by_key("free_tonight")
-    assert scenario_events([_event(1, domain="comedy", price_min=-5)], free) == []
+    with pytest.raises(CarouselTrustError, match="negative price_min"):
+        scenario_events([_event(1, domain="comedy", price_min=-5)], free)
 
 
 def test_render_path_validates_config_itself():

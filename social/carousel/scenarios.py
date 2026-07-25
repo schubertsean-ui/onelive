@@ -21,6 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from social.carousel.config import CarouselConfig
+from social.carousel.generator import normalize_price
 
 
 @dataclass(frozen=True)
@@ -103,10 +104,24 @@ def scenario_events(events: list[dict], scenario: Scenario) -> list[dict]:
     trust selection runs unchanged afterwards."""
     picked = [e for e in events if e.get("domain_id") in scenario.domain_ids]
     if scenario.price_max is not None:
+        # THE shared price normalizer (#67 r1-r3): event prices AND the
+        # scenario's own cap resolve through generator.normalize_price, so
+        # unparseable/non-finite/negative values refuse with the
+        # trust-error shape everywhere — a misconfigured Infinity cap must
+        # not silently broaden a capped scenario, and a negative
+        # price_min is corrupt data to surface, never a row to quietly
+        # hide from generation (no swallowed errors).
+        cap = normalize_price(scenario.price_max, "price_max", f"scenario {scenario.key}")
         picked = [
             e
             for e in picked
-            if e.get("price_min") is not None and 0 <= e["price_min"] <= scenario.price_max
+            if (
+                price := normalize_price(
+                    e.get("price_min"), "price_min", str(e.get("event_id"))
+                )
+            )
+            is not None
+            and price <= cap
         ]
     if scenario.earliest_start_hour is not None:
         picked = [

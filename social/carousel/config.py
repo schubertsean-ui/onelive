@@ -67,6 +67,13 @@ SURFACE_CONSTRAINTS: dict[str, SurfaceConstraints] = {
     ),
 }
 
+class CarouselTrustError(ValueError):
+    """A trust or configuration violation — must always propagate loud.
+    Defined HERE, the package's base module (#67 r4 nit), so every carousel
+    module — including geo, which generator itself imports — raises the
+    SAME trust-error shape with no import cycle; generator re-exports it."""
+
+
 # Recognition-not-reading caps (spec §2: gist in ~13ms, headline <= 8 words).
 HOOK_HEADLINE_MAX_WORDS = 8
 SLIDE_OVERLAY_MAX_WORDS = 12

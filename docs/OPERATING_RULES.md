@@ -85,6 +85,21 @@ Understand → Implement → Self-review against §1 → Fix what review finds �
   `_provenance` key and the null-city bug is the standard, not the exception.
 - A loop iteration ends only when review finds nothing new *and* verification is
   green.
+- **Build through the Construction Loop.** (Founder-directed 2026-07-25;
+  canon: `docs/skills/construction_loop.md`; verbatim directive + RCA:
+  `docs/memory/decisions/2026-07-25_construction-loop-directive.md`.)
+  Every substantive build runs the seven stages — A3-form contract →
+  ledger-seeded premortem (tree, not chain) → BLOCKING memory retrieval
+  (cite matched green examples and red classes before any design is
+  accepted; "no matches" is a printed result, never silence) → scored
+  path selection (precedent collapses the search; no precedent = 2-3
+  independent candidates judged against the contract) → small-batch
+  execution with validate BEFORE the evaluator → lessons committed only
+  in machine-consumed form (gate rule / retrieval token / regression
+  case — prose-only rows are open defects) → rounds-to-APPROVE and
+  repeat-class rate trended as the loop's own health metrics. The loop
+  adds an upstream pass; no downstream gate relaxes, ever.
+
 - **Mechanical backstop:** the pre-commit hook (`tools/install_hooks.sh` →
   `lint.py --fix` + `trust_gate.py`) enforces the floor on every commit, and
   `bash tools/validate` runs the *full* gate (trust_gate, lint, full pytest,
