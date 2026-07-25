@@ -31,7 +31,12 @@ import pathlib
 from collections import Counter
 
 from worker.db_config import resolve_dsn
-from worker.importers.structured_feed import import_source
+from worker.importers.structured_feed import (
+    PROVIDER_ICS,
+    PROVIDER_JSONLD,
+    PROVIDER_PLATFORM_JSON,
+    import_source,
+)
 
 log = logging.getLogger("structured_import")
 
@@ -50,11 +55,93 @@ _STRUCTURED_ALLOWED = {
     # it those 38 sources sat in the catalog and were never fetched (found
     # 2026-07-25 when the founder asked "Only 40?"). Safe by construction:
     # import_source auto-detects ICS vs embedded JSON-LD, and a source that
-    # exposes neither yields 0 events, which run_structured_import LOGS as a
-    # per-source warning rather than failing the run.
+    # exposes neither yields 0 events, which the main loop below logs per source
+    # ("yielded 0 events (<url>) — logged, not fatal", named again in the
+    # summary's zero-sources tally) rather than failing the run.
     "structured_feed_verify",
 }
 _STRUCTURED_ACCESS_TOKENS = ("ics", "localist", "feed")
+
+
+# ---- provider ASSERTIONS from catalog data -----------------------------------
+#
+# Every `allowed` token in the catalog is classified here: either it ASSERTS a
+# wire format (value = the provider) or it does not (value = None). This is the
+# join that makes structured_feed.ProviderMismatch real in production — without
+# it the fail-loud-on-misconfigured-source guard only fired for direct callers
+# and monkeypatched tests, so a wrongly-pointed source still auto-sniffed and
+# was counted as "yielded zero" (evaluator blocker r9, PR #68).
+#
+# The table is DELIBERATELY sparse, and that is the honest reading of the data,
+# not timidity: a token spelled `*_if_offered` or `*_verify` says a feed MIGHT
+# exist, which is the opposite of a format claim. Asserting a provider from one
+# of those would manufacture false ProviderMismatch failures for every venue
+# tagged `ics_feed_if_offered` that in fact serves embedded JSON-LD — turning a
+# working source into a reported defect. Only `localist_json_feed` names its
+# format outright, so today exactly one token asserts.
+#
+# COMPLETENESS IS TEST-DERIVED, not hand-maintained: a test cross-checks this
+# table against every token present in the real catalog, so a future row adding
+# e.g. `tribe_json_feed` fails the suite until it is classified here. That is
+# the standing response to the incomplete-enumeration class (docs/metrics/
+# KAIZEN_LEDGER.md class watch): a hand-kept trust-guarding list gets a
+# derivation test, never a fourth hand-audit.
+_TOKEN_PROVIDER_CLASSIFICATION: dict[str, str | None] = {
+    # ASSERTS a format — drives provider_hint, so a mismatch FAILS the source.
+    "localist_json_feed": PROVIDER_PLATFORM_JSON,
+    # Conditional or format-free — no assertion, so import_source sniffs.
+    "public_calendar_pages": None,
+    "structured_feed_verify": None,
+    "public_pages": None,
+    "public_event_pages": None,
+    "feed_if_offered": None,
+    "partner_feed": None,
+    "api_access": None,
+    "oauth_api": None,
+    "ics_feed_if_offered": None,
+    "opt_in_links": None,
+    "jsonld_if_offered": None,
+    "partner_access": None,
+    "manual_benchmark": None,
+    "official_feed": None,
+    "partner_export": None,
+    "ics_upload": None,
+    "csv_upload": None,
+    "opt_in_email_parse": None,
+    "open_data_lucene_search": None,
+}
+
+# Named so the derivation test can assert these are the only providers reachable
+# from catalog data (a typo'd value would otherwise raise deep inside a fetch).
+_ASSERTABLE_PROVIDERS = (PROVIDER_ICS, PROVIDER_JSONLD, PROVIDER_PLATFORM_JSON)
+
+
+def provider_hint_for(entry: dict) -> str | None:
+    """The wire format this catalog row ASSERTS, or None when it asserts none.
+
+    None is the common and correct answer: most rows say "a feed may exist here",
+    which import_source resolves by sniffing. A returned provider is a claim the
+    source must honour — if nothing fetched is that format, import_source raises
+    ProviderMismatch and the source is reported FAILED, not empty.
+
+    Unknown tokens are ignored (they assert nothing); the derivation test, not a
+    runtime guess, is what keeps the table complete.
+    """
+    hints = {
+        _TOKEN_PROVIDER_CLASSIFICATION.get(str(a).lower())
+        for a in (entry.get("allowed") or [])
+    }
+    hints.discard(None)
+    if len(hints) != 1:
+        # Zero assertions is the normal case. TWO conflicting assertions is a
+        # catalog contradiction we must not resolve by picking one — fall back to
+        # sniffing and say so, rather than enforcing an arbitrary half of it.
+        if len(hints) > 1:
+            log.warning("source %s asserts CONFLICTING providers %s — no assertion "
+                        "enforced; auto-detecting instead. Fix the catalog row.",
+                        entry.get("id"), sorted(hints))
+        return None
+    return hints.pop()
 
 
 def _is_structured_candidate(entry: dict) -> bool:
@@ -172,8 +259,13 @@ def main(argv=None) -> int:
         sid = str(entry.get("id"))
         url = entry.get("base_url")
         domain_hint = entry.get("cultural_domain")
+        # Carry the catalog's format ASSERTION (if the row makes one) into the
+        # fetch, so a wrongly-pointed source fails loudly here instead of being
+        # tallied among the quiet calendars.
+        hint = provider_hint_for(entry)
         try:
-            norm = import_source(url, source_name=sid, cultural_domain=domain_hint)
+            norm = import_source(url, source_name=sid, cultural_domain=domain_hint,
+                                 provider_hint=hint)
         except _RECOVERABLE_SOURCE_ERRORS as exc:
             # A single source being unreachable is logged, not fatal — the others
             # still import. (Not a swallowed error: it is surfaced in the run log.)

@@ -218,6 +218,30 @@ def _looks_bare_date(value: str) -> bool:
     return v.isdigit() and len(v) == 8
 
 
+def _account(parser: str, seen: int, kept: int) -> None:
+    """Report input objects a reader DROPPED, so silent narrowing is visible.
+
+    The structural answer to the silent-data-loss class (three instances on PR
+    #68: only Localist `event_instances[0]` emitted, integer ids coerced away so
+    distinct events collided, and bare JSON-LD feeds read as zero). Every one was
+    a reader accepting a NARROWER shape than the format actually permits, and
+    every one was invisible for the same reason — "this feed produced fewer
+    events" and "this feed HAS fewer events" render identically in a run log.
+
+    So each reader now states its own arithmetic: objects seen vs objects that
+    produced a row. A drop is often legitimate (a VEVENT with no DTSTART must be
+    skipped, never fabricated), which is exactly why this is a loud log and not
+    an error — the point is that a shape gap can no longer hide inside a plausible
+    count. `parse_*` remains pure and return-compatible; only observability moves.
+    """
+    if seen and kept < seen:
+        logger.warning(
+            "%s: %d of %d event object(s) produced NO row — dropped for missing "
+            "required fields or an unsupported shape. Recorded because a reader "
+            "that silently narrows a feed is indistinguishable from a smaller feed.",
+            parser, seen - kept, seen)
+
+
 def parse_ics(text: str) -> list[dict]:
     """Parse VEVENT blocks from iCalendar text into canonical intermediate dicts.
 
@@ -229,9 +253,11 @@ def parse_ics(text: str) -> list[dict]:
     events: list[dict] = []
     cur: Optional[dict] = None
     in_vevent = False
+    seen = 0
     for line in _unfold(text):
         if line == "BEGIN:VEVENT":
             in_vevent = True
+            seen += 1
             cur = {"_raw_props": {}}
             continue
         if line == "END:VEVENT":
@@ -271,6 +297,7 @@ def parse_ics(text: str) -> list[dict]:
         elif name == "UID":
             cur["uid"] = value or None
             cur["_raw_props"]["uid"] = value
+    _account("parse_ics", seen, len(events))
     return events
 
 
@@ -449,6 +476,7 @@ def parse_jsonld(html: str) -> list[dict]:
     extractor = _LdJsonExtractor()
     extractor.feed(html)
     events: list[dict] = []
+    seen = 0
     for block in extractor.blocks:
         block = block.strip()
         if not block:
@@ -462,7 +490,9 @@ def parse_jsonld(html: str) -> list[dict]:
             continue
         for obj in _iter_ld_objects(doc):
             if isinstance(obj, dict) and _is_event_type(obj.get("@type")):
+                seen += 1
                 events.append(_jsonld_event_to_intermediate(obj))
+    _account("parse_jsonld", seen, len(events))
     return events
 
 
@@ -644,7 +674,10 @@ def parse_platform_json(text: str) -> list[dict]:
     except (ValueError, TypeError):
         return []
     out: list[dict] = []
+    seen = kept = 0
     for ev in _platform_events(doc):
+        seen += 1
+        before = len(out)
         title = _ld_str(ev.get("title") or ev.get("name"))
         # TIME CORRECTNESS (evaluator blocker r2, PR #68). Tribe's `start_date`
         # is the SITE-LOCAL wall time; the API exposes `utc_start_date`
@@ -705,6 +738,12 @@ def parse_platform_json(text: str) -> list[dict]:
         for occ_start, occ_end, occ_id in occurrences:
             _emit_platform_row(out, ev, title, occ_start, occ_end, occ_id,
                                start_tz, venue, loc, addr, city)
+        # Counted per INPUT event, not per row: an event legitimately fans out to
+        # many occurrence rows, and it was reading only the FIRST of those that
+        # lost data silently in the first place.
+        if len(out) > before:
+            kept += 1
+    _account("parse_platform_json", seen, kept)
     return out
 
 
@@ -783,9 +822,12 @@ def parse_jsonld_document(text: str) -> list[dict]:
     except (ValueError, TypeError):
         return []
     out: list[dict] = []
+    seen = 0
     for obj in _iter_ld_objects(doc):
         if isinstance(obj, dict) and _is_event_type(obj.get("@type")):
+            seen += 1
             out.append(_jsonld_event_to_intermediate(obj))
+    _account("parse_jsonld_document", seen, len(out))
     return out
 
 
@@ -1052,23 +1094,37 @@ def _matches_asserted_shape(provider: str, text: str) -> bool:
     Used only to decide between those two outcomes; it never selects a reader
     (an asserted hint always routes to its own reader, never to another).
     """
-    head = (text or "").lstrip()
+    text = text or ""
     if provider == PROVIDER_ICS:
         return "BEGIN:VCALENDAR" in text[:4096].upper() or "BEGIN:VEVENT" in text.upper()
+
     if provider == PROVIDER_PLATFORM_JSON:
+        # "Is this JSON?" was NOT enough (evaluator blocker r9): any JSON body at
+        # all — an API error envelope, a site config dump, a search index —
+        # satisfied it, marked the assertion honoured, and let the forced parser
+        # return zero rows. The source then read as EMPTY, which is the very class
+        # this guard exists to close. Require the COLLECTION both platform readers
+        # actually consume: a top-level "events" list (Tribe and Localist agree).
         try:
-            return isinstance(json.loads(text), (dict, list))
+            doc = json.loads(text)
         except (ValueError, TypeError):
             return False
+        return isinstance(doc, dict) and isinstance(doc.get("events"), list)
+
     if provider == PROVIDER_JSONLD:
-        # Either embedded in HTML (a <script type="application/ld+json"> block)
-        # or served bare as JSON — discovery accepts both.
-        if "application/ld+json" in head.lower():
+        # Two CARRIERS of one format: embedded in HTML (<script
+        # type="application/ld+json">) or served bare. Both must be recognized,
+        # and bare JSON must carry an actual JSON-LD marker rather than merely
+        # being valid JSON (same r9 blocker as above).
+        if "application/ld+json" in text.lower():
             return True
         try:
-            return isinstance(json.loads(text), (dict, list))
+            doc = json.loads(text)
         except (ValueError, TypeError):
             return False
+        nodes = doc if isinstance(doc, list) else [doc]
+        return any(isinstance(n, dict) and ({"@context", "@type", "@graph"} & set(n))
+                   for n in nodes)
     return False
 
 
@@ -1088,7 +1144,16 @@ def _events_from_text(text: str, *, provider_hint, source_name, cultural_domain)
             raws = parse_jsonld_document(text)
             used_jsonld_fallback = bool(raws)
     else:
+        # JSON-LD ships in TWO carriers and both are this one format: embedded in
+        # an HTML <script type="application/ld+json"> block, or served bare at an
+        # application/ld+json feed URL (which discovery accepts). Reading only the
+        # embedded carrier meant a correctly-configured bare JSON-LD source
+        # normalized to zero and reported EMPTY — silent data loss (evaluator
+        # blocker r9). Trying the second CARRIER is not the cross-format fallback
+        # r7 removed: the asserted format is still, only, JSON-LD.
         raws = parse_jsonld(text)
+        if not raws:
+            raws = parse_jsonld_document(text)
     # Platform-JSON keeps its OWN provider token (migration 0014). Storing it as
     # 'jsonld' conflated two different acquisition formats and would have made a
     # shape drift in the Tribe reader indistinguishable from one in the JSON-LD

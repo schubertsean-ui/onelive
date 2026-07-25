@@ -168,6 +168,8 @@ founder digest in plain language.
 
 | 2026-07-25 | #68 (in flight: r8) | 8 | evaluator r8: failure-reads-as-empty ×1 REPEAT — IN THE SAME PR THAT CLAIMED THE CLASS FIX. My r7 change stopped the silent cross-format fallback but still returned `[]` when an asserted `provider_hint` never matched, so a MISCONFIGURED catalog row landed back in the "yielded zero" bucket. The r7 regression test asserted `out == []` and so CODIFIED the wrong contract — it proved only that no fallback happened, and could never have caught this | marker: failure-reads-as-empty — the class fix EXTENDED past the acquisition layer to the configuration layer, which is where it had relocated. `ProviderMismatch(OSError)` is raised when a hint was asserted and no body fetched (base + every discovered candidate) was even that SHAPE; the runner names it as a FAILED source and exits non-zero. Scoped deliberately by three red tests: an asserted format that DID serve but had no upcoming events still returns `[]` (an empty calendar is a fact, not a defect), a hint satisfied at a DISCOVERED candidate still works (the base page is normally HTML — raising on first mismatch would have broken every correctly-configured source), and the runner path is pinned end-to-end. Nit adopted: `PROVIDER_PLATFORM_JSON` moved beside its siblings with the mangled comment fixed, and the three tokens collapsed to one `_PROVIDERS` tuple the validator reads. Nit recorded, not silently accepted: R-052 logs the robots absent/unreadable FAIL-OPEN boundary with two objective triggers, because the standing risk is prose rounding it up to "robots compliant" | ~1 evaluator call + CI | The lesson worth more than the fix: a class marker is a CLAIM, and this round proved mine premature within one commit of writing it. A fix at layer N moves the class to layer N+1 unless the test asserts the OUTCOME ("this source is reported FAILED") rather than the mechanism ("no fallback occurred"). Both r8 tests now assert the outcome. suite 71→74 on test_structured_feed. |
 
+| 2026-07-25 | #68 (in flight: r9) | 9 | evaluator r9: dead-guard ×1 (the r8 ProviderMismatch guard was NEVER WIRED — `main()` never derived `provider_hint` from catalog data, so the whole fail-loud-on-misconfigured-source claim held only for direct callers and monkeypatched stubs; a wrongly-pointed source still auto-sniffed into "yielded zero"), failure-reads-as-empty ×1 REPEAT (my `_matches_asserted_shape` accepted ANY JSON as platform_json/jsonld, so an API error envelope satisfied the assertion, the forced parser returned zero, and the source read EMPTY again), silent-data-loss ×1 (a hinted JSON-LD source served BARE parsed to zero — the hinted path only scanned HTML `<script>` tags, losing every event on a CORRECTLY configured source) | wiring: `_TOKEN_PROVIDER_CLASSIFICATION` classifies EVERY catalog `allowed` token as asserting a format or not, `provider_hint_for()` joins it to each row, and `main()` carries the assertion into the fetch — completeness is DERIVATION-TESTED against the real catalog (a future `tribe_json_feed` fails the suite until classified), which is the standing response to the incomplete-enumeration class rather than a fourth hand-audit. The table is deliberately sparse and pinned so: `*_if_offered` / `*_verify` assert NOTHING, because enforcing them would turn working JSON-LD venues tagged `ics_feed_if_offered` into spurious failures; conflicting assertions warn and sniff rather than enforce half a contradiction. shape check tightened to the collection each reader consumes (top-level `events` list; a real JSON-LD marker). JSON-LD now reads BOTH carriers of its one format (embedded and bare) — not the cross-format fallback r7 removed. End-to-end test stubs ONLY fetch_url, so catalog → hint → shape → ProviderMismatch → FAILED tally runs for real. marker: failure-reads-as-empty (SECOND marker — the r8 one was premature and the tool caught the recurrence; credited now only because a test drives the REAL production entry point with just the network stubbed) + marker: silent-data-loss (structural, shipped in this commit: `_account()` makes every reader state objects-seen vs objects-that-produced-a-row, so a reader silently narrowing a feed is no longer indistinguishable from a smaller feed — the shared root of all three instances; counted per INPUT event so legitimate occurrence fan-out is not an alarm, and silent on a clean parse so it cannot train operators to ignore it). | ~1 evaluator call + CI | Nit adopted and generalized mechanically: the evaluator noted my runner test only proved the runner can COUNT an already-raised mismatch. True, and worse than noted — adding `provider_hint` to the real call left FIVE stubs stale in one commit. `test_import_source_signature_is_pinned` now makes stub drift a loud failure instead of a green test over a call that could never happen. Runner comment corrected to name where zero-yield sources are actually logged. suite 74→83 on test_structured_feed. |
+
 
 
 ## Class watch (M2 repeat classes — these must trend to zero)
@@ -218,7 +220,7 @@ founder digest in plain language.
   promote to test the guard itself). The widened scans surfaced no
   production violations. Class considered structurally closed; a further
   instance is a process escape and gets a root-cause row here.
-- **failure-reads-as-empty**: PR #68 r3, r4, r6, r7 — four rounds, one class: a
+- **failure-reads-as-empty**: PR #68 r3, r4, r6, r7, r8, r9 — SIX rounds, one class: a
   source that DENIED us (403), THROTTLED us (429), erred (5xx), or REFUSED us by
   robots policy was each, at some point, reported as "0 events found". A dry
   calendar and a closed door are not the same fact, and only one of them is
@@ -230,6 +232,28 @@ founder digest in plain language.
   exit. Same family as the fail-open sub-classes above. If this class appears
   again anywhere in ingestion, the fix is a repo-wide audit of every "return
   empty on error" site, not another typed exception.
+  MARKER PROVED PREMATURE TWICE (r8, r9): each fix moved the class up a
+  layer — acquisition → configuration → the guard's own shape check —
+  because the tests asserted the MECHANISM ("no fallback occurred",
+  "the runner counts a raised mismatch") instead of the OUTCOME ("this
+  source is reported FAILED by the real runner"). Standing rule adopted:
+  a fix for this class is not credited until one test drives the REAL
+  production entry point with only the network stubbed. r9's end-to-end
+  test is that shape; r8's was not.
+- **silent-data-loss**: PR #68 r3 (only Localist `event_instances[0]` emitted —
+  every later showing of a series dropped), r5 (integer platform ids coerced
+  away, so two distinct events collided onto one uid and overwrote each other
+  on upsert while the import reported success), r9 (a hinted JSON-LD source
+  served BARE read as zero). One root cause each time: a reader accepted a
+  NARROWER shape than the format actually permits, and the loss was invisible
+  because "this feed produced fewer events" and "this feed HAS fewer events"
+  render identically. Structural fix shipped r9: `_account()` — every reader
+  reports input objects seen vs input objects that produced a row, so a shape
+  gap surfaces as a stated shortfall instead of a plausible count. Counted per
+  INPUT event (occurrence fan-out is not a drop) and silent on a clean parse
+  (an alarm that always fires is an alarm nobody reads). If this class recurs,
+  the accounting is insufficient and the response is a differential harness:
+  parse a captured real feed and diff row counts against a recorded baseline.
 - **record-missing / untruthful-record**: #19 (untruthful-record), #24 (same),
   and 2026-07-15: rows for merged PRs #15/#23/#24 were absent from this table
   while the changelog claimed the #15 row existed (caught during #25 r5

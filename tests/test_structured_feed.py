@@ -310,7 +310,7 @@ def test_runner_one_zero_source_tolerated(monkeypatch, tmp_path):
     import json as _json
     p.write_text(_json.dumps(catalog))
 
-    def fake_import(url, *, source_name, cultural_domain=None):
+    def fake_import(url, *, source_name, cultural_domain=None, provider_hint=None):
         if source_name == "lib":
             return []  # one empty source — tolerated
         return [{"category": "ideas", "source_provider": "jsonld", "venue_name": "V",
@@ -849,7 +849,7 @@ def test_runner_counts_failed_sources_separately_from_empty_ones(monkeypatch, ca
          "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"},
     ]
 
-    def fake_import(url, *, source_name, cultural_domain=None):
+    def fake_import(url, *, source_name, cultural_domain=None, provider_hint=None):
         if source_name == "denied":
             raise urllib.error.HTTPError(url, 403, "Forbidden", {}, None)
         return []
@@ -1007,7 +1007,7 @@ def test_runner_records_a_robots_refusal_as_a_FAILED_source(monkeypatch, caplog)
     catalog = [{"id": "blocked", "base_url": "https://a.example/",
                 "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"}]
 
-    def fake_import(url, *, source_name, cultural_domain=None):
+    def fake_import(url, *, source_name, cultural_domain=None, provider_hint=None):
         raise RobotsDisallowed("robots.txt disallows it")
 
     monkeypatch.setattr(runner, "import_source", fake_import)
@@ -1034,7 +1034,7 @@ def test_a_programmer_bug_is_NOT_swallowed_as_a_source_failure(monkeypatch):
     catalog = [{"id": "buggy", "base_url": "https://a.example/",
                 "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"}]
 
-    def fake_import(url, *, source_name, cultural_domain=None):
+    def fake_import(url, *, source_name, cultural_domain=None, provider_hint=None):
         raise TypeError("this is our bug, not the host's")
 
     monkeypatch.setattr(runner, "import_source", fake_import)
@@ -1058,7 +1058,7 @@ def test_allow_partial_still_fails_a_ZERO_event_import(monkeypatch, caplog):
     catalog = [{"id": "denied", "base_url": "https://a.example/",
                 "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"}]
 
-    def fake_import(url, *, source_name, cultural_domain=None):
+    def fake_import(url, *, source_name, cultural_domain=None, provider_hint=None):
         raise urllib.error.HTTPError(url, 403, "Forbidden", {}, None)
 
     monkeypatch.setattr(runner, "import_source", fake_import)
@@ -1140,7 +1140,7 @@ def test_runner_records_a_provider_mismatch_as_a_FAILED_source(monkeypatch, capl
     catalog = [{"id": "misconfigured", "base_url": "https://a.example/",
                 "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"}]
 
-    def fake_import(url, *, source_name, cultural_domain=None):
+    def fake_import(url, *, source_name, cultural_domain=None, provider_hint=None):
         raise ProviderMismatch("asserted platform_json, served HTML")
 
     monkeypatch.setattr(runner, "import_source", fake_import)
@@ -1153,3 +1153,237 @@ def test_runner_records_a_provider_mismatch_as_a_FAILED_source(monkeypatch, capl
     assert "1 FAILED" in caplog.text, caplog.text
     assert "misconfigured" in caplog.text
     assert rc == runner._EXIT_SOURCE_FAILURES
+
+
+# ---- evaluator r9: the assertion must be WIRED, and must mean something -------
+
+def test_every_catalog_allowed_token_is_classified():
+    """DERIVATION TEST, not a hand-audit (the standing response to the
+    incomplete-enumeration class): every `allowed` token present in the REAL
+    catalog must be classified in _TOKEN_PROVIDER_CLASSIFICATION as either
+    asserting a provider or asserting none. A future catalog row introducing
+    e.g. `tribe_json_feed` fails here until someone decides which it is —
+    rather than being silently ignored at runtime."""
+    import json
+    import pathlib
+    import worker.importers.run_structured_import as runner
+
+    rows = json.loads(runner.DEFAULT_CATALOG.read_text(encoding="utf-8"))
+    tokens = {str(a).lower() for r in rows for a in (r.get("allowed") or [])}
+    unclassified = sorted(tokens - set(runner._TOKEN_PROVIDER_CLASSIFICATION))
+    assert not unclassified, (
+        f"catalog tokens with no provider classification: {unclassified} — decide "
+        f"whether each ASSERTS a wire format or not")
+    # And nothing may assert a provider the importer cannot be given.
+    bad = {t: p for t, p in runner._TOKEN_PROVIDER_CLASSIFICATION.items()
+           if p is not None and p not in runner._ASSERTABLE_PROVIDERS}
+    assert not bad, f"tokens asserting unknown providers: {bad}"
+    assert isinstance(pathlib.Path(runner.DEFAULT_CATALOG), pathlib.Path)
+
+
+def test_conditional_tokens_assert_NOTHING():
+    """`ics_feed_if_offered` says a feed MIGHT exist — the opposite of a format
+    claim. Treating it as an assertion would turn every such venue that actually
+    serves embedded JSON-LD into a spurious ProviderMismatch: a working source
+    reported as a defect. This pins the sparseness as intentional."""
+    import worker.importers.run_structured_import as runner
+    for tok in ("ics_feed_if_offered", "jsonld_if_offered", "feed_if_offered",
+                "structured_feed_verify", "public_calendar_pages"):
+        assert runner.provider_hint_for({"id": "x", "allowed": [tok]}) is None, tok
+
+
+def test_localist_token_DOES_assert_platform_json():
+    import worker.importers.run_structured_import as runner
+    from worker.importers.structured_feed import PROVIDER_PLATFORM_JSON
+    assert runner.provider_hint_for(
+        {"id": "x", "allowed": ["localist_json_feed"]}) == PROVIDER_PLATFORM_JSON
+
+
+def test_conflicting_assertions_fall_back_to_sniffing_loudly(caplog):
+    """A catalog row claiming two formats is a contradiction. Picking one half
+    arbitrarily would enforce a guess; we sniff and say so instead."""
+    import logging
+    import worker.importers.run_structured_import as runner
+    runner._TOKEN_PROVIDER_CLASSIFICATION["_test_only_ics"] = "ics"
+    try:
+        with caplog.at_level(logging.WARNING):
+            got = runner.provider_hint_for(
+                {"id": "contradictory", "allowed": ["localist_json_feed", "_test_only_ics"]})
+        assert got is None
+        assert "CONFLICTING" in caplog.text
+    finally:
+        del runner._TOKEN_PROVIDER_CLASSIFICATION["_test_only_ics"]
+
+
+def test_the_REAL_runner_passes_the_catalog_assertion_to_import_source(monkeypatch):
+    """The r8 guard was DEAD in production: main() never derived provider_hint,
+    so a misconfigured source still auto-sniffed and was counted among the
+    "yielded zero" (evaluator blocker r9). This drives the real main() and pins
+    the hint that actually reaches import_source, per source."""
+    import json
+    import pathlib as _pl
+    import tempfile
+    import worker.importers.run_structured_import as runner
+    from worker.importers.structured_feed import PROVIDER_PLATFORM_JSON
+
+    seen = {}
+
+    def fake_import(url, *, source_name, cultural_domain=None, provider_hint=None):
+        seen[source_name] = provider_hint
+        return [{"category": "live-music", "source_provider": "ics"}]
+
+    monkeypatch.setattr(runner, "import_source", fake_import)
+    catalog = [
+        {"id": "asserts", "base_url": "https://a.example/",
+         "allowed": ["localist_json_feed"], "cultural_domain": "live-music"},
+        {"id": "asserts_nothing", "base_url": "https://b.example/",
+         "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"},
+    ]
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
+    assert runner.main(["--catalog", str(tmp), "--dry-run"]) == 0
+    assert seen == {"asserts": PROVIDER_PLATFORM_JSON, "asserts_nothing": None}
+
+
+def test_end_to_end_a_misconfigured_catalog_row_FAILS_the_real_run(monkeypatch, caplog):
+    """The whole r8+r9 chain with nothing monkeypatched but the network: a
+    catalog row asserting Localist JSON whose URL serves HTML must come out of
+    the REAL runner as a FAILED source with a non-zero exit — never as a quiet
+    calendar. Only fetch_url is stubbed, so catalog → hint → shape check →
+    ProviderMismatch → runner tally is exercised for real."""
+    import json
+    import logging
+    import pathlib as _pl
+    import tempfile
+    import urllib.error
+    import worker.importers.run_structured_import as runner
+    import worker.importers.structured_feed as sf
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://a.example":
+            return "<html><body>a normal homepage, no feed</body></html>"
+        raise urllib.error.HTTPError(u, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+
+    catalog = [{"id": "misconfigured", "base_url": "https://a.example/",
+                "allowed": ["localist_json_feed"], "cultural_domain": "live-music"}]
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
+    with caplog.at_level(logging.INFO):
+        rc = runner.main(["--catalog", str(tmp), "--dry-run"])
+
+    assert rc == runner._EXIT_SOURCE_FAILURES
+    assert "1 FAILED" in caplog.text, caplog.text
+    assert "0 yielded zero" in caplog.text, "a misconfigured source landed in the empties"
+    assert "ProviderMismatch" in caplog.text
+
+
+def test_arbitrary_JSON_is_not_an_asserted_platform_shape():
+    """"Is it JSON?" let an API error envelope satisfy a platform_json assertion,
+    so the forced parser returned zero and the source read EMPTY — the exact
+    class this guard closes (evaluator blocker r9)."""
+    from worker.importers.structured_feed import (
+        PROVIDER_JSONLD, PROVIDER_PLATFORM_JSON, _matches_asserted_shape)
+    assert not _matches_asserted_shape(PROVIDER_PLATFORM_JSON, '{"error":"forbidden"}')
+    assert not _matches_asserted_shape(PROVIDER_PLATFORM_JSON, '{"events":"not-a-list"}')
+    assert _matches_asserted_shape(PROVIDER_PLATFORM_JSON, '{"events":[]}')
+    # Same for JSON-LD: valid JSON is not JSON-LD without a JSON-LD marker.
+    assert not _matches_asserted_shape(PROVIDER_JSONLD, '{"title":"just data"}')
+    assert _matches_asserted_shape(PROVIDER_JSONLD, '{"@context":"https://schema.org"}')
+    assert _matches_asserted_shape(PROVIDER_JSONLD, '[{"@type":"Event"}]')
+
+
+def test_an_asserted_jsonld_hint_reads_BARE_jsonld_feeds(monkeypatch):
+    """A hinted JSON-LD source served bare (not embedded in HTML) parsed to zero,
+    because the hinted path only scanned <script> tags — silent data loss on a
+    CORRECTLY configured source (evaluator blocker r9). The two carriers are one
+    format, so both are read; this is not the cross-format fallback r7 removed."""
+    import worker.importers.structured_feed as sf
+    bare = ('{"@context":"https://schema.org","@type":"MusicEvent",'
+            '"@id":"https://v.example/e/1","name":"Bare Feed Show",'
+            '"startDate":"2026-11-07T20:00:00-06:00"}')
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    monkeypatch.setattr(sf, "fetch_url", lambda u, timeout=30: bare)
+    out = sf.import_source("https://v.example/feed.jsonld", source_name="v",
+                           provider_hint=sf.PROVIDER_JSONLD)
+    assert [e["title"] for e in out] == ["Bare Feed Show"]
+
+
+def test_import_source_signature_is_pinned():
+    """Every runner test stubs import_source. A stub whose signature drifts from
+    the real one proves nothing about production — and that is not theoretical:
+    the r9 fix added `provider_hint` to the real call and five stubs went stale
+    in one commit. Pinning the signature makes that drift a loud failure here
+    rather than a green test over a call that could never happen."""
+    import inspect
+    from worker.importers.structured_feed import import_source
+    sig = inspect.signature(import_source)
+    assert list(sig.parameters) == [
+        "url", "provider_hint", "source_name", "cultural_domain"], sig
+    for name in ("provider_hint", "source_name", "cultural_domain"):
+        assert sig.parameters[name].kind is inspect.Parameter.KEYWORD_ONLY, name
+
+
+# ---- class fix: silent-data-loss becomes VISIBLE data loss --------------------
+
+@pytest.mark.parametrize("parser,doc,seen,kept", [
+    ("parse_ics",
+     "BEGIN:VCALENDAR\r\n"
+     "BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20260901T180000Z\r\nEND:VEVENT\r\n"   # no SUMMARY
+     "BEGIN:VEVENT\r\nUID:c\r\nSUMMARY:Good\r\nDTSTART:20260901T180000Z\r\nEND:VEVENT\r\n"
+     "END:VCALENDAR\r\n", 2, 1),
+    ("parse_platform_json",
+     '{"events":[{"id":1,"title":"Kept","utc_start_date":"2026-11-08 02:00:00"},'
+     '{"id":2,"title":"Dropped, no start"}]}', 2, 1),
+])
+def test_a_reader_that_drops_input_SAYS_SO(parser, doc, seen, kept, caplog):
+    """Structural fix for the silent-data-loss class (three instances on PR #68:
+    only Localist `event_instances[0]` emitted, integer ids coerced away so
+    distinct events collided, bare JSON-LD read as zero). Every one was a reader
+    accepting a narrower shape than the format permits, and every one hid because
+    "produced fewer events" and "HAS fewer events" look identical in a log.
+
+    Each reader now states its own arithmetic. Drops are often legitimate — a
+    VEVENT with no DTSTART must be skipped, never fabricated — so this is a loud
+    log, not an error. The point is that a shape gap can no longer hide inside a
+    plausible count."""
+    import logging
+    import worker.importers.structured_feed as sf
+
+    with caplog.at_level(logging.WARNING):
+        rows = getattr(sf, parser)(doc)
+    assert len(rows) >= 1
+    assert f"{seen - kept} of {seen} event object(s) produced NO row" in caplog.text, \
+        f"{parser} dropped input silently:\n{caplog.text}"
+
+
+def test_a_reader_that_drops_NOTHING_stays_quiet(caplog):
+    """The counterpart: accounting must not cry wolf on a clean parse, or
+    operators learn to ignore it — which would undo the whole fix."""
+    import logging
+    import worker.importers.structured_feed as sf
+
+    with caplog.at_level(logging.WARNING):
+        rows = sf.parse_ics(ICS_FIXTURE)
+    assert len(rows) == 2
+    assert "produced NO row" not in caplog.text
+
+
+def test_occurrence_fan_out_is_not_counted_as_a_drop(caplog):
+    """One Localist event legitimately becomes N occurrence rows. Counting rows
+    instead of INPUT events would have made the r3 occurrence fix look like a
+    data-loss alarm on every series."""
+    import logging
+    import worker.importers.structured_feed as sf
+
+    doc = ('{"events":[{"event":{"id":7,"title":"Weekly Series","event_instances":['
+           '{"event_instance":{"id":71,"start":"2026-11-07T18:00:00-06:00"}},'
+           '{"event_instance":{"id":72,"start":"2026-11-14T18:00:00-06:00"}}]}}]}')
+    with caplog.at_level(logging.WARNING):
+        rows = sf.parse_platform_json(doc)
+    assert len(rows) == 2
+    assert "produced NO row" not in caplog.text
