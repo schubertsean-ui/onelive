@@ -142,6 +142,17 @@ run_check "governance_claims" "$PY" tools/governance_claims_lint.py
 #    that self-skip is internal to pytest and reported in its own output.
 run_check "pytest (full suite)" "$PY" -m pytest -q
 
+# 3b. Blocking-effect classifier (founder-directed 2026-07-25, after a
+#     merge-blocking failure was reported for hours as "pre-existing" and
+#     "operational" — language that read as cosmetic). Both required gates
+#     (trust-gate.yml, adversarial-review.yml) run an UNFILTERED full-suite
+#     pytest, so ANY failing test reds BOTH and blocks the merge. This check
+#     names the blocked gates explicitly and refuses the two invalid
+#     downgrades ("pre-existing", "recorded as R-###") — so the class is
+#     caught mechanically, not by remembering to be careful. Runs AFTER the
+#     suite so a green suite makes it a no-op.
+run_check "blocking_failure_check" "$PY" tools/blocking_failure_check.py
+
 # 4. Extraction eval harness import check — must at least import cleanly (no
 #    import-time regressions in the KPI-bearing module).
 run_check "eval_harness import" "$PY" -c \
