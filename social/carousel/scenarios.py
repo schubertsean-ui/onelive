@@ -19,8 +19,10 @@ start hour, never by "mellow".
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 
 from social.carousel.config import CarouselConfig
+from social.carousel.generator import CarouselTrustError
 
 
 @dataclass(frozen=True)
@@ -103,10 +105,23 @@ def scenario_events(events: list[dict], scenario: Scenario) -> list[dict]:
     trust selection runs unchanged afterwards."""
     picked = [e for e in events if e.get("domain_id") in scenario.domain_ids]
     if scenario.price_max is not None:
+        # Prices normalize through Decimal like every other price surface
+        # (#67 r1 nit adopted): a string "0" is free, and garbage raises
+        # the trust error shape, not a raw TypeError.
+        def _price(e: dict) -> Decimal | None:
+            raw = e.get("price_min")
+            if raw is None:
+                return None
+            try:
+                return Decimal(str(raw))
+            except InvalidOperation as exc:
+                raise CarouselTrustError(
+                    f"unparseable price_min {raw!r} on {e.get('event_id')}"
+                ) from exc
+
+        cap = Decimal(str(scenario.price_max))
         picked = [
-            e
-            for e in picked
-            if e.get("price_min") is not None and 0 <= e["price_min"] <= scenario.price_max
+            e for e in picked if (price := _price(e)) is not None and 0 <= price <= cap
         ]
     if scenario.earliest_start_hour is not None:
         picked = [

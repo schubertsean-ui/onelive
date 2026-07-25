@@ -838,6 +838,45 @@ def test_bad_autonomy_record_refuses_even_human_approval(monkeypatch, tmp_path):
     assert _release(draft, approval).released_by == "Sean Schubert"
 
 
+def test_broken_tzinfo_clock_refuses_release(monkeypatch):
+    # #67 r1: a tzinfo whose utcoffset() is None is NAIVE by Python's own
+    # definition — the aware-moment check must catch it, not just tzinfo.
+    import datetime as _dt
+
+    class _BrokenTz(_dt.tzinfo):
+        def utcoffset(self, dt):
+            return None
+
+        def dst(self, dt):
+            return None
+
+    draft = _draft()
+    approval = _approve(draft)
+    broken = datetime.fromisoformat(REF_TIME).replace(tzinfo=_BrokenTz())
+    monkeypatch.setattr(publish_gate, "_utcnow", lambda: broken)
+    with pytest.raises(ValueError, match="timezone-aware"):
+        _release(draft, approval)
+
+
+def test_event_jsonld_refuses_unscheduled_or_noncanonical_rows():
+    # #67 r1: the public helper must not emit EventScheduled markup for a
+    # cancelled or candidate row, regardless of caller.
+    with pytest.raises(ValueError, match="only ever emitted for scheduled"):
+        event_jsonld(_event(1, event_status="cancelled"), "Austin")
+    with pytest.raises(ValueError, match="never get discovery markup"):
+        event_jsonld(_event(1, origin="candidate_store"), "Austin")
+
+
+def test_scenario_price_filter_normalizes_like_every_price_surface():
+    # #67 r1 (adopting the r15 nit): "0" the string is free; garbage
+    # raises the trust-error shape, never a raw TypeError.
+    scenario = scenario_by_key("free_tonight")
+    free_str = _event(1, domain="comedy", price_min="0")
+    assert [e["event_id"] for e in scenario_events([free_str], scenario)] == ["ev-1"]
+    with pytest.raises(CarouselTrustError, match="unparseable price_min"):
+        scenario_events([_event(2, domain="comedy", price_min="abc")], scenario)
+
+
 def test_utc_gate_clock_releases_market_tonight_after_utc_midnight(monkeypatch):
     # r12 nit: at 21:00 CDT the UTC calendar has already turned — the
     # window must be judged in the event's own timezone or every Austin

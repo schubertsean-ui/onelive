@@ -72,10 +72,26 @@ def hashtags_for(city: str, events: list[dict]) -> tuple[str, ...]:
 
 def event_jsonld(event: dict, city: str) -> dict:
     """schema.org Event markup for one canonical event. Only asserts fields
-    that exist — absent data is omitted, never invented."""
+    that exist — absent data is omitted, never invented. Defensive trust
+    guard (#67 r1): this helper is public and stamps EventScheduled, so it
+    refuses non-scheduled or non-canonical rows itself — publish-bound
+    routes are already filtered, but a direct caller must not be able to
+    emit scheduled-looking markup for a cancelled or candidate row."""
     for key in ("event_id", "name", "venue_name", "start_time", "source"):
         if not event.get(key):
             raise ValueError(f"event_jsonld missing required field {key!r}")
+    if event.get("origin") != "canonical_event":
+        raise ValueError(
+            f"event_jsonld refuses {event['event_id']}: origin "
+            f"{event.get('origin')!r} is not the canonical published read "
+            "path — candidate/pipeline rows never get discovery markup"
+        )
+    if event.get("event_status") != "scheduled":
+        raise ValueError(
+            f"event_jsonld refuses {event['event_id']}: event_status "
+            f"{event.get('event_status')!r} — EventScheduled markup is only "
+            "ever emitted for scheduled events"
+        )
     doc: dict = {
         "@context": "https://schema.org",
         "@type": "Event",

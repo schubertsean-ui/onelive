@@ -1,12 +1,15 @@
 # ONE LIVE — Meta Carousel Engine v1 (spec + shipped engine, 2026-07-24)
 
-Greppable summary: founder-directed 2026-07-24 ("configure Meta carousel
-options. True world class … trust model framework … human perception …
-bits … positive emotions that drive action … Nir Eyal and Duhigg Atomic
-Habits … maximal learning and improvement toward 100% interaction … easy
-to share … tiered toward the content categories that have the most
-content … agent-driven … learns and revises and reposts … continuously
-optimized for [SEO/GEO] discovery"). STATUS: the ENGINE (generation,
+Greppable summary: founder-directed 2026-07-24 — a world-class Meta
+carousel program on the OneLive trust framework: perception- and
+emotion-grounded design (bits/images, positive emotion driving action),
+Eyal/Duhigg habit architecture, maximal-learning structure toward the
+100%-interaction goal, share-friendly, tiered toward the content
+categories with the most volume, agent-driven
+create→measure→learn→revise→repost, continuously optimized for SEO/GEO
+leadership (verbatim directive:
+`docs/memory/decisions/2026-07-24_meta-carousel-engine.md`, per
+dissemination minimization). STATUS: the ENGINE (generation,
 tiering, learning, gate physics, GEO artifacts — `social/carousel/`) is
 CODE in this PR, tested; the POSTING POSTURE (live Meta publishing,
 credentials, cadence) is PROPOSAL pending the founder decisions in §9.
