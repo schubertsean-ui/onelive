@@ -9,6 +9,8 @@ JSON-LD @graph Event/non-Event filter and field mapping (name/startDate/offers/
 location), the "no title / no id → skipped, never fabricated" invariant, @type
 list/single/array tolerance, and the runner's fail-loud selection behavior.
 """
+import pytest
+
 import worker.importers.run_structured_import as runner
 from worker.importers.structured_feed import (
     PROVIDER_ICS,
@@ -812,11 +814,8 @@ def test_tls_verification_failure_propagates(monkeypatch):
 
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
     monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
-    try:
+    with pytest.raises(ssl.SSLError):
         sf.import_source("https://venue.example/", source_name="venue")
-        raise AssertionError("a TLS failure must propagate")
-    except ssl.SSLError:
-        pass
 
 
 def test_runner_counts_failed_sources_separately_from_empty_ones(monkeypatch, caplog):
