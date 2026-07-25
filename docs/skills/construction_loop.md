@@ -52,9 +52,16 @@ design is accepted, retrieve over docs/memory/ + KAIZEN_LEDGER keyed on
 the touched paths AND the change's content; the design must CITE each
 matched red class with a deliberate `[S3:<token>] <answer>` line ADDED
 to the session contract in the current change (bare mentions and stale
-history never count — r5/r6), plus matched green examples as reuse
-candidates; "no matched classes" is an explicit printed result, never
-silence.
+history never count — r5/r6); "no matched classes" is an explicit
+printed result, never silence. GREEN-EXAMPLE retrieval (reuse
+candidates from docs/memory + session arcs) is the stage's second half:
+today it is a PRACTICED obligation evidenced in the contract (a
+`[S3-green]` line naming the reused precedents, or the explicit "no
+green matches"), and its mechanization is RECORDED as R-029 with an
+objective trigger — the Brain 1B recall tool (whose spec already
+returns success neighbors) becomes the green matcher and joins
+construction_gate in that build (r7: the canon claims exactly the
+mechanism that exists, no more).
 Schema: distilled class RULES (always injected) vs full past CASES
 (retrieved by similarity).
 
@@ -106,7 +113,9 @@ gate-gap fix. The loop measures the loop.
    accepted without the Stage 3 citation pass (`tools/construction_gate.py`,
    a hard gate in validate: it refuses any diff whose matched red classes
    are uncited in the session contract, and fails closed on a missing
-   index).
+   index). The mechanical gate covers the RED half; the green half is a
+   practiced, contract-evidenced obligation until R-029's trigger
+   (Brain 1B) mechanizes it.
 2. **The premortem is seeded from the ledger's red classes and runs
    before design acceptance** — every past evaluator finding becomes a
    token the next build must answer in writing, shifting review-round
