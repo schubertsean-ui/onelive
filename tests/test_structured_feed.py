@@ -359,3 +359,40 @@ def test_event_type_beats_a_misleading_title_and_venue():
     n3 = normalize_structured(generic, provider=PROVIDER_JSONLD, source_name="Mohawk",
                               cultural_domain="live-music")
     assert n3["category"] == "live-music"
+
+
+def test_the_curated_moat_sources_are_actually_importable():
+    """The local-moat rows (ranks 77-114) must be SELECTED by the importer.
+
+    Founder catch 2026-07-25 ("Only 40?"): those 38 curated venue/org sources
+    carry `structured_feed_verify` (verified first-party page, exact feed path
+    unconfirmed). The selector originally accepted only tokens like
+    `ics_feed_if_offered`, so every moat source was silently skipped — catalogued
+    but never fetched. This pins the wiring so the moat cannot go dark again.
+    """
+    import importlib.util, json, pathlib
+    root = pathlib.Path(__file__).resolve().parent.parent
+    spec = importlib.util.spec_from_file_location(
+        "run_structured_import", root / "worker" / "importers" / "run_structured_import.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    catalog = json.loads((root / "sources" / "master_sources_catalog_120.json")
+                         .read_text(encoding="utf-8"))
+    moat = [e for e in catalog
+            if isinstance(e.get("rank"), int) and 77 <= e["rank"] <= 114]
+    assert moat, "expected the curated moat rows in the catalog"
+
+    # Every moat source that is an EVENTS calendar must be selectable. The one
+    # deliberate exception is the artist-identity spine (MusicBrainz), which
+    # supplies artist/MBID data, not events — excluding it from an EVENTS import
+    # is correct, not a gap.
+    event_sources = [e for e in moat if e.get("category") != "artist_directory"]
+    skipped = [e["id"] for e in event_sources if not mod._is_structured_candidate(e)]
+    assert not skipped, (
+        f"{len(skipped)} curated moat event source(s) would NEVER be fetched: {skipped}")
+
+    # And the overall selectable set must be materially larger than the
+    # pre-moat baseline of 18 — i.e. the moat really is in the import scope.
+    selectable = [e for e in catalog if mod._is_structured_candidate(e)]
+    assert len(selectable) >= 55, f"only {len(selectable)} sources selectable"

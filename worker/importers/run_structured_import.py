@@ -44,6 +44,15 @@ DEFAULT_CATALOG = REPO / "sources" / "master_sources_catalog_120.json"
 _STRUCTURED_ALLOWED = {
     "ics_feed_if_offered", "localist_json_feed", "feed_if_offered",
     "ics_upload", "partner_export", "official_feed",
+    # The curated local-moat rows (ranks 77-114) carry this token: a verified
+    # first-party events page whose EXACT machine-readable feed path is not yet
+    # confirmed. Including it is what makes the moat actually import — without
+    # it those 38 sources sat in the catalog and were never fetched (found
+    # 2026-07-25 when the founder asked "Only 40?"). Safe by construction:
+    # import_source auto-detects ICS vs embedded JSON-LD, and a source that
+    # exposes neither yields 0 events, which run_structured_import LOGS as a
+    # per-source warning rather than failing the run.
+    "structured_feed_verify",
 }
 _STRUCTURED_ACCESS_TOKENS = ("ics", "localist", "feed")
 
