@@ -56,7 +56,7 @@ GOAL: (1) An honest RCA of the PR #63/#65 15-round arc (root cause: class-level 
 SCOPE: research (background agent) + method doc + operating-rules section + decision record + bookends. Rides the NEXT PR after the in-flight #67 bookkeeping PR merges (no scope mixing into a PR mid-review).
 NON-GOALS: no gate/threshold changes (the loop ADDS an upstream pass; every downstream gate stays identical); no CLAUDE.md charter edit without founder ratification of the final method (queued as the close-out ask).
 DONE-CRITERIA: research synthesis received · construction_loop.md committed · OPERATING_RULES § added · decision record with founder verbatim · TODOS/changelog/Kaizen updated · validate green · PR through the evaluator.
-STATUS: OPEN — research agent launched; Vercel founder-fix steps re-sent (PR #60); #67 at r3-adopted awaiting r4.
+STATUS: DELIVERED (same day) — research synthesis received; docs/skills/construction_loop.md ADOPTED + OPERATING_RULES rule + decision record (verbatim + RCA); mechanical construction_gate tooling + charter ratification queued in TODOS; rides PR #67. Vercel founder-fix steps re-sent (PR #60).
 
 ## Session Contract #23 (2026-07-24, `onelife-meta-carousel` — founder-directed: build the Meta carousel engine to a world-class bar on the trust framework — perception/emotion/habit research applied, learning continuously toward the 100%-interaction goal, share-friendly, multiple series tiered by content volume, an agent-driven create→measure→learn→revise→repost loop, and standing SEO/GEO leadership as the target; verbatim directive: docs/memory/decisions/2026-07-24_meta-carousel-engine.md — dissemination-minimization, r12 nit)
 
