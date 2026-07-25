@@ -1,7 +1,24 @@
-"""AI extraction entrypoint — turns raw source text into an event_candidate row.
+"""AI extraction entrypoint — turns raw source text into event_candidate rows.
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/ai_extract.py)
+
+A page is not one event. A venue calendar can list dozens of shows, so this
+module SEGMENTS a fetched page into per-event blocks (worker/segment.py) and
+FANS OUT — running the UNCHANGED, golden-exam-certified single-event extractor
+(ai/prompts.py + AIEventExtraction) once per block and creating one candidate +
+one evidence row per extracted event. The certified extractor's prompt, schema,
+and model are untouched: the multi-event capability lives entirely in the
+un-bound segmentation + fan-out layer, so the extraction certification hash is
+unaffected and extraction stays ON (EXTRACTION_THRESHOLD_RATIFIED stays True).
+
+The single-event page is just the 1-block case, so behavior on pages we already
+handle is unchanged. A page that HAD real text but yields ZERO events is a loud
+signal (the source may have moved or reorganized its calendar), never a silent
+drop: it fires the AI_EXTRACT_ZERO_EVENTS_SOURCE_MAY_HAVE_MOVED marker and still
+records one flagged empty candidate for ops.
 """
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
+import copy
 import inspect
 import logging
 
@@ -15,7 +32,7 @@ from worker.datetime_normalize import (
     normalize_extracted_datetimes,
     preserve_discarded_claims,
 )
-from worker.gating import multi_confirm_gate
+from worker.segment import segment_events
 
 logger = logging.getLogger(__name__)
 
@@ -25,22 +42,44 @@ logger = logging.getLogger(__name__)
 # audit trail — which model/prompt/when produced this candidate — persists.
 _META_PREFIX = "_"
 
+# Greppable, structured marker logged when a page that HAD real text yields zero
+# events across all its blocks. Ops/monitoring grep for this to find sources
+# whose calendar may have moved or changed layout. Do NOT rename without
+# updating the runbook/alerts that match on it.
+SOURCE_MAY_HAVE_MOVED_MARKER = "AI_EXTRACT_ZERO_EVENTS_SOURCE_MAY_HAVE_MOVED"
 
-def extract_candidate(
-    *,
-    ai: AIProvider,
-    text: str,
-    source_class: str,
-    source_name: str,
-    source_url: str,
-    sxsw_mode: bool = False,
-    source_id: Optional[str] = None,
-) -> str:
-    schema = AIEventExtraction.model_json_schema()
-    # Pass the degradation audit hook only to providers that accept it (the real
-    # Claude provider does; the stub keeps the minimal protocol signature). This
-    # keeps the call a true drop-in across implementations.
-    extract_kwargs = {"system_prompt": EXTRACTION_SYSTEM_PROMPT}
+
+@dataclass
+class ExtractionOutcome:
+    """Result of fanning one fetched page out into candidates.
+
+    - ``candidate_ids``: every candidate created for this page (N for an
+      N-event calendar; exactly one — a flagged empty candidate — for the
+      zero-event case, so the legacy "always a row for ops" contract holds).
+    - ``source_returned_empty``: True when the page had real text but the
+      model found zero events in every block — the "source may have
+      moved/changed" signal.
+    """
+    candidate_ids: List[str] = field(default_factory=list)
+    source_returned_empty: bool = False
+
+
+def _split_meta(d: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Split a provider dict into (meta, event_fields) by the ``_`` prefix."""
+    meta = {k: v for k, v in d.items() if k.startswith(_META_PREFIX)}
+    fields = {k: v for k, v in d.items() if not k.startswith(_META_PREFIX)}
+    return meta, fields
+
+
+def _extract_kwargs_for(ai: AIProvider, source_name: str) -> Dict[str, Any]:
+    """The certified extraction call's kwargs — built EXACTLY as the historical
+    single-event path did, so the call is a byte-for-byte drop-in.
+
+    The degradation audit hook / source_name are passed only to providers that
+    accept them (the real Claude provider does; the minimal protocol stub does
+    not), so the call stays a true drop-in across implementations.
+    """
+    extract_kwargs: Dict[str, Any] = {"system_prompt": EXTRACTION_SYSTEM_PROMPT}
     try:
         params = inspect.signature(ai.extract_event_json).parameters
         if "audit_hook" in params:
@@ -49,13 +88,28 @@ def extract_candidate(
             extract_kwargs["source_name"] = source_name
     except (TypeError, ValueError):
         pass
-    raw = ai.extract_event_json(text, schema, **extract_kwargs) or {}
+    return extract_kwargs
 
-    # Separate provider meta (e.g. _provenance) from event fields. Meta must not
-    # go through the pydantic model (it would be silently dropped) but MUST be
-    # preserved into the stored jsonb so the extraction stays auditable.
-    meta = {k: v for k, v in raw.items() if k.startswith(_META_PREFIX)}
-    event_fields = {k: v for k, v in raw.items() if not k.startswith(_META_PREFIX)}
+
+def _shape_and_store_one(
+    event_fields: Dict[str, Any],
+    meta: Dict[str, Any],
+    *,
+    source_id: Optional[str],
+    source_name: str,
+    source_url: str,
+    source_class: str,
+    text: str,
+    sxsw_mode: bool,
+) -> str:
+    """Validate, R-021-normalize, and persist ONE event as candidate + evidence.
+
+    ``meta`` is DEEP-COPIED first: events on the same page may share provider
+    provenance, and the per-event mutations below (validation_error flag,
+    unstored_datetime_claims) must never leak one event's refusals onto
+    another's audit trail.
+    """
+    meta = copy.deepcopy(meta)
 
     # Validate/shape. A validation failure is NOT silently blanked: an empty
     # candidate that looks identical to "no event found" would hide a real
@@ -71,9 +125,9 @@ def extract_candidate(
                      "creating a flagged empty candidate for ops review rather than "
                      "silently dropping it. Errors: %s", source_name, exc.errors())
         shaped = AIEventExtraction().model_dump()
-        meta.setdefault("_provenance", {})
-        if isinstance(meta["_provenance"], dict):
-            meta["_provenance"]["validation_error"] = True
+        prov = meta.get("_provenance")
+        meta["_provenance"] = dict(prov) if isinstance(prov, dict) else {}
+        meta["_provenance"]["validation_error"] = True
     # Default city when absent OR explicitly null (setdefault alone misses the
     # null case, which is the common one when the model finds no city).
     if not shaped.get("city"):
@@ -82,7 +136,8 @@ def extract_candidate(
     # evidences a full calendar date — never fabricate one. Time-only
     # claims ("6pm") become NULL with the raw claim preserved in
     # provenance; the candidate row still reaches ops review, so no false
-    # fact is asserted and no event is lost to a formatting detail.
+    # fact is asserted and no event is lost to a formatting detail. Applied
+    # PER EVENT so each show's date claim is judged on its own text.
     discarded_times = normalize_extracted_datetimes(shaped)
     if discarded_times:
         logger.warning(
@@ -111,16 +166,121 @@ def extract_candidate(
         extracted=shaped,
         sxsw_mode=sxsw_mode,
     )
-    # Evidence from the originating source
+    # Evidence from the originating source. In the fan-out, ``text`` is this
+    # event's OWN block, so each candidate is backed by the exact text it was
+    # extracted from — isolated per-event provenance, no cross-event leak.
     add_evidence(
         candidate_id=candidate_id,
         source_class=source_class,
         source_name=source_name,
         source_url=source_url,
-        quote=text[:500]
+        quote=text[:500],
     )
-    # Gate update (stored by ops enqueue hook or API; keep here minimal)
-    classes = [source_class]
-    gate = multi_confirm_gate(classes, sxsw_mode=sxsw_mode)
-    # No direct DB write here for gate fields; API/ops can recompute.
     return candidate_id
+
+
+def extract_candidates(
+    *,
+    ai: AIProvider,
+    text: str,
+    source_class: str,
+    source_name: str,
+    source_url: str,
+    sxsw_mode: bool = False,
+    source_id: Optional[str] = None,
+) -> ExtractionOutcome:
+    """Extract EVERY event on a page and fan out one candidate per event.
+
+    Segments the page, then runs the UNCHANGED certified single-event extractor
+    once per block. Returns an :class:`ExtractionOutcome`. A multi-event
+    calendar creates N candidates; a single-event page, exactly one (unchanged
+    behavior); a page that had real text but yielded zero events fires the
+    moved/changed signal AND still records one flagged empty candidate, so the
+    source is never silently dropped.
+    """
+    blocks = segment_events(text)
+    # AIEventExtraction (single-event) schema — the CERTIFIED shape, unchanged.
+    schema = AIEventExtraction.model_json_schema()
+    extract_kwargs = _extract_kwargs_for(ai, source_name)
+
+    store_kwargs = dict(
+        source_id=source_id,
+        source_name=source_name,
+        source_url=source_url,
+        source_class=source_class,
+        sxsw_mode=sxsw_mode,
+    )
+    outcome = ExtractionOutcome()
+
+    for block in blocks:
+        # One certified single-event extraction PER block. Same prompt, same
+        # schema, same model as today — just run once per event on the page.
+        raw = ai.extract_event_json(block, schema, **extract_kwargs) or {}
+        meta, fields = _split_meta(raw)
+        # A block that yields no content-bearing fields had no extractable event
+        # (e.g. a footer/nav fragment caught by the split) — skip it. This is
+        # NOT a silent drop of a real event; the whole-page zero-event case
+        # below is the one that must be surfaced.
+        if not any(v for v in fields.values()):
+            continue
+        outcome.candidate_ids.append(
+            _shape_and_store_one(fields, meta, text=block, **store_kwargs)
+        )
+
+    if not outcome.candidate_ids:
+        # Zero events across every block. Was there real text to extract FROM?
+        # If yes, this is suspicious — the page changed or the source moved its
+        # calendar — and must be surfaced loudly, not dropped. (A concurrent
+        # ai_extraction_degraded audit row, written by the provider, is how a
+        # transient provider failure is told apart from a genuine move.)
+        page_had_text = bool(text and text.strip())
+        empty_meta: Dict[str, Any] = {}
+        if page_had_text:
+            outcome.source_returned_empty = True
+            logger.warning(
+                "%s: source %r (%s) returned ZERO events from non-empty page "
+                "text (%d chars) — the source may have MOVED or changed its "
+                "calendar layout; recording a flagged empty candidate for ops "
+                "follow-up rather than dropping it.",
+                SOURCE_MAY_HAVE_MOVED_MARKER, source_name, source_url, len(text),
+            )
+            empty_meta["_provenance"] = {"source_returned_empty": True}
+        # Preserve the legacy contract of always producing a candidate row for
+        # ops (empty page text is normally stopped upstream by the sensor).
+        outcome.candidate_ids.append(
+            _shape_and_store_one({}, empty_meta, text=text, **store_kwargs)
+        )
+
+    return outcome
+
+
+def extract_candidate(
+    *,
+    ai: AIProvider,
+    text: str,
+    source_class: str,
+    source_name: str,
+    source_url: str,
+    sxsw_mode: bool = False,
+    source_id: Optional[str] = None,
+) -> str:
+    """Backward-compatible single-id entrypoint (used by worker/orchestrator.py).
+
+    Fans the page out via :func:`extract_candidates` — so a calendar still
+    produces N stored candidates — and returns the FIRST candidate id to keep
+    the orchestrator's existing per-candidate gate/replay contract unchanged.
+    Callers that need the full fan-out (and the moved/changed signal) should
+    call :func:`extract_candidates` directly.
+    """
+    outcome = extract_candidates(
+        ai=ai,
+        text=text,
+        source_class=source_class,
+        source_name=source_name,
+        source_url=source_url,
+        sxsw_mode=sxsw_mode,
+        source_id=source_id,
+    )
+    # extract_candidates always records at least one candidate (a flagged empty
+    # one on the zero-event path), so there is always an id to return.
+    return outcome.candidate_ids[0]
