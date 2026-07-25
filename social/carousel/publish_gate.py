@@ -25,6 +25,7 @@ import hashlib
 import hmac
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Callable
 
 from social.carousel.autonomy import load_policy
@@ -182,6 +183,11 @@ def _recheck_trust(draft: CarouselDraft, reference_time: str) -> None:
             "count — the listicle promise must be exact"
         )
     event_ids = [s.event_id for s in draft.slides if s.kind == "event"]
+    if len(set(event_ids)) != len(event_ids):
+        raise ValueError(
+            "release refused: duplicate event ids in the deck — the listicle "
+            "promise counts distinct events, never repeats"
+        )
     current_states = _STATE_READER(event_ids)
     for slide in draft.slides:
         if slide.kind != "event":
@@ -285,6 +291,13 @@ def release_for_publish(
 
     if approval is not None:
         _assert_human_identity(approval.approved_by)
+        try:
+            datetime.fromisoformat(approval.approved_at)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"release refused: approval timestamp {approval.approved_at!r} "
+                "is not a valid ISO 8601 moment"
+            ) from exc
         if approval.draft_hash != draft_hash:
             raise ValueError(
                 "release refused: approval hash does not match this draft — "

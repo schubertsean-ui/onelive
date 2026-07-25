@@ -91,7 +91,7 @@ Design choices below are constraints in code (`config.py`), not taste:
 - **The 3-second gate.** Feed scrolling decides in the first ~1–3 s.
   Slide 1 is a dedicated HOOK slide — it sells the *swipe*, not the
   event: curiosity gap (Loewenstein — open a specific question the next
-  slide answers), a number promise ("7 shows under $20 tonight"), awe
+  slide answers), a number promise ("7 nights from $15", exact-minimum framing — r5 price-truth rule), awe
   ("the room 2,000 people will be in at 9pm"), or humor. Encoded as the
   `hook_type` factor the bandit learns over.
 - **Chunking (Miller/Cowan) + the listicle canon (founder directive

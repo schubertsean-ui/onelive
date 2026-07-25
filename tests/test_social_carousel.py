@@ -599,6 +599,37 @@ def test_price_labels_are_exact_never_truncated():
     assert "from $0.01" in draft.slides[0].headline
 
 
+def test_duplicate_event_ids_fail_loud_at_generation():
+    # r6 blocker: a listicle counts distinct events.
+    dupes = [_event(1), _event(1)] + [_event(i) for i in range(2, 6)]
+    with pytest.raises(CarouselTrustError, match="duplicate event id"):
+        select_featurable(dupes)
+
+
+def test_duplicate_event_ids_refuse_at_release():
+    draft = _draft()
+    slides = list(draft.slides)
+    idx = next(i for i, s in enumerate(slides) if s.kind == "event")
+    slides[idx + 1] = slides[idx]  # repeat the same event slide
+    tampered = dataclasses.replace(draft, slides=tuple(slides))
+    approval = _approve(tampered)
+    with pytest.raises(ValueError, match="distinct events"):
+        _release(tampered, approval)
+
+
+def test_release_rechecks_approval_timestamp_shape():
+    draft = _draft()
+    good = _approve(draft)
+    bad = Approval(
+        draft_hash=good.draft_hash,
+        approved_by=good.approved_by,
+        approved_at="not-a-time",
+        signature=good.signature,
+    )
+    with pytest.raises(ValueError, match="ISO 8601"):
+        _release(draft, bad)
+
+
 def test_missing_discovery_bundle_never_releases():
     # r5 blocker: discovery is required — a draft stripped of it refuses.
     draft = _draft()

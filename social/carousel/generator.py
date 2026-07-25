@@ -22,6 +22,7 @@ import json
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 from social.carousel.config import (
     BANNED_CLAIM_PHRASES,
@@ -216,9 +217,18 @@ def within_timeframe(start_time: str, reference_time: str, timeframe: str) -> bo
 def select_featurable(events: list[dict]) -> list[dict]:
     """Trust selection (spec §1): confirmed first, then likely; scheduled
     only; the rest are never featured. Unknown states fail loud — a new
-    state must be classified deliberately, never defaulted into marketing."""
+    state must be classified deliberately, never defaulted into marketing.
+    Duplicate event ids fail loud too (r6): a listicle promise counts
+    DISTINCT events, and a duplicated canonical row is an upstream defect."""
+    seen: set[str] = set()
     for event in events:
         _check_event(event)
+        if event["event_id"] in seen:
+            raise CarouselTrustError(
+                f"duplicate event id {event['event_id']!r} in the lineup — "
+                "a listicle counts distinct events, never repeats"
+            )
+        seen.add(event["event_id"])
     featurable = [
         e
         for e in events
@@ -264,10 +274,13 @@ def _scan_banned(text: str, context: str) -> None:
 
 
 def _price_label(price) -> str:
-    """Exact price display (r5): $19.99 is $19.99, never $19 — a public
-    price claim is a fact, and facts are verbatim."""
-    value = float(price)
-    return f"${int(value)}" if value == int(value) else f"${value:.2f}"
+    """Exact price display (r5, hardened r6 via Decimal): $19.99 is
+    $19.99, never $19 — a public price claim is a fact, and facts are
+    verbatim; Decimal avoids float representation surprises."""
+    value = Decimal(str(price))
+    if value == value.to_integral_value():
+        return f"${int(value)}"
+    return f"${value.quantize(Decimal('0.01'))}"
 
 
 def _hook_headline(hook_type: str, events: list[dict], config: CarouselConfig) -> str:
