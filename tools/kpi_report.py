@@ -25,17 +25,32 @@ TRIGGER, in ``NOT_YET_INSTRUMENTED`` below — never silently skipped, never
 guessed at. A KPI this tool cannot compute is reported as the literal text
 "not yet instrumented (trigger: ...)", never a fabricated number.
 
+Registry (founder directive — changing WHICH KPIs are tracked, their
+TARGETS, or their FREQUENCY must be a simple config edit, never a code
+change): the KPI list itself is pure data in ``docs/metrics/
+kpi_registry.json`` (schema + how-to-change recipe: see that file's
+``_comment`` and docs/strategy/ONE_LIVE_KPI_FRAMEWORK_v1.md's "How to change
+a KPI, its target, or its frequency" section). This module reads and
+VALIDATES that file (``load_kpi_registry``) — it never hardcodes the list.
+Only a genuinely NEW measurement source needs a code change: add one
+``_kpi_*`` function and register it by name in ``_COMPUTE_FUNCTIONS``: every
+other change (target/frequency/area/owner/enable/disable, or a new KPI that
+reuses an existing compute or is a named "manual_gap") is JSON-only.
+
 Modes:
   --print              compute + print the scorecard (no write; default)
   --append TIMESTAMP   append one snapshot's rows to docs/metrics/KPI_LEDGER.md
                        (TIMESTAMP is caller/CI-supplied — this module never
                        reads the wall clock)
   --check              exit 1 if any COMPUTED (not gap) KPI is OFF_TARGET
+  --registry PATH       KPI registry JSON to read (default: docs/metrics/
+                       kpi_registry.json)
 
 Exit codes (tools/README.md convention):
   0 = ok (printed / appended / --check found nothing off target)
   1 = --check found an off-target KPI
-  2 = could not compute something required — fail loud, never invent a number
+  2 = could not compute something required, or the registry is malformed —
+      fail loud, never invent a number or silently skip a bad entry
 
 Usage:
   python tools/kpi_report.py
@@ -74,6 +89,7 @@ DEFAULT_KAIZEN_LEDGER = _REPO_ROOT / "docs" / "metrics" / "KAIZEN_LEDGER.md"
 DEFAULT_RECORD = _REPO_ROOT / "docs" / "RECORD.md"
 DEFAULT_CERTIFIED_HARNESS = _REPO_ROOT / "ai" / "golden" / "CERTIFIED_HARNESS.json"
 DEFAULT_TRUST_GATE = _REPO_ROOT / "tools" / "trust_gate.py"
+DEFAULT_KPI_REGISTRY = _REPO_ROOT / "docs" / "metrics" / "kpi_registry.json"
 
 ON_TARGET = "ON_TARGET"
 OFF_TARGET = "OFF_TARGET"
@@ -84,6 +100,14 @@ NOT_YET_INSTRUMENTED = "NOT_YET_INSTRUMENTED"
 _TABLE_HEADER_CELLS = ("timestamp", "area", "metric", "kind", "target",
                        "current", "trend", "owner")
 
+# Valid values for the registry's controlled-vocabulary fields — anything
+# else fails registry load loudly (see load_kpi_registry).
+_VALID_KINDS = frozenset({"leading", "lagging"})
+_VALID_DIRECTIONS = frozenset(
+    {"higher_better", "lower_better", "boolean", "informational"})
+_VALID_FREQUENCIES = frozenset(
+    {"per_run", "daily", "weekly", "monthly", "quarterly"})
+
 
 class KPIComputeError(Exception):
     """Raised when a KPI that SHOULD be computable could not be — fail loud.
@@ -93,6 +117,12 @@ class KPIComputeError(Exception):
     itself could not be taken (file missing/unparseable, a subprocess could
     not run at all) and the tool refuses to guess a number.
     """
+
+
+class KPIRegistryError(Exception):
+    """The KPI registry (docs/metrics/kpi_registry.json) is missing, is not
+    valid JSON, or contains a malformed/unknown-compute entry — fail loud,
+    never silently drop or guess at a KPI definition."""
 
 
 # ============================================================================
@@ -113,6 +143,13 @@ class KPISlot:
     named gap (``compute`` is None, ``why``/``trigger`` are set instead) —
     mirrors brain/iq.py's MEASURED/NOT_YET_MEASURED split, extended with the
     area/kind/owner columns this ledger's shape needs.
+
+    Built exclusively by ``load_kpi_registry`` from the JSON registry
+    (docs/metrics/kpi_registry.json) — ``id``/``direction``/``frequency``/
+    ``enabled`` are first-class config fields, not derived. The fields here
+    default so ad-hoc/test construction (e.g. a synthetic gap slot in a
+    test) stays terse; the registry LOADER is what enforces every field is
+    actually present and well-formed for real entries.
     """
 
     area: str
@@ -120,6 +157,10 @@ class KPISlot:
     kind: str  # "leading" | "lagging"
     owner: str
     target: str
+    id: str = ""
+    direction: str = "informational"  # higher_better|lower_better|boolean|informational
+    frequency: str = "per_run"  # per_run|daily|weekly|monthly|quarterly
+    enabled: bool = True
     compute: Optional[Callable[[], KPIValue]] = None
     why: Optional[str] = None
     trigger: Optional[str] = None
@@ -304,108 +345,144 @@ def _kpi_model_routing() -> KPIValue:
 
 
 # ============================================================================
-# The registry — every KPI line the ledger/scorecard renders, one commit's
-# worth of ground truth per Area (CLAUDE.md areas: Ingestion/Coverage,
-# Extraction Correctness, Cost-efficiency, Brain quality, UX/consumer,
-# Trust/safety).
+# Compute-function registry — the ONLY place a JSON registry entry's
+# ``compute`` key is resolved to actual Python. Adding a genuinely new
+# measurement means writing one ``_kpi_*`` function above and adding one line
+# here; every other registry change (new KPI reusing an existing key or
+# "manual_gap", re-targeting, re-cadencing, re-owning, enabling/disabling) is
+# then a pure JSON edit with zero code touched.
 # ============================================================================
-KPI_SLOTS: tuple[KPISlot, ...] = (
-    # --- Ingestion / Coverage -------------------------------------------------
-    KPISlot(area="Ingestion/Coverage", metric="Source catalog size (enabled sources)",
-            kind="lagging", owner="ingestion loop (Sentinel)",
-            target=">=120 sources (R-007)",
-            why="requires a live DB connection (ONELIVE_DB_DSN); this tool is "
-                "stdlib-only/no-network by design",
-            trigger="a session with ONELIVE_DB_DSN present runs `select count(*) "
-                    "from source where enabled` and folds it in"),
-    KPISlot(area="Ingestion/Coverage", metric="Scheduled cron slot-fire density",
-            kind="leading", owner="ingestion loop (Sentinel)",
-            target=">=80% of eligible 20-min slots fire (R-023)",
-            why="requires the read-only healthchecks.io API + GitHub Actions "
-                "API, neither reachable from this offline tool",
-            trigger="a session with HEALTHCHECKS_API_KEY_RO + `gh` computes the "
-                    "trailing 24h slot-fire rate and folds it in"),
+_COMPUTE_FUNCTIONS: dict[str, Callable[[], KPIValue]] = {
+    "hallucination_rate": _kpi_hallucination_rate,
+    "recall": _kpi_recall,
+    "escaped_defects": _kpi_escaped_defects,
+    "repeat_class_alarms": _kpi_repeat_class_alarms,
+    "trust_gate": _kpi_trust_gate,
+    "record_open_rows": _kpi_record_open_rows,
+    "pytest_count": _kpi_pytest_count,
+    "brain_iq": _kpi_brain_iq,
+    "model_routing": _kpi_model_routing,
+}
 
-    # --- Extraction Correctness (zero-escaped-defects — the reputation metric)
-    KPISlot(area="Extraction Correctness",
-            metric="Field-level hallucination rate @ last certification",
-            kind="lagging", owner="extraction loop / evaluator gate",
-            target=f"<= {HALLUCINATION_MAX:.0%} (one-way ratchet, KAIZEN.md §M7)",
-            compute=_kpi_hallucination_rate),
-    KPISlot(area="Extraction Correctness",
-            metric="Recall @ last certification (anti-gaming pair)",
-            kind="leading", owner="extraction loop / evaluator gate",
-            target=f">= {RECALL_MIN:.0%}", compute=_kpi_recall),
-    KPISlot(area="Extraction Correctness", metric="All-time escaped defects (M3)",
-            kind="lagging", owner="Kaizen / evaluator gate",
-            target="0, absolute (Deming zero-escaped-defects goal)",
-            compute=_kpi_escaped_defects),
-    KPISlot(area="Extraction Correctness", metric="Production trailing hallucination rate",
-            kind="lagging", owner="extraction loop / Kaizen M7 ratchet",
-            target="tracked weekly; ratchets the certified bar down when it "
-                   "holds at <= half the current bar for 4 cycles",
-            why="KAIZEN.md §M7 names admin-review verdicts + user reports as "
-                "the production-sampling input, but no code yet tallies "
-                "confirmed extraction errors against total assertions",
-            trigger="first batch of admin-review verdicts and/or user "
-                    "\"Something off?\" reports flows and a script tallies "
-                    "confirmed errors / total field assertions"),
+# Registry entry fields every KPI must carry — see docs/metrics/
+# kpi_registry.json's own _comment for the schema in prose.
+_REQUIRED_ENTRY_FIELDS = ("id", "area", "metric", "kind", "target", "direction",
+                          "frequency", "owner", "enabled", "compute")
+_REQUIRED_STRING_FIELDS = ("area", "metric", "target", "owner")
 
-    # --- Cost-efficiency -------------------------------------------------------
-    KPISlot(area="Cost-efficiency", metric="Cost per verified published event (§14.2)",
-            kind="lagging", owner="FinOps / model router",
-            target="no baseline yet — §14.2: 'it becomes your own baseline'",
-            why="no live cost meter exists yet; tokens+fetch+ops-minutes per "
-                "promoted event is not logged anywhere",
-            trigger="first real scheduled ingestion run with per-event cost "
-                    "logging wired (§14.2) and at least one promoted event to "
-                    "divide by"),
-    KPISlot(area="Cost-efficiency", metric="Loop-stage model routing wired (no hardcoded ids)",
-            kind="leading", owner="model_router / Generator",
-            target="every declared stage resolves via tools/model_router.py",
-            compute=_kpi_model_routing),
 
-    # --- Brain quality -----------------------------------------------------
-    KPISlot(area="Brain quality", metric="Brain IQ composite (knowledge/efficiency/learning)",
-            kind="lagging", owner="brain loop",
-            target="one-way ratchet: knowledge & efficiency never regress "
-                   "(tools/brain_iq.py --check, wired into tools/validate)",
-            compute=_kpi_brain_iq),
+def load_kpi_registry(path: pathlib.Path) -> tuple[KPISlot, ...]:
+    """Load + validate the editable KPI registry (JSON) into KPISlot objects.
 
-    # --- UX / consumer -------------------------------------------------------
-    KPISlot(area="UX/consumer", metric="Web app test suite (vitest) green",
-            kind="leading", owner="web loop",
-            target="100% green on every web PR",
-            why="a different toolchain (Node/vitest); this stdlib-only Python "
-                "tool does not shell into npm to keep --no-network determinism",
-            trigger="a stdlib-safe reader of the web CI job's test-count "
-                    "artifact/log is wired into this tool"),
-    KPISlot(area="UX/consumer", metric="Real user engagement / retention",
-            kind="lagging", owner="web loop / growth",
-            target="TBD — defined at public launch (SS15 growth, PROPOSAL)",
-            why="the site is behind the Clerk stealth gate; there is no public "
-                "traffic to measure yet",
-            trigger="public launch + analytics wired (Vercel Analytics, TODOS "
-                    "P1) define and start reporting real engagement metrics"),
+    Fail-CLOSED, per CLAUDE.md's no-silent-deferral rule: any malformed
+    entry — a missing field, an unknown kind/direction/frequency, an unknown
+    compute key, a "manual_gap" entry missing why/trigger, a duplicate id, or
+    a registry that isn't valid JSON/isn't shaped {"kpis": [...]} — raises
+    KPIRegistryError. Nothing is ever silently skipped or guessed.
 
-    # --- Trust / safety ------------------------------------------------------
-    KPISlot(area="Trust/safety", metric="trust_gate clean (trust invariants hold)",
-            kind="lagging", owner="gate custody / evaluator",
-            target="PASS, always (CLAUDE.md prime directive 1)",
-            compute=_kpi_trust_gate),
-    KPISlot(area="Trust/safety", metric="Kaizen repeat-class alarms active",
-            kind="lagging", owner="Kaizen / evaluator gate",
-            target="0 active (docs/KAIZEN.md repeat-class rule)",
-            compute=_kpi_repeat_class_alarms),
-    KPISlot(area="Trust/safety", metric="docs/RECORD.md open deviations",
-            kind="leading", owner="gate custody / Generator",
-            target="every OPEN row carries a live trigger; not a fixed number",
-            compute=_kpi_record_open_rows),
-    KPISlot(area="Trust/safety", metric="pytest suite size (breadth)",
-            kind="leading", owner="Generator",
-            target="grows or holds steady; never silently shrinks",
-            compute=_kpi_pytest_count),
-)
+    This is the ONLY function that reads the registry file, and it treats
+    every field generically — which is what makes re-targeting, re-
+    cadencing, re-owning, enabling/disabling, or adding a KPI (that reuses an
+    existing compute key or is a named "manual_gap") a pure JSON edit: no
+    code path here is specific to any one KPI.
+    """
+    try:
+        text = pathlib.Path(path).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise KPIRegistryError(f"cannot read KPI registry at {path}: {exc}") from exc
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise KPIRegistryError(f"{path} is not valid JSON: {exc}") from exc
+    if not isinstance(data, dict) or not isinstance(data.get("kpis"), list):
+        raise KPIRegistryError(
+            f"{path}: expected a top-level JSON object with a 'kpis' list.")
+    entries = data["kpis"]
+    if not entries:
+        raise KPIRegistryError(f"{path}: 'kpis' list is empty.")
+
+    seen_ids: set[str] = set()
+    slots: list[KPISlot] = []
+    for i, entry in enumerate(entries):
+        label = f"{path} kpis[{i}]"
+        if not isinstance(entry, dict):
+            raise KPIRegistryError(f"{label}: entry is not a JSON object.")
+        missing = [k for k in _REQUIRED_ENTRY_FIELDS if k not in entry]
+        if missing:
+            raise KPIRegistryError(
+                f"{label} (id={entry.get('id', '?')!r}): missing required "
+                f"field(s): {', '.join(missing)}.")
+        entry_id = entry["id"]
+        if not isinstance(entry_id, str) or not entry_id:
+            raise KPIRegistryError(f"{label}: 'id' must be a non-empty string.")
+        if entry_id in seen_ids:
+            raise KPIRegistryError(f"{label}: duplicate id {entry_id!r}.")
+        seen_ids.add(entry_id)
+
+        for field in _REQUIRED_STRING_FIELDS:
+            if not isinstance(entry[field], str) or not entry[field]:
+                raise KPIRegistryError(
+                    f"{label} ({entry_id}): '{field}' must be a non-empty string.")
+
+        if entry["kind"] not in _VALID_KINDS:
+            raise KPIRegistryError(
+                f"{label} ({entry_id}): 'kind' must be one of "
+                f"{sorted(_VALID_KINDS)}, got {entry['kind']!r}.")
+        if entry["direction"] not in _VALID_DIRECTIONS:
+            raise KPIRegistryError(
+                f"{label} ({entry_id}): 'direction' must be one of "
+                f"{sorted(_VALID_DIRECTIONS)}, got {entry['direction']!r}.")
+        if entry["frequency"] not in _VALID_FREQUENCIES:
+            raise KPIRegistryError(
+                f"{label} ({entry_id}): 'frequency' must be one of "
+                f"{sorted(_VALID_FREQUENCIES)}, got {entry['frequency']!r}.")
+        if not isinstance(entry["enabled"], bool):
+            raise KPIRegistryError(
+                f"{label} ({entry_id}): 'enabled' must be a boolean.")
+
+        compute_key = entry["compute"]
+        if not isinstance(compute_key, str) or not compute_key:
+            raise KPIRegistryError(
+                f"{label} ({entry_id}): 'compute' must be a non-empty string.")
+
+        common = dict(id=entry_id, area=entry["area"], metric=entry["metric"],
+                      kind=entry["kind"], owner=entry["owner"], target=entry["target"],
+                      direction=entry["direction"], frequency=entry["frequency"],
+                      enabled=entry["enabled"])
+
+        if compute_key == "manual_gap":
+            why = entry.get("why")
+            trigger = entry.get("trigger")
+            if not isinstance(why, str) or not why:
+                raise KPIRegistryError(
+                    f"{label} ({entry_id}): compute:'manual_gap' requires a "
+                    "non-empty 'why'.")
+            if not isinstance(trigger, str) or not trigger:
+                raise KPIRegistryError(
+                    f"{label} ({entry_id}): compute:'manual_gap' requires a "
+                    "non-empty 'trigger'.")
+            slots.append(KPISlot(**common, compute=None, why=why, trigger=trigger))
+            continue
+
+        compute_fn = _COMPUTE_FUNCTIONS.get(compute_key)
+        if compute_fn is None:
+            raise KPIRegistryError(
+                f"{label} ({entry_id}): unknown compute key {compute_key!r} — "
+                f"known keys: {sorted(_COMPUTE_FUNCTIONS)}, or the literal "
+                "'manual_gap' for a not-yet-instrumented KPI.")
+        slots.append(KPISlot(**common, compute=compute_fn))
+    return tuple(slots)
+
+
+# ============================================================================
+# The registry — every KPI line the ledger/scorecard renders, loaded from
+# docs/metrics/kpi_registry.json (CLAUDE.md areas: Ingestion/Coverage,
+# Extraction Correctness, Cost-efficiency, Brain quality, UX/consumer,
+# Trust/safety). Disabled entries stay in the file (so re-enabling is a
+# one-line edit) but are filtered out of what the scorecard renders.
+# ============================================================================
+ALL_KPI_SLOTS: tuple[KPISlot, ...] = load_kpi_registry(DEFAULT_KPI_REGISTRY)
+KPI_SLOTS: tuple[KPISlot, ...] = tuple(s for s in ALL_KPI_SLOTS if s.enabled)
 
 # The canonical list of named gaps, rendered by --print, for the
 # Goodhart-honesty control (docs/strategy/ONE_LIVE_KPI_FRAMEWORK_v1.md).
@@ -440,6 +517,7 @@ def _print_scorecard(results: list[tuple[KPISlot, KPIValue]]) -> None:
         print(f"  [{tag}] ({slot.kind:<7}) {slot.metric}")
         print(f"            target: {slot.target}")
         print(f"            current: {value.current}")
+        print(f"            frequency: {slot.frequency}")
         print(f"            owner: {slot.owner}")
     print("-" * 88)
     n_off = sum(1 for _, v in results if v.status == OFF_TARGET)
@@ -569,13 +647,23 @@ def append_snapshot(path: pathlib.Path, timestamp: str,
 # ============================================================================
 # Modes
 # ============================================================================
-def _compute_all() -> tuple[list[tuple[KPISlot, KPIValue]], list[str]]:
+def _compute_all(
+    slots: Optional[tuple[KPISlot, ...]] = None,
+) -> tuple[list[tuple[KPISlot, KPIValue]], list[str]]:
     """Compute every slot; a per-slot KPIComputeError is collected, not fatal
     to the whole run, so one broken reading doesn't hide every other KPI —
-    but it IS surfaced loudly, and --check/--append still fail overall."""
+    but it IS surfaced loudly, and --check/--append still fail overall.
+
+    ``slots`` defaults to the module-level KPI_SLOTS (loaded from
+    docs/metrics/kpi_registry.json at import time) — pass an explicit tuple
+    (e.g. from a temp registry via load_kpi_registry) to compute over a
+    different config without touching the global.
+    """
+    if slots is None:
+        slots = KPI_SLOTS
     results: list[tuple[KPISlot, KPIValue]] = []
     errors: list[str] = []
-    for slot in KPI_SLOTS:
+    for slot in slots:
         try:
             results.append((slot, _slot_value(slot)))
         except KPIComputeError as exc:
@@ -583,8 +671,8 @@ def _compute_all() -> tuple[list[tuple[KPISlot, KPIValue]], list[str]]:
     return results, errors
 
 
-def _do_print() -> int:
-    results, errors = _compute_all()
+def _do_print(slots: Optional[tuple[KPISlot, ...]] = None) -> int:
+    results, errors = _compute_all(slots)
     _print_scorecard(results)
     if errors:
         for err in errors:
@@ -593,8 +681,8 @@ def _do_print() -> int:
     return 0
 
 
-def _do_check() -> int:
-    results, errors = _compute_all()
+def _do_check(slots: Optional[tuple[KPISlot, ...]] = None) -> int:
+    results, errors = _compute_all(slots)
     if errors:
         for err in errors:
             print(f"kpi_report: COMPUTE ERROR — {err}", file=sys.stderr)
@@ -609,12 +697,13 @@ def _do_check() -> int:
     return 0
 
 
-def _do_append(timestamp: str, ledger: pathlib.Path) -> int:
+def _do_append(timestamp: str, ledger: pathlib.Path,
+               slots: Optional[tuple[KPISlot, ...]] = None) -> int:
     if not timestamp:
         print("kpi_report: INVALID — --append requires a TIMESTAMP (caller/CI "
               "supplies it; code never reads the wall clock).", file=sys.stderr)
         return 2
-    results, errors = _compute_all()
+    results, errors = _compute_all(slots)
     if errors:
         for err in errors:
             print(f"kpi_report: COMPUTE ERROR — {err}", file=sys.stderr)
@@ -635,6 +724,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--ledger", type=pathlib.Path, default=DEFAULT_LEDGER,
                         help="KPI ledger path for --append (default: "
                              "docs/metrics/KPI_LEDGER.md)")
+    parser.add_argument("--registry", type=pathlib.Path, default=DEFAULT_KPI_REGISTRY,
+                        help="KPI registry JSON path (default: docs/metrics/"
+                             "kpi_registry.json) — the editable list of "
+                             "tracked KPIs/targets/frequencies")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--print", action="store_true", dest="do_print",
                       help="compute + print the scorecard (default)")
@@ -644,11 +737,21 @@ def main(argv: Optional[list[str]] = None) -> int:
                       help="exit 1 if any computed KPI is off target")
     args = parser.parse_args(argv)
 
+    if args.registry == DEFAULT_KPI_REGISTRY:
+        slots = KPI_SLOTS  # already loaded at import time; avoid a redundant read
+    else:
+        try:
+            all_slots = load_kpi_registry(args.registry)
+        except KPIRegistryError as exc:
+            print(f"kpi_report: REGISTRY ERROR — {exc}", file=sys.stderr)
+            return 2
+        slots = tuple(s for s in all_slots if s.enabled)
+
     if args.append is not None:
-        return _do_append(args.append, args.ledger)
+        return _do_append(args.append, args.ledger, slots)
     if args.check:
-        return _do_check()
-    return _do_print()
+        return _do_check(slots)
+    return _do_print(slots)
 
 
 if __name__ == "__main__":

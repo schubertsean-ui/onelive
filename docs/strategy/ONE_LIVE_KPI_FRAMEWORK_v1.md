@@ -216,6 +216,51 @@ These are a **starting proposal**, not a decision — step 4 in §4 above
 
 ---
 
+## 4a. How to change a KPI, its target, or its frequency
+
+Founder directive: this must be **easy and low-effort**, not a code change.
+The whole list of tracked KPIs — what they are, their targets, how often
+each is reviewed, who owns them, and whether they're on at all — lives in
+one plain-data file: `docs/metrics/kpi_registry.json`. `tools/kpi_report.py`
+only reads and validates that file; it never hardcodes the list.
+
+**The 3-step recipe:**
+
+1. **Edit `docs/metrics/kpi_registry.json`.** Find the KPI (or add a new
+   entry) and change whatever needs changing:
+   - `target` — the bar you're aiming for (any human-readable string).
+   - `frequency` — how often it's worth looking at: `per_run`, `daily`,
+     `weekly`, `monthly`, or `quarterly`.
+   - `area`, `owner` — which part of the business it belongs to and who's
+     accountable.
+   - `enabled` — set to `false` to stop tracking a KPI without deleting its
+     history (a `true`/`false` flip, not a code change either way).
+2. **Verify it took.** Run `python tools/kpi_report.py --print` and read the
+   scorecard — your edit is right there (a changed target, a changed
+   frequency line, a KPI turned on/off, added, or removed).
+3. **Commit.** That's it — no Python file changes needed for any of the
+   above.
+
+**What is JSON-only vs. what needs code:** target, frequency, area, owner,
+and enable/disable are ALWAYS a JSON-only edit, whether on an existing KPI
+or a brand-new one — as long as the new KPI either reuses a measurement that
+already exists (name it in the `compute` field, e.g. `"compute":
+"trust_gate"`) or is a KPI nobody can measure yet (`"compute": "manual_gap"`,
+with a `why` and a `trigger` explaining what would need to happen for it to
+become measurable). The **only** case that needs a code change is teaching
+the tool a genuinely **new way to measure something** — a new source of
+truth nothing else already reads. Even then, the change is small and
+bounded: one new Python function in `tools/kpi_report.py`, registered by
+name in its `_COMPUTE_FUNCTIONS` map, referenced from the JSON by that name.
+
+A malformed entry (a typo'd field name, an unrecognized `frequency` value,
+a `compute` key that doesn't exist) makes the tool refuse to run at all,
+with a specific error naming the bad entry and field — it never silently
+drops a KPI or guesses a value (fail-closed, per CLAUDE.md's no-silent-
+deferrals rule).
+
+---
+
 ## 5. How this feeds from (not duplicates) the existing ledgers
 
 This framework and its two artifacts — `docs/metrics/KPI_LEDGER.md` and
