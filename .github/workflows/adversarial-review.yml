@@ -445,8 +445,21 @@ jobs:
           # per seat, po seed = the PR HEAD SHA (rotating, printed, never a
           # chosen parameter). ANY lens red = red — a strict tightening of the
           # single-lens gate. --require and the founder-ratified cap unchanged.
-          python -I /tmp/trusted/adversarial_review.py --require --panel \
-            --po-seed "$HEAD_SHA" \
+          # VERSION-SKEW SAFE (#71 CI-caught): the workflow is PR-owned but the
+          # reviewer script is BASE-owned (trusted copy), so a PR that adds new
+          # flags would invoke an older tool that rejects them. Feature-detect
+          # instead of assuming: pass the v2 panel flags ONLY if the trusted
+          # copy advertises --panel in its own --help. Before this PR merges the
+          # base copy is v1 (single lens, unchanged behavior); after, the panel
+          # activates automatically with no second workflow edit.
+          PANEL_ARGS=""
+          if python -I /tmp/trusted/adversarial_review.py --help 2>&1 | grep -q -- "--panel"; then
+            PANEL_ARGS="--panel --po-seed $HEAD_SHA"
+            echo "reviewer: v2 panel supported by the trusted base copy — enabling (po seed = $HEAD_SHA)"
+          else
+            echo "reviewer: trusted base copy predates the v2 panel — running the v1 single-lens gate (unchanged physics)"
+          fi
+          python -I /tmp/trusted/adversarial_review.py --require $PANEL_ARGS \
             --max-diff-bytes 800000 \
             --diff-file pr.diff --test-log pytest.log --test-log web.log \
             --test-log validate.log --test-log "$EVID_DIR/golden-exam.log"

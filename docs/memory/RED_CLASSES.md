@@ -47,3 +47,4 @@ a class absent from this index is a prose-only lesson, an open defect.
 | malformed-ledger-row | KAIZEN, ledger, metrics | KAIZEN #69 self-caught — ledger rows never contain raw pipes; parsers fail loud and the writer verifies by running them |
 | nonfinite-numeric-accepted | weight, prior, seed, threshold | KAIZEN #69 r2 — every numeric config input checks math.isfinite, at every layer that claims to validate |
 | stale-base-widens-range | validate, construction_gate, diff, base | KAIZEN #71 CI-caught — refresh the base ref before any range-derived gate; a stale base widens the range and can pass locally what CI correctly fails |
+| workflow-tool-version-skew | workflows, .github, trusted, adversarial_review | KAIZEN #71 CI-caught — a PR-owned workflow must FEATURE-DETECT before passing new flags to a base-owned trusted tool; the base copy is always the older one until merge |
