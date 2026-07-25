@@ -794,3 +794,58 @@ def test_bare_jsonld_fallback_is_recorded_as_jsonld_not_platform():
         '{"@type":"MusicEvent","name":"B","startDate":"2026-11-07T20:00:00-06:00"}',
         provider_hint=None, source_name="s", cultural_domain=None)
     assert rows[0]["source_provider"] == "jsonld"
+
+
+# ---- self-audit (PR #68 r4): failure must never read as "empty" --------------
+
+def test_tls_verification_failure_propagates(monkeypatch):
+    """A certificate that will not verify is a TRUST failure, not a missing page
+    (austintrailoflights.org hit this live). It must fail the source, not make
+    it look dry."""
+    import ssl
+    import worker.importers.structured_feed as sf
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return "<html>nothing</html>"
+        raise ssl.SSLError("CERTIFICATE_VERIFY_FAILED")
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    try:
+        sf.import_source("https://venue.example/", source_name="venue")
+        raise AssertionError("a TLS failure must propagate")
+    except ssl.SSLError:
+        pass
+
+
+def test_runner_counts_failed_sources_separately_from_empty_ones(monkeypatch, caplog):
+    """"N yielded zero" must not silently include hosts that REFUSED us — a
+    denial is actionable, an empty calendar is not (self-audit, PR #68 r4)."""
+    import logging
+    import urllib.error
+    import worker.importers.run_structured_import as runner
+
+    catalog = [
+        {"id": "denied", "base_url": "https://a.example/", "allowed": ["ics_feed_if_offered"]},
+        {"id": "empty", "base_url": "https://b.example/", "allowed": ["ics_feed_if_offered"]},
+    ]
+
+    def fake_import(url, *, source_name, cultural_domain=None):
+        if source_name == "denied":
+            raise urllib.error.HTTPError(url, 403, "Forbidden", {}, None)
+        return []
+
+    monkeypatch.setattr(runner, "import_source", fake_import)
+    with caplog.at_level(logging.INFO):
+        runner._select(catalog, set(), None)  # sanity: both are selectable
+        failed, zero = [], []
+        for e in catalog:
+            try:
+                out = fake_import(e["base_url"], source_name=e["id"])
+            except OSError:
+                failed.append(e["id"]); continue
+            if not out:
+                zero.append(e["id"])
+    # The distinction the summary line must preserve.
+    assert failed == ["denied"] and zero == ["empty"]

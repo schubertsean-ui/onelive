@@ -27,6 +27,7 @@ import datetime as _dt
 import hashlib
 import json
 import logging
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -901,7 +902,10 @@ def _robots_allows(url: str, ua: str = "OneLiveBot") -> bool:
     try:
         return rp.can_fetch(ua, url)
     except Exception as exc:  # noqa: BLE001
-        logger.debug("robots evaluation failed for %s (%s) — allowing", url, exc)
+        # Fail-open, said out loud: we could not EVALUATE the rule, so we proceed
+        # — but an operator should see that this was unverified, not compliant.
+        logger.warning("robots evaluation failed for %s (%s) — allowing (FAIL-OPEN, "
+                       "not verified compliance)", url, exc)
         return True
 
 
@@ -1057,6 +1061,14 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
                 raise
             _log_candidate_failure(source_name, candidate, exc, declared=i < declared)
             continue
+        except ssl.SSLError as exc:
+            # A certificate that will not verify is a TRUST failure, not a
+            # missing page (austintrailoflights.org hit this live). Propagate so
+            # the source is reported FAILED rather than quietly dry.
+            logger.warning("source %s: TLS verification failed for %s (%s) — "
+                           "FAILING the source rather than reporting it empty",
+                           source_name, candidate, exc)
+            raise
         except Exception as exc:  # noqa: BLE001 - severity depends on the KIND
             # A site-DECLARED feed (<link rel=alternate>) that fails is a real
             # defect — the site advertised it — so it is a WARNING an operator

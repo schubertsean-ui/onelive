@@ -122,6 +122,11 @@ def main(argv=None) -> int:
     all_norm: list[dict] = []
     per_source: Counter = Counter()
     zero_sources: list[str] = []
+    # FAILED is not EMPTY. Counting a source that errored into `zero_sources`
+    # made "N yielded zero" silently mix hosts that REFUSED us with calendars
+    # that genuinely had nothing on — the same failure-as-success class the
+    # evaluator flagged inside import_source (self-audit, PR #68 r4).
+    failed_sources: list[str] = []
     for entry in sources:
         sid = str(entry.get("id"))
         url = entry.get("base_url")
@@ -132,7 +137,7 @@ def main(argv=None) -> int:
             # A single source being unreachable is logged, not fatal — the others
             # still import. (Not a swallowed error: it is surfaced in the run log.)
             log.warning("source %-26s FETCH FAILED (%s): %s", sid, url, exc)
-            zero_sources.append(sid)
+            failed_sources.append(sid)
             continue
         per_source[sid] = len(norm)
         if not norm:
@@ -144,8 +149,15 @@ def main(argv=None) -> int:
 
     by_domain = Counter(n["category"] for n in all_norm)
     by_provider = Counter(n["source_provider"] for n in all_norm)
-    log.info("Structured import: %d source(s) selected, %d yielded zero, %d events total",
-             len(sources), len(zero_sources), len(all_norm))
+    log.info("Structured import: %d source(s) selected, %d FAILED, %d yielded zero, "
+             "%d events total",
+             len(sources), len(failed_sources), len(zero_sources), len(all_norm))
+    if failed_sources:
+        # Named, not just counted: a refusal/throttle/TLS failure is actionable
+        # (it routes that source to a different acquisition path), an empty
+        # calendar is not.
+        log.warning("FAILED sources (denied, throttled, or unreachable — NOT empty): %s",
+                    ", ".join(failed_sources))
     log.info("By parse provider: %s", dict(by_provider))
     for dom, c in by_domain.most_common():
         log.info("  %-18s %d", dom, c)
