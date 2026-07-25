@@ -37,26 +37,55 @@ def test_every_launch_assignment_is_valid_and_complete():
     assert set(LAUNCH_ASSIGNMENTS) == set(EXPECTED_HOOKS)  # one per scenario
 
 
-def test_launch_decks_reproduce_the_founder_seen_renders():
-    # The v1 versions are PINNED: each scenario's launch assignment renders
-    # the exact hook the founder reviewed, through the real trust path.
+def _render_launch_deck(scenario):
+    config = scenario_config(
+        scenario,
+        surface="instagram_feed",
+        city="Austin",
+        handle="@onelive.atx",
+        short_link_base="https://onelive.app/tonight",
+    )
+    return build_carousel(
+        scenario_events(EXAMPLE_EVENTS, scenario),
+        config,
+        launch_assignment(f"scenario_{scenario.key}"),
+        reference_time=EXAMPLE_REFERENCE_TIME,
+    )
+
+
+def test_launch_decks_reproduce_the_founder_seen_renders_in_full():
+    # #69 r1 blocker fixed: the v1 versions are pinned by FULL-DECK
+    # equality against a committed golden snapshot — every slide, overlay
+    # line, event id, uncertainty marker, caption, hashtag, and the
+    # assignment itself. ANY drift fails; a legitimate renderer change
+    # must update the golden visibly in its own diff.
+    import json
+    import pathlib
+
+    golden = json.loads(
+        pathlib.Path("tests/golden/carousel_launch_v1.json").read_text()
+    )
+    assert set(golden) == {f"scenario_{s.key}" for s in SCENARIOS}
     for scenario in SCENARIOS:
         series = f"scenario_{scenario.key}"
-        config = scenario_config(
-            scenario,
-            surface="instagram_feed",
-            city="Austin",
-            handle="@onelive.atx",
-            short_link_base="https://onelive.app/tonight",
-        )
-        draft = build_carousel(
-            scenario_events(EXAMPLE_EVENTS, scenario),
-            config,
-            launch_assignment(series),
-            reference_time=EXAMPLE_REFERENCE_TIME,
-        )
+        draft = _render_launch_deck(scenario)
+        rendered = {
+            "assignment": dict(draft.assignment),
+            "caption": draft.caption,
+            "hashtags": list(draft.hashtags),
+            "slides": [
+                {
+                    "kind": s.kind,
+                    "headline": s.headline,
+                    "overlay_lines": list(s.overlay_lines),
+                    "event_id": s.event_id,
+                    "uncertainty_marker": s.uncertainty_marker,
+                }
+                for s in draft.slides
+            ],
+        }
+        assert rendered == golden[series], f"{series} drifted from the pinned v1"
         assert draft.slides[0].headline == EXPECTED_HOOKS[series]
-        assert draft.assignment == launch_assignment(series)
 
 
 def test_launch_assignment_returns_fresh_validated_copies():
@@ -65,6 +94,14 @@ def test_launch_assignment_returns_fresh_validated_copies():
     assert launch_assignment("scenario_date_night")["cta_type"] == "send_to_friend"
     assert launch_assignment("t1_live-music") == DEFAULT_LAUNCH
     assert launch_assignment("t1_live-music") is not DEFAULT_LAUNCH
+
+
+def test_unknown_or_misspelled_series_fails_loud():
+    # #69 r1 blocker fixed: a typo must never silently post a default deck
+    # disguised as the founder's v1.
+    for bad in ("scenario_free_tonite", "scenario_", "flagship", "t9_music", "t1_"):
+        with pytest.raises(ValueError, match="unknown launch series"):
+            launch_assignment(bad)
 
 
 def test_corrupt_launch_table_fails_loud(monkeypatch):
@@ -79,14 +116,32 @@ def test_corrupt_launch_table_fails_loud(monkeypatch):
 
 
 def test_seed_bandit_favors_launch_levels_without_locking_them():
+    # #69 r1 nit fixed: DIRECT posterior-state assertions across every
+    # factor and level (sampling is a secondary behavior check only).
     bandit = ThompsonBandit(seed=7)
-    seed_bandit(bandit)
-    launch_ctas = {a["cta_type"] for a in LAUNCH_ASSIGNMENTS.values()}
+    baseline = ThompsonBandit(seed=7)
+    seed_bandit(bandit, weight=3.0)
+    launch_levels = {
+        (f, l)
+        for a in list(LAUNCH_ASSIGNMENTS.values()) + [DEFAULT_LAUNCH]
+        for f, l in a.items()
+    }
+    for factor, levels in FACTORS.items():
+        for level in levels:
+            post = bandit.posteriors[factor][level]
+            base = baseline.posteriors[factor][level]
+            if (factor, level) in launch_levels:
+                # Favored: exactly the seed weight added, once, as alpha.
+                assert post["alpha"] == base["alpha"] + 3.0
+            else:
+                # Never locked: non-launch levels keep their full prior —
+                # present, sampleable, and untouched.
+                assert post["alpha"] == base["alpha"]
+            assert post["beta"] == base["beta"]
+    # Secondary behavior check: launch hook dominates early sampling.
     picks = [bandit.sample_assignment()["hook_type"] for _ in range(200)]
-    # Favored: the launch hook dominates early sampling…
     assert picks.count("edition_anchor") > picks.count("number_promise")
-    # …but never locks: every factor's non-launch levels remain sampleable.
-    all_ctas = {bandit.sample_assignment()["cta_type"] for _ in range(400)}
-    assert not all_ctas.issubset(launch_ctas) or all_ctas == set(FACTORS["cta_type"])
     with pytest.raises(ValueError, match="positive"):
         seed_bandit(bandit, weight=0)
+    with pytest.raises(ValueError, match="unknown factor/level"):
+        bandit.add_prior("hook_type", "clickbait", 1.0)

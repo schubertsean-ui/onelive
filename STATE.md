@@ -72,6 +72,9 @@ GOAL: pin the five founder-reviewed scenario renders as the v1 launch versions i
 [S3:stalled-state-needs-active-diagnosis] applied this arc — the overdue #67 verdict got one probe, found green, merged.
 [S3:volatile-safety-store] the warm-start mutates only the in-memory learner; durable counters (release journal) untouched.
 [S3:weak-key-accepted-at-custody] no key material or signing surface anywhere in this change.
+[S3:swallowed-corrupt-data] r1 fix — unknown/misspelled series REFUSES (fail-loud enumeration), never a silent default deck.
+[S3:false-confidence-gate] r1 fix — full-deck golden equality (41 slides committed) replaces the headline-only check; warm-start asserted at posterior-state level.
+[S3:featurability-dimension-missed] golden slides carry uncertainty_marker per row — the likely-tier affordance is part of the pinned deck, and event_jsonld's full-contract guard is untouched.
 STATUS: OPEN — rides the next PR after #67's merge (d4f4bc9).
 
 ## Session Contract #24 (2026-07-25, same session — founder: build a research-grounded closed-loop construction method with root-cause analysis; paraphrase here, verbatim in the decision record at close)

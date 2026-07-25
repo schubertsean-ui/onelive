@@ -1,0 +1,534 @@
+{
+ "scenario_date_night": {
+  "assignment": {
+   "caption_style": "mini_story",
+   "cta_type": "send_to_friend",
+   "emotion_register": "excitement",
+   "hook_type": "edition_anchor",
+   "listicle_size": "7",
+   "media_type": "image",
+   "post_slot": "late_afternoon"
+  },
+  "caption": "First up tonight: Two-Hander: 'The Lighthouse Keepers' at Pocket Stage ATX. 7 date nights in this edition.\nReal listings, real sources. https://onelive.app/tonight?utm_source=instagram_feed&utm_campaign=scenario_date_night",
+  "hashtags": [
+   "#austin",
+   "#austinevents",
+   "#austintheater",
+   "#austinsymphony",
+   "#austinfoodie"
+  ],
+  "slides": [
+   {
+    "event_id": "",
+    "headline": "7 date nights to experience Tonight",
+    "kind": "hook",
+    "overlay_lines": [],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-11",
+    "headline": "Two-Hander: 'The Lighthouse Keepers'",
+    "kind": "event",
+    "overlay_lines": [
+     "Two-Hander: 'The Lighthouse Keepers'",
+     "Pocket Stage ATX \u00b7 20:00",
+     "From $22"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-8",
+    "headline": "Rooftop Strings: Duo Luna",
+    "kind": "event",
+    "overlay_lines": [
+     "Rooftop Strings: Duo Luna",
+     "The Perch at 6th \u00b7 20:00",
+     "From $25"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-12",
+    "headline": "Wine Flight + Vinyl Night",
+    "kind": "event",
+    "overlay_lines": [
+     "Wine Flight + Vinyl Night",
+     "Cork & Groove \u00b7 20:30",
+     "From $18"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-1",
+    "headline": "The Midnight Brass",
+    "kind": "event",
+    "overlay_lines": [
+     "The Midnight Brass",
+     "Red River Room \u00b7 21:00",
+     "From $15",
+     "Horns that start a party"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-10",
+    "headline": "Late Bites & Bossa Nova",
+    "kind": "event",
+    "overlay_lines": [
+     "Late Bites & Bossa Nova",
+     "Verdine's Courtyard \u00b7 21:00",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-29",
+    "headline": "Porch Songs: Open Stage",
+    "kind": "event",
+    "overlay_lines": [
+     "Porch Songs: Open Stage",
+     "The Front Steps \u00b7 21:00",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-2",
+    "headline": "Casa de Cumbia",
+    "kind": "event",
+    "overlay_lines": [
+     "Casa de Cumbia",
+     "La Esquina Patio \u00b7 22:00",
+     "Free",
+     "Cumbia until the lights come up"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "",
+    "headline": "Send this to the friend who's always down",
+    "kind": "cta",
+    "overlay_lines": [
+     "Send this to the friend who's always down"
+    ],
+    "uncertainty_marker": false
+   }
+  ]
+ },
+ "scenario_family_day": {
+  "assignment": {
+   "caption_style": "short_punch",
+   "cta_type": "save_this",
+   "emotion_register": "belonging",
+   "hook_type": "edition_anchor",
+   "listicle_size": "5",
+   "media_type": "image",
+   "post_slot": "late_afternoon"
+  },
+  "caption": "Today in Austin: 5 family adventures.\nReal listings, real sources. https://onelive.app/tonight?utm_source=instagram_feed&utm_campaign=scenario_family_day",
+  "hashtags": [
+   "#austin",
+   "#austinevents",
+   "#austinlibrary",
+   "#austinfamilyfun",
+   "#austinexplore"
+  ],
+  "slides": [
+   {
+    "event_id": "",
+    "headline": "5 family adventures to experience Today",
+    "kind": "hook",
+    "overlay_lines": [],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-26",
+    "headline": "Storytime Under the Oaks",
+    "kind": "event",
+    "overlay_lines": [
+     "Storytime Under the Oaks",
+     "Central Library Plaza \u00b7 16:15",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-23",
+    "headline": "Dino Dig Pop-Up",
+    "kind": "event",
+    "overlay_lines": [
+     "Dino Dig Pop-Up",
+     "Discovery Lawn \u00b7 16:30",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-24",
+    "headline": "Family Puppet Matinee",
+    "kind": "event",
+    "overlay_lines": [
+     "Family Puppet Matinee",
+     "The Little Curtain \u00b7 17:00",
+     "From $8"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-25",
+    "headline": "Junior Ranger Creek Walk",
+    "kind": "event",
+    "overlay_lines": [
+     "Junior Ranger Creek Walk",
+     "Barton Greenbelt Trailhead \u00b7 17:30",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-27",
+    "headline": "Sunset Kite Hour",
+    "kind": "event",
+    "overlay_lines": [
+     "Sunset Kite Hour",
+     "Auditorium Shores \u00b7 19:00",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "",
+    "headline": "Save this for the plan",
+    "kind": "cta",
+    "overlay_lines": [
+     "Save this for the plan"
+    ],
+    "uncertainty_marker": false
+   }
+  ]
+ },
+ "scenario_free_tonight": {
+  "assignment": {
+   "caption_style": "short_punch",
+   "cta_type": "send_to_friend",
+   "emotion_register": "excitement",
+   "hook_type": "edition_anchor",
+   "listicle_size": "5",
+   "media_type": "image",
+   "post_slot": "late_afternoon"
+  },
+  "caption": "Tonight in Austin: 5 free nights.\nReal listings, real sources. https://onelive.app/tonight?utm_source=instagram_feed&utm_campaign=scenario_free_tonight",
+  "hashtags": [
+   "#austin",
+   "#austinevents",
+   "#austinartopening",
+   "#austincommunity",
+   "#austincomedy"
+  ],
+  "slides": [
+   {
+    "event_id": "",
+    "headline": "5 free nights to experience Tonight",
+    "kind": "hook",
+    "overlay_lines": [],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-14",
+    "headline": "First Look Fridays: Gallery Crawl",
+    "kind": "event",
+    "overlay_lines": [
+     "First Look Fridays: Gallery Crawl",
+     "Eastside Art Walk \u00b7 18:00",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-15",
+    "headline": "Neighborhood Night Market",
+    "kind": "event",
+    "overlay_lines": [
+     "Neighborhood Night Market",
+     "Mercado Park \u00b7 18:30",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-13",
+    "headline": "Open-Air Comedy Hour",
+    "kind": "event",
+    "overlay_lines": [
+     "Open-Air Comedy Hour",
+     "Lawn at Mercado Park \u00b7 20:00",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-29",
+    "headline": "Porch Songs: Open Stage",
+    "kind": "event",
+    "overlay_lines": [
+     "Porch Songs: Open Stage",
+     "The Front Steps \u00b7 21:00",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-2",
+    "headline": "Casa de Cumbia",
+    "kind": "event",
+    "overlay_lines": [
+     "Casa de Cumbia",
+     "La Esquina Patio \u00b7 22:00",
+     "Free",
+     "Cumbia until the lights come up"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "",
+    "headline": "Send this to the friend who's always down",
+    "kind": "cta",
+    "overlay_lines": [
+     "Send this to the friend who's always down"
+    ],
+    "uncertainty_marker": false
+   }
+  ]
+ },
+ "scenario_music_and_dancing": {
+  "assignment": {
+   "caption_style": "short_punch",
+   "cta_type": "tag_who",
+   "emotion_register": "excitement",
+   "hook_type": "edition_anchor",
+   "listicle_size": "7",
+   "media_type": "image",
+   "post_slot": "late_afternoon"
+  },
+  "caption": "Tonight in Austin: 7 dance floors.\nReal listings, real sources. https://onelive.app/tonight?utm_source=instagram_feed&utm_campaign=scenario_music_and_dancing",
+  "hashtags": [
+   "#austin",
+   "#austinevents",
+   "#austindance",
+   "#austinlivemusic",
+   "#austinnightlife"
+  ],
+  "slides": [
+   {
+    "event_id": "",
+    "headline": "7 dance floors to experience Tonight",
+    "kind": "hook",
+    "overlay_lines": [],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-4",
+    "headline": "Two-Step Tuesday's Friday Edition",
+    "kind": "event",
+    "overlay_lines": [
+     "Two-Step Tuesday's Friday Edition",
+     "Broken Wheel Hall \u00b7 20:00",
+     "From $10"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-6",
+    "headline": "Salsa Social + Beginner Lesson",
+    "kind": "event",
+    "overlay_lines": [
+     "Salsa Social + Beginner Lesson",
+     "Plaza Azul \u00b7 20:30",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-1",
+    "headline": "The Midnight Brass",
+    "kind": "event",
+    "overlay_lines": [
+     "The Midnight Brass",
+     "Red River Room \u00b7 21:00",
+     "From $15",
+     "Horns that start a party"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-29",
+    "headline": "Porch Songs: Open Stage",
+    "kind": "event",
+    "overlay_lines": [
+     "Porch Songs: Open Stage",
+     "The Front Steps \u00b7 21:00",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-2",
+    "headline": "Casa de Cumbia",
+    "kind": "event",
+    "overlay_lines": [
+     "Casa de Cumbia",
+     "La Esquina Patio \u00b7 22:00",
+     "Free",
+     "Cumbia until the lights come up"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-3",
+    "headline": "DJ Meridian: Motown to House",
+    "kind": "event",
+    "overlay_lines": [
+     "DJ Meridian: Motown to House",
+     "The Basement Line \u00b7 22:30",
+     "From $5"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-7",
+    "headline": "Analog Synth Night",
+    "kind": "event",
+    "overlay_lines": [
+     "Analog Synth Night",
+     "Circuit Chapel \u00b7 23:00",
+     "From $12"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "",
+    "headline": "Tag who you're taking",
+    "kind": "cta",
+    "overlay_lines": [
+     "Tag who you're taking"
+    ],
+    "uncertainty_marker": false
+   }
+  ]
+ },
+ "scenario_weekend_planner": {
+  "assignment": {
+   "caption_style": "list",
+   "cta_type": "save_this",
+   "emotion_register": "excitement",
+   "hook_type": "edition_anchor",
+   "listicle_size": "7",
+   "media_type": "image",
+   "post_slot": "late_afternoon"
+  },
+  "caption": "7 events. This weekend, Austin:\n\u2022 First Look Fridays: Gallery Crawl \u2014 Eastside Art Walk\n\u2022 Two-Hander: 'The Lighthouse Keepers' \u2014 Pocket Stage ATX\n\u2022 Open-Air Comedy Hour \u2014 Lawn at Mercado Park\n\u2022 Wine Flight + Vinyl Night \u2014 Cork & Groove\n\u2022 The Midnight Brass \u2014 Red River Room\nReal listings, real sources. https://onelive.app/tonight?utm_source=instagram_feed&utm_campaign=scenario_weekend_planner",
+  "hashtags": [
+   "#austin",
+   "#austinevents",
+   "#austinartopening",
+   "#austintheater",
+   "#austincomedy"
+  ],
+  "slides": [
+   {
+    "event_id": "",
+    "headline": "7 weekend plans to experience This weekend",
+    "kind": "hook",
+    "overlay_lines": [],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-14",
+    "headline": "First Look Fridays: Gallery Crawl",
+    "kind": "event",
+    "overlay_lines": [
+     "First Look Fridays: Gallery Crawl",
+     "Eastside Art Walk \u00b7 Jul 24 \u00b7 18:00",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-11",
+    "headline": "Two-Hander: 'The Lighthouse Keepers'",
+    "kind": "event",
+    "overlay_lines": [
+     "Two-Hander: 'The Lighthouse Keepers'",
+     "Pocket Stage ATX \u00b7 Jul 24 \u00b7 20:00",
+     "From $22"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-13",
+    "headline": "Open-Air Comedy Hour",
+    "kind": "event",
+    "overlay_lines": [
+     "Open-Air Comedy Hour",
+     "Lawn at Mercado Park \u00b7 Jul 24 \u00b7 20:00",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-12",
+    "headline": "Wine Flight + Vinyl Night",
+    "kind": "event",
+    "overlay_lines": [
+     "Wine Flight + Vinyl Night",
+     "Cork & Groove \u00b7 Jul 24 \u00b7 20:30",
+     "From $18"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-1",
+    "headline": "The Midnight Brass",
+    "kind": "event",
+    "overlay_lines": [
+     "The Midnight Brass",
+     "Red River Room \u00b7 Jul 24 \u00b7 21:00",
+     "From $15",
+     "Horns that start a party"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-10",
+    "headline": "Late Bites & Bossa Nova",
+    "kind": "event",
+    "overlay_lines": [
+     "Late Bites & Bossa Nova",
+     "Verdine's Courtyard \u00b7 Jul 24 \u00b7 21:00",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "ex-29",
+    "headline": "Porch Songs: Open Stage",
+    "kind": "event",
+    "overlay_lines": [
+     "Porch Songs: Open Stage",
+     "The Front Steps \u00b7 Jul 24 \u00b7 21:00",
+     "Free"
+    ],
+    "uncertainty_marker": false
+   },
+   {
+    "event_id": "",
+    "headline": "Save this for the plan",
+    "kind": "cta",
+    "overlay_lines": [
+     "Save this for the plan"
+    ],
+    "uncertainty_marker": false
+   }
+  ]
+ }
+}
