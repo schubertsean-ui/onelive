@@ -690,10 +690,8 @@ def parse_platform_json(text: str) -> list[dict]:
                         # occurrence keeps a DISTINCT external id (an int would be
                         # dropped by _ld_str and the occurrences would collide on
                         # upsert, re-losing the data this fix restores).
-                        raw_id = ei.get("id")
-                        occ_id = (str(raw_id) if isinstance(raw_id, (int, str))
-                                  and str(raw_id).strip() else None)
-                        instances.append((i_start, _ld_str(ei.get("end")), occ_id))
+                        instances.append((i_start, _ld_str(ei.get("end")),
+                                          _str_id(ei.get("id"))))
         if not title or (not start and not instances):
             continue
         venue = ev.get("venue") if isinstance(ev.get("venue"), dict) else {}
@@ -708,13 +706,35 @@ def parse_platform_json(text: str) -> list[dict]:
     return out
 
 
+def _str_id(value) -> Optional[str]:
+    """Coerce a platform id to a string. Tribe/Localist ids are INTEGERS, and
+    _ld_str drops non-strings — so an int id silently became "" and callers fell
+    back to weaker keys. Used for EVERY id in this module so the coercion cannot
+    diverge between call sites again (evaluator blocker r5, PR #68)."""
+    if value is None:
+        return None
+    if isinstance(value, bool):   # a bool is an int in Python; never an id
+        return None
+    if isinstance(value, (int, float, str)):
+        text = str(value).strip()
+        return text or None
+    return None
+
+
 def _occurrence_uid(ev, start) -> Optional[str]:
     """Stable id for an occurrence whose platform gave it none: the parent event
     id (or url) plus this occurrence's start, so a repeating series keeps one row
     per showing instead of collapsing to a single row on upsert."""
-    parent = _ld_str(ev.get("id") or ev.get("uid") or ev.get("url"))
+    # Try each candidate in turn — do NOT rely on `a or b`, because a truthy
+    # INT id short-circuits the chain and then coerces to nothing, which is
+    # exactly how two distinct events at one start collided (evaluator r5).
+    parent = None
+    for key in ("id", "uid", "url"):
+        parent = _str_id(ev.get(key))
+        if parent:
+            break
     if not parent:
-        return _ld_str(start) or None
+        return _str_id(start)
     return f"{parent}@{start}" if start else parent
 
 
@@ -743,7 +763,7 @@ def _emit_platform_row(out, ev, title, start, end, occ_id, start_tz,
             # omits a per-instance id, fall back to parent-id + START rather than
             # the bare parent id — otherwise every occurrence of a series would
             # collide back onto one row (evaluator nit r4, PR #68).
-            "uid": occ_id or _occurrence_uid(ev, start),
+            "uid": occ_id or _occurrence_uid(ev, start),  # both via _str_id
             "_raw_props": ev,
         })
 
@@ -1021,8 +1041,14 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     events. Every candidate is public data an ordinary reader can load.
 
     provider_hint ('ics'|'jsonld') forces the parser; otherwise each body is
-    sniffed (BEGIN:VCALENDAR ⇒ ICS). A candidate that errors is skipped — one
-    dead guess must not lose the events another candidate would have found.
+    sniffed (BEGIN:VCALENDAR ⇒ ICS).
+
+    ERROR POLICY — a candidate that is simply ABSENT (404/410 on a guessed path)
+    is skipped so one dead guess cannot lose the events another candidate would
+    have found. An ACCESS failure (401/402/403/406/407/429) or a TLS
+    verification failure PROPAGATES instead: those mean the host denied,
+    throttled, or could not be trusted, and reporting the source as empty would
+    hide that (evaluator blockers r3/r4).
     """
     # ROBOTS FIRST, including the BASE url (evaluator blocker r2, PR #68: the
     # first path we reached was exempt, which made the robots claim false).

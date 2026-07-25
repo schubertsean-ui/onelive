@@ -819,15 +819,23 @@ def test_tls_verification_failure_propagates(monkeypatch):
 
 
 def test_runner_counts_failed_sources_separately_from_empty_ones(monkeypatch, caplog):
-    """"N yielded zero" must not silently include hosts that REFUSED us — a
-    denial is actionable, an empty calendar is not (self-audit, PR #68 r4)."""
+    """Drives the REAL runner.main() so it pins the actual summary path.
+
+    "N yielded zero" must not silently include hosts that REFUSED us — a denial
+    is actionable, an empty calendar is not (self-audit r4). The earlier version
+    of this test hand-rolled the loop and so could pass while the real runner
+    regressed (evaluator nit r5).
+    """
+    import json
     import logging
     import urllib.error
     import worker.importers.run_structured_import as runner
 
     catalog = [
-        {"id": "denied", "base_url": "https://a.example/", "allowed": ["ics_feed_if_offered"]},
-        {"id": "empty", "base_url": "https://b.example/", "allowed": ["ics_feed_if_offered"]},
+        {"id": "denied", "base_url": "https://a.example/",
+         "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"},
+        {"id": "empty", "base_url": "https://b.example/",
+         "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"},
     ]
 
     def fake_import(url, *, source_name, cultural_domain=None):
@@ -836,15 +844,45 @@ def test_runner_counts_failed_sources_separately_from_empty_ones(monkeypatch, ca
         return []
 
     monkeypatch.setattr(runner, "import_source", fake_import)
+
+    import tempfile
+    import pathlib as _pl
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
     with caplog.at_level(logging.INFO):
-        runner._select(catalog, set(), None)  # sanity: both are selectable
-        failed, zero = [], []
-        for e in catalog:
-            try:
-                out = fake_import(e["base_url"], source_name=e["id"])
-            except OSError:
-                failed.append(e["id"]); continue
-            if not out:
-                zero.append(e["id"])
+        rc = runner.main(["--catalog", str(tmp), "--dry-run"])
+
+    text = caplog.text
     # The distinction the summary line must preserve.
-    assert failed == ["denied"] and zero == ["empty"]
+    assert "1 FAILED" in text, f"failures not counted separately:\n{text}"
+    assert "1 yielded zero" in text, f"empties not counted separately:\n{text}"
+    # And the failed source is NAMED, not just tallied.
+    assert "denied" in text
+    assert rc is not None
+
+
+def test_two_distinct_platform_events_at_the_SAME_start_do_not_collide():
+    """Tribe/Localist ids are INTEGERS. _ld_str drops non-strings, so an int id
+    silently became "" and the uid fell back to the start time alone — two
+    distinct events at one start then overwrote each other on upsert while the
+    import reported success (evaluator blocker r5, PR #68)."""
+    from worker.importers.structured_feed import parse_platform_json
+    doc = ('{"events":['
+           '{"id":101,"title":"Room A","utc_start_date":"2026-11-08 02:00:00"},'
+           '{"id":102,"title":"Room B","utc_start_date":"2026-11-08 02:00:00"}]}')
+    rows = parse_platform_json(doc)
+    assert len(rows) == 2
+    assert rows[0]["uid"] != rows[1]["uid"], "distinct events collided on one uid"
+    assert "101" in rows[0]["uid"] and "102" in rows[1]["uid"]
+
+
+def test_integer_ids_survive_coercion_everywhere():
+    """One shared helper coerces every id, so the int-drop cannot come back at
+    one call site while being fixed at another."""
+    from worker.importers.structured_feed import _str_id
+    assert _str_id(101) == "101"
+    assert _str_id("abc") == "abc"
+    assert _str_id(None) is None
+    assert _str_id("") is None
+    assert _str_id(True) is None      # a bool is an int, but never an id
