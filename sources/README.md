@@ -69,3 +69,88 @@ roundups only). KUTX 98.9 is already covered as KUTX Presents (rank 59).
 > "For a real production catalog you will expand ranks 42–118 with additional venue calendars (Austin + top target cities), ticketing platforms, local media, newsletters, and social APIs. The schema and policy rails above are the enforced contract."
 
 When expanding, follow the same schema and priority-scoring model in `worker/source_rank.py`, and respect the `explicitly_disallowed` policy rails (no login/paywall/bot-protection bypass).
+
+**Full-catalog / all-22-category / artist-spine expansion (2026-07-25):** ranks
+77-114 add 38 more real, first-party, publicly-viewable Austin/CAPCOG sources
+covering **every one of the 22 OneLive cultural categories** (live-music,
+performing-arts, theater, comedy, visual-arts, film, literary, ideas,
+festivals, food-drink, nightlife, dance, community, heritage, family,
+place-based, sports, library, fairs-expos, seasonal, wellness, fashion-design)
+plus the two founder-named entity types beyond venues: **orgs/institutions**
+and **artists**. Each entry additively carries `entity_type`
+(`"venue"` | `"org"` | `"artist"`) alongside the existing `county` /
+`cultural_domain` / `notes` fields; `.get()`-only consumers
+(`worker/importers/run_structured_import.py`, `brain/seed_acquisition.py`,
+`tools/real_source_probe.py`) are unaffected by the new field.
+
+- **Artist spine (1):** MusicBrainz (rank 77, `musicbrainz.org/ws/2/`) — the
+  OPEN, no-key, 1-req/s artist/place/event data spine named in the founder's
+  spec. Its `url-rels` are the cross-platform join; the artist -> upcoming-events
+  join itself still runs through Bandsintown/Songkick, both already flagged
+  PARTNER-GATED / non-crawlable at ranks 27-28 — MusicBrainz supplies artist
+  identity (MBID), never a bypass of that gate.
+- **Notable local performing-arts orgs (6):** Austin Symphony Orchestra, Ballet
+  Austin, Austin Opera, Fusebox Festival (now biennial), Austin Chamber Music
+  Center, Golden Hornet — each institution's own ticketing/events page.
+- **Sports (4):** Round Rock Express (MiLB), Austin FC (MLS), Circuit of the
+  Americas, Austin Spurs (NBA G League) — each on the team's/venue's own or
+  league-sanctioned official schedule page (MiLB.com and NBA G League team
+  pages are the sanctioned first-party host for every affiliated club, not a
+  third-party aggregator).
+- **Food & drink (3):** Austin Food & Wine Festival, SFC Farmers' Market
+  (Sustainable Food Center, weekly Downtown + Sunset Valley), Texas Craft
+  Brewers Festival.
+- **Nightlife (3):** Elysium, Kingdom Nightclub, The Concourse Project — each
+  venue's own dedicated events page (not a homepage).
+- **Dance (1 new + Ballet Austin above):** Tapestry Dance Company.
+- **Heritage (5):** Bullock Texas State History Museum, LBJ Presidential
+  Library, Austin History Center Association, George Washington Carver Museum
+  Cultural & Genealogy Center (City of Austin), Asian American Resource Center
+  (City of Austin).
+- **Family (2):** Thinkery (children's museum), Austin Nature & Science
+  Center.
+- **Visual arts (2 more):** UMLAUF Sculpture Garden & Museum, Elisabet Ney
+  Museum (museum building is closed for renovation into spring 2027 — noted
+  honestly; the programs/education page is recorded for when programming
+  resumes).
+- **Place-based (3):** Republic Square (Downtown Austin Alliance), Waterloo
+  Greenway Conservancy / Waterloo Park (distinct from the commercial Moody
+  Amphitheater box office, not duplicated), Mueller Austin parks & events.
+- **Fairs & expos (3):** Rodeo Austin (Star of Texas Fair & Rodeo), Maker
+  Faire Austin, Texas Book Festival.
+- **Seasonal (2):** Austin Trail of Lights, Eeyore's Birthday Party.
+- **Wellness (2):** Austin Yoga Festival (inaugural 2026), HAAM (Health
+  Alliance for Austin Musicians).
+- **Fashion & design (1):** Austin Fashion Week — its official schedule is
+  hosted on Sched.com as the org's own chosen first-party platform (not a
+  third-party aggregator of it).
+
+Every entry's structured-feed capability is honestly recorded as
+`structured_feed_verify` (ICS/JSON-LD not yet confirmed by fetch, since
+WebFetch is blocked in this environment — only WebSearch results/snippets were
+used to confirm the URL itself is real and first-party) rather than assumed.
+
+**Honest gaps — could NOT fill with a verified first-party feed:**
+- **Fashion & design** stays thin (1 source): no other first-party public
+  structured events calendar could be found for an Austin-area fashion
+  org/venue beyond Austin Fashion Week itself; Fashion Group International's
+  Austin-specific chapter page could not be confirmed to exist.
+- **Texas State Cemetery** was investigated for heritage but has no recurring
+  public events calendar (tour scheduling only) — left out rather than padded.
+- **Sharir + Bustamante Danceworks** (dance) is defunct (archived at UT
+  Libraries) — not added.
+- **Barton Springs Pool** (place-based) is a facility page, not an events
+  calendar — left out.
+- **The Belmont** (nightlife) has no confirmed dedicated events/calendar page
+  on its own site (thebelmontaustin.com) beyond an "info" page — left out
+  rather than guessing a path.
+- **Container Bar** (nightlife) status is ambiguous in current search results
+  (possible closure) — left out pending confirmation.
+- Every new venue/org/festival entry recorded `structured_feed_verify`
+  honestly rather than assuming ICS/JSON-LD support — this is a live TODO for
+  whoever runs `worker/importers/run_structured_import.py` against them.
+
+Of the original 77-118 gap, ranks 77-114 are now filled (38 entries); ranks
+115-118 remain open for a future expansion pass (e.g. additional target cities
+beyond Austin proper, or a second wave of artist-level entries once the
+MusicBrainz -> local-artist join is built).
