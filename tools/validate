@@ -219,6 +219,16 @@ fi
 # 6. False-confidence test audit — advisory (surfaces weak tests).
 run_advisory "test_audit" "$PY" tools/test_audit.py
 
+# PR-size early warning (founder-directed 2026-07-25). PR #59 grew to 1.26 MB
+# against the adversarial reviewer's 800 KB cap, so the MANDATORY independent
+# review refused to run at all — and splitting 45 commits after the fact is
+# high-risk churn. This measures the branch diff the same way the review
+# workflow does and says "split now, while it is cheap" at 70% of the cap.
+# ADVISORY on purpose: a legitimately large change must not be blocked from
+# running its other gates — the point is to see the wall coming, not to bump
+# into it.
+run_advisory "pr_size_check" "$PY" tools/pr_size_check.py
+
 # 7. Cross-commit sweep — advisory (higher-level gotchas across commits).
 if [ "$QUICK" -eq 1 ]; then
   echo "── commit_sweep ──"
