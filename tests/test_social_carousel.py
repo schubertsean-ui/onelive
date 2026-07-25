@@ -48,6 +48,8 @@ from social.carousel.generator import (
 )
 from social.carousel.geo import DOMAIN_TAGS, discovery_bundle, event_jsonld, hashtags_for
 from social.carousel.metrics import MetricsLedger, PostMetrics
+import social.carousel.autonomy as autonomy_module
+import social.carousel.publish_gate as publish_gate
 from social.carousel.publish_gate import Approval, approve, release_for_publish
 from social.carousel.scenarios import (
     SCENARIOS,
@@ -59,6 +61,30 @@ from social.carousel.tiers import TierThresholds, assign_tiers, plan_portfolio
 
 TEST_KEY = "test-founder-approval-key"
 REF_TIME = "2026-07-24T12:00:00-05:00"  # Friday noon, Austin
+
+# Captured BEFORE any test patches it: the repo's real canonical record path.
+_REAL_RECORD_PATH = autonomy_module.DEFAULT_RECORD_PATH
+
+
+def _default_reader(event_ids):
+    return {
+        eid: {"confidence": "confirmed", "event_status": "scheduled"}
+        for eid in event_ids
+    }
+
+
+@pytest.fixture(autouse=True)
+def _custody_env(monkeypatch, tmp_path):
+    """Deployment-shaped custody config for every test (r3): the approval
+    key lives in env, the canonical record path points at an (absent)
+    tmp file so tests start in L0, and a canonical-store reader is
+    registered. Individual tests override by monkeypatching further."""
+    monkeypatch.setenv("ONELIVE_APPROVAL_KEY", TEST_KEY)
+    monkeypatch.setattr(
+        autonomy_module, "DEFAULT_RECORD_PATH", str(tmp_path / "AUTONOMY_RATIFICATION.json")
+    )
+    monkeypatch.setattr(publish_gate, "_STATE_READER", _default_reader)
+    yield
 
 
 def _event(i=1, confidence="confirmed", domain="live-music", **over):
@@ -130,18 +156,15 @@ def _current_states(draft, confidence="confirmed", status="scheduled"):
 
 
 def _approve(draft, who="Sean Schubert"):
-    return approve(draft, who, "2026-07-24T18:00:00-05:00", signing_key=TEST_KEY)
+    return approve(draft, who, "2026-07-24T18:00:00-05:00")
 
 
-def _release(draft, approval=None, states=None, reference_time=REF_TIME, record_path=None):
-    return release_for_publish(
-        draft,
-        states if states is not None else _current_states(draft),
-        approval,
-        reference_time=reference_time,
-        verification_key=TEST_KEY,
-        autonomy_record_path=record_path or "/nonexistent/AUTONOMY_RATIFICATION.json",
-    )
+def _release(draft, approval=None, reference_time=REF_TIME):
+    return release_for_publish(draft, approval, reference_time=reference_time)
+
+
+def _reader_returning(states):
+    return lambda event_ids: states
 
 
 # --- Trust selection (spec SS1) ------------------------------------------------
@@ -433,7 +456,7 @@ def test_ai_identities_cannot_approve():
     draft = _draft()
     for identity in ("onelive-carousel-agent", "Claude", "gpt-5.5", "some-bot"):
         with pytest.raises(ValueError, match="AI never publishes"):
-            approve(draft, identity, "2026-07-24T18:00:00-05:00", signing_key=TEST_KEY)
+            approve(draft, identity, "2026-07-24T18:00:00-05:00")
 
 
 def test_approval_without_key_is_refused(monkeypatch):
@@ -443,13 +466,11 @@ def test_approval_without_key_is_refused(monkeypatch):
 
 
 def test_release_without_key_is_refused(monkeypatch):
-    monkeypatch.delenv("ONELIVE_APPROVAL_KEY", raising=False)
     draft = _draft()
     approval = _approve(draft)
+    monkeypatch.delenv("ONELIVE_APPROVAL_KEY", raising=False)
     with pytest.raises(ValueError, match="no approval key"):
-        release_for_publish(
-            draft, _current_states(draft), approval, reference_time=REF_TIME
-        )
+        _release(draft, approval)
 
 
 def test_forged_approval_signature_is_refused():
@@ -464,13 +485,56 @@ def test_forged_approval_signature_is_refused():
         _release(draft, forged)
 
 
-def test_approval_signed_with_wrong_key_is_refused():
+def test_approval_signed_under_a_different_key_is_refused(monkeypatch):
     draft = _draft()
-    wrong = approve(
-        draft, "Sean Schubert", "2026-07-24T18:00:00-05:00", signing_key="not-the-key"
-    )
+    monkeypatch.setenv("ONELIVE_APPROVAL_KEY", "some-other-deployment-key")
+    wrong = _approve(draft)  # signed under the other key
+    monkeypatch.setenv("ONELIVE_APPROVAL_KEY", TEST_KEY)
     with pytest.raises(ValueError, match="signature does not verify"):
         _release(draft, wrong)
+
+
+def test_release_refuses_ai_identity_even_with_valid_signature():
+    # r3 blocker: the custody boundary re-checks the approver identity —
+    # a correctly signed approval naming an AI identity still refuses.
+    import hashlib as _hl
+    import hmac as _hm
+
+    draft = _draft()
+    h = content_hash(draft)
+    who, when = "onelive-carousel-agent", "2026-07-24T18:00:00-05:00"
+    sig = _hm.new(
+        TEST_KEY.encode(), "|".join((h, who, when)).encode(), _hl.sha256
+    ).hexdigest()
+    forged = Approval(draft_hash=h, approved_by=who, approved_at=when, signature=sig)
+    with pytest.raises(ValueError, match="AI never publishes"):
+        _release(draft, forged)
+
+
+def test_custody_api_accepts_no_keys_paths_or_state():
+    # r3 blockers: the release API must not accept key material, record
+    # paths, or caller-supplied trust state — deployment config only.
+    import inspect
+
+    release_params = set(inspect.signature(release_for_publish).parameters)
+    assert release_params == {"draft", "approval", "reference_time"}
+    approve_params = set(inspect.signature(approve).parameters)
+    assert approve_params == {"draft", "approved_by", "approved_at"}
+
+
+def test_no_state_reader_refuses_everything(monkeypatch):
+    draft = _draft()
+    approval = _approve(draft)
+    monkeypatch.setattr(publish_gate, "_STATE_READER", None)
+    with pytest.raises(ValueError, match="no canonical state reader"):
+        _release(draft, approval)
+
+
+def test_state_reader_registration_is_once_only(monkeypatch):
+    monkeypatch.setattr(publish_gate, "_STATE_READER", None)
+    publish_gate.configure_state_reader(_default_reader)
+    with pytest.raises(ValueError, match="already configured"):
+        publish_gate.configure_state_reader(_default_reader)
 
 
 def test_signed_human_approval_releases():
@@ -489,24 +553,26 @@ def test_edit_after_approval_voids_the_approval():
         _release(edited, approval)
 
 
-def test_release_rechecks_current_confidence():
+def test_release_rechecks_current_confidence(monkeypatch):
     draft = _draft()
     approval = _approve(draft)
     states = _current_states(draft)
     first = next(iter(states))
     states[first] = {"confidence": "disputed", "event_status": "scheduled"}
+    monkeypatch.setattr(publish_gate, "_STATE_READER", _reader_returning(states))
     with pytest.raises(ValueError, match="not settled"):
-        _release(draft, approval, states=states)
+        _release(draft, approval)
 
 
-def test_release_rechecks_current_event_status():
+def test_release_rechecks_current_event_status(monkeypatch):
     draft = _draft()
     approval = _approve(draft)
     states = _current_states(draft)
     first = next(iter(states))
     states[first] = {"confidence": "confirmed", "event_status": "cancelled"}
+    monkeypatch.setattr(publish_gate, "_STATE_READER", _reader_returning(states))
     with pytest.raises(ValueError, match="only scheduled"):
-        _release(draft, approval, states=states)
+        _release(draft, approval)
 
 
 def test_release_refuses_already_started_events():
@@ -516,10 +582,12 @@ def test_release_refuses_already_started_events():
         _release(draft, approval, reference_time="2026-07-24T23:30:00-05:00")
 
 
-def test_release_refuses_unknown_current_state():
+def test_release_refuses_unknown_current_state(monkeypatch):
     draft = _draft()
-    with pytest.raises(ValueError, match="no current state"):
-        _release(draft, _approve(draft), states={})
+    approval = _approve(draft)
+    monkeypatch.setattr(publish_gate, "_STATE_READER", _reader_returning({}))
+    with pytest.raises(ValueError, match="no state for"):
+        _release(draft, approval)
 
 
 def test_release_rescans_full_draft_content():
@@ -535,23 +603,13 @@ def test_no_approval_defaults_to_l0_refusal():
         _release(draft)
 
 
-def test_release_api_cannot_accept_a_fabricated_policy():
-    # r2 blocker: a caller-supplied AutonomyPolicy would bypass signature
-    # verification. The parameter must not exist — the grant is ALWAYS
-    # loaded from disk and verified under the founder key.
-    import inspect
-
-    params = inspect.signature(release_for_publish).parameters
-    assert "policy" not in params
-    assert "autonomy_record_path" in params  # a path is not a grant
-
-
-def test_unsigned_record_path_refuses_release(tmp_path):
-    record = tmp_path / "a.json"
+def test_unsigned_canonical_record_refuses_release(monkeypatch, tmp_path):
+    record = tmp_path / "AUTONOMY_RATIFICATION.json"
     record.write_text(json.dumps(_l1_payload()))
+    monkeypatch.setattr(autonomy_module, "DEFAULT_RECORD_PATH", str(record))
     draft = _draft()
     with pytest.raises(AutonomyRecordError, match="UNSIGNED"):
-        _release(draft, record_path=str(record))
+        _release(draft)
 
 
 # --- Autonomy ratification (spec SS10) -----------------------------------------
@@ -575,19 +633,22 @@ def _l1_payload():
 
 
 def test_absent_record_is_l0(tmp_path):
-    policy = load_policy(str(tmp_path / "nope.json"), verification_key=TEST_KEY)
+    policy = load_policy(str(tmp_path / "nope.json"))
     assert policy.level == "L0"
     assert not policy.allows_auto_release("instagram_feed", "T1")
 
 
 def test_signed_l1_scope_enumeration_is_exact(tmp_path):
     path = _signed_record(tmp_path, _l1_payload())
-    policy = load_policy(path, verification_key=TEST_KEY)
+    policy = load_policy(path)
     assert policy.allows_auto_release("instagram_feed", "T1")
     assert not policy.allows_auto_release("instagram_feed", "T2")
     assert not policy.allows_auto_release("facebook_page", "T1")
-    draft = _draft()
-    release = _release(draft, record_path=path)
+    import unittest.mock as _mock
+
+    with _mock.patch.object(autonomy_module, "DEFAULT_RECORD_PATH", path):
+        draft = _draft()
+        release = _release(draft)
     assert release.released_by == "autonomy:L1"
 
 
@@ -595,13 +656,13 @@ def test_unsigned_record_refuses(tmp_path):
     record = tmp_path / "a.json"
     record.write_text(json.dumps(_l1_payload()))
     with pytest.raises(AutonomyRecordError, match="UNSIGNED"):
-        load_policy(str(record), verification_key=TEST_KEY)
+        load_policy(str(record))
 
 
 def test_wrong_key_signature_refuses(tmp_path):
     path = _signed_record(tmp_path, _l1_payload(), key="attacker-key")
     with pytest.raises(AutonomyRecordError, match="does not verify"):
-        load_policy(path, verification_key=TEST_KEY)
+        load_policy(path)
 
 
 def test_tampered_record_refuses(tmp_path):
@@ -611,26 +672,26 @@ def test_tampered_record_refuses(tmp_path):
     record = tmp_path / "a.json"
     record.write_text(json.dumps(payload))
     with pytest.raises(AutonomyRecordError, match="does not verify"):
-        load_policy(str(record), verification_key=TEST_KEY)
+        load_policy(str(record))
 
 
 def test_no_verification_key_refuses_grants(tmp_path, monkeypatch):
-    monkeypatch.delenv("ONELIVE_APPROVAL_KEY", raising=False)
     path = _signed_record(tmp_path, _l1_payload())
+    monkeypatch.delenv("ONELIVE_APPROVAL_KEY", raising=False)
     with pytest.raises(AutonomyRecordError, match="cannot authenticate"):
         load_policy(path)
 
 
 def test_l2_requires_attribution(tmp_path):
     with pytest.raises(AutonomyRecordError, match="unattributed grant"):
-        load_policy(_signed_record(tmp_path, {"level": "L2"}), verification_key=TEST_KEY)
+        load_policy(_signed_record(tmp_path, {"level": "L2"}))
     payload = {
         "level": "L2",
         "founder": "Sean Schubert",
         "ratified_on": "2026-09-01",
         "decision_record": "docs/memory/decisions/2026-09-01_autonomy-l2.md",
     }
-    policy = load_policy(_signed_record(tmp_path, payload), verification_key=TEST_KEY)
+    policy = load_policy(_signed_record(tmp_path, payload))
     assert policy.allows_auto_release("facebook_page", "T3")
 
 
@@ -638,19 +699,32 @@ def test_malformed_record_fails_closed_not_open(tmp_path):
     record = tmp_path / "a.json"
     record.write_text("{not json")
     with pytest.raises(AutonomyRecordError):
-        load_policy(str(record), verification_key=TEST_KEY)
+        load_policy(str(record))
     record.write_text(json.dumps({"level": "L9"}))
     with pytest.raises(AutonomyRecordError, match="unknown level"):
-        load_policy(str(record), verification_key=TEST_KEY)
+        load_policy(str(record))
     payload = {"level": "L1", "founder": "S", "ratified_on": "d", "decision_record": "r"}
     with pytest.raises(AutonomyRecordError, match="enumerate scopes"):
-        load_policy(_signed_record(tmp_path, payload), verification_key=TEST_KEY)
+        load_policy(_signed_record(tmp_path, payload))
 
 
 def test_no_ratification_record_is_committed_yet():
-    from social.carousel.autonomy import DEFAULT_RECORD_PATH
+    # Checks the REAL repo path captured before the autouse fixture patches it.
+    assert not os.path.exists(_REAL_RECORD_PATH)
 
-    assert not os.path.exists(DEFAULT_RECORD_PATH)
+
+def test_synthetic_fixtures_never_referenced_by_engine_modules():
+    # r3 nit: pin the docstring's claim structurally — no engine module
+    # imports the synthetic fixtures or mentions the sentinel.
+    import pathlib
+
+    pkg = pathlib.Path("social/carousel")
+    for module in pkg.glob("*.py"):
+        if module.name == "example_fixtures.py":
+            continue
+        text = module.read_text(encoding="utf-8")
+        assert "example_fixtures" not in text, f"{module} references the fixtures"
+        assert "SYNTHETIC-EXAMPLE" not in text, f"{module} references the sentinel"
 
 
 # --- The structural import guard -----------------------------------------------

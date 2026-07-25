@@ -29,8 +29,13 @@ the same physics as `worker/promote.py`:
   orchestrator-cannot-import-promote guard.
 - **Publishing is gate-custodied and approvals are AUTHENTICATED.**
   `publish_gate.approve()` requires a human reviewer identity (AI author
-  identities are refused, fail-closed) AND the founder-held signing key
-  (`ONELIVE_APPROVAL_KEY` — never in the repo, never in agent sessions):
+  identities are refused, fail-closed — and re-checked AGAIN at release)
+  AND the founder-held signing key (`ONELIVE_APPROVAL_KEY`), which is
+  DEPLOYMENT ENVIRONMENT ONLY — never in the repo, never in agent
+  sessions, and never a parameter of the custody API (r3: the subject of
+  authorization must not choose the key, the record path, or the trust
+  state; current state is read only through a once-registered
+  canonical-store reader, absent = release refuses everything):
   the approval is an HMAC-SHA256 signature over the draft's SHA-256
   content hash, so a name string alone approves nothing and an agent
   cannot forge a sign-off. `publish_gate.release_for_publish()` verifies

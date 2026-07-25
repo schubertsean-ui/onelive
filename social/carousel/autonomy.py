@@ -75,11 +75,15 @@ def sign_autonomy_record(record: dict, key: str | bytes) -> str:
     return hmac.new(key_bytes, _canonical_payload(record), hashlib.sha256).hexdigest()
 
 
-def load_policy(path: str | None = None, verification_key: str | bytes | None = None) -> AutonomyPolicy:
+def load_policy(path: str | None = None) -> AutonomyPolicy:
     """Read and AUTHENTICATE the ratification record. Absent file -> L0 (the
-    safe default is the status quo). Any structural defect, missing key, or
-    signature mismatch raises AutonomyRecordError, and the caller must treat
-    that as refuse-everything, never as autonomy."""
+    safe default is the status quo). The verification key comes from the
+    deployment environment ONLY (r3: never a parameter — the subject of a
+    grant must not choose the key that verifies it); `path` exists for
+    hermetic unit tests of THIS function, while the release boundary always
+    calls with the canonical committed path. Any structural defect, missing
+    key, or signature mismatch raises AutonomyRecordError, and the caller
+    must treat that as refuse-everything, never as autonomy."""
     record_path = path or DEFAULT_RECORD_PATH
     if not os.path.exists(record_path):
         return L0_POLICY
@@ -109,8 +113,7 @@ def load_policy(path: str | None = None, verification_key: str | bytes | None = 
             f"autonomy record level {level} is UNSIGNED — a grant that cannot "
             "be authenticated grants nothing"
         )
-    if verification_key is None:
-        verification_key = os.environ.get("ONELIVE_APPROVAL_KEY") or None
+    verification_key = os.environ.get("ONELIVE_APPROVAL_KEY")
     if not verification_key:
         raise AutonomyRecordError(
             "no verification key available (ONELIVE_APPROVAL_KEY unset) — "

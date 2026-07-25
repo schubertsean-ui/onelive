@@ -2,22 +2,22 @@
 
 Greppable summary: same physics as worker/promote.py's assert_promotable —
 release_for_publish is the last authoritative guard before anything
-outward-facing. Approvals are AUTHENTICATED (evaluator r1): approve()
-requires the founder-held approval key (ONELIVE_APPROVAL_KEY —
-founder-minted, never in the repo, never handed to agent sessions) and
-signs the draft's SHA-256 content hash with HMAC-SHA256; release verifies
-the signature, so an agent cannot forge an approval by typing a human
-name. Release also re-checks every featured event's CURRENT confidence
-AND event_status, and rescans the ENTIRE draft text surface (slides,
-caption, hashtags, alt text, link) for banned claim language — the final
-guard trusts nothing the generator did earlier. Approval-less release
-exists only through the founder's authenticated autonomy record (L0
-default = never; unverifiable record = refuse everything). The autonomous
-loop (agent_loop.py) is forbidden to import this module — enforced by
-tests/test_social_carousel.py's import guard. There is deliberately NO
-Graph API client in this codebase: posting infrastructure is built only
-when the founder mints Meta credentials and ratifies the posture [R-026]
-— a PublishRelease is the complete, auditable hand-off record until then.
+outward-facing. R3 CUSTODY SHAPE: the public API takes ONLY
+(draft, current-state-free arguments) — no key material, no record paths,
+no state dicts. The approval key comes EXCLUSIVELY from the deployment
+environment (ONELIVE_APPROVAL_KEY — founder-minted, never in the repo,
+never in agent-session env; absent = nothing signs or verifies, fail
+closed). The autonomy record is read EXCLUSIVELY from its canonical
+committed path and signature-verified. Current event trust state is read
+EXCLUSIVELY through a module-registered canonical-store reader
+(configure_state_reader — deployment wiring, once-only; none registered =
+release refuses everything). The human-identity check runs at BOTH
+approve() and release (a signed approval naming an AI identity still
+refuses). The autonomous loop (agent_loop.py) is forbidden to import this
+module — enforced by tests/test_social_carousel.py's import guard. There
+is deliberately NO Graph API client in this codebase until R-026's
+trigger fires. HMAC is symmetric — the asymmetric-signature upgrade is
+recorded as R-028 for the same trigger.
 """
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ import hashlib
 import hmac
 import os
 from dataclasses import dataclass
+from typing import Callable
 
 from social.carousel.autonomy import load_policy
 from social.carousel.config import (
@@ -41,11 +42,30 @@ from social.carousel.generator import (
 
 APPROVAL_KEY_ENV = "ONELIVE_APPROVAL_KEY"
 
-# Identity markers that can never approve, kept as defense-in-depth ON TOP
-# of the signature requirement (the signature is the enforcement; this
-# catches a mis-issued key being used under an agent identity). Matched as
-# substrings of the lowered approver identity, fail-closed.
+# Identity markers that can never approve, enforced at approve() AND at
+# release (r3: a caller-built Approval with a valid signature over an AI
+# identity must still refuse). Matched as substrings of the lowered
+# approver identity, fail-closed.
 AI_IDENTITY_MARKERS = ("agent", "claude", "gpt", "gemini", "bot", "onelive-carousel")
+
+# The canonical-store state reader: deployment wiring, registered ONCE at
+# process startup by the surface that owns the DB read path (the ops
+# console backend at R-026's trigger). event_ids -> {event_id: {"confidence",
+# "event_status"}}. None = no reader = release refuses everything.
+_STATE_READER: Callable[[list[str]], dict[str, dict]] | None = None
+
+
+def configure_state_reader(reader: Callable[[list[str]], dict[str, dict]]) -> None:
+    """Register the canonical-store reader. Once-only (fail-closed on
+    re-registration): the reader is deployment configuration, not a
+    per-call argument — a second registration in one process is a
+    misconfiguration or an attempt to swap the truth source."""
+    global _STATE_READER
+    if _STATE_READER is not None:
+        raise ValueError("state reader already configured — refusing to replace it")
+    if not callable(reader):
+        raise ValueError("state reader must be callable")
+    _STATE_READER = reader
 
 
 @dataclass(frozen=True)
@@ -68,45 +88,47 @@ class PublishRelease:
     released_by: str  # approver identity, or "autonomy:<level>"
 
 
-def _resolve_key(explicit: str | bytes | None) -> bytes:
-    key = explicit if explicit is not None else os.environ.get(APPROVAL_KEY_ENV)
+def _resolve_key() -> bytes:
+    """The approval key comes from the deployment environment ONLY (r3:
+    key material must never be a parameter of the custody API — the
+    subject of authorization must not choose the key that verifies it)."""
+    key = os.environ.get(APPROVAL_KEY_ENV)
     if not key:
         raise ValueError(
             f"no approval key available ({APPROVAL_KEY_ENV} unset) — approvals "
             "cannot be signed or verified, refusing (the key is founder-minted "
-            "and never present in agent sessions)"
+            "deployment config, never present in agent sessions)"
         )
-    return key.encode("utf-8") if isinstance(key, str) else key
+    return key.encode("utf-8")
 
 
-def _approval_message(draft_hash: str, approved_by: str, approved_at: str) -> bytes:
-    return "|".join((draft_hash, approved_by, approved_at)).encode("utf-8")
-
-
-def approve(
-    draft: CarouselDraft,
-    approved_by: str,
-    approved_at: str,
-    *,
-    signing_key: str | bytes | None = None,
-) -> Approval:
-    """Record an authenticated human approval: the approving surface (which
-    holds the founder-minted key — agent sessions do not) signs the draft
-    hash. Refuses empty or AI-marked identities and refuses to proceed
-    without a key — a name string alone approves nothing."""
-    identity = (approved_by or "").strip()
+def _assert_human_identity(identity: str) -> str:
+    identity = (identity or "").strip()
     if not identity:
         raise ValueError("approval requires a named human approver")
     lowered = identity.lower()
     for marker in AI_IDENTITY_MARKERS:
         if marker in lowered:
             raise ValueError(
-                f"approver {approved_by!r} matches AI identity marker {marker!r} — "
+                f"approver {identity!r} matches AI identity marker {marker!r} — "
                 "AI never publishes, so AI never approves"
             )
+    return identity
+
+
+def _approval_message(draft_hash: str, approved_by: str, approved_at: str) -> bytes:
+    return "|".join((draft_hash, approved_by, approved_at)).encode("utf-8")
+
+
+def approve(draft: CarouselDraft, approved_by: str, approved_at: str) -> Approval:
+    """Record an authenticated human approval: signs the draft hash under
+    the environment-held founder key. Refuses empty or AI-marked
+    identities and refuses without the key — a name string alone approves
+    nothing, and there is no way to hand this function a key."""
+    identity = _assert_human_identity(approved_by)
     if not approved_at:
         raise ValueError("approval requires a timestamp from the approving surface")
-    key = _resolve_key(signing_key)
+    key = _resolve_key()
     draft_hash = content_hash(draft)
     signature = hmac.new(
         key, _approval_message(draft_hash, identity, approved_at), hashlib.sha256
@@ -119,17 +141,19 @@ def approve(
     )
 
 
-def _recheck_trust(
-    draft: CarouselDraft, current_states: dict[str, dict], reference_time: str
-) -> None:
-    """The state that was true at generation must STILL be true at release:
-    an event that went disputed OR got cancelled/moved OR has already
-    started since the draft was built blocks the post (founder directive
-    2026-07-24: only ever content that is yet to happen — the release gate
-    re-checks with ITS clock, not the generator's). current_states:
-    event_id -> {"confidence": ..., "event_status": ...}, freshly read from
-    the canonical store; reference_time: the release moment, full ISO
-    timestamp."""
+def _recheck_trust(draft: CarouselDraft, reference_time: str) -> None:
+    """The state that was true at generation must STILL be true at release,
+    read from the CANONICAL STORE by the registered reader (r3: the final
+    gate never trusts caller-supplied state) — an event that went disputed
+    OR got cancelled/moved OR has already started blocks the post."""
+    if _STATE_READER is None:
+        raise ValueError(
+            "release refused: no canonical state reader configured — the gate "
+            "cannot verify current trust state, so nothing releases (register "
+            "the reader at deployment; built at R-026's trigger)"
+        )
+    event_ids = [s.event_id for s in draft.slides if s.kind == "event"]
+    current_states = _STATE_READER(event_ids)
     for slide in draft.slides:
         if slide.kind != "event":
             continue
@@ -144,8 +168,8 @@ def _recheck_trust(
         current = current_states.get(slide.event_id)
         if current is None:
             raise ValueError(
-                f"release refused: no current state for {slide.event_id} — "
-                "cannot verify the event is still featurable"
+                f"release refused: canonical store returned no state for "
+                f"{slide.event_id} — cannot verify the event is still featurable"
             )
         confidence = current.get("confidence")
         status = current.get("event_status")
@@ -164,8 +188,8 @@ def _recheck_trust(
                 f"release refused: {slide.event_id} is 'likely' but its slide "
                 "lacks the uncertainty affordance"
             )
-    # Full-content rescan (evaluator r1): the final guard scans EVERY text
-    # surface of the draft itself — it never assumes the generator ran.
+    # Full-content rescan: the final guard scans EVERY text surface of the
+    # draft itself — it never assumes the generator ran.
     for text in all_draft_text(draft):
         lowered = text.lower()
         for phrase in BANNED_CLAIM_PHRASES:
@@ -177,39 +201,34 @@ def _recheck_trust(
 
 def release_for_publish(
     draft: CarouselDraft,
-    current_states: dict[str, dict],
     approval: Approval | None = None,
     *,
     reference_time: str,
-    verification_key: str | bytes | None = None,
-    autonomy_record_path: str | None = None,
 ) -> PublishRelease:
     """The publish decision. Exactly two lawful paths:
 
-    1. an authenticated human Approval whose signature verifies under the
-       founder-held key AND whose hash matches this exact draft, or
-    2. the founder's SIGNED autonomy record covering (surface, tier) —
-       always loaded from disk and signature-verified HERE (r2: there is
-       deliberately NO way to hand this function a pre-built policy object;
-       an in-process caller must not be able to fabricate a grant).
+    1. a human Approval whose signature verifies under the ENVIRONMENT-held
+       founder key, whose hash matches this exact draft, AND whose approver
+       identity passes the human check again HERE, or
+    2. the founder's signed autonomy record, read from its canonical
+       committed path only, signature-verified under the same env key.
 
-    Everything else refuses; either path first passes the trust re-check
-    (current confidence + status, future-only at reference_time, full-text
-    rescan). autonomy_record_path only relocates WHICH file is read (tests);
-    whatever file is read must still verify under the founder key.
-    AutonomyRecordError propagates — a broken or bogus ratification refuses
-    everything, loudly.
+    Everything else refuses. There are deliberately NO parameters for key
+    material, record paths, or trust state (r3): the key is deployment
+    env, the record location is fixed, and current state comes from the
+    registered canonical reader — absent any of them, nothing releases.
     """
-    _recheck_trust(draft, current_states, reference_time)
+    _recheck_trust(draft, reference_time)
     draft_hash = content_hash(draft)
 
     if approval is not None:
+        _assert_human_identity(approval.approved_by)
         if approval.draft_hash != draft_hash:
             raise ValueError(
                 "release refused: approval hash does not match this draft — "
                 "the draft changed after approval, so the approval is void"
             )
-        key = _resolve_key(verification_key)
+        key = _resolve_key()
         expected = hmac.new(
             key,
             _approval_message(approval.draft_hash, approval.approved_by, approval.approved_at),
@@ -227,7 +246,7 @@ def release_for_publish(
             released_by=approval.approved_by,
         )
 
-    active_policy = load_policy(autonomy_record_path, verification_key=verification_key)
+    active_policy = load_policy()
     if active_policy.allows_auto_release(draft.surface, draft.tier):
         return PublishRelease(
             draft_hash=draft_hash,
