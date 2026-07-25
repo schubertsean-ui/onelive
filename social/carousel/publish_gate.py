@@ -132,8 +132,12 @@ def approve(draft: CarouselDraft, approved_by: str, approved_at: str) -> Approva
     identities and refuses without the key — a name string alone approves
     nothing, and there is no way to hand this function a key."""
     identity = _assert_human_identity(approved_by)
-    if not approved_at:
-        raise ValueError("approval requires a timestamp from the approving surface")
+    try:
+        datetime.fromisoformat(approved_at)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"approval timestamp {approved_at!r} is not a valid ISO 8601 moment"
+        ) from exc
     key = _resolve_key()
     draft_hash = content_hash(draft)
     signature = hmac.new(

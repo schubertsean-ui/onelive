@@ -104,7 +104,7 @@ def scenario_events(events: list[dict], scenario: Scenario) -> list[dict]:
         picked = [
             e
             for e in picked
-            if e.get("price_min") is not None and e["price_min"] <= scenario.price_max
+            if e.get("price_min") is not None and 0 <= e["price_min"] <= scenario.price_max
         ]
     if scenario.earliest_start_hour is not None:
         picked = [

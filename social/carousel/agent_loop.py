@@ -65,7 +65,40 @@ def run_cycle(
         raise ValueError(f"max_drafts must be positive, got {max_drafts}")
     if deadman_ping is not None:
         deadman_ping("start")
+    try:
+        result = _run_cycle_body(
+            events=events,
+            weekly_confirmed_counts=weekly_confirmed_counts,
+            bandit=bandit,
+            brand=brand,
+            max_drafts=max_drafts,
+            reference_time=reference_time,
+            thresholds=thresholds,
+            include_scenarios=include_scenarios,
+        )
+    except BaseException:
+        # A loud trust error must still be VISIBLE to the dead-man channel
+        # (r7 nit): ping failure explicitly, then propagate unchanged —
+        # "end" means completed and never fires on the error path.
+        if deadman_ping is not None:
+            deadman_ping("error")
+        raise
+    if deadman_ping is not None:
+        deadman_ping("end")
+    return result
 
+
+def _run_cycle_body(
+    *,
+    events,
+    weekly_confirmed_counts,
+    bandit,
+    brand,
+    max_drafts,
+    reference_time,
+    thresholds,
+    include_scenarios,
+) -> CycleResult:
     result = CycleResult()
 
     def _attempt(series_key: str, series_events: list[dict], config: CarouselConfig) -> None:
@@ -117,8 +150,6 @@ def run_cycle(
             )
 
     result.posterior_means = bandit.posterior_means()
-    if deadman_ping is not None:
-        deadman_ping("end")
     return result
 
 

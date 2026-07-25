@@ -166,6 +166,12 @@ def _check_event(event: dict) -> None:
         raise CarouselTrustError(
             f"unknown event_status {event['event_status']!r} on {event['event_id']}"
         )
+    price = event.get("price_min")
+    if price is not None and float(price) < 0:
+        raise CarouselTrustError(
+            f"negative price {price!r} on {event['event_id']} — an impossible "
+            "public price claim is a data defect, never copy"
+        )
     descriptor = event.get("foundry_descriptor")
     if descriptor is not None:
         if not isinstance(descriptor, dict) or not descriptor.get("text") or not descriptor.get("provenance"):
@@ -278,6 +284,8 @@ def _price_label(price) -> str:
     $19.99, never $19 — a public price claim is a fact, and facts are
     verbatim; Decimal avoids float representation surprises."""
     value = Decimal(str(price))
+    if value < 0:
+        raise CarouselTrustError(f"negative price {price!r} cannot be rendered")
     if value == value.to_integral_value():
         return f"${int(value)}"
     return f"${value.quantize(Decimal('0.01'))}"
@@ -426,7 +434,11 @@ def render_carousel(
 ) -> CarouselDraft:
     """Pure deterministic render of an ALREADY-SELECTED lineup. Split out
     (r5) so the release gate can re-render the draft from canonical rows
-    and compare content hashes — total fact verification in one check."""
+    and compare content hashes — total fact verification in one check.
+    Validates config + assignment ITSELF (r7): the release path must fail
+    closed independently of whether build_carousel ever ran."""
+    config.validate()
+    validate_assignment(assignment)
     constraints = SURFACE_CONSTRAINTS[config.surface]
 
     hook_text = _cap_words(

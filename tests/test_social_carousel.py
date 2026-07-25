@@ -1135,6 +1135,40 @@ def test_run_cycle_propagates_trust_errors_loud():
         )
 
 
+def test_negative_price_fails_loud_everywhere():
+    # r7 blockers: an impossible price is a data defect, never copy.
+    with pytest.raises(CarouselTrustError, match="negative price"):
+        select_featurable([_event(1, price_min=-5)])
+    free = scenario_by_key("free_tonight")
+    assert scenario_events([_event(1, domain="comedy", price_min=-5)], free) == []
+
+
+def test_render_path_validates_config_itself():
+    # r7 blocker: the release re-render path fails closed on bad config
+    # independently of build_carousel.
+    from social.carousel.generator import render_carousel
+
+    bad = _config(surface="myspace_bulletin")
+    with pytest.raises(ValueError, match="unknown surface"):
+        render_carousel(_events(5), bad, _assignment())
+
+
+def test_approve_rejects_malformed_timestamp():
+    with pytest.raises(ValueError, match="ISO 8601"):
+        approve(_draft(), "Sean Schubert", "yesterday-ish")
+
+
+def test_deadman_error_ping_on_loud_failure():
+    pings = []
+    with pytest.raises(CarouselTrustError):
+        _cycle(
+            [_event(1, confidence="banana", domain="comedy")],
+            {"comedy": 6.0},
+            deadman_ping=pings.append,
+        )
+    assert pings == ["start", "error"]  # "end" never fires on the error path
+
+
 def test_ingest_results_updates_learner_and_reports():
     bandit = ThompsonBandit(seed=9)
     ledger = MetricsLedger()
