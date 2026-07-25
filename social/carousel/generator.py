@@ -96,6 +96,12 @@ class CarouselDraft:
     surface: str
     tier: str
     timeframe: str
+    # Brand/render inputs carried ON the draft (r5) so the release gate can
+    # RE-RENDER the whole draft from canonical rows and compare hashes.
+    city: str
+    handle: str
+    listicle_noun: str
+    short_link_base: str
     author: str
     assignment: dict[str, str]
     slides: tuple[Slide, ...]
@@ -241,19 +247,27 @@ def _cap_words(text: str, max_words: int, label: str) -> str:
 
 
 # Word-boundary matching (r4 nit): "Confirmedly Great" the band name passes;
-# the claim word "confirmed" never does.
-_BANNED_RE = re.compile(
+# the claim word "confirmed" never does. Public: the release gate uses the
+# SAME regex (r5 nit — generation and custody must agree).
+BANNED_CLAIM_RE = re.compile(
     r"\b(?:" + "|".join(re.escape(p) for p in BANNED_CLAIM_PHRASES) + r")\b",
     re.IGNORECASE,
 )
 
 
 def _scan_banned(text: str, context: str) -> None:
-    match = _BANNED_RE.search(text)
+    match = BANNED_CLAIM_RE.search(text)
     if match:
         raise CarouselTrustError(
             f"banned claim phrase {match.group(0)!r} in {context}: {text!r}"
         )
+
+
+def _price_label(price) -> str:
+    """Exact price display (r5): $19.99 is $19.99, never $19 — a public
+    price claim is a fact, and facts are verbatim."""
+    value = float(price)
+    return f"${int(value)}" if value == int(value) else f"${value:.2f}"
 
 
 def _hook_headline(hook_type: str, events: list[dict], config: CarouselConfig) -> str:
@@ -274,9 +288,11 @@ def _hook_headline(hook_type: str, events: list[dict], config: CarouselConfig) -
     }
     if hook_type == "number_promise":
         if priced and len(priced) == n:
-            top = int(max(priced))
-            # "under $0" is nonsense — an all-free lineup says so plainly.
-            blank = "free nights" if top == 0 else f"nights under ${top}"
+            # Honest by construction (r5): "from $X" claims the exact
+            # MINIMUM, never an "under" ceiling a $X ticket would falsify,
+            # and the label is exact — no cent truncation.
+            low = min(priced)
+            blank = "free nights" if max(priced) == 0 else f"nights from {_price_label(low)}"
         else:
             # An honest price promise needs every featured event priced;
             # otherwise fall back to the plain noun.
@@ -314,7 +330,7 @@ def _event_overlay(event: dict, timeframe: str) -> tuple[str, ...]:
     lines = [event["name"], f"{event['venue_name']} · {when}"]
     if event.get("price_min") is not None:
         price = event["price_min"]
-        lines.append("Free" if price == 0 else f"From ${int(price)}")
+        lines.append("Free" if price == 0 else f"From {_price_label(price)}")
     descriptor = event.get("foundry_descriptor")
     if descriptor:
         lines.append(descriptor["text"])
@@ -387,8 +403,18 @@ def build_carousel(
             f"promises at least {min(LISTICLE_SIZES)}, and the promise is never padded"
         )
 
+    return render_carousel(featurable[:listicle_n], config, assignment)
+
+
+def render_carousel(
+    featured: list[dict],
+    config: CarouselConfig,
+    assignment: dict[str, str],
+) -> CarouselDraft:
+    """Pure deterministic render of an ALREADY-SELECTED lineup. Split out
+    (r5) so the release gate can re-render the draft from canonical rows
+    and compare content hashes — total fact verification in one check."""
     constraints = SURFACE_CONSTRAINTS[config.surface]
-    featured = featurable[:listicle_n]
 
     hook_text = _cap_words(
         _hook_headline(assignment["hook_type"], featured, config),
@@ -443,6 +469,10 @@ def build_carousel(
         surface=config.surface,
         tier=config.tier,
         timeframe=config.timeframe,
+        city=config.city,
+        handle=config.handle,
+        listicle_noun=config.listicle_noun,
+        short_link_base=config.short_link_base,
         author=AGENT_AUTHOR,
         assignment=dict(assignment),
         slides=tuple(slides),

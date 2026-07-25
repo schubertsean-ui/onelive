@@ -346,7 +346,8 @@ def test_below_five_featurable_never_posts():
 
 def test_price_promise_only_when_every_event_is_priced():
     draft = _draft(_events(7), hook_type="number_promise")
-    assert "under $20" in draft.slides[0].headline
+    # r5: honest minimum framing — never an "under" ceiling a $20 ticket falsifies.
+    assert "from $20" in draft.slides[0].headline
     # Exactly 5 featurable, one unpriced -> the unpriced one IS featured,
     # so the honest fallback drops the price blank.
     unpriced = [_event(1, price_min=None)] + [_event(i) for i in range(2, 6)]
@@ -560,7 +561,7 @@ def test_tampered_discovery_bundle_never_releases(monkeypatch):
     bundle["event_jsonld"][0]["name"] = "Totally Invented Show"
     tampered = dataclasses.replace(draft, discovery=bundle)
     approval = _approve(tampered)
-    with pytest.raises(ValueError, match="never drift"):
+    with pytest.raises(ValueError, match="re-derive"):
         _release(tampered, approval)
 
 
@@ -572,12 +573,39 @@ def test_discovery_bundle_is_hash_bound():
     assert content_hash(dataclasses.replace(draft, discovery=bundle)) != content_hash(draft)
 
 
-def test_banned_scan_is_word_boundary():
-    # r4 nit: a band actually named "Confirmedly Great" is a legitimate
-    # event name; the claim word "confirmed" alone is not.
-    ok = _event(1, name="Confirmedly Great")
-    draft = _draft([ok] + [_event(i) for i in range(2, 6)])
+def test_banned_scan_is_word_boundary_end_to_end(monkeypatch):
+    # r4/r5 nit: a band actually named "Confirmedly Great" is legitimate at
+    # generation AND at release (both use the same word-boundary regex).
+    rows = {1: _event(1, name="Confirmedly Great")}
+    events = [rows[1]] + [_event(i) for i in range(2, 6)]
+    draft = _draft(events)
     assert any("Confirmedly Great" in s.headline for s in draft.slides)
+    reader_rows = {e["event_id"]: e for e in events}
+    monkeypatch.setattr(publish_gate, "_STATE_READER", _reader_returning(reader_rows))
+    release = _release(draft, _approve(draft))
+    assert release.draft_hash == content_hash(draft)
+
+
+def test_price_labels_are_exact_never_truncated():
+    # r5 blockers: $19.99 is $19.99, never $19; $0.01 is never "free".
+    cents = [_event(1, price_min=19.99), _event(2, price_min=0.01)] + [
+        _event(i) for i in range(3, 6)
+    ]
+    draft = _draft(cents, hook_type="number_promise")
+    texts = [line for s in draft.slides for line in s.overlay_lines]
+    assert any("From $19.99" in t for t in texts)
+    assert any("From $0.01" in t for t in texts)
+    assert "free" not in draft.slides[0].headline.lower()
+    assert "from $0.01" in draft.slides[0].headline
+
+
+def test_missing_discovery_bundle_never_releases():
+    # r5 blocker: discovery is required — a draft stripped of it refuses.
+    draft = _draft()
+    stripped = dataclasses.replace(draft, discovery={})
+    approval = _approve(stripped)
+    with pytest.raises(ValueError, match="re-derive"):
+        _release(stripped, approval)
 
 
 def test_no_state_reader_refuses_everything(monkeypatch):
@@ -649,7 +677,8 @@ def test_release_refuses_unknown_current_state(monkeypatch):
 def test_release_rescans_full_draft_content():
     draft = _draft()
     tampered = dataclasses.replace(draft, caption=draft.caption + " Guaranteed sellout!")
-    with pytest.raises(ValueError, match="banned claim phrase"):
+    # The total re-render hash catches ANY content drift before the belt.
+    with pytest.raises(ValueError, match="re-derive"):
         _release(tampered, _approve(tampered))
 
 

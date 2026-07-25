@@ -29,15 +29,18 @@ from typing import Callable
 
 from social.carousel.autonomy import load_policy
 from social.carousel.config import (
-    BANNED_CLAIM_PHRASES,
+    CarouselConfig,
     FEATURABLE_CONFIDENCE,
     FEATURABLE_EVENT_STATUS,
     LISTICLE_SIZES,
 )
 from social.carousel.generator import (
+    BANNED_CLAIM_RE,
     CarouselDraft,
+    CarouselTrustError,
     all_draft_text,
     content_hash,
+    render_carousel,
     within_timeframe,
 )
 
@@ -214,58 +217,48 @@ def _recheck_trust(draft: CarouselDraft, reference_time: str) -> None:
                 f"release refused: {slide.event_id} is 'likely' but its slide "
                 "lacks the uncertainty affordance"
             )
-        # Canonical-fact verification (r4): every fact the slide asserts
-        # must match the canonical row — a valid approval over fabricated
-        # name/venue/source/time never releases.
-        for fact_field, slide_value in (
-            ("name", slide.headline),
-            ("source", slide.source),
-            ("start_time", slide.start_time),
-        ):
-            canonical_value = current.get(fact_field)
-            if not canonical_value or slide_value != canonical_value:
-                raise ValueError(
-                    f"release refused: {slide.event_id} asserts {fact_field} "
-                    f"{slide_value!r} but the canonical store says "
-                    f"{canonical_value!r} — no fabrication"
-                )
         if current.get("origin") != "canonical_event":
             raise ValueError(
                 f"release refused: {slide.event_id} is not a canonical "
                 "published row — candidate/pipeline rows are never amplified"
             )
-        venue = current.get("venue_name")
-        venue_line = slide.overlay_lines[1] if len(slide.overlay_lines) > 1 else ""
-        if not venue or not venue_line.startswith(venue):
-            raise ValueError(
-                f"release refused: {slide.event_id} venue line {venue_line!r} "
-                f"does not match canonical venue {venue!r} — no fabrication"
-            )
-    # Discovery-bundle fact verification (r4): the machine-facing Event
-    # nodes must describe exactly the featured canonical events.
-    for node in (draft.discovery or {}).get("event_jsonld", []):
-        node_id = node.get("identifier")
-        row = current_states.get(node_id) if node_id else None
-        if (
-            row is None
-            or node_id not in event_ids
-            or node.get("name") != row.get("name")
-            or node.get("startDate") != row.get("start_time")
-        ):
-            raise ValueError(
-                "release refused: discovery bundle Event node "
-                f"{node_id!r}/{node.get('name')!r} does not match the "
-                "canonical store — machine-facing claims never drift"
-            )
-    # Full-content rescan: the final guard scans EVERY text surface of the
-    # draft itself — it never assumes the generator ran.
+    # TOTAL fact verification (r5): re-render the ENTIRE draft — every
+    # slide line, alt text, caption, hashtag, link, and the complete
+    # discovery bundle — from the CANONICAL rows through the same
+    # deterministic renderer, and require hash identity. One check, no
+    # per-field gaps: anything fabricated, truncated, dropped, or drifted
+    # (including discovery={}) produces a different hash and refuses.
+    rows_in_order = [current_states[eid] for eid in event_ids]
+    config = CarouselConfig(
+        surface=draft.surface,
+        series_key=draft.series_key,
+        city=draft.city,
+        handle=draft.handle,
+        short_link_base=draft.short_link_base,
+        tier=draft.tier,
+        timeframe=draft.timeframe,
+        listicle_noun=draft.listicle_noun,
+    )
+    try:
+        rebuilt = render_carousel(rows_in_order, config, dict(draft.assignment))
+    except CarouselTrustError as exc:
+        raise ValueError(
+            f"release refused: canonical rows do not render a lawful carousel ({exc})"
+        ) from exc
+    if content_hash(rebuilt) != content_hash(draft):
+        raise ValueError(
+            "release refused: the draft does not re-derive byte-identically "
+            "from the canonical store — no fabrication, no drift, no missing "
+            "discovery artifacts"
+        )
+    # Belt on top of the hash (same regex as generation — r5 nit): scan the
+    # copy surfaces for banned claim language.
     for text in all_draft_text(draft):
-        lowered = text.lower()
-        for phrase in BANNED_CLAIM_PHRASES:
-            if phrase in lowered:
-                raise ValueError(
-                    f"release refused: banned claim phrase {phrase!r} in draft content"
-                )
+        match = BANNED_CLAIM_RE.search(text)
+        if match:
+            raise ValueError(
+                f"release refused: banned claim phrase {match.group(0)!r} in draft content"
+            )
 
 
 def release_for_publish(
