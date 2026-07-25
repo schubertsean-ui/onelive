@@ -16,8 +16,10 @@ only descriptor slot requires Descriptor Foundry provenance.
 """
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 
@@ -36,7 +38,7 @@ from social.carousel.config import (
     TONIGHT_EARLIEST_HOUR,
     validate_assignment,
 )
-from social.carousel.geo import hashtags_for
+from social.carousel.geo import discovery_bundle, hashtags_for
 
 AGENT_AUTHOR = "onelive-carousel-agent"
 
@@ -101,6 +103,11 @@ class CarouselDraft:
     hashtags: tuple[str, ...]
     short_link: str
     post_slot: str
+    # The machine-facing GEO/SEO bundle (JSON-LD, OG, alt text, llms.txt
+    # block) rides INSIDE the draft (r4): it is covered by content_hash, so
+    # the approval binds it and the release gate re-checks it — discovery
+    # artifacts can never drift from what the human approved.
+    discovery: dict = field(default_factory=dict)
 
 
 def content_hash(draft: CarouselDraft) -> str:
@@ -111,8 +118,12 @@ def content_hash(draft: CarouselDraft) -> str:
 
 
 def all_draft_text(draft: CarouselDraft) -> list[str]:
-    """Every human- or machine-facing text the draft would publish — the
-    surface the release gate must rescan in full (evaluator r1)."""
+    """Every COPY surface the draft would publish — the banned-claim rescan
+    set (evaluator r1, extended r4 to the discovery bundle's copy surfaces:
+    OG values and alt texts). The llms.txt block and JSON-LD are DATA
+    surfaces excluded here by design — they legitimately state confidence
+    labels ("confidence: confirmed") as trust display, and their facts are
+    verified against the canonical store at release instead."""
     texts: list[str] = []
     for slide in draft.slides:
         texts.append(slide.headline)
@@ -121,6 +132,9 @@ def all_draft_text(draft: CarouselDraft) -> list[str]:
     texts.append(draft.caption)
     texts.extend(draft.hashtags)
     texts.append(draft.short_link)
+    discovery = draft.discovery or {}
+    texts.extend(str(v) for v in discovery.get("og_tags", {}).values())
+    texts.extend(discovery.get("alt_texts", []))
     return texts
 
 
@@ -226,11 +240,20 @@ def _cap_words(text: str, max_words: int, label: str) -> str:
     return text
 
 
+# Word-boundary matching (r4 nit): "Confirmedly Great" the band name passes;
+# the claim word "confirmed" never does.
+_BANNED_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(p) for p in BANNED_CLAIM_PHRASES) + r")\b",
+    re.IGNORECASE,
+)
+
+
 def _scan_banned(text: str, context: str) -> None:
-    lowered = text.lower()
-    for phrase in BANNED_CLAIM_PHRASES:
-        if phrase in lowered:
-            raise CarouselTrustError(f"banned claim phrase {phrase!r} in {context}: {text!r}")
+    match = _BANNED_RE.search(text)
+    if match:
+        raise CarouselTrustError(
+            f"banned claim phrase {match.group(0)!r} in {context}: {text!r}"
+        )
 
 
 def _hook_headline(hook_type: str, events: list[dict], config: CarouselConfig) -> str:
@@ -427,6 +450,11 @@ def build_carousel(
         hashtags=hashtags_for(config.city, featured),
         short_link=short_link,
         post_slot=assignment["post_slot"],
+    )
+    # Attach the machine-discovery bundle INSIDE the draft so the content
+    # hash (and therefore any approval) covers it (r4).
+    draft = dataclasses.replace(
+        draft, discovery=discovery_bundle(draft, featured, config.city)
     )
     for text in all_draft_text(draft):
         _scan_banned(text, "draft content")

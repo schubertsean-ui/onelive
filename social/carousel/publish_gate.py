@@ -32,6 +32,7 @@ from social.carousel.config import (
     BANNED_CLAIM_PHRASES,
     FEATURABLE_CONFIDENCE,
     FEATURABLE_EVENT_STATUS,
+    LISTICLE_SIZES,
 )
 from social.carousel.generator import (
     CarouselDraft,
@@ -50,8 +51,9 @@ AI_IDENTITY_MARKERS = ("agent", "claude", "gpt", "gemini", "bot", "onelive-carou
 
 # The canonical-store state reader: deployment wiring, registered ONCE at
 # process startup by the surface that owns the DB read path (the ops
-# console backend at R-026's trigger). event_ids -> {event_id: {"confidence",
-# "event_status"}}. None = no reader = release refuses everything.
+# console backend at R-026's trigger). event_ids -> {event_id: FULL canonical
+# row (r4): confidence, event_status, name, venue_name, start_time, source,
+# origin at minimum}. None = no reader = release refuses everything.
 _STATE_READER: Callable[[list[str]], dict[str, dict]] | None = None
 
 
@@ -142,15 +144,39 @@ def approve(draft: CarouselDraft, approved_by: str, approved_at: str) -> Approva
 
 
 def _recheck_trust(draft: CarouselDraft, reference_time: str) -> None:
-    """The state that was true at generation must STILL be true at release,
-    read from the CANONICAL STORE by the registered reader (r3: the final
-    gate never trusts caller-supplied state) — an event that went disputed
-    OR got cancelled/moved OR has already started blocks the post."""
+    """The state AND FACTS that were true at generation must STILL be true
+    at release, read from the CANONICAL STORE by the registered reader (r3:
+    the final gate never trusts caller-supplied state; r4: nor does it
+    trust that the generator was used at all — draft shape and every
+    asserted fact are verified against canonical rows, fail closed)."""
     if _STATE_READER is None:
         raise ValueError(
             "release refused: no canonical state reader configured — the gate "
             "cannot verify current trust state, so nothing releases (register "
             "the reader at deployment; built at R-026's trigger)"
+        )
+    # Listicle shape (r4): exactly one hook first, one CTA last, and
+    # exactly 5 or 7 event slides between them — a hand-built draft with
+    # zero (or any other count of) event slides never releases.
+    kinds = [s.kind for s in draft.slides]
+    n_events = kinds.count("event")
+    if (
+        not kinds
+        or kinds[0] != "hook"
+        or kinds[-1] != "cta"
+        or kinds.count("hook") != 1
+        or kinds.count("cta") != 1
+        or kinds[1:-1] != ["event"] * n_events
+        or n_events not in LISTICLE_SIZES
+    ):
+        raise ValueError(
+            f"release refused: draft shape {kinds} is not the listicle canon "
+            f"(hook, {sorted(LISTICLE_SIZES)} event slides, cta)"
+        )
+    if not draft.slides[0].headline.startswith(f"{n_events} "):
+        raise ValueError(
+            "release refused: hook headline does not state the actual event "
+            "count — the listicle promise must be exact"
         )
     event_ids = [s.event_id for s in draft.slides if s.kind == "event"]
     current_states = _STATE_READER(event_ids)
@@ -187,6 +213,49 @@ def _recheck_trust(draft: CarouselDraft, reference_time: str) -> None:
             raise ValueError(
                 f"release refused: {slide.event_id} is 'likely' but its slide "
                 "lacks the uncertainty affordance"
+            )
+        # Canonical-fact verification (r4): every fact the slide asserts
+        # must match the canonical row — a valid approval over fabricated
+        # name/venue/source/time never releases.
+        for fact_field, slide_value in (
+            ("name", slide.headline),
+            ("source", slide.source),
+            ("start_time", slide.start_time),
+        ):
+            canonical_value = current.get(fact_field)
+            if not canonical_value or slide_value != canonical_value:
+                raise ValueError(
+                    f"release refused: {slide.event_id} asserts {fact_field} "
+                    f"{slide_value!r} but the canonical store says "
+                    f"{canonical_value!r} — no fabrication"
+                )
+        if current.get("origin") != "canonical_event":
+            raise ValueError(
+                f"release refused: {slide.event_id} is not a canonical "
+                "published row — candidate/pipeline rows are never amplified"
+            )
+        venue = current.get("venue_name")
+        venue_line = slide.overlay_lines[1] if len(slide.overlay_lines) > 1 else ""
+        if not venue or not venue_line.startswith(venue):
+            raise ValueError(
+                f"release refused: {slide.event_id} venue line {venue_line!r} "
+                f"does not match canonical venue {venue!r} — no fabrication"
+            )
+    # Discovery-bundle fact verification (r4): the machine-facing Event
+    # nodes must describe exactly the featured canonical events.
+    for node in (draft.discovery or {}).get("event_jsonld", []):
+        node_id = node.get("identifier")
+        row = current_states.get(node_id) if node_id else None
+        if (
+            row is None
+            or node_id not in event_ids
+            or node.get("name") != row.get("name")
+            or node.get("startDate") != row.get("start_time")
+        ):
+            raise ValueError(
+                "release refused: discovery bundle Event node "
+                f"{node_id!r}/{node.get('name')!r} does not match the "
+                "canonical store — machine-facing claims never drift"
             )
     # Full-content rescan: the final guard scans EVERY text surface of the
     # draft itself — it never assumes the generator ran.

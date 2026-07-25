@@ -17,7 +17,6 @@ from dataclasses import dataclass, field
 from social.carousel.bandit import ThompsonBandit
 from social.carousel.config import CarouselConfig
 from social.carousel.generator import CarouselDraft, NoFeaturableEvents, build_carousel
-from social.carousel.geo import discovery_bundle
 from social.carousel.metrics import MetricsLedger, PostMetrics
 from social.carousel.scenarios import SCENARIOS, scenario_config, scenario_events
 from social.carousel.tiers import TierThresholds, plan_portfolio
@@ -35,10 +34,11 @@ class BrandIdentity:
 
 @dataclass
 class CycleResult:
-    """One cycle's output: drafts awaiting custody + inspectable telemetry."""
+    """One cycle's output: drafts awaiting custody + inspectable telemetry.
+    Each draft CARRIES its discovery bundle (r4: hash-bound custody — no
+    separate machine-facing artifact stream exists to drift)."""
 
     drafts: list[CarouselDraft] = field(default_factory=list)
-    discovery_bundles: list[dict] = field(default_factory=list)
     skipped_series: list[tuple[str, str]] = field(default_factory=list)
     posterior_means: dict = field(default_factory=dict)
 
@@ -85,10 +85,7 @@ def run_cycle(
             # the autonomous loop must never swallow a trust failure).
             result.skipped_series.append((series_key, str(exc)))
             return
-        featured_ids = {s.event_id for s in draft.slides if s.kind == "event"}
-        featured = [e for e in series_events if e["event_id"] in featured_ids]
         result.drafts.append(draft)
-        result.discovery_bundles.append(discovery_bundle(draft, featured, brand.city))
 
     for series in plan_portfolio(weekly_confirmed_counts, thresholds):
         _attempt(

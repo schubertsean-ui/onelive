@@ -67,10 +67,9 @@ _REAL_RECORD_PATH = autonomy_module.DEFAULT_RECORD_PATH
 
 
 def _default_reader(event_ids):
-    return {
-        eid: {"confidence": "confirmed", "event_status": "scheduled"}
-        for eid in event_ids
-    }
+    # Full canonical rows (r4): regenerate the fixture recipe per id so
+    # release-time fact verification sees exactly what generation saw.
+    return {eid: _event(int(eid.split("-")[1])) for eid in event_ids}
 
 
 @pytest.fixture(autouse=True)
@@ -165,6 +164,13 @@ def _release(draft, approval=None, reference_time=REF_TIME):
 
 def _reader_returning(states):
     return lambda event_ids: states
+
+
+def _rows_for(draft, **overrides):
+    rows = _default_reader([s.event_id for s in draft.slides if s.kind == "event"])
+    for eid, extra in overrides.items():
+        rows[eid] = {**rows[eid], **extra}
+    return rows
 
 
 # --- Trust selection (spec SS1) ------------------------------------------------
@@ -522,6 +528,58 @@ def test_custody_api_accepts_no_keys_paths_or_state():
     assert approve_params == {"draft", "approved_by", "approved_at"}
 
 
+def test_handbuilt_shapeless_draft_never_releases(monkeypatch):
+    # r4 blocker: a draft with zero event slides (or any non-listicle
+    # shape) refuses at release regardless of a valid approval.
+    draft = _draft()
+    empty = dataclasses.replace(
+        draft, slides=(draft.slides[0], draft.slides[-1]), discovery={}
+    )
+    approval = _approve(empty)
+    with pytest.raises(ValueError, match="listicle canon"):
+        _release(empty, approval)
+
+
+def test_fabricated_name_never_releases(monkeypatch):
+    # r4 blocker: a validly-approved draft whose slide asserts a name the
+    # canonical store does not carry refuses at release.
+    draft = _draft()
+    slides = list(draft.slides)
+    idx = next(i for i, s in enumerate(slides) if s.kind == "event")
+    slides[idx] = dataclasses.replace(slides[idx], headline="Totally Invented Show")
+    tampered = dataclasses.replace(draft, slides=tuple(slides))
+    approval = _approve(tampered)
+    with pytest.raises(ValueError, match="no fabrication"):
+        _release(tampered, approval)
+
+
+def test_tampered_discovery_bundle_never_releases(monkeypatch):
+    # r4 blocker: machine-facing Event nodes must match the canonical store.
+    draft = _draft()
+    bundle = json.loads(json.dumps(draft.discovery))
+    bundle["event_jsonld"][0]["name"] = "Totally Invented Show"
+    tampered = dataclasses.replace(draft, discovery=bundle)
+    approval = _approve(tampered)
+    with pytest.raises(ValueError, match="never drift"):
+        _release(tampered, approval)
+
+
+def test_discovery_bundle_is_hash_bound():
+    draft = _draft()
+    assert draft.discovery  # the bundle rides inside the draft
+    bundle = json.loads(json.dumps(draft.discovery))
+    bundle["og_tags"]["og:title"] = "changed"
+    assert content_hash(dataclasses.replace(draft, discovery=bundle)) != content_hash(draft)
+
+
+def test_banned_scan_is_word_boundary():
+    # r4 nit: a band actually named "Confirmedly Great" is a legitimate
+    # event name; the claim word "confirmed" alone is not.
+    ok = _event(1, name="Confirmedly Great")
+    draft = _draft([ok] + [_event(i) for i in range(2, 6)])
+    assert any("Confirmedly Great" in s.headline for s in draft.slides)
+
+
 def test_no_state_reader_refuses_everything(monkeypatch):
     draft = _draft()
     approval = _approve(draft)
@@ -556,10 +614,9 @@ def test_edit_after_approval_voids_the_approval():
 def test_release_rechecks_current_confidence(monkeypatch):
     draft = _draft()
     approval = _approve(draft)
-    states = _current_states(draft)
-    first = next(iter(states))
-    states[first] = {"confidence": "disputed", "event_status": "scheduled"}
-    monkeypatch.setattr(publish_gate, "_STATE_READER", _reader_returning(states))
+    first = next(s.event_id for s in draft.slides if s.kind == "event")
+    rows = _rows_for(draft, **{first: {"confidence": "disputed"}})
+    monkeypatch.setattr(publish_gate, "_STATE_READER", _reader_returning(rows))
     with pytest.raises(ValueError, match="not settled"):
         _release(draft, approval)
 
@@ -567,10 +624,9 @@ def test_release_rechecks_current_confidence(monkeypatch):
 def test_release_rechecks_current_event_status(monkeypatch):
     draft = _draft()
     approval = _approve(draft)
-    states = _current_states(draft)
-    first = next(iter(states))
-    states[first] = {"confidence": "confirmed", "event_status": "cancelled"}
-    monkeypatch.setattr(publish_gate, "_STATE_READER", _reader_returning(states))
+    first = next(s.event_id for s in draft.slides if s.kind == "event")
+    rows = _rows_for(draft, **{first: {"event_status": "cancelled"}})
+    monkeypatch.setattr(publish_gate, "_STATE_READER", _reader_returning(rows))
     with pytest.raises(ValueError, match="only scheduled"):
         _release(draft, approval)
 
@@ -924,7 +980,7 @@ def test_discovery_bundle_complete():
     draft = _draft()
     featured_ids = {s.event_id for s in draft.slides if s.kind == "event"}
     featured = [e for e in _events() if e["event_id"] in featured_ids]
-    bundle = discovery_bundle(draft, featured, "Austin")
+    bundle = draft.discovery
     assert bundle["carousel_jsonld"]["@type"] == "SocialMediaPosting"
     assert len(bundle["event_jsonld"]) == len(featured)
     assert bundle["og_tags"]["og:site_name"] == "OneLive"
@@ -940,10 +996,7 @@ def test_llms_txt_header_matches_the_timeframe():
         _event(i, start_time=f"2026-07-25T2{i % 3}:00:00-05:00") for i in range(1, 6)
     ]
     draft = _draft(events, config=_config(timeframe="this_weekend"))
-    featured_ids = {s.event_id for s in draft.slides if s.kind == "event"}
-    featured = [e for e in events if e["event_id"] in featured_ids]
-    bundle = discovery_bundle(draft, featured, "Austin")
-    assert bundle["llms_txt_block"].startswith("## This weekend in Austin")
+    assert draft.discovery["llms_txt_block"].startswith("## This weekend in Austin")
 
 
 # --- The agent cycle (spec SS6) ------------------------------------------------
@@ -980,7 +1033,7 @@ def test_run_cycle_produces_drafts_and_telemetry():
         _cycle_events(), {"live-music": 20.0, "comedy": 6.0}, deadman_ping=pings.append
     )
     assert pings == ["start", "end"]
-    assert result.drafts and len(result.discovery_bundles) == len(result.drafts)
+    assert result.drafts and all(d.discovery for d in result.drafts)
     assert result.posterior_means
     assert all(d.author == "onelive-carousel-agent" for d in result.drafts)
     # scenario series are attempted; outcomes (draft or recorded skip) exist

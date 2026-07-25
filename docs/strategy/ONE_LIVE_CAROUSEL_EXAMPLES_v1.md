@@ -22,6 +22,11 @@ five scenarios render from live data with zero code changes. What IS
 real: every slide you see was produced by the actual shipped generator
 (test-pinned), under the real trust rules — future-only windows, exact
 listicle promises, provenance-required descriptors, banned-claim scans.
+One consequence to read correctly (r4 nit): the captions below carry the
+engine's standard "Real listings, real sources." template line — TRUE in
+production, where only canonical gate-settled rows can enter a carousel;
+here it renders over synthetic fixtures because the engine is the real
+one, and this banner governs.
 
 ## A. The five scenario carousels (engine output, verbatim)
 
