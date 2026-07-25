@@ -65,6 +65,11 @@ PREMORTEM (tree, ledger-seeded): gate-custody branch — the reviewer judging it
 [S3:nonfinite-numeric-accepted] scorecard math guards division by zero/empty arcs explicitly.
 [S3:malformed-ledger-row] scorecard parser fails loud on malformed rows (and is the second consumer enforcing the pipe rule).
 [S3-green] Reuse: v1's fail-closed env/verdict physics kept byte-identical; construction_gate's deterministic-seed pattern (SHA-derived) reused for po; kaizen_trends' ledger-parsing conventions reused by the scorecard; the hats independence rule reused for lens isolation.
+[S3:stale-base-widens-range] the class this build itself hit (CI-caught): validate now always refreshes origin/master before the range-derived gate, so a local pass can never rest on a wider range than CI's.
+[S3:release-path-weaker-than-generation] the panel path enforces MORE than v1, never less: every lens runs the full v1 trust bar plus its own method constraint, and ANY lens red reddens the verdict (no path through v2 is weaker than the single-lens path it replaces).
+[S3:self-weakenable-gate] v2 cannot weaken itself: CI runs the BASE-owned trusted copy (this PR is judged by v1), the lens/seat tables are code under the same evaluator mandate, and a missing seat key narrows the panel only with an explicit printed EMPTY seat.
+[S3:semantic-claim-not-rederived] the panel re-derives claims rather than trusting them: the prompt requires VERIFYING the diff's own [S3] citations and rN history claims at file:line, and treats a false claim as a blocker in its own right.
+[S3:volatile-safety-store] no counter or safety store is introduced — the scorecard derives from the committed ledger on every run (nothing cached, nothing resettable by a process restart).
 [S3:nonfinite-decimal-accepted] the scorecard's only arithmetic is a share computation, guarded explicitly: an arc with zero classed findings returns None (printed as n/a), never a division error; no Decimal/price surface is touched.
 [S3:deferred-trust-work] nothing parked: the v2 prompt, panel, po battery, Gemini seat, and the M9 scorecard all ship in THIS PR; the only deferral is CI activation timing, which is custody physics (base-owned copy), stated in-doc.
 [S3:fail-open-on-custody-misconfig] an unparseable lens verdict is a hard failure and an absent seat key prints an EXPLICIT empty seat; --panel without --po-seed refuses; env model rules stay fail-closed on both seats.
@@ -80,6 +85,7 @@ STATUS: OPEN — building.
 GOAL: pin the five founder-reviewed scenario renders as the v1 launch versions in code (launch_assignment per series + bandit warm-start prior), test-pinned to reproduce the exact decks reviewed. DONE-CRITERIA: module + 5 tests green, records, validate, PR through the evaluator. NON-GOALS: no posting, no custody change, no cadence change.
 [S3:caller-suppliable-custody-inputs] launch.py supplies no custody input — assignments feed the generator only; release custody untouched.
 [S3:final-gate-trusts-generator] unchanged — launch decks still face total re-render verification at release.
+[S3:stale-base-widens-range] the class this build itself hit (CI-caught): validate now always refreshes origin/master before the range-derived gate, so a local pass can never rest on a wider range than CI's.
 [S3:release-path-weaker-than-generation] launch assignments pass validate_assignment + the full build path, no new render entry point.
 [S3:false-price-claim] edition_anchor hooks carry no price claim; number_promise unused at launch.
 [S3:nonfinite-decimal-accepted] no price handling in launch.py — the shared normalizer remains the only price path.
@@ -104,7 +110,8 @@ GOAL: pin the five founder-reviewed scenario renders as the v1 launch versions i
 [S3:malformed-ledger-row] self-caught this build — pipes escaped, parsers re-run green before commit; class indexed.
 [S3:nonfinite-numeric-accepted] r2 fix — math.isfinite at add_prior AND seed_bandit; class indexed (the #67 price lesson generalized to all numeric config).
 [S3-note] swallowed-corrupt-data third catch answered structurally: tier keys bind to the DOMAIN_TAGS registry, never prefix shapes.
-Stage 3 citations for the close diff (docs-only; each class re-checked as unchanged by this change): [S3:caller-suppliable-custody-inputs] [S3:release-path-weaker-than-generation] [S3:semantic-claim-not-rederived] [S3:self-weakenable-gate] [S3:volatile-safety-store] [S3:nonfinite-numeric-accepted] — no code touched, all mechanisms as merged. [S3:retyped-evidence] the M1=3 and SHA cite the merge API result and the three in-flight rows, not hand memory. [S3:malformed-ledger-row] new row verified by running kaizen_trends green before commit. [S3:pushed-on-red] validate ran unchained to a file, exit checked explicitly. [S3:false-confidence-gate] the close row claims only what the merged PR shipped. [S3:stalled-state-needs-active-diagnosis] no stalls this round.
+Stage 3 citations for the close diff (docs-only; each class re-checked as unchanged by this change): [S3:caller-suppliable-custody-inputs] [S3:stale-base-widens-range] the class this build itself hit (CI-caught): validate now always refreshes origin/master before the range-derived gate, so a local pass can never rest on a wider range than CI's.
+[S3:release-path-weaker-than-generation] [S3:semantic-claim-not-rederived] [S3:self-weakenable-gate] [S3:volatile-safety-store] [S3:nonfinite-numeric-accepted] — no code touched, all mechanisms as merged. [S3:retyped-evidence] the M1=3 and SHA cite the merge API result and the three in-flight rows, not hand memory. [S3:malformed-ledger-row] new row verified by running kaizen_trends green before commit. [S3:pushed-on-red] validate ran unchained to a file, exit checked explicitly. [S3:false-confidence-gate] the close row claims only what the merged PR shipped. [S3:stalled-state-needs-active-diagnosis] no stalls this round.
 STATUS: CLOSED — PR #69 MERGED (squash ec91a81) at r3 APPROVE + trust-gate green, merged silently per the no-notify directive; M1=3 (the Construction Loop's first governed build: 15 → 9 → 3 rounds across the session's three arcs).
 
 ## Session Contract #24 (2026-07-25, same session — founder: build a research-grounded closed-loop construction method with root-cause analysis; paraphrase here, verbatim in the decision record at close)
@@ -117,6 +124,7 @@ STATUS: DELIVERED + RATIFIED (same day) — research synthesis committed (docs/r
 STAGE 3 CITATIONS (this PR's change surface — deliberate [S3:…] tags per the r6 gate semantics; each class retrieved from docs/memory/RED_CLASSES.md and answered by this session's adopted fixes):
 [S3:caller-suppliable-custody-inputs] allowlist approver registry, gate-owned clock, parameter-set pin — no custody input is caller-choosable.
 [S3:final-gate-trusts-generator] total re-render hash identity at release, unchanged by this PR's edits.
+[S3:stale-base-widens-range] the class this build itself hit (CI-caught): validate now always refreshes origin/master before the range-derived gate, so a local pass can never rest on a wider range than CI's.
 [S3:release-path-weaker-than-generation] render_carousel enforces featurability + exact 5/7 itself.
 [S3:false-price-claim] exact-minimum framing and Decimal-exact labels preserved through the shared normalizer.
 [S3:nonfinite-decimal-accepted] ONE normalize_price for every surface; NaN/Infinity/negative refuse everywhere incl. scenario caps.
