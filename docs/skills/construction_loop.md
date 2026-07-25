@@ -49,9 +49,12 @@ stated plainly: a lesson that exists but is not injected into the design
 context is functionally not known — that is exactly how
 caller-suppliable-custody-inputs shipped three times. Encoded: before any
 design is accepted, retrieve over docs/memory/ + KAIZEN_LEDGER keyed on
-the touched paths/change type; the design must CITE each matched green
-example (reuse candidate) and red class (with its premortem answer);
-"no matched classes" is an explicit printed result, never silence.
+the touched paths AND the change's content; the design must CITE each
+matched red class with a deliberate `[S3:<token>] <answer>` line ADDED
+to the session contract in the current change (bare mentions and stale
+history never count — r5/r6), plus matched green examples as reuse
+candidates; "no matched classes" is an explicit printed result, never
+silence.
 Schema: distilled class RULES (always injected) vs full past CASES
 (retrieved by similarity).
 

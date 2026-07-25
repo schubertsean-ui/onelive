@@ -1,15 +1,24 @@
 # RED_CLASSES — the machine-consumed red-class index (Construction Loop Stage 3/6)
 
 Greppable summary: the retrieval index `tools/construction_gate.py` reads
-(#67 r4: the blocking-retrieval rule ships WITH its mechanism). One row
-per distilled failure class; `triggers` are comma-separated substrings
-matched case-insensitively against the CHANGED FILE PATHS of a diff —
-when a trigger matches, the session contract (STATE.md) must cite the
-class token or the gate fails closed. Rows are append-mostly; a token is
-never renamed (history keys on it). Stage 6 discipline: every new
-evaluator/founder catch adds or reinforces a row here IN THE SAME COMMIT
-as its Kaizen entry — a class absent from this index is a prose-only
-lesson, which is an open defect.
+(#67 r4: the blocking-retrieval rule ships WITH its mechanism; hardened
+r5/r6). One row per distilled failure class; `triggers` are
+comma-separated substrings matched case-insensitively against BOTH the
+diff's changed file paths AND the diff's content (r6: semantic classes
+match even when no path names them) — when a trigger matches, the
+session contract (STATE.md) must carry a DELIBERATE citation on a line
+ADDED by the current change, in the canonical form `[S3:<token>] <answer>`
+(r5: never cumulative history; r6: a bare token in a changelog, comment,
+or this very table is incidental text, not retrieval). Broad triggers
+OVER-trigger by design — the cost is an extra citation line; the failure
+mode this index exists to kill is under-triggering. SELF-PROTECTED (r6):
+the gate compares this file against its base copy — deleting a token or
+narrowing a trigger list fails validate closed (gate-threshold
+relaxation, founder-crucial; a ratified removal edits the gate tool
+itself in the same PR as its decision record). Tokens are never renamed
+(history keys). Stage 6 discipline: every new evaluator/founder catch
+adds or reinforces a row here IN THE SAME COMMIT as its Kaizen entry —
+a class absent from this index is a prose-only lesson, an open defect.
 
 | token | triggers | source |
 |---|---|---|

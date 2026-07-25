@@ -57,7 +57,25 @@ SCOPE: research (background agent) + method doc + operating-rules section + deci
 NON-GOALS: no gate/threshold changes (the loop ADDS an upstream pass; every downstream gate stays identical); no CLAUDE.md charter edit without founder ratification of the final method (queued as the close-out ask).
 DONE-CRITERIA: research synthesis received · construction_loop.md committed · OPERATING_RULES § added · decision record with founder verbatim · TODOS/changelog/Kaizen updated · validate green · PR through the evaluator.
 STATUS: DELIVERED + RATIFIED (same day) — research synthesis committed (docs/research/2026-07-25_construction_loop_research_synthesis.md); docs/skills/construction_loop.md ADOPTED and founder-RATIFIED into the charter (CLAUDE.md Thinking-tools item 4); tools/construction_gate.py SHIPPED with the rule (#67 r4: a blocking rule without its mechanism is aspirational) over docs/memory/RED_CLASSES.md, wired into validate as a hard gate; session arc + reciprocal Loop-Harness-Brain cross-links written (founder directive). Vercel Preview FIXED by the founder's Clerk key (first green deployment on 80ac6c5).
-STAGE 3 CITATIONS (this PR's change surface — each class retrieved from docs/memory/RED_CLASSES.md and answered in this session's adopted fixes): caller-suppliable-custody-inputs (allowlist registry + gate-owned clock + parameter-set pin) · final-gate-trusts-generator (total re-render, unchanged) · release-path-weaker-than-generation (renderer-enforced featurability) · false-price-claim + nonfinite-decimal-accepted + swallowed-corrupt-data (ONE shared normalize_price for every surface incl. scenario caps) · semantic-claim-not-rederived (scenario predicates at custody, unchanged) · featurability-dimension-missed (event_jsonld full contract) · fail-open-on-custody-misconfig (policy validated before both release paths) · volatile-safety-store (durable-journal attestation; no in-gate implementation) · weak-key-accepted-at-custody (require_strong_key at every sign/verify) · deferred-trust-work (r15 nits + this gate shipped in-PR, not parked) · retyped-evidence (counts cite CI logs) · governance-ambiguity (silent-merge record scoped precisely) · false-confidence-gate (this gate's own limits stated: path-substring triggers, contract-citation check — semantics stay with the evaluator) · stalled-state-needs-active-diagnosis (one diagnostic probe on stalls, standing rule).
+STAGE 3 CITATIONS (this PR's change surface — deliberate [S3:…] tags per the r6 gate semantics; each class retrieved from docs/memory/RED_CLASSES.md and answered by this session's adopted fixes):
+[S3:caller-suppliable-custody-inputs] allowlist approver registry, gate-owned clock, parameter-set pin — no custody input is caller-choosable.
+[S3:final-gate-trusts-generator] total re-render hash identity at release, unchanged by this PR's edits.
+[S3:release-path-weaker-than-generation] render_carousel enforces featurability + exact 5/7 itself.
+[S3:false-price-claim] exact-minimum framing and Decimal-exact labels preserved through the shared normalizer.
+[S3:nonfinite-decimal-accepted] ONE normalize_price for every surface; NaN/Infinity/negative refuse everywhere incl. scenario caps.
+[S3:swallowed-corrupt-data] corrupt rows surface loudly at the scenario filter, never silently dropped.
+[S3:semantic-claim-not-rederived] scenario predicates re-applied at custody, unchanged.
+[S3:fabricated-qualitative-copy] hooks/captions remain canonical facts + curated nouns only.
+[S3:featurability-dimension-missed] event_jsonld enforces origin + status + confidence.
+[S3:grant-not-content-bound] renderer fingerprint / series / cadence binding untouched and re-verified by tests.
+[S3:fail-open-on-custody-misconfig] autonomy record validated before BOTH release paths.
+[S3:weak-key-accepted-at-custody] require_strong_key at every sign/verify.
+[S3:volatile-safety-store] durable-journal attestation; no in-gate journal implementation.
+[S3:deferred-trust-work] the r15 nits AND this gate shipped in-PR, not parked.
+[S3:retyped-evidence] suite counts cite CI logs; this line's numbers are none.
+[S3:governance-ambiguity] silent-merge record scoped precisely; decision records mark historical state.
+[S3:false-confidence-gate] this gate's own r5/r6 holes (stale citations, incidental tokens, self-weakening) closed and red-tested; limits stated: substring triggers + tag-presence check — semantics stay with the evaluator.
+[S3:stalled-state-needs-active-diagnosis] one-probe-on-stall standing rule (applied to the CI stall this arc).
 
 ## Session Contract #23 (2026-07-24, `onelife-meta-carousel` — founder-directed: build the Meta carousel engine to a world-class bar on the trust framework — perception/emotion/habit research applied, learning continuously toward the 100%-interaction goal, share-friendly, multiple series tiered by content volume, an agent-driven create→measure→learn→revise→repost loop, and standing SEO/GEO leadership as the target; verbatim directive: docs/memory/decisions/2026-07-24_meta-carousel-engine.md — dissemination-minimization, r12 nit)
 
