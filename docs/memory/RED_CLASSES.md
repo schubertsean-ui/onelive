@@ -45,3 +45,4 @@ a class absent from this index is a prose-only lesson, an open defect.
 | stale-live-incident-state | incident, arming, smoke | KAIZEN #43 arc — live-state claims re-verify against the live system, never against earlier prose |
 | pushed-on-red | validate, commit, push | KAIZEN #65 r5-commit + #69 self-caught — validate runs unchained with its exit code checked explicitly; a pipe that masks FAIL is the defect |
 | malformed-ledger-row | KAIZEN, ledger, metrics | KAIZEN #69 self-caught — ledger rows never contain raw pipes; parsers fail loud and the writer verifies by running them |
+| nonfinite-numeric-accepted | weight, prior, seed, threshold | KAIZEN #69 r2 — every numeric config input checks math.isfinite, at every layer that claims to validate |

@@ -72,8 +72,13 @@ class ThompsonBandit:
         r1 nit: callers use THIS, never the posterior internals — the
         representation can change without breaking seeding). A prior only
         ever ADDS alpha; it cannot erase evidence or remove levels."""
-        if weight <= 0:
-            raise ValueError(f"prior weight must be positive, got {weight}")
+        import math
+
+        if not math.isfinite(weight) or weight <= 0:
+            raise ValueError(
+                f"prior weight must be a positive FINITE number, got {weight!r} "
+                "— NaN/inf would poison or lock the posterior (#69 r2)"
+            )
         if factor not in self.posteriors or level not in self.posteriors[factor]:
             raise ValueError(f"unknown factor/level ({factor!r}, {level!r})")
         self.posteriors[factor][level]["alpha"] += weight

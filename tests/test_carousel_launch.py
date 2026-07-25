@@ -86,6 +86,21 @@ def test_launch_decks_reproduce_the_founder_seen_renders_in_full():
         }
         assert rendered == golden[series], f"{series} drifted from the pinned v1"
         assert draft.slides[0].headline == EXPECTED_HOOKS[series]
+    # r2 nit: the snapshot serializer must not silently omit a
+    # publish-relevant field — any CarouselDraft schema change forces a
+    # conscious decision here.
+    import dataclasses as _dc
+
+    draft_fields = {f.name for f in _dc.fields(_render_launch_deck(SCENARIOS[0]))}
+    covered = {"assignment", "caption", "hashtags", "slides"}
+    identity = {"series_key", "surface", "tier", "timeframe", "city", "handle",
+                "listicle_noun", "short_link_base", "domain_ids", "author",
+                "short_link", "post_slot"}
+    derived = {"discovery"}  # hash-bound to slides+caption; verified at release
+    assert draft_fields == covered | identity | derived, (
+        "CarouselDraft schema changed — decide whether the new field joins "
+        "the golden snapshot before this test may pass"
+    )
 
 
 def test_launch_assignment_returns_fresh_validated_copies():
@@ -99,9 +114,18 @@ def test_launch_assignment_returns_fresh_validated_copies():
 def test_unknown_or_misspelled_series_fails_loud():
     # #69 r1 blocker fixed: a typo must never silently post a default deck
     # disguised as the founder's v1.
-    for bad in ("scenario_free_tonite", "scenario_", "flagship", "t9_music", "t1_"):
+    for bad in (
+        "scenario_free_tonite", "scenario_", "flagship", "t9_music", "t1_",
+        # r2: prefix alone never suffices — the domain must be canonical.
+        "t1_liv-music", "t2_nonexistent", "t3_scenario_date_night",
+    ):
         with pytest.raises(ValueError, match="unknown launch series"):
             launch_assignment(bad)
+    # Registry-bound tier keys DO resolve for every canonical domain.
+    from social.carousel.geo import DOMAIN_TAGS
+
+    for domain in DOMAIN_TAGS:
+        assert launch_assignment(f"t2_{domain}") == DEFAULT_LAUNCH
 
 
 def test_corrupt_launch_table_fails_loud(monkeypatch):
@@ -141,7 +165,10 @@ def test_seed_bandit_favors_launch_levels_without_locking_them():
     # Secondary behavior check: launch hook dominates early sampling.
     picks = [bandit.sample_assignment()["hook_type"] for _ in range(200)]
     assert picks.count("edition_anchor") > picks.count("number_promise")
-    with pytest.raises(ValueError, match="positive"):
-        seed_bandit(bandit, weight=0)
+    for bad_weight in (0, -1.0, float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(ValueError, match="FINITE|positive"):
+            seed_bandit(ThompsonBandit(seed=1), weight=bad_weight)
+        with pytest.raises(ValueError, match="FINITE|positive"):
+            ThompsonBandit(seed=1).add_prior("hook_type", "edition_anchor", bad_weight)
     with pytest.raises(ValueError, match="unknown factor/level"):
         bandit.add_prior("hook_type", "clickbait", 1.0)

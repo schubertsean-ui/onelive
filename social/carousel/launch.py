@@ -31,7 +31,10 @@ Rationale per choice (spec §3-§7 research, engagement-first):
 """
 from __future__ import annotations
 
+import math
+
 from social.carousel.config import validate_assignment
+from social.carousel.geo import DOMAIN_TAGS
 
 _BASE = dict(
     hook_type="edition_anchor",
@@ -70,7 +73,12 @@ def launch_assignment(series_key: str) -> dict[str, str]:
     while looking like the founder's v1."""
     if series_key in LAUNCH_ASSIGNMENTS:
         assignment = dict(LAUNCH_ASSIGNMENTS[series_key])
-    elif series_key.startswith(_TIER_PREFIXES) and len(series_key) > 3:
+    elif (
+        series_key[:3] in _TIER_PREFIXES
+        # Registry-bound, not prefix-only (#69 r2): a tier series is valid
+        # ONLY for a canonical domain id — "t1_liv-music" refuses.
+        and series_key[3:] in DOMAIN_TAGS
+    ):
         assignment = dict(DEFAULT_LAUNCH)
     else:
         raise ValueError(
@@ -91,8 +99,11 @@ def seed_bandit(bandit, weight: float = 3.0) -> None:
     moment Austin disagrees. Weight 3.0 ≈ a few good early posts; small by
     design (the 100%-interaction goal is served by learning speed, not by
     freezing the founder's first pick)."""
-    if weight <= 0:
-        raise ValueError(f"seed weight must be positive, got {weight}")
+    if not math.isfinite(weight) or weight <= 0:
+        raise ValueError(
+            f"seed weight must be a positive FINITE number, got {weight!r} — "
+            "the public contract validates here too, not only in add_prior (#69 r2)"
+        )
     seen: set[tuple[str, str]] = set()
     for assignment in list(LAUNCH_ASSIGNMENTS.values()) + [DEFAULT_LAUNCH]:
         validate_assignment(assignment)

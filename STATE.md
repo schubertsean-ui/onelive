@@ -77,6 +77,8 @@ GOAL: pin the five founder-reviewed scenario renders as the v1 launch versions i
 [S3:featurability-dimension-missed] golden slides carry uncertainty_marker per row — the likely-tier affordance is part of the pinned deck, and event_jsonld's full-contract guard is untouched.
 [S3:pushed-on-red] self-caught this build — validate now runs unchained to a file with the exit code checked before any commit; class indexed.
 [S3:malformed-ledger-row] self-caught this build — pipes escaped, parsers re-run green before commit; class indexed.
+[S3:nonfinite-numeric-accepted] r2 fix — math.isfinite at add_prior AND seed_bandit; class indexed (the #67 price lesson generalized to all numeric config).
+[S3-note] swallowed-corrupt-data third catch answered structurally: tier keys bind to the DOMAIN_TAGS registry, never prefix shapes.
 STATUS: OPEN — rides the next PR after #67's merge (d4f4bc9).
 
 ## Session Contract #24 (2026-07-25, same session — founder: build a research-grounded closed-loop construction method with root-cause analysis; paraphrase here, verbatim in the decision record at close)
