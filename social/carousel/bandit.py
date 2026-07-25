@@ -67,6 +67,22 @@ class ThompsonBandit:
         return assignment
 
     # --- learn ----------------------------------------------------------------
+    def add_prior(self, factor: str, level: str, weight: float) -> None:
+        """Add prior pseudo-successes to one level (launch warm-starts, #69
+        r1 nit: callers use THIS, never the posterior internals — the
+        representation can change without breaking seeding). A prior only
+        ever ADDS alpha; it cannot erase evidence or remove levels."""
+        import math
+
+        if not math.isfinite(weight) or weight <= 0:
+            raise ValueError(
+                f"prior weight must be a positive FINITE number, got {weight!r} "
+                "— NaN/inf would poison or lock the posterior (#69 r2)"
+            )
+        if factor not in self.posteriors or level not in self.posteriors[factor]:
+            raise ValueError(f"unknown factor/level ({factor!r}, {level!r})")
+        self.posteriors[factor][level]["alpha"] += weight
+
     def update(self, assignment: dict[str, str], reward: float, reach: int) -> None:
         """Fold one post's measured interaction rate back into every factor
         level the post used. reward is the interaction rate in [0,1]."""

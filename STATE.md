@@ -50,6 +50,37 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #25 (2026-07-25, same session — founder: the reviewed renders become each carousel's v1 launch version, aimed at rapid adoption and the 100%-interaction goal; verbatim in docs/memory/decisions/2026-07-25_carousel-launch-versions.md)
+
+GOAL: pin the five founder-reviewed scenario renders as the v1 launch versions in code (launch_assignment per series + bandit warm-start prior), test-pinned to reproduce the exact decks reviewed. DONE-CRITERIA: module + 5 tests green, records, validate, PR through the evaluator. NON-GOALS: no posting, no custody change, no cadence change.
+[S3:caller-suppliable-custody-inputs] launch.py supplies no custody input — assignments feed the generator only; release custody untouched.
+[S3:final-gate-trusts-generator] unchanged — launch decks still face total re-render verification at release.
+[S3:release-path-weaker-than-generation] launch assignments pass validate_assignment + the full build path, no new render entry point.
+[S3:false-price-claim] edition_anchor hooks carry no price claim; number_promise unused at launch.
+[S3:nonfinite-decimal-accepted] no price handling in launch.py — the shared normalizer remains the only price path.
+[S3:swallowed-corrupt-data] a corrupt launch table fails loud (test-pinned), never silently falls back.
+[S3:semantic-claim-not-rederived] scenario predicates still re-derive at custody; launch changes selection nothing.
+[S3:fabricated-qualitative-copy] launch uses the fact-derived factor space only — no new copy surfaces.
+[S3:grant-not-content-bound] no autonomy-grant surface touched; renderer fingerprint files untouched.
+[S3:fail-open-on-custody-misconfig] no custody config added; seed weight <= 0 refuses.
+[S3:rule-stronger-than-mechanism] the launch rule ships WITH its mechanism (module + tests) in one PR.
+[S3:deferred-trust-work] nothing parked — wiring beyond this module is R-026's existing recorded trigger.
+[S3:retyped-evidence] expected hooks in tests are asserted against live engine output, not prose.
+[S3:false-confidence-gate] the launch tests assert against LIVE engine output (derived, not sampled prose) and the corrupt-table case is pinned red.
+[S3:governance-ambiguity] the directive's scope is stated precisely in its decision record: creative seed only, no posture/custody/cadence precedent.
+[S3:self-weakenable-gate] no gate data touched; the red-class index and its self-protection are unmodified by this change.
+[S3:stalled-state-needs-active-diagnosis] applied this arc — the overdue #67 verdict got one probe, found green, merged.
+[S3:volatile-safety-store] the warm-start mutates only the in-memory learner; durable counters (release journal) untouched.
+[S3:weak-key-accepted-at-custody] no key material or signing surface anywhere in this change.
+[S3:swallowed-corrupt-data] r1 fix — unknown/misspelled series REFUSES (fail-loud enumeration), never a silent default deck.
+[S3:false-confidence-gate] r1 fix — full-deck golden equality (41 slides committed) replaces the headline-only check; warm-start asserted at posterior-state level.
+[S3:featurability-dimension-missed] golden slides carry uncertainty_marker per row — the likely-tier affordance is part of the pinned deck, and event_jsonld's full-contract guard is untouched.
+[S3:pushed-on-red] self-caught this build — validate now runs unchained to a file with the exit code checked before any commit; class indexed.
+[S3:malformed-ledger-row] self-caught this build — pipes escaped, parsers re-run green before commit; class indexed.
+[S3:nonfinite-numeric-accepted] r2 fix — math.isfinite at add_prior AND seed_bandit; class indexed (the #67 price lesson generalized to all numeric config).
+[S3-note] swallowed-corrupt-data third catch answered structurally: tier keys bind to the DOMAIN_TAGS registry, never prefix shapes.
+STATUS: OPEN — rides the next PR after #67's merge (d4f4bc9).
+
 ## Session Contract #24 (2026-07-25, same session — founder: build a research-grounded closed-loop construction method with root-cause analysis; paraphrase here, verbatim in the decision record at close)
 
 GOAL: (1) An honest RCA of the PR #63/#65 15-round arc (root cause: class-level lessons stored in the Kaizen ledger were not retrieved at design time — prevention ran downstream in the evaluator instead of upstream in construction); (2) research the world-leading versions of each stage of the founder's described loop (confirm objectives → green/red probable-path assessment → check brain for green examples + red classes → scored path selection → instruct/run agents + feedback → analyze/score/commit to brain → repeat with improvement measurement) — grounding candidates: Toyota A3/PDCA, premortem (Klein), NASA-grade RCA vs 5-Whys limits, case-based reasoning + modern agentic memory (Reflexion/skill libraries), DORA, judge-panel/bandit path selection, AAR/blameless postmortem; (3) encode as canon: docs/skills/construction_loop.md + OPERATING_RULES wiring + decision record, with the mandatory pre-work step "retrieve ledger red classes + brain green examples BEFORE design" as the specific fix for this session's failure mode.
