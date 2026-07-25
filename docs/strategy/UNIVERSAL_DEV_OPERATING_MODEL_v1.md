@@ -6,9 +6,10 @@ OVERLAY remains a per-project instrument ratified at that project's
 bootstrap (binding 7). Scope precision (evaluator, PR #62 r1): the
 ratification covers the kernel as it stood when ratified — the K-LOOP-5
 addition drafted AFTER it (from the founder-directed Kaizen review, Part 6)
-is a PROPOSED AMENDMENT pending its own explicit ratification and binds
-nothing until then. Companion decisions from the same founder message are
-annotated in Part 5.
+was a PROPOSED AMENDMENT until the founder ratified it separately and
+explicitly (2026-07-24, verbatim: "Ratify the K-5 as written") — the
+kernel including that amendment is now canon. Companion decisions from the
+founder's five-decision message are annotated in Part 5.
 **Date:** 2026-07-24 · **Session Contract:** #21 (STATE.md) · **Author:** Generator (Claude Code session)
 **Prompted by:** founder request to assess Boris Cherny's "Steps of AI Adoption"
 (July 2026) against the portfolio — OneLive, multibagger, the press-release
@@ -293,11 +294,11 @@ adversarial review. An overlay binds the bracketed parameters.
   this proposal — Cherny's Step-3 bottleneck, made operational.)
 - **K-LOOP-5 Kaizen.** Zero escaped defects is absolute; internally-caught
   defects are treasure — ledger row per catch (gate, class); repeat classes
-  get a structural gate-gap fix, not a promise. **PROPOSED AMENDMENT
-  (2026-07-24, generator-drafted from the founder-directed review in
-  Part 6 — PENDING explicit founder ratification; until ratified, K-LOOP-5
-  ends at the previous sentence and this paragraph binds nothing):**
-  counter-measures are context-specific and discrete — each fix scoped to
+  get a structural gate-gap fix, not a promise. **AMENDMENT RATIFIED
+  (drafted 2026-07-24 from the founder-directed review in Part 6, proposed
+  pending ratification per PR #62 r1's scope discipline, then explicitly
+  ratified by the founder the same day, verbatim: "Ratify the K-5 as
+  written"):** counter-measures are context-specific and discrete — each fix scoped to
   the defect's ACTUAL surface, with the defect shape pinned red in tests
   and the gate's honest limit stated; one-size-fits-all responses are
   reserved for TRANSPORT (the composite runner, the evaluator on every PR,
@@ -460,11 +461,14 @@ Cherny's original page can still correct Part 1; this ask survives the
 TODOS closure of asks 1–3, which covered only the decided items. Companion
 decision: the Vercel preview fix is APPROVED ("Good with the Vercel fix") —
 no Vercel/Clerk credentials exist in the agent sandbox, so the 2-minute
-dashboard step stays founder-hands (documented on PR #60). **NEW ask 5
-(created by the evaluator's PR #62 r1 scope correction):** the Kaizen
-review's distilled principle is DRAFTED as a K-LOOP-5 amendment (Part 3.2)
-but is generator-authored — ratify it, edit it, or decline it; until then
-it binds nothing.
+dashboard step stays founder-hands (documented on PR #60). **Ask 5
+(created by the evaluator's PR #62 r1 scope correction) — DECIDED:** the
+K-LOOP-5 amendment was ratified as written by the founder (2026-07-24,
+"Ratify the K-5 as written") in a separate, explicit decision after the
+proposed-status landed on master — the ratification laundering the r1
+round blocked did not occur; the text the founder ratified is byte-
+identical to the proposal (decision record:
+`docs/memory/decisions/2026-07-24_kloop5-amendment-ratified.md`).
 
 ## Part 6 — Kaizen application review (founder-directed 2026-07-24: "more context-specific discreet vs. one fits all")
 
@@ -512,11 +516,12 @@ multiply; the class watch is the single index and must stay the only one.
 **Verdict:** current practice matches the founder's directive — context-
 specific and discrete, with uniform transport only. No corrective work is
 needed. The distilled principle is DRAFTED as a proposed K-LOOP-5
-amendment (marked as such in Part 3.2, pending explicit founder
-ratification — ask 5 in Part 5): the review directive asked a question and
-stated a preference; it did not ratify canonical wording the generator then
-authored, and the evaluator correctly blocked the first version of this PR
-for conflating the two.
+amendment (Part 3.2) and subsequently RATIFIED AS WRITTEN by the founder
+in a separate explicit decision (2026-07-24 — ask 5, now decided): the
+review directive asked a question and stated a preference; it did not
+ratify canonical wording the generator then authored, the evaluator
+correctly blocked the version that conflated the two, and the ratification
+that now binds came from the founder's own later word on the exact text.
 
 ---
 
