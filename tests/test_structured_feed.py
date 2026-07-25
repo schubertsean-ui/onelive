@@ -1736,3 +1736,106 @@ def test_an_all_typo_catalog_names_the_rows_not_just_zero_selected(monkeypatch, 
     assert "ics_feed_if_offerd" in caplog.text, "the bad token was not named"
     assert "no structured-feed candidates" not in caplog.text, \
         "reported as an empty selection rather than as the catalog defect it is"
+
+
+# ---- evaluator r14: selection and assertion cannot drift apart ---------------
+
+def test_selectable_and_asserted_come_from_ONE_table():
+    """Two hand-maintained lists — what gets FETCHED and what gets ASSERTED —
+    had no invariant tying them together (evaluator blocker r14). A token could
+    be fully classified and still never be selected, which is exactly what
+    `jsonld_if_offered` was: a token that literally advertises JSON-LD, and not
+    selectable. Both names are now derived views of one table."""
+    import worker.importers.run_structured_import as runner
+    assert runner._STRUCTURED_ALLOWED == {
+        t for t, (sel, _) in runner._TOKEN_SEMANTICS.items() if sel}
+    assert runner._TOKEN_PROVIDER_CLASSIFICATION == {
+        t: p for t, (_, p) in runner._TOKEN_SEMANTICS.items()}
+    # The specific token whose drift this blocker exposed.
+    assert runner._TOKEN_SEMANTICS["jsonld_if_offered"][0] is True, (
+        "a token that advertises JSON-LD must be fetchable")
+    # And the deliberate NON-selection stays deliberate: partner_feed means a
+    # feed would exist under a partnership we do not have, so fetching that
+    # row's base URL would be guessing.
+    assert runner._TOKEN_SEMANTICS["partner_feed"][0] is False
+
+
+def test_EVERY_selectable_token_actually_reaches_import_source(monkeypatch):
+    """The production OUTCOME the evaluator asked for, not a table shape: build
+    a catalog with one row per selectable token and prove the REAL main() fetches
+    each. Previously the tests pinned the curated moat ranks and the token table
+    but never "a valid structured source is fetched", so the selector could
+    regress for non-moat or custom rows with nothing failing."""
+    import json
+    import pathlib as _pl
+    import tempfile
+    import worker.importers.run_structured_import as runner
+
+    selectable = sorted(runner._STRUCTURED_ALLOWED)
+    assert selectable, "no selectable tokens — test would be vacuous"
+    fetched = []
+
+    def fake_import(url, *, source_name, cultural_domain=None, provider_hint=None):
+        fetched.append(source_name)
+        return [{"category": "live-music", "source_provider": "ics"}]
+
+    monkeypatch.setattr(runner, "import_source", fake_import)
+    catalog = [{"id": tok, "base_url": f"https://{i}.example/", "allowed": [tok],
+                "cultural_domain": "live-music"}
+               for i, tok in enumerate(selectable)]
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
+    assert runner.main(["--catalog", str(tmp), "--dry-run"]) == 0
+    assert sorted(fetched) == selectable, (
+        f"selectable tokens never fetched: {sorted(set(selectable) - set(fetched))}")
+
+
+def test_NON_selectable_tokens_are_not_fetched(monkeypatch):
+    """The other side of the invariant, so "make everything selectable" is not a
+    passing answer: a row advertising only a partnership feed must not be
+    fetched, because guessing at its base URL is what the conservative selector
+    exists to prevent."""
+    import json
+    import pathlib as _pl
+    import tempfile
+    import worker.importers.run_structured_import as runner
+
+    non_selectable = sorted(t for t, (sel, _) in runner._TOKEN_SEMANTICS.items()
+                            if not sel and t not in ("public_calendar_pages",))
+    fetched = []
+
+    def fake_import(url, *, source_name, cultural_domain=None, provider_hint=None):
+        fetched.append(source_name)
+        return []
+
+    monkeypatch.setattr(runner, "import_source", fake_import)
+    # access_method left blank so only `allowed` decides.
+    catalog = [{"id": tok, "base_url": f"https://{i}.example/", "allowed": [tok]}
+               for i, tok in enumerate(non_selectable)]
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
+    # Nothing selectable at all → the runner refuses rather than exiting green.
+    assert runner.main(["--catalog", str(tmp), "--dry-run"]) == 2
+    assert fetched == [], f"non-selectable tokens were fetched: {fetched}"
+
+
+def test_no_docstring_still_calls_a_provider_mismatch_a_FAILED_source():
+    """Mechanical guard against a drift I hand-fixed three times (r12 behaviour
+    change, r13 two docstrings, r14 a third). Claim-vs-code drift is on our own
+    class watch, so it gets a check rather than a fourth careful read."""
+    import pathlib
+    import re
+    import worker.importers.run_structured_import as runner
+    import worker.importers.structured_feed as sf
+
+    for mod in (sf, runner):
+        text = pathlib.Path(mod.__file__).read_text(encoding="utf-8")
+        for match in re.finditer(r"ProviderMismatch", text):
+            window = text[match.start():match.start() + 400]
+            # Cut the window at the next blank line so we stay inside the claim.
+            window = window.split("\n\n")[0]
+            assert not re.search(r"reported as a FAILED|records it as a FAILED", window), (
+                f"{mod.__name__}: a ProviderMismatch claim still says FAILED; the "
+                f"runner reports MISCONFIGURED and exits 2")

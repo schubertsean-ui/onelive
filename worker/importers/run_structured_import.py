@@ -44,73 +44,86 @@ log = logging.getLogger("structured_import")
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent
 DEFAULT_CATALOG = REPO / "sources" / "master_sources_catalog_120.json"
 
-# `allowed`/`access_method` tokens that indicate a source plausibly exposes a
-# machine-readable calendar (ICS or JSON-LD). Conservative on PURPOSE: we only
-# reach for sources that advertise structured data, never every public web page.
-_STRUCTURED_ALLOWED = {
-    "ics_feed_if_offered", "localist_json_feed", "feed_if_offered",
-    "ics_upload", "partner_export", "official_feed",
-    # The curated local-moat rows (ranks 77-114) carry this token: a verified
-    # first-party events page whose EXACT machine-readable feed path is not yet
-    # confirmed. Including it is what makes the moat actually import — without
-    # it those 38 sources sat in the catalog and were never fetched (found
-    # 2026-07-25 when the founder asked "Only 40?"). Safe by construction:
-    # import_source auto-detects ICS vs embedded JSON-LD, and a source that
-    # exposes neither yields 0 events, which the main loop below logs per source
-    # ("yielded 0 events (<url>) — logged, not fatal", named again in the
-    # summary's zero-sources tally) rather than failing the run.
-    "structured_feed_verify",
+# ---- ONE token table: what each `allowed` token MEANS ------------------------
+#
+# Each catalog token declares BOTH of its properties here:
+#   (selectable, asserted_provider)
+#     selectable        — does this token advertise a PUBLIC machine-readable
+#                         calendar we can fetch today?
+#     asserted_provider — does it name the wire format outright? (None = no
+#                         claim, so import_source sniffs)
+#
+# ONE table because two hand-maintained lists drifted (evaluator blocker r14):
+# `_STRUCTURED_ALLOWED` (what gets fetched) and the provider-classification
+# table (what gets asserted) had no invariant tying them together, so a token
+# could be fully classified and still never be selected. `jsonld_if_offered` was
+# exactly that — a token that literally advertises JSON-LD, classified, and NOT
+# selectable. It happens to cost nothing today (all three rows carrying it are
+# selected via a sibling token), but that is luck, not design: one future row
+# whose only token is `jsonld_if_offered` would have sat unfetched forever. That
+# is the same defect as the founder's "Only 40?" — 38 curated moat sources
+# catalogued and never fetched — wearing a different token.
+#
+# Both former names are now DERIVED views of this table, so they cannot drift
+# again, and a production-outcome test asserts every selectable token actually
+# reaches import_source through the real main().
+#
+# Conservative on PURPOSE: we only reach for sources that advertise structured
+# data, never every public web page. `partner_feed` is deliberately NOT
+# selectable — it means "a feed would exist under a partnership", and we do not
+# have those partnerships; fetching those rows' base URLs would be guessing.
+#
+# COMPLETENESS IS TEST-DERIVED, not hand-maintained: a test cross-checks this
+# table against every token in the real catalog, so a future row adding e.g.
+# `tribe_json_feed` fails the suite until it is classified. That is the standing
+# response to the incomplete-enumeration class (docs/metrics/KAIZEN_LEDGER.md
+# class watch): a hand-kept trust-guarding list gets a derivation test, never a
+# fourth hand-audit.
+_TOKEN_SEMANTICS: dict[str, tuple[bool, str | None]] = {
+    # --- selectable: advertises a public machine-readable calendar ------------
+    # The only token that names its format outright, so it ASSERTS and a
+    # mismatch makes the source MISCONFIGURED.
+    "localist_json_feed": (True, PROVIDER_PLATFORM_JSON),
+    # `*_if_offered` / `*_verify` say a feed MIGHT exist — the opposite of a
+    # format claim. Asserting from one of these would manufacture false failures
+    # for every venue tagged `ics_feed_if_offered` that in fact serves embedded
+    # JSON-LD, turning a working source into a reported defect.
+    "ics_feed_if_offered": (True, None),
+    "jsonld_if_offered": (True, None),
+    "feed_if_offered": (True, None),
+    "official_feed": (True, None),
+    "ics_upload": (True, None),
+    "partner_export": (True, None),
+    # The curated local-moat rows (ranks 77-114): a verified first-party events
+    # page whose EXACT feed path is not yet confirmed. Including it is what makes
+    # the moat actually import — without it those 38 sources sat in the catalog
+    # and were never fetched (found 2026-07-25 when the founder asked "Only 40?").
+    # Safe by construction: import_source auto-detects, and a source exposing
+    # neither ICS nor JSON-LD yields 0 events, which the main loop logs per
+    # source ("yielded 0 events (<url>) — logged, not fatal") rather than failing.
+    "structured_feed_verify": (True, None),
+    # --- NOT selectable: no public machine-readable calendar to fetch ---------
+    "partner_feed": (False, None),        # only under a partnership we lack
+    "partner_access": (False, None),
+    "api_access": (False, None),          # keyed APIs, handled by their own importers
+    "oauth_api": (False, None),
+    "public_pages": (False, None),        # prose pages, not a calendar
+    "public_event_pages": (False, None),
+    "public_calendar_pages": (False, None),
+    "opt_in_links": (False, None),
+    "opt_in_email_parse": (False, None),  # the newsletter path, not a fetch
+    "csv_upload": (False, None),
+    "manual_benchmark": (False, None),
+    "open_data_lucene_search": (False, None),
+}
+
+# DERIVED views — never hand-edited, so selection and assertion cannot disagree.
+_STRUCTURED_ALLOWED = {t for t, (sel, _) in _TOKEN_SEMANTICS.items() if sel}
+_TOKEN_PROVIDER_CLASSIFICATION: dict[str, str | None] = {
+    t: provider for t, (_, provider) in _TOKEN_SEMANTICS.items()
 }
 _STRUCTURED_ACCESS_TOKENS = ("ics", "localist", "feed")
 
-
-# ---- provider ASSERTIONS from catalog data -----------------------------------
-#
-# Every `allowed` token in the catalog is classified here: either it ASSERTS a
-# wire format (value = the provider) or it does not (value = None). This is the
-# join that makes structured_feed.ProviderMismatch real in production — without
-# it the fail-loud-on-misconfigured-source guard only fired for direct callers
-# and monkeypatched tests, so a wrongly-pointed source still auto-sniffed and
-# was counted as "yielded zero" (evaluator blocker r9, PR #68).
-#
-# The table is DELIBERATELY sparse, and that is the honest reading of the data,
-# not timidity: a token spelled `*_if_offered` or `*_verify` says a feed MIGHT
-# exist, which is the opposite of a format claim. Asserting a provider from one
-# of those would manufacture false ProviderMismatch failures for every venue
-# tagged `ics_feed_if_offered` that in fact serves embedded JSON-LD — turning a
-# working source into a reported defect. Only `localist_json_feed` names its
-# format outright, so today exactly one token asserts.
-#
-# COMPLETENESS IS TEST-DERIVED, not hand-maintained: a test cross-checks this
-# table against every token present in the real catalog, so a future row adding
-# e.g. `tribe_json_feed` fails the suite until it is classified here. That is
-# the standing response to the incomplete-enumeration class (docs/metrics/
-# KAIZEN_LEDGER.md class watch): a hand-kept trust-guarding list gets a
-# derivation test, never a fourth hand-audit.
-_TOKEN_PROVIDER_CLASSIFICATION: dict[str, str | None] = {
-    # ASSERTS a format — drives provider_hint, so a mismatch FAILS the source.
-    "localist_json_feed": PROVIDER_PLATFORM_JSON,
-    # Conditional or format-free — no assertion, so import_source sniffs.
-    "public_calendar_pages": None,
-    "structured_feed_verify": None,
-    "public_pages": None,
-    "public_event_pages": None,
-    "feed_if_offered": None,
-    "partner_feed": None,
-    "api_access": None,
-    "oauth_api": None,
-    "ics_feed_if_offered": None,
-    "opt_in_links": None,
-    "jsonld_if_offered": None,
-    "partner_access": None,
-    "manual_benchmark": None,
-    "official_feed": None,
-    "partner_export": None,
-    "ics_upload": None,
-    "csv_upload": None,
-    "opt_in_email_parse": None,
-    "open_data_lucene_search": None,
-}
 
 # Named so the derivation test can assert these are the only providers reachable
 # from catalog data (a typo'd value would otherwise raise deep inside a fetch).

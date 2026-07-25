@@ -1268,8 +1268,8 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     one r7 got half-right (evaluator r8): (1) no cross-format fallback — we never
     quietly parse something else; (2) if NOTHING we fetched was even the asserted
     SHAPE, that is a misconfigured catalog row and raises ProviderMismatch, so it
-    is reported as a FAILED source rather than folded into the "yielded zero"
-    count. A source that DID serve the asserted format and simply had no upcoming
+    is reported as a MISCONFIGURED source (exit 2, never overridable by
+    --allow-partial) rather than folded into the "yielded zero" count. A source that DID serve the asserted format and simply had no upcoming
     events still returns [] — an empty calendar is a fact, not a defect. With no
     hint the body is sniffed (BEGIN:VCALENDAR ⇒ ICS; a bare JSON body tries the
     platform readers then bare JSON-LD).
