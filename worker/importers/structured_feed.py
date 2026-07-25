@@ -31,7 +31,8 @@ from html.parser import HTMLParser
 from typing import Any, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from worker.importers.domain_map import classify_from_title
+from worker.classify import resolve_category
+from worker.importers.domain_map import UNMAPPED, classify_from_title
 
 # Two stable provenance tokens (mirrored by the provider CHECK in
 # supabase/migrations/0013_structured_feed_provider.sql) — HOW the row was parsed.
@@ -476,15 +477,40 @@ def _stable_external_id(raw: dict, *, provider: str, source_name: str) -> Option
     return None
 
 
+def _event_subtype_token(at: Any) -> Optional[str]:
+    """Pick the MOST SPECIFIC schema.org event-subtype token from a JSON-LD @type
+    (a string or a list). Prefer a real subtype (MusicEvent/ComedyEvent/…) over
+    the bare 'Event' so the resolver can map it; return None when @type is absent
+    or only the generic 'Event' (which carries no category — fall through, never
+    fabricate). Mirrors _is_event_type's tolerance of namespaced/list @type."""
+    candidates = at if isinstance(at, list) else [at]
+    generic = None
+    for t in candidates:
+        if not isinstance(t, str):
+            continue
+        tl = t.strip().rsplit("/", 1)[-1].rsplit(":", 1)[-1]
+        low = tl.lower()
+        if low == "event":
+            generic = tl
+        elif low.endswith("event") or low in _EVENT_SUBTYPES_EXTRA:
+            return tl  # a specific subtype — most authoritative
+    return generic
+
+
 def normalize_structured(raw: dict, *, provider: str, source_name: str,
                          cultural_domain: Optional[str] = None) -> Optional[dict]:
     """Map a canonical intermediate dict (from parse_ics / parse_jsonld) into the
     EXACT licensed_event column dict normalize_ticketmaster returns.
 
-    provider is 'ics' | 'jsonld' (provenance: HOW it was parsed). category uses the
-    catalog's cultural_domain hint when supplied (a first-party calendar's own
-    curated domain), else deterministic classify_from_title on the real title.
-    Returns None when there is no stable id or no title — never invents data.
+    provider is 'ics' | 'jsonld' (provenance: HOW it was parsed). Category is
+    resolved by the shared classifier (worker.classify.resolve_category) from the
+    STRONGEST available signal, in authority order: the event's OWN declared
+    schema.org @type (a MusicEvent/ComedyEvent/LiteraryEvent already parsed from
+    the JSON-LD — so "you know it's a lecture/band/comedian, so you know the
+    category", founder 2026-07-25), THEN the first-party calendar's curated
+    cultural_domain, THEN a last-resort read of the title. Non-fabricating: an
+    absent/generic signal falls through, never guesses. Returns None when there is
+    no stable id or no title — never invents data.
     """
     if provider not in (PROVIDER_ICS, PROVIDER_JSONLD):
         raise ValueError(
@@ -496,10 +522,18 @@ def normalize_structured(raw: dict, *, provider: str, source_name: str,
     if not external_id:
         return None
 
-    if cultural_domain:
-        category, subsegment = cultural_domain, None
-    else:
-        category, subsegment = classify_from_title(title)
+    # The @type the JSON-LD parse already read (in _raw_props) is the event's own
+    # declared kind — the most authoritative category signal. ICS feeds carry no
+    # @type, so this is simply None there and the venue/title signals apply.
+    raw_props = raw.get("_raw_props")
+    schema_type = _event_subtype_token(raw_props.get("@type")) if isinstance(raw_props, dict) else None
+    resolved = resolve_category(
+        schema_type=schema_type,
+        venue_domain_hint=cultural_domain,
+        title=title,
+    )
+    category = None if resolved.domain == UNMAPPED else resolved.domain
+    subsegment = resolved.genre
 
     price_min = _f(raw.get("price_min"))
     price_max = _f(raw.get("price_max"))

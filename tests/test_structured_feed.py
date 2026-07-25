@@ -189,7 +189,11 @@ def test_jsonld_normalize_shape():
     n = normalize_structured(e, provider=PROVIDER_JSONLD, source_name="presenter")
     assert n["source_provider"] == "jsonld"
     assert n["external_id"] == "https://presenter.example/e/spoon-live"  # @id
-    assert n["category"] == "theater"  # classify_from_title on "...at the Theater"
+    # The event's OWN @type wins over the title: this is a MusicEvent (a Spoon
+    # concert), so the category is live-music — NOT 'theater' from the title's
+    # "...at the Theater" (the old title-only logic was fooled by the venue word).
+    # "You know it's a band, so you know the category" (founder 2026-07-25).
+    assert n["category"] == "live-music"  # from @type=MusicEvent, not the title
     assert n["price_min"] == 35.0 and n["is_free"] is False
     assert n["confidence"] == "confirmed"
 
@@ -327,3 +331,31 @@ def test_runner_real_catalog_has_structured_candidates():
     assert "austin_public_library" in picks  # feed_if_offered
     assert "bookpeople" in picks            # ics_feed_if_offered
     assert "ticketmaster_discovery" not in picks  # api_key, not structured
+
+
+def test_event_type_beats_a_misleading_title_and_venue():
+    # Founder 2026-07-25: "if you know a venue is hosting a lecture, or a band,
+    # comedian or comedy event then you know the category." The event's declared
+    # @type is the authority — above a title keyword and above the venue's domain.
+    # A comedian at a music-tagged venue is COMEDY, not live-music.
+    comedy = {"title": "An Evening with a Comic", "start_time": "2026-11-07T02:00:00Z",
+              "_raw_props": {"@type": "ComedyEvent", "@id": "x1"}}
+    n = normalize_structured(comedy, provider=PROVIDER_JSONLD, source_name="Mohawk",
+                             cultural_domain="live-music")
+    assert n["category"] == "comedy"
+
+    # A lecture (EducationEvent) at an UNTAGGED multi-purpose room is 'ideas',
+    # read from the event — the case venue-tagging alone could never get right.
+    lecture = {"title": "The Future of Cities", "start_time": "2026-11-07T02:00:00Z",
+               "_raw_props": {"@type": "EducationEvent", "@id": "x2"}}
+    n2 = normalize_structured(lecture, provider=PROVIDER_JSONLD, source_name="Paramount",
+                              cultural_domain=None)
+    assert n2["category"] == "ideas"
+
+    # A bare 'Event' (no subtype) carries no category signal → falls through to
+    # the venue's curated domain, never fabricated from the generic type.
+    generic = {"title": "Something", "start_time": "2026-11-07T02:00:00Z",
+               "_raw_props": {"@type": "Event", "@id": "x3"}}
+    n3 = normalize_structured(generic, provider=PROVIDER_JSONLD, source_name="Mohawk",
+                              cultural_domain="live-music")
+    assert n3["category"] == "live-music"
