@@ -508,7 +508,9 @@ def normalize_structured(raw: dict, *, provider: str, source_name: str,
     """Map a canonical intermediate dict (from parse_ics / parse_jsonld) into the
     EXACT licensed_event column dict normalize_ticketmaster returns.
 
-    provider is 'ics' | 'jsonld' (provenance: HOW it was parsed). Category is
+    provider is 'ics' | 'jsonld' | 'platform_json' (provenance: HOW it was
+    parsed — each reader keeps its own token so a shape drift is attributable,
+    migration 0014). Category is
     resolved by the shared classifier (worker.classify.resolve_category) from the
     STRONGEST available signal, in authority order: the event's OWN declared
     schema.org @type (a MusicEvent/ComedyEvent/LiteraryEvent already parsed from
@@ -518,9 +520,10 @@ def normalize_structured(raw: dict, *, provider: str, source_name: str,
     absent/generic signal falls through, never guesses. Returns None when there is
     no stable id or no title — never invents data.
     """
-    if provider not in (PROVIDER_ICS, PROVIDER_JSONLD):
+    if provider not in (PROVIDER_ICS, PROVIDER_JSONLD, PROVIDER_PLATFORM_JSON):
         raise ValueError(
-            f"provider must be {PROVIDER_ICS!r} or {PROVIDER_JSONLD!r}, got {provider!r}")
+            f"provider must be one of {PROVIDER_ICS!r}, {PROVIDER_JSONLD!r}, "
+            f"{PROVIDER_PLATFORM_JSON!r}, got {provider!r}")
     title = raw.get("title")
     if not title:
         return None
@@ -575,48 +578,31 @@ def normalize_structured(raw: dict, *, provider: str, source_name: str,
 
 # ---- fetch + auto-detect ------------------------------------------------------
 
-# A bare bot UA is refused by common WAFs (KXAN returned HTTP 403 on
-# 2026-07-25). We identify honestly as OneLive AND present a normal browser
-# profile so ordinary public pages are served. We never bypass auth and never
-# scrape behind a login; robots.txt IS consulted before probing guessed paths
-# (see _robots_allows). NOTE: 429 is deliberately NOT retried here — it means
-# rate-limited, and swapping headers to get past it would be a rate-limit
-# bypass that hides upstream throttling as a successful import (evaluator
-# blocker, PR #68).
-_BROWSER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-               "(KHTML, like Gecko) Chrome/126.0 Safari/537.36 "
-               "(compatible; OneLiveBot/1.0)")
-_BROWSER_ACCEPT = ("text/calendar, application/ld+json, text/html, "
-                   "application/xhtml+xml, application/json;q=0.9, */*;q=0.5")
-
-
+# We identify honestly as OneLive and do NOT change identity to get past an
+# access denial. A 403/406 is the site REFUSING us; retrying with a browser
+# profile to obtain the content anyway would hide that denial as a successful
+# import (evaluator blocker r3, PR #68) — the repo bar is fail-closed on
+# access/auth, no bypasses. A refused source is reported as refused, and is
+# routed to a different acquisition path (partner feed / opt-in newsletter),
+# not scraped under a disguise.
 def fetch_url(url: str, *, timeout: int = 30) -> str:
     """GET a public structured feed / calendar page.
 
     Raises LOUD on any error (never returns empty on failure) — a fetch that
-    fails must be visible, not a silent no-op. On a 403/406 (bot-blocked WAF) it
-    retries ONCE with a browser profile: the content is public either way, we are
-    only presenting headers an ordinary reader would send. A 429 is NOT retried —
-    that is rate-limiting, and it propagates so throttling stays visible.
+    fails must be visible, not a silent no-op. NOTHING is retried under a
+    different identity: a 403/406 means the site refused us and a 429 means we
+    are throttled, and both must stay visible rather than be bypassed.
     """
-    def _get(ua: str, accept: str) -> str:
-        req = urllib.request.Request(url, headers={
-            "User-Agent": ua,
-            "Accept": accept,
-            "Accept-Language": "en-US,en;q=0.9",
-        })
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            charset = resp.headers.get_content_charset() or "utf-8"
-            return resp.read().decode(charset, errors="replace")
-
-    try:
-        return _get(_USER_AGENT, _ACCEPT)
-    except urllib.error.HTTPError as exc:
-        if exc.code in (403, 406):
-            return _get(_BROWSER_UA, _BROWSER_ACCEPT)
-        # 429 (and everything else) propagates: rate-limiting must be visible and
-        # backed off, never worked around by changing headers.
-        raise
+    req = urllib.request.Request(url, headers={
+        "User-Agent": _USER_AGENT,
+        "Accept": _ACCEPT,
+        "Accept-Language": "en-US,en;q=0.9",
+    })
+    # Every status propagates. 403/406 (denied) and 429 (throttled) are REAL
+    # signals an operator must see, not conditions to work around.
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        charset = resp.headers.get_content_charset() or "utf-8"
+        return resp.read().decode(charset, errors="replace")
 
 
 def _platform_events(doc: Any) -> list:
@@ -681,24 +667,49 @@ def parse_platform_json(text: str) -> list[dict]:
                     "platform event %r has only a LOCAL start (%s) and no timezone "
                     "field — dropping rather than asserting a wrong UTC instant",
                     title, local_start)
+        # Localist: an event carries N concrete OCCURRENCES in event_instances.
+        # Reading only [0] silently discarded every later showing (evaluator
+        # blocker r3, PR #68) — real data loss from a canonical feed. Each
+        # instance becomes its own row, with its own stable id.
+        instances = []
         if not start:
             inst = ev.get("event_instances")
-            if isinstance(inst, list) and inst:
-                first = inst[0]
-                if isinstance(first, dict):
-                    ei = first.get("event_instance")
-                    ei = ei if isinstance(ei, dict) else first
+            if isinstance(inst, list):
+                for item in inst:
+                    if not isinstance(item, dict):
+                        continue
+                    ei = item.get("event_instance")
+                    ei = ei if isinstance(ei, dict) else item
                     # Localist instances are ISO8601 WITH an offset, so they are
                     # self-describing — no tz guess needed.
-                    start = _ld_str(ei.get("start"))
-                    end = _ld_str(ei.get("end"))
-                    start_tz = None
-        if not title or not start:
+                    i_start = _ld_str(ei.get("start"))
+                    if i_start:
+                        # Instance ids are ints in Localist — str() them so each
+                        # occurrence keeps a DISTINCT external id (an int would be
+                        # dropped by _ld_str and the occurrences would collide on
+                        # upsert, re-losing the data this fix restores).
+                        raw_id = ei.get("id")
+                        occ_id = (str(raw_id) if isinstance(raw_id, (int, str))
+                                  and str(raw_id).strip() else None)
+                        instances.append((i_start, _ld_str(ei.get("end")), occ_id))
+        if not title or (not start and not instances):
             continue
         venue = ev.get("venue") if isinstance(ev.get("venue"), dict) else {}
         loc = ev.get("location_name") or venue.get("venue")
         addr = venue.get("address")
         city = venue.get("city")
+        # One row per occurrence (a single-start event is just one occurrence).
+        occurrences = instances or [(start, end, None)]
+        for occ_start, occ_end, occ_id in occurrences:
+            _emit_platform_row(out, ev, title, occ_start, occ_end, occ_id,
+                               start_tz, venue, loc, addr, city)
+    return out
+
+
+def _emit_platform_row(out, ev, title, start, end, occ_id, start_tz,
+                       venue, loc, addr, city) -> None:
+    """Append ONE normalized intermediate row for a single occurrence."""
+    if True:
         start_all_day = _is_date_only(start)
         out.append({
             "title": title,
@@ -716,10 +727,11 @@ def parse_platform_json(text: str) -> list[dict]:
             "url": _ld_str(ev.get("url") or ev.get("localist_url")),
             "image_url": None,
             "price_min": None, "price_max": None, "currency": None,
-            "uid": _ld_str(ev.get("id") or ev.get("uid") or ev.get("url")),
+            # Per-OCCURRENCE id so two showings of one event are distinct rows
+            # rather than one overwriting the other on upsert.
+            "uid": occ_id or _ld_str(ev.get("id") or ev.get("uid") or ev.get("url")),
             "_raw_props": ev,
         })
-    return out
 
 
 def parse_jsonld_document(text: str) -> list[dict]:
@@ -771,10 +783,18 @@ def _detect_provider(text: str, provider_hint: Optional[str]) -> str:
 
 # 1) Standards-based autodiscovery: <link rel="alternate"> pointing at a
 #    calendar/feed. This is the mechanism sites publish ON PURPOSE.
-_FEED_LINK_TYPES = (
-    "text/calendar", "application/rss+xml", "application/atom+xml",
-    "application/ld+json",
-)
+# ONLY types _events_from_text can actually parse. RSS/Atom were accepted as
+# candidates with no parser behind them (evaluator blocker r3, PR #68): a
+# site-declared RSS events feed would fetch, parse to zero, and be reported as
+# "no events" — the same false-confidence class as the removed Squarespace
+# endpoint. They are dropped here rather than silently mis-handled; an
+# UNSUPPORTED declared type is logged loudly by _note_unsupported_declared so
+# the gap is operator-visible instead of invisible.
+_FEED_LINK_TYPES = ("text/calendar", "application/ld+json")
+
+# Declared types we deliberately do NOT parse (yet). Seeing one is worth saying
+# out loud — it names a real acquisition gap for that source.
+_UNSUPPORTED_FEED_TYPES = ("application/rss+xml", "application/atom+xml")
 
 # 2) Platform endpoints — the big CMS/calendar plugins expose machine-readable
 #    events at a known path. Detected from markup fingerprints in the base page.
@@ -827,11 +847,12 @@ _ROBOTS_CACHE: dict = {}
 def _robots_allows(url: str, ua: str = "OneLiveBot") -> bool:
     """True when robots.txt permits fetching `url`.
 
-    Added because the module CLAIMED to honour robots and did not (evaluator nit,
-    PR #68) — a claim we could not back was worse than no claim. Fails OPEN on an
-    unreachable/absent robots.txt (the web's convention: no robots.txt means no
-    restriction), but fails CLOSED on an explicit Disallow. Cached per host so a
-    64-source run fetches each robots.txt once.
+    SCOPE, stated plainly rather than claimed broadly (evaluator nit r3): this
+    honours an EXPLICIT Disallow — that case fails CLOSED. It FAILS OPEN when
+    robots.txt is absent, unreachable, or unparseable, which follows the web's
+    convention that no robots.txt means no restriction but does mean a site whose
+    robots we cannot READ is still fetched. Cached per host so a 64-source run
+    fetches each robots.txt once.
     """
     parts = urllib.parse.urlsplit(url)
     root = f"{parts.scheme}://{parts.netloc}"
@@ -864,14 +885,19 @@ class _LinkRelParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.hrefs: list[str] = []
+        self.unsupported: list = []
 
     def handle_starttag(self, tag, attrs):
         if tag != "link":
             return
         a = {k.lower(): (v or "") for k, v in attrs}
         rel, typ, href = a.get("rel", "").lower(), a.get("type", "").lower(), a.get("href")
-        if href and ("alternate" in rel or "feed" in rel) and any(t in typ for t in _FEED_LINK_TYPES):
+        if not href or not ("alternate" in rel or "feed" in rel):
+            return
+        if any(t in typ for t in _FEED_LINK_TYPES):
             self.hrefs.append(href)
+        elif any(t in typ for t in _UNSUPPORTED_FEED_TYPES):
+            self.unsupported.append((typ, href))
 
 
 def discover_feed_urls(base_url: str, html: str) -> tuple:
@@ -900,6 +926,10 @@ def discover_feed_urls(base_url: str, html: str) -> tuple:
         logger.debug("feed discovery: could not parse markup at %s (%s: %s); "
                      "continuing with platform + convention candidates",
                      base_url, type(exc).__name__, exc)
+    for typ, href in parser.unsupported:
+        logger.warning("feed discovery: %s declares a %s feed at %s that we cannot "
+                       "parse — acquisition gap for this source, not 'no events'",
+                       base_url, typ, href)
     for href in parser.hrefs:
         add(href)
     declared_count = len(out)  # everything added so far is site-DECLARED
@@ -919,6 +949,7 @@ def discover_feed_urls(base_url: str, html: str) -> tuple:
 
 def _events_from_text(text: str, *, provider_hint, source_name, cultural_domain) -> list[dict]:
     provider = _detect_provider(text, provider_hint)
+    used_jsonld_fallback = False
     if provider == PROVIDER_ICS:
         raws = parse_ics(text)
     elif provider == PROVIDER_PLATFORM_JSON:
@@ -927,13 +958,17 @@ def _events_from_text(text: str, *, provider_hint, source_name, cultural_domain)
             # Not a Tribe/Localist shape — try it as a BARE schema.org JSON-LD
             # document before giving up, so a declared ld+json feed is not lost.
             raws = parse_jsonld_document(text)
+            used_jsonld_fallback = bool(raws)
     else:
         raws = parse_jsonld(text)
-    # Platform-JSON rows are stored under the jsonld provider token: the DB
-    # provider CHECK (migration 0013) knows 'ics'|'jsonld', and these are
-    # first-party structured data exactly like JSON-LD. Widening the CHECK would
-    # be a migration; the parse route is what mattered.
-    store_provider = PROVIDER_JSONLD if provider == PROVIDER_PLATFORM_JSON else provider
+    # Platform-JSON keeps its OWN provider token (migration 0014). Storing it as
+    # 'jsonld' conflated two different acquisition formats and would have made a
+    # shape drift in the Tribe reader indistinguishable from one in the JSON-LD
+    # reader (evaluator nit r3, PR #68). If the body turned out to be bare JSON-LD
+    # (the parse_jsonld_document fallback), it IS jsonld and is recorded as such.
+    store_provider = provider
+    if provider == PROVIDER_PLATFORM_JSON and used_jsonld_fallback:
+        store_provider = PROVIDER_JSONLD
     out: list[dict] = []
     for raw in raws:
         n = normalize_structured(raw, provider=store_provider, source_name=source_name,
@@ -1005,6 +1040,13 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
         found = _events_from_text(text, provider_hint=provider_hint,
                                   source_name=source_name,
                                   cultural_domain=cultural_domain)
+        if not found and i < declared:
+            # The site ADVERTISES this feed and it served bytes we could not turn
+            # into events — a parse/shape gap worth an operator's attention, and
+            # materially different from a guessed 404 (evaluator nit r3).
+            logger.warning("source %s: DECLARED feed %s served content but parsed "
+                           "to ZERO events — unsupported shape or an empty feed",
+                           source_name, candidate)
         if found:
             logger.info("source %s: base page had no events; discovered feed %s (%d events)",
                         source_name, candidate, len(found))

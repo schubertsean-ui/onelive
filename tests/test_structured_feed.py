@@ -430,7 +430,7 @@ def test_discovery_never_re_offers_the_base_url():
 
 
 def test_relative_links_are_absolutised_against_the_source():
-    html = '<link rel="alternate" type="application/rss+xml" href="feed/events">'
+    html = '<link rel="alternate" type="text/calendar" href="feed/events">'
     urls, _ = discover_feed_urls("https://venue.example/whats-on/", html)
     assert "https://venue.example/whats-on/feed/events" in urls
 
@@ -556,7 +556,9 @@ def test_a_platform_endpoint_is_fetched_and_parsed_end_to_end(monkeypatch):
                            cultural_domain="live-music")
     assert len(out) == 1
     assert out[0]["title"] == "Wednesday Residency"
-    assert out[0]["source_provider"] == "jsonld"   # stored under the allowed token
+    # Own provider token (migration 0014) — NOT conflated with jsonld, so a shape
+    # drift in the Tribe reader stays attributable.
+    assert out[0]["source_provider"] == "platform_json"
 
 
 def test_429_is_not_retried_with_a_browser_ua(monkeypatch):
@@ -579,26 +581,26 @@ def test_429_is_not_retried_with_a_browser_ua(monkeypatch):
     assert len(calls) == 1, "429 must NOT trigger a second attempt"
 
 
-def test_403_still_retries_once_with_a_browser_profile(monkeypatch):
+def test_403_is_NOT_bypassed_with_a_different_identity(monkeypatch):
+    """A 403 is the site REFUSING us. Retrying under a browser profile to get the
+    content anyway would hide an access denial as a successful import — the repo
+    bar is fail-closed on access, no bypasses (evaluator blocker r3, PR #68)."""
     import urllib.error
     import worker.importers.structured_feed as sf
     calls = []
 
     def fake_urlopen(req, timeout=30):
         calls.append(req.get_header("User-agent"))
-        if len(calls) == 1:
-            raise urllib.error.HTTPError(req.full_url, 403, "Forbidden", {}, None)
-
-        class R:
-            headers = type("H", (), {"get_content_charset": lambda self: "utf-8"})()
-            def read(self): return b"BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n"
-            def __enter__(self): return self
-            def __exit__(self, *a): return False
-        return R()
+        raise urllib.error.HTTPError(req.full_url, 403, "Forbidden", {}, None)
 
     monkeypatch.setattr(sf.urllib.request, "urlopen", fake_urlopen)
-    sf.fetch_url("https://venue.example/events")
-    assert len(calls) == 2 and "Mozilla" in calls[1]
+    try:
+        sf.fetch_url("https://venue.example/events")
+        raise AssertionError("403 must propagate, not be bypassed")
+    except urllib.error.HTTPError as exc:
+        assert exc.code == 403
+    assert len(calls) == 1, "403 must NOT trigger a second attempt"
+    assert "Mozilla" not in (calls[0] or ""), "must not masquerade as a browser"
 
 
 def test_robots_disallow_blocks_a_guessed_candidate(monkeypatch):
@@ -691,3 +693,46 @@ def test_declared_and_guessed_candidates_have_separate_budgets():
     assert declared == 10
     # Conventional paths are still present in the full candidate list.
     assert any("ical=1" in u or u.endswith("/events") for u in urls)
+
+
+def test_all_localist_occurrences_are_emitted_not_just_the_first():
+    """Localist events carry N concrete occurrences; reading only [0] silently
+    discarded every later showing (evaluator blocker r3, PR #68)."""
+    from worker.importers.structured_feed import parse_platform_json
+    doc = ('{"events":[{"event":{"id":7,"title":"Weekly Series",'
+           '"location_name":"Hall","event_instances":['
+           '{"event_instance":{"id":71,"start":"2026-11-07T18:00:00-06:00"}},'
+           '{"event_instance":{"id":72,"start":"2026-11-14T18:00:00-06:00"}},'
+           '{"event_instance":{"id":73,"start":"2026-11-21T18:00:00-06:00"}}]}}]}')
+    rows = parse_platform_json(doc)
+    assert len(rows) == 3, "later occurrences were dropped"
+    # Each occurrence needs a DISTINCT id or they collide on upsert, re-losing them.
+    assert [r["uid"] for r in rows] == ["71", "72", "73"]
+    assert [r["start_time"] for r in rows] == [
+        "2026-11-08T00:00:00Z", "2026-11-15T00:00:00Z", "2026-11-22T00:00:00Z"]
+
+
+def test_unsupported_declared_feed_types_are_not_offered_as_candidates():
+    """RSS/Atom were accepted with no parser behind them — a declared RSS feed
+    would fetch, parse to zero, and read as 'no events' (evaluator blocker r3)."""
+    from worker.importers.structured_feed import discover_feed_urls
+    html = '<link rel="alternate" type="application/rss+xml" href="/feed.rss">'
+    urls, declared = discover_feed_urls("https://venue.example/", html)
+    assert declared == 0, "an unparseable RSS feed must not count as declared"
+    assert not any("feed.rss" in u for u in urls)
+
+
+def test_platform_json_keeps_its_own_provider_token():
+    from worker.importers.structured_feed import _events_from_text
+    rows = _events_from_text(
+        '{"events":[{"id":1,"title":"T","utc_start_date":"2026-11-08 02:00:00"}]}',
+        provider_hint=None, source_name="s", cultural_domain=None)
+    assert rows[0]["source_provider"] == "platform_json"
+
+
+def test_bare_jsonld_fallback_is_recorded_as_jsonld_not_platform():
+    from worker.importers.structured_feed import _events_from_text
+    rows = _events_from_text(
+        '{"@type":"MusicEvent","name":"B","startDate":"2026-11-07T20:00:00-06:00"}',
+        provider_hint=None, source_name="s", cultural_domain=None)
+    assert rows[0]["source_provider"] == "jsonld"
