@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import re
 
-from social.carousel.config import TIMEFRAMES
+from social.carousel.config import FEATURABLE_CONFIDENCE, TIMEFRAMES
 
 MAX_HASHTAGS = 5
 
@@ -91,6 +91,14 @@ def event_jsonld(event: dict, city: str) -> dict:
             f"event_jsonld refuses {event['event_id']}: event_status "
             f"{event.get('event_status')!r} — EventScheduled markup is only "
             "ever emitted for scheduled events"
+        )
+    if event.get("confidence") not in FEATURABLE_CONFIDENCE:
+        raise ValueError(
+            f"event_jsonld refuses {event['event_id']}: confidence "
+            f"{event.get('confidence')!r} is not featurable — discovery markup "
+            "never amplifies disputed/unverified rows (SELECTION, not hiding: "
+            "the product surface still shows disputed-as-disputed; this helper "
+            "just refuses to stamp normal scheduled markup on them)"
         )
     doc: dict = {
         "@context": "https://schema.org",

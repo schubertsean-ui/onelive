@@ -113,11 +113,20 @@ def scenario_events(events: list[dict], scenario: Scenario) -> list[dict]:
             if raw is None:
                 return None
             try:
-                return Decimal(str(raw))
+                value = Decimal(str(raw))
             except InvalidOperation as exc:
                 raise CarouselTrustError(
                     f"unparseable price_min {raw!r} on {e.get('event_id')}"
                 ) from exc
+            if not value.is_finite():
+                # Decimal happily parses "NaN"/"Infinity" (#67 r2): both
+                # are corrupt event data and refuse loudly — NaN would
+                # otherwise explode as a raw comparison error, Infinity
+                # would be silently filtered.
+                raise CarouselTrustError(
+                    f"non-finite price_min {raw!r} on {e.get('event_id')}"
+                )
+            return value
 
         cap = Decimal(str(scenario.price_max))
         picked = [

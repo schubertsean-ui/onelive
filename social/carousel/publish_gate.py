@@ -122,7 +122,7 @@ def _release_moment() -> datetime:
     # utcoffset() too, not just tzinfo (r15 nit, hardened at #67 r1):
     # Python treats a tzinfo whose utcoffset() is None as NAIVE — a broken
     # custom tzinfo must not slip past the aware-moment requirement.
-    if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
+    if now.utcoffset() is None:
         raise ValueError(
             "release refused: the gate clock returned a naive datetime — "
             "a custody moment must be timezone-aware with a real UTC offset"
@@ -249,7 +249,7 @@ def _assert_iso_moment(value: str, context: str) -> None:
         parsed = datetime.fromisoformat(value)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{context} {value!r} is not a valid ISO 8601 moment") from exc
-    if parsed.tzinfo is None or parsed.tzinfo.utcoffset(parsed) is None:
+    if parsed.utcoffset() is None:
         raise ValueError(f"{context} {value!r} is not timezone-aware — not a moment")
 
 

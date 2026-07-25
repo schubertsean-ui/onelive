@@ -867,6 +867,17 @@ def test_event_jsonld_refuses_unscheduled_or_noncanonical_rows():
         event_jsonld(_event(1, origin="candidate_store"), "Austin")
 
 
+def test_event_jsonld_refuses_nonfeaturable_confidence():
+    # #67 r2: the full featurability contract — disputed/unverified rows
+    # never get normal scheduled markup (selection, not hiding: the
+    # product surface still shows disputed-as-disputed).
+    for confidence in ("disputed", "unverified"):
+        with pytest.raises(ValueError, match="not featurable"):
+            event_jsonld(_event(1, confidence=confidence), "Austin")
+    # likely IS featurable — the quiet-uncertainty tier still gets markup.
+    assert event_jsonld(_event(1, confidence="likely"), "Austin")["@type"] == "Event"
+
+
 def test_scenario_price_filter_normalizes_like_every_price_surface():
     # #67 r1 (adopting the r15 nit): "0" the string is free; garbage
     # raises the trust-error shape, never a raw TypeError.
@@ -875,6 +886,20 @@ def test_scenario_price_filter_normalizes_like_every_price_surface():
     assert [e["event_id"] for e in scenario_events([free_str], scenario)] == ["ev-1"]
     with pytest.raises(CarouselTrustError, match="unparseable price_min"):
         scenario_events([_event(2, domain="comedy", price_min="abc")], scenario)
+    # #67 r2: Decimal's non-finite footguns — NaN would explode as a raw
+    # comparison error, Infinity would be silently filtered. Both refuse.
+    for corrupt in ("NaN", "Infinity", "-Infinity"):
+        with pytest.raises(CarouselTrustError, match="non-finite price_min"):
+            scenario_events([_event(3, domain="comedy", price_min=corrupt)], scenario)
+
+
+def test_generator_refuses_corrupt_prices_with_the_trust_shape():
+    # Same class at the generation surface (#67 r2): never a raw
+    # float()/Decimal exception.
+    with pytest.raises(CarouselTrustError, match="unparseable price_min"):
+        _draft([_event(1, price_min="abc")] + [_event(i) for i in range(2, 6)])
+    with pytest.raises(CarouselTrustError, match="non-finite price_min"):
+        _draft([_event(1, price_min="NaN")] + [_event(i) for i in range(2, 6)])
 
 
 def test_utc_gate_clock_releases_market_tonight_after_utc_midnight(monkeypatch):

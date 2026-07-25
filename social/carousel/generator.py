@@ -22,7 +22,7 @@ import json
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from social.carousel.config import (
     BANNED_CLAIM_PHRASES,
@@ -188,11 +188,26 @@ def _check_event(event: dict) -> None:
             f"unknown event_status {event['event_status']!r} on {event['event_id']}"
         )
     price = event.get("price_min")
-    if price is not None and float(price) < 0:
-        raise CarouselTrustError(
-            f"negative price {price!r} on {event['event_id']} — an impossible "
-            "public price claim is a data defect, never copy"
-        )
+    if price is not None:
+        # Same Decimal normalization as every price surface (#67 r2, same
+        # class as the scenario filter): "abc" and "NaN"/"Infinity" are
+        # corrupt data and refuse with the trust-error shape, never a raw
+        # float()/comparison exception.
+        try:
+            price_value = Decimal(str(price))
+        except InvalidOperation as exc:
+            raise CarouselTrustError(
+                f"unparseable price_min {price!r} on {event['event_id']}"
+            ) from exc
+        if not price_value.is_finite():
+            raise CarouselTrustError(
+                f"non-finite price_min {price!r} on {event['event_id']}"
+            )
+        if price_value < 0:
+            raise CarouselTrustError(
+                f"negative price {price!r} on {event['event_id']} — an impossible "
+                "public price claim is a data defect, never copy"
+            )
     descriptor = event.get("foundry_descriptor")
     if descriptor is not None:
         if not isinstance(descriptor, dict) or not descriptor.get("text") or not descriptor.get("provenance"):
@@ -311,7 +326,12 @@ def _price_label(price) -> str:
     """Exact price display (r5, hardened r6 via Decimal): $19.99 is
     $19.99, never $19 — a public price claim is a fact, and facts are
     verbatim; Decimal avoids float representation surprises."""
-    value = Decimal(str(price))
+    try:
+        value = Decimal(str(price))
+    except InvalidOperation as exc:
+        raise CarouselTrustError(f"unparseable price {price!r} cannot be rendered") from exc
+    if not value.is_finite():
+        raise CarouselTrustError(f"non-finite price {price!r} cannot be rendered")
     if value < 0:
         raise CarouselTrustError(f"negative price {price!r} cannot be rendered")
     if value != value.quantize(Decimal("0.01")):
