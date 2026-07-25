@@ -168,6 +168,19 @@ run_check "surface_regression_exam" "$PY" tools/surface_regression_exam.py
 #     Gate-custody: evaluator-reviewed on the PR that adds it.
 run_check "brain_eval" "$PY" tools/brain_eval.py
 
+# 4d. Brain IQ ratchet — deterministic, free (no network/model/spend) one-way
+#     GUARD on the brain's multi-dimensional smartness (brain/iq.py): the two
+#     GATED dimensions (KNOWLEDGE accuracy and EFFICIENCY graph-work per query)
+#     must each stay >= their best recorded value in the continuous trend ledger
+#     (docs/metrics/BRAIN_IQ_LEDGER.md) minus a tiny epsilon — knowledge dropping
+#     or work rising turns this RED. Same ratchet shape as brain_eval /
+#     surface_regression_exam: when the brain improves, re-measure and RAISE the
+#     recorded best (append a ledger row) in the same PR; the gate only ratchets
+#     up. LEARNING is trended but NOT gated, and wall latency is recorded but
+#     NEVER gated (machine-dependent). Gate-custody: evaluator-reviewed on the
+#     PR that adds it.
+run_check "brain_iq" "$PY" tools/brain_iq.py --check
+
 # 5. Performance benchmarks — asserted budgets on hot paths. Opt-in marker.
 if [ "$QUICK" -eq 1 ]; then
   echo "── perf benchmarks ──"
