@@ -168,6 +168,20 @@ run_check "surface_regression_exam" "$PY" tools/surface_regression_exam.py
 #     Gate-custody: evaluator-reviewed on the PR that adds it.
 run_check "brain_eval" "$PY" tools/brain_eval.py
 
+# 4c-bis. Brain HELD-OUT eval — NOTE, deliberately NOT a normal in-repo gate.
+#     tools/brain_held_out_eval.py scores a HIDDEN, held-out counterpart to the
+#     visible brain benchmark (brain/eval/held_out*). Its trust value comes from
+#     BASE-OWNERSHIP, not from running here: the AUTHORITY is the base-owned
+#     workflow .github/workflows/brain-held-out-eval.yml (pull_request_target),
+#     which scores the PR head's brain with the BASE ref's copy of the hidden
+#     set + scorer, so a PR cannot see-and-alter the copy that grades it. Adding
+#     it as a normal `run_check` here would run the PR's OWN copy of the hidden
+#     set/scorer against itself — the exact self-grading the base-owned design
+#     exists to prevent — so it is intentionally omitted. Run it as a DEV MIRROR
+#     with `python tools/brain_held_out_eval.py` (non-authoritative); the real
+#     judge is the CI workflow. See docs/strategy/ONE_LIVE_HELDOUT_EVAL_v1.md
+#     and docs/RECORD.md R-045.
+
 # 4d. Brain IQ ratchet — deterministic, free (no network/model/spend) one-way
 #     GUARD on the brain's multi-dimensional smartness (brain/iq.py): the two
 #     GATED dimensions (KNOWLEDGE accuracy and EFFICIENCY graph-work per query)

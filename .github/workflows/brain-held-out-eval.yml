@@ -1,0 +1,130 @@
+name: Brain Held-Out Memory Eval (base-owned blind judge)
+
+# WHAT / WHY (plain language):
+#   tools/brain_eval.py scores the VISIBLE brain benchmark
+#   (brain/eval/benchmark.py) — committed and readable, so a self-optimizing
+#   agent could overfit those exact questions and post a fake improvement. This
+#   workflow is the anti-gaming counterpart: it scores a SEPARATE, HIDDEN,
+#   HELD-OUT set (brain/eval/held_out*), disjoint from the visible one, so a
+#   brain that merely memorized the visible questions does NOT pass here.
+#
+# THE BLINDNESS MECHANISM (identical doctrine to extraction-eval.yml):
+#   The protection is NOT that the held-out file is secret in git (nothing in
+#   git is). It is BASE-OWNERSHIP. This job runs on pull_request_target, so
+#   GitHub executes the DEFAULT BRANCH's copy of THIS workflow — a PR that edits
+#   this file does not change what runs against it. It then scores the PR HEAD's
+#   BRAIN ENGINE (brain/graph.py, brain/schema.py — the artifact under test)
+#   using the BASE ref's copy of the held-out corpus, the scorer, and the floor.
+#   A PR that rewrites the hidden questions, lowers the floor, or weakens the
+#   scorer is judged by BASE's copy, not its own. The in-repo copy is a DEV
+#   MIRROR; this BASE-run copy is the AUTHORITY (docs/strategy/ONE_LIVE_HELDOUT_EVAL_v1.md).
+#
+# SECURITY POSTURE (honest — read this):
+#   To measure the PR's brain we MUST execute the PR head's brain engine, which
+#   is subject code. Under pull_request_target that is normally dangerous
+#   (write-capable token + secrets). We minimize the blast radius to nothing
+#   worth stealing, and DOCUMENT the residual rather than pretend it is absent:
+#     * permissions: contents: read ONLY — the ambient GITHUB_TOKEN is reduced
+#       to read-only, so executed subject code cannot push, comment, or mutate.
+#     * NO secrets are provided to any step — the eval is deterministic and
+#       OFFLINE (no LLM, no network, no spend), so there is nothing to exfiltrate.
+#     * persist-credentials: false on both checkouts — no git credential is left
+#       on disk for subject code to read.
+#     * The ONLY code executed is the BASE-owned scorer/CLI, overlaid over the
+#       subject tree so the hidden set + scorer are base's; the subject
+#       contributes ONLY its brain engine (the thing under test) as import
+#       targets. We do NOT run the subject's tests, build, or setup scripts.
+#   Residual, stated plainly: the subject's brain engine executes on the runner.
+#   That is inherent to evaluating a code artifact and cannot be removed without
+#   removing the eval; the read-only token + zero secrets make it a safe residual.
+#   Unlike the golden exam (which needs the Anthropic secret and therefore NEVER
+#   runs subject code), this eval needs no secret, so running subject code under
+#   a stripped, secretless, read-only job is the conservative choice.
+#
+# BOOTSTRAP HONESTY: on the PR that ARMS this gate, base does not yet carry the
+# held-out scorer/corpus, so the "pin base-owned files" step HARD-FAILS closed
+# (a warning is not enforcement). That arming PR merges with this one check red
+# under explicit human review, once — same precedent as extraction-eval.yml /
+# adversarial-review.yml. Afterwards the gate is self-consistent.
+
+on:
+  pull_request_target:
+    paths:
+      - "brain/**"
+      - "tools/brain_held_out_eval.py"
+      - ".github/workflows/brain-held-out-eval.yml"
+
+concurrency:
+  # PR number, not github.ref (under pull_request_target the ref is the BASE
+  # branch, which would serialize unrelated PRs against the same base).
+  group: brain-held-out-eval-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  held-out-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      # TRUSTED code: the base branch the PR merges into. This is the copy of
+      # the held-out set + scorer + floor that JUDGES the PR.
+      - uses: actions/checkout@v4  # SHA-pin queued (repo-wide P3): pins must be VERIFIED upstream SHAs; tag stays until a networked session / the founder confirms them
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+
+      # SUBJECT: the PR head. We use ONLY its brain ENGINE (brain/graph.py,
+      # brain/schema.py, ...) — the artifact under test. Its copy of the
+      # held-out set / scorer / floor is OVERWRITTEN by base's below, so it
+      # cannot grade itself.
+      - uses: actions/checkout@v4  # SHA-pin queued (repo-wide P3) — same constraint as above
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: subject
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5  # SHA-pin queued (repo-wide P3) — same constraint as above
+        with:
+          python-version: "3.12"
+
+      - name: Pin the BASE-owned held-out judge over the subject tree (or bootstrap hard-fail)
+        # Every authoritative file is copied from BASE onto the subject
+        # checkout, so the executed judge (hidden questions, deterministic
+        # scorer, one-way floor) is base's while the brain ENGINE under those
+        # imports stays the subject's. A missing base file = the arming PR:
+        # fail closed and loud (a warning is not enforcement).
+        run: |
+          set -euo pipefail
+          AUTHORITATIVE=(
+            "brain/eval/__init__.py"
+            "brain/eval/benchmark.py"
+            "brain/eval/harness.py"
+            "brain/eval/held_out.py"
+            "brain/eval/held_out_pages.json"
+            "tools/brain_held_out_eval.py"
+          )
+          for rel in "${AUTHORITATIVE[@]}"; do
+            if [ ! -f "base/$rel" ]; then
+              echo "::error::BOOTSTRAP HARD-FAIL: base is missing $rel. The held-out judge does not yet exist on the base branch, so a PR-supplied copy would be grading itself. The PR that introduces this gate is human-reviewed and merges with this check red, once; afterwards the gate is enforceable from base."
+              exit 1
+            fi
+            mkdir -p "subject/$(dirname "$rel")"
+            cp "base/$rel" "subject/$rel"
+          done
+          echo "Pinned $(printf '%s ' "${AUTHORITATIVE[@]}") from base over the subject tree."
+
+      - name: Score the PR head's brain against the BASE-owned held-out set (deterministic, offline, secretless)
+        # -I: isolated stdlib (immune to PYTHONPATH/cwd hijack). Run from the
+        # subject root so `brain.*` resolves to the subject's brain ENGINE, now
+        # overlaid with base's held-out judge. No secrets, read-only token: the
+        # eval is deterministic and needs neither. Exit 1 (below floor) or 2
+        # (could not run) fails the check closed.
+        run: |
+          set -euo pipefail
+          cd subject
+          python3 -I tools/brain_held_out_eval.py --show-misses
