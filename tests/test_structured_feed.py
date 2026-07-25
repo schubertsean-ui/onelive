@@ -476,3 +476,135 @@ def test_a_dead_candidate_does_not_lose_a_later_one(monkeypatch):
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
     out = sf.import_source("https://venue.example/", source_name="venue")
     assert len(out) == 1 and out[0]["title"] == "Late Show"
+
+
+# ---- platform JSON APIs (evaluator blocker, PR #68) ---------------------------
+# The endpoints were previously ADVERTISED as canonical acquisition paths while
+# import_source only routed bodies to ICS/JSON-LD — so Tribe/Localist responses
+# would have yielded zero while looking like coverage. These tests parse the real
+# response SHAPES into events, which is the behaviour the discovery layer claims.
+
+TRIBE_JSON = """{"events":[
+ {"id":991,"title":"Wednesday Residency","url":"https://venue.example/e/991",
+  "start_date":"2026-11-07 20:00:00","end_date":"2026-11-07 23:00:00",
+  "venue":{"venue":"The Back Room","address":"1 Main St","city":"Austin"}}
+]}"""
+
+LOCALIST_JSON = """{"events":[
+ {"event":{"id":7,"title":"Lecture: Future of Cities",
+   "localist_url":"https://cal.example/event/7",
+   "location_name":"Hogg Auditorium",
+   "event_instances":[{"event_instance":{"start":"2026-11-07T18:00:00-06:00"}}]}}
+]}"""
+
+
+def test_tribe_json_parses_into_events():
+    from worker.importers.structured_feed import parse_platform_json
+    rows = parse_platform_json(TRIBE_JSON)
+    assert len(rows) == 1
+    e = rows[0]
+    assert e["title"] == "Wednesday Residency"
+    assert e["start_time"] == "2026-11-07T20:00:00Z"
+    assert e["venue_name"] == "The Back Room"
+    assert e["venue_city"] == "Austin"
+
+
+def test_localist_json_parses_its_nested_shape():
+    from worker.importers.structured_feed import parse_platform_json
+    rows = parse_platform_json(LOCALIST_JSON)
+    assert len(rows) == 1
+    e = rows[0]
+    assert e["title"] == "Lecture: Future of Cities"
+    assert e["start_time"] == "2026-11-08T00:00:00Z"   # -06:00 -> UTC
+    assert e["venue_name"] == "Hogg Auditorium"
+
+
+def test_platform_json_drops_entries_with_no_title_or_start():
+    from worker.importers.structured_feed import parse_platform_json
+    rows = parse_platform_json('{"events":[{"id":1},{"id":2,"title":"No start"}]}')
+    assert rows == []   # never fabricated
+
+
+def test_non_event_json_yields_nothing_not_a_guess():
+    from worker.importers.structured_feed import parse_platform_json
+    assert parse_platform_json('{"items":[{"title":"x"}]}') == []
+    assert parse_platform_json("not json") == []
+
+
+def test_a_platform_endpoint_is_fetched_and_parsed_end_to_end(monkeypatch):
+    """The behaviour blocker #3/#4 said was missing: a Tribe endpoint discovered
+    from markup must actually become events, not just a URL in a list."""
+    import worker.importers.structured_feed as sf
+    base = '<html><body class="tribe-events-page">no inline events</body></html>'
+
+    def fake_fetch(u, timeout=30):
+        if "/wp-json/tribe/events/v1/events" in u:
+            return TRIBE_JSON
+        return base
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    out = sf.import_source("https://venue.example/", source_name="venue",
+                           cultural_domain="live-music")
+    assert len(out) == 1
+    assert out[0]["title"] == "Wednesday Residency"
+    assert out[0]["source_provider"] == "jsonld"   # stored under the allowed token
+
+
+def test_429_is_not_retried_with_a_browser_ua(monkeypatch):
+    """Rate-limiting must stay visible — swapping headers past a 429 would be a
+    rate-limit bypass (evaluator blocker, PR #68)."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+    calls = []
+
+    def fake_urlopen(req, timeout=30):
+        calls.append(req.get_header("User-agent"))
+        raise urllib.error.HTTPError(req.full_url, 429, "Too Many Requests", {}, None)
+
+    monkeypatch.setattr(sf.urllib.request, "urlopen", fake_urlopen)
+    try:
+        sf.fetch_url("https://venue.example/events")
+        raise AssertionError("429 should propagate")
+    except urllib.error.HTTPError as exc:
+        assert exc.code == 429
+    assert len(calls) == 1, "429 must NOT trigger a second attempt"
+
+
+def test_403_still_retries_once_with_a_browser_profile(monkeypatch):
+    import urllib.error
+    import worker.importers.structured_feed as sf
+    calls = []
+
+    def fake_urlopen(req, timeout=30):
+        calls.append(req.get_header("User-agent"))
+        if len(calls) == 1:
+            raise urllib.error.HTTPError(req.full_url, 403, "Forbidden", {}, None)
+
+        class R:
+            headers = type("H", (), {"get_content_charset": lambda self: "utf-8"})()
+            def read(self): return b"BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n"
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        return R()
+
+    monkeypatch.setattr(sf.urllib.request, "urlopen", fake_urlopen)
+    sf.fetch_url("https://venue.example/events")
+    assert len(calls) == 2 and "Mozilla" in calls[1]
+
+
+def test_robots_disallow_blocks_a_guessed_candidate(monkeypatch):
+    """The claim "robots is honoured" is now backed by code (evaluator nit)."""
+    import worker.importers.structured_feed as sf
+    sf._ROBOTS_CACHE.clear()
+    fetched = []
+
+    def fake_fetch(u, timeout=30):
+        fetched.append(u)
+        return "<html>nothing</html>"
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": False)
+    out = sf.import_source("https://venue.example/", source_name="venue")
+    assert out == []
+    assert fetched == ["https://venue.example/"]  # base only; no candidate probed
