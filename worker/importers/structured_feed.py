@@ -45,7 +45,9 @@ logger = logging.getLogger(__name__)
 # supabase/migrations/0013 + 0014) — HOW the row was parsed, kept distinct so a
 # shape drift is attributable to the reader that caused it.
 PROVIDER_ICS = "ics"                    # iCalendar VEVENT (RFC 5545)
-PROVIDER_JSONLD = "jsonld"              # schema.org JSON-LD (in HTML, or bare)  # a platform events API (Tribe/Localist)
+PROVIDER_JSONLD = "jsonld"              # schema.org JSON-LD (in HTML, or bare)
+PROVIDER_PLATFORM_JSON = "platform_json"  # a platform events API (Tribe/Localist)
+_PROVIDERS = (PROVIDER_ICS, PROVIDER_JSONLD, PROVIDER_PLATFORM_JSON)
 
 _USER_AGENT = "OneLiveStructuredImporter/1.0 (+https://onelive.example; deterministic no-AI calendar import)"
 _ACCEPT = "text/calendar, text/html, application/xhtml+xml, application/ld+json;q=0.9, */*;q=0.5"
@@ -792,10 +794,10 @@ def _detect_provider(text: str, provider_hint: Optional[str]) -> str:
         # A typo'd hint is a MISCONFIGURATION, not a reason to guess (evaluator
         # nit r6): silently sniffing would hide the bad config behind a result
         # that happens to look fine.
-        if provider_hint not in (PROVIDER_ICS, PROVIDER_JSONLD, PROVIDER_PLATFORM_JSON):
+        if provider_hint not in _PROVIDERS:
             raise ValueError(
                 f"unknown provider_hint {provider_hint!r} — expected one of "
-                f"{PROVIDER_ICS!r}, {PROVIDER_JSONLD!r}, {PROVIDER_PLATFORM_JSON!r}")
+                f"{_PROVIDERS}")
         return provider_hint
     head = text.lstrip()[:512].upper()
     if "BEGIN:VCALENDAR" in head or "BEGIN:VEVENT" in text[:4096].upper():
@@ -851,8 +853,6 @@ _PLATFORM_ENDPOINTS = (
     ("localist", "/api/2/events?days=60"),
 )
 
-PROVIDER_PLATFORM_JSON = "platform_json"
-
 # 3) Conventional calendar subpaths, tried in descending likelihood. The ICS
 #    variants come first because a real .ics is unambiguous and cheap to parse.
 # Bound the per-source discovery fan-out: enough to cover the declared
@@ -878,6 +878,24 @@ class RobotsDisallowed(OSError):
     An OSError so the runner records it as a FAILED source. A policy denial is
     NOT an empty calendar: returning [] would hide a refused source inside the
     zero-source count and let the run exit green (evaluator blocker r7).
+    """
+
+
+class ProviderMismatch(OSError):
+    """The catalog ASSERTED a provider for this source and nothing we fetched
+    was that format.
+
+    `provider_hint` is a configuration claim about the endpoint. r7 stopped us
+    silently parsing a DIFFERENT format when the claim did not hold, but left
+    the source reported as "0 events" — which is the same failure-reads-as-empty
+    class this PR exists to close, just relocated (evaluator blocker r8). A
+    misconfigured source is a defect an operator must fix; an empty calendar is
+    not. They must not share a summary line.
+
+    OSError, like RobotsDisallowed, so the runner records ONE named FAILED
+    source and exits non-zero, rather than aborting the other 63 sources of the
+    run. Loud and attributable, without making one bad catalog row cost the
+    night's whole import.
     """
 
 _MAX_DECLARED_TRIES = 4
@@ -1022,6 +1040,38 @@ def discover_feed_urls(base_url: str, html: str) -> tuple:
     return out, declared_count
 
 
+def _matches_asserted_shape(provider: str, text: str) -> bool:
+    """True when `text` is PLAUSIBLY the asserted provider's format.
+
+    Deliberately a SHAPE sniff, not a parse: it answers "did this endpoint serve
+    the format the catalog claims?", which is a different question from "did the
+    feed contain events". Keeping them separate is the whole point — a real ICS
+    calendar with no upcoming shows is legitimately empty, while an ICS-asserted
+    URL that serves an HTML error page is a MISCONFIGURATION (evaluator r8).
+
+    Used only to decide between those two outcomes; it never selects a reader
+    (an asserted hint always routes to its own reader, never to another).
+    """
+    head = (text or "").lstrip()
+    if provider == PROVIDER_ICS:
+        return "BEGIN:VCALENDAR" in text[:4096].upper() or "BEGIN:VEVENT" in text.upper()
+    if provider == PROVIDER_PLATFORM_JSON:
+        try:
+            return isinstance(json.loads(text), (dict, list))
+        except (ValueError, TypeError):
+            return False
+    if provider == PROVIDER_JSONLD:
+        # Either embedded in HTML (a <script type="application/ld+json"> block)
+        # or served bare as JSON — discovery accepts both.
+        if "application/ld+json" in head.lower():
+            return True
+        try:
+            return isinstance(json.loads(text), (dict, list))
+        except (ValueError, TypeError):
+            return False
+    return False
+
+
 def _events_from_text(text: str, *, provider_hint, source_name, cultural_domain) -> list[dict]:
     provider = _detect_provider(text, provider_hint)
     used_jsonld_fallback = False
@@ -1039,14 +1089,6 @@ def _events_from_text(text: str, *, provider_hint, source_name, cultural_domain)
             used_jsonld_fallback = bool(raws)
     else:
         raws = parse_jsonld(text)
-    if not raws and provider_hint is not None:
-        # An ASSERTED provider that parses to nothing is a configuration claim the
-        # bytes did not honour. We do not guess another reader (above), but we do
-        # not stay quiet either: this is the operator-visible half of that rule.
-        logger.warning("source %s: provider_hint=%r parsed ZERO events from %d bytes "
-                       "— the endpoint does not serve the asserted format, or the "
-                       "feed is genuinely empty. NOT falling back to another reader.",
-                       source_name, provider_hint, len(text or ""))
     # Platform-JSON keeps its OWN provider token (migration 0014). Storing it as
     # 'jsonld' conflated two different acquisition formats and would have made a
     # shape drift in the Tribe reader indistinguishable from one in the JSON-LD
@@ -1077,10 +1119,15 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     events. Every candidate is public data an ordinary reader can load.
 
     provider_hint ('ics' | 'jsonld' | 'platform_json') FORCES that parser and is
-    treated as a configuration ASSERTION — no cross-format fallback, so a wrong
-    hint fails loudly instead of quietly parsing something else. With no hint the
-    body is sniffed (BEGIN:VCALENDAR ⇒ ICS; a bare JSON body tries the platform
-    readers then bare JSON-LD).
+    treated as a configuration ASSERTION. Two consequences, and the second is the
+    one r7 got half-right (evaluator r8): (1) no cross-format fallback — we never
+    quietly parse something else; (2) if NOTHING we fetched was even the asserted
+    SHAPE, that is a misconfigured catalog row and raises ProviderMismatch, so it
+    is reported as a FAILED source rather than folded into the "yielded zero"
+    count. A source that DID serve the asserted format and simply had no upcoming
+    events still returns [] — an empty calendar is a fact, not a defect. With no
+    hint the body is sniffed (BEGIN:VCALENDAR ⇒ ICS; a bare JSON body tries the
+    platform readers then bare JSON-LD).
 
     ERROR POLICY — a candidate that is simply ABSENT (404/410 on a guessed path)
     is skipped so one dead guess cannot lose the events another candidate would
@@ -1096,6 +1143,13 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
             f"robots.txt disallows {url} for {_USER_AGENT!r} — source REFUSED by "
             f"policy, not empty")
     base_text = fetch_url(url)
+    # Did ANY body we fetched even LOOK like the format the catalog asserted?
+    # Tracked across every attempt, not per-attempt: with a hint set, the base
+    # page is almost always HTML while the real feed lives at a discovered
+    # candidate, so raising on the first non-matching body would break discovery
+    # for correctly-configured sources (evaluator r8 fix, scoped deliberately).
+    asserted_shape_seen = (provider_hint is not None
+                           and _matches_asserted_shape(provider_hint, base_text))
     out = _events_from_text(base_text, provider_hint=provider_hint,
                             source_name=source_name, cultural_domain=cultural_domain)
     if out:
@@ -1131,6 +1185,8 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
                            candidate,
                            "declared feed" if i < declared else "not an absence")
             raise
+        if provider_hint is not None and _matches_asserted_shape(provider_hint, text):
+            asserted_shape_seen = True
         found = _events_from_text(text, provider_hint=provider_hint,
                                   source_name=source_name,
                                   cultural_domain=cultural_domain)
@@ -1150,4 +1206,16 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
         raise RobotsDisallowed(
             f"{robots_blocked} candidate(s) for {url} are robots-disallowed and no "
             f"permitted path yielded events — source REFUSED by policy, not empty")
+    if provider_hint is not None and not out and not asserted_shape_seen:
+        # The catalog claims this source serves `provider_hint`; we fetched the
+        # base page and every discovered candidate and not one of them was that
+        # format. That is a MISCONFIGURED source, and it must not share a summary
+        # line with a venue whose calendar is simply empty this week (evaluator
+        # blocker r8 — r7 fixed the silent cross-format fallback but left the
+        # outcome reading as "0 events", which is the same class one step later).
+        raise ProviderMismatch(
+            f"source {source_name}: provider_hint={provider_hint!r} was asserted but "
+            f"no body fetched from {url} (base + {len(candidates)} discovered "
+            f"candidate(s)) was that format — MISCONFIGURED source, not an empty "
+            f"calendar. Fix the catalog row's provider or its base_url.")
     return out

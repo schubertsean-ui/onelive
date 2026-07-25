@@ -1071,14 +1071,85 @@ def test_allow_partial_still_fails_a_ZERO_event_import(monkeypatch, caplog):
         "--allow-partial must not turn a zero-event import green")
 
 
-def test_an_explicit_provider_hint_is_not_silently_fallen_back(monkeypatch):
-    """provider_hint is a configuration ASSERTION about the endpoint. When the
-    bytes do not match it, that is a misconfiguration to surface, not a reason to
-    try a different parser and pretend it worked (evaluator blocker r7)."""
+def test_an_asserted_provider_that_never_served_is_a_FAILED_source(monkeypatch):
+    """provider_hint is a configuration ASSERTION about the endpoint. When NOTHING
+    we fetch is that format the source is MISCONFIGURED, and must be reported as
+    failed — not as an empty calendar.
+
+    r7 stopped the silent cross-format fallback but still returned [], which put
+    a broken catalog row back in the "yielded zero" bucket: the same
+    failure-reads-as-empty class, one step later (evaluator blocker r8). The test
+    that shipped with r7 asserted `== []` and so CODIFIED the wrong contract —
+    it proved only that no fallback happened."""
     import worker.importers.structured_feed as sf
     monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
-    # Valid JSON-LD HTML, but the source is declared platform_json.
+    # Valid JSON-LD HTML everywhere, but the source is declared platform_json.
     monkeypatch.setattr(sf, "fetch_url", lambda u, timeout=30: HTML_JSONLD)
+    with pytest.raises(sf.ProviderMismatch):
+        sf.import_source("https://venue.example/", source_name="venue",
+                         provider_hint=sf.PROVIDER_PLATFORM_JSON)
+
+
+def test_an_asserted_provider_that_DID_serve_but_is_empty_is_NOT_a_failure(monkeypatch):
+    """The other half of the same rule, and the reason the check is a SHAPE sniff
+    rather than an event count: a real ICS calendar with no upcoming shows is a
+    legitimately empty source, not a misconfiguration. Conflating the two would
+    have made the r8 fix a false-alarm generator every quiet week."""
+    import worker.importers.structured_feed as sf
+    empty_ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n"
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    monkeypatch.setattr(sf, "fetch_url", lambda u, timeout=30: empty_ics)
+    assert sf.import_source("https://venue.example/", source_name="venue",
+                            provider_hint=sf.PROVIDER_ICS) == []
+
+
+def test_an_asserted_provider_found_at_a_DISCOVERED_candidate_still_works(monkeypatch):
+    """Scope guard on the r8 fix: with a hint set, the base page is normally HTML
+    and the real feed lives at a discovered candidate. Raising on the first
+    non-matching body would have broken every CORRECTLY configured source."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+    ics = ("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:z\r\nSUMMARY:Found Late\r\n"
+           "DTSTART:20261107T020000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return "<html>a normal homepage</html>"
+        if u.endswith("/events/feed/"):
+            return ics
+        raise urllib.error.HTTPError(u, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
     out = sf.import_source("https://venue.example/", source_name="venue",
-                           provider_hint=sf.PROVIDER_PLATFORM_JSON)
-    assert out == [], "an explicit platform_json hint fell back to the JSON-LD reader"
+                           provider_hint=sf.PROVIDER_ICS)
+    assert [e["title"] for e in out] == ["Found Late"]
+
+
+def test_runner_records_a_provider_mismatch_as_a_FAILED_source(monkeypatch, caplog):
+    """End-to-end: ProviderMismatch is an OSError, so ONE bad catalog row is a
+    named FAILED source with a non-zero exit — loud and attributable — without
+    aborting the other 63 sources of the night's import."""
+    import json
+    import logging
+    import pathlib as _pl
+    import tempfile
+    import worker.importers.run_structured_import as runner
+    from worker.importers.structured_feed import ProviderMismatch
+
+    catalog = [{"id": "misconfigured", "base_url": "https://a.example/",
+                "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"}]
+
+    def fake_import(url, *, source_name, cultural_domain=None):
+        raise ProviderMismatch("asserted platform_json, served HTML")
+
+    monkeypatch.setattr(runner, "import_source", fake_import)
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
+    with caplog.at_level(logging.INFO):
+        rc = runner.main(["--catalog", str(tmp), "--dry-run"])
+
+    assert "1 FAILED" in caplog.text, caplog.text
+    assert "misconfigured" in caplog.text
+    assert rc == runner._EXIT_SOURCE_FAILURES
