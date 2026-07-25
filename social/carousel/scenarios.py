@@ -19,10 +19,9 @@ start hour, never by "mellow".
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
 
 from social.carousel.config import CarouselConfig
-from social.carousel.generator import CarouselTrustError
+from social.carousel.generator import normalize_price
 
 
 @dataclass(frozen=True)
@@ -105,32 +104,24 @@ def scenario_events(events: list[dict], scenario: Scenario) -> list[dict]:
     trust selection runs unchanged afterwards."""
     picked = [e for e in events if e.get("domain_id") in scenario.domain_ids]
     if scenario.price_max is not None:
-        # Prices normalize through Decimal like every other price surface
-        # (#67 r1 nit adopted): a string "0" is free, and garbage raises
-        # the trust error shape, not a raw TypeError.
-        def _price(e: dict) -> Decimal | None:
-            raw = e.get("price_min")
-            if raw is None:
-                return None
-            try:
-                value = Decimal(str(raw))
-            except InvalidOperation as exc:
-                raise CarouselTrustError(
-                    f"unparseable price_min {raw!r} on {e.get('event_id')}"
-                ) from exc
-            if not value.is_finite():
-                # Decimal happily parses "NaN"/"Infinity" (#67 r2): both
-                # are corrupt event data and refuse loudly — NaN would
-                # otherwise explode as a raw comparison error, Infinity
-                # would be silently filtered.
-                raise CarouselTrustError(
-                    f"non-finite price_min {raw!r} on {e.get('event_id')}"
-                )
-            return value
-
-        cap = Decimal(str(scenario.price_max))
+        # THE shared price normalizer (#67 r1-r3): event prices AND the
+        # scenario's own cap resolve through generator.normalize_price, so
+        # unparseable/non-finite/negative values refuse with the
+        # trust-error shape everywhere — a misconfigured Infinity cap must
+        # not silently broaden a capped scenario, and a negative
+        # price_min is corrupt data to surface, never a row to quietly
+        # hide from generation (no swallowed errors).
+        cap = normalize_price(scenario.price_max, "price_max", f"scenario {scenario.key}")
         picked = [
-            e for e in picked if (price := _price(e)) is not None and 0 <= price <= cap
+            e
+            for e in picked
+            if (
+                price := normalize_price(
+                    e.get("price_min"), "price_min", str(e.get("event_id"))
+                )
+            )
+            is not None
+            and price <= cap
         ]
     if scenario.earliest_start_hour is not None:
         picked = [

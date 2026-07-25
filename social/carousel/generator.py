@@ -187,27 +187,10 @@ def _check_event(event: dict) -> None:
         raise CarouselTrustError(
             f"unknown event_status {event['event_status']!r} on {event['event_id']}"
         )
-    price = event.get("price_min")
-    if price is not None:
-        # Same Decimal normalization as every price surface (#67 r2, same
-        # class as the scenario filter): "abc" and "NaN"/"Infinity" are
-        # corrupt data and refuse with the trust-error shape, never a raw
-        # float()/comparison exception.
-        try:
-            price_value = Decimal(str(price))
-        except InvalidOperation as exc:
-            raise CarouselTrustError(
-                f"unparseable price_min {price!r} on {event['event_id']}"
-            ) from exc
-        if not price_value.is_finite():
-            raise CarouselTrustError(
-                f"non-finite price_min {price!r} on {event['event_id']}"
-            )
-        if price_value < 0:
-            raise CarouselTrustError(
-                f"negative price {price!r} on {event['event_id']} — an impossible "
-                "public price claim is a data defect, never copy"
-            )
+    # One shared normalizer for every price surface (#67 r2/r3): "abc",
+    # "NaN"/"Infinity", and negatives refuse with the trust-error shape,
+    # never a raw float()/comparison exception.
+    normalize_price(event.get("price_min"), "price_min", event["event_id"])
     descriptor = event.get("foundry_descriptor")
     if descriptor is not None:
         if not isinstance(descriptor, dict) or not descriptor.get("text") or not descriptor.get("provenance"):
@@ -322,18 +305,36 @@ def _scan_banned(text: str, context: str) -> None:
         )
 
 
+def normalize_price(raw, field: str, owner: str) -> Decimal | None:
+    """THE price normalizer (#67 r3): every price surface — event
+    checking, label rendering, the scenario filter — resolves raw price
+    data through this ONE path, so the refusal contract cannot drift
+    between surfaces. None passes through; unparseable, non-finite
+    (Decimal happily parses "NaN"/"Infinity"), and negative values all
+    refuse with the trust-error shape."""
+    if raw is None:
+        return None
+    try:
+        value = Decimal(str(raw))
+    except InvalidOperation as exc:
+        raise CarouselTrustError(f"unparseable {field} {raw!r} on {owner}") from exc
+    if not value.is_finite():
+        raise CarouselTrustError(f"non-finite {field} {raw!r} on {owner}")
+    if value < 0:
+        raise CarouselTrustError(
+            f"negative {field} {raw!r} on {owner} — an impossible public "
+            "price claim is a data defect, never copy"
+        )
+    return value
+
+
 def _price_label(price) -> str:
     """Exact price display (r5, hardened r6 via Decimal): $19.99 is
     $19.99, never $19 — a public price claim is a fact, and facts are
     verbatim; Decimal avoids float representation surprises."""
-    try:
-        value = Decimal(str(price))
-    except InvalidOperation as exc:
-        raise CarouselTrustError(f"unparseable price {price!r} cannot be rendered") from exc
-    if not value.is_finite():
-        raise CarouselTrustError(f"non-finite price {price!r} cannot be rendered")
-    if value < 0:
-        raise CarouselTrustError(f"negative price {price!r} cannot be rendered")
+    value = normalize_price(price, "price", "label render")
+    if value is None:
+        raise CarouselTrustError("price label requires a price, got None")
     if value != value.quantize(Decimal("0.01")):
         raise CarouselTrustError(
             f"price {price!r} has sub-cent precision — a public price claim "

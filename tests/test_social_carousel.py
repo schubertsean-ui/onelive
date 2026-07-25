@@ -893,6 +893,27 @@ def test_scenario_price_filter_normalizes_like_every_price_surface():
             scenario_events([_event(3, domain="comedy", price_min=corrupt)], scenario)
 
 
+def test_scenario_filter_refuses_negative_prices_loudly():
+    # #67 r3 blocker: a negative price is corrupt data to SURFACE — the
+    # filter must not quietly hide the row from generation.
+    scenario = scenario_by_key("free_tonight")
+    with pytest.raises(CarouselTrustError, match="negative price_min"):
+        scenario_events([_event(1, domain="comedy", price_min=-5)], scenario)
+
+
+def test_misconfigured_scenario_cap_refuses_loudly():
+    # #67 r3 blocker: an Infinity/garbage price_max must refuse, never
+    # silently broaden a capped scenario.
+    scenario = scenario_by_key("free_tonight")
+    for bad_cap in ("Infinity", "NaN", "abc"):
+        broken = dataclasses.replace(scenario, price_max=bad_cap)
+        with pytest.raises(CarouselTrustError, match="price_max"):
+            scenario_events([_event(1, domain="comedy", price_min=0)], broken)
+    negative_cap = dataclasses.replace(scenario, price_max=-1)
+    with pytest.raises(CarouselTrustError, match="negative price_max"):
+        scenario_events([_event(1, domain="comedy", price_min=0)], negative_cap)
+
+
 def test_generator_refuses_corrupt_prices_with_the_trust_shape():
     # Same class at the generation surface (#67 r2): never a raw
     # float()/Decimal exception.
@@ -1573,11 +1594,15 @@ def test_run_cycle_propagates_trust_errors_loud():
 
 
 def test_negative_price_fails_loud_everywhere():
-    # r7 blockers: an impossible price is a data defect, never copy.
+    # r7 blockers, tightened at #67 r3: an impossible price is a data
+    # defect, never copy — and the scenario filter REFUSES it loudly too
+    # (this test originally pinned silent filtering there; that was the
+    # r3 no-swallowed-errors blocker).
     with pytest.raises(CarouselTrustError, match="negative price"):
         select_featurable([_event(1, price_min=-5)])
     free = scenario_by_key("free_tonight")
-    assert scenario_events([_event(1, domain="comedy", price_min=-5)], free) == []
+    with pytest.raises(CarouselTrustError, match="negative price_min"):
+        scenario_events([_event(1, domain="comedy", price_min=-5)], free)
 
 
 def test_render_path_validates_config_itself():
