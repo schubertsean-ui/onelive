@@ -50,7 +50,7 @@ Vibe proposal is ratified).
 - **Slide 5:** The Midnight Brass — Red River Room · 21:00 — From $15 — *"Horns that start a party"* (Foundry descriptor, provenance-carried)
 - **Slide 6:** Late Bites & Bossa Nova — Verdine's Courtyard · 21:00 — Free
 - **Slide 7 (CTA):** Send this to the friend who's always down
-- **Caption:** "Somewhere in Austin tonight there's a room that's about to go off. 5 candidates inside. / Real listings, real sources. [UTM link]"
+- **Caption [synthetic demo]:** "Somewhere in Austin tonight there's a room that's about to go off. 5 candidates inside. / Real listings, real sources. [UTM link]"
 - **Hashtags:** #austin #austinevents #austintheater #austinsymphony #austinfoodie
 
 ### 2 · Music & Dancing (persona #7 — the founder's own example — + #9 "The Cheap Dancer")
@@ -65,7 +65,7 @@ Domains: live music · nightlife · dance.
 - **Slide 7:** DJ Meridian: Motown to House — The Basement Line · 22:30 — From $5
 - **Slide 8:** Analog Synth Night — Circuit Chapel · 23:00 — From $12
 - **Slide 9 (CTA):** Tag who you're taking
-- **Caption:** "Tonight in Austin. 7 real ones. / Real listings, real sources. [UTM link]"
+- **Caption [synthetic demo]:** "Tonight in Austin. 7 real ones. / Real listings, real sources. [UTM link]"
 - **Hashtags:** #austin #austinevents #austindance #austinlivemusic #austinnightlife
 
 ### 3 · Weekend Planner (persona #5 "The Planner")
@@ -75,7 +75,7 @@ same-day window the date is part of the fact).
 - **Slide 1 (hook):** 7 weekend plans to experience This weekend
 - **Slides 2–8:** Gallery Crawl (Fri 18:00, Free) · 'The Lighthouse Keepers' (Fri 20:00, $22) · Open-Air Comedy Hour (Fri 20:00, Free) · Wine Flight + Vinyl (Fri 20:30, $18) · The Midnight Brass (Fri 21:00, $15) · Late Bites & Bossa Nova (Fri 21:00, Free) · Porch Songs (Fri 21:00, Free)
 - **Slide 9 (CTA):** Save this for the plan
-- **Caption:** list-style — "7 events. This weekend, Austin:" + the first five as bullets + link
+- **Caption [synthetic demo]:** list-style — "7 events. This weekend, Austin:" + the first five as bullets + link
 - **Hashtags:** #austin #austinevents #austinartopening #austintheater #austincomedy
 
 ### 4 · Free Tonight (the price axis — personas #9/#14)

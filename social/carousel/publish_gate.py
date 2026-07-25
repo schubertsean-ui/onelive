@@ -44,6 +44,7 @@ from social.carousel.generator import (
     render_carousel,
     within_timeframe,
 )
+from social.carousel.scenarios import scenario_by_key, scenario_events
 
 APPROVAL_KEY_ENV = "ONELIVE_APPROVAL_KEY"
 
@@ -239,6 +240,22 @@ def _recheck_trust(draft: CarouselDraft, reference_time: str) -> None:
     # per-field gaps: anything fabricated, truncated, dropped, or drifted
     # (including discovery={}) produces a different hash and refuses.
     rows_in_order = [current_states[eid] for eid in event_ids]
+    # Scenario semantics re-applied at custody (r8): a draft carrying a
+    # scenario series claim ("free nights", "date nights") releases only
+    # if every canonical row still satisfies that scenario's predicate —
+    # the meaning of the claim is re-derived, not trusted.
+    if draft.series_key.startswith("scenario_"):
+        try:
+            scenario = scenario_by_key(draft.series_key.removeprefix("scenario_"))
+        except ValueError as exc:
+            raise ValueError(f"release refused: {exc}") from exc
+        passing = {e["event_id"] for e in scenario_events(rows_in_order, scenario)}
+        failing = [eid for eid in event_ids if eid not in passing]
+        if failing:
+            raise ValueError(
+                f"release refused: events {failing} no longer satisfy the "
+                f"{scenario.key!r} scenario predicate — the claim would be false"
+            )
     config = CarouselConfig(
         surface=draft.surface,
         series_key=draft.series_key,

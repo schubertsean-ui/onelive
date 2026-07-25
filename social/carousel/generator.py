@@ -286,6 +286,11 @@ def _price_label(price) -> str:
     value = Decimal(str(price))
     if value < 0:
         raise CarouselTrustError(f"negative price {price!r} cannot be rendered")
+    if value != value.quantize(Decimal("0.01")):
+        raise CarouselTrustError(
+            f"price {price!r} has sub-cent precision — a public price claim "
+            "is never rounded; fix the data"
+        )
     if value == value.to_integral_value():
         return f"${int(value)}"
     return f"${value.quantize(Decimal('0.01'))}"
@@ -350,7 +355,7 @@ def _event_overlay(event: dict, timeframe: str) -> tuple[str, ...]:
         when = f"{event_date.strftime('%b %d')} · {clock}" if clock else event_date.strftime("%b %d")
     lines = [event["name"], f"{event['venue_name']} · {when}"]
     if event.get("price_min") is not None:
-        price = event["price_min"]
+        price = Decimal(str(event["price_min"]))  # "0" the string is free too
         lines.append("Free" if price == 0 else f"From {_price_label(price)}")
     descriptor = event.get("foundry_descriptor")
     if descriptor:
@@ -435,10 +440,27 @@ def render_carousel(
     """Pure deterministic render of an ALREADY-SELECTED lineup. Split out
     (r5) so the release gate can re-render the draft from canonical rows
     and compare content hashes — total fact verification in one check.
-    Validates config + assignment ITSELF (r7): the release path must fail
-    closed independently of whether build_carousel ever ran."""
+    Validates config + assignment ITSELF (r7) and runs the FULL event
+    trust contract on every row it renders (r8) — required fields, origin,
+    known states, descriptor provenance, non-negative prices, distinct
+    ids, and domain membership — so the release path fails closed
+    independently of whether build_carousel ever ran."""
     config.validate()
     validate_assignment(assignment)
+    seen: set[str] = set()
+    for event in featured:
+        _check_event(event)
+        if event["event_id"] in seen:
+            raise CarouselTrustError(
+                f"duplicate event id {event['event_id']!r} in the render lineup"
+            )
+        seen.add(event["event_id"])
+        if config.domain_ids and event["domain_id"] not in config.domain_ids:
+            raise CarouselTrustError(
+                f"event {event['event_id']} domain {event['domain_id']!r} is "
+                f"outside this series' domains {config.domain_ids} — a series "
+                "claim covers only its own domains"
+            )
     constraints = SURFACE_CONSTRAINTS[config.surface]
 
     hook_text = _cap_words(

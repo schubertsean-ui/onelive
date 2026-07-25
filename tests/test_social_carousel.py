@@ -1169,6 +1169,54 @@ def test_deadman_error_ping_on_loud_failure():
     assert pings == ["start", "error"]  # "end" never fires on the error path
 
 
+def test_false_scenario_claim_refused_at_release(monkeypatch):
+    # r8 blocker: a "free nights" carousel over paid canonical rows never
+    # releases — the scenario predicate is re-derived at custody.
+    paid = [
+        _event(i, domain="comedy", price_min=0) for i in range(1, 6)
+    ]
+    config = _config(
+        series_key="scenario_free_tonight",
+        domain_ids=("live-music", "comedy", "nightlife", "visual-arts", "community"),
+        listicle_noun="free nights",
+    )
+    draft = _draft(paid, config=config)
+    rows = {e["event_id"]: {**e, "price_min": 25} for e in paid}
+    monkeypatch.setattr(publish_gate, "_STATE_READER", _reader_returning(rows))
+    approval = _approve(draft)
+    with pytest.raises(ValueError, match="scenario predicate|re-derive"):
+        _release(draft, approval)
+
+
+def test_malformed_canonical_row_refuses_at_release(monkeypatch):
+    # r8 blocker: the release re-render runs the FULL event contract — a
+    # canonical row with a provenance-less descriptor refuses.
+    draft = _draft()
+    rows = _rows_for(draft)
+    first = next(iter(rows))
+    rows[first] = {**rows[first], "foundry_descriptor": {"text": "vibes"}}
+    monkeypatch.setattr(publish_gate, "_STATE_READER", _reader_returning(rows))
+    approval = _approve(draft)
+    with pytest.raises(ValueError, match="lawful carousel"):
+        _release(draft, approval)
+
+
+def test_out_of_domain_row_fails_loud():
+    # r8: a series claim covers only its own domains, at generation too.
+    stray = [_event(1, domain="sports")] + [_event(i) for i in range(2, 6)]
+    with pytest.raises(CarouselTrustError, match="outside this series"):
+        _draft(stray)
+
+
+def test_subcent_price_and_string_zero():
+    # r8 nits: sub-cent prices are a data defect; "0" the string is free.
+    with pytest.raises(CarouselTrustError, match="sub-cent"):
+        _draft([_event(1, price_min=19.999)] + [_event(i) for i in range(2, 6)])
+    draft = _draft([_event(1, price_min="0")] + [_event(i) for i in range(2, 6)])
+    texts = [line for sl in draft.slides for line in sl.overlay_lines]
+    assert any(t == "Free" for t in texts)
+
+
 def test_ingest_results_updates_learner_and_reports():
     bandit = ThompsonBandit(seed=9)
     ledger = MetricsLedger()
