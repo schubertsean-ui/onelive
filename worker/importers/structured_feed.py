@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 # supabase/migrations/0013 + 0014) — HOW the row was parsed, kept distinct so a
 # shape drift is attributable to the reader that caused it.
 PROVIDER_ICS = "ics"                    # iCalendar VEVENT (RFC 5545)
-PROVIDER_JSONLD = "jsonld"              # schema.org JSON-LD (in HTML or bare)  # a platform events API (Tribe/Localist)
+PROVIDER_JSONLD = "jsonld"              # schema.org JSON-LD (in HTML, or bare)  # a platform events API (Tribe/Localist)
 
 _USER_AGENT = "OneLiveStructuredImporter/1.0 (+https://onelive.example; deterministic no-AI calendar import)"
 _ACCEPT = "text/calendar, text/html, application/xhtml+xml, application/ld+json;q=0.9, */*;q=0.5"
@@ -871,6 +871,15 @@ PROVIDER_PLATFORM_JSON = "platform_json"
 # defect, not an absence.
 _EXPECTED_ABSENCE_STATUSES = (404, 410)
 
+
+class RobotsDisallowed(OSError):
+    """robots.txt forbids fetching this URL.
+
+    An OSError so the runner records it as a FAILED source. A policy denial is
+    NOT an empty calendar: returning [] would hide a refused source inside the
+    zero-source count and let the run exit green (evaluator blocker r7).
+    """
+
 _MAX_DECLARED_TRIES = 4
 _MAX_GUESSED_TRIES = 6
 
@@ -898,7 +907,7 @@ _COMMON_FEED_PATHS = (
 _ROBOTS_CACHE: dict = {}
 
 
-def _robots_allows(url: str, ua: str = "OneLiveBot") -> bool:
+def _robots_allows(url: str, ua: Optional[str] = None) -> bool:
     """True when robots.txt permits fetching `url`.
 
     SCOPE, stated plainly rather than claimed broadly (evaluator nit r3): this
@@ -908,6 +917,11 @@ def _robots_allows(url: str, ua: str = "OneLiveBot") -> bool:
     robots we cannot READ is still fetched. Cached per host so a 64-source run
     fetches each robots.txt once.
     """
+    # Evaluate robots for the UA we ACTUALLY send. Checking a different token
+    # ("OneLiveBot") than the fetcher presents meant a rule disallowing our real
+    # importer could evaluate as allowed — the access-control claim was false
+    # (evaluator blocker r7, PR #68).
+    ua = ua or _USER_AGENT
     parts = urllib.parse.urlsplit(url)
     root = f"{parts.scheme}://{parts.netloc}"
     rp = _ROBOTS_CACHE.get(root)
@@ -1015,13 +1029,24 @@ def _events_from_text(text: str, *, provider_hint, source_name, cultural_domain)
         raws = parse_ics(text)
     elif provider == PROVIDER_PLATFORM_JSON:
         raws = parse_platform_json(text)
-        if not raws:
-            # Not a Tribe/Localist shape — try it as a BARE schema.org JSON-LD
-            # document before giving up, so a declared ld+json feed is not lost.
+        if not raws and provider_hint is None:
+            # SNIFFED only. A bare JSON body may be Tribe/Localist OR bare
+            # schema.org JSON-LD, so try the other reader before giving up.
+            # When the caller ASSERTED a hint we do NOT second-guess it: silently
+            # parsing a different format would hide the misconfiguration
+            # (evaluator blocker r7, PR #68).
             raws = parse_jsonld_document(text)
             used_jsonld_fallback = bool(raws)
     else:
         raws = parse_jsonld(text)
+    if not raws and provider_hint is not None:
+        # An ASSERTED provider that parses to nothing is a configuration claim the
+        # bytes did not honour. We do not guess another reader (above), but we do
+        # not stay quiet either: this is the operator-visible half of that rule.
+        logger.warning("source %s: provider_hint=%r parsed ZERO events from %d bytes "
+                       "— the endpoint does not serve the asserted format, or the "
+                       "feed is genuinely empty. NOT falling back to another reader.",
+                       source_name, provider_hint, len(text or ""))
     # Platform-JSON keeps its OWN provider token (migration 0014). Storing it as
     # 'jsonld' conflated two different acquisition formats and would have made a
     # shape drift in the Tribe reader indistinguishable from one in the JSON-LD
@@ -1051,8 +1076,11 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     (:func:`discover_feed_urls`), stopping at the first candidate that yields
     events. Every candidate is public data an ordinary reader can load.
 
-    provider_hint ('ics'|'jsonld') forces the parser; otherwise each body is
-    sniffed (BEGIN:VCALENDAR ⇒ ICS).
+    provider_hint ('ics' | 'jsonld' | 'platform_json') FORCES that parser and is
+    treated as a configuration ASSERTION — no cross-format fallback, so a wrong
+    hint fails loudly instead of quietly parsing something else. With no hint the
+    body is sniffed (BEGIN:VCALENDAR ⇒ ICS; a bare JSON body tries the platform
+    readers then bare JSON-LD).
 
     ERROR POLICY — a candidate that is simply ABSENT (404/410 on a guessed path)
     is skipped so one dead guess cannot lose the events another candidate would
@@ -1064,14 +1092,16 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     # ROBOTS FIRST, including the BASE url (evaluator blocker r2, PR #68: the
     # first path we reached was exempt, which made the robots claim false).
     if not _robots_allows(url):
-        logger.info("source %s: robots.txt disallows %s — not fetched", source_name, url)
-        return []
+        raise RobotsDisallowed(
+            f"robots.txt disallows {url} for {_USER_AGENT!r} — source REFUSED by "
+            f"policy, not empty")
     base_text = fetch_url(url)
     out = _events_from_text(base_text, provider_hint=provider_hint,
                             source_name=source_name, cultural_domain=cultural_domain)
     if out:
         return out
 
+    robots_blocked = 0
     all_candidates, declared = discover_feed_urls(url, base_text)
     # Separate budgets so a page with many declared alternates cannot starve the
     # conventional paths that actually tend to serve (evaluator nit r2).
@@ -1080,8 +1110,12 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     declared = min(declared, _MAX_DECLARED_TRIES)
     for i, candidate in enumerate(candidates):
         if not _robots_allows(candidate):
+            # Skipping a DISALLOWED candidate is correct (we must not fetch it),
+            # but it must not be the reason a source looks dry: if nothing else
+            # yields, the source is reported REFUSED below, not empty.
             logger.info("source %s: robots.txt disallows %s — skipping",
                         source_name, candidate)
+            robots_blocked += 1
             continue
         try:
             text = fetch_url(candidate)
@@ -1111,4 +1145,9 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
             logger.info("source %s: base page had no events; discovered feed %s (%d events)",
                         source_name, candidate, len(found))
             return found
+    if robots_blocked and not out:
+        # Every remaining avenue was closed by policy — REFUSED, not empty.
+        raise RobotsDisallowed(
+            f"{robots_blocked} candidate(s) for {url} are robots-disallowed and no "
+            f"permitted path yielded events — source REFUSED by policy, not empty")
     return out

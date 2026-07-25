@@ -478,7 +478,7 @@ def test_a_dead_candidate_does_not_lose_a_later_one(monkeypatch):
         return "<html>nothing</html>"
 
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
-    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
     out = sf.import_source("https://venue.example/", source_name="venue")
     assert len(out) == 1 and out[0]["title"] == "Late Show"
 
@@ -556,7 +556,7 @@ def test_a_platform_endpoint_is_fetched_and_parsed_end_to_end(monkeypatch):
         return base
 
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
-    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
     out = sf.import_source("https://venue.example/", source_name="venue",
                            cultural_domain="live-music")
     assert len(out) == 1
@@ -609,7 +609,13 @@ def test_403_is_NOT_bypassed_with_a_different_identity(monkeypatch):
 
 
 def test_robots_disallow_blocks_a_guessed_candidate(monkeypatch):
-    """The claim "robots is honoured" is now backed by code (evaluator nit)."""
+    """The claim "robots is honoured" is now backed by code (evaluator nit).
+
+    And a policy denial is REFUSED, never reported as an empty source (evaluator
+    blocker r7): if every remaining avenue is robots-disallowed and nothing
+    yielded, import_source raises rather than returning [] — otherwise the run
+    summary would count this source as "0 events found" when in truth we were
+    never allowed to look."""
     import worker.importers.structured_feed as sf
     sf._ROBOTS_CACHE.clear()
     fetched = []
@@ -623,9 +629,9 @@ def test_robots_disallow_blocks_a_guessed_candidate(monkeypatch):
     # and no guessed path is probed. (Robots blocking the base itself is covered
     # by test_robots_disallow_blocks_the_BASE_url_too.)
     monkeypatch.setattr(sf, "_robots_allows",
-                        lambda u, ua="OneLiveBot": u.rstrip("/") == "https://venue.example")
-    out = sf.import_source("https://venue.example/", source_name="venue")
-    assert out == []
+                        lambda u, ua=None: u.rstrip("/") == "https://venue.example")
+    with pytest.raises(sf.RobotsDisallowed):
+        sf.import_source("https://venue.example/", source_name="venue")
     assert fetched == ["https://venue.example/"]  # base only; no candidate probed
 
 
@@ -673,7 +679,7 @@ def test_a_429_PROPAGATES_rather_than_becoming_an_empty_source(monkeypatch):
         raise urllib.error.HTTPError(u, 429, "Too Many Requests", {}, None)
 
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
-    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
     try:
         sf.import_source("https://venue.example/", source_name="venue")
         raise AssertionError("429 must propagate, not return an empty list")
@@ -695,7 +701,7 @@ def test_a_403_on_a_candidate_also_propagates(monkeypatch):
         raise urllib.error.HTTPError(u, 403, "Forbidden", {}, None)
 
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
-    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
     try:
         sf.import_source("https://venue.example/", source_name="venue")
         raise AssertionError("403 must propagate")
@@ -719,7 +725,7 @@ def test_a_404_on_a_guessed_path_is_still_an_expected_miss(monkeypatch):
         raise urllib.error.HTTPError(u, 404, "Not Found", {}, None)
 
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
-    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
     out = sf.import_source("https://venue.example/", source_name="venue")
     assert len(out) == 1 and out[0]["title"] == "Found Later"
 
@@ -738,12 +744,14 @@ def test_occurrence_without_an_instance_id_does_not_collide():
 
 
 def test_robots_disallow_blocks_the_BASE_url_too(monkeypatch):
-    """The first path reached must also respect robots (evaluator blocker r2)."""
+    """The first path reached must also respect robots (evaluator blocker r2),
+    and the denial is raised, not swallowed into an empty result (r7)."""
     import worker.importers.structured_feed as sf
     tried = []
     monkeypatch.setattr(sf, "fetch_url", lambda u, timeout=30: tried.append(u) or "<html/>")
-    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": False)
-    assert sf.import_source("https://venue.example/", source_name="venue") == []
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: False)
+    with pytest.raises(sf.RobotsDisallowed):
+        sf.import_source("https://venue.example/", source_name="venue")
     assert tried == [], "base URL was fetched despite a robots Disallow"
 
 
@@ -816,7 +824,7 @@ def test_tls_verification_failure_propagates(monkeypatch):
         raise ssl.SSLError("CERTIFICATE_VERIFY_FAILED")
 
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
-    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
     with pytest.raises(ssl.SSLError):
         sf.import_source("https://venue.example/", source_name="venue")
 
@@ -911,7 +919,7 @@ def test_every_non_absence_status_fails_the_source(monkeypatch, status):
         raise urllib.error.HTTPError(u, status, "nope", {}, None)
 
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
-    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
     with pytest.raises(urllib.error.HTTPError):
         sf.import_source("https://venue.example/", source_name="venue")
 
@@ -927,7 +935,7 @@ def test_dns_and_timeout_failures_propagate(monkeypatch):
         raise urllib.error.URLError("Name or service not known")
 
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
-    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
     with pytest.raises(urllib.error.URLError):
         sf.import_source("https://venue.example/", source_name="venue")
 
@@ -947,7 +955,7 @@ def test_a_guessed_404_is_still_skippable(monkeypatch):
         raise urllib.error.HTTPError(u, 404, "Not Found", {}, None)
 
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
-    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
     out = sf.import_source("https://venue.example/", source_name="venue")
     assert len(out) == 1 and out[0]["title"] == "Later Hit"
 
@@ -956,3 +964,121 @@ def test_unknown_provider_hint_raises():
     from worker.importers.structured_feed import _detect_provider
     with pytest.raises(ValueError):
         _detect_provider("{}", "not-a-provider")
+
+
+# ---- evaluator r7: a policy denial is REFUSED, never "empty" ------------------
+
+def test_robots_check_uses_the_user_agent_we_actually_send(monkeypatch):
+    """Evaluating robots for a token we never present ("OneLiveBot") meant a rule
+    that disallows our REAL importer could evaluate as allowed — the compliance
+    claim was false (evaluator blocker r7). The default must be _USER_AGENT."""
+    import worker.importers.structured_feed as sf
+    seen = []
+
+    class _RP:
+        def set_url(self, u):
+            pass
+
+        def read(self):
+            pass
+
+        def can_fetch(self, ua, url):
+            seen.append(ua)
+            return True
+
+    sf._ROBOTS_CACHE.clear()
+    monkeypatch.setattr(sf.urllib.robotparser, "RobotFileParser", _RP)
+    assert sf._robots_allows("https://venue.example/events") is True
+    assert seen == [sf._USER_AGENT], (
+        f"robots evaluated for {seen} but we send {sf._USER_AGENT!r}")
+
+
+def test_runner_records_a_robots_refusal_as_a_FAILED_source(monkeypatch, caplog):
+    """End-to-end through the REAL runner: RobotsDisallowed is an OSError, so it
+    is caught as a recoverable per-source failure and counted as FAILED — never
+    folded into "yielded zero", and the command exits non-zero."""
+    import json
+    import logging
+    import pathlib as _pl
+    import tempfile
+    import worker.importers.run_structured_import as runner
+    from worker.importers.structured_feed import RobotsDisallowed
+
+    catalog = [{"id": "blocked", "base_url": "https://a.example/",
+                "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"}]
+
+    def fake_import(url, *, source_name, cultural_domain=None):
+        raise RobotsDisallowed("robots.txt disallows it")
+
+    monkeypatch.setattr(runner, "import_source", fake_import)
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
+    with caplog.at_level(logging.INFO):
+        rc = runner.main(["--catalog", str(tmp), "--dry-run"])
+
+    assert "1 FAILED" in caplog.text, caplog.text
+    assert "0 yielded zero" in caplog.text or "yielded zero" not in caplog.text
+    assert rc == runner._EXIT_SOURCE_FAILURES
+
+
+def test_a_programmer_bug_is_NOT_swallowed_as_a_source_failure(monkeypatch):
+    """The per-source guard catches OSError (network/policy), not Exception. A
+    TypeError from our own code must crash the run, not be reported as one dry
+    source (self-audit, r6 regression I introduced)."""
+    import json
+    import pathlib as _pl
+    import tempfile
+    import worker.importers.run_structured_import as runner
+
+    catalog = [{"id": "buggy", "base_url": "https://a.example/",
+                "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"}]
+
+    def fake_import(url, *, source_name, cultural_domain=None):
+        raise TypeError("this is our bug, not the host's")
+
+    monkeypatch.setattr(runner, "import_source", fake_import)
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
+    with pytest.raises(TypeError):
+        runner.main(["--catalog", str(tmp), "--dry-run"])
+
+
+def test_allow_partial_still_fails_a_ZERO_event_import(monkeypatch, caplog):
+    """--allow-partial tolerates SOME sources failing; it must never bless a run
+    that imported nothing at all (self-audit, r6 regression I introduced)."""
+    import json
+    import logging
+    import pathlib as _pl
+    import tempfile
+    import urllib.error
+    import worker.importers.run_structured_import as runner
+
+    catalog = [{"id": "denied", "base_url": "https://a.example/",
+                "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"}]
+
+    def fake_import(url, *, source_name, cultural_domain=None):
+        raise urllib.error.HTTPError(url, 403, "Forbidden", {}, None)
+
+    monkeypatch.setattr(runner, "import_source", fake_import)
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
+    with caplog.at_level(logging.INFO):
+        rc = runner.main(["--catalog", str(tmp), "--dry-run", "--allow-partial"])
+    assert rc == runner._EXIT_SOURCE_FAILURES, (
+        "--allow-partial must not turn a zero-event import green")
+
+
+def test_an_explicit_provider_hint_is_not_silently_fallen_back(monkeypatch):
+    """provider_hint is a configuration ASSERTION about the endpoint. When the
+    bytes do not match it, that is a misconfiguration to surface, not a reason to
+    try a different parser and pretend it worked (evaluator blocker r7)."""
+    import worker.importers.structured_feed as sf
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    # Valid JSON-LD HTML, but the source is declared platform_json.
+    monkeypatch.setattr(sf, "fetch_url", lambda u, timeout=30: HTML_JSONLD)
+    out = sf.import_source("https://venue.example/", source_name="venue",
+                           provider_hint=sf.PROVIDER_PLATFORM_JSON)
+    assert out == [], "an explicit platform_json hint fell back to the JSON-LD reader"

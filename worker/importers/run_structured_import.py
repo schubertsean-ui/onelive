@@ -85,6 +85,15 @@ def _select(catalog: list[dict], only: set[str], limit: int | None) -> list[dict
 _EXIT_SOURCE_FAILURES = 4
 
 
+# ONLY these are recoverable per-source: the network/host/policy failure classes
+# an importer must expect. A broad `except Exception` here (which I wrote in r6)
+# demoted arbitrary PROGRAMMER BUGS — a TypeError in the parser, say — into a
+# per-source "FETCH FAILED" record that --allow-partial could then exit 0 on
+# (evaluator blocker r7, PR #68). Bugs must crash the run, loudly.
+_RECOVERABLE_SOURCE_ERRORS = (OSError,)   # incl. HTTPError, URLError, SSLError,
+                                          # socket.timeout, RobotsDisallowed
+
+
 def _exit_code(failed_sources: list, allow_partial: bool) -> int:
     """Fail the command when any source FAILED.
 
@@ -158,13 +167,14 @@ def main(argv=None) -> int:
     # that genuinely had nothing on — the same failure-as-success class the
     # evaluator flagged inside import_source (self-audit, PR #68 r4).
     failed_sources: list[str] = []
+
     for entry in sources:
         sid = str(entry.get("id"))
         url = entry.get("base_url")
         domain_hint = entry.get("cultural_domain")
         try:
             norm = import_source(url, source_name=sid, cultural_domain=domain_hint)
-        except Exception as exc:  # noqa: BLE001 - recorded as a FAILED source below
+        except _RECOVERABLE_SOURCE_ERRORS as exc:
             # A single source being unreachable is logged, not fatal — the others
             # still import. (Not a swallowed error: it is surfaced in the run log.)
             # Not swallowed: recorded as a FAILED source, named in the summary,
@@ -210,10 +220,17 @@ def main(argv=None) -> int:
             # NOT systemic normalization drift — sources were REFUSED. Reporting
             # this as "markup changed" would misdiagnose a blocked import (the
             # same conflation class as counting failures among the empties).
-            log.error("normalized 0 events, but %d of %d source(s) FAILED (%s) — "
-                      "this is a BLOCKED import, not a normalization breakage.",
+            #
+            # NOTE the flag is NOT consulted here: --allow-partial means "some
+            # sources failed but I accept what DID import". With zero normalized
+            # events nothing imported at all, so there is no partial success to
+            # accept — exiting 0 would break the fail-loud-on-zero-events
+            # invariant (evaluator blocker r7; I introduced this hole in r6).
+            log.error("normalized 0 events, and %d of %d source(s) FAILED (%s) — "
+                      "a BLOCKED import, not a normalization breakage. "
+                      "--allow-partial does NOT apply: nothing was imported.",
                       len(failed_sources), len(sources), ", ".join(failed_sources))
-            return _exit_code(failed_sources, args.allow_partial)
+            return _EXIT_SOURCE_FAILURES
         log.error("normalized 0 events across ALL %d selected source(s), NONE of "
                   "which failed to fetch — a systemic breakage (bad selection, "
                   "blanket JSON-LD/ICS markup change, or normalization drift). "

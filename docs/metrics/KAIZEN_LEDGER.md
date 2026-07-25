@@ -164,6 +164,8 @@ founder digest in plain language.
 | 2026-07-25 | #69 (in flight: r2) | 2 | evaluator r2: swallowed-corrupt-data ×1 THIRD CATCH (the r1 "fail-loud" fix kept a prefix-only wildcard — t1_liv-music still silently got the default deck; the fix narrowed the hole instead of closing the class), nonfinite-numeric-accepted ×2 (NaN/inf passed the weight guards at add_prior AND seed_bandit — the #67 r2 price lesson not applied to a sibling numeric input) | marker: swallowed-corrupt-data — the CLASS fix is the binding rule: an identifier lookup at a trust-adjacent surface binds to a REAL REGISTRY (tier keys now require a canonical DOMAIN_TAGS domain), never to prefix/shape checks — red-tested with three typo shapes plus positive coverage of all 22 registry domains; nonfinite-numeric-accepted indexed + fixed at BOTH layers (math.isfinite at add_prior and seed_bandit, NaN/inf/-inf red-tested at each); nits: stale docstring line fixed, golden gets its trailing newline, and the snapshot serializer is schema-guarded (a new CarouselDraft field fails the test until a conscious golden decision is made) | ~1 evaluator call + CI | suite 141 on the carousel surface |
 | 2026-07-25 | #69 (MERGED ec91a81 — v1 launch versions) | 3 | full chain in the three in-flight rows above (silent-default fallback closed twice — prefix then registry-bound; full-deck golden pinning; finite-only weights; plus the self-caught pushed-on-red and malformed-ledger-row) | every fix in-PR with red tests; golden snapshot = the founder-seen decks, drift-proof | ~3 evaluator calls + CI | M1=3 — the first build governed end-to-end by the Construction Loop (Stage 3 gate cited 20+ classes pre-review); session M1 trend across arcs: 15 → 9 → 3 |
 
+| 2026-07-25 | #68 (in flight: r1–r7) | 7 | evaluator r1–r7 across ~20 blockers, dominant classes: failure-reads-as-empty ×4 (a 403 access-denial retried with a browser UA and then reported the source empty; non-absence HTTP statuses skipped as if the path merely did not exist; a robots denial returned `[]`; the runner exited 0 with sources failed), wrong-time-canonized-by-my-own-test ×1 (Tribe `start_date` is LOCAL and was read as UTC — my test asserted the wrong instant), silent-data-loss ×2 (only Localist `event_instances[0]` emitted, so every later showing of a series was dropped; integer platform ids dropped by a string-only coercion, collapsing two distinct events onto one uid), fail-open-in-a-guard ×1 (robots evaluated for a UA we never send), silent-fallback ×1 (an explicit `provider_hint` fell through to a different reader) | marker: failure-reads-as-empty — the STRUCTURAL fix, not another patch. The recurring META-pattern I owned at r6: I kept writing ALLOWLISTS of which failures must fail loud, and each round the evaluator found another class I had not enumerated. Inverted to a CLOSED skip-list — ONLY a guessed 404/410 may be skipped, everything else propagates — and parametrized a test over 500/502/503/408/451/423/401/403/429 + DNS + TLS. Robots: default UA is now `_USER_AGENT` itself (test asserts the token passed to `can_fetch` IS the token we send); `RobotsDisallowed(OSError)` makes a policy denial a FAILED source, pinned end-to-end through the real `runner.main`. Times: platform rows prefer `utc_start_date`, else local + the event's own `timezone`, else the event is DROPPED rather than guessed. Ids: one shared `_str_id` coercion so the int-drop cannot return at one call site while fixed at another. Occurrences: one row per Localist instance. | ~7 evaluator calls + CI | Self-audit rounds also caught TWO defects I had introduced in r6 before the evaluator saw them: `except Exception` in the per-source guard (would demote a programmer bug to "one dry source" → narrowed to `_RECOVERABLE_SOURCE_ERRORS = (OSError,)`), and `--allow-partial` able to exit 0 on a ZERO-event import (→ the zero-event branch no longer consults the flag). suite 66→71 on test_structured_feed alone; full suite 1636 pass. |
+
 
 
 ## Class watch (M2 repeat classes — these must trend to zero)
@@ -214,6 +216,18 @@ founder digest in plain language.
   promote to test the guard itself). The widened scans surfaced no
   production violations. Class considered structurally closed; a further
   instance is a process escape and gets a root-cause row here.
+- **failure-reads-as-empty**: PR #68 r3, r4, r6, r7 — four rounds, one class: a
+  source that DENIED us (403), THROTTLED us (429), erred (5xx), or REFUSED us by
+  robots policy was each, at some point, reported as "0 events found". A dry
+  calendar and a closed door are not the same fact, and only one of them is
+  actionable. Response escalated three times before it went structural: (1) add
+  the missing status to an allowlist, (2) add the next missing status, (3)
+  INVERT — a closed skip-list (`_EXPECTED_ABSENCE_STATUSES`, guessed paths only)
+  plus a parametrized red test over every other class, and typed failures
+  (`RobotsDisallowed`) the runner counts separately from empties with a non-zero
+  exit. Same family as the fail-open sub-classes above. If this class appears
+  again anywhere in ingestion, the fix is a repo-wide audit of every "return
+  empty on error" site, not another typed exception.
 - **record-missing / untruthful-record**: #19 (untruthful-record), #24 (same),
   and 2026-07-15: rows for merged PRs #15/#23/#24 were absent from this table
   while the changelog claimed the #15 row existed (caught during #25 r5
