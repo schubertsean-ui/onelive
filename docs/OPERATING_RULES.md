@@ -51,12 +51,11 @@ Concretely, before anything is considered done:
   (paste the text, attach the file, grant access), and only continue work
   that does not depend on the inaccessible source. Secondary-source
   reconstruction is not a fallback; it is the defect.
-- **A repeated error is a finding, not a rhythm.** (Founder directive,
-  verbatim, 2026-07-25: "If you get the same error or message more than
-  twice you prob need to investigate because there's probably an error" —
-  ratified as global: "Something like this needs to be a global adopted
-  condition." Decision record:
-  `docs/memory/decisions/2026-07-25_repeated-error-investigation-rule.md`.)
+- **A repeated error is a finding, not a rhythm.** (Founder-directed
+  2026-07-25 and ratified by the founder as a global standing condition;
+  the verbatim directive lives in the decision record —
+  `docs/memory/decisions/2026-07-25_repeated-error-investigation-rule.md`
+  — kept there per dissemination minimization, r12 nit.)
   The SAME error, warning, or anomalous message appearing more than twice —
   in a loop, across polls, across tool calls, across sessions — is itself a
   defect signal that MUST be investigated at its root before (or alongside)

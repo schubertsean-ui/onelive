@@ -225,6 +225,13 @@ def within_timeframe(start_time: str, reference_time: str, timeframe: str) -> bo
             "timezone-aware/naive mismatch between event start and reference "
             f"({start_time!r} vs {reference_time!r}) — refusing to compare"
         )
+    if start.tzinfo is not None:
+        # Calendar windows are judged in the EVENT'S OWN timezone (r12
+        # nit): the release gate's UTC clock is a different calendar date
+        # after 19:00 CDT, which would falsely refuse an Austin "Tonight"
+        # release. The instant comparison below is timezone-correct either
+        # way; the .date()/.hour window checks need the market-local view.
+        ref = ref.astimezone(start.tzinfo)
     if start <= ref:
         # Already started — including starting at this exact instant (r2:
         # "to happen" means strictly ahead): never shown, in any window.

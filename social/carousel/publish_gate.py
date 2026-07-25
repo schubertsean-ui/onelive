@@ -375,9 +375,19 @@ def release_for_publish(
     material, record paths, trust state (r3), or the clock (r11): the key
     is deployment env, the record location is fixed, current state comes
     from the registered canonical reader, and release-time "now" is the
-    gate's own clock — absent any of them, nothing releases.
+    gate's own clock — absent any of them, nothing releases. A PRESENT
+    autonomy record that fails authentication refuses BOTH paths (r12):
+    a corrupt trust-path artifact halts releases entirely rather than
+    being quietly ignored while human approvals continue.
     """
     now = _release_moment()
+    # The autonomy record is validated BEFORE either path (r12 blocker): a
+    # malformed, unsigned, or wrong-signature ratification artifact is a
+    # corrupted TRUST-PATH file, and the shipped contract is
+    # refuse-everything — releases must not continue silently (even
+    # human-approved) over a forged or tampered record. Absent file = L0,
+    # which is the ordinary human-in-the-loop state, not a defect.
+    active_policy = load_policy()
     _recheck_trust(draft, now.isoformat())
     draft_hash = content_hash(draft)
 
@@ -413,7 +423,6 @@ def release_for_publish(
             _RELEASE_JOURNAL.record(release, now)
         return release
 
-    active_policy = load_policy()
     if active_policy.level != "L0":
         # Content binding (r10): the grant covers exactly the frozen render
         # surface and the enumerated series — anything else refuses.

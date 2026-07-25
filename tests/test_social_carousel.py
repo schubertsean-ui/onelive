@@ -753,6 +753,54 @@ def test_unsigned_canonical_record_refuses_release(monkeypatch, tmp_path):
         _release(draft)
 
 
+def test_bad_autonomy_record_refuses_even_human_approval(monkeypatch, tmp_path):
+    # r12 blocker: a malformed/unauthenticated ratification artifact is a
+    # corrupted trust-path file — the contract is refuse-EVERYTHING, so a
+    # valid human approval must not release over it either.
+    draft = _draft()
+    approval = _approve(draft)
+    record = tmp_path / "AUTONOMY_RATIFICATION.json"
+    monkeypatch.setattr(autonomy_module, "DEFAULT_RECORD_PATH", str(record))
+    record.write_text(json.dumps(_l1_payload()))  # present but unsigned
+    with pytest.raises(AutonomyRecordError, match="UNSIGNED"):
+        _release(draft, approval)
+    tampered = dict(_l1_payload())
+    tampered["signature"] = sign_autonomy_record(tampered, TEST_KEY)
+    tampered["max_releases_per_day"] = 999  # post-sign edit
+    record.write_text(json.dumps(tampered))
+    with pytest.raises(AutonomyRecordError, match="does not verify"):
+        _release(draft, approval)
+    record.write_text("{not json")
+    with pytest.raises(AutonomyRecordError, match="unreadable"):
+        _release(draft, approval)
+    # Absent file = L0, the ordinary state: the same approval releases.
+    record.unlink()
+    assert _release(draft, approval).released_by == "Sean Schubert"
+
+
+def test_utc_gate_clock_releases_market_tonight_after_utc_midnight(monkeypatch):
+    # r12 nit: at 21:00 CDT the UTC calendar has already turned — the
+    # window must be judged in the event's own timezone or every Austin
+    # "Tonight" release after 19:00 CDT falsely refuses.
+    starts = ["21:30", "21:45", "22:00", "22:30", "23:00"]
+    events = [
+        _event(i + 1, start_time=f"2026-07-24T{t}:00-05:00")
+        for i, t in enumerate(starts)
+    ]
+    draft = _draft(events, reference_time="2026-07-24T20:00:00-05:00")
+    monkeypatch.setattr(
+        publish_gate, "_STATE_READER", _reader_returning({e["event_id"]: e for e in events})
+    )
+    # 02:00 UTC Jul 25 == 21:00 CDT Jul 24 — all five starts still ahead.
+    monkeypatch.setattr(
+        publish_gate,
+        "_utcnow",
+        lambda: datetime.fromisoformat("2026-07-25T02:00:00+00:00"),
+    )
+    release = _release(draft, _approve(draft))
+    assert release.draft_hash == content_hash(draft)
+
+
 # --- Autonomy ratification (spec SS10) -----------------------------------------
 
 def _signed_record(tmp_path, payload, key=TEST_KEY):
