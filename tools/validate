@@ -147,6 +147,16 @@ run_check "pytest (full suite)" "$PY" -m pytest -q
 run_check "eval_harness import" "$PY" -c \
   "import ai.eval_harness as e; print('eval_harness import OK:', [n for n in dir(e) if not n.startswith('_')][:6])"
 
+# 4b. Surface extraction regression-exam — deterministic, free (no network/
+#     model/spend) no-regression guard on the un-certified extraction SURFACE
+#     (worker/segment.py + worker/ai_extract fan-out): runs a labeled corpus of
+#     multi-event pages through the REAL pipeline with a recorded provider and
+#     FAILS if event recall drops below any page's measured baseline or any
+#     fabrication appears. NOT a certification — the attended golden-exam remains
+#     the authority for the certified prompt/model (see docs/RECORD.md R-035).
+#     Gate-custody: evaluator-reviewed on the PR that adds it.
+run_check "surface_regression_exam" "$PY" tools/surface_regression_exam.py
+
 # 5. Performance benchmarks — asserted budgets on hot paths. Opt-in marker.
 if [ "$QUICK" -eq 1 ]; then
   echo "── perf benchmarks ──"
