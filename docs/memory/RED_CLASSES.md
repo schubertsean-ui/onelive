@@ -43,3 +43,5 @@ a class absent from this index is a prose-only lesson, an open defect.
 | self-weakenable-gate | construction_gate, red_classes, index | KAIZEN #67 r6 — a gate must not be silently weakenable through its own data; base-vs-head self-protection |
 | rule-stronger-than-mechanism | skills, operating, canon, charter | KAIZEN #67 r4/r7 — a rule may claim exactly the mechanism that ships with it; unmechanized halves carry a RECORD row in the same commit |
 | stale-live-incident-state | incident, arming, smoke | KAIZEN #43 arc — live-state claims re-verify against the live system, never against earlier prose |
+| pushed-on-red | validate, commit, push | KAIZEN #65 r5-commit + #69 self-caught — validate runs unchained with its exit code checked explicitly; a pipe that masks FAIL is the defect |
+| malformed-ledger-row | KAIZEN, ledger, metrics | KAIZEN #69 self-caught — ledger rows never contain raw pipes; parsers fail loud and the writer verifies by running them |
