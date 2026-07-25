@@ -14,6 +14,12 @@ rebuilt from) and because one-record-per-line survives partial reads and
 greps cleanly. dumps()/loads() expose the same round-trip in memory, which
 is what the persistence test asserts identity against.
 
+Node serialisation is field-driven (dataclasses.fields), so the bi-temporal
+VALID-time fields on a Claim (`valid_from`/`valid_to`, ISO strings or None)
+round-trip LOSSLESSLY with no special-casing here — they are ordinary node
+fields. Older snapshots written before those fields existed simply omit them
+and reload as timeless (both None), so the format is backward-compatible.
+
 This module reads and writes local files only; it never reaches the network
 and never publishes.
 """

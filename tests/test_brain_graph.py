@@ -320,6 +320,146 @@ def test_load_rejects_unknown_field(tmp_path: pathlib.Path):
         store.load(path)
 
 
+# --- Bi-temporal VALID time: "what was true as of date X" --------------------
+def _bitemporal_capacity_graph() -> tuple:
+    """A venue whose capacity moved through eras: 500 until 2026-03-01, then
+    800 until 2026-06-01, then 1000 (still true). Three LIVE claims, no
+    supersede — valid time alone distinguishes the eras."""
+    g = Graph()
+    src = g.add_source(Source(uri="https://permit.test", title="permit history"))
+    venue = g.add_entity(Entity(name="Mohawk", entity_type="venue"))
+
+    def cap(value, vf, vt):
+        c = g.add_claim(Claim(text=f"capacity={value}", source_id=src.id),
+                        valid_from=vf, valid_to=vt)
+        g.add_edge(c.id, venue.id, EdgeType.MENTIONS)
+        return c
+
+    c500 = cap("500", "2026-01-01", "2026-03-01")
+    c800 = cap("800", "2026-03-01", "2026-06-01")
+    c1000 = cap("1000", "2026-06-01", None)
+    return g, venue.id, src.id, (c500, c800, c1000)
+
+
+def _value_at(g, entity_id, instant):
+    claims = g.claims_valid_at(entity_id, instant, predicate="capacity")
+    assert len(claims) == 1, f"expected exactly one valid claim at {instant}"
+    return claims[0].text.split("=", 1)[1]
+
+
+def test_as_of_returns_the_historically_correct_value():
+    g, venue_id, _, _ = _bitemporal_capacity_graph()
+    # Each instant lands in a different era — this is the point-in-time recall
+    # the old substrate could not serve (R-010/R-031).
+    assert _value_at(g, venue_id, "2026-02-01") == "500"
+    assert _value_at(g, venue_id, "2026-04-01") == "800"
+    assert _value_at(g, venue_id, "2026-07-01") == "1000"
+    # Half-open [valid_from, valid_to): the boundary belongs to the NEXT era.
+    assert _value_at(g, venue_id, "2026-03-01") == "800"
+    assert _value_at(g, venue_id, "2026-06-01") == "1000"
+    # Before any recorded era: nothing was valid → the brain must not fabricate.
+    assert g.claims_valid_at(venue_id, "2025-12-01", predicate="capacity") == []
+
+
+def test_a_superseded_in_valid_time_fact_is_retrieved_for_its_era():
+    # A fact valid for a bounded era stays retrievable for that era forever, even
+    # as later eras are added — retrieval is by VALID time, not "latest".
+    g, venue_id, _, (c500, c800, c1000) = _bitemporal_capacity_graph()
+    assert _value_at(g, venue_id, "2026-02-15") == "500"   # the earliest era
+    # The current (open-interval) fact is the still-true one.
+    open_claims = [c for c in g.claims_valid_at(venue_id, "2026-09-01",
+                                                predicate="capacity")]
+    assert [c.id for c in open_claims] == [c1000.id]
+
+
+def test_claims_valid_at_honors_supersession():
+    # Bi-temporal TRANSACTION axis: if the era-500 claim is CORRECTED (superseded
+    # by a re-measured value for the same era), the retracted version is not
+    # returned for its era — only the currently-believed one.
+    g, venue_id, src_id, (c500, c800, c1000) = _bitemporal_capacity_graph()
+    corrected = g.add_claim(Claim(text="capacity=550", source_id=src_id),
+                            valid_from="2026-01-01", valid_to="2026-03-01")
+    g.add_edge(corrected.id, venue_id, EdgeType.MENTIONS)
+    g.supersede(c500.id, by=corrected.id)
+    # The queried instant is in the era-1 interval; only the corrected value
+    # speaks for it (the superseded 500 is excluded).
+    assert _value_at(g, venue_id, "2026-02-01") == "550"
+
+
+def test_timeless_claim_is_always_valid():
+    # A claim with no interval is valid at EVERY instant (unchanged behavior).
+    g, src = _graph_with_source()
+    venue = g.add_entity(Entity(name="Mohawk", entity_type="venue"))
+    c = g.add_claim(Claim(text="genre=rock", source_id=src.id))  # timeless
+    g.add_edge(c.id, venue.id, EdgeType.MENTIONS)
+    for instant in ("1999-01-01", "2026-07-01", "2500-12-31"):
+        got = g.claims_valid_at(venue.id, instant, predicate="genre")
+        assert [x.id for x in got] == [c.id]
+
+
+def test_as_of_subgraph_filters_by_validity_and_preserves_provenance():
+    g, venue_id, src_id, (c500, c800, c1000) = _bitemporal_capacity_graph()
+    # As-of 2026-02-01: only the era-1 claim is valid; its Source is still
+    # reachable (provenance preserved), and the other eras' claims are absent.
+    sg = g.as_of_subgraph(venue_id, "2026-02-01", hops=2)
+    ids = sg.node_ids()
+    assert c500.id in ids
+    assert c800.id not in ids
+    assert c1000.id not in ids
+    assert src_id in ids  # the valid claim's provenance root survives
+    # A later instant swaps which claim appears — the neighborhood is temporal.
+    sg2 = g.as_of_subgraph(venue_id, "2026-07-01", hops=2)
+    ids2 = sg2.node_ids()
+    assert c1000.id in ids2
+    assert c500.id not in ids2
+
+
+def test_add_claim_bitemporal_params_and_backward_compat():
+    g, src = _graph_with_source()
+    # 1) kwargs on add_claim set the interval.
+    c1 = g.add_claim(Claim(text="capacity=500", source_id=src.id),
+                     valid_from="2026-01-01", valid_to="2026-03-01")
+    assert c1.valid_from == "2026-01-01" and c1.valid_to == "2026-03-01"
+    # 2) interval carried on the Claim itself also works.
+    c2 = g.add_claim(Claim(text="capacity=800", source_id=src.id,
+                           valid_from="2026-03-01"))
+    assert c2.valid_from == "2026-03-01" and c2.valid_to is None
+    # 3) existing callers pass neither → a TIMELESS claim, exactly as before.
+    c3 = g.add_claim(Claim(text="genre=rock", source_id=src.id))
+    assert c3.valid_from is None and c3.valid_to is None
+    # 4) an empty/inverted interval is rejected loud (invariant, fail-closed).
+    with pytest.raises(GraphInvariantError):
+        g.add_claim(Claim(text="capacity=1", source_id=src.id),
+                    valid_from="2026-06-01", valid_to="2026-01-01")
+
+
+def test_write_invariants_still_hold_with_valid_intervals():
+    # Adding validity does NOT weaken invariant 1: an unsourced, non-inference
+    # claim is still refused even with a perfectly good interval.
+    g, _ = _graph_with_source()
+    with pytest.raises(GraphInvariantError):
+        g.add_claim(Claim(text="capacity=500", source_id=None, inference=False),
+                    valid_from="2026-01-01", valid_to="2026-03-01")
+    # An inference claim with an interval is admissible (invariant 1 satisfied).
+    ok = g.add_claim(Claim(text="capacity~=500", inference=True),
+                     valid_from="2026-01-01", valid_to="2026-03-01")
+    assert g.has(ok.id)
+
+
+def test_persistence_roundtrips_bitemporal_claims(tmp_path: pathlib.Path):
+    g, venue_id, src_id, (c500, c800, c1000) = _bitemporal_capacity_graph()
+    path = tmp_path / "bitemporal.jsonl"
+    store.save(g, path)
+    recovered = store.load(path)
+    # Full-state identity, including the valid_from/valid_to fields.
+    assert store.dumps(recovered) == store.dumps(g)
+    # And the point-in-time read still works after a fresh reload.
+    got = recovered.claims_valid_at(venue_id, "2026-04-01", predicate="capacity")
+    assert len(got) == 1 and got[0].text == "capacity=800"
+    rc = recovered.get(c500.id)
+    assert rc.valid_from == "2026-01-01" and rc.valid_to == "2026-03-01"
+
+
 # --- schema sanity ------------------------------------------------------------
 def test_node_types_carry_correct_enum():
     assert Source(uri="x").node_type == NodeType.SOURCE

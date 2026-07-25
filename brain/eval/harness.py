@@ -109,26 +109,48 @@ def single_fact(g: Graph, entity_id: str, predicate: str) -> Answer:
 
 
 def current_value(g: Graph, entity_id: str, predicate: str) -> Answer:
-    """The CURRENT value of a fact that changed over time.
+    """The CURRENT value of a fact that may have changed over time.
 
-    Uses the supersede flag: only live claims are considered, so the superseded
-    (older) claim is not returned even though it stays addressable in the graph.
+    Bi-temporal: the current fact is the live attribute claim whose VALID
+    interval is still OPEN (``valid_to is None`` — unbounded future = still
+    true). A closed-interval "before" claim (valid_to set) is a past era and is
+    NOT returned. A timeless claim (both bounds None) is also open-ended, so a
+    non-temporal fact behaves exactly as before. Abstain if nothing is currently
+    valid; surface a dispute if two open claims disagree.
     """
-    return single_fact(g, entity_id, predicate)
+    claims = [c for c in _attr_claims(g, entity_id, predicate)
+              if getattr(c, "valid_to", None) is None]
+    if not claims:
+        return Answer.unknown()
+    values = {_attr_value(c, predicate) for c in claims}
+    if len(values) > 1:
+        return contradiction(g, entity_id, predicate)
+    c = claims[0]
+    return Answer(value=_attr_value(c, predicate),
+                  sources=[c.source_id] if c.source_id else [])
 
 
 def as_of(g: Graph, entity_id: str, predicate: str, date: str) -> Answer:
-    """Point-in-time recall — deliberately UNSERVABLE on today's substrate.
+    """Point-in-time recall — now SERVED by the bi-temporal substrate.
 
-    The graph records THAT a fact was superseded, not the validity interval it
-    held (no bitemporal time; R-010 / R-031). There is no honest way to map an
-    arbitrary ``date`` to the claim that was valid then, so the brain abstains.
-    Abstaining here is still a recall MISS against the historical gold — the
-    benchmark counts it as such, which is how the temporal gap shows up in the
-    measured number instead of being hidden.
+    Routes to ``Graph.claims_valid_at``: the fact whose VALID interval
+    ``[valid_from, valid_to)`` contained ``date``, using only currently-believed
+    (non-superseded) versions. Abstain if no fact was valid then (e.g. a date
+    before any recorded era) — time-travel must not fabricate outside its
+    intervals. If more than one value was valid at that instant (overlapping
+    intervals), surface it as a dispute rather than pick one.
     """
-    _ = (g, entity_id, predicate, date)  # capability absent by construction
-    return Answer.unknown()
+    claims = [c for c in g.claims_valid_at(entity_id, date, predicate=predicate)
+              if _attr_value(c, predicate) is not None]
+    if not claims:
+        return Answer.unknown()
+    values = {_attr_value(c, predicate) for c in claims}
+    if len(values) > 1:
+        sources = sorted({c.source_id for c in claims if c.source_id})
+        return Answer(values=sorted(values), disputed=True, sources=sources)
+    c = claims[0]
+    return Answer(value=_attr_value(c, predicate),
+                  sources=[c.source_id] if c.source_id else [])
 
 
 def contradiction(g: Graph, entity_id: str, predicate: str) -> Answer:

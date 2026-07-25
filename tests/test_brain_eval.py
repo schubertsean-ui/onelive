@@ -72,9 +72,14 @@ def test_reported_metrics_are_sane():
     assert 0.0 <= report.overall_accuracy <= 1.0
     # Every question the brain answers with a value returns its source.
     assert report.provenance_citation_rate == 1.0
-    # The knowledge_update baseline is honestly below 1.0 — the point-in-time
-    # questions miss because the substrate has no bitemporal validity.
-    assert report.per_category[KNOWLEDGE_UPDATE].accuracy < 1.0
+    # Bi-temporal upgrade: the point-in-time "as of <date>" questions are now
+    # answerable via Graph.claims_valid_at, so knowledge_update reaches its
+    # raised baseline (was 0.60 when the substrate had no validity intervals —
+    # R-010/R-031/G-BRAIN-1D — now 1.00 on our corpus).
+    baselines = _load_baselines()
+    assert (report.per_category[KNOWLEDGE_UPDATE].accuracy + 1e-9
+            >= float(baselines[KNOWLEDGE_UPDATE]))
+    assert report.per_category[KNOWLEDGE_UPDATE].accuracy == 1.0
 
 
 # --- REGRESSION 1: a damaged corpus drops entity_resolution below baseline ----
@@ -139,6 +144,32 @@ def test_fabrication_regression_makes_abstention_go_red():
     # It also tanks the abstention-correctness metric (answered when it should
     # have abstained).
     assert fabricating.abstention_correctness < honest.abstention_correctness
+
+
+# --- REGRESSION 4: a TIME-BLIND read makes knowledge_update go red ------------
+class _TimeBlindAnswerer(BrainAnswerer):
+    """Answers every point-in-time question with the CURRENT value, ignoring the
+    queried instant — i.e. throws away the bi-temporal VALID axis. This is the
+    exact regression the bi-temporal upgrade defends against: a brain that
+    cannot time-travel gets the historical eras wrong."""
+
+    def as_of(self, g, sid, pred, date):
+        from brain.eval.harness import current_value as real_current
+        return real_current(g, sid, pred)
+
+
+def test_time_blind_read_makes_knowledge_update_go_red():
+    baselines = _load_baselines()
+    honest = run_benchmark()
+    time_blind = run_benchmark(answerer=_TimeBlindAnswerer())
+    # The honest, bi-temporal brain meets the raised baseline...
+    assert honest.per_category[KNOWLEDGE_UPDATE].accuracy >= float(
+        baselines[KNOWLEDGE_UPDATE])
+    # ...but a brain that ignores the validity interval answers the historical
+    # eras with today's value and drops below it. The gate can still fail.
+    assert time_blind.per_category[KNOWLEDGE_UPDATE].accuracy < float(
+        baselines[KNOWLEDGE_UPDATE]), (
+        "ignoring bi-temporal validity must drop knowledge_update below baseline")
 
 
 # --- the scorer itself is strict ---------------------------------------------

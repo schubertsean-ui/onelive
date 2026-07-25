@@ -137,12 +137,36 @@ class Claim(Node):
     the graph (Graph.add_claim raises). `confidence` can later feed the
     shadow-only Subjective Logic substrate (worker/convergence) — the seam
     is noted, not wired.
+
+    BI-TEMPORAL time (paper §IV.D "recurrence / temporal validity"; closes the
+    R-010/R-031/G-BRAIN-1D point-in-time gap). A claim carries TWO independent
+    time axes:
+
+      * VALID time — WHEN the fact was true IN THE WORLD — is
+        `valid_from`/`valid_to` (ISO date or datetime strings, or None). The
+        interval is half-open ``[valid_from, valid_to)``: `valid_from` is
+        inclusive, `valid_to` is exclusive. `None` on either end means "open"
+        (unbounded past / still true). A claim with BOTH None is TIMELESS —
+        valid at every instant — which is the default, so every pre-existing
+        claim keeps its exact behavior.
+      * TRANSACTION time — WHEN WE RECORDED or superseded the claim — is the
+        existing `created_at` stamp plus the `superseded`/`superseded_by`
+        bookkeeping. An "as of" read fixes transaction time to "what we believe
+        now" (superseded versions excluded) and filters the valid axis to the
+        queried instant — see Graph.claims_valid_at / Graph.as_of_subgraph.
+
+    So "Mohawk's capacity was 500 until 2026-03-01, then 800" is two live
+    claims — one ``valid_to='2026-03-01'`` (500), one ``valid_from='2026-03-01'``
+    (800) — and ``as_of('2026-02-01')`` returns 500 while the current value is
+    800. Nothing is superseded: both are believed, each true for its era.
     """
 
     text: str = ""
     source_id: Optional[str] = None
     inference: bool = False
     confidence: float = 1.0
+    valid_from: Optional[str] = None  # inclusive ISO instant; None = open past
+    valid_to: Optional[str] = None    # exclusive ISO instant; None = still true
 
     def __post_init__(self) -> None:
         self.node_type = NodeType.CLAIM

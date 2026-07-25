@@ -69,9 +69,11 @@ class Query:
 
     ``op`` picks the harness helper; the other fields are its arguments.
     ``subject`` is a per-scenario key resolved against the scenario's keymap
-    (never a hand-written node id). ``as_of_date`` probes point-in-time recall
-    the current substrate cannot serve (no bitemporal validity) — it is here on
-    purpose so the benchmark MEASURES that gap rather than hiding it.
+    (never a hand-written node id). ``as_of_date`` drives a point-in-time
+    (``as_of``) probe: the harness routes it to ``Graph.claims_valid_at`` so the
+    brain returns the fact whose BI-TEMPORAL VALID interval contained that
+    instant. This USED to be an unservable gap (no validity intervals,
+    R-010/R-031); it is now answered — the benchmark measures the closed gap.
     """
 
     op: str  # single_fact | multi_hop | current_value | as_of | contradiction | via_alias
@@ -122,9 +124,15 @@ class Scenario:
 
 # --- small corpus builders ----------------------------------------------------
 def _attr(g: Graph, subject_id: str, predicate: str, value: str,
-          source_id: str) -> Claim:
-    """Add a sourced ATTRIBUTE claim (mentions the subject only)."""
-    claim = g.add_claim(Claim(text=f"{predicate}={value}", source_id=source_id))
+          source_id: str, *, valid_from: str = None, valid_to: str = None) -> Claim:
+    """Add a sourced ATTRIBUTE claim (mentions the subject only).
+
+    `valid_from`/`valid_to` (optional) stamp the claim's BI-TEMPORAL VALID
+    interval — when the fact was true in the world. Omitted ⇒ a timeless claim
+    (valid at every instant), the default for every non-temporal fact.
+    """
+    claim = g.add_claim(Claim(text=f"{predicate}={value}", source_id=source_id),
+                        valid_from=valid_from, valid_to=valid_to)
     g.add_edge(claim.id, subject_id, EdgeType.MENTIONS)
     return claim
 
@@ -223,6 +231,14 @@ VENUES_QUESTIONS = [
 
 
 # --- scenario 2: changing_lineup (knowledge_update, contradiction) ------------
+# Fixed dates (ISO, no wall clock — deterministic). The day-of change happens on
+# 2026-07-08; the venue's capacity moved through three eras earlier in the year.
+_CHANGE = "2026-07-08"        # early listing → day-of official calendar
+_CAP_1 = "2026-01-01"         # capacity era boundaries
+_CAP_2 = "2026-03-01"
+_CAP_3 = "2026-06-01"
+
+
 def build_changing_lineup() -> Tuple[Graph, dict]:
     g = Graph()
     k: dict = {}
@@ -231,6 +247,8 @@ def build_changing_lineup() -> Tuple[Graph, dict]:
                                     title="Early week listing (2026-07-01)")).id
     src_late = g.add_source(Source(uri="https://mohawkaustin.com/cal",
                                    title="Day-of official calendar (2026-07-08)")).id
+    src_perm = g.add_source(Source(uri="https://permit.test/cap",
+                                   title="Occupancy permit history")).id
     src_flyer = g.add_source(Source(uri="https://flyer.test/fest",
                                     title="Street flyer")).id
     src_venue = g.add_source(Source(uri="https://venue.test/fest",
@@ -239,18 +257,30 @@ def build_changing_lineup() -> Tuple[Graph, dict]:
     k["mohawk"] = g.add_entity(Entity(name="Mohawk", entity_type="venue")).id
     k["fest"] = g.add_entity(Entity(name="Red River Fest", entity_type="event")).id
 
-    # Knowledge update: an early claim, superseded by a later one. The old node
-    # stays addressable (invariant 4); the CURRENT answer is the live claim.
-    for pred, old_v, new_v in (
+    # Knowledge update, BI-TEMPORAL. A fact that changed over time is TWO live
+    # claims, each stamped with the VALID interval it held — NOT a supersede.
+    # Both are currently believed (nothing retracted); valid time alone decides
+    # which one answers a given instant. The still-true "after" claim carries an
+    # OPEN interval (valid_to=None), which is what makes it the CURRENT value.
+    for pred, before_v, after_v in (
         ("headliner", "Band A", "Band B"),
         ("cover", "$15", "$20"),
         ("door_time", "8pm", "9pm"),
     ):
-        old = _attr(g, k["mohawk"], pred, old_v, src_early)
-        new = _attr(g, k["mohawk"], pred, new_v, src_late)
-        g.supersede(old.id, by=new.id)
+        _attr(g, k["mohawk"], pred, before_v, src_early,
+              valid_from="2026-07-01", valid_to=_CHANGE)
+        _attr(g, k["mohawk"], pred, after_v, src_late, valid_from=_CHANGE)
+
+    # A THREE-era bi-temporal fact (mirrors the "500 until X, then 800, then
+    # 1000" shape): three live claims partition the timeline, the last open.
+    _attr(g, k["mohawk"], "capacity", "500", src_perm,
+          valid_from=_CAP_1, valid_to=_CAP_2)
+    _attr(g, k["mohawk"], "capacity", "800", src_perm,
+          valid_from=_CAP_2, valid_to=_CAP_3)
+    _attr(g, k["mohawk"], "capacity", "1000", src_perm, valid_from=_CAP_3)
 
     # Contradiction: two live sources disagree, linked by a CONTRADICTS edge.
+    # These are genuine same-time disputes (timeless), NOT a temporal change.
     for pred, va, vb in (("start_time", "7pm", "8pm"), ("at", "Mohawk", "Empire")):
         ca = _attr(g, k["fest"], pred, va, src_flyer)
         cb = _attr(g, k["fest"], pred, vb, src_venue)
@@ -260,7 +290,9 @@ def build_changing_lineup() -> Tuple[Graph, dict]:
 
 
 LINEUP_QUESTIONS = [
-    # knowledge_update — the CURRENT value must win over the superseded one.
+    # knowledge_update — CURRENT value. The current fact is the one whose VALID
+    # interval is still open (valid_to=None); the brain returns it over the
+    # closed-interval "before" claim without needing a clock.
     Question("cl-ku-1", KNOWLEDGE_UPDATE,
              "Who is tonight's headliner at Mohawk right now?",
              Query("current_value", subject="mohawk", predicate="headliner"),
@@ -271,20 +303,58 @@ LINEUP_QUESTIONS = [
     Question("cl-ku-3", KNOWLEDGE_UPDATE, "What is the current door time at Mohawk?",
              Query("current_value", subject="mohawk", predicate="door_time"),
              Gold(value="9pm")),
-    # knowledge_update — POINT-IN-TIME recall. The substrate has no bitemporal
-    # validity (R-010/R-031): supersede records THAT a fact changed, not WHEN it
-    # was valid, so an "as of <date>" question cannot be served. Gold is the
-    # historical value; the brain will miss it. This measures the honest gap.
     Question("cl-ku-4", KNOWLEDGE_UPDATE,
+             "What is Mohawk's current capacity?",
+             Query("current_value", subject="mohawk", predicate="capacity"),
+             Gold(value="1000")),
+    # knowledge_update — POINT-IN-TIME (bi-temporal "as of"). Now ANSWERABLE:
+    # claims_valid_at returns the version whose VALID interval contained the
+    # instant. Gold is the historical value for that era. This is the R-010/
+    # R-031/G-BRAIN-1D gap, now measured as CLOSED on our corpus.
+    Question("cl-ku-5", KNOWLEDGE_UPDATE,
              "As of the early listing (2026-07-01), who was the headliner?",
              Query("as_of", subject="mohawk", predicate="headliner",
                    as_of_date="2026-07-01"),
              Gold(value="Band A")),
-    Question("cl-ku-5", KNOWLEDGE_UPDATE,
+    Question("cl-ku-6", KNOWLEDGE_UPDATE,
              "As of the early listing (2026-07-01), what was the cover charge?",
              Query("as_of", subject="mohawk", predicate="cover",
                    as_of_date="2026-07-01"),
              Gold(value="$15")),
+    Question("cl-ku-7", KNOWLEDGE_UPDATE,
+             "As of the day-of calendar (2026-07-10), who was the headliner?",
+             Query("as_of", subject="mohawk", predicate="headliner",
+                   as_of_date="2026-07-10"),
+             Gold(value="Band B")),
+    Question("cl-ku-8", KNOWLEDGE_UPDATE,
+             "As of 2026-07-01, what was the door time?",
+             Query("as_of", subject="mohawk", predicate="door_time",
+                   as_of_date="2026-07-01"),
+             Gold(value="8pm")),
+    # Three-era capacity: each "as of" lands in a different validity interval,
+    # so a brain that ignores WHEN would answer the same value for all three.
+    Question("cl-ku-9", KNOWLEDGE_UPDATE,
+             "What was Mohawk's capacity as of 2026-02-01?",
+             Query("as_of", subject="mohawk", predicate="capacity",
+                   as_of_date="2026-02-01"),
+             Gold(value="500")),
+    Question("cl-ku-10", KNOWLEDGE_UPDATE,
+             "What was Mohawk's capacity as of 2026-04-01?",
+             Query("as_of", subject="mohawk", predicate="capacity",
+                   as_of_date="2026-04-01"),
+             Gold(value="800")),
+    Question("cl-ku-11", KNOWLEDGE_UPDATE,
+             "What was Mohawk's capacity as of 2026-07-01?",
+             Query("as_of", subject="mohawk", predicate="capacity",
+                   as_of_date="2026-07-01"),
+             Gold(value="1000")),
+    # Point-in-time BEFORE any recorded era: no fact was valid then, so the brain
+    # must abstain — time-travel that does not fabricate outside its intervals.
+    Question("cl-ku-12", KNOWLEDGE_UPDATE,
+             "What was Mohawk's capacity as of 2025-12-01 (before any record)?",
+             Query("as_of", subject="mohawk", predicate="capacity",
+                   as_of_date="2025-12-01"),
+             Gold(unknown=True)),
     # contradiction — surface BOTH, flag disputed; never silently pick one.
     Question("cl-co-1", CONTRADICTION, "What time does Red River Fest start?",
              Query("contradiction", subject="fest", predicate="start_time"),

@@ -100,6 +100,54 @@ def _node_label(n: Node) -> str:
     return n.id
 
 
+# --- bi-temporal validity helpers --------------------------------------------
+# ISO 8601 strings sort lexicographically in chronological order, so a plain
+# string comparison is a correct instant comparison as long as the fixtures use
+# a single, consistent granularity (the benchmark + tests pass fixed ISO dates,
+# never a wall clock — determinism, no network, no spend).
+def _instant_ok(value: object, label: str) -> None:
+    if value is not None and not isinstance(value, str):
+        raise GraphInvariantError(
+            f"{label} must be an ISO date/datetime string or None, got {value!r} "
+            f"({type(value).__name__}). Bi-temporal instants are compared as "
+            f"strings; a non-string cannot be an instant."
+        )
+
+
+def _validate_interval(valid_from: Optional[str], valid_to: Optional[str]) -> None:
+    """Fail loud on a malformed validity interval.
+
+    Instants must be ISO strings or None, and a bounded interval must be
+    non-empty: ``valid_from`` (inclusive) strictly before ``valid_to``
+    (exclusive). An empty/inverted interval would contain no instant, so it is
+    almost certainly a data error — we refuse it rather than store a claim that
+    is valid nowhere.
+    """
+    _instant_ok(valid_from, "valid_from")
+    _instant_ok(valid_to, "valid_to")
+    if valid_from is not None and valid_to is not None and not (valid_from < valid_to):
+        raise GraphInvariantError(
+            f"empty/inverted validity interval: valid_from {valid_from!r} must be "
+            f"strictly before valid_to {valid_to!r} (the interval is half-open "
+            f"[valid_from, valid_to) and must contain at least one instant)."
+        )
+
+
+def _valid_at(claim, instant: str) -> bool:
+    """True iff ``claim``'s half-open [valid_from, valid_to) contains ``instant``.
+
+    A timeless claim (both bounds None) is valid at EVERY instant — the
+    unchanged behavior for every claim that carries no interval.
+    """
+    valid_from = getattr(claim, "valid_from", None)
+    valid_to = getattr(claim, "valid_to", None)
+    if valid_from is not None and instant < valid_from:
+        return False
+    if valid_to is not None and instant >= valid_to:
+        return False
+    return True
+
+
 class Graph:
     """A typed directed multigraph that enforces the paper's write invariants."""
 
@@ -152,10 +200,25 @@ class Graph:
             raise GraphInvariantError("add_entity requires an Entity node.")
         return self._insert(entity)
 
-    def add_claim(self, claim: Claim) -> Claim:
-        """Invariant 1: a Claim needs a Source OR inference=True."""
+    def add_claim(self, claim: Claim, *, valid_from: Optional[str] = None,
+                  valid_to: Optional[str] = None) -> Claim:
+        """Invariant 1: a Claim needs a Source OR inference=True.
+
+        Bi-temporal (backward-compatible): `valid_from`/`valid_to` set the VALID
+        interval the fact held in the world. They can be passed here OR carried
+        on the Claim itself — a non-None keyword OVERRIDES the claim's own value,
+        while the default (None, None) leaves the claim's interval untouched, so
+        every existing caller (which passes neither) still writes a TIMELESS
+        claim exactly as before. The interval is validated (fail loud on an
+        empty/inverted one) before the invariant-1 checks.
+        """
         if not isinstance(claim, Claim):
             raise GraphInvariantError("add_claim requires a Claim node.")
+        if valid_from is not None:
+            claim.valid_from = valid_from
+        if valid_to is not None:
+            claim.valid_to = valid_to
+        _validate_interval(claim.valid_from, claim.valid_to)
         if not claim.inference and not claim.source_id:
             raise GraphInvariantError(
                 "INVARIANT 1 violated: a Claim must cite a source_id OR be "
@@ -430,22 +493,98 @@ class Graph:
         record["reversed"] = True
         return record["resolution_id"]
 
+    # --- bi-temporal point-in-time reads -------------------------------------
+    def claims_valid_at(self, entity_id: str, instant: str, *,
+                        predicate: Optional[str] = None) -> list:
+        """Currently-believed Claims MENTIONING `entity_id` VALID at `instant`.
+
+        The bi-temporal "as of" read: the TRANSACTION axis is fixed to "what we
+        believe now" — a superseded (retracted/corrected) claim is NEVER
+        returned, so only the currently-believed version speaks for its era —
+        and the VALID axis is filtered to claims whose half-open
+        ``[valid_from, valid_to)`` contains `instant`. A TIMELESS claim (no
+        interval) is valid at every instant, so it always qualifies (unchanged
+        behavior). This is what lets the brain answer "what was true as of date
+        X" — the R-010/R-031/G-BRAIN-1D temporal gap.
+
+        `predicate`, when given, keeps only ATTRIBUTE claims whose text begins
+        with ``"<predicate>="`` — the ``predicate=value`` reader convention the
+        eval harness and benchmark share (brain/eval/). Deterministic: results
+        come back in ascending node-id order, so the same corpus always yields
+        the same list.
+        """
+        if not self.has(entity_id):
+            raise GraphInvariantError(
+                f"claims_valid_at entity {entity_id!r} is not in the graph.")
+        _instant_ok(instant, "instant")
+        if instant is None:
+            raise GraphInvariantError(
+                "claims_valid_at requires a concrete ISO instant to query at; "
+                "None is not an instant.")
+        prefix = f"{predicate}=" if predicate is not None else None
+        hits: dict = {}
+        for e in self.edges.values():
+            if e.edge_type != EdgeType.MENTIONS:
+                continue
+            # Benchmark convention is (claim --MENTIONS--> entity); accept either
+            # orientation defensively and identify the claim endpoint.
+            if e.dst == entity_id:
+                claim_id = e.src
+            elif e.src == entity_id:
+                claim_id = e.dst
+            else:
+                continue
+            node = self.nodes.get(claim_id)
+            if node is None or node.node_type != NodeType.CLAIM:
+                continue
+            if node.superseded:
+                continue  # transaction axis: retracted versions do not speak
+            if not _valid_at(node, instant):
+                continue  # valid axis: outside its [valid_from, valid_to)
+            if prefix is not None and not node.text.startswith(prefix):
+                continue
+            hits[node.id] = node
+        return [hits[nid] for nid in sorted(hits)]
+
     # --- bounded context construction ----------------------------------------
     def subgraph(self, node_id: str, hops: int,
-                 edge_types: Optional[Iterable[EdgeType]] = None) -> Subgraph:
+                 edge_types: Optional[Iterable[EdgeType]] = None,
+                 *, as_of: Optional[str] = None) -> Subgraph:
         """Return the bounded neighborhood of `node_id` within `hops` edges.
 
         Traverses edges in BOTH directions (a claim's source and the
         evaluation that judged it are both "connected state"), optionally
-        filtered to `edge_types`. Superseded nodes ARE included — they remain
-        part of the provenance. This is the paper's §V.B context-construction
-        primitive: retrieve the connected state for a decision rather than
-        replaying all history.
+        filtered to `edge_types`. Superseded nodes ARE included by default —
+        they remain part of the provenance. This is the paper's §V.B
+        context-construction primitive: retrieve the connected state for a
+        decision rather than replaying all history.
+
+        `as_of` (bi-temporal): when set to an ISO instant, the neighborhood is
+        the one that was VALID then — a CLAIM node is admitted only if it is
+        currently-believed (not superseded) AND valid at `as_of`; a claim
+        outside its validity is excluded and cannot bridge the traversal.
+        NON-claim nodes (entities, sources, runs, ...) are always admitted, so
+        provenance is preserved — the Source behind a valid claim still comes
+        back. `as_of=None` (the default) reproduces the exact prior behavior.
         """
         if not self.has(node_id):
             raise GraphInvariantError(f"subgraph root {node_id!r} is not in the graph.")
         if hops < 0:
             raise GraphInvariantError("subgraph hops must be >= 0.")
+        if as_of is not None:
+            _instant_ok(as_of, "as_of")
+        # Claims excluded by the bi-temporal filter (empty when as_of is None):
+        # they neither appear nor bridge traversal.
+        excluded: set = set()
+        if as_of is not None:
+            for n in self.nodes.values():
+                if n.node_type == NodeType.CLAIM and (
+                        n.superseded or not _valid_at(n, as_of)):
+                    excluded.add(n.id)
+            if node_id in excluded:
+                raise GraphInvariantError(
+                    f"subgraph root {node_id!r} is a Claim that is not valid at "
+                    f"as_of {as_of!r}; cannot root an as-of view on it.")
         allowed = set(edge_types) if edge_types is not None else None
         reached = {node_id}
         used_edges: dict = {}
@@ -454,6 +593,8 @@ class Graph:
             nxt = set()
             for e in self.edges.values():
                 if allowed is not None and e.edge_type not in allowed:
+                    continue
+                if e.src in excluded or e.dst in excluded:
                     continue
                 if e.src in frontier and e.dst not in reached:
                     nxt.add(e.dst)
@@ -471,6 +612,8 @@ class Graph:
         for e in self.edges.values():
             if allowed is not None and e.edge_type not in allowed:
                 continue
+            if e.src in excluded or e.dst in excluded:
+                continue
             if e.src in reached and e.dst in reached:
                 used_edges[e.key()] = e
         return Subgraph(
@@ -479,6 +622,17 @@ class Graph:
             nodes=[self.nodes[nid] for nid in reached],
             edges=list(used_edges.values()),
         )
+
+    def as_of_subgraph(self, node_id: str, instant: str, hops: int,
+                       edge_types: Optional[Iterable[EdgeType]] = None) -> Subgraph:
+        """The bounded neighborhood of `node_id` as it was VALID at `instant`.
+
+        Thin, explicit alias for ``subgraph(node_id, hops, edge_types,
+        as_of=instant)`` — provided as a named primitive so callers can ask for
+        a point-in-time view without threading a keyword. Provenance is
+        preserved (see subgraph's `as_of`).
+        """
+        return self.subgraph(node_id, hops, edge_types, as_of=instant)
 
     # --- convenience ----------------------------------------------------------
     def copy(self) -> "Graph":

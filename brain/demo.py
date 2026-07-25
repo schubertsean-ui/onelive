@@ -63,6 +63,17 @@ def build_demo_graph() -> tuple:
     ))
     g.add_edge(claim.id, mohawk.id, EdgeType.MENTIONS)
 
+    # BI-TEMPORAL: the venue's capacity moved through eras. Two LIVE claims,
+    # each stamped with the VALID interval it held (500 until 2026-03-01, then
+    # 800). Nothing is superseded — valid time alone says which one was true
+    # when. This is what lets the brain answer "what was true as of date X".
+    cap_500 = g.add_claim(Claim(text="capacity=500", source_id=src.id),
+                          valid_from="2026-01-01", valid_to="2026-03-01")
+    g.add_edge(cap_500.id, mohawk.id, EdgeType.MENTIONS)
+    cap_800 = g.add_claim(Claim(text="capacity=800", source_id=src.id),
+                          valid_from="2026-03-01")  # open interval = still true
+    g.add_edge(cap_800.id, mohawk.id, EdgeType.MENTIONS)
+
     # Resolve the surface form into the canonical entity — reversibly.
     g.resolve_entities(
         canonical=mohawk.id,
@@ -132,6 +143,19 @@ def main() -> int:
     sg = recovered.subgraph(mohawk_id, hops=2)
     print("Recovered subgraph around the Mohawk venue (2 hops), with provenance:")
     print(sg.describe())
+    print()
+
+    # BI-TEMPORAL point-in-time recall, straight off the reloaded graph: "what
+    # was the capacity as of date X, and when did it change?"
+    def _cap_at(instant: str) -> str:
+        hits = recovered.claims_valid_at(mohawk_id, instant, predicate="capacity")
+        return hits[0].text.split("=", 1)[1] if hits else "unknown"
+
+    print("Bi-temporal recall — Mohawk capacity as of a queried instant:")
+    for instant in ("2025-12-01", "2026-02-01", "2026-05-01"):
+        print(f"  as of {instant}: capacity = {_cap_at(instant)}")
+    print("  (500 until 2026-03-01, then 800 — the graph remembers WHEN, "
+          "not just THAT it changed.)")
     print()
 
     # Prove the folded surface form is STILL addressable after the reload.
