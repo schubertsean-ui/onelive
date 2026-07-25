@@ -16,7 +16,7 @@ from collections import Counter
 
 from worker.db_config import resolve_dsn
 from worker.importers.normalize import normalize_ticketmaster
-from worker.importers.ticketmaster import CAPCOG_RADIUS_MILES, fetch_events
+from worker.importers.ticketmaster import CAPCOG_RADIUS_MILES, fetch_events_capcog
 
 log = logging.getLogger("licensed_import")
 
@@ -24,13 +24,16 @@ log = logging.getLogger("licensed_import")
 def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--max-pages", type=int, default=8)
+    ap.add_argument("--max-pages", type=int, default=10,
+                    help="pages per time-window (<=10, the API deep-paging ceiling)")
+    ap.add_argument("--windows", type=int, default=6,
+                    help="number of rolling ~monthly windows to sweep (breaks the 1000-result cap)")
     ap.add_argument("--dry-run", action="store_true",
                     help="fetch + normalize + summarize, but do NOT write the DB")
     args = ap.parse_args(argv)
 
-    if args.max_pages < 1:
-        log.error("--max-pages must be >= 1 (got %d) — failing closed.", args.max_pages)
+    if args.max_pages < 1 or args.windows < 1:
+        log.error("--max-pages and --windows must be >= 1 — failing closed.")
         return 2
 
     key = os.environ.get("TICKETMASTER_API_KEY")
@@ -38,9 +41,10 @@ def main(argv=None) -> int:
         log.error("TICKETMASTER_API_KEY is not set — cannot import. Failing closed.")
         return 2
 
-    log.info("scope: CAPCOG ~%d mi radius around Austin — approximate (R-025): outer "
-             "counties may be missed and some non-CAPCOG events included", CAPCOG_RADIUS_MILES)
-    raws = list(fetch_events(key, size=100, max_pages=args.max_pages))
+    log.info("scope: CAPCOG ~%d mi radius around Austin, sweeping %d rolling ~monthly "
+             "windows (breaks the ~1000/query deep-paging cap so every category is pulled). "
+             "Radius still approximate (R-025).", CAPCOG_RADIUS_MILES, args.windows)
+    raws = list(fetch_events_capcog(key, windows=args.windows, per_window_pages=args.max_pages, size=100))
     norm = [n for n in (normalize_ticketmaster(e) for e in raws) if n]
     by_domain = Counter(n["category"] for n in norm)
 

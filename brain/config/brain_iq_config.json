@@ -1,0 +1,21 @@
+{
+  "_comment": "OneLive Brain-IQ weight config — the EDITABLE source of truth for brain/iq.py's three weight groups (KNOWLEDGE_WEIGHTS, LEARNING_WEIGHTS, COMPOSITE_WEIGHTS). Values here MUST reproduce the historical hardcoded weights byte-for-byte (see tests/test_brain_iq_config.py's 'values unchanged' proof) -- do not 'fix' a group that doesn't sum to exactly 1.0 without a founder-ratified decision record; brain/iq.py.load_iq_config() will refuse to load a group whose weights don't sum to 1.0 within 1e-9. Schema: top-level 'groups' object with exactly three keys -- 'knowledge_weights' (overall_accuracy, abstention_correctness, provenance_citation_rate, knowledge_update), 'learning_weights' (adoption_rate, durability, findings_shared_norm), 'composite_weights' (knowledge, efficiency, learning). Each group's keys must match EXACTLY (no unknown key, no missing key) and its values must sum to 1.0. Loaded and validated by brain.iq.load_iq_config(); a missing file, unknown/missing key, or bad sum fails LOUD, never silently defaults. See brain/iq.py's module docstring and KNOWLEDGE_WEIGHTS/LEARNING_WEIGHTS/COMPOSITE_WEIGHTS comments for the rationale behind each weight.",
+  "groups": {
+    "knowledge_weights": {
+      "overall_accuracy": 0.40,
+      "abstention_correctness": 0.25,
+      "provenance_citation_rate": 0.20,
+      "knowledge_update": 0.15
+    },
+    "learning_weights": {
+      "adoption_rate": 0.40,
+      "durability": 0.40,
+      "findings_shared_norm": 0.20
+    },
+    "composite_weights": {
+      "knowledge": 0.50,
+      "efficiency": 0.30,
+      "learning": 0.20
+    }
+  }
+}

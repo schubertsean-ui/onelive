@@ -11,6 +11,7 @@ parameter (per developer.ticketmaster.com).
 """
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import os
 import time
@@ -22,11 +23,12 @@ ROOT_URL = "https://app.ticketmaster.com/discovery/v2/events.json"
 
 # CAPCOG center (Austin) + an APPROXIMATE radius over the council-of-governments
 # area (Travis, Williamson, Hays, Bastrop, Caldwell, Burnet, Blanco, Lee,
-# Fayette, Llano). ~60 mi from downtown reaches the ring cities but a single
-# circle both misses outer counties and includes some non-CAPCOG area — tracked
-# as R-025 (county/city-scoped queries are the precise fix).
+# Fayette, Llano). 75 mi from downtown reaches the outer ring (La Grange, Llano,
+# Lampasas); a single circle still misses some outer county area and includes
+# some non-CAPCOG area — tracked as R-025 (county/city-scoped queries are the
+# precise fix).
 CAPCOG_LATLONG = "30.2672,-97.7431"
-CAPCOG_RADIUS_MILES = 60
+CAPCOG_RADIUS_MILES = 75
 
 
 def _get(url: str, timeout: int = 30) -> dict:
@@ -85,6 +87,58 @@ def fetch_events(
         if page >= total_pages:
             break
         time.sleep(sleep)
+
+
+def _iso_z(t: _dt.datetime) -> str:
+    return t.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def fetch_events_capcog(
+    api_key: Optional[str] = None,
+    *,
+    windows: int = 6,
+    window_days: int = 30,
+    per_window_pages: int = 10,
+    latlong: str = CAPCOG_LATLONG,
+    radius: int = CAPCOG_RADIUS_MILES,
+    size: int = 100,
+    sleep: float = 0.2,
+    _now: Optional[_dt.datetime] = None,
+) -> Iterator[dict]:
+    """Comprehensive CAPCOG fetch — breaks the Discovery API's deep-paging cap.
+
+    A single query truncates at ~1000 results (size*page < 1000), so a busy
+    metro's calendar is silently cut off and low-volume categories (comedy,
+    family, film) get crowded out by high-volume music. We instead sweep the
+    next `windows` rolling ~monthly time windows, deep-page each up to the cap,
+    and de-duplicate by event id — pulling the FULL forward calendar across every
+    category. `per_window_pages` is clamped to the API's 10-page ceiling.
+    """
+    api_key = api_key or os.environ.get("TICKETMASTER_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("TICKETMASTER_API_KEY is not set — cannot fetch.")
+    pages = max(1, min(per_window_pages, 10))
+    now = _now or _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
+    seen: set[str] = set()
+    for i in range(max(1, windows)):
+        start = now + _dt.timedelta(days=i * window_days)
+        end = now + _dt.timedelta(days=(i + 1) * window_days)
+        for ev in fetch_events(
+            api_key,
+            latlong=latlong,
+            radius=radius,
+            size=size,
+            max_pages=pages,
+            start=_iso_z(start),
+            end=_iso_z(end),
+            sleep=sleep,
+        ):
+            eid = ev.get("id")
+            if eid is not None:
+                if eid in seen:
+                    continue
+                seen.add(eid)
+            yield ev
 
 
 def _summary(argv=None):

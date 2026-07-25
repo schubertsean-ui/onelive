@@ -45,13 +45,31 @@ def test_tm_sports_and_film():
 
 
 def test_tm_unknown_segment_is_unmapped_not_fabricated():
-    # The PRODUCTION function must surface an unrecognized classification as
-    # 'unmapped', never guess it into a real cultural domain (no fabricated data).
-    domain, _ = ticketmaster_domain("Nonsense", "Whatever", None)
-    assert domain == "unmapped"
-    domain2, _ = ticketmaster_domain("Arts & Theatre", "SomeGenreWeDontKnow", None)
-    assert domain2 == "unmapped"
+    # An UNRECOGNIZED SEGMENT (no provider taxonomy at all) must surface as
+    # 'unmapped', never guessed into a real domain (no fabricated data).
+    assert ticketmaster_domain("Nonsense", "Whatever", None)[0] == "unmapped"
+    assert ticketmaster_domain("Undefined", None, None)[0] == "unmapped"
+    # A bare "Miscellaneous" (no recognized genre) has no cultural signal.
+    assert ticketmaster_domain("Miscellaneous", None, None)[0] == "unmapped"
     assert "UNMAPPED" in unmapped("ticketmaster", "Nonsense/Whatever")
+
+
+def test_tm_arts_theatre_falls_back_to_segment_not_unmapped():
+    # An "Arts & Theatre" event with a missing/generic genre is theater by the
+    # provider's OWN segment (not a guess) — it must not be dumped into 'Other'.
+    assert ticketmaster_domain("Arts & Theatre", "SomeGenreWeDontKnow", None)[0] == "theater"
+    assert ticketmaster_domain("Arts & Theatre", None, None)[0] == "theater"
+    assert ticketmaster_domain("Arts & Theatre", "Miscellaneous", None)[0] == "theater"
+    # A recognized A&T genre still refines past the segment default.
+    assert ticketmaster_domain("Arts & Theatre", "Opera", None)[0] == "performing-arts"
+
+
+def test_tm_placeholder_genre_is_not_shown_as_subsegment():
+    # A card must never read "Theater · Miscellaneous" / "· Undefined".
+    assert ticketmaster_domain("Arts & Theatre", "Miscellaneous", None)[1] is None
+    assert ticketmaster_domain("Arts & Theatre", None, "Undefined")[1] is None
+    # A real genre is still surfaced.
+    assert ticketmaster_domain("Music", "Jazz", None)[1] == "Jazz"
 
 
 def test_sg_unknown_type_is_unmapped():
@@ -140,3 +158,53 @@ def test_sg_normalize_fields():
 def test_sg_missing_id_or_title_returns_none():
     assert normalize_seatgeek({"title": "no id"}) is None
     assert normalize_seatgeek({"id": 1}) is None
+
+
+def test_capcog_fetch_windows_and_dedupes(monkeypatch):
+    """The comprehensive fetch sweeps multiple time windows and de-dupes by id,
+    breaking the API's ~1000-per-query cap without double-counting a show that
+    appears in overlapping windows."""
+    import datetime as dt
+
+    from worker.importers import ticketmaster as tm
+
+    calls = []
+
+    def fake_fetch_events(api_key, *, start=None, end=None, **kw):
+        calls.append((start, end))
+        # Each window returns two events; id "shared" recurs in every window.
+        yield {"id": f"w-{start[:10]}", "name": "unique per window"}
+        yield {"id": "shared", "name": "same show seen in every window"}
+
+    monkeypatch.setattr(tm, "fetch_events", fake_fetch_events)
+    fixed_now = dt.datetime(2026, 7, 24, tzinfo=dt.timezone.utc)
+    out = list(tm.fetch_events_capcog("k", windows=3, _now=fixed_now))
+
+    assert len(calls) == 3  # swept three windows
+    ids = [e["id"] for e in out]
+    assert ids.count("shared") == 1  # de-duped across windows
+    assert len([i for i in ids if i.startswith("w-")]) == 3  # one unique per window
+    # windows are consecutive and non-overlapping in ordering
+    assert calls[0][0] < calls[1][0] < calls[2][0]
+
+
+def test_tm_undefined_recovered_from_title_and_performer():
+    """A provider 'Undefined' event is recovered from REAL signal (performer
+    classification, then title keywords) — shrinking 'Other' without fabricating."""
+    from worker.importers.normalize import normalize_ticketmaster
+    # Performer classification present even though the event header is Undefined
+    ev = {
+        "id": "u1", "name": "An Evening of Standup",
+        "classifications": [{"segment": {"name": "Undefined"}}],
+        "_embedded": {"attractions": [{"classifications": [
+            {"segment": {"name": "Arts & Theatre"}, "genre": {"name": "Comedy"}}]}]},
+    }
+    assert normalize_ticketmaster(ev)["category"] == "comedy"
+    # No performer signal -> deterministic keyword read of the real title
+    ev2 = {"id": "u2", "name": "Austin Symphony: Mahler 2",
+           "classifications": [{"segment": {"name": "Undefined"}}]}
+    assert normalize_ticketmaster(ev2)["category"] == "performing-arts"
+    # Genuinely no signal -> stays honestly unmapped
+    ev3 = {"id": "u3", "name": "XZ Event 9910",
+           "classifications": [{"segment": {"name": "Undefined"}}]}
+    assert normalize_ticketmaster(ev3)["category"] == "unmapped"

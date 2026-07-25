@@ -1,6 +1,10 @@
-import { apiGet } from "../../../../lib/api";
+import { apiGet } from "../../../../lib/ops-api";
 import { EvidenceForm } from "../../../../components/EvidenceForm";
 import { CandidateActions } from "../../../../components/CandidateActions";
+
+// Ops console reads the FastAPI backend (not part of the preview deploy) —
+// render on demand, never prerender at build.
+export const dynamic = "force-dynamic";
 
 export default async function CandidatePage({ params }: { params: Promise<{ id: string }> }) {
   // Next.js 15: route `params` is async and must be awaited before use.

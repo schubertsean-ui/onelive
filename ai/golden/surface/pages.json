@@ -1,0 +1,69 @@
+{
+  "_about": "Labeled golden corpus for the automated surface regression-exam (ai/surface_exam.py, tools/surface_regression_exam.py). Each page is run through the REAL extraction surface (worker/segment.py + worker/ai_extract.extract_candidates) with a RECORDED provider (no network/model/spend). 'signature' is a substring that UNIQUELY identifies an event WITHIN its page and appears both in the page 'content' and in the labeled event fields. 'baseline_recall' is the fraction of expected events the CURRENT pipeline recovers, MEASURED (not guessed) via `python tools/surface_regression_exam.py`; it is a ONE-WAY RATCHET (improving the segmenter raises a baseline, never lowers it). NOT a certification — see docs/RECORD.md R-035.",
+  "pages": [
+    {
+      "id": "p1_jsonld_repeated_event_blocks",
+      "content_type": "html",
+      "content": "<html><body><h1>Tonight in Austin</h1><script type=\"application/ld+json\">[{\"@type\":\"MusicEvent\",\"name\":\"The Copper Fields at Mohawk\",\"startDate\":\"2026-08-01T21:00\",\"location\":{\"name\":\"Mohawk Austin\"},\"url\":\"https://tix.example.com/copper\"},{\"@type\":\"MusicEvent\",\"name\":\"Night Bus Riot at Empire\",\"startDate\":\"2026-08-02T22:00\",\"location\":{\"name\":\"Empire Control Room\"},\"url\":\"https://tix.example.com/nbr\"},{\"@type\":\"MusicEvent\",\"name\":\"Solar Flare Kids at Stubbs\",\"startDate\":\"2026-08-03T20:00\",\"location\":{\"name\":\"Stubbs BBQ\"},\"url\":\"https://tix.example.com/sfk\"}]</script></body></html>",
+      "baseline_recall": 1.0,
+      "expected_events": [
+        {"signature": "The Copper Fields", "title": "The Copper Fields", "venue_name": "Mohawk Austin", "start_time": "2026-08-01T21:00", "ticket_link": "https://tix.example.com/copper"},
+        {"signature": "Night Bus Riot", "title": "Night Bus Riot", "venue_name": "Empire Control Room", "start_time": "2026-08-02T22:00", "ticket_link": "https://tix.example.com/nbr"},
+        {"signature": "Solar Flare Kids", "title": "Solar Flare Kids", "venue_name": "Stubbs BBQ", "start_time": "2026-08-03T20:00", "ticket_link": "https://tix.example.com/sfk"}
+      ]
+    },
+    {
+      "id": "p2_repeated_dated_article_items",
+      "content_type": "html",
+      "content": "<html><body><div class=\"calendar\"><article class=\"event\">Fri Aug 1 2026 &mdash; Velvet Archive at The Parish, 9pm. Tickets https://tix.example.com/va</article><article class=\"event\">Sat Aug 2 2026 &mdash; The Tin Hearts at Cheer Up Charlies, 8pm. https://tix.example.com/tth</article><article class=\"event\">Sun Aug 3 2026 &mdash; Junior Moon at Hotel Vegas, 7pm. https://tix.example.com/jm</article></div></body></html>",
+      "baseline_recall": 1.0,
+      "expected_events": [
+        {"signature": "Velvet Archive", "title": "Velvet Archive", "venue_name": "The Parish", "artist_names": ["Velvet Archive"], "ticket_link": "https://tix.example.com/va"},
+        {"signature": "The Tin Hearts", "title": "The Tin Hearts", "venue_name": "Cheer Up Charlies", "artist_names": ["The Tin Hearts"], "ticket_link": "https://tix.example.com/tth"},
+        {"signature": "Junior Moon", "title": "Junior Moon", "venue_name": "Hotel Vegas", "artist_names": ["Junior Moon"], "ticket_link": "https://tix.example.com/jm"}
+      ]
+    },
+    {
+      "id": "p3_plaintext_date_anchored_listing",
+      "content_type": "text",
+      "content": "Austin live music this weekend\nFri Aug 1 - Cosmic Debris at Stubbs (doors 9pm)\nSat Aug 2 - Paper Lanterns at Antones (doors 8pm)\nSun Aug 3 - Midnight Ferns at Empire (doors 10pm)\n",
+      "baseline_recall": 1.0,
+      "expected_events": [
+        {"signature": "Cosmic Debris", "title": "Cosmic Debris", "venue_name": "Stubbs", "artist_names": ["Cosmic Debris"]},
+        {"signature": "Paper Lanterns", "title": "Paper Lanterns", "venue_name": "Antones", "artist_names": ["Paper Lanterns"]},
+        {"signature": "Midnight Ferns", "title": "Midnight Ferns", "venue_name": "Empire", "artist_names": ["Midnight Ferns"]}
+      ]
+    },
+    {
+      "id": "p4_single_event_page",
+      "content_type": "text",
+      "content": "THE LONG CENTER - Saturday August 8, 2026\nAn Evening with The Aurora Quartet\nDoors 7:00 PM, show 8:00 PM. Tickets https://tix.example.com/aurora\n",
+      "baseline_recall": 1.0,
+      "expected_events": [
+        {"signature": "The Aurora Quartet", "title": "The Aurora Quartet", "venue_name": "The Long Center", "artist_names": ["The Aurora Quartet"], "ticket_link": "https://tix.example.com/aurora"}
+      ]
+    },
+    {
+      "id": "p5_hard_shared_venue_date_header",
+      "content_type": "text",
+      "content": "THE PARISH - Saturday, August 2 2026 - Doors 7pm\nHeadliner: Glass Meridian\nSupport: Powder Blue Radio\nAlso on the bill: The Off Hours\n",
+      "baseline_recall": 0.3333333333333333,
+      "expected_events": [
+        {"signature": "Glass Meridian", "title": "Glass Meridian", "venue_name": "The Parish", "artist_names": ["Glass Meridian"]},
+        {"signature": "Powder Blue Radio", "title": "Powder Blue Radio", "venue_name": "The Parish", "artist_names": ["Powder Blue Radio"]},
+        {"signature": "The Off Hours", "title": "The Off Hours", "venue_name": "The Parish", "artist_names": ["The Off Hours"]}
+      ]
+    },
+    {
+      "id": "p6_hard_rows_dated_only_in_column_header",
+      "content_type": "html",
+      "content": "<html><body><table><caption>Shows on Sat Aug 3 2026</caption><tr><th>Artist</th><th>Venue</th></tr><tr><td>Iron Larkspur</td><td>Stubbs BBQ</td></tr><tr><td>Neon Sabbath</td><td>Antones</td></tr><tr><td>Wax Cathedral</td><td>Empire Control Room</td></tr></table></body></html>",
+      "baseline_recall": 0.3333333333333333,
+      "expected_events": [
+        {"signature": "Iron Larkspur", "title": "Iron Larkspur", "venue_name": "Stubbs BBQ", "artist_names": ["Iron Larkspur"]},
+        {"signature": "Neon Sabbath", "title": "Neon Sabbath", "venue_name": "Antones", "artist_names": ["Neon Sabbath"]},
+        {"signature": "Wax Cathedral", "title": "Wax Cathedral", "venue_name": "Empire Control Room", "artist_names": ["Wax Cathedral"]}
+      ]
+    }
+  ]
+}

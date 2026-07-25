@@ -1,5 +1,5 @@
 "use client";
-import { apiPost } from "../lib/api";
+import { apiPost } from "../lib/ops-api";
 import { useState } from "react";
 
 export function CandidateActions({ candidateId }: { candidateId: string }) {

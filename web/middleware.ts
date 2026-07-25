@@ -1,6 +1,7 @@
 import { clerkMiddleware, createRouteMatcher, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { allowlistFromEnv, isAllowlisted } from "./lib/allowlist";
+import { authMode } from "./lib/auth";
 
 // Stealth gate layer 1 (Next.js). The whole app is private during the preview:
 // EVERY route requires an authenticated AND allowlisted user, EXCEPT the
@@ -13,7 +14,20 @@ const isPublicRoute = createRouteMatcher([
   "/access",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/api/health",
 ]);
+
+// The health endpoint is ALWAYS reachable, in every mode (incl. the fail-closed
+// "unconfigured" state) — it reports resolved config so a deploy problem can be
+// diagnosed from truth instead of guessed. It exposes no secret (see route).
+const isHealthRoute = createRouteMatcher(["/api/health"]);
+
+// The ops/admin console ALWAYS requires a real authenticated + allowlisted user.
+// It is never covered by the "consumer public" declaration — declaring the feed
+// public must not publish the admin surface (evaluator PR #59). When no auth
+// provider is configured, ops cannot authenticate anyone, so it is denied and
+// hidden (404), never opened.
+const isOpsRoute = createRouteMatcher(["/ops(.*)"]);
 
 async function resolveEmail(
   userId: string,
@@ -38,7 +52,29 @@ async function resolveEmail(
   }
 }
 
-export default clerkMiddleware(async (auth, req) => {
+// Response for the misconfigured ("unconfigured") state — FAIL CLOSED. A missing
+// provider must never become a public passthrough (evaluator PR #59): if nobody
+// declared how this deployment is protected, we deny rather than open the door.
+function accessNotConfigured(): NextResponse {
+  return new NextResponse(
+    "OneLive is not accepting traffic in this environment: no access gate is " +
+      "configured. For a preview set NEXT_PUBLIC_AUTH_DISABLED=1 (NOT marked " +
+      "Sensitive), or set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY for the stealth " +
+      "gate, then redeploy. Open /api/health to see exactly what the app " +
+      "resolved. Full contract: docs/DEPLOY.md.",
+    { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } },
+  );
+}
+
+// Ops is denied + hidden when no real auth provider can gate it.
+function opsDenied(): NextResponse {
+  return new NextResponse("Not found", {
+    status: 404,
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+}
+
+const gate = clerkMiddleware(async (auth, req) => {
   if (isPublicRoute(req)) return NextResponse.next();
 
   const { userId, sessionClaims, redirectToSignIn } = await auth();
@@ -62,6 +98,26 @@ export default clerkMiddleware(async (auth, req) => {
 
   return NextResponse.next();
 });
+
+// Resolved once at module load (env is fixed for the deployment's lifetime).
+//   clerk        -> run the Clerk + allowlist stealth gate.
+//   disabled     -> DECLARED public/no-app-gate: passthrough (intentional).
+//   unconfigured -> misconfiguration: FAIL CLOSED (deny every route).
+const _mode = authMode();
+
+export default _mode === "clerk"
+  ? gate
+  : _mode === "disabled"
+    ? function middleware(req: import("next/server").NextRequest) {
+        // Consumer surface is intentionally public; ops stays denied (no auth
+        // provider can gate it, so it must never be exposed by this switch).
+        return isOpsRoute(req) ? opsDenied() : NextResponse.next();
+      }
+    : function middleware(req: import("next/server").NextRequest) {
+        // Even fully unconfigured, the health endpoint stays reachable so the
+        // misconfiguration is diagnosable; everything else fails closed.
+        return isHealthRoute(req) ? NextResponse.next() : accessNotConfigured();
+      };
 
 export const config = {
   // Run on everything except Next internals and files with an extension (static

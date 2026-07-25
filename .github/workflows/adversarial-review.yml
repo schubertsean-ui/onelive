@@ -139,15 +139,27 @@ jobs:
               cd web
               npm ci
               # Supply-chain gate: production deps clean at high/critical, or
-              # the job fails here. Full audit (incl. dev/moderate) is shown to
-              # the evaluator below; reviewed exceptions: docs/SCA_BASELINE.md.
-              npm audit --omit=dev --audit-level=high
+              # the job fails here. Exceptions are NOT ad hoc — they go through
+              # the managed, self-maintaining allowlist (security/sca_allowlist.json,
+              # enforced by tools/sca_gate.py): each is scoped, expiring, and
+              # auto-re-blocks the instant a fix ships. Policy + guarantees:
+              # docs/EXTERNAL_FINDINGS_POLICY.md. Full audit (incl. dev/moderate)
+              # is still shown to the evaluator below.
+              python3 "$GITHUB_WORKSPACE/tools/sca_gate.py" --web-dir .
               npm audit || true
               npx tsc --noEmit
               npm test
-              # Publishable keys are non-secret client identifiers; this dummy
-              # (base64 of clerk.example.com) only satisfies the /ops prerender
-              # so `next build` can complete in CI without real Clerk config.
+              # DEPLOY PARITY (categorical, not per-instance): the app must build
+              # under the SAME env conditions every deploy target runs — otherwise
+              # "CI green" does not imply "it deploys" (this is exactly how a
+              # keyless production build silently broke). So we build BOTH shapes:
+              #   1. KEYLESS — the condition the default branch / production runs
+              #      under (auth is optional + fails closed at RUNTIME, never at
+              #      build). If this fails, a deploy would too.
+              npm run build
+              #   2. WITH a dummy Clerk key (non-secret client id; base64 of
+              #      clerk.example.com) — exercises the Clerk-provider code path.
+              rm -rf .next
               NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_Y2xlcmsuZXhhbXBsZS5jb20k npm run build
             ) 2>&1 | tee web.log
           else

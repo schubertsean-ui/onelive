@@ -1,0 +1,166 @@
+name: import-structured
+
+# Deterministic STRUCTURED first-party feed import: the local moat sources
+# (venue / university / library / civic / museum calendars that publish ICS or
+# schema.org JSON-LD) → licensed_event. NO AI, NO extraction spend — this does
+# NOT run worker/run_once.py and is NOT covered by the AI-ingest arming/dead-man
+# binding (that governs the spend-capped Claude loop only). Runs on GitHub's
+# runners, where egress reaches the venue sites (the dev sandbox's network policy
+# blocks it), exactly like import-licensed.
+#
+# What it produces: rows in licensed_event marked 'confirmed' by construction (a
+# venue publishing its OWN schedule is an authoritative anchor), CATEGORIZED by
+# the shared resolver in authority order — the event's own schema.org @type
+# first (a MusicEvent/ComedyEvent/LiteraryEvent → its true domain, even at a
+# multi-purpose room), then the source's curated cultural_domain, then the title.
+# licensed_event is already anon-readable (migration 0010, live — Ticketmaster
+# rows already render), so these appear on /tonight through the SAME union read
+# with no further grant.
+#
+# Migration: self-applies 0013 (registers the ics/jsonld providers in the
+# licensed_event provider CHECK) idempotently before importing — mirroring how
+# import-licensed self-applies 0010 — so running this workflow is the ONLY action
+# needed to light up the local sources; no manual SQL step.
+#
+# Trigger: a twice-daily SCHEDULE plus manual workflow_dispatch. Per the charter
+# Sentinel rule ("no scheduled loop ships without a dead-man ping"), the
+# SCHEDULED path is watched by a healthchecks.io dead-man alarm: an "Assert
+# dead-man period" step verifies the alarm's live config BEFORE the run (fail
+# closed on any mismatch/missing key — the cron never runs unwatched), and the
+# run pings success/fail so a silent stop raises the alarm within period+grace.
+# The alarm is a SEPARATE check from the AI ingest one (its own ping-URL secret
+# STRUCTURED_IMPORT_PING_URL + slug 'onelive-structured-import', period 1 day).
+# The manual dispatch path is human-initiated and NOT gated by the alarm, so it
+# can be run on demand (e.g. the first smoke run) before the healthcheck exists.
+
+on:
+  schedule:
+    # Twice daily at 08:17 and 20:17 UTC (~03:17 and 15:17 America/Chicago) —
+    # 12h apart, off the :00 congestion window (founder-directed 2026-07-25:
+    # "should likely be 2x/day"). Deterministic, no AI spend. The two fires are
+    # EVENLY spaced, so the dead-man period is 43200s (12h) —
+    # EXPECTED_PERIOD_SECONDS below is bound to this cadence by the contract
+    # test (which derives it from the hour list); change both together, and
+    # keep the healthchecks.io check's period at 12h to match.
+    - cron: "17 8,20 * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Max structured sources to fetch this run (a positive integer bound; required)"
+        required: true
+        default: "40"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: import-structured
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install worker deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r worker/requirements.txt
+
+      - name: Assert dead-man period matches the schedule (scheduled runs only, fail closed)
+        # Charter Sentinel rule: a live recurring job must not run with its alarm
+        # config unverified. tools/assert_deadman_period.py (shared with the AI
+        # ingest cron) reads THIS check's live period/grace via the founder-minted
+        # READ-ONLY healthchecks key and refuses the run on mismatch, pause,
+        # missing key, or a check the key cannot see. Gated to schedule events —
+        # a manual dispatch is human-watched and may run before the check exists.
+        if: github.event_name == 'schedule'
+        env:
+          ORCHESTRATOR_PING_URL: ${{ secrets.STRUCTURED_IMPORT_PING_URL }}
+          HEALTHCHECKS_API_KEY_RO: ${{ secrets.HEALTHCHECKS_API_KEY_RO }}
+          DEADMAN_CHECK_SLUG: "onelive-structured-import"
+          EXPECTED_PERIOD_SECONDS: "43200"
+          MAX_GRACE_SECONDS: "7200"
+        run: |
+          python3 tools/assert_deadman_period.py
+
+      - name: Dead-man START ping (scheduled runs only)
+        if: github.event_name == 'schedule'
+        env:
+          PING_URL: ${{ secrets.STRUCTURED_IMPORT_PING_URL }}
+        run: |
+          [ -n "$PING_URL" ] || exit 0
+          curl -fsS -m 10 --retry 3 "$PING_URL/start" || true
+
+      - name: Preconditions + validate the fetch bound (fail loud, never no-op)
+        env:
+          ONELIVE_DB_DSN: ${{ secrets.ONELIVE_DB_DSN }}
+          # Untrusted dispatch input reaches the shell ONLY via env (never
+          # ${{ }}-interpolated into run:) and must be a positive integer.
+          LIMIT: ${{ github.event.inputs.limit }}
+        run: |
+          : "${LIMIT:?limit input missing — the fetch bound is required — failing closed}"
+          if ! [[ "$LIMIT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::limit must be a positive integer (the fetch bound is required; 0 is not allowed)."
+            exit 1
+          fi
+          [ -n "$ONELIVE_DB_DSN" ] || {
+            echo "::error::ONELIVE_DB_DSN secret missing — cannot import. Add it in repo Settings → Secrets → Actions."
+            exit 1
+          }
+
+      - name: Validate DSN + register log mask (before anything else runs)
+        # Same defense-in-depth as ingest.yml: assemble the credential from the
+        # Supabase URI + password, URL-encoding the password, and register an
+        # escaped ::add-mask:: so the assembled DSN stays redacted for the whole
+        # job even on an unforeseen print path.
+        env:
+          ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
+          ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
+        run: |
+          python3 tools/assemble_dsn.py --mask-command
+
+      - name: Apply migration 0013 (idempotent) + import the structured moat sources
+        # The DB credential exists ONLY inside this step: assembled via command
+        # substitution (never logged) and exported to this process alone — no
+        # GITHUB_ENV, no step outputs.
+        env:
+          ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
+          ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
+          LIMIT: ${{ github.event.inputs.limit }}
+        run: |
+          : "${LIMIT:?limit input missing — the fetch bound is required — failing closed}"
+          ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
+          export ONELIVE_DB_DSN
+          python3 tools/apply_migration.py supabase/migrations/0013_structured_feed_provider.sql
+          python -m worker.importers.run_structured_import --limit "$LIMIT"
+
+      - name: Dead-man SUCCESS ping (scheduled runs only)
+        # The load-bearing ping: a fresh success ping every period resets the
+        # alarm. Its ABSENCE (job died, runner never fired, import failed before
+        # here) is what raises the alarm within period+grace — so this must run
+        # only on success.
+        if: ${{ github.event_name == 'schedule' && success() }}
+        env:
+          PING_URL: ${{ secrets.STRUCTURED_IMPORT_PING_URL }}
+        run: |
+          [ -n "$PING_URL" ] || exit 0
+          curl -fsS -m 10 --retry 3 "$PING_URL" || true
+
+      - name: Dead-man FAIL ping (scheduled runs only)
+        # Optional fast-path: signal failure immediately instead of waiting for
+        # the missing-success-ping timeout. The alarm would fire either way.
+        if: ${{ github.event_name == 'schedule' && failure() }}
+        env:
+          PING_URL: ${{ secrets.STRUCTURED_IMPORT_PING_URL }}
+        run: |
+          [ -n "$PING_URL" ] || exit 0
+          curl -fsS -m 10 --retry 3 "$PING_URL/fail" || true

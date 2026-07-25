@@ -1,5 +1,9 @@
-import { apiGet } from "../../../lib/api";
+import { apiGet } from "../../../lib/ops-api";
 import { CandidateTable } from "../../../components/CandidateTable";
+
+// Ops console reads the FastAPI backend (not part of the preview deploy) —
+// render on demand, never prerender at build.
+export const dynamic = "force-dynamic";
 
 export default async function InboxPage() {
   const items = await apiGet("/ops/candidates/inbox?status=needs_review");

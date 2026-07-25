@@ -30,15 +30,19 @@ name: Ingestion Run
 # worker/run_once.py, 10/run x 72 slots/day gives capacity to visit the
 # ~230-source catalog ~3x daily instead of starving the tail. Manual
 # dispatch still requires an explicit ceiling and FAILS LOUD without one
-# — the fixed fallback never applies outside `schedule`. The Anthropic
-# console monthly cap is the spend backstop above both.
+# — the fixed fallback never applies outside `schedule`.
+# AI-SPEND BOUND (R-043): the source ceiling caps PAGES; multi-event fan-out
+# makes one extraction call per event block, so the AI-call bound per run is
+# max_sources x EXTRACT_MAX_EVENTS_PER_PAGE (worker/ai_extract.py, default 50),
+# i.e. <= 500 extraction calls/run at the fixed 10-source schedule ceiling.
+# The Anthropic console monthly cap is the hard backstop above both.
 
 on:
   schedule:
     # Every 20 minutes (founder-directed 2026-07-21: "accelerate the
     # ingestion to every 15 or 20 minutes" — spend escalation is the
-    # founder's own; ~3x hourly-cadence cost, still double-capped by the
-    # per-run ceiling and the console monthly cap). Minutes chosen off the
+    # founder's own; ~3x hourly-cadence cost, bounded by the source ceiling x
+    # the per-page extraction cap (R-043) and the console monthly cap). Minutes chosen off the
     # :00 congestion window where GitHub delays or drops scheduled runs. A
     # missed run is caught by the dead-man check (period 20min + grace),
     # not by log-reading.

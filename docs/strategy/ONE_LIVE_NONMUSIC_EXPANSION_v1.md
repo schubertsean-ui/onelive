@@ -46,9 +46,14 @@ identical to today's parsers, and the audiences overlap music-goers
 (same night-out decision). Austin seed sources: Cap City Comedy, The
 Creek and the Cave, Velveeta Room, Hideout Theatre, ZACH, Paramount/
 Stateside, Bass Concert Hall (non-music program), Blanton, The
-Contemporary, Mexic-Arte — note the catalog ALREADY carries Blanton and
-The Contemporary as sources; wave 1 largely means tagging and widening,
-not net-new plumbing.
+Contemporary, Mexic-Arte — correction (2026-07-24, source-completeness
+review): Blanton and The Contemporary are NOT yet in the catalog; they
+are being ADDED now (with Mexic-Arte, Texas Performing Arts, the Long
+Center, ZACH, Austin Film Society, BookPeople, the comedy clubs, the UT/
+Texas State/ACC calendars, Austin Public Library, and the City of Austin
+civic calendar) as first-party public sources. An earlier draft of this
+paragraph wrongly stated the catalog already carried them; wave 1 is
+partly net-new source plumbing, not only tagging and widening.
 
 **Wave 2 — film + talks/literary** (Austin Film Society, Alamo
 rep programming, BookPeople, Texas Book Festival cadence).

@@ -142,10 +142,69 @@ run_check "governance_claims" "$PY" tools/governance_claims_lint.py
 #    that self-skip is internal to pytest and reported in its own output.
 run_check "pytest (full suite)" "$PY" -m pytest -q
 
+# 3b. Blocking-effect classifier (founder-directed 2026-07-25, after a
+#     merge-blocking failure was reported for hours as "pre-existing" and
+#     "operational" — language that read as cosmetic). Both required gates
+#     (trust-gate.yml, adversarial-review.yml) run an UNFILTERED full-suite
+#     pytest, so ANY failing test reds BOTH and blocks the merge. This check
+#     names the blocked gates explicitly and refuses the two invalid
+#     downgrades ("pre-existing", "recorded as R-###") — so the class is
+#     caught mechanically, not by remembering to be careful. Runs AFTER the
+#     suite so a green suite makes it a no-op.
+run_check "blocking_failure_check" "$PY" tools/blocking_failure_check.py
+
 # 4. Extraction eval harness import check — must at least import cleanly (no
 #    import-time regressions in the KPI-bearing module).
 run_check "eval_harness import" "$PY" -c \
   "import ai.eval_harness as e; print('eval_harness import OK:', [n for n in dir(e) if not n.startswith('_')][:6])"
+
+# 4b. Surface extraction regression-exam — deterministic, free (no network/
+#     model/spend) no-regression guard on the un-certified extraction SURFACE
+#     (worker/segment.py + worker/ai_extract fan-out): runs a labeled corpus of
+#     multi-event pages through the REAL pipeline with a recorded provider and
+#     FAILS if event recall drops below any page's measured baseline or any
+#     fabrication appears. NOT a certification — the attended golden-exam remains
+#     the authority for the certified prompt/model (see docs/RECORD.md R-035).
+#     Gate-custody: evaluator-reviewed on the PR that adds it.
+run_check "surface_regression_exam" "$PY" tools/surface_regression_exam.py
+
+# 4c. Brain memory eval — deterministic, free (no network/model/spend) MEASURE of
+#     the persistent knowledge-graph brain (brain/) against a labeled benchmark of
+#     the six standard agent-memory competencies (single-fact, multi-hop, knowledge
+#     update, contradiction, entity resolution, abstention). Per-category baselines
+#     (brain/eval/baselines.json) are a ONE-WAY RATCHET, like surface_regression_exam:
+#     FAILS if any category's accuracy drops below its recorded baseline. Proves the
+#     brain is best-in-class as a MEASURED fact, not a claim; the honest temporal gap
+#     (point-in-time recall, docs/RECORD.md R-010/R-031) is recorded in the baseline.
+#     Gate-custody: evaluator-reviewed on the PR that adds it.
+run_check "brain_eval" "$PY" tools/brain_eval.py
+
+# 4c-bis. Brain HELD-OUT eval — NOTE, deliberately NOT a normal in-repo gate.
+#     tools/brain_held_out_eval.py scores a HIDDEN, held-out counterpart to the
+#     visible brain benchmark (brain/eval/held_out*). Its trust value comes from
+#     BASE-OWNERSHIP, not from running here: the AUTHORITY is the base-owned
+#     workflow .github/workflows/brain-held-out-eval.yml (pull_request_target),
+#     which scores the PR head's brain with the BASE ref's copy of the hidden
+#     set + scorer, so a PR cannot see-and-alter the copy that grades it. Adding
+#     it as a normal `run_check` here would run the PR's OWN copy of the hidden
+#     set/scorer against itself — the exact self-grading the base-owned design
+#     exists to prevent — so it is intentionally omitted. Run it as a DEV MIRROR
+#     with `python tools/brain_held_out_eval.py` (non-authoritative); the real
+#     judge is the CI workflow. See docs/strategy/ONE_LIVE_HELDOUT_EVAL_v1.md
+#     and docs/RECORD.md R-045.
+
+# 4d. Brain IQ ratchet — deterministic, free (no network/model/spend) one-way
+#     GUARD on the brain's multi-dimensional smartness (brain/iq.py): the two
+#     GATED dimensions (KNOWLEDGE accuracy and EFFICIENCY graph-work per query)
+#     must each stay >= their best recorded value in the continuous trend ledger
+#     (docs/metrics/BRAIN_IQ_LEDGER.md) minus a tiny epsilon — knowledge dropping
+#     or work rising turns this RED. Same ratchet shape as brain_eval /
+#     surface_regression_exam: when the brain improves, re-measure and RAISE the
+#     recorded best (append a ledger row) in the same PR; the gate only ratchets
+#     up. LEARNING is trended but NOT gated, and wall latency is recorded but
+#     NEVER gated (machine-dependent). Gate-custody: evaluator-reviewed on the
+#     PR that adds it.
+run_check "brain_iq" "$PY" tools/brain_iq.py --check
 
 # 5. Performance benchmarks — asserted budgets on hot paths. Opt-in marker.
 if [ "$QUICK" -eq 1 ]; then
@@ -159,6 +218,16 @@ fi
 
 # 6. False-confidence test audit — advisory (surfaces weak tests).
 run_advisory "test_audit" "$PY" tools/test_audit.py
+
+# PR-size early warning (founder-directed 2026-07-25). PR #59 grew to 1.26 MB
+# against the adversarial reviewer's 800 KB cap, so the MANDATORY independent
+# review refused to run at all — and splitting 45 commits after the fact is
+# high-risk churn. This measures the branch diff the same way the review
+# workflow does and says "split now, while it is cheap" at 70% of the cap.
+# ADVISORY on purpose: a legitimately large change must not be blocked from
+# running its other gates — the point is to see the wall coming, not to bump
+# into it.
+run_advisory "pr_size_check" "$PY" tools/pr_size_check.py
 
 # 7. Cross-commit sweep — advisory (higher-level gotchas across commits).
 if [ "$QUICK" -eq 1 ]; then
