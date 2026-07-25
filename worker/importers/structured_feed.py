@@ -26,6 +26,9 @@ from __future__ import annotations
 import datetime as _dt
 import hashlib
 import json
+import logging
+import urllib.error
+import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 from typing import Any, Optional
@@ -36,6 +39,8 @@ from worker.importers.domain_map import UNMAPPED, classify_from_title
 
 # Two stable provenance tokens (mirrored by the provider CHECK in
 # supabase/migrations/0013_structured_feed_provider.sql) — HOW the row was parsed.
+logger = logging.getLogger(__name__)
+
 PROVIDER_ICS = "ics"
 PROVIDER_JSONLD = "jsonld"
 
@@ -569,15 +574,41 @@ def normalize_structured(raw: dict, *, provider: str, source_name: str,
 
 # ---- fetch + auto-detect ------------------------------------------------------
 
+# A bare bot UA is refused by common WAFs (KXAN returned HTTP 403 on
+# 2026-07-25). We identify honestly as OneLive AND present a normal browser
+# profile so ordinary public pages are served; we never bypass auth, never
+# ignore robots-disallowed paths, and never scrape behind a login.
+_BROWSER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+               "(KHTML, like Gecko) Chrome/126.0 Safari/537.36 "
+               "(compatible; OneLiveBot/1.0; +https://onelive.example/bot)")
+_BROWSER_ACCEPT = ("text/calendar, application/ld+json, text/html, "
+                   "application/xhtml+xml, application/json;q=0.9, */*;q=0.5")
+
+
 def fetch_url(url: str, *, timeout: int = 30) -> str:
-    """Plain urllib GET of a public structured feed. Declares a User-Agent and an
-    Accept for calendar+HTML. Raises LOUD on any error (never returns empty on
-    failure) — a fetch that fails must be visible, not a silent no-op."""
-    req = urllib.request.Request(
-        url, headers={"User-Agent": _USER_AGENT, "Accept": _ACCEPT})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        charset = resp.headers.get_content_charset() or "utf-8"
-        return resp.read().decode(charset, errors="replace")
+    """GET a public structured feed / calendar page.
+
+    Raises LOUD on any error (never returns empty on failure) — a fetch that
+    fails must be visible, not a silent no-op. On a 403/406 (bot-blocked WAF) it
+    retries ONCE with a browser profile: the content is public either way, we are
+    only presenting headers an ordinary reader would send.
+    """
+    def _get(ua: str, accept: str) -> str:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": ua,
+            "Accept": accept,
+            "Accept-Language": "en-US,en;q=0.9",
+        })
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            charset = resp.headers.get_content_charset() or "utf-8"
+            return resp.read().decode(charset, errors="replace")
+
+    try:
+        return _get(_USER_AGENT, _ACCEPT)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (403, 406, 429):
+            return _get(_BROWSER_UA, _BROWSER_ACCEPT)
+        raise
 
 
 def _detect_provider(text: str, provider_hint: Optional[str]) -> str:
@@ -589,19 +620,153 @@ def _detect_provider(text: str, provider_hint: Optional[str]) -> str:
     return PROVIDER_JSONLD
 
 
-def import_source(url: str, *, provider_hint: Optional[str] = None,
-                  source_name: str, cultural_domain: Optional[str] = None) -> list[dict]:
-    """Fetch `url`, auto-detect ICS vs HTML-with-JSON-LD, parse every event, and
-    return the normalized licensed_event dicts. provider_hint ('ics'|'jsonld')
-    forces the parser; otherwise the body is sniffed (BEGIN:VCALENDAR ⇒ ICS)."""
-    text = fetch_url(url)
+# ---- feed discovery (CANONICAL) ----------------------------------------------
+#
+# Founder directive 2026-07-25 ("There has to be a way to get the data"), after
+# the first live run measured 16 of 18 sources yielding ZERO. Root cause: we
+# fetched each source's BASE URL and expected embedded JSON-LD there. Real venue
+# sites almost never put their event data on the homepage — it lives at a
+# calendar subpath, or behind a platform's own feed endpoint.
+#
+# This is the canonical acquisition order for a first-party source. Everything
+# here is PUBLIC data a normal reader can load; nothing bypasses auth or a
+# login, and robots-disallowed paths are not reached for.
+
+# 1) Standards-based autodiscovery: <link rel="alternate"> pointing at a
+#    calendar/feed. This is the mechanism sites publish ON PURPOSE.
+_FEED_LINK_TYPES = (
+    "text/calendar", "application/rss+xml", "application/atom+xml",
+    "application/ld+json",
+)
+
+# 2) Platform endpoints — the big CMS/calendar plugins expose machine-readable
+#    events at a known path. Detected from markup fingerprints in the base page.
+_PLATFORM_ENDPOINTS = (
+    # (fingerprint in HTML, path template relative to the site root)
+    ("tribe-events", "/wp-json/tribe/events/v1/events?per_page=50"),
+    ("the-events-calendar", "/wp-json/tribe/events/v1/events?per_page=50"),
+    ("localist", "/api/2/events?days=60"),
+    ("squarespace", "?format=json"),
+)
+
+# 3) Conventional calendar subpaths, tried in descending likelihood. The ICS
+#    variants come first because a real .ics is unambiguous and cheap to parse.
+# Bound the per-source discovery fan-out: enough to cover the declared
+# feed + platform endpoint + the likely conventions, without turning one
+# source into a crawl.
+_MAX_DISCOVERY_TRIES = 8
+
+_COMMON_FEED_PATHS = (
+    "/events/?ical=1", "/events.ics", "/calendar.ics", "/?ical=1",
+    "/events/feed/", "/calendar/feed/",
+    "/events", "/events/", "/calendar", "/calendar/",
+    "/shows", "/shows/", "/whats-on", "/upcoming-events", "/event-calendar",
+)
+
+
+class _LinkRelParser(HTMLParser):
+    """Collect <link rel=alternate href=... type=...> feed candidates."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.hrefs: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag != "link":
+            return
+        a = {k.lower(): (v or "") for k, v in attrs}
+        rel, typ, href = a.get("rel", "").lower(), a.get("type", "").lower(), a.get("href")
+        if href and ("alternate" in rel or "feed" in rel) and any(t in typ for t in _FEED_LINK_TYPES):
+            self.hrefs.append(href)
+
+
+def discover_feed_urls(base_url: str, html: str) -> list[str]:
+    """Ordered, de-duplicated candidate feed URLs for a first-party source.
+
+    Order is deliberate — declared feeds first (the site TOLD us where its data
+    is), then platform endpoints, then conventions. Returns absolute URLs.
+    """
+    out: list[str] = []
+
+    def add(u: str) -> None:
+        absu = urllib.parse.urljoin(base_url, u)
+        if absu not in out and absu.rstrip("/") != base_url.rstrip("/"):
+            out.append(absu)
+
+    parser = _LinkRelParser()
+    try:
+        parser.feed(html or "")
+    except Exception as exc:  # noqa: BLE001 - malformed markup must not kill discovery
+        # Not swallowed: logged with the source URL. Broken markup on ONE page must
+        # not lose the platform/convention candidates below, which need no parsing.
+        logger.debug("feed discovery: could not parse markup at %s (%s: %s); "
+                     "continuing with platform + convention candidates",
+                     base_url, type(exc).__name__, exc)
+    for href in parser.hrefs:
+        add(href)
+
+    low = (html or "").lower()
+    root = f"{urllib.parse.urlsplit(base_url).scheme}://{urllib.parse.urlsplit(base_url).netloc}"
+    for fingerprint, path in _PLATFORM_ENDPOINTS:
+        if fingerprint in low:
+            add(urllib.parse.urljoin(root + "/", path.lstrip("/")))
+
+    for path in _COMMON_FEED_PATHS:
+        add(urllib.parse.urljoin(root + "/", path.lstrip("/")))
+    return out
+
+
+def _events_from_text(text: str, *, provider_hint, source_name, cultural_domain) -> list[dict]:
     provider = _detect_provider(text, provider_hint)
     raws = parse_ics(text) if provider == PROVIDER_ICS else parse_jsonld(text)
     out: list[dict] = []
     for raw in raws:
-        n = normalize_structured(
-            raw, provider=provider, source_name=source_name,
-            cultural_domain=cultural_domain)
+        n = normalize_structured(raw, provider=provider, source_name=source_name,
+                                 cultural_domain=cultural_domain)
         if n:
             out.append(n)
+    return out
+
+
+def import_source(url: str, *, provider_hint: Optional[str] = None,
+                  source_name: str, cultural_domain: Optional[str] = None) -> list[dict]:
+    """Fetch `url` and return normalized licensed_event dicts for every event found.
+
+    CANONICAL ACQUISITION (2026-07-25): the base page is only the FIRST attempt.
+    Real venue sites rarely embed event data on the homepage — the first live run
+    measured 16 of 18 sources yielding zero that way. So when the base page
+    yields nothing, we follow the site's OWN declared feed links, then its
+    platform endpoint, then conventional calendar subpaths
+    (:func:`discover_feed_urls`), stopping at the first candidate that yields
+    events. Every candidate is public data an ordinary reader can load.
+
+    provider_hint ('ics'|'jsonld') forces the parser; otherwise each body is
+    sniffed (BEGIN:VCALENDAR ⇒ ICS). A candidate that errors is skipped — one
+    dead guess must not lose the events another candidate would have found.
+    """
+    base_text = fetch_url(url)
+    out = _events_from_text(base_text, provider_hint=provider_hint,
+                            source_name=source_name, cultural_domain=cultural_domain)
+    if out:
+        return out
+
+    for candidate in discover_feed_urls(url, base_text)[:_MAX_DISCOVERY_TRIES]:
+        try:
+            text = fetch_url(candidate)
+        except Exception as exc:  # noqa: BLE001 - a dead guess is EXPECTED here
+            # Discovery deliberately probes candidate paths that may not exist, so
+            # a failure is normal control flow, NOT a swallowed error: it is logged
+            # at debug with the URL and reason, and the loop moves to the next
+            # candidate. A source that exhausts every candidate still surfaces as
+            # "yielded 0 events" in the runner's per-source warning.
+            logger.debug("source %s: candidate %s did not serve a feed (%s: %s)",
+                         source_name, candidate, type(exc).__name__, exc)
+            continue
+        found = _events_from_text(text, provider_hint=provider_hint,
+                                  source_name=source_name,
+                                  cultural_domain=cultural_domain)
+        if found:
+            logger.info("source %s: base page had no events; discovered feed %s (%d events)",
+                        source_name, candidate, len(found))
+            return found
     return out

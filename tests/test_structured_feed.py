@@ -13,6 +13,7 @@ import worker.importers.run_structured_import as runner
 from worker.importers.structured_feed import (
     PROVIDER_ICS,
     PROVIDER_JSONLD,
+    discover_feed_urls,
     import_source,
     normalize_structured,
     parse_ics,
@@ -396,3 +397,82 @@ def test_the_curated_moat_sources_are_actually_importable():
     # pre-moat baseline of 18 — i.e. the moat really is in the import scope.
     selectable = [e for e in catalog if mod._is_structured_candidate(e)]
     assert len(selectable) >= 55, f"only {len(selectable)} sources selectable"
+
+
+# ---- canonical feed discovery -------------------------------------------------
+
+def test_declared_feed_link_is_tried_first():
+    """A site that DECLARES its calendar via <link rel=alternate> must be
+    believed before any guessing — it told us where the data is."""
+    html = ('<html><head><link rel="alternate" type="text/calendar" '
+            'href="/cal/all.ics"></head><body></body></html>')
+    urls = discover_feed_urls("https://venue.example/", html)
+    assert urls[0] == "https://venue.example/cal/all.ics"
+
+
+def test_platform_endpoint_detected_from_markup():
+    # WordPress "The Events Calendar" exposes a REST feed at a known path.
+    html = '<html><body class="tribe-events-page"></body></html>'
+    urls = discover_feed_urls("https://venue.example/", html)
+    assert any("/wp-json/tribe/events/v1/events" in u for u in urls)
+
+
+def test_conventional_calendar_paths_are_offered():
+    urls = discover_feed_urls("https://venue.example/", "<html></html>")
+    joined = " ".join(urls)
+    for expected in ("/events", "/calendar", "ical=1"):
+        assert expected in joined
+
+
+def test_discovery_never_re_offers_the_base_url():
+    urls = discover_feed_urls("https://venue.example/", "<html></html>")
+    assert "https://venue.example/" not in urls
+
+
+def test_relative_links_are_absolutised_against_the_source():
+    html = '<link rel="alternate" type="application/rss+xml" href="feed/events">'
+    urls = discover_feed_urls("https://venue.example/whats-on/", html)
+    assert "https://venue.example/whats-on/feed/events" in urls
+
+
+def test_malformed_html_does_not_break_discovery():
+    urls = discover_feed_urls("https://venue.example/", "<html><link rel=<<>")
+    assert isinstance(urls, list) and urls  # still offers the conventions
+
+
+def test_import_source_falls_back_to_a_discovered_feed(monkeypatch):
+    """The behaviour that fixes the 16-of-18 zero-yield: base page has no events,
+    so the discovered calendar subpath is fetched and parsed."""
+    import worker.importers.structured_feed as sf
+    base_html = ('<html><head><link rel="alternate" type="text/calendar" '
+                 'href="/events.ics"></head><body>no events here</body></html>')
+    ics = ("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:x1\r\nSUMMARY:Jazz Trio\r\n"
+           "DTSTART:20261107T020000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+
+    def fake_fetch(u, timeout=30):
+        return ics if u.endswith("/events.ics") else base_html
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    out = sf.import_source("https://venue.example/", source_name="venue",
+                           cultural_domain="live-music")
+    assert len(out) == 1 and out[0]["title"] == "Jazz Trio"
+    assert out[0]["category"] == "live-music"
+
+
+def test_a_dead_candidate_does_not_lose_a_later_one(monkeypatch):
+    import worker.importers.structured_feed as sf
+    ics = ("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:x2\r\nSUMMARY:Late Show\r\n"
+           "DTSTART:20261107T020000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return "<html>nothing</html>"
+        if "ical=1" in u or u.endswith(".ics"):
+            raise OSError("dead endpoint")
+        if u.endswith("/events/feed/"):
+            return ics
+        return "<html>nothing</html>"
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    out = sf.import_source("https://venue.example/", source_name="venue")
+    assert len(out) == 1 and out[0]["title"] == "Late Show"
