@@ -27,9 +27,11 @@ listicle promises, provenance-required descriptors, banned-claim scans.
 
 All rendered at the reference moment **Friday 2026-07-24, 4:00 pm
 Austin** — so Tonight = this evening, Today = the rest of Friday, This
-weekend = Fri–Sun. The fixture set deliberately includes a 12:00 pm show
-(`ex-28`): it appears in NO carousel below, proving the founder's
-6pm-excludes-5:30 rule end-to-end.
+weekend = Fri–Sun. The fixture set deliberately includes a 12:00 pm show (`ex-28`): it
+appears in NO carousel below — an end-to-end demonstration of
+already-started exclusion at the 4:00 pm reference. The exact
+6pm-excludes-5:30 boundary (and the starts-at-this-instant edge) is
+pinned by unit tests in `tests/test_social_carousel.py`.
 
 ### 1 · Date Night (personas #11 "The Date Night" + #8 "The Jazz Date")
 Domains: live music · symphony/opera · theater · food & drink; starts ≥ 8pm

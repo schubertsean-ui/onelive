@@ -26,7 +26,7 @@ import hmac
 import os
 from dataclasses import dataclass
 
-from social.carousel.autonomy import AutonomyPolicy, load_policy
+from social.carousel.autonomy import load_policy
 from social.carousel.config import (
     BANNED_CLAIM_PHRASES,
     FEATURABLE_CONFIDENCE,
@@ -179,22 +179,26 @@ def release_for_publish(
     draft: CarouselDraft,
     current_states: dict[str, dict],
     approval: Approval | None = None,
-    policy: AutonomyPolicy | None = None,
     *,
     reference_time: str,
     verification_key: str | bytes | None = None,
+    autonomy_record_path: str | None = None,
 ) -> PublishRelease:
     """The publish decision. Exactly two lawful paths:
 
     1. an authenticated human Approval whose signature verifies under the
        founder-held key AND whose hash matches this exact draft, or
-    2. the founder's authenticated autonomy record covering (surface, tier).
+    2. the founder's SIGNED autonomy record covering (surface, tier) —
+       always loaded from disk and signature-verified HERE (r2: there is
+       deliberately NO way to hand this function a pre-built policy object;
+       an in-process caller must not be able to fabricate a grant).
 
     Everything else refuses; either path first passes the trust re-check
     (current confidence + status, future-only at reference_time, full-text
-    rescan). A caller passing policy=None gets the record loaded and
-    signature-verified from disk; AutonomyRecordError propagates — a broken
-    or bogus ratification refuses everything, loudly.
+    rescan). autonomy_record_path only relocates WHICH file is read (tests);
+    whatever file is read must still verify under the founder key.
+    AutonomyRecordError propagates — a broken or bogus ratification refuses
+    everything, loudly.
     """
     _recheck_trust(draft, current_states, reference_time)
     draft_hash = content_hash(draft)
@@ -223,9 +227,7 @@ def release_for_publish(
             released_by=approval.approved_by,
         )
 
-    active_policy = (
-        policy if policy is not None else load_policy(verification_key=verification_key)
-    )
+    active_policy = load_policy(autonomy_record_path, verification_key=verification_key)
     if active_policy.allows_auto_release(draft.surface, draft.tier):
         return PublishRelease(
             draft_hash=draft_hash,

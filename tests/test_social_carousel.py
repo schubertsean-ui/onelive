@@ -133,14 +133,14 @@ def _approve(draft, who="Sean Schubert"):
     return approve(draft, who, "2026-07-24T18:00:00-05:00", signing_key=TEST_KEY)
 
 
-def _release(draft, approval=None, policy=None, states=None, reference_time=REF_TIME):
+def _release(draft, approval=None, states=None, reference_time=REF_TIME, record_path=None):
     return release_for_publish(
         draft,
         states if states is not None else _current_states(draft),
         approval,
-        policy,
         reference_time=reference_time,
         verification_key=TEST_KEY,
+        autonomy_record_path=record_path or "/nonexistent/AUTONOMY_RATIFICATION.json",
     )
 
 
@@ -227,6 +227,8 @@ def test_already_started_events_never_qualify_in_any_window():
     for timeframe in ("today", "tonight", "this_weekend"):
         assert not within_timeframe("2026-07-24T17:30:00-05:00", six_pm, timeframe)
         assert not within_timeframe("2026-07-24T12:00:00-05:00", six_pm, timeframe)
+        # r2 blocker: starting at this exact instant is not "to happen".
+        assert not within_timeframe(six_pm, six_pm, timeframe)
 
 
 def test_today_vs_tonight_semantics():
@@ -530,7 +532,26 @@ def test_release_rescans_full_draft_content():
 def test_no_approval_defaults_to_l0_refusal():
     draft = _draft()
     with pytest.raises(ValueError, match="human in the loop"):
-        _release(draft, policy=AutonomyPolicy(level="L0"))
+        _release(draft)
+
+
+def test_release_api_cannot_accept_a_fabricated_policy():
+    # r2 blocker: a caller-supplied AutonomyPolicy would bypass signature
+    # verification. The parameter must not exist — the grant is ALWAYS
+    # loaded from disk and verified under the founder key.
+    import inspect
+
+    params = inspect.signature(release_for_publish).parameters
+    assert "policy" not in params
+    assert "autonomy_record_path" in params  # a path is not a grant
+
+
+def test_unsigned_record_path_refuses_release(tmp_path):
+    record = tmp_path / "a.json"
+    record.write_text(json.dumps(_l1_payload()))
+    draft = _draft()
+    with pytest.raises(AutonomyRecordError, match="UNSIGNED"):
+        _release(draft, record_path=str(record))
 
 
 # --- Autonomy ratification (spec SS10) -----------------------------------------
@@ -566,7 +587,7 @@ def test_signed_l1_scope_enumeration_is_exact(tmp_path):
     assert not policy.allows_auto_release("instagram_feed", "T2")
     assert not policy.allows_auto_release("facebook_page", "T1")
     draft = _draft()
-    release = _release(draft, policy=policy)
+    release = _release(draft, record_path=path)
     assert release.released_by == "autonomy:L1"
 
 
@@ -834,7 +855,21 @@ def test_discovery_bundle_complete():
     assert len(bundle["event_jsonld"]) == len(featured)
     assert bundle["og_tags"]["og:site_name"] == "OneLive"
     assert "confidence:" in bundle["llms_txt_block"]
+    assert bundle["llms_txt_block"].startswith("## Tonight in Austin")
     assert all(bundle["alt_texts"])
+
+
+def test_llms_txt_header_matches_the_timeframe():
+    # r2 blocker: machine-facing discovery copy must claim the verified
+    # window, never a hardcoded "Tonight".
+    events = [
+        _event(i, start_time=f"2026-07-25T2{i % 3}:00:00-05:00") for i in range(1, 6)
+    ]
+    draft = _draft(events, config=_config(timeframe="this_weekend"))
+    featured_ids = {s.event_id for s in draft.slides if s.kind == "event"}
+    featured = [e for e in events if e["event_id"] in featured_ids]
+    bundle = discovery_bundle(draft, featured, "Austin")
+    assert bundle["llms_txt_block"].startswith("## This weekend in Austin")
 
 
 # --- The agent cycle (spec SS6) ------------------------------------------------

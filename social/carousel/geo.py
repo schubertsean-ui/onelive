@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import json
 
+from social.carousel.config import TIMEFRAMES
+
 MAX_HASHTAGS = 5
 
 # Domain id -> the community tag that field actually uses. Ids are the
@@ -127,10 +129,13 @@ def og_tags(draft, city: str) -> dict[str, str]:
     }
 
 
-def llms_txt_block(events: list[dict], city: str) -> str:
+def llms_txt_block(events: list[dict], city: str, timeframe: str) -> str:
     """Markdown block for the site's llms.txt: gate-settled facts with
-    per-line source attribution, so answer engines can cite us precisely."""
-    lines = [f"## Tonight in {city} — event listings with confidence + source", ""]
+    per-line source attribution, so answer engines can cite us precisely.
+    The header claims exactly the carousel's verified window (r2: machine-
+    facing discovery copy must never outrun the time claim)."""
+    phrase = str(TIMEFRAMES[timeframe]["phrase"])
+    lines = [f"## {phrase} in {city} — event listings with confidence + source", ""]
     for event in events:
         when = event["start_time"][:16].replace("T", " ")
         lines.append(
@@ -148,7 +153,7 @@ def discovery_bundle(draft, events: list[dict], city: str) -> dict:
         "carousel_jsonld": carousel_jsonld(draft, events, city),
         "event_jsonld": [event_jsonld(e, city) for e in events],
         "og_tags": og_tags(draft, city),
-        "llms_txt_block": llms_txt_block(events, city),
+        "llms_txt_block": llms_txt_block(events, city, draft.timeframe),
         "alt_texts": [slide.alt_text for slide in draft.slides],
         "canonical_json": json.dumps(
             [e["event_id"] for e in events], sort_keys=True

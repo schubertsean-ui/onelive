@@ -177,8 +177,10 @@ def within_timeframe(start_time: str, reference_time: str, timeframe: str) -> bo
             "timezone-aware/naive mismatch between event start and reference "
             f"({start_time!r} vs {reference_time!r}) — refusing to compare"
         )
-    if start < ref:
-        return False  # already started (or over): never shown, in any window
+    if start <= ref:
+        # Already started — including starting at this exact instant (r2:
+        # "to happen" means strictly ahead): never shown, in any window.
+        return False
     if timeframe == "today":
         return start.date() == ref.date()
     if timeframe == "tonight":

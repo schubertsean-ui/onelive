@@ -61,4 +61,8 @@ cron (R-027) · the L1/L2 autonomy ratifications themselves.
 Spec: `docs/strategy/ONE_LIVE_META_CAROUSEL_ENGINE_v1.md`. Deferrals:
 R-026 (live posting/metrics blocked on founder keys), R-027 (no scheduled
 cycle until dead-man + budget wiring). Tests:
-`tests/test_social_carousel.py` (50). Session Contract #23 in STATE.md.
+`tests/test_social_carousel.py` (50 at this record's writing; correction
+2026-07-25 at PR #65 r2's stale-evidence nit — the suite grew with the r1
+adoption and the founder listicle directive to 79, then 82 with the r2
+red tests; the test file is the live count's source of truth). Session
+Contract #23 in STATE.md.
