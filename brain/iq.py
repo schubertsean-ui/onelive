@@ -35,6 +35,8 @@ never imports ``worker.promote``.
 """
 from __future__ import annotations
 
+import json
+import pathlib
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -48,21 +50,127 @@ from brain.seed_acquisition import technique_library
 
 
 # ============================================================================
+# Weight config (brain/config/brain_iq_config.json) — the EDITABLE source of
+# truth for every weight group below (KNOWLEDGE/LEARNING/COMPOSITE). Mirrors
+# tools/kpi_report.py's load_kpi_registry(): the JSON is validated here, once,
+# fail-LOUD, and NEVER silently defaulted. Changing a weight's VALUE is a pure
+# JSON edit; a genuinely new weight group still needs its expected-key set
+# registered in _EXPECTED_GROUP_KEYS below.
+# ============================================================================
+class IQConfigError(Exception):
+    """brain/config/brain_iq_config.json is missing, is not valid JSON, is
+    missing a required group, or a group's weight keys don't exactly match
+    what brain/iq.py expects, or a group's weights don't sum to 1.0 (within
+    1e-9) — fail loud, never silently drop or guess at a weight."""
+
+
+DEFAULT_IQ_CONFIG = pathlib.Path(__file__).resolve().parent / "config" / "brain_iq_config.json"
+
+# The exact key set each weight group must carry — no more, no less. This is
+# what makes an "unknown weight key" or "missing weight key" detectable: the
+# expected shape of each group is fixed by what compute_knowledge/
+# compute_learning/BrainIQ.composite actually read (see their bodies below).
+_EXPECTED_GROUP_KEYS = {
+    "knowledge_weights": frozenset({
+        "overall_accuracy", "abstention_correctness",
+        "provenance_citation_rate", "knowledge_update",
+    }),
+    "learning_weights": frozenset({
+        "adoption_rate", "durability", "findings_shared_norm",
+    }),
+    "composite_weights": frozenset({"knowledge", "efficiency", "learning"}),
+}
+
+# Float-safe tolerance for the "weights sum to 1.0" check — generous enough to
+# absorb ordinary float round-off (~1e-16 for these sums) but far tighter than
+# any real weighting error, so a real typo (e.g. 0.41 vs 0.40) still fails loud.
+_WEIGHT_SUM_TOLERANCE = 1e-9
+
+
+def load_iq_config(path: pathlib.Path = DEFAULT_IQ_CONFIG) -> dict:
+    """Load + validate brain/config/brain_iq_config.json into a dict of
+    ``{group_name: {weight_key: float}}``.
+
+    Fail-CLOSED, per CLAUDE.md's no-silent-deferral rule: a missing file,
+    invalid JSON, a missing/extra weight group, a group with an unknown or
+    missing weight key, a non-numeric weight, or a group whose weights don't
+    sum to 1.0 (within ``_WEIGHT_SUM_TOLERANCE``) all raise ``IQConfigError``.
+    Nothing is ever silently skipped, defaulted, or "fixed" — a bad sum is
+    reported, never rounded away, because doing so would silently change a
+    computed score.
+    """
+    try:
+        text = pathlib.Path(path).read_text(encoding="utf-8")
+    except OSError as exc:
+        raise IQConfigError(f"cannot read Brain IQ weight config at {path}: {exc}") from exc
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise IQConfigError(f"{path} is not valid JSON: {exc}") from exc
+    if not isinstance(data, dict) or not isinstance(data.get("groups"), dict):
+        raise IQConfigError(
+            f"{path}: expected a top-level JSON object with a 'groups' object.")
+    groups = data["groups"]
+
+    missing_groups = sorted(g for g in _EXPECTED_GROUP_KEYS if g not in groups)
+    if missing_groups:
+        raise IQConfigError(f"{path}: missing weight group(s): {', '.join(missing_groups)}.")
+    unknown_groups = sorted(g for g in groups if g not in _EXPECTED_GROUP_KEYS)
+    if unknown_groups:
+        raise IQConfigError(
+            f"{path}: unknown weight group(s): {', '.join(unknown_groups)} — "
+            f"known groups: {sorted(_EXPECTED_GROUP_KEYS)}.")
+
+    result: dict = {}
+    for group_name, expected_keys in _EXPECTED_GROUP_KEYS.items():
+        group = groups[group_name]
+        if not isinstance(group, dict):
+            raise IQConfigError(f"{path}: group {group_name!r} must be a JSON object.")
+        actual_keys = set(group)
+        unknown_keys = actual_keys - expected_keys
+        if unknown_keys:
+            raise IQConfigError(
+                f"{path}: group {group_name!r} has unknown weight key(s): "
+                f"{', '.join(sorted(unknown_keys))} — expected exactly "
+                f"{sorted(expected_keys)}.")
+        missing_keys = expected_keys - actual_keys
+        if missing_keys:
+            raise IQConfigError(
+                f"{path}: group {group_name!r} is missing weight key(s): "
+                f"{', '.join(sorted(missing_keys))}.")
+
+        weights: dict = {}
+        for key, value in group.items():
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise IQConfigError(
+                    f"{path}: group {group_name!r} key {key!r} must be a "
+                    f"number, got {value!r}.")
+            weights[key] = float(value)
+        total = sum(weights.values())
+        if abs(total - 1.0) > _WEIGHT_SUM_TOLERANCE:
+            raise IQConfigError(
+                f"{path}: group {group_name!r} weights sum to {total!r}, not "
+                f"1.0 (within {_WEIGHT_SUM_TOLERANCE}) — refusing to load a "
+                "config that would silently change a computed score.")
+        result[group_name] = weights
+    return result
+
+
+_IQ_CONFIG = load_iq_config()
+
+# ============================================================================
 # KNOWLEDGE — is the brain RIGHT? (folds the memory-eval report into one 0..1)
 # ============================================================================
-# Documented weighting (sums to 1.0). Overall accuracy is the backbone;
-# abstention-correctness is weighted heavily because fabricating an answer to an
-# unanswerable question is the worst failure (never-fabricate is a trust
-# invariant); provenance-citation keeps answers sourced; the temporal
-# (knowledge_update) competency is emphasised on TOP of its share of overall
-# accuracy because point-in-time recall is the hard, historically-open capability
-# (R-010/R-031/R-041) we most want to keep measuring as it improves.
-KNOWLEDGE_WEIGHTS = {
-    "overall_accuracy": 0.40,
-    "abstention_correctness": 0.25,
-    "provenance_citation_rate": 0.20,
-    "knowledge_update": 0.15,
-}
+# Documented weighting (sums to 1.0; loaded from brain/config/
+# brain_iq_config.json, validated by load_iq_config() above). Overall accuracy
+# is the backbone; abstention-correctness is weighted heavily because
+# fabricating an answer to an unanswerable question is the worst failure
+# (never-fabricate is a trust invariant); provenance-citation keeps answers
+# sourced; the temporal (knowledge_update) competency is emphasised on TOP of
+# its share of overall accuracy because point-in-time recall is the hard,
+# historically-open capability (R-010/R-031/R-041) we most want to keep
+# measuring as it improves.
+KNOWLEDGE_WEIGHTS = _IQ_CONFIG["knowledge_weights"]
 
 
 def compute_knowledge(report: Optional[MemoryEvalReport] = None) -> "DimensionScore":
@@ -180,11 +288,10 @@ def compute_efficiency(*, answerer: Optional[BrainAnswerer] = None,
 # know-how; the seeded library ships fewer, so this term has visible headroom.
 FINDINGS_TARGET = 10
 
-# LEARNING sub-weights (sum 1.0): adoption and durability are the compounding
-# signals (know-how reused across runs, and staying valid); shared-findings
-# breadth is the smaller third.
-LEARNING_WEIGHTS = {"adoption_rate": 0.40, "durability": 0.40,
-                    "findings_shared_norm": 0.20}
+# LEARNING sub-weights (sum 1.0; loaded from brain/config/brain_iq_config.json):
+# adoption and durability are the compounding signals (know-how reused across
+# runs, and staying valid); shared-findings breadth is the smaller third.
+LEARNING_WEIGHTS = _IQ_CONFIG["learning_weights"]
 
 # Fixed, deterministic simulated history (NO wall clock — integer stamps passed
 # in). Five recipes over three distinct learning runs plus the seed run.
@@ -303,11 +410,12 @@ def compute_learning(toolkit: Optional[AcquisitionToolkit] = None) -> "Dimension
 # ============================================================================
 # The composite report
 # ============================================================================
-# Composite weighting (sums to 1.0): knowledge is primary (being RIGHT dominates
-# being fast or well-read); efficiency is a real second axis; learning is the
+# Composite weighting (sums to 1.0; loaded from brain/config/
+# brain_iq_config.json): knowledge is primary (being RIGHT dominates being
+# fast or well-read); efficiency is a real second axis; learning is the
 # compounding third but the least mature (seeded, not live). A composite HIDES
 # detail — the per-dimension scores govern, and the ledger trends each alone.
-COMPOSITE_WEIGHTS = {"knowledge": 0.50, "efficiency": 0.30, "learning": 0.20}
+COMPOSITE_WEIGHTS = _IQ_CONFIG["composite_weights"]
 
 # The GATED dimensions of the one-way ratchet: KNOWLEDGE (accuracy must not
 # regress) and EFFICIENCY (retrieval work must not rise). LEARNING is trended but

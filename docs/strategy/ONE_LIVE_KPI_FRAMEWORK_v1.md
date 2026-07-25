@@ -224,6 +224,11 @@ each is reviewed, who owns them, and whether they're on at all — lives in
 one plain-data file: `docs/metrics/kpi_registry.json`. `tools/kpi_report.py`
 only reads and validates that file; it never hardcodes the list.
 
+This is one instance of a general convention. The full index of every
+operational tunable — and, crucially, which numbers are config-editable vs.
+which are **gate thresholds that must stay protected** — is
+`docs/CONFIG_CATALOG.md`. Read it before adding any new tunable.
+
 **The 3-step recipe:**
 
 1. **Edit `docs/metrics/kpi_registry.json`.** Find the KPI (or add a new
