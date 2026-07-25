@@ -123,6 +123,17 @@ def _assert_human_identity(identity: str) -> str:
     return identity
 
 
+def _assert_iso_moment(value: str, context: str) -> None:
+    """A custody timestamp is a timezone-aware full moment (r9 nit):
+    date-only or naive values fail closed."""
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{context} {value!r} is not a valid ISO 8601 moment") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"{context} {value!r} is not timezone-aware — not a moment")
+
+
 def _approval_message(draft_hash: str, approved_by: str, approved_at: str) -> bytes:
     return "|".join((draft_hash, approved_by, approved_at)).encode("utf-8")
 
@@ -133,12 +144,7 @@ def approve(draft: CarouselDraft, approved_by: str, approved_at: str) -> Approva
     identities and refuses without the key — a name string alone approves
     nothing, and there is no way to hand this function a key."""
     identity = _assert_human_identity(approved_by)
-    try:
-        datetime.fromisoformat(approved_at)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f"approval timestamp {approved_at!r} is not a valid ISO 8601 moment"
-        ) from exc
+    _assert_iso_moment(approved_at, "approval timestamp")
     key = _resolve_key()
     draft_hash = content_hash(draft)
     signature = hmac.new(
@@ -262,6 +268,7 @@ def _recheck_trust(draft: CarouselDraft, reference_time: str) -> None:
         city=draft.city,
         handle=draft.handle,
         short_link_base=draft.short_link_base,
+        domain_ids=tuple(draft.domain_ids),
         tier=draft.tier,
         timeframe=draft.timeframe,
         listicle_noun=draft.listicle_noun,
@@ -312,13 +319,7 @@ def release_for_publish(
 
     if approval is not None:
         _assert_human_identity(approval.approved_by)
-        try:
-            datetime.fromisoformat(approval.approved_at)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(
-                f"release refused: approval timestamp {approval.approved_at!r} "
-                "is not a valid ISO 8601 moment"
-            ) from exc
+        _assert_iso_moment(approval.approved_at, "release refused: approval timestamp")
         if approval.draft_hash != draft_hash:
             raise ValueError(
                 "release refused: approval hash does not match this draft — "

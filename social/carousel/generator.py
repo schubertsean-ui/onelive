@@ -103,6 +103,9 @@ class CarouselDraft:
     handle: str
     listicle_noun: str
     short_link_base: str
+    # The series' domain claim (r9): carried on the draft so the release
+    # gate re-derives domain membership for tier series, not just scenarios.
+    domain_ids: tuple[str, ...]
     author: str
     assignment: dict[str, str]
     slides: tuple[Slide, ...]
@@ -520,6 +523,7 @@ def render_carousel(
         handle=config.handle,
         listicle_noun=config.listicle_noun,
         short_link_base=config.short_link_base,
+        domain_ids=tuple(config.domain_ids),
         author=AGENT_AUTHOR,
         assignment=dict(assignment),
         slides=tuple(slides),

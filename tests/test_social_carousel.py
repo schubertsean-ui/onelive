@@ -1208,6 +1208,28 @@ def test_out_of_domain_row_fails_loud():
         _draft(stray)
 
 
+def test_out_of_domain_row_refuses_at_release(monkeypatch):
+    # r9 blocker: the domain claim is re-derived at custody for tier
+    # series too — a canonical row that moved out of the series' domains
+    # refuses even under a valid approval.
+    draft = _draft()
+    assert draft.domain_ids == ("live-music",)
+    rows = _rows_for(draft)
+    first = next(iter(rows))
+    rows[first] = {**rows[first], "domain_id": "sports"}
+    monkeypatch.setattr(publish_gate, "_STATE_READER", _reader_returning(rows))
+    approval = _approve(draft)
+    with pytest.raises(ValueError, match="lawful carousel"):
+        _release(draft, approval)
+
+
+def test_naive_timestamps_refused_as_custody_moments():
+    # r9 nit: date-only or tz-naive approval timestamps fail closed.
+    for bad in ("2026-07-24", "2026-07-24T18:00:00"):
+        with pytest.raises(ValueError, match="moment"):
+            approve(_draft(), "Sean Schubert", bad)
+
+
 def test_subcent_price_and_string_zero():
     # r8 nits: sub-cent prices are a data defect; "0" the string is free.
     with pytest.raises(CarouselTrustError, match="sub-cent"):

@@ -28,10 +28,15 @@ production, where only canonical gate-settled rows can enter a carousel;
 here it renders over synthetic fixtures because the engine is the real
 one, and this banner governs.
 
-## A. The five scenario carousels (engine output, verbatim)
+## A. The five scenario carousels (engine-rendered; condensed for reading)
 
-All rendered at the reference moment **Friday 2026-07-24, 4:00 pm
-Austin** — so Tonight = this evening, Today = the rest of Friday, This
+Every hook, slide fact, caption, and hashtag below came out of the
+shipped renderer; the DOC formatting condenses some slide lists into
+single lines for readability, so this page is faithful but not
+byte-verbatim — the byte-exact render is reproducible from
+`social/carousel/example_fixtures.py` and pinned by the scenario tests
+(r9: evidence never overclaims). All rendered at the reference moment
+**Friday 2026-07-24, 4:00 pm Austin** — so Tonight = this evening, Today = the rest of Friday, This
 weekend = Fri–Sun. The fixture set deliberately includes a 12:00 pm show (`ex-28`): it
 appears in NO carousel below — an end-to-end demonstration of
 already-started exclusion at the 4:00 pm reference. The exact
@@ -50,7 +55,7 @@ Vibe proposal is ratified).
 - **Slide 5:** The Midnight Brass — Red River Room · 21:00 — From $15 — *"Horns that start a party"* (Foundry descriptor, provenance-carried)
 - **Slide 6:** Late Bites & Bossa Nova — Verdine's Courtyard · 21:00 — Free
 - **Slide 7 (CTA):** Send this to the friend who's always down
-- **Caption [synthetic demo]:** "Somewhere in Austin tonight there's a room that's about to go off. 5 candidates inside. / Real listings, real sources. [UTM link]"
+- **Caption [synthetic demo — fixture render]:** "Somewhere in Austin tonight there's a room that's about to go off. 5 candidates inside. / Real listings, real sources. [UTM link]"
 - **Hashtags:** #austin #austinevents #austintheater #austinsymphony #austinfoodie
 
 ### 2 · Music & Dancing (persona #7 — the founder's own example — + #9 "The Cheap Dancer")
@@ -65,7 +70,7 @@ Domains: live music · nightlife · dance.
 - **Slide 7:** DJ Meridian: Motown to House — The Basement Line · 22:30 — From $5
 - **Slide 8:** Analog Synth Night — Circuit Chapel · 23:00 — From $12
 - **Slide 9 (CTA):** Tag who you're taking
-- **Caption [synthetic demo]:** "Tonight in Austin. 7 real ones. / Real listings, real sources. [UTM link]"
+- **Caption [synthetic demo — fixture render]:** "Tonight in Austin. 7 real ones. / Real listings, real sources. [UTM link]"
 - **Hashtags:** #austin #austinevents #austindance #austinlivemusic #austinnightlife
 
 ### 3 · Weekend Planner (persona #5 "The Planner")
@@ -73,7 +78,7 @@ Cross-domain best-of, window = Fri–Sun, dates on every slide (beyond a
 same-day window the date is part of the fact).
 
 - **Slide 1 (hook):** 7 weekend plans to experience This weekend
-- **Slides 2–8:** Gallery Crawl (Fri 18:00, Free) · 'The Lighthouse Keepers' (Fri 20:00, $22) · Open-Air Comedy Hour (Fri 20:00, Free) · Wine Flight + Vinyl (Fri 20:30, $18) · The Midnight Brass (Fri 21:00, $15) · Late Bites & Bossa Nova (Fri 21:00, Free) · Porch Songs (Fri 21:00, Free)
+- **Slides 2–8:** Gallery Crawl (Fri 18:00, Free) · 'The Lighthouse Keepers' (Fri 20:00, From $22) · Open-Air Comedy Hour (Fri 20:00, Free) · Wine Flight + Vinyl (Fri 20:30, From $18) · The Midnight Brass (Fri 21:00, From $15) · Late Bites & Bossa Nova (Fri 21:00, Free) · Porch Songs (Fri 21:00, Free)
 - **Slide 9 (CTA):** Save this for the plan
 - **Caption [synthetic demo]:** list-style — "7 events. This weekend, Austin:" + the first five as bullets + link
 - **Hashtags:** #austin #austinevents #austinartopening #austintheater #austincomedy
@@ -91,7 +96,7 @@ Timeframe **Today**, not Tonight — a 4:15 pm storytime is honest here
 and would be refused from a "Tonight" carousel.
 
 - **Slide 1 (hook):** 5 family adventures to experience Today
-- **Slides 2–6:** Storytime Under the Oaks (16:15, Free) · Dino Dig Pop-Up (16:30, Free) · Family Puppet Matinee (17:00, $8) · Junior Ranger Creek Walk (17:30, Free) · Sunset Kite Hour (19:00, Free)
+- **Slides 2–6:** Storytime Under the Oaks (16:15, Free) · Dino Dig Pop-Up (16:30, Free) · Family Puppet Matinee (17:00, From $8) · Junior Ranger Creek Walk (17:30, Free) · Sunset Kite Hour (19:00, Free)
 - **Slide 7 (CTA):** Save this for the plan
 - **Hashtags:** #austin #austinevents #austinlibrary #austinfamilyfun #austinexplore
 
