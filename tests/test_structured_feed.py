@@ -1127,10 +1127,15 @@ def test_an_asserted_provider_found_at_a_DISCOVERED_candidate_still_works(monkey
     assert [e["title"] for e in out] == ["Found Late"]
 
 
-def test_runner_records_a_provider_mismatch_as_a_FAILED_source(monkeypatch, caplog):
-    """End-to-end: ProviderMismatch is an OSError, so ONE bad catalog row is a
-    named FAILED source with a non-zero exit — loud and attributable — without
-    aborting the other 63 sources of the night's import."""
+def test_runner_records_a_provider_mismatch_as_a_MISCONFIGURED_source(monkeypatch, caplog):
+    """ONE bad catalog row is named and exits non-zero — loud and attributable —
+    without aborting the other 63 sources of the night's import.
+
+    Counted as MISCONFIGURED, not FAILED (evaluator blocker r12): making
+    ProviderMismatch an OSError in r8 kept the blast radius to one row, which was
+    right, but it also swept the row into the bucket --allow-partial can wave
+    through, which was not. A host that denied us tonight may serve tomorrow; a
+    catalog defect will not heal itself."""
     import json
     import logging
     import pathlib as _pl
@@ -1151,9 +1156,9 @@ def test_runner_records_a_provider_mismatch_as_a_FAILED_source(monkeypatch, capl
     with caplog.at_level(logging.INFO):
         rc = runner.main(["--catalog", str(tmp), "--dry-run"])
 
-    assert "1 FAILED" in caplog.text, caplog.text
+    assert "1 MISCONFIGURED" in caplog.text, caplog.text
     assert "misconfigured" in caplog.text
-    assert rc == runner._EXIT_SOURCE_FAILURES
+    assert rc == 2, "a catalog defect must exit with the config-error code"
 
 
 # ---- evaluator r9: the assertion must be WIRED, and must mean something -------
@@ -1325,10 +1330,10 @@ def test_end_to_end_a_misconfigured_catalog_row_FAILS_the_real_run(monkeypatch, 
     with caplog.at_level(logging.INFO):
         rc = runner.main(["--catalog", str(tmp), "--dry-run"])
 
-    assert rc == runner._EXIT_SOURCE_FAILURES
-    assert "1 FAILED" in caplog.text, caplog.text
+    assert rc == 2
+    assert "1 MISCONFIGURED" in caplog.text, caplog.text
     assert "0 yielded zero" in caplog.text, "a misconfigured source landed in the empties"
-    assert "ProviderMismatch" in caplog.text
+    assert "0 FAILED" in caplog.text, "a catalog defect was counted as a host failure"
 
 
 def test_arbitrary_JSON_is_not_an_asserted_platform_shape():
@@ -1563,3 +1568,112 @@ def test_the_source_id_reaches_accounting_through_import_source(monkeypatch, cap
         out = sf.import_source("https://venue.example/", source_name="paramount")
     assert len(out) == 1
     assert "source=paramount" in caplog.text, caplog.text
+
+
+# ---- evaluator r12: --allow-partial must not greenlight OUR defects ----------
+
+def test_allow_partial_can_NOT_wave_through_a_misconfigured_source(monkeypatch, caplog):
+    """The blocker: --allow-partial is the operator's "these hosts denied or
+    throttled us tonight, proceed" flag. ProviderMismatch subclassing OSError
+    (my r8 choice, correct about blast radius) also swept a catalog defect into
+    that same overridable bucket — so a wrongly-configured row could be
+    downgraded to a green run by a flag that was never meant to cover it.
+
+    The two are different in kind: a refusing host may serve tomorrow; a catalog
+    row asserting a format its endpoint does not serve will not heal itself."""
+    import json
+    import logging
+    import pathlib as _pl
+    import tempfile
+    import worker.importers.run_structured_import as runner
+    from worker.importers.structured_feed import ProviderMismatch
+
+    catalog = [{"id": "misconfigured", "base_url": "https://a.example/",
+                "allowed": ["localist_json_feed"], "cultural_domain": "live-music"}]
+
+    def fake_import(url, *, source_name, cultural_domain=None, provider_hint=None):
+        raise ProviderMismatch("asserted platform_json, served HTML")
+
+    monkeypatch.setattr(runner, "import_source", fake_import)
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
+    with caplog.at_level(logging.ERROR):
+        rc = runner.main(["--catalog", str(tmp), "--dry-run", "--allow-partial"])
+    assert rc == 2, "--allow-partial greenlit a catalog defect"
+    assert "does NOT apply" in caplog.text or "MISCONFIGURED" in caplog.text
+
+
+def test_allow_partial_STILL_works_for_a_genuinely_refusing_host(monkeypatch, caplog):
+    """The counterpart, so the fix does not quietly disable the flag: a 403 from
+    a host, alongside a source that DID import, is exactly what --allow-partial
+    exists for and still exits 0."""
+    import json
+    import logging
+    import pathlib as _pl
+    import tempfile
+    import urllib.error
+    import worker.importers.run_structured_import as runner
+
+    catalog = [
+        {"id": "denied", "base_url": "https://a.example/",
+         "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"},
+        {"id": "works", "base_url": "https://b.example/",
+         "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"},
+    ]
+
+    def fake_import(url, *, source_name, cultural_domain=None, provider_hint=None):
+        if source_name == "denied":
+            raise urllib.error.HTTPError(url, 403, "Forbidden", {}, None)
+        return [{"category": "live-music", "source_provider": "ics"}]
+
+    monkeypatch.setattr(runner, "import_source", fake_import)
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING):
+        assert runner.main(["--catalog", str(tmp), "--dry-run", "--allow-partial"]) == 0
+    assert "--allow-partial was given" in caplog.text
+
+
+def test_an_unclassified_allowed_token_fails_a_custom_catalog(monkeypatch, caplog):
+    """The derivation test protects the DEFAULT catalog; --catalog is an operator
+    path where a typo'd `localist_json_fed` would simply be ignored, silently
+    dropping a provider assertion and returning us to sniffing (evaluator nit
+    r12). Detectable pre-network, so it fails there — like a contradiction."""
+    import json
+    import logging
+    import pathlib as _pl
+    import tempfile
+    import worker.importers.run_structured_import as runner
+    import worker.importers.structured_feed as sf
+
+    def _never(*a, **k):
+        raise AssertionError("fetched despite an unclassified token")
+
+    monkeypatch.setattr(sf, "fetch_url", _never)
+    catalog = [{"id": "typo", "base_url": "https://a.example/",
+                "allowed": ["ics_feed_if_offered", "localist_json_fed"]}]
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
+    with caplog.at_level(logging.ERROR):
+        assert runner.main(["--catalog", str(tmp), "--dry-run"]) == 2
+    assert "UNCLASSIFIED" in caplog.text and "localist_json_fed" in caplog.text
+
+
+def test_ics_shape_needs_a_calendar_LINE_not_a_quoted_marker():
+    """Bounding the window to 4096 bytes was not enough — an HTML page quoting a
+    snippet NEAR THE TOP still satisfied an ICS assertion (evaluator nit r12).
+    RFC 5545 content lines stand alone, so the marker must BE a line."""
+    from worker.importers.structured_feed import PROVIDER_ICS, _matches_asserted_shape
+    assert _matches_asserted_shape(
+        PROVIDER_ICS, "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n")
+    # An EMPTY but real calendar still passes — it is honestly empty, not broken.
+    assert _matches_asserted_shape(PROVIDER_ICS, "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n")
+    # Prose ABOUT iCalendar, right at the top, does not.
+    assert not _matches_asserted_shape(
+        PROVIDER_ICS,
+        "<html><body><p>Our feed starts with <code>BEGIN:VEVENT</code> lines.</p>")
+    assert not _matches_asserted_shape(
+        PROVIDER_ICS, "<html><head><title>BEGIN:VCALENDAR how-to</title></head>")

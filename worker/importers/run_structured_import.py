@@ -35,6 +35,7 @@ from worker.importers.structured_feed import (
     PROVIDER_ICS,
     PROVIDER_JSONLD,
     PROVIDER_PLATFORM_JSON,
+    ProviderMismatch,
     import_source,
 )
 
@@ -145,8 +146,9 @@ def provider_hint_for(entry: dict) -> str | None:
     time in this PR a test pinned the MECHANISM instead of the OUTCOME. There is
     no safe guess to make here, so no guess is made.
 
-    Unknown tokens are ignored (they assert nothing); the derivation test, not a
-    runtime guess, is what keeps the table complete.
+    Unknown tokens assert nothing HERE, but they do not pass silently:
+    validate_catalog_assertions() refuses them up front, so a typo in a custom
+    --catalog cannot quietly drop an assertion (evaluator nit r12).
     """
     hints = {
         _TOKEN_PROVIDER_CLASSIFICATION.get(str(a).lower())
@@ -177,6 +179,23 @@ def validate_catalog_assertions(entries: list[dict]) -> list[str]:
             provider_hint_for(entry)
         except CatalogContradiction as exc:
             problems.append(str(exc))
+        # An UNCLASSIFIED token is the silent version of the same defect
+        # (evaluator nit r12): the derivation test protects the DEFAULT catalog,
+        # but --catalog is an operator path, and there a typo'd
+        # `localist_json_fed` would simply be ignored — quietly removing a
+        # provider assertion and returning us to sniffing. Same treatment as a
+        # contradiction: detectable pre-network, so it fails here. The default
+        # catalog cannot trip this (the derivation test keeps the table complete),
+        # so a new token is classified deliberately rather than absorbed.
+        unknown = sorted(
+            str(a) for a in (entry.get("allowed") or [])
+            if str(a).lower() not in _TOKEN_PROVIDER_CLASSIFICATION)
+        if unknown:
+            problems.append(
+                f"source {entry.get('id')!r} carries UNCLASSIFIED allowed token(s) "
+                f"{unknown} — classify each in _TOKEN_PROVIDER_CLASSIFICATION as "
+                f"asserting a wire format or not. An ignored token silently drops a "
+                f"provider assertion.")
     return problems
 
 
@@ -217,14 +236,32 @@ _RECOVERABLE_SOURCE_ERRORS = (OSError,)   # incl. HTTPError, URLError, SSLError,
                                           # socket.timeout, RobotsDisallowed
 
 
-def _exit_code(failed_sources: list, allow_partial: bool) -> int:
-    """Fail the command when any source FAILED.
+def _exit_code(failed_sources: list, allow_partial: bool,
+               misconfigured_sources: list | None = None) -> int:
+    """Fail the command when any source FAILED, and fail it UNCONDITIONALLY when
+    any source was MISCONFIGURED.
 
     Evaluator blocker r6: failures were logged and named but the process still
     exited 0, so an import gate could pass green while sources were refused. A
     warning in a successful run is not fail-loud. --allow-partial is the explicit,
     separately-named opt-in for "I know some sources are blocked, proceed".
+
+    Evaluator blocker r12: that opt-in was over-broad. I made ProviderMismatch an
+    OSError in r8 so ONE bad row would not abort the other 63 sources — right
+    about SCOPE, wrong about OVERRIDABILITY, because it also swept the row into
+    the recoverable bucket that --allow-partial can wave through. A flag meant
+    for "these hosts denied/throttled us tonight" must never greenlight "our
+    catalog is wrong": the first is the world, the second is a defect only we can
+    fix, and it does not heal by itself on the next run. Misconfiguration exits 2
+    — the config-error code, same as a contradictory or unparseable catalog.
     """
+    misconfigured = misconfigured_sources or []
+    if misconfigured:
+        log.error("%d source(s) MISCONFIGURED (%s) — the catalog asserts a wire "
+                  "format the endpoint does not serve. --allow-partial does NOT "
+                  "apply: it covers hosts that refused us, never a catalog defect. "
+                  "Fix the row.", len(misconfigured), ", ".join(misconfigured))
+        return 2
     if not failed_sources:
         return 0
     if allow_partial:
@@ -301,6 +338,11 @@ def main(argv=None) -> int:
     # that genuinely had nothing on — the same failure-as-success class the
     # evaluator flagged inside import_source (self-audit, PR #68 r4).
     failed_sources: list[str] = []
+    # MISCONFIGURED is not FAILED either. A host that denied us tonight may serve
+    # tomorrow; a catalog row asserting a format its endpoint does not serve is a
+    # defect only we can fix, and --allow-partial must never wave it through
+    # (evaluator blocker r12).
+    misconfigured_sources: list[str] = []
 
     for entry in sources:
         sid = str(entry.get("id"))
@@ -313,6 +355,13 @@ def main(argv=None) -> int:
         try:
             norm = import_source(url, source_name=sid, cultural_domain=domain_hint,
                                  provider_hint=hint)
+        except ProviderMismatch as exc:
+            # Caught BEFORE the recoverable branch (ProviderMismatch subclasses
+            # OSError so one bad row does not abort the run — right about scope,
+            # wrong about overridability until r12).
+            log.error("source %-26s MISCONFIGURED (%s): %s", sid, url, exc)
+            misconfigured_sources.append(sid)
+            continue
         except _RECOVERABLE_SOURCE_ERRORS as exc:
             # A single source being unreachable is logged, not fatal — the others
             # still import. (Not a swallowed error: it is surfaced in the run log.)
@@ -332,9 +381,10 @@ def main(argv=None) -> int:
 
     by_domain = Counter(n["category"] for n in all_norm)
     by_provider = Counter(n["source_provider"] for n in all_norm)
-    log.info("Structured import: %d source(s) selected, %d FAILED, %d yielded zero, "
-             "%d events total",
-             len(sources), len(failed_sources), len(zero_sources), len(all_norm))
+    log.info("Structured import: %d source(s) selected, %d MISCONFIGURED, %d FAILED, "
+             "%d yielded zero, %d events total",
+             len(sources), len(misconfigured_sources), len(failed_sources),
+             len(zero_sources), len(all_norm))
     if failed_sources:
         # Named, not just counted: a refusal/throttle/TLS failure is actionable
         # (it routes that source to a different acquisition path), an empty
@@ -355,6 +405,11 @@ def main(argv=None) -> int:
     # A real-data importer must not exit green on nothing. ONE empty source is
     # tolerated (logged above); EVERY source empty is a systemic failure.
     if not all_norm:
+        if misconfigured_sources:
+            log.error("normalized 0 events and %d source(s) are MISCONFIGURED (%s) — "
+                      "a catalog defect, not a normalization breakage.",
+                      len(misconfigured_sources), ", ".join(misconfigured_sources))
+            return 2
         if failed_sources:
             # NOT systemic normalization drift — sources were REFUSED. Reporting
             # this as "markup changed" would misdiagnose a blocked import (the
@@ -378,7 +433,7 @@ def main(argv=None) -> int:
 
     if args.dry_run:
         log.info("dry-run: no DB write")
-        return _exit_code(failed_sources, args.allow_partial)
+        return _exit_code(failed_sources, args.allow_partial, misconfigured_sources)
 
     import psycopg2
 
@@ -389,7 +444,7 @@ def main(argv=None) -> int:
     finally:
         conn.close()
     log.info("upserted %d events into licensed_event", written)
-    return _exit_code(failed_sources, args.allow_partial)
+    return _exit_code(failed_sources, args.allow_partial, misconfigured_sources)
 
 
 if __name__ == "__main__":

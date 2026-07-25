@@ -1159,16 +1159,21 @@ def _matches_asserted_shape(provider: str, text: str) -> bool:
     """
     text = text or ""
     if provider == PROVIDER_ICS:
-        # EITHER marker, but only within a BOUNDED head window. Scanning the whole
-        # document for "BEGIN:VEVENT" let an HTML page that merely QUOTES a
-        # calendar snippet satisfy an ICS assertion and suppress ProviderMismatch
-        # (evaluator nit r10). A real .ics declares itself in its first bytes.
-        # EITHER, not both (r11 comment correction — the r10 comment said "both"
-        # while the code said "or", and the CODE is right): a calendar with no
-        # upcoming shows is a valid VCALENDAR carrying no VEVENT at all, and that
-        # is exactly the honestly-empty case the shape check must not fail.
-        head = text[:4096].upper()
-        return "BEGIN:VCALENDAR" in head or "BEGIN:VEVENT" in head
+        # LINE-ORIENTED, in a bounded head window. Substring matching — even
+        # bounded to the first 4096 bytes — still let an HTML page that QUOTES a
+        # calendar snippet near the top (`<code>BEGIN:VEVENT</code>`) satisfy an
+        # ICS assertion and suppress ProviderMismatch (evaluator nit r10, then
+        # r12 for the residue). RFC 5545 content lines stand alone, so requiring
+        # the marker to BE a line is the discriminator: real iCalendar passes,
+        # prose about iCalendar does not.
+        #
+        # EITHER marker, not both (r11: the code was right and its comment wrong)
+        # — a calendar with no upcoming shows is a valid VCALENDAR carrying no
+        # VEVENT at all, and that honestly-empty case must not read as a
+        # misconfiguration. Unfolding is deliberately NOT applied here: this is a
+        # shape sniff on possibly-not-ICS bytes, not a parse.
+        head_lines = {ln.strip().upper() for ln in text[:4096].splitlines()}
+        return bool(head_lines & {"BEGIN:VCALENDAR", "BEGIN:VEVENT"})
 
     if provider == PROVIDER_PLATFORM_JSON:
         # "Is this JSON?" was NOT enough (evaluator blocker r9): any JSON body at
