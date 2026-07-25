@@ -10,6 +10,7 @@ founder digest in plain language.
 
 | Date | PR | M1 rounds | M2 catches (gate: class × n) | M4 gate-gaps closed | M5 est. cost | Notes |
 |---|---|---|---|---|---|---|
+| 2026-07-25 | #71 (in flight: r0 — Adversarial Review v2, pre-review) | 0 | none yet — this row seeds the arc; the PR's own v2-reviewer build is judged by v1 (base copy), correct custody | v2 SHIPPED: lens panel (attacker-smuggle + absence-only on OpenAI; dataflow-taint + spec-vs-contract on Gemini when keyed), rotating po lens seeded by head SHA (stimuli-never-facts), ANY-red=red verdict, structured escape hatch (invariants MUST block any round; post-r1 = class + why-not-earlier), M9 reviewer_scorecard (mechanical from ledger, advisory), Gemini seat explicit-empty when unkeyed; red tests pin verdict-merge/po-determinism/empty-seat/prompt-content/env-fail-closed | build only | M1 direction is now measured on the reviewer itself (M9), not only on the generator |
 | 2026-07-13 | #11 | 3 | evaluator: reviewer-supply-chain ×2, silent-truncation ×1, coverage-gap ×2, SCA-gap ×1; CI: empty-env ×1 | trusted-base-ref bootstrap; no-path-filter; blocking SCA gate | ~3 evaluator calls + CI | gate armed itself; bootstrap merged red under human review (documented exception) |
 | 2026-07-13 | #12 | 2 | evaluator: fail-open budget ×2, shell-injection-surface ×1, empty-env ×1, audit-trail ×1 | fail-closed caps at every layer; env-only workflow inputs | ~2 evaluator calls + CI | |
 | 2026-07-13 | #13 | 1 | — | — | ~1 evaluator call | communication rules (docs-only) |

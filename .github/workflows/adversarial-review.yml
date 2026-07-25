@@ -399,6 +399,12 @@ jobs:
       - name: Independent evaluator (APPROVE required)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # PR head SHA = the printed, rotating po-battery seed for the panel.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # Second-family seat (founder-approved 2026-07-25). Absent = the
+          # script prints an EXPLICIT empty seat and runs single-family; the
+          # panel never fails a PR for a credential that does not exist yet.
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           # NO runtime model override in CI — deliberately (evaluator finding,
           # PR #14 round 4): GitHub renders an UNSET repo variable and a
           # SET-BUT-EMPTY one identically in ${{ vars.* }}, so a workflow can
@@ -434,7 +440,13 @@ jobs:
           # evaluator r23 gate-custody finding. Changing this value again,
           # either direction, requires a new founder decision.
           : "${EVID_DIR:?co-gate evidence step did not run — failing closed}"
-          python -I /tmp/trusted/adversarial_review.py --require \
+          : "${HEAD_SHA:?head sha unresolved — panel po-seed cannot be defaulted}"
+          # v2 lens panel (--panel): forced method lenses + a po-battery lens
+          # per seat, po seed = the PR HEAD SHA (rotating, printed, never a
+          # chosen parameter). ANY lens red = red — a strict tightening of the
+          # single-lens gate. --require and the founder-ratified cap unchanged.
+          python -I /tmp/trusted/adversarial_review.py --require --panel \
+            --po-seed "$HEAD_SHA" \
             --max-diff-bytes 800000 \
             --diff-file pr.diff --test-log pytest.log --test-log web.log \
             --test-log validate.log --test-log "$EVID_DIR/golden-exam.log"

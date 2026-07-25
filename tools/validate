@@ -237,6 +237,12 @@ if [ "$QUICK" -eq 1 ]; then
   echo
 else
   run_advisory "commit_sweep" "$PY" tools/commit_sweep.py
+  # M9 reviewer scorecard (Contract #26): ADVISORY measure of the adversarial
+  # reviewer itself, derived mechanically from the Kaizen ledger (round-1
+  # recall, sibling-misses, novelty). Instrumentation, not a gate — it feeds
+  # the weekly digest and lens-pruning; any threshold it enforces later is a
+  # gate change (evaluator-mandatory).
+  run_advisory "reviewer_scorecard" "$PY" tools/reviewer_scorecard.py
 fi
 
 # 7b. Kaizen trend meter — computes the trend report from the ledger
