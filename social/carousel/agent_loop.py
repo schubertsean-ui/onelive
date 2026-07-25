@@ -76,12 +76,15 @@ def run_cycle(
             thresholds=thresholds,
             include_scenarios=include_scenarios,
         )
-    except BaseException:
+    except Exception:
         # A loud trust error must still be VISIBLE to the dead-man channel
         # (r7 nit): ping failure explicitly, then propagate unchanged —
         # "end" means completed and never fires on the error path. The ping
         # is secondary telemetry (r10 nit): its own failure must never mask
-        # the primary trust exception.
+        # the primary trust exception. Exception, not BaseException (r11
+        # nit): interpreter shutdown signals (KeyboardInterrupt/SystemExit)
+        # pass through untouched — the missed "start" ping IS the dead-man
+        # alarm for those.
         if deadman_ping is not None:
             try:
                 deadman_ping("error")

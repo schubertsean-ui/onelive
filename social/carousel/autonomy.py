@@ -50,8 +50,9 @@ class AutonomyPolicy:
     renderer_version: str = ""
     # Enumerated series the grant covers (empty tuple on L2 = all).
     series_keys: tuple[str, ...] = field(default_factory=tuple)
-    # Founder-stated cadence ceiling; mechanically enforced by the release
-    # journal at the ops-console surface (R-026's trigger builds it).
+    # Founder-stated cadence ceiling; mechanically enforced at release
+    # time by publish_gate against its registered release journal (r11) —
+    # no journal, no auto-release.
     max_releases_per_day: int = 0
 
     def allows_auto_release(self, surface: str, tier: str) -> bool:
@@ -83,16 +84,18 @@ def sign_autonomy_record(record: dict, key: str | bytes) -> str:
     return hmac.new(key_bytes, _canonical_payload(record), hashlib.sha256).hexdigest()
 
 
-def load_policy(path: str | None = None) -> AutonomyPolicy:
-    """Read and AUTHENTICATE the ratification record. Absent file -> L0 (the
-    safe default is the status quo). The verification key comes from the
-    deployment environment ONLY (r3: never a parameter — the subject of a
-    grant must not choose the key that verifies it); `path` exists for
-    hermetic unit tests of THIS function, while the release boundary always
-    calls with the canonical committed path. Any structural defect, missing
-    key, or signature mismatch raises AutonomyRecordError, and the caller
-    must treat that as refuse-everything, never as autonomy."""
-    record_path = path or DEFAULT_RECORD_PATH
+def load_policy() -> AutonomyPolicy:
+    """Read and AUTHENTICATE the ratification record from its CANONICAL
+    committed path only (r11 nit: the arbitrary-path parameter is gone —
+    a path argument on a custody loader is a standing invitation to point
+    it somewhere else; hermetic tests monkeypatch DEFAULT_RECORD_PATH
+    instead). Absent file -> L0 (the safe default is the status quo). The
+    verification key comes from the deployment environment ONLY (r3: never
+    a parameter — the subject of a grant must not choose the key that
+    verifies it). Any structural defect, missing key, or signature
+    mismatch raises AutonomyRecordError, and the caller must treat that as
+    refuse-everything, never as autonomy."""
+    record_path = DEFAULT_RECORD_PATH
     if not os.path.exists(record_path):
         return L0_POLICY
     try:

@@ -35,7 +35,11 @@ the same physics as `worker/promote.py`:
   sessions, and never a parameter of the custody API (r3: the subject of
   authorization must not choose the key, the record path, or the trust
   state; current state is read only through a once-registered
-  canonical-store reader, absent = release refuses everything):
+  canonical-store reader, absent = release refuses everything; r11: nor
+  the CLOCK — release-time "now" is the gate's own, so a caller cannot
+  pass an earlier timestamp to release already-started events; and the
+  autonomy grant's max_releases_per_day is counted mechanically against
+  a once-registered release journal, absent = autonomy refuses):
   the approval is an HMAC-SHA256 signature over the draft's SHA-256
   content hash, so a name string alone approves nothing and an agent
   cannot forge a sign-off. `publish_gate.release_for_publish()` verifies
@@ -90,10 +94,15 @@ Design choices below are constraints in code (`config.py`), not taste:
   per-slide overlay ≤ 12 words; one idea per slide; image mandatory.
 - **The 3-second gate.** Feed scrolling decides in the first ~1–3 s.
   Slide 1 is a dedicated HOOK slide — it sells the *swipe*, not the
-  event: curiosity gap (Loewenstein — open a specific question the next
-  slide answers), a number promise ("7 nights from $15", exact-minimum framing — r5 price-truth rule), awe
-  ("the room 2,000 people will be in at 9pm"), or humor. Encoded as the
-  `hook_type` factor the bandit learns over.
+  event. TRUST CONSTRAINT (evaluator r11): every hook blank is
+  FACT-DERIVED — the curated series noun ("date nights") or a price
+  computed from the actual lineup ("7 date nights from $15",
+  exact-minimum framing — r5 price-truth rule). Qualitative AI-authored
+  blanks (awe/humor/social-proof phrases like "big rooms") were removed:
+  outward copy never claims what canonical rows don't carry. Encoded as
+  the `hook_type` factor {edition_anchor, number_promise} the bandit
+  learns over; curiosity/awe/humor live in the *visual* register and the
+  events themselves, not in fabricated words.
 - **Chunking (Miller/Cowan) + the listicle canon (founder directive
   2026-07-24).** Working memory holds ~4 chunks comfortably. One event
   per slide, and every carousel is a LISTICLE with an exact promise:
@@ -128,9 +137,10 @@ Design choices below are constraints in code (`config.py`), not taste:
   timing anchors), Emotion (above), Public (branded visual signature),
   Practical value (real events, prices, times — the carousel is USEFUL),
   Stories (the night as a narrative arc across slides).
-- **Humor and curiosity** are factor levels, not mandates — the bandit
-  measures whether Austin audiences swipe for funny or for awe per
-  category, instead of anyone guessing.
+- **Emotional registers** are factor levels, not mandates — the bandit
+  measures whether Austin audiences swipe for amusement or for awe per
+  category, instead of anyone guessing. Registers steer visual/creative
+  treatment only; written claims stay fact-derived (r11).
 - **White-hat line (design brief §6, binding here too):** positive
   emotion in service of a real good night out, with real facts. No
   manufactured FOMO ("selling out!!" without a sourced signal), no dark

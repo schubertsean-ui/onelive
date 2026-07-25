@@ -25,6 +25,7 @@ import ast
 import dataclasses
 import json
 import os
+from datetime import datetime
 
 import pytest
 
@@ -76,13 +77,19 @@ def _default_reader(event_ids):
 def _custody_env(monkeypatch, tmp_path):
     """Deployment-shaped custody config for every test (r3): the approval
     key lives in env, the canonical record path points at an (absent)
-    tmp file so tests start in L0, and a canonical-store reader is
-    registered. Individual tests override by monkeypatching further."""
+    tmp file so tests start in L0, a canonical-store reader is registered,
+    the gate clock (r11: never an API parameter) is pinned to REF_TIME,
+    and a fresh release journal is registered. Individual tests override
+    by monkeypatching further."""
     monkeypatch.setenv("ONELIVE_APPROVAL_KEY", TEST_KEY)
     monkeypatch.setattr(
         autonomy_module, "DEFAULT_RECORD_PATH", str(tmp_path / "AUTONOMY_RATIFICATION.json")
     )
     monkeypatch.setattr(publish_gate, "_STATE_READER", _default_reader)
+    monkeypatch.setattr(publish_gate, "_utcnow", lambda: datetime.fromisoformat(REF_TIME))
+    monkeypatch.setattr(
+        publish_gate, "_RELEASE_JOURNAL", publish_gate.InMemoryReleaseJournal()
+    )
     yield
 
 
@@ -158,8 +165,8 @@ def _approve(draft, who="Sean Schubert"):
     return approve(draft, who, "2026-07-24T18:00:00-05:00")
 
 
-def _release(draft, approval=None, reference_time=REF_TIME):
-    return release_for_publish(draft, approval, reference_time=reference_time)
+def _release(draft, approval=None):
+    return release_for_publish(draft, approval)
 
 
 def _reader_returning(states):
@@ -454,7 +461,7 @@ def test_invalid_assignment_fails_loud():
     with pytest.raises(ValueError, match="unknown level"):
         _draft(hook_type="clickbait")
     with pytest.raises(ValueError, match="missing factors"):
-        validate_assignment({"hook_type": "awe"})
+        validate_assignment({"hook_type": "edition_anchor"})
 
 
 # --- Publish gate custody (spec SS1/SS10) --------------------------------------
@@ -524,9 +531,11 @@ def test_custody_api_accepts_no_keys_paths_or_state():
     import inspect
 
     release_params = set(inspect.signature(release_for_publish).parameters)
-    assert release_params == {"draft", "approval", "reference_time"}
+    assert release_params == {"draft", "approval"}  # r11: no clock parameter
     approve_params = set(inspect.signature(approve).parameters)
     assert approve_params == {"draft", "approved_by", "approved_at"}
+    # r11 nit: the autonomy loader takes no path either.
+    assert set(inspect.signature(load_policy).parameters) == set()
 
 
 def test_handbuilt_shapeless_draft_never_releases(monkeypatch):
@@ -690,11 +699,27 @@ def test_release_rechecks_current_event_status(monkeypatch):
         _release(draft, approval)
 
 
-def test_release_refuses_already_started_events():
+def test_release_refuses_already_started_events(monkeypatch):
     draft = _draft()  # events start 20:00-23:00
     approval = _approve(draft)
+    # r11: the caller cannot supply a friendlier clock — move the GATE'S
+    # clock past the starts and the same approval refuses.
+    monkeypatch.setattr(
+        publish_gate,
+        "_utcnow",
+        lambda: datetime.fromisoformat("2026-07-24T23:30:00-05:00"),
+    )
     with pytest.raises(ValueError, match="already started"):
-        _release(draft, approval, reference_time="2026-07-24T23:30:00-05:00")
+        _release(draft, approval)
+
+
+def test_release_clock_is_never_a_caller_input():
+    # r11 blocker: reference_time as a parameter let the release subject
+    # choose the clock that judges future-only — it no longer exists.
+    draft = _draft()
+    approval = _approve(draft)
+    with pytest.raises(TypeError):
+        release_for_publish(draft, approval, reference_time=REF_TIME)
 
 
 def test_release_refuses_unknown_current_state(monkeypatch):
@@ -738,6 +763,15 @@ def _signed_record(tmp_path, payload, key=TEST_KEY):
     return str(record)
 
 
+def _load_policy_at(path):
+    # r11 nit: load_policy() reads the canonical path ONLY — hermetic tests
+    # point DEFAULT_RECORD_PATH at their record, same as deployment layout.
+    import unittest.mock as _mock
+
+    with _mock.patch.object(autonomy_module, "DEFAULT_RECORD_PATH", str(path)):
+        return load_policy()
+
+
 def _l1_payload():
     from social.carousel.generator import renderer_fingerprint
 
@@ -754,14 +788,14 @@ def _l1_payload():
 
 
 def test_absent_record_is_l0(tmp_path):
-    policy = load_policy(str(tmp_path / "nope.json"))
+    policy = _load_policy_at(tmp_path / "nope.json")
     assert policy.level == "L0"
     assert not policy.allows_auto_release("instagram_feed", "T1")
 
 
 def test_signed_l1_scope_enumeration_is_exact(tmp_path):
     path = _signed_record(tmp_path, _l1_payload())
-    policy = load_policy(path)
+    policy = _load_policy_at(path)
     assert policy.allows_auto_release("instagram_feed", "T1")
     assert not policy.allows_auto_release("instagram_feed", "T2")
     assert not policy.allows_auto_release("facebook_page", "T1")
@@ -777,13 +811,13 @@ def test_unsigned_record_refuses(tmp_path):
     record = tmp_path / "a.json"
     record.write_text(json.dumps(_l1_payload()))
     with pytest.raises(AutonomyRecordError, match="UNSIGNED"):
-        load_policy(str(record))
+        _load_policy_at(record)
 
 
 def test_wrong_key_signature_refuses(tmp_path):
     path = _signed_record(tmp_path, _l1_payload(), key="attacker-key")
     with pytest.raises(AutonomyRecordError, match="does not verify"):
-        load_policy(path)
+        _load_policy_at(path)
 
 
 def test_tampered_record_refuses(tmp_path):
@@ -793,19 +827,19 @@ def test_tampered_record_refuses(tmp_path):
     record = tmp_path / "a.json"
     record.write_text(json.dumps(payload))
     with pytest.raises(AutonomyRecordError, match="does not verify"):
-        load_policy(str(record))
+        _load_policy_at(record)
 
 
 def test_no_verification_key_refuses_grants(tmp_path, monkeypatch):
     path = _signed_record(tmp_path, _l1_payload())
     monkeypatch.delenv("ONELIVE_APPROVAL_KEY", raising=False)
     with pytest.raises(AutonomyRecordError, match="cannot authenticate"):
-        load_policy(path)
+        _load_policy_at(path)
 
 
 def test_l2_requires_attribution(tmp_path):
     with pytest.raises(AutonomyRecordError, match="unattributed grant"):
-        load_policy(_signed_record(tmp_path, {"level": "L2"}))
+        _load_policy_at(_signed_record(tmp_path, {"level": "L2"}))
     from social.carousel.generator import renderer_fingerprint
 
     payload = {
@@ -816,7 +850,7 @@ def test_l2_requires_attribution(tmp_path):
         "renderer_version": renderer_fingerprint(),
         "max_releases_per_day": 3,
     }
-    policy = load_policy(_signed_record(tmp_path, payload))
+    policy = _load_policy_at(_signed_record(tmp_path, payload))
     assert policy.allows_auto_release("facebook_page", "T3")
 
 
@@ -824,21 +858,21 @@ def test_malformed_record_fails_closed_not_open(tmp_path):
     record = tmp_path / "a.json"
     record.write_text("{not json")
     with pytest.raises(AutonomyRecordError):
-        load_policy(str(record))
+        _load_policy_at(record)
     record.write_text(json.dumps({"level": "L9"}))
     with pytest.raises(AutonomyRecordError, match="unknown level"):
-        load_policy(str(record))
+        _load_policy_at(record)
     payload = {"level": "L1", "founder": "S", "ratified_on": "d", "decision_record": "r"}
     with pytest.raises(AutonomyRecordError, match="renderer_version"):
-        load_policy(_signed_record(tmp_path, payload))
+        _load_policy_at(_signed_record(tmp_path, payload))
     payload = dict(_l1_payload())
     del payload["scopes"]
     with pytest.raises(AutonomyRecordError, match="enumerate scopes"):
-        load_policy(_signed_record(tmp_path, payload))
+        _load_policy_at(_signed_record(tmp_path, payload))
     payload = dict(_l1_payload())
     payload["max_releases_per_day"] = 0
     with pytest.raises(AutonomyRecordError, match="cadence ceiling"):
-        load_policy(_signed_record(tmp_path, payload))
+        _load_policy_at(_signed_record(tmp_path, payload))
 
 
 def test_autonomy_grant_is_renderer_bound(tmp_path, monkeypatch):
@@ -860,6 +894,122 @@ def test_autonomy_grant_is_series_bound(tmp_path, monkeypatch):
     draft = _draft()  # series t1_live-music
     with pytest.raises(ValueError, match="enumerated series"):
         _release(draft)
+
+
+def test_autonomy_requires_a_release_journal(tmp_path, monkeypatch):
+    # r11 blocker: max_releases_per_day must be MECHANICAL — no registered
+    # journal means the count cannot be proven, so autonomy refuses.
+    path = _signed_record(tmp_path, _l1_payload())
+    monkeypatch.setattr(autonomy_module, "DEFAULT_RECORD_PATH", path)
+    monkeypatch.setattr(publish_gate, "_RELEASE_JOURNAL", None)
+    with pytest.raises(ValueError, match="no release journal"):
+        _release(_draft())
+
+
+def test_autonomy_cadence_ceiling_is_enforced(tmp_path, monkeypatch):
+    # r11 blocker: the grant says 2/day — the third auto-release refuses.
+    path = _signed_record(tmp_path, _l1_payload())  # max_releases_per_day: 2
+    monkeypatch.setattr(autonomy_module, "DEFAULT_RECORD_PATH", path)
+    draft = _draft()
+    assert _release(draft).released_by == "autonomy:L1"
+    assert _release(draft).released_by == "autonomy:L1"
+    with pytest.raises(ValueError, match="cadence ceiling"):
+        _release(draft)
+
+
+def test_human_approval_never_depends_on_the_journal(monkeypatch):
+    # The ceiling belongs to the autonomy GRANT; per-post human custody
+    # stands on its own even before deployment wires a journal.
+    monkeypatch.setattr(publish_gate, "_RELEASE_JOURNAL", None)
+    draft = _draft()
+    assert _release(draft, _approve(draft)).released_by == "Sean Schubert"
+
+
+def test_release_journal_registration_is_once_only(monkeypatch):
+    monkeypatch.setattr(publish_gate, "_RELEASE_JOURNAL", None)
+    publish_gate.configure_release_journal(publish_gate.InMemoryReleaseJournal())
+    with pytest.raises(ValueError, match="already configured"):
+        publish_gate.configure_release_journal(publish_gate.InMemoryReleaseJournal())
+
+
+# --- Fact-derived copy (evaluator r11) -----------------------------------------
+
+_FABRICATED_PHRASES = (
+    # The exact class r11 blocked: qualitative claims no canonical row carries.
+    "big rooms",
+    "local picks",
+    "wildcards",
+    "couch-defeating",
+    "real ones",
+    "about to go off",
+    "candidates inside",
+)
+
+
+def _family_day_config():
+    return _config(
+        series_key="t1_family",
+        domain_ids=("family",),
+        timeframe="today",
+        listicle_noun="family adventures",
+    )
+
+
+def _family_events(n=5, price=0):
+    return [
+        _event(
+            i,
+            domain="family",
+            start_time=f"2026-07-24T1{4 + i % 4}:00:00-05:00",  # 14:00-17:00 today
+            price_min=price,
+        )
+        for i in range(1, n + 1)
+    ]
+
+
+def test_every_hook_and_caption_combination_is_fact_derived():
+    # r11 blockers: every copy surface across the whole factor space is
+    # assembled from canonical facts + the curated noun — none of the
+    # removed fabricated phrases can render, for any series.
+    for hook in FACTORS["hook_type"]:
+        for style in FACTORS["caption_style"]:
+            draft = _draft(
+                _family_events(),
+                config=_family_day_config(),
+                hook_type=hook,
+                caption_style=style,
+            )
+            for text in [s.headline for s in draft.slides] + [draft.caption]:
+                lowered = text.lower()
+                for phrase in _FABRICATED_PHRASES:
+                    assert phrase not in lowered, (hook, style, text)
+
+
+def test_price_promise_uses_the_series_noun_not_nights():
+    # r11 blocker: "5 free nights ... Today" for a daytime family carousel
+    # was a false claim — the promise now carries the series' own noun.
+    free = _draft(_family_events(price=0), config=_family_day_config(), hook_type="number_promise")
+    assert free.slides[0].headline == "5 free family adventures to experience Today"
+    priced = _draft(_family_events(price=8), config=_family_day_config(), hook_type="number_promise")
+    assert priced.slides[0].headline == "5 family adventures from $8 to experience Today"
+
+
+def test_hook_overflow_degrades_to_plain_noun_never_truncates():
+    # A 2-word noun + "from $X" + "This weekend" would exceed the 8-word
+    # recognition cap; the honest degrade drops the price blank, keeps N.
+    events = [
+        _event(i, start_time=f"2026-07-25T2{i % 3}:00:00-05:00") for i in range(1, 6)
+    ]
+    config = _config(timeframe="this_weekend", listicle_noun="weekend plans")
+    draft = _draft(events, config=config, hook_type="number_promise")
+    assert draft.slides[0].headline == "5 weekend plans to experience This weekend"
+
+
+def test_mini_story_caption_is_built_from_canonical_facts():
+    draft = _draft(caption_style="mini_story")
+    first = next(s for s in draft.slides if s.kind == "event")
+    assert first.headline in draft.caption  # the story is a real listing
+    assert "Mohawk" in draft.caption
 
 
 def test_imageless_event_fails_loud():
@@ -936,15 +1086,15 @@ def test_bandit_is_deterministic_under_a_seed():
 
 def test_bandit_learns_toward_the_winning_level():
     bandit = ThompsonBandit(seed=3, exploration_floor=0.0)
-    win = _assignment(hook_type="humor")
-    lose = _assignment(hook_type="awe")
+    win = _assignment(cta_type="save_this")
+    lose = _assignment(cta_type="tag_who")
     for _ in range(60):
         bandit.update(win, reward=0.6, reach=2000)
         bandit.update(lose, reward=0.05, reach=2000)
-    means = bandit.posterior_means()["hook_type"]
-    assert means["humor"] > means["awe"]
-    picks = [bandit.sample_assignment()["hook_type"] for _ in range(50)]
-    assert picks.count("humor") > picks.count("awe")
+    means = bandit.posterior_means()["cta_type"]
+    assert means["save_this"] > means["tag_who"]
+    picks = [bandit.sample_assignment()["cta_type"] for _ in range(50)]
+    assert picks.count("save_this") > picks.count("tag_who")
 
 
 def test_bandit_rejects_bad_reward_and_reach():
@@ -975,11 +1125,11 @@ def test_decay_shrinks_toward_prior_and_roundtrip_serialization():
 
 def test_exploration_floor_keeps_losers_measurable():
     bandit = ThompsonBandit(seed=5, exploration_floor=0.5)
-    lose = _assignment(hook_type="awe")
+    lose = _assignment(cta_type="tag_who")
     for _ in range(40):
         bandit.update(lose, reward=0.01, reach=2000)
-    picks = {bandit.sample_assignment()["hook_type"] for _ in range(200)}
-    assert "awe" in picks  # even a loser keeps getting occasional data
+    picks = {bandit.sample_assignment()["cta_type"] for _ in range(200)}
+    assert "tag_who" in picks  # even a loser keeps getting occasional data
 
 
 # --- Metrics + the improvement ratchet (spec SS6) ------------------------------
@@ -1302,7 +1452,7 @@ def test_ingest_results_updates_learner_and_reports():
     ledger = MetricsLedger()
     outcomes = [
         (_assignment(), _metrics(1, 0.10)),
-        (_assignment(hook_type="humor"), _metrics(2, 0.30)),
+        (_assignment(hook_type="number_promise"), _metrics(2, 0.30)),
     ]
     report = ingest_results(bandit=bandit, ledger=ledger, outcomes=outcomes, decay_gamma=0.99)
     assert bandit.updates_seen == 2

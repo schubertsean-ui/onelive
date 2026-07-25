@@ -321,34 +321,43 @@ def _hook_headline(hook_type: str, events: list[dict], config: CarouselConfig) -
     """The founder's listicle canon (2026-07-24): every hook reads
     '<N> <blank> to experience <Today | Tonight | This weekend>'. N is the
     ACTUAL number of event slides (the promise is kept exactly); the hook
-    factor varies only the <blank>. A price blank is computed from the real
-    lineup, never asserted."""
+    factor varies only the <blank>, and every blank is FACT-DERIVED (r11):
+    the curated series noun (config, founder/scenario-ratified) or a price
+    computed from the real lineup — never an AI-authored qualitative claim
+    ("big rooms" for small venues is exactly the class this forbids)."""
     n = len(events)
     phrase = str(TIMEFRAMES[config.timeframe]["phrase"])
     priced = [e["price_min"] for e in events if e.get("price_min") is not None]
-    blanks = {
-        "edition_anchor": config.listicle_noun,
-        "social_proof": "local picks",
-        "curiosity_gap": "wildcards",
-        "awe": "big rooms",
-        "humor": "couch-defeating plans",
-    }
-    if hook_type == "number_promise":
+    if hook_type == "edition_anchor":
+        blank = config.listicle_noun
+    elif hook_type == "number_promise":
         if priced and len(priced) == n:
             # Honest by construction (r5): "from $X" claims the exact
             # MINIMUM, never an "under" ceiling a $X ticket would falsify,
-            # and the label is exact — no cent truncation.
+            # and the label is exact — no cent truncation. The noun is the
+            # series' own (r11): "family adventures" never becomes "nights".
             low = min(priced)
-            blank = "free nights" if max(priced) == 0 else f"nights from {_price_label(low)}"
+            if max(priced) == 0:
+                # A noun that already says "free" (the free_tonight
+                # scenario's "free nights") is not doubled.
+                noun = config.listicle_noun
+                blank = noun if noun.lower().startswith("free") else f"free {noun}"
+            else:
+                blank = f"{config.listicle_noun} from {_price_label(low)}"
         else:
             # An honest price promise needs every featured event priced;
             # otherwise fall back to the plain noun.
             blank = config.listicle_noun
-    elif hook_type in blanks:
-        blank = blanks[hook_type]
     else:
         raise CarouselTrustError(f"unknown hook_type {hook_type!r}")
-    return f"{n} {blank} to experience {phrase}"
+    headline = f"{n} {blank} to experience {phrase}"
+    if len(headline.split()) > HOOK_HEADLINE_MAX_WORDS:
+        # A two-word noun + "from $X" + "This weekend" can overflow the
+        # 8-word recognition cap; the honest degrade is the plain noun
+        # (always <= 7 words: N + <=2 noun + "to experience" + <=2 phrase),
+        # never truncating the price fact.
+        headline = f"{n} {config.listicle_noun} to experience {phrase}"
+    return headline
 
 
 def _cta_lines(cta_type: str) -> tuple[str, ...]:
@@ -395,11 +404,15 @@ def _alt_text(event: dict, config: CarouselConfig) -> str:
 def _caption(config: CarouselConfig, style: str, events: list[dict], short_link: str) -> str:
     n = len(events)
     phrase = str(TIMEFRAMES[config.timeframe]["phrase"])
+    # Every caption style is assembled from canonical facts and the curated
+    # series noun (r11): no venue/mood characterization the data does not
+    # carry — "a room about to go off" was exactly the forbidden class.
+    first = events[0]
     lead = {
-        "short_punch": f"{phrase} in {config.city}. {n} real ones.",
+        "short_punch": f"{phrase} in {config.city}: {n} {config.listicle_noun}.",
         "mini_story": (
-            f"Somewhere in {config.city} {phrase.lower()} there's a room "
-            f"that's about to go off. {n} candidates inside."
+            f"First up {phrase.lower()}: {first['name']} at "
+            f"{first['venue_name']}. {n} {config.listicle_noun} in this edition."
         ),
         "list": f"{n} events. {phrase}, {config.city}:",
     }

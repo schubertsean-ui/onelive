@@ -11,7 +11,11 @@ closed). The autonomy record is read EXCLUSIVELY from its canonical
 committed path and signature-verified. Current event trust state is read
 EXCLUSIVELY through a module-registered canonical-store reader
 (configure_state_reader — deployment wiring, once-only; none registered =
-release refuses everything). The human-identity check runs at BOTH
+release refuses everything). Release-time "now" is the GATE'S OWN clock
+(r11: _utcnow(), never a parameter), and the autonomy grant's
+max_releases_per_day is counted against a module-registered release
+journal (configure_release_journal, once-only; none registered = the
+autonomy path refuses). The human-identity check runs at BOTH
 approve() and release (a signed approval naming an AI identity still
 refuses). The autonomous loop (agent_loop.py) is forbidden to import this
 module — enforced by tests/test_social_carousel.py's import guard. There
@@ -25,7 +29,7 @@ import hashlib
 import hmac
 import os
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timezone
 from typing import Callable
 
 from social.carousel.autonomy import load_policy
@@ -61,6 +65,63 @@ AI_IDENTITY_MARKERS = ("agent", "claude", "gpt", "gemini", "bot", "onelive-carou
 # row (r4): confidence, event_status, name, venue_name, start_time, source,
 # origin at minimum}. None = no reader = release refuses everything.
 _STATE_READER: Callable[[list[str]], dict[str, dict]] | None = None
+
+
+def _utcnow() -> datetime:
+    """The gate's OWN clock (r11): release-time "now" is never a caller
+    argument — the subject of a release must not choose the clock that
+    decides whether the release is lawful. A caller passing an earlier
+    timestamp could release carousels of already-started events; this
+    module attribute is process infrastructure (tests monkeypatch it the
+    same way they patch env), not an API surface."""
+    return datetime.now(timezone.utc)
+
+
+def _release_moment() -> datetime:
+    now = _utcnow()
+    if now.tzinfo is None:
+        raise ValueError(
+            "release refused: the gate clock returned a naive datetime — "
+            "a custody moment must be timezone-aware"
+        )
+    return now
+
+
+class InMemoryReleaseJournal:
+    """Reference release journal for tests and single-process dev runs.
+    Production wires a DURABLE journal (the ops-console store, R-026's
+    trigger) through configure_release_journal — the interface is
+    count_on(date) -> int and record(release, moment)."""
+
+    def __init__(self) -> None:
+        self._by_day: dict[date, list[PublishRelease]] = {}
+
+    def count_on(self, day: date) -> int:
+        return len(self._by_day.get(day, []))
+
+    def record(self, release: "PublishRelease", moment: datetime) -> None:
+        self._by_day.setdefault(moment.date(), []).append(release)
+
+
+# The release journal: deployment wiring, registered ONCE like the state
+# reader. The autonomy path REQUIRES it (r11): a signed grant's
+# max_releases_per_day is enforced HERE, mechanically — no journal means
+# the ceiling cannot be counted, so nothing auto-releases (fail closed).
+_RELEASE_JOURNAL = None
+
+
+def configure_release_journal(journal) -> None:
+    """Register the durable release journal. Once-only, same physics as
+    configure_state_reader: a second registration is a misconfiguration
+    or an attempt to reset the cadence count."""
+    global _RELEASE_JOURNAL
+    if _RELEASE_JOURNAL is not None:
+        raise ValueError("release journal already configured — refusing to replace it")
+    if not callable(getattr(journal, "count_on", None)) or not callable(
+        getattr(journal, "record", None)
+    ):
+        raise ValueError("release journal must expose count_on(date) and record(release, moment)")
+    _RELEASE_JOURNAL = journal
 
 
 def configure_state_reader(reader: Callable[[list[str]], dict[str, dict]]) -> None:
@@ -164,7 +225,9 @@ def _recheck_trust(draft: CarouselDraft, reference_time: str) -> None:
     at release, read from the CANONICAL STORE by the registered reader (r3:
     the final gate never trusts caller-supplied state; r4: nor does it
     trust that the generator was used at all — draft shape and every
-    asserted fact are verified against canonical rows, fail closed)."""
+    asserted fact are verified against canonical rows, fail closed).
+    reference_time comes ONLY from the gate's own clock (r11) — the sole
+    caller is release_for_publish, which derives it from _utcnow()."""
     if _STATE_READER is None:
         raise ValueError(
             "release refused: no canonical state reader configured — the gate "
@@ -299,8 +362,6 @@ def _recheck_trust(draft: CarouselDraft, reference_time: str) -> None:
 def release_for_publish(
     draft: CarouselDraft,
     approval: Approval | None = None,
-    *,
-    reference_time: str,
 ) -> PublishRelease:
     """The publish decision. Exactly two lawful paths:
 
@@ -311,11 +372,13 @@ def release_for_publish(
        committed path only, signature-verified under the same env key.
 
     Everything else refuses. There are deliberately NO parameters for key
-    material, record paths, or trust state (r3): the key is deployment
-    env, the record location is fixed, and current state comes from the
-    registered canonical reader — absent any of them, nothing releases.
+    material, record paths, trust state (r3), or the clock (r11): the key
+    is deployment env, the record location is fixed, current state comes
+    from the registered canonical reader, and release-time "now" is the
+    gate's own clock — absent any of them, nothing releases.
     """
-    _recheck_trust(draft, reference_time)
+    now = _release_moment()
+    _recheck_trust(draft, now.isoformat())
     draft_hash = content_hash(draft)
 
     if approval is not None:
@@ -337,12 +400,18 @@ def release_for_publish(
                 "release refused: approval signature does not verify under the "
                 "approval key — a name string alone approves nothing"
             )
-        return PublishRelease(
+        release = PublishRelease(
             draft_hash=draft_hash,
             surface=draft.surface,
             series_key=draft.series_key,
             released_by=approval.approved_by,
         )
+        # Human-approved releases are journaled too when a journal exists
+        # (complete record), but per-post human custody never depends on
+        # the autonomy grant's counting machinery.
+        if _RELEASE_JOURNAL is not None:
+            _RELEASE_JOURNAL.record(release, now)
+        return release
 
     active_policy = load_policy()
     if active_policy.level != "L0":
@@ -362,12 +431,30 @@ def release_for_publish(
                 "autonomy grant's enumerated series"
             )
     if active_policy.allows_auto_release(draft.surface, draft.tier):
-        return PublishRelease(
+        # The grant's cadence ceiling, enforced MECHANICALLY here (r11):
+        # no journal = the count cannot be proven = nothing auto-releases,
+        # and a spent ceiling refuses until the (gate-clock) day turns.
+        if _RELEASE_JOURNAL is None:
+            raise ValueError(
+                "release refused: no release journal configured — the autonomy "
+                "grant's max_releases_per_day cannot be counted, so nothing "
+                "auto-releases (register the journal at deployment)"
+            )
+        released_today = _RELEASE_JOURNAL.count_on(now.date())
+        if released_today >= active_policy.max_releases_per_day:
+            raise ValueError(
+                f"release refused: the autonomy grant's cadence ceiling "
+                f"({active_policy.max_releases_per_day}/day) is already spent "
+                f"for {now.date()} ({released_today} released)"
+            )
+        release = PublishRelease(
             draft_hash=draft_hash,
             surface=draft.surface,
             series_key=draft.series_key,
             released_by=f"autonomy:{active_policy.level}",
         )
+        _RELEASE_JOURNAL.record(release, now)
+        return release
     raise ValueError(
         "release refused: no human approval and the autonomy record does not "
         f"cover ({draft.surface}, {draft.tier}) — default is L0, human in the loop"

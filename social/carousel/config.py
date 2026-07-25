@@ -76,12 +76,15 @@ SLIDE_OVERLAY_MAX_WORDS = 12
 # the whole space is enumerable and auditable. Negative-valence emotion
 # registers deliberately do not exist (spec §3).
 FACTORS: dict[str, tuple[str, ...]] = {
+    # Every hook blank is FACT-DERIVED (evaluator r11): the curated series
+    # noun or a price computed from the actual lineup. Qualitative
+    # AI-authored blanks ("big rooms", "local picks") were removed — the
+    # trust contract is verbatim facts plus provenance-carried descriptors,
+    # and a hook is outward-facing copy like any other slide. Creative
+    # range lives in caption_style/cta/emotion_register/media, whose levels
+    # are all groundable in canonical data.
     "hook_type": (
-        "curiosity_gap",
         "number_promise",
-        "awe",
-        "humor",
-        "social_proof",
         "edition_anchor",
     ),
     "emotion_register": (

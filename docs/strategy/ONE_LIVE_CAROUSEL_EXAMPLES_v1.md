@@ -22,11 +22,13 @@ five scenarios render from live data with zero code changes. What IS
 real: every slide you see was produced by the actual shipped generator
 (test-pinned), under the real trust rules — future-only windows, exact
 listicle promises, provenance-required descriptors, banned-claim scans.
-One consequence to read correctly (r4 nit): the captions below carry the
-engine's standard "Real listings, real sources." template line — TRUE in
-production, where only canonical gate-settled rows can enter a carousel;
-here it renders over synthetic fixtures because the engine is the real
-one, and this banner governs.
+One consequence to read correctly (r4 nit; annotation added at r11): the
+captions below carry the engine's standard "Real listings, real sources."
+template line — TRUE in production, where only canonical gate-settled
+rows can enter a carousel; here it renders over synthetic fixtures
+because the engine is the real one. So that the line cannot be misread
+even out of context, every rendered caption below carries an inline
+"[template line — fixtures above are synthetic]" annotation at that spot.
 
 ## A. The five scenario carousels (engine-rendered; condensed for reading)
 
@@ -55,13 +57,13 @@ Vibe proposal is ratified).
 - **Slide 5:** The Midnight Brass — Red River Room · 21:00 — From $15 — *"Horns that start a party"* (Foundry descriptor, provenance-carried)
 - **Slide 6:** Late Bites & Bossa Nova — Verdine's Courtyard · 21:00 — Free
 - **Slide 7 (CTA):** Send this to the friend who's always down
-- **Caption [synthetic demo — fixture render]:** "Somewhere in Austin tonight there's a room that's about to go off. 5 candidates inside. / Real listings, real sources. [UTM link]"
+- **Caption [synthetic demo — fixture render]:** "First up tonight: Two-Hander: 'The Lighthouse Keepers' at Pocket Stage ATX. 5 date nights in this edition. / Real listings, real sources. [template line — fixtures above are synthetic] [UTM link]" — every caption clause is a canonical fact or the curated noun (r11: no venue/mood characterization the data does not carry)
 - **Hashtags:** #austin #austinevents #austintheater #austinsymphony #austinfoodie
 
 ### 2 · Music & Dancing (persona #7 — the founder's own example — + #9 "The Cheap Dancer")
 Domains: live music · nightlife · dance.
 
-- **Slide 1 (hook):** 7 couch-defeating plans to experience Tonight
+- **Slide 1 (hook):** 7 dance floors to experience Tonight
 - **Slide 2:** Two-Step Tuesday's Friday Edition — Broken Wheel Hall · 20:00 — From $10
 - **Slide 3:** Salsa Social + Beginner Lesson — Plaza Azul · 20:30 — Free
 - **Slide 4:** The Midnight Brass — Red River Room · 21:00 — From $15
@@ -70,7 +72,7 @@ Domains: live music · nightlife · dance.
 - **Slide 7:** DJ Meridian: Motown to House — The Basement Line · 22:30 — From $5
 - **Slide 8:** Analog Synth Night — Circuit Chapel · 23:00 — From $12
 - **Slide 9 (CTA):** Tag who you're taking
-- **Caption [synthetic demo — fixture render]:** "Tonight in Austin. 7 real ones. / Real listings, real sources. [UTM link]"
+- **Caption [synthetic demo — fixture render]:** "Tonight in Austin: 7 dance floors. / Real listings, real sources. [template line — fixtures above are synthetic] [UTM link]"
 - **Hashtags:** #austin #austinevents #austindance #austinlivemusic #austinnightlife
 
 ### 3 · Weekend Planner (persona #5 "The Planner")
@@ -147,7 +149,7 @@ Gathered per post (Meta Insights → `PostMetrics`, all modeled in
 Analyzed continuously (already mechanical in the engine):
 - **Per-factor learning** — Thompson posteriors per hook type, emotion
   register, listicle size (5 vs 7!), caption style, CTA, post slot:
-  every question the founder could ask ("does humor beat awe in
+  every question the founder could ask ("does amusement beat awe in
   Austin?", "5 or 7?") becomes a posterior we can read off.
 - **The improvement ratchet** — rolling baseline per surface × tier;
   `improved`/`regressed` flags per post; a regressing period is a
