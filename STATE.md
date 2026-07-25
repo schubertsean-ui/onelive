@@ -79,7 +79,8 @@ GOAL: pin the five founder-reviewed scenario renders as the v1 launch versions i
 [S3:malformed-ledger-row] self-caught this build — pipes escaped, parsers re-run green before commit; class indexed.
 [S3:nonfinite-numeric-accepted] r2 fix — math.isfinite at add_prior AND seed_bandit; class indexed (the #67 price lesson generalized to all numeric config).
 [S3-note] swallowed-corrupt-data third catch answered structurally: tier keys bind to the DOMAIN_TAGS registry, never prefix shapes.
-STATUS: OPEN — rides the next PR after #67's merge (d4f4bc9).
+Stage 3 citations for the close diff (docs-only; each class re-checked as unchanged by this change): [S3:caller-suppliable-custody-inputs] [S3:release-path-weaker-than-generation] [S3:semantic-claim-not-rederived] [S3:self-weakenable-gate] [S3:volatile-safety-store] [S3:nonfinite-numeric-accepted] — no code touched, all mechanisms as merged. [S3:retyped-evidence] the M1=3 and SHA cite the merge API result and the three in-flight rows, not hand memory. [S3:malformed-ledger-row] new row verified by running kaizen_trends green before commit. [S3:pushed-on-red] validate ran unchained to a file, exit checked explicitly. [S3:false-confidence-gate] the close row claims only what the merged PR shipped. [S3:stalled-state-needs-active-diagnosis] no stalls this round.
+STATUS: CLOSED — PR #69 MERGED (squash ec91a81) at r3 APPROVE + trust-gate green, merged silently per the no-notify directive; M1=3 (the Construction Loop's first governed build: 15 → 9 → 3 rounds across the session's three arcs).
 
 ## Session Contract #24 (2026-07-25, same session — founder: build a research-grounded closed-loop construction method with root-cause analysis; paraphrase here, verbatim in the decision record at close)
 
