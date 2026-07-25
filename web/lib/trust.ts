@@ -46,9 +46,17 @@ export type TrustDisplay = {
 
 // Resolve a raw confidence value (+ the human source label) to how the feed
 // should present it. Unknown/missing -> cautious fallback.
+//
+// `kind` distinguishes the two confirmed provenances honestly: a LICENSED row is
+// stated by an authoritative ticketing API; a PROMOTED (pipeline-gated) row was
+// reviewed through our trust gate and published from a venue/organizer listing.
+// It defaults to "ticketing" so the licensed feed's copy (and its tests) are
+// unchanged; only promoted rows opt into the listing wording. Nothing about this
+// weakens a cautious state — likely/unverified/disputed copy is already generic.
 export function trustDisplay(
   raw: string | null | undefined,
   sourceLabel: string,
+  kind: "ticketing" | "listing" = "ticketing",
 ): TrustDisplay {
   const src = sourceLabel || "the listing source";
   switch (raw) {
@@ -59,9 +67,12 @@ export function trustDisplay(
         disputed: false,
         marker: null,
         sheet:
-          `Listed by ${src} — an authoritative ticketing source. Times and ` +
-          `prices can change; the venue's own page and the ticket link are the ` +
-          `last word.`,
+          kind === "listing"
+            ? `Reviewed and published from ${src}. Times and prices can change; ` +
+              `the venue's own page and the ticket link are the last word.`
+            : `Listed by ${src} — an authoritative ticketing source. Times and ` +
+              `prices can change; the venue's own page and the ticket link are the ` +
+              `last word.`,
       };
     case "likely":
       return {

@@ -19,7 +19,7 @@ const _DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_cWk_eNqbMWGIIFQf5B5hIg_CFqjAy
 // Read at call time (not module load) so values are correct per request and the
 // functions are testable. Server-side read, so it prefers the plain runtime
 // names (Sensitive-safe), then the NEXT_PUBLIC_ forms, then the public default.
-function supaEnv(): { url?: string; key?: string } {
+export function supaEnv(): { url?: string; key?: string } {
   return {
     url: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? _DEFAULT_SUPABASE_URL,
     key: process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? _DEFAULT_SUPABASE_ANON_KEY,

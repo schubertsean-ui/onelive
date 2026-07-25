@@ -13,6 +13,7 @@ from typing import Any, Optional
 
 from worker.importers.domain_map import (
     UNMAPPED,
+    eventbrite_domain,
     seatgeek_domain,
     ticketmaster_domain,
     ticketmaster_fallback_domain,
@@ -192,6 +193,94 @@ def normalize_seatgeek(ev: dict) -> Optional[dict]:
         "venue_address": venue.get("address"),
         "venue_lat": _f(loc.get("lat")),
         "venue_lng": _f(loc.get("lon")),
+        "confidence": "confirmed",
+        "raw": ev,
+    }
+
+
+# ---- Eventbrite --------------------------------------------------------------
+
+# Eventbrite event status → (event status, on_sale_status). Only the ticketing
+# states that map to our closed vocabulary (scheduled|cancelled|moved) are
+# translated; anything else stays 'scheduled' (the runner polls status=live).
+_EB_STATUS = {
+    "live": ("scheduled", "onsale"),
+    "started": ("scheduled", "onsale"),
+    "ended": ("scheduled", "offsale"),
+    "completed": ("scheduled", "offsale"),
+    "canceled": ("cancelled", "cancelled"),
+    "cancelled": ("cancelled", "cancelled"),
+    "postponed": ("moved", "postponed"),
+}
+
+
+def normalize_eventbrite(ev: dict) -> Optional[dict]:
+    """Map an Eventbrite v3 event (expand=venue,ticket_availability,category,
+    subcategory) into the licensed_event column shape. None when the irreducible
+    minimum (a stable id and a title) is missing — never invents data.
+
+    Public event SEARCH was removed by Eventbrite in 2020; the fetch client polls
+    KNOWN organizers/venues, but the per-event shape mapped here is identical.
+    """
+    ext = ev.get("id")
+    # Eventbrite wraps text fields as {"text": ..., "html": ...}.
+    name = ev.get("name") or {}
+    title = name.get("text") if isinstance(name, dict) else name
+    if ext is None or not title:
+        return None
+
+    category = (ev.get("category") or {}).get("name")
+    subcategory = (ev.get("subcategory") or {}).get("name")
+    domain, subsegment = eventbrite_domain(category, subcategory)
+
+    start = ev.get("start") or {}
+    end = ev.get("end") or {}
+    # Eventbrite's start.utc/end.utc are ISO-8601 with a trailing 'Z' already;
+    # _utc_iso is a no-op safety net if a naive value ever appears.
+    start_time = _utc_iso(start.get("utc")) if isinstance(start, dict) else None
+    end_time = _utc_iso(end.get("utc")) if isinstance(end, dict) else None
+
+    status_code = (ev.get("status") or "").lower()
+    status, on_sale_status = _EB_STATUS.get(status_code, ("scheduled", None))
+
+    # ticket_availability carries the price envelope. is_free is authoritative
+    # from the provider; only infer it from a $0 minimum when the flag is absent.
+    ta = ev.get("ticket_availability") or {}
+    tmin = ta.get("minimum_ticket_price") or {}
+    tmax = ta.get("maximum_ticket_price") or {}
+    price_min = _f(tmin.get("major_value"))
+    price_max = _f(tmax.get("major_value"))
+    currency = tmin.get("currency") or tmax.get("currency")
+    is_free = ev.get("is_free")
+    if is_free is None and price_min is not None:
+        is_free = price_min == 0
+
+    venue = ev.get("venue") or {}
+    addr = venue.get("address") or {}
+
+    return {
+        "source_provider": "eventbrite",
+        "external_id": str(ext),
+        "title": title,
+        "category": domain,
+        "subsegment": subsegment,
+        "performer": None,  # Eventbrite events have no performer taxonomy
+        "start_time": start_time,
+        "end_time": end_time,
+        "status": status,
+        "on_sale_status": on_sale_status,
+        "price_min": price_min,
+        "price_max": price_max,
+        "currency": currency,
+        "is_free": is_free,
+        "ticket_url": ev.get("url"),
+        "image_url": (ev.get("logo") or {}).get("url"),
+        "venue_name": venue.get("name"),
+        "venue_city": addr.get("city"),
+        "venue_area": None,  # neighborhood derived later from geo; not asserted here
+        "venue_address": addr.get("localized_address_display"),
+        "venue_lat": _f(addr.get("latitude")),
+        "venue_lng": _f(addr.get("longitude")),
         "confidence": "confirmed",
         "raw": ev,
     }

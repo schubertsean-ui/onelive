@@ -225,6 +225,107 @@ def seatgeek_domain(event_type: str | None,
     return domain, subseg
 
 
+# ---- Eventbrite (category + subcategory) -------------------------------------
+
+# Eventbrite's ~20 top-level categories → OneLive domain. Public event SEARCH was
+# removed in 2020, so the importer POLLS known organizers/venues; each event still
+# carries Eventbrite's own category/subcategory taxonomy (expand=category,
+# subcategory), which is what we map here — provider taxonomy only, never a guess.
+#
+# A few categories are refined by subcategory below (Performing & Visual Arts →
+# theater/dance/comedy/visual-arts; Community → heritage/festivals). Categories
+# with no OneLive analogue (Government, Auto Boat & Air, School Activities, ...)
+# and the literal "Other" stay UNMAPPED — honest, never fabricated.
+_EB_CATEGORY_DOMAIN = {
+    "music": "live-music",
+    "business": "ideas",
+    "business & professional": "ideas",
+    "food & drink": "food-drink",
+    "community": "community",
+    "community & culture": "community",
+    "performing & visual arts": "performing-arts",  # refined by subcategory
+    "film media & entertainment": "film",
+    "film, media & entertainment": "film",
+    "sports & fitness": "sports",
+    "health": "wellness",
+    "health & wellness": "wellness",
+    "science & technology": "ideas",
+    "science & tech": "ideas",
+    "charity & causes": "community",
+    "religion": "heritage",
+    "religion & spirituality": "heritage",
+    "family & education": "family",
+    "seasonal": "seasonal",
+    "seasonal & holiday": "seasonal",
+    "fashion": "fashion-design",
+    "fashion & beauty": "fashion-design",
+    "home & lifestyle": "place-based",
+    "hobbies": "fairs-expos",
+    "hobbies & special interest": "fairs-expos",
+    # Deliberately UNMAPPED (no OneLive cultural analogue): government/politics,
+    # auto/boat/air, school activities. Left out of the table on purpose so they
+    # surface honestly rather than being forced into an ill-fitting domain.
+}
+
+# Within "Performing & Visual Arts", the subcategory picks the finer domain
+# (Eventbrite lumps theatre, dance, comedy, opera and fine art under one header).
+# Substring match on the provider's own subcategory label — no fabrication.
+_EB_PVA_SUBCATEGORY = (
+    (("theatre", "theater", "musical"), "theater"),
+    (("comedy",), "comedy"),
+    (("dance", "ballet"), "dance"),
+    (("opera", "classical", "orchestra", "choir", "choral"), "performing-arts"),
+    (("fine art", "craft", "sculpture", "painting", "design", "visual"), "visual-arts"),
+    (("literary", "poetry"), "literary"),
+)
+
+# Within "Community & Culture", a couple of subcategories carry stronger signal
+# than the coarse "community" default.
+_EB_COMMUNITY_SUBCATEGORY = (
+    (("heritage", "cultural", "language", "historic"), "heritage"),
+    (("festival", "state fair", "county fair"), "festivals"),
+    (("lgbt", "medieval", "renaissance"), "community"),
+)
+
+# Subcategory labels that carry no sub-bucket signal — never shown as a
+# subsegment (a card must not read "Food & Drink · Other").
+_EB_PLACEHOLDER = {"", "other", "none", "n/a", "miscellaneous"}
+
+
+def eventbrite_domain(category_name: str | None,
+                      subcategory_name: str | None = None
+                      ) -> tuple[str, str | None]:
+    """Return (domain_id, subsegment) for an Eventbrite category/subcategory.
+
+    Uses ONLY Eventbrite's OWN taxonomy (the `category`/`subcategory` the API
+    returns with expand=category,subcategory). The category picks the coarse
+    domain; for the broad "Performing & Visual Arts" and "Community & Culture"
+    headers the subcategory refines it. subsegment is the provider's subcategory
+    when it adds signal. An unrecognized category (or the literal "Other") stays
+    UNMAPPED — honest, never a fabricated domain on a public feed.
+    """
+    cat = (category_name or "").strip().lower()
+    sub = (subcategory_name or "").strip()
+    sub_l = sub.lower()
+
+    domain = _EB_CATEGORY_DOMAIN.get(cat, UNMAPPED)
+
+    # Refine the broad art/community headers by the provider's subcategory.
+    if domain == "performing-arts" and sub_l:
+        for needles, refined in _EB_PVA_SUBCATEGORY:
+            if any(n in sub_l for n in needles):
+                domain = refined
+                break
+    elif domain == "community" and sub_l:
+        for needles, refined in _EB_COMMUNITY_SUBCATEGORY:
+            if any(n in sub_l for n in needles):
+                domain = refined
+                break
+
+    subseg = sub if sub_l not in _EB_PLACEHOLDER else None
+    return domain, subseg
+
+
 def unmapped(provider: str, raw_classification: str) -> str:
     """A stable, greppable marker for a classification that could not be mapped,
     so ingestion can log coverage gaps rather than hide them."""

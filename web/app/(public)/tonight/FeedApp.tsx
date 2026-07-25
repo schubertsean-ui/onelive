@@ -55,8 +55,24 @@ function headline(e: LicensedEvent): string {
   return e.performer && e.performer.length <= 80 ? e.performer : e.title;
 }
 
+// Provenance-accurate trust display. Licensed rows are stated by an
+// authoritative ticketing source (Ticketmaster/SeatGeek/Eventbrite); a
+// "promoted" row was gated and published from a venue/organizer listing — so it
+// gets the honest "listing" wording, never "ticketing source".
+const _PROVIDER_LABEL: Record<string, string> = {
+  ticketmaster: "Ticketmaster",
+  seatgeek: "SeatGeek",
+  eventbrite: "Eventbrite",
+  promoted: "a local venue or organizer listing",
+};
+function trustFor(e: LicensedEvent) {
+  const label = _PROVIDER_LABEL[e.source_provider] ?? e.source_provider;
+  const kind = e.source_provider === "promoted" ? "listing" : "ticketing";
+  return trustDisplay(e.confidence, label, kind);
+}
+
 function TrustMark({ e }: { e: LicensedEvent }) {
-  const t = trustDisplay(e.confidence, e.source_provider === "ticketmaster" ? "Ticketmaster" : e.source_provider);
+  const t = trustFor(e);
   if (!t.surface || !t.marker) return null;
   return <span className={`cau${t.disputed ? " disp" : ""}`} title={t.sheet}>{t.marker}</span>;
 }
@@ -66,7 +82,7 @@ function RichCard({ e, onNow }: { e: LicensedEvent; onNow: boolean }) {
   const map = mapUrl(e);
   const img = httpUrl(e.image_url);
   const tix = httpUrl(e.ticket_url);
-  const sub = trustDisplay(e.confidence, e.source_provider === "ticketmaster" ? "Ticketmaster" : e.source_provider);
+  const sub = trustFor(e);
   const secondaryTitle = headline(e) !== e.title ? e.title : null;
   return (
     <div className="card">

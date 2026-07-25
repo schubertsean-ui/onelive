@@ -4,6 +4,7 @@ import {
   supabaseConfigured,
   type LicensedEvent,
 } from "../../../lib/licensed";
+import { fetchPromotedEvents } from "../../../lib/promoted";
 import FeedApp from "./FeedApp";
 
 // Server component — reads the REAL licensed events from Supabase at request
@@ -36,7 +37,19 @@ export default async function TonightPage() {
     // 12h back so an event already under way is still shown ("on now"); the
     // client drops anything actually ended.
     const fromISO = new Date(nowMs - 12 * 60 * 60 * 1000).toISOString();
-    events = await fetchLicensedEvents({ fromISO });
+    // The consumer read path is `event ∪ licensed_event` (migration 0010):
+    // licensed rows (Ticketmaster/SeatGeek/…) PLUS pipeline-promoted long-tail
+    // events. The promoted union is ADDITIVE — if it fails we still render the
+    // licensed feed (never blank a working feed over the smaller source); a
+    // licensed-read failure remains the hard error, exactly as before.
+    const [licensed, promoted] = await Promise.all([
+      fetchLicensedEvents({ fromISO }),
+      fetchPromotedEvents({ fromISO }).catch((e) => {
+        console.error("promoted-event read failed; showing licensed feed only:", e);
+        return [] as LicensedEvent[];
+      }),
+    ]);
+    events = [...licensed, ...promoted];
   } catch (e) {
     error = e instanceof Error ? e.message : "Could not load events";
   }
