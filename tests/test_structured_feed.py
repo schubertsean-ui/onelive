@@ -1839,3 +1839,55 @@ def test_no_docstring_still_calls_a_provider_mismatch_a_FAILED_source():
             assert not re.search(r"reported as a FAILED|records it as a FAILED", window), (
                 f"{mod.__name__}: a ProviderMismatch claim still says FAILED; the "
                 f"runner reports MISCONFIGURED and exits 2")
+
+
+# ---- evaluator r15: the drop hole one layer below the readers ----------------
+
+def test_a_row_dropped_at_NORMALIZE_is_reported(caplog):
+    """parse_jsonld_document counted intermediate Event OBJECTS, not emitted
+    rows, so a bare JSON-LD event that normalize_structured refuses (no stable
+    id, no title) vanished with no operator-visible report — the same
+    reader-accepts-a-narrower-shape class, one layer down (evaluator blocker
+    r15). Accounting now also runs at the normalize boundary, which covers EVERY
+    reader at once instead of per-parser."""
+    import logging
+    import worker.importers.structured_feed as sf
+
+    # Two bare JSON-LD events; the second has no name, so it normalizes to None.
+    bare = ('[{"@context":"https://schema.org","@type":"MusicEvent","@id":"https://v/1",'
+            '"name":"Real One","startDate":"2026-11-07T20:00:00-06:00"},'
+            '{"@context":"https://schema.org","@type":"MusicEvent","@id":"https://v/2",'
+            '"startDate":"2026-11-08T20:00:00-06:00"}]')
+    monkey = sf._events_from_text
+    with caplog.at_level(logging.WARNING):
+        rows = monkey(bare, provider_hint=sf.PROVIDER_JSONLD,
+                      source_name="bare_venue", cultural_domain=None)
+    assert len(rows) == 1, "the good row was lost"
+    assert "normalize[jsonld]" in caplog.text, caplog.text
+    assert "source=bare_venue" in caplog.text
+    assert "1 of 2 event object(s) produced NO row" in caplog.text
+
+
+def test_an_oversized_body_FAILS_the_source_rather_than_truncating(monkeypatch):
+    """An unbounded resp.read() let one hostile origin exhaust the runner
+    (evaluator nit r15). Truncating instead would have been worse: a short read
+    parses to fewer events and reads as a smaller feed — the exact silent-loss
+    class. So it raises, and the source is FAILED, not empty."""
+    import worker.importers.structured_feed as sf
+
+    class _Resp:
+        status = 200
+        headers = type("H", (), {"get_content_charset": lambda self: "utf-8"})()
+
+        def read(self, n=-1):
+            return b"x" * (sf._MAX_RESPONSE_BYTES + 1)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(sf.urllib.request, "urlopen", lambda req, timeout=None: _Resp())
+    with pytest.raises(sf.ResponseTooLarge):
+        sf.fetch_url("https://huge.example/feed.ics")

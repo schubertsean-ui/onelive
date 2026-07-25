@@ -52,6 +52,20 @@ _PROVIDERS = (PROVIDER_ICS, PROVIDER_JSONLD, PROVIDER_PLATFORM_JSON)
 _USER_AGENT = "OneLiveStructuredImporter/1.0 (+https://onelive.example; deterministic no-AI calendar import)"
 _ACCEPT = "text/calendar, text/html, application/xhtml+xml, application/ld+json;q=0.9, */*;q=0.5"
 
+# Resource cap for ONE fetched body. A calendar feed for a single venue is orders
+# of magnitude smaller; this only stops a pathological origin from exhausting the
+# runner (evaluator nit r15).
+_MAX_RESPONSE_BYTES = 10 * 1024 * 1024
+
+
+class ResponseTooLarge(OSError):
+    """A source served a body past the size cap.
+
+    OSError so it is a per-source FAILURE (named, non-zero exit) rather than
+    aborting the whole run — and never an empty source, which is what silently
+    truncating the body would have produced.
+    """
+
 
 # ---- datetime helpers --------------------------------------------------------
 
@@ -641,7 +655,16 @@ def fetch_url(url: str, *, timeout: int = 30) -> str:
     # signals an operator must see, not conditions to work around.
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         charset = resp.headers.get_content_charset() or "utf-8"
-        return resp.read().decode(charset, errors="replace")
+        # BOUNDED read (evaluator nit r15): the candidate and timeout caps limit
+        # how MANY and how LONG, but an unbounded resp.read() let one hostile or
+        # misconfigured origin exhaust the runner. Reading one byte past the cap
+        # is how we tell "at the limit" from "over it" without a second request.
+        raw = resp.read(_MAX_RESPONSE_BYTES + 1)
+        if len(raw) > _MAX_RESPONSE_BYTES:
+            raise ResponseTooLarge(
+                f"{url}: response exceeds {_MAX_RESPONSE_BYTES} bytes — refusing to "
+                f"read an unbounded body. FAILED source, not an empty one.")
+        return raw.decode(charset, errors="replace")
 
 
 def _platform_events(doc: Any) -> list:
@@ -1248,6 +1271,16 @@ def _events_from_text(text: str, *, provider_hint, source_name, cultural_domain)
                                  cultural_domain=cultural_domain)
         if n:
             out.append(n)
+    # Account at the NORMALIZE boundary too (evaluator blocker r15). Each reader
+    # reports what IT dropped, but a row can also vanish here — normalize_structured
+    # returns None for a row with no stable id or no title — and that loss was
+    # invisible: parse_jsonld_document counted intermediate Event OBJECTS, not
+    # emitted rows, so malformed bare JSON-LD disappeared silently. That is the
+    # same "reader accepts a narrower shape than the format permits" class this PR
+    # claims closed, one layer further down. Closing it at the boundary covers
+    # EVERY reader at once rather than per-parser, so a future reader inherits the
+    # accounting instead of having to remember it.
+    _account(f"normalize[{store_provider}]", len(raws), len(out), source_name)
     return out
 
 

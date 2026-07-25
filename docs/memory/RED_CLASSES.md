@@ -37,7 +37,8 @@ a class absent from this index is a prose-only lesson, an open defect.
 | featurability-dimension-missed | jsonld, discovery, geo, markup | KAIZEN #67 r2 — every trust dimension (origin, status, confidence) at every public emitter |
 | nonfinite-decimal-accepted | price, decimal | KAIZEN #67 r2/r3 — one shared normalizer; NaN/Infinity/negative refuse everywhere |
 | swallowed-corrupt-data | filter, select | KAIZEN #67 r3 — corrupt data surfaces loudly, never silently filtered |
-| stalled-state-needs-active-diagnosis | workflow, ci, cron | KAIZEN founder(Red) 2026-07-25 — a stalled external state gets one diagnostic probe, not more waiting |
+| stalled-state-needs-active-diagnosis | workflow, ci, cron, stall, check, mergeable, rebase, deploy | KAIZEN founder(Red) 2026-07-25 (#64/#65 arc) and AGAIN #68 r15 — read the OBJECT'S OWN STATE first (PR mergeable_state, base sha, deployment status), never infer it from behaviour: a missing check is not a flaky check. Checks that stop being CREATED (not red — absent) mean the merge ref cannot be built, i.e. conflicts from a moving base over shared append-only files |
+| unverifiable-outward-claim | deploy, site, url, preview, live | KAIZEN founder(Red) #68 r15 — never let a proxy measurement stand in for the user-facing claim. If the surface cannot be reached from here, move the CHECK to where the network works (CI) rather than reporting the nearest number you can get |
 | governance-ambiguity | decisions, CLAUDE, OPERATING | KAIZEN #67 r1 — precedent-bearing records state their precise scope |
 | false-confidence-gate | tools, gate, lint | KAIZEN 2026-07-24 family — a gate's self-description never claims more than its implementation |
 | self-weakenable-gate | construction_gate, red_classes, index | KAIZEN #67 r6 — a gate must not be silently weakenable through its own data; base-vs-head self-protection |
