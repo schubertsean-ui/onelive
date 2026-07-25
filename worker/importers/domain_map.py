@@ -77,6 +77,65 @@ _TM_GENRE_DOMAIN = {
 _TM_PLACEHOLDER = {"undefined", "none", "other", "miscellaneous", ""}
 
 
+# Deterministic keyword inference from the event's OWN name — used ONLY when the
+# provider left the classification blank ("Undefined"). This is not guessing or
+# AI: it reads the literal words the provider already put in the title, the same
+# signal a person reading the listing would use. Ordered — first match wins;
+# more-specific phrases first. (domain, subsegment_label|None).
+_TITLE_RULES: tuple[tuple[tuple[str, ...], str, str | None], ...] = (
+    (("stand-up", "stand up", "standup", "comedy", "improv", "open mic"), "comedy", None),
+    (("symphony", "philharmonic", "orchestra", "opera", "concerto", "chorale", "choral"), "performing-arts", None),
+    (("ballet", "nutcracker"), "dance", "Ballet"),
+    (("drag ",), "nightlife", "Drag"),
+    (("burlesque", "cabaret"), "theater", "Cabaret"),
+    (("musical", "theatre", "theater", " play", "playhouse"), "theater", None),
+    (("poetry", "spoken word", "open mic poetry", "author ", "book signing", "book launch"), "literary", None),
+    (("lecture", "seminar", "symposium", "keynote", "conference", "summit", " talk", "panel discussion", "ted"), "ideas", None),
+    (("film ", "screening", "cinema", " movie", "documentary"), "film", None),
+    (("festival", "fest ", " fest", "sxsw", "acl fest"), "festivals", None),
+    (("wine", "beer", "brewery", "distillery", "cocktail", "tasting", "brunch", "happy hour", "dinner", "culinary", "chef", "food truck", "supper"), "food-drink", None),
+    (("farmers market", "flea market", "artisan market", "block party", "parade", "street fair", "craft fair"), "community", None),
+    (("5k", "10k", "marathon", " run ", "fun run", "rodeo", "wrestling", "boxing", "mma ", "race", "regatta"), "sports", None),
+    (("yoga", "meditation", "wellness", "fitness", "hike", "retreat"), "wellness", None),
+    (("art exhibit", "gallery", "art walk", "exhibition", "museum", "art show"), "visual-arts", None),
+    (("story time", "storytime", "kids", "family fun", "children", "puppet"), "family", None),
+    (("dj ", " dj", "nightclub", "rave", "club night", "afterparty"), "nightlife", None),
+    (("dance ", "salsa", "cumbia", "two-step", "tango", "swing dance"), "dance", None),
+    (("holiday", "christmas", "halloween", "new year", "nye", "easter", "day of the dead", "dia de"), "seasonal", None),
+    (("live music", "concert", "acoustic", "band", "tribute", " tour"), "live-music", None),
+)
+
+
+def classify_from_title(title: str | None) -> tuple[str, str | None]:
+    """Infer a domain from the provider's OWN event name when it gave no
+    classification. Deterministic keyword match on real text; UNMAPPED if none."""
+    t = (title or "").lower()
+    for keywords, domain, subseg in _TITLE_RULES:
+        if any(k in t for k in keywords):
+            return domain, subseg
+    return UNMAPPED, None
+
+
+def ticketmaster_fallback_domain(
+    title: str | None,
+    attraction_classifications: list[tuple[str | None, str | None, str | None]] | None,
+) -> tuple[str, str | None]:
+    """Recover a domain for an event the provider left 'Undefined', using ONLY
+    real provider data: first the attached performer's OWN classification
+    (segment/genre — authoritative provider taxonomy), then keyword inference
+    from the literal event name. Returns UNMAPPED only when neither yields a
+    signal — honest, never fabricated.
+    """
+    # 1. Performer/attraction classification — the provider's own taxonomy on the
+    #    act, which is often present even when the event header is Undefined.
+    for seg, gen, sub in attraction_classifications or []:
+        dom, subseg = ticketmaster_domain(seg, gen, sub)
+        if dom != UNMAPPED:
+            return dom, subseg
+    # 2. Deterministic keyword inference from the real event name.
+    return classify_from_title(title)
+
+
 def ticketmaster_domain(segment: str | None, genre: str | None,
                         subgenre: str | None) -> tuple[str, str | None]:
     """Return (domain_id, subsegment) for a Ticketmaster classification.

@@ -11,7 +11,12 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from worker.importers.domain_map import seatgeek_domain, ticketmaster_domain
+from worker.importers.domain_map import (
+    UNMAPPED,
+    seatgeek_domain,
+    ticketmaster_domain,
+    ticketmaster_fallback_domain,
+)
 
 
 def _f(x: Any) -> Optional[float]:
@@ -77,6 +82,23 @@ def normalize_ticketmaster(ev: dict) -> Optional[dict]:
     gen = (cls.get("genre") or {}).get("name")
     sub = (cls.get("subGenre") or {}).get("name")
     category, subsegment = ticketmaster_domain(seg, gen, sub)
+
+    # When the provider left it Undefined, recover a domain from REAL provider
+    # data: the performer's own classification, then keyword inference from the
+    # literal event name (deterministic, never fabricated). This is what shrinks
+    # the "Other" bucket without guessing.
+    if category == UNMAPPED:
+        attractions = ((ev.get("_embedded") or {}).get("attractions")) or []
+        attr_cls = []
+        for a in attractions:
+            for c in (a.get("classifications") or []):
+                if isinstance(c, dict):
+                    attr_cls.append((
+                        (c.get("segment") or {}).get("name"),
+                        (c.get("genre") or {}).get("name"),
+                        (c.get("subGenre") or {}).get("name"),
+                    ))
+        category, subsegment = ticketmaster_fallback_domain(title, attr_cls)
 
     dates = ev.get("dates") or {}
     start = (dates.get("start") or {})

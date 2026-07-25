@@ -186,3 +186,25 @@ def test_capcog_fetch_windows_and_dedupes(monkeypatch):
     assert len([i for i in ids if i.startswith("w-")]) == 3  # one unique per window
     # windows are consecutive and non-overlapping in ordering
     assert calls[0][0] < calls[1][0] < calls[2][0]
+
+
+def test_tm_undefined_recovered_from_title_and_performer():
+    """A provider 'Undefined' event is recovered from REAL signal (performer
+    classification, then title keywords) — shrinking 'Other' without fabricating."""
+    from worker.importers.normalize import normalize_ticketmaster
+    # Performer classification present even though the event header is Undefined
+    ev = {
+        "id": "u1", "name": "An Evening of Standup",
+        "classifications": [{"segment": {"name": "Undefined"}}],
+        "_embedded": {"attractions": [{"classifications": [
+            {"segment": {"name": "Arts & Theatre"}, "genre": {"name": "Comedy"}}]}]},
+    }
+    assert normalize_ticketmaster(ev)["category"] == "comedy"
+    # No performer signal -> deterministic keyword read of the real title
+    ev2 = {"id": "u2", "name": "Austin Symphony: Mahler 2",
+           "classifications": [{"segment": {"name": "Undefined"}}]}
+    assert normalize_ticketmaster(ev2)["category"] == "performing-arts"
+    # Genuinely no signal -> stays honestly unmapped
+    ev3 = {"id": "u3", "name": "XZ Event 9910",
+           "classifications": [{"segment": {"name": "Undefined"}}]}
+    assert normalize_ticketmaster(ev3)["category"] == "unmapped"
