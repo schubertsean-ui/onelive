@@ -67,9 +67,11 @@ enabled.
 
 ## Why this is safe / what did NOT change
 
-- **The only new promoter is worker/autopromote.py**, added to the promote-import
-  allowlist in the same change (the deliberate, reviewed pattern the guard
-  requires). The orchestrator still never imports `worker.promote` directly.
+- **The only new promoter WILL BE worker/autopromote.py** — it is NOT yet in the
+  tree; it lands with the DB wiring in a future change (pending), added to the
+  promote-import allowlist in that same change (the deliberate, reviewed pattern
+  the guard requires). Until then the orchestrator still never imports
+  `worker.promote`, and `decide_publish` is inert (fail-closed → human review).
 - **The independent (non-Claude) evaluator reviews this on the PR** — gate custody.
 - **"Never fabricate" is untouched.** disputed-shown-never-hidden is untouched.
   RLS/privacy is untouched.
