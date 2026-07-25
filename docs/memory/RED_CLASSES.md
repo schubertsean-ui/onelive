@@ -42,6 +42,9 @@ a class absent from this index is a prose-only lesson, an open defect.
 | false-confidence-gate | tools, gate, lint | KAIZEN 2026-07-24 family — a gate's self-description never claims more than its implementation |
 | self-weakenable-gate | construction_gate, red_classes, index | KAIZEN #67 r6 — a gate must not be silently weakenable through its own data; base-vs-head self-protection |
 | rule-stronger-than-mechanism | skills, operating, canon, charter | KAIZEN #67 r4/r7 — a rule may claim exactly the mechanism that ships with it; unmechanized halves carry a RECORD row in the same commit |
+| failure-reads-as-empty | importer, fetch, feed, robots, source | KAIZEN #68 r3/r4/r6/r7/r8/r9 — a source that was DENIED, THROTTLED, errored, refused by policy, or misconfigured is reported FAILED, never counted among the empties; only a guessed 404/410 may be skipped |
+| silent-data-loss | parse, importer, feed, normalize, reader | KAIZEN #68 r3/r5/r9 — a reader that accepts a narrower shape than the format permits states its arithmetic (objects seen vs objects that produced a row); "produced fewer" must never be indistinguishable from "has fewer" |
+| test-codifies-the-bad-contract | tests/test_, assert, pytest | KAIZEN #68 r7/r8/r11 — a test for BAD INPUT asserts the refusal, never the mechanism of the fix; a class fix is not credited until one test drives the real production entry point with only the network stubbed |
 | stale-live-incident-state | incident, arming, smoke | KAIZEN #43 arc — live-state claims re-verify against the live system, never against earlier prose |
 | pushed-on-red | validate, commit, push | KAIZEN #65 r5-commit + #69 self-caught — validate runs unchained with its exit code checked explicitly; a pipe that masks FAIL is the defect |
 | malformed-ledger-row | KAIZEN, ledger, metrics | KAIZEN #69 self-caught — ledger rows never contain raw pipes; parsers fail loud and the writer verifies by running them |
