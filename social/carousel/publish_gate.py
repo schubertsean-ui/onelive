@@ -55,9 +55,49 @@ APPROVAL_KEY_ENV = "ONELIVE_APPROVAL_KEY"
 
 # Identity markers that can never approve, enforced at approve() AND at
 # release (r3: a caller-built Approval with a valid signature over an AI
-# identity must still refuse). Matched as substrings of the lowered
-# approver identity, fail-closed.
+# identity must still refuse). r13: this denylist is a BELT, never the
+# authentication — authorization is allowlist membership in the
+# once-registered approver registry below; the markers additionally keep
+# AI-shaped names out of the registry itself.
 AI_IDENTITY_MARKERS = ("agent", "claude", "gpt", "gemini", "bot", "onelive-carousel")
+
+# Authorized human approvers: deployment wiring, registered ONCE by the
+# surface that authenticates humans (the Clerk-backed ops console, built
+# at R-026's trigger, registers the identities it has actually
+# authenticated). r13 blocker: identity was a caller-supplied string
+# screened by an incomplete denylist — custody must fail closed, so an
+# identity approves ONLY if it is an exact member of this allowlist, and
+# no registry means nothing approves. This also closes the signing-oracle
+# shape: with the key present, approve() can mint approvals only for
+# enumerated humans, and binding a mint to the authenticated session of
+# THAT human is the ops-console surface's job at R-026.
+_APPROVER_REGISTRY: frozenset[str] | None = None
+
+
+def configure_approvers(identities) -> None:
+    """Register the authorized human approvers. Once-only, same physics
+    as the state reader: the registry is deployment configuration, and a
+    second registration is a misconfiguration or a takeover attempt."""
+    global _APPROVER_REGISTRY
+    if _APPROVER_REGISTRY is not None:
+        raise ValueError("approver registry already configured — refusing to replace it")
+    cleaned: list[str] = []
+    for identity in identities or ():
+        identity = (identity or "").strip()
+        if not identity:
+            raise ValueError("approver identities must be non-empty")
+        lowered = identity.lower()
+        for marker in AI_IDENTITY_MARKERS:
+            if marker in lowered:
+                raise ValueError(
+                    f"refusing to register approver {identity!r}: matches AI "
+                    f"identity marker {marker!r} — AI never publishes, so AI "
+                    "never enters the approver registry"
+                )
+        cleaned.append(identity)
+    if not cleaned:
+        raise ValueError("approver registry cannot be empty — nothing would ever release")
+    _APPROVER_REGISTRY = frozenset(cleaned)
 
 # The canonical-store state reader: deployment wiring, registered ONCE at
 # process startup by the surface that owns the DB read path (the ops
@@ -171,7 +211,11 @@ def _resolve_key() -> bytes:
     return key.encode("utf-8")
 
 
-def _assert_human_identity(identity: str) -> str:
+def _assert_authorized_approver(identity: str) -> str:
+    """Approver authorization (r13): AI-marker belt first (so an AI-shaped
+    identity gets the specific refusal), then ALLOWLIST membership — no
+    registry configured or an unlisted identity refuses, fail closed. A
+    denylist never authenticates; membership does."""
     identity = (identity or "").strip()
     if not identity:
         raise ValueError("approval requires a named human approver")
@@ -182,6 +226,17 @@ def _assert_human_identity(identity: str) -> str:
                 f"approver {identity!r} matches AI identity marker {marker!r} — "
                 "AI never publishes, so AI never approves"
             )
+    if _APPROVER_REGISTRY is None:
+        raise ValueError(
+            "no approver registry configured — the gate cannot verify the "
+            "approver is an authorized human, so nothing approves (registered "
+            "at deployment by the authenticated ops-console surface, R-026)"
+        )
+    if identity not in _APPROVER_REGISTRY:
+        raise ValueError(
+            f"approver {identity!r} is not in the registered approver "
+            "allowlist — an unlisted identity approves nothing"
+        )
     return identity
 
 
@@ -205,7 +260,7 @@ def approve(draft: CarouselDraft, approved_by: str, approved_at: str) -> Approva
     the environment-held founder key. Refuses empty or AI-marked
     identities and refuses without the key — a name string alone approves
     nothing, and there is no way to hand this function a key."""
-    identity = _assert_human_identity(approved_by)
+    identity = _assert_authorized_approver(approved_by)
     _assert_iso_moment(approved_at, "approval timestamp")
     key = _resolve_key()
     draft_hash = content_hash(draft)
@@ -392,7 +447,7 @@ def release_for_publish(
     draft_hash = content_hash(draft)
 
     if approval is not None:
-        _assert_human_identity(approval.approved_by)
+        _assert_authorized_approver(approval.approved_by)
         _assert_iso_moment(approval.approved_at, "release refused: approval timestamp")
         if approval.draft_hash != draft_hash:
             raise ValueError(

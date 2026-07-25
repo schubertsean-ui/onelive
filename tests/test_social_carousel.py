@@ -90,6 +90,9 @@ def _custody_env(monkeypatch, tmp_path):
     monkeypatch.setattr(
         publish_gate, "_RELEASE_JOURNAL", publish_gate.InMemoryReleaseJournal()
     )
+    # r13: approval is allowlist membership — the deployment registers the
+    # humans its auth surface has actually authenticated.
+    monkeypatch.setattr(publish_gate, "_APPROVER_REGISTRY", frozenset({"Sean Schubert"}))
     yield
 
 
@@ -471,6 +474,48 @@ def test_ai_identities_cannot_approve():
     for identity in ("onelive-carousel-agent", "Claude", "gpt-5.5", "some-bot"):
         with pytest.raises(ValueError, match="AI never publishes"):
             approve(draft, identity, "2026-07-24T18:00:00-05:00")
+
+
+def test_unregistered_identity_cannot_approve_or_release():
+    # r13 blockers: authorization is allowlist membership, not a denylist
+    # miss — an unlisted "human" name mints nothing (the signing-oracle
+    # shape), and a signed approval naming one still refuses at release.
+    draft = _draft()
+    with pytest.raises(ValueError, match="not in the registered approver"):
+        approve(draft, "Jane Impostor", "2026-07-24T18:00:00-05:00")
+    import hashlib as _hl
+    import hmac as _hm
+
+    h = content_hash(draft)
+    who, when = "Jane Impostor", "2026-07-24T18:00:00-05:00"
+    sig = _hm.new(
+        TEST_KEY.encode(), "|".join((h, who, when)).encode(), _hl.sha256
+    ).hexdigest()
+    forged = Approval(draft_hash=h, approved_by=who, approved_at=when, signature=sig)
+    with pytest.raises(ValueError, match="not in the registered approver"):
+        _release(draft, forged)
+
+
+def test_no_approver_registry_refuses_everything(monkeypatch):
+    # r13: no registry = the gate cannot verify the approver — fail closed.
+    draft = _draft()
+    approval = _approve(draft)
+    monkeypatch.setattr(publish_gate, "_APPROVER_REGISTRY", None)
+    with pytest.raises(ValueError, match="no approver registry"):
+        approve(draft, "Sean Schubert", "2026-07-24T18:00:00-05:00")
+    with pytest.raises(ValueError, match="no approver registry"):
+        _release(draft, approval)
+
+
+def test_approver_registry_is_once_only_and_rejects_ai_names(monkeypatch):
+    monkeypatch.setattr(publish_gate, "_APPROVER_REGISTRY", None)
+    with pytest.raises(ValueError, match="never enters the approver registry"):
+        publish_gate.configure_approvers(["Sean Schubert", "carousel-bot"])
+    with pytest.raises(ValueError, match="cannot be empty"):
+        publish_gate.configure_approvers([])
+    publish_gate.configure_approvers(["Sean Schubert"])
+    with pytest.raises(ValueError, match="already configured"):
+        publish_gate.configure_approvers(["Sean Schubert"])
 
 
 def test_approval_without_key_is_refused(monkeypatch):
@@ -1058,6 +1103,27 @@ def test_mini_story_caption_is_built_from_canonical_facts():
     first = next(s for s in draft.slides if s.kind == "event")
     assert first.headline in draft.caption  # the story is a real listing
     assert "Mohawk" in draft.caption
+
+
+def test_render_carousel_refuses_nonfeaturable_rows_directly():
+    # r13 blocker: the renderer itself (the release re-render path) must
+    # refuse disputed/cancelled rows — not rely on upstream selection.
+    from social.carousel.generator import render_carousel
+
+    disputed = [_event(1, confidence="disputed")] + [_event(i) for i in range(2, 6)]
+    with pytest.raises(CarouselTrustError, match="not featurable"):
+        render_carousel(disputed, _config(), _assignment())
+    cancelled = [_event(1, event_status="cancelled")] + [_event(i) for i in range(2, 6)]
+    with pytest.raises(CarouselTrustError, match="only scheduled"):
+        render_carousel(cancelled, _config(), _assignment())
+
+
+def test_render_carousel_refuses_non_listicle_sizes_directly():
+    from social.carousel.generator import render_carousel
+
+    for n in (0, 3, 4, 6, 8):
+        with pytest.raises(CarouselTrustError, match="listicle"):
+            render_carousel(_events(n), _config(), _assignment())
 
 
 def test_imageless_event_fails_loud():

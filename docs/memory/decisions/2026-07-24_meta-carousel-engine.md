@@ -66,3 +66,20 @@ cycle until dead-man + budget wiring). Tests:
 adoption and the founder listicle directive to 79, then 82 with the r2
 red tests; the test file is the live count's source of truth). Session
 Contract #23 in STATE.md.
+
+
+## Addendum (2026-07-25, appended at PR #65 r13 — dissemination minimization)
+
+The founder's follow-up product directive (2026-07-24, same session),
+verbatim, moved HERE from STATE.md so operational docs paraphrase and
+decision records hold the exact words:
+
+"The carousels should be '5' or '7' 'blank' to experience Today or
+Tonight or This Weekend and only ever show content that is to happen,
+never that has happened. For example, a carousel running at 6pm would not
+include shows that started before 6pm. Create a world class cadre of
+actual carousel content for 5 different categories/combos of categories.
+Include scenarios we've identified like date night, music and dancing,
+etc - several examples of these scenarios exist in OneLive. What are the
+world class practices for how many run per day? What are key metrics
+we'll gather and analyze?"

@@ -482,15 +482,35 @@ def render_carousel(
     (r5) so the release gate can re-render the draft from canonical rows
     and compare content hashes — total fact verification in one check.
     Validates config + assignment ITSELF (r7) and runs the FULL event
-    trust contract on every row it renders (r8) — required fields, origin,
-    known states, descriptor provenance, non-negative prices, distinct
-    ids, and domain membership — so the release path fails closed
-    independently of whether build_carousel ever ran."""
+    trust contract on every row it renders (r8; completed r13) — required
+    fields, origin, known states, FEATURABILITY (confirmed/likely and
+    scheduled ONLY — a disputed or cancelled row refuses here, not just at
+    selection), descriptor provenance, non-negative prices, distinct ids,
+    domain membership, and the exact 5/7 listicle canon — so this render
+    path fails closed independently of whether build_carousel ever ran."""
     config.validate()
     validate_assignment(assignment)
+    if len(featured) not in LISTICLE_SIZES:
+        raise CarouselTrustError(
+            f"render lineup of {len(featured)} events is not the listicle "
+            f"canon {sorted(LISTICLE_SIZES)} — the promise is exact, and this "
+            "renderer never builds a non-canonical deck"
+        )
     seen: set[str] = set()
     for event in featured:
         _check_event(event)
+        if event["confidence"] not in FEATURABLE_CONFIDENCE:
+            raise CarouselTrustError(
+                f"event {event['event_id']} confidence {event['confidence']!r} "
+                "is not featurable — marketing never amplifies what the gate "
+                "has not settled"
+            )
+        if event["event_status"] not in FEATURABLE_EVENT_STATUS:
+            raise CarouselTrustError(
+                f"event {event['event_id']} event_status "
+                f"{event['event_status']!r} is not featurable — only scheduled "
+                "events are ever rendered"
+            )
         if event["event_id"] in seen:
             raise CarouselTrustError(
                 f"duplicate event id {event['event_id']!r} in the render lineup"
