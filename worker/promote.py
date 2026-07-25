@@ -12,6 +12,7 @@ from worker.db_config import resolve_dsn
 from worker.dedupe import find_possible_duplicates
 from worker.importers.domain_map import UNMAPPED
 from worker.resolve_entities import resolve_venue_id, resolve_artist_ids
+from worker.source_catalog import cultural_domain_for_source
 from worker.trust_gate3 import GateDecision, evaluate_gate
 
 
@@ -107,7 +108,8 @@ def promote_candidate(candidate_id: str) -> str:
 
             cur.execute("""
               select title, start_time, end_time, venue_name, city, artist_names,
-                     is_private_rsvp, private_access, ticket_link, rsvp_link, raw_text
+                     is_private_rsvp, private_access, ticket_link, rsvp_link, raw_text,
+                     source_name
               from event_candidate
               where candidate_id=%s
             """, (candidate_id,))
@@ -115,7 +117,7 @@ def promote_candidate(candidate_id: str) -> str:
             if not c:
                 raise ValueError("candidate not found")
             (title, start_time, end_time, venue_name, city, artist_names, is_private,
-             private_access, ticket_link, rsvp_link, raw_text) = c
+             private_access, ticket_link, rsvp_link, raw_text, source_name) = c
 
             # Resolve entities on THIS cursor so placeholder venue/artist rows are
             # part of the same transaction as the dedupe-check-and-insert below.
@@ -136,7 +138,16 @@ def promote_candidate(candidate_id: str) -> str:
             # truncated raw_text in `notes`) and no category (→ always 'Other'),
             # so it could not appear as a real card on the feed. Derivation is
             # deterministic + non-fabricating (see card_fields).
-            card = card_fields(title, ticket_link)
+            #
+            # Feed the classifier the source's CURATED cultural_domain (founder:
+            # "read what the source IS" — a museum's event is visual-arts). This
+            # is the human-vetted catalog signal (resolve_category signal #3),
+            # ranked above the title-keyword last resort. None for an unknown /
+            # untagged source, so the classifier falls through honestly — never a
+            # fabricated category. This finally WIRES the resolver in production;
+            # before it, promote passed no signal and every event fell to the title.
+            venue_domain_hint = cultural_domain_for_source(source_name)
+            card = card_fields(title, ticket_link, venue_domain_hint=venue_domain_hint)
 
             cur.execute("""
               insert into event(
