@@ -67,6 +67,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          # Speed only — NOT a gate change (founder-directed 2026-07-25: the
+          # review must land faster). Caches the pip wheel download keyed on
+          # the requirement files themselves, so the resolved dependency set is
+          # byte-identical; a requirements edit invalidates the key.
+          cache: "pip"
+          cache-dependency-path: |
+            worker/requirements.txt
+            api/requirements.txt
 
       - name: Resolve the base ref and diff range
         # Values computed in the expression layer, consumed via guarded env
@@ -104,8 +112,10 @@ jobs:
 
       - name: Install worker + api deps
         run: |
-          python -m pip install --upgrade pip
-          pip install -r worker/requirements.txt -r api/requirements.txt pytest
+          # No `pip install --upgrade pip`: it is a network round-trip on every
+          # run and the pinned requirements resolve fine on the runner's pip.
+          pip install --disable-pip-version-check \
+            -r worker/requirements.txt -r api/requirements.txt pytest
 
       - name: Test suite (log captured for the evaluator)
         run: |
