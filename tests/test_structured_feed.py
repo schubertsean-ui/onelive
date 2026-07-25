@@ -1256,7 +1256,7 @@ def test_a_contradictory_catalog_fails_the_run_BEFORE_any_fetch(monkeypatch, cap
         # EVERY bad row named in one pass — finding them one per run would make
         # fixing a typo'd catalog an N-run exercise.
         assert "bad" in caplog.text and "also_bad" in caplog.text
-        assert "2 contradictory catalog row(s)" in caplog.text
+        assert "2 contradictory or unclassified catalog row(s)" in caplog.text
     finally:
         del runner._TOKEN_PROVIDER_CLASSIFICATION["_test_only_ics"]
 
@@ -1677,3 +1677,62 @@ def test_ics_shape_needs_a_calendar_LINE_not_a_quoted_marker():
         "<html><body><p>Our feed starts with <code>BEGIN:VEVENT</code> lines.</p>")
     assert not _matches_asserted_shape(
         PROVIDER_ICS, "<html><head><title>BEGIN:VCALENDAR how-to</title></head>")
+
+
+def test_a_typo_ONLY_row_is_caught_even_though_selection_would_drop_it(monkeypatch, caplog):
+    """The case my r12 test missed (evaluator blocker r13). A row whose ONLY
+    `allowed` token is a typo is not a structured candidate, so `_select()`
+    filters it out BEFORE validation ever saw it — the source silently vanished
+    while other rows carried the run to exit 0. My r12 test paired the typo with
+    a valid selectable token, i.e. covered the easy case.
+
+    Validation now runs on the FULL catalog before selection: a defect in a row
+    we would never fetch is still a defect in the catalog."""
+    import json
+    import logging
+    import pathlib as _pl
+    import tempfile
+    import worker.importers.run_structured_import as runner
+    import worker.importers.structured_feed as sf
+
+    def _never(*a, **k):
+        raise AssertionError("fetched despite a catalog defect")
+
+    monkeypatch.setattr(sf, "fetch_url", _never)
+    catalog = [
+        # NOT selectable — its only token is the typo. This is the row that hid.
+        {"id": "vanishes", "base_url": "https://a.example/",
+         "allowed": ["localist_json_fed"]},
+        # A perfectly good row that would otherwise carry the run to exit 0.
+        {"id": "fine", "base_url": "https://b.example/",
+         "allowed": ["ics_feed_if_offered"], "cultural_domain": "live-music"},
+    ]
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
+    with caplog.at_level(logging.ERROR):
+        assert runner.main(["--catalog", str(tmp), "--dry-run"]) == 2
+    assert "vanishes" in caplog.text and "localist_json_fed" in caplog.text
+    assert "before selection" in caplog.text
+
+
+def test_an_all_typo_catalog_names_the_rows_not_just_zero_selected(monkeypatch, caplog):
+    """The other half of the same blocker: with every row typo'd, the operator
+    used to get a generic "no candidates selected" failure that named neither the
+    row nor the token."""
+    import json
+    import logging
+    import pathlib as _pl
+    import tempfile
+    import worker.importers.run_structured_import as runner
+
+    catalog = [{"id": "only_row", "base_url": "https://a.example/",
+                "allowed": ["ics_feed_if_offerd"]}]
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+
+    with caplog.at_level(logging.ERROR):
+        assert runner.main(["--catalog", str(tmp), "--dry-run"]) == 2
+    assert "ics_feed_if_offerd" in caplog.text, "the bad token was not named"
+    assert "no structured-feed candidates" not in caplog.text, \
+        "reported as an empty selection rather than as the catalog defect it is"

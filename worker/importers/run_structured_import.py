@@ -135,7 +135,8 @@ def provider_hint_for(entry: dict) -> str | None:
     None is the common and correct answer: most rows say "a feed may exist here",
     which import_source resolves by sniffing. A returned provider is a claim the
     source must honour — if nothing fetched is that format, import_source raises
-    ProviderMismatch and the source is reported FAILED, not empty.
+    ProviderMismatch and the source is reported MISCONFIGURED (exit 2, never
+    overridable by --allow-partial), not empty and not merely FAILED.
 
     Raises CatalogContradiction when a row asserts TWO incompatible formats. The
     r10 version warned and fell back to sniffing, which the evaluator correctly
@@ -167,11 +168,13 @@ def provider_hint_for(entry: dict) -> str | None:
 def validate_catalog_assertions(entries: list[dict]) -> list[str]:
     """Check every selected row's format assertions BEFORE any fetch.
 
-    Returns the contradiction messages (empty when clean). Checked up front, and
-    ALL of them reported at once, for two reasons: a contradiction costs nothing
-    to detect (no network), and discovering them one-per-run as the fetch loop
-    reached each row would make fixing a typo'd catalog an N-run exercise. Fail
-    fast, fail complete.
+    Returns the defect messages (empty when clean) — CONFLICTING wire formats and
+    UNCLASSIFIED tokens, each message naming which. Called on the FULL catalog
+    before selection, and ALL defects reported at once, for three reasons: they
+    cost nothing to detect (no network), discovering them one-per-run as the
+    fetch loop reached each row would make fixing a typo'd catalog an N-run
+    exercise, and a row filtered out by selection can still be the defective one
+    (r13). Fail fast, fail complete.
     """
     problems: list[str] = []
     for entry in entries:
@@ -308,23 +311,30 @@ def main(argv=None) -> int:
         log.error("catalog %s is not valid JSON (%s) — failing closed.", catalog_path, exc)
         return 2
 
+    # Validate the WHOLE catalog, BEFORE selection (evaluator blocker r13).
+    # Running this on the SELECTED rows missed the exact typo class it exists to
+    # catch: a row whose only `allowed` token is a typo like `localist_json_fed`
+    # is not a structured candidate, so _select() drops it first — the source
+    # silently disappears while other rows carry the run to exit 0. My r12 test
+    # paired the typo WITH a valid selectable token, i.e. covered the easy case
+    # and missed the one that actually escapes. A defect in a row we would never
+    # fetch is still a defect in the catalog, and it costs nothing to say so.
+    contradictions = validate_catalog_assertions(catalog)
+    if contradictions:
+        for msg in contradictions:
+            log.error("catalog defect: %s", msg)
+        log.error("%d contradictory or unclassified catalog row(s) — refusing to "
+                  "import under a guess. Failing closed BEFORE any fetch, and "
+                  "before selection, so a bad row cannot hide by being filtered "
+                  "out.", len(contradictions))
+        return 2
+
     only = {t.strip() for t in args.only.split(",") if t.strip()}
     sources = _select(catalog, only, args.limit)
     if not sources:
         log.error("no structured-feed candidates selected from %s (only=%s) — the "
                   "catalog has no ICS/JSON-LD sources matching, or --only excluded "
                   "them all. Failing closed.", catalog_path, sorted(only) or "-")
-        return 2
-
-    # Configuration corruption is checked BEFORE the network. A row asserting two
-    # incompatible wire formats cannot be resolved by sniffing (evaluator blocker
-    # r11), and reporting every such row at once means ONE pass fixes the catalog.
-    contradictions = validate_catalog_assertions(sources)
-    if contradictions:
-        for msg in contradictions:
-            log.error("catalog contradiction: %s", msg)
-        log.error("%d contradictory catalog row(s) — refusing to import under a "
-                  "guess. Failing closed BEFORE any fetch.", len(contradictions))
         return 2
 
     log.info("scope: %d first-party structured-feed source(s) (ICS / JSON-LD) from %s",

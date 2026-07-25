@@ -939,10 +939,13 @@ class ProviderMismatch(OSError):
     misconfigured source is a defect an operator must fix; an empty calendar is
     not. They must not share a summary line.
 
-    OSError, like RobotsDisallowed, so the runner records ONE named FAILED
-    source and exits non-zero, rather than aborting the other 63 sources of the
-    run. Loud and attributable, without making one bad catalog row cost the
-    night's whole import.
+    OSError, like RobotsDisallowed, so ONE bad row does not abort the other 63
+    sources of the run. But the runner records it as MISCONFIGURED, not FAILED,
+    and exits 2 — subclassing for blast radius must not also grant the
+    overridability OSError carries, or `--allow-partial` (meant for hosts that
+    denied or throttled us) would greenlight a catalog defect (evaluator blockers
+    r12, and r13 for this docstring still saying "FAILED" after the behaviour
+    changed — claim-vs-code drift is a class on our own watch list).
     """
 
 _MAX_DECLARED_TRIES = 4
