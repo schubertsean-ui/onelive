@@ -79,6 +79,32 @@ def _select(catalog: list[dict], only: set[str], limit: int | None) -> list[dict
     return picks
 
 
+# Exit code 4 = the import ran and wrote what it could, but one or more sources
+# FAILED (denied / throttled / unreachable / TLS / unexpected). Distinct from 3
+# (systemic zero-events) so an operator can tell "partly blocked" from "broken".
+_EXIT_SOURCE_FAILURES = 4
+
+
+def _exit_code(failed_sources: list, allow_partial: bool) -> int:
+    """Fail the command when any source FAILED.
+
+    Evaluator blocker r6: failures were logged and named but the process still
+    exited 0, so an import gate could pass green while sources were refused. A
+    warning in a successful run is not fail-loud. --allow-partial is the explicit,
+    separately-named opt-in for "I know some sources are blocked, proceed".
+    """
+    if not failed_sources:
+        return 0
+    if allow_partial:
+        log.warning("%d source(s) FAILED but --allow-partial was given — exiting 0 "
+                    "DELIBERATELY: %s", len(failed_sources), ", ".join(failed_sources))
+        return 0
+    log.error("%d source(s) FAILED (%s). Exiting non-zero: a failed source must not "
+              "pass as a successful import. Pass --allow-partial to accept a partial "
+              "import deliberately.", len(failed_sources), ", ".join(failed_sources))
+    return _EXIT_SOURCE_FAILURES
+
+
 def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     ap = argparse.ArgumentParser(description=__doc__)
@@ -89,6 +115,11 @@ def main(argv=None) -> int:
                          "structured candidates)")
     ap.add_argument("--limit", type=int, default=None,
                     help="cap the number of sources fetched (smoke runs)")
+    ap.add_argument("--allow-partial", action="store_true",
+                    help="exit 0 even when some sources FAILED (denied/throttled/"
+                         "unreachable). Off by default: a failed source must make "
+                         "the command fail, or an import gate can pass green while "
+                         "sources were refused (evaluator blocker r6).")
     ap.add_argument("--dry-run", action="store_true",
                     help="fetch + parse + summarize, but do NOT write the DB")
     args = ap.parse_args(argv)
@@ -133,10 +164,13 @@ def main(argv=None) -> int:
         domain_hint = entry.get("cultural_domain")
         try:
             norm = import_source(url, source_name=sid, cultural_domain=domain_hint)
-        except OSError as exc:
+        except Exception as exc:  # noqa: BLE001 - recorded as a FAILED source below
             # A single source being unreachable is logged, not fatal — the others
             # still import. (Not a swallowed error: it is surfaced in the run log.)
-            log.warning("source %-26s FETCH FAILED (%s): %s", sid, url, exc)
+            # Not swallowed: recorded as a FAILED source, named in the summary,
+            # and (unless --allow-partial) it makes this command EXIT NON-ZERO.
+            log.warning("source %-26s FETCH FAILED (%s): %s: %s",
+                        sid, url, type(exc).__name__, exc)
             failed_sources.append(sid)
             continue
         per_source[sid] = len(norm)
@@ -172,14 +206,23 @@ def main(argv=None) -> int:
     # A real-data importer must not exit green on nothing. ONE empty source is
     # tolerated (logged above); EVERY source empty is a systemic failure.
     if not all_norm:
-        log.error("normalized 0 events across ALL %d selected source(s) — a systemic "
-                  "breakage (bad selection, blanket JSON-LD/ICS markup change, or "
-                  "normalization drift). Failing loud.", len(sources))
+        if failed_sources:
+            # NOT systemic normalization drift — sources were REFUSED. Reporting
+            # this as "markup changed" would misdiagnose a blocked import (the
+            # same conflation class as counting failures among the empties).
+            log.error("normalized 0 events, but %d of %d source(s) FAILED (%s) — "
+                      "this is a BLOCKED import, not a normalization breakage.",
+                      len(failed_sources), len(sources), ", ".join(failed_sources))
+            return _exit_code(failed_sources, args.allow_partial)
+        log.error("normalized 0 events across ALL %d selected source(s), NONE of "
+                  "which failed to fetch — a systemic breakage (bad selection, "
+                  "blanket JSON-LD/ICS markup change, or normalization drift). "
+                  "Failing loud.", len(sources))
         return 3
 
     if args.dry_run:
         log.info("dry-run: no DB write")
-        return 0
+        return _exit_code(failed_sources, args.allow_partial)
 
     import psycopg2
 
@@ -190,7 +233,7 @@ def main(argv=None) -> int:
     finally:
         conn.close()
     log.info("upserted %d events into licensed_event", written)
-    return 0
+    return _exit_code(failed_sources, args.allow_partial)
 
 
 if __name__ == "__main__":

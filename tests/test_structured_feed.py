@@ -462,6 +462,7 @@ def test_import_source_falls_back_to_a_discovered_feed(monkeypatch):
 
 
 def test_a_dead_candidate_does_not_lose_a_later_one(monkeypatch):
+    import urllib.error
     import worker.importers.structured_feed as sf
     ics = ("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:x2\r\nSUMMARY:Late Show\r\n"
            "DTSTART:20261107T020000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
@@ -470,12 +471,14 @@ def test_a_dead_candidate_does_not_lose_a_later_one(monkeypatch):
         if u.rstrip("/") == "https://venue.example":
             return "<html>nothing</html>"
         if "ical=1" in u or u.endswith(".ics"):
-            raise OSError("dead endpoint")
+            # 404 = the one skippable case (a guessed path that is not there).
+            raise urllib.error.HTTPError(u, 404, "Not Found", {}, None)
         if u.endswith("/events/feed/"):
             return ics
         return "<html>nothing</html>"
 
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
     out = sf.import_source("https://venue.example/", source_name="venue")
     assert len(out) == 1 and out[0]["title"] == "Late Show"
 
@@ -859,7 +862,11 @@ def test_runner_counts_failed_sources_separately_from_empty_ones(monkeypatch, ca
     assert "1 yielded zero" in text, f"empties not counted separately:\n{text}"
     # And the failed source is NAMED, not just tallied.
     assert "denied" in text
-    assert rc is not None
+    # EXPLICIT contract: a failed source makes the command FAIL. "rc is not None"
+    # was too weak — it passed while the runner exited 0 with sources refused
+    # (evaluator nit r6).
+    assert rc == runner._EXIT_SOURCE_FAILURES, (
+        f"failed source must exit non-zero, got {rc}")
 
 
 def test_two_distinct_platform_events_at_the_SAME_start_do_not_collide():
@@ -886,3 +893,66 @@ def test_integer_ids_survive_coercion_everywhere():
     assert _str_id(None) is None
     assert _str_id("") is None
     assert _str_id(True) is None      # a bool is an int, but never an id
+
+
+# ---- evaluator r6: the skip-list is CLOSED -----------------------------------
+
+@pytest.mark.parametrize("status", [500, 502, 503, 408, 451, 423, 401, 403, 429])
+def test_every_non_absence_status_fails_the_source(monkeypatch, status):
+    """Three rounds I enumerated which failures must fail loud and kept missing
+    classes. The rule is inverted now: ONLY a guessed 404/410 may be skipped —
+    everything else propagates (evaluator blocker r6)."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return "<html>nothing</html>"
+        raise urllib.error.HTTPError(u, status, "nope", {}, None)
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    with pytest.raises(urllib.error.HTTPError):
+        sf.import_source("https://venue.example/", source_name="venue")
+
+
+def test_dns_and_timeout_failures_propagate(monkeypatch):
+    """Non-HTTP failures were swallowed by a broad except and became 'no events'."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return "<html>nothing</html>"
+        raise urllib.error.URLError("Name or service not known")
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    with pytest.raises(urllib.error.URLError):
+        sf.import_source("https://venue.example/", source_name="venue")
+
+
+def test_a_guessed_404_is_still_skippable(monkeypatch):
+    """The one thing that MAY be skipped: a path we invented that is not there."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+    ics = ("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:q\r\nSUMMARY:Later Hit\r\n"
+           "DTSTART:20261107T020000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return "<html>nothing</html>"
+        if u.endswith("/events/feed/"):
+            return ics
+        raise urllib.error.HTTPError(u, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    out = sf.import_source("https://venue.example/", source_name="venue")
+    assert len(out) == 1 and out[0]["title"] == "Later Hit"
+
+
+def test_unknown_provider_hint_raises():
+    from worker.importers.structured_feed import _detect_provider
+    with pytest.raises(ValueError):
+        _detect_provider("{}", "not-a-provider")

@@ -788,7 +788,14 @@ def parse_jsonld_document(text: str) -> list[dict]:
 
 
 def _detect_provider(text: str, provider_hint: Optional[str]) -> str:
-    if provider_hint in (PROVIDER_ICS, PROVIDER_JSONLD):
+    if provider_hint is not None:
+        # A typo'd hint is a MISCONFIGURATION, not a reason to guess (evaluator
+        # nit r6): silently sniffing would hide the bad config behind a result
+        # that happens to look fine.
+        if provider_hint not in (PROVIDER_ICS, PROVIDER_JSONLD, PROVIDER_PLATFORM_JSON):
+            raise ValueError(
+                f"unknown provider_hint {provider_hint!r} — expected one of "
+                f"{PROVIDER_ICS!r}, {PROVIDER_JSONLD!r}, {PROVIDER_PLATFORM_JSON!r}")
         return provider_hint
     head = text.lstrip()[:512].upper()
     if "BEGIN:VCALENDAR" in head or "BEGIN:VEVENT" in text[:4096].upper():
@@ -851,14 +858,18 @@ PROVIDER_PLATFORM_JSON = "platform_json"
 # Bound the per-source discovery fan-out: enough to cover the declared
 # feed + platform endpoint + the likely conventions, without turning one
 # source into a crawl.
-# An ACCESS failure is not "no events" — it is the site denying or throttling us,
-# and it must reach the operator as a failed source rather than a dry one
-# (evaluator blockers r3/r4, PR #68). These statuses PROPAGATE out of
-# import_source; run_structured_import catches them (HTTPError is an OSError)
-# and reports "FETCH FAILED" per source. Everything else — chiefly 404/410 on a
-# GUESSED conventional path — is an expected miss and moves to the next
-# candidate.
-_ACCESS_FAILURE_STATUSES = (401, 402, 403, 406, 407, 429)
+# INVERTED (evaluator blockers r6, PR #68). Three rounds running I enumerated
+# which failures must fail loud, and each round the reviewer found another class
+# I had not listed — 500/502/503, 408, 451, 423, DNS, timeouts, parser bugs — all
+# quietly becoming "no events". The allowlist was the wrong shape.
+#
+# So the rule is now the other way round and CLOSED: the ONLY skippable outcome
+# is EXPECTED ABSENCE — a 404/410 on a GUESSED conventional path we invented.
+# Everything else propagates: server errors, legal blocks, timeouts, DNS, TLS,
+# access denials, and anything unforeseen. A site-DECLARED feed that fails is
+# never skippable either — the site advertised it, so its failure is a real
+# defect, not an absence.
+_EXPECTED_ABSENCE_STATUSES = (404, 410)
 
 _MAX_DECLARED_TRIES = 4
 _MAX_GUESSED_TRIES = 6
@@ -1075,34 +1086,17 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
         try:
             text = fetch_url(candidate)
         except urllib.error.HTTPError as exc:
-            if exc.code in _ACCESS_FAILURE_STATUSES:
-                # RAISE, do not continue and do not return []. Converting a
-                # denial/throttle into an empty result would let CI record a
-                # cheerfully dry source while the host actually refused us, and
-                # would keep us probing after a throttle signal.
-                logger.warning("source %s: HTTP %s from %s — access denied or "
-                               "rate limited; FAILING the source rather than "
-                               "reporting it as empty",
-                               source_name, exc.code, candidate)
-                raise
-            _log_candidate_failure(source_name, candidate, exc, declared=i < declared)
-            continue
-        except ssl.SSLError as exc:
-            # A certificate that will not verify is a TRUST failure, not a
-            # missing page (austintrailoflights.org hit this live). Propagate so
-            # the source is reported FAILED rather than quietly dry.
-            logger.warning("source %s: TLS verification failed for %s (%s) — "
-                           "FAILING the source rather than reporting it empty",
-                           source_name, candidate, exc)
+            # The ONLY skippable case: a path WE guessed that simply is not there.
+            if exc.code in _EXPECTED_ABSENCE_STATUSES and i >= declared:
+                _log_candidate_failure(source_name, candidate, exc, declared=False)
+                continue
+            logger.warning("source %s: %s from %s — FAILING the source rather "
+                           "than reporting it empty (%s)",
+                           source_name,
+                           f"HTTP {exc.code}",
+                           candidate,
+                           "declared feed" if i < declared else "not an absence")
             raise
-        except Exception as exc:  # noqa: BLE001 - severity depends on the KIND
-            # A site-DECLARED feed (<link rel=alternate>) that fails is a real
-            # defect — the site advertised it — so it is a WARNING an operator
-            # sees. A GUESSED conventional path that 404s is expected control
-            # flow and stays at debug. Neither is swallowed: both are logged with
-            # the URL and reason (evaluator blocker, PR #68).
-            _log_candidate_failure(source_name, candidate, exc, declared=i < declared)
-            continue
         found = _events_from_text(text, provider_hint=provider_hint,
                                   source_name=source_name,
                                   cultural_domain=cultural_domain)
