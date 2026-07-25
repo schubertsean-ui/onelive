@@ -3,16 +3,21 @@
 
 Greppable summary: reads the red-class index (docs/memory/RED_CLASSES.md),
 matches each class's path-substring triggers against the diff's CHANGED
-FILE PATHS, and requires the session contract (STATE.md by default) to
-CITE every matched class token. Fail-closed physics (#67 r4: the rule
-ships with its mechanism, or it is aspirational documentation):
+FILE PATHS, and requires the CURRENT CHANGE'S OWN ADDED LINES to cite
+every matched class token (#67 r5: STATE.md is cumulative, so checking
+the whole file let STALE historical citations satisfy the gate — the
+citation surface is now the diff's added lines, which binds retrieval
+evidence to THIS build, not to history). Fail-closed physics (#67 r4:
+the rule ships with its mechanism, or it is aspirational documentation):
 - unreadable/empty index -> exit 1 (a missing brain never passes silently);
-- matched class token absent from the contract -> exit 1, listing each;
-- no matched classes -> prints exactly that (an explicit result, never
-  silence) and exits 0.
+- unresolvable diff or base ref -> exit 1 (misconfiguration is never a no-op);
+- matched class token absent from the change's added lines -> exit 1;
+- no matched classes -> prints exactly that (an explicit result) and exits 0.
 Run by tools/validate on every diff against the base branch. Widening a
 trigger list is safe; REMOVING a row or narrowing triggers is a
-gate-threshold relaxation: founder-crucial.
+gate-threshold relaxation: founder-crucial. The --paths/--citation-text
+overrides exist for HERMETIC TESTS ONLY — the validate wiring never
+passes them, so production always derives both from git.
 """
 from __future__ import annotations
 
@@ -24,7 +29,6 @@ import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_INDEX = os.path.join(REPO_ROOT, "docs", "memory", "RED_CLASSES.md")
-DEFAULT_CONTRACT = os.path.join(REPO_ROOT, "STATE.md")
 
 _ROW_RE = re.compile(r"^\|\s*([a-z0-9][a-z0-9-]+)\s*\|\s*([^|]+)\|")
 
@@ -53,19 +57,32 @@ def load_index(path: str) -> dict[str, list[str]]:
     return index
 
 
-def changed_paths(diff_range: str) -> list[str]:
+def _git(args: list[str]) -> str:
     proc = subprocess.run(
-        ["git", "diff", "--name-only", diff_range],
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
+        ["git", *args], capture_output=True, text=True, cwd=REPO_ROOT
     )
     if proc.returncode != 0:
         raise SystemExit(
-            f"construction_gate: FAIL — git diff {diff_range!r} failed "
-            f"({proc.stderr.strip()}); an unresolvable diff never passes silently"
+            f"construction_gate: FAIL — git {' '.join(args[:2])} failed "
+            f"({proc.stderr.strip()}); an unresolvable diff base is gate "
+            "misconfiguration and never passes silently (fetch the base ref)"
         )
-    return [p for p in proc.stdout.splitlines() if p.strip()]
+    return proc.stdout
+
+
+def changed_paths(diff_range: str) -> list[str]:
+    return [p for p in _git(["diff", "--name-only", diff_range]).splitlines() if p.strip()]
+
+
+def added_lines(diff_range: str) -> str:
+    """The citation surface (#67 r5): ONLY lines this change ADDS — a
+    token present merely in pre-existing file content is history, not
+    evidence that THIS build retrieved and answered the class."""
+    out = _git(["diff", "--unified=0", diff_range])
+    return "\n".join(
+        line[1:] for line in out.splitlines()
+        if line.startswith("+") and not line.startswith("+++")
+    )
 
 
 def match_classes(index: dict[str, list[str]], paths: list[str]) -> list[str]:
@@ -80,20 +97,24 @@ def match_classes(index: dict[str, list[str]], paths: list[str]) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--index", default=DEFAULT_INDEX)
-    parser.add_argument("--contract", default=DEFAULT_CONTRACT)
     parser.add_argument("--diff-range", default="origin/master...HEAD")
     parser.add_argument(
-        "--paths",
-        nargs="*",
-        default=None,
-        help="explicit changed paths (tests/tools); default derives from --diff-range",
+        "--paths", nargs="*", default=None,
+        help="HERMETIC TESTS ONLY: explicit changed paths (production derives from git)",
+    )
+    parser.add_argument(
+        "--citation-text-file", default=None,
+        help="HERMETIC TESTS ONLY: file standing in for the diff's added lines",
     )
     args = parser.parse_args(argv)
 
     index = load_index(args.index)
     paths = args.paths if args.paths is not None else changed_paths(args.diff_range)
     if not paths:
-        print("construction_gate: no changed paths in range — nothing to retrieve against")
+        print(
+            "construction_gate: zero changed paths in a RESOLVED diff range "
+            f"({args.diff_range}) — nothing to retrieve against"
+        )
         return 0
     matched = match_classes(index, paths)
     if not matched:
@@ -102,24 +123,28 @@ def main(argv: list[str] | None = None) -> int:
             f"({len(paths)} paths x {len(index)} classes) — explicit result, not silence"
         )
         return 0
-    try:
-        with open(args.contract, encoding="utf-8") as fh:
-            contract = fh.read()
-    except OSError as exc:
-        print(f"construction_gate: FAIL — contract unreadable ({exc})")
-        return 1
-    uncited = [token for token in matched if token not in contract]
+    if args.citation_text_file is not None:
+        try:
+            with open(args.citation_text_file, encoding="utf-8") as fh:
+                citation_text = fh.read()
+        except OSError as exc:
+            print(f"construction_gate: FAIL — citation text unreadable ({exc})")
+            return 1
+    else:
+        citation_text = added_lines(args.diff_range)
+    uncited = [token for token in matched if token not in citation_text]
     print(f"construction_gate: matched red classes: {', '.join(matched)}")
     if uncited:
         print(
-            "construction_gate: FAIL — the session contract does not cite: "
+            "construction_gate: FAIL — this change's ADDED LINES do not cite: "
             + ", ".join(uncited)
-            + f"\n  (Stage 3 is BLOCKING: retrieve docs/memory/RED_CLASSES.md, answer "
-            f"each matched class in the contract/premortem, cite the token in "
-            f"{os.path.basename(args.contract)})"
+            + "\n  (Stage 3 is BLOCKING and binds to THE CURRENT BUILD: retrieve "
+            "docs/memory/RED_CLASSES.md, answer each matched class in this "
+            "session's contract/premortem, and write the citation IN THIS "
+            "CHANGE — a stale token in pre-existing history is not retrieval)"
         )
         return 1
-    print("construction_gate: all matched classes cited in the contract — PASS")
+    print("construction_gate: all matched classes cited in this change — PASS")
     return 0
 
 

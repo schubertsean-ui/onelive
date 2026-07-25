@@ -41,8 +41,9 @@ follow-through discipline; PDCA trend measurement). Canon:
    — CLAUDE.md Thinking-tools item 4 added in the same commit as this
    line.
 2. `tools/construction_gate.py` — the mechanical Stage 3 blocking check
-   (refuse a session contract lacking retrieval citations) + red-class
-   token index over the Kaizen ledger. Build item in TODOS (P1); gate
-   custody applies (evaluator-mandatory when it lands).
+   + red-class index. [Historical: queued at first writing; SHIPPED the
+   same day in PR #67 (r4 demanded the mechanism ride with the rule; r5
+   bound citations to the change's own added lines) — a hard gate in
+   tools/validate, evaluator-reviewed in that PR.]
 3. Retrofit: the ledger's existing prose-only rows get retrieval tokens
    as they are next touched (Stage 6's definition of "committed").
