@@ -12,6 +12,7 @@ strategy.
 from __future__ import annotations
 
 import json
+import re
 
 from social.carousel.config import TIMEFRAMES
 
@@ -52,7 +53,11 @@ def hashtags_for(city: str, events: list[dict]) -> tuple[str, ...]:
     community tags in lineup order. Deterministic, deduplicated, capped."""
     if not city:
         raise ValueError("city required for hashtag frame")
-    slug = city.lower().replace(" ", "")
+    # Alnum-only slug (r14 nit): punctuation in a future city label
+    # ("St. Louis", "Winston-Salem") must never leak into a tag.
+    slug = re.sub(r"[^a-z0-9]", "", city.lower())
+    if not slug:
+        raise ValueError(f"city {city!r} yields an empty hashtag slug")
     tags = [f"#{slug}", f"#{slug}events"]
     for event in events:
         domain_tag = DOMAIN_TAGS.get(event.get("domain_id", ""))

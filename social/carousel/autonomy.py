@@ -28,6 +28,33 @@ DEFAULT_RECORD_PATH = os.path.join(os.path.dirname(__file__), "AUTONOMY_RATIFICA
 
 LEVELS = ("L0", "L1", "L2")
 
+# Key-strength floor (evaluator r14): the custody boundary is only as
+# strong as this secret, so a trivial misconfiguration (KEY=1) must fail
+# LOUD, never sign or verify. 32 bytes matches the SHA-256 output size —
+# RFC 2104's recommended minimum HMAC key length — and the distinct-byte
+# floor rejects degenerate padding ("aaaa…"). This is a mechanical floor
+# for catastrophic misconfig, not an entropy proof; the key remains a
+# founder mint per the charter.
+MIN_KEY_BYTES = 32
+MIN_KEY_DISTINCT_BYTES = 8
+
+
+def require_strong_key(key: str | bytes, context: str) -> bytes:
+    """Validate custody key material, fail closed. Shared by approval
+    signing/verification (publish_gate) and autonomy-record
+    signing/verification — the same floor guards every use of
+    ONELIVE_APPROVAL_KEY."""
+    if not key:
+        raise ValueError(f"{context}: key material is empty — refusing")
+    key_bytes = key.encode("utf-8") if isinstance(key, str) else bytes(key)
+    if len(key_bytes) < MIN_KEY_BYTES or len(set(key_bytes)) < MIN_KEY_DISTINCT_BYTES:
+        raise ValueError(
+            f"{context}: key material is too weak (need >= {MIN_KEY_BYTES} "
+            f"bytes with >= {MIN_KEY_DISTINCT_BYTES} distinct byte values) — "
+            "a custody boundary never signs or verifies under a trivial key"
+        )
+    return key_bytes
+
 _REQUIRED_ATTRIBUTION = ("founder", "ratified_on", "decision_record")
 
 
@@ -77,10 +104,13 @@ def _canonical_payload(data: dict) -> bytes:
 def sign_autonomy_record(record: dict, key: str | bytes) -> str:
     """Produce the record's signature. Run by the FOUNDER at ratification
     time with the founder-held key — agents never hold it, so an agent
-    cannot mint a grant that verifies."""
-    if not key:
-        raise AutonomyRecordError("signing requires a non-empty key")
-    key_bytes = key.encode("utf-8") if isinstance(key, str) else key
+    cannot mint a grant that verifies. Weak key material refuses (r14):
+    an autonomy grant is a trust-invariant override, and a trivial key
+    would make it forgeable under common misconfiguration."""
+    try:
+        key_bytes = require_strong_key(key, "autonomy record signing")
+    except ValueError as exc:
+        raise AutonomyRecordError(str(exc)) from exc
     return hmac.new(key_bytes, _canonical_payload(record), hashlib.sha256).hexdigest()
 
 
@@ -147,6 +177,8 @@ def load_policy() -> AutonomyPolicy:
             "no verification key available (ONELIVE_APPROVAL_KEY unset) — "
             "cannot authenticate the autonomy grant, refusing"
         )
+    # Weak deployed key fails loud here too (r14): sign_autonomy_record
+    # applies the shared strength floor before any verification happens.
     expected = sign_autonomy_record(data, verification_key)
     if not hmac.compare_digest(expected, str(signature)):
         raise AutonomyRecordError(

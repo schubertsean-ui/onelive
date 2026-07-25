@@ -1,12 +1,13 @@
 # ONE LIVE — Carousel Examples, Cadence & Metrics v1 (2026-07-24)
 
 Greppable summary: founder-directed same-day follow-up to the Meta
-carousel engine ("The carousels should be '5' or '7' 'blank' to
-experience Today or Tonight or This Weekend … only ever show content
-that is to happen … Create a world class cadre of actual carousel
-content for 5 different categories/combos … date night, music and
-dancing … What are world class practices for how many run per day? What
-are key metrics we'll gather and analyze?"). This doc: (A) the five
+carousel engine — the exact 5-or-7 listicle canon framed to
+Today/Tonight/This-weekend, strictly future-only content, a world-class
+set of example carousels across five category scenarios (date night,
+music & dancing among them), plus the posts-per-day and key-metrics
+research questions (verbatim directive: the 2026-07-25 addendum of
+`docs/memory/decisions/2026-07-24_meta-carousel-engine.md`, per
+dissemination minimization). This doc: (A) the five
 scenario carousels RENDERED BY THE SHIPPED ENGINE, (B) the
 posts-per-day research answer, (C) the metrics answer. Engine spec:
 `ONE_LIVE_META_CAROUSEL_ENGINE_v1.md`; scenario definitions:

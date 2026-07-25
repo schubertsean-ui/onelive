@@ -1,7 +1,9 @@
 """Scenario carousels — the founder's named use-cases as standing series.
 
-Greppable summary: founder-directed 2026-07-24 ("Include scenarios we've
-identified like date night, music and dancing"). Each scenario is a
+Greppable summary: founder-directed 2026-07-24 — standing carousel series
+for the scenarios OneLive has already identified, date night and music &
+dancing among them (verbatim directive: the decision record
+docs/memory/decisions/2026-07-24_meta-carousel-engine.md). Each scenario is a
 curated category-combo carousel grounded in the ratified voice-search
 personas (docs/design/ONE_LIVE_VOICE_SEARCH_PERSONAS_v1.md): Date Night
 (persona #11), Music & Dancing (the founder's own example, #7, + the

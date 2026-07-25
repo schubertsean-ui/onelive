@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 
+from social.carousel.config import validate_assignment
+
 DEFAULT_BASELINE_WINDOW = 10
 
 
@@ -93,6 +95,9 @@ class MetricsLedger:
 
     def record(self, metrics: PostMetrics, assignment: dict[str, str]) -> None:
         metrics.validate()
+        # Same closed design space as the bandit (r14 nit): a direct caller
+        # cannot accumulate untracked factor levels in the ledger.
+        validate_assignment(assignment)
         self.rows.append(LedgerRow(metrics=metrics, assignment=dict(assignment)))
 
     def _rates(self, surface: str, tier: str) -> list[float]:

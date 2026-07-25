@@ -29,10 +29,10 @@ import hashlib
 import hmac
 import os
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Callable
 
-from social.carousel.autonomy import load_policy
+from social.carousel.autonomy import load_policy, require_strong_key
 from social.carousel.config import (
     CarouselConfig,
     FEATURABLE_CONFIDENCE,
@@ -127,33 +127,25 @@ def _release_moment() -> datetime:
     return now
 
 
-class InMemoryReleaseJournal:
-    """Reference release journal for tests and single-process dev runs.
-    Production wires a DURABLE journal (the ops-console store, R-026's
-    trigger) through configure_release_journal — the interface is
-    count_on(date) -> int and record(release, moment)."""
-
-    def __init__(self) -> None:
-        self._by_day: dict[date, list[PublishRelease]] = {}
-
-    def count_on(self, day: date) -> int:
-        return len(self._by_day.get(day, []))
-
-    def record(self, release: "PublishRelease", moment: datetime) -> None:
-        self._by_day.setdefault(moment.date(), []).append(release)
-
-
 # The release journal: deployment wiring, registered ONCE like the state
 # reader. The autonomy path REQUIRES it (r11): a signed grant's
 # max_releases_per_day is enforced HERE, mechanically — no journal means
 # the ceiling cannot be counted, so nothing auto-releases (fail closed).
+# There is deliberately NO journal implementation in this module (r14):
+# a volatile in-process journal resets its count on restart — fail-open
+# on the daily ceiling — so the gate ships only the requirement; the
+# durable implementation is the ops-console store at R-026's trigger.
 _RELEASE_JOURNAL = None
 
 
 def configure_release_journal(journal) -> None:
     """Register the durable release journal. Once-only, same physics as
-    configure_state_reader: a second registration is a misconfiguration
-    or an attempt to reset the cadence count."""
+    configure_state_reader. The journal must expose count_on(date) and
+    record(release, moment) AND attest durability via a True `durable`
+    attribute (r14): the registering surface asserts its counts survive
+    process restart — an in-memory journal must not be registerable by
+    accident, because a reset count silently reopens a spent daily
+    ceiling."""
     global _RELEASE_JOURNAL
     if _RELEASE_JOURNAL is not None:
         raise ValueError("release journal already configured — refusing to replace it")
@@ -161,6 +153,11 @@ def configure_release_journal(journal) -> None:
         getattr(journal, "record", None)
     ):
         raise ValueError("release journal must expose count_on(date) and record(release, moment)")
+    if getattr(journal, "durable", False) is not True:
+        raise ValueError(
+            "release journal must attest durability (journal.durable is True) — "
+            "a volatile journal fails open on the autonomy cadence ceiling"
+        )
     _RELEASE_JOURNAL = journal
 
 
@@ -200,7 +197,9 @@ class PublishRelease:
 def _resolve_key() -> bytes:
     """The approval key comes from the deployment environment ONLY (r3:
     key material must never be a parameter of the custody API — the
-    subject of authorization must not choose the key that verifies it)."""
+    subject of authorization must not choose the key that verifies it)
+    and must clear the shared strength floor (r14: KEY=1 must fail loud,
+    never sign — the boundary is only as strong as this secret)."""
     key = os.environ.get(APPROVAL_KEY_ENV)
     if not key:
         raise ValueError(
@@ -208,7 +207,7 @@ def _resolve_key() -> bytes:
             "cannot be signed or verified, refusing (the key is founder-minted "
             "deployment config, never present in agent sessions)"
         )
-    return key.encode("utf-8")
+    return require_strong_key(key, f"approval key ({APPROVAL_KEY_ENV})")
 
 
 def _assert_authorized_approver(identity: str) -> str:

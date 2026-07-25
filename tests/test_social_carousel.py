@@ -60,7 +60,7 @@ from social.carousel.scenarios import (
 )
 from social.carousel.tiers import TierThresholds, assign_tiers, plan_portfolio
 
-TEST_KEY = "test-founder-approval-key"
+TEST_KEY = "test-founder-approval-key-4f8a2c9d7e1b"  # >=32 bytes (r14 floor)
 REF_TIME = "2026-07-24T12:00:00-05:00"  # Friday noon, Austin
 
 # Captured BEFORE any test patches it: the repo's real canonical record path.
@@ -71,6 +71,23 @@ def _default_reader(event_ids):
     # Full canonical rows (r4): regenerate the fixture recipe per id so
     # release-time fact verification sees exactly what generation saw.
     return {eid: _event(int(eid.split("-")[1])) for eid in event_ids}
+
+
+class _DurableTestJournal:
+    """Test double for the release journal. `durable = True` is the r14
+    registration attestation — REAL durability lives in the ops-console
+    store at R-026; here the flag exercises the gate's requirement."""
+
+    durable = True
+
+    def __init__(self):
+        self._by_day = {}
+
+    def count_on(self, day):
+        return len(self._by_day.get(day, []))
+
+    def record(self, release, moment):
+        self._by_day.setdefault(moment.date(), []).append(release)
 
 
 @pytest.fixture(autouse=True)
@@ -87,9 +104,7 @@ def _custody_env(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(publish_gate, "_STATE_READER", _default_reader)
     monkeypatch.setattr(publish_gate, "_utcnow", lambda: datetime.fromisoformat(REF_TIME))
-    monkeypatch.setattr(
-        publish_gate, "_RELEASE_JOURNAL", publish_gate.InMemoryReleaseJournal()
-    )
+    monkeypatch.setattr(publish_gate, "_RELEASE_JOURNAL", _DurableTestJournal())
     # r13: approval is allowlist membership — the deployment registers the
     # humans its auth surface has actually authenticated.
     monkeypatch.setattr(publish_gate, "_APPROVER_REGISTRY", frozenset({"Sean Schubert"}))
@@ -546,7 +561,7 @@ def test_forged_approval_signature_is_refused():
 
 def test_approval_signed_under_a_different_key_is_refused(monkeypatch):
     draft = _draft()
-    monkeypatch.setenv("ONELIVE_APPROVAL_KEY", "some-other-deployment-key")
+    monkeypatch.setenv("ONELIVE_APPROVAL_KEY", "some-other-deployment-key-9c2f7a1e4d")
     wrong = _approve(draft)  # signed under the other key
     monkeypatch.setenv("ONELIVE_APPROVAL_KEY", TEST_KEY)
     with pytest.raises(ValueError, match="signature does not verify"):
@@ -908,7 +923,7 @@ def test_unsigned_record_refuses(tmp_path):
 
 
 def test_wrong_key_signature_refuses(tmp_path):
-    path = _signed_record(tmp_path, _l1_payload(), key="attacker-key")
+    path = _signed_record(tmp_path, _l1_payload(), key="attacker-key-5b8e2a9c4f7d1e0a3b6c9d")
     with pytest.raises(AutonomyRecordError, match="does not verify"):
         _load_policy_at(path)
 
@@ -1020,9 +1035,45 @@ def test_human_approval_never_depends_on_the_journal(monkeypatch):
 
 def test_release_journal_registration_is_once_only(monkeypatch):
     monkeypatch.setattr(publish_gate, "_RELEASE_JOURNAL", None)
-    publish_gate.configure_release_journal(publish_gate.InMemoryReleaseJournal())
+    publish_gate.configure_release_journal(_DurableTestJournal())
     with pytest.raises(ValueError, match="already configured"):
-        publish_gate.configure_release_journal(publish_gate.InMemoryReleaseJournal())
+        publish_gate.configure_release_journal(_DurableTestJournal())
+
+
+def test_volatile_journal_cannot_register(monkeypatch):
+    # r14 blocker: a journal that does not attest durability must not be
+    # registerable — a restart-reset count fails open on the daily cap.
+    monkeypatch.setattr(publish_gate, "_RELEASE_JOURNAL", None)
+
+    class _Volatile(_DurableTestJournal):
+        durable = False
+
+    with pytest.raises(ValueError, match="attest durability"):
+        publish_gate.configure_release_journal(_Volatile())
+    # And no journal implementation ships inside the gate module itself.
+    assert not hasattr(publish_gate, "InMemoryReleaseJournal")
+
+
+def test_weak_approval_key_fails_loud_everywhere(monkeypatch, tmp_path):
+    # r14 blockers: ONELIVE_APPROVAL_KEY=1 must refuse to sign or verify
+    # anything — approvals AND autonomy records.
+    draft = _draft()
+    approval = _approve(draft)
+    monkeypatch.setenv("ONELIVE_APPROVAL_KEY", "1")
+    with pytest.raises(ValueError, match="too weak"):
+        approve(draft, "Sean Schubert", "2026-07-24T18:00:00-05:00")
+    with pytest.raises(ValueError, match="too weak"):
+        _release(draft, approval)
+    with pytest.raises(AutonomyRecordError, match="too weak"):
+        sign_autonomy_record({"level": "L1"}, "1")
+    # A signed grant + a weak deployed verification key refuses loudly too.
+    path = _signed_record(tmp_path, _l1_payload())
+    with pytest.raises(AutonomyRecordError, match="too weak"):
+        _load_policy_at(path)
+    # Degenerate padding is weak regardless of length.
+    monkeypatch.setenv("ONELIVE_APPROVAL_KEY", "a" * 64)
+    with pytest.raises(ValueError, match="too weak"):
+        approve(draft, "Sean Schubert", "2026-07-24T18:00:00-05:00")
 
 
 # --- Fact-derived copy (evaluator r11) -----------------------------------------
