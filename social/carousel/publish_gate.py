@@ -37,6 +37,7 @@ from social.carousel.config import (
 )
 from social.carousel.generator import (
     BANNED_CLAIM_RE,
+    renderer_fingerprint,
     CarouselDraft,
     CarouselTrustError,
     all_draft_text,
@@ -344,6 +345,22 @@ def release_for_publish(
         )
 
     active_policy = load_policy()
+    if active_policy.level != "L0":
+        # Content binding (r10): the grant covers exactly the frozen render
+        # surface and the enumerated series — anything else refuses.
+        live = renderer_fingerprint()
+        if active_policy.renderer_version != live:
+            raise ValueError(
+                "release refused: the autonomy grant froze renderer "
+                f"{active_policy.renderer_version[:12]}… but the live renderer is "
+                f"{live[:12]}… — code changed since ratification, re-sign or "
+                "approve per post"
+            )
+        if active_policy.series_keys and draft.series_key not in active_policy.series_keys:
+            raise ValueError(
+                f"release refused: series {draft.series_key!r} is not in the "
+                "autonomy grant's enumerated series"
+            )
     if active_policy.allows_auto_release(draft.surface, draft.tier):
         return PublishRelease(
             draft_hash=draft_hash,

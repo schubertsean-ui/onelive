@@ -79,9 +79,14 @@ def run_cycle(
     except BaseException:
         # A loud trust error must still be VISIBLE to the dead-man channel
         # (r7 nit): ping failure explicitly, then propagate unchanged —
-        # "end" means completed and never fires on the error path.
+        # "end" means completed and never fires on the error path. The ping
+        # is secondary telemetry (r10 nit): its own failure must never mask
+        # the primary trust exception.
         if deadman_ping is not None:
-            deadman_ping("error")
+            try:
+                deadman_ping("error")
+            except Exception:
+                pass  # secondary channel down — the primary error propagates
         raise
     if deadman_ping is not None:
         deadman_ping("end")

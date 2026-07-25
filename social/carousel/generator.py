@@ -43,6 +43,24 @@ from social.carousel.geo import discovery_bundle, hashtags_for
 
 AGENT_AUTHOR = "onelive-carousel-agent"
 
+# The render surface an autonomy grant freezes (r10): a grant covers
+# EXACTLY this code; any change to these files voids it until re-signed.
+_RENDER_SURFACE_FILES = ("config.py", "generator.py", "geo.py", "scenarios.py")
+
+
+def renderer_fingerprint() -> str:
+    """SHA-256 over the render-surface module bytes. Autonomy records bind
+    to this value; release under autonomy requires equality."""
+    import os as _os
+
+    digest = hashlib.sha256()
+    base = _os.path.dirname(__file__)
+    for name in _RENDER_SURFACE_FILES:
+        with open(_os.path.join(base, name), "rb") as fh:
+            digest.update(name.encode())
+            digest.update(fh.read())
+    return digest.hexdigest()
+
 # The structural "published canonical events only" check (evaluator r1): the
 # canonical-event read path stamps this marker; candidate-store rows never
 # carry it, so a candidate cannot be amplified even if handed in by mistake.
@@ -463,6 +481,12 @@ def render_carousel(
                 f"event {event['event_id']} domain {event['domain_id']!r} is "
                 f"outside this series' domains {config.domain_ids} — a series "
                 "claim covers only its own domains"
+            )
+        if not event.get("image_url"):
+            raise CarouselTrustError(
+                f"event {event['event_id']} has no image — the spec's "
+                "image-mandatory rule (perception physics) fails loud, and an "
+                "imageless event rides the product feed instead"
             )
     constraints = SURFACE_CONSTRAINTS[config.surface]
 

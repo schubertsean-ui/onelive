@@ -45,6 +45,14 @@ class AutonomyPolicy:
     founder: str = ""
     ratified_on: str = ""
     decision_record: str = ""
+    # Content binding (r10): the grant covers EXACTLY this render surface —
+    # publish_gate refuses when the live renderer_fingerprint() differs.
+    renderer_version: str = ""
+    # Enumerated series the grant covers (empty tuple on L2 = all).
+    series_keys: tuple[str, ...] = field(default_factory=tuple)
+    # Founder-stated cadence ceiling; mechanically enforced by the release
+    # journal at the ops-console surface (R-026's trigger builds it).
+    max_releases_per_day: int = 0
 
     def allows_auto_release(self, surface: str, tier: str) -> bool:
         if self.level == "L0":
@@ -104,6 +112,23 @@ def load_policy(path: str | None = None) -> AutonomyPolicy:
                 f"autonomy record level {level} missing required field {key!r} — "
                 "an unattributed grant is no grant"
             )
+    # Content binding (r10): a grant not tied to a frozen renderer and a
+    # stated cadence ceiling is too broad to be a grant.
+    if not data.get("renderer_version"):
+        raise AutonomyRecordError(
+            f"autonomy record level {level} missing renderer_version — the "
+            "grant must freeze the exact render surface it covers"
+        )
+    if not isinstance(data.get("max_releases_per_day"), int) or data["max_releases_per_day"] < 1:
+        raise AutonomyRecordError(
+            f"autonomy record level {level} missing a positive "
+            "max_releases_per_day cadence ceiling"
+        )
+    if level == "L1" and not data.get("series_keys"):
+        raise AutonomyRecordError(
+            "L1 record must enumerate series_keys — standing approval covers "
+            "named series, never everything"
+        )
     # Authentication (evaluator r1): schema presence is not ratification.
     # The signature must verify under the founder-held key; no key available
     # to verify with = no autonomy, loudly.
@@ -144,4 +169,7 @@ def load_policy(path: str | None = None) -> AutonomyPolicy:
         founder=data["founder"],
         ratified_on=data["ratified_on"],
         decision_record=data["decision_record"],
+        renderer_version=data["renderer_version"],
+        series_keys=tuple(data.get("series_keys") or ()),
+        max_releases_per_day=data["max_releases_per_day"],
     )

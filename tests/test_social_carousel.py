@@ -739,12 +739,17 @@ def _signed_record(tmp_path, payload, key=TEST_KEY):
 
 
 def _l1_payload():
+    from social.carousel.generator import renderer_fingerprint
+
     return {
         "level": "L1",
         "scopes": [{"surface": "instagram_feed", "tier": "T1"}],
         "founder": "Sean Schubert",
         "ratified_on": "2026-08-01",
         "decision_record": "docs/memory/decisions/2026-08-01_autonomy-l1.md",
+        "renderer_version": renderer_fingerprint(),
+        "series_keys": ["t1_live-music"],
+        "max_releases_per_day": 2,
     }
 
 
@@ -801,11 +806,15 @@ def test_no_verification_key_refuses_grants(tmp_path, monkeypatch):
 def test_l2_requires_attribution(tmp_path):
     with pytest.raises(AutonomyRecordError, match="unattributed grant"):
         load_policy(_signed_record(tmp_path, {"level": "L2"}))
+    from social.carousel.generator import renderer_fingerprint
+
     payload = {
         "level": "L2",
         "founder": "Sean Schubert",
         "ratified_on": "2026-09-01",
         "decision_record": "docs/memory/decisions/2026-09-01_autonomy-l2.md",
+        "renderer_version": renderer_fingerprint(),
+        "max_releases_per_day": 3,
     }
     policy = load_policy(_signed_record(tmp_path, payload))
     assert policy.allows_auto_release("facebook_page", "T3")
@@ -820,8 +829,57 @@ def test_malformed_record_fails_closed_not_open(tmp_path):
     with pytest.raises(AutonomyRecordError, match="unknown level"):
         load_policy(str(record))
     payload = {"level": "L1", "founder": "S", "ratified_on": "d", "decision_record": "r"}
+    with pytest.raises(AutonomyRecordError, match="renderer_version"):
+        load_policy(_signed_record(tmp_path, payload))
+    payload = dict(_l1_payload())
+    del payload["scopes"]
     with pytest.raises(AutonomyRecordError, match="enumerate scopes"):
         load_policy(_signed_record(tmp_path, payload))
+    payload = dict(_l1_payload())
+    payload["max_releases_per_day"] = 0
+    with pytest.raises(AutonomyRecordError, match="cadence ceiling"):
+        load_policy(_signed_record(tmp_path, payload))
+
+
+def test_autonomy_grant_is_renderer_bound(tmp_path, monkeypatch):
+    # r10 blocker: a grant froze a different renderer -> refuse.
+    payload = _l1_payload()
+    payload["renderer_version"] = "0" * 64
+    path = _signed_record(tmp_path, payload)
+    monkeypatch.setattr(autonomy_module, "DEFAULT_RECORD_PATH", path)
+    draft = _draft()
+    with pytest.raises(ValueError, match="code changed since ratification"):
+        _release(draft)
+
+
+def test_autonomy_grant_is_series_bound(tmp_path, monkeypatch):
+    payload = _l1_payload()
+    payload["series_keys"] = ["scenario_family_day"]
+    path = _signed_record(tmp_path, payload)
+    monkeypatch.setattr(autonomy_module, "DEFAULT_RECORD_PATH", path)
+    draft = _draft()  # series t1_live-music
+    with pytest.raises(ValueError, match="enumerated series"):
+        _release(draft)
+
+
+def test_imageless_event_fails_loud():
+    # r10 nit: the spec's image-mandatory rule is enforced, not implied.
+    bare = _event(1, image_url="")
+    with pytest.raises(CarouselTrustError, match="no image"):
+        _draft([bare] + [_event(i) for i in range(2, 6)])
+
+
+def test_deadman_ping_failure_never_masks_the_trust_error():
+    def exploding_ping(stage):
+        if stage == "error":
+            raise RuntimeError("ping channel down")
+
+    with pytest.raises(CarouselTrustError, match="unknown confidence"):
+        _cycle(
+            [_event(1, confidence="banana", domain="comedy")],
+            {"comedy": 6.0},
+            deadman_ping=exploding_ping,
+        )
 
 
 def test_no_ratification_record_is_committed_yet():
