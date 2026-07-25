@@ -26,6 +26,7 @@ from decimal import Decimal, InvalidOperation
 
 from social.carousel.config import (
     BANNED_CLAIM_PHRASES,
+    CarouselTrustError,
     CarouselConfig,
     FEATURABLE_CONFIDENCE,
     FEATURABLE_EVENT_STATUS,
@@ -77,10 +78,6 @@ REQUIRED_EVENT_FIELDS = (
     "domain_id",
     "source",
 )
-
-
-class CarouselTrustError(ValueError):
-    """A trust or configuration violation — must always propagate loud."""
 
 
 class NoFeaturableEvents(ValueError):

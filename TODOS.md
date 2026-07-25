@@ -15,7 +15,7 @@ Check items off in the same commit that completes them; don't batch-remove.
 
 ## Construction Loop (Contract #24, founder-directed 2026-07-25 — docs/skills/construction_loop.md)
 - [x] (P1, founder) Ratify the Construction Loop as CHARTER text — **DONE 2026-07-25 (founder: "I approve making it part of the permanent canon")**; CLAUDE.md Thinking-tools item 4 added in the ratification commit.
-- [ ] (P1, agent, next focused session, contract-first) `tools/construction_gate.py` — the mechanical Stage 3 blocking check: red-class token index over KAIZEN_LEDGER + docs/memory, retrieval keyed on touched paths/change type, refuses a session contract lacking citation evidence; gate custody applies (evaluator-mandatory). Acceptance: red test that an uncited matched class blocks; "no matched classes" prints explicitly.
+- [x] (P1) `tools/construction_gate.py` — **SHIPPED 2026-07-25 in PR #67 (r4: the rule ships with its mechanism)**: red-class index docs/memory/RED_CLASSES.md (18 classes seeded from the #65/#67 arcs), path-trigger matching, contract-citation requirement, fail-closed on unreadable/empty index, wired into validate as a hard gate; 6 tests incl. the uncited-blocks red case and the explicit no-match print.
 - [ ] (P2, agent, rolling) Retrofit retrieval tokens onto existing prose-only Kaizen rows as each is next touched (Stage 6: a prose-only lesson is an OPEN defect).
 
 ## Session Contract #1 follow-ups (2026-07-13 — genesis install; see docs/SPRINT_LIVE_SITE.md)

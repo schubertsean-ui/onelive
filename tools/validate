@@ -177,6 +177,20 @@ fi
 #     turn the run RED outright.
 run_check "kaizen_trends" "$PY" tools/kaizen_trends.py
 
+# 7c. Construction Loop Stage 3 gate (charter Thinking-tools item 4, #67 r4:
+#     the blocking-retrieval rule ships WITH its mechanism) — matches the
+#     diff's changed paths against docs/memory/RED_CLASSES.md and requires
+#     the session contract (STATE.md) to cite every matched class token.
+#     HARD GATE, same physics as kaizen_trends: an uncited matched class is
+#     a due retrieval, not information. Skips gracefully to a full-range
+#     no-op only when the base ref is absent (fresh shallow clones fetch it
+#     in CI); an unreadable index or contract fails closed inside the tool.
+if git rev-parse --verify -q origin/master >/dev/null 2>&1; then
+  run_check "construction_gate" "$PY" tools/construction_gate.py
+else
+  run_check "construction_gate" "$PY" tools/construction_gate.py --paths
+fi
+
 # 8. Visual regression — needs a booted app + baselines; cannot run headless
 #    here. Detect and SKIP-LOUD (never a silent pass), per the item-15 harness.
 echo "── visual_regression ──"

@@ -10,11 +10,15 @@ gather feedback → analyze/score/commit to brain in machine-consumed form
 (Kaizen, PR #65 arc): class-level lessons sat in the ledger while sibling
 defects shipped three times — prevention ran downstream in the evaluator
 instead of upstream in construction. Research grounding per stage below
-(sources in the Contract #24 research synthesis, changelog-linked).
-STATUS: ADOPTED as agent practice effective immediately (founder-directed);
-the mechanical enforcement tooling and the CLAUDE.md charter pointer are
-queued in TODOS (the loop binds the agent now; the tooling makes it
-physics).
+(sources: `docs/research/2026-07-25_construction_loop_research_synthesis.md`,
+committed verbatim).
+STATUS: ADOPTED and founder-RATIFIED into the charter same day
+(CLAUDE.md Thinking-tools item 4, verbatim approval in the decision
+record), WITH its mechanism (#67 r4: a blocking rule without enforcement
+is aspirational documentation): `tools/construction_gate.py` runs in
+tools/validate as a hard gate over the red-class index
+`docs/memory/RED_CLASSES.md`. Research evidence artifact:
+`docs/research/2026-07-25_construction_loop_research_synthesis.md`.
 
 ## The loop
 
@@ -78,10 +82,13 @@ failure mode — postmortems without follow-through create an illusion of
 improvement (most action items die within two weeks). Encoded as the
 repo's definition of "committed": a lesson is NOT committed until it
 exists in one of exactly three machine-consumed forms, in preference
-order: (1) a mechanical gate/lint rule; (2) a retrieval-indexed red-class
-token with trigger keywords/paths that Stage 3 matches; (3) a golden-set
-regression case. A prose-only ledger row is an OPEN defect, not a
-committed lesson.
+order: (1) a mechanical gate/lint rule; (2) a row in the red-class index
+`docs/memory/RED_CLASSES.md` (token + path triggers — the form
+construction_gate consumes at Stage 3); (3) a golden-set regression
+case. A prose-only ledger row is an OPEN defect, not a committed lesson
+— and the consuming mechanism EXISTS (the index + gate shipped with this
+rule), so the requirement has an objective failing check, not an
+aspiration.
 
 **Stage 7 — Repeat; measure improvement or slippage.**
 Practice: PDCA Check/Act + DORA trend discipline + the SRE unclosed-
@@ -93,9 +100,10 @@ gate-gap fix. The loop measures the loop.
 ## The three highest-leverage commitments (from the failure analysis)
 
 1. **Memory retrieval is a blocking gate, not a habit** — no design is
-   accepted without the Stage 3 citation pass (tooling queued: a
-   tools/-level check that refuses a session contract lacking the
-   retrieval evidence).
+   accepted without the Stage 3 citation pass (`tools/construction_gate.py`,
+   a hard gate in validate: it refuses any diff whose matched red classes
+   are uncited in the session contract, and fails closed on a missing
+   index).
 2. **The premortem is seeded from the ledger's red classes and runs
    before design acceptance** — every past evaluator finding becomes a
    token the next build must answer in writing, shifting review-round

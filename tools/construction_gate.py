@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+"""Construction Loop Stage 3 gate — blocking memory retrieval (charter item 4).
+
+Greppable summary: reads the red-class index (docs/memory/RED_CLASSES.md),
+matches each class's path-substring triggers against the diff's CHANGED
+FILE PATHS, and requires the session contract (STATE.md by default) to
+CITE every matched class token. Fail-closed physics (#67 r4: the rule
+ships with its mechanism, or it is aspirational documentation):
+- unreadable/empty index -> exit 1 (a missing brain never passes silently);
+- matched class token absent from the contract -> exit 1, listing each;
+- no matched classes -> prints exactly that (an explicit result, never
+  silence) and exits 0.
+Run by tools/validate on every diff against the base branch. Widening a
+trigger list is safe; REMOVING a row or narrowing triggers is a
+gate-threshold relaxation: founder-crucial.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import subprocess
+import sys
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_INDEX = os.path.join(REPO_ROOT, "docs", "memory", "RED_CLASSES.md")
+DEFAULT_CONTRACT = os.path.join(REPO_ROOT, "STATE.md")
+
+_ROW_RE = re.compile(r"^\|\s*([a-z0-9][a-z0-9-]+)\s*\|\s*([^|]+)\|")
+
+
+def load_index(path: str) -> dict[str, list[str]]:
+    """token -> lowercase trigger substrings. Fail closed on absence,
+    unreadability, or an empty table."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError as exc:
+        raise SystemExit(f"construction_gate: FAIL — red-class index unreadable ({exc})")
+    index: dict[str, list[str]] = {}
+    for line in text.splitlines():
+        match = _ROW_RE.match(line.strip())
+        if not match or match.group(1) in ("token", "---"):
+            continue
+        triggers = [t.strip().lower() for t in match.group(2).split(",") if t.strip()]
+        if triggers:
+            index[match.group(1)] = triggers
+    if not index:
+        raise SystemExit(
+            "construction_gate: FAIL — red-class index parsed to zero rows "
+            f"({path}); an empty brain never passes silently"
+        )
+    return index
+
+
+def changed_paths(diff_range: str) -> list[str]:
+    proc = subprocess.run(
+        ["git", "diff", "--name-only", diff_range],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    if proc.returncode != 0:
+        raise SystemExit(
+            f"construction_gate: FAIL — git diff {diff_range!r} failed "
+            f"({proc.stderr.strip()}); an unresolvable diff never passes silently"
+        )
+    return [p for p in proc.stdout.splitlines() if p.strip()]
+
+
+def match_classes(index: dict[str, list[str]], paths: list[str]) -> list[str]:
+    lowered = [p.lower() for p in paths]
+    return sorted(
+        token
+        for token, triggers in index.items()
+        if any(trigger in path for trigger in triggers for path in lowered)
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--index", default=DEFAULT_INDEX)
+    parser.add_argument("--contract", default=DEFAULT_CONTRACT)
+    parser.add_argument("--diff-range", default="origin/master...HEAD")
+    parser.add_argument(
+        "--paths",
+        nargs="*",
+        default=None,
+        help="explicit changed paths (tests/tools); default derives from --diff-range",
+    )
+    args = parser.parse_args(argv)
+
+    index = load_index(args.index)
+    paths = args.paths if args.paths is not None else changed_paths(args.diff_range)
+    if not paths:
+        print("construction_gate: no changed paths in range — nothing to retrieve against")
+        return 0
+    matched = match_classes(index, paths)
+    if not matched:
+        print(
+            "construction_gate: no matched red classes for this change surface "
+            f"({len(paths)} paths x {len(index)} classes) — explicit result, not silence"
+        )
+        return 0
+    try:
+        with open(args.contract, encoding="utf-8") as fh:
+            contract = fh.read()
+    except OSError as exc:
+        print(f"construction_gate: FAIL — contract unreadable ({exc})")
+        return 1
+    uncited = [token for token in matched if token not in contract]
+    print(f"construction_gate: matched red classes: {', '.join(matched)}")
+    if uncited:
+        print(
+            "construction_gate: FAIL — the session contract does not cite: "
+            + ", ".join(uncited)
+            + f"\n  (Stage 3 is BLOCKING: retrieve docs/memory/RED_CLASSES.md, answer "
+            f"each matched class in the contract/premortem, cite the token in "
+            f"{os.path.basename(args.contract)})"
+        )
+        return 1
+    print("construction_gate: all matched classes cited in the contract — PASS")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
