@@ -328,7 +328,7 @@ def record_outcome(
     else:
         trend = "flat"
 
-    next_actions = _next_actions(success, trend, plan_used, root_cause)
+    next_actions = _next_actions(success, trend, plan_used, root_cause, score)
     return Outcome(
         run_id=run.id, success=success, score=score, prior_score=prior,
         delta=delta, trend=trend, root_cause=root_cause, next_actions=next_actions,
@@ -358,9 +358,22 @@ def improvement(graph: Graph, objective_class: str) -> dict:
     return {"series": scores, "latest": scores[-1], "delta": delta, "direction": direction}
 
 
-def _next_actions(success, trend, plan_used, root_cause) -> List[str]:
+# A run can "succeed" (it completed, nothing broke) and still be a WEAK result.
+# Below this score, do NOT tell the next pass to reinforce the path — a thin
+# outcome reported as a win is the overstatement class this loop exists to catch.
+# (Found 2026-07-25 by actually running the loop: the local-coverage pass scored
+# 0.35 with 16 of 18 sources yielding zero, and the loop still said "worked".)
+WEAK_SUCCESS_SCORE = 0.60
+
+
+def _next_actions(success, trend, plan_used, root_cause, score=1.0) -> List[str]:
     actions: List[str] = []
-    if success and trend in ("improving", "first", "flat"):
+    if success and score < WEAK_SUCCESS_SCORE:
+        actions.append(
+            f"WEAK RESULT ({score:.2f}): path {plan_used.selected.name!r} completed but "
+            f"under-delivered — do NOT reinforce it. Treat the gap as the finding and "
+            f"try a higher-ceiling path (or fix this one's bottleneck) next pass")
+    elif success and trend in ("improving", "first", "flat"):
         actions.append(
             f"reinforce: path {plan_used.selected.name!r} worked — it is now a green "
             f"precedent future planning will Reuse for this class")
