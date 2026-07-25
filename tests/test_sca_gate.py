@@ -27,7 +27,15 @@ def _audit(*nodes):
             if ghsa
             else ["some-root-package"]
         )
-        vulns[name] = {"severity": severity, "via": via, "fixAvailable": fix}
+        if name in vulns:
+            # Faithful to real `npm audit`: ONE node per package carrying MANY
+            # advisories in its `via` list (the live audit reports postcss with
+            # three). Repeating a package name APPENDS rather than overwrites —
+            # overwriting silently hid every advisory but the last.
+            vulns[name]["via"].extend(via)
+            vulns[name]["fixAvailable"] = vulns[name]["fixAvailable"] or fix
+        else:
+            vulns[name] = {"severity": severity, "via": list(via), "fixAvailable": fix}
     return {"vulnerabilities": vulns}
 
 
@@ -206,6 +214,12 @@ def test_the_shipped_allowlist_covers_current_audit(tmp_path):
     doc = _audit(
         ("next", "high", None, False),
         ("postcss", "high", "GHSA-6g55-p6wh-862q", False),
+        # Second postcss advisory, published upstream 2026-07-25 (path traversal
+        # in previous-source-map auto-loading). Same package/root-cause/exposure
+        # as the entry above, also fixAvailable=false. Added here because the
+        # LIVE audit now reports it — the gate's anti-rot rule fails any
+        # allowlist entry whose advisory is absent from the audit shape.
+        ("postcss", "high", "GHSA-r28c-9q8g-f849", False),
         ("sharp", "high", "GHSA-f88m-g3jw-g9cj", False),
     )
     al = sca_gate._load_allowlist(sca_gate._DEFAULT_ALLOWLIST, TODAY)

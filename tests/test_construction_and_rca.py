@@ -102,7 +102,7 @@ def test_a_prior_success_is_retrieved_and_reused_next_pass():
     # Pass 1: plan + a SUCCESS on the 'ai-extract' path with a high score.
     p1 = plan(g, obj, _paths())
     out1 = record_outcome(g, obj, _plan_on(g, obj, "ai-extract"),
-                          success=True, score=0.95)
+                          success=True, score=0.95, check_gates=False)
     assert out1.trend == "first"
     greens = retrieve_green_examples(g, obj.objective_class)
     assert greens and greens[0].path_name == "ai-extract"
@@ -129,10 +129,10 @@ def test_a_committed_rca_makes_its_class_a_red_path_to_avoid():
 def test_improvement_and_slippage_are_measured_across_passes():
     g = Graph()
     obj = _obj("measure-me")
-    record_outcome(g, obj, _plan_on(g, obj, "structured-feed"), success=True, score=0.70)
-    o2 = record_outcome(g, obj, _plan_on(g, obj, "structured-feed"), success=True, score=0.85)
+    record_outcome(g, obj, _plan_on(g, obj, "structured-feed"), success=True, score=0.70, check_gates=False)
+    o2 = record_outcome(g, obj, _plan_on(g, obj, "structured-feed"), success=True, score=0.85, check_gates=False)
     assert o2.trend == "improving" and o2.delta == pytest.approx(0.15)
-    o3 = record_outcome(g, obj, _plan_on(g, obj, "structured-feed"), success=True, score=0.60)
+    o3 = record_outcome(g, obj, _plan_on(g, obj, "structured-feed"), success=True, score=0.60, check_gates=False)
     assert o3.trend == "slipping" and o3.delta == pytest.approx(-0.25)
     imp = improvement(g, "measure-me")
     assert imp["series"] == [0.70, 0.85, 0.60]
@@ -159,7 +159,7 @@ def test_failure_outcome_carries_the_rca_and_section1_escalation_into_next_actio
 def test_learning_is_durable_across_a_reload(tmp_path):
     g = Graph()
     obj = _obj("durable")
-    record_outcome(g, obj, _plan_on(g, obj, "structured-feed"), success=True, score=0.9)
+    record_outcome(g, obj, _plan_on(g, obj, "structured-feed"), success=True, score=0.9, check_gates=False)
     path = tmp_path / "brain.jsonl"
     store.save(g, path)
 
@@ -184,3 +184,34 @@ def _plan_on(g, obj, path_name):
 
 def _paths_named(name):
     return [CandidatePath(name, "d", 0.4), CandidatePath("other", "d", 0.6)]
+
+
+def test_cannot_record_success_while_a_required_gate_is_blocked(monkeypatch):
+    # The 2026-07-25 lesson as PHYSICS: with a gate red, the loop refuses to
+    # retain the run as a success — "pre-existing"/"recorded" cannot get past it.
+    import brain.construction as C
+    monkeypatch.setattr(C, "blocked_gates", lambda: ["trust-gate.yml", "adversarial-review.yml"])
+    g = Graph(); obj = _obj("gated")
+    with pytest.raises(C.BlockedGateError) as exc:
+        C.record_outcome(g, obj, _plan_on(g, obj, "p"), success=True, score=0.9)
+    msg = str(exc.value)
+    assert "trust-gate.yml" in msg and "NOT exemptions" in msg
+    # A FAILURE may still be recorded (that is how the root cause gets learned).
+    out = C.record_outcome(g, obj, _plan_on(g, obj, "p"), success=False, score=0.1)
+    assert out.success is False
+
+
+def test_green_gates_allow_success_to_be_recorded(monkeypatch):
+    import brain.construction as C
+    monkeypatch.setattr(C, "blocked_gates", lambda: [])
+    g = Graph(); obj = _obj("ungated")
+    out = C.record_outcome(g, obj, _plan_on(g, obj, "p"), success=True, score=0.9)
+    assert out.success and out.score == 0.9
+
+
+def test_rca_lesson_is_retrievable_from_the_canonical_brain():
+    # "Is it in the brain?" — the committed root cause must surface as a red
+    # class the planner sees, from the ONE canonical store both sides use.
+    from brain.paths import load_brain
+    from brain.construction import retrieve_red_classes
+    assert "process-gap" in retrieve_red_classes(load_brain(), "any")

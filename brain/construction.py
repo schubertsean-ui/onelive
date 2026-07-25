@@ -217,6 +217,50 @@ def _risk_matches(risk: str, red_classes: set) -> bool:
 
 # ── Retain + measure (CBR + PDCA Check) ──────────────────────────────────────
 
+class BlockedGateError(Exception):
+    """Raised when a run is being recorded as SUCCESS while a required CI gate is
+    blocked. Founder catch (2026-07-25): a merge-blocking test failure was
+    reported for hours as "pre-existing" — so the loop must not be able to write
+    "success" over a red gate. See tools/blocking_failure_check.py."""
+
+
+def blocked_gates() -> List[str]:
+    """The required checks currently turned RED by a failing test, via
+    tools/blocking_failure_check.py (which reads CI to find full-suite gates).
+
+    Returns [] when nothing is blocked. Never raises: if the checker cannot run
+    (missing interpreter/tool), it returns [] and the caller's own gates still
+    apply — this is a guard on OVERSTATEMENT, not a second test runner.
+    """
+    import os
+    import subprocess
+    import sys
+    # RECURSION GUARD: the checker runs the full pytest suite, and that suite
+    # contains tests of this very function. Without this, a test that records a
+    # success would spawn a suite that spawns another suite. The subprocess
+    # inherits the flag, so any nested call short-circuits.
+    if os.environ.get("ONELIVE_IN_GATE_CHECK") == "1":
+        return []
+    root = __import__("pathlib").Path(__file__).resolve().parent.parent
+    tool = root / "tools" / "blocking_failure_check.py"
+    if not tool.exists():
+        return []
+    env = dict(os.environ, ONELIVE_IN_GATE_CHECK="1")
+    try:
+        proc = subprocess.run([sys.executable, str(tool)], cwd=str(root),
+                              capture_output=True, text=True, timeout=900, env=env)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if proc.returncode == 0:
+        return []
+    # The checker prints the blocked gate list on the "These turn the following
+    # REQUIRED check(s) RED:" line.
+    for ln in (proc.stderr or "").splitlines():
+        if "REQUIRED check(s) RED:" in ln:
+            return [g.strip() for g in ln.split("RED:", 1)[1].split(",") if g.strip()]
+    return ["<unnamed gate>"]
+
+
 def record_outcome(
     graph: Graph,
     objective: Objective,
@@ -226,6 +270,7 @@ def record_outcome(
     score: float,
     notes: str = "",
     root_cause: Optional[RootCause] = None,
+    check_gates: bool = True,
 ) -> Outcome:
     """Steps 7-10: RETAIN the run + its score to the brain, measure improvement or
     slippage vs the prior run of this class, and emit the next actions.
@@ -237,6 +282,22 @@ def record_outcome(
     compares this score to the immediately prior one for the class.
     """
     score = max(0.0, min(1.0, score))
+
+    # PHYSICS, not a reminder: a run cannot be RETAINED as a success while a
+    # required CI gate is red. This is the 2026-07-25 lesson made structural —
+    # "pre-existing" and "recorded as R-###" cannot talk their way past it,
+    # because the check is a subprocess reading CI, not a judgement.
+    if success and check_gates:
+        blocked = blocked_gates()
+        if blocked:
+            raise BlockedGateError(
+                "refusing to record SUCCESS while required check(s) are RED: "
+                f"{', '.join(blocked)}. A failing test reds every full-suite gate, "
+                "so this work is BLOCKED, not done. Fix it (or record success=False "
+                "with the root cause). Age ('pre-existing') and a RECORD.md "
+                "R-### tag are NOT exemptions."
+            )
+
     prior_scores = _class_scores(graph, objective.objective_class)
     prior = prior_scores[-1] if prior_scores else None
 
