@@ -14,7 +14,7 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P3** — nice-to-have / ongoing background work.
 
 ## Construction Loop (Contract #24, founder-directed 2026-07-25 — docs/skills/construction_loop.md)
-- [ ] (P1, founder) Ratify the Construction Loop as CHARTER text (CLAUDE.md pointer) — the loop already binds the agent via OPERATING_RULES; charter placement makes it permanent canon. One-line approval suffices.
+- [x] (P1, founder) Ratify the Construction Loop as CHARTER text — **DONE 2026-07-25 (founder: "I approve making it part of the permanent canon")**; CLAUDE.md Thinking-tools item 4 added in the ratification commit.
 - [ ] (P1, agent, next focused session, contract-first) `tools/construction_gate.py` — the mechanical Stage 3 blocking check: red-class token index over KAIZEN_LEDGER + docs/memory, retrieval keyed on touched paths/change type, refuses a session contract lacking citation evidence; gate custody applies (evaluator-mandatory). Acceptance: red test that an uncited matched class blocks; "no matched classes" prints explicitly.
 - [ ] (P2, agent, rolling) Retrofit retrieval tokens onto existing prose-only Kaizen rows as each is next touched (Stage 6: a prose-only lesson is an OPEN defect).
 

@@ -36,9 +36,10 @@ follow-through discipline; PDCA trend measurement). Canon:
 
 ## Queued (never agent decisions / build items with objective triggers)
 
-1. Founder ratification of the loop as CHARTER text (a CLAUDE.md pointer)
-   — queued as a founder ask; until then it binds the agent via the
-   operating rules.
+1. Founder ratification of the loop as CHARTER text — RATIFIED same day
+   (founder, verbatim: "I approve making it part of the permanent canon")
+   — CLAUDE.md Thinking-tools item 4 added in the same commit as this
+   line.
 2. `tools/construction_gate.py` — the mechanical Stage 3 blocking check
    (refuse a session contract lacking retrieval citations) + red-class
    token index over the Kaizen ledger. Build item in TODOS (P1); gate
