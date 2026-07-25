@@ -22,7 +22,7 @@ name: import-structured
 # import-licensed self-applies 0010 — so running this workflow is the ONLY action
 # needed to light up the local sources; no manual SQL step.
 #
-# Trigger: a daily SCHEDULE plus manual workflow_dispatch. Per the charter
+# Trigger: a twice-daily SCHEDULE plus manual workflow_dispatch. Per the charter
 # Sentinel rule ("no scheduled loop ships without a dead-man ping"), the
 # SCHEDULED path is watched by a healthchecks.io dead-man alarm: an "Assert
 # dead-man period" step verifies the alarm's live config BEFORE the run (fail
@@ -35,12 +35,14 @@ name: import-structured
 
 on:
   schedule:
-    # Daily at 08:17 UTC (~03:17 America/Chicago) — off the :00 congestion
-    # window. Venue/library/museum calendars change on the order of days, so a
-    # daily refresh is proportionate (far cheaper than the 20-min AI cron, and
-    # deterministic — no AI spend). EXPECTED_PERIOD_SECONDS below is bound to
-    # this cadence (86400s); change both together.
-    - cron: "17 8 * * *"
+    # Twice daily at 08:17 and 20:17 UTC (~03:17 and 15:17 America/Chicago) —
+    # 12h apart, off the :00 congestion window (founder-directed 2026-07-25:
+    # "should likely be 2x/day"). Deterministic, no AI spend. The two fires are
+    # EVENLY spaced, so the dead-man period is 43200s (12h) —
+    # EXPECTED_PERIOD_SECONDS below is bound to this cadence by the contract
+    # test (which derives it from the hour list); change both together, and
+    # keep the healthchecks.io check's period at 12h to match.
+    - cron: "17 8,20 * * *"
   workflow_dispatch:
     inputs:
       limit:
@@ -85,7 +87,7 @@ jobs:
           ORCHESTRATOR_PING_URL: ${{ secrets.STRUCTURED_IMPORT_PING_URL }}
           HEALTHCHECKS_API_KEY_RO: ${{ secrets.HEALTHCHECKS_API_KEY_RO }}
           DEADMAN_CHECK_SLUG: "onelive-structured-import"
-          EXPECTED_PERIOD_SECONDS: "86400"
+          EXPECTED_PERIOD_SECONDS: "43200"
           MAX_GRACE_SECONDS: "7200"
         run: |
           python3 tools/assert_deadman_period.py

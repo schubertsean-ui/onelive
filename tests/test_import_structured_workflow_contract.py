@@ -24,27 +24,46 @@ def _crons() -> list:
     return re.findall(r'-\s*cron:\s*"([^"]+)"', _WF)
 
 
-def test_exactly_one_daily_cron():
+def _fire_hours() -> list:
+    """The sorted list of hours the cron fires at, asserting a fixed-minute,
+    every-day shape (minute int; day/month/dow '*'; hours a comma list)."""
     crons = _crons()
     assert len(crons) == 1, f"expected exactly one cron, found {len(crons)}: {crons}"
     fields = crons[0].split()
     assert len(fields) == 5, f"malformed cron: {crons[0]!r}"
     minute, hour, dom, month, dow = fields
-    # A DAILY cron: a fixed minute and hour, every day/month/day-of-week.
     assert dom == "*" and month == "*" and dow == "*", (
-        f"contract assumes a daily cron (day/month/dow '*'); got {crons[0]!r} — "
+        f"contract assumes an every-day cron (day/month/dow '*'); got {crons[0]!r} — "
         "a different cadence must update EXPECTED_PERIOD_SECONDS and this test together")
-    assert minute.isdigit() and hour.isdigit(), f"daily cron needs fixed minute+hour: {crons[0]!r}"
+    assert minute.isdigit(), f"cron needs a fixed minute: {crons[0]!r}"
+    hours = sorted(int(h) for h in hour.split(","))
+    assert all(0 <= h <= 23 for h in hours), f"bad hours in cron: {crons[0]!r}"
+    return hours
 
 
-def test_declared_period_matches_the_daily_cron():
+def test_fires_are_evenly_spaced_within_the_day():
+    hours = _fire_hours()
+    assert len(hours) >= 1
+    # Evenly-spaced fires so a single dead-man period can represent the cadence
+    # (the ingest contract enforces the same for its minute-spaced cron).
+    spacings = {(b - a) % 24 for a, b in zip(hours, hours[1:])}
+    spacings.add((hours[0] + 24 - hours[-1]) % 24)
+    assert len(spacings) == 1, (
+        f"cron fire-hours {hours} are unevenly spaced — a single dead-man period "
+        "cannot represent a variable cadence")
+
+
+def test_declared_period_matches_the_cron_cadence():
     m = re.search(r'EXPECTED_PERIOD_SECONDS:\s*"(\d+)"', _WF)
     assert m, "EXPECTED_PERIOD_SECONDS must be declared for the dead-man assertion"
     declared = int(m.group(1))
-    # Daily cadence ⇒ 86400 seconds. Bound mechanically so cron and alarm period
-    # cannot drift apart silently.
-    assert declared == 86400, (
-        f"EXPECTED_PERIOD_SECONDS={declared} does not match a daily cron (86400s). "
+    # Period is derived from the fire count: N evenly-spaced fires/day ⇒ 86400/N.
+    # (1 fire ⇒ 86400 daily; 2 fires ⇒ 43200 twice-daily.) Bound mechanically so
+    # the cron and the alarm period cannot drift apart silently.
+    expected = 86400 // len(_fire_hours())
+    assert declared == expected, (
+        f"EXPECTED_PERIOD_SECONDS={declared} does not match the cron's "
+        f"{len(_fire_hours())} fires/day (expected {expected}s). "
         "Change the cron and this declaration together.")
 
 
