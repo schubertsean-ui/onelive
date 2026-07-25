@@ -1159,10 +1159,14 @@ def _matches_asserted_shape(provider: str, text: str) -> bool:
     """
     text = text or ""
     if provider == PROVIDER_ICS:
-        # BOUNDED head window for BOTH markers. Scanning the whole document for
-        # "BEGIN:VEVENT" let an HTML page that merely QUOTES a calendar snippet
-        # satisfy an ICS assertion and suppress ProviderMismatch (evaluator nit
-        # r10). A real .ics declares itself in its first bytes.
+        # EITHER marker, but only within a BOUNDED head window. Scanning the whole
+        # document for "BEGIN:VEVENT" let an HTML page that merely QUOTES a
+        # calendar snippet satisfy an ICS assertion and suppress ProviderMismatch
+        # (evaluator nit r10). A real .ics declares itself in its first bytes.
+        # EITHER, not both (r11 comment correction — the r10 comment said "both"
+        # while the code said "or", and the CODE is right): a calendar with no
+        # upcoming shows is a valid VCALENDAR carrying no VEVENT at all, and that
+        # is exactly the honestly-empty case the shape check must not fail.
         head = text[:4096].upper()
         return "BEGIN:VCALENDAR" in head or "BEGIN:VEVENT" in head
 

@@ -116,6 +116,18 @@ _TOKEN_PROVIDER_CLASSIFICATION: dict[str, str | None] = {
 _ASSERTABLE_PROVIDERS = (PROVIDER_ICS, PROVIDER_JSONLD, PROVIDER_PLATFORM_JSON)
 
 
+class CatalogContradiction(ValueError):
+    """A catalog row declares two incompatible wire formats.
+
+    NOT an OSError, deliberately: this is not a host misbehaving, it is OUR
+    configuration being corrupt, and it is detectable before a single byte is
+    fetched. So it never enters the per-source recoverable path — it is caught up
+    front by validate_catalog_assertions() and fails the run at exit code 2, the
+    same code the runner already returns for a missing or unparseable catalog. A
+    contradictory row IS an unparseable catalog, one row down.
+    """
+
+
 def provider_hint_for(entry: dict) -> str | None:
     """The wire format this catalog row ASSERTS, or None when it asserts none.
 
@@ -123,6 +135,15 @@ def provider_hint_for(entry: dict) -> str | None:
     which import_source resolves by sniffing. A returned provider is a claim the
     source must honour — if nothing fetched is that format, import_source raises
     ProviderMismatch and the source is reported FAILED, not empty.
+
+    Raises CatalogContradiction when a row asserts TWO incompatible formats. The
+    r10 version warned and fell back to sniffing, which the evaluator correctly
+    called fail-open (r11): a row declared as both Localist JSON and iCalendar is
+    configuration CORRUPTION, and auto-detecting past it means the typo is never
+    fixed while whichever format happens to serve gets treated as intended. My
+    r10 test asserted that fallback and so codified the bad contract — the third
+    time in this PR a test pinned the MECHANISM instead of the OUTCOME. There is
+    no safe guess to make here, so no guess is made.
 
     Unknown tokens are ignored (they assert nothing); the derivation test, not a
     runtime guess, is what keeps the table complete.
@@ -132,16 +153,31 @@ def provider_hint_for(entry: dict) -> str | None:
         for a in (entry.get("allowed") or [])
     }
     hints.discard(None)
-    if len(hints) != 1:
-        # Zero assertions is the normal case. TWO conflicting assertions is a
-        # catalog contradiction we must not resolve by picking one — fall back to
-        # sniffing and say so, rather than enforcing an arbitrary half of it.
-        if len(hints) > 1:
-            log.warning("source %s asserts CONFLICTING providers %s — no assertion "
-                        "enforced; auto-detecting instead. Fix the catalog row.",
-                        entry.get("id"), sorted(hints))
-        return None
-    return hints.pop()
+    if len(hints) > 1:
+        raise CatalogContradiction(
+            f"source {entry.get('id')!r} asserts CONFLICTING wire formats "
+            f"{sorted(hints)} via allowed={sorted(entry.get('allowed') or [])} — a "
+            f"row cannot be two formats at once. Fix the catalog row; we do not "
+            f"guess which half was meant.")
+    return hints.pop() if hints else None
+
+
+def validate_catalog_assertions(entries: list[dict]) -> list[str]:
+    """Check every selected row's format assertions BEFORE any fetch.
+
+    Returns the contradiction messages (empty when clean). Checked up front, and
+    ALL of them reported at once, for two reasons: a contradiction costs nothing
+    to detect (no network), and discovering them one-per-run as the fetch loop
+    reached each row would make fixing a typo'd catalog an N-run exercise. Fail
+    fast, fail complete.
+    """
+    problems: list[str] = []
+    for entry in entries:
+        try:
+            provider_hint_for(entry)
+        except CatalogContradiction as exc:
+            problems.append(str(exc))
+    return problems
 
 
 def _is_structured_candidate(entry: dict) -> bool:
@@ -241,6 +277,17 @@ def main(argv=None) -> int:
         log.error("no structured-feed candidates selected from %s (only=%s) — the "
                   "catalog has no ICS/JSON-LD sources matching, or --only excluded "
                   "them all. Failing closed.", catalog_path, sorted(only) or "-")
+        return 2
+
+    # Configuration corruption is checked BEFORE the network. A row asserting two
+    # incompatible wire formats cannot be resolved by sniffing (evaluator blocker
+    # r11), and reporting every such row at once means ONE pass fixes the catalog.
+    contradictions = validate_catalog_assertions(sources)
+    if contradictions:
+        for msg in contradictions:
+            log.error("catalog contradiction: %s", msg)
+        log.error("%d contradictory catalog row(s) — refusing to import under a "
+                  "guess. Failing closed BEFORE any fetch.", len(contradictions))
         return 2
 
     log.info("scope: %d first-party structured-feed source(s) (ICS / JSON-LD) from %s",

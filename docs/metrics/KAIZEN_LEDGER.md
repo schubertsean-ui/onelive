@@ -172,6 +172,8 @@ founder digest in plain language.
 
 | 2026-07-25 | #68 (in flight: r10) | 10 | evaluator r10: claim-exceeds-code ×1 (the robots visibility claim I had just RECORDED in R-052 was false of the code — `_robots_allows` relied on stdlib `RobotFileParser.read()` raising, but read() swallows HTTP errors internally: a 404 robots.txt set allow_all and raised NOTHING, so the most common fail-open case logged nothing; worse, a 5xx set neither flag and left `last_checked` unset, which makes `can_fetch()` return False for EVERY url — so a transient robots error was silently a fail-CLOSED, and after r7 would have reported a willing venue as policy-REFUSED) | `_fetch_robots_lines()` fetches robots.txt directly under our own user agent, bounded by `_ROBOTS_TIMEOUT` (read() used urllib's default of NO timeout — the r10 timeout nit, fixed in the same change), and classifies absent / unreadable / unreachable / unparseable explicitly, each with its own WARNING; four red tests pin it including the 500-is-not-a-Disallow case. R-052 amended with the correction rather than quietly rewritten. Nits adopted: drop reports NAME the source (`source=mohawk`, pinned through the real import path — a parser-level tally an operator cannot route is not actionable), and the ICS shape assertion reads BOTH markers in a bounded head window so an HTML page QUOTING a calendar snippet can no longer suppress ProviderMismatch. Nit DEFERRED with a trigger, not silently: R-053 records splitting the 1500-line test file, declined mid-review because a whole-file move adds ~3000 lines of diff noise over the fixes under review and a botched split silently loses tests | ~1 evaluator call + CI | Blockers 3→1 across r9→r10 and the class shifted from behaviour to CLAIM-vs-CODE — I wrote an honest-sounding RECORD entry in the same commit as code that did not implement it, which is the documentation form of fail-open. Standing lesson: a RECORD row asserting observable behaviour needs a test proving the observation, exactly like a code claim. suite 83→94 on test_structured_feed. |
 
+| 2026-07-25 | #68 (in flight: r11) | 11 | evaluator r11: fail-open-on-config-corruption ×1 (a catalog row asserting TWO incompatible wire formats warned and fell back to SNIFFING — the code recognized the contradiction explicitly and then proceeded under a guess, so the typo is never fixed while whichever format happens to serve gets treated as intended) | `CatalogContradiction` now REFUSES the row, and `validate_catalog_assertions()` checks every selected row BEFORE any fetch, reporting ALL contradictions at once and exiting 2 — the code the runner already returns for a missing or unparseable catalog, because a contradictory row IS an unparseable catalog one row down. Deliberately NOT an OSError: this is our configuration being corrupt, not a host misbehaving, so it must not enter the per-source recoverable path. Three red tests: the raise, the real run failing at exit 2 with fetch_url proven unreached and every bad row named in one pass, and the shipped catalog passing the check it enforces. Nit adopted: the r10 ICS comment said "both markers" while the code said "either" — the CODE is right (an empty VCALENDAR carrying no VEVENT is the honestly-empty case), so the comment was corrected, not the behaviour | ~1 evaluator call + CI | THIRD instance in this PR of one meta-pattern, and the one worth carrying forward: my test asserted the MECHANISM ("we warn and sniff") instead of the OUTCOME ("a corrupt row is refused"), so a passing suite CODIFIED the bad contract — r7 (`out == []` proved only no-fallback), r8 (same), r11 (this). The rule I am holding to: when a finding is about what SHOULD happen on bad input, the test asserts the refusal, never the handling. Blockers 3→1→1 across r9→r11. suite 94→96 on test_structured_feed. |
+
 
 
 ## Class watch (M2 repeat classes — these must trend to zero)
@@ -256,6 +258,18 @@ founder digest in plain language.
   (an alarm that always fires is an alarm nobody reads). If this class recurs,
   the accounting is insufficient and the response is a differential harness:
   parse a captured real feed and diff row counts against a recorded baseline.
+- **test-codifies-the-bad-contract**: PR #68 r7, r8, r11 — three instances, one
+  habit. Each time I fixed a finding and wrote a test asserting the MECHANISM of
+  my fix (`out == []` proves only that no fallback happened; "the runner counts
+  a raised mismatch" proves only counting; "we warn and sniff" pins the very
+  fail-open the reviewer then rejected) instead of the OUTCOME the finding was
+  about (this source is REFUSED / reported FAILED). A green suite then argued
+  FOR the defect. This is the most expensive class in the PR because it defeats
+  the gate that is supposed to catch everything else. Standing rule adopted: a
+  test for bad input asserts the refusal, and a class fix is not credited until
+  one test drives the REAL production entry point with only the network stubbed.
+  If this recurs, the response is a review pass over every test added in this
+  PR asking of each: would this still pass if the defect came back?
 - **record-missing / untruthful-record**: #19 (untruthful-record), #24 (same),
   and 2026-07-15: rows for merged PRs #15/#23/#24 were absent from this table
   while the changelog claimed the #15 row existed (caught during #25 r5

@@ -1200,20 +1200,68 @@ def test_localist_token_DOES_assert_platform_json():
         {"id": "x", "allowed": ["localist_json_feed"]}) == PROVIDER_PLATFORM_JSON
 
 
-def test_conflicting_assertions_fall_back_to_sniffing_loudly(caplog):
-    """A catalog row claiming two formats is a contradiction. Picking one half
-    arbitrarily would enforce a guess; we sniff and say so instead."""
-    import logging
+def test_conflicting_assertions_REFUSE_rather_than_sniff():
+    """A row claiming two formats is configuration CORRUPTION, not ambiguity.
+
+    The r10 version of this test asserted that we warn and fall back to sniffing,
+    and so codified a fail-open contract (evaluator blocker r11) — the third time
+    in this PR a test pinned the MECHANISM instead of the OUTCOME. Auto-detecting
+    past a contradiction means the typo is never fixed, while whichever format
+    happens to serve gets treated as intended."""
     import worker.importers.run_structured_import as runner
     runner._TOKEN_PROVIDER_CLASSIFICATION["_test_only_ics"] = "ics"
     try:
-        with caplog.at_level(logging.WARNING):
-            got = runner.provider_hint_for(
+        with pytest.raises(runner.CatalogContradiction) as exc:
+            runner.provider_hint_for(
                 {"id": "contradictory", "allowed": ["localist_json_feed", "_test_only_ics"]})
-        assert got is None
-        assert "CONFLICTING" in caplog.text
+        assert "contradictory" in str(exc.value)
+        assert "CONFLICTING" in str(exc.value)
     finally:
         del runner._TOKEN_PROVIDER_CLASSIFICATION["_test_only_ics"]
+
+
+def test_a_contradictory_catalog_fails_the_run_BEFORE_any_fetch(monkeypatch, caplog):
+    """And it fails the REAL run, at exit 2 (the code already used for a missing
+    or unparseable catalog — a contradictory row IS an unparseable catalog, one
+    row down). Proven to happen before the network by asserting fetch_url was
+    never reached."""
+    import json
+    import logging
+    import pathlib as _pl
+    import tempfile
+    import worker.importers.run_structured_import as runner
+    import worker.importers.structured_feed as sf
+
+    def _never(*a, **k):
+        raise AssertionError("fetched despite a contradictory catalog")
+
+    monkeypatch.setattr(sf, "fetch_url", _never)
+    runner._TOKEN_PROVIDER_CLASSIFICATION["_test_only_ics"] = "ics"
+    try:
+        catalog = [
+            {"id": "bad", "base_url": "https://a.example/",
+             "allowed": ["localist_json_feed", "_test_only_ics"]},
+            {"id": "also_bad", "base_url": "https://b.example/",
+             "allowed": ["localist_json_feed", "_test_only_ics"]},
+        ]
+        tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+        tmp.write_text(json.dumps(catalog), encoding="utf-8")
+        with caplog.at_level(logging.ERROR):
+            assert runner.main(["--catalog", str(tmp), "--dry-run"]) == 2
+        # EVERY bad row named in one pass — finding them one per run would make
+        # fixing a typo'd catalog an N-run exercise.
+        assert "bad" in caplog.text and "also_bad" in caplog.text
+        assert "2 contradictory catalog row(s)" in caplog.text
+    finally:
+        del runner._TOKEN_PROVIDER_CLASSIFICATION["_test_only_ics"]
+
+
+def test_the_real_catalog_has_no_contradictions():
+    """The shipped catalog must itself pass the check it enforces."""
+    import json
+    import worker.importers.run_structured_import as runner
+    rows = json.loads(runner.DEFAULT_CATALOG.read_text(encoding="utf-8"))
+    assert runner.validate_catalog_assertions(rows) == []
 
 
 def test_the_REAL_runner_passes_the_catalog_assertion_to_import_source(monkeypatch):
