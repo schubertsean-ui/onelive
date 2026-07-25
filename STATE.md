@@ -85,7 +85,6 @@ STATUS: OPEN — building.
 GOAL: pin the five founder-reviewed scenario renders as the v1 launch versions in code (launch_assignment per series + bandit warm-start prior), test-pinned to reproduce the exact decks reviewed. DONE-CRITERIA: module + 5 tests green, records, validate, PR through the evaluator. NON-GOALS: no posting, no custody change, no cadence change.
 [S3:caller-suppliable-custody-inputs] launch.py supplies no custody input — assignments feed the generator only; release custody untouched.
 [S3:final-gate-trusts-generator] unchanged — launch decks still face total re-render verification at release.
-[S3:stale-base-widens-range] the class this build itself hit (CI-caught): validate now always refreshes origin/master before the range-derived gate, so a local pass can never rest on a wider range than CI's.
 [S3:release-path-weaker-than-generation] launch assignments pass validate_assignment + the full build path, no new render entry point.
 [S3:false-price-claim] edition_anchor hooks carry no price claim; number_promise unused at launch.
 [S3:nonfinite-decimal-accepted] no price handling in launch.py — the shared normalizer remains the only price path.
@@ -110,8 +109,7 @@ GOAL: pin the five founder-reviewed scenario renders as the v1 launch versions i
 [S3:malformed-ledger-row] self-caught this build — pipes escaped, parsers re-run green before commit; class indexed.
 [S3:nonfinite-numeric-accepted] r2 fix — math.isfinite at add_prior AND seed_bandit; class indexed (the #67 price lesson generalized to all numeric config).
 [S3-note] swallowed-corrupt-data third catch answered structurally: tier keys bind to the DOMAIN_TAGS registry, never prefix shapes.
-Stage 3 citations for the close diff (docs-only; each class re-checked as unchanged by this change): [S3:caller-suppliable-custody-inputs] [S3:stale-base-widens-range] the class this build itself hit (CI-caught): validate now always refreshes origin/master before the range-derived gate, so a local pass can never rest on a wider range than CI's.
-[S3:release-path-weaker-than-generation] [S3:semantic-claim-not-rederived] [S3:self-weakenable-gate] [S3:volatile-safety-store] [S3:nonfinite-numeric-accepted] — no code touched, all mechanisms as merged. [S3:retyped-evidence] the M1=3 and SHA cite the merge API result and the three in-flight rows, not hand memory. [S3:malformed-ledger-row] new row verified by running kaizen_trends green before commit. [S3:pushed-on-red] validate ran unchained to a file, exit checked explicitly. [S3:false-confidence-gate] the close row claims only what the merged PR shipped. [S3:stalled-state-needs-active-diagnosis] no stalls this round.
+Stage 3 citations for the close diff (docs-only; each class re-checked as unchanged by this change): [S3:caller-suppliable-custody-inputs] [S3:release-path-weaker-than-generation] [S3:semantic-claim-not-rederived] [S3:self-weakenable-gate] [S3:volatile-safety-store] [S3:nonfinite-numeric-accepted] — no code touched, all mechanisms as merged. [S3:retyped-evidence] the M1=3 and SHA cite the merge API result and the three in-flight rows, not hand memory. [S3:malformed-ledger-row] new row verified by running kaizen_trends green before commit. [S3:pushed-on-red] validate ran unchained to a file, exit checked explicitly. [S3:false-confidence-gate] the close row claims only what the merged PR shipped. [S3:stalled-state-needs-active-diagnosis] no stalls this round.
 STATUS: CLOSED — PR #69 MERGED (squash ec91a81) at r3 APPROVE + trust-gate green, merged silently per the no-notify directive; M1=3 (the Construction Loop's first governed build: 15 → 9 → 3 rounds across the session's three arcs).
 
 ## Session Contract #24 (2026-07-25, same session — founder: build a research-grounded closed-loop construction method with root-cause analysis; paraphrase here, verbatim in the decision record at close)
@@ -124,7 +122,6 @@ STATUS: DELIVERED + RATIFIED (same day) — research synthesis committed (docs/r
 STAGE 3 CITATIONS (this PR's change surface — deliberate [S3:…] tags per the r6 gate semantics; each class retrieved from docs/memory/RED_CLASSES.md and answered by this session's adopted fixes):
 [S3:caller-suppliable-custody-inputs] allowlist approver registry, gate-owned clock, parameter-set pin — no custody input is caller-choosable.
 [S3:final-gate-trusts-generator] total re-render hash identity at release, unchanged by this PR's edits.
-[S3:stale-base-widens-range] the class this build itself hit (CI-caught): validate now always refreshes origin/master before the range-derived gate, so a local pass can never rest on a wider range than CI's.
 [S3:release-path-weaker-than-generation] render_carousel enforces featurability + exact 5/7 itself.
 [S3:false-price-claim] exact-minimum framing and Decimal-exact labels preserved through the shared normalizer.
 [S3:nonfinite-decimal-accepted] ONE normalize_price for every surface; NaN/Infinity/negative refuse everywhere incl. scenario caps.
