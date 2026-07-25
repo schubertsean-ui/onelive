@@ -181,14 +181,22 @@ def test_unresolvable_diff_base_fails_closed(tmp_path, index_file, monkeypatch):
         main(["--index", index_file, "--base-index-file", "-", "--diff-range", "origin/x...HEAD"])
 
 
-def test_real_index_parses_and_covers_the_shipped_classes():
-    from tools.construction_gate import DEFAULT_INDEX
+def test_every_ledger_marker_class_has_an_index_row():
+    # #67 r8: hand-picked token sampling could not fail when a newly
+    # committed class was missing — coverage is now DERIVED: every
+    # "marker: <token>" structural-fix stamp in the Kaizen ledger must
+    # have a retrievable row in RED_CLASSES.md (Stage 6: a marked class
+    # absent from the index is a prose-only lesson, an open defect).
+    import re
+
+    from tools.construction_gate import DEFAULT_INDEX, REPO_ROOT
+    import os
 
     index = load_index(DEFAULT_INDEX)
-    for token in (
-        "caller-suppliable-custody-inputs",
-        "deferred-trust-work",
-        "volatile-safety-store",
-        "nonfinite-decimal-accepted",
-    ):
-        assert token in index
+    ledger = open(
+        os.path.join(REPO_ROOT, "docs", "metrics", "KAIZEN_LEDGER.md"), encoding="utf-8"
+    ).read()
+    marked = set(re.findall(r"marker: ([a-z0-9-]+)", ledger))
+    assert marked, "ledger marker convention missing — test would be vacuous"
+    missing = sorted(marked - set(index))
+    assert not missing, f"ledger-marked classes absent from RED_CLASSES.md: {missing}"

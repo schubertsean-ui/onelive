@@ -40,3 +40,6 @@ a class absent from this index is a prose-only lesson, an open defect.
 | stalled-state-needs-active-diagnosis | workflow, ci, cron | KAIZEN founder(Red) 2026-07-25 — a stalled external state gets one diagnostic probe, not more waiting |
 | governance-ambiguity | decisions, CLAUDE, OPERATING | KAIZEN #67 r1 — precedent-bearing records state their precise scope |
 | false-confidence-gate | tools, gate, lint | KAIZEN 2026-07-24 family — a gate's self-description never claims more than its implementation |
+| self-weakenable-gate | construction_gate, red_classes, index | KAIZEN #67 r6 — a gate must not be silently weakenable through its own data; base-vs-head self-protection |
+| rule-stronger-than-mechanism | skills, operating, canon, charter | KAIZEN #67 r4/r7 — a rule may claim exactly the mechanism that ships with it; unmechanized halves carry a RECORD row in the same commit |
+| stale-live-incident-state | incident, arming, smoke | KAIZEN #43 arc — live-state claims re-verify against the live system, never against earlier prose |
