@@ -6,10 +6,11 @@ import json
 import psycopg2
 
 from worker.candidate_store import load_candidate_gate_signals
+from worker.classify import resolve_category
 from worker.confidence import derive_confidence, is_valid_confidence
 from worker.db_config import resolve_dsn
 from worker.dedupe import find_possible_duplicates
-from worker.importers.domain_map import UNMAPPED, classify_from_title
+from worker.importers.domain_map import UNMAPPED
 from worker.resolve_entities import resolve_venue_id, resolve_artist_ids
 from worker.trust_gate3 import GateDecision, evaluate_gate
 
@@ -18,27 +19,33 @@ def db():
     return psycopg2.connect(resolve_dsn())
 
 
-def card_fields(title, ticket_link):
+def card_fields(title, ticket_link, *, schema_type=None, venue_domain_hint=None,
+                venue_business_type=None):
     """Derive the user-facing card columns on `event` (title, category,
     subsegment, ticket_url) from the candidate's OWN real data — the fields
     migration 0010 added and documented promote.py as the writer of, but which
     were never populated (so promoted long-tail events rendered titleless and in
     'Other'). Pure function so the mapping is unit-testable without a database.
 
-    NO FABRICATION: `category`/`subsegment` come only from `classify_from_title`
-    — the SAME deterministic, no-AI keyword read of the event's literal title
-    already used (and charter-blessed) for recovering Ticketmaster's 'Undefined'
-    events. When the title yields no cultural signal the category stays NULL and
-    the feed shows it honestly as 'Other/uncategorized' — never a guessed domain.
-    price/image/currency are absent from the crawl extraction schema
-    (AIEventExtraction), so they stay NULL rather than being invented.
+    Category is resolved by the Router classifier (worker.classify) from the
+    STRONGEST available signal — the event's schema.org @type, then the host
+    venue's business type / curated domain, then a last-resort title read — each
+    with provenance (docs/memory/decisions/2026-07-25_graph-engineering-
+    adoption.md). NO FABRICATION: when every signal is silent the category stays
+    NULL and the feed shows it honestly as 'Other', never a guessed domain.
+    price/image/currency are absent from the crawl extraction schema, so they
+    stay NULL rather than being invented.
     """
-    dom, subseg = classify_from_title(title)
-    category = None if dom == UNMAPPED else dom
+    r = resolve_category(
+        schema_type=schema_type,
+        venue_domain_hint=venue_domain_hint,
+        venue_business_type=venue_business_type,
+        title=title,
+    )
     return {
         "title": title or None,
-        "category": category,
-        "subsegment": subseg,
+        "category": None if r.domain == UNMAPPED else r.domain,
+        "subsegment": r.genre,
         "ticket_url": ticket_link or None,
     }
 
