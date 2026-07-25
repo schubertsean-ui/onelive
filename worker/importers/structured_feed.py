@@ -38,12 +38,13 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from worker.classify import resolve_category
 from worker.importers.domain_map import UNMAPPED, classify_from_title
 
-# Two stable provenance tokens (mirrored by the provider CHECK in
-# supabase/migrations/0013_structured_feed_provider.sql) — HOW the row was parsed.
 logger = logging.getLogger(__name__)
 
-PROVIDER_ICS = "ics"
-PROVIDER_JSONLD = "jsonld"
+# THREE stable provenance tokens (mirrored by the provider CHECK in
+# supabase/migrations/0013 + 0014) — HOW the row was parsed, kept distinct so a
+# shape drift is attributable to the reader that caused it.
+PROVIDER_ICS = "ics"                    # iCalendar VEVENT (RFC 5545)
+PROVIDER_JSONLD = "jsonld"              # schema.org JSON-LD (in HTML or bare)  # a platform events API (Tribe/Localist)
 
 _USER_AGENT = "OneLiveStructuredImporter/1.0 (+https://onelive.example; deterministic no-AI calendar import)"
 _ACCEPT = "text/calendar, text/html, application/xhtml+xml, application/ld+json;q=0.9, */*;q=0.5"
@@ -706,12 +707,21 @@ def parse_platform_json(text: str) -> list[dict]:
     return out
 
 
+def _occurrence_uid(ev, start) -> Optional[str]:
+    """Stable id for an occurrence whose platform gave it none: the parent event
+    id (or url) plus this occurrence's start, so a repeating series keeps one row
+    per showing instead of collapsing to a single row on upsert."""
+    parent = _ld_str(ev.get("id") or ev.get("uid") or ev.get("url"))
+    if not parent:
+        return _ld_str(start) or None
+    return f"{parent}@{start}" if start else parent
+
+
 def _emit_platform_row(out, ev, title, start, end, occ_id, start_tz,
                        venue, loc, addr, city) -> None:
     """Append ONE normalized intermediate row for a single occurrence."""
-    if True:
-        start_all_day = _is_date_only(start)
-        out.append({
+    start_all_day = _is_date_only(start)
+    out.append({
             "title": title,
             "start_time": _to_utc_z(start.replace(" ", "T"),
                                     tzid=None if start_tz in ("UTC", None) else start_tz,
@@ -728,8 +738,11 @@ def _emit_platform_row(out, ev, title, start, end, occ_id, start_tz,
             "image_url": None,
             "price_min": None, "price_max": None, "currency": None,
             # Per-OCCURRENCE id so two showings of one event are distinct rows
-            # rather than one overwriting the other on upsert.
-            "uid": occ_id or _ld_str(ev.get("id") or ev.get("uid") or ev.get("url")),
+            # rather than one overwriting the other on upsert. When the platform
+            # omits a per-instance id, fall back to parent-id + START rather than
+            # the bare parent id — otherwise every occurrence of a series would
+            # collide back onto one row (evaluator nit r4, PR #68).
+            "uid": occ_id or _occurrence_uid(ev, start),
             "_raw_props": ev,
         })
 
@@ -817,6 +830,15 @@ PROVIDER_PLATFORM_JSON = "platform_json"
 # Bound the per-source discovery fan-out: enough to cover the declared
 # feed + platform endpoint + the likely conventions, without turning one
 # source into a crawl.
+# An ACCESS failure is not "no events" — it is the site denying or throttling us,
+# and it must reach the operator as a failed source rather than a dry one
+# (evaluator blockers r3/r4, PR #68). These statuses PROPAGATE out of
+# import_source; run_structured_import catches them (HTTPError is an OSError)
+# and reports "FETCH FAILED" per source. Everything else — chiefly 404/410 on a
+# GUESSED conventional path — is an expected miss and moves to the next
+# candidate.
+_ACCESS_FAILURE_STATUSES = (401, 402, 403, 406, 407, 429)
+
 _MAX_DECLARED_TRIES = 4
 _MAX_GUESSED_TRIES = 6
 
@@ -864,8 +886,12 @@ def _robots_allows(url: str, ua: str = "OneLiveBot") -> bool:
             rp.read()
         except Exception as exc:  # noqa: BLE001 - absent robots.txt == unrestricted
             # Logged, not swallowed: we record WHY we are proceeding unrestricted.
-            logger.debug("robots.txt unreadable for %s (%s) — proceeding per the "
-                         "convention that absent robots means unrestricted", root, exc)
+            # WARNING, not debug: we are about to fetch a host whose robots we
+            # could not read. That is a deliberate fail-open, and an operator
+            # should be able to see it rather than infer it (evaluator nit r4).
+            logger.warning("robots.txt unreadable for %s (%s) — proceeding under the "
+                           "convention that absent robots means unrestricted; this "
+                           "is a FAIL-OPEN case, not verified compliance", root, exc)
             rp = None
         _ROBOTS_CACHE[root] = rp if rp is not None else False
         if _ROBOTS_CACHE[root] is False:
@@ -1019,14 +1045,16 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
         try:
             text = fetch_url(candidate)
         except urllib.error.HTTPError as exc:
-            if exc.code == 429:
-                # STOP probing this host. Continuing after a throttle signal would
-                # generate more requests and hide rate limiting as "no feed here"
-                # (evaluator blocker r2, PR #68). Loud, and it ends the loop.
-                logger.warning("source %s: HTTP 429 from %s — rate limited; "
-                               "STOPPING discovery for this host rather than "
-                               "probing further", source_name, candidate)
-                break
+            if exc.code in _ACCESS_FAILURE_STATUSES:
+                # RAISE, do not continue and do not return []. Converting a
+                # denial/throttle into an empty result would let CI record a
+                # cheerfully dry source while the host actually refused us, and
+                # would keep us probing after a throttle signal.
+                logger.warning("source %s: HTTP %s from %s — access denied or "
+                               "rate limited; FAILING the source rather than "
+                               "reporting it as empty",
+                               source_name, exc.code, candidate)
+                raise
             _log_candidate_failure(source_name, candidate, exc, declared=i < declared)
             continue
         except Exception as exc:  # noqa: BLE001 - severity depends on the KIND

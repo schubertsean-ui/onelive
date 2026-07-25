@@ -653,9 +653,10 @@ def test_bare_jsonld_feed_is_parsed_not_dropped():
     assert rows[0]["start_time"] == "2026-11-08T02:00:00Z"
 
 
-def test_a_429_stops_probing_the_host(monkeypatch):
-    """Rate limiting must END discovery for that host, not be downgraded to
-    'no feed here' while we keep hitting it (evaluator blocker r2)."""
+def test_a_429_PROPAGATES_rather_than_becoming_an_empty_source(monkeypatch):
+    """A rate-limit is an ACCESS FAILURE, not 'no events'. Returning [] would let
+    CI record a cheerfully dry source while the host explicitly throttled us
+    (evaluator blocker r4, PR #68). The runner catches this as FETCH FAILED."""
     import urllib.error
     import worker.importers.structured_feed as sf
     tried = []
@@ -668,10 +669,67 @@ def test_a_429_stops_probing_the_host(monkeypatch):
 
     monkeypatch.setattr(sf, "fetch_url", fake_fetch)
     monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
-    out = sf.import_source("https://venue.example/", source_name="venue")
-    assert out == []
-    # base + exactly ONE candidate: the 429 broke the loop.
+    try:
+        sf.import_source("https://venue.example/", source_name="venue")
+        raise AssertionError("429 must propagate, not return an empty list")
+    except urllib.error.HTTPError as exc:
+        assert exc.code == 429
+    # base + exactly ONE candidate: the 429 ended probing immediately.
     assert len(tried) == 2, f"kept probing after a 429: {tried}"
+
+
+def test_a_403_on_a_candidate_also_propagates(monkeypatch):
+    """Access denials must fail closed too — not be downgraded to 'candidate did
+    not serve a feed' while we keep probing (evaluator blocker r4)."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return "<html>nothing</html>"
+        raise urllib.error.HTTPError(u, 403, "Forbidden", {}, None)
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    try:
+        sf.import_source("https://venue.example/", source_name="venue")
+        raise AssertionError("403 must propagate")
+    except urllib.error.HTTPError as exc:
+        assert exc.code == 403
+
+
+def test_a_404_on_a_guessed_path_is_still_an_expected_miss(monkeypatch):
+    """Not every status is an access failure — a guessed path that simply does
+    not exist must keep the discovery loop going."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+    ics = ("BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:z\r\nSUMMARY:Found Later\r\n"
+           "DTSTART:20261107T020000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return "<html>nothing</html>"
+        if u.endswith("/events/feed/"):
+            return ics
+        raise urllib.error.HTTPError(u, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua="OneLiveBot": True)
+    out = sf.import_source("https://venue.example/", source_name="venue")
+    assert len(out) == 1 and out[0]["title"] == "Found Later"
+
+
+def test_occurrence_without_an_instance_id_does_not_collide():
+    """A series whose platform omits per-instance ids must still keep one row per
+    showing, not collapse onto the parent id (evaluator nit r4)."""
+    from worker.importers.structured_feed import parse_platform_json
+    doc = ('{"events":[{"event":{"id":9,"title":"No Instance Ids",'
+           '"event_instances":['
+           '{"event_instance":{"start":"2026-11-07T18:00:00-06:00"}},'
+           '{"event_instance":{"start":"2026-11-14T18:00:00-06:00"}}]}}]}')
+    rows = parse_platform_json(doc)
+    assert len(rows) == 2
+    assert rows[0]["uid"] != rows[1]["uid"], "occurrences collapsed onto one id"
 
 
 def test_robots_disallow_blocks_the_BASE_url_too(monkeypatch):
