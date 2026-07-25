@@ -157,6 +157,17 @@ run_check "eval_harness import" "$PY" -c \
 #     Gate-custody: evaluator-reviewed on the PR that adds it.
 run_check "surface_regression_exam" "$PY" tools/surface_regression_exam.py
 
+# 4c. Brain memory eval — deterministic, free (no network/model/spend) MEASURE of
+#     the persistent knowledge-graph brain (brain/) against a labeled benchmark of
+#     the six standard agent-memory competencies (single-fact, multi-hop, knowledge
+#     update, contradiction, entity resolution, abstention). Per-category baselines
+#     (brain/eval/baselines.json) are a ONE-WAY RATCHET, like surface_regression_exam:
+#     FAILS if any category's accuracy drops below its recorded baseline. Proves the
+#     brain is best-in-class as a MEASURED fact, not a claim; the honest temporal gap
+#     (point-in-time recall, docs/RECORD.md R-010/R-031) is recorded in the baseline.
+#     Gate-custody: evaluator-reviewed on the PR that adds it.
+run_check "brain_eval" "$PY" tools/brain_eval.py
+
 # 5. Performance benchmarks — asserted budgets on hot paths. Opt-in marker.
 if [ "$QUICK" -eq 1 ]; then
   echo "── perf benchmarks ──"

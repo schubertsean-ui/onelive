@@ -1,0 +1,15 @@
+{
+  "_comment": "Recorded baselines for the OneLive brain memory eval (tools/brain_eval.py). A ONE-WAY RATCHET, mirroring tools/surface_regression_exam.py: these are the REAL measured scores of the current brain — the gate FAILS if any category drops below its baseline, and when the brain improves you RE-MEASURE and RAISE the affected number in the same PR (it only ever goes up). knowledge_update is honestly 0.6: the 3 current-value questions pass via the supersede flag, the 2 point-in-time 'as of <date>' questions miss because the substrate has no bitemporal validity (docs/RECORD.md R-010/R-031). Do not inflate. See docs/strategy/ONE_LIVE_BRAIN_BENCHMARK_v1.md.",
+  "measured_on": "2026-07-25",
+  "categories": {
+    "single_fact_recall": 1.0,
+    "multi_hop": 1.0,
+    "knowledge_update": 0.6,
+    "contradiction": 1.0,
+    "entity_resolution": 1.0,
+    "abstention": 1.0
+  },
+  "overall_accuracy": 0.9231,
+  "provenance_citation_rate": 1.0,
+  "abstention_correctness": 0.9231
+}
