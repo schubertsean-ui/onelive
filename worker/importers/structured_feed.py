@@ -1007,54 +1007,52 @@ _DECLARED_TYPE_PROVIDER = {
 }
 
 
-def _is_feed_document(provider: str, text: str) -> bool:
-    """True when `text` is a STANDALONE machine-readable calendar document.
+def _document_states_emptiness(provider: str, text: str) -> bool:
+    """True ONLY when the document itself ASSERTS it carries no events.
 
-    Strictly narrower than :func:`_matches_asserted_shape`, and the difference
-    is the whole point (evaluator blocker r17). The shape sniff answers "did
-    this endpoint serve the asserted format at all?", which an ordinary HTML
-    homepage carrying `<script type="application/ld+json">` LocalBusiness markup
-    satisfies. This answers a stronger question — "did the site hand us its
-    calendar FILE?" — and only a yes to that makes a zero-event result
-    authoritative evidence that there are no upcoming events.
+    Renamed and narrowed from the r17/r18 `_is_feed_document` at evaluator
+    blocker r19, because the old question was the wrong one. It asked "is this a
+    calendar document?" and treated a zero-ROW parse of any such document as
+    proof of emptiness. Those come apart exactly where it matters: a VCALENDAR
+    whose VEVENTs are all malformed (no DTSTART, no SUMMARY), or a platform
+    payload like {"events": [{"title": "no start"}]}, is a document FULL of
+    events that produced no rows. Reading that as "no upcoming events" is
+    silent-data-loss licensing failure-reads-as-empty — the source would report
+    a clean empty AND forgive a later denial, when the truth is that we dropped
+    everything it sent.
 
-    Why the distinction earns its keep: an HTML page yielding zero events may be
-    a homepage, a soft-404 served with status 200, or a JavaScript shell that
-    renders its calendar client-side. None of those is a statement that the
-    calendar is empty, so none of them may license the importer to shrug off a
-    later access denial.
+    So the question is now about the DOCUMENT'S OWN CONTENT, not the parse
+    result: does it contain zero event OBJECTS? "Produced no rows" and "has no
+    rows" are different facts, and only the second one is an answer.
+
+    Only two formats can state it, and each states it structurally:
+      * ICS — a VCALENDAR carrying no BEGIN:VEVENT anywhere in the body.
+      * platform JSON — a top-level "events" collection that is literally [].
+    schema.org JSON-LD cannot: it has no construct for "this is a calendar and
+    it is empty", so the absence of Event nodes is indistinguishable from a page
+    that was never a calendar (r18). It therefore never licenses an
+    authoritative empty, and a JSON-LD source facing a denied guess still FAILS.
     """
     text = text or ""
     if provider == PROVIDER_ICS:
-        # An iCalendar FILE opens with BEGIN:VCALENDAR as a content line. A bare
-        # BEGIN:VEVENT line (which _matches_asserted_shape accepts, correctly,
-        # as "looks like iCalendar") is not by itself a whole document.
+        # The VCALENDAR marker is a HEAD check (it opens the file); the VEVENT
+        # check must scan the WHOLE body — events live after the head window,
+        # and a head-only scan would call a full calendar empty.
         head_lines = {ln.strip().upper() for ln in text[:4096].splitlines()}
-        return "BEGIN:VCALENDAR" in head_lines
+        if "BEGIN:VCALENDAR" not in head_lines:
+            return False
+        return not any(ln.strip().upper() == "BEGIN:VEVENT"
+                       for ln in text.splitlines())
     if provider == PROVIDER_PLATFORM_JSON:
-        # A platform API response IS the document — _matches_asserted_shape
-        # already requires the top-level {"events": [...]} collection both
-        # readers consume, and no HTML page can satisfy that.
-        return _matches_asserted_shape(PROVIDER_PLATFORM_JSON, text)
-    if provider == PROVIDER_JSONLD:
-        # NEVER (evaluator blocker r18). The r17 version accepted any standalone
-        # JSON-LD carrying @context/@type/@graph, so a bare
-        # {"@context": "...", "@type": "LocalBusiness"} document — a business
-        # description, not a calendar — could license an authoritative empty and
-        # bury a later denial. The r17 test caught only the HTML-carried variant;
-        # the standalone one walked straight through, which is the same
-        # failure-reads-as-empty class one layer up.
-        #
-        # The deeper reason this cannot be patched with a stricter sniff: ICS and
-        # the platform APIs can each STATE emptiness — a VCALENDAR with no VEVENT,
-        # or {"events": []} — so "no upcoming events" is something the document
-        # itself asserts. schema.org JSON-LD has no such construct: the absence of
-        # Event nodes is indistinguishable from a page that was never a calendar.
-        # Requiring an Event node instead would be worse, since a genuinely empty
-        # feed has none. So JSON-LD yields no authoritative empty at all, and a
-        # JSON-LD source facing a denied guess still FAILS — fail-closed, which is
-        # the correct direction when the format cannot support the claim.
-        return False
+        # An EMPTY collection, not merely a well-formed one. _matches_asserted_
+        # shape accepts any list here (correctly — it answers a different
+        # question); emptiness requires the list to actually be empty.
+        try:
+            doc = json.loads(text)
+        except (ValueError, TypeError):
+            return False
+        return (isinstance(doc, dict) and isinstance(doc.get("events"), list)
+                and len(doc["events"]) == 0)
     return False
 
 
@@ -1477,8 +1475,9 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     deliberately narrow in three ways, because widening any of them re-opens
     failure-reads-as-empty:
 
-      * only a standalone FEED DOCUMENT qualifies (:func:`_is_feed_document`) —
-        an HTML page carrying incidental JSON-LD never does;
+      * only a document that STATES emptiness qualifies
+        (:func:`_document_states_emptiness`) — a calendar whose events all failed
+        to parse is not empty, it is lossy, and never qualifies;
       * only GUESSED candidates are forgiven — a site-DECLARED feed that denies,
         throttles, errors, or is robots-refused still fails the source, because
         the site itself pointed at it;
@@ -1512,7 +1511,7 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     # .ics or a platform endpoint). When it is, and it parsed to zero, the source
     # has already answered — see AUTHORITATIVE EMPTY above.
     authoritative_empty: Optional[str] = None
-    if provider_hint is not None and _is_feed_document(provider_hint, base_text):
+    if provider_hint is not None and _document_states_emptiness(provider_hint, base_text):
         authoritative_empty = url
 
     robots_blocked = 0
@@ -1604,7 +1603,7 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
                            "against its declared type",
                            source_name, candidate, declared_types.get(candidate))
             declared_provider = _DECLARED_TYPE_PROVIDER[declared_types[candidate]]
-            if authoritative_empty is None and _is_feed_document(declared_provider, text):
+            if authoritative_empty is None and _document_states_emptiness(declared_provider, text):
                 # The site pointed here and this IS its calendar document. That is
                 # the source's own answer: no upcoming events.
                 authoritative_empty = candidate

@@ -2123,6 +2123,37 @@ def test_standalone_non_event_jsonld_is_not_an_authoritative_empty(monkeypatch):
                          source_name="venue")
 
 
+def test_a_lossy_calendar_is_not_an_empty_one(monkeypatch):
+    """r19 blocker + its evading inputs. A document FULL of events that all
+    failed to parse produced zero rows, and r18 read that as emptiness — so the
+    source reported a clean empty AND forgave a later denial, when the truth is
+    we dropped everything it sent. 'Produced no rows' is not 'has no rows'."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+
+    # A VEVENT with neither SUMMARY nor DTSTART: a real event object, dropped.
+    lossy_ics = ("BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+                 "BEGIN:VEVENT\r\nUID:only-an-id\r\nEND:VEVENT\r\n"
+                 "END:VCALENDAR\r\n")
+    # A non-empty events array whose entry cannot normalize.
+    lossy_platform = '{"events": [{"title": "No start time"}]}'
+
+    def run(body, hint):
+        def fake_fetch(u, timeout=30):
+            if u.rstrip("/") == "https://venue.example":
+                return body
+            raise urllib.error.HTTPError(u, 403, "Forbidden", {}, None)
+        monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+        monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+        return sf.import_source("https://venue.example/", provider_hint=hint,
+                                source_name="venue")
+
+    with pytest.raises(urllib.error.HTTPError):
+        run(lossy_ics, sf.PROVIDER_ICS)
+    with pytest.raises(urllib.error.HTTPError):
+        run(lossy_platform, sf.PROVIDER_PLATFORM_JSON)
+
+
 def test_ics_and_platform_json_can_still_state_emptiness(monkeypatch):
     """The other side: formats that CAN state emptiness still do, so the r18
     tightening did not silently remove the r17 behaviour."""
