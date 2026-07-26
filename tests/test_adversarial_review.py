@@ -200,17 +200,12 @@ def test_po_provocations_are_deterministic_and_seed_varying():
     assert len(prov) == 3 and all(p.startswith("[") for p in prov)
 
 
-def test_panel_requires_a_po_seed(tmp_path, capsys):
+def test_panel_requires_a_po_seed(tmp_path, capsys, monkeypatch):
     # A panel without a printed seed is a misconfiguration, not a default.
+    # monkeypatch, not raw os.environ (#71 r6 nit): the rest of this suite
+    # is hermetic by construction rather than by a finally block.
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     rc = ar.main(["--panel", "--diff-file", _diff_file(tmp_path)])
-    # (env has no OPENAI_API_KEY in the hermetic run -> skip path; assert the
-    # seed guard fires before any network by calling with a key present.)
-    import os
-    os.environ["OPENAI_API_KEY"] = "test-key"
-    try:
-        rc = ar.main(["--panel", "--diff-file", _diff_file(tmp_path)])
-    finally:
-        del os.environ["OPENAI_API_KEY"]
     assert rc == 2
     assert "requires --po-seed" in capsys.readouterr().err
 

@@ -92,79 +92,149 @@ def _git(args: list[str], *, allow_fail: bool = False) -> str | None:
     return proc.stdout
 
 
-def _fetch_head_age_s(now: float | None = None) -> float | None:
-    """Seconds since this repository last completed a fetch, or None when
-    no fetch record exists. `.git/FETCH_HEAD` is written by every
-    successful `git fetch`, so its mtime is a RECORD of synchronization,
-    not a claim about one."""
-    git_dir = (_git(["rev-parse", "--git-dir"], allow_fail=True) or "").strip()
-    if not git_dir:
-        return None
-    if not os.path.isabs(git_dir):
-        git_dir = os.path.join(REPO_ROOT, git_dir)
-    try:
-        mtime = os.path.getmtime(os.path.join(git_dir, "FETCH_HEAD"))
-    except OSError:
-        return None
-    return max(0.0, (time.time() if now is None else now) - mtime)
+class _GitProbes:
+    """The real evidence sources for base-ref freshness. Injected as one
+    object so hermetic tests replace evidence, never patch globals."""
+
+    @staticmethod
+    def remote_tip(remote: str, branch: str) -> str | None:
+        """The remote's CURRENT oid for the branch, or None when the
+        remote is unreachable (no credentials / offline). Read-only and
+        non-interactive: a credential prompt would hang the job, so the
+        terminal prompt is disabled and the call is time-boxed."""
+        env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+        try:
+            proc = subprocess.run(
+                ["git", "ls-remote", "--exit-code", remote, f"refs/heads/{branch}"],
+                capture_output=True, text=True, cwd=REPO_ROOT, env=env, timeout=60,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if proc.returncode != 0:
+            return None
+        first = proc.stdout.split("\n", 1)[0].split("\t")[0].strip()
+        return first or None
+
+    @staticmethod
+    def fetch(remote: str, branch: str) -> None:
+        env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+        try:
+            subprocess.run(
+                ["git", "fetch", remote, branch],
+                capture_output=True, text=True, cwd=REPO_ROOT, env=env, timeout=120,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return
+
+    @staticmethod
+    def local_oid(ref: str) -> str | None:
+        out = _git(["rev-parse", "--verify", "--quiet", ref], allow_fail=True)
+        return (out or "").strip() or None
+
+    @staticmethod
+    def ref_update_age_s(ref: str, now: float | None = None) -> float | None:
+        """Seconds since THIS remote-tracking ref was itself last written,
+        or None when no such record exists.
+
+        Deliberately ref-SPECIFIC (#71 r6 blocker): `.git/FETCH_HEAD`
+        records that *some* fetch happened, which a recent unrelated
+        fetch satisfies while the base ref stays stale. Two ref-scoped
+        records are read and the FRESHER wins: the ref's own reflog
+        (written whenever git updates it) and, for repositories with
+        reflogs disabled, the loose ref file's mtime. Both describe this
+        ref and nothing else."""
+        now = time.time() if now is None else now
+        ages: list[float] = []
+        out = _git(["reflog", "show", "--date=unix", "-n", "1", ref], allow_fail=True)
+        match = re.search(r"@\{(\d+)", out or "")
+        if match:
+            ages.append(max(0.0, now - int(match.group(1))))
+        git_dir = (_git(["rev-parse", "--git-dir"], allow_fail=True) or "").strip()
+        if git_dir:
+            if not os.path.isabs(git_dir):
+                git_dir = os.path.join(REPO_ROOT, git_dir)
+            try:
+                ages.append(max(0.0, now - os.path.getmtime(
+                    os.path.join(git_dir, *ref.split("/"))
+                    if ref.startswith("refs/")
+                    else os.path.join(git_dir, "refs", "remotes", *ref.split("/"))
+                )))
+            except OSError:
+                pass
+        return min(ages) if ages else None
 
 
-def assert_base_fresh(base_ref: str, *, fetch=None, age=None) -> str:
-    """PROVE the base ref is synchronized with its remote, or fail closed.
+def assert_base_fresh(base_ref: str, *, probes=None) -> str:
+    """PROVE the base ref reflects its remote, or fail closed.
 
-    The obligation is the PROPERTY (`origin/master` reflects the remote),
-    never one particular mechanism for reaching it (#71 CI-caught, class:
-    false-confidence-gate). Two proofs are accepted, in order:
+    The obligation is the PROPERTY, and neither a command's exit code nor
+    a repo-wide fetch record is that property (#71 r5/r6, class:
+    false-confidence-gate — this gate got it wrong twice, each time by
+    substituting a MECHANISM for the thing the mechanism was supposed to
+    establish). Two proofs, in order:
 
-      1. A fetch performed HERE succeeds — synchronization now.
-      2. The fetch is impossible here but the repository ALREADY
-         synchronized within BASE_FRESHNESS_WINDOW_S and the base ref
-         resolves. This is the CI shape: `actions/checkout` fetches the
-         full history and then drops the credentials
-         (`persist-credentials: false`), so the base is fresh BY
-         CONSTRUCTION while a fetch from inside the job cannot
-         authenticate. Demanding proof #1 there failed a base that was
-         provably fresher than any fetch this gate could perform.
+      1. DIRECT: the remote is reachable, so its current tip is read and
+         COMPARED against the local base ref (one fetch is attempted to
+         converge them first). Equal oids are the property itself; a
+         surviving difference FAILS. A fetch that "succeeded" while
+         leaving the base ref behind no longer passes anything.
+      2. REF-SCOPED RECORD: the remote is unreachable, but THIS ref
+         resolves and THIS ref was itself written within
+         BASE_FRESHNESS_WINDOW_S. That is the CI shape and only the CI
+         shape: `actions/checkout` fetches the full history, creating
+         `origin/master` right there, and then drops the credentials
+         (`persist-credentials: false`), so nothing inside the job can
+         reach the remote while the ref is fresher than any fetch this
+         gate could perform. HONEST LIMIT, stated rather than implied:
+         this bounds staleness by the window, it does not prove the
+         remote has not moved since — which is why it is the fallback,
+         is ref-scoped rather than repo-wide, and never applies when
+         proof 1 is available.
 
-    Neither proof available (offline agent session, stale clone, no fetch
-    record) = FAIL, unchanged: a stale base widens the diff range and
-    lets this gate pass what CI correctly fails
-    (class: stale-base-widens-range). `fetch` and `age` are injected
-    CALLABLES, HERMETIC TESTS ONLY — callables, not values, so that
-    "no fetch record" (None) stays expressible and testable rather than
-    colliding with "argument not supplied". Returns the human-readable
-    proof, for printing.
+    Neither proof (offline session, stale clone, no ref record) = FAIL:
+    a stale base widens the diff range and lets this gate pass what CI
+    correctly fails (class: stale-base-widens-range). `probes` is a
+    HERMETIC-TEST injection point. Returns the proof, for printing.
     """
+    probes = probes or _GitProbes
     remote, _, branch = base_ref.partition("/")
-    fetcher = fetch if fetch is not None else _run_fetch
-    if remote and branch and fetcher(remote, branch):
-        return f"fetched {branch} from {remote} in this run"
-    age_s = (_fetch_head_age_s if age is None else age)()
-    resolved = _git(["rev-parse", "--verify", "--quiet", base_ref], allow_fail=True)
-    if age_s is not None and age_s <= BASE_FRESHNESS_WINDOW_S and resolved:
+    if not remote or not branch:
+        raise SystemExit(
+            f"construction_gate: FAIL — base ref {base_ref!r} is not in "
+            "<remote>/<branch> form, so its freshness cannot be proven"
+        )
+    tip = probes.remote_tip(remote, branch)
+    if tip is not None:
+        local = probes.local_oid(base_ref)
+        if local != tip:
+            probes.fetch(remote, branch)
+            local = probes.local_oid(base_ref)
+        if local == tip:
+            return f"{base_ref} == remote tip {tip[:12]} (compared against ls-remote)"
+        raise SystemExit(
+            f"construction_gate: FAIL — {base_ref} is {local or 'unresolvable'} but "
+            f"the remote's {branch} is {tip}; a fetch did not converge them, so the "
+            "base is STALE and every range derived from it is wider than CI's "
+            "(class: stale-base-widens-range). Resolve the base ref and rerun."
+        )
+    age_s = probes.ref_update_age_s(base_ref)
+    local = probes.local_oid(base_ref)
+    if local and age_s is not None and age_s <= BASE_FRESHNESS_WINDOW_S:
         return (
-            f"fetch from inside this run unavailable; {base_ref} resolves and "
-            f"this repository last fetched {int(age_s)}s ago "
-            f"(window {BASE_FRESHNESS_WINDOW_S}s)"
+            f"remote unreachable from here; {base_ref} resolves ({local[:12]}) and "
+            f"was itself written {int(age_s)}s ago (window {BASE_FRESHNESS_WINDOW_S}s)"
         )
     raise SystemExit(
-        f"construction_gate: FAIL — cannot prove {base_ref} is fresh. The fetch "
-        "did not succeed here and this repository carries no fetch record inside "
-        f"the {BASE_FRESHNESS_WINDOW_S}s freshness window"
-        + (f" (last fetch {int(age_s)}s ago)" if age_s is not None else " (no fetch record)")
-        + (f"; {base_ref} does not resolve" if not resolved else "")
+        f"construction_gate: FAIL — cannot prove {base_ref} reflects its remote. The "
+        "remote is unreachable from here and "
+        + (f"this ref was last written {int(age_s)}s ago, outside the "
+           f"{BASE_FRESHNESS_WINDOW_S}s window" if age_s is not None
+           else "this ref carries no update record")
+        + ("" if local else f"; {base_ref} does not resolve")
         + ". A stale base widens the diff range and lets this gate pass what CI "
         "fails (class: stale-base-widens-range). Restore network/remote access "
         "and rerun; never judge against an unverifiable base."
     )
-
-
-def _run_fetch(remote: str, branch: str) -> bool:
-    proc = subprocess.run(
-        ["git", "fetch", remote, branch],
-        capture_output=True, text=True, cwd=REPO_ROOT,
-    )
-    return proc.returncode == 0
 
 
 def assert_index_not_weakened(head: dict[str, list[str]], base_text: str | None) -> None:

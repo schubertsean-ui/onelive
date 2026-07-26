@@ -202,77 +202,139 @@ def test_every_ledger_marker_class_has_an_index_row():
     assert not missing, f"ledger-marked classes absent from RED_CLASSES.md: {missing}"
 
 
-# --- base-ref freshness proof (#71 CI-caught: false-confidence-gate) ---
-# The gate's obligation is that origin/master REFLECTS the remote, not
-# that this process performed the fetch. Both accepted proofs and the
-# fail-closed default are red-tested here; none touches the network.
+# --- base-ref freshness proof (#71 r5/r6: false-confidence-gate, twice) ---
+# The gate must prove the PROPERTY (the base ref reflects its remote), not
+# a mechanism standing in for it. r5 accepted a fetch's exit code; r6
+# accepted a repo-wide `.git/FETCH_HEAD` mtime that any unrelated fetch
+# satisfies. Both shapes are pinned RED below, alongside the two proofs
+# that are real. Nothing here touches the network.
 
 
-def test_successful_fetch_here_proves_freshness():
+class _Probes:
+    """Hermetic stand-in for _GitProbes: evidence as data."""
+
+    def __init__(self, tip=None, oid=None, age=None, oid_after_fetch=None):
+        self._tip = tip
+        self._oid = oid
+        self._oid_after_fetch = oid_after_fetch
+        self._age = age
+        self.fetched = []
+
+    def remote_tip(self, remote, branch):
+        return self._tip
+
+    def fetch(self, remote, branch):
+        self.fetched.append((remote, branch))
+        if self._oid_after_fetch is not None:
+            self._oid = self._oid_after_fetch
+
+    def local_oid(self, ref):
+        return self._oid
+
+    def ref_update_age_s(self, ref):
+        return self._age
+
+
+def test_matching_oids_are_the_proof_and_need_no_fetch():
     from tools.construction_gate import assert_base_fresh
 
-    calls = []
-
-    def fetch(remote, branch):
-        calls.append((remote, branch))
-        return True
-
-    proof = assert_base_fresh("origin/master", fetch=fetch, age=lambda: None)
-    assert calls == [("origin", "master")]
-    assert "fetched master from origin" in proof
+    probes = _Probes(tip="a" * 40, oid="a" * 40)
+    proof = assert_base_fresh("origin/master", probes=probes)
+    assert probes.fetched == []  # already synchronized — nothing to converge
+    assert "== remote tip aaaaaaaaaaaa" in proof
 
 
-def test_recent_recorded_fetch_proves_freshness_when_fetch_is_impossible():
-    # CI's shape: actions/checkout fetches the full history, then drops
-    # the credentials (persist-credentials: false), so a fetch from
-    # inside the job cannot authenticate while the base is fresher than
-    # any fetch this gate could perform.
+def test_a_stale_ref_converges_by_fetch_then_passes():
     from tools.construction_gate import assert_base_fresh
 
-    proof = assert_base_fresh("origin/master", fetch=lambda r, b: False, age=lambda: 120.0)
-    assert "last fetched 120s ago" in proof
+    probes = _Probes(tip="b" * 40, oid="a" * 40, oid_after_fetch="b" * 40)
+    proof = assert_base_fresh("origin/master", probes=probes)
+    assert probes.fetched == [("origin", "master")]
+    assert "== remote tip bbbbbbbbbbbb" in proof
 
 
-def test_stale_recorded_fetch_fails_closed():
+def test_a_successful_fetch_that_leaves_the_ref_behind_fails_closed():
+    # THE r5 BLOCKER, pinned: the fetch "worked" (no error) yet the base
+    # ref still does not match the remote. Exit codes are not the
+    # property; oid equality is.
+    from tools.construction_gate import assert_base_fresh
+
+    probes = _Probes(tip="b" * 40, oid="a" * 40)  # fetch changes nothing
+    with pytest.raises(SystemExit, match="a fetch did not converge them"):
+        assert_base_fresh("origin/master", probes=probes)
+    assert probes.fetched == [("origin", "master")]
+
+
+def test_unreachable_remote_accepts_a_recent_REF_SCOPED_write():
+    # CI's shape: actions/checkout creates origin/master and then drops
+    # the credentials, so nothing in the job can reach the remote while
+    # the ref is fresher than any fetch this gate could perform.
+    from tools.construction_gate import assert_base_fresh
+
+    proof = assert_base_fresh(
+        "origin/master", probes=_Probes(tip=None, oid="c" * 40, age=120.0)
+    )
+    assert "was itself written 120s ago" in proof
+
+
+def test_unreachable_remote_with_a_stale_ref_write_fails_closed():
     from tools.construction_gate import BASE_FRESHNESS_WINDOW_S, assert_base_fresh
 
-    with pytest.raises(SystemExit, match="cannot prove origin/master is fresh"):
+    with pytest.raises(SystemExit, match="outside the"):
         assert_base_fresh(
-            "origin/master", fetch=lambda r, b: False, age=lambda: BASE_FRESHNESS_WINDOW_S + 1
+            "origin/master",
+            probes=_Probes(tip=None, oid="c" * 40, age=BASE_FRESHNESS_WINDOW_S + 1),
         )
 
 
-def test_no_fetch_record_at_all_fails_closed():
+def test_unreachable_remote_with_no_ref_record_fails_closed():
     from tools.construction_gate import assert_base_fresh
 
-    with pytest.raises(SystemExit, match="no fetch record"):
-        assert_base_fresh("origin/master", fetch=lambda r, b: False, age=lambda: None)
+    with pytest.raises(SystemExit, match="carries no update record"):
+        assert_base_fresh("origin/master", probes=_Probes(tip=None, oid="c" * 40))
 
 
-def test_unresolvable_base_ref_fails_closed_even_inside_the_window(tmp_path, monkeypatch):
-    # A recent fetch record does not license a base ref that does not
-    # exist — both halves of proof 2 are required.
-    import tools.construction_gate as gate
+def test_unresolvable_base_ref_fails_closed_even_inside_the_window():
+    from tools.construction_gate import assert_base_fresh
 
-    repo = tmp_path / "repo3"
-    repo.mkdir()
-    _git(repo, "init", "-q", "-b", "master")
-    monkeypatch.setattr(gate, "REPO_ROOT", str(repo))
     with pytest.raises(SystemExit, match="does not resolve"):
-        gate.assert_base_fresh("origin/master", fetch=lambda r, b: False, age=lambda: 1.0)
+        assert_base_fresh("origin/master", probes=_Probes(tip=None, oid=None, age=1.0))
 
 
-def test_fetch_head_age_is_read_from_the_real_fetch_record(tmp_path, monkeypatch):
+def test_malformed_base_ref_cannot_be_proven():
+    from tools.construction_gate import assert_base_fresh
+
+    with pytest.raises(SystemExit, match="not in <remote>/<branch> form"):
+        assert_base_fresh("master", probes=_Probes(tip="a" * 40, oid="a" * 40))
+
+
+def test_ref_age_is_read_from_THIS_ref_not_from_any_fetch(tmp_path, monkeypatch):
+    # THE r6 BLOCKER, pinned: an unrelated fetch writes .git/FETCH_HEAD
+    # and must NOT make a stale base ref look fresh. The probe reads the
+    # ref's own records only.
     import os
 
     import tools.construction_gate as gate
 
-    repo = tmp_path / "repo4"
+    repo = tmp_path / "reffresh"
     repo.mkdir()
     _git(repo, "init", "-q", "-b", "master")
     monkeypatch.setattr(gate, "REPO_ROOT", str(repo))
-    assert gate._fetch_head_age_s() is None  # no fetch has ever run here
-    fetch_head = repo / ".git" / "FETCH_HEAD"
-    fetch_head.write_text("recorded\n", encoding="utf-8")
-    os.utime(fetch_head, (1000.0, 1000.0))
-    assert gate._fetch_head_age_s(now=1300.0) == 300.0
+    (repo / ".git" / "FETCH_HEAD").write_text("some unrelated fetch\n", encoding="utf-8")
+    assert gate._GitProbes.ref_update_age_s("origin/master") is None
+
+    ref = repo / ".git" / "refs" / "remotes" / "origin" / "master"
+    ref.parent.mkdir(parents=True)
+    ref.write_text("d" * 40 + "\n", encoding="utf-8")
+    os.utime(ref, (1000.0, 1000.0))
+    assert gate._GitProbes.ref_update_age_s("origin/master", now=1300.0) == 300.0
+
+
+def test_remote_tip_returns_none_when_the_remote_is_unreachable(tmp_path, monkeypatch):
+    import tools.construction_gate as gate
+
+    repo = tmp_path / "noremote"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "master")
+    monkeypatch.setattr(gate, "REPO_ROOT", str(repo))
+    assert gate._GitProbes.remote_tip("origin", "master") is None
