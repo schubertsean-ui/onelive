@@ -134,8 +134,13 @@ def _ledger_with_escapes(*rows: str) -> str:
 
 _OPEN_ROW = ("| 2026-07-06 | M3-ESCAPE prod-bad-fact | prod | nothing tested it "
              "| — |")
+# Cites a file that REALLY EXISTS. It used to name `tests/test_thing.py`, which
+# does not, and the gate accepted it — the PR #80 blocker
+# `CLASS:unvalidated-escape-closure`: closure was satisfied by any non-placeholder
+# prose, so `fixed` typed into the column turned the M3 alarm green. Pointing this
+# fixture at a real path is what makes the tests below discriminate.
 _CLOSED_ROW = ("| 2026-07-06 | M3-ESCAPE prod-bad-fact | prod | nothing tested it "
-               "| `tests/test_thing.py`, proven red first |")
+               "| `tests/test_kaizen_trends.py`, proven red first |")
 
 
 def test_an_escape_with_an_open_gate_gap_is_a_hard_finding():
@@ -172,6 +177,75 @@ def test_placeholder_text_does_not_count_as_a_closed_gap(filler):
     row = f"| 2026-07-06 | M3-ESCAPE x | prod | cause | {filler} |"
     _, findings = build_report(_ledger_with_escapes(row))
     assert any("OPEN GATE GAP" in f for f in findings), (filler, findings)
+
+
+@pytest.mark.parametrize("prose", [
+    "fixed", "done", "closed", "resolved", "we shipped a test for it",
+    "the gate now covers this", "handled in review", "asdf",
+    # The near-miss that matters most: a citation SHAPED like a path but naming
+    # nothing on disk. Accepting it is indistinguishable from accepting prose.
+    "`tests/test_definitely_not_a_real_file.py`",
+    "see `tools/no_such_tool.py`",
+    "R-999 covers it",
+])
+def test_prose_that_names_no_REAL_mechanism_does_not_close_a_gap(prose):
+    """`CLASS:unvalidated-escape-closure` (openai/attacker-smuggle, PR #80).
+
+    The M3 alarm guards an ABSOLUTE-ZERO target, and its pass condition was
+    "the cell is not a placeholder" — so the alarm could be silenced by typing.
+    A closure must cite a repo path that exists or a RECORD.md row that exists;
+    a machine still cannot judge whether the named test is ADEQUATE, but it can
+    refuse a citation that points at nothing.
+    """
+    row = f"| 2026-07-06 | M3-ESCAPE x | prod | cause | {prose} |"
+    _, findings = build_report(_ledger_with_escapes(row))
+    assert any("OPEN GATE GAP" in f for f in findings), (prose, findings)
+
+
+@pytest.mark.parametrize("citation", [
+    "`tests/test_kaizen_trends.py`",
+    "`tools/kaizen_trends.py` — proven red on the old form",
+    "closed by tests/test_watchdog_check.py which scans every workflow",
+    "`.github/workflows/watchdog.yml` ships the alarm",
+    "deferred deliberately, tracked as R-002 with an objective trigger",
+])
+def test_a_citation_that_resolves_on_disk_does_close_a_gap(citation):
+    """The other half — without this the tightening would just be a permanent
+    red, which is the ignored-gate failure option (a) was ratified to avoid."""
+    row = f"| 2026-07-06 | M3-ESCAPE x | prod | cause | {citation} |"
+    report, findings = build_report(_ledger_with_escapes(row))
+    assert not any("OPEN GATE GAP" in f for f in findings), (citation, findings)
+    assert "m3_escapes: 1" in report and "m3_escapes_open: 0" in report
+
+
+def test_the_closure_column_is_indexed_from_the_front_not_the_end():
+    """`cells[-1]` graded whatever the LAST column happened to be, so appending a
+    sixth column to the escapes table would silently move the check onto it
+    (reviewer nit, gemini seat, PR #80). Column 5 is the contract."""
+    from tools.kaizen_trends import open_escapes
+    header = ("## M3 escapes\n\n"
+              "| Date | What escaped | Where found | Root cause | Gate-gap closed "
+              "| Notes |\n|---|---|---|---|---|---|\n")
+    # Column 5 is a real citation; a sixth column of prose must not change the
+    # answer in either direction.
+    closed = (header + "| 2026-07-06 | M3-ESCAPE x | prod | cause "
+              "| `tests/test_kaizen_trends.py` | some later note |\n")
+    assert open_escapes(closed) == []
+    # ...and prose in column 5 stays OPEN even when column 6 looks like a citation.
+    still_open = (header + "| 2026-07-06 | M3-ESCAPE x | prod | cause "
+                  "| fixed | `tests/test_kaizen_trends.py` |\n")
+    assert len(open_escapes(still_open)) == 1
+
+
+def test_the_citation_resolver_is_injectable_so_the_rule_is_testable():
+    """The default resolves against the working tree; tests must be able to state
+    the rule without depending on which files happen to exist today."""
+    from tools.kaizen_trends import open_escapes
+    header = ("## M3 escapes\n\n| Date | What | Where | Cause | Gate-gap closed |\n"
+              "|---|---|---|---|---|\n")
+    row = header + "| 2026-07-06 | M3-ESCAPE x | prod | cause | anything at all |\n"
+    assert open_escapes(row, cited_mechanisms=lambda cell: ["pretend.py"]) == []
+    assert len(open_escapes(row, cited_mechanisms=lambda cell: [])) == 1
 
 
 def test_the_all_time_count_can_never_be_reduced_by_closing_a_gap():

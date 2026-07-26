@@ -23,7 +23,6 @@ Two classes, because they have different fixes:
 """
 from __future__ import annotations
 
-import importlib.util
 import pathlib
 import subprocess
 import sys
@@ -38,7 +37,13 @@ DEV_IMPORTS: dict[str, str] = {
     "yaml": "PyYAML",
     "fastapi": "fastapi",
     "httpx": "httpx",
-    "cryptography": "cryptography",
+    # The SUBMODULE, not the top-level package, and the difference is the whole
+    # lesson of 2026-07-26: on the broken image `import cryptography` succeeded
+    # while `import cryptography.hazmat.primitives.asymmetric.ec` — the exact
+    # import PyJWT performs — panicked in the Rust bindings. Probing the shallow
+    # name is how this tool certified a sound environment three gate rows after
+    # it had already failed. Probe what the code actually imports.
+    "cryptography.hazmat.primitives.asymmetric.ec": "cryptography",
     "jwt": "PyJWT[crypto]",
     "psycopg2": "psycopg2-binary",
     "pydantic": "pydantic",
@@ -50,17 +55,41 @@ DEV_IMPORTS: dict[str, str] = {
 }
 
 
+def _imports_cleanly(name: str) -> bool:
+    """Whether `import <name>` actually SUCCEEDS in a fresh interpreter.
+
+    Deliberately not `importlib.util.find_spec`, and deliberately a subprocess.
+
+    `find_spec` answers "can this module be LOCATED", which is a strictly weaker
+    question than "does it work", and the gap is not theoretical: this tool
+    printed "every dev dependency importable — any red row below is about the
+    CODE" on 2026-07-26 while three gate rows were red because `import jwt`
+    raised. A broken distro `cryptography` was locatable, so `find_spec` said
+    yes; importing it panicked in its Rust extension for a missing
+    `_cffi_backend`. A check that reports an environment as sound while the
+    environment is unsound is the false-confidence defect this file exists to
+    prevent, aimed at itself.
+
+    The subprocess is load-bearing for the same reason. That failure surfaced as
+    a `pyo3_runtime.PanicException` from a Rust panic — a class of import
+    failure that can abort the interpreter outright rather than raise something
+    catchable. Importing in-process would risk taking the preflight down with
+    it, so each import is isolated and judged only by its exit status.
+    """
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", f"import {name}"],
+            capture_output=True, text=True, timeout=120, cwd=str(_REPO_ROOT))
+    except (OSError, subprocess.SubprocessError):
+        # Could not even run the probe: report missing rather than assume good.
+        return False
+    return proc.returncode == 0
+
+
 def missing_imports() -> list[tuple[str, str]]:
     """(import name, installs-with) for every dev dependency not importable here."""
-    out = []
-    for name, dist in DEV_IMPORTS.items():
-        try:
-            found = importlib.util.find_spec(name) is not None
-        except (ImportError, ValueError):
-            found = False
-        if not found:
-            out.append((name, dist))
-    return out
+    return [(name, dist) for name, dist in DEV_IMPORTS.items()
+            if not _imports_cleanly(name)]
 
 
 def is_shallow() -> bool | None:

@@ -93,7 +93,53 @@ EXCLUDED: dict[str, str] = {
     "site_health.yml": "on-demand deployment check, not scheduled.",
 }
 
-_SCHEDULE_KEY = re.compile(r"^\s+schedule:\s*$", re.MULTILINE)
+# Trigger-key detection, WIDENED at the PR #80 review
+# (openai/attacker-smuggle, `CLASS:incomplete-workflow-surface-scan`): the
+# original `^\s+schedule:\s*$` saw only an unquoted key on its own line, so valid
+# workflow YAML — `"schedule":`, or an inline `on: {schedule: [...]}` — put a
+# scheduled job OUTSIDE the registry check while `tests/test_watchdog_check.py`
+# stayed green. That defeats the charter's "no scheduled loop ships without an
+# alarm" invariant by making the enumeration incomplete rather than wrong.
+#
+# Detection is now the UNION of a parsed `on:` section and this regex, never one
+# or the other: the parse sees shapes the regex cannot, and the regex still
+# answers when the file will not parse. Under-detection is the only direction
+# that can hurt here, so both run and either one is enough.
+_SCHEDULE_KEY = re.compile(r"^\s+[\"']?schedule[\"']?:", re.MULTILINE)
+# The inline-mapping form, which has no line start to anchor to.
+_SCHEDULE_INLINE = re.compile(r"[{,]\s*[\"']?schedule[\"']?\s*:")
+
+try:                                     # PyYAML is present on GitHub's runners
+    import yaml as _yaml                 # and in requirements-dev.txt...
+except ImportError:                      # ...but the regex path must still work
+    _yaml = None                         # if it ever is not, rather than crash.
+
+
+def _schedule_in_parsed_yaml(text: str) -> bool:
+    """Whether the parsed `on:` section carries a schedule trigger.
+
+    Returns True — IN SCOPE — for anything it cannot read: no parser, unparseable
+    text, or an `on:` shape it does not recognise. A registry check that quietly
+    drops the files it failed to understand fails open, which is the one outcome
+    this function must never produce. (`on:` parses to the YAML 1.1 boolean True,
+    hence the two-key lookup.)
+    """
+    if _yaml is None:
+        return True
+    try:
+        doc = _yaml.safe_load(text)
+    except Exception:                    # noqa: BLE001 — any parse fault is in-scope
+        return True
+    if not isinstance(doc, dict):
+        return True
+    section = doc.get("on", doc.get(True))
+    if isinstance(section, dict):
+        return "schedule" in section
+    if isinstance(section, list):
+        return "schedule" in section
+    if isinstance(section, str):
+        return section == "schedule"
+    return True
 
 
 class WatchdogError(Exception):
@@ -123,7 +169,10 @@ def workflow_has_schedule(name: str) -> bool:
     path = WORKFLOW_DIR / name
     if not path.is_file():
         raise WatchdogError(f"{name} does not exist in {WORKFLOW_DIR}")
-    return bool(_SCHEDULE_KEY.search(path.read_text(encoding="utf-8")))
+    text = path.read_text(encoding="utf-8")
+    return bool(_SCHEDULE_KEY.search(text)
+                or _SCHEDULE_INLINE.search(text)
+                or _schedule_in_parsed_yaml(text))
 
 
 def last_success(repo: str, name: str, event: str = "schedule") -> _dt.datetime | None:

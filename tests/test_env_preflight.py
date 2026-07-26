@@ -84,6 +84,52 @@ def test_every_declared_import_appears_in_requirements_dev():
         assert base in req, f"{name} maps to {dist}, which requirements-dev.txt lacks"
 
 
+def test_a_locatable_but_UNIMPORTABLE_module_counts_as_missing(monkeypatch, tmp_path):
+    """The 2026-07-26 escape, as a test.
+
+    This tool used `importlib.util.find_spec`, which answers "can the module be
+    LOCATED". It printed "every dev dependency importable — any red row below is
+    about the CODE" while three gate rows were red because `import jwt` raised: a
+    broken distro `cryptography` was perfectly locatable and panicked on import.
+    A module that exists and does not work must be reported, or this file is the
+    false-confidence gate it was written to prevent.
+    """
+    (tmp_path / "ep_locatable_but_broken.py").write_text(
+        "raise RuntimeError('locatable, not importable')\n", encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path))
+    # find_spec's answer — the OLD basis — is that this module is present.
+    assert importlib.util.find_spec is not None  # the weaker question exists
+    probe = subprocess.run(
+        [sys.executable, "-c",
+         "import importlib.util,sys;"
+         "print(importlib.util.find_spec('ep_locatable_but_broken') is not None)"],
+        capture_output=True, text=True, cwd=str(tmp_path))
+    assert probe.stdout.strip() == "True", (
+        "the fixture is wrong — this module must be LOCATABLE for the test to "
+        f"discriminate: {probe.stderr}")
+    # ...and the tool must still call it missing.
+    assert EP._imports_cleanly("ep_locatable_but_broken") is False
+    monkeypatch.setitem(EP.DEV_IMPORTS, "ep_locatable_but_broken", "nope-pkg")
+    assert dict(EP.missing_imports()).get("ep_locatable_but_broken") == "nope-pkg"
+
+
+def test_the_cryptography_probe_targets_the_submodule_the_code_actually_imports():
+    """`import cryptography` succeeded on the broken image; the submodule PyJWT
+    reaches for did not. Probing the shallow name is what let the lie through."""
+    assert "cryptography.hazmat.primitives.asymmetric.ec" in EP.DEV_IMPORTS
+    assert "cryptography" not in EP.DEV_IMPORTS, (
+        "a bare top-level cryptography probe passes on an installation whose Rust "
+        "bindings are unusable — that is the exact false pass of 2026-07-26")
+
+
+def test_an_import_probe_that_cannot_even_run_reports_missing(monkeypatch):
+    """Unanswerable is never optimistic — same discipline as is_shallow()'s None."""
+    def boom(*a, **k):
+        raise OSError("no interpreter")
+    monkeypatch.setattr(EP.subprocess, "run", boom)
+    assert EP._imports_cleanly("pytest") is False
+
+
 def test_missing_imports_finds_a_package_that_is_genuinely_absent(monkeypatch):
     monkeypatch.setitem(EP.DEV_IMPORTS, "definitely_not_installed_xyz", "nope-pkg")
     found = dict(EP.missing_imports())
@@ -150,3 +196,47 @@ def test_the_bootstrap_script_exists_and_installs_the_declared_file():
     assert "requirements-dev.txt" in text
     assert "--unshallow" in text, "a fresh shallow clone must be repaired too"
     assert "env_preflight.py" in text, "it should prove its own work at the end"
+
+
+def test_the_venv_the_bootstrap_creates_is_ACTUALLY_gitignored():
+    """The script's docstring said ".venv, which is gitignored" and nothing in
+    `.gitignore` matched it. `git add -A` after a bootstrap therefore staged 3,979
+    files and 874k lines of vendored wheels — a documented property that was simply
+    not true, in the one file a newcomer runs first."""
+    patterns = {line.strip() for line in
+                (_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()}
+    assert ".venv/" in patterns, \
+        "bootstrap_dev.sh creates ./.venv and calls it gitignored — make that true"
+    # And the claim in the script must stay tied to the mechanism.
+    text = (_ROOT / "tools" / "bootstrap_dev.sh").read_text(encoding="utf-8")
+    assert "gitignored" in text, \
+        "if the script stops claiming this, drop the claim from this test too"
+
+
+def test_the_bootstrap_venv_is_hermetic():
+    """`--system-site-packages` let a BROKEN system package satisfy a declared
+    requirement, so pip skipped installing a good one and three gate rows went red
+    (2026-07-26). Inheriting the system's packages inherits the system's faults.
+
+    The assertion is on the `python -m venv` invocation only: the phrase still
+    appears in this file's comments, which explain why it is gone, and in the
+    rebuild check below that detects venvs left over from the old recipe.
+    """
+    text = (_ROOT / "tools" / "bootstrap_dev.sh").read_text(encoding="utf-8")
+    creations = [ln for ln in text.splitlines()
+                 if "-m venv" in ln and not ln.lstrip().startswith("#")]
+    assert creations, "no venv creation line found — this test is checking nothing"
+    for line in creations:
+        assert "--system-site-packages" not in line, (
+            f"the venv must be hermetic: {line.strip()!r}")
+
+
+def test_the_bootstrap_replaces_a_venv_left_over_from_the_old_recipe():
+    """A developer who ran the old script has a poisoned venv on disk. Reusing it
+    would silently keep the fault, and "delete your .venv" is manual work the
+    charter says to automate away rather than ask for."""
+    text = (_ROOT / "tools" / "bootstrap_dev.sh").read_text(encoding="utf-8")
+    assert "include-system-site-packages" in text, (
+        "nothing detects an inherited-site-packages venv, so re-running the "
+        "bootstrap would not repair one")
+    assert "rm -rf" in text, "detection with no rebuild is just a nicer error message"

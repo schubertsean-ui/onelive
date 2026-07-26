@@ -202,6 +202,65 @@ def test_no_baseline_mode_still_measures_the_CURRENT_snapshot():
         "with no baseline the BEFORE column should be blank"
 
 
+def test_bar_row_counts_show_no_baseline_as_a_dash_never_as_zero():
+    """The second site of the same false-confidence defect (PR #80, gemini seat).
+
+    `pair()` was fixed to emit `—` with no baseline, but the BAR-rows block kept
+    its own `before.get(key, 0) if before else 0`. Zero is not "unmeasured": it
+    asserts that the repo had ZERO bar rows before the run, and it renders as a
+    plausible delta (`0 -> 55` reads as "we added 55 rows"), which is the most
+    convincing shape a fabricated measurement can take.
+    """
+    rows = {r[0]: r for r in hc.build(None).rows}
+    bar_rows = [label for label in rows if label.startswith("BAR rows — ")]
+    assert bar_rows, "no BAR-rows metrics built — this test is checking nothing"
+    for label in bar_rows:
+        _, before, after, _bar = rows[label]
+        assert str(before).strip() == "—", (
+            f"{label}: unmeasured baseline rendered as {before!r} — a number here "
+            f"is a fabricated measurement")
+        assert str(after).strip() not in ("—", "", "0"), (
+            f"{label}: the CURRENT column must carry a real count, else the fix "
+            f"traded a false number for a missing one")
+
+
+def test_relative_imports_resolve_so_a_relatively_imported_module_is_not_dead():
+    """`from .confidence import x` in worker/ used to record the importer under
+    the bare name "confidence", which matches no candidate (those are full dotted
+    names), so a module imported only relatively was counted UNWIRED — a false
+    dead-code claim on an F5 metric (reviewer nit, PR #80)."""
+    import ast as _ast
+
+    def names(src: str, path: str) -> list[str]:
+        node = next(n for n in _ast.walk(_ast.parse(src))
+                    if isinstance(n, _ast.ImportFrom))
+        return hc._resolve_import_from(node, path)
+
+    # level 0 — already absolute, unchanged behaviour.
+    assert names("from worker.confidence import x", "worker/promote.py") == \
+        ["worker.confidence"]
+    # level 1 — the sibling case that was broken.
+    assert names("from .confidence import x", "worker/promote.py") == \
+        ["worker.confidence"]
+    # level 2 — one package up, from inside a subpackage.
+    assert names("from ..ai_extract import y", "worker/convergence/node.py") == \
+        ["worker.ai_extract"]
+    # `from . import sibling` — the package itself is what is reached.
+    assert names("from . import sibling", "worker/promote.py") == ["worker"]
+    # Walking above the root is a broken import; report nothing, invent nothing.
+    assert names("from ... import z", "worker/promote.py") == []
+
+
+def test_the_validate_check_metric_is_named_for_what_it_counts():
+    """It counted `run_check ` lines while calling itself "validate checks",
+    which over-claims the summary surface (advisory and skip rows are excluded).
+    A label wider than its function is a stale number waiting to happen."""
+    labels = [r[0] for r in hc.build(None).rows]
+    assert "validate checks" not in labels
+    assert any("run_check" in label for label in labels), \
+        "the metric should say it counts run_check lines"
+
+
 def test_the_report_refuses_to_claim_completeness_over_placeholders(monkeypatch):
     """Even if a metric goes blank again, the summary must not say it measured."""
     real_build = hc.build

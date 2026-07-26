@@ -1,0 +1,147 @@
+name: experience-metrics
+
+# Measures the part users actually touch — load time, layout stability, blocking
+# time and WCAG 2.2 AA — and judges it against the BAR's own numbers.
+#
+# v1 done-criterion 4 / BAR E1–E4 and P2. Before this, `tools/experience_thresholds.py`
+# named this workflow in its own docstring and the workflow did not exist: a judge
+# with no measurement feeding it, which three independent reviewer lenses on PR #80
+# correctly called an unwired gate surface (`CLASS:unwired-untested-judge`,
+# `CLASS:missing-gate-caller`, `CLASS:untested-new-tool`). "Wire it or delete it."
+#
+# It runs here rather than in an agent session for the same reason import_licensed
+# and site_health do: a GitHub runner has a browser AND open egress, and the
+# sandbox has neither.
+#
+# THE LOAD BAR IS THE BRIEF'S 2.0 s, not Core Web Vitals' 2.5 s. The stricter
+# number wins; widening it is founder-crucial. The threshold lives in
+# tools/experience_thresholds.py, tested, not in this file.
+
+on:
+  # SECRET CUSTODY — identical rule to site_health.yml, and enforced for both by
+  # tests/test_workflow_secret_custody.py. This job reads
+  # VERCEL_AUTOMATION_BYPASS to reach a protection-gated deployment, and the
+  # workflow FILE that executes is the one on the triggering ref. So the automatic
+  # path is default-branch-only (base-owned YAML), and any other deployment is
+  # measured by dispatching from the default branch with its URL.
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Base URL to measure (no trailing slash)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: experience-metrics
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.ref_name == github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    steps:
+      # Required: the judge is a repo file. Omitting checkout ships a step that
+      # can never run — the defect tests/test_workflow_checkout_contract.py exists
+      # to catch after it happened once here already.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install the measuring tools
+        run: npm install --no-fund --no-audit -g lighthouse @axe-core/cli
+
+      - name: Measure and judge against the BAR
+        env:
+          # Literal-pinned per event (R-054's class): `github.event.inputs.*` is
+          # EMPTY on anything but workflow_dispatch.
+          BASE_URL: ${{ github.event_name == 'deployment_status' && github.event.deployment_status.environment_url || github.event.inputs.url }}
+          # The literal sentinel ABSENT rather than an empty string, so "no secret"
+          # is a value the shell can branch on instead of an ambiguity.
+          VERCEL_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS || 'ABSENT' }}
+        run: |
+          set -uo pipefail
+          : "${BASE_URL:?target URL missing — failing closed rather than measuring nothing}"
+          case "$BASE_URL" in
+            https://*) ;;
+            *) echo "::error::url must start with https:// (got '$BASE_URL')"; exit 1 ;;
+          esac
+          : "${VERCEL_BYPASS:?VERCEL_BYPASS resolved empty — it must be the secret or the literal ABSENT, never blank}"
+
+          # Vercel's documented bypass accepts the secret as a QUERY PARAMETER as
+          # well as a header, which is what lets both tools through one gate:
+          # lighthouse takes --extra-headers, @axe-core/cli does not.
+          #
+          # The consequence is stated rather than discovered later: the secret is
+          # then inside the URL, so it appears in Lighthouse's own JSON report
+          # (`requestedUrl`). That is exactly why NO artifact is uploaded from this
+          # job — the judged table goes to the step summary, which contains
+          # measurements only. GitHub masks the secret in log output.
+          TARGET="$BASE_URL"
+          if [ "$VERCEL_BYPASS" != "ABSENT" ]; then
+            TARGET="${BASE_URL}/?x-vercel-protection-bypass=${VERCEL_BYPASS}&x-vercel-set-bypass-cookie=true"
+            echo "protection_bypass_secret: present"
+          else
+            echo "protection_bypass_secret: ABSENT — measuring bare; a protection-gated deployment will measure its LOGIN PAGE, not the product"
+          fi
+
+          lighthouse "$TARGET" \
+            --quiet --output=json --output-path=/tmp/lh.json \
+            --only-categories=performance,accessibility \
+            --chrome-flags="--headless=new --no-sandbox --disable-dev-shm-usage"
+          # Checked as its own statement rather than with a `|| { ...; exit 1; }`
+          # tail on the continuation line above: tools/workflow_env_lint.py reads
+          # physical lines, so a terminator on a `||` continuation reads as an
+          # UNCONDITIONAL exit and every later assignment stops crediting (R-073).
+          if [ ! -s /tmp/lh.json ]; then
+            echo "::error::lighthouse produced no report"
+            exit 1
+          fi
+
+          # chromedriver is RESOLVED, not assumed. The runner exports
+          # $CHROMEWEBDRIVER, but depending on an ambient variable is the
+          # empty-env class this repo has hit four times — and tools/workflow_env_lint.py
+          # correctly failed this workflow for consuming it with no visible source.
+          # Look it up, and fail closed if it is not there.
+          CHROMEDRIVER="$(command -v chromedriver || true)"
+          : "${CHROMEDRIVER:?chromedriver not on PATH — cannot run axe, failing closed rather than skipping the accessibility half}"
+
+          axe "$TARGET" \
+            --chromedriver-path "$CHROMEDRIVER" \
+            --chrome-options="headless,no-sandbox,disable-dev-shm-usage" \
+            --tags wcag2a,wcag2aa,wcag21a,wcag21aa,wcag22aa \
+            --save /tmp/axe.json \
+            || true   # a11y VIOLATIONS make axe exit non-zero; the judge decides,
+                      # not the CLI's exit code. A missing/unparseable report is
+                      # still caught, because the judge exits 2 on one.
+          if [ ! -s /tmp/axe.json ]; then
+            echo "::error::axe produced no report — it crashed rather than finding nothing"
+            exit 1
+          fi
+
+          # Captured with $? from a direct invocation rather than PIPESTATUS after a
+          # `tee`: a pipeline's exit status is the LAST command's, so piping the
+          # judge into tee would replace its verdict with tee's unconditional 0 —
+          # a blocking gate silently demoted to a report.
+          STATUS=0
+          python3 tools/experience_thresholds.py \
+            --lighthouse /tmp/lh.json --axe /tmp/axe.json > /tmp/judged.md 2>&1 \
+            || STATUS=$?
+          cat /tmp/judged.md
+
+          {
+            echo "## Experience metrics — judged against docs/BAR.md E1–E4, P2"
+            echo
+            echo "Measured on \`$BASE_URL\` (bypass: $([ "$VERCEL_BYPASS" != "ABSENT" ] && echo present || echo ABSENT))."
+            echo
+            cat /tmp/judged.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit "$STATUS"

@@ -243,7 +243,7 @@ nothing. A proposed mechanism is in `docs/V1.md`.
 | H4 | Every run leaves a replay log that can reconstruct what happened. | 100% of runs | `worker/replay_log.py` + artifact upload | ENFORCED | **MET** |
 | H5 | Config lives in the environment; the repository could be public without leaking a credential. | 0 secrets in git | `tools/lint.py`, `docs/DEPLOY.md` | ENFORCED | **MET** |
 | H6 | The deployment is observable without guessing: one endpoint reports resolved config and reachability. | `/api/health` always reachable | `web/app/api/health/route.ts` + its test | ENFORCED | **MET** |
-| H7 | There is a live deployment and its URL is recorded. | 1 URL on disk | `.github/workflows/site_health.yml` (reads `/api/health` from a runner) | ENFORCED | **NOT MET — but no longer for the original reason.** A preview URL IS on disk (`docs/V1.md` §Deployment, deployed Ready 2026-07-26T17:10Z, zero env vars). It does not satisfy this row because it is a branch alias that dies on merge, it is host-protected (measured: HTTP 302 to Vercel SSO), and `eventCount` is unverified. Flips when a stable URL a stranger can open renders real events (ask 6) |
+| H7 | There is a live deployment and its URL is recorded. | 1 URL on disk | `.github/workflows/site_health.yml` (reads `/api/health` from a runner) | ENFORCED | **NOT MET — one reason left of the original three, and it is stability, not reachability.** A preview URL is on disk (`docs/V1.md` §Deployment) and was **measured** on 2026-07-26 (run 30217359539): `http_status: 200`, `ok:true`, `supabase.reachable:true`, **`eventCount: 1532`** — publicly openable by anyone holding the bypass link. The two blockers this cell previously named (host-protected 302; `eventCount` unverified) are closed by that measurement. What remains: the URL is a **branch alias that dies on merge**, so it is not yet a URL that *is* the product. Flips when the post-merge production URL is recorded (R-070) |
 
 ## I. Cost
 
@@ -283,7 +283,10 @@ Everything above is either MET or is one of these. If you read nothing else:
    policy is written and ratified; the wiring does not exist.
 3. **G5 — the gate must stop lying about why it is red.** Master IS green (1,665 on the audited tree). Four of nineteen rows go red in the agent's environment for reasons that are not code. *(This item said "one red test, days old" until the PR #76 review caught it contradicting the corrected G1 row.)*
 4. **E1–E4 — nobody has measured the experience users actually get.**
-5. **H7 — there is no recorded live deployment.**
+5. **H7 — the recorded deployment is not yet a stable URL.** *(This item said "there
+   is no recorded live deployment" until 2026-07-26, when the site was measured at
+   HTTP 200 with 1,532 events. What is left is that the URL is a branch alias which
+   dies on merge — R-070, whose trigger is the merge itself.)*
 
 Nothing on that list is a quality *standard* problem. Every one of them is a
 *delivery* problem, which is exactly what `docs/V1.md` is ordered around.

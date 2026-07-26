@@ -25,6 +25,25 @@ describe("createRouteMatcher", () => {
     expect(match(req("/sign-out"))).toBe(false);
   });
 
+  it("stops a prefix at a SEGMENT boundary, not at any character", () => {
+    // `/sign-in(.*)` is a PUBLIC route, so a bare startsWith made
+    // `/sign-inevil` — an attacker-chosen path — exempt from the gate. That is
+    // fail-open on the exact matcher the stealth gate depends on (PR #80).
+    const isPublic = createRouteMatcher(["/sign-in(.*)"]);
+    expect(isPublic(req("/sign-inevil"))).toBe(false);
+    expect(isPublic(req("/sign-in-backdoor"))).toBe(false);
+    // ...and the legitimate shapes still match, or the sign-in flow breaks.
+    expect(isPublic(req("/sign-in"))).toBe(true);
+    expect(isPublic(req("/sign-in/factor-one"))).toBe(true);
+
+    // The same boundary on the DENIED side. Over-matching here was harmless
+    // (denying more), but the rule must not depend on who calls it.
+    const isOps = createRouteMatcher(["/ops(.*)"]);
+    expect(isOps(req("/opswhatever"))).toBe(false);
+    expect(isOps(req("/ops"))).toBe(true);
+    expect(isOps(req("/ops/inbox"))).toBe(true);
+  });
+
   it("matches any pattern in the set", () => {
     const match = createRouteMatcher(["/access", "/sign-in(.*)", "/api/health"]);
     for (const path of ["/access", "/sign-in/x", "/api/health"]) {

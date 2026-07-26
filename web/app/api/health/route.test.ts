@@ -66,4 +66,71 @@ describe("/api/health — resolved config is observable, never guessed", () => {
     expect(b.supabase.error).toContain("401");
     expect(b.ok).toBe(false);
   });
+
+  // The payload the DEPLOYED preview actually returned on 2026-07-26:
+  // {"mode":"clerk","disabledBy":"NEXT_PUBLIC_AUTH_DISABLED"} — an endpoint whose
+  // only job is to be diagnosable, publishing two mutually exclusive claims.
+  const okFetch = () =>
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true, headers: new Headers({ "content-range": "0-0/1532" }), text: async () => "",
+    }) as unknown as Response));
+
+  it("never claims a flag disabled the gate while the Clerk gate is running", async () => {
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    process.env.NEXT_PUBLIC_AUTH_DISABLED = "1";
+    okFetch();
+
+    const b = await (await GET()).json();
+    expect(b.auth.mode).toBe("clerk");
+    expect(b.auth.disabledBy).toBe(null);
+  });
+
+  it("says so when a disable flag is set but Clerk overrode it", async () => {
+    // Otherwise the founder sets the flag, Clerk silently wins, the preview stays
+    // gated, and nothing in the payload explains why.
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    process.env.AUTH_DISABLED = "1";
+    okFetch();
+
+    const b = await (await GET()).json();
+    expect(b.auth.overriddenDisableFlag).toContain("takes priority");
+    expect(b.auth.overriddenDisableFlag).toContain("stealth gate IS active");
+  });
+
+  it("does not warn about an override when no disable flag is set", async () => {
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    okFetch();
+
+    const b = await (await GET()).json();
+    expect(b.auth.mode).toBe("clerk");
+    expect(b.auth.overriddenDisableFlag).toBeUndefined();
+  });
+
+  it("names VERCEL_ENV as the cause when a preview disables with no flag", async () => {
+    // A preview needs zero config (founder directive 2026-07-24). Reporting
+    // disabledBy:null there would read as "disabled for no reason".
+    process.env.VERCEL_ENV = "preview";
+    okFetch();
+
+    const b = await (await GET()).json();
+    expect(b.auth.mode).toBe("disabled");
+    expect(b.auth.disabledBy).toBe("VERCEL_ENV=preview");
+  });
+
+  it("reports no disable cause at all when the gate is unconfigured", async () => {
+    okFetch();
+    const b = await (await GET()).json();
+    expect(b.auth.mode).toBe("unconfigured");
+    expect(b.auth.disabledBy).toBe(null);
+    expect(b.auth.note).toContain("not configured");
+  });
+
+  it("still prefers the explicit flag name over VERCEL_ENV when both apply", async () => {
+    process.env.VERCEL_ENV = "preview";
+    process.env.NEXT_PUBLIC_AUTH_DISABLED = "1";
+    okFetch();
+
+    const b = await (await GET()).json();
+    expect(b.auth.disabledBy).toBe("NEXT_PUBLIC_AUTH_DISABLED");
+  });
 });

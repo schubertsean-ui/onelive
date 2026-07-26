@@ -232,6 +232,32 @@ def _module_name(path: str) -> str:
     return path[:-3].replace("/", ".") if path.endswith(".py") else path
 
 
+def _resolve_import_from(node: ast.ImportFrom, path: str) -> list[str]:
+    """Absolute dotted name(s) an `from ... import ...` statement reaches.
+
+    `node.level` is the number of leading dots. Level 0 is already absolute.
+    Level N walks N-1 packages up from the importing file's own package, which
+    is what Python does — so `from .confidence import x` in `worker/promote.py`
+    resolves to `worker.confidence`, and `from ..ai_extract import y` in
+    `worker/convergence/node.py` resolves to `worker.ai_extract`.
+
+    Returns [] when the level walks above the repo root: that is a broken import
+    the interpreter would reject, and inventing a name for it would be worse than
+    reporting nothing.
+    """
+    if node.level == 0:
+        return [node.module] if node.module else []
+    parts = path.split("/")[:-1]          # the importing file's package parts
+    if node.level > 1:
+        parts = parts[: -(node.level - 1)] if node.level - 1 <= len(parts) else []
+        if not parts:
+            return []
+    base = ".".join(parts)
+    if not base:
+        return []
+    return [f"{base}.{node.module}" if node.module else base]
+
+
 _ASGI_APP = re.compile(r"^app\s*=|FastAPI\(|Flask\(", re.MULTILINE)
 
 
@@ -300,7 +326,14 @@ def unwired_modules(ref: str | None) -> list[str]:
             if isinstance(node, ast.Import):
                 names = [alias.name for alias in node.names]
             elif isinstance(node, ast.ImportFrom):
-                names = [node.module] if node.module else []
+                # RELATIVE IMPORTS RESOLVED. `from .confidence import x` inside
+                # worker/ leaves node.module == "confidence", which matches no
+                # candidate key (those are full dotted names like
+                # "worker.confidence") — so a module imported only relatively
+                # looked unwired. tests/test_convergence_isolation.py already
+                # resolves node.level for the same reason; this metric did not.
+                # (Reviewer nit, gemini seat, PR #80.)
+                names = _resolve_import_from(node, path)
             else:
                 continue
             for name in names:
@@ -427,7 +460,17 @@ def build(baseline: str | None) -> Report:
     before = bars[0] if isinstance(bars[0], dict) else {}
     for key, bar in (("rows", "—"), ("purpose_rows", "P1–P14"), ("MET", "—"),
                      ("NOT MET", "—"), ("UNMEASURED", "—"), ("NOT BUILT", "—")):
-        rep.add(f"BAR rows — {key}", before.get(key, 0) if before else 0, after.get(key, 0), bar)
+        # An unmeasured baseline is "—", never 0. Defaulting to 0 asserted that
+        # ZERO bar rows existed before the run — a fabricated measurement, and
+        # the worse kind because it renders as a plausible delta (0 -> 55 reads
+        # as "we added 55 rows"). Caught by the gemini/dataflow-taint seat on
+        # PR #80 as CLASS:false-confidence-gate; a sibling of the same defect in
+        # `pair()` above was fixed earlier the same day, and this second site
+        # survived because that fix was applied where it was found rather than
+        # swept for the class.
+        rep.add(f"BAR rows — {key}",
+                before.get(key, "—") if before else "—",
+                after.get(key, "—"), bar)
 
     try:
         rec_a = record_status(None)
@@ -439,7 +482,14 @@ def build(baseline: str | None) -> Report:
 
     for label, fn, bar in (("Red classes indexed", red_class_count, "J6"),
                            ("Escaped defects (M3)", escape_count, "G4"),
-                           ("validate checks", validate_check_count, "—")):
+                           # Named for what it COUNTS. It was "validate checks",
+                           # which read as the whole summary surface while the
+                           # function counts `run_check ` lines only — advisory
+                           # and skip rows are not included. A metric whose label
+                           # over-claims its own scope is a stale number waiting
+                           # to happen (reviewer nit, openai seat, PR #80).
+                           ("validate blocking checks (run_check lines)",
+                            validate_check_count, "—")):
         vals = pair(fn)
         rep.add(label, vals[0], vals[1], bar)
 

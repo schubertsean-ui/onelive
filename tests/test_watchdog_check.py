@@ -243,3 +243,71 @@ def test_a_successful_run_with_no_timestamp_raises(monkeypatch):
 def test_a_missing_workflow_file_raises(monkeypatch):
     with pytest.raises(WD.WatchdogError):
         WD.workflow_has_schedule("no_such_workflow.yml")
+
+
+def test_schedule_detection_sees_valid_yaml_a_line_regex_cannot(tmp_path,
+                                                                monkeypatch):
+    """`CLASS:incomplete-workflow-surface-scan`, PR #80.
+
+    The registry test above only holds if `workflow_has_schedule` recognises every
+    way GitHub accepts a cron. It used to match an unquoted `schedule:` on its own
+    line, so a scheduled job written as `"schedule":` or inline
+    `on: {schedule: [...]}` was silently OUTSIDE the "every scheduled workflow is
+    watched" invariant — the enumeration was incomplete, not wrong, which is
+    harder to see and just as unwatched.
+    """
+    monkeypatch.setattr(WD, "WORKFLOW_DIR", tmp_path)
+    cases = {
+        "plain.yml": 'on:\n  schedule:\n    - cron: "0 * * * *"\n',
+        "double_quoted.yml": 'on:\n  "schedule":\n    - cron: "0 * * * *"\n',
+        "single_quoted.yml": "on:\n  'schedule':\n    - cron: '0 * * * *'\n",
+        "inline.yml": 'on: {schedule: [{cron: "0 * * * *"}]}\n',
+        "inline_quoted.yml":
+            'on: {"push": null, "schedule": [{"cron": "0 * * * *"}]}\n',
+        "deep_indent.yml": 'on:\n      schedule:\n        - cron: "0 * * * *"\n',
+    }
+    for name, text in cases.items():
+        (tmp_path / name).write_text(text, encoding="utf-8")
+        assert WD.workflow_has_schedule(name), \
+            f"{name} is scheduled but escaped detection:\n{text}"
+
+    # ...and an UNSCHEDULED workflow must still answer False, or every workflow
+    # is dragged into WATCHED/EXCLUDED and the registry stops meaning anything.
+    for name, text in {
+        "dispatch_only.yml": "on:\n  workflow_dispatch:\n",
+        "pr_only.yml": "on: {pull_request: null}\n",
+        # A job STEP that merely mentions the word must not count.
+        "mentions.yml": ('on:\n  workflow_dispatch:\n'
+                         'jobs:\n  j:\n    steps:\n'
+                         '      - run: echo "no schedule here"\n'),
+    }.items():
+        (tmp_path / name).write_text(text, encoding="utf-8")
+        assert not WD.workflow_has_schedule(name), \
+            f"{name} is not scheduled but was pulled into scope:\n{text}"
+
+
+def test_an_unparseable_workflow_is_treated_as_in_scope(tmp_path, monkeypatch):
+    """Fail CLOSED. A file the parser rejects must land INSIDE the registry
+    check, because a watchdog that quietly drops what it could not read is a
+    watchdog with a hole exactly the size of one malformed file."""
+    monkeypatch.setattr(WD, "WORKFLOW_DIR", tmp_path)
+    (tmp_path / "broken.yml").write_text("on: [::: not yaml\n  - {{{\n",
+                                         encoding="utf-8")
+    assert WD.workflow_has_schedule("broken.yml")
+
+
+def test_detection_still_works_with_no_yaml_parser_available(tmp_path,
+                                                             monkeypatch):
+    """The parse is an addition, not a replacement: on a runner without PyYAML
+    the regex path must still put a scheduled workflow in scope."""
+    monkeypatch.setattr(WD, "WORKFLOW_DIR", tmp_path)
+    monkeypatch.setattr(WD, "_yaml", None)
+    (tmp_path / "plain.yml").write_text('on:\n  schedule:\n    - cron: "0 * * * *"\n',
+                                        encoding="utf-8")
+    assert WD.workflow_has_schedule("plain.yml")
+    # With no parser, "in scope" is the safe answer for everything else too —
+    # asserted so the fallback's over-inclusiveness is a stated property rather
+    # than a surprise the next reader has to rediscover.
+    (tmp_path / "dispatch_only.yml").write_text("on:\n  workflow_dispatch:\n",
+                                                encoding="utf-8")
+    assert WD.workflow_has_schedule("dispatch_only.yml")

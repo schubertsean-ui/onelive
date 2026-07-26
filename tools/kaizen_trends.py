@@ -38,6 +38,7 @@ import argparse
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -248,11 +249,31 @@ def escapes(ledger_text: str) -> int:
     return ledger_text.count("M3-ESCAPE")
 
 
-# A "Gate-gap closed" cell that names nothing. Anything else is treated as a
-# shipped mechanism, because the reviewer reads the cell and a machine cannot
-# judge whether a named test is adequate — only whether one was named at all.
+# A "Gate-gap closed" cell that names nothing.
 _EMPTY_CELL = frozenset({"", "-", "—", "–", "none", "n/a", "na", "tbd", "todo",
                          "pending", "not yet", "nothing"})
+
+# A cell must CITE SOMETHING THAT EXISTS, not merely be non-empty.
+#
+# The first version of this gate treated any non-placeholder text as a closed gap.
+# The openai/attacker-smuggle seat blocked it on PR #80 as
+# `CLASS:unvalidated-escape-closure`, and the finding is correct: writing `fixed`
+# in that column turned the hard M3 alarm green while nothing mechanical had
+# shipped. That is a gate whose pass condition is prose — the worst possible
+# property for the one alarm guarding an absolute-zero target, because the escape
+# it is meant to keep open is closed by typing.
+#
+# So a closure must cite a repo path that is really on disk, or a RECORD.md row
+# that really exists. A machine still cannot judge whether the named test is
+# ADEQUATE — that stays the reviewer's job, and this docstring does not pretend
+# otherwise — but it can insist the citation refers to something real, which is
+# the difference between "a reviewer can check this" and "a reviewer must take my
+# word for it".
+_PATH_CITATION = re.compile(
+    r"`([A-Za-z0-9_./-]+\.(?:py|ts|tsx|yml|yaml|sql|sh|md))`"
+    r"|(?<![\w/])((?:tests|tools|worker|api|ai|web|brain|social|ventures"
+    r"|\.github)/[A-Za-z0-9_./-]+\.(?:py|ts|tsx|yml|yaml|sql|sh|md))")
+_RECORD_CITATION = re.compile(r"\bR-(\d{3})\b")
 
 
 def _escape_table(ledger_text: str) -> list[str]:
@@ -272,7 +293,40 @@ def _escape_table(ledger_text: str) -> list[str]:
     return rows
 
 
-def open_escapes(ledger_text: str) -> list[str]:
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def _cited_mechanisms(cell: str, root: Path | None = None) -> list[str]:
+    """The citations in a 'Gate-gap closed' cell that RESOLVE to something real.
+
+    Two accepted forms, both verifiable without judgement:
+      * a repo-relative file path (backticked, or bare under a known source root)
+        that exists on disk;
+      * an `R-###` row that is actually present in docs/RECORD.md.
+
+    Returns the resolved citations; an empty list means the cell claims a closure
+    it cannot point at.
+    """
+    root = root or _repo_root()
+    found: list[str] = []
+    for backticked, bare in _PATH_CITATION.findall(cell):
+        candidate = backticked or bare
+        if candidate and (root / candidate).exists():
+            found.append(candidate)
+    rows = _RECORD_CITATION.findall(cell)
+    if rows:
+        try:
+            record = (root / "docs" / "RECORD.md").read_text(encoding="utf-8")
+        except OSError:
+            record = ""
+        found.extend(f"R-{n}" for n in rows if f"R-{n}" in record)
+    return found
+
+
+def open_escapes(ledger_text: str,
+                 cited_mechanisms: Callable[[str], list[str]] | None = None,
+                 ) -> list[str]:
     """Escapes whose 'Gate-gap closed' column names NO shipped mechanism.
 
     **Founder-ratified 2026-07-26 ("option a").** An escape is permanent history,
@@ -290,16 +344,27 @@ def open_escapes(ledger_text: str) -> list[str]:
     earlier PR. The M3 counter was the one meter in this file that never got it.
 
     Returns the offending row texts so the report can name them, not a count.
+
+    ``cited_mechanisms`` is injectable so the citation check is testable without
+    writing files; by default it resolves against this repo's working tree.
     """
     unclosed = []
+    resolve = cited_mechanisms if cited_mechanisms is not None else _cited_mechanisms
     for row in _escape_table(ledger_text):
         cells = [c.strip() for c in row.strip("|").split("|")]
         # Columns: Date | What escaped | Where found | Root cause | Gate-gap closed
+        # Indexed from the FRONT, not with cells[-1]: appending a sixth column
+        # would silently move a negative index onto the new column and grade the
+        # wrong cell (reviewer nit, gemini seat, PR #80).
         if len(cells) < 5:
             # A malformed row cannot be shown to have a closed gap — fail closed.
             unclosed.append(row)
             continue
-        if cells[-1].lower() in _EMPTY_CELL:
+        cell = cells[4]
+        if cell.lower() in _EMPTY_CELL:
+            unclosed.append(row)
+            continue
+        if not resolve(cell):
             unclosed.append(row)
     return unclosed
 

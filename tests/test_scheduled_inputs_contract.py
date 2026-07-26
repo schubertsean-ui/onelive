@@ -52,6 +52,7 @@ import pathlib
 import re
 
 import pytest
+import yaml
 
 WORKFLOWS = pathlib.Path(__file__).resolve().parent.parent / ".github" / "workflows"
 
@@ -60,13 +61,28 @@ WORKFLOWS = pathlib.Path(__file__).resolve().parent.parent / ".github" / "workfl
 # form, which is what we want. BOTH spellings are matched: `github.event.inputs.X`
 # and the `inputs.X` shorthand — both resolve to the empty string on a
 # schedule-triggered run, so matching only the long form left half the class open.
+#
+# BRACKET SYNTAX TOO (PR #80, openai/attacker-smuggle
+# `CLASS:incomplete-workflow-surface-scan`): GitHub expressions index contexts
+# with `['name']` and `["name"]` as well as `.name`, and all three are empty on a
+# schedule-triggered run. Matching only dot syntax meant the identical defect
+# could be reintroduced as `${{ github.event.inputs['limit'] }}` with this gate
+# still green — a scanner that covers one spelling of the thing it bans.
 _BARE_INPUT = re.compile(
-    r"\$\{\{\s*(?:github\.event\.)?inputs\.[A-Za-z0-9_-]+\s*\}\}"
+    r"\$\{\{\s*(?:github\.event\.)?inputs"
+    r"(?:\.[A-Za-z0-9_-]+|\[\s*(['\"])[A-Za-z0-9_-]+\1\s*\])"
+    r"\s*\}\}"
 )
 # `schedule:` as a trigger key at ANY indentation. Pinning it to exactly two
 # spaces meant valid alternate YAML formatting silently excluded a workflow from
 # the scan — an under-trigger, which is this gate's only real failure mode.
-_SCHEDULE_KEY = re.compile(r"^\s+schedule:\s*$", re.MULTILINE)
+#
+# KEPT ALONGSIDE the YAML parse below, never replaced by it. The regex cannot see
+# `"schedule":` or an inline `on: {schedule: [...]}`, both valid YAML — that is
+# the reviewer's finding. But the parse cannot see a file YAML refuses to load,
+# and a scanner that skips unparseable workflows fails OPEN. So detection is the
+# UNION of the two, which can only ever widen the scan.
+_SCHEDULE_KEY = re.compile(r"^\s+[\"']?schedule[\"']?:", re.MULTILINE)
 
 # GitHub accepts both extensions for workflow files. Globbing one of them let a
 # rename carry the defect past a gate that claimed to cover every workflow.
@@ -80,11 +96,42 @@ def _workflow_files() -> list[pathlib.Path]:
     return sorted(set(found))
 
 
+def _schedule_in_parsed_yaml(text: str) -> bool:
+    """Whether the PARSED `on:` section carries a schedule trigger.
+
+    Reads the structure GitHub reads, so `"schedule":` and inline
+    `on: {schedule: [{cron: ...}]}` are seen — neither of which a line regex can
+    match. `on:` becomes the YAML 1.1 boolean True after safe_load, hence the
+    two-key lookup.
+
+    An unparseable file returns True, not False: this feeds a UNION with the regex
+    and the only unsafe direction for this gate is under-detection, so a file we
+    cannot read is treated as in scope and its own assertions decide.
+    """
+    try:
+        doc = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return True
+    if not isinstance(doc, dict):
+        return True
+    section = doc.get("on", doc.get(True))
+    if isinstance(section, dict):
+        return "schedule" in section
+    if isinstance(section, list):
+        return "schedule" in section
+    if isinstance(section, str):
+        return section == "schedule"
+    return True
+
+
 def _scheduled_workflows() -> list[pathlib.Path]:
-    return [
-        path for path in _workflow_files()
-        if _SCHEDULE_KEY.search(path.read_text(encoding="utf-8"))
-    ]
+    """The UNION of the regex and the YAML parse — see _SCHEDULE_KEY."""
+    out: list[pathlib.Path] = []
+    for path in _workflow_files():
+        text = path.read_text(encoding="utf-8")
+        if _SCHEDULE_KEY.search(text) or _schedule_in_parsed_yaml(text):
+            out.append(path)
+    return out
 
 
 def test_there_are_scheduled_workflows_to_check():
@@ -159,6 +206,43 @@ def test_scanner_detects_every_evasion_the_review_found():
 
     # 4. Both workflow extensions GitHub accepts. A rename must not shed the gate.
     assert set(_WORKFLOW_GLOBS) == {"*.yml", "*.yaml"}
+
+
+def test_scanner_detects_the_evasions_the_PR80_review_found():
+    """Round two of the same class. Both findings are "the scanner covers one
+    spelling of the thing it bans", which is the shape that makes a green gate
+    worse than no gate."""
+    # 5. BRACKET INDEXING. `github.event.inputs['limit']` is the same empty value
+    #    on a schedule run as `github.event.inputs.limit`, and dot-only matching
+    #    left the exact D1/R-054 defect reintroducible verbatim.
+    for expr in ("LIMIT: ${{ github.event.inputs['limit'] }}",
+                 'LIMIT: ${{ github.event.inputs["limit"] }}',
+                 "LIMIT: ${{ inputs['limit'] }}",
+                 'LIMIT: ${{ inputs["limit"] }}'):
+        assert _BARE_INPUT.search(expr), f"bracket syntax not caught: {expr}"
+    # ...and the defaulted bracket form is still fine, so this is not noise.
+    assert not _BARE_INPUT.search("LIMIT: ${{ inputs['limit'] || '40' }}")
+
+    # 6. SCHEDULE DETECTION BEYOND A LINE REGEX. Quoted keys and inline mappings
+    #    are valid workflow YAML that the line pattern cannot see; the union with
+    #    the YAML parse must put both in scope.
+    for text in ('on:\n  "schedule":\n    - cron: "0 * * * *"\n',
+                 "on:\n  'schedule':\n    - cron: '0 * * * *'\n",
+                 'on: {schedule: [{cron: "0 * * * *"}]}\n',
+                 'on: {"push": null, "schedule": [{"cron": "0 * * * *"}]}\n'):
+        in_scope = bool(_SCHEDULE_KEY.search(text)) or _schedule_in_parsed_yaml(text)
+        assert in_scope, f"scheduled workflow escaped the scan entirely:\n{text}"
+
+    # ...and a workflow with no schedule stays out of scope, or every workflow
+    # gets held to a cron rule it does not need and the gate becomes noise.
+    for text in ('on:\n  workflow_dispatch:\n    inputs:\n      url:\n        required: true\n',
+                 'on: {pull_request: null}\n'):
+        in_scope = bool(_SCHEDULE_KEY.search(text)) or _schedule_in_parsed_yaml(text)
+        assert not in_scope, f"unscheduled workflow wrongly pulled into scope:\n{text}"
+
+    # 7. An unparseable file is IN scope, never silently skipped — the only
+    #    unsafe direction here is under-detection.
+    assert _schedule_in_parsed_yaml("on: [::: not yaml\n  - {{{\n")
 
 
 def test_structured_import_limit_expression_is_identical_in_both_steps():

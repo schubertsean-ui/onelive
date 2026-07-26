@@ -35,8 +35,20 @@ compatibility only.
    deployment needs **no environment variables at all**: the auth gate
    auto-opens on `VERCEL_ENV=preview|development` (host-protected by Vercel), and
    the Supabase read uses the committed **public** default. Privacy comes from
-   Vercel Deployment Protection; ops (`/ops`) stays denied regardless. **Amended 2026-07-26:** a *Protection Bypass for Automation* secret now exists for this project, so privacy rests on possession of the bypass URL rather than on Vercel's login wall — that was the point of `docs/V1.md` ask 6, and it is what let the agent verify the deployment and friends open it. `/ops` is still denied on that code path regardless, and the real boundary remains row-level security, never URL secrecy. Setting
-   `NEXT_PUBLIC_AUTH_DISABLED=1` still works but is no longer required.
+   Vercel Deployment Protection; ops (`/ops`) stays denied regardless. **Amended
+   2026-07-26, and VERIFIED rather than asserted:** a *Protection Bypass for
+   Automation* secret now exists for this project and is stored as the repository
+   secret `VERCEL_AUTOMATION_BYPASS`. Evidence — `site-health` run
+   <https://github.com/schubertsean-ui/onelive/actions/runs/30217359539> printed
+   `protection_bypass_secret: present`, `http_status: 200` and `event_count: 1532`.
+   `docs/V1.md` ask 6 is therefore RESOLVED, not open; if any other document still
+   says that secret must be created, that document is stale and this line wins (the
+   reason this file exists). Privacy now rests on possession of the bypass URL rather
+   than on Vercel's login wall. `/ops` is still denied on that code path regardless,
+   and the real boundary remains row-level security, never URL secrecy. Setting
+   `NEXT_PUBLIC_AUTH_DISABLED=1` still works but is no longer required — and note
+   that a Clerk publishable key OVERRIDES it (`/api/health` now says so explicitly
+   via `overriddenDisableFlag`).
 2. **Stealth gate (before public launch):** `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
    + Clerk secret + `ONELIVE_ALLOWLIST` (+ optionally override the Supabase vars
    for a different project). PRODUCTION never auto-opens — with no provider and
@@ -63,6 +75,7 @@ reason a session never has to guess a slug.**
 | GitHub Actions secrets list | <https://github.com/schubertsean-ui/onelive/settings/secrets/actions> | same |
 | `site-health` runs | <https://github.com/schubertsean-ui/onelive/actions/workflows/site_health.yml> | workflow file path |
 | `import-licensed` runs | <https://github.com/schubertsean-ui/onelive/actions/workflows/import_licensed.yml> | same |
+| `experience-metrics` runs (Lighthouse + axe) | <https://github.com/schubertsean-ui/onelive/actions/workflows/experience_metrics.yml> | workflow file path |
 | Anthropic usage cap (ask 2) | <https://console.anthropic.com/settings/limits> | Anthropic console, documented path |
 | Supabase project | <https://supabase.com/dashboard/project/vqipjlvzfiwnandjumvx> | project ref in `CLAUDE.md` + `web/lib/licensed.ts` |
 
@@ -83,12 +96,20 @@ because the next session will copy from here.
 returns the resolved config WITHOUT any secret value:
 
 ```
-{ ok, auth:{mode, disabledBy}, supabase:{configured, source, reachable, eventCount}, vercelEnv }
+{ ok, auth:{mode, disabledBy, overriddenDisableFlag}, supabase:{configured, source, reachable, eventCount}, vercelEnv }
 ```
 
 - `auth.mode:"unconfigured"` → the gate flag isn't being read → fix per row 1.
 - `supabase.reachable:false` → the DB vars aren't resolving → fix per rows 2–3.
 - `ok:true` and `eventCount>0` → the whole path works; the feed will render.
+- `auth.disabledBy` is **null unless the gate is actually open**, and names
+  `VERCEL_ENV=preview` when a preview opened itself with no flag. It used to report
+  any disable flag that was merely *set*, which produced the self-contradicting
+  payload `{"mode":"clerk","disabledBy":"NEXT_PUBLIC_AUTH_DISABLED"}` on a live
+  deployment (R-071).
+- `auth.overriddenDisableFlag` appears **only** when a disable flag is set and a
+  Clerk publishable key beat it. If a preview will not open and you set the flag,
+  this is the field that tells you why.
 
 **Always check `/api/health` before advising a config change.** Diagnose from
 what the app actually resolved, never from how the platform is assumed to behave.

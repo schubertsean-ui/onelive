@@ -135,7 +135,17 @@ def probe(url: str) -> tuple[str, str]:
             return "BROKEN", "HTTP 404 — path not found"
         if exc.code == 405:  # HEAD not allowed is not a broken link
             return "AUTH", "HTTP 405 — HEAD refused, host is alive"
-        return "AUTH", f"HTTP {exc.code} — reported, not interpreted"
+        # ANY OTHER STATUS IS A FINDING, not an AUTH row.
+        #
+        # This used to return AUTH for everything unrecognised, so a 500, 502, 503
+        # or 429 was folded into "login required" — a category the summary counts
+        # as unverifiable-but-not-broken, exiting 0. A provider outage therefore
+        # reported as "none provably broken", which is the founding anti-pattern
+        # verbatim: we failed looked identical to there was nothing to do.
+        # (openai/absence-only, PR #80, `CLASS:swallowed-http-error`.)
+        return "BROKEN", (f"HTTP {exc.code} — the host answered with an "
+                          f"unexpected status; reported as broken rather than "
+                          f"folded into 'login required'")
     except urllib.error.URLError as exc:
         reason = str(getattr(exc, "reason", exc))
         # Egress policy denial vs a genuinely dead host: different findings.

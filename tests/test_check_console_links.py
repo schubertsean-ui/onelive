@@ -145,6 +145,31 @@ def test_head_not_allowed_is_not_a_broken_link(monkeypatch):
     assert LINKS.probe("https://x.example/")[0] == "AUTH"
 
 
+@pytest.mark.parametrize("code", [429, 500, 502, 503, 504, 418])
+def test_an_unexpected_status_is_BROKEN_not_folded_into_AUTH(monkeypatch, code):
+    """`CLASS:swallowed-http-error` (openai/absence-only, PR #80).
+
+    Every unrecognised status used to return AUTH, and AUTH is counted as
+    "none provably broken" with exit 0 — so a provider outage or a rate limit
+    reported as a clean run. That is the founding anti-pattern: "we failed" must
+    never look identical to "there was nothing to do".
+    """
+    monkeypatch.setattr(LINKS._OPENER, "open",
+                        lambda *a, **k: (_ for _ in ()).throw(_http_error(code)))
+    status, detail = LINKS.probe("https://x.example/")
+    assert status == "BROKEN", f"HTTP {code} was swallowed as {status}"
+    assert str(code) in detail, "the status must be named, not summarised away"
+
+
+def test_the_statuses_that_ARE_login_walls_still_read_as_AUTH(monkeypatch):
+    """So the fix above is a sharpening, not a blunt 'everything is broken'."""
+    for code in sorted(LINKS._AUTH_CODES) + [405]:
+        monkeypatch.setattr(LINKS._OPENER, "open",
+                            lambda *a, _c=code, **k:
+                            (_ for _ in ()).throw(_http_error(_c)))
+        assert LINKS.probe("https://x.example/")[0] == "AUTH", code
+
+
 def test_a_policy_denial_is_BLOCKED_and_distinct_from_a_dead_host(monkeypatch):
     denied = urllib.error.URLError("Tunnel connection failed: 403 Forbidden")
     monkeypatch.setattr(LINKS._OPENER, "open",

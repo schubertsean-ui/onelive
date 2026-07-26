@@ -1,5 +1,13 @@
 __pycache__/
 *.pyc
+# tools/bootstrap_dev.sh's own docstring claimed ".venv, which is gitignored" while
+# nothing here ignored it — a false claim in the one file a newcomer runs first.
+# `git add -A` after bootstrapping staged 3,979 files and 874k lines of vendored
+# wheels. It also made tests/test_golden_exam.py's import-closure check demand that
+# pydantic's 48 files be bound into the exam's evidence hash, because "under the repo
+# root" was standing in for "this project's own code".
+.venv/
+venv/
 node_modules/
 .next/
 .expo/

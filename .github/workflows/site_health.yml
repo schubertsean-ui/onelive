@@ -16,23 +16,41 @@ name: site-health
 # and read the result out of the job log.
 
 on:
+  # Fires when VERCEL REPORTS A DEPLOYMENT SUCCEEDED, which is the only moment there
+  # is anything meaningful to check. The previous `pull_request` trigger fired on
+  # push and therefore RACED the build: five consecutive readings this session all
+  # tested the PREVIOUS deployment and reported a 500 that had already been fixed.
+  # An eager check that measures the wrong artefact is worse than no check, because
+  # its answers look authoritative.
+  #
+  # This also DELETES the hardcoded preview host (R-069): the event carries the URL
+  # of the deployment that just succeeded, so the check always measures the thing
+  # that just shipped, with nothing to keep in sync.
+  #
+  # SECRET CUSTODY — why the automatic path is restricted to the default branch.
+  # This job reads `secrets.VERCEL_AUTOMATION_BYPASS`, and the workflow FILE that
+  # runs is the one on the triggering ref. A trigger that fires automatically on
+  # a push to any branch therefore hands a repository secret to a workflow
+  # definition that branch controls: edit the curl target, and the Vercel bypass
+  # is exfiltrated. That is exactly the hole a `pull_request` trigger opened here
+  # (found by the openai/attacker-smuggle and absence-only seats on PR #80), and
+  # `deployment_status` inherits it unchanged, because Vercel deploys every branch.
+  #
+  # So the two entry points are both custody-safe rather than one being trusted
+  # by accident:
+  #   * deployment_status — ONLY on the default branch, where the file is
+  #     base-owned and no PR can have edited it.
+  #   * workflow_dispatch — a deliberate act by an actor with write access, who
+  #     can already read the secret from the settings page, so the dispatch grants
+  #     nothing new. This is also how ANY preview gets verified pre-merge: dispatch
+  #     from the default branch with the preview URL. No per-branch file, no
+  #     hardcoded host, and no automatic secret hand-off to branch-owned YAML.
+  deployment_status:
   workflow_dispatch:
     inputs:
       url:
         description: "Base URL of the deployment to check (no trailing slash)"
         required: true
-  # [R-069] Also runs on this PR, deliberately and temporarily. The literal below is
-  # THIS branch's Vercel alias — a PR's health check must test that PR's own
-  # deployment, or it reports on code the PR does not contain. That is why the
-  # hardcoded host has to be updated per branch until this reaches the default
-  # branch and `workflow_dispatch` becomes usable. workflow_dispatch can
-  # only be triggered via the API once the file exists on the DEFAULT branch, so
-  # until this merges the dispatch path is unusable and the check would be dead
-  # on arrival. The pull_request path uses the branch's Vercel alias, which is
-  # stable across commits. R-069 carries the removal trigger.
-  pull_request:
-    branches: [master]
-    paths: [".github/workflows/site_health.yml"]
 
 permissions:
   contents: read
@@ -43,6 +61,20 @@ concurrency:
 
 jobs:
   check:
+    # Two conditions, for two different reasons.
+    #
+    # (1) A failed or pending deployment has no serving URL; checking it would
+    #     report a fault that belongs to the build, not the site.
+    # (2) The deployment ref must be the DEFAULT BRANCH — the secret-custody
+    #     boundary described in the `on:` block above. Comparing against
+    #     `github.event.repository.default_branch` rather than a literal branch
+    #     name means a repository rename of the default branch cannot silently
+    #     open the hole; and if that field were ever absent the comparison is
+    #     false, so it fails CLOSED (no run) rather than open.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.ref_name == github.event.repository.default_branch)
     runs-on: ubuntu-latest
     steps:
       # Required by the link-check step below, which reads tools/ and docs/ from
@@ -54,14 +86,15 @@ jobs:
 
       - name: Read /api/health and report honestly
         env:
-          # The pull_request side is pinned to a LITERAL, never a bare
-          # `github.event.inputs.*` — that expression is empty on any event
-          # other than workflow_dispatch, which is exactly the defect that made
-          # import_structured.yml's cron dead on arrival (R-054, the project's
-          # first recorded escape). tests/test_scheduled_inputs_contract.py
-          # guards the schedule form of this class; this is the same discipline
-          # applied to the pull_request form.
-          BASE_URL: ${{ github.event_name == 'pull_request' && 'https://onelive-git-claude-experience-metr-e0a7c3-sss-projects-e4775771.vercel.app' || github.event.inputs.url }}
+          # R-054's class, stated once: `github.event.inputs.*` is EMPTY on any
+          # event other than workflow_dispatch, so each event type must supply
+          # the URL from ITS OWN context. deployment_status reads the event's
+          # environment_url; workflow_dispatch reads its input. A bare
+          # `github.event.inputs.url` here is what made import_structured.yml's
+          # cron dead on arrival — the project's first recorded escape.
+          # tests/test_scheduled_inputs_contract.py guards the schedule form of
+          # this class; this is the same discipline on the event form.
+          BASE_URL: ${{ github.event_name == 'deployment_status' && github.event.deployment_status.environment_url || github.event.inputs.url }}
           # Defaults to the literal sentinel ABSENT rather than an empty string,
           # so "no secret configured" is a STATED value the shell can guard and
           # branch on. GitHub renders an unset secret and a set-but-empty secret
