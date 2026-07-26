@@ -188,9 +188,12 @@ export const config = {
   // Nothing is opened by this: the route itself returns only resolved config and
   // never a secret value (see app/api/health/route.ts), and it was already listed
   // as public in every mode including the fail-closed one.
+  // ONE pattern, because a second entry cannot express "api except health":
+  // `"/api/(?!health)(.*)"` is not a valid Next middleware matcher and FAILED THE
+  // BUILD when tried (deployment 2fMJR3Q, 2026-07-26). The single catch-all below
+  // already covers extensionless routes including `/api/*` and `/trpc/*`, and the
+  // negative lookahead is where the exclusions belong.
   matcher: [
     "/((?!_next|api/health|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    "/api/(?!health)(.*)",
-    "/trpc(.*)",
   ],
 };
