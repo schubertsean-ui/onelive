@@ -72,13 +72,6 @@ jobs:
             echo "::error::invalid diff range syntax (value redacted — expected <base>...<head>)"
             exit 1
           fi
-          # Top-level assignment (never inside a branch) so the value is
-          # provably set before use.
-          DIGEST="$(sha256sum /tmp/_pin_probe.py | cut -d" " -f1)"
-          rm -f /tmp/_pin_probe.py
-          echo "sha=$TRUSTED_SHA" >> "$GITHUB_OUTPUT"
-          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
-          echo "Pinned evaluator @ $TRUSTED_SHA (sha256 $DIGEST); materialised after the untrusted steps."
           echo "base=$RESOLVED_BASE" >> "$GITHUB_OUTPUT"
           echo "range=$RESOLVED_RANGE" >> "$GITHUB_OUTPUT"
 
@@ -99,6 +92,13 @@ jobs:
             echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on $TRUSTED_BASE. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
             exit 1
           fi
+          # Top-level assignment (never inside a branch) so the value is
+          # provably set before use, and AFTER the probe exists.
+          DIGEST="$(sha256sum /tmp/_pin_probe.py | cut -d" " -f1)"
+          rm -f /tmp/_pin_probe.py
+          echo "sha=$TRUSTED_SHA" >> "$GITHUB_OUTPUT"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Pinned evaluator @ $TRUSTED_SHA (sha256 $DIGEST); materialised after the untrusted steps."
 
       - name: Install dependencies (project-supplied requirements, if any)
         run: |
