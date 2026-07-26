@@ -154,7 +154,16 @@ def _index_attempts(attempts: list, known: dict | None = None) -> dict:
 
 
 def score_source(entry: dict, events: dict, venues: dict, venue_owners: dict,
-                 attempts: dict, have_evidence: bool) -> dict:
+                 attempts: dict, have_rows: bool, have_attempts: bool) -> dict:
+    """PER-ARTIFACT custody, not one global bit.
+
+    `have_evidence` used to be a single flag set when EITHER artifact was
+    supplied, so a run with only --attempts read the absent row evidence as
+    zero delivered rows, and a run with only --rows read the absent attempt
+    evidence as never-tried. Each is "we did not look" reported as "we looked
+    and found nothing" — the exact collapse this scorecard exists to prevent,
+    committed by the scorecard itself. Evaluator finding, PR #86 r3.
+    """
     sid = entry.get("id")
     cls = entry.get("source_class")
     meta = SOURCE_CLASSES.get(cls, {})
@@ -181,13 +190,22 @@ def score_source(entry: dict, events: dict, venues: dict, venue_owners: dict,
     # matter, and only when it is KNOWN absent — an unknown credential state is
     # not evidence of a missing key, and calling it one is the same fabrication
     # in the other direction.
-    if not have_evidence:
+    if not have_rows and not have_attempts:
         status = STATUS_UNKNOWN
-    elif n_events > 0:
+    elif have_rows and n_events > 0:
+        # Delivered rows are a FACT and settle it, whatever else is missing.
         status = STATUS_WORKING
-    elif att.get("n"):
+    elif have_attempts and att.get("n"):
         status = (STATUS_TRIED_FAILING if att.get("ok", 0) == 0
                   else STATUS_TRIED_EMPTY)
+    elif not have_attempts:
+        # No rows for this source AND no attempt evidence at all. "Never
+        # tried" would be an assertion about a log we never read.
+        status = STATUS_UNKNOWN
+    elif not have_rows:
+        # Attempts were read and this source has none; whether it DELIVERED is
+        # a separate question we did not ask.
+        status = STATUS_UNKNOWN
     elif entry.get("needs_credential") and entry.get("credential_present") is False:
         status = STATUS_BLOCKED_CREDENTIAL
     else:
@@ -200,8 +218,8 @@ def score_source(entry: dict, events: dict, venues: dict, venue_owners: dict,
         "provides": meta.get("provides", "?"),
         "trust": meta.get("trust", "?"),
         "status": status,
-        "tried": bool(att.get("n")) if have_evidence else None,
-        "working": (n_events > 0) if have_evidence else None,
+        "tried": bool(att.get("n")) if have_attempts else None,
+        "working": (n_events > 0) if have_rows else None,
         "events": n_events,
         "venues": n_venues,
         "unique_venues": n_unique,
@@ -232,7 +250,15 @@ def diff_against(previous: dict, current: list) -> dict:
     project is actually in, and a trend that only moves when totals move would
     show nothing for weeks.
     """
-    prev_by_id = {r["id"]: r for r in previous.get("sources", [])} if previous else {}
+    prev_by_id: dict = {}
+    for r in (previous.get("sources", []) if previous else []):
+        if r["id"] in prev_by_id:
+            raise SystemExit(
+                f"source_scorecard: FAIL — the previous snapshot holds "
+                f"{r['id']!r} twice. A duplicate in history means the trend "
+                f"would be computed against whichever row won, so improvement "
+                f"and regression counts would describe the wrong baseline.")
+        prev_by_id[r["id"]] = r
     improved = {m: 0 for m in MEASURES}
     regressed = {m: 0 for m in MEASURES}
     deltas: dict = {}
@@ -311,7 +337,9 @@ def main(argv=None) -> int:
     # if the dump had never run — so the scorecard could never report a genuinely
     # empty pipeline, which is the state it most needs to be able to report.
     # Supplied-ness is the honest signal, so it is read from the ARGUMENTS.
-    have_evidence = args.rows is not None or args.attempts is not None
+    have_rows = args.rows is not None
+    have_attempts = args.attempts is not None
+    have_evidence = have_rows or have_attempts
 
     # A registry with no sources is a MISCONFIGURATION, not an empty result.
     # Printing a successful "0 source(s)" scorecard and exiting 0 is fail-open
@@ -326,12 +354,42 @@ def main(argv=None) -> int:
     # Evidence may name a source by id OR by display name; both resolve to the
     # canonical id here, so nothing binds successfully and then vanishes at
     # lookup time.
-    known = {e["id"]: e["id"] for e in entries if e.get("id")}
-    known.update({e["name"]: e["id"] for e in entries
-                  if e.get("name") and e.get("id")})
+    nameless = [e.get("name") or "<no name>" for e in entries if not e.get("id")]
+    if nameless:
+        print(f"source_scorecard: FAIL — {len(nameless)} registry entr(ies) "
+              f"have no id: {nameless[:10]}. Evidence and trend both bind to "
+              f"the id, so a row without one cannot be scored — only printed.",
+              file=sys.stderr)
+        return 2
+
+    known = {}
+    for e in entries:
+        if e["id"] in known:
+            print(f"source_scorecard: FAIL — registry id {e['id']!r} appears "
+                  f"twice. Evidence would be credited to whichever row won.",
+                  file=sys.stderr)
+            return 2
+        known[e["id"]] = e["id"]
+    # Display names are an ALIAS, and an ambiguous alias is worse than none:
+    # a later entry silently overwriting an earlier binding credits evidence to
+    # the wrong source, making one WORKING and another NEVER_TRIED off the same
+    # rows. Evaluator finding, PR #86 r3.
+    seen_names: dict = {}
+    for e in entries:
+        n = e.get("name")
+        if not n or n == e["id"]:
+            continue
+        if n in seen_names or n in known:
+            print(f"source_scorecard: FAIL — display name {n!r} is ambiguous "
+                  f"({seen_names.get(n) or n} and {e['id']}). Evidence logged "
+                  f"under it cannot be bound to one source.", file=sys.stderr)
+            return 2
+        seen_names[n] = e["id"]
+    known.update(seen_names)
     events, venues, venue_owners = _index_rows(rows, known)
     attempts = _index_attempts(attempts_raw, known)
-    scored = [score_source(e, events, venues, venue_owners, attempts, have_evidence)
+    scored = [score_source(e, events, venues, venue_owners, attempts,
+                           have_rows, have_attempts)
               for e in entries]
     scored.sort(key=lambda r: (STATUS_ORDER.index(r["status"]), -r["events"]))
 
@@ -388,7 +446,8 @@ def main(argv=None) -> int:
 
     snapshot = {"stamp": args.stamp or "unstamped",
                 "source_count": len(scored),
-                "have_evidence": have_evidence,
+                "have_rows": have_rows,
+                "have_attempts": have_attempts,
                 "by_status": by_status,
                 "totals": {m: sum(r[m] or 0 for r in scored)
                            for m in ("events", "venues", "unique_venues")},

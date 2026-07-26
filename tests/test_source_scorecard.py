@@ -24,10 +24,17 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 ENTRY = {"id": "s1", "name": "S1", "source_class": "venue_calendar"}
 
 
-def _score(entry, rows, attempts, evidence=True):
+def _score(entry, rows, attempts, evidence=True, have_rows=None,
+           have_attempts=None):
+    """`evidence` keeps the old single-flag shape for the tests that predate
+    per-artifact custody; have_rows/have_attempts override it where a test
+    needs to say WHICH artifact was supplied (r3)."""
     ev, ven, owners = sc._index_rows(rows)
     att = sc._index_attempts(attempts)
-    return sc.score_source(entry, ev, ven, owners, att, evidence)
+    return sc.score_source(
+        entry, ev, ven, owners, att,
+        evidence if have_rows is None else have_rows,
+        evidence if have_attempts is None else have_attempts)
 
 
 def test_no_evidence_is_UNKNOWN_not_broken():
@@ -102,7 +109,7 @@ def test_supplied_but_EMPTY_evidence_is_a_measurement_not_an_absence(tmp_path):
     assert sc.main(["--registry", str(registry), "--rows", str(rows),
                     "--attempts", str(attempts)]) == 0
     scored = sc.score_source({**ENTRY, "needs_credential": False},
-                             {}, {}, {}, {}, True)
+                             {}, {}, {}, {}, True, True)
     assert scored["status"] == sc.STATUS_NEVER_TRIED, (
         "an empty-but-supplied dump must score NEVER_TRIED, not UNKNOWN")
 
@@ -240,3 +247,82 @@ def test_evidence_by_DISPLAY_NAME_reaches_the_score(tmp_path):
     rows_file.write_text(json.dumps(
         [{"source_name": "Mohawk", "venue_name": "Mohawk"}]), encoding="utf-8")
     assert sc.main(["--registry", str(reg_file), "--rows", str(rows_file)]) == 0
+
+
+# ---- r3: one global evidence bit collapsed two independent questions --------
+
+def test_PARTIAL_evidence_does_not_answer_the_question_it_did_not_ask():
+    """r3 blocker. `have_evidence` was ONE flag set when EITHER artifact was
+    supplied, so:
+
+      --attempts only  -> absent ROW evidence read as zero delivered rows
+      --rows only      -> absent ATTEMPT evidence read as never-tried
+
+    Each is "we did not look" reported as "we looked and found nothing" — the
+    exact collapse this scorecard exists to prevent, committed by the scorecard
+    itself. Custody is per-artifact now."""
+    entry = {"id": "s", "name": "S", "source_class": "venue_calendar",
+             "needs_credential": False}
+    # attempts read, rows NOT read: whether it delivered is unanswered
+    r = _score(entry, [], [{"source_name": "s", "ok": False}],
+               have_rows=False, have_attempts=True)
+    assert r["status"] == sc.STATUS_TRIED_FAILING
+    assert r["working"] is None, "an unread rows artifact is not zero rows"
+
+    # rows read and empty, attempts NOT read: never-tried would assert about a
+    # log we never opened
+    r = _score(entry, [], [], have_rows=True, have_attempts=False)
+    assert r["status"] == sc.STATUS_UNKNOWN, r
+    assert r["tried"] is None, "an unread attempts artifact is not zero attempts"
+
+    # rows read and NON-empty settles it whatever else is missing
+    r = _score(entry, [{"source_name": "s", "venue_name": "V"}], [],
+               have_rows=True, have_attempts=False)
+    assert r["status"] == sc.STATUS_WORKING
+
+
+def test_a_registry_entry_with_NO_id_is_REFUSED(tmp_path):
+    """Evidence and trend both bind to the id, so a row without one cannot be
+    scored — only printed."""
+    f = tmp_path / "reg.json"
+    f.write_text(json.dumps({"sources": [
+        {"name": "Nameless", "source_class": "venue_calendar"}]}),
+        encoding="utf-8")
+    assert sc.main(["--registry", str(f)]) == 2
+
+
+def test_an_AMBIGUOUS_display_name_is_REFUSED(tmp_path):
+    """A later entry silently overwriting an earlier alias credits evidence to
+    the wrong source — one WORKING and another NEVER_TRIED off the same rows."""
+    f = tmp_path / "reg.json"
+    f.write_text(json.dumps({"sources": [
+        {"id": "a", "name": "Shared", "source_class": "venue_calendar"},
+        {"id": "b", "name": "Shared", "source_class": "venue_calendar"}]}),
+        encoding="utf-8")
+    assert sc.main(["--registry", str(f)]) == 2
+    # a display name colliding with another row's ID is equally ambiguous
+    f.write_text(json.dumps({"sources": [
+        {"id": "a", "name": "A", "source_class": "venue_calendar"},
+        {"id": "b", "name": "a", "source_class": "venue_calendar"}]}),
+        encoding="utf-8")
+    assert sc.main(["--registry", str(f)]) == 2
+
+
+def test_a_DUPLICATE_id_in_the_registry_is_REFUSED(tmp_path):
+    f = tmp_path / "reg.json"
+    f.write_text(json.dumps({"sources": [
+        {"id": "a", "name": "A", "source_class": "venue_calendar"},
+        {"id": "a", "name": "A2", "source_class": "venue_calendar"}]}),
+        encoding="utf-8")
+    assert sc.main(["--registry", str(f)]) == 2
+
+
+def test_a_CORRUPT_previous_snapshot_fails_the_trend():
+    """A duplicate in history means the trend is computed against whichever row
+    won — improvement and regression counts describing the wrong baseline."""
+    prev = {"sources": [{"id": "a", "status": sc.STATUS_WORKING, "events": 5},
+                        {"id": "a", "status": sc.STATUS_NEVER_TRIED,
+                         "events": 0}]}
+    with pytest.raises(SystemExit, match="twice"):
+        sc.diff_against(prev, [{"id": "a", "status": sc.STATUS_WORKING,
+                                "events": 5}])
