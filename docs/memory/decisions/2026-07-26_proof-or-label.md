@@ -75,15 +75,17 @@ added record lines : 93
 r10 correction: the first version of this block used
 `<count added lines matching…>` as a stand-in for the command — a placeholder
 where the record demanded proof, inside the record codifying that demand. The
-script is now committed and runnable. Counts move as the branch grows (79 /
-55 / 36 at r8, 93 / 69 / 40 here); both runs show a majority of claim-shaped
-lines firing, which is the finding. Every other number in this arc is
+script is now committed and runnable, and the block above is its real output.
+r12: an earlier `79 / 55 / 36` run was also cited, but its output was never
+preserved — an unpreserved run is not evidence under this record's own rule,
+so that pair is withdrawn. Counts move as the branch grows; the finding is
+that a majority of claim-shaped lines fire. Every other number in this arc is
 reproduced with its command and output in the timing/measurement evidence
 file under `docs/session_arcs/evidence/`.
 
 Rejected on that evidence. Judging whether prose is verified is a judgment
-task wearing a regex costume, and a 65%-noise gate is one that gets
-weakened — which is worse than no gate, because a weakened gate still reads
+task wearing a regex costume, and a gate that fires on most claim-shaped
+lines (57 percent in the committed run) is one that gets weakened — which is worse than no gate, because a weakened gate still reads
 as protection. This is the second mechanism this session rejected by
 measuring first (the other: extending `deferral_scan` over prose, 6 of 7
 hits false).

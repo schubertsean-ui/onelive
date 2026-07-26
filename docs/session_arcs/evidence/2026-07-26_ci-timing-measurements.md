@@ -92,9 +92,14 @@ version of this block was NOT re-runnable. It elided the comparison script as
 an ellipsis and named `HEAD` as the "pre-change copy" — but HEAD is the copy
 WITH the memoization. The pre-change ref is `077dfd0`, the commit before
 `80b5ed1` introduced the cache. The script is now committed at
-`docs/session_arcs/evidence/scripts/probe_kaizen_identical.py`. Timings vary
-run to run (3.731s/0.087s was an earlier run of this same comparison); the
-identity result does not.
+`docs/session_arcs/evidence/scripts/probe_kaizen_identical.py`.
+
+r12: earlier rounds also quoted a `3.731s / 0.087s` pair from an unpreserved
+run. That output is not committed, so under this PR's own rule it is not
+evidence and the number is withdrawn everywhere rather than repeated. Quote
+the run whose output is in the repo — `pre 3.095s -> current 0.079s` — and
+note only that the speedup is roughly 40x. The IDENTITY result is the claim
+that matters and it does not vary between runs.
 
 ## 4. CI job wall clock: 489s → 418s measured, and what remains
 
@@ -181,11 +186,15 @@ added record lines : 93
   fire rate over claim lines: 57 percent
 ```
 
-MEASURED AT COMMIT 22e8a4a. These counts move as the branch grows — an
-earlier run of the same script at r8 gave 79 / 55 / 36. Both runs say the
-same thing: a majority of claim-shaped lines would fire. Rejected — a gate
-that noisy gets weakened, and a weakened gate still reads as protection. The
-number is pinned to a commit precisely because it is not a constant.
+MEASURED AT COMMIT 22e8a4a — that is the run whose output is printed above,
+and it is the only claim-scan figure this repo now states. r12: earlier
+rounds cited a `79 / 55 / 36` run whose output was never preserved; an
+unpreserved run is not evidence under this PR's own rule, so that pair is
+WITHDRAWN rather than repeated as a second data point. Counts move as the
+branch grows, which is why the surviving figure is pinned to a commit. The
+finding is unchanged: a majority of claim-shaped lines would fire, and a gate
+that noisy gets weakened, which is worse than none because it still reads as
+protection.
 
 **Prose deferral-scanner** (extending `tools/deferral_scan.py` over STATE.md
 and TODOS.md):

@@ -245,3 +245,31 @@ def test_a_quoted_VALUE_survives_while_a_quoted_LABEL_is_dropped():
     assert bfc._normalise('run_check "a label" "$PY" -m pytest').split() == \
         ["run_check", "$PY", "-m", "pytest"]
     assert "pytest" not in bfc._normalise('echo "python -m pytest"')
+
+
+# ── wrapper SEMANTICS, not just wrapper names (#73 r12) ────────────────────
+# r11 allowed bash/sh/zsh and poetry/uv/pipenv/hatch/tox as "wrappers". None
+# of them mean "execute the next argv as the command": `bash $PY -m pytest`
+# runs $PY as a SCRIPT FILE and pytest never starts, and `poetry run pytest`
+# puts a subcommand where the walk expects an interpreter. They are gone.
+
+@pytest.mark.parametrize("line", [
+    "bash $PY -m pytest",
+    "sh $PY -m pytest",
+    "zsh $PY -m pytest",
+    "poetry run pytest",
+    "uv run python -m pytest",
+    "tox -e py -- python -m pytest",
+])
+def test_wrappers_that_do_not_exec_the_next_argv_are_not_credited(line):
+    assert bfc._is_full_suite_pytest(line) is False
+
+
+@pytest.mark.parametrize("line", [
+    "sudo python -m pytest",
+    "time python -m pytest -q",
+    "env CI=1 python -m pytest -q",
+    'run_check "pytest (full suite)" "$PY" -m pytest -q',
+])
+def test_wrappers_that_DO_exec_the_next_argv_are_still_credited(line):
+    assert bfc._is_full_suite_pytest(line) is True

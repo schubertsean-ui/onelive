@@ -69,9 +69,19 @@ _INVOCATION = re.compile(
 # Commands that EXECUTE what follows them, e.g. `run_check "label" "$PY" -m
 # pytest -q` in tools/validate. A wrapper may PRECEDE the interpreter; it
 # never substitutes for it.
+# ONLY commands whose next non-flag argument IS the command to execute.
+# NARROWED at #73 r12 (evaluator): the r11 list also carried bash/sh/zsh and
+# poetry/uv/pipenv/hatch/tox, and none of those have that shape —
+# `bash $PY -m pytest` runs $PY as a SCRIPT FILE (pytest never starts), and
+# `poetry run pytest` puts a subcommand where this walk expects the
+# interpreter. Consuming them unconditionally let a line that merely
+# RESEMBLES an invocation be credited, which is this class again. They were
+# speculative additions never needed by any workflow here: the repo's only
+# indirection is tools/validate's `run_check`. Dropping them under-credits
+# `poetry run pytest` if it ever appears — the safe direction, and a
+# deliberate re-add would come with its own semantics test.
 _EXEC_WRAPPERS = frozenset({
     "run_check", "exec", "time", "env", "sudo", "xargs", "nice",
-    "bash", "sh", "zsh", "poetry", "uv", "pipenv", "hatch", "tox",
 })
 _INTERPRETER = re.compile(r"^(?:[\w./-]*python[\w.]*|\$\{?[A-Z_]*PY[A-Z_]*\}?)$")
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")

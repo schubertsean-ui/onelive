@@ -115,14 +115,20 @@ def class_counts(rows: list[dict]) -> dict[str, int]:
 
 # Row-cell parsing is pure in its input string, so it is memoized: the family
 # scans below are O(families x rows), and without this every one of 296
-# families re-ran findall over all ~200 rows. MEASURED, not estimated —
-# cProfile output and the byte-identical before/after comparison are in
-# the timing evidence file in docs/session_arcs/evidence/, §2-3:
-# 106,476 findall calls, 3.410s of a 3.885s report; after caching the same
-# report is byte-identical in 0.087s. Cached, each distinct cell is parsed
-# exactly once. Behaviour is
-# identical by construction (same regex, same input, no state); the cache is
-# bounded so a pathological ledger cannot grow it without limit.
+# families re-ran findall over all ~200 rows. MEASURED, not estimated — the
+# cProfile output and the byte-identical before/after comparison are in the
+# timing evidence file under docs/session_arcs/evidence/, sections 2 and 3:
+# 106,476 findall calls, 3.410s of a 3.885s report, and after caching the
+# same report byte-for-byte with the committed probe run showing
+# pre 3.095s -> current 0.079s.
+#
+# (r12: an earlier `3.731s / 0.087s` pair was quoted here as exact fact
+# although no committed output reproduced it. Wall-clock timings vary per
+# run, so the figure to state is whichever run's output is in the repo; the
+# IDENTITY result is the claim that matters and it does not vary.)
+#
+# Behaviour is identical by construction — same regex, same input, no state —
+# and the cache is bounded so a pathological ledger cannot grow it unbounded.
 @functools.lru_cache(maxsize=8192)
 def _class_pairs(m2: str) -> tuple[tuple[str, str], ...]:
     """(class_token, count) pairs in one M2 cell."""

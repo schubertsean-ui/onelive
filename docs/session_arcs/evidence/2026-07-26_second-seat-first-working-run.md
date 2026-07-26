@@ -32,11 +32,27 @@
 # ============================================================================
 # ORDINAL PROOF — why no earlier run could have done this
 # ============================================================================
-# The proof is mechanical, not an enumeration of logs, because the workflow
-# runs on `pull_request_target`: the reviewer script is BASE-owned, so a
-# run's Gemini seat can only complete if the copy of
+# The proof is mechanical, not an enumeration of logs, because the reviewer
+# script is BASE-OWNED: a run's Gemini seat can only complete if the copy of
 # tools/adversarial_review.py on `master` AT CHECKOUT TIME names a model the
-# project's key can call. master's history for that file bounds the window:
+# project's key can call.
+#
+# CORRECTED at r12 (self-caught, class unverified-claim-as-fact): this
+# paragraph previously attributed the base-ownership to the workflow running
+# on `pull_request_target`. That is FALSE for this workflow —
+# adversarial-review.yml triggers on plain `pull_request`. Verify:
+#     sed -n '/^on:/,/^concurrency:/p' .github/workflows/adversarial-review.yml
+# The base-ownership is real but comes from a DIFFERENT mechanism: an
+# explicit step fetches the reviewer from the trusted base ref,
+#     git show "$TRUSTED_BASE:tools/adversarial_review.py" > /tmp/trusted/...
+# and the job runs THAT copy under `python -I`. (`pull_request_target` IS
+# used by extraction-eval.yml and brain-held-out-eval.yml, which is where I
+# imported the wrong detail from.) The CONCLUSION is unchanged — the model
+# constant still comes from master at checkout time — but a proof that names
+# the wrong mechanism is not a proof, and stating the right one is the whole
+# point of this file.
+#
+# master's history for that file bounds the window:
 #
 #   * before 0d16d90 (committed 2026-07-25T20:33:19-05:00 = 07-26T01:33:19Z)
 #     — no second seat existed at all; the reviewer was v1, single-lens.
