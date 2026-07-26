@@ -38,6 +38,9 @@ on:
       - "tools/capcog_coverage.py"
       - "worker/region/capcog.py"
       - "sources/master_sources_catalog_120.json"
+      # CONSUMED, not a script: `pip install -r` here, so a
+      # dependency bump changes what the measurement computes with.
+      - "worker/requirements.txt"
       - ".github/workflows/capcog-coverage.yml"
 
 permissions:
@@ -185,8 +188,13 @@ jobs:
       # makes it true. It runs WITHOUT --rows here, which the tool reports as
       # NO_NUMERATOR: the denominator with an explicit "the numerator was not
       # read", never a 0% that describes a measurement nobody made.
-      - name: Report coverage (denominator only — push path holds no secret)
-        if: ${{ github.event_name != 'workflow_dispatch' }}
+      # Runs on push AND on any dispatch that cannot reach the numerator. The
+      # first version was the mirror image of the secret gate, so a dispatch
+      # from a feature branch skipped BOTH steps and produced no coverage
+      # output at all — the one path a person explicitly asked for a number on.
+      # Evaluator nit, PR #84 r2.
+      - name: Report coverage (denominator only — this path holds no secret)
+        if: ${{ github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/master' }}
         run: |
           python tools/capcog_coverage.py \
             --targets sources/capcog_venue_targets.json \

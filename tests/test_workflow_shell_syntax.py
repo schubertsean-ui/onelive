@@ -95,11 +95,40 @@ def test_the_coverage_workflow_watches_every_script_it_runs():
         for job in (doc.get("jobs") or {}).values()
         for step in (job.get("steps") or [])
         if isinstance(step.get("run"), str))
-    invoked = set(re.findall(r"python (tools/[\w/]+\.py)", run_text))
-    missing = sorted(s for s in invoked if s not in watched)
+    # EVERY consumed input, not just the scripts. Matching `python tools/*.py`
+    # only meant `pip install -r worker/requirements.txt` escaped the watch —
+    # a dependency bump changes what the measurement computes with, and the
+    # measurement would not re-run. Same class as the fetch_tmo_venues.py miss,
+    # one file type over. Evaluator finding, PR #84 r2.
+    consumed = set(re.findall(r"python\s+([\w./-]+\.py)", run_text))
+    consumed |= set(re.findall(r"-r\s+([\w./-]+\.txt)", run_text))
+    consumed |= set(re.findall(r"(?:tools|worker|sources)/[\w./-]+"
+                              r"\.(?:py|json|txt)", run_text))
+    # Files the workflow WRITES are outputs, not inputs — watching them would
+    # make every run trigger the next one.
+    written = set(re.findall(r"(?:>|tee(?:\s+-a)?)\s+([\w./-]+)", run_text))
+    written |= set(re.findall(r"--out\s+([\w./-]+)", run_text))
+    # Intermediates: PRODUCED by an earlier step of this same job and then read
+    # by a later one, so they are outputs, not repo inputs. Watching them would
+    # mean the measurement re-runs on its own results. The exemption is bound
+    # to its producer below, so it dies if the producing step ever leaves.
+    intermediates = {
+        "sources/tabc_capcog_raw.json": "tools/fetch_tabc_capcog.py",
+        "sources/capcog_venue_targets.json": "tools/build_capcog_targets.py",
+    }
+    for artifact, producer in intermediates.items():
+        assert producer in run_text, (
+            f"{artifact} is exempted as a run-produced intermediate, but "
+            f"{producer} no longer runs in this workflow — the exemption is "
+            f"now hiding an unwatched input")
+    written |= set(intermediates)
+    consumed -= written
+    missing = sorted(c for c in consumed
+                     if c not in watched
+                     and not any(c.startswith(w.rstrip("*")) for w in watched))
     assert not missing, (
-        f"these scripts run in the coverage workflow but changing them does "
-        f"NOT re-run the measurement: {missing}")
+        f"these files are consumed by the coverage workflow but changing them "
+        f"does NOT re-run the measurement: {missing}")
 
 
 def test_the_check_actually_FAILS_on_the_defect_it_was_written_for():
@@ -153,3 +182,34 @@ def test_every_DB_SECRET_step_is_bound_to_a_protected_ref():
             f"binding; its condition is {cond!r}")
         assert "refs/heads/master" in cond, (
             f"step {s.get('name')!r} is not bound to the protected ref")
+
+
+def test_EVERY_run_of_the_coverage_workflow_reports_something():
+    """r2 nit: the denominator-only step was the exact mirror of the secret
+    gate, so a workflow_dispatch from a feature branch skipped BOTH the
+    numerator read (correct — no secret off master) and the denominator report
+    (not correct), producing no coverage output on the one path where a person
+    explicitly asked for a number.
+
+    The two conditions must COVER every case, not partition it."""
+    steps = [s for j in (_coverage_workflow().get("jobs") or {}).values()
+             for s in (j.get("steps") or [])]
+    conds = [str(s.get("if", "")) for s in steps
+             if "capcog_coverage.py" in (s.get("run") or "")]
+    assert len(conds) >= 2, "expected a with-numerator and a without step"
+
+    def fires(cond: str, dispatch: bool, master: bool) -> bool:
+        expr = (cond.replace("${{", "").replace("}}", "")
+                .replace("github.event_name != 'workflow_dispatch'",
+                         str(not dispatch))
+                .replace("github.event_name == 'workflow_dispatch'",
+                         str(dispatch))
+                .replace("github.ref != 'refs/heads/master'", str(not master))
+                .replace("github.ref == 'refs/heads/master'", str(master))
+                .replace("&&", "and").replace("||", "or"))
+        return bool(eval(expr))          # noqa: S307 - fixed strings from our own YAML
+
+    for dispatch in (True, False):
+        for master in (True, False):
+            assert any(fires(c, dispatch, master) for c in conds), (
+                f"no coverage step runs for dispatch={dispatch} master={master}")
