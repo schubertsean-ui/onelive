@@ -200,3 +200,206 @@ def test_every_ledger_marker_class_has_an_index_row():
     assert marked, "ledger marker convention missing — test would be vacuous"
     missing = sorted(marked - set(index))
     assert not missing, f"ledger-marked classes absent from RED_CLASSES.md: {missing}"
+
+
+# --- base-ref freshness proof (#71 r5-r8: false-confidence-gate ×4) -----
+# Four offline proofs were proposed and each was shown to be reproducible
+# from a STALE base: a fetch's exit code (r5), a repo-wide .git/FETCH_HEAD
+# mtime (r6), a recent write to the ref (r7), and a two-parent HEAD whose
+# first parent matches the base ref (r8 — obtainable by checking out a
+# stale base and merging the feature branch). Staleness is a fact about
+# the REMOTE, so the gate now contacts it or fails. These tests pin that
+# there is NO offline path, and exercise the SHIPPED probes against real
+# git rather than only against a double.
+
+
+class _Probes:
+    """Hermetic stand-in for _GitProbes: evidence as data.
+
+    `fetch` deliberately mutates NOTHING (#71 r7 blocker): a double that
+    makes the fetch succeed is a double that cannot fail. Convergence is
+    expressed as the sequence of ids the ref reports, and the real
+    command's effect is pinned separately against git below.
+    """
+
+    def __init__(self, tip=None, oids=()):
+        self._tip = tip
+        self._oids = list(oids)
+        self.fetched = []
+
+    def remote_tip(self, remote, branch):
+        return self._tip
+
+    def fetch(self, remote, branch):
+        self.fetched.append((remote, branch))
+
+    def local_oid(self, ref):
+        if not self._oids:
+            return None
+        return self._oids.pop(0) if len(self._oids) > 1 else self._oids[0]
+
+
+def test_matching_oids_are_the_proof_and_need_no_fetch():
+    from tools.construction_gate import assert_base_fresh
+
+    probes = _Probes(tip="a" * 40, oids=["a" * 40])
+    proof = assert_base_fresh("origin/master", probes=probes)
+    assert probes.fetched == []  # already synchronized — nothing to converge
+    assert "== remote tip aaaaaaaaaaaa" in proof
+
+
+def test_a_stale_ref_converges_by_fetch_then_passes():
+    from tools.construction_gate import assert_base_fresh
+
+    probes = _Probes(tip="b" * 40, oids=["a" * 40, "b" * 40])
+    proof = assert_base_fresh("origin/master", probes=probes)
+    assert probes.fetched == [("origin", "master")]
+    assert "== remote tip bbbbbbbbbbbb" in proof
+
+
+def test_a_successful_fetch_that_leaves_the_ref_behind_fails_closed():
+    # THE r5 BLOCKER, pinned: the fetch raised no error yet the base ref
+    # still does not match the remote. Exit codes are not the property.
+    from tools.construction_gate import assert_base_fresh
+
+    probes = _Probes(tip="b" * 40, oids=["a" * 40])
+    with pytest.raises(SystemExit, match="a fetch did not converge them"):
+        assert_base_fresh("origin/master", probes=probes)
+    assert probes.fetched == [("origin", "master")]
+
+
+def test_an_unreachable_remote_ALWAYS_fails_closed():
+    # THE r6/r7/r8 BLOCKERS, pinned as one contract: no local artifact
+    # substitutes for the remote. There is no argument, environment, or
+    # repository shape that reaches a PASS from here.
+    from tools.construction_gate import assert_base_fresh
+
+    with pytest.raises(SystemExit, match="deliberately NO"):
+        assert_base_fresh("origin/master", probes=_Probes(tip=None, oids=["c" * 40]))
+
+
+def test_an_unreachable_remote_fails_closed_even_from_a_merge_checkout(tmp_path,
+                                                                      monkeypatch):
+    # THE r8 SHAPE, pinned against real git: a stale base checked out and
+    # merged with the feature branch produces a two-parent HEAD whose
+    # first parent IS origin/master. That was accepted in r7 and is
+    # rejected now — the topology proves nothing about the remote.
+    import tools.construction_gate as gate
+
+    _, clone = _real_pair(tmp_path, "merge-shape")
+    monkeypatch.setattr(gate, "REPO_ROOT", str(clone))
+    _git(clone, "config", "user.email", "t@t")
+    _git(clone, "config", "user.name", "t")
+    _git(clone, "checkout", "-q", "-b", "feature")
+    (clone / "g.txt").write_text("feature\n", encoding="utf-8")
+    _git(clone, "add", "-A")
+    _git(clone, "commit", "-qm", "feature")
+    _git(clone, "checkout", "-q", "--detach", "origin/master")
+    _git(clone, "merge", "-q", "--no-ff", "-m", "merge", "feature")
+    def read(*args):
+        return subprocess.run(
+            ["git", *args], cwd=clone, check=True, capture_output=True, text=True
+        ).stdout.strip()
+
+    # the r7-accepted shape, exactly:
+    parents = read("rev-list", "--parents", "-n", "1", "HEAD").split()[1:]
+    assert len(parents) == 2
+    assert parents[0] == read("rev-parse", "origin/master")
+    # ...and with the remote unreachable it must still fail closed.
+    _git(clone, "remote", "set-url", "origin", str(tmp_path / "does-not-exist"))
+    with pytest.raises(SystemExit, match="deliberately NO"):
+        gate.assert_base_fresh("origin/master")
+
+
+def test_malformed_base_ref_cannot_be_proven():
+    from tools.construction_gate import assert_base_fresh
+
+    with pytest.raises(SystemExit, match="not in <remote>/<branch> form"):
+        assert_base_fresh("master", probes=_Probes(tip="a" * 40, oids=["a" * 40]))
+
+
+# --- the SHIPPED probes, against real git (#71 r7 blocker) --------------
+# A test double cannot catch a git command that does not do what we
+# believe. These use two real repositories and no network.
+
+
+def _real_pair(tmp_path, name):
+    upstream = tmp_path / f"{name}-upstream"
+    upstream.mkdir()
+    _git(upstream, "init", "-q", "-b", "master")
+    _git(upstream, "config", "user.email", "t@t")
+    _git(upstream, "config", "user.name", "t")
+    (upstream / "f.txt").write_text("one\n", encoding="utf-8")
+    _git(upstream, "add", "-A")
+    _git(upstream, "commit", "-qm", "one")
+    clone = tmp_path / f"{name}-clone"
+    subprocess.run(["git", "clone", "-q", str(upstream), str(clone)], check=True)
+    return upstream, clone
+
+
+def test_real_fetch_actually_updates_the_remote_tracking_ref(tmp_path, monkeypatch):
+    # THE r7 BLOCKER, pinned against real git: after the upstream moves,
+    # _GitProbes.fetch must leave refs/remotes/origin/master ON the new
+    # tip. The explicit refspec is what guarantees it.
+    import tools.construction_gate as gate
+
+    upstream, clone = _real_pair(tmp_path, "converge")
+    monkeypatch.setattr(gate, "REPO_ROOT", str(clone))
+    before = gate._GitProbes.local_oid("origin/master")
+
+    (upstream / "f.txt").write_text("two\n", encoding="utf-8")
+    _git(upstream, "add", "-A")
+    _git(upstream, "commit", "-qm", "two")
+    tip = gate._GitProbes.remote_tip("origin", "master")
+    assert tip is not None and tip != before  # the clone is now genuinely stale
+
+    gate._GitProbes.fetch("origin", "master")
+    assert gate._GitProbes.local_oid("origin/master") == tip
+
+
+def test_real_probes_carry_assert_base_fresh_end_to_end(tmp_path, monkeypatch):
+    import tools.construction_gate as gate
+
+    upstream, clone = _real_pair(tmp_path, "e2e")
+    monkeypatch.setattr(gate, "REPO_ROOT", str(clone))
+    (upstream / "f.txt").write_text("three\n", encoding="utf-8")
+    _git(upstream, "add", "-A")
+    _git(upstream, "commit", "-qm", "three")
+    proof = gate.assert_base_fresh("origin/master")
+    assert "== remote tip" in proof
+    assert gate._GitProbes.local_oid("origin/master") == gate._GitProbes.remote_tip(
+        "origin", "master"
+    )
+
+
+def test_real_remote_tip_is_none_when_the_remote_is_unreachable(tmp_path, monkeypatch):
+    import tools.construction_gate as gate
+
+    repo = tmp_path / "noremote"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "master")
+    monkeypatch.setattr(gate, "REPO_ROOT", str(repo))
+    assert gate._GitProbes.remote_tip("origin", "master") is None
+
+
+def test_fully_supplied_runs_never_touch_the_remote(tmp_path, index_file, monkeypatch,
+                                                    capsys):
+    # #71 r9, self-caught in CI: a run whose paths, content and citations
+    # are all supplied derives nothing from git, so it must not demand
+    # remote access. Making freshness eager turned the hermetic tests into
+    # network-dependent ones — green on a machine with a reachable remote,
+    # red in CI's plain pytest step. Pinned by making the proof EXPLODE:
+    # if the gate reaches for it here, this test fails.
+    import tools.construction_gate as gate
+
+    def _must_not_be_called(*_args, **_kwargs):
+        raise AssertionError("base freshness demanded on a fully-supplied run")
+
+    monkeypatch.setattr(gate, "assert_base_fresh", _must_not_be_called)
+    rc = _run(
+        tmp_path, index_file,
+        paths=["social/carousel/publish_gate.py"],
+        citations="[S3:caller-suppliable-custody-inputs] answered.",
+    )
+    assert rc == 0
+    assert "[S3:…] contract citations — PASS" in capsys.readouterr().out

@@ -58,6 +58,119 @@ VERDICT: APPROVE
 or
 VERDICT: REQUEST-CHANGES"""
 
+# The v2 discipline is PANEL-ONLY (#71 r3 blocker): appended to lens
+# prompts, never to the single-lens path — so `--panel`-absent runs stay
+# byte-identical to v1, which is exactly what the bootstrap/fallback
+# story claims ("v1 base = unchanged single-lens physics").
+V2_DISCIPLINE = """REVIEW DISCIPLINE (v2 — founder-ratified 2026-07-25):
+1. EXHAUSTIVE FIRST PASS WITH SIBLING ENUMERATION: when you find a defect, \
+name its CLASS as a kebab-case token and enumerate EVERY sibling instance \
+of that class visible in the diff NOW, in this same round — one class \
+surfaced across many rounds is the failure mode this discipline exists to \
+kill. Format every blocker as:
+`CLASS:<kebab-token> file:line — issue — why it blocks`
+2. USE THE ROUND HISTORY, DO NOT REDISCOVER: the diff's changelog entries \
+for this PR (the `rN` lines) are the review history, and `[S3:...]` lines \
+in the diff are the builder's mandatory pre-design retrieval evidence. \
+VERIFY that claimed fixes and citations are real (a false claim is itself \
+a blocker, CLASS:false-confidence-gate); do not re-open what the history \
+shows resolved unless the resolution is defective.
+3. THE ESCAPE HATCH IS AN OBLIGATION, ROUND-SCOPED DISCRETION IS \
+STRUCTURED: a trust-invariant violation, gate-custody weakening, or \
+auth/custody fail-open MUST block, in any round, no discretion. For any \
+OTHER class first raised after round 1, your finding must also state in \
+one sentence why it was not findable in round 1 (new code since round 1, \
+new evidence, or your own earlier miss — which the scorecard counts).
+4. SCOPE: judge against the session contract's done-criteria visible in \
+the diff. A real quality gap OUTSIDE that scope and NOT invariant-class \
+belongs in a `RECOMMEND-RECORD` section (for a RECORD row with an \
+objective trigger), not in blockers."""
+
+# --- Forced method lenses (v2): each lens is a PROCEDURE constraint that
+# redirects the model's search; findings/format/verdict rules are the
+# SYSTEM_PROMPT's, unchanged. Per seat: one method lens + one po-seeded
+# lens (stimuli never facts). Panel verdict physics live in main(): ANY
+# lens REQUEST-CHANGES = red; any unparseable output = hard fail.
+LENSES = {
+    "attacker-smuggle": (
+        "FORCED LENS — ATTACKER SIMULATION: assume this diff was written by "
+        "a malicious insider whose goal is to smuggle a defect or backdoor "
+        "past review while looking helpful. Search ONLY for the smuggle "
+        "path: what does this change make possible that was impossible "
+        "before, and how would the author abuse it? Report only what you "
+        "can evidence at file:line."
+    ),
+    "absence-only": (
+        "FORCED LENS — ABSENCE-ONLY REVIEW: you may ONLY report what is "
+        "MISSING — absent checks, absent tests, absent invariants, absent "
+        "error paths, absent registry bindings. You are forbidden from "
+        "commenting on code that exists except to note what it fails to "
+        "cover. Negative space only."
+    ),
+    "dataflow-taint": (
+        "FORCED LENS — DATAFLOW TAINT: trace every externally-influenced "
+        "value (caller args, env, file/network reads, git-derived data) "
+        "from source to every sink where a decision is made. Report every "
+        "path that reaches a decision without validation, at file:line."
+    ),
+    "spec-vs-contract": (
+        "FORCED LENS — SPEC-VS-CONTRACT: compare the diff ONLY against the "
+        "stated contract/done-criteria and canon documents visible in the "
+        "diff. Report every divergence between what is claimed and what is "
+        "implemented; claims without mechanism are CLASS:rule-stronger-"
+        "than-mechanism blockers."
+    ),
+}
+
+# Seat -> ordered lens pair (method lens, then the po-carrying lens).
+SEAT_LENSES = {
+    "openai": ("attacker-smuggle", "absence-only"),
+    "gemini": ("dataflow-taint", "spec-vs-contract"),
+}
+
+_PO_OPERATORS = (
+    ("escape", "po: {anchor} does not exist at all"),
+    ("reversal", "po: {anchor} is written by the attacker, not the defender"),
+    ("exaggeration", "po: {anchor} runs one million times a day"),
+    ("distortion", "po: {anchor} runs AFTER the thing it guards, not before"),
+    ("wishful", "po: {anchor} is perfect and needs no review"),
+)
+
+_PO_ANCHORS = (
+    "the gate", "the test suite", "the caller", "the config", "the registry",
+    "the clock", "the key", "the journal", "the retry path", "the merge",
+)
+
+
+def po_provocations(seed: str, count: int = 3) -> list[str]:
+    """Deterministic po battery preamble (founder-directed 2026-07-25):
+    provocations derived from the seed (CI passes the PR HEAD SHA — never
+    a chosen parameter), rotating per run. STIMULI, NEVER FACTS: the
+    consuming lens must verify any movement in the diff and explicitly
+    discard what does not verify."""
+    import hashlib as _hl
+
+    digest = _hl.sha256(seed.encode("utf-8")).digest()
+    out = []
+    for i in range(count):
+        op_name, template = _PO_OPERATORS[digest[2 * i] % len(_PO_OPERATORS)]
+        anchor = _PO_ANCHORS[digest[2 * i + 1] % len(_PO_ANCHORS)]
+        out.append(f"[{op_name}] {template.format(anchor=anchor)}")
+    return out
+
+
+def po_preamble(seed: str) -> str:
+    lines = "\n".join(po_provocations(seed))
+    return (
+        "PO PREAMBLE (de Bono provocation battery — rotating seed, printed "
+        f"for audit: {seed}). Use each provocation for MOVEMENT: hypothesize "
+        "the failure mode it suggests, then VERIFY it in the diff. A "
+        "hypothesis becomes a finding ONLY with file:line evidence; state "
+        "'no movement' explicitly for any provocation that does not verify. "
+        "Provocations are stimuli, never facts, and can only ADD candidate "
+        "findings — never argue for approval.\n" + lines
+    )
+
 
 def _git_diff(range_spec: str) -> str:
     proc = subprocess.run(
@@ -145,6 +258,128 @@ def request_review(review_input: str, api_key: str, model: str, base_url: str) -
         raise RuntimeError(f"unexpected OpenAI response shape: {data!r:.500}") from exc
 
 
+GEMINI_DEFAULT_MODEL = "gemini-2.5-pro"
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+
+
+def request_review_gemini(review_input: str, system_prompt: str, api_key: str,
+                          model: str) -> str:
+    """Second-family seat (founder-approved 2026-07-25). Same REST-only
+    discipline as the OpenAI path; same fail-closed response parsing."""
+    # Key in the HEADER, never the query string (#71 r7 nit): Google
+    # accepts both, but a URL carries into proxy logs, traces, and
+    # exception text far more readily than a header does.
+    url = f"{GEMINI_BASE_URL}/models/{model}:generateContent"
+    payload = {
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"role": "user", "parts": [{"text": review_input}]}],
+    }
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")[:2000]
+        raise RuntimeError(f"Gemini API HTTP {exc.code}: {body}") from exc
+    try:
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError(f"unexpected Gemini response shape: {data!r:.500}") from exc
+
+
+def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
+              base_url: str, gemini_key: str | None,
+              request_openai=None, request_gemini=None) -> tuple[str, list[str]]:
+    """The v2 lens panel. Per seat: one forced method lens + one po-seeded
+    lens (rotating provocations from the head SHA). Verdict physics — a
+    strict TIGHTENING of v1: every lens must APPROVE for the panel to
+    approve; ANY lens REQUEST-CHANGES is red; any unparseable lens output
+    is a hard failure (raised), never a quiet skip. An absent Gemini key
+    leaves that seat EXPLICITLY EMPTY (printed — founder mints keys, the
+    panel never fails a PR for a credential that does not exist yet).
+    request_openai/request_gemini are injectable for hermetic tests only;
+    production passes None and uses the real clients."""
+    request_openai = request_openai or (
+        lambda ri, sp: request_review_openai_lens(ri, sp, openai_key, model, base_url))
+    request_gemini = request_gemini or (
+        lambda ri, sp: request_review_gemini(
+            ri, sp, gemini_key,
+            _resolve_env_model("GEMINI_REVIEW_MODEL", GEMINI_DEFAULT_MODEL)))
+    # The seed is printed BY THE TOOL (#71 r10 nit): the CLI contract says
+    # the po seed is auditable, and a claim that depends on the caller's
+    # workflow echoing it is not the tool keeping its own promise.
+    outputs: list[str] = [
+        f"### PO SEED: {po_seed} — provocations derived deterministically: "
+        + " | ".join(po_provocations(po_seed))
+    ]
+    verdicts: list[str] = []
+    for seat, seat_key, requester in (
+        ("openai", openai_key, request_openai),
+        ("gemini", gemini_key, request_gemini),
+    ):
+        if not seat_key:
+            outputs.append(
+                f"### SEAT {seat}: EMPTY — no API key minted; the panel runs "
+                "single-family until the founder mints it (explicit, never silent)"
+            )
+            continue
+        method_lens, po_lens = SEAT_LENSES[seat]
+        for lens_name, extra in (
+            (method_lens, LENSES[method_lens]),
+            (po_lens, LENSES[po_lens] + "\n\n" + po_preamble(po_seed)),
+        ):
+            system_prompt = SYSTEM_PROMPT + "\n\n" + V2_DISCIPLINE + "\n\n" + extra
+            text = requester(review_input, system_prompt)
+            verdict = parse_verdict(text)  # unparseable raises -> hard fail
+            verdicts.append(verdict)
+            outputs.append(f"### SEAT {seat} / LENS {lens_name}: {verdict}\n{text}")
+    if not verdicts:
+        raise RuntimeError("panel produced zero lens verdicts — wiring error, "
+                           "never an approval")
+    final = APPROVE if all(v == APPROVE for v in verdicts) else REQUEST_CHANGES
+    return final, outputs
+
+
+def request_review_openai_lens(review_input: str, system_prompt: str,
+                                      api_key: str, model: str, base_url: str) -> str:
+    """OpenAI call with a per-lens system prompt (the v1 request_review
+    hardcodes SYSTEM_PROMPT; lenses need their own)."""
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": review_input},
+        ],
+    }
+    data = _post_json(f"{base_url.rstrip('/')}/chat/completions", payload, api_key)
+    try:
+        return data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError(f"unexpected OpenAI response shape: {data!r:.500}") from exc
+
+
+def _resolve_env_model(env_name: str, default: str) -> str:
+    """Fail-closed env rule shared by both seats: unset = default;
+    present-but-empty = misconfiguration; Claude/Anthropic ids refused
+    (write/grade separation)."""
+    value = os.environ.get(env_name)
+    if value is not None and value.strip() == "":
+        raise RuntimeError(
+            f"{env_name} is set but empty/whitespace; set a model id or unset "
+            "it entirely (empty must never silently mean 'default')")
+    value = (value or default).strip()
+    if any(m in value.lower() for m in ("claude", "anthropic")):
+        raise RuntimeError(
+            f"{env_name} resolves to {value!r}, a generator-family model; the "
+            "evaluator must be non-Claude (write/grade separation)")
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Non-Claude adversarial review of a diff + test logs "
@@ -164,7 +399,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--require", action="store_true",
                         help="exit 2 (not skip) when OPENAI_API_KEY is unset — use in "
                              "CI for trust-critical PRs where this review is MANDATORY")
+    parser.add_argument("--panel", action="store_true",
+                        help="v2 lens panel: forced method lenses + po-seeded lens per "
+                             "seat (OpenAI always; Gemini when GEMINI_API_KEY exists); "
+                             "ANY lens red = red (strict tightening of single-lens v1)")
+    parser.add_argument("--po-seed", default=None,
+                        help="deterministic po-battery seed; CI passes the PR HEAD SHA "
+                             "(required with --panel — a panel without a printed seed "
+                             "is a misconfiguration)")
     args = parser.parse_args(argv)
+
+    if args.panel and not (args.po_seed or "").strip():
+        print("adversarial_review: HARD FAIL — --panel requires --po-seed "
+              "(CI passes the PR head SHA; the rotating seed must be real and "
+              "printed, never defaulted).", file=sys.stderr)
+        return 2
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -237,8 +486,15 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
             return 2
         base_url = (base_url or DEFAULT_BASE_URL).strip()
-        review = request_review(review_input, api_key, model, base_url)
-        verdict = parse_verdict(review)
+        if args.panel:
+            gemini_key = os.environ.get("GEMINI_API_KEY") or None
+            verdict, outputs = run_panel(
+                review_input, args.po_seed.strip(), api_key, model, base_url,
+                gemini_key)
+            review = "\n\n".join(outputs) + f"\nVERDICT: {verdict}"
+        else:
+            review = request_review(review_input, api_key, model, base_url)
+            verdict = parse_verdict(review)
         # Wrapper status precedes the review so the output ends with the
         # evaluator's own final VERDICT line, never our commentary (evaluator
         # finding, PR #11 round 2).

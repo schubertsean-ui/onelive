@@ -83,6 +83,115 @@ def _git(args: list[str], *, allow_fail: bool = False) -> str | None:
     return proc.stdout
 
 
+class _GitProbes:
+    """The real evidence sources for base-ref freshness. Injected as one
+    object so hermetic tests can substitute evidence — but note that the
+    two shipped probes are ALSO exercised against real git (#71 r7
+    blocker: a double that encodes the behavior we wish git had proves
+    only the double)."""
+
+    @staticmethod
+    def remote_tip(remote: str, branch: str) -> str | None:
+        """The remote's CURRENT oid for the branch, or None when the
+        remote is unreachable (no credentials / offline). Read-only and
+        non-interactive: a credential prompt would hang the job, so the
+        terminal prompt is disabled and the call is time-boxed."""
+        env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+        try:
+            proc = subprocess.run(
+                ["git", "ls-remote", "--exit-code", remote, f"refs/heads/{branch}"],
+                capture_output=True, text=True, cwd=REPO_ROOT, env=env, timeout=60,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if proc.returncode != 0:
+            return None
+        first = proc.stdout.split("\n", 1)[0].split("\t")[0].strip()
+        return first or None
+
+    @staticmethod
+    def fetch(remote: str, branch: str) -> None:
+        """Update the remote-tracking ref, with an EXPLICIT refspec.
+
+        `git fetch <remote> <branch>` only updates
+        `refs/remotes/<remote>/<branch>` opportunistically — it depends
+        on the remote carrying the conventional fetch refspec, which a
+        bare URL or a hand-configured remote need not (#71 r7 blocker).
+        Naming the destination removes the dependency entirely."""
+        env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+        try:
+            subprocess.run(
+                ["git", "fetch", remote,
+                 f"+refs/heads/{branch}:refs/remotes/{remote}/{branch}"],
+                capture_output=True, text=True, cwd=REPO_ROOT, env=env, timeout=120,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return
+
+    @staticmethod
+    def local_oid(ref: str) -> str | None:
+        out = _git(["rev-parse", "--verify", "--quiet", ref], allow_fail=True)
+        return (out or "").strip() or None
+
+def assert_base_fresh(base_ref: str, *, probes=None) -> str:
+    """PROVE the base ref equals its remote's current tip, or fail closed.
+
+    ONE proof, because there is only one (#71 r5-r8, class:
+    false-confidence-gate — four successive attempts to establish this
+    property WITHOUT contacting the remote were each shown to be a
+    mechanism standing in for the property: a fetch's exit code, a
+    repo-wide fetch record, a recent write to the ref, and a two-parent
+    HEAD whose first parent matches — that last one reproducible offline
+    by checking out a stale base and merging the feature branch). The
+    conclusion the reviewer drove us to, stated plainly: staleness is a
+    fact about the REMOTE, so no local artifact can settle it.
+
+    So: read the remote's current tip, fetch once (explicit refspec) to
+    converge, and compare ids. Equal is the property itself. Anything
+    else — a surviving difference, or a remote we cannot reach at all —
+    FAILS, because a stale base widens the diff range and lets this gate
+    pass what CI correctly fails (class: stale-base-widens-range).
+
+    Consequence, accepted rather than worked around: this gate cannot run
+    without remote access. The CI review job therefore grants read-only
+    remote access for the validate step alone (see
+    .github/workflows/adversarial-review.yml) instead of the gate
+    inventing an offline substitute. `probes` is a HERMETIC-TEST
+    injection point; the shipped probes are separately exercised against
+    real git. Returns the proof, for printing.
+    """
+    probes = probes or _GitProbes
+    remote, _, branch = base_ref.partition("/")
+    if not remote or not branch:
+        raise SystemExit(
+            f"construction_gate: FAIL — base ref {base_ref!r} is not in "
+            "<remote>/<branch> form, so its freshness cannot be proven"
+        )
+    tip = probes.remote_tip(remote, branch)
+    if tip is None:
+        raise SystemExit(
+            f"construction_gate: FAIL — the remote for {base_ref} is unreachable, so "
+            "this gate cannot prove the base is current. There is deliberately NO "
+            "offline fallback: every local signal that might stand in for the remote "
+            "(a fetch's exit code, a fetch record, a recent ref write, a merge "
+            "commit's first parent) is reproducible from a STALE base, and accepting "
+            "one reopens stale-base-widens-range inside the gate that exists to close "
+            "it. Restore network/remote access and rerun."
+        )
+    local = probes.local_oid(base_ref)
+    if local != tip:
+        probes.fetch(remote, branch)
+        local = probes.local_oid(base_ref)
+    if local == tip:
+        return f"{base_ref} == remote tip {tip[:12]} (compared against ls-remote)"
+    raise SystemExit(
+        f"construction_gate: FAIL — {base_ref} is {local or 'unresolvable'} but "
+        f"the remote's {branch} is {tip}; a fetch did not converge them, so the "
+        "base is STALE and every range derived from it is wider than CI's "
+        "(class: stale-base-widens-range). Resolve the base ref and rerun."
+    )
+
+
 def assert_index_not_weakened(head: dict[str, list[str]], base_text: str | None) -> None:
     """#67 r6: the gate must not be silently weakenable through its own
     data. Base copy absent = bootstrap (the index is new in this PR),
@@ -168,13 +277,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    if args.diff_range is None:
-        # Default surface: merge-base vs the WORKING TREE (single-arg git
-        # diff) — validate runs BEFORE the commit, and citations written in
-        # this build must count whether or not they are committed yet. An
-        # unresolvable merge-base fails closed inside _git.
-        merge_base = (_git(["merge-base", args.base_ref, "HEAD"]) or "").strip()
-        args.diff_range = merge_base
+    # The diff range is resolved LAZILY, and proving the base ref current
+    # is part of resolving it (#71 r9, self-caught in CI): a run whose
+    # paths, content and citations are all supplied never derives anything
+    # from git, so demanding remote access there made supposedly hermetic
+    # tests depend on the network — they passed on a machine with a
+    # reachable remote and failed in CI's plain pytest step. Freshness is
+    # owed exactly when a value comes from the repository, never before.
+    resolved: dict[str, str | None] = {"range": args.diff_range}
+
+    def diff_range() -> str:
+        if resolved["range"] is None:
+            print(
+                "construction_gate: base freshness — "
+                f"{assert_base_fresh(args.base_ref)}"
+            )
+            # Default surface: merge-base vs the WORKING TREE (single-arg
+            # git diff) — validate runs BEFORE the commit, and citations
+            # written in this build must count whether or not they are
+            # committed yet. An unresolvable merge-base fails closed
+            # inside _git.
+            resolved["range"] = (
+                _git(["merge-base", args.base_ref, "HEAD"]) or ""
+            ).strip()
+        return resolved["range"]
 
     index = load_index(args.index)
 
@@ -190,11 +316,11 @@ def main(argv: list[str] | None = None) -> int:
     assert_index_not_weakened(index, base_text)
 
     hermetic = args.paths is not None
-    paths = args.paths if hermetic else changed_paths(args.diff_range)
+    paths = args.paths if hermetic else changed_paths(diff_range())
     if not paths:
         print(
             f"construction_gate: zero changed paths in a RESOLVED diff range "
-            f"({args.diff_range}) — nothing to retrieve against"
+            f"({diff_range()}) — nothing to retrieve against"
         )
         return 0
     if args.content_file is not None:
@@ -202,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
     elif hermetic:
         content = ""
     else:
-        content = diff_content(args.diff_range)
+        content = diff_content(diff_range())
 
     matched = match_classes(index, paths, content)
     if not matched:
@@ -219,7 +345,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"construction_gate: FAIL — citation text unreadable ({exc})")
             return 1
     else:
-        citation_text = contract_added_lines(args.diff_range)
+        citation_text = contract_added_lines(diff_range())
 
     uncited = [t for t in matched if citation_tag(t) not in citation_text]
     print(f"construction_gate: matched red classes: {', '.join(matched)}")
