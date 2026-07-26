@@ -268,3 +268,58 @@ def test_key_generation_paths_never_offer_a_tool_the_document_itself_refuses():
         "OFFERS them in another — a contradiction in a signing-key runbook is "
         "how a below-floor key gets minted, and a refusal printed nearby does "
         "not cancel an offer:\n  " + "\n  ".join(offenders))
+
+
+def test_no_screen_declared_safe_contains_a_secret_bearing_step():
+    """r27 blocker, and it is the invariant whose ABSENCE let my own r26 fix
+    ship a hole. The r26 enumeration declared §1e "safe to send" on the grounds
+    that its two IDs are public — but §1e step 1 instructs the founder to paste
+    the long-lived token into the Access Token box, so the SCREEN shows a bearer
+    credential even though its OUTPUT is public. A safe-screen exception that
+    contains a secret is worse than no exception: it is an instruction to leak.
+
+    The r25/r26 tests could not catch it, and that is the lesson. They checked
+    that screenshot paragraphs mention crop-and-verify — a property of the
+    WARNING. Nothing checked the property of the EXEMPTION. Every allow-list in
+    a custody document needs an invariant that its members are actually safe,
+    or the allow-list is the attack surface.
+
+    So: no section named as safe/exempt may contain a step that displays or
+    pastes a secret. Mutation-verified by re-adding the r26 wording.
+    """
+    flat = " ".join(_TEXT.split())
+    # Sentences that EXEMPT a screen or section from the image boundary.
+    exemption = re.compile(
+        r"[^.]*\b(?:safe to (?:send|screenshot|share)|screens? (?:are|is) safe"
+        r"|are NOT secrets[^.]{0,80}safe)\b[^.]*\.", re.IGNORECASE)
+    # Section labels a sentence can name: "1e", "§2", "step 1f".
+    label = re.compile(r"(?:§\s*\d+|\b1[a-f]\b|\bstep\s+\d+[a-f]?\b)")
+
+    offenders = []
+    for sentence in exemption.findall(flat):
+        # A sentence can MENTION safety while REFUSING it — "the screen is not
+        # safe even though its output is", "There is no safe section in this
+        # file". Those are the fix, not the hole. Caught by running it: the
+        # first version flagged the very sentence that closes this gap.
+        if (_PROHIBITION.search(sentence)
+                or re.search(r"\bnot safe\b|\bno\b\s+\"?safe", sentence,
+                             re.IGNORECASE)):
+            continue
+        for named in set(label.findall(sentence)):
+            key = named.replace("§", "").replace("step", "").strip()
+            # Does the named section contain a secret on screen?
+            sec = [b for b in _blocks()
+                   if key in b[0] or any(key in l for l in _LINES[b[1]:b[2]]
+                                         if l.startswith("### "))]
+            for _, s, e in sec:
+                body = "\n".join(_LINES[s:e])
+                if _is_store_instruction(body) or re.search(
+                        r"copy the token|Access Token\*\* box|Secret\*\* box",
+                        body, re.IGNORECASE):
+                    offenders.append(
+                        f"{named} is exempted by {sentence.strip()[:90]!r} but "
+                        "its section displays or pastes a secret")
+    assert not offenders, (
+        "a screen declared SAFE contains a secret-bearing step — an allow-list "
+        "in a custody document must have every member verified, or the "
+        "allow-list is the leak:\n  " + "\n  ".join(sorted(set(offenders))))

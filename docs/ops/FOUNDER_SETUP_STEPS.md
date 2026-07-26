@@ -43,10 +43,14 @@ Applied, the secret is on screen at EVERY step below, in both sections:
    - **1c** step 6 and **1d** step 4 — the **Access Token** box;
    - **1d**'s expiry-recovery block, step d — pasting the replacement token;
    - **1f** step 3 — the GitHub **Secret** box;
+   - **1e** step 1 — pasting the long-lived token into the **Access Token**
+     box to look up the IDs. The two IDs themselves are NOT secrets, but the
+     SCREEN still shows the token, so the screen is not safe even though its
+     output is;
    - **§2** step 1 — the generator output; step 5 — the Vercel **Value** box;
      step 9d — pasting the replacement key.
-   The two IDs in **1e** are NOT secrets (that section says so) — those
-   screens are safe to send.
+   There is no "safe section" in this file. The only safe images are crops
+   that contain none of the above.
 
 ### 1a. Make the Instagram account publishable (5 min)
 
@@ -124,8 +128,13 @@ Applied, the secret is on screen at EVERY step below, in both sections:
 IDs in step 1e, this is a bearer credential: anyone holding it can publish
 to your Instagram account without any further check. So:
    - a. Do NOT paste it into a chat with Claude, into a GitHub issue or PR,
-     into a commit, or into any file in the repo. The only place it goes is
-     the GitHub secret box in step 1f.
+     into a commit, or into any file in the repo. It goes to exactly TWO
+     places, both of them Meta's or GitHub's own boxes: the **Access Token**
+     box in Graph API Explorer (step 1e, to look up the two IDs) and the
+     GitHub secret box (step 1f). Nowhere else, ever. The 1e reuse is named
+     here because omitting it left this rule contradicting the step that
+     requires it — and a custody rule the runbook itself breaks is one the
+     founder learns to ignore.
    - b. Do NOT email it or send it over Slack/Messages to anyone, including
      to yourself as a note.
    - c. If it lands anywhere on that list even briefly, treat it as burned:
@@ -161,6 +170,9 @@ handling rules in step 1d.
 
 1. Back in https://developers.facebook.com/tools/explorer, paste your
    long-lived token into the **Access Token** box.
+   **This screen now shows your token — do not send an image of it.** The two
+   IDs you are about to copy are public and safe to paste anywhere; the screen
+   they appear on is not.
 2. In the query box, replace whatever is there with exactly:
    ```
    me/accounts
