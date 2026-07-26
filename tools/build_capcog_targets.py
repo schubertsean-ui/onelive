@@ -146,7 +146,19 @@ def main(argv=None) -> int:
 
     catalog = json.loads(pathlib.Path(args.catalog).read_text(encoding="utf-8"))
     if isinstance(catalog, dict):
-        catalog = catalog.get("sources") or catalog.get("catalog") or []
+        # A dict with neither key is CORRUPT INPUT, not an empty catalog
+        # (evaluator blocker r2). Coercing it to [] produced a successful,
+        # empty denominator — schema drift rendering as "CAPCOG has no venues".
+        catalog = catalog.get("sources") or catalog.get("catalog")
+        if catalog is None:
+            raise SystemExit(
+                f"build_capcog_targets: FAIL — {args.catalog} is a JSON object "
+                f"with neither a 'sources' nor a 'catalog' array. That is a "
+                f"corrupt/changed catalog, not an empty one; refusing to emit a "
+                f"denominator from it.")
+    if not isinstance(catalog, list):
+        raise SystemExit(
+            f"build_capcog_targets: FAIL — {args.catalog} is not a list of rows.")
 
     targets, unresolved = from_catalog(catalog)
     layers = {"catalog": len(targets)}
@@ -193,6 +205,12 @@ def main(argv=None) -> int:
     pathlib.Path(args.out).write_text(json.dumps(doc, indent=2) + "\n",
                                       encoding="utf-8")
 
+    if not targets:
+        raise SystemExit(
+            "build_capcog_targets: FAIL — ZERO target venues. The ten CAPCOG "
+            "counties are not empty, so this is category/schema drift, not a "
+            "finding. Refusing to write a denominator that would render as "
+            "0% or 100% coverage depending on which way it is read.")
     print(f"build_capcog_targets: {len(targets)} target venue(s) -> {args.out}")
     print(f"  layers: {layers}")
     for county, n in per_county.items():

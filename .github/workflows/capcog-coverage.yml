@@ -78,10 +78,13 @@ jobs:
             --targets sources/capcog_venue_targets.json \
             | tee coverage_report.txt
 
+      # The artifact NAMES its own layer set (evaluator blocker r2): a
+      # catalog-only run must not produce a file indistinguishable from a
+      # full-layer measurement, because the filename is what gets quoted later.
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: capcog-coverage
+          name: ${{ github.event.inputs.skip_tabc == 'true' && 'capcog-coverage-CATALOG-FLOOR-ONLY' || 'capcog-coverage' }}
           path: |
             coverage_report.txt
             sources/capcog_venue_targets.json

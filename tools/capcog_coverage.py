@@ -55,11 +55,11 @@ def load_rows(path: str | None) -> list:
     return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
 
 
-def load_targets(path: pathlib.Path) -> list | None:
+def load_targets(path: pathlib.Path):
     """The denominator: venues known to exist in CAPCOG. None when absent —
     an explicit missing-denominator state, never an assumed one."""
     if not path.exists():
-        return None
+        return None, None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except ValueError as exc:
@@ -69,7 +69,18 @@ def load_targets(path: pathlib.Path) -> list | None:
         raise SystemExit(
             f"capcog_coverage: target list {path} has no 'venues' array — refusing "
             f"to guess its shape")
-    return venues
+    # Carry the denominator's OWN declaration of its limits (evaluator blocker
+    # r2): load_targets used to return the venues array and drop
+    # is_complete_universe / layers_present / completeness_note, so the report
+    # could print a percentage while discarding the file's statement that it is
+    # only a floor. A number that has shed its own caveat is how "coverage"
+    # becomes a claim about the market when it is a claim about our catalog.
+    meta = data if isinstance(data, dict) else {}
+    return venues, {
+        "is_complete_universe": bool(meta.get("is_complete_universe", False)),
+        "layers_present": meta.get("layers_present") or [],
+        "completeness_note": meta.get("completeness_note") or "",
+    }
 
 
 def venue_name_key(name: str | None) -> str | None:
@@ -188,7 +199,8 @@ def main(argv=None) -> int:
     print(f"  counties covered: {', '.join(report['counties_covered']) or 'NONE'}")
     print(f"  counties ABSENT : {', '.join(report['counties_absent']) or 'none'}")
 
-    cov = coverage(rows, load_targets(pathlib.Path(args.targets)))
+    targets, tmeta = load_targets(pathlib.Path(args.targets))
+    cov = coverage(rows, targets)
     print()
     print("== COVERAGE AGAINST THE DENOMINATOR ==")
     if cov["status"] == "NO_TARGET_LIST":
@@ -198,6 +210,17 @@ def main(argv=None) -> int:
         print("  CAPCOG we cover. Build the target list first (tools/build_capcog_targets.py,")
         print("  which needs network egress and so runs in Actions, not this sandbox).")
         return 2
+    # The caveat travels WITH the figure, never as a footnote someone can quote
+    # around (evaluator blocker r2). A percentage against a floor is not market
+    # coverage, and the line that prints it has to say so.
+    if not (tmeta or {}).get("is_complete_universe", False):
+        layers = ", ".join((tmeta or {}).get("layers_present") or ["unknown"])
+        print(f"  *** FLOOR, NOT THE MARKET UNIVERSE — layers present: {layers}")
+        print(f"  *** This percentage answers 'are we ingesting what we already")
+        print(f"  *** know about?', NOT 'what share of CAPCOG venues exist?'.")
+    if cov.get("ambiguous_matches"):
+        print(f"  ambiguous name-only matches (not silently resolved): "
+              f"{', '.join(cov['ambiguous_matches'])}")
     print(f"  venues ingested : {cov['ingested_venue_count']}")
     print(f"  venues targeted : {cov['target_venue_count']}")
     print(f"  covered         : {cov['covered_venue_count']}  ({cov['coverage_pct']}%)")

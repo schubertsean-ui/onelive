@@ -21,8 +21,11 @@ site is not worth showing anyone — and until 2026-07-26 it did not exist. Even
 counts ("85 → 168") are numerators with no denominator and cannot answer
 "how much of the market is missing?"
 
-**Current value: UNKNOWN — the denominator has not been built.** That is the
-single highest-priority item on this plan (Step 2).
+**Denominator: BUILT (2026-07-26).** 69 target venues — Travis 65, Hays 2,
+Williamson 2, and **the other seven counties zero**. That is layer 1 (our own
+curated catalog) — a FLOOR, not the market universe. TABC is layer 2 and ships
+here; Places is layer 3. **The numerator still needs a database read**, which
+runs in the `CAPCOG Coverage` workflow once this branch merges.
 
 ---
 
@@ -30,9 +33,9 @@ single highest-priority item on this plan (Step 2).
 
 | # | Step | State | Blocked by |
 |---|---|---|---|
-| 0 | CI / GitHub Actions working | 🔴 **BROKEN** | Founder — Actions minutes/spend |
-| 1 | Region correctness (no out-of-market venues) | 🟡 Built, not merged | PR #74 → needs CI |
-| 2 | **CAPCOG venue denominator + coverage measurement** | 🔴 **NOT BUILT** | Founder — pick a source |
+| 0 | CI / GitHub Actions working | 🟢 RECOVERED ~15:21Z | — |
+| 1 | Region correctness (no out-of-market venues) | 🟡 Built + ENFORCED on the read path | PR #74 → needs review |
+| 2 | **CAPCOG venue denominator + coverage measurement** | 🟡 Layer 1 built (69), TABC shipped | Merge, then run the workflow |
 | 3 | Ingest breadth: cover the 10 counties | 🔴 7 of 10 counties at zero | Steps 1–2, then work |
 | 4 | Importer correctness (empty vs failed vs corrupt) | 🟡 In review | PR #68 — 22 rounds, needs split decision |
 | 5 | Scheduled ingestion (cron) | 🟢 ARMED on master | — |
@@ -46,20 +49,12 @@ Legend: 🟢 done · 🟡 partial · 🔴 blocking
 
 ---
 
-## STEP 0 — Unblock CI *(founder, ~2 minutes)*
+## STEP 0 — CI *(RESOLVED 2026-07-26 ~15:21Z)*
 
-**Problem:** every GitHub Actions job since ~02:21 today fails in 2 seconds with
-no runner assigned (`runner_id: 0`, no logs). Two attempts, identical. This is
-not a code failure — GitHub never started the jobs. Almost certainly Actions
-minutes exhausted or a spending limit reached.
-
-**Why it blocks everything:** no PR can merge without green checks, so every
-item below is frozen.
-
-**Action (founder):**
-1. Open https://github.com/settings/billing
-2. Check **Actions minutes** used this month, and whether a spending limit is capping them.
-3. Either raise the limit, or tell me the reset date and I will plan around it.
+**What happened:** every Actions job from ~02:21 to ~15:21 failed in 2 seconds
+with no runner assigned (`runner_id: 0`, no logs) — GitHub never started them.
+Six consecutive failures across two branches, three commits and a manual re-run.
+Resolved on the founder's side; jobs have run normally since 15:21Z.
 
 **Cost note, honestly:** tonight burned an unusual amount — PR #68 alone ran
 ~22 review rounds at ~7 min each. I over-consumed this. Step 4's split
@@ -83,8 +78,11 @@ unrecognised town is a worklist item, never a silent guess. 11 tests.
 
 **Remaining in this step:**
 1. Merge PR #74 (needs Step 0).
-2. **Enforce on the read path** so an out-of-region row cannot reach `/tonight`
-   however it was ingested. *(Not yet built.)*
+2. **Enforce on the read path** — DONE. `web/lib/region.ts` filters every event
+   before render: known-outside places are dropped, unrecognised ones are kept
+   and counted (silently discarding them would hide a coverage gap while making
+   the feed look cleaner). The boundary data is GENERATED from the Python source
+   so the server and the site cannot enforce two different markets.
 3. **Replace the radius in the importers** with county-scoped queries, so we
    stop *fetching* out-of-market data. *(Not yet built.)*
 
@@ -92,7 +90,7 @@ unrecognised town is a worklist item, never a silent guess. 11 tests.
 
 ---
 
-## STEP 2 — Build the denominator *(BLOCKED ON ONE FOUNDER DECISION)*
+## STEP 2 — Build the denominator *(LAYER 1 + TABC DONE; founder chose TABC)*
 
 **This is the highest-value item on the plan.** Without it, "coverage" is
 unmeasurable and nobody can say whether the product is ready.
@@ -102,22 +100,21 @@ coverage — and **refuses to print a percentage without a real target list**,
 because grading against the venues we happen to hold is self-scoring (100% of
 what we found is what we found) and would read as success.
 
-**Missing: the venue list itself.** It needs an authoritative enumeration of
-venues in the ten counties.
+**Built.** Layer 1 (69 venues) comes from the curated catalog and needed no
+source decision. Layer 2 is TABC (`tools/fetch_tabc_capcog.py`), founder-chosen
+and shipped. Layer 3 (Places, founder's existing key) covers the venue types a
+liquor licence cannot see — theatres, museums, libraries, all-ages rooms.
 
-**Founder decision — pick one:**
+**To get the number:** merge PR #74, then run the **CAPCOG Coverage** workflow
+(`.github/workflows/capcog-coverage.yml`, manual dispatch). It fetches TABC,
+builds the target list, reads distinct ingested venues from the database, and
+prints coverage per county. The workflow must be on the default branch before
+GitHub will dispatch it — which is why the merge comes first.
 
-| Option | Cost | Quality | My view |
-|---|---|---|---|
-| **TABC licensed premises** (`data.texas.gov`) | Free | County-tagged, authoritative for bars/music venues; misses non-alcohol venues (theatres, museums, libraries) | **Recommended** — start here, supplement later |
-| **Google Places** | Paid, needs API key | Broadest venue types | Better coverage, real cost, founder-crucial spend |
-| **Manual seed list** | Your time | Exactly the venues you care about | Fastest to *something*; not a true denominator |
-
-**Say "use TABC"** (or name another) and I will build the fetcher, run it where
-egress works, and return: **X of Y CAPCOG venues covered, broken out by county.**
-
-**Note:** the dev sandbox has no outbound network (proxy 403), so this fetch
-runs in GitHub Actions — which means Step 0 must clear first.
+**The figure always travels with its limits:** the report prints `FLOOR, NOT THE
+MARKET UNIVERSE` and names the layer set whenever the denominator declares
+itself incomplete, and a catalog-only run uploads under a different artifact
+name so it cannot later be quoted as a full measurement.
 
 ---
 
@@ -218,8 +215,8 @@ refuses non-allowlisted visitors (Step 8) · monitoring is live (Step 9).
 
 Everything only you can do, in priority order:
 
-1. **Unblock GitHub Actions** — https://github.com/settings/billing *(blocks everything)*
-2. **Choose the denominator source** — say "use TABC" or name another *(blocks the launch metric)*
+1. ~~Unblock GitHub Actions~~ — DONE 2026-07-26
+2. ~~Choose the denominator source~~ — DONE, founder chose TABC; shipped
 3. **PR #68** — split, or keep pushing rounds
 4. **Public URL** — assign a Vercel production domain
 5. **`SENTRY_DSN` + `ORCHESTRATOR_PING_URL`** — monitoring

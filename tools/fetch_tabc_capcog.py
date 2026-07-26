@@ -143,9 +143,14 @@ def main(argv=None) -> int:
     for county in sorted(CAPCOG_COUNTIES):
         print(f"    {county:<12} {by_county.get(county, 0)}")
     if pages >= args.max_pages:
-        print(f"  NOTE: hit the {args.max_pages}-page bound — the result may be "
-              f"TRUNCATED. Raise --max-pages and re-run before trusting the "
-              f"denominator.", file=sys.stderr)
+        # Non-zero, not a note (evaluator blocker r2): a warning that returns
+        # success lets the workflow build and publish a percentage from a
+        # KNOWN-truncated denominator. A denominator we know is short is not a
+        # denominator.
+        print(f"fetch_tabc_capcog: FAIL — hit the {args.max_pages}-page bound, "
+              f"so the result is TRUNCATED and the denominator would be short. "
+              f"Raise --max-pages and re-run.", file=sys.stderr)
+        return 1
     return 0
 
 

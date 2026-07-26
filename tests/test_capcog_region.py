@@ -220,3 +220,18 @@ def test_a_zip_code_does_not_hide_a_known_city():
     assert normalize_place("Austin, TX 78701") == "austin"
     assert in_capcog("Austin, TX 78701") is True
     assert in_capcog("San Antonio, TX 78205") is False
+
+
+def test_the_web_boundary_file_is_generated_and_has_not_drifted():
+    """ONE market boundary. The server filters by the Python tables and the site
+    filters by the generated JSON; if they diverge, the two layers enforce two
+    different markets — incomplete-enumeration in the place it does the most
+    damage. Regenerate with tools/gen_region_boundary.py."""
+    import json
+    import pathlib
+    import tools.gen_region_boundary as gen
+    committed = json.loads(
+        (pathlib.Path(gen.REPO) / "web" / "lib" / "capcog-boundary.json")
+        .read_text(encoding="utf-8"))
+    assert committed == gen.build(), (
+        "web/lib/capcog-boundary.json is stale — run tools/gen_region_boundary.py")
