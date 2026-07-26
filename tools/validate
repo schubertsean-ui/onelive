@@ -138,6 +138,14 @@ run_check "deferral_scan" "$PY" tools/deferral_scan.py
 run_check "workflow_env_lint" "$PY" tools/workflow_env_lint.py
 run_check "governance_claims" "$PY" tools/governance_claims_lint.py
 
+# 2d. Source-verification linter (R-054, founder-directed 2026-07-26: "every
+#     claim or note or finding or result must be independently verified").
+#     Research documents may not cite what nobody can follow: every entry in
+#     a `## Sources` block needs a resolvable URL AND an explicit
+#     verification-status token. Unverified is legal; silently unverified is
+#     not. Fails closed if it scans nothing.
+run_check "source_verification" "$PY" tools/source_verification_lint.py
+
 # 3. Full test suite — must pass. DB-integration tests self-skip without a DSN;
 #    that self-skip is internal to pytest and reported in its own output.
 run_check "pytest (full suite)" "$PY" -m pytest -q

@@ -51,6 +51,32 @@ Concretely, before anything is considered done:
   (paste the text, attach the file, grant access), and only continue work
   that does not depend on the inaccessible source. Secondary-source
   reconstruction is not a fallback; it is the defect.
+- **Every claim, note, finding, or result is independently verified.**
+  (Founder-directed 2026-07-26, verbatim in the decision record —
+  `docs/memory/decisions/2026-07-26_independent-verification-canon.md`.)
+  The agent's own assertion is never the evidence for itself. Before any
+  claim, note, finding, or result is stated to the founder, written into a
+  doc, or used to justify a decision, it must be checkable by someone who
+  does not trust the agent:
+  1. **Name the independent check.** A command someone else can run, a URL
+     someone else can open, a test that fails if the claim is false, or a
+     non-Claude reviewer's verdict. "I read it" / "I confirmed it" is not a
+     check — it is the thing being checked.
+  2. **Cite it where the claim lives.** Research documents carry a
+     `## Sources` block with a resolvable URL and an explicit
+     verification-status token per source (mechanically enforced by
+     `tools/source_verification_lint.py`, wired into `tools/validate`).
+     Metrics carry the command that produced them.
+  3. **Unverified is legal; silently unverified is not.** An honest
+     `UNVERIFIED-BLOCKED` beats a confident sentence. Downgrading a claim
+     costs nothing; a claim that cannot be followed is a defect.
+  4. **Whole artifacts, not tails.** A verdict, log, or file is read in
+     full before it is characterized. Reading a tail and describing the
+     whole is a fabrication even when the tail is quoted accurately
+     (red class `tail-only-diagnosis`).
+  This rule binds self-reports hardest: statements about the agent's own
+  process, coverage, or performance are exactly the claims with no natural
+  adversary, so they need the strongest external anchor.
 - **A repeated error is a finding, not a rhythm.** (Founder-directed
   2026-07-25 and ratified by the founder as a global standing condition;
   the verbatim directive lives in the decision record —
