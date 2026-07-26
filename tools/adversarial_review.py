@@ -336,7 +336,8 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
     request_gemini = request_gemini or (
         lambda ri, sp: request_review_gemini(
             ri, sp, gemini_key,
-            _resolve_env_model("GEMINI_REVIEW_MODEL", GEMINI_DEFAULT_MODEL)))
+            _resolve_env_model("GEMINI_REVIEW_MODEL", GEMINI_DEFAULT_MODEL,
+                              GEMINI_ALLOWED_MODELS)))
     # The seed is printed BY THE TOOL (#71 r10 nit): the CLI contract says
     # the po seed is auditable, and a claim that depends on the caller's
     # workflow echoing it is not the tool keeping its own promise.
@@ -390,10 +391,32 @@ def request_review_openai_lens(review_input: str, system_prompt: str,
         raise RuntimeError(f"unexpected OpenAI response shape: {data!r:.500}") from exc
 
 
-def _resolve_env_model(env_name: str, default: str) -> str:
+# BASE-OWNED ALLOWLIST for the second seat (#72 r8, class:
+# self-weakenable-review-model). The workflow that sets
+# GEMINI_REVIEW_MODEL is PR-owned, so without this an environment
+# override lets the diff under review choose the model that reviews it —
+# an attacker picks the weakest callable Gemini id, sails through a
+# preflight that only proves callability, and self-certifies. This
+# constant lives in the BASE-owned reviewer copy, so an override can only
+# SELECT from models the base branch already blessed; introducing a new
+# one requires changing this list on master, which is itself a
+# gate-custody PR judged by the old copy. Same physics as the panel
+# bootstrap: it constrains every PR after the one that lands it.
+# Exactly the id in use. A second entry "for later" is unreviewed
+# surface, and adding one is the intended flow: a base-branch change,
+# reviewed. Every floating `*-latest` member must carry an OPEN
+# docs/RECORD.md row naming it — enforced by test, so the compromise
+# cannot outlive its trigger (#72 r8, class: mutable-model-alias).
+GEMINI_ALLOWED_MODELS = frozenset({"gemini-flash-latest"})
+
+
+def _resolve_env_model(env_name: str, default: str,
+                       allowed: frozenset[str] | None = None) -> str:
     """Fail-closed env rule shared by both seats: unset = default;
     present-but-empty = misconfiguration; Claude/Anthropic ids refused
-    (write/grade separation)."""
+    (write/grade separation); and, where an `allowed` set is supplied, the
+    resolved id must be a member — a caller-suppliable override that can
+    name ANY model is a self-weakenable gate, not a configuration knob."""
     value = os.environ.get(env_name)
     if value is not None and value.strip() == "":
         raise RuntimeError(
@@ -404,6 +427,13 @@ def _resolve_env_model(env_name: str, default: str) -> str:
         raise RuntimeError(
             f"{env_name} resolves to {value!r}, a generator-family model; the "
             "evaluator must be non-Claude (write/grade separation)")
+    if allowed is not None and value not in allowed:
+        raise RuntimeError(
+            f"{env_name} resolves to {value!r}, which is NOT in the "
+            f"base-owned allowlist {sorted(allowed)}. The review model is "
+            "gate custody: an override may only SELECT an already-blessed "
+            "model, never introduce one. Add it to GEMINI_ALLOWED_MODELS on "
+            "the base branch first — that change is itself reviewed.")
     return value
 
 

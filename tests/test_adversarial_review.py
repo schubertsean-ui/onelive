@@ -351,3 +351,64 @@ def test_workflow_second_seat_model_matches_the_tools_default():
     assert match.group(1) == ar.GEMINI_DEFAULT_MODEL, (
         f"workflow pins {match.group(1)!r} but the tool defaults to "
         f"{ar.GEMINI_DEFAULT_MODEL!r} — these move together, in one PR")
+
+
+def test_second_seat_model_override_is_allowlisted_by_the_BASE_copy(monkeypatch):
+    # #72 r8 BLOCKER (class: self-weakenable-review-model): the workflow
+    # that sets GEMINI_REVIEW_MODEL is PR-owned, so without a base-owned
+    # allowlist the diff under review could name the model that reviews
+    # it — an attacker picks the weakest callable Gemini id and
+    # self-certifies. An override may SELECT a blessed model, never
+    # introduce one.
+    blessed = sorted(ar.GEMINI_ALLOWED_MODELS)[0]
+    monkeypatch.setenv("GEMINI_REVIEW_MODEL", blessed)
+    assert ar._resolve_env_model("GEMINI_REVIEW_MODEL", ar.GEMINI_DEFAULT_MODEL,
+                                 ar.GEMINI_ALLOWED_MODELS) == blessed
+
+    monkeypatch.setenv("GEMINI_REVIEW_MODEL", "gemini-1.0-tiny-whatever")
+    with pytest.raises(RuntimeError, match="NOT in the base-owned allowlist"):
+        ar._resolve_env_model("GEMINI_REVIEW_MODEL", ar.GEMINI_DEFAULT_MODEL,
+                              ar.GEMINI_ALLOWED_MODELS)
+
+
+def test_the_shipped_default_is_itself_allowlisted():
+    # A default outside its own allowlist would fail every unset run.
+    assert ar.GEMINI_DEFAULT_MODEL in ar.GEMINI_ALLOWED_MODELS
+
+
+def test_the_OPENAI_seat_model_is_NOT_overridable_in_CI():
+    # The anchor property that bounds the r8 finding: the workflow
+    # deliberately never sets OPENAI_REVIEW_MODEL (PR #14 r4), so the
+    # first seat always runs the base-owned DEFAULT_MODEL at full
+    # strength. Weakening the second seat therefore cannot make the gate
+    # pass anything the first seat blocks — ANY-lens-red still holds.
+    import pathlib
+
+    workflow = (pathlib.Path(ar.__file__).parent.parent / ".github" / "workflows"
+                / "adversarial-review.yml").read_text()
+    assert "OPENAI_REVIEW_MODEL:" not in workflow
+
+
+def test_every_floating_alias_in_the_allowlist_is_bound_to_an_OPEN_record():
+    # #72 r8 HARDENING after the mutable-model-alias repeat-class alarm.
+    # The r6 fix named the alias honestly and recorded it; naming is not a
+    # mechanism, and the alarm was right that the class escaped. This is
+    # the mechanism: a floating `*-latest` id may appear in the reviewer's
+    # allowlist ONLY while docs/RECORD.md carries an OPEN row naming it —
+    # so the compromise cannot outlive its own trigger, and adding a new
+    # alias without recording it fails here rather than in review.
+    import pathlib
+    import re
+
+    record = (pathlib.Path(ar.__file__).parent.parent / "docs"
+              / "RECORD.md").read_text()
+    open_rows = [line for line in record.splitlines()
+                 if re.match(r"^\| R-\d+ ", line) and line.rstrip().endswith("| OPEN |")]
+    aliases = [m for m in ar.GEMINI_ALLOWED_MODELS if m.endswith("-latest")]
+    assert aliases, "if no alias remains, delete this test with the last one"
+    for alias in aliases:
+        assert any(alias in row for row in open_rows), (
+            f"{alias!r} is a FLOATING alias in the reviewer allowlist with no "
+            "OPEN docs/RECORD.md row naming it. An alias moves provider-side "
+            "with no commit here, so it may only exist while a record carries "
+            "its objective trigger to concretise it (class: mutable-model-alias)")
