@@ -253,8 +253,17 @@ _CLAUSE_BREAK_RE = re.compile(r"[.;:!?(),]")
 # status (gemini r8), and a work titled "VERIFIED-READ considered harmful" is
 # not a declaration either (openai r11). Removed in status_field for the same
 # reason URLs are, so BOTH the token search and the negation check inherit it.
-_QUOTED_SPAN_RE = re.compile(r"[\"\u201c\u2018\u00ab][^\"\u201d\u2019\u00bb]{0,200}"
-                             r"[\"\u201d\u2019\u00bb]")
+# Two title shapes, both unbounded WITHIN the line (PR #78 r12, openai
+# absence-only): the old {0,200} cap meant a title longer than 200 characters
+# was not a title, and ASCII single quotes were missing entirely. The cap is
+# gone because a line is already a bound. Single quotes need a rule, not an
+# exclusion: an apostrophe sits INSIDE a word (`Smith's`, `isn't`), a title
+# delimiter does not — so an opener is never preceded by a word character and
+# never followed by a space, and a closer is never followed by a word
+# character and never preceded by a space.
+_QUOTED_SPAN_RE = re.compile(
+    r"[\"\u201c\u2018\u00ab][^\"\u201d\u2019\u00bb]*[\"\u201d\u2019\u00bb]"
+    r"|(?<![\w'])'(?![\s'])[^']*(?<![\s'])'(?![\w'])")
 
 
 def _is_negated(text_before: str) -> bool:
@@ -317,19 +326,20 @@ def _scan_provenance(rel_path: str, body: str) -> list[str]:
     return findings
 
 
-# A lead-in sentence before the list is legitimate; a SOURCE hiding in that
-# position is not (PR #78 r11). The r10 carve-out allowed ANY pre-list prose,
-# which meant a table row, a blockquote or a bare-domain citation placed above
-# the first bullet stayed unparsed and unreported — the same bypass r10 claimed
-# to close, moved to the top of the section. A pre-list line is allowed only if
-# it carries nothing that makes it look like evidence.
-_BARE_DOMAIN_RE = re.compile(r"\b[a-z0-9][a-z0-9-]*\.(?:com|org|net|edu|gov|io|dev|ai)\b",
-                             re.IGNORECASE)
-
-
-def _looks_like_a_source(line: str) -> bool:
-    return bool(URL_RE.search(line) or _STATUS_RE.search(line)
-                or _BARE_DOMAIN_RE.search(line))
+# NO CARVE-OUT (PR #78 r12, openai attacker-smuggle ×3). Three rounds tried to
+# describe which pre-list lines are innocent: r10 allowed all prose before the
+# first bullet, r11 narrowed that to lines carrying no URL, domain or status
+# token. Both were wrong the same way — the motivating shape is a citation with
+# NO URL and NO token at all (`Klein 1998, Sources of Power`), which is exactly
+# what "looks like nothing" to a heuristic, and every subheading reset gave it
+# a fresh place to sit.
+#
+# So the discriminator is deleted rather than sharpened. Inside a `## Sources`
+# section every visible line is an entry, a continuation of one, a blank, or a
+# subheading — anything else is REPORTED, wherever it sits. Lead-in prose is
+# still perfectly legal; it belongs above the heading, where it is not inside
+# the region this gate claims to cover. A rule with no exceptions cannot have
+# its exception widened, which is the only property that survived three rounds.
 
 
 def _scan_section(rel_path: str, section: str) -> list[str]:
@@ -338,28 +348,19 @@ def _scan_section(rel_path: str, section: str) -> list[str]:
     entries: list[str] = []
     stray: list[str] = []
     open_entry = False
-    entries_in_block = False    # reset per subheading, so a lead-in under
-                                # `### Secondary` is judged like any other
-                                # lead-in rather than as trailing junk
     for ln in section.splitlines():
         if BULLET_RE.match(ln):
             entries.append(ln)
             open_entry = True
-            entries_in_block = True
         elif not ln.strip():
             open_entry = False
         elif ln.strip().startswith("#"):
             open_entry = False
-            entries_in_block = False
         elif open_entry and ln[:1].isspace():
             entries[-1] += " " + ln.strip()
         else:
             open_entry = False
-            # Flagged when the list has already started in this block, OR when
-            # the line looks like evidence wherever it sits. Everything inside
-            # the region this gate claims to cover is checked or reported.
-            if entries_in_block or _looks_like_a_source(ln):
-                stray.append(ln.strip())
+            stray.append(ln.strip())
 
     if not entries:
         findings.append(
@@ -371,8 +372,8 @@ def _scan_section(rel_path: str, section: str) -> list[str]:
         findings.append(
             f"{rel_path}: visible line inside the Sources section is not a list "
             f"entry, so it is never checked for a URL or a status token — put "
-            f"every source in the list (a lead-in sentence carrying no URL, "
-            f"domain or status token is fine): {label}")
+            f"every source in the list, and put any lead-in prose ABOVE the "
+            f"`## Sources` heading, outside the region this gate covers: {label}")
 
     for line in entries:
         stripped = line.strip()

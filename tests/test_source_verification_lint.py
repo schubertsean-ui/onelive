@@ -10,6 +10,7 @@ citation must be FOLLOWABLE (URL) and its verification status must be DECLARED
 — plus the fail-closed behaviors that stop the gate degrading into decoration.
 """
 import pathlib
+import re
 import sys
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -568,12 +569,17 @@ def test_visible_non_list_content_after_the_first_entry_is_reported():
         assert any("not a list entry" in f for f in findings), stray
 
 
-def test_introductory_prose_before_the_first_entry_is_allowed():
-    """Rejecting an ordinary lead-in sentence would be the false-rejection
-    defect r8 was about; the rule starts at the first entry."""
+def test_lead_in_prose_belongs_ABOVE_the_sources_heading():
+    """The carve-out is gone (PR #78 r12): a lead-in is still perfectly legal,
+    it just sits outside the region the gate covers. Above the heading it is
+    silent; inside the section it is reported, prose or not."""
     assert svl.scan_text("d.md", (
+        "Everything the claims above rest on:\n\n"
+        "## Sources\n- x https://e.org VERIFIED-READ\n")) == []
+    inside = svl.scan_text("d.md", (
         "## Sources\nEverything the claims above rest on:\n"
-        "- x https://e.org VERIFIED-READ\n")) == []
+        "- x https://e.org VERIFIED-READ\n"))
+    assert any("not a list entry" in f for f in inside), inside
 
 
 def test_an_unclosed_html_comment_hides_everything_after_it():
@@ -611,21 +617,21 @@ def test_source_shaped_content_before_the_first_entry_is_reported():
         assert any("not a list entry" in f for f in findings), stray
 
 
-def test_a_plain_lead_in_sentence_is_still_allowed():
-    """The discriminator is "does it look like evidence", not "is it prose" —
-    rejecting an ordinary lead-in would be the r8 false-rejection defect."""
-    assert svl.scan_text("d.md", (
-        "## Sources\nEverything the claims above rest on:\n"
-        "- x https://e.org VERIFIED-READ\n")) == []
-
-
-def test_a_lead_in_under_a_subheading_is_allowed():
-    """gemini nit: the r10 rule flagged section lead-ins under `### Secondary`
-    because an entry had already been seen earlier in the block."""
-    assert svl.scan_text("d.md", (
+def test_a_citation_with_no_url_and_no_token_is_reported_wherever_it_sits():
+    """THE motivating shape (PR #78 r12, openai attacker-smuggle): an
+    unfollowable citation carries no URL, no domain and no status token — so
+    it is precisely what "looks like nothing" to a heuristic. r10 allowed it
+    before the first bullet, r11 allowed it after every subheading. With the
+    discriminator deleted there is nowhere left to put it."""
+    citation = "Klein 1998, Sources of Power"
+    before = svl.scan_text(
+        "d.md", f"## Sources\n{citation}\n- x https://e.org VERIFIED-READ\n")
+    assert any("not a list entry" in f for f in before), before
+    under_subheading = svl.scan_text("d.md", (
         "## Sources\n### Primary\n- a https://e.org VERIFIED-READ\n"
-        "### Secondary\nSeen only in coverage:\n"
-        "- b https://e.org/b UNVERIFIED-SECONDARY\n")) == []
+        f"### Secondary\n{citation}\n"
+        "- b https://e.org/b UNVERIFIED-SECONDARY\n"))
+    assert any("not a list entry" in f for f in under_subheading), under_subheading
 
 
 def test_every_sources_section_is_scanned_not_just_the_first():
@@ -646,3 +652,66 @@ def test_a_capture_may_declare_only_one_provenance_line():
         "PROVENANCE: https://e.org/a VERIFIED-READ\n"
         "PROVENANCE: https://x.org/b UNVERIFIED-BLOCKED\n"))
     assert findings and "ONE origin" in findings[0]
+
+
+# ── PR #78 r12: the r12 fix's own siblings, found by the same seat ─────────
+
+def test_ascii_single_quoted_titles_are_titles_too():
+    """openai absence-only: r12 stripped double and guillemet quotes and left
+    ASCII single quotes open. They need a RULE, not an exclusion — an
+    apostrophe sits inside a word, a title delimiter does not."""
+    assert not svl.declares_status(
+        "- Author, 'VERIFIED-READ considered harmful', https://e.org")
+    # ...and apostrophes must not swallow a real declaration.
+    for good in ("- Smith's paper isn't paywalled, https://e.org VERIFIED-READ",
+                 "- O'Brien, 'A Study', https://e.org UNVERIFIED-BLOCKED",
+                 "- 'twas noted by Smith, https://e.org VERIFIED-READ"):
+        assert svl.declares_status(good), good
+
+
+def test_a_title_longer_than_the_old_200_char_bound_is_still_a_title():
+    """The {0,200} cap meant a long title stopped being one. A line is already
+    a bound; the cap only created a place to hide."""
+    long_title = "x" * 400
+    assert not svl.declares_status(
+        f'- Author, "{long_title} VERIFIED-READ", https://e.org')
+
+
+# ── PR #78 r12, openai absence-only, class self-weakenable-gate. The tuple's
+# "only widens" property was PROSE: nothing failed if a later change deleted a
+# path from it, so the gate could be narrowed to nothing by editing the tool.
+
+def test_the_load_bearing_document_is_enforced_by_name():
+    """A lower bound the gate cannot fall below. Named literally on purpose:
+    deriving it from the tuple would assert the tuple equals itself."""
+    assert ("docs/research/2026-07-25_construction_loop_research_synthesis.md"
+            in svl.ENFORCED_DOCS)
+
+
+def test_the_enforced_set_never_shrinks_against_the_base_copy():
+    """Monotonicity, checked against the BASE-owned copy rather than a typed
+    list — a subject-owned list would drift with the very edit it guards.
+    Fails closed: an uncomputable base is reported, not treated as empty."""
+    import subprocess
+    root = svl.REPO
+    base = subprocess.run(["git", "merge-base", "HEAD", "origin/master"],
+                          cwd=root, capture_output=True, text=True)
+    assert base.returncode == 0, (
+        f"cannot resolve the merge base, so monotonicity is unverifiable: "
+        f"{base.stderr.strip()}")
+    show = subprocess.run(
+        ["git", "show", f"{base.stdout.strip()}:tools/source_verification_lint.py"],
+        cwd=root, capture_output=True, text=True)
+    if show.returncode != 0:
+        # The tool is NEW on this branch: there is no earlier set to shrink
+        # from, and the literal lower bound above is the whole guarantee.
+        assert "docs/research/" in str(svl.ENFORCED_DOCS)
+        return
+    base_docs = set(re.findall(r'"(docs/research/[^"]+\.md)"',
+                               show.stdout.split("ENFORCED_DOCS = (")[1]
+                               .split(")")[0]))
+    missing = base_docs - set(svl.ENFORCED_DOCS)
+    assert not missing, (
+        f"ENFORCED_DOCS SHRANK: {sorted(missing)} were enforced at the base "
+        f"and are not now — narrowing a gate's coverage is a gate-threshold "
+        f"relaxation, which is founder-crucial, not an edit")

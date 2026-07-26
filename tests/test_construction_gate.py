@@ -472,7 +472,9 @@ def test_every_class_token_named_in_code_or_ledger_has_an_index_row():
     the day it is written.
     """
     import pathlib, re
-    from tools.construction_gate import load_index, DEFAULT_INDEX, REPO_ROOT
+    from tools.construction_gate import (load_index, DEFAULT_INDEX,
+                                         REPO_ROOT, CLASS_TOKEN_PATTERNS,
+                                         LEDGER_COUNT_PATTERN)
 
     index = set(load_index(DEFAULT_INDEX))
     root = pathlib.Path(REPO_ROOT)
@@ -487,11 +489,29 @@ def test_every_class_token_named_in_code_or_ledger_has_an_index_row():
     #     the 3+ heuristic. Loosening THAT one matched ordinary English:
     #     "class fail-open", "pre-review", "doc-wide" (measured, 6 false
     #     positives), and a check that cries wolf gets ignored.
-    pats = [re.compile(r"CLASS:([a-z][a-z0-9]+(?:-[a-z0-9]+)+)"),
-            re.compile(r"class(?:es)?[:\s]+`?([a-z][a-z0-9]+(?:-[a-z0-9]+){2,})")]
+    pats = CLASS_TOKEN_PATTERNS
     referenced: dict[str, set[str]] = {}
     sources = list((root / "tools").rglob("*.py")) + list((root / "tests").rglob("*.py"))
-    sources.append(root / "docs" / "metrics" / "KAIZEN_LEDGER.md")
+
+    # The ledger's `<token> ×N` shape, on the lines THIS CHANGE ADDS (see
+    # LEDGER_COUNT_PATTERN for why it is diff-scoped). Fail closed: an
+    # uncomputable diff is reported, never treated as "nothing to check".
+    import subprocess
+    base = subprocess.run(["git", "merge-base", "HEAD", "origin/master"],
+                          cwd=root, capture_output=True, text=True)
+    assert base.returncode == 0, (
+        "cannot resolve the merge base against origin/master, so the ledger's "
+        f"added rows cannot be scanned: {base.stderr.strip()}")
+    diff = subprocess.run(
+        ["git", "diff", "-U0", base.stdout.strip(), "--",
+         "docs/metrics/KAIZEN_LEDGER.md"],
+        cwd=root, capture_output=True, text=True)
+    assert diff.returncode == 0, f"git diff failed: {diff.stderr.strip()}"
+    for line in diff.stdout.splitlines():
+        if not line.startswith("+") or line.startswith("+++"):
+            continue
+        for m in LEDGER_COUNT_PATTERN.finditer(line):
+            referenced.setdefault(m.group(1), set()).add("KAIZEN_LEDGER.md (added row)")
     for path in sources:
         if not path.is_file():
             continue
@@ -540,9 +560,8 @@ def test_the_registry_check_catches_two_component_class_tokens():
     unindexed class, which is how the r8 version of this file flagged its own
     docstring.
     """
-    import re
-    pats = [re.compile(r"CLASS:([a-z][a-z0-9]+(?:-[a-z0-9]+)+)"),
-            re.compile(r"class(?:es)?[:\s]+`?([a-z][a-z0-9]+(?:-[a-z0-9]+){2,})")]
+    from tools.construction_gate import CLASS_TOKEN_PATTERNS
+    pats = CLASS_TOKEN_PATTERNS
     sample = "CLASS" + ":" + "fake" + "-" + "token"
     hits = [m.group(1) for p in pats for m in p.finditer(f"# {sample} here")]
     assert hits == ["fake" + "-" + "token"], hits
@@ -556,3 +575,30 @@ def test_the_registry_check_ignores_line_wrapped_fragments():
     text = "CLASS" + ":" + "rule-stronger" + "-"
     m = pat.search(text)
     assert m and text[m.end():m.end() + 1] == "-", "the fragment guard has nothing to skip"
+
+
+def test_the_registry_check_catches_the_ledgers_count_shape():
+    """PR #78 r12: `<token> ×1` in a Kaizen row is how a caught class is
+    recorded, and the scanner did not read that shape — so a class could be
+    counted as caught in the ledger and never become retrievable. Assembled at
+    runtime for the same reason as the test above."""
+    from tools.construction_gate import LEDGER_COUNT_PATTERN
+    sample = "fake" + "-" + "ledger" + "-" + "token"
+    for row in (f"evaluator: {sample} \u00d71, other stuff", f"{sample} x3"):
+        hits = [m.group(1) for m in LEDGER_COUNT_PATTERN.finditer(row)]
+        assert sample in hits, (row, hits)
+
+
+def test_a_stale_marker_word_used_as_CONTENT_does_not_kill_a_live_answer():
+    """openai absence-only, PR #78 r12: the marker was matched anywhere on the
+    line, so an answer that merely DISCUSSED a withdrawn PR stopped counting as
+    live — a class could silently drop to zero live answers while its tag was
+    still present. A stale marker is the line's STATUS: it sits right after the
+    `[S3:<token>]` prefix, where a status sits."""
+    from tools.construction_gate import contradictory_citations
+    content = ("[S3:x] r12 — the fabricated bug was reported in a PR that was "
+               "WITHDRAWN, and this line is still the live answer.\n")
+    assert contradictory_citations(content) == []
+    assert contradictory_citations("[S3:x] WITHDRAWN at r9 — old answer.\n") == ["x"]
+    quoted = '[S3:x] r12 — the note said "SUPERSEDED" but it was not.\n'
+    assert contradictory_citations(quoted) == []

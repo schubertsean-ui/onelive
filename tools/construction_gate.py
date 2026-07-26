@@ -259,6 +259,58 @@ def citation_tag(token: str) -> str:
     return f"[S3:{token}]"
 
 
+# The THREE shapes a red class is named in, owned here rather than re-typed in
+# each test (a check that re-implements the rule it demonstrates is its own
+# false-confidence gate). Used by the derived registry-binding test to prove
+# every named class has an index row:
+#   - `CLASS:<token>` — the evaluator's own prefix, unambiguous, so a two-word
+#     token counts (PR #78 r11: demanding 3+ components skipped
+#     unfollowable-citation, one of that PR's own classes).
+#   - prose `class <token>` — no marker, so it keeps the 3+ heuristic;
+#     loosening it matched ordinary English ("class fail-open", "pre-review").
+CLASS_TOKEN_PATTERNS = (
+    re.compile(r"CLASS:([a-z][a-z0-9]+(?:-[a-z0-9]+)+)"),
+    re.compile(r"class(?:es)?[:\s]+`?([a-z][a-z0-9]+(?:-[a-z0-9]+){2,})"),
+)
+
+# The ledger's own count shape (`<token> ×3`), missed until PR #78 r12 where
+# the evaluator found a class recorded with a count and no index row. It is as
+# unambiguous a marker as `CLASS:`, so two-word tokens count — but it is
+# applied ONLY to ledger lines the current change ADDS. Applied to the whole
+# file it demands 240+ retroactive index rows for tokens written before the
+# kebab convention existed (measured, not estimated: the unscoped version
+# reported them all), and a check that cries wolf at that volume gets ignored,
+# which is the failure mode this index exists to avoid. Scoping it to added
+# lines is exactly the Stage 6 rule it enforces: every NEW catch gets its row
+# in the SAME commit.
+LEDGER_COUNT_PATTERN = re.compile(
+    r"\b([a-z][a-z0-9]+(?:-[a-z0-9]+)+)\s*[\u00d7x]\s*\d+")
+
+
+# A stale marker is the line's STATUS, not a word in its answer (PR #78 r12,
+# openai absence-only). `re.search(r"\bWITHDRAWN\b", line)` matched anywhere,
+# so an answer that merely DISCUSSED a withdrawn PR silently stopped counting
+# as live — a contradiction could then hide behind a word used as content, and
+# a class could drop to zero live answers while the tag was still present.
+# The marker must therefore sit where a status sits: immediately after the
+# `[S3:<token>]` prefix, ahead of the answer itself. The window is generous
+# enough for the real forms in use (`[S3:x] SUPERSEDED at r12 — …`,
+# `[S3:x] r8 — SUPERSEDED at r12: …`) and far too small to reach prose.
+_STALE_MARKER_RE = re.compile(r"\b(SUPERSEDED|WITHDRAWN)\b")
+_STALE_MARKER_WINDOW = 60
+
+
+def _is_marked_stale(token: str, line: str) -> bool:
+    prefix = f"[S3:{token}]"
+    idx = line.find(prefix)
+    if idx < 0:
+        return False
+    window = line[idx + len(prefix): idx + len(prefix) + _STALE_MARKER_WINDOW]
+    # A marker inside quotes is being QUOTED, not declared.
+    window = re.sub(r"[\"'\u201c\u2018][^\"'\u201d\u2019]*[\"'\u201d\u2019]", " ", window)
+    return bool(_STALE_MARKER_RE.search(window))
+
+
 def contradictory_citations(citation_text: str) -> list[str]:
     """Tokens answered MORE THAN ONCE with no supersession marker.
 
@@ -295,8 +347,7 @@ def contradictory_citations(citation_text: str) -> list[str]:
         # exactly-one rule the same round introduced). The two remaining words
         # mean "this line is no longer the answer"; "corrected" means "this
         # line IS the answer, and it changed".
-        live = [ln for ln in lines
-                if not re.search(r"\b(SUPERSEDED|WITHDRAWN)\b", ln)]
+        live = [ln for ln in lines if not _is_marked_stale(token, ln)]
         if len(live) != 1:
             bad.append(token)
     return sorted(bad)
