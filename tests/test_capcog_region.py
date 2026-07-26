@@ -245,3 +245,20 @@ def test_county_evidence_INSIDE_a_city_string_survives_a_state_suffix():
     # and a place with no county in it still reads as no county evidence
     assert county_in_place("Austin, TX") is None
     assert county_in_place(None) is None
+
+
+def test_a_county_named_only_INSIDE_the_city_string_is_still_CREDITED():
+    """r14: row_verdict reads county evidence from the city string, but
+    region_report's credit pass read only the county FIELDS — so a row decided
+    INSIDE by an embedded county credited nothing, and its county was reported
+    ABSENT. A covered county in the 'no coverage here' list is the worklist
+    reading backwards."""
+    r = region_report([
+        {"venue_city": "Nowhere Bar, Travis County, TX"},
+        {"venue_city": "Unlisted Room, Llano County, TX"},
+    ])
+    assert r["inside_count"] == 2
+    assert set(r["counties_covered"]) == {"travis", "llano"}
+    assert "travis" not in r["counties_absent"]
+    assert "llano" not in r["counties_absent"]
+    assert len(r["counties_absent"]) == 8

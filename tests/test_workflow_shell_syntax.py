@@ -28,10 +28,19 @@ WORKFLOWS = sorted((REPO / ".github" / "workflows").glob("*.yml"))
 
 def _run_blocks(path: pathlib.Path) -> list:
     """(step name, shell script) for every `run:` in the workflow."""
-    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    # `(x or {})` at every level: an empty or comments-only workflow parses to
+    # None, and a `jobs:` or `steps:` key with no value parses to a PRESENT key
+    # holding None. Either shape made this checker raise AttributeError — it
+    # crashed instead of checking, which is the same class it exists to catch.
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     blocks: list = []
-    for job_name, job in (doc.get("jobs") or {}).items():
+    for job_name, job in ((doc.get("jobs") if isinstance(doc, dict) else None)
+                          or {}).items():
+        if not isinstance(job, dict):
+            continue
         for i, step in enumerate(job.get("steps") or []):
+            if not isinstance(step, dict):
+                continue
             script = step.get("run")
             if not isinstance(script, str):
                 continue
@@ -89,3 +98,15 @@ def test_the_check_actually_FAILS_on_the_defect_it_was_written_for():
     proc = subprocess.run(["bash", "-n"], input=broken,
                           capture_output=True, text=True)
     assert proc.returncode != 0, "bash -n should reject the unterminated heredoc"
+
+
+def test_an_EMPTY_or_headless_workflow_does_not_crash_the_checker(tmp_path):
+    """r14 nit, and it is the checker's own failure class: `yaml.safe_load`
+    returns None for an empty or comments-only file, and a `jobs:` key with no
+    value is a PRESENT key holding None. Either shape raised AttributeError, so
+    the check crashed rather than reporting."""
+    for body in ("", "# only a comment\n", "jobs:\n", "jobs:\n  build:\n",
+                 "jobs:\n  build:\n    steps:\n"):
+        f = tmp_path / "w.yml"
+        f.write_text(body, encoding="utf-8")
+        assert _run_blocks(f) == [], repr(body)

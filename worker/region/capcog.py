@@ -327,7 +327,14 @@ def region_report(rows: list) -> dict:
     for row in rows:
         key = normalize_place(_first_usable(row, CITY_FIELDS))
         verdict = row_verdict(row)
-        county = normalize_county(_first_usable(row, COUNTY_FIELDS))
+        # The county can arrive in a county FIELD or embedded in the city
+        # string ("Nowhere Bar, Travis County, TX"). row_verdict already reads
+        # both; this read only the fields, so a row decided INSIDE by an
+        # embedded county credited nothing and its county was reported ABSENT —
+        # a covered county in the "we have no coverage here" list, which is the
+        # worklist reading backwards. Evaluator finding, PR #74 r14.
+        county = (normalize_county(_first_usable(row, COUNTY_FIELDS))
+                  or county_in_place(_first_usable(row, CITY_FIELDS)))
         if verdict is True and county in CAPCOG_COUNTIES:
             credited.add(county)
         if key is None:
