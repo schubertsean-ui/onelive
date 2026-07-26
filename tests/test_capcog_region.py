@@ -305,6 +305,40 @@ def test_a_corrupt_denominator_EXITS_NON_ZERO_and_prints_no_percentage(capsys):
     assert "%)" not in out.out, "no percentage may be printed from corrupt input"
 
 
+def test_one_ingested_row_cannot_cover_MANY_same_named_premises():
+    """Correcting TABC to count premises by ADDRESS made the denominator
+    premise-accurate — two Torchy's are two venues — while the matcher still
+    keyed on name. A single ingested "Torchy's / Austin" row would then satisfy
+    every Torchy's target in the county: a fix to one side of a ratio silently
+    overstating the other. Coverage cannot exceed what we actually hold."""
+    import tools.capcog_coverage as cc
+    idx = cc.index_by_name([{"venue_name": "Torchy's", "venue_city": "austin"}])
+    targets = [{"name": "Torchy's", "county": "travis", "city": "austin",
+                "target_kind": "venue"} for _ in range(4)]
+    cov = cc.coverage([{"venue_name": "Torchy's", "venue_city": "austin"}], targets)
+    assert cov["covered_venue_count"] == 1, (
+        f"one ingested venue may cover one premise, not four: {cov}")
+    assert cov["target_venue_count"] == 4
+    assert idx  # the index itself is unchanged; the CAP is what is new
+
+
+def test_an_ambiguous_match_is_NOT_counted_as_covered():
+    """Naming the ambiguity in the report while still incrementing `covered`
+    meant the percentage already contained the matches we said we would never
+    resolve silently. The caveat travelled in prose; the number travelled
+    everywhere."""
+    import tools.capcog_coverage as cc
+    rows = [
+        {"venue_name": "The Tavern", "venue_city": "austin"},
+        {"venue_name": "The Tavern", "venue_city": "pflugerville"},
+    ]
+    targets = [{"name": "The Tavern", "county": "travis", "target_kind": "venue"}]
+    cov = cc.coverage(rows, targets)
+    assert cov["ambiguous_matches"] == ["The Tavern"]
+    assert cov["covered_venue_count"] == 0, (
+        f"an ambiguous match must not inflate coverage: {cov}")
+
+
 def test_the_committed_target_file_declares_itself_a_floor_not_the_market():
     """The committed artifact is catalog-only — the sandbox cannot fetch TABC —
     so its per-county zeros sit in the repo looking like findings about those

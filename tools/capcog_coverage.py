@@ -175,6 +175,17 @@ def coverage(rows: list, targets: list | None) -> dict:
 
     per_county: dict = {c: {"target": 0, "covered": 0, "missing": []} for c in
                         sorted(CAPCOG_COUNTIES)}
+    # SUPPLY CAP — one ingested row cannot cover many premises.
+    #
+    # Correcting TABC to count distinct premises BY ADDRESS made the
+    # denominator premise-accurate (two Torchy's = two venues) while this
+    # matcher still keyed on name. So a single ingested "Torchy's / Austin"
+    # row would satisfy EVERY Torchy's target in the county — a fix to one side
+    # of a ratio silently overstating the other. Coverage may not exceed the
+    # number of distinct venues we actually hold under that name.
+    supply: dict = {}
+    for name, cities in idx.items():
+        supply[name] = len(cities) or 1
     matched = 0
     ambiguous_names: list = []
     malformed: list = []
@@ -194,11 +205,25 @@ def coverage(rows: list, targets: list | None) -> dict:
         per_county[county]["target"] += 1
         covered, ambiguous = target_is_covered(t, idx)
         if ambiguous:
+            # AN AMBIGUOUS MATCH IS NOT COVERAGE. Naming the ambiguity in the
+            # report while still incrementing `covered` meant the percentage
+            # already contained the very matches we said we would not resolve
+            # silently — the caveat travelled in prose and the number travelled
+            # everywhere. Ambiguity is counted as NOT covered, which understates
+            # rather than overstates, and every such target is listed so it can
+            # be resolved rather than assumed.
             ambiguous_names.append(t.get("name"))
-        if covered:
+            per_county[county]["missing"].append(t.get("name"))
+            continue
+        key = venue_name_key(t.get("name"))
+        if covered and supply.get(key, 0) > 0:
+            supply[key] -= 1
             per_county[county]["covered"] += 1
             matched += 1
         else:
+            # Either no match, or the name matched but we have already credited
+            # every distinct venue we hold under it. The remaining targets are
+            # genuinely uncovered premises, not duplicates of a covered one.
             per_county[county]["missing"].append(t.get("name"))
     total_target = sum(c["target"] for c in per_county.values())
     return {

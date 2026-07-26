@@ -34,10 +34,6 @@ on:
   push:
     paths:
       - "tools/fetch_tabc_capcog.py"
-      # Layer 3. Omitted when this file was added, so a change to the TMO
-      # fetcher did not re-measure — the measurement quietly stopped tracking
-      # one of its own inputs, which is how a stale number survives a fix.
-      - "tools/fetch_tmo_venues.py"
       - "tools/build_capcog_targets.py"
       - "tools/capcog_coverage.py"
       - "tools/source_scorecard.py"
@@ -84,14 +80,6 @@ jobs:
         if: ${{ github.event.inputs.skip_tabc != 'true' }}
         run: python tools/fetch_tabc_capcog.py
 
-      # Layer 3 (Texas Music Office) is not parsed yet — there is no documented
-      # API, so the parser must be written against the real markup rather than
-      # from memory, and the sandbox has no egress to gov.texas.gov. This step
-      # prints the markup so the parser can be written against fact. It cannot
-      # fail the run: the layer contributes nothing until it is implemented.
-      - name: Describe the Texas Music Office directory markup (layer 3, WIP)
-        continue-on-error: true
-        run: python tools/fetch_tmo_venues.py --describe --category venues
 
       - name: Build the venue target list
         run: |

@@ -285,13 +285,18 @@ def main(argv=None) -> int:
         # looking like findings about those counties while the docs quote the
         # measured figure — the exact stale-number trap this file exists to
         # prevent. So a catalog-only artifact says so in its first field.
+        # NO NUMBER IS QUOTED HERE, DELIBERATELY. The first version of this
+        # banner named the then-current measured figure — and went stale within
+        # the hour when the address fix moved it. A hardcoded number inside the
+        # device that exists to prevent stale numbers is the defect eating its
+        # own tail. Point at where the live figure comes from; never restate it.
         "_READ_THIS_FIRST": (
             "CATALOG-ONLY FLOOR — NOT THE MEASURED DENOMINATOR. The counties "
             "showing zero below are counties this project had not catalogued, "
-            "NOT counties without venues. The real figure comes from the CAPCOG "
-            "Coverage workflow, which fetches TABC where egress exists; on "
-            "2026-07-26 that was 2,873 venues with every county non-zero. Do "
-            "not quote the numbers in this file as the market."
+            "NOT counties without venues. The real figure is produced by the "
+            "CAPCOG Coverage workflow, which fetches TABC where egress exists; "
+            "read it from that workflow's most recent run, never from this "
+            "file. Do not quote the numbers here as the market."
         ) if catalog_only else (
             "MEASURED denominator, built from the layers named in "
             "layers_present."),
