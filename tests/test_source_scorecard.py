@@ -172,3 +172,23 @@ def test_the_live_registry_builds_and_covers_every_source():
                      .read_text(encoding="utf-8"))
     assert doc["source_count"] >= 116
     assert all(s["source_class"] in SOURCE_CLASSES for s in doc["sources"])
+
+
+def test_a_network_failure_is_not_reported_as_an_empty_county():
+    """evaluator nit r4: a URLError fell through as a bare traceback, leaving an
+    operator to guess whether CAPCOG had no venues or the network was down."""
+    import urllib.error
+    import tools.fetch_tabc_capcog as tabc
+    import pytest as _pytest
+
+    def boom(url, timeout=60):
+        raise urllib.error.URLError("dns go boom")
+
+    orig = tabc._get
+    tabc._get = boom
+    try:
+        with _pytest.raises(SystemExit) as e:
+            tabc.fetch({"travis"})
+        assert "NOT an empty county" in str(e.value)
+    finally:
+        tabc._get = orig

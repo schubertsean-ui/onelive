@@ -96,6 +96,14 @@ def fetch(counties: set, limit_pages: int = MAX_PAGES) -> tuple:
             raise SystemExit(
                 f"fetch_tabc_capcog: FAIL — HTTP {exc.code} from data.texas.gov: "
                 f"{body}\n  A failed fetch is NOT an empty county.")
+        except urllib.error.URLError as exc:
+            # Connection drop / DNS / TLS. It already failed loud as a traceback
+            # (evaluator nit), but a bare stack trace makes an operator guess
+            # whether the county is empty or the network was. Say which.
+            raise SystemExit(
+                f"fetch_tabc_capcog: FAIL — could not reach data.texas.gov "
+                f"({exc.reason}).\n  A network failure is NOT an empty county; "
+                f"re-run when connectivity is restored.")
         if not batch:
             break
         if not verified:
