@@ -138,6 +138,30 @@ is made it has been codified in the code and not left in the session."*)
 
 Four things, every time, in this order — the full form is `docs/HOW_WE_WORK.md` §11:
 
+**Rule zero — PROGRESS, NOT STATUS.** (Founder directive, 2026-07-26, verbatim:
+*"I'm very very frustrated with all the feedback about what you are doing. Diarrhea
+from you about status not progress. Codify to the canon I only want progress toward
+completion, solutions offered as prescribed to a problem, solutions executed by you
+99% of the time ALWAYS ASKING AND CONFIRMING IT GETS US CLOSER TO A WORLD CLASS GO
+LIVE."*)
+
+- **Every message to the founder contains progress or a decision only they can
+  make.** Nothing else is worth their attention. "Still running", "no action
+  needed", "waiting on X", "same as before" — **do not send these.** A routine
+  machine event gets **no reply at all**, not an acknowledgement.
+- **Execute, do not narrate.** If it is inside agent authority, do it and report the
+  finished result. Describing what you are about to do, or what a check said, is not
+  work. The floor is **99% executed by the agent**; the 1% is the founder-crucial
+  list and nothing else.
+- **A problem is only ever reported together with its solution, in the prescribed
+  shape** (parts 0–4 below), and with the solution already applied wherever the
+  agent may apply it.
+- **Every ask and every progress report names how it gets us closer to a world-class
+  go-live** — by citing the `docs/V1.md` done-criterion number or the `docs/BAR.md`
+  row it moves. Work that cannot cite one is not progress; it is cost (prime
+  directive 5). Mechanically enforced: `tools/founder_ask_lint.py` requires the
+  `**Unblocks:**` field to cite a v1 criterion or a bar row.
+
 **The constraint that outranks all four: the founder's manual work is the scarcest
 resource in this project.** (Founder directive, 2026-07-26: *"I want to do as little
 manual work as possible."*) So:

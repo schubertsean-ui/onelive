@@ -17,6 +17,8 @@ import importlib.util
 import pathlib
 import sys
 
+import pytest
+
 _REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
@@ -51,7 +53,7 @@ _FULL = """### Ask 9 — do a thing
 
 **Time:** ~1 minute.
 
-**Unblocks:** the next thing.
+**Unblocks:** v1 done-criterion 1 and BAR C2.
 
 **If you decline:** the cost is stated.
 
@@ -107,6 +109,37 @@ def test_resolved_asks_are_skipped_as_history():
     assert LINT.audit(superseded) == []
 
 
+def test_an_ask_that_cannot_name_what_it_moves_toward_go_live_is_a_finding():
+    """Rule zero (founder, 2026-07-26): *"ALWAYS ASKING AND CONFIRMING IT GETS US
+    CLOSER TO A WORLD CLASS GO LIVE."* An Unblocks field of pure intent is not a
+    citation — it must name a v1 done-criterion number or a BAR row, because those
+    are numbered precisely so this is checkable rather than felt."""
+    vague = _FULL.replace("**Unblocks:** v1 done-criterion 1 and BAR C2.",
+                          "**Unblocks:** it makes things better generally.")
+    findings = LINT.audit(vague)
+    assert len(findings) == 1
+    assert "no v1 done-criterion number and no BAR row" in findings[0]
+
+
+@pytest.mark.parametrize("citation", [
+    "v1 done-criterion 1", "criterion 6", "done-criteria 2",
+    "BAR C2", "bar row P1", "H7", "J11",
+])
+def test_each_accepted_go_live_citation_form_passes(citation):
+    ok = _FULL.replace("**Unblocks:** v1 done-criterion 1 and BAR C2.",
+                       f"**Unblocks:** {citation}.")
+    assert LINT.audit(ok) == [], citation
+
+
+def test_the_real_open_asks_each_cite_go_live_progress():
+    text = LINT.DEFAULT_V1.read_text(encoding="utf-8")
+    for number, heading, section in LINT._sections(text):
+        if LINT._RESOLVED.search(heading):
+            continue
+        assert LINT.cites_golive_progress(section), \
+            f"Ask {number} does not say which part of go-live it moves"
+
+
 def test_a_url_plus_a_shape_without_a_walkthrough_is_a_finding():
     """The exact failure that added this field: a link and a form, but no
     statement of what the founder would SEE at each point."""
@@ -123,8 +156,8 @@ def test_an_em_dash_label_form_is_accepted():
 
 
 def test_a_bulleted_label_is_accepted():
-    bulleted = _FULL.replace("**Unblocks:** the next thing.",
-                             "- **Unblocks:** the next thing.")
+    bulleted = _FULL.replace("**Unblocks:** v1 done-criterion 1 and BAR C2.",
+                             "- **Unblocks:** v1 done-criterion 1 and BAR C2.")
     assert LINT.audit(bulleted) == []
 
 

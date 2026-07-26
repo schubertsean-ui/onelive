@@ -53,21 +53,45 @@ _RECOMMENDATION = "Recommendation"
 _RESOLVED = re.compile(r"\bRESOLVED\b|\bDONE\b|\bSUPERSEDED\b")
 
 MIN_OPTIONS = 3
+
+# "Progress, not status" (CLAUDE.md prime directive 6 rule zero): an ask has to say
+# how it gets us closer to a world-class go-live, and the only non-negotiable way to
+# say that here is to cite a v1 done-criterion number or a BAR row. Prose intent is
+# not a citation — `docs/V1.md` numbers the criteria and `docs/BAR.md` letters the
+# rows precisely so this can be checked rather than felt.
+_GOLIVE_CITATION = re.compile(
+    r"(?:done-)?criteri(?:on|a)\s*#?\d"          # "criterion 6", "done-criteria 1"
+    r"|\bv1\s+(?:done-)?criteri"                  # "v1 criterion ..."
+    r"|\b[A-J]\d{1,2}\b"                          # a BAR row: C2, H7, P1, J11
+    r"|\bBAR\b", re.IGNORECASE)
+
+
 # An enumerated option: "1." / "(a)" / "a)" at the start of a line.
 _OPTION_ITEM = re.compile(r"^\s*(?:\d+\.|\([a-z]\)|[a-z]\))\s+\S", re.MULTILINE)
 # Where an Options block ENDS: the next line-leading bold label, or a heading.
 _NEXT_LABEL = re.compile(r"^\s*(?:[-*]\s+)?\*\*[A-Z]|^#{1,6}\s", re.MULTILINE)
 
 
-def _options_block(section: str) -> str | None:
-    """Text from the `**Options:**` label to the next label/heading, or None."""
-    label = re.search(r"^\s*(?:[-*]\s+)?\*\*Options\s*(?::|—|-)", section,
-                      re.MULTILINE)
-    if label is None:
+def _field_block(section: str, label: str) -> str | None:
+    """Text from `**<label>:**` to the next line-leading bold label, or None."""
+    found = re.search(rf"^\s*(?:[-*]\s+)?\*\*{re.escape(label)}\s*(?::|—|-)",
+                      section, re.MULTILINE)
+    if found is None:
         return None
-    rest = section[label.end():]
+    rest = section[found.end():]
     nxt = _NEXT_LABEL.search(rest)
     return rest[:nxt.start()] if nxt else rest
+
+
+def _options_block(section: str) -> str | None:
+    """Text from the `**Options:**` label to the next label/heading, or None."""
+    return _field_block(section, "Options")
+
+
+def cites_golive_progress(section: str) -> bool:
+    """Does this ask's `Unblocks:` field name what it moves toward go-live?"""
+    block = _field_block(section, "Unblocks")
+    return block is not None and bool(_GOLIVE_CITATION.search(block))
 
 
 def count_options(section: str) -> int:
@@ -110,6 +134,14 @@ def audit(text: str) -> list[str]:
             findings.append(
                 f"Ask {number}: missing '**{label}:**' as a line-leading bold label "
                 f"— {why}. CLAUDE.md prime directive 6.")
+        # Rule zero: the ask must name what it moves toward go-live.
+        if "Unblocks" not in missing and not cites_golive_progress(section):
+            findings.append(
+                f"Ask {number}: '**Unblocks:**' names no v1 done-criterion number "
+                f"and no BAR row — an ask that cannot say which part of a "
+                f"world-class go-live it moves is cost, not progress. Cite e.g. "
+                f"'v1 done-criterion 1' or 'BAR C2'. CLAUDE.md prime directive 6 "
+                f"rule zero.")
         # A present-but-thin Options block is the padding failure the directive
         # calls out: two choices dressed up as three.
         if "Options" not in missing:
