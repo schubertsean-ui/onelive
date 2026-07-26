@@ -28,7 +28,6 @@ without --require); 1 = REQUEST-CHANGES (blocking findings); 2 = hard failure
 from __future__ import annotations
 
 import argparse
-import concurrent.futures
 import json
 import os
 import subprocess
@@ -347,61 +346,26 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
         + " | ".join(po_provocations(po_seed))
     ]
     verdicts: list[str] = []
-
-    # The lenses are INDEPENDENT BY DESIGN — the whole point of the panel is
-    # that no seat sees another's output (docs/hats/README.md, Independence).
-    # Running them one after another therefore bought nothing and cost
-    # everything: four large-diff model calls in series is 7-25 minutes of wall
-    # clock per round, which is most of the review latency on this project and
-    # the reason a red round is expensive enough to distort what gets built.
-    #
-    # Concurrency changes SPEED ONLY. Every lens still runs, every verdict is
-    # still collected, an unparseable output still raises, and the rule is
-    # still that ANY red is red. Results are re-assembled in the original
-    # seat/lens order so the transcript is byte-identical to the serial one —
-    # a review whose output shifts around between runs is a review nobody can
-    # diff.
-    planned: list = []          # (seat, lens_name, prompt, requester)
     for seat, seat_key, requester in (
         ("openai", openai_key, request_openai),
         ("gemini", gemini_key, request_gemini),
     ):
         if not seat_key:
-            planned.append((seat, None, None, None))
+            outputs.append(
+                f"### SEAT {seat}: EMPTY — no API key minted; the panel runs "
+                "single-family until the founder mints it (explicit, never silent)"
+            )
             continue
         method_lens, po_lens = SEAT_LENSES[seat]
         for lens_name, extra in (
             (method_lens, LENSES[method_lens]),
             (po_lens, LENSES[po_lens] + "\n\n" + po_preamble(po_seed)),
         ):
-            planned.append((
-                seat, lens_name,
-                SYSTEM_PROMPT + "\n\n" + V2_DISCIPLINE + "\n\n" + extra,
-                requester))
-
-    live = [(i, p) for i, p in enumerate(planned) if p[1] is not None]
-    texts: dict = {}
-    if live:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(live)) as pool:
-            futures = {
-                pool.submit(p[3], review_input, p[2]): i for i, p in live
-            }
-            for fut in concurrent.futures.as_completed(futures):
-                # .result() re-raises inside the caller's thread, so a lens that
-                # fails still hard-fails the panel exactly as it did serially.
-                texts[futures[fut]] = fut.result()
-
-    for i, (seat, lens_name, _prompt, _req) in enumerate(planned):
-        if lens_name is None:
-            outputs.append(
-                f"### SEAT {seat}: EMPTY — no API key minted; the panel runs "
-                "single-family until the founder mints it (explicit, never silent)"
-            )
-            continue
-        text = texts[i]
-        verdict = parse_verdict(text)  # unparseable raises -> hard fail
-        verdicts.append(verdict)
-        outputs.append(f"### SEAT {seat} / LENS {lens_name}: {verdict}\n{text}")
+            system_prompt = SYSTEM_PROMPT + "\n\n" + V2_DISCIPLINE + "\n\n" + extra
+            text = requester(review_input, system_prompt)
+            verdict = parse_verdict(text)  # unparseable raises -> hard fail
+            verdicts.append(verdict)
+            outputs.append(f"### SEAT {seat} / LENS {lens_name}: {verdict}\n{text}")
     if not verdicts:
         raise RuntimeError("panel produced zero lens verdicts — wiring error, "
                            "never an approval")
