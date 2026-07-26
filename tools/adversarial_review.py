@@ -28,6 +28,7 @@ without --require); 1 = REQUEST-CHANGES (blocking findings); 2 = hard failure
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import os
 import subprocess
@@ -123,6 +124,13 @@ LENSES = {
 }
 
 # Seat -> ordered lens pair (method lens, then the po-carrying lens).
+# Upper bound on the WHOLE panel, not per lens. Four concurrent calls to a
+# reasoning model take low single-digit minutes; ten minutes is generous enough
+# that a healthy slow run never trips it, and short enough that a hung run is
+# reported inside one review cycle instead of holding a CI job open. Exceeding
+# it RAISES — it is a deadline, never a partial-panel fallback.
+PANEL_TIMEOUT_S = 600
+
 SEAT_LENSES = {
     "openai": ("attacker-smuggle", "absence-only"),
     "gemini": ("dataflow-taint", "spec-vs-contract"),
@@ -346,26 +354,89 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
         + " | ".join(po_provocations(po_seed))
     ]
     verdicts: list[str] = []
+
+    # The lenses are INDEPENDENT BY DESIGN — the whole point of the panel is
+    # that no seat sees another's output (docs/hats/README.md, Independence).
+    # Running them one after another therefore bought nothing and cost
+    # everything: four large-diff model calls in series is 7-25 minutes of wall
+    # clock per round, which is most of the review latency on this project and
+    # the reason a red round is expensive enough to distort what gets built.
+    #
+    # Concurrency changes SPEED ONLY. Every lens still runs, every verdict is
+    # still collected, an unparseable output still raises, and the rule is
+    # still that ANY red is red. Results are re-assembled in the original
+    # seat/lens order so the transcript is byte-identical to the serial one —
+    # a review whose output shifts around between runs is a review nobody can
+    # diff.
+    planned: list = []          # (seat, lens_name, prompt, requester)
     for seat, seat_key, requester in (
         ("openai", openai_key, request_openai),
         ("gemini", gemini_key, request_gemini),
     ):
         if not seat_key:
-            outputs.append(
-                f"### SEAT {seat}: EMPTY — no API key minted; the panel runs "
-                "single-family until the founder mints it (explicit, never silent)"
-            )
+            planned.append((seat, None, None, None))
             continue
         method_lens, po_lens = SEAT_LENSES[seat]
         for lens_name, extra in (
             (method_lens, LENSES[method_lens]),
             (po_lens, LENSES[po_lens] + "\n\n" + po_preamble(po_seed)),
         ):
-            system_prompt = SYSTEM_PROMPT + "\n\n" + V2_DISCIPLINE + "\n\n" + extra
-            text = requester(review_input, system_prompt)
-            verdict = parse_verdict(text)  # unparseable raises -> hard fail
-            verdicts.append(verdict)
-            outputs.append(f"### SEAT {seat} / LENS {lens_name}: {verdict}\n{text}")
+            planned.append((
+                seat, lens_name,
+                SYSTEM_PROMPT + "\n\n" + V2_DISCIPLINE + "\n\n" + extra,
+                requester))
+
+    live = [(i, p) for i, p in enumerate(planned) if p[1] is not None]
+    texts: dict = {}
+    if live:
+        # FAIL FAST, and do not wait on a sibling to fail.
+        #
+        # The first version relied on the `with` block, whose __exit__ calls
+        # shutdown(wait=True) — so a lens that RAISED could not reach the caller
+        # until every other future finished. One hung HTTP call therefore turned
+        # a loud failure into an indefinite stall, in gate-custody code, where a
+        # review that never returns is indistinguishable from one that passed.
+        # Serially this could not happen: the raise landed immediately.
+        # Evaluator finding, PR #81 r1 (openai/absence-only).
+        #
+        # PANEL_TIMEOUT_S bounds the whole panel, and cancel_futures tears down
+        # the rest the moment any lens errors or the clock runs out. Both paths
+        # RAISE; neither is a silent short panel.
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=len(live))
+        try:
+            futures = {
+                pool.submit(p[3], review_input, p[2]): i for i, p in live
+            }
+            try:
+                for fut in concurrent.futures.as_completed(
+                        futures, timeout=PANEL_TIMEOUT_S):
+                    # .result() re-raises in the caller's thread, so a lens that
+                    # fails hard-fails the panel exactly as it did serially.
+                    texts[futures[fut]] = fut.result()
+            except concurrent.futures.TimeoutError as exc:
+                pending = [planned[i][1] for f, i in futures.items()
+                           if not f.done()]
+                raise SystemExit(
+                    f"adversarial_review: FAIL — the review panel exceeded "
+                    f"{PANEL_TIMEOUT_S}s with {len(pending)} lens(es) still "
+                    f"running ({', '.join(pending)}). A review that never "
+                    f"returns is not a review that passed.") from exc
+        finally:
+            # wait=False so a hung worker cannot hold the process; the raise
+            # above has already decided the outcome.
+            pool.shutdown(wait=False, cancel_futures=True)
+
+    for i, (seat, lens_name, _prompt, _req) in enumerate(planned):
+        if lens_name is None:
+            outputs.append(
+                f"### SEAT {seat}: EMPTY — no API key minted; the panel runs "
+                "single-family until the founder mints it (explicit, never silent)"
+            )
+            continue
+        text = texts[i]
+        verdict = parse_verdict(text)  # unparseable raises -> hard fail
+        verdicts.append(verdict)
+        outputs.append(f"### SEAT {seat} / LENS {lens_name}: {verdict}\n{text}")
     if not verdicts:
         raise RuntimeError("panel produced zero lens verdicts — wiring error, "
                            "never an approval")

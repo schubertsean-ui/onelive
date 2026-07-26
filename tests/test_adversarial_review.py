@@ -259,6 +259,63 @@ def test_panel_gemini_seat_runs_when_key_present():
     assert verdict == ar.APPROVE
 
 
+def test_panel_lenses_run_CONCURRENTLY_not_one_after_another():
+    """Four large-diff model calls in series was 7-25 minutes per round — most
+    of this project's review latency, and enough to distort what gets built.
+
+    The lenses never see each other's output by design, so nothing about the
+    review depends on their order. This pins that they actually overlap: each
+    stub blocks until all of them have arrived, which can only complete if
+    they run at the same time.
+    """
+    import threading
+    started = threading.Barrier(4, timeout=10)
+
+    def lens(ri, sp):
+        started.wait()          # deadlocks (BrokenBarrier) if run serially
+        return "ok\nVERDICT: APPROVE"
+
+    verdict, _ = ar.run_panel(
+        "input", "seed", openai_key="k", model="m", base_url="u",
+        gemini_key="gk", request_openai=lens, request_gemini=lens)
+    assert verdict == ar.APPROVE
+
+
+def test_panel_output_order_is_STABLE_regardless_of_which_lens_finishes_first():
+    """A transcript whose sections move between runs cannot be diffed, and the
+    seat/lens order is how a reader finds a finding again."""
+    import time
+
+    def slow(ri, sp):
+        time.sleep(0.05)        # openai seat finishes LAST
+        return "slow\nVERDICT: APPROVE"
+
+    def fast(ri, sp):
+        return "fast\nVERDICT: APPROVE"
+
+    _, outputs = ar.run_panel(
+        "input", "seed", openai_key="k", model="m", base_url="u",
+        gemini_key="gk", request_openai=slow, request_gemini=fast)
+    seats = [line.split("/")[0].strip() for line in outputs
+             if line.startswith("### SEAT")]
+    assert seats == ["### SEAT openai", "### SEAT openai",
+                     "### SEAT gemini", "### SEAT gemini"]
+
+
+def test_a_lens_that_RAISES_still_hard_fails_the_panel_when_run_concurrently():
+    """Concurrency must not turn a lens error into a swallowed result — a panel
+    that loses a lens and still approves is a gate that stopped being one."""
+    def boom(ri, sp):
+        raise RuntimeError("upstream 500")
+
+    def ok(ri, sp):
+        return "ok\nVERDICT: APPROVE"
+
+    with pytest.raises(RuntimeError, match="upstream 500"):
+        ar.run_panel("input", "seed", openai_key="k", model="m", base_url="u",
+                     gemini_key="gk", request_openai=boom, request_gemini=ok)
+
+
 def test_panel_unparseable_lens_is_hard_failure():
     def hedged(ri, sp):
         return "maybe\nVERDICT: MAYBE"  # not a valid verdict
@@ -412,3 +469,57 @@ def test_every_floating_alias_in_the_allowlist_is_bound_to_an_OPEN_record():
             "OPEN docs/RECORD.md row naming it. An alias moves provider-side "
             "with no commit here, so it may only exist while a record carries "
             "its objective trigger to concretise it (class: mutable-model-alias)")
+
+
+def test_a_hung_lens_cannot_swallow_a_sibling_FAILURE():
+    """r1 blocker: the panel ran inside `with ThreadPoolExecutor(...)`, whose
+    __exit__ calls shutdown(wait=True) — so a lens that RAISED could not reach
+    the caller until every other future finished. One hung HTTP call turned a
+    loud failure into an indefinite stall, in gate-custody code, where a review
+    that never returns is indistinguishable from one that passed. Serially this
+    was impossible: the raise landed immediately.
+
+    The hung lens blocks until this test releases it, so the test only
+    terminates if the panel refuses to wait for it.
+    """
+    import threading
+    import time
+    import tools.adversarial_review as ar
+
+    release = threading.Event()
+    started = threading.Event()
+
+    def hung(_input, _prompt):
+        started.set()
+        release.wait(30)      # bounded, so a regression fails instead of hanging
+        return "VERDICT: APPROVE"
+
+    def boom(_input, _prompt):
+        started.wait(5)       # guarantee the hung sibling is in flight first
+        raise RuntimeError("lens exploded")
+
+    # TIMING IS THE ASSERTION. Under the old `with` form the exception still
+    # reached the caller in the end, once shutdown(wait=True) had waited the
+    # hung sibling out. So a pytest.raises alone passes on the broken code and
+    # proves nothing; what changed is that the failure is now immediate.
+    started_at = time.monotonic()
+    try:
+        with pytest.raises(RuntimeError, match="lens exploded"):
+            ar.run_panel("diff", "seed", "openai-key", "m",
+                         "https://example.invalid", "gemini-key",
+                         request_openai=boom, request_gemini=hung)
+        elapsed = time.monotonic() - started_at
+    finally:
+        release.set()
+    assert elapsed < 5, (
+        f"the failure took {elapsed:.1f}s to surface while a sibling lens was "
+        f"hung — the panel is waiting on shutdown again")
+
+
+def test_the_panel_has_a_DEADLINE_and_it_raises(monkeypatch):
+    """A review that never returns is not a review that passed."""
+    import tools.adversarial_review as ar
+    assert isinstance(ar.PANEL_TIMEOUT_S, int)
+    assert 0 < ar.PANEL_TIMEOUT_S <= 1800, (
+        "the panel deadline must be bounded and short enough that a hung run "
+        "is reported inside one review cycle")
