@@ -65,16 +65,21 @@ claim-shaped line. Measured on this PR's own added record lines before
 building it:
 
 ```
-$ git diff origin/master -U0 -- STATE.md docs/ONE_LIVE_CHANGE_LOG.md \
-      docs/metrics/KAIZEN_LEDGER.md docs/memory/RED_CLASSES.md docs/RECORD.md \
-  | <count added lines matching claim-grammar, then those with no proof token>
-added record lines : 79
-  claim-shaped     : 55
-  WITHOUT any proof token (would fire): 36   → 65% of claim lines
+$ python docs/session_arcs/evidence/scripts/probe_claim_scan.py
+added record lines : 93
+  claim-shaped     : 69
+  WITHOUT any proof token (would fire): 40
+  fire rate over claim lines: 57 percent
 ```
-The full command and every other number in this arc are reproduced with their
-output in the timing/measurement evidence file under
-`docs/session_arcs/evidence/`.
+
+r10 correction: the first version of this block used
+`<count added lines matching…>` as a stand-in for the command — a placeholder
+where the record demanded proof, inside the record codifying that demand. The
+script is now committed and runnable. Counts move as the branch grows (79 /
+55 / 36 at r8, 93 / 69 / 40 here); both runs show a majority of claim-shaped
+lines firing, which is the finding. Every other number in this arc is
+reproduced with its command and output in the timing/measurement evidence
+file under `docs/session_arcs/evidence/`.
 
 Rejected on that evidence. Judging whether prose is verified is a judgment
 task wearing a regex costume, and a 65%-noise gate is one that gets

@@ -169,3 +169,38 @@ def test_quoted_pytest_mentions_are_not_invocations(line):
 ])
 def test_real_runner_invocations_are_still_credited(line):
     assert bfc._invokes_full_suite_runner(line) is True
+
+
+# ── UNQUOTED mentions are not invocations either (#73 r10) ──────────────────
+# r9 stripped quoted spans, which left the harder case open: `echo $PY -m
+# pytest` has the SAME token shape as tools/validate's real
+# `run_check "label" "$PY" -m pytest -q`, because the interpreter is an
+# argument in both. The first token now decides, from an allow-list.
+
+@pytest.mark.parametrize("line", [
+    "echo $PY -m pytest",
+    "printf %s $PY -m pytest",
+    "echo python -m pytest -q",
+    "ls python -m pytest",
+])
+def test_unquoted_pytest_mentions_are_not_invocations(line):
+    assert bfc._is_full_suite_pytest(line) is False
+
+
+@pytest.mark.parametrize("line", [
+    'run_check "pytest (full suite)" "$PY" -m pytest -q',
+    "python -m pytest -q",
+    "run: python -m pytest -q",
+    "$PYTHON -m pytest",
+    "bash -c python; python -m pytest",
+])
+def test_real_pytest_invocations_survive_the_command_position_rule(line):
+    assert bfc._is_full_suite_pytest(line) is True
+
+
+def test_the_allow_list_fails_CONSERVATIVELY_on_an_unknown_wrapper():
+    """An unrecognised first token yields False, so the tool credits FEWER
+    gates than reality. Under-crediting understates how much a failure
+    blocks; over-crediting would claim protection that does not exist."""
+    assert bfc._is_full_suite_pytest("weirdrunner $PY -m pytest -q") is False
+    assert bfc._in_command_position("weirdrunner $PY -m pytest") is False

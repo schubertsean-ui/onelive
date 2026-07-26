@@ -183,11 +183,16 @@ post can be signed, so nothing can publish even with Meta connected.
    served by someone else: you cannot verify from here what that page does
    with it, and a signing key that leaves your machine can forge approvals.
    Pick whichever applies:
-   - a. **Windows** — press Start, type `powershell`, open it, and paste:
+   - a. **Windows** — press Start, type `powershell`, open it, and paste
+     this exactly (one line):
      ```
-     [Convert]::ToBase64String((1..48|%{Get-Random -Max 256}))
+     [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
      ```
      Press Enter and copy the whole output line.
+     Do NOT substitute `Get-Random` here even though it looks equivalent —
+     it is a general-purpose random number generator, not a cryptographic
+     one, and a signing key generated from it is guessable in ways that do
+     not show up until someone forges an approval.
    - b. **Linux** — open Terminal and run the same `openssl rand -base64 48`
      as above.
    - c. **A password manager you already have installed** (1Password,

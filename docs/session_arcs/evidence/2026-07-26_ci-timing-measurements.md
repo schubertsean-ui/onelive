@@ -36,8 +36,20 @@ real    0m28.375s
 That figure was taken from an ad-hoc run earlier in the session against a
 different tree state, not from a controlled before/after. The measured
 numbers are **49.73s → 27.83s** (1689 vs 1690 tests — the current tree has
-one more test, so the comparison slightly UNDER-states the gain). Every
-statement of this number is corrected to the measured pair.
+one more test, so the comparison slightly UNDER-states the gain).
+
+r10: the r9 version of this paragraph ended "Every statement of this number
+is corrected to the measured pair" — that was FALSE when written. The
+changelog and three STATE.md citations still carried 57s→30s, and the
+evaluator found them. They are corrected now, enumerated rather than
+asserted:
+
+```
+$ grep -rn '57s' STATE.md docs/ONE_LIVE_CHANGE_LOG.md docs/metrics/KAIZEN_LEDGER.md
+```
+
+returns only lines that NAME the wrong figure as wrong. Claiming a sweep
+complete while siblings survive is the class this whole arc keeps hitting.
 
 ## 2. Where the suite time actually went — 106,476 redundant regex scans
 
@@ -68,19 +80,38 @@ Both copies loaded into one process and compared directly, rather than
 inferring safety from "the tests still pass":
 
 ```
-$ git show HEAD:tools/kaizen_trends.py > /tmp/kt_old.py   # pre-change copy
-$ python - <<'EOF'
-  ... loads both modules, runs build_report(text) on the real ledger ...
-EOF
+$ git show 077dfd0:tools/kaizen_trends.py > /tmp/kt_pre.py
+$ python docs/session_arcs/evidence/scripts/probe_kaizen_identical.py
 report identical: True
 findings identical: True
-old 3.731s -> new 0.087s  (43x)
-findings: 0
+pre 3.095s -> current 0.079s
 ```
+
+CORRECTED at r10 (evaluator, class `unverified-claim-as-fact`): the first
+version of this block was NOT re-runnable. It elided the comparison script as
+an ellipsis and named `HEAD` as the "pre-change copy" — but HEAD is the copy
+WITH the memoization. The pre-change ref is `077dfd0`, the commit before
+`80b5ed1` introduced the cache. The script is now committed at
+`docs/session_arcs/evidence/scripts/probe_kaizen_identical.py`. Timings vary
+run to run (3.731s/0.087s was an earlier run of this same comparison); the
+identity result does not.
 
 ## 4. CI job wall clock: 489s → 418s measured, and what remains
 
-From the GitHub Actions API (`list_workflow_jobs`), job `adversarial-review`:
+Re-runnable without any MCP tooling — the step timings come straight from the
+REST API, and the arithmetic is completed_at minus started_at per step:
+
+```
+$ curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+    https://api.github.com/repos/schubertsean-ui/onelive/actions/runs/30187255366/jobs \
+  | python -c "import json,sys,datetime as d; j=json.load(sys.stdin)['jobs'][0]; \
+p=lambda s: d.datetime.fromisoformat(s.replace('Z','+00:00')); \
+print('TOTAL', (p(j['completed_at'])-p(j['started_at'])).seconds); \
+[print(int((p(s['completed_at'])-p(s['started_at'])).total_seconds()), s['name']) for s in j['steps']]"
+```
+
+Substitute run id `30212687096` for the second column. Job
+`adversarial-review`:
 
 | Step | run 30187255366 (baseline) | run 30212687096 (after) |
 |---|---|---|
@@ -119,11 +150,16 @@ trigger; founder chose a dedicated PR after #73 merges.
 The r9 attacker-smuggle finding, verified rather than reasoned about:
 
 ```
-$ python threadprobe.py     # worker sleeps 6s; first error raises immediately
-run_panel-equivalent raised at t=0.00s
-PROCESS_EXIT_AT=0.00
-TOTAL PROCESS WALL CLOCK: 6.071353108s
+$ time python docs/session_arcs/evidence/scripts/probe_process_exit.py
+raise returned at t=0.00s
+
+real    0m6.042s
 ```
+
+The script is committed at
+`docs/session_arcs/evidence/scripts/probe_process_exit.py` (r10 — the first
+version of this section referenced an uncommitted `threadprobe.py`, so the
+claim could not be re-run from the repo at all).
 
 The raise is immediate; the PROCESS takes the full 6.07s, because
 `concurrent.futures` registers its non-daemon workers with an atexit hook
@@ -138,17 +174,44 @@ is what the code comment claimed before this measurement. Pinned by
 claim-shaped line in agent-authored records):
 
 ```
-added record lines : 79
-  claim-shaped     : 55
-  WITHOUT any proof token (would fire): 36
+$ python docs/session_arcs/evidence/scripts/probe_claim_scan.py
+added record lines : 93
+  claim-shaped     : 69
+  WITHOUT any proof token (would fire): 40
+  fire rate over claim lines: 57 percent
 ```
 
-65% of claim lines would fire. Rejected — a gate that noisy gets weakened.
+MEASURED AT COMMIT 22e8a4a. These counts move as the branch grows — an
+earlier run of the same script at r8 gave 79 / 55 / 36. Both runs say the
+same thing: a majority of claim-shaped lines would fire. Rejected — a gate
+that noisy gets weakened, and a weakened gate still reads as protection. The
+number is pinned to a commit precisely because it is not a constant.
 
 **Prose deferral-scanner** (extending `tools/deferral_scan.py` over STATE.md
-and TODOS.md): 7 lines would fire, of which 6 are false positives — a session
-contract title, the phrase "is not revisited here", and historical references
-to resolved decisions. The single true positive is now `R-054`.
+and TODOS.md):
+
+```
+$ python docs/session_arcs/evidence/scripts/probe_deferral_prose.py
+STATE.md: 9 lines would fire, of 694
+   L102 [eventually] [S3:missing-fail-fast-cancellation] r7 NEWLY INDEXED ...
+   L105 [revisit]    [S3:deferred-trust-work] r7 — nothing is parked ...
+   L128 [revisit]    [S3:caller-suppliable-custody-inputs] ... not revisited here
+   L298 [eventually] ADDENDUM ... a sign-off process ready for eventually ...
+   L391 [revisit]    ## Session Contract #15 ... whitespace revisit ...
+   L393 [revisit]    GOAL: McKinsey-grade market analysis ...
+   L610 [revisit]    2. [Minor decision] source_reliability ...
+   L616 [revisit]    Follows through on the DECISION-TO-REVISIT flagged in ...
+   L622 [revisit]    - Semantics note / flagged for founder ...
+TODOS.md: 1 lines would fire, of 129
+   L101 [revisit] - [ ] (P3) Explicit open-vs-closed loop framing ...
+```
+
+Every STATE.md hit is a false positive — contract titles, the phrase "is not
+revisited here", prose ABOUT deferral classes, and references to decisions
+already followed through. The one true deferral is TODOS.md L101, now
+carrying `R-054`. (At r8 the same script printed 7 hits / 6 false; the count
+grew with this branch's own prose, which is itself the argument against the
+gate.)
 
 ## 7. Duplicate suite execution removed
 

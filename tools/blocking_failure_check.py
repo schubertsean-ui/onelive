@@ -66,6 +66,34 @@ _NARROWING = ("-k", "-m", "--ignore", "--deselect")
 _INVOCATION = re.compile(
     r"(?:-m\s+pytest|(?:^|[|;&]|\brun:\s*)\s*pytest)\b")
 
+# Commands that EXECUTE what follows them. A `-m pytest` only counts when the
+# line actually runs it (#73 r10): `echo $PY -m pytest` has the same shape as
+# tools/validate's real `run_check "label" "$PY" -m pytest -q`, and quote
+# stripping alone cannot tell them apart because the interpreter is an
+# ARGUMENT in both. So the FIRST token decides, from an explicit allow-list.
+#
+# This is an ALLOW-list, not a deny-list, on purpose: an unknown first token
+# yields False, so the tool credits FEWER gates than reality. That is the
+# conservative direction for this tool — under-crediting understates how much
+# a failure blocks, while over-crediting would claim protection that does not
+# exist. Adding a wrapper here is a deliberate, reviewable edit.
+_EXEC_WRAPPERS = frozenset({
+    "run_check", "exec", "time", "env", "sudo", "xargs", "nice",
+    "bash", "sh", "zsh", "poetry", "uv", "pipenv", "hatch", "tox",
+})
+_INTERPRETER = re.compile(r"^(?:[\w./-]*python[\w.]*|\$\{?[A-Z_]*PY[A-Z_]*\}?)$")
+
+
+def _in_command_position(line: str) -> bool:
+    """True if the line actually RUNS something, rather than printing it."""
+    toks = line.split()
+    if toks and toks[0] == "run:":       # YAML `run: python -m pytest`
+        toks = toks[1:]
+    if not toks:
+        return False
+    head = toks[0]
+    return bool(head) and (head in _EXEC_WRAPPERS or bool(_INTERPRETER.match(head)))
+
 
 def _is_full_suite_pytest(line: str) -> bool:
     s = line.strip()
@@ -77,6 +105,10 @@ def _is_full_suite_pytest(line: str) -> bool:
     # its `-m pytest` because that part sits OUTSIDE the quotes.
     s = re.sub(r"""(['"]).*?\1""", "", s)
     if "pytest" not in s:
+        return False
+    # A MENTION is not an INVOCATION even unquoted (#73 r10): `echo $PY -m
+    # pytest` must not be credited as a blocking gate.
+    if "-m" in s and not _in_command_position(s):
         return False
     m = _INVOCATION.search(s)
     if not m:
