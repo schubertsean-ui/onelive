@@ -40,26 +40,36 @@ finding, or result — including, especially, self-reports.
   artifacts rather than tails.
 - **Mechanism (ships with the rule, per the `rule-stronger-than-mechanism`
   class):** `tools/source_verification_lint.py`, wired into `tools/validate` as
-  the `source_verification` check. Every entry in a research document's
-  `## Sources` block must carry a resolvable http(s) URL **and** a
-  verification-status token (`VERIFIED-READ`, `VERIFIED-ABSTRACT`,
-  `UNVERIFIED-BLOCKED`, `UNVERIFIED-SECONDARY`, `UNVERIFIED-PENDING`). Fails
-  closed when it scans nothing. Tests: `tests/test_source_verification_lint.py`.
-- **Retrieval:** three new `docs/memory/RED_CLASSES.md` rows —
-  `tail-only-diagnosis`, `unfollowable-citation`, `scripted-edit-not-reread` —
-  so the classes are matched mechanically on future changes rather than
-  remembered.
-- **Honest scope, recorded not hidden:** R-054. The lint enforces ONE document
-  today; measured, 12 of the other 12 research documents would fail. Each gains
-  its Sources block the next time it is edited, and `ENFORCED_DOCS` widens in
-  the same commit.
+  the `source_verification` check. Two halves:
+  - *Content* — in each `ENFORCED_DOCS` document, every `## Sources` entry
+    carries an http(s) URL **and** a boundary-matched verification-status
+    token (`VERIFIED-READ`, `VERIFIED-ABSTRACT`, `UNVERIFIED-BLOCKED`,
+    `UNVERIFIED-SECONDARY`, `UNVERIFIED-PENDING`).
+  - *Scope* — editing any `docs/research/*.md` that is NOT in `ENFORCED_DOCS`
+    fails the gate. This is what makes R-054's widening trigger a mechanism
+    instead of a promise; the PR #78 evaluator blocked the first version
+    precisely because an unbacked trigger can silently never fire.
+  Fails closed when it scans nothing, and when git cannot answer the diff.
+  Tests: `tests/test_source_verification_lint.py`.
+- **Retrieval:** four new `docs/memory/RED_CLASSES.md` rows —
+  `tail-only-diagnosis`, `unfollowable-citation`, `scripted-edit-not-reread`,
+  and `premature-blocked-claim` (the founder's second directive the same day:
+  one tool failing is not a capability limit) — so the classes are matched
+  mechanically on future changes rather than remembered.
+- **Honest scope, recorded not hidden:** R-054. The lint's CONTENT half covers
+  ONE document today; measured by the runnable command in that row, 12 of the
+  other 12 research documents would fail it. Its SCOPE half already covers the
+  whole tree, which is how `ENFORCED_DOCS` widens — one document per edit.
 
-**Honest limit of the mechanism, stated because the rule demands it.** The lint
-checks that a citation is *resolvable* and its status *declared*. It cannot
-check that the source says what the citing text claims, and it cannot detect a
-lying `VERIFIED-READ` token. Those remain human/evaluator catches. What it
-removes is the ability to ship an unfollowable citation *silently* — which is
-exactly what happened.
+**Honest limits, stated because the rule demands it — and corrected at r2,
+because the first version of this paragraph committed the very class this
+record is about.** It said the lint checks a citation is "resolvable". It does
+not: it checks that an http(s) URL is PRESENT and well-formed. A dead or
+invented link satisfies it. It also cannot check that a source says what the
+citing text claims, cannot detect a lying `VERIFIED-READ`, and does not look
+outside `docs/research/`. Those remain human and evaluator catches. What it
+removes is the ability to ship an unfollowable citation *silently*, and the
+ability to edit a research document without bringing it under the gate.
 
 ## "Prove you did it" — the web research, with proof
 
@@ -92,9 +102,12 @@ Per "measure your performance, and not handwaving at it" — the numbers below a
 derived by commands, and each row names the command:
 
 - **M1 rounds-to-APPROVE, PR #75:** `git rev-list --count origin/master..origin/
-  claude/universal-kernel-staging` → 8 commits, of which r1–r7 are review
-  rounds. **Still not APPROVE at r7.** This is the worst M1 in the ledger and it
-  is recorded as such rather than smoothed.
+  claude/universal-kernel-staging` → **10** commits at the time of writing, of
+  which r1–r9 are review rounds, and **still not APPROVE**. (It read 8/r7 when
+  this record was first written; r8 closed the key-exfil path structurally and
+  r9 fixed the dependency r8's job split removed. The number is re-read from
+  the command rather than left at its first value — a stale measured claim is
+  the `stale-live-incident-state` class.) Worst M1 in the ledger, unsmoothed.
 - **M2 catches this session, by finder.** The PR #78 evaluator was right that
   the first draft of this list was self-attestation with no way to check it —
   the exact defect this record exists about. Each row now names an artifact a
