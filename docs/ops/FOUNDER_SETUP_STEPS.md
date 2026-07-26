@@ -112,6 +112,19 @@ Applied, the secret is on screen at EVERY step below, in both sections:
    - e. Back on the confirmation screen, click **Got it** / **OK**.
 6. Copy the token that appears in the **Access Token** box. It is
    short-lived — step 1d fixes that.
+   **"Short-lived" does not mean "not a secret".** This token already carries
+   `instagram_content_publish` and can post as you from the moment it exists,
+   so every rule in step 1d applies to it RIGHT NOW, not after you extend it:
+   - a. Do NOT paste it into a chat with Claude, into a GitHub issue or PR,
+     into a commit, or into any file. It stays inside Meta's own tool until
+     step 1d exchanges it.
+   - b. Do NOT email it or message it to anyone, including yourself.
+   - c. Keep it on the clipboard only between here and step 1d. If it lands
+     anywhere else even briefly, treat it as burned: `OneLive Posting` →
+     **Settings** → **Advanced** → **Invalidate all access tokens**, then
+     start step 1c again.
+   The window is short, which is exactly why it gets skipped — a token that
+   expires in an hour can still be used within that hour.
 7. Sanity check before moving on: the box under the token should list all
    five scopes. If any is missing, repeat 4–6; a token with partial
    scopes fails silently at posting time, not now.

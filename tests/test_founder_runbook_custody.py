@@ -25,9 +25,23 @@ A test that fails is the point: it names the block and the missing step.
 
 Scope, stated honestly: this checks that the required INSTRUCTIONS ARE PRESENT
 in the right blocks. It cannot check that they are correct English or that a
-founder follows them. It replaces "I read the whole file" with "the file has
-these properties", which is strictly more than prose review gave, and strictly
-less than a proof that the runbook is safe.
+founder follows them — a genuine boundary of any static check. It replaces
+"I read the whole file" with "the file has these properties", which is strictly
+more than prose review gave, and strictly less than a proof of safety.
+
+A STATED LIMIT IS A TO-DO, NOT AN ALIBI (r28). This docstring used to carry a
+second limit — "does not audit ordinary mint/store steps, only recovery paths"
+— written at r25 as a design choice. It was a coverage gap, and r28 found the
+leak inside it: §1c copies a publish-capable token, and no test could see it.
+The lesson is about scope, not about that step. Across r25-r28 this suite was
+right about the class every time and wrong about the SCOPE every time, because
+each scope was drawn around the previous finding — recovery paths, then a
+hand-listed set of screens, then an exemption that contained a token, then
+credentials-defined-as-env-var-names. The asset is none of those. The asset is
+ANY VALUE THAT CAN ACT AS THE FOUNDER, wherever the document produces, shows,
+copies, stores or replaces one. New coverage goes there, and any limit named
+here that is not an inherent boundary of static checking is an open defect
+carrying a RECORD row, never a sentence that excuses itself.
 """
 import pathlib
 import re
@@ -37,10 +51,25 @@ _DOC = (pathlib.Path(__file__).resolve().parent.parent
 _TEXT = _DOC.read_text(encoding="utf-8")
 _LINES = _TEXT.splitlines()
 
-# The two bearer/signing credentials this runbook mints. Anything added to this
+# The bearer/signing credentials this runbook mints. Anything added to this
 # tuple is immediately held to every rule below — which is the intended way to
 # extend the file: add the name here first and let the tests say what is owed.
+#
+# r28: this list said "the TWO credentials" and named only the two ENV VAR
+# names, which silently excluded the SHORT-LIVED Meta token copied at §1c step
+# 6. That token already carries instagram_content_publish — it can post from
+# the moment it exists — so the enumeration was false and the suite could go
+# green while a publish-capable bearer path had no boundary at all. A custody
+# test whose own vocabulary omits a credential is worse than no test: it
+# converts an open leak into a documented "custody contract".
 _SECRETS = ("META_ACCESS_TOKEN", "ONELIVE_APPROVAL_KEY")
+
+# Credential MINT/COPY points that are not named by an env var. Each must carry
+# its own nondisclosure boundary at the point of copying, not deferred to a
+# later step that exchanges or stores it.
+_MINT_POINTS = (
+    ("short-lived Meta access token", "Copy the token that appears in the"),
+)
 
 # A step that puts a secret somewhere durable: the moment after which a stray
 # copy is the founder's exposure rather than a transient.
@@ -323,3 +352,51 @@ def test_no_screen_declared_safe_contains_a_secret_bearing_step():
         "a screen declared SAFE contains a secret-bearing step — an allow-list "
         "in a custody document must have every member verified, or the "
         "allow-list is the leak:\n  " + "\n  ".join(sorted(set(offenders))))
+
+
+def test_every_mint_point_carries_its_boundary_at_the_point_of_copying():
+    """r28 blocker, and the gap was in this file's own vocabulary.
+
+    §1c step 6 copies the SHORT-LIVED Meta token. It already carries
+    `instagram_content_publish`, so it can post from the moment it exists — but
+    the full "do not paste into chat/email/repo" boundary lived only at §1d,
+    the LONG-LIVED token. There was a real window with a publish-capable bearer
+    credential and no handling rules, and my r25 scoping decision is why no test
+    could see it: I wrote that this suite deliberately does not audit ordinary
+    mint/store steps, only recovery paths, because recovery is where r25's
+    finding was. For a custody document that is the wrong line to draw — the
+    FIRST copy of a credential is a custody path too.
+
+    A boundary is "at the point of copying" if the copy step's own block states
+    the chat/email prohibition. Deferring it to a later step does not count:
+    the founder acts on the step in front of them.
+    """
+    flat_lines = _TEXT.splitlines()
+    missing = []
+    for name, anchor in _MINT_POINTS:
+        idx = [i for i, l in enumerate(flat_lines) if anchor in l]
+        assert idx, (
+            f"the {name} mint point anchored on {anchor!r} is gone from the "
+            "runbook — either the step moved (update _MINT_POINTS) or the "
+            "coverage this test claims is a fiction")
+        for i in idx:
+            # Block = this numbered step and everything under it, to the next
+            # top-level step or heading.
+            e = next((j for j in range(i + 1, len(flat_lines))
+                      if re.match(r"^(?:\d+\.\s|#{2,}\s)", flat_lines[j])),
+                     len(flat_lines))
+            block = " ".join("\n".join(flat_lines[i:e]).split())
+            has_chat = re.search(r"do NOT paste it into a chat|not paste[^.]{0,40}chat",
+                                 block, re.IGNORECASE)
+            has_burn = re.search(r"treat it as burned|invalidate all access tokens",
+                                 block, re.IGNORECASE)
+            if not (has_chat and has_burn):
+                missing.append(
+                    f"{name} (line {i + 1}) — "
+                    f"chat-prohibition: {bool(has_chat)}, "
+                    f"burn-path: {bool(has_burn)}")
+    assert not missing, (
+        "these credential MINT points copy a bearer credential without stating "
+        "its nondisclosure boundary in the same step — a boundary deferred to a "
+        "later step does not protect the window before that step runs:\n  "
+        + "\n  ".join(missing))
