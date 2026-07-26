@@ -73,7 +73,33 @@ def test_every_run_block_parses_as_shell(path):
 
 def _strip_expressions(script: str) -> str:
     """Replace ${{ ... }} with a literal, the way the runner would."""
+    import re
     return re.sub(r"\$\{\{[^}]*\}\}", "EXPR", script)
+
+
+def test_the_coverage_workflow_watches_every_script_it_runs():
+    """A measurement that does not re-run when one of its own inputs changes is
+    how a stale number survives a fix.
+
+    `tools/fetch_tmo_venues.py` was added as denominator layer 3 and left out of
+    the path filter, so editing it changed the measurement without re-measuring.
+    """
+    path = REPO / ".github" / "workflows" / "capcog-coverage.yml"
+    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    on = doc.get(True) or doc.get("on") or {}
+    watched = set((on.get("push") or {}).get("paths") or [])
+    assert watched, "the coverage workflow has no push path filter"
+
+    run_text = "\n".join(
+        step.get("run", "")
+        for job in (doc.get("jobs") or {}).values()
+        for step in (job.get("steps") or [])
+        if isinstance(step.get("run"), str))
+    invoked = set(re.findall(r"python (tools/[\w/]+\.py)", run_text))
+    missing = sorted(s for s in invoked if s not in watched)
+    assert not missing, (
+        f"these scripts run in the coverage workflow but changing them does "
+        f"NOT re-run the measurement: {missing}")
 
 
 def test_the_check_actually_FAILS_on_the_defect_it_was_written_for():
