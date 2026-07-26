@@ -15,13 +15,16 @@ labelled as such. Process, cadence and the research blocker: `docs/HEALTH_CHECK.
 
 ## The headline, stated before the numbers that flatter it
 
-**This was not a code, architecture, or functionality revamp. Product code changed
-by exactly zero lines.**
+**This was not an architecture revamp. Product code moved by 22 lines — from
+13,295 to 13,273 — and every one of those 22 was a deletion.**
 
 It was an evaluation, a definition of done that did not previously exist, two real
-defect fixes, and a restructure of what the agent is required to read. Anyone
-reading this later should not infer an architecture change from a 2,432-line diff.
-What a real architecture revamp would involve is in the last section.
+defect fixes, a restructure of what the agent is required to read, and the start of
+the streamline: two genuinely dead modules removed once a new detector proved
+nothing imported them. Anyone reading this later should not infer a structural
+change from the diff size — the diff is overwhelmingly documentation. What a real
+architecture revamp would involve is in the last section, and the decision it needs
+is in `docs/UNWIRED_DECISIONS.md`.
 
 ## Three things the numbers say that are uncomfortable
 
@@ -29,9 +32,15 @@ What a real architecture revamp would involve is in the last section.
    bloat. By the crudest measure this made it worse. The defence — that the
    *binding* surface shrank while reference material grew — is real but partial,
    and no framing changes the top-line number.
-2. **Unwired modules: 16 before, 16 after.** The audit's most-repeated finding was
-   code built and connected to nothing. This work *found* and *measured* it and
-   fixed **none** of it. The detector is new; the debt is not.
+2. **Unwired modules: 16 → 14.** Two genuinely dead modules were deleted once the
+   detector proved nothing imported them (`worker/multiconfirm.py`, a re-export
+   shim with zero importers; `worker/definition_of_done.py`, which was worse than
+   dead — it encoded a rule that **contradicts current canon** by rejecting
+   `unverified` events the founder ratified showing). The other **14 are
+   classified, not fixed**, in `docs/UNWIRED_DECISIONS.md`: 2 are v1 Step 2's
+   unfinished feature, 4 are frozen with live triggers, and ~9,300 lines across 3
+   founder-commissioned subsystems need one founder decision. Measuring the debt
+   is not paying it.
 3. **RECORD open rows rose 40 → 50.** Ten new declared deviations. That is the
    audit working — an undeclared gap is invisible — but it is still ten more
    admissions of below-bar, and pretending otherwise would be scoring one's own
@@ -78,13 +87,13 @@ escalation live in `docs/HEALTH_CHECK.md`.
 
 | Metric | Before | After | BAR row |
 |---|---|---|---|
-| Code lines — product | 13295 | 13295 | F5 / J8 |
-| Code lines — tests | 22896 | 23105 | F5 / J8 |
-| Code lines — harness_tools | 9836 | 9836 | F5 / J8 |
+| Code lines — product | 13295 | 13273 | F5 / J8 |
+| Code lines — tests | 22896 | 23316 | F5 / J8 |
+| Code lines — harness_tools | 9836 | 10353 | F5 / J8 |
 | Code lines — brain | 5393 | 5393 | F5 / J8 |
 | Code lines — off_mission | 3974 | 3974 | F5 / J8 |
-| Prose words (all tracked Markdown) | 270317 | 297299 | J8 |
-| Read-before-code words | 12116 | 11147 | J8 |
+| Prose words (all tracked Markdown) | 270317 | 302921 | J8 |
+| Read-before-code words | 12116 | 11256 | J8 |
 | Read-before-code documents | 7 | 4 | J8 |
 |   ...which binding set was measured | legacy set (pre-2026-07-26) | CANON (post-2026-07-26) | J8 |
 | BAR rows — rows | 0 | 80 | — |
@@ -93,15 +102,15 @@ escalation live in `docs/HEALTH_CHECK.md`.
 | BAR rows — NOT MET | 0 | 13 | — |
 | BAR rows — UNMEASURED | 0 | 12 | — |
 | BAR rows — NOT BUILT | 0 | 2 | — |
-| RECORD rows OPEN | 40 | 50 | F7 |
+| RECORD rows OPEN | 40 | 51 | F7 |
 | RECORD rows RESOLVED | 14 | 15 | F7 |
 | Red classes indexed | 35 | 37 | J6 |
 | Escaped defects (M3) | 0 | 1 | G4 |
 | validate checks | 14 | 14 | — |
-| Unwired modules (prod-unreachable) | 16 | 16 | F5 |
-| Gate/threshold files changed vs baseline | — | 0 | J5 |
+| Unwired modules (prod-unreachable) | 16 | 14 | F5 |
+| Gate/threshold files changed vs baseline | — | tools/validate | J5 |
 
-## Unwired modules — 16 production-unreachable (BAR F5)
+## Unwired modules — 14 production-unreachable (BAR F5)
 
 Imported by nothing except tests. Each is built, green, and reachable
 from no production path. `wire it or delete it` — a module nothing can
@@ -117,17 +126,12 @@ reach is not done.
 - `ventures/promise_ledger/ingest/edgar.py`
 - `ventures/promise_ledger/store/ledger.py`
 - `worker/convergence/decisions.py`
-- `worker/definition_of_done.py`
 - `worker/fetch/render_fetch.py`
-- `worker/multiconfirm.py`
 - `worker/publish_policy.py`
 - `worker/source_rank.py`
 - `worker/source_reliability.py`
 
 All metrics computed; nothing unverified.
-
-
-
 ---
 
 ## Interpretation of specific rows

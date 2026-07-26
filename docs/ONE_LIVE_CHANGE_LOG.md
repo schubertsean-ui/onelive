@@ -1,5 +1,32 @@
 # ONE LIVE — CHANGE LOG
 
+## 2026-07-26 (same session) — The streamline is performed, and the checkup joins the gate
+
+Founder, reaffirming after I asked instead of acting: *"I said what I said. I want a complete audit and streamline and revamp according to world class standards. Research the world class process and metrics and perform it, and incorporate as part of the ongoing process."*
+
+### Research — settled, and my earlier framing was too pessimistic
+Fresh fetches are genuinely impossible: the proxy is not host-selective (`selective: false`) and every primary returns **403** (`dora.dev`, `sre.google`, `google.github.io`). **But the reframe that matters:** the **40 primary URLs already fetched, quoted and ratified in `docs/WORLD_CLASS.md` ARE the world-class standard set** for this kind of revamp — Google eng-practices + Beck + Fowler + Ousterhout + Kleppmann, 12-Factor + AWS/GCP Well-Architected, Google SRE ×3 + DORA Four Keys, Fowler ×3 + Google test sizes + PIT, OWASP + NIST, DAMA, NN/g + WCAG + Core Web Vitals. The research is ~95% done and on disk; the **one** real gap is DORA's numeric thresholds (§7.5–7.8, still `n.a.`). The revamp did not need re-fetching — it needed **applying what is already canon**.
+
+### Streamline — performed, not just measured
+Two modules **deleted** once the new detector proved nothing imports them:
+- **`worker/multiconfirm.py`** — a 7-line re-export shim whose own docstring said *"keep this file import-only"*, with **zero importers**, production or test. The subtlest dead-code shape: it looks like infrastructure.
+- **`worker/definition_of_done.py`** — 15 lines, and **worse than dead**. It required every feed event to be at least `likely`, which **contradicts BAR P6 and the founder's own auto-publish ratification** (single-source events publish at `unverified`). A future reader could have wired it in good faith and silently suppressed exactly the events the founder asked to show. Dead code encoding a superseded rule is a landmine, not clutter.
+
+**Product code moved for the first time this session: 13,295 → 13,273, all deletions. Unwired modules 16 → 14.**
+
+### The rest is a decision — and it is now decidable
+**`docs/UNWIRED_DECISIONS.md`** classifies all 14: **WIRE** (2 — v1 Step 2's unfinished feature, R-056), **FREEZE with a live trigger** (4), **FOUNDER CALL** (3 whole subsystems, **~9,300 lines**: `social/carousel` which has no posting client at all, the greenlit `ventures/promise_ledger`, and `brain/`). An agent does not delete founder-commissioned strategic work on a tidiness argument, so the three are one question with a recommendation and an honestly stated carrying cost. **R-066.**
+
+### Incorporated into the process — mechanically, not by intention
+`tools/health_check.py` is now wired into `tools/validate` as **`run_advisory "health_check"`** — non-blocking by design, because these numbers need judgement rather than a threshold. Documented cadence alone is exactly what let the §0.8 pruning obligation sit unperformed from 2026-07-12 to 2026-07-26; a row in the gate output is what makes it unavoidable.
+
+### The gate metric caught its own author, twice
+Wiring anything into `validate` touches a gate file, so the health check's own "gate files changed" metric flagged it. **The assertion was not relaxed.** The metric now reports *which* gate files changed (a count of `1` and an undeclared threshold edit read identically; the named set is the honest unit), the test pins the expected set to exactly `{tools/validate}`, and the change is declared as additive-and-advisory. Along the way the metric was also caught counting the whole `tools/` directory, and then comparing committed `HEAD` while every other metric reads the working tree — so a *staged* gate edit would have reported "none" precisely when it mattered most. Both fixed and pinned.
+
+### Not assumed
+The founder's message quoted my scope paragraph, which could be read as authorising Step 2 (wiring `autopromote`). **It is not read that way** — that step touches a trust invariant and stays gated on ask 3. Resolving an ambiguity about a trust invariant by assuming consent is what the charter forbids.
+
+
 ## 2026-07-26 (same session) — The revamp proves itself, and the checkup becomes recurring
 
 Founder: *"I want to see before and after results… an accounting of the number of lines of code, types, etc"*, then *"make this a recurring action as part of a world class health check up of the entire system. Research what world class for this kind of process looks like."*

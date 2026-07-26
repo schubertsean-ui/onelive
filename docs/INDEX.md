@@ -55,6 +55,7 @@ The word cull was modest; the structural gain was not.
 | `docs/RECORD.md` | The live register of deviations from bar. Machine-read by `tools/deferral_scan.py`. |
 | `docs/DEPLOY.md` | The single source of truth for deployment and env config. |
 | `docs/HEALTH_CHECK.md` | The recurring whole-system checkup: what it measures, why each number earns its place, the cadence, and the honest blocker report for the research it could not fetch. |
+| `docs/UNWIRED_DECISIONS.md` | The dead-code decision queue: what was deleted and why, and the classified list of what remains (wire / freeze / founder call). A decision queue, not a rule. |
 | `STATE.md` | Where we are + the session contracts. Machine block maintained by the reconciler. |
 | `TODOS.md` | The work queue. |
 

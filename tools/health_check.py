@@ -332,9 +332,48 @@ def validate_check_count(ref: str | None) -> int:
     return sum(1 for line in text.splitlines() if line.strip().startswith("run_check "))
 
 
+# The files whose change would constitute a GATE change. Deliberately an
+# enumeration, not `tools/`: adding a new non-gating tool (this file, for
+# instance) changes tools/ without touching a single threshold, and a metric that
+# counts that as a gate change is measuring the wrong thing. Its own test caught
+# exactly that on 2026-07-26 — the day after health_check.py landed in tools/.
+# Adding a file here is how a new gate declares itself auditable.
+GATE_FILES = (
+    "tools/validate",
+    "tools/trust_gate.py",
+    "tools/lint.py",
+    "tools/deferral_scan.py",
+    "tools/adversarial_review.py",
+    "tools/kaizen_trends.py",
+    "tools/construction_gate.py",
+    "tools/blocking_failure_check.py",
+    "tools/governance_claims_lint.py",
+    "tools/skip_record_binding.py",
+    "ai/exam_thresholds.py",
+)
+
+
+def gate_files_changed(baseline: str) -> list[str]:
+    """WHICH gate-defining files changed since `baseline`.
+
+    Returning the names rather than a count is the difference between a metric you
+    can act on and a number you argue with: a declared additive change (wiring a
+    new advisory row into `tools/validate`) and an undeclared threshold edit both
+    read as "1" but mean opposite things. The reader still judges the diff — no
+    test can decide whether a change loosened a gate — but the set is the honest
+    unit for that judgement.
+    """
+    # Compared against the WORKING TREE, not HEAD. Every other metric in this
+    # tool reads the tree as it currently is, and a gate edit that is staged but
+    # not yet committed is still a gate edit the reader needs to see — reporting
+    # "none" until commit would make the metric quietest exactly when it matters.
+    out = _git("diff", "--name-only", baseline, "--", *GATE_FILES)
+    return sorted({line.strip() for line in out.splitlines() if line.strip()})
+
+
 def gate_code_changed(baseline: str) -> int:
-    out = _git("diff", "--numstat", baseline, "HEAD", "--", "tools/")
-    return len([line for line in out.splitlines() if line.strip()])
+    """Count form of `gate_files_changed`, for the snapshot table."""
+    return len(gate_files_changed(baseline))
 
 
 def build(baseline: str | None) -> Report:
@@ -401,8 +440,9 @@ def build(baseline: str | None) -> Report:
 
     if baseline:
         try:
+            changed = gate_files_changed(baseline)
             rep.add("Gate/threshold files changed vs baseline", "—",
-                    gate_code_changed(baseline), "J5")
+                    ", ".join(changed) if changed else "0 — none", "J5")
         except Unverified as exc:
             rep.note_unverified("Gate code diff", str(exc))
 

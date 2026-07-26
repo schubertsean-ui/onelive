@@ -243,6 +243,17 @@ else
   # the weekly digest and lens-pruning; any threshold it enforces later is a
   # gate change (evaluator-mandatory).
   run_advisory "reviewer_scorecard" "$PY" tools/reviewer_scorecard.py
+
+  # 7a-ii. Whole-system health check (founder-directed 2026-07-26; cadence and
+  #        escalation in docs/HEALTH_CHECK.md). ADVISORY BY DESIGN, and it must
+  #        stay that way: these numbers need judgement, not a threshold — "prose
+  #        grew 10%" is sometimes correct and sometimes rot, and only a reader
+  #        can tell which. Turning it into a gate would be a gate-threshold
+  #        change and is founder-crucial. It is wired here so the checkup is part
+  #        of the ongoing process mechanically rather than by good intentions,
+  #        which is how the §0.8 pruning obligation went unperformed from
+  #        2026-07-12 to 2026-07-26.
+  run_advisory "health_check" "$PY" tools/health_check.py
 fi
 
 # 7b. Kaizen trend meter — computes the trend report from the ledger

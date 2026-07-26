@@ -130,11 +130,16 @@ def test_an_ordinary_importable_module_is_not_treated_as_an_entrypoint():
 
 
 def test_a_reexport_shim_with_no_callers_is_still_detected():
-    """worker/multiconfirm.py is a real instance: a shim whose docstring says
-    'keep this file import-only', imported by nothing. Narrowing the entrypoint
-    exemptions must not accidentally exempt it."""
+    """A re-export shim is the subtlest dead-code shape: it looks like
+    infrastructure and imports something real, so it reads as load-bearing.
+
+    This is not hypothetical — `worker/multiconfirm.py` was exactly this (a shim
+    whose own docstring said "keep this file import-only") and was DELETED on
+    2026-07-26 once this detector showed nothing imported it. The shape is pinned
+    here so narrowing the entrypoint exemptions can never accidentally exempt the
+    next one."""
     assert not hc._is_entrypoint(
-        "worker/multiconfirm.py",
+        "worker/some_shim.py",
         '"""Thin re-export shim."""\nfrom worker.gating import multi_confirm_gate\n',
         "",
     )
@@ -176,11 +181,31 @@ def test_bar_status_counts_rows_and_purpose_rows():
     assert graded > 0, "statuses must parse; an ungraded bar is an unmeasured bar"
 
 
-def test_gate_code_diff_is_zero_for_a_change_that_touched_no_gate():
-    """The strongest claim the 2026-07-26 work makes is 'no gate was weakened'.
-    This is the mechanical form of that claim, and it must be checkable rather
-    than asserted."""
-    assert hc.gate_code_changed("f907a51") == 0, (
-        "tools/ was expected to be untouched between the baseline and HEAD; if "
-        "this fails, a gate DID change and the claim needs re-stating"
+def test_gate_metric_counts_gate_files_not_the_whole_tools_directory():
+    """The strongest claim the 2026-07-26 work makes is 'no gate was weakened',
+    and this is its mechanical form — so what it counts has to be exactly right.
+
+    The first version counted every file under `tools/`, which broke the moment a
+    NEW NON-GATING tool (health_check.py itself) landed there: tools/ changed,
+    no threshold moved, and the metric reported a gate change that had not
+    happened. The enumeration is the fix, and it is asserted here so nobody
+    widens it back to a directory glob."""
+    assert "tools/validate" in hc.GATE_FILES
+    assert "tools/trust_gate.py" in hc.GATE_FILES
+    assert "ai/exam_thresholds.py" in hc.GATE_FILES, (
+        "threshold constants are gate-defining even though they live outside tools/"
+    )
+    assert "tools/health_check.py" not in hc.GATE_FILES, (
+        "the health check is a thermometer, not a gate — listing it here would "
+        "make every change to it look like a gate change"
+    )
+    # The DECLARED change set. `tools/validate` gained one `run_advisory` line on
+    # 2026-07-26 to wire the health check into the ongoing process; that is
+    # additive and non-blocking. Any OTHER gate file appearing here means a
+    # threshold or a check moved, which needs saying out loud — so this asserts
+    # the exact set rather than a count, and the correct response to a failure is
+    # to state the change, never to widen the expectation.
+    assert hc.gate_files_changed("f907a51") == ["tools/validate"], (
+        "the only expected gate-file change since the baseline is the additive "
+        "advisory row in tools/validate; anything else means a gate moved"
     )
