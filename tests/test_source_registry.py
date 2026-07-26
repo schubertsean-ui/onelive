@@ -217,3 +217,27 @@ def test_the_live_registry_builds_and_covers_every_source():
     assert all(s["source_class"] in SOURCE_CLASSES for s in doc["sources"])
 
 
+
+
+def test_two_DISCOVERED_rows_sharing_an_id_FAIL(tmp_path, monkeypatch):
+    """r1 blocker, found by two seats independently: the collision check only
+    compared discovered ids against CURATED ones. Two leads sharing an id —
+    within one file or across two — merged silently, which either splits one
+    source's evidence across two rows or counts one source twice. The registry
+    then lies about how many sources we have, which is the exact defect that
+    produced the 118-vs-123 error this builder was written to stop."""
+    d = tmp_path / "discovered"
+    d.mkdir()
+    row = {"id": "kutx", "name": "KUTX", "source_class": "broadcast_calendar"}
+    (d / "a.json").write_text(json.dumps({"sources": [row, dict(row)]}),
+                              encoding="utf-8")
+    monkeypatch.setattr(reg, "DISCOVERED", d)
+    with pytest.raises(SystemExit, match="appears twice"):
+        reg.load_discovered()
+
+    # and ACROSS two files, which the single-file case would not have caught
+    (d / "a.json").write_text(json.dumps({"sources": [row]}), encoding="utf-8")
+    (d / "b.json").write_text(json.dumps({"sources": [dict(row)]}),
+                              encoding="utf-8")
+    with pytest.raises(SystemExit, match="a.json and b.json"):
+        reg.load_discovered()

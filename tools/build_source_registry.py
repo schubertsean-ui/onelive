@@ -219,9 +219,26 @@ def load_discovered() -> list:
     out: list = []
     if not DISCOVERED.is_dir():
         return out
+    # WHERE each id came from, so a duplicate names both files rather than
+    # just saying "duplicate". The collision check below only compared
+    # discovered ids against CURATED ones, so two leads sharing an id — within
+    # one file or across two — merged into the registry silently. That splits
+    # one source's evidence across two rows, or overstates it by counting one
+    # source twice, which is the duplicate defect this whole builder exists to
+    # stop, in the one place I had not looked. Evaluator finding, PR #85 r1.
+    seen: dict = {}
     for path in sorted(DISCOVERED.glob("*.json")):
         doc = json.loads(path.read_text(encoding="utf-8"))
         for row in doc.get("sources", []):
+            rid = row.get("id")
+            if rid in seen:
+                raise SystemExit(
+                    f"build_source_registry: FAIL — discovered source id "
+                    f"{rid!r} appears twice: {seen[rid]} and {path.name}. Two "
+                    f"leads under one id either split a source's evidence "
+                    f"across two rows or count one source twice; both make the "
+                    f"registry lie about how many sources we have.")
+            seen[rid] = path.name
             cls = row.get("source_class")
             if cls not in SOURCE_CLASSES:
                 raise SystemExit(
