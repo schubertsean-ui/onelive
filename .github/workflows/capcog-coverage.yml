@@ -128,8 +128,12 @@ jobs:
       # today, and the part that needs a fast loop — touches no database and
       # still runs on every push. The numerator is a measurement someone asks
       # for, so requiring a human dispatch is the right shape anyway.
+      # REF-BOUND, not just trigger-bound. `workflow_dispatch` alone still lets
+      # a dispatch be aimed at ANY ref, so the credential's custody rested on a
+      # human choosing a safe branch — a live database credential must fail
+      # closed by construction. Evaluator finding, PR #84 r1.
       - name: Read ingested venues from the database
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' }}
         env:
           ONELIVE_DB_DSN: ${{ secrets.ONELIVE_DB_DSN }}
         run: |
@@ -175,8 +179,21 @@ jobs:
             exit 1
           }
 
-      - name: Report coverage
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+      # The SCORE runs on push, which is the contract's done-criterion and was
+      # not implemented — the report step was dispatch-only, so "the number is
+      # never older than the last commit" was untrue on the very path that
+      # makes it true. It runs WITHOUT --rows here, which the tool reports as
+      # NO_NUMERATOR: the denominator with an explicit "the numerator was not
+      # read", never a 0% that describes a measurement nobody made.
+      - name: Report coverage (denominator only — push path holds no secret)
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        run: |
+          python tools/capcog_coverage.py \
+            --targets sources/capcog_venue_targets.json \
+            | tee coverage_report.txt
+
+      - name: Report coverage (with the numerator)
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' }}
         run: |
           python tools/capcog_coverage.py \
             --rows ingested_venues.json \

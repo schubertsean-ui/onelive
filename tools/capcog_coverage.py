@@ -181,11 +181,23 @@ def target_is_covered(target: dict, idx: dict) -> tuple:
     return True, len(matching) > 1
 
 
-def coverage(rows: list, targets: list | None) -> dict:
+def coverage(rows: list | None, targets: list | None) -> dict:
     """Ingested venues vs the target denominator, per county."""
-    idx = index_by_name(rows)
     if targets is None:
-        return {"status": "NO_TARGET_LIST", "ingested_venue_count": len(idx)}
+        return {"status": "NO_TARGET_LIST",
+                "ingested_venue_count": len(index_by_name(rows or []))}
+    if rows is None:
+        # The MIRROR of NO_TARGET_LIST, and it exists for the same reason.
+        # The push path recomputes the denominator but cannot read the
+        # numerator (that needs the database credential, which the push path
+        # must never hold). Scoring an unread numerator as zero would report
+        # 0% COVERAGE — a real-looking figure describing a measurement that
+        # did not happen. Evaluator finding, PR #84 r1.
+        return {"status": "NO_NUMERATOR",
+                "target_venue_count": sum(
+                    1 for t in targets
+                    if t.get("target_kind") in (None, "venue"))}
+    idx = index_by_name(rows)
 
     per_county: dict = {c: {"target": 0, "covered": 0, "missing": []} for c in
                         sorted(CAPCOG_COUNTIES)}
@@ -262,8 +274,12 @@ def main(argv=None) -> int:
                     help="exit non-zero when any held event is OUTSIDE CAPCOG")
     args = ap.parse_args(argv)
 
-    rows = load_rows(args.rows)
-    report = region_report(rows)
+    # None (not []) when no numerator was supplied. `[]` means "we read the
+    # database and it held nothing"; None means "we did not read it". Collapsing
+    # those two into 0% is the failure-reads-as-empty class applied to the
+    # launch metric itself.
+    rows = load_rows(args.rows) if args.rows else None
+    report = region_report(rows or [])
 
     print("== REGION CORRECTNESS (of the events we hold) ==")
     print(f"  inside CAPCOG : {report['inside_count']}")
@@ -287,6 +303,14 @@ def main(argv=None) -> int:
     cov = coverage(rows, targets)
     print()
     print("== COVERAGE AGAINST THE DENOMINATOR ==")
+    if cov["status"] == "NO_NUMERATOR":
+        print(f"  DENOMINATOR ONLY: {cov['target_venue_count']} CAPCOG venue(s).")
+        print("  The NUMERATOR was not read on this path — it needs the database")
+        print("  credential, which the push path deliberately does not hold. This")
+        print("  is NOT zero coverage; it is a measurement that did not happen.")
+        print("  Run the workflow_dispatch path for the percentage.")
+        return 0
+
     if cov["status"] == "NO_TARGET_LIST":
         print(f"  NO TARGET LIST at {args.targets}.")
         print(f"  We hold {cov['ingested_venue_count']} distinct venue(s), but with no")

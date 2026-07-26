@@ -62,6 +62,33 @@ workflow watches every tool it invokes.
 NON-GOALS: no threshold, no gate and no publish path is touched — this schedules
 an existing measurement, it does not decide anything.
 STACKED ON: claude/capcog-denominator-2026-07-26.
+[S3:nonfinite-decimal-accepted] no decimal or monetary arithmetic occurs anywhere in this change.
+[S3:fabricated-qualitative-copy] the workflow generates no descriptive text: every line of the report is emitted by the tools from the data they were given.
+[S3:false-price-claim] no price, cost or monetary surface appears in the workflow or its report.
+[S3:deferred-trust-work] both r1 findings were fixed in the change that received them — the credential got its ref binding and the score got its push path, rather than a Record row promising either later. A credential custody gap cannot ship behind a trigger.
+[S3:semantic-claim-not-rederived] coverage is recomputed from the rows and the boundary tables at every run.
+[S3:unusable-credential-tier] the push path holds NO credential by design, and says so in its output rather than scoring the missing numerator as zero. A tier we cannot use on a path is reported, never silently treated as an empty result.
+[S3:caller-suppliable-custody-inputs] a PR cannot reach the credential at all — the secret-bearing steps run on neither the push trigger nor a non-master ref, so the subject of a change can never supply an input to its own measurement.
+[S3:contract-scope-violation] this contract covers scheduling an existing measurement. The denominator and the fetch beneath it carry their own contracts on their own branches.
+[S3:env-dependent-hermetic-test] the workflow tests parse the YAML and shell-check it; they deliberately do NOT execute the steps, which would need the secrets and network they exist to use.
+[S3:false-confidence-gate] the push path reports NO_NUMERATOR, never 0%. Scoring an unread numerator as zero would print a real-looking figure describing a measurement that did not happen — and the contract previously CLAIMED the score ran on push while the step was dispatch-only. Both are fixed and tested.
+[S3:governance-ambiguity] the scope is stated precisely: this schedules an existing measurement and binds where its credential may run. It changes no threshold and decides nothing about what may merge or publish.
+[S3:missing-record-read-as-state] 'we did not read the numerator' and 'the numerator was empty' are now different states: rows is None on the push path and [] only when the database was actually read.
+[S3:mutable-model-alias] no model, alias or provider is referenced by this workflow.
+[S3:nonfinite-numeric-accepted] the workflow performs no arithmetic; the tools it invokes carry their own zero-denominator guards.
+[S3:pagination-integrity-gap] the paged walk lives in the fetch tool beneath this change, where a truncated run now fails AND writes nothing.
+[S3:pushed-on-red] the suite ran unchained with its exit code read directly before commit.
+[S3:release-path-weaker-than-generation] no release or publish path is touched; this measures and reports.
+[S3:retyped-evidence] the report is produced by the tool in the run; no figure is restated by hand.
+[S3:self-weakenable-gate] the workflow decides nothing that could be weakened — it runs tools whose refusals are their own, and the ref binding is on the workflow's base-owned copy.
+[S3:self-weakenable-review-model] nothing here feeds a review verdict; the artifact is for the operator.
+[S3:stale-base-widens-range] no range-derived gate runs in this workflow; it operates on the checked-out tree.
+[S3:stalled-state-needs-active-diagnosis] a failing step reports its status and stops rather than retrying; the numerator failure explicitly says the DENOMINATOR above it is still valid.
+[S3:swallowed-corrupt-data] a failing numerator read exits non-zero and states explicitly that the DENOMINATOR above it is still valid, so a partial run is never read as a complete one.
+[S3:untested-gate-branch] both r1 findings have committed tests — that a coverage-scoring step is reachable on push, and that every secret-bearing step is bound to the protected ref. Written by reading the workflow, not from memory of the intent.
+[S3:volatile-safety-store] the coverage report is uploaded as a run artifact and the denominator is a committed file, so both survive the runner.
+[S3:weak-key-accepted-at-custody] the DB credential is now REF-BOUND as well as trigger-bound: workflow_dispatch alone still let a dispatch be aimed at any ref, so custody rested on a human choosing a safe branch. A test asserts every ONELIVE_DB_DSN-bearing step names refs/heads/master.
+[S3:workflow-tool-version-skew] every step runs the checked-out tree's own tools, and a test asserts the path filter covers every script the workflow invokes.
 [S3:final-gate-trusts-generator] the workflow re-runs the fetch and the coverage computation itself rather than reading a committed number; it trusts no artifact a previous run produced.
 [S3:malformed-ledger-row] the workflow writes no ledger row; its output is the tool's own stdout plus a JSON artifact with its own parse guard.
 

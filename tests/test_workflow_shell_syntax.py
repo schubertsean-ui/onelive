@@ -109,3 +109,47 @@ def test_the_check_actually_FAILS_on_the_defect_it_was_written_for():
     proc = subprocess.run(["bash", "-n"], input=broken,
                           capture_output=True, text=True)
     assert proc.returncode != 0, "bash -n should reject the unterminated heredoc"
+
+
+def _coverage_workflow() -> dict:
+    return yaml.safe_load(
+        (REPO / ".github" / "workflows" / "capcog-coverage.yml")
+        .read_text(encoding="utf-8"))
+
+
+def test_the_coverage_SCORE_runs_on_the_push_path(tmp_path):
+    """r1 blocker: the contract's done-criterion is that the fetch AND the
+    score run on push, and the report step was dispatch-only — so "the number
+    is never older than the last commit" was untrue on the one path that would
+    have made it true. The previous test only checked that invoked scripts
+    appeared in the path filter, which passed while the criterion was absent."""
+    steps = [s for j in (_coverage_workflow().get("jobs") or {}).values()
+             for s in (j.get("steps") or [])]
+    scoring = [s for s in steps
+               if "capcog_coverage.py" in (s.get("run") or "")]
+    assert scoring, "no step runs the coverage tool at all"
+    on_push = [s for s in scoring
+               if "workflow_dispatch" not in str(s.get("if", ""))
+               or "!=" in str(s.get("if", ""))]
+    assert on_push, (
+        "every coverage-scoring step is gated to workflow_dispatch — the score "
+        "does not run on push, which is the contract's done-criterion")
+
+
+def test_every_DB_SECRET_step_is_bound_to_a_protected_ref():
+    """r1 blocker: `workflow_dispatch` alone still lets a dispatch be aimed at
+    ANY ref, so the credential's custody rested on a human choosing a safe
+    branch. A live database credential fails closed by construction or not at
+    all."""
+    steps = [s for j in (_coverage_workflow().get("jobs") or {}).values()
+             for s in (j.get("steps") or [])]
+    secret_steps = [s for s in steps
+                    if "ONELIVE_DB_DSN" in str(s.get("env") or {})]
+    assert secret_steps, "no step carries the DB secret — has it moved?"
+    for s in secret_steps:
+        cond = str(s.get("if", ""))
+        assert "github.ref" in cond, (
+            f"step {s.get('name')!r} exposes ONELIVE_DB_DSN without a ref "
+            f"binding; its condition is {cond!r}")
+        assert "refs/heads/master" in cond, (
+            f"step {s.get('name')!r} is not bound to the protected ref")
