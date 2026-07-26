@@ -20,6 +20,12 @@ cron begins to import is included automatically, ingest.yml itself is always in
 the set (so any change to how it invokes scripts re-fires), and dynamic imports
 in the closure fail LOUD rather than silently under-including (fail closed).
 
+What "the code under test" means, precisely (#73 r21): locally it is the branch
+tip AND the working tree, so an UNCOMMITTED runtime edit reds this test rather
+than passing validate and failing CI on the push — which is exactly how the r21
+segment.py fix got through. On CI's synthetic merge checkout the subject is a
+commit and the tree is clean, so that half adds nothing there.
+
 Where it binds: this test runs in tools/validate locally AND in the trust-gate
 CI job, which checks out FULL history (fetch-depth 0, stage-6 r2) and is a
 required check on the PR — so the binding is enforced by a blocking check, not
@@ -78,7 +84,25 @@ def test_reviewed_head_is_runtime_code_identical_to_the_smoke_run():
 
     diff = _git("diff", "--name-only", f"{run_sha}..{head}")
     assert diff.returncode == 0, diff.stderr
-    changed = [p for p in diff.stdout.splitlines() if p.strip()]
+    changed = {p for p in diff.stdout.splitlines() if p.strip()}
+
+    # #73 r21 self-caught, and it is the `pushed-on-red` class in a new
+    # disguise: the committed range above cannot see an UNCOMMITTED runtime
+    # edit, so running validate before committing one gives a green binding for
+    # a tree that will red in CI the moment it is committed. That is exactly
+    # what happened — the r21 segment.py log fix was still in the working tree
+    # when validate ran, validate said PASS, and trust-gate failed on the push.
+    # So when the subject is the local branch tip, compare the recorded run
+    # against the WORKING TREE too (a commit-vs-worktree diff covers staged and
+    # unstaged alike). Strictly a superset: on CI's synthetic merge checkout the
+    # subject is a commit and the tree is clean, so this adds nothing there and
+    # the authoritative venue is unchanged.
+    if head == "HEAD":
+        worktree = _git("diff", "--name-only", run_sha)
+        assert worktree.returncode == 0, worktree.stderr
+        changed |= {p for p in worktree.stdout.splitlines() if p.strip()}
+
+    changed = sorted(changed)
 
     # A changed file re-fires the binding ONLY if it is in the armed cron's
     # true runtime closure. DynamicImportError (a dynamic import in the closure)
