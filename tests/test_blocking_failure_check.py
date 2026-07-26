@@ -273,3 +273,40 @@ def test_wrappers_that_do_not_exec_the_next_argv_are_not_credited(line):
 ])
 def test_wrappers_that_DO_exec_the_next_argv_are_still_credited(line):
     assert bfc._is_full_suite_pytest(line) is True
+
+
+# ── every SPELLING of a narrowing option (#73 r13) ──────────────────────────
+# The r11 switch from a substring test to exact/`=`-prefix matching silently
+# lost `--ignore-glob`, a real pytest option — so a gate could be changed to
+# `pytest -q --ignore-glob='tests/*'` and still be reported as unfiltered.
+# A gate-custody weakening introduced by a gate-custody fix.
+
+@pytest.mark.parametrize("line", [
+    "python -m pytest -q --ignore-glob='tests/*'",
+    "python -m pytest -q --ignore-glob tests/x",
+    "python -m pytest -q --ignore=tests/x",
+    "python -m pytest -q --ignore tests/x",
+    "python -m pytest -q --deselect-if x",
+    "python -m pytest -q --deselect tests/x::t",
+])
+def test_every_spelling_of_a_narrowing_option_is_rejected(line):
+    assert bfc._is_full_suite_pytest(line) is False
+
+
+# ── `run:` is a boundary only as the FIRST token (#73 r13) ─────────────────
+
+@pytest.mark.parametrize("line", [
+    "echo run: bash tools/validate",
+    "MSG=run: bash tools/validate",
+    'echo "run: bash tools/validate"',
+])
+def test_an_embedded_run_key_is_not_a_command_boundary(line):
+    assert bfc._invokes_full_suite_runner(line) is False
+
+
+@pytest.mark.parametrize("line", [
+    "run: bash tools/validate",
+    "          run: bash tools/validate --allow-skips",
+])
+def test_a_leading_run_key_still_is_a_command_boundary(line):
+    assert bfc._invokes_full_suite_runner(line) is True

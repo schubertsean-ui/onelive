@@ -396,8 +396,8 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
     # are joined by concurrent.futures' own atexit hook, so `shutdown(
     # wait=False)` returns at once while the interpreter still blocks on any
     # in-flight request at exit. Measured directly, not reasoned about: a
-    # worker sleeping 6s returned from the raise at t=0.00s and the process
-    # exited at t=6.07s. Evidence + the probe script:
+    # worker sleeping 6s returned from the raise at t=0.00s while the process
+    # took the full ~6s to exit (preserved run: `real 0m6.042s`). Evidence + the probe script:
     # the timing evidence file in docs/session_arcs/evidence/, §5.
     #
     # SO THE HONEST GUARANTEE IS: verdict immediate, process exit bounded by

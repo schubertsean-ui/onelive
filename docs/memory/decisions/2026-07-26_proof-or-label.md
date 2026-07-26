@@ -66,11 +66,27 @@ building it:
 
 ```
 $ python docs/session_arcs/evidence/scripts/probe_claim_scan.py
-added record lines : 93
-  claim-shaped     : 69
-  WITHOUT any proof token (would fire): 40
-  fire rate over claim lines: 57 percent
+added record lines : 112
+  claim-shaped     : 85
+  WITHOUT any proof token (would fire): 44
+  fire rate over claim lines: 51%
 ```
+
+r13 (evaluator, class `unverified-claim-as-fact`): the previous version of
+this block printed `57 percent`. The script emits `%`, so what was labelled
+VERBATIM OUTPUT had been hand-edited — I changed the character to dodge a
+shell-quoting problem while writing the file. Editing text under a
+"verbatim" label is fabricating evidence, however small the edit, and it is
+the exact failure this artifact exists to prevent.
+
+SELF-REFERENTIAL, stated so the number is not read as stable: this probe
+counts claim-shaped lines in THIS BRANCH'S diff, and the evidence file is
+part of that diff — so writing the count changes the count. The output above
+is from commit 19d014f. Re-running it later gives a different number BY
+CONSTRUCTION, not because either run was wrong. The finding is what is
+stable: a majority of claim-shaped lines fire, so the scanner stays
+rejected. Run the script for the current figure rather than trusting this
+paste to still match.
 
 r10 correction: the first version of this block used
 `<count added lines matching…>` as a stand-in for the command — a placeholder
@@ -84,8 +100,9 @@ reproduced with its command and output in the timing/measurement evidence
 file under `docs/session_arcs/evidence/`.
 
 Rejected on that evidence. Judging whether prose is verified is a judgment
-task wearing a regex costume, and a gate that fires on most claim-shaped
-lines (57 percent in the committed run) is one that gets weakened — which is worse than no gate, because a weakened gate still reads
+task wearing a regex costume, and a gate that fires on a MAJORITY of
+claim-shaped lines (see the probe output above — the exact rate moves because
+the probe measures the diff that contains it) is one that gets weakened — which is worse than no gate, because a weakened gate still reads
 as protection. This is the second mechanism this session rejected by
 measuring first (the other: extending `deferral_scan` over prose, 6 of 7
 hits false).

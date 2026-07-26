@@ -126,11 +126,20 @@ def _segment_runs_full_suite_pytest(seg: str) -> bool:
         args = rest
     else:
         return False                          # a decoy command, or not pytest
-    # args is a TOKEN LIST here, so match by prefix — `--ignore=tests/x` is
-    # one token and plain membership would miss it (#73 r11, self-caught by
-    # running the case table rather than reading the diff).
-    if any(a == flag or a.startswith(flag + "=") for a in args for flag in _NARROWING):
-        return False
+    # args is a TOKEN LIST here, so membership alone is not enough.
+    # #73 r11 replaced a substring test with `== flag or startswith(flag+"=")`,
+    # which SILENTLY LOST `--ignore-glob` — a real pytest option that narrows
+    # the run. That was a gate-custody weakening introduced while fixing a
+    # different one (r13 caught it). Long options now match by PREFIX so every
+    # `--ignore*` / `--deselect*` spelling narrows; short options stay exact so
+    # `-m` does not accidentally swallow unrelated `-mfoo` forms.
+    for a in args:
+        for flag in _NARROWING:
+            if flag.startswith("--"):
+                if a == flag or a.startswith(flag):
+                    return False
+            elif a == flag or a.startswith(flag + "="):
+                return False
     # A bare path argument (tests/…, a file) narrows it; flags (-q) do not.
     return all(tok.startswith("-") or tok.isdigit() for tok in args)
 
@@ -198,7 +207,7 @@ def _runner_runs_full_suite(rel_path: str) -> bool:
 # at line start, after `run:`, or after a shell separator — and never
 # inside quotes.
 _RUNNER_INVOCATION = re.compile(
-    r"(?:^|[|;&]|\brun:\s*)\s*(?:(?:ba|z|d)?sh|source|\.)?\s*\.?/?(%s)\b"
+    r"(?:^|[|;&])\s*(?:(?:ba|z|d)?sh|source|\.)?\s*\.?/?(%s)\b"
     % "|".join(re.escape(r) for r in _RUNNER_SCRIPTS))
 
 
@@ -207,7 +216,13 @@ def _invokes_full_suite_runner(line: str) -> bool:
     if s.startswith("#"):
         return False
     # Strip quoted spans first: anything inside quotes is data, not a command.
-    unquoted = re.sub(r"""(['"]).*?\1""", "", s)
+    unquoted = re.sub(r"""(['"]).*?\1""", "", s).strip()
+    # A YAML `run:` key is a command boundary ONLY as the first token. #73
+    # r13: matching `\brun:` anywhere let `echo run: bash tools/validate` and
+    # `MSG=run: bash tools/validate` be credited as invocations — the same
+    # mention-vs-invocation hole one level up.
+    if unquoted.startswith("run:"):
+        unquoted = unquoted[4:].lstrip()
     m = _RUNNER_INVOCATION.search(unquoted)
     if not m:
         return False

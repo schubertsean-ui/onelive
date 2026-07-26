@@ -166,7 +166,8 @@ The script is committed at
 version of this section referenced an uncommitted `threadprobe.py`, so the
 claim could not be re-run from the repo at all).
 
-The raise is immediate; the PROCESS takes the full 6.07s, because
+The raise is immediate; the PROCESS takes the full ~6s (the preserved run
+above shows `real 0m6.042s`), because
 `concurrent.futures` registers its non-daemon workers with an atexit hook
 that joins them. So the honest guarantee is **verdict immediate, process exit
 bounded by the per-request timeout (300s)** — not "exits immediately", which
@@ -180,11 +181,27 @@ claim-shaped line in agent-authored records):
 
 ```
 $ python docs/session_arcs/evidence/scripts/probe_claim_scan.py
-added record lines : 93
-  claim-shaped     : 69
-  WITHOUT any proof token (would fire): 40
-  fire rate over claim lines: 57 percent
+added record lines : 112
+  claim-shaped     : 85
+  WITHOUT any proof token (would fire): 44
+  fire rate over claim lines: 51%
 ```
+
+r13 (evaluator, class `unverified-claim-as-fact`): the previous version of
+this block printed `57 percent`. The script emits `%`, so what was labelled
+VERBATIM OUTPUT had been hand-edited — I changed the character to dodge a
+shell-quoting problem while writing the file. Editing text under a
+"verbatim" label is fabricating evidence, however small the edit, and it is
+the exact failure this artifact exists to prevent.
+
+SELF-REFERENTIAL, stated so the number is not read as stable: this probe
+counts claim-shaped lines in THIS BRANCH'S diff, and the evidence file is
+part of that diff — so writing the count changes the count. The output above
+is from commit 19d014f. Re-running it later gives a different number BY
+CONSTRUCTION, not because either run was wrong. The finding is what is
+stable: a majority of claim-shaped lines fire, so the scanner stays
+rejected. Run the script for the current figure rather than trusting this
+paste to still match.
 
 MEASURED AT COMMIT 22e8a4a — that is the run whose output is printed above,
 and it is the only claim-scan figure this repo now states. r12: earlier
