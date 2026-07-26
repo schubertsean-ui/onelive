@@ -296,6 +296,40 @@
       "expected": "__proto__"
     }
   ],
+  "embedded_county_vectors": [
+    {
+      "input": "Unlisted Spot, Bexar County, TX",
+      "expected": "bexar"
+    },
+    {
+      "input": "Unlisted Spot, Bexar County, TX, USA",
+      "expected": "bexar"
+    },
+    {
+      "input": "Unlisted Spot, Bexar County, TX 78205",
+      "expected": "bexar"
+    },
+    {
+      "input": "unlisted spot, bexar county",
+      "expected": "bexar"
+    },
+    {
+      "input": "Nowhere Bar, Travis County, TX",
+      "expected": "travis"
+    },
+    {
+      "input": "Austin, TX",
+      "expected": null
+    },
+    {
+      "input": "San Antonio",
+      "expected": null
+    },
+    {
+      "input": "",
+      "expected": null
+    }
+  ],
   "county_vectors": [
     {
       "input": "Bexar County, TX",

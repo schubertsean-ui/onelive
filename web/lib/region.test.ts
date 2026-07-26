@@ -4,6 +4,7 @@ import {
   normalizePlace,
   filterToCapcog,
   normalizeCounty,
+  countyInPlace,
   inCapcogCounty,
   rowVerdict,
 } from "./region";
@@ -143,6 +144,24 @@ describe("CAPCOG boundary on the read path", () => {
     for (const { input, expected, verdict } of boundary.county_vectors) {
       expect(normalizeCounty(input)).toBe(expected);
       expect(inCapcogCounty(input)).toBe(verdict);
+    }
+  });
+
+  it("county evidence INSIDE a city string survives a state suffix", () => {
+    // r13: COUNTY_RE is anchored at the end, so running it on the raw string
+    // meant ", TX" defeated the anchor and the decisive fact was dropped.
+    const out = filterToCapcog([
+      { venue_city: "Unlisted Spot, Bexar County, TX", venue_name: "X" },
+      { venue_city: "Unlisted Spot, Bexar County, TX, USA", venue_name: "Y" },
+      { venue_city: "Nowhere Bar, Travis County, TX", venue_name: "Keep" },
+    ]);
+    expect(out.kept.map((r) => r.venue_name)).toEqual(["Keep"]);
+    expect(out.droppedOutside).toHaveLength(2);
+  });
+
+  it("agrees with Python on every embedded-county vector", () => {
+    for (const { input, expected } of boundary.embedded_county_vectors) {
+      expect(countyInPlace(input)).toBe(expected);
     }
   });
 });

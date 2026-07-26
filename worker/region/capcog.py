@@ -173,21 +173,50 @@ def normalize_place(value: Optional[str]) -> Optional[str]:
     text = str(value).strip().lower()
     if not text:
         return None
+    return _strip_qualifiers(text, drop_county=True) or None
+
+
+def _strip_qualifiers(text: str, *, drop_county: bool) -> str:
+    """Strip trailing qualifiers to a FIXED POINT.
+
+    `drop_county` exists because the two callers want different things from the
+    same string. Lookup wants the bare city, so it drops the county. Reading the
+    county EVIDENCE out of a city string must keep it — and must still remove
+    everything AFTER it, because _COUNTY_RE is anchored at the end. Running the
+    county search on the raw string missed "Unlisted Spot, Bexar County, TX"
+    entirely: the ", tx" defeated the anchor, so the decisive fact was dropped
+    and an out-of-market row came back UNKNOWN, which the read path keeps.
+    Evaluator finding, PR #74 r13.
+    """
     changed = True
     while changed:
         changed = False
         stripped = _ZIP_RE.sub("", text).strip(" ,")
         if stripped != text:
             text, changed = stripped, True
-        stripped = _COUNTY_RE.sub("", text).strip(" ,")
-        if stripped != text and stripped:
-            text, changed = stripped, True
+        if drop_county:
+            stripped = _COUNTY_RE.sub("", text).strip(" ,")
+            if stripped != text and stripped:
+                text, changed = stripped, True
         for suffix in TRAILING_QUALIFIERS:
             if text.endswith(suffix):
                 text = text[: -len(suffix)].strip(" ,")
                 changed = True
                 break
-    return text.strip(" ,") or None
+    return text.strip(" ,")
+
+
+def county_in_place(value: Optional[str]) -> Optional[str]:
+    """The county named INSIDE a place string, if it names one.
+
+    "San Antonio, Bexar County, TX" carries the decisive fact in the middle of
+    the city field. This reads it out, with the trailing state and country
+    qualifiers removed first so the anchor can actually match."""
+    if not value:
+        return None
+    text = _strip_qualifiers(str(value).strip().lower(), drop_county=False)
+    match = _COUNTY_RE.search(text)
+    return match.group(1) if match else None
 
 
 def county_for_place(city: Optional[str]) -> Optional[str]:
@@ -275,11 +304,9 @@ def row_verdict(row: dict) -> Optional[bool]:
     # A city string can itself carry the county ("San Antonio, Bexar County").
     city_raw = _first_usable(row, CITY_FIELDS)
     if city_raw is not None:
-        match = _COUNTY_RE.search(str(city_raw).strip().lower())
-        if match:
-            verdict = in_capcog_county(match.group(1))
-            if verdict is not None:
-                return verdict
+        verdict = in_capcog_county(county_in_place(city_raw))
+        if verdict is not None:
+            return verdict
     return in_capcog(city_raw)
 
 

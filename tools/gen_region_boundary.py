@@ -19,7 +19,7 @@ sys.path.insert(0, str(REPO))
 
 from worker.region.capcog import (  # noqa: E402
     CAPCOG_COUNTIES, CAPCOG_PLACES, KNOWN_OUTSIDE, TRAILING_QUALIFIERS,
-    in_capcog_county, normalize_county, normalize_place,
+    county_in_place, in_capcog_county, normalize_county, normalize_place,
 )
 
 OUT = REPO / "web" / "lib" / "capcog-boundary.json"
@@ -47,6 +47,15 @@ NORMALIZATION_VECTORS = [
 COUNTY_VECTORS = ["Bexar County, TX", "bexar", "TRAVIS COUNTY", "Travis",
                   "Nowhere County", "", "   "]
 
+# r13: county evidence carried INSIDE a city string, with everything a feed
+# might append after it. The anchor only matches once the trailing qualifiers
+# are gone, and both normalizers must agree on that.
+EMBEDDED_COUNTY_VECTORS = [
+    "Unlisted Spot, Bexar County, TX", "Unlisted Spot, Bexar County, TX, USA",
+    "Unlisted Spot, Bexar County, TX 78205", "unlisted spot, bexar county",
+    "Nowhere Bar, Travis County, TX", "Austin, TX", "San Antonio", "",
+]
+
 
 def build() -> dict:
     return {
@@ -61,6 +70,10 @@ def build() -> dict:
         "normalization_vectors": [
             {"input": v, "expected": normalize_place(v)}
             for v in NORMALIZATION_VECTORS
+        ],
+        "embedded_county_vectors": [
+            {"input": v, "expected": county_in_place(v)}
+            for v in EMBEDDED_COUNTY_VECTORS
         ],
         "county_vectors": [
             {"input": v, "expected": normalize_county(v),

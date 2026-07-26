@@ -56,8 +56,25 @@ const trimPunct = (s: string) => s.replace(/^[,\s]+|[,\s]+$/g, "");
  *  page through nothing but a formatting difference. */
 export function normalizePlace(value: string | null | undefined): string | null {
   if (!value) return null;
-  let text = trimPunct(String(value).trim().toLowerCase());
+  const text = trimPunct(String(value).trim().toLowerCase());
   if (!text) return null;
+  return stripQualifiers(text, true) || null;
+}
+
+/**
+ * Strip trailing qualifiers to a FIXED POINT.
+ *
+ * `dropCounty` exists because the two callers want different things from the
+ * same string. Lookup wants the bare city, so it drops the county. Reading the
+ * county EVIDENCE out of a city string must keep it — and must still remove
+ * everything AFTER it, because COUNTY_RE is anchored at the end. Running the
+ * county match on the raw string missed "Unlisted Spot, Bexar County, TX"
+ * entirely: the ", tx" defeated the anchor, so the decisive fact was dropped
+ * and an out-of-market row came back UNKNOWN — which filterToCapcog keeps and
+ * renders. Evaluator finding, PR #74 r13.
+ */
+function stripQualifiers(input: string, dropCounty: boolean): string {
+  let text = input;
   let changed = true;
   while (changed) {
     changed = false;
@@ -66,10 +83,12 @@ export function normalizePlace(value: string | null | undefined): string | null 
       text = stripped;
       changed = true;
     }
-    const decounty = trimPunct(text.replace(COUNTY_RE, ""));
-    if (decounty !== text && decounty) {
-      text = decounty;
-      changed = true;
+    if (dropCounty) {
+      const decounty = trimPunct(text.replace(COUNTY_RE, ""));
+      if (decounty !== text && decounty) {
+        text = decounty;
+        changed = true;
+      }
     }
     for (const suffix of TRAILING_QUALIFIERS) {
       if (text.endsWith(suffix)) {
@@ -79,7 +98,17 @@ export function normalizePlace(value: string | null | undefined): string | null 
       }
     }
   }
-  return trimPunct(text) || null;
+  return trimPunct(text);
+}
+
+/** The county named INSIDE a place string, if it names one. "San Antonio,
+ *  Bexar County, TX" carries the decisive fact in the middle of the city
+ *  field; this reads it out with the trailing qualifiers removed first. */
+export function countyInPlace(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const text = stripQualifiers(String(value).trim().toLowerCase(), false);
+  const match = COUNTY_RE.exec(text);
+  return match ? match[1] : null;
 }
 
 /** TRI-STATE membership: true (in CAPCOG) / false (known outside) / null
@@ -145,11 +174,8 @@ export function rowVerdict(row: RegionRow): RegionVerdict {
   const cityRaw = firstUsable(row, ["venue_city", "city"]);
   if (cityRaw !== null) {
     // The city string can itself carry the county ("San Antonio, Bexar County").
-    const match = COUNTY_RE.exec(String(cityRaw).trim().toLowerCase());
-    if (match) {
-      const nested = inCapcogCounty(match[1]);
-      if (nested !== null) return nested;
-    }
+    const nested = inCapcogCounty(countyInPlace(cityRaw));
+    if (nested !== null) return nested;
   }
   return inCapcog(cityRaw);
 }

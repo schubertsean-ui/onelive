@@ -8,6 +8,7 @@ import pytest
 
 from worker.region.capcog import (
     CAPCOG_COUNTIES,
+    county_in_place,
     normalize_county,
     row_verdict,
     CAPCOG_PLACES,
@@ -227,3 +228,20 @@ def test_a_county_known_row_is_not_filed_as_a_MISSING_city():
     assert r["inside_by_county"] == {"travis": 1}
     assert r["outside_by_county"] == {"bexar": 1}
     assert "travis" in r["counties_covered"]
+
+
+def test_county_evidence_INSIDE_a_city_string_survives_a_state_suffix():
+    """r13: the county search ran on the RAW string while _COUNTY_RE is anchored
+    at the end, so ", TX" defeated the anchor and the decisive fact was dropped.
+    An unlisted venue in Bexar came back UNKNOWN — which the read path KEEPS."""
+    for shape in ("Unlisted Spot, Bexar County, TX",
+                  "Unlisted Spot, Bexar County, TX, USA",
+                  "Unlisted Spot, Bexar County, TX 78205",
+                  "unlisted spot, bexar county"):
+        assert county_in_place(shape) == "bexar", shape
+        assert row_verdict({"venue_city": shape}) is False, shape
+    # the same shape for a MEMBER county must resolve inside, not merely unknown
+    assert row_verdict({"venue_city": "Nowhere Bar, Travis County, TX"}) is True
+    # and a place with no county in it still reads as no county evidence
+    assert county_in_place("Austin, TX") is None
+    assert county_in_place(None) is None
