@@ -212,3 +212,26 @@ describe("detailWhen and detailMapUrl", () => {
       .toBeNull();
   });
 });
+
+// ── the detail route is gated EXACTLY like the feed ──────────────────────────
+// PR #80 found a middleware matcher that made `/sign-inevil` public through a
+// prefix rule, so "the new route inherits the feed's treatment" is checked
+// rather than assumed. Read statically: the public list is a literal in
+// middleware.ts, and neither `/tonight` nor any prefix of it may appear there.
+
+describe("the detail route is not accidentally public", () => {
+  it("has no /tonight entry in the middleware public-route list", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(
+      new URL("../middleware.ts", import.meta.url),
+      "utf8",
+    );
+    const list = src.slice(
+      src.indexOf("const isPublicRoute = createRouteMatcher(["),
+    );
+    const body = list.slice(0, list.indexOf("]);"));
+    expect(body).not.toContain("/tonight");
+    // Non-vacuous: the block really is the public list we think it is.
+    expect(body).toContain("/access");
+  });
+});
