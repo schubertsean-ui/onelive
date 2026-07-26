@@ -38,6 +38,12 @@ bfc = _mod()
     ("python -m pytest -q --ignore=tests/x", False),       # --ignore narrows it
     ("# python -m pytest -q", False),                      # a comment
     ("pip install pytest", False),                         # not an invocation
+    # A shell runner reaching the interpreter through a variable — the exact
+    # form in tools/validate, missed until #73 r7 by a `python`-anchored
+    # pattern, which under-reported a genuinely blocking gate.
+    ('run_check "pytest (full suite)" "$PY" -m pytest -q', True),
+    ('run_check "perf benchmarks" "$PY" -m pytest -q -m perf', False),
+    ("$PYTHON -m pytest", True),
 ])
 def test_full_suite_pytest_detection(line, expected):
     assert bfc._is_full_suite_pytest(line) is expected
@@ -48,7 +54,39 @@ def test_discovers_the_repos_real_full_suite_gates():
     # suite, which is WHY any failing test blocks the merge here.
     gates = bfc.full_suite_gates()
     assert "trust-gate.yml" in gates
+    # adversarial-review.yml reaches the suite INDIRECTLY, via `bash
+    # tools/validate` — it stopped invoking pytest itself at #73 r7 when a
+    # duplicate full-suite run was removed. Discovery must still find it,
+    # because a failing test still reds that job.
     assert "adversarial-review.yml" in gates
+
+
+# ── indirect discovery through a runner script ──────────────────────────────
+
+def test_a_workflow_that_only_calls_validate_is_still_discovered():
+    """The r7 regression this exists to prevent: removing a workflow's direct
+    pytest line must not silently reclassify it as non-blocking."""
+    assert bfc._invokes_full_suite_runner("          bash tools/validate --allow-skips")
+    assert bfc._invokes_full_suite_runner("run: bash tools/validate")
+
+
+def test_the_real_validate_script_is_what_makes_that_true():
+    """Discovery RESOLVES the indirection rather than asserting it — the
+    credit comes from tools/validate's own text, read live."""
+    assert bfc._runner_runs_full_suite("tools/validate")
+
+
+def test_an_unreadable_or_narrowed_runner_earns_no_credit(monkeypatch):
+    """Fail-closed: if the runner cannot be read, or stops running an
+    unfiltered suite, the workflow must DROP off the blocking list rather
+    than keep a stale credit."""
+    assert bfc._runner_runs_full_suite("tools/does-not-exist") is False
+    monkeypatch.setattr(bfc, "_runner_runs_full_suite", lambda _r: False)
+    assert bfc._invokes_full_suite_runner("bash tools/validate") is False
+
+
+def test_a_commented_out_runner_call_is_not_an_invocation():
+    assert bfc._invokes_full_suite_runner("# bash tools/validate") is False
 
 
 # ── failure parsing + exit contract ─────────────────────────────────────────

@@ -53,10 +53,18 @@ _NARROWING = ("-k", "-m", "--ignore", "--deselect")
 
 # pytest must appear as an INVOCATION, not merely as a word (e.g.
 # "pip install pytest" installs it, it does not run the suite). Accepted forms:
-# `python -m pytest …`, or a bare `pytest …` that starts a command (line start,
-# after `run:`, or after a shell separator).
+# any `-m pytest …` module invocation, or a bare `pytest …` that starts a
+# command (line start, after `run:`, or after a shell separator).
+#
+# `-m pytest` is matched WITHOUT requiring a literal `python` before it
+# (#73 r7): shell runners invoke the interpreter through a variable —
+# tools/validate runs `"$PY" -m pytest -q` — and a pattern anchored on the
+# literal word `python` silently missed it, which under-reported a real
+# blocking gate. `-m pytest` is the precise semantic ("run pytest as a
+# module") and stays strict where it matters: `pip install pytest` has no
+# `-m` and still does not match.
 _INVOCATION = re.compile(
-    r"(?:python[0-9.]*\s+-m\s+pytest|(?:^|[|;&]|\brun:\s*)\s*pytest)\b")
+    r"(?:-m\s+pytest|(?:^|[|;&]|\brun:\s*)\s*pytest)\b")
 
 
 def _is_full_suite_pytest(line: str) -> bool:
@@ -79,9 +87,41 @@ def _is_full_suite_pytest(line: str) -> bool:
     return True
 
 
+# A workflow can run the full suite INDIRECTLY, by invoking a repo runner
+# script that runs it (adversarial-review.yml calls `bash tools/validate`,
+# whose own blocking `pytest (full suite)` check reds the job on any failing
+# test). Discovering only DIRECT invocations would under-report such a gate
+# as non-blocking — dangerous in the reassuring direction, since the tool's
+# whole job is to say which gates a failing test reds.
+#
+# The indirection is RESOLVED, never asserted: a runner counts only if its
+# OWN text satisfies the same _is_full_suite_pytest predicate. So if
+# tools/validate ever stops running an unfiltered suite, this discovery drops
+# it automatically and the report narrows to the truth. Nothing here is a
+# hardcoded claim that validate runs tests; it is read from validate.
+_RUNNER_SCRIPTS = ("tools/validate",)
+
+
+def _runner_runs_full_suite(rel_path: str) -> bool:
+    """True if a repo runner script itself invokes an unfiltered full suite."""
+    try:
+        text = (_ROOT / rel_path).read_text(encoding="utf-8")
+    except OSError:
+        return False  # unreadable runner proves nothing — do not credit it
+    return any(_is_full_suite_pytest(ln) for ln in text.splitlines())
+
+
+def _invokes_full_suite_runner(line: str) -> bool:
+    s = line.strip()
+    if s.startswith("#"):
+        return False
+    return any(r in s and _runner_runs_full_suite(r) for r in _RUNNER_SCRIPTS)
+
+
 def full_suite_gates() -> list:
-    """Workflow files whose jobs run an UNFILTERED full-suite pytest. Read from
-    the workflow files themselves, never hardcoded — if CI changes, so does this."""
+    """Workflow files whose jobs run an UNFILTERED full-suite pytest, directly
+    or through a repo runner script that does. Read from the workflow and
+    runner files themselves, never hardcoded — if CI changes, so does this."""
     gates = []
     if not _WORKFLOWS.is_dir():
         return gates
@@ -90,7 +130,9 @@ def full_suite_gates() -> list:
             text = wf.read_text(encoding="utf-8")
         except OSError:
             continue
-        if any(_is_full_suite_pytest(ln) for ln in text.splitlines()):
+        lines = text.splitlines()
+        if any(_is_full_suite_pytest(ln) for ln in lines) or \
+                any(_invokes_full_suite_runner(ln) for ln in lines):
             gates.append(wf.name)
     return gates
 

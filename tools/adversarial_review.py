@@ -378,12 +378,23 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
     # verdict) still propagates: the first exception is re-raised here and
     # the gate hard-fails exactly as before, never degrading to a partial
     # panel, which would be a silent narrowing.
+    # FAIL FAST (#73 r7, evaluator): the first error is raised as soon as it
+    # is seen, and every still-pending lens is cancelled. Draining the rest
+    # first would let a red lens sit behind a slow or hung sibling — the gate
+    # would still fail, but only after the slowest call — loud far too late,
+    # which is the precise shape fail-loud physics exists to rule out.
+    # Cancellation is best-effort by design: a lens already running cannot be
+    # interrupted, so the executor is shut down WITHOUT waiting for it
+    # (wait=False) rather than blocking on an in-flight HTTP call. The
+    # verdict is unchanged either way — an erroring lens hard-fails the whole
+    # panel and never degrades it to a partial one, which would be a silent
+    # narrowing.
     results: list[tuple[str, str] | None] = [None] * len(jobs)
-    first_error: BaseException | None = None
     if jobs:
         import concurrent.futures as _cf
 
-        with _cf.ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+        pool = _cf.ThreadPoolExecutor(max_workers=len(jobs))
+        try:
             futures = {
                 pool.submit(requester, review_input, system_prompt): i
                 for i, (_seat, _lens, requester, system_prompt) in enumerate(jobs)
@@ -392,12 +403,13 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
                 i = futures[future]
                 try:
                     text = future.result()
-                    results[i] = (parse_verdict(text), text)
-                except BaseException as exc:  # noqa: BLE001 — re-raised below
-                    if first_error is None:
-                        first_error = exc
-    if first_error is not None:
-        raise first_error
+                except BaseException:  # noqa: BLE001 — cancel siblings, then raise
+                    for pending in futures:
+                        pending.cancel()
+                    raise
+                results[i] = (parse_verdict(text), text)
+        finally:
+            pool.shutdown(wait=False)
 
     verdicts: list[str] = []
     for (seat, lens_name, _requester, _prompt), result in zip(jobs, results):

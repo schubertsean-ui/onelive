@@ -114,11 +114,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r worker/requirements.txt -r api/requirements.txt pytest
 
-      - name: Test suite (log captured for the evaluator)
-        run: |
-          set -o pipefail
-          python -m pytest -q 2>&1 | tee pytest.log
-
+      # REMOVED 2026-07-26 (#73 r7, founder-directed): a standalone
+      # `pytest -q | tee pytest.log` step used to run here. It executed the
+      # FULL suite at the same commit that the validate step below runs it
+      # again — two identical runs in one job, ~30s of pure duplication.
+      # Nothing is weakened by dropping it: `tools/validate` still runs the
+      # full suite as a BLOCKING check (run_check "pytest (full suite)"),
+      # still reds this job on any failing test, and validate.log carries
+      # pytest's own output verbatim (the "N passed, M skipped" summary and
+      # every failure), so the evaluator receives the same test evidence
+      # from --test-log validate.log. This removes a duplicate EXECUTION,
+      # not a check and not evidence — no threshold moves.
+      #
+      # The suite still runs a second time in trust-gate.yml, and that one
+      # is DELIBERATELY kept: it is a separate workflow on a separate
+      # trigger, so it is independent verification rather than duplication.
+      # Collapsing it would trade real redundancy for ~30s.
       - name: Full validate gate (machine evidence for the evaluator)
         # Added 2026-07-18 (evaluator r2 on PR #35, unverifiable-claim class
         # fix): the evaluator receives tools/validate's own machine-generated
@@ -225,7 +236,8 @@ jobs:
             echo "# vote records) — those remain fully in-diff. The exclusion is honest"
             echo "# because the excluded bytes are validated another way, visible to you:"
             echo "# MANIFEST.json (our provenance claim: source_url/sha256/bytes per file)"
-            echo "# stays IN this diff, and the pytest log you receive includes manifest-"
+            echo "# stays IN this diff, and the validate log you receive (which carries"
+            echo "# pytest's own output verbatim) includes manifest-"
             echo "# integrity tests that hash every excluded file against it — an"
             echo "# unvouched file, or one whose content drifted from its manifest"
             echo "# sha256, fails CI (tests/test_promise_ledger_groundwork.py)."
@@ -555,5 +567,5 @@ jobs:
           fi
           python -I /tmp/trusted/adversarial_review.py --require $PANEL_ARGS \
             --max-diff-bytes 800000 \
-            --diff-file pr.diff --test-log pytest.log --test-log web.log \
+            --diff-file pr.diff --test-log web.log \
             --test-log validate.log --test-log "$EVID_DIR/golden-exam.log"

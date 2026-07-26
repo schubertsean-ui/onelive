@@ -98,7 +98,7 @@ Check items off in the same commit that completes them; don't batch-remove.
 - [ ] (P2, STANDING — do not check off) **Po battery at divergent moments** — Friction pre-work opens with `tools/po_battery.py`; first mandatory run: the R-008 cron-arming friction attack (harvest → M6).
 - [ ] (P3) **Kaizen ledger append-only CI check** (evaluator suggestion, PR #15 r1) — mechanical guard: a PR that edits an existing `KAIZEN_LEDGER.md` row (rather than appending) fails unless it adds an explicit correction row. Build when the ledger starts informing decisions (it's a convention until then).
 - [ ] (P3) **Model-id liveness smoke check** (evaluator suggestion, PR #14 round 3) — a cheap scheduled check that each id in `tools/model_router.py`'s table is accepted by its API (a 1-token ping or a models-list call), so a vendor rename can't leave `docs/MODEL_ROUTING.md` stale. Today staleness fails loud at first real use, which is acceptable; this upgrades loud-late to loud-early.
-- [ ] (P3) **Explicit open-vs-closed loop framing (Loop Engineering step 15)** — largely covered by `docs/skills/night_shift.md` §3; revisit to make it a per-item field once a real scheduled runner exists.
+- [ ] (P3) **Explicit open-vs-closed loop framing (Loop Engineering step 15)** — largely covered by `docs/skills/night_shift.md` §3; revisit to make it a per-item field once a real scheduled runner exists `[R-054]`.
 
 ---
 

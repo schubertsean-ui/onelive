@@ -187,6 +187,17 @@ post can be signed, so nothing can publish even with Meta connected.
    - e. Click the **copy** icon to the right of the generated password.
    - f. Paste it somewhere only long enough to complete step 5 below, then
      clear it.
+
+**Handle this key like the Meta token — it signs publish approvals.** Same
+boundary, stated here so this section stands on its own:
+   - a. Do NOT paste it into a chat with Claude, a GitHub issue or PR, a
+     commit, or any file in the repo. The only place it goes is the Vercel
+     value box in step 5.
+   - b. Do NOT email it or send it over Slack/Messages to anyone, including
+     to yourself as a note.
+   - c. Keep it on the clipboard only between generating and pasting. If you
+     must park it, use your password manager — never a notes app or a text
+     file.
 2. Go to https://vercel.com/sss-projects-e4775771/onelive/settings/environment-variables
 3. Click **Add New** (or **Create new**).
 4. Key: `ONELIVE_APPROVAL_KEY`
@@ -195,9 +206,24 @@ post can be signed, so nothing can publish even with Meta connected.
    Development — a signing key in Preview is a signing key on a public
    URL.
 7. Click **Save**.
-8. Do NOT paste this key into GitHub, into chat, or into any file. If it
-   ever appears in one of those, generate a new one and repeat.
-9. Tell Claude "approval key added".
+8. **Now clear it from your clipboard** — copy any harmless text to
+   overwrite it. If you parked it in a password manager that is fine; if it
+   went anywhere else in step 1, delete that copy now. Vercel masks the
+   value after saving, so you will not be able to read it back — that is
+   correct and expected.
+9. **If it ever leaks** — into GitHub, chat, an email, a Slack message, a
+   commit, or any file — rotate it, do not just delete the copy:
+   - a. Generate a new key (step 1).
+   - b. Return to
+     https://vercel.com/sss-projects-e4775771/onelive/settings/environment-variables
+   - c. Click the **⋯** menu next to `ONELIVE_APPROVAL_KEY` → **Edit**.
+   - d. Paste the new value, keep **Production ONLY** ticked, click **Save**.
+   - e. Redeploy so the new value takes effect, then tell Claude
+     "approval key rotated". Approvals signed with the old key stop
+     verifying, which is the point.
+10. Tell Claude "approval key added" — that phrase and nothing else. Do NOT
+    paste the key or any part of it into the chat as confirmation; Claude
+    never needs to see it and cannot use it.
 
 ---
 

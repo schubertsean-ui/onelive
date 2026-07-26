@@ -424,15 +424,12 @@ def test_panel_lenses_run_CONCURRENTLY_and_keep_report_order():
     import time
 
     started = threading.Barrier(4, timeout=5)
-    order = []
 
     def slow(ri, sp):
         # Barrier of 4 can only clear if all four calls are in flight at
         # once — a serial implementation deadlocks here and times out.
         started.wait()
         time.sleep(0.05)
-        lens = next(n for n in ar.LENSES if ar.LENSES[n] in sp)
-        order.append(lens)
         return f"checked\nVERDICT: {ar.APPROVE}"
 
     t0 = time.time()
@@ -466,3 +463,36 @@ def test_a_failing_lens_still_hard_fails_the_whole_panel():
         ar.run_panel("input", "seed", openai_key="k", model="gpt-5.5",
                      base_url="u", gemini_key=None,
                      request_openai=one_explodes, request_gemini=None)
+
+
+def test_a_failing_lens_raises_WITHOUT_waiting_for_a_hung_sibling():
+    # Evaluator #73 r7 (class: missing-fail-fast-cancellation). Draining
+    # every future before raising would still fail the gate, but only after
+    # the SLOWEST lens — loud-but-late is the shape fail-loud physics
+    # exists to rule out. The sibling here never returns on its own, so this
+    # test can only pass if run_panel raises the moment it sees the error.
+    import threading
+    import time
+
+    release = threading.Event()
+
+    def one_explodes_one_hangs(ri, sp):
+        if "ABSENCE-ONLY" in sp:
+            time.sleep(0.05)          # lose the race deliberately
+            raise RuntimeError("transport died")
+        release.wait(timeout=30)      # only freed in the finally below
+        return "ok\nVERDICT: APPROVE"
+
+    t0 = time.time()
+    try:
+        with pytest.raises(RuntimeError, match="transport died"):
+            ar.run_panel("input", "seed", openai_key="k", model="gpt-5.5",
+                         base_url="u", gemini_key=None,
+                         request_openai=one_explodes_one_hangs,
+                         request_gemini=None)
+        elapsed = time.time() - t0
+        assert elapsed < 5.0, (
+            f"raised only after {elapsed:.1f}s — the panel waited on a hung "
+            "sibling instead of failing fast")
+    finally:
+        release.set()  # let the daemonless worker thread exit
