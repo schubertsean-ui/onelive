@@ -266,10 +266,22 @@ def test_gate_metric_counts_gate_files_not_the_whole_tools_directory():
     assert "ai/exam_thresholds.py" in hc.GATE_FILES, (
         "threshold constants are gate-defining even though they live outside tools/"
     )
-    assert "tools/health_check.py" not in hc.GATE_FILES, (
-        "the health check is a thermometer, not a gate — listing it here would "
-        "make every change to it look like a gate change"
-    )
+    # `tools/health_check.py` IS now listed, reversing this test's own earlier
+    # assertion that it must not be. The old reason — "a thermometer is not a
+    # gate" — is true about the tool and wrong about the registry: the derived
+    # audit below requires every script `tools/validate` invokes, and the only
+    # alternative was an allowlist of justified omissions, which is a hole a
+    # future author widens instead of a rule. The row prints FILE NAMES, so a
+    # non-gate in it costs one legible line the reader dismisses in seconds. The
+    # property that survives is the one the original test was actually defending:
+    # the registry is an ENUMERATION, never a directory glob.
+    assert not any(p.endswith("/") or "*" in p for p in hc.GATE_FILES), (
+        "GATE_FILES must stay an explicit enumeration; a glob over tools/ counts "
+        "every unrelated new tool as a gate change, which is what it replaced")
+    tools_on_disk = {f"tools/{p.name}" for p in (_ROOT / "tools").glob("*.py")}
+    assert not tools_on_disk <= set(hc.GATE_FILES), (
+        "every .py under tools/ is registered — that is a glob written out by "
+        "hand, and it means the registry no longer distinguishes anything")
     # The DECLARED change set. `tools/validate` gained one `run_advisory` line on
     # 2026-07-26 to wire the health check into the ongoing process; that is
     # additive and non-blocking. Any OTHER gate file appearing here means a
@@ -305,6 +317,17 @@ def test_gate_metric_counts_gate_files_not_the_whole_tools_directory():
     #     PR, so their appearance here is additive and cannot have loosened
     #     anything.
     #
+    #  4. `tools/health_check.py` — THIS TOOL, newly registered (see the block in
+    #     GATE_FILES for why the registry is exception-free). It did not exist at
+    #     `f907a51` — `git cat-file -e f907a51:tools/health_check.py` fails — so its
+    #     appearance is a whole new advisory reporter, not a moved threshold. It is
+    #     also the honest illustration of the tradeoff that block accepts: a
+    #     non-gate in the registry shows up here, the reader sees the name and
+    #     dismisses it. `commit_sweep.py` and `reviewer_scorecard.py` were
+    #     registered in the same change and are correctly ABSENT from this list,
+    #     because neither has changed since the baseline — which is the check
+    #     working: registration alone does not manufacture a gate change.
+    #
     # `tools/kpi_report.py` is NOT in this list even though it changed, because
     # `gate_files_changed` compares content and its escaped-defects KPI now calls
     # the same `open_escapes` helper — the identical ratified semantics, not a
@@ -312,6 +335,7 @@ def test_gate_metric_counts_gate_files_not_the_whole_tools_directory():
     assert hc.gate_files_changed("f907a51") == [
         "tools/decision_codified_lint.py",
         "tools/founder_ask_lint.py",
+        "tools/health_check.py",
         "tools/kaizen_trends.py",
         "tools/validate",
     ], (
@@ -321,3 +345,45 @@ def test_gate_metric_counts_gate_files_not_the_whole_tools_directory():
         "else means an UNDECLARED gate moved — state it here with its authority, "
         "never widen this expectation to hide it"
     )
+
+
+def test_every_check_script_validate_RUNS_is_in_the_gate_registry():
+    """`CLASS:gate-file-registry-omission`, made impossible to recur (PR #76 r3).
+
+    Two review rounds found omissions from GATE_FILES by hand — first the two new
+    blocking checks, then four more that had been missing all along. Hand-auditing a
+    registry against a shell script is exactly the work a test should do, and the
+    metric is the mechanical form of the claim "no gate was weakened": a live gate
+    absent from it means a change to that gate's logic reports "0 gate files
+    changed".
+
+    So the list is DERIVED from `tools/validate` rather than trusted. Advisory checks
+    count: this metric is for visibility, and `pr_size_check` guards the reviewer cap
+    — the mechanism that keeps an unreviewed change off master.
+    """
+    import re
+    validate = (_ROOT / "tools" / "validate").read_text(encoding="utf-8")
+    invoked = set()
+    for line in validate.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        if not (stripped.startswith("run_check ") or stripped.startswith("run_advisory ")):
+            continue
+        invoked.update(re.findall(r"\b(tools/[A-Za-z0-9_]+\.py)\b", stripped))
+    assert invoked, "no check scripts parsed out of tools/validate — this is vacuous"
+
+    missing = sorted(script for script in invoked if script not in hc.GATE_FILES)
+    assert not missing, (
+        f"tools/validate runs these check scripts and GATE_FILES does not list "
+        f"them: {missing}. A live gate missing from the registry means a change to "
+        f"its logic reports '0 gate files changed' — a hole in the mechanical form "
+        f"of 'no gate was weakened'. Add them in the same commit that wires the "
+        f"check in.")
+
+
+def test_the_gate_registry_lists_no_script_that_does_not_exist():
+    """The other direction: a stale entry makes the metric quietly narrower than it
+    reads, and nothing would notice."""
+    missing = [p for p in hc.GATE_FILES if not (_ROOT / p).is_file()]
+    assert not missing, f"GATE_FILES names files that are not in the tree: {missing}"

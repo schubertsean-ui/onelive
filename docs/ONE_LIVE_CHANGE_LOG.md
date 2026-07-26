@@ -1,5 +1,73 @@
 # ONE LIVE — CHANGE LOG
 
+## 2026-07-26 (same session) — "Measure it. Prove it." — PR #76 round 3, and two holes inside controls that had already been approved
+
+**Founder, verbatim: "Are you getting closer to go live or spinning wheels? Review the
+canon - you just make progress to go live. Measure it. Prove it."** Answered with
+numbers: **1 of 7 v1 criteria MET**, rounds 2-4 of the child PR flipped **zero**,
+**1,759 harness lines to 444 product lines**, and four of the seven remaining criteria
+unmeasurable because they need the default branch — which was blocked behind this PR
+sitting red as the base of a stack. The diagnosis was topology, not quality. Action:
+stopped adding to #80, closed #76's last blocker.
+
+### The registry defect, fixed as a class this time
+- **`CLASS:gate-file-registry-omission`, second occurrence.** Round 1 named two gate
+  scripts missing from `health_check.GATE_FILES`; I added exactly those two by hand and
+  it came back. `tests/test_health_check.py` now **derives** the check-script list from
+  `tools/validate` and fails on any omission — and it immediately found **six**, three
+  of which the reviewer never named (`commit_sweep`, `reviewer_scorecard`, and
+  `health_check.py` itself).
+- **The registry is now exception-free.** No allowlist of justified omissions, because an
+  allowlist is the same hole wearing a justification. This reverses the test's own
+  earlier assertion that `health_check.py` must stay out; it is safe to include because
+  the metric prints **file names**, so a non-gate costs one legible row. The property
+  actually worth defending — an enumeration, never a directory glob — is asserted
+  directly instead of as a side effect.
+
+### R-081 — the bypass secret could be sent to any host, through the allowlist built to stop that
+- `site_health.yml` matched `https://*.vercel.app` against the **whole URL**. bash's `*`
+  matches `/`, so **`https://attacker.io/x.vercel.app` was accepted** and the Vercel
+  bypass secret would have gone there while the run reported a passed allowlist.
+  Verified exploitable with one bash invocation before touching it.
+- **Self-found, in code round 2 had already APPROVED**, while applying an unrelated
+  trailing-slash nit to the same lines.
+- **Why the existing test missed it is the useful half.** It had 7 cases *executed* by
+  bash — the strong form this repo prefers — and its negative case
+  `https://attacker.io/vercel.app` lacked the leading dot, so it was refused for the
+  wrong reason and passed anyway. A case that passes for the wrong reason is a green row
+  proving nothing.
+- Fix: the domain arms match an **extracted host**; embedded userinfo (`*@*`) is refused
+  outright rather than reasoned about in front of a secret; trailing slashes are stripped
+  repeatedly; the region is sentinel-delimited so the test extractor cannot silently lift
+  the wrong block. 19 executing cases, plus a property test that fails if the arm ever
+  matches a full URL again — the regression is one token (`$BASE_URL` for `$HOST`) and
+  reads correctly either way.
+
+### BAR G5 was graded MET on a claim that was not true
+- The row promised "**0 red rows that mean 'environment incomplete'**". `bootstrap_dev.sh`
+  builds the venv outside the repo and ends by printing a `PATH=`-prefixed command, so
+  `bash tools/validate` without it took `pytest`, `blocking_failure_check` and `perf` red
+  on the system interpreter. **Found by doing it**, and the proof is one tree read twice:
+  `git_head 274facb` → **FAIL at 22:53:46Z**, **all-PASS at 22:59:21Z** with the venv on
+  PATH.
+- `validate` now selects the bootstrapped venv when the default interpreter cannot import
+  the test dependencies, announces the choice, and always yields to an explicit
+  `PYTHON=`. The bar row keeps its MET grade and now **names the mechanism**, plus the
+  measured gap, so a reader can check it.
+- **Nothing loosened, and this edit touches `validate` itself so the claim is bound
+  rather than promised:** the fallback can only cause more checks to execute. 10 tests —
+  the fallback fires only on a genuinely broken default, an explicit `PYTHON=` wins, a
+  half-built venv is not preferred, a clone with no venv behaves exactly as before, and a
+  **static** test asserts the block references no threshold, verdict, skip counter or exit
+  code. An interpreter convenience is exactly the shape a gate relaxation would hide in.
+
+### Gate state
+`bash tools/validate` — every check **PASS**; `INCOMPLETE` only from the pre-existing
+R-002 visual-regression SKIP and the `commit_sweep` advisory. **1,906 passed, 30
+skipped.** v1 Step 3 is now genuinely complete and checked off in `TODOS.md` and
+`docs/V1.md`.
+
+
 ## 2026-07-26 (same session) — Ask 5 ratified, the feed scheduled, and the suite goes fully green
 
 **Founder, verbatim: "option a and do 2 and 3".** Three decisions in six words.

@@ -356,6 +356,45 @@ GATE_FILES = (
     # itself auditable by appearing here, in the same commit that wires it in.
     "tools/decision_codified_lint.py",
     "tools/founder_ask_lint.py",
+    # The rest of the check scripts `tools/validate` actually runs. Six were absent
+    # — four blocking (`workflow_env_lint`, `surface_regression_exam`, `brain_eval`,
+    # `brain_iq`) and two advisory (`test_audit`, `pr_size_check`) — so a change to
+    # any of their logic reported "0 gate files changed". Advisory ones count too:
+    # this metric exists for VISIBILITY, and `pr_size_check` guards the reviewer
+    # cap, which is how an unreviewed change reaches master.
+    #
+    # THE CLASS, not the instances: `tests/test_health_check.py` now DERIVES the
+    # check-script list from `tools/validate` and fails if any is missing from here,
+    # so the registry cannot drift again. Two rounds of this review found omissions
+    # by hand; the third made hand-auditing unnecessary.
+    "tools/workflow_env_lint.py",
+    "tools/surface_regression_exam.py",
+    "tools/brain_eval.py",
+    "tools/brain_iq.py",
+    "tools/test_audit.py",
+    "tools/pr_size_check.py",
+    # The derived test then found three MORE, including this tool itself, and the
+    # registry is now EXCEPTION-FREE: every script `tools/validate` invokes is
+    # listed, with no allowlist of justified omissions. That choice is deliberate.
+    #
+    # An earlier assertion held that `health_check.py` must stay OUT because "a
+    # thermometer is not a gate" — true about its function, wrong about this
+    # registry. The reason it is safe to include is that `gate_files_changed`
+    # returns NAMES, not a count (see its docstring): a reader who sees
+    # `tools/health_check.py` in the row reads the diff and judges it in seconds.
+    # So the cost of including a non-gate is one legible row; the cost of an
+    # allowlist is a hole any future author can widen to dodge the audit, which is
+    # the `CLASS:gate-file-registry-omission` defect wearing a justification. A
+    # cheap false positive beats a silent false negative.
+    #
+    #   commit_sweep      — advisory by default but FAILS the run under `--strict`,
+    #                       so its findings are a gate condition on that path.
+    #   reviewer_scorecard— instrumentation, and it raises on a malformed ledger
+    #                       row, so its parsing IS load-bearing on run outcome.
+    #   health_check      — this file. Listed for the reason above.
+    "tools/commit_sweep.py",
+    "tools/reviewer_scorecard.py",
+    "tools/health_check.py",
     "ai/exam_thresholds.py",
 )
 

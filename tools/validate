@@ -51,7 +51,52 @@ for arg in "$@"; do
   esac
 done
 
+# --- interpreter-selection:begin ---
 PY="${PYTHON:-python3}"
+
+# (Sentinels are load-bearing: tests/test_validate_interpreter_selection.py lifts
+# this exact region and EXECUTES it against stub interpreters. An index-based
+# extractor would silently lift the wrong lines and keep passing — R-081.)
+#
+# INTERPRETER SELECTION — the last mile of BAR G5 ("0 red rows that mean
+# 'environment incomplete'").
+#
+# `bootstrap_dev.sh` builds a venv OUTSIDE the repo and ends by printing
+# `PATH="$VENV/bin:$PATH" bash tools/validate`. Forget that prefix and this
+# script silently uses the system python3, which on this image cannot import
+# `_cffi_backend` — so pytest, blocking_failure_check and perf all go RED with
+# the environment as the cause. Three red rows that mean "you typed the command
+# without its prefix", in the same column and the same colour as a regression.
+# That is the founding anti-pattern, and `env_preflight` only DESCRIBES it after
+# the fact; a run still burns five minutes and reports FAIL.
+#
+# So the venv is selected automatically when it is present and the default
+# interpreter cannot run the suite. NOTHING IS LOOSENED BY THIS: it can only
+# cause MORE checks to execute (a working interpreter runs tests a broken one
+# could not even collect), it never changes a check's verdict, thresholds are
+# untouched, and an explicit `PYTHON=` always wins so a deliberate choice of a
+# different interpreter is still honoured. The selection is announced, because
+# quietly running something other than what the operator typed is its own
+# opacity.
+if [ -z "${PYTHON:-}" ]; then
+  # `hazmat.primitives.asymmetric.ec` is the submodule PyJWT actually reaches;
+  # probing the top-level `cryptography` package passes on a broken install.
+  _probe='import cryptography.hazmat.primitives.asymmetric.ec, pytest, fastapi'
+  if ! "$PY" -c "$_probe" >/dev/null 2>&1; then
+    for _cand in "${ONELIVE_VENV:-$HOME/.venvs/onelive}/bin/python" \
+                 "$HOME/.venvs/onelive/bin/python"; do
+      if [ -x "$_cand" ] && "$_cand" -c "$_probe" >/dev/null 2>&1; then
+        echo "validate: '$PY' cannot import the test dependencies; using the"
+        echo "          bootstrapped venv instead: $_cand"
+        echo "          (set PYTHON= explicitly to override this choice)"
+        echo
+        PY="$_cand"
+        break
+      fi
+    done
+  fi
+fi
+# --- interpreter-selection:end ---
 
 # Results accumulate as "STATUS\tNAME\tNOTE" lines for the summary table.
 RESULTS=()

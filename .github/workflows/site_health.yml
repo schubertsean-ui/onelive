@@ -106,17 +106,49 @@ jobs:
           #
           # So the host is allowlisted to this Vercel project's own domains. Any
           # other target fails closed BEFORE the secret is read into a request.
+          # --- host-allowlist:begin ---
+          # A trailing slash is stripped first, so `$BASE_URL/api/health` cannot
+          # become `...//api/health` and the match below sees one canonical form.
+          while [ "${BASE_URL%/}" != "$BASE_URL" ]; do BASE_URL="${BASE_URL%/}"; done
+
+          # THE HOST IS MATCHED, NOT THE WHOLE URL — and that distinction is the
+          # difference between this check working and looking like it works.
+          # bash's `*` matches `/` too, so the previous allowlist
+          # (`https://*.vercel.app`) accepted `https://attacker.io/x.vercel.app`:
+          # `*` swallows `attacker.io/x` and the string genuinely does end in
+          # `.vercel.app`. That sent the bypass secret to attacker.io while
+          # reporting a passed allowlist. Found while applying the trailing-slash
+          # nit on this same block; R-081. The old test suite missed it because its
+          # negative case was `https://attacker.io/vercel.app` — no dot before
+          # `vercel`, so it was refused for the wrong reason and passed anyway.
           case "$BASE_URL" in
-            https://*.vercel.app|https://*.vercel.app/*) ;;
-            https://onelive.*|https://*.onelive.*) ;;
-            https://*)
-              echo "::error::refusing to send the Vercel bypass secret to a host"
-              echo "outside this project's own domains (got '$BASE_URL'). The"
-              echo "default-branch guard says who may run this; this says where the"
-              echo "secret may go. Add the host here deliberately if it is ours."
-              exit 1 ;;
+            https://*) ;;
             *) echo "::error::url must start with https:// (got '$BASE_URL')"; exit 1 ;;
           esac
+          HOST="${BASE_URL#https://}"
+          HOST="${HOST%%/*}"
+
+          # Userinfo is refused outright: `https://x.vercel.app@evil.example` has a
+          # real host of evil.example, and reasoning about which side of the `@`
+          # wins is not a thing to do in front of a secret.
+          case "$HOST" in
+            *@*)
+              echo "::error::refusing a url with embedded credentials ('$BASE_URL')"
+              exit 1 ;;
+          esac
+
+          case "$HOST" in
+            *.vercel.app) ;;
+            onelive.*|*.onelive.*) ;;
+            *)
+              echo "::error::refusing to send the Vercel bypass secret to a host"
+              echo "outside this project's own domains (host '$HOST' from"
+              echo "'$BASE_URL'). The default-branch guard says who may run this;"
+              echo "this says where the secret may go. Add the host here"
+              echo "deliberately if it is ours."
+              exit 1 ;;
+          esac
+          # --- host-allowlist:end ---
 
           # If the founder has created a Vercel "Protection Bypass for
           # Automation" secret, use it — that is the ONE action that makes every
