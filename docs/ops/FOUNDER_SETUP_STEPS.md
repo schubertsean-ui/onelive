@@ -30,15 +30,23 @@ file is that you never have to improvise. Instead, describe the screen in
 words: the page title, the menu items you can see, and which step number
 you are on. That is enough to get the corrected step back.
 
-**If you would rather send a screenshot, CROP IT FIRST — and never send
-one of steps 1c or 1d.** Those screens show the **Access Token** box, and
-`META_ACCESS_TOKEN` is a bearer credential: anyone holding it can publish
-as you, so a screenshot containing it puts it into the chat path this
-document forbids it from entering (step 1d, rule a). Before sending any
-screenshot from this section: crop to the menu or button you are asking
-about, and confirm no token, no password field, and no browser autofill
-dropdown is inside the crop. Words are always safe; a screenshot is safe
-only after you have checked what is in it.
+**If you would rather send a screenshot, CROP IT FIRST.** The rule is not a
+list of forbidden steps — it is one property: **never send an image of a
+screen that has a secret on it, anywhere in this file.** A hand-written list
+of "bad steps" is what failed review twice; the property is what to carry.
+Before sending any image at all: crop to the single menu item or button you
+are asking about, then look at the crop and confirm there is no token, no
+password field, and no browser autofill dropdown inside it. Words are always
+safe; an image is safe only after you have checked what is in it.
+
+Applied, the secret is on screen at EVERY step below, in both sections:
+   - **1c** step 6 and **1d** step 4 — the **Access Token** box;
+   - **1d**'s expiry-recovery block, step d — pasting the replacement token;
+   - **1f** step 3 — the GitHub **Secret** box;
+   - **§2** step 1 — the generator output; step 5 — the Vercel **Value** box;
+     step 9d — pasting the replacement key.
+   The two IDs in **1e** are NOT secrets (that section says so) — those
+   screens are safe to send.
 
 ### 1a. Make the Instagram account publishable (5 min)
 
