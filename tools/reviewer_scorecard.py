@@ -46,6 +46,19 @@ _LEDGER_PARTS = 9
 _CLASS_TOKEN = re.compile(r"\b([a-z][a-z0-9]*(?:-[a-z0-9]+)+)\s*×\s*\d+")
 
 
+def _exact_cells(line: str, kind: str) -> list[str]:
+    """EXACT cell count (#71 r3 blocker, extended to merged rows at r11):
+    a floor check accepted rows with extra raw pipes, silently shifting
+    which cell is read as M1/M2 (or dropping tokens). The ledger schema is
+    7 content cells → 9 parts with the leading/trailing empties."""
+    cells = [c.strip() for c in line.split("|")]
+    if len(cells) != _LEDGER_PARTS:
+        raise ValueError(
+            f"malformed ledger {kind} row ({len(cells)} parts, need "
+            f"{_LEDGER_PARTS} — escape raw pipes): {line[:120]}")
+    return cells
+
+
 def parse_arcs(text: str) -> tuple[dict[int, dict[int, set[str]]], dict[int, int]]:
     """ledger text -> ({pr: {round: class-token set}}, {pr: merged M1}).
     FAIL-LOUD: a round row whose cell count differs from the ledger schema
@@ -58,20 +71,17 @@ def parse_arcs(text: str) -> tuple[dict[int, dict[int, set[str]]], dict[int, int
         m = _ROUND_ROW.match(line)
         if m:
             pr, rnd = int(m.group(1)), int(m.group(2))
-            # EXACT cell count (#71 r3 blocker): a floor check accepted
-            # rows with extra raw pipes, silently shifting which cell is
-            # read as M2 (or dropping tokens). The ledger schema is 7
-            # content cells → 9 parts with the leading/trailing empties.
-            cells = [c.strip() for c in line.split("|")]
-            if len(cells) != _LEDGER_PARTS:
-                raise ValueError(
-                    f"malformed ledger round row ({len(cells)} parts, need "
-                    f"{_LEDGER_PARTS} — escape raw pipes): {line[:120]}")
+            cells = _exact_cells(line, "round")
             tokens = set(_CLASS_TOKEN.findall(cells[4]))
             arcs.setdefault(pr, {}).setdefault(rnd, set()).update(tokens)
             continue
         m = _MERGED_ROW.match(line)
         if m:
+            # MERGED rows get the SAME schema check (#71 r11 blocker):
+            # enforcing it on round rows only left a corrupt-data path
+            # green, and M1 is the headline metric a shifted cell would
+            # corrupt. One rule, both row kinds.
+            _exact_cells(line, "merged")
             merged[int(m.group(1))] = int(m.group(2))
     return arcs, merged
 

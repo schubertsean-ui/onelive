@@ -107,3 +107,20 @@ def test_round1_recall_requires_an_actual_round_one():
     with_r1 = ledger + ("| 2026-07-25 | #95 (in flight: r1) | 1 | evaluator r1: alpha-class ×1 | f | c | n |\n")
     arcs, merged = rs.parse_arcs(with_r1)
     assert rs.scorecard(arcs, merged)[95]["round1_recall"] == 0.5
+
+
+def test_malformed_MERGED_row_with_extra_pipes_fails_loud():
+    # #71 r11 BLOCKER: the exact-schema check covered round rows only, so
+    # a merged row with raw pipes shifted which cell is read as M1 — the
+    # headline metric — and stayed green. One rule, both row kinds.
+    bad = ("| 2026-07-25 | #96 (MERGED abc1234 — a thing) | 9 | full | chain "
+           "| with | extra | pipes |\n")
+    with pytest.raises(ValueError, match="malformed ledger merged row"):
+        rs.parse_arcs(bad)
+
+
+def test_wellformed_MERGED_row_still_parses():
+    good = ("| 2026-07-25 | #96 (MERGED abc1234 — a thing) | 9 | findings "
+            "| fix | cost | note |\n")
+    _, merged = rs.parse_arcs(good)
+    assert merged == {96: 9}
