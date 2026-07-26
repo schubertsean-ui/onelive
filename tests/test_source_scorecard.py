@@ -328,3 +328,86 @@ def test_a_network_failure_is_not_reported_as_an_empty_county():
         assert "NOT an empty county" in str(e.value)
     finally:
         tabc._get = orig
+
+
+def test_tabc_county_is_a_numeric_CODE_not_a_name():
+    """The live dataset stores `location_county` as a number (Harris = 101).
+    Querying it as a name was rejected outright, and quoting the codes returns
+    zero rows — which would read as 'CAPCOG has no bars'."""
+    import tools.fetch_tabc_capcog as tabc
+    captured = {}
+
+    def fake_get(url, timeout=60):
+        captured["url"] = url
+        return []
+
+    orig = tabc._get
+    tabc._get = fake_get
+    try:
+        tabc.fetch({"travis"})
+    finally:
+        tabc._get = orig
+    from urllib.parse import unquote
+    where = unquote(captured["url"])
+    assert "location_county in(227)" in where, where
+    assert "'227'" not in where, "codes are numeric; quoting them returns nothing"
+
+
+def test_a_wrong_county_code_is_CAUGHT_by_the_cities_it_returns():
+    """A wrong code returns another county's bars wearing a CAPCOG label — the
+    same class as the 75-mile radius. The mapping is not trusted; it is checked
+    against the cities on the rows."""
+    import tools.fetch_tabc_capcog as tabc
+    import pytest as _pytest
+    # A code pointing outside the market entirely: the cities are known-outside
+    # towns, so the boundary cannot place them in ANY CAPCOG county.
+    with _pytest.raises(SystemExit) as e:
+        tabc.verify_counties([
+            {"county": "travis", "city": "san antonio"},
+            {"county": "travis", "city": "new braunfels"},
+            {"county": "travis", "city": "seguin"},
+        ])
+    assert "does not recognise" in str(e.value)
+
+    # A code pointing at the WRONG CAPCOG county: the cities are all real
+    # CAPCOG towns, but they belong somewhere else.
+    with _pytest.raises(SystemExit) as e:
+        tabc.verify_counties([
+            {"county": "travis", "city": "round rock"},     # williamson
+            {"county": "travis", "city": "georgetown"},     # williamson
+            {"county": "travis", "city": "san marcos"},     # hays
+        ])
+    assert "different county" in str(e.value)
+
+
+def test_a_city_that_straddles_a_county_line_does_NOT_fail_the_check():
+    """Austin sits mostly in Travis but reaches into Williamson and Hays, so a
+    single cross-county row is geography. Failing on one row would block every
+    run on correct data."""
+    import tools.fetch_tabc_capcog as tabc
+    rows = [{"county": "travis", "city": "austin"} for _ in range(20)]
+    rows.append({"county": "travis", "city": "round rock"})   # Williamson
+    stats = tabc.verify_counties(rows)
+    assert stats["travis"]["rows"] == 21
+
+
+def test_monthly_receipt_rows_collapse_to_one_row_per_premise():
+    """The dataset is MONTHLY receipts, so a still-trading bar appears dozens of
+    times. Counting rows would multiply the denominator by the number of months
+    reported and make coverage look far worse than it is."""
+    import tools.fetch_tabc_capcog as tabc
+    import tempfile
+    months = [{"location_name": "MOHAWK", "location_city": "AUSTIN",
+               "location_county": "227",
+               "obligation_end_date_yyyymmdd": "2026-0%d-31T00:00:00.000" % m}
+              for m in range(1, 7)]
+
+    orig = tabc._get
+    tabc._get = lambda url, timeout=60: months if "offset=0" in url.lower() else []
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".json") as fh:
+            tabc.main(["--out", fh.name, "--active-since", "2020-01-01"])
+            written = json.loads(pathlib.Path(fh.name).read_text())
+    finally:
+        tabc._get = orig
+    assert len(written) == 1, f"6 monthly rows must collapse to 1 premise: {written}"
