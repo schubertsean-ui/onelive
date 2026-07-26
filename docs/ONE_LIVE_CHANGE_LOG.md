@@ -1,5 +1,39 @@
 # ONE LIVE — CHANGE LOG
 
+## 2026-07-26 — Deep audit, canon simplification, and the first recorded escaped defect (Contract #28)
+
+**Session type:** founder-directed deep evaluation of everything built to date, plus the simplification it called for. Evidence: `docs/V1_AUDIT_2026-07-26.md`. Plan: `docs/V1.md`. Bar: `docs/BAR.md`.
+
+### Found (measured against reality, not documents)
+- **ESCAPED DEFECT, the first ever recorded.** `import_structured.yml` had never once completed a scheduled run: its fetch bound came from a bare `github.event.inputs.limit`, which GitHub leaves EMPTY on a `schedule` event, so the workflow's own fail-closed guard killed every scheduled run before a single fetch. Proof: GitHub run 30175059075, the workflow's only scheduled run. The deterministic local-venue feed therefore never refreshed unattended. Nothing caught it because no test exercised the schedule path's variable resolution, and in review the guard reads as a virtue.
+- **AI extraction is offline until 2026-08-01 00:00 UTC** — the Anthropic account's usage limit is exhausted (quoted verbatim from run 30186783965). The cap behaved correctly and nothing false entered the database.
+- **The ticketed feed has no schedule** — `import_licensed.yml` is manual-only, 9 runs ever, last 2026-07-24T23:52Z.
+- **The founder's 2026-07-25 auto-publish ratification was never wired.** `worker/publish_policy.py` is imported by nothing but its own test, `worker/autopromote.py` does not exist, and safeguard 1 (outcome-driven source-reliability grading) is not live. Meanwhile `CLAUDE.md` still asserted the opposite.
+- **Bloat, quantified:** 262,761 words of prose over 12,602 lines of product code; harness code 3.0x the product; 4,697 lines off-mission; 137 rule-bearing statements in six core docs; 46 open Record rows; 36 red classes; 14 open PRs.
+- **Ten canon contradictions**, including a charter that told readers to run `python tools/validate` on a bash script, a stack list naming Celery which does not exist anywhere in the tree, three different answers about the web framework and its directory, and two documents whose stated facts were false.
+
+### Fixed
+- `import_structured.yml`: the fetch bound now pins the SCHEDULE side to a literal in both places it is read, so the unattended path's ceiling is not caller-suppliable at all.
+- `tests/test_scheduled_inputs_contract.py`: new mechanical gate for the whole class — scans EVERY workflow carrying `on.schedule` for a bare inputs reference, pins the two LIMIT expressions byte-identical, and refuses to pass by finding nothing. Proven RED against the old expression before being accepted as green.
+- `CLAUDE.md`: the wrong gate command corrected, the stack list corrected against what is actually built, and the "never auto-publish" clause corrected to the invariant that is actually physics — the extractor never decides, the gate decides, fabrication is never published — citing the founder's ratification.
+
+### Simplified (no mechanism weakened — stated, and the gates re-run to prove it)
+- `CLAUDE.md` 2,834 to 1,237 words, every invariant enumerated intact; the 1,100-word exception sentence-chain preserved **verbatim** at `docs/EXTRACTION_EXCEPTION.md`, where the mechanism it describes lives.
+- **`docs/BAR.md` (new, CANON):** world class defined per aspect as a NUMBER, with the gate that enforces it, whether it is ENFORCED or merely PROPOSED, and an honest MET / NOT MET / UNMEASURED status. 66 rows across trust, extraction, coverage, security, web, code, testing, reliability, cost and process.
+- **`docs/HOW_WE_WORK.md` (new, CANON):** one process document replacing the working surface of five.
+- **`docs/INDEX.md` (new, CANON):** every document classified CANON / REFERENCE / HISTORICAL, so a proposal can no longer read as a rule. CANON is 9 documents, about 4,400 words.
+- **`docs/V1.md` (new, CANON):** what v1 is, five ordered done-criteria, and exactly three founder asks.
+- Deleted `LIVE_READINESS.md` and `docs/SPRINT_LIVE_SITE.md` — both stated facts that are now false; git history keeps them; every live reference repointed in the same change.
+
+### Recorded
+- Kaizen M3 escapes table: its first entry, with root cause and the gate-gap closed. New class token `empty-context-on-cron-path` in `docs/memory/RED_CLASSES.md`.
+- `docs/RECORD.md` R-054 through R-059: the escape (OPEN until a real scheduled run is green), the unscheduled ticketed feed, the unwired auto-publish decision, the unmeasured Core Web Vitals and accessibility, the missing dev-dependency bootstrap, and the armed-versus-delivered cadence contradiction.
+- A finding about the harness itself: `construction_gate` matched **34 of 36** red classes on a change that is almost entirely documentation. An index that fires on everything cannot discriminate. Queued as a gate IMPROVEMENT in TODOS.md, with an explicit note that resolving it by weakening the gate is founder-crucial and forbidden.
+
+### Verdict
+The engineering underneath is strong — 1,664 passing tests, a real trust architecture, credential handling better than most production systems, an independent reviewer that has caught real attacks. The bottleneck is **delivery**: every remaining v1 criterion is a connect-and-verify task over code that already exists.
+
+
 
 ## 2026-07-12 — Deep review of WORLD_CLASS bar + MASTER doc; v1.1 expansion proposed
 

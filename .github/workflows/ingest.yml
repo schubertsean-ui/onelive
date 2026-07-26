@@ -120,7 +120,7 @@ jobs:
           [ -n "$ANTHROPIC_API_KEY" ] || missing="$missing ANTHROPIC_API_KEY"
           [ -n "$ORCHESTRATOR_PING_URL" ] || missing="$missing ORCHESTRATOR_PING_URL"
           if [ -n "$missing" ]; then
-            echo "::error::Ingestion refused — missing Actions secret(s):$missing. Minting keys is founder-crucial; the Anthropic key requires a console spend cap FIRST (§14.3). See docs/SPRINT_LIVE_SITE.md Step 5."
+            echo "::error::Ingestion refused — missing Actions secret(s):$missing. Minting keys is founder-crucial; the Anthropic key requires a console spend cap FIRST (§14.3). See docs/V1.md."
             exit 1
           fi
 
