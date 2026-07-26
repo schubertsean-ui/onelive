@@ -216,12 +216,19 @@ def fetch(counties: set, limit_pages: int = MAX_PAGES,
     grouped = f"{FIELD_NAME},{FIELD_CITY},{FIELD_COUNTY}"
     group = urllib.parse.quote(grouped)
     select = urllib.parse.quote(grouped)
+    order = urllib.parse.quote(grouped)
     out: list = []
     seen = 0
     verified = False
     page = 0
     while page < limit_pages:
-        url = (f"{BASE_URL}?$select={select}&$group={group}"
+        # $ORDER IS LOAD-BEARING, not cosmetic. Socrata gives NO ordering
+        # guarantee for a paged query without it, so successive $offset windows
+        # can overlap and — worse — skip rows entirely. The first live run paged
+        # unordered and reported 2,847 venues; the same data ordered and grouped
+        # is 2,873. Twenty-six venues silently vanished, and nothing failed:
+        # exactly the failure-reads-as-empty class, applied to a denominator.
+        url = (f"{BASE_URL}?$select={select}&$group={group}&$order={order}"
                f"&$where={where}&$limit={PAGE}&$offset={page * PAGE}")
         try:
             batch = _get(url)

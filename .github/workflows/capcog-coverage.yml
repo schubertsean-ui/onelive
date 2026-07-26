@@ -125,13 +125,9 @@ jobs:
         run: |
           : "${ONELIVE_DB_DSN:?ONELIVE_DB_DSN is empty — refusing to report a
           coverage number with no numerator, which would read as zero coverage}"
-          python - <<'PY'  || {
-            echo "::error::Could not read the numerator from the database." \
-                 "The DENOMINATOR above is still valid and was measured" \
-                 "successfully — only the 'how much do we cover' half is" \
-                 "missing. Fix ONELIVE_DB_DSN and re-run; do NOT read this as" \
-                 "zero coverage."
-            exit 1; }
+          # Written to a file first: `<<'PY' || { ... }` puts the heredoc body
+          # inside the brace group and the shell never sees its terminator.
+          cat > read_numerator.py <<'PY'
           import json, os, psycopg2
           # BOTH paths into the feed, or the numerator undercounts and the gap
           # reads as worse than it is. Licensed rows arrive from the ticketing
@@ -159,6 +155,15 @@ jobs:
           print(f"read {len(rows)} distinct ingested venue(s) "
                 f"across licensed + promoted-candidate paths")
           PY
+          python read_numerator.py || {
+            echo "::error::Could not read the numerator from the database." \
+                 "The DENOMINATOR reported above is still VALID — it was" \
+                 "measured successfully and does not depend on the database." \
+                 "Only the 'how much of it do we cover' half is missing." \
+                 "Fix ONELIVE_DB_DSN and re-run. Do NOT read this as zero" \
+                 "coverage."
+            exit 1
+          }
 
       - name: Report coverage
         run: |
