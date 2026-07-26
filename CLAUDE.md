@@ -33,6 +33,61 @@ Everything is checked against the documented world-class bar for that item, so d
 3. **Dedicated-hat registry** (`docs/hats/`, added 2026-07-16 at founder direction): the six thinking hats as standing agents — each hat = fixed prompt + owned memory + model binding via the router + custody + its own Kaizen measures (measure, counter-measure, escape definition; all rows in the existing ledger, M8 = Yellow validated upside). Black = the Independent Evaluator/Friction attack (non-Claude, hard invariant); White = the reconcile/eval-harness scripts; Green = the po battery; Blue = the session loop plus the conflict-preserving merge; Yellow = the deliberate best-case lens (new — the harness previously had only attackers); Red = the founder, never an agent. Hats fire at divergent/founder-crucial moments only; no hat's output is ever evidence, and using a hat to relax any gate is founder-crucial.
 4. **Construction Loop** (`docs/skills/construction_loop.md`, founder-ratified 2026-07-25 "I approve making it part of the permanent canon" — decision record `docs/memory/decisions/2026-07-25_construction-loop-directive.md`): every substantive build runs the seven-stage closed loop — A3-form contract → ledger-seeded tree-shaped premortem → BLOCKING memory retrieval before design acceptance (cite matched green examples + red classes; "no matches" is a printed result, never silence) → scored path selection → small-batch execution with validate before the evaluator → lessons committed to brain only in machine-consumed form (gate rule / retrieval token / regression case — a prose-only ledger row is an open defect) → rounds-to-APPROVE + repeat-class rate trended as the loop's own health metrics. The loop ADDS an upstream pass; no downstream gate relaxes, and using loop outputs to argue any gate down is a gate-threshold relaxation: founder-crucial.
 
+## Change-set discipline (added 2026-07-26 at founder direction — MECHANICAL)
+Canon: `docs/skills/change_set_discipline.md`. Gate: `tools/change_set_gate.py`,
+blocking, in `tools/validate`. Added after the SAME failure ran twice — PR #68
+at 22 review rounds and PR #74 at 11 — where the lesson was written as prose
+both times and nothing executed it. The Construction Loop already required
+small-batch execution (Stage 5) and machine-consumed lessons (Stage 6); this is
+the missing mechanism, not a new idea.
+1. **Review has a measured ceiling, not a diligence problem.** Google's own
+   study: median change ~24 lines, ~90% under 10 files; defect detection
+   collapses past ~400 lines (SmartBear/Cisco). Hard caps: **1500 reviewable
+   lines / 25 files**. Generated artifacts and lockfiles do not count.
+2. **A change under review DOES NOT GROW.** Freeze scope with
+   `change_set_gate.py --freeze` when a PR goes out; growth beyond +600 lines /
+   +6 files fails. Adopting a reviewer's blocker is in scope; NEW WORK IS NOT,
+   however urgent — and it always feels urgent. New work opens a new branch.
+   This is the rule that would have stopped both incidents: #74 grew from 2,918
+   to 8,708 lines DURING review, so every round judged a bigger subject than the
+   last and fixes from one round became blockers in the next.
+3. **Convergence, not round-counting.** SPLIT when blockers fail to strictly
+   decrease across two rounds on unchanged scope (C5), when a round's findings
+   sit in code added by a previous round of the same review (C6), or at five
+   rounds (C7 — an escalation carrying a split proposal, not a status update).
+4. **One PR, one reversible decision.** Test: could a reviewer approve one part
+   and reject another? Then they are separate changes.
+Raising any threshold here is a gate-threshold relaxation: founder-crucial.
+
+## Execution bias — progress, not status (added 2026-07-26 at founder direction)
+Verbatim: *"I'm very very frustrated with all the feedback about what you are
+doing. Diarrhea from you about status not progress. I only want progress toward
+completion, solutions offered as prescribed to a problem, solutions executed by
+you 99% of the time ALWAYS ASKING AND CONFIRMING IT GETS US CLOSER TO A WORLD
+CLASS GO LIVE."* Root cause: on PR #74 the agent asked permission to split FIVE
+times across three hours while the founder had already said what they wanted —
+a shippable site. Asking is not diligence when the action is reversible; it is
+work transferred to the founder.
+1. **EXECUTE, do not request.** If an action is reversible (git, code, tests,
+   docs, workflow edits, branch/PR creation, splitting a change), DO IT and
+   report it done. The founder-crucial list is exhaustive — money/new services,
+   legal, trust-invariant changes, gate-threshold relaxations, go-live pushes,
+   credential minting. **If it is not on that list, executing is the default and
+   asking is the exception.** "I recommend X, shall I?" is banned; the correct
+   form is "X is done, here is the result."
+2. **Every report is measured against GO-LIVE.** Before sending, answer in one
+   line: *what is now closer to a world-class go-live than before?* If the
+   answer is "nothing, but here is what happened", DO NOT SEND IT — go do the
+   work instead. Status without a delta is noise.
+3. **A problem is reported only with its solution already applied**, or — when
+   genuinely blocked — with the single named unblock and the work that continued
+   around it. Never a problem alone.
+4. **Blocked ≠ idle.** If one thing is blocked (a credential, a founder call),
+   work the next item on the go-live plan. Reporting a block and stopping is a
+   failure mode, not patience.
+5. **Length is capped by news.** Long explanation is earned by a large delta,
+   never by a large effort. Nobody is paying for the narration of a loop.
+
 ## Communicating with the founder (added 2026-07-13 at founder direction)
 Every report, question, escalation, and PR description addressed to the founder follows these rules — they outrank brevity:
 1. **Plain language.** No unexplained jargon; assume a smart non-engineer. A one-line explanation beats an acronym.
