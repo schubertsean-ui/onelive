@@ -1,11 +1,28 @@
 # CLAUDE.md — the OneLive standing contract
 
 Read at the start of every session. This file is short on purpose: it is the
-binding contract, not the library. Rewritten 2026-07-26 from 2,834 words per
-`docs/V1_AUDIT_2026-07-26.md` §5, then amended the same day to **open with the
-vision instead of the rules** (founder directive, record at
-`docs/memory/decisions/2026-07-26_vision-first-directive.md`). **No invariant, gate,
-threshold or check was weakened in either pass.**
+binding contract, not the library.
+
+**Its own history, kept honest because a document that misdescribes itself is the
+same false-confidence defect it exists to prevent.** Rewritten 2026-07-26 from 2,834
+words per `docs/V1_AUDIT_2026-07-26.md` §5, then amended repeatedly the same day as
+the founder issued standing directives: vision-first ordering
+(`docs/memory/decisions/2026-07-26_vision-first-directive.md`), then the
+founder-communication contract in prime directive 6 — three options, a named
+recommendation, full URLs, what-you-will-see walkthroughs, minimum founder labour,
+and decisions codified in the repo — then the amended Sentinel clause accepting a
+GitHub-native dead-man alarm
+(`docs/memory/decisions/2026-07-26_github-native-watchdog.md`).
+
+**It therefore grew back past the audit's low-water mark**, and that is the right
+trade, not drift: every addition is a founder directive with a decision record and a
+mechanism. The word count is deliberately not quoted here — a number typed into prose
+stops tracking the file the moment anyone edits it (see `docs/INDEX.md` on that exact
+failure). Measure it with `python tools/health_check.py`.
+
+**No invariant, gate, threshold or check has been weakened in any pass.** The one
+gate-semantics change of 2026-07-26 was founder-ratified and left the M3 target at 0,
+absolute (`docs/memory/decisions/2026-07-26_escape-alarm-semantics.md`).
 
 ---
 

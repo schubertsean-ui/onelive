@@ -123,7 +123,7 @@ is a defect, not a row.
 ## 6. Verify, then be reviewed — in that order
 
 ```
-bash tools/validate        # all 19 checks; must exit 0
+bash tools/validate        # every check, in one pass; must exit 0
 ```
 
 `--quick` skips the slow checks and is not a pass. `--allow-skips` is
