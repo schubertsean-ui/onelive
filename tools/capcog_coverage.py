@@ -284,12 +284,30 @@ def main(argv=None) -> int:
               f"kept in the target file, not places that can be covered.")
     print(f"  venues ingested : {cov['ingested_venue_count']}")
     print(f"  venues targeted : {cov['target_venue_count']}")
-    print(f"  covered         : {cov['covered_venue_count']}  ({cov['coverage_pct']}%)")
-    for county, c in cov["per_county"].items():
-        pct = round(100.0 * c["covered"] / c["target"], 1) if c["target"] else None
-        print(f"    {county:<12} {c['covered']:>4}/{c['target']:<4} "
-              f"{'' if pct is None else str(pct) + '%'}")
+    # A percentage computed from a denominator we KNOW is corrupt must not be
+    # printed at all. Reporting the malformed rows and then printing the number
+    # anyway was the swallowed-corrupt-data class: the caveat travels in the log
+    # and the number travels everywhere else, so the number outlives its warning.
+    if cov.get("malformed_target_rows"):
+        print(f"  covered         : {cov['covered_venue_count']} of "
+              f"{cov['target_venue_count']}")
+        print(f"  PERCENTAGE SUPPRESSED — the denominator contains "
+              f"{len(cov['malformed_target_rows'])} corrupt row(s). A share of a "
+              f"corrupt market is not a measurement.")
+    else:
+        print(f"  covered         : {cov['covered_venue_count']}  "
+              f"({cov['coverage_pct']}%)")
+        for county, c in cov["per_county"].items():
+            pct = round(100.0 * c["covered"] / c["target"], 1) if c["target"] else None
+            print(f"    {county:<12} {c['covered']:>4}/{c['target']:<4} "
+                  f"{'' if pct is None else str(pct) + '%'}")
 
+    if cov.get("malformed_target_rows"):
+        # Non-zero, so the workflow cannot upload a coverage artifact built on a
+        # denominator it already knows is broken.
+        print("\ncapcog_coverage: FAIL — the target list is corrupt, not the "
+              "market smaller. Fix the denominator and re-run.", file=sys.stderr)
+        return 1
     if args.fail_on_outside and report["outside_count"]:
         print("\ncapcog_coverage: FAIL — events outside CAPCOG are being held/served.",
               file=sys.stderr)

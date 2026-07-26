@@ -277,8 +277,24 @@ def main(argv=None) -> int:
     for t in targets:
         by_kind[t.get("target_kind", KIND_VENUE)] += 1
 
+    catalog_only = set(layers) == {"catalog"}
     doc = {
         "generated_by": "tools/build_capcog_targets.py",
+        # A catalog-only build is what gets COMMITTED, because the sandbox has
+        # no egress to fetch TABC. Its per-county zeros then sit in the repo
+        # looking like findings about those counties while the docs quote the
+        # measured figure — the exact stale-number trap this file exists to
+        # prevent. So a catalog-only artifact says so in its first field.
+        "_READ_THIS_FIRST": (
+            "CATALOG-ONLY FLOOR — NOT THE MEASURED DENOMINATOR. The counties "
+            "showing zero below are counties this project had not catalogued, "
+            "NOT counties without venues. The real figure comes from the CAPCOG "
+            "Coverage workflow, which fetches TABC where egress exists; on "
+            "2026-07-26 that was 2,873 venues with every county non-zero. Do "
+            "not quote the numbers in this file as the market."
+        ) if catalog_only else (
+            "MEASURED denominator, built from the layers named in "
+            "layers_present."),
         "is_complete_universe": False,
         # The number the launch metric divides by. Named separately from
         # target_count so a reader cannot quote the larger figure by accident.

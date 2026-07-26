@@ -278,6 +278,48 @@ def test_a_stale_kind_override_FAILS_rather_than_reverting_silently():
         bt.KIND_OVERRIDE = original
 
 
+def test_a_corrupt_denominator_EXITS_NON_ZERO_and_prints_no_percentage(capsys):
+    """Reporting corrupt rows and then printing the percentage anyway was the
+    swallowed-corrupt-data class: the caveat stays in the log, the number
+    travels everywhere else, and the number outlives its warning.
+
+    A share of a corrupt market is not a measurement, so the tool must refuse
+    to state one and must fail — otherwise the workflow uploads a coverage
+    artifact built on a denominator it already knows is broken.
+    """
+    import tools.capcog_coverage as cc
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        rows = pathlib.Path(d) / "rows.json"
+        targets = pathlib.Path(d) / "targets.json"
+        rows.write_text(json.dumps(
+            [{"venue_name": "Mohawk", "venue_city": "austin"}]), encoding="utf-8")
+        targets.write_text(json.dumps({"venues": [
+            {"name": "Mohawk", "county": "travis", "target_kind": "venue"},
+            {"name": "", "county": "travis", "target_kind": "venue"},
+        ]}), encoding="utf-8")
+        code = cc.main(["--rows", str(rows), "--targets", str(targets)])
+    out = capsys.readouterr()
+    assert code != 0, "a corrupt denominator must fail the run, not warn"
+    assert "PERCENTAGE SUPPRESSED" in out.out
+    assert "%)" not in out.out, "no percentage may be printed from corrupt input"
+
+
+def test_the_committed_target_file_declares_itself_a_floor_not_the_market():
+    """The committed artifact is catalog-only — the sandbox cannot fetch TABC —
+    so its per-county zeros sit in the repo looking like findings about those
+    counties while the docs quote the measured 2,873. It has to say so in its
+    own first field, not rely on a reader knowing."""
+    doc = json.loads((pathlib.Path(__file__).resolve().parent.parent
+                      / "sources" / "capcog_venue_targets.json"
+                      ).read_text(encoding="utf-8"))
+    banner = doc.get("_READ_THIS_FIRST", "")
+    assert banner, "the committed denominator states nothing about its own scope"
+    if set(doc.get("layers_present", [])) == {"catalog"}:
+        assert "CATALOG-ONLY FLOOR" in banner
+        assert "NOT counties without venues" in banner
+
+
 def test_every_kind_override_still_names_a_real_catalog_row():
     """The guard, run against the catalog that actually ships."""
     import tools.build_capcog_targets as bt
