@@ -71,6 +71,27 @@ UNTRUSTED_COMMANDS = (
 
 MODEL_API_KEYS = ("OPENAI_API_KEY", "GEMINI_API_KEY")
 
+# ALLOWLIST, never a blacklist (PR #75 r15, openai attacker-smuggle, class
+# pr-selected-code-in-secret-job). The first cut of both guards below asserted
+# a SHAPE — "the install is pinned", "the action is not workspace-relative" —
+# and a shape check cannot say WHICH code runs. A later PR could add
+# `attacker_pkg==1.0` to the key-bearing job's install (a wheel may drop a
+# `.pth` file that executes on every subsequent `python -I` in that job, so
+# --no-deps --only-binary=:all: does not contain it), or `uses:
+# attacker/action@v1` (published, therefore "not PR-authored" by the old
+# rule, yet still code the subject chose, running before the secret step with
+# full $GITHUB_ENV / $GITHUB_PATH access). Both stayed green.
+#
+# The property that matters is not "pinned" or "not local" — it is that
+# EVERY unit of code in the key-bearing job was chosen by the base, not by
+# the subject. That is only expressible as an enumeration of what IS allowed,
+# so widening it is an edit to this gate file, visible in the same review.
+KEY_JOB_ALLOWED_PACKAGES = frozenset({"pyyaml"})
+KEY_JOB_ALLOWED_ACTIONS = frozenset({
+    "actions/checkout", "actions/setup-python", "actions/download-artifact",
+})
+
+
 
 def _load(rel):
     path = _ROOT / rel
@@ -156,6 +177,15 @@ def test_a_key_bearing_pip_install_is_pinned_and_closed(rel):
                     r"(?<!-)\b([A-Za-z][\w.-]*==[\w.]+)", line)
                 assert pkgs, f"{rel}: install names no pinned package: {line!r}"
                 for pkg in pkgs:
+                    base = pkg.split("==")[0].strip().lower()
+                    assert base in KEY_JOB_ALLOWED_PACKAGES, (
+                        f"{rel}: job {name!r} holds a key and installs {pkg!r}, "
+                        f"which is not in KEY_JOB_ALLOWED_PACKAGES "
+                        f"({sorted(KEY_JOB_ALLOWED_PACKAGES)}). Pinning says "
+                        f"WHICH VERSION runs, not WHICH CODE: a wheel can drop "
+                        f"a .pth that executes on every later `python -I` in "
+                        f"this job. Adding a dependency here is an edit to this "
+                        f"allowlist, reviewed with the workflow change.")
                     assert "==" in pkg, (
                         f"{rel}: job {name!r} installs {pkg!r} unpinned into a "
                         f"key-bearing job")
@@ -350,8 +380,54 @@ def test_a_key_bearing_job_invokes_no_pr_authored_local_action(rel):
             uses = str(step.get("uses", "")).strip()
             if not uses:
                 continue
+            assert uses.split("@")[0].strip() in KEY_JOB_ALLOWED_ACTIONS, (
+                f"{rel}: job {name!r} step {i} invokes {uses!r}, which is not "
+                f"in KEY_JOB_ALLOWED_ACTIONS "
+                f"({sorted(KEY_JOB_ALLOWED_ACTIONS)}). 'Published' is not the "
+                f"same as 'not chosen by the subject' — anyone can publish "
+                f"attacker/action@v1, and the PR-owned workflow choosing it "
+                f"puts subject-selected code in the key-bearing job, able to "
+                f"write $GITHUB_ENV / $GITHUB_PATH before the secret step.")
             assert not uses.startswith((".", "/")), (
                 f"{rel}: job {name!r} step {i} invokes a workspace-relative "
                 f"action ({uses!r}) — that is PR-authored code executing in the "
                 f"job that holds the API key, able to poison $GITHUB_ENV / "
                 f"$GITHUB_PATH before the secret step. Published actions only.")
+
+
+# ── MUTATION PROOF. A guard that has never been shown to REJECT anything is a
+# green test, not a gate (PR #75 r15). Both allowlists are exercised against a
+# workflow mutated exactly the way an attacker would: the real file, with one
+# smuggled unit of subject-selected code added to the key-bearing job.
+
+def _mutated_key_job(rel, extra_step):
+    """The real workflow, with extra_step prepended to its key-bearing job."""
+    wf = _load(rel)
+    for job in wf["jobs"].values():
+        if any(k in yaml.dump(job) for k in MODEL_API_KEYS):
+            job["steps"].insert(0, extra_step)
+            return wf
+    raise AssertionError(f"{rel}: no key-bearing job to mutate")
+
+
+@pytest.mark.parametrize("rel", WORKFLOWS)
+def test_the_package_allowlist_rejects_a_smuggled_dependency(rel, monkeypatch):
+    """`attacker_pkg==1.0` takes the exact shape the old guard demanded —
+    pinned, --no-deps, --only-binary — and must still be rejected."""
+    wf = _mutated_key_job(rel, {"run": (
+        'python -I -m pip install --no-deps --only-binary=:all: '
+        '"attacker_pkg==1.0"')})
+    monkeypatch.setitem(globals(), "_load", lambda _rel: wf)
+    with pytest.raises(AssertionError, match="KEY_JOB_ALLOWED_PACKAGES"):
+        test_a_key_bearing_pip_install_is_pinned_and_closed(rel)
+
+
+@pytest.mark.parametrize("rel", WORKFLOWS)
+def test_the_action_allowlist_rejects_a_published_third_party_action(rel,
+                                                                    monkeypatch):
+    """`uses: attacker/action@v1` is published, so it passed the old
+    workspace-relative ban while still being code the subject chose."""
+    wf = _mutated_key_job(rel, {"uses": "attacker/action@v1"})
+    monkeypatch.setitem(globals(), "_load", lambda _rel: wf)
+    with pytest.raises(AssertionError, match="KEY_JOB_ALLOWED_ACTIONS"):
+        test_a_key_bearing_job_invokes_no_pr_authored_local_action(rel)
