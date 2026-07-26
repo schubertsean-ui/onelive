@@ -124,3 +124,53 @@ def test_wellformed_MERGED_row_still_parses():
             "| fix | cost | note |\n")
     _, merged = rs.parse_arcs(good)
     assert merged == {96: 9}
+
+
+def test_every_kaizen_round_row_is_readable_by_this_scorecard():
+    """#73 r24 blocker, and the general fix for it: a ledger row the machine
+    cannot read does not exist for the gates.
+
+    `rs._ROUND_ROW` defines the machine-consumed contract for an in-flight review
+    round. Eighteen #73 rows (r10 through r23) had been appended in a
+    free-form `#73 (r20 hardening — ...)` shape instead, so the scorecard
+    reported `rounds-recorded=19` while the PR's own S3 citations and changelog
+    relied on r20-r23. Repeat-class and round-accounting views were blind to
+    exactly the rounds being used as evidence, and nothing said so.
+
+    This asserts the contract over the WHOLE ledger rather than over a
+    remembered convention: any row whose PR cell looks like an in-flight round
+    (`#<n> (` followed by an `r<digits>` marker anywhere in the cell) MUST be
+    matched by `_ROUND_ROW`. Merged rows and the non-table sections are
+    untouched. A future row that drifts from the format reds here instead of
+    silently shrinking the metric.
+    """
+    import re
+
+    ledger = (pathlib.Path(__file__).resolve().parent.parent
+              / "docs" / "metrics" / "KAIZEN_LEDGER.md").read_text().splitlines()
+    # A row that is ABOUT a numbered round: PR cell opens a parenthetical and
+    # names r<digits> somewhere inside it.
+    # Scoped to rows CLAIMING to be a round in the CURRENT convention: the
+    # parenthetical opens with `in flight: r<n>` or bare `r<n>`. This is what
+    # makes the test demanding without being unfair — it would have caught all
+    # eighteen drifted #73 rows, while it does not reach two things it has no
+    # standing over: correction rows that merely REFERENCE another round
+    # ("(correction, append-only, to the #73 r1 row above)"), and the older
+    # `#18 (in review, rN)` shape, which the parser also cannot read. That
+    # older blindness is REAL and is recorded as R-060 rather than fixed by
+    # silently rewriting another arc's append-only history here.
+    looks_like_round = re.compile(r"^\|\s*[\d-]+\s*\|\s*#(\d+)\s*\(\s*(?:in flight:\s*)?r(\d+)\b")
+    unreadable = []
+    for line in ledger:
+        m = looks_like_round.match(line)
+        if not m:
+            continue
+        if rs._MERGED_ROW.match(line):
+            continue  # merged rows are a different, separately parsed shape
+        if not rs._ROUND_ROW.match(line):
+            unreadable.append(f"#{m.group(1)} r{m.group(2)}: {line[:110]}")
+    assert not unreadable, (
+        "these ledger rows name a review round but do NOT match rs._ROUND_ROW, so "
+        "the scorecard and every round-accounting gate cannot see them — write "
+        "the PR cell as `#<pr> (in flight: r<n> — ...)`:\n  "
+        + "\n  ".join(unreadable))

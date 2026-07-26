@@ -24,10 +24,21 @@ Result: three secrets in GitHub — `META_ACCESS_TOKEN`, `META_IG_USER_ID`,
 `META_FB_PAGE_ID`. Budget 30–45 minutes the first time.
 
 **If a label has moved:** Meta renames menu items often. Do NOT guess at
-a similar-looking option — screenshot the screen you are stuck on, send
-it to Claude, and get the corrected step back. Guessing in a permissions
-dialog is how an account ends up with the wrong scopes granted, and the
-whole point of this file is that you never have to improvise.
+a similar-looking option — guessing in a permissions dialog is how an
+account ends up with the wrong scopes granted, and the whole point of this
+file is that you never have to improvise. Instead, describe the screen in
+words: the page title, the menu items you can see, and which step number
+you are on. That is enough to get the corrected step back.
+
+**If you would rather send a screenshot, CROP IT FIRST — and never send
+one of steps 1c or 1d.** Those screens show the **Access Token** box, and
+`META_ACCESS_TOKEN` is a bearer credential: anyone holding it can publish
+as you, so a screenshot containing it puts it into the chat path this
+document forbids it from entering (step 1d, rule a). Before sending any
+screenshot from this section: crop to the menu or button you are asking
+about, and confirm no token, no password field, and no browser autofill
+dropdown is inside the crop. Words are always safe; a screenshot is safe
+only after you have checked what is in it.
 
 ### 1a. Make the Instagram account publishable (5 min)
 
@@ -198,11 +209,17 @@ post can be signed, so nothing can publish even with Meta connected.
      not show up until someone forges an approval.
    - b. **Linux** — open Terminal and run the same `openssl rand -base64 48`
      as above.
-   - c. **A password manager you already have installed** (1Password,
-     Bitwarden, Apple Passwords) — use its BUILT-IN generator in the app,
-     not its website: create a new item, set length **64**, Numbers and
-     Symbols ON, and save the item. Generating it there also stores it
-     safely in one step.
+   - c. **A password manager you already have installed, with a
+     LENGTH-CONFIGURABLE generator** — 1Password or Bitwarden. Use its
+     BUILT-IN generator in the app, not its website: create a new item, set
+     length **64**, Numbers and Symbols ON, and save the item. Generating it
+     there also stores it safely in one step.
+     **Apple Passwords is NOT acceptable for this key** — see (d): it is
+     cryptographically strong but its length is fixed BELOW the 64-character
+     floor stated above and cannot be changed, so it cannot satisfy this
+     key's requirement. It was previously listed here alongside the two that
+     can, which contradicted (d) — a signing-key runbook must not offer a
+     path the same document refuses.
    - d. **iPhone, nothing else to hand.** Apple Passwords generates a
      cryptographically strong value, but its default is SHORTER than the
      64-character floor above and you cannot set the length — so do NOT use

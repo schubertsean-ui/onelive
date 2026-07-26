@@ -57,6 +57,15 @@ _WORKFLOWS = _ROOT / ".github" / "workflows"
 # `--last-failed` runs a cached subset, so crediting either as an unfiltered
 # full suite would report protection that is not there. This was a genuine
 # pre-existing gap, not a regression.
+#
+# PRECISION at #73 r24 (evaluator nit): of the run-selection flags below, only
+# `--lf` / `--last-failed` (and `--stepwise` / `--sw`) actually narrow the SET
+# of tests. `--ff` / `--failed-first` REORDERS — it runs the full suite with
+# previous failures first — so listing it here over-rejects. That is kept
+# DELIBERATELY, because the direction is fail-closed: a reordered full suite
+# refused as "not proven unfiltered" costs a workflow author one explicit
+# argument, while the opposite error would credit protection that is absent.
+# Stated rather than left implied, so nobody later "corrects" it into a hole.
 _NARROWING = ("-k", "-m", "--ignore", "--deselect",
               "--collect-only", "--co", "--lf", "--last-failed", "--ff",
               "--failed-first", "--stepwise", "--sw")
