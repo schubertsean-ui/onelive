@@ -1,7 +1,20 @@
 {
   "_what": "The scope a reviewer was asked to review. Growth beyond the documented tolerance means the review's subject changed under it, which is why round counting stops working. New work goes to a new branch.",
-  "branch": "claude/change-set-discipline-2026-07-26",
-  "frozen_at_head": "d9ea8092e78c15b337e2be0a39eea0769ce2dcd7",
-  "reviewable_files": 10,
-  "reviewable_lines": 853
+  "_append_only": "rounds[0] is the baseline, ALWAYS. Re-freezing appends; it never resets. Removing or rewriting an earlier round fails the gate, so a reset is a visible deletion in the diff, never a silent overwrite.",
+  "rounds": [
+    {
+      "branch": "claude/change-set-discipline-2026-07-26",
+      "frozen_at_head": "37ce1af8",
+      "reviewable_files": 10,
+      "reviewable_lines": 684,
+      "_note": "the scope r1 reviewed"
+    },
+    {
+      "branch": "claude/change-set-discipline-2026-07-26",
+      "frozen_at_head": "5630dc34fb920bdb0493a699816fe311bbeb3b93",
+      "reviewable_files": 10,
+      "reviewable_lines": 853,
+      "_note": "after adopting r1's four fail-open fixes"
+    }
+  ]
 }

@@ -13,6 +13,13 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Change-set discipline (Contract #29, founder-directed 2026-07-26 — docs/skills/change_set_discipline.md)
+- [x] (P0) `tools/change_set_gate.py` — **SHIPPED 2026-07-26**: hard caps (1500 reviewable lines / 25 files), 400-line warn, APPEND-ONLY scope freeze with a growth tolerance, deletions and binaries priced as one decision each, lockfiles excluded by basename, fail-closed on any git error; blocking in `tools/validate`, 23 tests.
+- [x] (P0) Resolve the canon these rules contradict — **DONE 2026-07-26**: charter prime directive 3 (ambiguity is resolved, not escalated), the "outrank brevity" line, OPERATING_RULES section 6 (options only for founder-owned decisions), Construction Loop Stage 5 (now cites its mechanism), commit_sweep's threshold restated as the same finding at a different grain.
+- [x] (P0) Codify the founder's execution-bias directive — **DONE 2026-07-26**: CLAUDE.md "Execution bias — progress, not status", verbatim, five rules.
+- [ ] (P1, agent) Trend rounds-to-APPROVE against change-set size once 5+ post-gate PRs exist — the gate's own health metric (Construction Loop Stage 7). Objective trigger: the fifth PR merged under the gate.
+- [ ] (P2, agent) Plan-before-work is the founder's SECOND charge from 2026-07-26 and is NOT yet codified — it needs the same treatment this one got (research, measure our own sessions, ship a mechanism that can fail), not an off-the-cuff rule.
+
 ## Construction Loop (Contract #24, founder-directed 2026-07-25 — docs/skills/construction_loop.md)
 - [x] (P1, founder) Ratify the Construction Loop as CHARTER text — **DONE 2026-07-25 (founder: "I approve making it part of the permanent canon")**; CLAUDE.md Thinking-tools item 4 added in the ratification commit.
 - [x] (P1) `tools/construction_gate.py` — **SHIPPED 2026-07-25 in PR #67 (r4: the rule ships with its mechanism)**: red-class index docs/memory/RED_CLASSES.md (18 classes seeded from the #65/#67 arcs), path-trigger matching, contract-citation requirement, fail-closed on unreadable/empty index, wired into validate as a hard gate; 6 tests incl. the uncited-blocks red case and the explicit no-match print.

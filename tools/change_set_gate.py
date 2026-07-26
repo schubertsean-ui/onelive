@@ -62,7 +62,8 @@ import subprocess
 import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-FREEZE = REPO / "docs" / "review" / "SCOPE_FREEZE.json"
+FREEZE_REL = "docs/review/SCOPE_FREEZE.json"
+FREEZE = REPO / FREEZE_REL
 
 # Derived from the research above, then relaxed for this repo's reality: a
 # change here legitimately carries its tests and its Record entry, which a bare
@@ -78,6 +79,8 @@ HARD_FILES = 25
 # Flat review cost of a file removed outright. Not zero — deleting something
 # is a real decision — but nowhere near its line count.
 DELETED_FILE_COST = 5
+# A binary carries no reviewable lines but is still a file to account for.
+BINARY_FILE_COST = 5
 
 MAX_GROWTH_LINES = 600
 MAX_GROWTH_FILES = 6
@@ -152,7 +155,14 @@ def measure(base: str, head: str = "HEAD") -> dict:
         if len(parts) != 3:
             continue
         added, removed, path = parts
-        if added == "-":          # binary
+        if added == "-":
+            # BINARY. It has no line count, but it is unquestionably a file a
+            # reviewer must account for, and skipping it entirely meant a PR
+            # could add unlimited binaries without touching the 25-file cap —
+            # the file ceiling fail-open. Priced like a deletion: one decision,
+            # not N lines. Evaluator finding, PR #79 r2.
+            files.append({"path": path, "lines": BINARY_FILE_COST})
+            total += BINARY_FILE_COST
             continue
         if _is_low_review_cost(path):
             continue
@@ -176,6 +186,42 @@ def measure(base: str, head: str = "HEAD") -> dict:
 
 
 def load_freeze() -> dict | None:
+    """The FIRST recorded scope, or None.
+
+    APPEND-ONLY, and that is the whole security property. A single mutable
+    record made the anti-growth rule self-defeating: after a change grew, the
+    author could rerun --freeze (or edit the JSON) and the new, larger scope
+    became the baseline. The rule "a change under review does not grow" was
+    mechanically bypassable by the very party it constrains. Evaluator finding,
+    PR #79 r2 (self-weakenable-freeze-baseline).
+
+    No tool the PR can run makes a PR-editable file tamper-proof, so the fix is
+    not secrecy but VISIBILITY plus a mechanical stop: the record holds every
+    freeze ever taken, growth is always measured against `rounds[0]`, and
+    dropping or rewriting an earlier round fails the gate — an act that is now
+    a conspicuous deletion in the diff rather than a silent overwrite.
+    """
+    doc = _read_freeze_doc()
+    if doc is None:
+        return None
+    rounds = doc.get("rounds")
+    if not isinstance(rounds, list) or not rounds:
+        raise SystemExit(
+            f"change_set_gate: FAIL — {FREEZE} has no 'rounds' list. A scope "
+            f"record that cannot be read is not an absent one.")
+    first = rounds[0]
+    if not isinstance(first, dict):
+        raise SystemExit(
+            f"change_set_gate: FAIL — {FREEZE} round 0 is not an object.")
+    return first
+
+
+def freeze_rounds() -> list:
+    doc = _read_freeze_doc()
+    return list(doc.get("rounds") or []) if doc else []
+
+
+def _read_freeze_doc() -> dict | None:
     if not FREEZE.exists():
         return None
     try:
@@ -187,6 +233,48 @@ def load_freeze() -> dict | None:
             f"change_set_gate: FAIL — {FREEZE} could not be read as JSON "
             f"({exc}). A corrupt or unreadable scope record is not an absent "
             f"one; fix or delete it deliberately.")
+
+
+
+def _rounds_rewritten(base: str) -> str:
+    """Non-empty when a commit in this range REWROTE an existing freeze round.
+
+    Every committed version of the record must be a prefix-extension of the one
+    before it: rounds may be appended, never edited or dropped. That makes the
+    realistic bypass — editing the JSON so a grown scope becomes the baseline —
+    a mechanical failure rather than a silent reset.
+
+    Stated honestly, because overstating this gate's reach is the exact defect
+    it was cited for twice: this does NOT make the record tamper-proof. A force
+    push that rewrites the branch can rewrite this history with it. What it
+    guarantees is that a reset cannot happen QUIETLY — it must either fail here
+    or appear on the PR timeline as a force push, which is a visible act a
+    reviewer can see, not a number that silently changed.
+    """
+    revs = subprocess.run(
+        ["git", "log", "--format=%H", "--reverse", f"{base}..HEAD",
+         "--", FREEZE_REL],
+        cwd=REPO, capture_output=True, text=True, check=False).stdout.split()
+    previous: list = []
+    for rev in revs:
+        proc = subprocess.run(["git", "show", f"{rev}:{FREEZE_REL}"], cwd=REPO,
+                              capture_output=True, text=True, check=False)
+        if proc.returncode != 0:
+            continue                    # deleted in that commit; next version wins
+        try:
+            rounds = (json.loads(proc.stdout) or {}).get("rounds") or []
+        except ValueError:
+            return f"the freeze record at {rev[:8]} is not valid JSON"
+        if len(rounds) < len(previous):
+            return (f"{rev[:8]} dropped {len(previous) - len(rounds)} "
+                    f"round(s) — the record is append-only")
+        for i, was in enumerate(previous):
+            if rounds[i] != was:
+                return (f"{rev[:8]} rewrote round {i} — the baseline is "
+                        f"rounds[0] and it does not move")
+        previous = rounds
+    return ""
+
 
 
 def main(argv=None) -> int:
@@ -203,22 +291,28 @@ def main(argv=None) -> int:
 
     if args.freeze:
         FREEZE.parent.mkdir(parents=True, exist_ok=True)
+        rounds = freeze_rounds()
+        rounds.append({
+            "branch": _git("rev-parse", "--abbrev-ref", "HEAD"),
+            "frozen_at_head": m["head"],
+            "reviewable_files": m["reviewable_files"],
+            "reviewable_lines": m["reviewable_lines"],
+        })
         FREEZE.write_text(json.dumps({
             "_what": "The scope a reviewer was asked to review. Growth beyond "
                      "the documented tolerance means the review's subject "
                      "changed under it, which is why round counting stops "
                      "working. New work goes to a new branch.",
-            "branch": _git("rev-parse", "--abbrev-ref", "HEAD"),
-            "frozen_at_head": m["head"],
-            "reviewable_files": m["reviewable_files"],
-            "reviewable_lines": m["reviewable_lines"],
+            "_append_only": "rounds[0] is the baseline, ALWAYS. Re-freezing "
+                            "appends; it never resets. Removing or rewriting "
+                            "an earlier round fails the gate, so a reset is a "
+                            "visible deletion in the diff, never a silent "
+                            "overwrite.",
+            "rounds": rounds,
         }, indent=2) + "\n", encoding="utf-8")
         print(f"change_set_gate: scope frozen at {m['reviewable_files']} file(s), "
               f"{m['reviewable_lines']} reviewable line(s) -> {FREEZE}")
         return 0
-
-    if args.json:
-        print(json.dumps(m, indent=2))
 
     failures: list = []
     warnings: list = []
@@ -249,6 +343,17 @@ def main(argv=None) -> int:
     # recorded for the operator, not consulted as a guard. Evaluator finding,
     # PR #79 r1, and my own contract claimed the opposite.
     if freeze:
+        # A dropped or rewritten earlier round is a RESET, and a reset is the
+        # bypass this record exists to stop. Compare against the base-owned
+        # copy: earlier rounds must survive verbatim.
+        drift = _rounds_rewritten(base)
+        if drift:
+            failures.append(
+                f"SCOPE FREEZE HISTORY WAS REWRITTEN: {drift}\n"
+                f"    The record is append-only. Re-freezing adds a round; it "
+                f"never resets the baseline, because a resettable baseline "
+                f"means 'this change did not grow' is a claim the author can "
+                f"make true after the fact.")
         dl = m["reviewable_lines"] - freeze.get("reviewable_lines", 0)
         df = m["reviewable_files"] - freeze.get("reviewable_files", 0)
         if dl > MAX_GROWTH_LINES or df > MAX_GROWTH_FILES:
@@ -262,6 +367,11 @@ def main(argv=None) -> int:
                 f"    Adopting a reviewer's blocker is fine. NEW WORK IS NOT, "
                 f"however urgent it feels — and it always feels urgent. Open a "
                 f"new branch: it costs one PR and saves a review spiral.")
+
+    if args.json:
+        print(json.dumps({**m, "failures": failures, "warnings": warnings},
+                         indent=2))
+        return 1 if failures else 0
 
     print(f"change_set_gate: {m['reviewable_files']} reviewable file(s), "
           f"{m['reviewable_lines']} reviewable line(s)")

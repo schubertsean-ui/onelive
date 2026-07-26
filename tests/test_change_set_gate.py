@@ -220,11 +220,12 @@ def test_the_freeze_is_enforced_on_a_DETACHED_head(tmp_path, monkeypatch):
     base = _commit(repo, "a.py", "x\n")
     monkeypatch.setattr(gate, "REPO", repo)
     monkeypatch.setattr(gate, "FREEZE", repo / "freeze.json")
-    gate.FREEZE.write_text(json.dumps({
+    gate.FREEZE.write_text(json.dumps({"rounds": [{
         "branch": "some-branch-that-is-not-checked-out",
         "reviewable_files": 1, "reviewable_lines": 1,
         "frozen_at_head": base,
-    }), encoding="utf-8")
+    }]}), encoding="utf-8")
+    monkeypatch.setattr(gate, "_rounds_rewritten", lambda b: "")
     _commit(repo, "b.py", "y\n" * (gate.MAX_GROWTH_LINES + 50))
     subprocess.run(["git", "checkout", "-q", "--detach"], cwd=repo, check=True)
     assert gate._git("rev-parse", "--abbrev-ref", "HEAD") == "HEAD"
@@ -263,3 +264,104 @@ def test_an_UNREADABLE_freeze_is_not_an_absent_one(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as exc:
         gate.load_freeze()
     assert "not an absent one" in str(exc.value)
+
+
+# ---- r2 evaluator findings ---------------------------------------------------
+
+def test_the_freeze_BASELINE_survives_a_refreeze(tmp_path, monkeypatch):
+    """The r2 blocker, and the sharpest one: a single mutable record made the
+    anti-growth rule self-defeating. After a change grew, rerunning --freeze
+    made the larger scope the baseline, so "this change did not grow" was a
+    claim the author could make true after the fact."""
+    repo = _repo(tmp_path)
+    base = _commit(repo, "a.py", "x\n")
+    monkeypatch.setattr(gate, "REPO", repo)
+    monkeypatch.setattr(gate, "FREEZE", repo / "freeze.json")
+    monkeypatch.setattr(gate, "FREEZE_REL", "freeze.json")
+    _commit(repo, "b.py", "y\n" * 50)
+    gate.main(["--base", base, "--freeze"])
+    first = gate.load_freeze()
+    assert first["reviewable_lines"] == 50
+
+    # grow, then try to launder the growth by re-freezing
+    _commit(repo, "c.py", "z\n" * (gate.MAX_GROWTH_LINES + 100))
+    gate.main(["--base", base, "--freeze"])
+    assert gate.load_freeze() == first, "rounds[0] must not move"
+    assert len(gate.freeze_rounds()) == 2, "re-freezing appends a round"
+    assert gate.main(["--base", base]) != 0, (
+        "growth past tolerance must still fail after a re-freeze")
+
+
+def test_REWRITING_an_earlier_round_fails(tmp_path, monkeypatch):
+    """Editing the JSON is the other half of the same bypass."""
+    repo = _repo(tmp_path)
+    base = _commit(repo, "a.py", "x\n")
+    monkeypatch.setattr(gate, "REPO", repo)
+    monkeypatch.setattr(gate, "FREEZE", repo / "freeze.json")
+    monkeypatch.setattr(gate, "FREEZE_REL", "freeze.json")
+    _commit(repo, "b.py", "y\n" * 20)
+    gate.main(["--base", base, "--freeze"])
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "freeze"], cwd=repo, check=True)
+
+    doc = json.loads((repo / "freeze.json").read_text(encoding="utf-8"))
+    doc["rounds"][0]["reviewable_lines"] = 99999      # launder the baseline
+    (repo / "freeze.json").write_text(json.dumps(doc), encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "reset"], cwd=repo, check=True)
+
+    assert gate.main(["--base", base]) != 0, "a rewritten baseline must fail"
+
+
+def test_BINARY_files_consume_the_file_ceiling(monkeypatch):
+    """A binary has no line count but is unquestionably a file to account for.
+    Skipping them meant unlimited binaries never touched the 25-file cap."""
+    numstat = "".join(f"-\t-\tassets/img{i}.png\n" for i in range(3))
+    monkeypatch.setattr(gate, "_git",
+                        lambda *a: "" if "--name-status" in a
+                        else (numstat if a[0] == "diff" else "sha"))
+    m = gate.measure("base")
+    assert m["reviewable_files"] == 3
+    assert m["reviewable_lines"] == 3 * gate.BINARY_FILE_COST
+
+
+def test_freeze_WRITES_the_artifact(tmp_path, monkeypatch):
+    """--freeze had no test at all: the branch that records the scope could
+    have stopped writing and the suite would have stayed green."""
+    repo = _repo(tmp_path)
+    base = _commit(repo, "a.py", "x\n")
+    monkeypatch.setattr(gate, "REPO", repo)
+    monkeypatch.setattr(gate, "FREEZE", repo / "sub" / "freeze.json")
+    monkeypatch.setattr(gate, "FREEZE_REL", "sub/freeze.json")
+    _commit(repo, "b.py", "y\n" * 7)
+    assert gate.main(["--base", base, "--freeze"]) == 0
+    assert gate.FREEZE.exists(), "--freeze must create the record and its dir"
+    doc = json.loads(gate.FREEZE.read_text(encoding="utf-8"))
+    assert doc["rounds"][0]["reviewable_lines"] == 7
+    assert doc["rounds"][0]["frozen_at_head"]
+
+
+def test_json_output_is_machine_readable(monkeypatch, capsys):
+    """--json was untested; a reporting flag that silently stops emitting is
+    how a dashboard goes quiet without anyone noticing."""
+    monkeypatch.setattr(gate, "measure", lambda base, head="HEAD":
+                        _measure(3, 100))
+    monkeypatch.setattr(gate, "load_freeze", lambda: None)
+    monkeypatch.setattr(gate, "_git", lambda *a: "sha")
+    assert gate.main(["--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["reviewable_files"] == 3
+    assert payload["reviewable_lines"] == 100
+
+
+def test_FILE_growth_alone_fails_even_when_lines_do_not(monkeypatch):
+    """The growth guard is an OR, and only the line side was covered — so the
+    file side could have regressed silently."""
+    monkeypatch.setattr(gate, "measure", lambda base, head="HEAD":
+                        _measure(20, 100))
+    monkeypatch.setattr(gate, "load_freeze", lambda: {
+        "branch": "b", "reviewable_files": 20 - gate.MAX_GROWTH_FILES - 1,
+        "reviewable_lines": 100})
+    monkeypatch.setattr(gate, "_rounds_rewritten", lambda base: "")
+    monkeypatch.setattr(gate, "_git", lambda *a: "sha")
+    assert gate.main([]) == 1, "file growth alone must fail the gate"

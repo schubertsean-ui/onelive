@@ -1,6 +1,42 @@
 # ONE LIVE — CHANGE LOG
 
 
+
+## 2026-07-26 — "too large, split it" stops being advice and becomes a gate
+
+PR #68 ran 22 review rounds and PR #74 ran 13. Both were diagnosed the same
+way — the change was too big and had grown under review — and both times the
+lesson was written as PROSE, to the founder, and nothing executed it. The
+Construction Loop already demanded small batches (Stage 5) and
+machine-consumed lessons (Stage 6); `construction_gate.py`, the loop's own
+enforcement arm, contained no size or scope check at all.
+
+- `tools/change_set_gate.py`, blocking in `tools/validate`. Warn at 400
+  reviewable lines (the measured point where defect detection degrades), fail
+  at 1500 or 25 files. Deletions and binaries cost a flat 5 — a deletion is one
+  decision, and pricing it per line made SPLITTING a change increase its
+  measured size, which punished the exact remedy the gate demands.
+- The scope freeze is APPEND-ONLY. A single mutable record made the
+  anti-growth rule self-defeating: after a change grew, re-freezing made the
+  larger scope the baseline. `rounds[0]` is now the baseline permanently and
+  any commit that rewrites an earlier round fails the gate.
+- The gate condemned its own PR (4,009 lines, 31 files) and the reviewer then
+  found it fail-open in four more ways — a swallowed git exit, freeze
+  enforcement skipped on every CI runner's detached HEAD, lockfiles never
+  matching their own exclusion, and unlimited binaries evading the file cap.
+  Two of those were places where the session contract CLAIMED the opposite.
+- The 8,708-line PR became seven, largest 1,346 reviewable lines.
+
+**Canon contradictions resolved rather than stacked:** charter prime directive
+3 made asking the default answer to ambiguity; "these rules outrank brevity"
+fought "length is capped by news"; OPERATING_RULES section 6 assumed options
+get presented at all; Construction Loop Stage 5 demanded "small batches" with
+nothing measuring it.
+
+**Founder directive, codified verbatim:** CLAUDE.md "Execution bias — progress,
+not status". Reversible actions are executed, not requested; every report is
+measured against go-live or not sent.
+
 ## 2026-07-12 — Deep review of WORLD_CLASS bar + MASTER doc; v1.1 expansion proposed
 
 **Session type:** Independent deep review ("best technologists / company-spin-up" lens). Output: `OneLive_WORLD_CLASS_v1.1_DEEP_REVIEW.md`. Status: PROPOSAL — pending founder gap-by-gap ratification (per §0.3 contract-first).
