@@ -264,17 +264,12 @@ describe("the catch block fails CLOSED", () => {
   });
 
   it("does NOT leak the exception text to the client", async () => {
-    // `CLASS:internal-error-disclosure` (PR #76 r4). This assertion previously ran
-    // the other way — it required the body to CONTAIN "boom from the provider" —
-    // so the test was pinning the leak in place. A test can enforce a defect as
-    // firmly as it enforces a fix, and this is what that looks like: written to
-    // prove the catch block said something useful, it made raw provider text at a
-    // public auth boundary a contract.
-    //
-    // The detail belongs in the log, which the operator reads and an anonymous
-    // requester does not. Asserted as ABSENCE from the body, with the presence of
-    // the useful parts asserted above so this cannot be satisfied by an empty
-    // response.
+    // R-085. This assertion previously ran the OTHER way — it required the body to
+    // CONTAIN "boom from the provider" — so the test pinned the leak in place. A
+    // test enforces a defect as firmly as it enforces a fix: written to prove the
+    // catch said something useful, it made raw provider text at a public auth
+    // boundary a contract. Asserted as ABSENCE, with the useful parts asserted
+    // above so it cannot pass on an empty response.
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
     vi.doMock("@clerk/nextjs/server", () => ({
       clerkMiddleware: () => { throw new Error("boom from the provider"); },

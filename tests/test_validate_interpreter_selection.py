@@ -1,31 +1,19 @@
 """`tools/validate` must not report an environment fault as a code fault.
 
-BAR row G5 is graded **MET** on the claim "one documented command, 0 manual
-steps; **0 red rows that mean 'environment incomplete'**". It was not quite true.
-`bootstrap_dev.sh` puts the venv OUTSIDE the repo and ends by printing
-`PATH="$VENV/bin:$PATH" bash tools/validate`; run the gate without that prefix and
-the system interpreter — which on this image cannot import `_cffi_backend` — takes
-three checks red (`pytest`, `blocking_failure_check`, `perf`). Same column, same
-colour, same word FAIL as a regression. `env_preflight` describes the problem, but
-only after a five-minute run has already reported failure.
+BAR G5 is graded MET on "0 red rows that mean 'environment incomplete'". That was not
+true: `bootstrap_dev.sh` ends by printing a `PATH=`-prefixed command, and running the
+gate without that prefix took `pytest`, `blocking_failure_check` and `perf` red on a
+system interpreter that cannot import `_cffi_backend`. Same word FAIL as a regression.
+Measured, not asserted: the same tree (`git_head 274facb`) read FAIL at 22:53:46Z and
+all-PASS at 22:59:21Z with the venv on PATH.
 
-Measured, not asserted from memory: that is exactly what happened in this session
-on 2026-07-26, and the identical tree came back all-PASS the moment the venv was on
-PATH. The evidence is the two runs at 22:53:46Z (FAIL) and 22:59:21Z (INCOMPLETE —
-every check PASS, only the pre-existing R-002 skip and the commit_sweep advisory)
-against the SAME `git_head: 274facb`.
+Tests EXECUTE the block against stub interpreters rather than grepping it — the R-081
+lesson from this same PR: a text assertion on a shell conditional passes whether or not
+the conditional works.
 
-**Why these tests execute the block instead of grepping it.** The R-081 lesson
-from earlier in this same PR: a text assertion on a shell conditional passes
-whether or not the conditional works, and the negative case that looked like
-coverage was refused for the wrong reason. So the region is lifted by sentinel
-and run by bash against stub interpreters.
-
-**And why this cannot loosen a gate**, which matters because touching `validate` is
-the most gate-adjacent edit there is: the block only ever moves `$PY` to an
-interpreter that CAN import the test dependencies. That makes more checks execute,
-never fewer, and it touches no threshold, no verdict, no exit code and no skip
-accounting — asserted below rather than promised.
+Why this cannot loosen a gate: the block only ever moves `$PY` to an interpreter that
+CAN import the test dependencies, so more checks execute, never fewer. Asserted below,
+not promised.
 """
 from __future__ import annotations
 
@@ -41,8 +29,8 @@ _VALIDATE = _ROOT / "tools" / "validate"
 _BEGIN = "--- interpreter-selection:begin ---"
 _END = "--- interpreter-selection:end ---"
 
-# What the block probes for. Kept here so a test failure names the real reason
-# rather than "the stub said no".
+# The submodule PyJWT actually reaches. Probing top-level `cryptography` passes on the
+# exact broken install this exists for.
 _PROBE_MODULES = "cryptography.hazmat.primitives.asymmetric.ec"
 
 
@@ -53,67 +41,23 @@ def _block() -> str:
     end = next(i for i, ln in enumerate(lines[start:], start) if _END in ln)
     block = "\n".join(lines[start + 1:end])
     assert 'PY="${PYTHON:-python3}"' in block and "ONELIVE_VENV" in block, (
-        "the sentinel-delimited region no longer contains the interpreter "
-        "selection — the markers moved and this whole file is now vacuous")
+        "the sentinel-delimited region no longer contains the interpreter selection — "
+        "the markers moved and this whole file is now vacuous")
     return block
 
 
 def bootstrap_venv_dir() -> str:
     """Where `bootstrap_dev.sh` ACTUALLY creates the venv, read from the script.
 
-    `CLASS:bootstrap-validate-venv-drift` (PR #76 r4). The first version of this
-    file hard-coded `$HOME/.venvs/onelive` — a path `bootstrap_dev.sh` never
-    creates — so nine tests passed green over a fallback that could not fire on the
-    one path it existed for. Restating a value in a test is how you prove the value
-    you restated; deriving it is how you prove the integration.
+    `CLASS:bootstrap-validate-venv-drift` (r4). The first version of this file
+    hard-coded `$HOME/.venvs/onelive` — a path bootstrap never creates — so nine tests
+    passed over a fallback that could not fire. Restating a value proves the value you
+    restated; deriving it proves the integration.
     """
     text = (_ROOT / "tools" / "bootstrap_dev.sh").read_text(encoding="utf-8")
     match = re.search(r'^VENV="([^"]+)"', text, re.MULTILINE)
-    assert match, (
-        "could not find the VENV assignment in tools/bootstrap_dev.sh — this "
-        "extractor is now blind and every test below is testing a guess")
+    assert match, "no VENV assignment in tools/bootstrap_dev.sh — this extractor is blind"
     return match.group(1)
-
-
-def test_REPO_ROOT_is_already_set_before_the_selection_block_runs():
-    """Closes the one gap the executed tests structurally cannot cover.
-
-    The block resolves `${REPO_ROOT:-<derive>}`. Under `bash -c` REPO_ROOT is unset,
-    so every execution test above takes the DERIVE branch — meaning the branch
-    production actually uses is never run by them. If `REPO_ROOT`'s assignment ever
-    moved below the sentinel, production would silently switch to the derivation
-    with `BASH_SOURCE` pointing at the same file, which happens to still work — and
-    then a later refactor of that line would break the fallback with nothing red.
-    Asserting the ORDER is what makes the executed tests transferable.
-    """
-    text = (_ROOT / "tools" / "validate").read_text(encoding="utf-8")
-    assign = text.index('REPO_ROOT="$(cd ')
-    begin = text.index(_BEGIN)
-    assert assign < begin, (
-        "tools/validate assigns REPO_ROOT after the interpreter-selection block, so "
-        "the block falls back to re-deriving the repo root at runtime — move the "
-        "assignment back above the block")
-
-
-def test_validate_looks_where_bootstrap_actually_creates_the_venv():
-    """The integration the reviewer caught, bound so it cannot silently drift.
-
-    Static rather than executed, because what matters is that the two files agree
-    on a path — and an execution test with stubs cannot notice that both were
-    pointed at the same wrong place.
-    """
-    venv = bootstrap_venv_dir()
-    block = _block()
-    if "REPO_ROOT" in venv:
-        assert '"$_repo_root/.venv/bin/python"' in block, (
-            f"bootstrap_dev.sh creates the venv at {venv} (repo-relative) but the "
-            f"interpreter fallback does not look in the repo — the documented "
-            f"one-command bootstrap still leaves `bash tools/validate` red for an "
-            f"environment reason, which is the whole defect this block exists for")
-    else:
-        assert "ONELIVE_VENV" in block, (
-            f"bootstrap_dev.sh creates the venv at {venv} but the fallback does not "
-            f"consult ONELIVE_VENV, so the two disagree on the location")
 
 
 def _stub(path: pathlib.Path, *, works: bool) -> pathlib.Path:
@@ -131,17 +75,11 @@ def _stub(path: pathlib.Path, *, works: bool) -> pathlib.Path:
 def _run(tmp_path: pathlib.Path, *, system_works: bool, venv_works: bool | None,
          repo_venv_works: bool | None = None,
          env_extra: dict[str, str] | None = None) -> subprocess.CompletedProcess:
-    """Execute the real block with stubs, and print the interpreter it settled on.
+    """Execute the real block with stubs; print the interpreter it settled on.
 
-    `venv_works=None` means there is no `$HOME/.venvs/onelive` at all;
-    `repo_venv_works=None` means there is no `$REPO_ROOT/.venv` — together they
-    cover the fresh-clone-without-bootstrap case, where the behaviour must be
-    unchanged from before this block existed.
-
-    `$0` is set to a path inside a FAKE REPO so the block's own
-    `dirname "${BASH_SOURCE[0]}"/..` derivation runs for real. Faking the answer
-    instead would leave the derivation — the exact thing that was wrong in r4 —
-    untested.
+    `None` for either venv means that venv is absent. `$0` points inside a FAKE REPO so
+    the block's own `dirname/..` derivation runs for real — faking the answer would
+    leave the thing that was wrong in r4 untested.
     """
     home = tmp_path / "home"
     binadd = tmp_path / "bin"
@@ -172,95 +110,74 @@ def _selected(proc: subprocess.CompletedProcess) -> str:
     return line.split("=", 1)[1]
 
 
-# ------------------------------------------------------- the defect this closes
 def test_the_REPO_LOCAL_venv_from_bootstrap_dev_is_found(tmp_path):
-    """The r4 blocker, executed. `bootstrap_dev.sh` writes `$REPO_ROOT/.venv`; this
-    proves the fallback reaches it, deriving the repo root the same way the block
-    does rather than being told the answer."""
+    """The r4 blocker, executed: bootstrap writes `$REPO_ROOT/.venv` and the fallback
+    must reach it, deriving the repo root the way the block does."""
     proc = _run(tmp_path, system_works=False, venv_works=None, repo_venv_works=True)
     assert _selected(proc) == str(tmp_path / "fakerepo" / ".venv" / "bin" / "python"), (
-        "the venv the documented one-command bootstrap creates was not found — "
-        "`bash tools/validate` after `bash tools/bootstrap_dev.sh` still goes red "
-        "for an environment reason, which is the entire defect this block exists for")
+        "the venv the documented one-command bootstrap creates was not found — the gate "
+        "still goes red for an environment reason after that command")
 
 
 def test_the_repo_local_venv_WINS_over_the_home_one(tmp_path):
-    """Both present: prefer the one the documented command produced, so what the
-    gate runs matches what the bootstrap installed. A stale `$HOME` venv from
-    another checkout silently winning is how the r4 miss went unnoticed."""
+    """Both present: prefer what the documented command produced. A stale `$HOME` venv
+    from another checkout silently winning is how the r4 miss went unnoticed."""
     proc = _run(tmp_path, system_works=False, venv_works=True, repo_venv_works=True)
     assert _selected(proc) == str(tmp_path / "fakerepo" / ".venv" / "bin" / "python")
 
 
-def test_a_broken_default_interpreter_falls_back_to_the_bootstrapped_venv(tmp_path):
-    """THE regression. Without this, the run goes red for an environment reason."""
+def test_a_broken_default_interpreter_falls_back_to_a_working_venv(tmp_path):
+    """THE regression. Without this the run goes red for an environment reason."""
     proc = _run(tmp_path, system_works=False, venv_works=True)
-    assert _selected(proc).endswith("/.venvs/onelive/bin/python"), (
-        "the system interpreter cannot import the test dependencies and a working "
-        "venv exists, but the gate stuck with the broken one — three checks will "
-        "now report FAIL with the environment as the cause")
+    assert _selected(proc).endswith("/.venvs/onelive/bin/python")
 
 
 def test_the_fallback_is_ANNOUNCED_and_not_silent(tmp_path):
-    """Running something other than what the operator typed is opacity unless it
-    is said out loud — and the message has to name the override, or the next
-    person debugging a deliberate `PYTHON=` choice has no thread to pull."""
+    """Running something other than what the operator typed is opacity unless said out
+    loud, and the message must name the override or a deliberate `PYTHON=` choice has no
+    thread to pull."""
     proc = _run(tmp_path, system_works=False, venv_works=True)
     assert "cannot import the test dependencies" in proc.stdout
     assert ".venvs/onelive/bin/python" in proc.stdout
-    assert "PYTHON=" in proc.stdout, "the message must name the override"
+    assert "PYTHON=" in proc.stdout
 
 
-# --------------------------------------------- the properties that must NOT move
 def test_an_explicit_PYTHON_always_wins(tmp_path):
-    """The override is the escape hatch that keeps this from being a policy.
-
-    Someone testing the gate under a deliberately minimal interpreter — which is
-    how R-058's preflight was verified — must get the interpreter they asked for,
-    even when it is the broken one and a working venv sits right there.
-    """
+    """The escape hatch that keeps this a convenience rather than a policy: testing the
+    gate under a deliberately minimal interpreter is how R-058's preflight was
+    verified."""
     chosen = _stub(tmp_path / "explicit" / "python3", works=False)
-    proc = _run(tmp_path, system_works=False, venv_works=True,
+    proc = _run(tmp_path, system_works=False, venv_works=True, repo_venv_works=True,
                 env_extra={"PYTHON": str(chosen)})
-    assert _selected(proc) == str(chosen), (
-        "an explicit PYTHON= was overridden — a deliberate interpreter choice "
-        "must never be second-guessed, or the block becomes policy rather than "
-        "a convenience")
+    assert _selected(proc) == str(chosen)
 
 
 def test_a_WORKING_default_interpreter_is_left_alone(tmp_path):
-    """Without this the test above is vacuous: a block that always substituted the
-    venv would satisfy it. The venv here is deliberately the BROKEN one, so a
-    substitution would be caught even if it happened to be harmless."""
+    """Without this the test above is vacuous. The venv here is deliberately the BROKEN
+    one, so a substitution is caught even if it happened to be harmless."""
     proc = _run(tmp_path, system_works=True, venv_works=False)
-    assert _selected(proc) == "python3", (
-        "the default interpreter can run the suite and was replaced anyway")
+    assert _selected(proc) == "python3"
 
 
 def test_no_venv_present_changes_nothing(tmp_path):
-    """A fresh clone that has not been bootstrapped must behave exactly as it did
-    before this block existed: keep `python3`, let the checks report what they
-    report, let `env_preflight` name the cause. Inventing an interpreter that is
-    not there would be worse than the problem."""
+    """A fresh un-bootstrapped clone must behave exactly as before this block existed:
+    keep `python3`, let `env_preflight` name the cause. Inventing an absent interpreter
+    would be worse than the problem."""
     proc = _run(tmp_path, system_works=False, venv_works=None)
     assert _selected(proc) == "python3"
-    assert proc.returncode == 0, (
-        "the selection block must never itself fail the run — it is a choice of "
-        "interpreter, not a check")
+    assert proc.returncode == 0, "the selection block must never itself fail the run"
 
 
 def test_an_UNUSABLE_venv_is_not_selected(tmp_path):
-    """A half-built venv — bootstrap interrupted, dependencies not installed — must
-    not be preferred over the default. Both are broken; swapping one for the other
-    changes the failure message and fixes nothing, and would hide the real cause."""
+    """A half-built venv must not be preferred: both are broken, so swapping them
+    changes the message and hides the real cause."""
     proc = _run(tmp_path, system_works=False, venv_works=False)
-    assert _selected(proc) == "python3", (
-        "a venv that also cannot import the dependencies was selected anyway")
+    assert _selected(proc) == "python3"
 
 
 def test_ONELIVE_VENV_is_honoured(tmp_path):
-    """`bootstrap_dev.sh` reads `ONELIVE_VENV` for the venv location, so this must
-    read the same variable or the two disagree on a non-default setup."""
+    """`bootstrap_dev.sh` reads `ONELIVE_VENV`, so this must read the same variable or
+    the two disagree on a non-default setup."""
     custom = tmp_path / "elsewhere"
     _stub(custom / "bin" / "python", works=True)
     proc = _run(tmp_path, system_works=False, venv_works=None,
@@ -268,52 +185,69 @@ def test_ONELIVE_VENV_is_honoured(tmp_path):
     assert _selected(proc) == str(custom / "bin" / "python")
 
 
-def test_the_block_touches_NOTHING_that_decides_a_verdict():
-    """Static, and deliberately so: this is the "no gate was weakened" claim for
-    this edit, and it is about what the code CANNOT do, which no execution shows.
+def test_REPO_ROOT_is_already_set_before_the_selection_block_runs():
+    """Closes the gap the executed tests structurally cannot cover.
 
-    An interpreter choice is legitimate. Reaching a threshold, a skip allowance or
-    an exit code from inside it would be a gate change wearing a convenience's
-    clothes — and it is exactly the shape a future "while I'm in here" edit takes.
+    The block resolves `${REPO_ROOT:-<derive>}`. Under `bash -c` REPO_ROOT is unset, so
+    every test above takes the DERIVE branch — production's branch is never run by them.
+    Asserting the ORDER is what makes those tests transferable.
     """
+    text = _VALIDATE.read_text(encoding="utf-8")
+    assert text.index('REPO_ROOT="$(cd ') < text.index(_BEGIN), (
+        "tools/validate assigns REPO_ROOT after the selection block, so the block "
+        "re-derives it at runtime — move the assignment back above the block")
+
+
+def test_validate_looks_where_bootstrap_actually_creates_the_venv():
+    """The r4 integration, bound. Static, because what matters is that two files agree
+    on a path — an execution test with stubs cannot notice both being pointed at the
+    same wrong place."""
+    venv = bootstrap_venv_dir()
+    block = _block()
+    if "REPO_ROOT" in venv:
+        assert '"$_repo_root/.venv/bin/python"' in block, (
+            f"bootstrap_dev.sh creates the venv at {venv} but the fallback does not "
+            f"look in the repo — the documented command still leaves the gate red")
+    else:
+        assert "ONELIVE_VENV" in block, (
+            f"bootstrap creates the venv at {venv}; the fallback does not consult "
+            f"ONELIVE_VENV, so the two disagree on the location")
+
+
+def test_the_block_touches_NOTHING_that_decides_a_verdict():
+    """The "no gate was weakened" claim for this edit, and it is about what the code
+    CANNOT do, which no execution shows. Reaching a threshold, a skip allowance or an
+    exit code from inside an interpreter choice is a gate change wearing a
+    convenience's clothes — the shape a "while I'm in here" edit takes."""
     block = _block()
     forbidden = ("STRICT", "ALLOW_SKIPS", "QUICK", "ANY_FAIL", "ANY_SKIP",
                  "ANY_ADVISORY", "RESULTS", "record ", "run_check", "run_advisory",
                  "exit ")
     present = sorted(token for token in forbidden if token in block)
     assert not present, (
-        f"the interpreter-selection block references verdict machinery: {present}. "
-        f"It may choose an interpreter and nothing else — anything here that can "
-        f"change a check's outcome, the skip accounting or the exit code is a "
-        f"gate-threshold change and is founder-crucial (CLAUDE.md)")
+        f"the interpreter-selection block references verdict machinery: {present}. It "
+        f"may choose an interpreter and nothing else — anything that can change an "
+        f"outcome, the skip accounting or the exit code is a gate-threshold change and "
+        f"is founder-crucial (CLAUDE.md)")
 
 
 def test_the_probe_names_the_submodule_and_not_the_top_level_package():
-    """R-058's lesson, in the one place it can regress silently.
-
-    `import cryptography` SUCCEEDS on the broken install — the failure is inside
-    `hazmat.primitives.asymmetric.ec`, which is the submodule PyJWT reaches. A
-    probe of the top-level package would report a healthy environment and this
-    whole block would never fire, while still passing every execution test above
-    because the stubs do not care what they are asked to import.
-    """
+    """R-058's lesson in the one place it regresses silently: `import cryptography`
+    SUCCEEDS on the broken install, so a shallower probe makes the fallback dead code
+    while still passing every execution test above — the stubs do not care what they
+    are asked to import."""
     block = _block()
-    assert _PROBE_MODULES in block, (
-        f"the probe must import {_PROBE_MODULES} — the top-level `cryptography` "
-        f"package imports fine on the exact broken install this exists for, so a "
-        f"shallower probe makes the fallback dead code")
+    assert _PROBE_MODULES in block, f"the probe must import {_PROBE_MODULES}"
     assert "pytest" in block, "an interpreter without pytest cannot run the suite"
 
 
 @pytest.mark.parametrize("doc", ["docs/BAR.md"])
-def test_the_G5_row_no_longer_claims_more_than_is_true(doc):
-    """The bar row graded this MET while the footgun was live. The row keeps its
-    grade — the claim is now actually true — but it must SAY which mechanism makes
-    it true, or the next reader has no way to check."""
+def test_the_G5_row_names_the_mechanism(doc):
+    """The row keeps its MET grade — the claim is now true — but must say which
+    mechanism makes it true, or the next reader cannot check it."""
     text = (_ROOT / doc).read_text(encoding="utf-8")
     g5 = next(ln for ln in text.splitlines() if ln.startswith("| G5 |"))
     assert "interpreter" in g5.lower(), (
-        "BAR G5's mechanism column does not mention interpreter selection, so the "
-        "row's '0 red rows that mean environment incomplete' still rests on "
-        "env_preflight alone — which describes the fault after a failed run "
-        "rather than preventing it")
+        "BAR G5's mechanism column does not mention interpreter selection, so its "
+        "'0 red rows' claim still rests on env_preflight alone — which describes the "
+        "fault after a failed run rather than preventing it")

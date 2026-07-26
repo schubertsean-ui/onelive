@@ -317,16 +317,13 @@ def test_gate_metric_counts_gate_files_not_the_whole_tools_directory():
     #     PR, so their appearance here is additive and cannot have loosened
     #     anything.
     #
-    #  4. `tools/health_check.py` — THIS TOOL, newly registered (see the block in
-    #     GATE_FILES for why the registry is exception-free). It did not exist at
-    #     `f907a51` — `git cat-file -e f907a51:tools/health_check.py` fails — so its
-    #     appearance is a whole new advisory reporter, not a moved threshold. It is
-    #     also the honest illustration of the tradeoff that block accepts: a
-    #     non-gate in the registry shows up here, the reader sees the name and
-    #     dismisses it. `commit_sweep.py` and `reviewer_scorecard.py` were
-    #     registered in the same change and are correctly ABSENT from this list,
-    #     because neither has changed since the baseline — which is the check
-    #     working: registration alone does not manufacture a gate change.
+    #  4. `tools/health_check.py` — THIS TOOL, newly registered (see GATE_FILES for why
+    #     the registry is exception-free). It did not exist at `f907a51`, so its
+    #     appearance is a new advisory reporter, not a moved threshold — and it is the
+    #     honest illustration of that block's tradeoff. `commit_sweep.py` and
+    #     `reviewer_scorecard.py` were registered in the same change and are correctly
+    #     ABSENT here, having not changed since the baseline: registration alone does not
+    #     manufacture a gate change.
     #
     # `tools/kpi_report.py` is NOT in this list even though it changed, because
     # `gate_files_changed` compares content and its escaped-defects KPI now calls
@@ -348,18 +345,14 @@ def test_gate_metric_counts_gate_files_not_the_whole_tools_directory():
 
 
 def test_every_check_script_validate_RUNS_is_in_the_gate_registry():
-    """`CLASS:gate-file-registry-omission`, made impossible to recur (PR #76 r3).
+    """`CLASS:gate-file-registry-omission`, made impossible to recur (r3).
 
-    Two review rounds found omissions from GATE_FILES by hand — first the two new
-    blocking checks, then four more that had been missing all along. Hand-auditing a
-    registry against a shell script is exactly the work a test should do, and the
-    metric is the mechanical form of the claim "no gate was weakened": a live gate
-    absent from it means a change to that gate's logic reports "0 gate files
-    changed".
-
-    So the list is DERIVED from `tools/validate` rather than trusted. Advisory checks
-    count: this metric is for visibility, and `pr_size_check` guards the reviewer cap
-    — the mechanism that keeps an unreviewed change off master.
+    Two rounds found omissions BY HAND — the two new blocking checks, then four more
+    missing all along. The metric is the mechanical form of "no gate was weakened", so
+    a live gate absent from it means a change to that gate reports "0 gate files
+    changed". The list is now DERIVED from `tools/validate` rather than trusted.
+    Advisory checks count: this is for visibility, and `pr_size_check` guards the
+    reviewer cap — the mechanism keeping an unreviewed change off master.
     """
     import re
     validate = (_ROOT / "tools" / "validate").read_text(encoding="utf-8")

@@ -93,34 +93,21 @@ jobs:
           set -uo pipefail
           : "${BASE_URL:?url input missing — the target is required — failing closed}"
 
-          # THE SECRET'S NETWORK SINK IS CONSTRAINED, not just its caller.
-          #
-          # The default-branch job guard controls WHO can start this run. It does
-          # NOT control where the bypass secret is sent: the `url` input was
-          # arbitrary, so a dispatch from the default branch could still post the
-          # secret to any host on the internet. The custody comments claimed the
-          # guard covered that, and it did not — a false safety claim in the exact
-          # section written to justify using the secret
-          # (`CLASS:false-confidence-gate`, PR #76 r2, and the reviewer was right
-          # that this is the more important half).
-          #
-          # So the host is allowlisted to this Vercel project's own domains. Any
-          # other target fails closed BEFORE the secret is read into a request.
+          # THE SECRET'S NETWORK SINK IS CONSTRAINED, not just its caller. The
+          # default-branch job guard controls WHO may start this run; it does NOT
+          # control where the secret goes, and the `url` input was arbitrary — while
+          # the custody comments claimed otherwise (`CLASS:false-confidence-gate`,
+          # r2). The host is allowlisted below and a foreign target fails closed
+          # BEFORE the secret is read into a request.
           # --- host-allowlist:begin ---
           # A trailing slash is stripped first, so `$BASE_URL/api/health` cannot
           # become `...//api/health` and the match below sees one canonical form.
           while [ "${BASE_URL%/}" != "$BASE_URL" ]; do BASE_URL="${BASE_URL%/}"; done
 
-          # THE HOST IS MATCHED, NOT THE WHOLE URL — and that distinction is the
-          # difference between this check working and looking like it works.
-          # bash's `*` matches `/` too, so the previous allowlist
-          # (`https://*.vercel.app`) accepted `https://attacker.io/x.vercel.app`:
-          # `*` swallows `attacker.io/x` and the string genuinely does end in
-          # `.vercel.app`. That sent the bypass secret to attacker.io while
-          # reporting a passed allowlist. Found while applying the trailing-slash
-          # nit on this same block; R-081. The old test suite missed it because its
-          # negative case was `https://attacker.io/vercel.app` — no dot before
-          # `vercel`, so it was refused for the wrong reason and passed anyway.
+          # THE HOST IS MATCHED, NOT THE WHOLE URL (R-081). bash's `*` matches `/`,
+          # so `https://*.vercel.app` accepted `https://attacker.io/x.vercel.app` —
+          # the path supplied the allowed suffix and the secret went to attacker.io
+          # under a passed allowlist.
           case "$BASE_URL" in
             https://*) ;;
             *) echo "::error::url must start with https:// (got '$BASE_URL')"; exit 1 ;;
@@ -128,41 +115,30 @@ jobs:
           HOST="${BASE_URL#https://}"
           HOST="${HOST%%/*}"
 
-          # Userinfo is refused outright: `https://x.vercel.app@evil.example` has a
-          # real host of evil.example, and reasoning about which side of the `@`
-          # wins is not a thing to do in front of a secret.
+          # Userinfo refused outright: `https://x.vercel.app@evil.example` really
+          # resolves to evil.example, and reasoning about which side of the `@` wins
+          # is not a thing to do in front of a secret.
           case "$HOST" in
             *@*)
               echo "::error::refusing a url with embedded credentials ('$BASE_URL')"
               exit 1 ;;
           esac
 
-          # THE PATTERNS THEMSELVES WERE THE REMAINING HOLE, and three independent
-          # reviewer seats blocked on it (`CLASS:overbroad-secret-host-allowlist`,
-          # `unbound-secret-sink-host`, `false-confidence-gate` — PR #76 r4). Fixing
-          # the URL-vs-host bug above narrowed HOW the match ran and left WHAT it
-          # matched wide open:
-          #   *.vercel.app        -> `attacker-project.vercel.app`. Anyone can create
-          #                          a Vercel project, so this allowed the whole
-          #                          platform, not this project.
-          #   onelive.*           -> `onelive.attacker.com`.
-          #   *.onelive.*         -> `x.onelive.evil`.
-          # Meanwhile the comment above claimed "this project's own domains". That
-          # claim is the same false-confidence class R-081 records, committed in the
-          # very commit that recorded it — which is why the binding below is derived
-          # from a fact an attacker cannot forge rather than from a name that merely
-          # reads like ours.
+          # THE PATTERNS were the remaining hole — R-082, blocked by three seats.
+          # R-081 narrowed HOW the match ran; WHAT it matched stayed wide open:
+          # `*.vercel.app` admitted the whole platform (anyone can create
+          # `attacker-project.vercel.app`), `onelive.*` admitted
+          # `onelive.attacker.com`, `*.onelive.*` admitted `x.onelive.evil` — under a
+          # comment claiming "this project's own domains".
           #
-          # THE BINDING: every Vercel host for this project sits in the founder's own
-          # team namespace, suffix `-sss-projects-e4775771.vercel.app` (observed on
-          # the live preview, docs/V1.md §Deployment). A team slug is not something an
-          # outsider can register into, so the suffix — not the word "onelive" — is
-          # the security property. The bare production alias is listed exactly.
+          # THE BINDING is a fact an attacker cannot forge, not a name that reads like
+          # ours: every Vercel host for this project sits in the founder's own team
+          # namespace, suffix `-sss-projects-e4775771.vercel.app` (docs/V1.md
+          # §Deployment). A team slug is not registrable by an outsider, so the suffix
+          # is the security property. The production alias is listed exactly.
           #
-          # The custom-domain wildcards are GONE, not narrowed. No custom domain is
-          # live today, and when one is it gets an exact entry here in the same change
-          # that points DNS at it. A wildcard for a domain nobody owns yet is a hole
-          # kept open for a convenience nobody needs.
+          # Custom-domain wildcards are DELETED, not narrowed: none is live, and the
+          # first gets an exact entry in the change that points DNS at it.
           case "$HOST" in
             *-sss-projects-e4775771.vercel.app) ;;
             onelive.vercel.app) ;;
@@ -176,11 +152,10 @@ jobs:
               exit 1 ;;
           esac
 
-          # And the wildcard above must not span a dot. `case` anchors the whole
-          # string but `*` still matches `.`, so without this a host like
-          # `evil.com-sss-projects-e4775771.vercel.app` — or anything with an extra
-          # label smuggled in — would satisfy the suffix arm. The part before
-          # `.vercel.app` is a single DNS label for every real host here.
+          # The wildcard must not span a dot: `case` anchors the string but `*` still
+          # matches `.`, so `evil.com-sss-projects-e4775771.vercel.app` would satisfy
+          # the suffix arm. Every real host here has a single label before
+          # `.vercel.app`.
           LABEL="${HOST%.vercel.app}"
           case "$LABEL" in
             *.*)
@@ -207,14 +182,11 @@ jobs:
           echo "protection_bypass_secret: $BYPASS_STATE"
 
           echo "=== GET $BASE_URL/api/health ==="
-          # `--max-redirs 0` here is belt-and-braces: this request has no `-L`, and
-          # curl does not follow redirects unless asked, so it was never part of the
-          # r4 leak. It is pinned anyway so the invariant is UNIFORM — "every
-          # secret-bearing request pins redirects to zero" is a property a test can
-          # check by construction, whereas "some pin it and some rely on a default"
-          # needs a human to re-derive which is which every time. The contract test
-          # found this line on its own; that is the uniform version paying for itself
-          # immediately.
+          # `--max-redirs 0` is belt-and-braces here (no `-L`, and curl does not
+          # follow redirects unasked) but pinned so the invariant is UNIFORM: "every
+          # secret-bearing request pins redirects to zero" is checkable by
+          # construction, where "some pin it, some rely on a default" needs a human to
+          # re-derive. The contract test found this line itself.
           CODE="$(curl -sS --max-redirs 0 -m 30 -o /tmp/health.body -w '%{http_code}' \
                     "${HDR[@]}" "$BASE_URL/api/health" || echo "000")"
           echo "http_status: $CODE"
@@ -268,21 +240,13 @@ jobs:
           # which can be healthy while the feed page is blank or auth-walled
           # (`CLASS:missing-product-surface-verification`, PR #80).
           #
-          # THIS REQUEST NO LONGER FOLLOWS REDIRECTS, and that is a secret-custody
-          # fix, not a tidy-up (`CLASS:unbounded-secret-redirect-chain`, PR #76 r4,
-          # raised independently by two seats). It used to be `curl -sSL` so it could
-          # walk `/` -> `/tonight`. But `${HDR[@]}` carries the Vercel bypass secret,
-          # and curl re-sends custom headers to the redirect TARGET — so the
-          # allowlist above constrained only the FIRST host, and any redirect handed
-          # the secret to a host nobody checked. The allowlist was doing exactly the
-          # job its comment claimed while the `-L` two lines later undid it.
-          #
-          # The fix removes the need for a redirect rather than trying to police one:
-          # request `/tonight` directly — the page itself, which is what `/` was
-          # redirecting to. `--max-redirs 0` means a redirect is now a LOUD FAILURE
-          # instead of a silent second request: if this deployment ever answers
-          # `/tonight` with a bounce, the check fails and says so, which is the honest
-          # outcome for a secret-bearing request to an unverified destination.
+          # NO LONGER FOLLOWS REDIRECTS — a secret-custody fix, not a tidy-up (R-083,
+          # two seats). It was `curl -sSL` to walk `/` -> `/tonight`, but `${HDR[@]}`
+          # carries the bypass secret and curl re-sends custom headers to the redirect
+          # TARGET: the allowlist governed only the first host while the `-L` two lines
+          # below undid it. The redirect is removed rather than policed — `/tonight` is
+          # requested directly, and `--max-redirs 0` makes an unexpected bounce a LOUD
+          # FAILURE instead of a second request to an unverified host.
           echo "=== GET $BASE_URL/tonight (the product surface a friend lands on) ==="
           FEED_CODE="$(curl -sS --max-redirs 0 -m 45 -o /tmp/feed.html -w '%{http_code}' \
                         "${HDR[@]}" "$BASE_URL/tonight" || echo "000")"
@@ -319,14 +283,10 @@ jobs:
           LINK_CODE="not-checked"
           if [ "$VERCEL_BYPASS" != "ABSENT" ]; then
             echo "=== GET the friend-shareable LINK form (no header, query param only) ==="
-            # `--max-redirs 0` and `/tonight` rather than `/`, for the same reason as
-            # the header request above: this URL CARRIES THE SECRET, and `-L` let
-            # curl walk to a host the allowlist never saw
-            # (`CLASS:unbounded-secret-redirect-chain`, PR #76 r4). The published
-            # link in docs/V1.md moved to `/tonight` in this same change so the
-            # verified form and the handed-out form stay the same string — which the
-            # contract test enforces. A friend also gets one hop fewer, which is a
-            # small win for the ten-second answer rather than a cost.
+            # Same reason as the header request (R-083): this URL CARRIES THE SECRET
+            # and `-L` let curl walk to a host the allowlist never saw. The published
+            # link in docs/V1.md moved to `/tonight` in this change so verified form ==
+            # handed-out form (test-enforced), and a fan gets one hop fewer.
             LINK_CODE="$(curl -sS --max-redirs 0 -m 45 -o /tmp/link.html -w '%{http_code}' \
               "$BASE_URL/tonight?x-vercel-protection-bypass=${VERCEL_BYPASS}&x-vercel-set-bypass-cookie=true" \
               || echo "000")"

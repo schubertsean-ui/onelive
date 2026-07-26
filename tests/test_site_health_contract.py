@@ -49,20 +49,12 @@ def test_it_fetches_the_product_surface_not_only_the_diagnostic(script: str):
 
 
 def test_no_secret_bearing_request_FOLLOWS_a_redirect(script: str):
-    """`CLASS:unbounded-secret-redirect-chain` (PR #76 r4, two seats independently).
-
-    This assertion is the REVERSE of the one it replaces. The old test REQUIRED
-    `curl -sSL` on the product fetch, reasoning that `/` redirects to `/tonight` so
-    the check should walk the redirect a friend walks. That was true about the fan's
-    journey and wrong about the request: `${HDR[@]}` carries the Vercel bypass
-    secret, and curl re-sends custom headers to the redirect TARGET — so the host
-    allowlist constrained the first hop and `-L` handed the secret to whatever host
-    a Location header named. The test was enforcing the leak.
-
-    The fix removed the need for the redirect rather than policing it: `/tonight` is
-    requested directly, and `--max-redirs 0` turns an unexpected bounce into a loud
-    failure instead of a second request to an unverified host.
-    """
+    """R-083, two seats. This assertion is the REVERSE of the one it replaces: the old
+    test REQUIRED `curl -sSL` because `/` redirects to `/tonight` — true about the fan's
+    journey, wrong about a request carrying the bypass secret, since curl re-sends custom
+    headers to the redirect TARGET. The allowlist constrained the first hop; `-L` handed
+    the secret onward. **The test was enforcing the leak.** The redirect is now removed
+    rather than policed."""
     assert "curl -sSL" not in script, (
         "a secret-bearing request follows redirects again — the allowlist above only "
         "constrains the FIRST host, so -L re-opens the exfiltration path it closes")

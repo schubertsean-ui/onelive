@@ -61,49 +61,32 @@ PY="${PYTHON:-python3}"
 # INTERPRETER SELECTION — the last mile of BAR G5 ("0 red rows that mean
 # 'environment incomplete'").
 #
-# `bootstrap_dev.sh` builds a venv OUTSIDE the repo and ends by printing
-# `PATH="$VENV/bin:$PATH" bash tools/validate`. Forget that prefix and this
-# script silently uses the system python3, which on this image cannot import
-# `_cffi_backend` — so pytest, blocking_failure_check and perf all go RED with
-# the environment as the cause. Three red rows that mean "you typed the command
-# without its prefix", in the same column and the same colour as a regression.
-# That is the founding anti-pattern, and `env_preflight` only DESCRIBES it after
-# the fact; a run still burns five minutes and reports FAIL.
+# `bootstrap_dev.sh` ends by printing a `PATH=`-prefixed command. Forget that
+# prefix and this script uses the system python3, which on this image cannot
+# import `_cffi_backend` — so pytest, blocking_failure_check and perf go RED with
+# the environment as the cause, in the same column and colour as a regression.
+# `env_preflight` only DESCRIBES that after a five-minute run already said FAIL.
 #
-# So the venv is selected automatically when it is present and the default
-# interpreter cannot run the suite. NOTHING IS LOOSENED BY THIS: it can only
-# cause MORE checks to execute (a working interpreter runs tests a broken one
-# could not even collect), it never changes a check's verdict, thresholds are
-# untouched, and an explicit `PYTHON=` always wins so a deliberate choice of a
-# different interpreter is still honoured. The selection is announced, because
-# quietly running something other than what the operator typed is its own
-# opacity.
+# NOTHING IS LOOSENED: selecting an interpreter that CAN run the suite makes MORE
+# checks execute, never fewer; no verdict or threshold changes; an explicit
+# `PYTHON=` always wins. The choice is announced, because quietly running
+# something other than what the operator typed is its own opacity.
 if [ -z "${PYTHON:-}" ]; then
   # `hazmat.primitives.asymmetric.ec` is the submodule PyJWT actually reaches;
   # probing the top-level `cryptography` package passes on a broken install.
   _probe='import cryptography.hazmat.primitives.asymmetric.ec, pytest, fastapi'
   if ! "$PY" -c "$_probe" >/dev/null 2>&1; then
-    # THE CANDIDATE LIST MUST INCLUDE WHERE `bootstrap_dev.sh` ACTUALLY WRITES.
-    # It did not, and three reviewer seats blocked on it
-    # (`CLASS:bootstrap-validate-venv-drift` / `rule-stronger-than-mechanism`,
-    # PR #76 r4) — correctly, and the miss is instructive: `bootstrap_dev.sh` on
-    # this branch creates `$REPO_ROOT/.venv`, while this list named only
-    # `$HOME/.venvs/onelive`, a path the documented one-command bootstrap never
-    # produces. So the fix for "plain `bash tools/validate` goes red for an
-    # environment reason" did not work on the one path it was written for, and I
-    # measured it as working because I happened to have that other venv on disk
-    # from a sibling branch. Works-on-my-machine, verified against my machine.
-    # `$REPO_ROOT/.venv` therefore comes FIRST, and
-    # tests/test_validate_interpreter_selection.py now DERIVES this path from
-    # `bootstrap_dev.sh` instead of restating it, so the two cannot drift apart
-    # again — the same class fix as the gate registry above.
-    # `$REPO_ROOT` is already computed at the top of this script (line ~34) — it is
-    # reused rather than re-derived, both because a second derivation is a second
-    # thing to drift and because `${BASH_SOURCE[0]}` is UNSET under `bash -c`, which
-    # is how the test executes this region. Recomputing it here silently yielded an
-    # empty path in the test harness: the fallback appeared to work while actually
-    # looking at `/.venv/bin/python`. A defensive default keeps that failure loud
-    # rather than silent if this block is ever lifted somewhere REPO_ROOT is absent.
+    # THE LIST MUST INCLUDE WHERE `bootstrap_dev.sh` ACTUALLY WRITES (R-084, three
+    # seats). It named only `$HOME/.venvs/onelive` while bootstrap creates
+    # `$REPO_ROOT/.venv` — so the fix did not work on the one path it was written
+    # for, and measured as working only because a sibling branch's venv was on this
+    # machine. The repo-local venv comes FIRST, and the test DERIVES this path from
+    # `bootstrap_dev.sh` rather than restating it.
+    # `$REPO_ROOT` is already computed at the top of this script and is reused, not
+    # re-derived: a second derivation is a second thing to drift, and
+    # `${BASH_SOURCE[0]}` is UNSET under `bash -c` (how the test runs this region),
+    # where recomputing silently yielded an EMPTY path — the fallback looked at
+    # `/.venv/bin/python` and appeared to work.
     _repo_root="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)}"
     for _cand in "$_repo_root/.venv/bin/python" \
                  "${ONELIVE_VENV:-$HOME/.venvs/onelive}/bin/python" \

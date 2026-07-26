@@ -255,6 +255,18 @@ not a gate — it never passes or fails, and any metric it cannot compute prints
 - **Prune, don't only add.** Every Kaizen cycle includes deleting harness that has
   stopped earning its place. A harness that only grows is a harness nobody reads.
   *This was written as a rule on 2026-07-12 and first actually done on 2026-07-26.*
+- **Prose is not free — it spends the reviewability budget.** PR #76 crossed the
+  founder-ratified 781 KB reviewer cap on ~120 KB of the agent's own explanatory
+  commentary, and the mandatory independent review **could not execute at all**. A
+  gate that cannot run is worse than a gate that fails. Rationale a reviewer needs
+  stays; retrospective narration goes. Watch it with `tools/pr_size_check.py`, which
+  warns at 70%.
+- **Fallback check-ins fire at 10 MINUTES, never 55 or 59.** (Founder directive,
+  2026-07-26, verbatim: *"Change fallback to 10 minutes never 59 or 55"*.) When the
+  agent schedules its own wake-up to re-check something it cannot be notified about
+  — a review in flight, a CI run, a deployment — the delay is **10 minutes**. An
+  hour-long fallback means an hour of no progress whenever the notification does not
+  arrive, which is the cost this directive removes.
 
 ## 11. Talking to the founder
 

@@ -1,25 +1,18 @@
 """No scheduled loop ships with half the Sentinel contract.
 
-`CLAUDE.md`, Sentinel clause: *"Sentry on web, API and worker; **a dead-man alarm on
-every scheduled job. No scheduled loop ships without both.**"* The dead-man half has
-had a mechanism since the watchdog landed — every scheduled workflow must appear in
-`tools/watchdog_check.py`'s WATCHED / EXPECTED_SOON / EXCLUDED tables, enforced by
-`tests/test_watchdog_check.py`. **The Sentry half had no mechanism at all**, and it
-went unmet exactly as an unenforced rule does: `import_licensed.yml` was scheduled and
-`import_structured.yml` was fixed to actually run on its schedule, and neither passed
-`SENTRY_DSN` or called `init_sentry` — so a run that failed mid-import reported into
-Actions logs and nowhere else (`CLASS:missing-scheduled-loop-sentry`, PR #76 r4,
-independent reviewer).
+`CLAUDE.md`: *"Sentry on web, API and worker; a dead-man alarm on every scheduled job.
+No scheduled loop ships without both."* The dead-man half has had a mechanism since the
+watchdog (`tests/test_watchdog_check.py` binds every scheduled workflow to its
+WATCHED/EXPECTED_SOON/EXCLUDED tables). **The Sentry half had none**, and went unmet as
+unenforced rules do — R-086.
 
-**The two halves answer different questions**, which is why the charter demands both
-and why having one is not most of the way there. The alarm notices the loop STOPPED.
-Sentry reports what broke while it was still running — a loop that fails every
-execution but keeps executing trips no dead-man alarm at all.
+The halves answer different questions, which is why one is not most of the way there:
+the alarm notices the loop STOPPED; Sentry reports what broke while it still ran. A loop
+failing every execution but still executing trips no alarm.
 
-THE LIMIT, stated plainly: this asserts WIRING, not delivery. It proves the DSN
-reaches the process and the process initialises the SDK. It cannot prove Sentry
-received an event — that needs a real DSN and a real failure, which is what R-001 and
-the first live traffic are for.
+THE LIMIT: this asserts WIRING, not delivery — that the DSN reaches the process and the
+process initialises the SDK. Proving Sentry received an event needs a real DSN and a real
+failure (R-001).
 """
 from __future__ import annotations
 

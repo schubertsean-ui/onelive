@@ -1,72 +1,47 @@
 # ONE LIVE — CHANGE LOG
 
-## 2026-07-26 (same session) — "Measure it. Prove it." — PR #76 round 3, and two holes inside controls that had already been approved
+## 2026-07-26 (same session) — "Measure it. Prove it." — PR #76 rounds 3-5
 
-**Founder, verbatim: "Are you getting closer to go live or spinning wheels? Review the
-canon - you just make progress to go live. Measure it. Prove it."** Answered with
-numbers: **1 of 7 v1 criteria MET**, rounds 2-4 of the child PR flipped **zero**,
-**1,759 harness lines to 444 product lines**, and four of the seven remaining criteria
-unmeasurable because they need the default branch — which was blocked behind this PR
-sitting red as the base of a stack. The diagnosis was topology, not quality. Action:
-stopped adding to #80, closed #76's last blocker.
+**Founder: *"Are you getting closer to go live or spinning wheels? … Measure it. Prove
+it."*** Answered with numbers: **1 of 7 v1 criteria MET**, rounds 2-4 of the child PR
+flipped **zero**, **1,759 harness lines to 444 product lines**, and four remaining
+criteria need the default branch — blocked behind this PR as the base of a stack. The
+diagnosis was topology, not quality. Stopped adding to #80; closed #76's blockers.
 
-### The registry defect, fixed as a class this time
-- **`CLASS:gate-file-registry-omission`, second occurrence.** Round 1 named two gate
-  scripts missing from `health_check.GATE_FILES`; I added exactly those two by hand and
-  it came back. `tests/test_health_check.py` now **derives** the check-script list from
-  `tools/validate` and fails on any omission — and it immediately found **six**, three
-  of which the reviewer never named (`commit_sweep`, `reviewer_scorecard`, and
-  `health_check.py` itself).
-- **The registry is now exception-free.** No allowlist of justified omissions, because an
-  allowlist is the same hole wearing a justification. This reverses the test's own
-  earlier assertion that `health_check.py` must stay out; it is safe to include because
-  the metric prints **file names**, so a non-gate costs one legible row. The property
-  actually worth defending — an enumeration, never a directory glob — is asserted
-  directly instead of as a side effect.
+- **The gate registry, fixed as a class.** `tests/test_health_check.py` now DERIVES the
+  check-script list from `tools/validate` instead of trusting it, and found **six**
+  omissions — three the reviewer never named. Exception-free: no allowlist of justified
+  omissions, because that is the same hole wearing a justification.
+- **Secret custody, two rounds (R-081, R-082, R-083).** The host allowlist matched the
+  whole URL (bash's `*` matches `/`), then its PATTERNS admitted the entire Vercel
+  platform and any domain containing "onelive". And the secret went out under
+  `curl -sSL`, which re-sends headers to the redirect target — **a test REQUIRED that
+  flag**, so the suite enforced the leak. Now: extracted-host match bound to the
+  founder's own Vercel team namespace, wildcards deleted not narrowed, userinfo refused,
+  and every secret-bearing request pins `--max-redirs 0`.
+- **BAR G5 was graded MET on an untrue claim, twice (R-084).** The interpreter fallback
+  looked in `$HOME/.venvs/onelive` while `bootstrap_dev.sh` creates `$REPO_ROOT/.venv`,
+  so it could not fire on the documented path — and measured as working only because a
+  sibling branch's venv sat on this machine. The test now DERIVES the path from
+  `bootstrap_dev.sh`.
+- **Auth boundary leaked exception text (R-085)**, pinned in place by my own test. Detail
+  now goes to the log only.
+- **Two scheduled loops had the dead-man alarm and no Sentry (R-086)** — half the
+  charter's Sentinel contract. `init_sentry` wired into both importers, with a contract
+  test that made it a class and found a fourth workflow nobody named.
+- **Round 5: the review could not RUN.** `pr_size_check` failed at 801 KB against the
+  781 KB cap, so `validate` went red before the panel started. My own commits added
+  ~120 KB, mostly prose. Raising the cap is founder-crucial, so the fix was pruning my
+  own narration — facts and mechanisms kept, retrospective commentary cut (§0.8).
+  **Prose is not free: it consumes the reviewability budget the trust invariants depend
+  on, and it did so until the mandatory review physically could not execute.**
+- **Measured, not assumed: 1,522 real events are live** (run 30224714922) — the feed is
+  not empty. Two product defects that no test catches: `/tonight` defaults to the "all"
+  tab with no upper date bound (December events on a page titled "Tonight in Austin"),
+  and the feed serves San Antonio/Killeen/Cedar Park with no city filter. Queued for a
+  follow-up PR, deliberately not this one.
 
-### R-081 — the bypass secret could be sent to any host, through the allowlist built to stop that
-- `site_health.yml` matched `https://*.vercel.app` against the **whole URL**. bash's `*`
-  matches `/`, so **`https://attacker.io/x.vercel.app` was accepted** and the Vercel
-  bypass secret would have gone there while the run reported a passed allowlist.
-  Verified exploitable with one bash invocation before touching it.
-- **Self-found, in code round 2 had already APPROVED**, while applying an unrelated
-  trailing-slash nit to the same lines.
-- **Why the existing test missed it is the useful half.** It had 7 cases *executed* by
-  bash — the strong form this repo prefers — and its negative case
-  `https://attacker.io/vercel.app` lacked the leading dot, so it was refused for the
-  wrong reason and passed anyway. A case that passes for the wrong reason is a green row
-  proving nothing.
-- Fix: the domain arms match an **extracted host**; embedded userinfo (`*@*`) is refused
-  outright rather than reasoned about in front of a secret; trailing slashes are stripped
-  repeatedly; the region is sentinel-delimited so the test extractor cannot silently lift
-  the wrong block. 19 executing cases, plus a property test that fails if the arm ever
-  matches a full URL again — the regression is one token (`$BASE_URL` for `$HOST`) and
-  reads correctly either way.
-
-### BAR G5 was graded MET on a claim that was not true
-- The row promised "**0 red rows that mean 'environment incomplete'**". `bootstrap_dev.sh`
-  builds the venv outside the repo and ends by printing a `PATH=`-prefixed command, so
-  `bash tools/validate` without it took `pytest`, `blocking_failure_check` and `perf` red
-  on the system interpreter. **Found by doing it**, and the proof is one tree read twice:
-  `git_head 274facb` → **FAIL at 22:53:46Z**, **all-PASS at 22:59:21Z** with the venv on
-  PATH.
-- `validate` now selects the bootstrapped venv when the default interpreter cannot import
-  the test dependencies, announces the choice, and always yields to an explicit
-  `PYTHON=`. The bar row keeps its MET grade and now **names the mechanism**, plus the
-  measured gap, so a reader can check it.
-- **Nothing loosened, and this edit touches `validate` itself so the claim is bound
-  rather than promised:** the fallback can only cause more checks to execute. 10 tests —
-  the fallback fires only on a genuinely broken default, an explicit `PYTHON=` wins, a
-  half-built venv is not preferred, a clone with no venv behaves exactly as before, and a
-  **static** test asserts the block references no threshold, verdict, skip counter or exit
-  code. An interpreter convenience is exactly the shape a gate relaxation would hide in.
-
-### Gate state
-`bash tools/validate` — every check **PASS**; `INCOMPLETE` only from the pre-existing
-R-002 visual-regression SKIP and the `commit_sweep` advisory. **1,906 passed, 30
-skipped.** v1 Step 3 is now genuinely complete and checked off in `TODOS.md` and
-`docs/V1.md`.
-
+Detail per defect: `docs/RECORD.md` R-081–R-086. Round-by-round: the Kaizen ledger.
 
 ## 2026-07-26 (same session) — Ask 5 ratified, the feed scheduled, and the suite goes fully green
 

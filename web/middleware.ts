@@ -161,20 +161,15 @@ export default async function middleware(
     // FAIL CLOSED, not open: this returns an error, never `NextResponse.next()`.
     // A catch that let the request through would turn a crash into a silent
     // bypass of the gate — the worst possible reading of this block.
-    // THE EXCEPTION TEXT STAYS SERVER-SIDE (`CLASS:internal-error-disclosure`,
-    // PR #76 r4). It used to be interpolated into the response body, so any
-    // anonymous requester who could make the auth boundary throw got back raw
-    // provider/runtime text — stack-adjacent detail, library internals, and
-    // whatever a future thrown error happens to embed, which is a class that only
-    // gets worse as the code grows. The diagnosability argument that put it there
-    // is real but it is satisfied by the log, which the operator can read and an
-    // attacker cannot.
+    // THE EXCEPTION TEXT STAYS SERVER-SIDE (R-085). It was interpolated into the
+    // body, so anyone who could make the auth boundary throw read back raw
+    // provider/runtime text. The diagnosability argument is real and the log
+    // satisfies it — the operator can read that, an attacker cannot.
     //
-    // The two things the body still says are deliberate and both are already
-    // public: that the refusal was a middleware failure rather than a normal
-    // deny (so "we failed" stays distinguishable from "you may not" —
-    // CLAUDE.md's founding anti-pattern), and the resolved auth MODE, which
-    // /api/health already serves unauthenticated by design.
+    // The body keeps two already-public facts, deliberately: that this was a
+    // middleware FAILURE rather than a deny (so "we failed" stays distinguishable
+    // from "you may not"), and the resolved auth mode, which /api/health serves
+    // unauthenticated by design.
     console.error("[middleware] threw; failing closed:", err);
     return new NextResponse(
       "OneLive middleware failed while deciding access, so this request is " +

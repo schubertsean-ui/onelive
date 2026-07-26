@@ -373,25 +373,18 @@ GATE_FILES = (
     "tools/brain_iq.py",
     "tools/test_audit.py",
     "tools/pr_size_check.py",
-    # The derived test then found three MORE, including this tool itself, and the
-    # registry is now EXCEPTION-FREE: every script `tools/validate` invokes is
-    # listed, with no allowlist of justified omissions. That choice is deliberate.
+    # The derived test found three MORE, including this tool itself. The registry is
+    # now EXCEPTION-FREE — no allowlist of justified omissions, because that is the
+    # `CLASS:gate-file-registry-omission` defect wearing a justification. An earlier
+    # assertion held `health_check.py` must stay OUT ("a thermometer is not a gate")
+    # — true of its function, wrong for this registry: `gate_files_changed` returns
+    # NAMES, not a count, so a non-gate costs one legible row a reader dismisses in
+    # seconds. A cheap false positive beats a silent false negative.
     #
-    # An earlier assertion held that `health_check.py` must stay OUT because "a
-    # thermometer is not a gate" — true about its function, wrong about this
-    # registry. The reason it is safe to include is that `gate_files_changed`
-    # returns NAMES, not a count (see its docstring): a reader who sees
-    # `tools/health_check.py` in the row reads the diff and judges it in seconds.
-    # So the cost of including a non-gate is one legible row; the cost of an
-    # allowlist is a hole any future author can widen to dodge the audit, which is
-    # the `CLASS:gate-file-registry-omission` defect wearing a justification. A
-    # cheap false positive beats a silent false negative.
-    #
-    #   commit_sweep      — advisory by default but FAILS the run under `--strict`,
-    #                       so its findings are a gate condition on that path.
-    #   reviewer_scorecard— instrumentation, and it raises on a malformed ledger
-    #                       row, so its parsing IS load-bearing on run outcome.
-    #   health_check      — this file. Listed for the reason above.
+    #   commit_sweep      — advisory, but FAILS the run under `--strict`.
+    #   reviewer_scorecard— raises on a malformed ledger row, so its parsing is
+    #                       load-bearing on the run outcome.
+    #   health_check      — this file, for the reason above.
     "tools/commit_sweep.py",
     "tools/reviewer_scorecard.py",
     "tools/health_check.py",
