@@ -27,6 +27,7 @@ import datetime as _dt
 import hashlib
 import json
 import logging
+import math
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -500,7 +501,7 @@ def parse_jsonld(html: str, *, source: Optional[str] = None) -> list[dict]:
         if not block:
             continue
         try:
-            doc = json.loads(block)
+            doc = _json_loads_finite(block)
         except ValueError:
             # A malformed ld+json block is skipped, not fatal — a page may carry
             # several blocks and one bad one must not lose the good ones. This is
@@ -697,7 +698,7 @@ def parse_platform_json(text: str, *, source: Optional[str] = None) -> list[dict
     no start is dropped by normalize_structured downstream.
     """
     try:
-        doc = json.loads(text)
+        doc = _json_loads_finite(text)
     except (ValueError, TypeError):
         return []
     out: list[dict] = []
@@ -774,6 +775,29 @@ def parse_platform_json(text: str, *, source: Optional[str] = None) -> list[dict
     return out
 
 
+def _json_loads_finite(text):
+    """json.loads that REFUSES NaN/Infinity.
+
+    Python's json accepts the non-standard `NaN`, `Infinity` and `-Infinity`
+    literals by default. That is how a non-finite value reaches an id (r20:
+    str(float("nan")) is the stable string "nan", so every NaN id in a payload
+    collapses to ONE key and the rows upsert over each other) and how it would
+    reach any numeric field downstream. Fixing only the id would leave the CLASS
+    open one field over, so the refusal lives at the parse boundary, which is
+    the single place every reader in this module goes through.
+
+    A payload carrying a non-finite literal is corrupt, so it raises ValueError
+    and is handled exactly like any other unparseable body — never silently
+    coerced to a finite-looking value.
+    """
+    def _refuse(token):
+        raise ValueError(
+            f"non-finite JSON literal {token!r} — refusing a payload that "
+            f"cannot be represented honestly (nonfinite-numeric-accepted)")
+
+    return json.loads(text, parse_constant=_refuse)
+
+
 def _str_id(value) -> Optional[str]:
     """Coerce a platform id to a string. Tribe/Localist ids are INTEGERS, and
     _ld_str drops non-strings — so an int id silently became "" and callers fell
@@ -782,6 +806,13 @@ def _str_id(value) -> Optional[str]:
     if value is None:
         return None
     if isinstance(value, bool):   # a bool is an int in Python; never an id
+        return None
+    if isinstance(value, float) and not math.isfinite(value):
+        # NaN/Infinity (evaluator blocker r20). json.loads accepts them by
+        # default, and str(float("nan")) is the stable string "nan" — so every
+        # NaN id in a payload collapses to ONE id and the rows upsert over each
+        # other. A silent-data-loss collision wearing a valid-looking key. An
+        # unusable id is None, which sends the caller to its real fallback.
         return None
     if isinstance(value, (int, float, str)):
         text = str(value).strip()
@@ -845,7 +876,7 @@ def parse_jsonld_document(text: str, *, source: Optional[str] = None) -> list[di
     Event-subtype filter, so the accepted shapes are identical.
     """
     try:
-        doc = json.loads(text)
+        doc = _json_loads_finite(text)
     except (ValueError, TypeError):
         return []
     out: list[dict] = []
@@ -1048,7 +1079,7 @@ def _document_states_emptiness(provider: str, text: str) -> bool:
         # shape accepts any list here (correctly — it answers a different
         # question); emptiness requires the list to actually be empty.
         try:
-            doc = json.loads(text)
+            doc = _json_loads_finite(text)
         except (ValueError, TypeError):
             return False
         return (isinstance(doc, dict) and isinstance(doc.get("events"), list)
@@ -1358,7 +1389,7 @@ def _matches_asserted_shape(provider: str, text: str) -> bool:
         # this guard exists to close. Require the COLLECTION both platform readers
         # actually consume: a top-level "events" list (Tribe and Localist agree).
         try:
-            doc = json.loads(text)
+            doc = _json_loads_finite(text)
         except (ValueError, TypeError):
             return False
         return isinstance(doc, dict) and isinstance(doc.get("events"), list)
@@ -1371,7 +1402,7 @@ def _matches_asserted_shape(provider: str, text: str) -> bool:
         if "application/ld+json" in text.lower():
             return True
         try:
-            doc = json.loads(text)
+            doc = _json_loads_finite(text)
         except (ValueError, TypeError):
             return False
         nodes = doc if isinstance(doc, list) else [doc]
@@ -1466,9 +1497,20 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
 
     AUTHORITATIVE EMPTY (evaluator blocker r17) — the one bounded exception to
     that propagation rule, and it exists because the rule as written could turn
-    an honestly empty calendar red. Once some endpoint has handed us a STANDALONE
-    machine-readable calendar document that parsed to zero events, the source has
-    ANSWERED: there are no upcoming events. A later failure on a path *we
+    an honestly empty calendar red. When the BASE URL or a site-DECLARED feed
+    hands us a machine-readable calendar document that STATES it carries no
+    events, the source has ANSWERED: there are no upcoming events.
+
+    Two precisions, both narrower than an earlier draft of this paragraph
+    claimed (r20 nit: the prose said "some endpoint" and "parsed to zero", the
+    code meant neither). A document that merely PARSED to zero does not qualify
+    — see :func:`_document_states_emptiness`, since a calendar whose events all
+    failed to parse is lossy, not empty. And a GUESSED candidate never sets this
+    even when it serves a valid empty document: we invented that path, so its
+    contents are not the source speaking. The result is deliberately fussy in
+    the safe direction — a source can still fail on a denied guess when only a
+    guess found its calendar — and that is preferred to widening what counts as
+    the source's own answer. A later failure on a path *we
     guessed* — /events, /calendar, a convention the site never advertised —
     cannot overturn that answer, so from that point guessed-candidate failures
     are logged and skipped instead of failing the source. The exception is

@@ -92,7 +92,19 @@ _TOKEN_SEMANTICS: dict[str, tuple[bool, str | None]] = {
     "jsonld_if_offered": (True, None),
     "feed_if_offered": (True, None),
     "official_feed": (True, None),
-    "ics_upload": (True, None),
+    # NOT selectable (evaluator blocker r20). The token is FORMAT-BEARING —
+    # it names ICS — but mapped to (True, None) it was selectable while
+    # asserting no provider, so a row saying `ics_upload` could serve HTML,
+    # JSON or garbage and be sniffed, or counted empty, instead of failing as
+    # a misconfigured ICS source. Either half had to go, and the honest half
+    # to keep is the assertion: `ics_upload` describes an UPLOAD path (a venue
+    # hands US a file), not a URL we fetch — which is exactly why its sibling
+    # `csv_upload` is already (False, None). A row that genuinely serves ICS at
+    # a URL says so with `official_feed` or `ics_feed_if_offered`.
+    # Measured before changing: the one live row carrying it
+    # (`ics_claimed_upload`) has base_url None and was never selectable anyway,
+    # so selectable stays 64 — pinned by the catalog count test.
+    "ics_upload": (False, None),
     "partner_export": (True, None),
     # The curated local-moat rows (ranks 77-114): a verified first-party events
     # page whose EXACT feed path is not yet confirmed. Including it is what makes

@@ -2204,3 +2204,45 @@ def test_live_catalog_selection_count_is_unchanged_by_the_one_table_fix():
     if isinstance(rows, dict):
         rows = rows.get("sources") or rows.get("catalog")
     assert len([e for e in rows if r._is_structured_candidate(e)]) == 64
+
+
+# ---- r20: non-finite ids, and a format-bearing token that asserted nothing ----
+
+def test_nan_ids_do_not_collapse_distinct_events_onto_one_key():
+    """r20 blocker: json.loads accepts NaN/Infinity, and str(float('nan')) is the
+    stable string 'nan' — so every NaN id in a payload became ONE id and the rows
+    upserted over each other. A collision wearing a valid-looking key."""
+    import worker.importers.structured_feed as sf
+    assert sf._str_id(float("nan")) is None
+    assert sf._str_id(float("inf")) is None
+    assert sf._str_id(float("-inf")) is None
+    assert sf._str_id(12) == "12"          # ordinary ids still coerce
+    assert sf._str_id(1.5) == "1.5"
+
+
+def test_a_payload_carrying_nonfinite_literals_is_refused_at_the_parse_boundary():
+    """Closing the CLASS, not the instance: the refusal sits where every reader
+    in the module parses, so a non-finite value cannot reach any other field."""
+    import worker.importers.structured_feed as sf
+    with pytest.raises(ValueError):
+        sf._json_loads_finite('{"events": [{"id": NaN}]}')
+    with pytest.raises(ValueError):
+        sf._json_loads_finite('{"price": Infinity}')
+    assert sf._json_loads_finite('{"events": []}') == {"events": []}
+
+
+def test_a_format_bearing_token_never_selects_without_asserting_its_format():
+    """r20 blocker: `ics_upload` names ICS but mapped to (True, None), so a row
+    carrying it was selectable while asserting no provider — it could serve
+    anything and be sniffed or counted empty rather than failing misconfigured."""
+    import worker.importers.run_structured_import as r
+    for token, (selectable, provider) in r._TOKEN_SEMANTICS.items():
+        if selectable and provider is None:
+            # A selectable token with no assertion must not NAME a wire format;
+            # `*_if_offered` / `*_verify` are conditional by construction.
+            names_format = (("ics" in token or "jsonld" in token
+                             or "localist" in token)
+                            and not (token.endswith("_if_offered")
+                                     or token.endswith("_verify")))
+            assert not names_format, (
+                f"{token!r} names a wire format but asserts no provider")
