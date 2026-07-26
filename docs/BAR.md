@@ -119,7 +119,7 @@ nothing. A proposed mechanism is in `docs/V1.md`.
 
 | # | World class means | Number | Gate | Enforcement | Status |
 |---|---|---|---|---|---|
-| G1 | Master is green. Always. | **0 failing tests** | `tools/validate` → CI | ENFORCED | **MET** — 1,665 green with full history (verified 2026-07-26). The one failure seen in a shallow clone is the binding failing closed on an unreachable commit, by design (R-036); the defect is that the gate does not distinguish it from a real failure — see G5 |
+| G1 | Master is green. Always. | **0 failing tests** | `tools/validate` → CI | ENFORCED | **MET** — green with full history, verified 2026-07-26: **1,665** on the audited tree, **1,671** with this change's six new tests. The one failure seen in a shallow clone is the binding failing closed on an unreachable commit, by design (R-036); the defect is that the gate does not distinguish it from a real failure — see G5 |
 | G2 | A test that cannot fail proves nothing — every new gate is proven red before it is proven green. | 100% of new gates | `tools/test_audit.py` + reviewer | ENFORCED | **MET** |
 | G3 | Test shape follows the pyramid: many fast unit tests, few broad ones. | unit ≥ 90% of suite | — | PROPOSED | **MET informally** — 1,665 tests, suite runs in 47 s |
 | G4 | Coverage is a signal, not a target; the real bar is "bugs rarely escape". | 0 escaped defects | Kaizen ledger (`docs/metrics/KAIZEN_LEDGER.md`) | ENFORCED | **NOT MET** — audit D1 escaped every gate into production |
