@@ -81,7 +81,12 @@ Practice: DORA — small batches, trunk-based flow, CI. Small batches are
 the direct antidote to multi-round review churn: a defect is caught
 close to its cause with a small blast radius. Encoded: one coherent
 change per PR (a design that cannot be sliced into reviewable batches is
-rejected at Stage 4); the FULL mechanical suite (tools/validate) runs
+rejected at Stage 4). "Small" stopped being a judgement call on
+2026-07-26: `tools/change_set_gate.py` measures it and blocks past 1500
+reviewable lines / 25 files, and fails a change that GROWS under review
+(`docs/skills/change_set_discipline.md`). Before that gate existed this
+stage was prose, and PR #68 (22 rounds) and PR #74 (13) both violated it
+with nothing to stop them. The FULL mechanical suite (tools/validate) runs
 before the expensive adversarial reviewer, and the reviewer receives the
 premortem answers as attached evidence — review becomes confirmation,
 not discovery.

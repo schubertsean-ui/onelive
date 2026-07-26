@@ -228,7 +228,14 @@ integrated throughout. Practically, a change clears the bar when:
 
 ## 6. Presenting options (communication standard)
 
-Whenever options are presented, never present a neutral menu. Always lead with a
+**First, whether to present options at all.** Amended 2026-07-26 (execution-bias
+directive, `CLAUDE.md`): options go to the founder only when the decision is
+genuinely theirs — the founder-crucial list, or a choice that is expensive to
+reverse. For everything else the agent decides and executes, and the report says
+what was done, not what could be. Presenting a menu for a reversible decision is
+work transferred to the founder, not diligence.
+
+When options ARE presented, never present a neutral menu. Always lead with a
 recommendation and its reasoning. Every set of options must include:
 
 1. **The recommended choice**, stated up front.

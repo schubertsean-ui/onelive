@@ -24,7 +24,14 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 CODE_DIRS = ("worker/", "ai/", "api/", "tools/")
 TEST_DIR = "tests/"
 MIGRATION_DIR = "supabase/migrations/"
-LARGE_COMMIT_LINES = 400  # churn (insertions+deletions) considered "large"
+# Churn (insertions+deletions) considered "large" — the point at which published
+# study data puts defect detection in decline. Deliberately the SAME number as
+# change_set_gate.py's warn threshold, because it is the same finding measured at
+# a different grain: this counts one COMMIT, the gate counts the whole CHANGE SET
+# a reviewer has to hold at once. The gate is the blocking arm (added 2026-07-26);
+# this stays advisory so a large commit inside an otherwise small change set
+# informs without blocking. Two numbers here would be two different bars.
+LARGE_COMMIT_LINES = 400
 CHURN_REPEAT_THRESHOLD = 3  # a file touched this many times in the window flags
 
 
