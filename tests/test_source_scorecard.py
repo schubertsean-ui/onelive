@@ -154,6 +154,52 @@ def test_STATE_does_not_claim_a_source_count_the_artifact_contradicts():
             f"{live['class_count']}")
 
 
+def test_discovered_sources_are_LEADS_never_equal_to_a_licence_record():
+    """Web-search findings enter the registry, but marked.
+
+    A search result is a far weaker claim than a TABC licence. If the two were
+    indistinguishable, the scorecard could report an unverified lead as a
+    working source — and the whole point of the scorecard is that status is
+    derived from evidence, never asserted.
+    """
+    live = json.loads(
+        (REPO / "sources" / "source_registry.json").read_text(encoding="utf-8"))
+    discovered = [s for s in live["sources"] if s.get("origin") == "web_discovery"]
+    assert discovered, "no discovered sources in the registry — did the loader run?"
+    for s in discovered:
+        assert s.get("verified") is False, s["id"]
+        assert s.get("evidence"), f"{s['id']} has no URL to trace the claim to"
+        assert s.get("remediation"), f"{s['id']} names no next action"
+        # Unverified means UNKNOWN credential state, never an implied working one.
+        assert s.get("credential_present") is None, s["id"]
+
+
+def test_discovery_reached_the_counties_that_had_NO_sources():
+    """Seven of the ten counties had zero curated sources. A denominator that
+    lists venues in counties we have no way to hear from is a gap that looks
+    like a finding."""
+    live = json.loads(
+        (REPO / "sources" / "source_registry.json").read_text(encoding="utf-8"))
+    have = {s.get("county") for s in live["sources"] if s.get("county")}
+    for county in ("bastrop", "blanco", "caldwell", "fayette", "lee", "llano"):
+        assert county in have, f"{county} still has no source of any kind"
+
+
+def test_a_discovered_id_that_collides_with_a_curated_row_FAILS():
+    """KUTX and KUT were 'discovered' and turned out to be already catalogued.
+    Silently overwriting a curated row with an unverified lead would be the
+    duplicate-source defect again, in the direction that loses information."""
+    original = reg.load_discovered
+    reg.load_discovered = lambda: [
+        {"id": "mohawk_austin", "name": "Mohawk (rediscovered)",
+         "source_class": "venue_calendar", "origin": "web_discovery"}]
+    try:
+        with pytest.raises(SystemExit, match="collide"):
+            reg.main(["--out", "/dev/null"])
+    finally:
+        reg.load_discovered = original
+
+
 def test_every_registry_row_binds_to_a_real_taxonomy_class():
     built = reg.build(_catalog_with_merge_targets(
         {"id": "v", "name": "V", "category": "venue_calendar"}))

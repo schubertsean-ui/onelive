@@ -199,6 +199,60 @@ def build(catalog: list) -> list:
     return out
 
 
+DISCOVERED = REPO / "sources" / "discovered"
+
+
+def load_discovered() -> list:
+    """Agent-discovered sources (sources/discovered/*.json).
+
+    These are LEADS. A web-search result is a far weaker claim than a licence
+    record, and the registry must never let the two blur: every row lands with
+    origin `web_discovery` and `credential_present` unset, so the scorecard
+    reports it as NEVER_TRIED until a real fetch proves the feed exists and
+    parses. That is the honest status — "nobody has tried this yet" — and it is
+    exactly the distinction the scorecard was built to preserve.
+
+    They are included rather than kept aside because the alternative is worse:
+    seven CAPCOG counties had ZERO curated sources, and a registry that omits
+    every known lead reports that gap as if nothing could be done about it.
+    """
+    out: list = []
+    if not DISCOVERED.is_dir():
+        return out
+    for path in sorted(DISCOVERED.glob("*.json")):
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        for row in doc.get("sources", []):
+            cls = row.get("source_class")
+            if cls not in SOURCE_CLASSES:
+                raise SystemExit(
+                    f"build_source_registry: FAIL — discovered source "
+                    f"{row.get('id')!r} in {path.name} declares source_class "
+                    f"{cls!r}, which is not in the taxonomy. An unmapped class "
+                    f"would vanish from the scorecard.")
+            out.append({
+                "id": row["id"],
+                "name": row.get("name"),
+                "source_class": cls,
+                "catalog_category": None,
+                "base_url": row.get("url"),
+                "county": row.get("county"),
+                "cultural_domain": None,
+                "access_method": "scrape",
+                "needs_credential": False,
+                "credential_present": None,
+                "origin": "web_discovery",
+                "verified": False,
+                "discovered_via": doc.get("discovered_via", "web_search"),
+                "discovered_at": doc.get("discovered_at"),
+                "evidence": row.get("url"),
+                "remediation": row.get("note") or (
+                    "Discovered by web search and NOT yet verified. Attempt one "
+                    "fetch to confirm the calendar exists and parses before "
+                    "trusting anything from it."),
+            })
+    return out
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--catalog", default=str(CATALOG))
@@ -212,6 +266,18 @@ def main(argv=None) -> int:
             raise SystemExit("build_source_registry: FAIL — catalog has neither "
                              "'sources' nor 'catalog'; corrupt, not empty.")
     sources = build(catalog)
+
+    # Discovered leads join the registry, but an id collision with a curated
+    # row must not silently overwrite a verified source with an unverified one.
+    known = {s["id"] for s in sources}
+    discovered = load_discovered()
+    clashes = sorted(s["id"] for s in discovered if s["id"] in known)
+    if clashes:
+        raise SystemExit(
+            f"build_source_registry: FAIL — discovered source id(s) collide "
+            f"with curated rows: {clashes}. Rename them; a lead must never "
+            f"overwrite a source that has actually been verified.")
+    sources.extend(discovered)
 
     by_class: dict = {}
     by_provides: dict = {}
