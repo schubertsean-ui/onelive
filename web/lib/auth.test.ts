@@ -3,6 +3,7 @@ import { authMode, authProviderActive } from "./auth";
 
 const KEYS = [
   "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+  "CLERK_SECRET_KEY",
   "NEXT_PUBLIC_AUTH_DISABLED",
   "AUTH_DISABLED",
   "VERCEL_ENV",
@@ -23,11 +24,37 @@ describe("authMode — the fail-closed gate resolver", () => {
     }
   });
 
-  it("a configured Clerk key -> clerk (even in production)", () => {
+  it("BOTH Clerk keys -> clerk (even in production)", () => {
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    process.env.CLERK_SECRET_KEY = "sk_test_x";
     process.env.VERCEL_ENV = "production";
     expect(authMode()).toBe("clerk");
     expect(authProviderActive()).toBe(true);
+  });
+
+  it("publishable key WITHOUT the secret key never claims clerk mode", () => {
+    // THE 500. clerkMiddleware/auth/clerkClient are server calls needing
+    // CLERK_SECRET_KEY; selecting 'clerk' on the publishable key alone made the
+    // middleware THROW (500 MIDDLEWARE_INVOCATION_FAILED) on every route
+    // instead of failing closed with a diagnosable 503.
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    process.env.VERCEL_ENV = "production";
+    expect(authMode()).toBe("unconfigured");   // production refuses, never opens
+    expect(authProviderActive()).toBe(false);
+  });
+
+  it("a half-configured PREVIEW falls through to host-protected disabled", () => {
+    // The preview keeps working instead of 500-ing, which is the whole point:
+    // a half-set-up preview is fenced by Vercel Deployment Protection.
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    process.env.VERCEL_ENV = "preview";
+    expect(authMode()).toBe("disabled");
+  });
+
+  it("the secret key ALONE is not a configured gate either", () => {
+    process.env.CLERK_SECRET_KEY = "sk_test_x";
+    process.env.VERCEL_ENV = "production";
+    expect(authMode()).toBe("unconfigured");
   });
 
   it("explicit disable (either name, any truthy) -> disabled", () => {

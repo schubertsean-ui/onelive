@@ -10,8 +10,9 @@
 // deployment protection) — but it must be DECLARED, never the accidental
 // fallback of a missing/stripped env var. So there are three explicit modes:
 //
-//   'clerk'        — NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is set: the Clerk +
-//                    allowlist stealth gate is active (middleware.ts).
+//   'clerk'        — BOTH NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY
+//                    are set: the Clerk + allowlist stealth gate is active
+//                    (middleware.ts).
 //   'disabled'     — an app-level gate is intentionally absent, declared EITHER
 //                    by an explicit flag (AUTH_DISABLED / NEXT_PUBLIC_AUTH_DISABLED
 //                    truthy) OR by being a NON-production Vercel deployment
@@ -63,11 +64,46 @@ function _hostProtectedPreview(): boolean {
   return v === "preview" || v === "development";
 }
 
-// Resolve the gate mode. Clerk (a configured provider) wins; an explicit or
+// Clerk needs BOTH keys, and this is the fix for a real 500 (2026-07-26).
+//
+// The publishable key alone used to select 'clerk'. But clerkMiddleware(),
+// auth() and clerkClient() are SERVER calls that require CLERK_SECRET_KEY — so a
+// deployment carrying only the publishable key resolved to 'clerk' and then THREW
+// inside the middleware. Vercel surfaced that as
+// `500: MIDDLEWARE_INVOCATION_FAILED`, which took the whole site down: not the
+// diagnosable 503 this module carefully produces for misconfiguration, but an
+// opaque crash on every route, including the /api/health endpoint that exists to
+// explain such failures.
+//
+// The class: a mode must not claim a capability its environment cannot deliver.
+// Checking half the precondition is the same defect as checking none — it just
+// fails later and louder. Requiring both keys means a partially-configured
+// deployment falls through to the NEXT honest state instead of crashing:
+//   * a PREVIEW keeps working (host-protected 'disabled'), which is what a
+//     half-set-up preview should do;
+//   * PRODUCTION still refuses ('unconfigured' -> fail-closed 503), because a
+//     missing secret key must never be read as "no gate wanted".
+function _clerkFullyConfigured(): boolean {
+  const pk = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const sk = process.env.CLERK_SECRET_KEY;
+  if (pk && !sk) {
+    // Say it out loud rather than resolving quietly to a different mode — a
+    // half-configured gate is an operator error someone must see (§1).
+    console.error(
+      "[auth] NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is set but CLERK_SECRET_KEY is " +
+        "not. Clerk's server middleware cannot run without the secret key, so " +
+        "the Clerk gate is NOT active. Set CLERK_SECRET_KEY (same Clerk " +
+        "instance) or remove the publishable key. See docs/DEPLOY.md.",
+    );
+  }
+  return Boolean(pk && sk);
+}
+
+// Resolve the gate mode. Clerk (a fully configured provider) wins; an explicit or
 // preview-implied disable is honored next; otherwise we are unconfigured and
 // callers must fail closed. Production never auto-opens.
 export function authMode(): AuthMode {
-  if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return "clerk";
+  if (_clerkFullyConfigured()) return "clerk";
   if (_explicitlyDisabled() || _hostProtectedPreview()) return "disabled";
   return "unconfigured";
 }
