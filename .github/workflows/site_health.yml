@@ -21,6 +21,14 @@ on:
       url:
         description: "Base URL of the deployment to check (no trailing slash)"
         required: true
+  # [R-069] Also runs on this PR, deliberately and temporarily. workflow_dispatch can
+  # only be triggered via the API once the file exists on the DEFAULT branch, so
+  # until this merges the dispatch path is unusable and the check would be dead
+  # on arrival. The pull_request path uses the branch's Vercel alias, which is
+  # stable across commits. R-069 carries the removal trigger.
+  pull_request:
+    branches: [master]
+    paths: [".github/workflows/site_health.yml"]
 
 permissions:
   contents: read
@@ -35,7 +43,14 @@ jobs:
     steps:
       - name: Read /api/health and report honestly
         env:
-          BASE_URL: ${{ github.event.inputs.url }}
+          # The pull_request side is pinned to a LITERAL, never a bare
+          # `github.event.inputs.*` — that expression is empty on any event
+          # other than workflow_dispatch, which is exactly the defect that made
+          # import_structured.yml's cron dead on arrival (R-054, the project's
+          # first recorded escape). tests/test_scheduled_inputs_contract.py
+          # guards the schedule form of this class; this is the same discipline
+          # applied to the pull_request form.
+          BASE_URL: ${{ github.event_name == 'pull_request' && 'https://onelive-git-claude-onelive-v1-eval-90b9d1-sss-projects-e4775771.vercel.app' || github.event.inputs.url }}
         run: |
           set -uo pipefail
           : "${BASE_URL:?url input missing — the target is required — failing closed}"
