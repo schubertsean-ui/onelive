@@ -266,8 +266,10 @@ def request_review_gemini(review_input: str, system_prompt: str, api_key: str,
                           model: str) -> str:
     """Second-family seat (founder-approved 2026-07-25). Same REST-only
     discipline as the OpenAI path; same fail-closed response parsing."""
-    url = (f"{GEMINI_BASE_URL}/models/{model}:generateContent"
-           f"?key={api_key}")
+    # Key in the HEADER, never the query string (#71 r7 nit): Google
+    # accepts both, but a URL carries into proxy logs, traces, and
+    # exception text far more readily than a header does.
+    url = f"{GEMINI_BASE_URL}/models/{model}:generateContent"
     payload = {
         "system_instruction": {"parts": [{"text": system_prompt}]},
         "contents": [{"role": "user", "parts": [{"text": review_input}]}],
@@ -275,7 +277,7 @@ def request_review_gemini(review_input: str, system_prompt: str, api_key: str,
     req = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
         method="POST",
     )
     try:

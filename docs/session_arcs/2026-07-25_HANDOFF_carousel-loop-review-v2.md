@@ -25,7 +25,8 @@ Branch `claude/onelife-meta-carousel-wu7sh7`; contract = STATE.md
 **Session Contract #26** (A3 form, premortem, `[S3:…]` citations already
 written). Draft PR: https://github.com/schubertsean-ui/onelive/pull/71
 
-SHIPPED in the PR, all tested (25 tests: 22 reviewer + 3 scorecard):
+SHIPPED in the PR, all tested (28 tests: 22 reviewer + 6 scorecard;
+docs/TESTS.md carries the authoritative per-file counts):
 - `tools/adversarial_review.py` — lens PANEL: per seat a forced method
   lens + a po-seeded lens (OpenAI: attacker-smuggle, absence-only;
   Gemini: dataflow-taint, spec-vs-contract). ANY lens red = red;

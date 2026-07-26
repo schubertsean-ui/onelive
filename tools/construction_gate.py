@@ -38,13 +38,6 @@ CONTRACT_RELPATH = "STATE.md"
 
 _ROW_RE = re.compile(r"^\|\s*([a-z0-9][a-z0-9-]+)\s*\|\s*([^|]+)\|")
 
-# How recently the repository must have synchronized with its remote for
-# an ALREADY-fetched base ref to count as proven fresh. Generous by
-# design: CI fetches at checkout and reaches this gate ~2-3 minutes
-# later, and a slow dependency install must not turn a fresh base into a
-# red gate. Tightening it is safe; loosening it past the point where a
-# human's stale clone would qualify is a gate-threshold relaxation.
-BASE_FRESHNESS_WINDOW_S = 30 * 60
 
 
 def parse_index(text: str, origin: str) -> dict[str, list[str]]:
@@ -94,7 +87,10 @@ def _git(args: list[str], *, allow_fail: bool = False) -> str | None:
 
 class _GitProbes:
     """The real evidence sources for base-ref freshness. Injected as one
-    object so hermetic tests replace evidence, never patch globals."""
+    object so hermetic tests can substitute evidence — but note that the
+    two shipped probes are ALSO exercised against real git (#71 r7
+    blocker: a double that encodes the behavior we wish git had proves
+    only the double)."""
 
     @staticmethod
     def remote_tip(remote: str, branch: str) -> str | None:
@@ -117,10 +113,18 @@ class _GitProbes:
 
     @staticmethod
     def fetch(remote: str, branch: str) -> None:
+        """Update the remote-tracking ref, with an EXPLICIT refspec.
+
+        `git fetch <remote> <branch>` only updates
+        `refs/remotes/<remote>/<branch>` opportunistically — it depends
+        on the remote carrying the conventional fetch refspec, which a
+        bare URL or a hand-configured remote need not (#71 r7 blocker).
+        Naming the destination removes the dependency entirely."""
         env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
         try:
             subprocess.run(
-                ["git", "fetch", remote, branch],
+                ["git", "fetch", remote,
+                 f"+refs/heads/{branch}:refs/remotes/{remote}/{branch}"],
                 capture_output=True, text=True, cwd=REPO_ROOT, env=env, timeout=120,
             )
         except (OSError, subprocess.SubprocessError):
@@ -132,69 +136,48 @@ class _GitProbes:
         return (out or "").strip() or None
 
     @staticmethod
-    def ref_update_age_s(ref: str, now: float | None = None) -> float | None:
-        """Seconds since THIS remote-tracking ref was itself last written,
-        or None when no such record exists.
-
-        Deliberately ref-SPECIFIC (#71 r6 blocker): `.git/FETCH_HEAD`
-        records that *some* fetch happened, which a recent unrelated
-        fetch satisfies while the base ref stays stale. Two ref-scoped
-        records are read and the FRESHER wins: the ref's own reflog
-        (written whenever git updates it) and, for repositories with
-        reflogs disabled, the loose ref file's mtime. Both describe this
-        ref and nothing else."""
-        now = time.time() if now is None else now
-        ages: list[float] = []
-        out = _git(["reflog", "show", "--date=unix", "-n", "1", ref], allow_fail=True)
-        match = re.search(r"@\{(\d+)", out or "")
-        if match:
-            ages.append(max(0.0, now - int(match.group(1))))
-        git_dir = (_git(["rev-parse", "--git-dir"], allow_fail=True) or "").strip()
-        if git_dir:
-            if not os.path.isabs(git_dir):
-                git_dir = os.path.join(REPO_ROOT, git_dir)
-            try:
-                ages.append(max(0.0, now - os.path.getmtime(
-                    os.path.join(git_dir, *ref.split("/"))
-                    if ref.startswith("refs/")
-                    else os.path.join(git_dir, "refs", "remotes", *ref.split("/"))
-                )))
-            except OSError:
-                pass
-        return min(ages) if ages else None
+    def head_parents() -> list[str]:
+        """HEAD's parent oids, in order. Empty when HEAD is unresolvable."""
+        out = _git(["rev-list", "--parents", "-n", "1", "HEAD"], allow_fail=True)
+        parts = (out or "").split()
+        return parts[1:] if parts else []
 
 
 def assert_base_fresh(base_ref: str, *, probes=None) -> str:
-    """PROVE the base ref reflects its remote, or fail closed.
+    """PROVE the base ref is the commit this change is measured against,
+    or fail closed.
 
-    The obligation is the PROPERTY, and neither a command's exit code nor
-    a repo-wide fetch record is that property (#71 r5/r6, class:
-    false-confidence-gate — this gate got it wrong twice, each time by
-    substituting a MECHANISM for the thing the mechanism was supposed to
-    establish). Two proofs, in order:
+    The obligation is a PROPERTY, and this gate has now failed three
+    times by accepting a mechanism in its place (#71 r5/r6/r7, class:
+    false-confidence-gate): a fetch's exit code, a repo-wide fetch
+    record, and a recent write to the ref. All three are gone. Nothing
+    below reasons about TIME at all — freshness is decided only by
+    comparing two independently-obtained commit ids:
 
-      1. DIRECT: the remote is reachable, so its current tip is read and
-         COMPARED against the local base ref (one fetch is attempted to
-         converge them first). Equal oids are the property itself; a
-         surviving difference FAILS. A fetch that "succeeded" while
-         leaving the base ref behind no longer passes anything.
-      2. REF-SCOPED RECORD: the remote is unreachable, but THIS ref
-         resolves and THIS ref was itself written within
-         BASE_FRESHNESS_WINDOW_S. That is the CI shape and only the CI
-         shape: `actions/checkout` fetches the full history, creating
-         `origin/master` right there, and then drops the credentials
-         (`persist-credentials: false`), so nothing inside the job can
-         reach the remote while the ref is fresher than any fetch this
-         gate could perform. HONEST LIMIT, stated rather than implied:
-         this bounds staleness by the window, it does not prove the
-         remote has not moved since — which is why it is the fallback,
-         is ref-scoped rather than repo-wide, and never applies when
-         proof 1 is available.
+      1. REMOTE REACHABLE: read the remote's current tip and compare it
+         to the local base ref, fetching once (explicit refspec) to
+         converge. Equal ids ARE the property. A surviving difference
+         FAILS — a fetch that "succeeded" while leaving the ref behind
+         proves nothing.
+      2. REMOTE UNREACHABLE: the base is taken from the checkout itself,
+         and only in the one shape where the checkout CONTAINS it. A CI
+         review job checks out the provider's synthetic merge commit,
+         whose FIRST PARENT is literally the base-branch commit this PR
+         is being merged into — not an estimate of the base, the base —
+         and then drops its credentials (`persist-credentials: false`),
+         which is why nothing here can reach the remote. That parent is
+         accepted only when the local base ref RESOLVES TO THE SAME
+         COMMIT, so two independent records agree. A developer sitting
+         on a local merge commit fails this (their first parent is their
+         own branch tip, not the base ref), and so does every shape that
+         is not a two-parent HEAD.
 
-    Neither proof (offline session, stale clone, no ref record) = FAIL:
-    a stale base widens the diff range and lets this gate pass what CI
-    correctly fails (class: stale-base-widens-range). `probes` is a
-    HERMETIC-TEST injection point. Returns the proof, for printing.
+    Neither proof (offline session on an ordinary commit, stale clone,
+    unresolvable ref) = FAIL: a stale base widens the diff range and
+    lets this gate pass what CI correctly fails (class:
+    stale-base-widens-range). `probes` is a HERMETIC-TEST injection
+    point; the shipped probes are separately tested against real git.
+    Returns the proof, for printing.
     """
     probes = probes or _GitProbes
     remote, _, branch = base_ref.partition("/")
@@ -217,20 +200,24 @@ def assert_base_fresh(base_ref: str, *, probes=None) -> str:
             "base is STALE and every range derived from it is wider than CI's "
             "(class: stale-base-widens-range). Resolve the base ref and rerun."
         )
-    age_s = probes.ref_update_age_s(base_ref)
+    parents = probes.head_parents()
     local = probes.local_oid(base_ref)
-    if local and age_s is not None and age_s <= BASE_FRESHNESS_WINDOW_S:
+    if len(parents) == 2 and local and local == parents[0]:
         return (
-            f"remote unreachable from here; {base_ref} resolves ({local[:12]}) and "
-            f"was itself written {int(age_s)}s ago (window {BASE_FRESHNESS_WINDOW_S}s)"
+            f"remote unreachable from here; HEAD is a merge commit whose FIRST "
+            f"PARENT is the base being merged into, and {base_ref} resolves to that "
+            f"same commit ({local[:12]}) — two independent records agree"
         )
     raise SystemExit(
-        f"construction_gate: FAIL — cannot prove {base_ref} reflects its remote. The "
-        "remote is unreachable from here and "
-        + (f"this ref was last written {int(age_s)}s ago, outside the "
-           f"{BASE_FRESHNESS_WINDOW_S}s window" if age_s is not None
-           else "this ref carries no update record")
-        + ("" if local else f"; {base_ref} does not resolve")
+        f"construction_gate: FAIL — cannot prove {base_ref} is the base this change "
+        "is measured against. The remote is unreachable from here and "
+        + (
+            f"HEAD has {len(parents)} parent(s), so the checkout does not itself "
+            "contain the base"
+            if len(parents) != 2
+            else f"HEAD's first parent is {parents[0][:12]} while {base_ref} is "
+                 f"{local[:12] if local else 'unresolvable'} — the two records disagree"
+        )
         + ". A stale base widens the diff range and lets this gate pass what CI "
         "fails (class: stale-base-widens-range). Restore network/remote access "
         "and rerun; never judge against an unverifiable base."
