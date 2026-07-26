@@ -18,6 +18,30 @@ on:
         description: "Skip the TABC fetch and measure against the catalog layer only"
         required: false
         default: "false"
+  # Re-measure whenever the denominator's own logic changes. Two reasons, and
+  # the second is the one that matters day to day:
+  #
+  #  1. A change to the boundary, the target builder or the fetchers changes
+  #     what the number MEANS. Re-running by hand is a step nobody takes, and a
+  #     coverage figure that silently describes an older definition is worse
+  #     than no figure.
+  #  2. The dev sandbox has no egress to data.texas.gov, so TABC — the layer
+  #     that turns a 39-venue curated floor into the actual market universe —
+  #     can ONLY be fetched here. Waiting for a merge to learn the real venue
+  #     count made the measurement hostage to the review queue.
+  #
+  # Path-scoped, so ordinary commits do not spend Actions minutes on it.
+  push:
+    paths:
+      - "tools/fetch_tabc_capcog.py"
+      - "tools/build_capcog_targets.py"
+      - "tools/capcog_coverage.py"
+      - "tools/source_scorecard.py"
+      - "tools/build_source_registry.py"
+      - "tools/dump_source_evidence.py"
+      - "worker/region/capcog.py"
+      - "sources/master_sources_catalog_120.json"
+      - ".github/workflows/capcog-coverage.yml"
 
 permissions:
   contents: read
@@ -53,6 +77,37 @@ jobs:
           else
             python tools/build_capcog_targets.py
           fi
+
+      # Report the DENOMINATOR before anything that can fail on a missing
+      # secret. The venue universe is the question "how much of CAPCOG is
+      # there to cover?", and it does not depend on the database at all — but
+      # it used to sit behind a step that hard-fails without ONELIVE_DB_DSN, so
+      # a missing secret cost us the half of the answer that was already
+      # computed.
+      - name: Denominator — the CAPCOG venue universe
+        run: |
+          python - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json, pathlib
+          d = json.loads(pathlib.Path(
+              "sources/capcog_venue_targets.json").read_text())
+          print("## CAPCOG venue universe (the denominator)")
+          print()
+          print(f"**{d['venue_target_count']} venues** across "
+                f"{len(d['counts_added_per_layer'])} layer(s): "
+                f"{d['counts_added_per_layer']}")
+          print()
+          print("| county | venues |")
+          print("|---|---|")
+          for county, n in d["per_county"].items():
+              print(f"| {county} | {n} |")
+          print()
+          print(f"Not counted as venues (kept, listed, not divided by): "
+                f"{d['by_target_kind']}")
+          if not d["is_complete_universe"]:
+              print()
+              print("> FLOOR, not the complete universe — layers present: "
+                    f"{', '.join(d['layers_present'])}")
+          PY
 
       # The numerator: what we have actually ingested. Read-only.
       - name: Read ingested venues from the database
