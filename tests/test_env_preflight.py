@@ -198,19 +198,36 @@ def test_the_bootstrap_script_exists_and_installs_the_declared_file():
     assert "env_preflight.py" in text, "it should prove its own work at the end"
 
 
-def test_the_venv_the_bootstrap_creates_is_ACTUALLY_gitignored():
-    """The script's docstring said ".venv, which is gitignored" and nothing in
-    `.gitignore` matched it. `git add -A` after a bootstrap therefore staged 3,979
-    files and 874k lines of vendored wheels — a documented property that was simply
-    not true, in the one file a newcomer runs first."""
+def test_the_bootstrap_venv_lives_OUTSIDE_the_repository():
+    """A virtualenv inside a tree this harness introspects breaks the harness.
+
+    It used to be `./.venv`, and that single fact caused two failures with one
+    cause. `tests/test_golden_exam.py` computes the exam's "repo-local import
+    closure" as everything under the repo root, so a repo-local venv made it demand
+    that pydantic's 48 vendored files be bound into the exam's evidence hash — and
+    `git add -A` after bootstrapping staged 3,979 files and 874k lines of wheels
+    (the script's own docstring claimed `.venv` was gitignored; nothing ignored it).
+    Both disappear when the venv is somewhere the tooling does not read.
+    """
+    text = (_ROOT / "tools" / "bootstrap_dev.sh").read_text(encoding="utf-8")
+    assign = next(line for line in text.splitlines()
+                  if line.startswith("VENV="))
+    assert "$REPO_ROOT/.venv" not in assign, \
+        f"the venv must not live under the repo root: {assign!r}"
+    assert "ONELIVE_VENV" in assign, "the location should stay overridable"
+    # An override pointing back INTO the repo must be refused, or the guard is
+    # advisory and the next person re-creates the collision by accident.
+    assert "refusing to create the venv INSIDE the repository" in text
+    # ...and a venv left behind by the OLD recipe must be cleaned up rather than
+    # reported: "delete your old .venv" is manual work, and automating around
+    # manual work beats asking for it.
+    assert 'rm -rf "$REPO_ROOT/.venv"' in text
+
+    # Belt and braces: a hand-made ./.venv must still be gitignored, because
+    # people make them and `git add -A` should never stage vendored wheels.
     patterns = {line.strip() for line in
                 (_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()}
-    assert ".venv/" in patterns, \
-        "bootstrap_dev.sh creates ./.venv and calls it gitignored — make that true"
-    # And the claim in the script must stay tied to the mechanism.
-    text = (_ROOT / "tools" / "bootstrap_dev.sh").read_text(encoding="utf-8")
-    assert "gitignored" in text, \
-        "if the script stops claiming this, drop the claim from this test too"
+    assert ".venv/" in patterns
 
 
 def test_the_bootstrap_venv_is_hermetic():

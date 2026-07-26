@@ -625,50 +625,25 @@ def test_harness_manifest_is_a_superset_of_the_real_import_closure():
     can't be traced by import and stay pinned by the explicit test above.)"""
     import subprocess
     root = pathlib.Path(__file__).resolve().parent.parent
-    # "Repo-local" means THIS PROJECT'S OWN CODE. It used to mean "anything under
-    # the repo root", which is not the same thing and made the check's scope an
-    # accident of where pip had put third-party packages: with a
-    # --system-site-packages venv they sat in /usr and fell outside the root, so
-    # the check passed; with a hermetic ./.venv they sit INSIDE it, and the check
-    # demanded pydantic's 48 files be bound into the exam's evidence hash.
-    #
-    # This is not a loosening of what the manifest asserts — installed
-    # dependencies were never in HARNESS_MANIFEST and cannot be (their absolute
-    # file lists differ per machine and per wheel, so binding them would make the
-    # evidence irreproducible; they are pinned by worker/requirements.txt, which
-    # IS bound). It states the boundary the manifest always meant, so the answer
-    # no longer changes with the interpreter. The two assertions below exist so
-    # the filter cannot pass vacuously by excluding everything.
     code = (
         "import sys, pathlib\n"
         "import ai.golden_exam\n"
         "import tools.model_router  # the provider's lazy import (r24)\n"
         "root = pathlib.Path('.').resolve()\n"
-        "VENDORED = {'site-packages', 'dist-packages'}\n"
         "for m in list(sys.modules.values()):\n"
         "    f = getattr(m, '__file__', None)\n"
         "    if f:\n"
         "        p = pathlib.Path(f).resolve()\n"
         "        try:\n"
-        "            rel = p.relative_to(root)\n"
+        "            print(p.relative_to(root))\n"
         "        except ValueError:\n"
-        "            continue\n"
-        "        if VENDORED & set(rel.parts):\n"
-        "            continue\n"
-        "        print(rel)\n"
+        "            pass\n"
     )
     out = subprocess.run([sys.executable, "-c", code], capture_output=True,
                          text=True, cwd=str(root))
     assert out.returncode == 0, out.stderr
     closure = {line.strip() for line in out.stdout.splitlines() if line.strip()}
     assert closure, "closure trace produced nothing — the check itself is broken"
-    # The filter must not have swallowed the thing being checked. If the exam's
-    # own modules are missing from the closure, the exclusion above is too broad
-    # and this test would pass while asserting nothing.
-    for required in ("ai/golden_exam.py", "tools/model_router.py"):
-        assert required in closure, (
-            f"{required} is not in the traced closure — the vendored-path filter "
-            f"is excluding this project's own code, so this check is vacuous")
     from ai.golden_exam import HARNESS_MANIFEST
     unbound = sorted(closure - set(HARNESS_MANIFEST))
     assert not unbound, (

@@ -87,7 +87,15 @@ Two seats, four lenses, on PR #80. Every finding was real; none was argued down.
   packages visible, pip considered the broken `cryptography` already satisfying the
   requirement and never installed a working one. The bootstrap venv is hermetic now,
   and it REBUILDS a venv left over from the old recipe rather than telling the founder
-  to delete it.
+  to delete it. It also **moved the venv OUT of the repository** (`$HOME/.venvs/onelive`,
+  overridable): a virtualenv inside a tree this harness introspects broke the harness —
+  `tests/test_golden_exam.py` computes the exam's "repo-local import closure" as
+  everything under the repo root, so a repo-local `.venv` made it demand that pydantic's
+  48 vendored files be bound into the exam's evidence hash, and `git add -A` staged 874k
+  lines of wheels. Both symptoms, one cause, one fix — and notably NOT a fix to the exam
+  harness, which `tools/classify_extraction_surface.py` would have refused to certify
+  (correctly: prompt-swap evidence cannot certify code the exam does not execute). The
+  harness's latent scope bug is recorded as **R-074** rather than smuggled in here.
 
 ### `/api/health` stopped contradicting itself (R-071, RESOLVED)
 

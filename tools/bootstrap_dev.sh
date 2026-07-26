@@ -5,12 +5,22 @@
 # gate rows red for reasons that were not code, and nothing on disk said which
 # packages were needed or that the clone had to be un-shallowed.
 #
-# Idempotent: safe to re-run. Does NOT install anything globally — everything lands
-# in ./.venv, which is gitignored.
+# Idempotent: safe to re-run. Nothing is installed globally.
+#
+# THE VENV LIVES OUTSIDE THE REPOSITORY, at $HOME/.venvs/onelive by default
+# (override with ONELIVE_VENV). That is deliberate and it is not a style choice.
+# It used to be ./.venv, and a virtualenv inside a tree this harness introspects
+# breaks the harness: tests/test_golden_exam.py computes the exam's "repo-local
+# import closure" as everything under the repo root, so with ./.venv present it
+# demanded that pydantic's 48 vendored files be bound into the exam's evidence
+# hash. `git add -A` after bootstrapping also staged 874k lines of wheels.
+# Both symptoms have the same cause: the venv was somewhere the tooling reads.
+# Put it where nothing reads it and neither symptom exists.
 #
 # Usage:
 #   bash tools/bootstrap_dev.sh          # venv + deps + full history
 #   bash tools/bootstrap_dev.sh --no-git # skip the unshallow (offline)
+#   ONELIVE_VENV=/path bash tools/bootstrap_dev.sh   # somewhere else entirely
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -26,7 +36,20 @@ for arg in "$@"; do
 done
 
 PY="${PYTHON:-python3}"
-VENV="$REPO_ROOT/.venv"
+# OUTSIDE the repo tree — see the header. A venv under REPO_ROOT is read by the
+# golden exam's import-closure check and by `git add -A`, and both then report the
+# vendored wheels as if they were this project's code.
+VENV="${ONELIVE_VENV:-${HOME:-/tmp}/.venvs/onelive}"
+case "$VENV" in
+  "$REPO_ROOT"|"$REPO_ROOT"/*)
+    echo "bootstrap_dev: refusing to create the venv INSIDE the repository ($VENV)." >&2
+    echo "  A venv under the repo root is read by tests/test_golden_exam.py's" >&2
+    echo "  import-closure check as this project's own code. Pick a path outside" >&2
+    echo "  the tree, or unset ONELIVE_VENV to use the default." >&2
+    exit 1 ;;
+esac
+mkdir -p "$(dirname "$VENV")" || {
+  echo "bootstrap_dev: could not create $(dirname "$VENV")" >&2; exit 1; }
 
 echo "== 1/3 virtualenv =="
 # HERMETIC, deliberately. This used --system-site-packages, justified in a comment
@@ -67,6 +90,14 @@ if [ -n "$_rebuild_reason" ]; then
   echo "created $VENV (hermetic — no system site-packages)"
 else
   echo "$VENV already exists and is hermetic — reusing"
+fi
+
+# A venv left in the repo by the PREVIOUS recipe still poisons the import-closure
+# check and `git add -A`, so it is removed rather than reported. "Delete your old
+# .venv" is founder/dev labour, and automating around labour beats asking for it.
+if [ -d "$REPO_ROOT/.venv" ]; then
+  echo "removing the stale in-repo $REPO_ROOT/.venv (it breaks the golden exam's closure check)"
+  rm -rf "$REPO_ROOT/.venv"
 fi
 
 echo "== 2/3 dependencies =="
