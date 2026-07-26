@@ -123,7 +123,7 @@ def check_print_for_errors(findings: Findings) -> None:
             in_except = any(
                 isinstance(anc, ast.ExceptHandler)
                 for anc in ast.walk(tree)
-                if hasattr(anc, "body") and node in ast.walk(anc) if isinstance(anc, ast.ExceptHandler)
+                if isinstance(anc, ast.ExceptHandler) if node in ast.walk(anc)
             )
             text_hint = False
             for arg in node.args:
