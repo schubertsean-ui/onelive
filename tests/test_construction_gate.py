@@ -419,7 +419,9 @@ def test_two_live_answers_for_one_class_are_rejected():
 def test_a_marked_supersession_is_accepted():
     """Corrections across review rounds are legitimate; SILENT ones are not."""
     from tools.construction_gate import contradictory_citations
-    for marker in ("SUPERSEDED", "CORRECTED", "WITHDRAWN"):
+    # CORRECTED is deliberately NOT a stale marker — see
+    # test_corrected_marks_a_live_answer_not_a_stale_one.
+    for marker in ("SUPERSEDED", "WITHDRAWN"):
         text = (f"[S3:x] {marker} at r7 — this was written at r1 and is stale.\n"
                 "[S3:x] the live answer.\n")
         assert contradictory_citations(text) == [], marker
@@ -494,3 +496,22 @@ def test_every_class_token_named_in_code_or_ledger_has_an_index_row():
         f"class tokens named in code/ledger but absent from RED_CLASSES.md: "
         f"{missing} — a class the index does not carry cannot be retrieved by "
         f"construction_gate, so no future contract is forced to answer it")
+
+
+def test_zero_live_answers_is_rejected_too():
+    """PR #78 r10: the r7 check only failed on MORE than one live answer, so
+    `[S3:x] WITHDRAWN` alone satisfied the presence check while retrieving
+    nothing — a fail-open introduced by the fix for a fail-open."""
+    from tools.construction_gate import contradictory_citations
+    for only in ("[S3:x] WITHDRAWN.\n",
+                 "[S3:x] SUPERSEDED at r3.\n",
+                 "[S3:x] SUPERSEDED a.\n[S3:x] WITHDRAWN b.\n"):
+        assert contradictory_citations(only) == ["x"], only
+
+
+def test_corrected_marks_a_live_answer_not_a_stale_one():
+    """`[S3:x] CORRECTED at r3 — <answer>` is how a LIVE answer records that it
+    fixes an earlier one. Counting it stale left real classes with zero live
+    answers — caught by the exactly-one rule the same round introduced."""
+    from tools.construction_gate import contradictory_citations
+    assert contradictory_citations("[S3:x] CORRECTED at r3 — the real answer.\n") == []

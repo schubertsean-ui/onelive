@@ -87,7 +87,7 @@ URL_RE = re.compile(r"https?://[^\s)\]>]+")
 # At most 3 leading spaces — CommonMark's threshold between a list item and an
 # indented code block. Arbitrary `\s*` counted a four-space-indented bullet as
 # a citation entry even though it renders as code (PR #78 r7).
-BULLET_RE = re.compile(r"^ {0,3}(?:[-*]|\d+[.)])\s+\S")
+BULLET_RE = re.compile(r"^ {0,3}(?:[-*+]|\d+[.)])\s+\S")
 
 # A VERBATIM SOURCE CAPTURE (docs/research/sources/*) is not a synthesis: it
 # has no citations of its own, it IS the cited thing. R-054 and this tool's
@@ -122,7 +122,14 @@ PROVENANCE_RE = re.compile(r"^\s*PROVENANCE:\s*(?P<body>.+?)\s*$",
 # lives" — evidence a reader cannot see is not a citation, and one-off fixes
 # per syntax is how the first four rounds went. Strip once, at the top, so
 # every downstream check inherits the property.
-_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+# A comment with no terminator swallows the REST of the document in every
+# renderer, so its content is invisible too — `.*?-->` simply did not match it
+# and left the text in place (PR #78 r10). Raw HTML blocks are the same class:
+# <script>/<style> content never renders as document prose.
+_HTML_COMMENT_RE = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
+_RAW_HTML_BLOCK_RE = re.compile(
+    r"<(script|style|template|noscript)\b.*?(?:</\1\s*>|\Z)",
+    re.DOTALL | re.IGNORECASE)
 # CommonMark fences: opened by 3+ backticks or tildes indented at most 3
 # spaces, closed by a fence of the SAME character and AT LEAST the same
 # length. A regex backreference demands an exact-length match (PR #78 r7), so
@@ -143,7 +150,7 @@ def visible_text(text: str) -> str:
     reopening per syntax — the failure mode of r4 and r5, which each closed one
     hiding place and left its siblings.
     """
-    text = _HTML_COMMENT_RE.sub(" ", text)
+    text = _RAW_HTML_BLOCK_RE.sub(" ", _HTML_COMMENT_RE.sub(" ", text))
     out, fence, in_list = [], None, False
     for line in text.splitlines():
         if fence is not None:
@@ -346,6 +353,7 @@ def scan_text(rel_path: str, text: str) -> list[str]:
     # the URL and status for a defective bullet above it, so "every entry
     # carries its own URL and status" was not actually enforced.
     entries: list[str] = []
+    stray: list[str] = []
     open_entry = False
     for ln in section.splitlines():
         if BULLET_RE.match(ln):
@@ -359,12 +367,32 @@ def scan_text(rel_path: str, text: str) -> list[str]:
             entries[-1] += " " + ln.strip()
         else:
             open_entry = False          # unindented prose is not continuation
+            if entries:
+                # Visible non-list content AFTER the list has started was
+                # silently DISCARDED (PR #78 r10): a document could carry one
+                # compliant bullet and then table rows, blockquotes or prose
+                # source lines that the gate never examined — exactly the
+                # unfollowable-citation class it exists to stop, hidden in
+                # plain sight rather than in a comment.
+                # Only after the first entry, so an introductory sentence
+                # before the list is still allowed (a rule that rejected
+                # ordinary prose would be the false-rejection defect r8 was
+                # about).
+                stray.append(ln.strip())
     if not entries:
         findings.append(
             f"{rel_path}: `## Sources` section has no entries — an empty "
             "sources block is a gate that cannot fail"
         )
         return findings
+
+    for ln in stray:
+        label = (ln[:70] + "…") if len(ln) > 70 else ln
+        findings.append(
+            f"{rel_path}: visible line inside the Sources section is not a list "
+            f"entry, so it is never checked for a URL or a status token — put "
+            f"every source in the list (introductory prose before the first "
+            f"entry is fine): {label}")
 
     for line in entries:
         stripped = line.strip()

@@ -281,11 +281,23 @@ def contradictory_citations(citation_text: str) -> list[str]:
     # ORDER-INDEPENDENT: exactly one answer per token may be LIVE. Keying on
     # "all but the last" assumed corrections are appended, and they are not —
     # a contract is edited in place, so the superseded line can sit anywhere.
+    # EXACTLY ONE live answer — not "at most one". The first cut only failed on
+    # len(live) > 1, so `[S3:x] WITHDRAWN` alone satisfied the presence check
+    # (the tag IS in the text) while leaving ZERO live retrieval evidence, and
+    # the gate reported PASS. A fail-open introduced by the fix for a
+    # fail-open (PR #78 r10, openai absence-only seat).
     bad = []
     for token, lines in seen.items():
+        # SUPERSEDED / WITHDRAWN only. "CORRECTED" was in this list and is
+        # wrong: `[S3:x] CORRECTED at r3 — <the answer>` is how a LIVE answer
+        # records that it fixes an earlier one, so counting it stale left
+        # several classes with zero live answers (PR #78 r10, caught by the
+        # exactly-one rule the same round introduced). The two remaining words
+        # mean "this line is no longer the answer"; "corrected" means "this
+        # line IS the answer, and it changed".
         live = [ln for ln in lines
-                if not re.search(r"\b(SUPERSEDED|CORRECTED|WITHDRAWN)\b", ln)]
-        if len(live) > 1:
+                if not re.search(r"\b(SUPERSEDED|WITHDRAWN)\b", ln)]
+        if len(live) != 1:
             bad.append(token)
     return sorted(bad)
 
@@ -383,12 +395,11 @@ def main(argv: list[str] | None = None) -> int:
     conflicting = contradictory_citations(citation_text)
     if conflicting:
         print(
-            "construction_gate: FAIL — the contract answers these classes more "
-            "than once with no supersession marker, so the retrieval evidence "
-            "contradicts itself: " + ", ".join(conflicting)
-            + "\n  (a later round may correct an earlier answer, but the stale "
-            "one must say SUPERSEDED / CORRECTED / WITHDRAWN in its own line — "
-            "two live answers for one class verify nothing)"
+            "construction_gate: FAIL — these classes do not have EXACTLY ONE "
+            "live answer in the contract: " + ", ".join(conflicting)
+            + "\n  (two live answers contradict each other and verify nothing; "
+            "ZERO live answers — every line marked SUPERSEDED / WITHDRAWN — satisfies the presence check while retrieving nothing, "
+            "so a correction must leave a live answer behind)"
         )
         return 1
     if uncited:

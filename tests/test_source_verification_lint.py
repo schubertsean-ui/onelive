@@ -351,12 +351,20 @@ def test_a_paragraph_after_a_defective_bullet_does_not_rescue_it():
         text = ("## Sources\n- a bare claim with nothing\n" + filler +
                 "https://e.org/a VERIFIED-READ\n")
         findings = svl.scan_text("d.md", text)
-        assert len(findings) == 2, (filler, findings)
+        # The bullet's own two defects, plus (since r10) the stray visible
+        # line itself — an unindented source line that is not a list entry is
+        # never checked, so it is reported rather than discarded.
+        assert len(findings) == 3, (filler, findings)
+        assert any("no http(s) URL" in f for f in findings)
+        assert any("declares no verification status" in f for f in findings)
+        assert any("not a list entry" in f for f in findings)
 
 
 def test_a_blank_line_closes_an_entry():
     text = "## Sources\n- a bare claim\n\n  https://e.org/a VERIFIED-READ\n"
-    assert len(svl.scan_text("d.md", text)) == 2
+    findings = svl.scan_text("d.md", text)
+    assert len(findings) == 3, findings
+    assert any("not a list entry" in f for f in findings), findings
 
 
 def test_genuine_indented_wrapping_still_works():
@@ -515,3 +523,46 @@ def test_an_unindented_line_closes_the_list_item():
 def test_indentation_of_one_to_three_spaces_keeps_the_item_open():
     assert svl.scan_text("d.md", (
         "## Sources\n- Wang,\n   https://e.org\n    VERIFIED-READ\n")) == []
+
+
+# ── PR #78 r10: three more hiding places and one silent discard ──────────
+
+def test_visible_non_list_content_after_the_first_entry_is_reported():
+    """openai absence-only: a document could carry one compliant bullet and
+    then table rows, blockquotes or prose source lines that the gate NEVER
+    examined — the unfollowable-citation class hidden in plain sight rather
+    than in a comment."""
+    for stray in ("| Klein 1998 | Sources of Power |",
+                  "Klein 1998, Sources of Power",
+                  "> Klein 1998"):
+        findings = svl.scan_text(
+            "d.md", f"## Sources\n- x https://e.org VERIFIED-READ\n{stray}\n")
+        assert any("not a list entry" in f for f in findings), stray
+
+
+def test_introductory_prose_before_the_first_entry_is_allowed():
+    """Rejecting an ordinary lead-in sentence would be the false-rejection
+    defect r8 was about; the rule starts at the first entry."""
+    assert svl.scan_text("d.md", (
+        "## Sources\nEverything the claims above rest on:\n"
+        "- x https://e.org VERIFIED-READ\n")) == []
+
+
+def test_an_unclosed_html_comment_hides_everything_after_it():
+    """`.*?-->` simply did not match, so the text stayed visible to the parser
+    while every renderer swallows the rest of the document."""
+    assert svl.scan_text("d.md", "<!--\n## Sources\n- x https://e.org VERIFIED-READ\n")
+
+
+def test_raw_html_blocks_cannot_carry_citations():
+    for tag in ("script", "style", "template", "noscript"):
+        closed = f"<{tag}>\n## Sources\n- x https://e.org VERIFIED-READ\n</{tag}>\n"
+        unclosed = f"<{tag}>\n## Sources\n- x https://e.org VERIFIED-READ\n"
+        assert svl.scan_text("d.md", closed), tag
+        assert svl.scan_text("d.md", unclosed), f"{tag} (unclosed)"
+
+
+def test_plus_is_a_valid_bullet():
+    """CommonMark allows `+` alongside `-` and `*` (gemini nit); treating it as
+    prose would have been a false rejection."""
+    assert svl.scan_text("d.md", "## Sources\n+ x https://e.org VERIFIED-READ\n") == []
