@@ -52,7 +52,18 @@ export function detailWhen(x: LicensedEvent | string | null | undefined): string
 export function detailPrice(
   e: LicensedEvent,
 ): { text: string; free: boolean; known: boolean } {
-  if (e.is_free || e.price_min === 0) return { text: "Free", free: true, known: true };
+  // `is_free === false` is the row DENYING free entry, and a denial outranks a
+  // zero floor (PR #87 r3, openai attacker-smuggle). A row saying
+  // `is_free: false, price_min: 0` is contradictory, and the honest reading of
+  // contradictory price data is "we do not know", never the claim that
+  // benefits us. `price_min === 0` still means free when nothing denies it.
+  if (e.is_free === true) return { text: "Free", free: true, known: true };
+  if (e.price_min === 0 && e.is_free !== false) {
+    return { text: "Free", free: true, known: true };
+  }
+  if (e.is_free === false && e.price_min === 0) {
+    return { text: "See tickets", free: false, known: false };
+  }
   if (e.price_min != null && e.price_max != null && e.price_max !== e.price_min) {
     return {
       text: `$${Math.round(e.price_min)}–$${Math.round(e.price_max)}`,
@@ -112,4 +123,34 @@ export function statusNote(e: LicensedEvent): string | null {
 // that prefix contains a colon.
 export function eventHref(e: LicensedEvent): string {
   return `/tonight/${encodeURIComponent(e.licensed_event_id)}`;
+}
+
+
+// ── The detail page's BRANCH SELECTION, as data (PR #87 r3, openai
+// absence-only, class missing-contract-test). The route previously chose
+// between "not configured", "bad link", "read failed", "no such event" and
+// "here is the event" inline in JSX, so no test could reach those branches and
+// the page could stop displaying trust with every test still green. The choice
+// is made here and the component only renders it.
+
+export type DetailView =
+  | { kind: "unconfigured" }
+  | { kind: "bad-link" }
+  | { kind: "read-error"; message: string }
+  | { kind: "not-found" }
+  | { kind: "event"; event: LicensedEvent };
+
+export function resolveDetailView(input: {
+  configured: boolean;
+  routed: boolean;
+  error: string | null;
+  event: LicensedEvent | null;
+}): DetailView {
+  if (!input.configured) return { kind: "unconfigured" };
+  if (!input.routed) return { kind: "bad-link" };
+  // A read ERROR and an ABSENT row are different facts and must never collapse
+  // into one message: "the database is down" is not "there is no such event".
+  if (input.error !== null) return { kind: "read-error", message: input.error };
+  if (input.event === null) return { kind: "not-found" };
+  return { kind: "event", event: input.event };
 }

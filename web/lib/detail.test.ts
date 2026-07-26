@@ -11,6 +11,7 @@ import {
   detailWhen,
   eventHref,
   httpOrNull,
+  resolveDetailView,
   statusNote,
 } from "./detail";
 import { buildLicensedQuery, type LicensedEvent } from "./licensed";
@@ -316,5 +317,153 @@ describe("single-event reads, with the fetch injected", () => {
     await fetchLicensedEventById("abc-123");
     expect(calls[0]).not.toContain("start_time=");
     expect(calls[0]).toContain("licensed_event_id=eq.abc-123");
+  });
+});
+
+// ── PR #87 r3. Two failures of the SAME shape as r2's, caught by the same
+// seats: the r2 citation said "both readers are exercised" and only the
+// licensed one was, and the page's own branches had no test at all.
+
+describe("the promoted single-event read, with the fetch injected", () => {
+  const ENV = {
+    NEXT_PUBLIC_SUPABASE_URL: "https://sb.test",
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
+  };
+  let saved: Record<string, string | undefined>;
+  let calls: string[];
+
+  function promotedRow(over: Record<string, unknown> = {}) {
+    return {
+      event_id: "u-1",
+      title: "Promoted Show",
+      category: "music",
+      subsegment: null,
+      artist_ids: [],
+      start_time: "2026-08-01T02:00:00.000Z",
+      end_time: null,
+      status: "scheduled",
+      ticket_url: null,
+      confidence: "likely",
+      venue: null,
+      ...over,
+    };
+  }
+
+  beforeEach(() => {
+    saved = {};
+    for (const [k, v] of Object.entries(ENV)) {
+      saved[k] = process.env[k];
+      process.env[k] = v;
+    }
+    calls = [];
+  });
+  afterEach(() => {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    vi.unstubAllGlobals();
+  });
+
+  function stubFetch(pages: unknown[][], ok = true, status = 200) {
+    let i = 0;
+    vi.stubGlobal("fetch", async (url: string) => {
+      calls.push(String(url));
+      const body = i < pages.length ? pages[i++] : [];
+      return {
+        ok, status,
+        json: async () => body,
+        text: async () => JSON.stringify(body),
+      } as unknown as Response;
+    });
+  }
+
+  it("returns null when the promoted row does not exist", async () => {
+    stubFetch([[]]);
+    const { fetchPromotedEventById } = await import("./promoted");
+    await expect(fetchPromotedEventById("u-nope")).resolves.toBeNull();
+  });
+
+  it("returns the one promoted row, shaped like a card", async () => {
+    stubFetch([[promotedRow()]]);
+    const { fetchPromotedEventById } = await import("./promoted");
+    const got = await fetchPromotedEventById("u-1");
+    expect(got?.title).toBe("Promoted Show");
+    // Provenance survives the reshape — this is what makes it a LISTING.
+    expect(got?.source_provider).toBe("promoted");
+    expect(got?.licensed_event_id).toBe("promoted:u-1");
+  });
+
+  it("THROWS on a duplicate promoted id", async () => {
+    stubFetch([[promotedRow({ title: "One" }), promotedRow({ title: "Two" })]]);
+    const { fetchPromotedEventById } = await import("./promoted");
+    await expect(fetchPromotedEventById("u-1")).rejects.toThrow(/corrupt data/i);
+  });
+
+  it("THROWS on a failed promoted read", async () => {
+    stubFetch([[]], false, 500);
+    const { fetchPromotedEventById } = await import("./promoted");
+    await expect(fetchPromotedEventById("u-1")).rejects.toThrow();
+  });
+
+  it("does NOT window a promoted by-id read by date", async () => {
+    stubFetch([[promotedRow()]]);
+    const { fetchPromotedEventById } = await import("./promoted");
+    await fetchPromotedEventById("u-1");
+    expect(calls[0]).not.toContain("start_time=");
+    expect(calls[0]).toContain("event_id=eq.u-1");
+  });
+});
+
+// ── the page's own branches, as data ─────────────────────────────────────────
+
+describe("resolveDetailView", () => {
+  const base = { configured: true, routed: true, error: null, event: null };
+
+  it("reports a misconfigured deploy before anything else", () => {
+    expect(resolveDetailView({ ...base, configured: false }).kind)
+      .toBe("unconfigured");
+  });
+
+  it("reports a bad link when the id does not route", () => {
+    expect(resolveDetailView({ ...base, routed: false }).kind).toBe("bad-link");
+  });
+
+  it("keeps a read ERROR distinct from an absent row", () => {
+    const err = resolveDetailView({ ...base, error: "Supabase read failed (500)" });
+    expect(err.kind).toBe("read-error");
+    expect(resolveDetailView({ ...base, error: null, event: null }).kind)
+      .toBe("not-found");
+    // The distinction that matters: "the database is down" must never render
+    // as "there is no such event".
+    expect(err.kind).not.toBe("not-found");
+  });
+
+  it("returns the event when there is one — including a disputed one", () => {
+    const disputed = ev({ confidence: "disputed" });
+    const view = resolveDetailView({ ...base, event: disputed });
+    expect(view).toEqual({ kind: "event", event: disputed });
+  });
+
+  it("shows a CANCELLED event rather than treating it as absent", () => {
+    const cancelled = ev({ status: "cancelled" });
+    const view = resolveDetailView({ ...base, event: cancelled });
+    expect(view.kind).toBe("event");
+    expect(statusNote(cancelled)).toMatch(/cancelled/i);
+  });
+});
+
+// ── a denial of free entry outranks a zero floor ─────────────────────────────
+
+describe("detailPrice and contradictory free data", () => {
+  it("does not claim Free when the row explicitly denies it", () => {
+    const p = detailPrice(ev({ is_free: false, price_min: 0 }));
+    expect(p.free).toBe(false);
+    expect(p.known).toBe(false);
+  });
+
+  it("still treats a zero floor as free when nothing denies it", () => {
+    expect(detailPrice(ev({ is_free: null, price_min: 0 })).free).toBe(true);
+    expect(detailPrice(ev({ is_free: true, price_min: null })).free).toBe(true);
   });
 });

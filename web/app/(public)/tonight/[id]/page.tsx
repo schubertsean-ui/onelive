@@ -18,6 +18,7 @@ import {
   detailWhen,
   detailMapUrl,
   httpOrNull,
+  resolveDetailView,
   statusNote,
 } from "../../../../lib/detail";
 
@@ -46,18 +47,34 @@ function Shell({ children }: { children: React.ReactNode }) {
 export default async function EventDetailPage(
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id: rawId } = await params;
-  // A malformed percent escape (`/tonight/%zz`) makes decodeURIComponent THROW.
-  // That is a bad link, not a server fault, so it takes the invalid-link path
-  // rather than a 500 (PR #87 r2, openai attacker-smuggle nit).
-  let id: string;
-  try {
-    id = decodeURIComponent(rawId);
-  } catch {
-    id = "";
+  // Next 15's App Router hands `params` ALREADY DECODED, so decoding again was
+  // wrong (PR #87 r3, gemini dataflow-taint): it is a no-op for ordinary ids
+  // and corrupts any id containing a literal percent sign, turning a valid
+  // link into "no such event". The value is used as-is; routeForEventId
+  // rejects the empty and prefix-only cases.
+  const { id } = await params;
+
+  const configured = supabaseConfigured();
+  const route = configured ? routeForEventId(id) : null;
+
+  let event: LicensedEvent | null = null;
+  let error: string | null = null;
+  if (route) {
+    try {
+      event = route.kind === "promoted"
+        ? await fetchPromotedEventById(route.id)
+        : await fetchLicensedEventById(route.id);
+    } catch (e) {
+      // Loud, never an empty page dressed as "no such event".
+      error = e instanceof Error ? e.message : "Could not load this event";
+    }
   }
 
-  if (!supabaseConfigured()) {
+  // The branch choice is made by resolveDetailView, which is unit-tested; this
+  // component only renders the answer (PR #87 r3, class missing-contract-test).
+  const view = resolveDetailView({ configured, routed: route !== null, error, event });
+
+  if (view.kind === "unconfigured") {
     return (
       <Shell>
         <div className="err">
@@ -68,35 +85,21 @@ export default async function EventDetailPage(
       </Shell>
     );
   }
-
-  const route = routeForEventId(id);
-  if (!route) {
+  if (view.kind === "bad-link") {
     return (
       <Shell>
         <div className="err">That link doesn&rsquo;t point at an event.</div>
       </Shell>
     );
   }
-
-  let event: LicensedEvent | null = null;
-  let error: string | null = null;
-  try {
-    event = route.kind === "promoted"
-      ? await fetchPromotedEventById(route.id)
-      : await fetchLicensedEventById(route.id);
-  } catch (e) {
-    // Loud, never an empty page dressed as "no such event".
-    error = e instanceof Error ? e.message : "Could not load this event";
-  }
-
-  if (error) {
+  if (view.kind === "read-error") {
     return (
       <Shell>
-        <div className="err">Couldn&rsquo;t load this event: {error}</div>
+        <div className="err">Couldn&rsquo;t load this event: {view.message}</div>
       </Shell>
     );
   }
-  if (!event) {
+  if (view.kind === "not-found") {
     return (
       <Shell>
         <div className="err">
@@ -107,26 +110,34 @@ export default async function EventDetailPage(
     );
   }
 
+  const event_ = view.event;
+
   const trust = trustDisplay(
-    event.confidence,
-    detailProviderLabel(event),
-    detailTrustKind(event),
+    event_.confidence,
+    detailProviderLabel(event_),
+    detailTrustKind(event_),
   );
-  const price = detailPrice(event);
-  const map = detailMapUrl(event);
-  const tix = httpOrNull(event.ticket_url);
-  const img = httpOrNull(event.image_url);
-  const note = statusNote(event);
+  const price = detailPrice(event_);
+  const map = detailMapUrl(event_);
+  const tix = httpOrNull(event_.ticket_url);
+  const img = httpOrNull(event_.image_url);
+  const note = statusNote(event_);
 
   return (
     <Shell>
       <article className="detail">
+        {/* An <img> element, NOT a CSS background (PR #87 r3, gemini
+            dataflow-taint): `url(${img})` interpolates a stored value straight
+            into CSS, and a perfectly valid https URL containing `')` breaks out
+            of url() into arbitrary CSS. React escapes an attribute; a template
+            string in a style object escapes nothing. It is also the better
+            element — it can carry alt text and be sized by the browser. */}
         {img ? (
-          <div className="dph" style={{ backgroundImage: `url(${img})` }} />
+          <img className="dph" src={img} alt="" />
         ) : null}
 
-        <h2 className="dti">{event.title}</h2>
-        {event.performer ? <p className="dperf">{event.performer}</p> : null}
+        <h2 className="dti">{event_.title}</h2>
+        {event_.performer ? <p className="dperf">{event_.performer}</p> : null}
 
         {/* An event that was cancelled or moved SAYS so. The feed filters these
             out of a list nobody asked for by name; a visitor who followed a
@@ -135,17 +146,20 @@ export default async function EventDetailPage(
 
         <dl className="dfacts">
           <dt>When</dt>
-          <dd>{detailWhen(event)}</dd>
+          <dd>{detailWhen(event_)}</dd>
 
           <dt>Where</dt>
           <dd>
-            {event.venue_name ?? "Venue not listed"}
-            {event.venue_area ? <span className="dsub"> · {event.venue_area}</span> : null}
-            {event.venue_address && map ? (
+            {event_.venue_name ?? "Venue not listed"}
+            {event_.venue_area ? <span className="dsub"> · {event_.venue_area}</span> : null}
+            {/* Keyed on the MAP link, not on the address (gemini nit): a
+                venue with coordinates but no street address still deserves a
+                map, and the feed already behaves this way. */}
+            {map ? (
               <>
                 <br />
                 <a href={map} target="_blank" rel="noopener noreferrer">
-                  {event.venue_address} ↗
+                  {event_.venue_address ?? "Open in maps"} ↗
                 </a>
               </>
             ) : null}
@@ -154,12 +168,12 @@ export default async function EventDetailPage(
           <dt>Price</dt>
           <dd className={price.free ? "dfree" : undefined}>{price.text}</dd>
 
-          {event.category ? (
+          {event_.category ? (
             <>
               <dt>Kind</dt>
               <dd>
-                {event.category}
-                {event.subsegment ? <span className="dsub"> · {event.subsegment}</span> : null}
+                {event_.category}
+                {event_.subsegment ? <span className="dsub"> · {event_.subsegment}</span> : null}
               </dd>
             </>
           ) : null}

@@ -8,11 +8,13 @@
 
 .detail { max-width: 46rem; margin: 0 auto; padding: 0 0 3rem; }
 
+/* An <img>, not a background — see page.tsx for why. object-fit reproduces
+   what background-size: cover was doing. */
 .detail .dph {
+  display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
-  background-size: cover;
-  background-position: center;
+  object-fit: cover;
   border-radius: 0.75rem;
   margin-bottom: 1.25rem;
 }
