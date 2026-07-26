@@ -68,12 +68,90 @@ def scan_text(text: str, repo: pathlib.Path = REPO) -> list[str]:
     return findings
 
 
+# ── The OTHER half of false-confidence-gate ──────────────────────────────
+#
+# scan_text above catches a claim whose cited artifact is ABSENT. The class's
+# other half — the artifact EXISTS but does LESS than the sentence claims —
+# escaped it 8 times in PR #75 alone, past this file's own structural-fix
+# marker, and false-confidence-gate is the top class in the Kaizen ledger at
+# 29. Root cause: existence is checkable, semantics are not.
+#
+# What IS mechanically checkable is the shape every one of those escapes took:
+# an UNCONDITIONAL security assertion. "An attacker would have to forge
+# sha256" (they could poison PATH instead). "Now genuinely base-owned"
+# (execution was, command resolution was not). A security property stated
+# with no scope is the tell, because real controls close a specific half of a
+# specific threat.
+#
+# So: an absolute claim must carry its scope IN THE SAME SENTENCE. This does
+# not verify the claim — nothing here can — it forbids stating one as though
+# it were total. Deliberately narrow, seeded from the phrasings that actually
+# escaped rather than from imagination; over-broad prose lints produce filler,
+# which is how a gate stops meaning anything.
+ABSOLUTE_CLAIM_RE = re.compile(
+    r"attacker would (?:have to|need to)"
+    r"|\b(?:cannot|can't|could not) be (?:bypassed|forged|subverted|circumvented)"
+    r"|\bimpossible to\b"
+    r"|\bgenuinely (?:base-owned|trusted|secure|isolated|closed)\b"
+    r"|\bno longer possible\b"
+    r"|\b(?:fully|completely|entirely) (?:closed|fixed|mitigated|secure)\b"
+    r"|\bguarantees that\b",
+    re.IGNORECASE,
+)
+# Words that turn a total claim into a bounded one, or mark the sentence as
+# quoted history rather than a live assertion.
+SCOPE_MARKERS = (
+    "only", "not sufficient", "says nothing", "half", "scope", "alone",
+    "except", "assuming", "still", "limit", "never", "superseded", "false",
+)
+
+
+def claim_docs() -> list[pathlib.Path]:
+    """Wider than governed_docs(): the escapes were in workflow comments, the
+    session contract and the TODO list, not in CLAUDE.md."""
+    docs = governed_docs() + [REPO / "STATE.md", REPO / "TODOS.md"]
+    for wf_dir in REPO.glob("**/.github/workflows"):
+        if ".git/" in str(wf_dir):
+            continue
+        docs.extend(sorted(wf_dir.glob("*.yml")))
+    return [d for d in docs if d.exists()]
+
+
+def scan_absolute_claims(text: str) -> list[str]:
+    """Findings: unconditional security claims with no scope in-sentence."""
+    findings = []
+    for sentence in _SENTENCE_SPLIT.split(text):
+        m = ABSOLUTE_CLAIM_RE.search(sentence)
+        if not m:
+            continue
+        if any(s in sentence.lower() for s in SCOPE_MARKERS):
+            continue
+        findings.append(
+            f"states the security claim {m.group(0)!r} with no scope in the "
+            f"same sentence — a control closes a specific half of a specific "
+            f"threat; an unconditional claim is how false-confidence-gate "
+            f"recurs (name what it does NOT cover): "
+            f"\"{sentence.strip()[:160]}…\""
+        )
+    return findings
+
+
 def main() -> int:
     findings = []
     for doc in governed_docs():
         rel = doc.relative_to(REPO)
         for f in scan_text(doc.read_text(encoding="utf-8")):
             findings.append(f"{rel}: {f}")
+    scanned_for_claims = claim_docs()
+    for doc in scanned_for_claims:
+        rel = doc.relative_to(REPO)
+        for f in scan_absolute_claims(doc.read_text(encoding="utf-8")):
+            findings.append(f"{rel}: {f}")
+    if not scanned_for_claims:
+        # A scan that examined nothing must never read as clean.
+        findings.append(
+            "absolute-claim scan matched ZERO documents — failing closed "
+            "rather than reporting a clean tree")
     if findings:
         print("governance_claims_lint: FAIL — governance prose ahead of "
               "the mechanism (class: prose-classified-bypass):",
@@ -85,7 +163,8 @@ def main() -> int:
               f"sentence.", file=sys.stderr)
         return 1
     print(f"governance_claims_lint: OK — {len(governed_docs())} governance "
-          f"doc(s): every cited mechanism exists or is explicitly staged.")
+          f"doc(s): every cited mechanism exists or is explicitly staged; "
+          f"{len(scanned_for_claims)} doc(s) carry no unscoped security claim.")
     return 0
 
 

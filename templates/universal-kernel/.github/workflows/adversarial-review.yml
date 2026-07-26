@@ -45,21 +45,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  adversarial-review:
+  # ── JOB 1 ── Pure string resolution: no checkout, no code, no secrets. One
+  # definition of the diff range, consumed by both jobs below so they cannot
+  # drift apart.
+  range:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
+    timeout-minutes: 5
+    outputs:
+      base: ${{ steps.range.outputs.base }}
+      range: ${{ steps.range.outputs.range }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0          # merge-base diffs need full history
-          persist-credentials: false
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Resolve the base ref and diff range
         id: range
         env:
@@ -75,31 +70,38 @@ jobs:
           echo "base=$RESOLVED_BASE" >> "$GITHUB_OUTPUT"
           echo "range=$RESOLVED_RANGE" >> "$GITHUB_OUTPUT"
 
-      - name: Pin the trusted evaluator's SHA + digest (before any PR code runs)
-        # Runs FIRST, while nothing the pull request controls has executed.
-        # Captures the two things the final step verifies against: an
-        # immutable commit SHA and the script's sha256. The script itself is
-        # materialised later (after the untrusted steps) so a predictable
-        # on-disk path never sits around waiting to be overwritten.
-        id: pin
-        env:
-          TRUSTED_BASE: ${{ steps.range.outputs.base }}
-        run: |
-          : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
-          TRUSTED_SHA="$(git rev-parse "$TRUSTED_BASE^{commit}")"
-          : "${TRUSTED_SHA:?base ref did not resolve to a commit — failing closed}"
-          if ! git show "$TRUSTED_SHA:tools/adversarial_review.py" > /tmp/_pin_probe.py 2>/dev/null; then
-            echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on $TRUSTED_BASE. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
-            exit 1
-          fi
-          # Top-level assignment (never inside a branch) so the value is
-          # provably set before use, and AFTER the probe exists.
-          DIGEST="$(sha256sum /tmp/_pin_probe.py | cut -d" " -f1)"
-          rm -f /tmp/_pin_probe.py
-          echo "sha=$TRUSTED_SHA" >> "$GITHUB_OUTPUT"
-          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
-          echo "Pinned evaluator @ $TRUSTED_SHA (sha256 $DIGEST); materialised after the untrusted steps."
+  # ── JOB 2 ── PR-CONTROLLED CODE RUNS HERE, AND ONLY HERE. No API key.
+  #
+  # WHY A SEPARATE JOB, not merely a later step. `$GITHUB_PATH` and
+  # `$GITHUB_ENV` are per-JOB: anything an earlier STEP writes to them is
+  # applied by the runner to every later step in the same job. So a workflow
+  # that installs dependencies, runs the test suite and then hands a secret to
+  # a "trusted" step lets a malicious PR shadow `git`, `sha256sum`, `mktemp`
+  # or `python` — or set `BASH_ENV` / `OPENAI_BASE_URL` — and its own code
+  # executes, or the API call redirects, with the key in the environment.
+  # Pinning the reviewer FILE by SHA + sha256 does not close this: the pin
+  # protects WHAT is run, not WHICH binaries verify and run it. `python -I`
+  # isolates the import path, not which interpreter `PATH` resolves to.
+  #
+  # Enumerating dangerous variables would be a blacklist, and a blacklist on a
+  # key-exfiltration path is fail-open by construction. A job boundary is a
+  # whitelist by construction: a fresh runner, untouched by the PR. Only inert
+  # log FILES cross, as an artifact, read as text and never executed.
+  pr-evidence:
+    needs: range
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # merge-base diffs need full history
+          persist-credentials: false
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Install dependencies (project-supplied requirements, if any)
         run: |
           python -m pip install --upgrade pip
@@ -126,9 +128,85 @@ jobs:
           set -o pipefail
           bash tools/validate --allow-skips 2>&1 | tee validate.log
 
+      # The only thing crossing the boundary. if: always() so a red suite still
+      # hands its log over — the gate decides what a failing log means; this
+      # job never withholds evidence.
+      - name: Publish the evidence logs for the trusted gate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-evidence-logs
+          path: |
+            pytest.log
+            validate.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ── JOB 3 ── THE TRUSTED GATE. Holds OPENAI_API_KEY.
+  #
+  # No PR-controlled code executes here. The PR tree is checked out (files are
+  # written, never run) so base-relative git operations resolve; everything
+  # EXECUTED comes from the base ref via `git show`, under a re-verified
+  # sha256, in a fresh mktemp dir, with `python -I`.
+  adversarial-review:
+    needs: [range, pr-evidence]
+    # always() so a failed evidence job cannot make this REQUIRED check report
+    # "skipped" — GitHub can treat a skipped required check as satisfied, which
+    # is fail-open on exactly the runs most likely to be broken. The guard below
+    # turns that into an explicit red.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Refuse to review without complete evidence (fail closed)
+        env:
+          EVIDENCE_RESULT: ${{ needs.pr-evidence.result }}
+        run: |
+          : "${EVIDENCE_RESULT:?evidence job result unresolved — failing closed}"
+          if [ "$EVIDENCE_RESULT" != "success" ]; then
+            echo "::error::the pr-evidence job concluded '$EVIDENCE_RESULT' — the test/validate evidence this review is judged on is missing or red. Failing RED rather than skipping."
+            exit 1
+          fi
+          echo "evidence job succeeded — proceeding with the trusted review."
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # merge-base diffs need full history
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Pin the trusted evaluator's SHA + digest (before any PR code runs)
+        # Runs FIRST, while nothing the pull request controls has executed.
+        # Captures the two things the final step verifies against: an
+        # immutable commit SHA and the script's sha256. The script itself is
+        # materialised later (after the untrusted steps) so a predictable
+        # on-disk path never sits around waiting to be overwritten.
+        id: pin
+        env:
+          TRUSTED_BASE: ${{ needs.range.outputs.base }}
+        run: |
+          : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
+          TRUSTED_SHA="$(git rev-parse "$TRUSTED_BASE^{commit}")"
+          : "${TRUSTED_SHA:?base ref did not resolve to a commit — failing closed}"
+          if ! git show "$TRUSTED_SHA:tools/adversarial_review.py" > /tmp/_pin_probe.py 2>/dev/null; then
+            echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on $TRUSTED_BASE. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
+            exit 1
+          fi
+          # Top-level assignment (never inside a branch) so the value is
+          # provably set before use, and AFTER the probe exists.
+          DIGEST="$(sha256sum /tmp/_pin_probe.py | cut -d" " -f1)"
+          rm -f /tmp/_pin_probe.py
+          echo "sha=$TRUSTED_SHA" >> "$GITHUB_OUTPUT"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Pinned evaluator @ $TRUSTED_SHA (sha256 $DIGEST); materialised after the untrusted steps."
+
       - name: Produce the reviewed diff
         env:
-          DIFF_RANGE: ${{ steps.range.outputs.range }}
+          DIFF_RANGE: ${{ needs.range.outputs.range }}
         run: |
           : "${DIFF_RANGE:?diff range unresolved — failing closed}"
           # Machine-generated lockfiles are excluded by policy and that
@@ -169,6 +247,14 @@ jobs:
           chmod 0400 "$TRUSTED_DIR/adversarial_review.py"
           echo "dir=$TRUSTED_DIR" >> "$GITHUB_OUTPUT"
 
+      # Job 2's logs, as data, in their own directory so PR-authored filenames
+      # cannot collide with anything here. Nothing downloaded is executed.
+      - name: Fetch the evidence logs from the untrusted job
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-evidence-logs
+          path: pr-evidence
+
       - name: Independent evaluator — APPROVE or the gate fails
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -180,4 +266,5 @@ jobs:
           # payload installed during the untrusted steps cannot be imported.
           python -I "$TRUSTED_DIR/adversarial_review.py" --require \
             --max-diff-bytes 800000 \
-            --diff-file pr.diff --test-log pytest.log --test-log validate.log
+            --diff-file pr.diff \
+            --test-log pr-evidence/pytest.log --test-log pr-evidence/validate.log
