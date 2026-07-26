@@ -21,11 +21,44 @@ site is not worth showing anyone — and until 2026-07-26 it did not exist. Even
 counts ("85 → 168") are numerators with no denominator and cannot answer
 "how much of the market is missing?"
 
-**Denominator: BUILT (2026-07-26).** 69 target venues — Travis 65, Hays 2,
-Williamson 2, and **the other seven counties zero**. That is layer 1 (our own
-curated catalog) — a FLOOR, not the market universe. TABC is layer 2 and ships
-here; Places is layer 3. **The numerator still needs a database read**, which
-runs in the `CAPCOG Coverage` workflow once this branch merges.
+**Denominator: MEASURED ON LIVE DATA (2026-07-26).** **2,873 venues** across
+all ten counties:
+
+| county | venues | | county | venues |
+|---|---:|---|---|---:|
+| Travis | 1,718 | | Bastrop | 77 |
+| Williamson | 521 | | Burnet | 68 |
+| Hays | 263 | | Caldwell | 51 |
+| Fayette | 84 | | Llano | 39 |
+| | | | Blanco | 36 |
+| | | | Lee | 16 |
+
+Layer 1 (our curated catalog) contributed 39 of these. TABC — every
+establishment licensed to serve mixed beverages — supplied the other 2,834.
+
+**What this replaced.** The previous figure was 69 targets with SEVEN COUNTIES
+AT ZERO. That was never a fact about CAPCOG; those seven counties hold 362
+venues between them. It was a fact about a denominator assembled entirely from
+a list we wrote ourselves — the self-scoring error this file was created to
+prevent, made anyway.
+
+**Two corrections worth remembering**, both in the flattering direction:
+
+- 30 of the 69 catalog rows were not venues at all — city calendars, annual
+  festivals, and companies that perform in other people's halls. They are kept
+  and labelled, not counted.
+- The first live fetch reported 2,847. Paging without a sort order silently
+  skipped 26 venues; nothing failed. A denominator that quietly shrinks makes
+  coverage look better than it is.
+
+**Still a FLOOR, not the ceiling.** A liquor licence cannot see theatres,
+museums, libraries, galleries or all-ages rooms. That is layer 3 (Places,
+founder's existing key) and a possible layer 4 (chamber-of-commerce listings).
+
+**The numerator is blocked on ONE founder action:** `ONELIVE_DB_DSN` is
+rejected by Supabase (`password authentication failed for user "postgres"`).
+The coverage workflow runs on push and produces the number in ~90 seconds once
+the secret is valid.
 
 ---
 
@@ -35,8 +68,9 @@ runs in the `CAPCOG Coverage` workflow once this branch merges.
 |---|---|---|---|
 | 0 | CI / GitHub Actions working | 🟢 RECOVERED ~15:21Z | — |
 | 1 | Region correctness (no out-of-market venues) | 🟡 Built + ENFORCED on the read path | PR #74 → needs review |
-| 2 | **CAPCOG venue denominator + coverage measurement** | 🟡 Layer 1 built (69), TABC shipped | Merge, then run the workflow |
-| 3 | Ingest breadth: cover the 10 counties | 🔴 7 of 10 counties at zero | Steps 1–2, then work |
+| 2 | **CAPCOG venue denominator** | 🟢 MEASURED — 2,873 venues, all 10 counties | — |
+| 2b | **Coverage % (the numerator)** | 🔴 blocked | Founder — `ONELIVE_DB_DSN` password rejected |
+| 3 | Ingest breadth: cover the 10 counties | 🔴 unknown until 2b | Step 2b |
 | 4 | Importer correctness (empty vs failed vs corrupt) | 🟡 In review | PR #68 — 22 rounds, needs split decision |
 | 5 | Scheduled ingestion (cron) | 🟢 ARMED on master | — |
 | 6 | Extraction quality gate | 🟢 Certified | — |
@@ -100,16 +134,17 @@ coverage — and **refuses to print a percentage without a real target list**,
 because grading against the venues we happen to hold is self-scoring (100% of
 what we found is what we found) and would read as success.
 
-**Built.** Layer 1 (69 venues) comes from the curated catalog and needed no
-source decision. Layer 2 is TABC (`tools/fetch_tabc_capcog.py`), founder-chosen
-and shipped. Layer 3 (Places, founder's existing key) covers the venue types a
-liquor licence cannot see — theatres, museums, libraries, all-ages rooms.
+**DONE, on live data.** Layer 1 (the curated catalog) contributed 39 venues.
+Layer 2 is TABC (`tools/fetch_tabc_capcog.py`) and supplied 2,834 more.
+**Total: 2,873.** Layer 3 (Places, founder's existing key) is still to come and
+covers what a liquor licence cannot see — theatres, museums, libraries,
+all-ages rooms.
 
-**To get the number:** merge PR #74, then run the **CAPCOG Coverage** workflow
-(`.github/workflows/capcog-coverage.yml`, manual dispatch). It fetches TABC,
-builds the target list, reads distinct ingested venues from the database, and
-prints coverage per county. The workflow must be on the default branch before
-GitHub will dispatch it — which is why the merge comes first.
+**No merge required to re-measure.** The workflow runs on PUSH, path-scoped to
+the files that define what the denominator means. It was dispatch-only, which
+GitHub will not run from a branch, so the number was hostage to the review
+queue for no reason. A full run — schema check, fetch, county validation,
+denominator — takes about 30 seconds.
 
 **The figure always travels with its limits:** the report prints `FLOOR, NOT THE
 MARKET UNIVERSE` and names the layer set whenever the denominator declares
@@ -120,9 +155,10 @@ name so it cannot later be quoted as a full measurement.
 
 ## STEP 3 — Close the coverage gap *(the actual product work)*
 
-**Known now:** of the ten counties, **seven currently have zero coverage** —
-Bastrop, Blanco, Burnet, Caldwell, Fayette, Lee, Llano. Only Travis, Williamson
-and Hays appear at all.
+**Corrected 2026-07-26.** The "seven counties at zero" figure was an artifact
+of the old 69-row denominator, not a finding about CAPCOG. Those seven counties
+hold **362 venues**. What share of the 2,873 we actually cover is unknown until
+the numerator can be read — see Step 2b.
 
 **Also known:** 55 of 64 curated sources yield nothing, because the long tail of
 venues publishes by **newsletter**, not by machine-readable feed.
