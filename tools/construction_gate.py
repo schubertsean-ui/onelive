@@ -38,7 +38,6 @@ CONTRACT_RELPATH = "STATE.md"
 _ROW_RE = re.compile(r"^\|\s*([a-z0-9][a-z0-9-]+)\s*\|\s*([^|]+)\|")
 
 
-
 def parse_index(text: str, origin: str) -> dict[str, list[str]]:
     index: dict[str, list[str]] = {}
     for line in text.splitlines():

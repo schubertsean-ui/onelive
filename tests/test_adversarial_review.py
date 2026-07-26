@@ -311,3 +311,18 @@ def test_env_model_resolver_fails_closed_on_claude_and_empty(monkeypatch):
         ar._resolve_env_model("GEMINI_REVIEW_MODEL", "gemini-2.5-pro")
     monkeypatch.delenv("GEMINI_REVIEW_MODEL", raising=False)
     assert ar._resolve_env_model("GEMINI_REVIEW_MODEL", "gemini-2.5-pro") == "gemini-2.5-pro"
+
+
+def test_panel_prints_its_own_po_seed_and_provocations():
+    # #71 r10 nit: the CLI contract says the po seed is auditable, so the
+    # TOOL must emit it — relying on the caller's workflow to echo it
+    # makes the audit trail depend on something outside the tool.
+    _, outputs = ar.run_panel(
+        "input", "deadbeef", openai_key="k", model="gpt-5.5", base_url="u",
+        gemini_key=None,
+        request_openai=lambda ri, sp: "ok\nVERDICT: APPROVE",
+        request_gemini=None)
+    header = outputs[0]
+    assert "PO SEED: deadbeef" in header
+    for provocation in ar.po_provocations("deadbeef"):
+        assert provocation in header

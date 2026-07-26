@@ -139,7 +139,14 @@ def main() -> int:
         recall = ("n/a (no r1 row or no classed findings)"
                   if row["round1_recall"] is None
                   else f"{row['round1_recall']:.0%}")
-        m1 = row["m1_merged"] if row["m1_merged"] is not None else "in flight"
+        # "in flight" is a CLAIM about GitHub state this tool cannot see
+        # (#71 r10 blocker): it reported PR #67 as in flight for weeks
+        # because the ledger was missing its merged row, and a reader had
+        # no way to tell a genuinely open arc from an unclosed record.
+        # The tool now says only what it knows — the ledger has no merged
+        # row — and names the two things that can mean.
+        m1 = (row["m1_merged"] if row["m1_merged"] is not None
+              else "NO MERGED ROW (still open, or the close was never recorded)")
         print(f"  #{pr}: M1={m1} · rounds-recorded={row['rounds_recorded']} · "
               f"distinct-classes={row['distinct_classes']} · round1-recall={recall} · "
               f"sibling-misses={row['sibling_misses']}")

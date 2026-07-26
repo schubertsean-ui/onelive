@@ -310,7 +310,13 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
         lambda ri, sp: request_review_gemini(
             ri, sp, gemini_key,
             _resolve_env_model("GEMINI_REVIEW_MODEL", GEMINI_DEFAULT_MODEL)))
-    outputs: list[str] = []
+    # The seed is printed BY THE TOOL (#71 r10 nit): the CLI contract says
+    # the po seed is auditable, and a claim that depends on the caller's
+    # workflow echoing it is not the tool keeping its own promise.
+    outputs: list[str] = [
+        f"### PO SEED: {po_seed} — provocations derived deterministically: "
+        + " | ".join(po_provocations(po_seed))
+    ]
     verdicts: list[str] = []
     for seat, seat_key, requester in (
         ("openai", openai_key, request_openai),

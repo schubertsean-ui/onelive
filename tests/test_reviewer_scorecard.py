@@ -42,12 +42,43 @@ def test_no_classed_findings_is_explicit_not_a_division_error():
     assert card[9]["round1_recall"] is None  # guarded, no ZeroDivision
 
 
+def _real_ledger():
+    return (pathlib.Path(rs.REPO_ROOT) / "docs" / "metrics"
+            / "KAIZEN_LEDGER.md").read_text()
+
+
 def test_real_ledger_parses_clean():
     # The shipped ledger must parse without raising (second consumer of the
     # no-raw-pipes rule).
-    text = (pathlib.Path(rs.REPO_ROOT) / "docs" / "metrics" / "KAIZEN_LEDGER.md").read_text()
-    arcs, merged = rs.parse_arcs(text)
+    arcs, merged = rs.parse_arcs(_real_ledger())
     assert arcs  # arcs were found
+
+
+def test_real_ledger_agrees_with_KNOWN_merge_facts():
+    # #71 r10 BLOCKER: "it parses" is not "it is right". The scorecard
+    # reported PR #67 as in flight while the same diff's handoff called it
+    # merged — the merged row was simply missing, and a non-crash test
+    # could never say so. These arcs are merged on master (verify with
+    # `git log --grep "(#NN)"`), so the scorecard must report their real
+    # rounds-to-green. A future close that forgets its ledger row fails
+    # HERE rather than surfacing as a confident false metric.
+    _, merged = rs.parse_arcs(_real_ledger())
+    for pr, m1 in ((65, 15), (67, 9), (69, 3), (70, 1)):
+        assert merged.get(pr) == m1, (
+            f"PR #{pr} is merged on master but the ledger reports "
+            f"M1={merged.get(pr)!r}, expected {m1}")
+
+
+def test_an_arc_with_no_merged_row_is_named_not_guessed():
+    # The same blocker's other half: an arc the ledger has not closed must
+    # NOT be reported as "in flight", which is a claim about GitHub state
+    # this tool cannot see. It says what it knows.
+    arcs, merged = rs.parse_arcs(
+        "| 2026-07-25 | #98 (in flight: r1) | 1 | evaluator r1: some-class ×1 "
+        "| fix | cost | note |\n")
+    assert 98 in arcs and 98 not in merged
+    card = rs.scorecard(arcs, merged)
+    assert card[98]["m1_merged"] is None
 
 
 def test_malformed_row_with_extra_pipes_fails_loud():
