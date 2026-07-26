@@ -85,7 +85,9 @@ jobs:
   #
   # Enumerating dangerous variables would be a blacklist, and a blacklist on a
   # key-exfiltration path is fail-open by construction. A job boundary is a
-  # whitelist by construction: a fresh runner, untouched by the PR. Only inert
+  # whitelist by construction: a fresh runner, untouched by the PR — which
+  # buys ONLY a clean environment, and only for as long as no step in this
+  # job reads a PR file (see the install rule below). Only inert
   # log FILES cross, as an artifact, read as text and never executed.
   pr-evidence:
     needs: range
@@ -144,7 +146,10 @@ jobs:
 
   # ── JOB 3 ── THE TRUSTED GATE. Holds OPENAI_API_KEY.
   #
-  # No PR-controlled code executes here. The PR tree is checked out (files are
+  # No PR-controlled code executes here — scoped: nothing PR-authored is
+  # invoked, and any dependency install must precede checkout and use
+  # `python -I`. It does NOT claim third-party packages or the PR-owned
+  # workflow file itself are trusted. The PR tree is checked out (files are
   # written, never run) so base-relative git operations resolve; everything
   # EXECUTED comes from the base ref via `git show`, under a re-verified
   # sha256, in a fresh mktemp dir, with `python -I`.
@@ -216,15 +221,18 @@ jobs:
           wc -c pr.diff
 
       - name: Materialise the trusted evaluator AFTER all PR-controlled code
-        # SECURITY ORDERING — this step must stay LAST before the secret.
-        # Every step above runs code the pull request controls: dependency
-        # installation, the test suite, and the composite gate. If the
-        # trusted script were written to a predictable path BEFORE them, a
-        # malicious PR could overwrite that file (or drop a sitecustomize /
-        # .pth payload during pip install) and then have the secret-bearing
-        # step execute its own code — self-approval or key exfiltration.
-        # So: fetch it fresh, into a per-run mktemp directory, after the
-        # untrusted work is done, and make it read-only.
+        # HISTORICAL FRAMING, corrected at r10 (gemini nit): this comment was
+        # written for the SINGLE-job topology, where the PR's dependency
+        # install, test suite and composite gate ran as earlier STEPS of this
+        # same job. Since the job split they run in `pr-evidence`, on a
+        # different runner — so this step is no longer what stands between PR
+        # code and the secret; the JOB BOUNDARY is. Keeping the original
+        # reasoning because the threat it describes is exactly what returns
+        # the moment anyone merges these jobs back together.
+        # What this step still buys, unchanged and worth having: the trusted
+        # script is fetched fresh into a per-run mktemp directory and made
+        # read-only, so WHICH file executes is pinned independently of where
+        # it runs.
         # A BRANCH NAME IS NOT A TRUST ANCHOR (r6): the untrusted steps can
         # rewrite local refs, so re-resolving `origin/<base>` here could hand
         # back attacker code. Verify against the two bindings captured before

@@ -113,7 +113,7 @@ def _job_holding(workflow, key):
 # test_a_key_bearing_pip_install_is_pinned_and_closed below asserts the shape
 # itself, so the exemption cannot be widened by writing a looser command.
 _PINNED_INSTALL_RE = re.compile(
-    r"pip install\b(?=.*--no-deps)(?=.*--only-binary=:all:)"
+    r"python -I -m pip install\b(?=.*--no-deps)(?=.*--only-binary=:all:)"
     r"(?!.*\s-r\b)(?!.*\s-e\b)"
 )
 
@@ -180,8 +180,19 @@ def test_the_untrusted_commands_still_run_somewhere(rel):
         for step in job.get("steps", [])
         for line in _executable_lines(step)
     )
-    for cmd in (r"(?<![\w/.-])pip install\b", r"(?<![\w/.-])pytest(?![\w.-])",
-                r"(?<![\w.-])tools/validate(?![\w.-])"):
+    # Every danger-listed command that the workflow ACTUALLY runs must still
+    # run somewhere. The first version checked only pip/pytest/validate, so a
+    # future edit could silently drop the npm build and web-SCA gate while
+    # this test stayed green (PR #75 r9, absence-only seat, class
+    # untested-gate-branch). The npm commands are conditional on web/ files
+    # being touched, so they are required only where the workflow has them.
+    required = [r"(?<![\w/.-])pip install\b", r"(?<![\w/.-])pytest(?![\w.-])",
+                r"(?<![\w.-])tools/validate(?![\w.-])"]
+    raw = (_ROOT / rel).read_text(encoding="utf-8")
+    for npm in (r"npm ci", r"npm test", r"npm run build", r"npx "):
+        if re.search(npm, raw):
+            required.append(re.escape(npm))
+    for cmd in required:
         assert re.search(cmd, everything), (
             f"{rel}: {cmd!r} no longer runs in ANY job — the evidence the review "
             f"is judged on would be missing"
@@ -264,3 +275,39 @@ def test_the_reviewer_is_executed_only_from_a_base_owned_copy(rel):
     )
     assert "sha256sum" in text, f"{rel}: the reviewer's content digest is no longer verified"
     assert "python -I" in text, f"{rel}: the reviewer no longer runs under python -I"
+
+
+@pytest.mark.parametrize("rel", WORKFLOWS)
+def test_a_key_bearing_install_runs_before_any_checkout(rel):
+    """PR #75 r10, class runner-env-poisoning — r9's own fix reopened r8's hole.
+
+    `python -m pip` puts the CWD on sys.path. With the PR checked out first, a
+    malicious PR shipping `pip.py` / `pip/__main__.py` at the repo root gets its
+    OWN code executed inside the trusted job, before the key-bearing steps and
+    free to poison $GITHUB_ENV / $GITHUB_PATH / OPENAI_BASE_URL. Pinning the
+    PACKAGE said nothing about which pip MODULE was imported.
+
+    Two independent guards, and this asserts BOTH: the install runs before any
+    checkout (empty workspace — nothing to import), and under `python -I`
+    (implies -P, so the cwd is never prepended to sys.path). Either alone
+    closes it; requiring both means a reorder cannot silently re-open it.
+    """
+    wf = _load(rel)
+    for name, job in wf["jobs"].items():
+        if not any(k in yaml.dump(job) for k in MODEL_API_KEYS):
+            continue
+        steps = job["steps"]
+        checkouts = [i for i, s in enumerate(steps)
+                     if "actions/checkout" in str(s.get("uses", ""))]
+        installs = [i for i, s in enumerate(steps)
+                    for line in _executable_lines(s) if "pip install" in line]
+        for idx in installs:
+            assert not checkouts or idx < min(checkouts), (
+                f"{rel}: job {name!r} installs at step {idx}, AFTER the checkout at "
+                f"step {min(checkouts)} — `python -m pip` resolves modules from the "
+                f"PR workspace, so a PR-supplied pip.py would execute in the "
+                f"secret-bearing job")
+            line = next(l for l in _executable_lines(steps[idx]) if "pip install" in l)
+            assert "python -I -m pip" in line, (
+                f"{rel}: job {name!r} installs without `python -I` (which implies "
+                f"-P, keeping the cwd off sys.path): {line!r}")

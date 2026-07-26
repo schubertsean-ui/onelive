@@ -95,7 +95,19 @@ ABSOLUTE_CLAIM_RE = re.compile(
     r"|\bgenuinely (?:base-owned|trusted|secure|isolated|closed)\b"
     r"|\bno longer possible\b"
     r"|\b(?:fully|completely|entirely) (?:closed|fixed|mitigated|secure)\b"
-    r"|\bguarantees that\b",
+    r"|\bguarantees that\b"
+    # ── Added PR #75 r10, after the class RECURRED 9x past the marker above.
+    # Root cause of THAT escape: the first pattern set was seeded from r6's
+    # phrasings, and r9 asserted the same kind of totality in words it did not
+    # cover — "no PR input", "NO PR-CONTROLLED CODE EXECUTES IN THIS JOB",
+    # a job "free of" an input. Same shape, different vocabulary. Seeded again
+    # from what actually escaped; this list is explicitly NOT exhaustive, and
+    # the structural half of the fix is that claims of this kind now carry
+    # tests that fail when they stop being true.
+    r"|\bno PR input\b"
+    r"|\bno PR-controlled code\b"
+    r"|\bfree of PR\b"
+    r"|\buntouched by (?:anything |any )?(?:the )?PR\b",
     re.IGNORECASE,
 )
 # Words that turn a total claim into a bounded one, or mark the sentence as

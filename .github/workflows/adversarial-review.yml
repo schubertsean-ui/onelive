@@ -219,14 +219,25 @@ jobs:
 
   # ── JOB 3 ── THE TRUSTED GATE. Holds OPENAI_API_KEY and GEMINI_API_KEY.
   #
-  # NO PR-CONTROLLED CODE EXECUTES IN THIS JOB. The PR tree is checked out
+  # NO PR-CONTROLLED CODE EXECUTES IN THIS JOB — a claim with a stated
+  # scope, because r9 made the unqualified version false. It holds on
+  # exactly two legs, both asserted by
+  # tests/test_adversarial_review_job_isolation.py: nothing PR-authored is
+  # invoked here, and the one dependency install runs before checkout and
+  # under `python -I` so no PR file can be imported as a module. It does
+  # NOT claim supply-chain safety (PyPI is third-party) and does NOT claim
+  # the workflow FILE is trusted — that stays PR-owned, compensated by the
+  # base-owned reviewer and the mandatory review. The PR tree is checked out
   # (files are written, never run) so that base-relative git operations —
   # `git show <base sha>:...`, `git show HEAD^1:...`, the diff extraction —
   # resolve exactly as before. Everything this job EXECUTES comes from the
   # base ref: the reviewer via `git show $TRUSTED_SHA:` into a fresh mktemp
   # dir under a re-verified sha256, and the co-gate helper the same way.
   # Because job 2 ran on a different runner, $GITHUB_PATH / $GITHUB_ENV /
-  # BASH_ENV here are untouched by anything the PR did.
+  # BASH_ENV here are untouched by anything the PR did — that is the ONLY
+  # thing the boundary buys, and it is not by itself sufficient: a step in
+  # THIS job that reads a PR file (the r9 `python -m pip` cwd import) would
+  # reopen the path from inside.
   adversarial-review:
     needs: [range, pr-evidence]
     # always() so a failed evidence job cannot make the REQUIRED check report
@@ -255,39 +266,57 @@ jobs:
           fi
           echo "evidence job succeeded — proceeding with the trusted review."
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ORDER IS THE CONTROL (PR #75 r10, class runner-env-poisoning — the r9
+      # form of this step REOPENED the very hole r8 closed, and the OpenAI
+      # seats caught it). `python -m pip` puts the CURRENT WORKING DIRECTORY on
+      # sys.path, so with the PR checked out first, a malicious PR shipping
+      # `pip.py` or `pip/__main__.py` at the repo root would have its OWN code
+      # executed here — inside the trusted job, before the key-bearing steps,
+      # free to write $GITHUB_ENV/$GITHUB_PATH or set OPENAI_BASE_URL. Pinning
+      # the PACKAGE said nothing about which `pip` MODULE got imported.
+      #
+      # Two independent guards, either of which alone closes it:
+      #   1. This step runs BEFORE actions/checkout, so the workspace is empty —
+      #      there is no PR file to import. Do not reorder these two steps.
+      #   2. `python -I` isolates the interpreter (implies -P, so the cwd is
+      #      never prepended to sys.path; -E and -s too).
+      # Asserted by tests/test_adversarial_review_job_isolation.py, which fails
+      # if the install ever moves after a checkout or drops -I.
+      #
+      # WHY IT IS NEEDED AT ALL: the base-owned co-gate helper parses a
+      # workflow file and imports PyYAML, and the r8 job split deliberately
+      # removed this job's `pip install -r`. `-r <file>` stays banned: those
+      # files are PR-authored, the exact input this job exists to be free of.
+      #
+      # SCOPE, stated rather than overclaimed: this is not supply-chain proof.
+      # The WORKFLOW FILE is PR-owned (a pre-existing property of
+      # `on: pull_request`), so a PR could edit this line. What compensates is
+      # unchanged and named: the reviewer is base-owned and digest-verified,
+      # and every PR goes through the mandatory non-Claude review.
+      - name: Install the trusted job's ONE dependency (before any PR file exists)
+        run: |
+          python -I -m pip install --disable-pip-version-check \
+            --no-deps --only-binary=:all: "PyYAML==6.0.2"
+
       - uses: actions/checkout@v4
         with:
           # Full history so merge-base diffs (base...head) resolve.
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      # The base-owned co-gate helper parses a workflow file and therefore
-      # imports PyYAML. The job split removed this job's `pip install` (that
-      # was the whole point), so the dependency has to be declared HERE, and
-      # declared narrowly: an exact pinned version, --no-deps so nothing else
-      # is pulled in, and wheels only so no package's setup.py executes.
-      # NOT `-r <requirements file>` — those files are PR-authored, which is
-      # precisely the input this job exists to be free of.
-      #
-      # SCOPE, stated rather than overclaimed: this does not make the job
-      # supply-chain-proof. The WORKFLOW FILE is PR-owned (a pre-existing
-      # property of `on: pull_request`, unchanged by this PR), so a malicious
-      # PR could edit this line. What compensates that is unchanged and named:
-      # the reviewer itself is base-owned and digest-verified, and every PR
-      # goes through the mandatory non-Claude review with the diff visible.
-      - name: Declare the trusted job's ONE dependency (pinned, no PR input)
-        run: |
-          python -m pip install --disable-pip-version-check \
-            --no-deps --only-binary=:all: "PyYAML==6.0.2"
-
       - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
         # TAMPER-EVIDENT PINNING (PR #75 r6 — evaluator finding, a live
-        # key-exfiltration path). Every step AFTER this one runs code the
-        # pull request controls: dependency install, pytest, tools/validate.
+        # key-exfiltration path). HISTORICAL FRAMING, corrected at r10 (gemini
+        # nit, both copies): this comment was written when ONE job ran the
+        # PR's dependency install, pytest and tools/validate before the secret
+        # steps. Since r8's job split those run on a different runner, so this
+        # pin is no longer the thing standing between PR code and the key —
+        # the job boundary is. It remains valid defense-in-depth for what it
+        # always covered: WHICH file executes.
         # Those steps can write anywhere on the runner, INCLUDING over this
         # pinned file, and can rewrite local git refs — so neither the file
         # nor a branch name is trustworthy by the time the secret-bearing
