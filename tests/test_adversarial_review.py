@@ -498,9 +498,9 @@ def test_a_hung_lens_cannot_swallow_a_sibling_FAILURE():
         started.wait(5)       # guarantee the hung sibling is in flight first
         raise RuntimeError("lens exploded")
 
-    # TIMING IS THE ASSERTION. Under the old `with` form the exception DID
-    # eventually reach the caller — after shutdown(wait=True) waited out the
-    # hung sibling. So a pytest.raises alone passes on the broken code and
+    # TIMING IS THE ASSERTION. Under the old `with` form the exception still
+    # reached the caller in the end, once shutdown(wait=True) had waited the
+    # hung sibling out. So a pytest.raises alone passes on the broken code and
     # proves nothing; what changed is that the failure is now immediate.
     started_at = time.monotonic()
     try:
