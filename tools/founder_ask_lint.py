@@ -59,11 +59,19 @@ MIN_OPTIONS = 3
 # say that here is to cite a v1 done-criterion number or a BAR row. Prose intent is
 # not a citation — `docs/V1.md` numbers the criteria and `docs/BAR.md` letters the
 # rows precisely so this can be checked rather than felt.
+#
+# THE BARE WORD `BAR` DOES NOT COUNT. It used to, so "Unblocks: BAR" passed this
+# hard gate without naming which part of go-live the ask moves — a gate certifying
+# asks that say nothing (`CLASS:underconstrained-founder-ask-citation`, PR #76).
+# A citation has to be resolvable by the reader: a numbered v1 criterion, or a
+# lettered BAR row like C2 / H7 / P1 / J11. `[A-JP]` includes the P section, which
+# the original character class omitted — P1 is the ten-second answer, the single
+# most important row in the file, and it would not have matched.
 _GOLIVE_CITATION = re.compile(
     r"(?:done-)?criteri(?:on|a)\s*#?\d"          # "criterion 6", "done-criteria 1"
     r"|\bv1\s+(?:done-)?criteri"                  # "v1 criterion ..."
-    r"|\b[A-J]\d{1,2}\b"                          # a BAR row: C2, H7, P1, J11
-    r"|\bBAR\b", re.IGNORECASE)
+    r"|\b(?:BAR\s+)?[A-JP]\d{1,2}\b",            # a BAR row: C2, H7, P1, J11
+    re.IGNORECASE)
 
 
 # An enumerated option: "1." / "(a)" / "a)" at the start of a line.

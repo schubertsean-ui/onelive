@@ -149,7 +149,24 @@ def last_success(repo: str, name: str, event: str = "schedule") -> _dt.datetime 
     stamp = runs[0].get("updated_at") or runs[0].get("created_at")
     if not stamp:
         raise WatchdogError(f"{name}: a successful run carried no timestamp")
-    return _dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    # A corrupt or unexpectedly-typed timestamp must arrive as a WatchdogError
+    # (exit 2, "could not measure"), never as an unhandled traceback. `.replace`
+    # raises AttributeError on a non-string and `fromisoformat` raises ValueError on
+    # a malformed one — either would crash the alarm runner instead of failing
+    # through its own tool-error path (`CLASS:swallowed-corrupt-data`, PR #76). An
+    # alarm that dies untidily is an alarm nobody can tell apart from one that is
+    # simply not running.
+    if not isinstance(stamp, str):
+        raise WatchdogError(
+            f"{name}: run timestamp is {type(stamp).__name__}, not a string "
+            f"({stamp!r}) — the Actions API contract changed; refusing to compute "
+            f"freshness from a value this tool cannot parse")
+    try:
+        return _dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise WatchdogError(
+            f"{name}: could not parse the run timestamp {stamp!r} ({exc}) — "
+            f"refusing to report freshness from an unreadable date") from exc
 
 
 def evaluate(name: str, cadence_h: int, grace_h: int,

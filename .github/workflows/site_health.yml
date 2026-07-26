@@ -153,6 +153,17 @@ jobs:
               echo "report a go/no-go verdict from a number we could not read."
               exit 1
               ;;
+            *[!0-9]*|"")
+              # ANY value that is not a plain non-negative integer fails CLOSED.
+              # Without this arm the case fell through silently, so `-5`, `banana`,
+              # `null` or a JSON fragment exited 0 and reported a PASSING go/no-go
+              # check (`CLASS:fail-open-on-uncaught-invalid-input`, PR #76). A
+              # verifier that cannot read its own number must never pass.
+              echo "::error::event_count is not a number ($COUNT) — the endpoint's"
+              echo "contract changed. Refusing to report a go/no-go verdict from a"
+              echo "value this check cannot interpret."
+              exit 1
+              ;;
           esac
 
       # Separate step so it runs even when the site check above fails: a broken

@@ -265,15 +265,29 @@ def test_gate_metric_counts_gate_files_not_the_whole_tools_directory():
     #     and can never decrease, and an escape with no mechanism still blocks
     #     forever. An agent may not make this change; the founder did.
     #
+    #  3. `tools/decision_codified_lint.py` and `tools/founder_ask_lint.py` — NEW
+    #     BLOCKING CHECKS, now REGISTERED. They were absent from GATE_FILES, so a
+    #     change to either gate's own logic did not register as a gate change —
+    #     `CLASS:gate-file-registry-omission`, blocked by the independent reviewer
+    #     on this PR, and correctly: this metric is the mechanical form of the
+    #     claim "no gate was weakened", so a live gate missing from it is a hole in
+    #     that claim. Adding them makes them auditable; neither existed before this
+    #     PR, so their appearance here is additive and cannot have loosened
+    #     anything.
+    #
     # `tools/kpi_report.py` is NOT in this list even though it changed, because
     # `gate_files_changed` compares content and its escaped-defects KPI now calls
     # the same `open_escapes` helper — the identical ratified semantics, not a
     # second decision.
     assert hc.gate_files_changed("f907a51") == [
-        "tools/kaizen_trends.py", "tools/validate",
+        "tools/decision_codified_lint.py",
+        "tools/founder_ask_lint.py",
+        "tools/kaizen_trends.py",
+        "tools/validate",
     ], (
         "the expected gate-file changes since the baseline are the additive check "
-        "rows in tools/validate and the founder-ratified M3 escape semantics in "
-        "kaizen_trends.py; anything else means an UNDECLARED gate moved — state "
-        "it here with its authority, never widen this expectation to hide it"
+        "rows in tools/validate, the two NEW blocking checks now registered here, "
+        "and the founder-ratified M3 escape semantics in kaizen_trends.py; anything "
+        "else means an UNDECLARED gate moved — state it here with its authority, "
+        "never widen this expectation to hide it"
     )

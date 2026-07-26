@@ -234,3 +234,28 @@ def test_main_returns_0_on_a_structured_file(tmp_path):
     path = tmp_path / "good.md"
     path.write_text(_FULL, encoding="utf-8")
     assert LINT.main([str(path)]) == 0
+
+
+def test_the_bare_word_BAR_is_not_a_citation():
+    """`CLASS:underconstrained-founder-ask-citation` (openai seat, PR #76).
+
+    "Unblocks: BAR" passed this hard gate without naming which part of go-live the
+    ask moves — a gate certifying asks that say nothing. A citation has to be
+    resolvable by the reader.
+    """
+    for bare in ("Unblocks: BAR", "Unblocks: bar", "Unblocks: the BAR rows",
+                 "Unblocks: BAR compliance"):
+        assert not LINT._GOLIVE_CITATION.search(bare), bare
+    # ...and every real citation form still counts, or the gate becomes noise.
+    for good in ("Unblocks: BAR H7", "Unblocks: P1", "Unblocks: C2 and H7",
+                 "Unblocks: v1 criterion 6", "Unblocks: done-criterion 4",
+                 "Unblocks: J11"):
+        assert LINT._GOLIVE_CITATION.search(good), good
+
+
+def test_the_P_section_is_a_valid_citation():
+    """The original character class was `[A-J]`, which excluded the P rows — and P1
+    is the ten-second answer, the single most important row in docs/BAR.md. An ask
+    citing it would have been rejected."""
+    assert LINT._GOLIVE_CITATION.search("Unblocks: P1")
+    assert LINT._GOLIVE_CITATION.search("Unblocks: P14")

@@ -135,7 +135,14 @@ def probe(url: str) -> tuple[str, str]:
             return "BROKEN", "HTTP 404 — path not found"
         if exc.code == 405:  # HEAD not allowed is not a broken link
             return "AUTH", "HTTP 405 — HEAD refused, host is alive"
-        return "AUTH", f"HTTP {exc.code} — reported, not interpreted"
+        # ANY OTHER STATUS IS A FINDING, not an AUTH row. Returning AUTH for
+        # everything unrecognised folded 500/502/503/429 into "login required" — a
+        # category the summary counts as unverifiable-but-not-broken, exiting 0. A
+        # provider outage therefore reported as "none provably broken", which is the
+        # founding anti-pattern verbatim (`CLASS:swallowed-corrupt-data`, PR #76).
+        return "BROKEN", (f"HTTP {exc.code} — the host answered with an unexpected "
+                          f"status; reported as broken rather than folded into "
+                          f"'login required'")
     except urllib.error.URLError as exc:
         reason = str(getattr(exc, "reason", exc))
         # Egress policy denial vs a genuinely dead host: different findings.

@@ -243,3 +243,51 @@ def test_a_successful_run_with_no_timestamp_raises(monkeypatch):
 def test_a_missing_workflow_file_raises(monkeypatch):
     with pytest.raises(WD.WatchdogError):
         WD.workflow_has_schedule("no_such_workflow.yml")
+
+
+@pytest.mark.parametrize("stamp", [
+    "not-a-date", "2026-13-45T99:99:99Z", "", "2026-07-26T12:00:00+bogus",
+])
+def test_a_malformed_run_timestamp_is_a_WatchdogError_not_a_traceback(monkeypatch,
+                                                                     stamp):
+    """`CLASS:swallowed-corrupt-data` (gemini seat, PR #76).
+
+    `fromisoformat` raises ValueError on a malformed date, which would escape as an
+    unhandled traceback instead of the tool-error path this alarm promises. A
+    dead-man switch that dies untidily is indistinguishable from one that is simply
+    not running.
+    """
+    monkeypatch.setattr(WD, "_api",
+                        lambda path: {"workflow_runs": [{"updated_at": stamp}]})
+    with pytest.raises(WD.WatchdogError):
+        WD.last_success("owner/repo", "x.yml")
+
+
+@pytest.mark.parametrize("stamp", [12345, None, {"at": "now"}, ["2026-07-26"]])
+def test_a_non_string_run_timestamp_is_a_WatchdogError_not_an_AttributeError(
+        monkeypatch, stamp):
+    """`.replace` on a non-string raises AttributeError — same escape, different
+    exception. An API contract change must arrive as 'could not measure'."""
+    monkeypatch.setattr(WD, "_api",
+                        lambda path: {"workflow_runs": [{"updated_at": stamp}]})
+    with pytest.raises(WD.WatchdogError):
+        WD.last_success("owner/repo", "x.yml")
+
+
+def test_a_valid_timestamp_still_parses_to_an_aware_datetime(monkeypatch):
+    """The guards must not have broken the happy path, or the alarm never measures."""
+    monkeypatch.setattr(
+        WD, "_api",
+        lambda path: {"workflow_runs": [{"updated_at": "2026-07-26T12:00:00Z"}]})
+    seen = WD.last_success("owner/repo", "x.yml")
+    assert seen is not None and seen.tzinfo is not None
+    assert seen == dt.datetime(2026, 7, 26, 12, 0, tzinfo=dt.timezone.utc)
+
+
+def test_main_exits_2_when_a_timestamp_cannot_be_parsed(monkeypatch, capsys):
+    """End-to-end: exit 2 (could not measure), never 0."""
+    monkeypatch.setattr(WD, "workflow_has_schedule", lambda name: True)
+    monkeypatch.setattr(WD, "_api",
+                        lambda path: {"workflow_runs": [{"updated_at": "garbage"}]})
+    assert WD.main(["owner/repo"]) == 2
+    assert "OK" not in capsys.readouterr().out

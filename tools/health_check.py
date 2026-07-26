@@ -349,6 +349,13 @@ GATE_FILES = (
     "tools/blocking_failure_check.py",
     "tools/governance_claims_lint.py",
     "tools/skip_record_binding.py",
+    # Added when they became BLOCKING `run_check` rows in tools/validate. Omitting
+    # them meant a change to a live gate's logic did not register as a gate change,
+    # which is precisely the accounting this metric exists to provide
+    # (`CLASS:gate-file-registry-omission`, PR #76). A new blocking check declares
+    # itself auditable by appearing here, in the same commit that wires it in.
+    "tools/decision_codified_lint.py",
+    "tools/founder_ask_lint.py",
     "ai/exam_thresholds.py",
 )
 
