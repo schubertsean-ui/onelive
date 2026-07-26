@@ -164,6 +164,19 @@ Update `STATE.md`, `TODOS.md`, `docs/ONE_LIVE_CHANGE_LOG.md`. Add the Kaizen row
 **Name the current bottleneck explicitly** — if everything seems smooth, you are
 not looking carefully enough.
 
+Then take the system's temperature:
+
+```
+python tools/health_check.py --baseline <last-snapshot-sha>
+```
+
+Seconds to run, and it is the only thing that answers *"is the whole system getting
+better or worse"* — a question no gate asks. If a number moved sharply, say so in
+the session record. Weekly and monthly depths, what a bad checkup looks like, and
+what the tool deliberately cannot see: `docs/HEALTH_CHECK.md`. It is a thermometer,
+not a gate — it never passes or fails, and any metric it cannot compute prints
+`UNVERIFIED` rather than zero.
+
 ---
 
 ## 10. Kaizen — how the system that builds the system improves
@@ -221,4 +234,6 @@ These outrank brevity.
 | Hat roles and custody detail | `docs/hats/README.md` |
 | Review-panel v2 mechanics | `docs/skills/adversarial_review_v2.md` |
 | Autonomous-run orchestration | `docs/skills/night_shift.md` |
+| The recurring whole-system checkup | `docs/HEALTH_CHECK.md` |
+| Dated health snapshots (the trend) | `docs/health/` |
 | Full document classification | `docs/INDEX.md` |

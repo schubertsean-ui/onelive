@@ -1,0 +1,477 @@
+#!/usr/bin/env python3
+"""System health check — the whole-system checkup, computed not asserted.
+
+Greppable summary: measures the structural health of the repository against
+`docs/BAR.md` and emits a markdown snapshot. Supports `--baseline <git-ref>` to
+produce a BEFORE/AFTER comparison, which is how a revamp proves itself instead
+of describing itself. No network, no database, no AI: every number comes from
+git and the working tree, so the same command gives the same answer to anyone.
+
+WHY THIS EXISTS (founder-directed 2026-07-26): the 2026-07-26 audit produced its
+numbers by hand, in chat. Hand-computed numbers drift the moment they are quoted
+— three of that audit's figures were wrong within hours, and its own independent
+reviewer caught the stale copies. A metric a human retypes is a metric that lies
+eventually. This tool is the durable form: the accounting becomes reproducible,
+so "is the system getting better or worse" stops being a matter of recollection.
+
+WHAT IT DELIBERATELY DOES NOT DO. It does not pass or fail. It is a thermometer,
+not a gate. Wiring it into `tools/validate` as a blocking check would be a
+gate-threshold change and is founder-crucial; the cadence and the escalation
+rules live in `docs/HEALTH_CHECK.md`. What it DOES do is refuse to be silently
+wrong: any metric it cannot compute is printed as `UNVERIFIED` with the reason,
+never as a zero and never omitted. "We could not measure" must never look
+identical to "the number is fine" — the project's founding anti-pattern.
+
+Metric provenance is carried in the output: each row names the `docs/BAR.md` row
+it serves, so a reader can trace a number to the standard it is evidence for.
+"""
+from __future__ import annotations
+
+import argparse
+import ast
+import pathlib
+import re
+import subprocess
+import sys
+from dataclasses import dataclass, field
+
+REPO = pathlib.Path(__file__).resolve().parent.parent
+
+# Code-mass categories. The split is the one the audit found load-bearing:
+# product vs the machinery around it vs work that is not v1 at all.
+CATEGORIES: dict[str, tuple[str, ...]] = {
+    "product": ("web", "api", "worker", "ai", "supabase"),
+    "tests": ("tests",),
+    "harness_tools": ("tools",),
+    "brain": ("brain",),
+    "off_mission": ("social", "ventures", "mobile"),
+}
+CODE_SUFFIXES = (".py", ".ts", ".tsx", ".sql", ".js", ".mjs", ".sh")
+
+# The documents a builder must read before writing code. Kept explicit rather
+# than derived, because "what binds you" is a decision, not a glob.
+READ_BEFORE_CODE = (
+    "CLAUDE.md",
+    "docs/BAR.md",
+    "docs/V1.md",
+    "docs/HOW_WE_WORK.md",
+)
+
+# The set that WAS binding before the 2026-07-26 restructure. Needed because
+# comparing today's CANON list against a baseline where three of its four files
+# did not exist measures nothing — it reports a surface that "grew" from one
+# document to four, which is the opposite of what happened. When most of the
+# modern set is absent at a ref, the legacy set is measured instead and the
+# output says which set it used. An apples-to-oranges comparison presented as a
+# trend is worse than no comparison.
+LEGACY_READ_BEFORE_CODE = (
+    "CLAUDE.md",
+    "docs/OPERATING_RULES.md",
+    "docs/WORLD_CLASS.md",
+    "docs/KAIZEN.md",
+    "docs/skills/construction_loop.md",
+    "docs/hats/README.md",
+    "docs/skills/adversarial_review_v2.md",
+)
+
+_BAR_ROW = re.compile(r"^\|\s*([A-JP]\d+)\s*\|")
+_BAR_STATUS = re.compile(r"\*\*(MET|NOT MET|NOT BUILT|UNMEASURED)[^*]*\*\*")
+_RECORD_ROW = re.compile(r"^\|\s*(R-\d+)\s*\|")
+_RED_CLASS_ROW = re.compile(r"^\|\s*([a-z][a-z0-9-]+)\s*\|")
+
+
+class Unverified(Exception):
+    """A metric could not be computed. Carried, printed, never silently zeroed."""
+
+
+@dataclass
+class Report:
+    rows: list[tuple[str, str, str, str]] = field(default_factory=list)
+    unverified: list[str] = field(default_factory=list)
+
+    def add(self, metric: str, before: object, after: object, bar_row: str) -> None:
+        self.rows.append((metric, str(before), str(after), bar_row))
+
+    def note_unverified(self, metric: str, reason: str) -> None:
+        self.unverified.append(f"{metric}: {reason}")
+        self.rows.append((metric, "UNVERIFIED", "UNVERIFIED", "—"))
+
+
+def _git(*args: str) -> str:
+    proc = subprocess.run(
+        ["git", "-C", str(REPO), *args], capture_output=True, text=True, check=False
+    )
+    if proc.returncode != 0:
+        raise Unverified(proc.stderr.strip() or f"git {' '.join(args)} failed")
+    return proc.stdout
+
+
+def _tracked_files(ref: str | None) -> list[str]:
+    if ref is None:
+        return [p for p in _git("ls-files").splitlines() if p]
+    return [p for p in _git("ls-tree", "-r", "--name-only", ref).splitlines() if p]
+
+
+def _read(ref: str | None, path: str) -> str:
+    if ref is None:
+        target = REPO / path
+        if not target.is_file():
+            raise Unverified(f"{path} not present in the working tree")
+        return target.read_text(encoding="utf-8", errors="replace")
+    return _git("show", f"{ref}:{path}")
+
+
+def _line_count(ref: str | None, paths: list[str]) -> int:
+    total = 0
+    for path in paths:
+        try:
+            total += len(_read(ref, path).splitlines())
+        except Unverified:
+            continue
+    return total
+
+
+def code_mass(ref: str | None) -> dict[str, int]:
+    files = _tracked_files(ref)
+    out: dict[str, int] = {}
+    for name, roots in CATEGORIES.items():
+        selected = [
+            f for f in files
+            if f.endswith(CODE_SUFFIXES) and any(f == r or f.startswith(r + "/") for r in roots)
+        ]
+        out[name] = _line_count(ref, selected)
+    return out
+
+
+def prose_words(ref: str | None) -> int:
+    files = [f for f in _tracked_files(ref) if f.endswith(".md")]
+    total = 0
+    for path in files:
+        try:
+            total += len(_read(ref, path).split())
+        except Unverified:
+            continue
+    return total
+
+
+def _measure_set(ref: str | None, paths: tuple[str, ...]) -> tuple[int, int]:
+    words = found = 0
+    for path in paths:
+        try:
+            words += len(_read(ref, path).split())
+            found += 1
+        except Unverified:
+            continue
+    return words, found
+
+
+def read_before_code(ref: str | None) -> tuple[int, int, str]:
+    """(words, document_count, which_set) of the binding pre-code reading surface.
+
+    Picks the set that was actually binding at `ref`: if fewer than half of the
+    modern CANON documents exist there, the legacy set is measured and named in
+    the return value. Comparing today's four files against a baseline that had
+    one of them would report growth where the truth is consolidation.
+    """
+    modern_words, modern_found = _measure_set(ref, READ_BEFORE_CODE)
+    if modern_found * 2 >= len(READ_BEFORE_CODE):
+        return modern_words, modern_found, "CANON (post-2026-07-26)"
+    legacy_words, legacy_found = _measure_set(ref, LEGACY_READ_BEFORE_CODE)
+    return legacy_words, legacy_found, "legacy set (pre-2026-07-26)"
+
+
+def bar_status(ref: str | None) -> dict[str, int]:
+    try:
+        text = _read(ref, "docs/BAR.md")
+    except Unverified:
+        return {}
+    counts = {"rows": 0, "MET": 0, "NOT MET": 0, "UNMEASURED": 0, "NOT BUILT": 0, "purpose_rows": 0}
+    for line in text.splitlines():
+        row = _BAR_ROW.match(line)
+        if not row:
+            continue
+        counts["rows"] += 1
+        if row.group(1).startswith("P"):
+            counts["purpose_rows"] += 1
+        status = _BAR_STATUS.search(line)
+        if status:
+            counts[status.group(1)] += 1
+    return counts
+
+
+def record_status(ref: str | None) -> tuple[int, int]:
+    """(open, resolved) RECORD rows. The status cell is the LAST populated cell."""
+    try:
+        text = _read(ref, "docs/RECORD.md")
+    except Unverified:
+        raise
+    open_n = resolved_n = 0
+    for line in text.splitlines():
+        if not _RECORD_ROW.match(line):
+            continue
+        cells = [c.strip() for c in line.split("|") if c.strip()]
+        status = cells[-1] if cells else ""
+        if status.upper().startswith("RESOLVED"):
+            resolved_n += 1
+        elif status.upper().startswith("OPEN"):
+            open_n += 1
+    return open_n, resolved_n
+
+
+def red_class_count(ref: str | None) -> int:
+    text = _read(ref, "docs/memory/RED_CLASSES.md")
+    return sum(1 for line in text.splitlines() if _RED_CLASS_ROW.match(line))
+
+
+def escape_count(ref: str | None) -> int:
+    """Escaped defects, counted the way the Kaizen convention defines them."""
+    return _read(ref, "docs/metrics/KAIZEN_LEDGER.md").count("M3-ESCAPE")
+
+
+def _module_name(path: str) -> str:
+    return path[:-3].replace("/", ".") if path.endswith(".py") else path
+
+
+_ASGI_APP = re.compile(r"^app\s*=|FastAPI\(|Flask\(", re.MULTILINE)
+
+
+def _is_entrypoint(path: str, source: str, workflow_text: str) -> bool:
+    """True when a module is REACHED rather than imported.
+
+    Three shapes, each calibrated against a real file in this repo rather than
+    guessed:
+      * a `__main__` guard — an ordinary CLI;
+      * a module-level ASGI/WSGI app (`api/main.py` defines `app = FastAPI()`
+        and is launched by uvicorn, so no first-party file ever imports it);
+      * a script a workflow invokes by filename (`tools/sample_feed.py` is run
+        by a GitHub Actions step and has no `__main__` guard).
+    Missing any of these would report a live entrypoint as dead code, and a
+    detector that cries wolf is one nobody reads.
+    """
+    if "__main__" in source:
+        return True
+    if _ASGI_APP.search(source):
+        return True
+    return path in workflow_text or pathlib.Path(path).name in workflow_text
+
+
+def unwired_modules(ref: str | None) -> list[str]:
+    """First-party Python modules imported by NOTHING except tests.
+
+    This is the mechanical form of BAR row F5 ("wire it or delete it"), which
+    the 2026-07-26 audit found NOT MET with no gate behind it. A module that only
+    tests import is built, green, and unreachable from production — the audit's
+    single most repeated finding, and previously only discoverable by hand.
+
+    Deliberately conservative: it reports modules with zero non-test importers,
+    counts a package's `__init__` as its package, and skips entrypoints (files
+    with a `__main__` guard) because a script is reached by a runner, not an
+    import. Over-reporting would train readers to ignore it, so where this is
+    unsure it stays silent — and that limitation is stated here rather than
+    discovered later.
+    """
+    files = [f for f in _tracked_files(ref) if f.endswith(".py")]
+    workflow_text = ""
+    for wf in (f for f in _tracked_files(ref) if f.startswith(".github/workflows/")):
+        try:
+            workflow_text += _read(ref, wf)
+        except Unverified:
+            continue
+    first_party_roots = {"web", "api", "worker", "ai", "brain", "social", "ventures", "tools"}
+    candidates: dict[str, str] = {}
+    importers: dict[str, set[str]] = {}
+
+    for path in files:
+        root = path.split("/")[0]
+        if root not in first_party_roots:
+            continue
+        try:
+            source = _read(ref, path)
+        except Unverified:
+            continue
+        module = _module_name(path)
+        if not _is_entrypoint(path, source, workflow_text):
+            candidates[module] = path
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                names = [node.module] if node.module else []
+            else:
+                continue
+            for name in names:
+                if not name:
+                    continue
+                importers.setdefault(name, set()).add(path)
+
+    unwired = []
+    for module, path in sorted(candidates.items()):
+        # A module counts as imported if it, or the package it lives in, is
+        # imported by any non-test first-party file.
+        seen: set[str] = set()
+        for key, srcs in importers.items():
+            if key == module or key.startswith(module + "."):
+                seen |= srcs
+        package = module.rsplit(".", 1)[0]
+        if module.endswith(".__init__"):
+            for key, srcs in importers.items():
+                if key == package or key.startswith(package + "."):
+                    seen |= srcs
+        production = {s for s in seen if not s.startswith("tests/") and s != path}
+        if not production:
+            unwired.append(path)
+    return unwired
+
+
+def validate_check_count(ref: str | None) -> int:
+    text = _read(ref, "tools/validate")
+    return sum(1 for line in text.splitlines() if line.strip().startswith("run_check "))
+
+
+def gate_code_changed(baseline: str) -> int:
+    out = _git("diff", "--numstat", baseline, "HEAD", "--", "tools/")
+    return len([line for line in out.splitlines() if line.strip()])
+
+
+def build(baseline: str | None) -> Report:
+    rep = Report()
+    refs: list[str | None] = [baseline, None]
+
+    def pair(fn, *args):
+        vals = []
+        for ref in refs:
+            if ref is baseline and baseline is None:
+                vals.append("—")
+                continue
+            try:
+                vals.append(fn(ref, *args))
+            except Unverified as exc:
+                vals.append(f"UNVERIFIED ({exc})")
+        return vals
+
+    masses = pair(code_mass)
+    for name in CATEGORIES:
+        b = masses[0][name] if isinstance(masses[0], dict) else masses[0]
+        a = masses[1][name] if isinstance(masses[1], dict) else masses[1]
+        rep.add(f"Code lines — {name}", b, a, "F5 / J8")
+
+    b, a = pair(prose_words)
+    rep.add("Prose words (all tracked Markdown)", b, a, "J8")
+
+    rbc = pair(read_before_code)
+    if isinstance(rbc[1], tuple):
+        b_rbc = rbc[0] if isinstance(rbc[0], tuple) else ("—", "—", "—")
+        rep.add("Read-before-code words", b_rbc[0], rbc[1][0], "J8")
+        rep.add("Read-before-code documents", b_rbc[1], rbc[1][1], "J8")
+        rep.add("  ...which binding set was measured", b_rbc[2], rbc[1][2], "J8")
+
+    bars = pair(bar_status)
+    after = bars[1] if isinstance(bars[1], dict) else {}
+    before = bars[0] if isinstance(bars[0], dict) else {}
+    for key, bar in (("rows", "—"), ("purpose_rows", "P1–P14"), ("MET", "—"),
+                     ("NOT MET", "—"), ("UNMEASURED", "—"), ("NOT BUILT", "—")):
+        rep.add(f"BAR rows — {key}", before.get(key, 0) if before else 0, after.get(key, 0), bar)
+
+    try:
+        rec_a = record_status(None)
+        rec_b = record_status(baseline) if baseline else ("—", "—")
+        rep.add("RECORD rows OPEN", rec_b[0], rec_a[0], "F7")
+        rep.add("RECORD rows RESOLVED", rec_b[1], rec_a[1], "F7")
+    except Unverified as exc:
+        rep.note_unverified("RECORD rows", str(exc))
+
+    for label, fn, bar in (("Red classes indexed", red_class_count, "J6"),
+                           ("Escaped defects (M3)", escape_count, "G4"),
+                           ("validate checks", validate_check_count, "—")):
+        vals = pair(fn)
+        rep.add(label, vals[0], vals[1], bar)
+
+    try:
+        unwired_after = unwired_modules(None)
+        unwired_before = unwired_modules(baseline) if baseline else []
+        rep.add("Unwired modules (prod-unreachable)",
+                len(unwired_before) if baseline else "—", len(unwired_after), "F5")
+    except Unverified as exc:
+        rep.note_unverified("Unwired modules", str(exc))
+        unwired_after = []
+
+    if baseline:
+        try:
+            rep.add("Gate/threshold files changed vs baseline", "—",
+                    gate_code_changed(baseline), "J5")
+        except Unverified as exc:
+            rep.note_unverified("Gate code diff", str(exc))
+
+    rep.unwired_detail = unwired_after  # type: ignore[attr-defined]
+    return rep
+
+
+def render(rep: Report, baseline: str | None, head: str) -> str:
+    lines = [
+        "# System health check",
+        "",
+        f"Generated by `tools/health_check.py`. HEAD `{head}`"
+        + (f", baseline `{baseline}`." if baseline else ", no baseline (single snapshot)."),
+        "",
+        "Every number is computed from git and the working tree. No network, no",
+        "database, no model — the same command gives anyone the same answer.",
+        "This is a thermometer, not a gate: it does not pass or fail. Cadence and",
+        "escalation live in `docs/HEALTH_CHECK.md`.",
+        "",
+        "| Metric | Before | After | BAR row |",
+        "|---|---|---|---|",
+    ]
+    for metric, before, after, bar in rep.rows:
+        lines.append(f"| {metric} | {before} | {after} | {bar} |")
+    detail = getattr(rep, "unwired_detail", [])
+    if detail:
+        lines += [
+            "",
+            f"## Unwired modules — {len(detail)} production-unreachable (BAR F5)",
+            "",
+            "Imported by nothing except tests. Each is built, green, and reachable",
+            "from no production path. `wire it or delete it` — a module nothing can",
+            "reach is not done.",
+            "",
+        ]
+        lines += [f"- `{p}`" for p in detail]
+    if rep.unverified:
+        lines += ["", "## UNVERIFIED — measured nothing, and says so", ""]
+        lines += [f"- {u}" for u in rep.unverified]
+    else:
+        lines += ["", "All metrics computed; nothing unverified.", ""]
+    return "\n".join(lines) + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="Whole-system health check (computed, not asserted).")
+    ap.add_argument("--baseline", help="git ref to compare against (e.g. a tag or SHA)")
+    ap.add_argument("--out", help="write the markdown snapshot here instead of stdout")
+    args = ap.parse_args(argv)
+
+    try:
+        head = _git("rev-parse", "--short", "HEAD").strip()
+    except Unverified as exc:
+        print(f"health_check: cannot read git HEAD — {exc}", file=sys.stderr)
+        return 2
+
+    rep = build(args.baseline)
+    text = render(rep, args.baseline, head)
+    if args.out:
+        pathlib.Path(args.out).write_text(text, encoding="utf-8")
+        print(f"health_check: wrote {args.out}")
+    else:
+        print(text)
+    if rep.unverified:
+        print(f"health_check: {len(rep.unverified)} metric(s) UNVERIFIED — "
+              f"see the snapshot; a metric that could not be measured is never "
+              f"reported as zero.", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

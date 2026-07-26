@@ -1,5 +1,31 @@
 # ONE LIVE — CHANGE LOG
 
+## 2026-07-26 (same session) — The revamp proves itself, and the checkup becomes recurring
+
+Founder: *"I want to see before and after results… an accounting of the number of lines of code, types, etc"*, then *"make this a recurring action as part of a world class health check up of the entire system. Research what world class for this kind of process looks like."*
+
+### Shipped
+- **`tools/health_check.py`** — whole-system checkup, computed from git and the working tree. No network, no database, no model. `--baseline <ref>` gives a before/after. **A thermometer, not a gate:** it never passes or fails, and wiring it into `validate` would be a gate change (founder-crucial).
+- **`tests/test_health_check.py`** — 15 tests, aimed at the two ways a measurement tool betrays you: reporting a number it did not compute, and reporting a comparison that is not like-for-like. Both were live in the first draft.
+- **`docs/HEALTH_CHECK.md`** — what it measures and why each number earns its place, the cadence, **what a bad checkup looks like**, and what the tool cannot see.
+- **`docs/health/2026-07-26_health-check-01-revamp-baseline.md`** — snapshot #1, which *is* the before/after accounting.
+
+### The accounting's headline
+**Not a code, architecture or functionality revamp: product code changed by exactly ZERO lines (13,295 → 13,295).** The diff is 17 docs, 2 test files, 1 workflow (2 meaningful lines), 4 design artifacts. Three rows that do not flatter the work: **prose went UP ~27,000 words (+10%)** against a complaint about bloat; **unwired modules 16 → 16** (measured, none fixed); **RECORD open 40 → 50**. What did improve: **0 → 80 measurable bar rows** (14 on purpose), one defect class closed mechanically forever, the escape detector able to see escapes at all, and *"no gate was weakened"* now a command that reads `0`.
+
+### The new capability that outlives the accounting
+A **dead-module detector** — first-party modules imported by nothing but tests — the mechanical form of BAR F5, previously hand-only. Found **16**, independently reproducing two findings the audit made by hand: `worker/publish_policy.py` and `worker/source_reliability.py`, the founder-ratified auto-publish policy and its unmet safeguard 1. Written without reference to those findings, so the agreement is a check on the check. Its three entrypoint exemptions were calibrated against real files here rather than guessed.
+
+### Fourth numeric correction — and the first structural fix for it
+Four hand figures quoted this session were wrong: the test count (1,665 excluded skips; collected was 1,695), the rule-surface reduction (14% quoted, **−8.0%** measured, and it moves on every CANON edit), the validate check count (19 summary rows vs 14 `run_check` calls), and the code/prose totals (hand counts excluded `.js`/`.mjs`/`.sh` and some Markdown). **`docs/INDEX.md` and BAR row J8 now quote no number at all — they cite the command.** A figure typed into prose stops tracking the files it describes the moment anyone edits one.
+
+### Research: STOPPED under the primary-source gate, not caveated
+Every primary fetch from this sandbox returns **HTTP 403** at the proxy — `dora.dev`, `sre.google`, `google.github.io` each tried 2026-07-26. Web *search* works and returns summaries; using them would be precisely the defect the gate names, so **they are unused anywhere**. `docs/HEALTH_CHECK.md` is grounded in the **40 primary URLs already fetched, quoted and ratified in `docs/WORLD_CLASS.md`** plus engineering judgement labelled as such, and says so at the top. Blocker + cheapest founder action: **R-065** — pasting the DORA thresholds table alone converts `WORLD_CLASS` §7.5–7.8 from `n.a.` to four real numbers.
+
+### Cadence, derived from canon rather than invented
+`OPERATING_RULES` §2b already makes the Kaizen loop weekly, so the checkup attaches to it: **snapshot every session close · trend weekly · full checkup monthly**, the monthly one discharging §0.8 (harness pruning) and §0.9 (name the bottleneck) — both canon since 2026-07-12 and unperformed until today.
+
+
 ## 2026-07-26 (same session) — Review round 1 answered; the escape alarm is now RED and escalated
 
 The first independent review PR #76 actually received (run `30189681956`; earlier attempts were refused by the Actions outage). **Gemini: APPROVE ×2. OpenAI: REQUEST-CHANGES ×2, three blockers, all real, all fixed, none argued down.**
