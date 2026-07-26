@@ -122,7 +122,25 @@ _STRUCTURED_ALLOWED = {t for t, (sel, _) in _TOKEN_SEMANTICS.items() if sel}
 _TOKEN_PROVIDER_CLASSIFICATION: dict[str, str | None] = {
     t: provider for t, (_, provider) in _TOKEN_SEMANTICS.items()
 }
-_STRUCTURED_ACCESS_TOKENS = ("ics", "localist", "feed")
+# REMOVED at r18 (evaluator blocker): this was `("ics", "localist", "feed")` —
+# a SECOND selector table, matched as a SUBSTRING of access_method, living
+# outside _TOKEN_SEMANTICS. It was exactly the incomplete-enumeration class the
+# r14 "one token table" fix claimed to close, still open:
+#
+#   * a row selected by it was never classified by provider_hint_for() or
+#     checked by validate_catalog_assertions(), because those read `allowed`
+#     only — so it could be fetched with NO provider assertion behind it, which
+#     is the config fail-open the assertion machinery exists to prevent;
+#   * substring matching made accidental selection structurally possible —
+#     `no_feed` contains `feed`, and would have selected a row that explicitly
+#     says there is no feed.
+#
+# Measured before removing, rather than assumed: across the live 116-row
+# catalog, ZERO rows are selected by this path that `allowed` does not already
+# select (64 selectable either way), so this closes a fail-open without costing
+# a single source. A future row that only names its format in access_method now
+# has to declare a real `allowed` token to be fetched — the tightening is the
+# point, and test_selection_is_governed_by_one_table pins both halves.
 
 
 # Named so the derivation test can assert these are the only providers reachable
@@ -218,14 +236,17 @@ def validate_catalog_assertions(entries: list[dict]) -> list[str]:
 def _is_structured_candidate(entry: dict) -> bool:
     """True when a catalog entry advertises a structured calendar AND has a URL to
     fetch. base_url may be an HTML calendar page — import_source auto-detects and
-    parses whatever embedded JSON-LD (or a served .ics) it finds."""
+    parses whatever embedded JSON-LD (or a served .ics) it finds.
+
+    ONE TABLE, actually one (evaluator blocker r18): selection reads the
+    `allowed` tokens and nothing else, so every selected row is a row that
+    provider_hint_for() classifies and validate_catalog_assertions() checks.
+    Selection and assertion cannot disagree because they now consult the same
+    derived view of _TOKEN_SEMANTICS."""
     if not entry.get("base_url"):
         return False
     allowed = {str(a).lower() for a in (entry.get("allowed") or [])}
-    if allowed & _STRUCTURED_ALLOWED:
-        return True
-    access = str(entry.get("access_method") or "").lower()
-    return any(tok in access for tok in _STRUCTURED_ACCESS_TOKENS)
+    return bool(allowed & _STRUCTURED_ALLOWED)
 
 
 def _select(catalog: list[dict], only: set[str], limit: int | None) -> list[dict]:

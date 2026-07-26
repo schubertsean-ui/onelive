@@ -27,7 +27,6 @@ import datetime as _dt
 import hashlib
 import json
 import logging
-import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -1038,15 +1037,24 @@ def _is_feed_document(provider: str, text: str) -> bool:
         # readers consume, and no HTML page can satisfy that.
         return _matches_asserted_shape(PROVIDER_PLATFORM_JSON, text)
     if provider == PROVIDER_JSONLD:
-        # BARE JSON-LD only. The HTML carrier is deliberately excluded here: it
-        # is the case this function exists to reject.
-        try:
-            doc = json.loads(text)
-        except (ValueError, TypeError):
-            return False
-        nodes = doc if isinstance(doc, list) else [doc]
-        return any(isinstance(n, dict) and ({"@context", "@type", "@graph"} & set(n))
-                   for n in nodes)
+        # NEVER (evaluator blocker r18). The r17 version accepted any standalone
+        # JSON-LD carrying @context/@type/@graph, so a bare
+        # {"@context": "...", "@type": "LocalBusiness"} document — a business
+        # description, not a calendar — could license an authoritative empty and
+        # bury a later denial. The r17 test caught only the HTML-carried variant;
+        # the standalone one walked straight through, which is the same
+        # failure-reads-as-empty class one layer up.
+        #
+        # The deeper reason this cannot be patched with a stricter sniff: ICS and
+        # the platform APIs can each STATE emptiness — a VCALENDAR with no VEVENT,
+        # or {"events": []} — so "no upcoming events" is something the document
+        # itself asserts. schema.org JSON-LD has no such construct: the absence of
+        # Event nodes is indistinguishable from a page that was never a calendar.
+        # Requiring an Event node instead would be worse, since a genuinely empty
+        # feed has none. So JSON-LD yields no authoritative empty at all, and a
+        # JSON-LD source facing a denied guess still FAILS — fail-closed, which is
+        # the correct direction when the format cannot support the claim.
+        return False
     return False
 
 
@@ -1554,18 +1562,18 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
                                                authoritative_empty)
                 continue
             raise
-        if provider_hint is not None and _matches_asserted_shape(provider_hint, text):
-            asserted_shape_seen = True
-        found = _events_from_text(text, provider_hint=provider_hint,
-                                  source_name=source_name,
-                                  cultural_domain=cultural_domain)
-        if not found and i < declared:
-            # The site ADVERTISES this feed and it served bytes that produced no
-            # events. Until r17 that was one warning covering two OPPOSITE
-            # outcomes — "the calendar is empty" and "the advertised feed is
-            # broken" — and the run stayed green either way, which is
-            # swallowed-corrupt-data with a log line in front of it. The
-            # DECLARED TYPE is what separates them, so we now check it.
+        # VERIFY THE DECLARED TYPE BEFORE PARSING, AND ON EVERY DECLARED
+        # CANDIDATE (evaluator blocker r18). r17 ran this check only under
+        # `if not found`, so a declared `text/calendar` URL serving HTML with
+        # JSON-LD events — or a declared `application/ld+json` serving platform
+        # JSON — PARSED FINE and returned as success, and the "declared bytes
+        # failing their declared type fail the source" claim was true only for
+        # feeds that happened to yield nothing. That is provenance lying: the
+        # row's recorded origin would say the site's declared calendar served
+        # it, when the site's declared calendar served something else entirely.
+        # The type claim is about the BYTES, so it is checked against the bytes,
+        # independent of what they parse into.
+        if i < declared:
             declared_type = declared_types.get(candidate)
             declared_provider = _DECLARED_TYPE_PROVIDER.get(declared_type)
             if declared_provider is None:
@@ -1575,17 +1583,27 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
                 raise DeclaredFeedCorrupt(
                     f"source {source_name}: DECLARED feed {candidate} has type "
                     f"{declared_type!r}, which has no shape check — refusing to "
-                    f"report the source empty on unverifiable bytes")
+                    f"trust unverifiable bytes from an advertised feed")
             if not _matches_asserted_shape(declared_provider, text):
                 raise DeclaredFeedCorrupt(
                     f"source {source_name}: DECLARED feed {candidate} advertises "
                     f"{declared_type} but served bytes that are not that format — "
                     f"the site's own machine-readable feed is BROKEN. FAILED "
-                    f"source, not an empty calendar.")
+                    f"source, whatever those bytes happen to parse into.")
+        if provider_hint is not None and _matches_asserted_shape(provider_hint, text):
+            asserted_shape_seen = True
+        found = _events_from_text(text, provider_hint=provider_hint,
+                                  source_name=source_name,
+                                  cultural_domain=cultural_domain)
+        if not found and i < declared:
+            # Reaching here means the declared type ALREADY verified above, so
+            # this is the honest case the r17 warning was meant for: the site's
+            # own calendar, in the format it declared, with nothing upcoming.
             logger.warning("source %s: DECLARED feed %s served valid %s that "
                            "parsed to ZERO events — an empty calendar, verified "
                            "against its declared type",
-                           source_name, candidate, declared_type)
+                           source_name, candidate, declared_types.get(candidate))
+            declared_provider = _DECLARED_TYPE_PROVIDER[declared_types[candidate]]
             if authoritative_empty is None and _is_feed_document(declared_provider, text):
                 # The site pointed here and this IS its calendar document. That is
                 # the source's own answer: no upcoming events.

@@ -2075,3 +2075,101 @@ def test_an_oversized_robots_txt_is_unreadable_not_permission(monkeypatch):
     monkeypatch.setattr(sf.urllib.request, "urlopen",
                         lambda req, timeout=None: _Resp(big))
     assert sf._fetch_robots_lines("https://venue.example") is None
+
+
+# ---- r18: the declared-type claim is about BYTES, not about what they parse to
+
+def test_declared_calendar_feed_serving_parseable_jsonld_still_fails(monkeypatch):
+    """THE EVADING INPUT for r17's fix. The site declares `text/calendar` and
+    serves HTML+JSON-LD that parses into REAL events. r17 checked the declared
+    type only under `if not found`, so this returned as success and the row's
+    provenance claimed the declared calendar served it. Wrong bytes are wrong
+    bytes whether or not they happen to yield events."""
+    import worker.importers.structured_feed as sf
+
+    base_html = ('<html><head><link rel="alternate" type="text/calendar" '
+                 'href="/events.ics"></head><body></body></html>')
+
+    def fake_fetch(u, timeout=30):
+        if u.endswith("/events.ics"):
+            return HTML_JSONLD          # parses to one real event
+        return base_html if u.rstrip("/") == "https://venue.example" else "<html/>"
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    with pytest.raises(sf.DeclaredFeedCorrupt):
+        sf.import_source("https://venue.example/", source_name="venue")
+
+
+def test_standalone_non_event_jsonld_is_not_an_authoritative_empty(monkeypatch):
+    """THE EVADING INPUT for r17's other fix. A BARE JSON-LD LocalBusiness
+    document satisfied `_is_feed_document` at r17 (it has @context/@type), so it
+    could license an authoritative empty and bury a denial. JSON-LD cannot state
+    emptiness at all, so it never licenses one — the source must still fail."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+
+    bare = '{"@context":"https://schema.org","@type":"LocalBusiness","name":"V"}'
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return bare
+        raise urllib.error.HTTPError(u, 403, "Forbidden", {}, None)
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    with pytest.raises(urllib.error.HTTPError):
+        sf.import_source("https://venue.example/", provider_hint=sf.PROVIDER_JSONLD,
+                         source_name="venue")
+
+
+def test_ics_and_platform_json_can_still_state_emptiness(monkeypatch):
+    """The other side: formats that CAN state emptiness still do, so the r18
+    tightening did not silently remove the r17 behaviour."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+
+    def make(body, hint):
+        def fake_fetch(u, timeout=30):
+            if u.rstrip("/") == "https://venue.example":
+                return body
+            raise urllib.error.HTTPError(u, 403, "Forbidden", {}, None)
+        monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+        monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+        return sf.import_source("https://venue.example/", provider_hint=hint,
+                                source_name="venue")
+
+    assert make(EMPTY_ICS, sf.PROVIDER_ICS) == []
+    assert make('{"events": []}', sf.PROVIDER_PLATFORM_JSON) == []
+
+
+def test_selection_is_governed_by_one_table(monkeypatch):
+    """r18 blocker: access_method was a SECOND, substring-matched selector
+    outside _TOKEN_SEMANTICS, so a row could be fetched with no provider
+    assertion behind it — and `no_feed` matched `feed`."""
+    import worker.importers.run_structured_import as r
+    # The accidental-substring row: says there is NO feed, was selectable.
+    assert r._is_structured_candidate(
+        {"base_url": "https://x.example", "access_method": "no_feed"}) is False
+    # A row naming its format ONLY in access_method is no longer selectable —
+    # it must declare a real `allowed` token that assertion also classifies.
+    assert r._is_structured_candidate(
+        {"base_url": "https://x.example", "access_method": "localist_feed"}) is False
+    # Everything selectable is classifiable by the same table.
+    for tok in r._STRUCTURED_ALLOWED:
+        assert tok in r._TOKEN_PROVIDER_CLASSIFICATION
+    assert r._is_structured_candidate(
+        {"base_url": "https://x.example", "allowed": [sorted(r._STRUCTURED_ALLOWED)[0]]}) is True
+
+
+def test_live_catalog_selection_count_is_unchanged_by_the_one_table_fix():
+    """Measured, not assumed: the tightening closes a fail-open without losing
+    a single source from the real 116-row catalog."""
+    import json
+    import pathlib
+    import worker.importers.run_structured_import as r
+    rows = json.loads((pathlib.Path(__file__).resolve().parent.parent /
+                       "sources" / "master_sources_catalog_120.json").read_text())
+    if isinstance(rows, dict):
+        rows = rows.get("sources") or rows.get("catalog")
+    assert len([e for e in rows if r._is_structured_candidate(e)]) == 64

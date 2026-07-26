@@ -2,8 +2,13 @@
 
 **Paste this into the next session. Read it before touching anything.**
 
-Written by the outgoing session at the founder's direction, after 16 evaluator
-rounds on one PR and repeated founder interventions. It is deliberately blunt
+Written by the outgoing session at the founder's direction, after a long
+evaluator arc on one PR and repeated founder interventions. NOTE (r18): this
+file was authored at r16 and the arc continued past it — r17 and r18 both
+landed blockers. It is operational documentation, not an archive, so it
+carries no round count of its own: for the current round, gate state and
+ledger coverage, read PR #68's check runs and the Kaizen ledger, which are
+the machine sources. Everything below about HOW the failures happened stands. It is deliberately blunt
 about what went wrong, because the failures were repeats and the next session
 must not inherit them silently.
 
@@ -149,7 +154,7 @@ it **must trend to zero**, and it went **up** this session.
 - Branch `claude/moat-sources-importable`, pushed, PR #68 open (draft). For the CURRENT head, gate results and suite counts, read the PR's latest check runs — this file deliberately carries no copy of them (r17 nit: the copy drifted from the logs within one commit).
 - All 18 `validate` checks green except the known R-002 skip.
 - Live data: **1,522 events, 1,241 domain-mapped** (`prove-feed` 30178947317).
-- Kaizen rows through r16; RED_CLASSES has 5 new indexed classes:
+- Kaizen rows are written per round in docs/metrics/KAIZEN_LEDGER.md (read it for coverage; this file deliberately states no cut-off round). RED_CLASSES gained 5 indexed classes in this arc:
   `failure-reads-as-empty`, `silent-data-loss`, `test-codifies-the-bad-contract`,
   `incomplete-enumeration`, `unverifiable-outward-claim`, plus a strengthened
   `stalled-state-needs-active-diagnosis`.
