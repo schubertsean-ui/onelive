@@ -971,6 +971,85 @@ class ProviderMismatch(OSError):
     changed — claim-vs-code drift is a class on our own watch list).
     """
 
+class DeclaredFeedCorrupt(OSError):
+    """A site-DECLARED machine-readable feed served bytes that are not the type
+    the site declared them to be.
+
+    Evaluator blocker r17. `<link rel="alternate" type="text/calendar">` is the
+    site telling us, in machine-readable form, "the calendar is here". When that
+    URL serves 200 OK with an HTML error page, a login wall, or any body that is
+    not a calendar, the honest reading is "this source's advertised feed is
+    broken" — NOT "this venue has no upcoming events". Before this class existed
+    the importer merely logged a warning and let the run exit green with the
+    source counted among the empties, which is precisely the
+    failure-reads-as-empty / swallowed-corrupt-data pair this PR exists to close,
+    one layer further out.
+
+    OSError, so the runner records it as a FAILED source (named in the summary,
+    non-zero exit) and one broken feed does not abort the other 63 sources. NOT a
+    ProviderMismatch: the catalog row is right, the site's own feed is wrong, so
+    --allow-partial may legitimately ride over it exactly as it does for a host
+    that denied or throttled us.
+    """
+
+
+# A DECLARED media type is a claim about the bytes, so it maps to the shape sniff
+# that can check that claim. This mapping cannot be DERIVED from _FEED_LINK_TYPES
+# — the provider a type implies is a fact about our readers, not about the type
+# string — so it is a second hand-maintained list guarding a trust property,
+# which is the incomplete-enumeration class exactly. The compensating control is
+# mechanical, not a promise to remember: a test asserts every entry in
+# _FEED_LINK_TYPES resolves here, so adding a supported declared type without
+# mapping it fails the suite instead of silently reaching the `return False`
+# below and turning a corrupt declared feed back into "no events".
+_DECLARED_TYPE_PROVIDER = {
+    "text/calendar": PROVIDER_ICS,
+    "application/ld+json": PROVIDER_JSONLD,
+}
+
+
+def _is_feed_document(provider: str, text: str) -> bool:
+    """True when `text` is a STANDALONE machine-readable calendar document.
+
+    Strictly narrower than :func:`_matches_asserted_shape`, and the difference
+    is the whole point (evaluator blocker r17). The shape sniff answers "did
+    this endpoint serve the asserted format at all?", which an ordinary HTML
+    homepage carrying `<script type="application/ld+json">` LocalBusiness markup
+    satisfies. This answers a stronger question — "did the site hand us its
+    calendar FILE?" — and only a yes to that makes a zero-event result
+    authoritative evidence that there are no upcoming events.
+
+    Why the distinction earns its keep: an HTML page yielding zero events may be
+    a homepage, a soft-404 served with status 200, or a JavaScript shell that
+    renders its calendar client-side. None of those is a statement that the
+    calendar is empty, so none of them may license the importer to shrug off a
+    later access denial.
+    """
+    text = text or ""
+    if provider == PROVIDER_ICS:
+        # An iCalendar FILE opens with BEGIN:VCALENDAR as a content line. A bare
+        # BEGIN:VEVENT line (which _matches_asserted_shape accepts, correctly,
+        # as "looks like iCalendar") is not by itself a whole document.
+        head_lines = {ln.strip().upper() for ln in text[:4096].splitlines()}
+        return "BEGIN:VCALENDAR" in head_lines
+    if provider == PROVIDER_PLATFORM_JSON:
+        # A platform API response IS the document — _matches_asserted_shape
+        # already requires the top-level {"events": [...]} collection both
+        # readers consume, and no HTML page can satisfy that.
+        return _matches_asserted_shape(PROVIDER_PLATFORM_JSON, text)
+    if provider == PROVIDER_JSONLD:
+        # BARE JSON-LD only. The HTML carrier is deliberately excluded here: it
+        # is the case this function exists to reject.
+        try:
+            doc = json.loads(text)
+        except (ValueError, TypeError):
+            return False
+        nodes = doc if isinstance(doc, list) else [doc]
+        return any(isinstance(n, dict) and ({"@context", "@type", "@graph"} & set(n))
+                   for n in nodes)
+    return False
+
+
 _MAX_DECLARED_TRIES = 4
 _MAX_GUESSED_TRIES = 6
 
@@ -986,6 +1065,22 @@ def _log_candidate_failure(source_name, candidate, exc, *, declared: bool) -> No
     else:
         logger.debug("source %s: guessed candidate %s did not serve a feed (%s: %s)",
                      source_name, candidate, type(exc).__name__, exc)
+
+def _log_guess_failure_over_answer(source_name, candidate, exc, answered_by) -> None:
+    """A GUESSED candidate failed after the source already answered.
+
+    Logged at WARNING, not debug, and always naming both halves — the failure we
+    are declining to propagate AND the evidence that licenses declining it
+    (evaluator blocker r17). The narrow exception is only defensible while it is
+    visible: an operator reading the log can see exactly which guess was refused
+    and why it did not redden the source.
+    """
+    logger.warning("source %s: guessed candidate %s failed (%s: %s) — NOT failing "
+                   "the source: %s already served a machine-readable calendar "
+                   "document that parsed to zero events, so the source has "
+                   "answered and a guess cannot overturn it",
+                   source_name, candidate, type(exc).__name__, exc, answered_by)
+
 
 _COMMON_FEED_PATHS = (
     "/events/?ical=1", "/events.ics", "/calendar.ics", "/?ical=1",
@@ -1003,6 +1098,11 @@ _ROBOTS_CACHE: dict = {}
 # importer's own fetch timeout ever applied (evaluator nit r10). Short on
 # purpose: robots is a courtesy check, not the payload.
 _ROBOTS_TIMEOUT = 10
+
+# robots.txt is a courtesy check, not the payload — a real one is a few KB.
+# Generous enough that no honest robots.txt is refused, small enough that a
+# hostile one cannot exhaust the runner (evaluator nit r17).
+_MAX_ROBOTS_BYTES = 512 * 1024
 
 
 def _fetch_robots_lines(root: str) -> Optional[list[str]]:
@@ -1033,7 +1133,21 @@ def _fetch_robots_lines(root: str) -> Optional[list[str]]:
     try:
         with urllib.request.urlopen(req, timeout=_ROBOTS_TIMEOUT) as resp:
             charset = resp.headers.get_content_charset() or "utf-8"
-            return resp.read().decode(charset, errors="replace").splitlines()
+            # BOUNDED, like fetch_url (evaluator nit r17): robots.txt is fetched
+            # BEFORE the capped payload path, so an unbounded read here was the
+            # one remaining way a hostile or broken origin could exhaust the
+            # runner's memory before any cap applied. Over-cap is treated as
+            # UNREADABLE — the existing fail-open-and-say-so path — rather than
+            # as permission, so a giant robots.txt cannot silently become
+            # "no restrictions" without the warning that claim requires.
+            raw = resp.read(_MAX_ROBOTS_BYTES + 1)
+            if len(raw) > _MAX_ROBOTS_BYTES:
+                logger.warning(
+                    "robots.txt for %s exceeds %d bytes — refusing to read an "
+                    "unbounded body; proceeding. FAIL-OPEN, not verified "
+                    "compliance.", root, _MAX_ROBOTS_BYTES)
+                return None
+            return raw.decode(charset, errors="replace").splitlines()
     except urllib.error.HTTPError as exc:
         if exc.code in _EXPECTED_ABSENCE_STATUSES:
             logger.warning(
@@ -1104,12 +1218,28 @@ def _robots_allows(url: str, ua: Optional[str] = None) -> bool:
 
 
 class _LinkRelParser(HTMLParser):
-    """Collect <link rel=alternate href=... type=...> feed candidates."""
+    """Collect <link rel=alternate href=... type=...> feed candidates.
+
+    The DECLARED TYPE is kept with its href, not thrown away (evaluator blocker
+    r17). The type is the site's own statement about what those bytes are, and
+    it is the only thing that can tell "this calendar is empty this week" from
+    "this declared machine-readable feed served something that is not a
+    calendar at all" — see :func:`_declared_feed_shape_ok`. Discarding it made
+    those two outcomes indistinguishable, which is the swallowed-corrupt-data
+    class on our own watch list.
+    """
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.hrefs: list[str] = []
+        # (href, declared type) pairs — kept as ONE list of pairs rather than two
+        # parallel lists, per the incomplete-enumeration class: two lists with no
+        # invariant between them drift.
+        self.declared: list = []
         self.unsupported: list = []
+
+    @property
+    def hrefs(self) -> list:
+        return [href for href, _typ in self.declared]
 
     def handle_starttag(self, tag, attrs):
         if tag != "link":
@@ -1118,8 +1248,9 @@ class _LinkRelParser(HTMLParser):
         rel, typ, href = a.get("rel", "").lower(), a.get("type", "").lower(), a.get("href")
         if not href or not ("alternate" in rel or "feed" in rel):
             return
-        if any(t in typ for t in _FEED_LINK_TYPES):
-            self.hrefs.append(href)
+        supported = next((t for t in _FEED_LINK_TYPES if t in typ), None)
+        if supported is not None:
+            self.declared.append((href, supported))
         elif any(t in typ for t in _UNSUPPORTED_FEED_TYPES):
             self.unsupported.append((typ, href))
 
@@ -1130,16 +1261,28 @@ def discover_feed_urls(base_url: str, html: str) -> tuple:
     Order is deliberate — declared feeds first (the site TOLD us where its data
     is), then platform endpoints, then conventions.
 
-    Returns ``(urls, declared_count)`` where the first `declared_count` entries
-    are the site's OWN declared feeds — the caller needs that split to log a
-    failing DECLARED feed loudly and an expected 404 on a guess quietly.
+    Returns ``(urls, declared_count, declared_types)`` where the first
+    `declared_count` entries are the site's OWN declared feeds — the caller
+    needs that split to log a failing DECLARED feed loudly and an expected 404
+    on a guess quietly — and `declared_types` maps each declared URL to the
+    media type the site declared for it.
+
+    `declared_types` is a MAPPING keyed by the URL, not a list positionally
+    parallel to `urls` (evaluator blocker r17 + the incomplete-enumeration
+    class): a positional second list can drift out of step with the first
+    silently, while a key either resolves or does not. The invariant
+    ``set(declared_types) == set(urls[:declared_count])`` is asserted by a test
+    rather than trusted.
     """
     out: list[str] = []
+    declared_types: dict = {}
 
-    def add(u: str) -> None:
+    def add(u: str, declared_type: Optional[str] = None) -> None:
         absu = urllib.parse.urljoin(base_url, u)
         if absu not in out and absu.rstrip("/") != base_url.rstrip("/"):
             out.append(absu)
+            if declared_type is not None:
+                declared_types[absu] = declared_type
 
     parser = _LinkRelParser()
     try:
@@ -1154,8 +1297,8 @@ def discover_feed_urls(base_url: str, html: str) -> tuple:
         logger.warning("feed discovery: %s declares a %s feed at %s that we cannot "
                        "parse — acquisition gap for this source, not 'no events'",
                        base_url, typ, href)
-    for href in parser.hrefs:
-        add(href)
+    for href, declared_type in parser.declared:
+        add(href, declared_type)
     declared_count = len(out)  # everything added so far is site-DECLARED
 
     low = (html or "").lower()
@@ -1168,7 +1311,7 @@ def discover_feed_urls(base_url: str, html: str) -> tuple:
         add(urllib.parse.urljoin(root + "/", path.lstrip("/")))
     # Returned, never stashed in a module global: a global keyed by base URL is a
     # stale/collision hazard under concurrency (evaluator nit r2, PR #68).
-    return out, declared_count
+    return out, declared_count, declared_types
 
 
 def _matches_asserted_shape(provider: str, text: str) -> bool:
@@ -1302,10 +1445,11 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     quietly parse something else; (2) if NOTHING we fetched was even the asserted
     SHAPE, that is a misconfigured catalog row and raises ProviderMismatch, so it
     is reported as a MISCONFIGURED source (exit 2, never overridable by
-    --allow-partial) rather than folded into the "yielded zero" count. A source that DID serve the asserted format and simply had no upcoming
-    events still returns [] — an empty calendar is a fact, not a defect. With no
-    hint the body is sniffed (BEGIN:VCALENDAR ⇒ ICS; a bare JSON body tries the
-    platform readers then bare JSON-LD).
+    --allow-partial) rather than folded into the "yielded zero" count. A source
+    that served the asserted format AS A STANDALONE FEED DOCUMENT and simply had
+    no upcoming events still returns [] — an empty calendar is a fact, not a
+    defect. With no hint the body is sniffed (BEGIN:VCALENDAR ⇒ ICS; a bare JSON
+    body tries the platform readers then bare JSON-LD).
 
     ERROR POLICY — a candidate that is simply ABSENT (404/410 on a guessed path)
     is skipped so one dead guess cannot lose the events another candidate would
@@ -1313,6 +1457,29 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     verification failure PROPAGATES instead: those mean the host denied,
     throttled, or could not be trusted, and reporting the source as empty would
     hide that (evaluator blockers r3/r4).
+
+    AUTHORITATIVE EMPTY (evaluator blocker r17) — the one bounded exception to
+    that propagation rule, and it exists because the rule as written could turn
+    an honestly empty calendar red. Once some endpoint has handed us a STANDALONE
+    machine-readable calendar document that parsed to zero events, the source has
+    ANSWERED: there are no upcoming events. A later failure on a path *we
+    guessed* — /events, /calendar, a convention the site never advertised —
+    cannot overturn that answer, so from that point guessed-candidate failures
+    are logged and skipped instead of failing the source. The exception is
+    deliberately narrow in three ways, because widening any of them re-opens
+    failure-reads-as-empty:
+
+      * only a standalone FEED DOCUMENT qualifies (:func:`_is_feed_document`) —
+        an HTML page carrying incidental JSON-LD never does;
+      * only GUESSED candidates are forgiven — a site-DECLARED feed that denies,
+        throttles, errors, or is robots-refused still fails the source, because
+        the site itself pointed at it;
+      * it suppresses nothing. Every forgiven failure is logged with its status
+        and the evidence that licensed forgiving it.
+
+    A DECLARED feed that serves bytes which are NOT its declared type raises
+    :class:`DeclaredFeedCorrupt` (a FAILED source) rather than being warned about
+    and counted as empty.
     """
     # ROBOTS FIRST, including the BASE url (evaluator blocker r2, PR #68: the
     # first path we reached was exempt, which made the robots claim false).
@@ -1333,8 +1500,16 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     if out:
         return out
 
+    # The base URL can itself BE the feed (a catalog row pointing straight at an
+    # .ics or a platform endpoint). When it is, and it parsed to zero, the source
+    # has already answered — see AUTHORITATIVE EMPTY above.
+    authoritative_empty: Optional[str] = None
+    if provider_hint is not None and _is_feed_document(provider_hint, base_text):
+        authoritative_empty = url
+
     robots_blocked = 0
-    all_candidates, declared = discover_feed_urls(url, base_text)
+    robots_blocked_declared = 0
+    all_candidates, declared, declared_types = discover_feed_urls(url, base_text)
     # Separate budgets so a page with many declared alternates cannot starve the
     # conventional paths that actually tend to serve (evaluator nit r2).
     candidates = (all_candidates[:declared][:_MAX_DECLARED_TRIES]
@@ -1348,6 +1523,8 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
             logger.info("source %s: robots.txt disallows %s — skipping",
                         source_name, candidate)
             robots_blocked += 1
+            if i < declared:
+                robots_blocked_declared += 1
             continue
         try:
             text = fetch_url(candidate)
@@ -1356,6 +1533,10 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
             if exc.code in _EXPECTED_ABSENCE_STATUSES and i >= declared:
                 _log_candidate_failure(source_name, candidate, exc, declared=False)
                 continue
+            if authoritative_empty is not None and i >= declared:
+                _log_guess_failure_over_answer(source_name, candidate, exc,
+                                               authoritative_empty)
+                continue
             logger.warning("source %s: %s from %s — FAILING the source rather "
                            "than reporting it empty (%s)",
                            source_name,
@@ -1363,27 +1544,75 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
                            candidate,
                            "declared feed" if i < declared else "not an absence")
             raise
+        except OSError as exc:
+            # TLS failure, DNS, timeout — never an HTTPError, so this branch is
+            # where they land. Same rule: a GUESS that fails cannot overturn an
+            # answer the source already gave us (evaluator blocker r17). Without
+            # an authoritative empty it still propagates exactly as before.
+            if authoritative_empty is not None and i >= declared:
+                _log_guess_failure_over_answer(source_name, candidate, exc,
+                                               authoritative_empty)
+                continue
+            raise
         if provider_hint is not None and _matches_asserted_shape(provider_hint, text):
             asserted_shape_seen = True
         found = _events_from_text(text, provider_hint=provider_hint,
                                   source_name=source_name,
                                   cultural_domain=cultural_domain)
         if not found and i < declared:
-            # The site ADVERTISES this feed and it served bytes we could not turn
-            # into events — a parse/shape gap worth an operator's attention, and
-            # materially different from a guessed 404 (evaluator nit r3).
-            logger.warning("source %s: DECLARED feed %s served content but parsed "
-                           "to ZERO events — unsupported shape or an empty feed",
-                           source_name, candidate)
+            # The site ADVERTISES this feed and it served bytes that produced no
+            # events. Until r17 that was one warning covering two OPPOSITE
+            # outcomes — "the calendar is empty" and "the advertised feed is
+            # broken" — and the run stayed green either way, which is
+            # swallowed-corrupt-data with a log line in front of it. The
+            # DECLARED TYPE is what separates them, so we now check it.
+            declared_type = declared_types.get(candidate)
+            declared_provider = _DECLARED_TYPE_PROVIDER.get(declared_type)
+            if declared_provider is None:
+                # Unreachable while _FEED_LINK_TYPES and _DECLARED_TYPE_PROVIDER
+                # agree (a test pins that), so this is the fail-CLOSED arm of an
+                # unmappable declared type rather than a silent pass.
+                raise DeclaredFeedCorrupt(
+                    f"source {source_name}: DECLARED feed {candidate} has type "
+                    f"{declared_type!r}, which has no shape check — refusing to "
+                    f"report the source empty on unverifiable bytes")
+            if not _matches_asserted_shape(declared_provider, text):
+                raise DeclaredFeedCorrupt(
+                    f"source {source_name}: DECLARED feed {candidate} advertises "
+                    f"{declared_type} but served bytes that are not that format — "
+                    f"the site's own machine-readable feed is BROKEN. FAILED "
+                    f"source, not an empty calendar.")
+            logger.warning("source %s: DECLARED feed %s served valid %s that "
+                           "parsed to ZERO events — an empty calendar, verified "
+                           "against its declared type",
+                           source_name, candidate, declared_type)
+            if authoritative_empty is None and _is_feed_document(declared_provider, text):
+                # The site pointed here and this IS its calendar document. That is
+                # the source's own answer: no upcoming events.
+                authoritative_empty = candidate
         if found:
             logger.info("source %s: base page had no events; discovered feed %s (%d events)",
                         source_name, candidate, len(found))
             return found
-    if robots_blocked and not out:
+    if robots_blocked_declared and not out:
+        # A feed the SITE advertised is closed to us by the site's own policy.
+        # That contradiction is the operator's to resolve and is never softened
+        # by an authoritative empty found elsewhere (r17: the narrow exception
+        # forgives GUESSES only).
+        raise RobotsDisallowed(
+            f"{robots_blocked_declared} DECLARED feed(s) for {url} are "
+            f"robots-disallowed and no permitted path yielded events — source "
+            f"REFUSED by policy, not empty")
+    if robots_blocked and not out and authoritative_empty is None:
         # Every remaining avenue was closed by policy — REFUSED, not empty.
         raise RobotsDisallowed(
             f"{robots_blocked} candidate(s) for {url} are robots-disallowed and no "
             f"permitted path yielded events — source REFUSED by policy, not empty")
+    if robots_blocked and not out:
+        logger.info("source %s: %d guessed candidate(s) were robots-disallowed, but "
+                    "%s already served a machine-readable calendar with no upcoming "
+                    "events — reporting an EMPTY calendar, not a refusal",
+                    source_name, robots_blocked, authoritative_empty)
     if provider_hint is not None and not out and not asserted_shape_seen:
         # The catalog claims this source serves `provider_hint`; we fetched the
         # base page and every discovered candidate and not one of them was that

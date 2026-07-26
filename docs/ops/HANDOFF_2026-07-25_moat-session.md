@@ -34,7 +34,7 @@ must not inherit them silently.
 ### Blocking, agent-owned
 | # | Item | State |
 |---|---|---|
-| 1 | **PR #68 to APPROVE + merge** | 16 rounds. All 18 local gates green at `16d71bd`. Awaiting r17. Charter permits agent merge on evaluator APPROVE + all required checks green. |
+| 1 | **PR #68 to APPROVE + merge** | Multi-round. Gate state and round count: read the PR's latest `adversarial-review` job log and `validate.log` — never this file (r17 nit: a hand-copied SHA/round count is stale the moment the next commit lands, which is the retyped-evidence class). Charter permits agent merge on evaluator APPROVE + all required checks green. |
 | 2 | **Deployed-site verifier** | Split OUT of #68 at r16. Files saved at `/tmp/.../scratchpad/verifier/`. **Must be rewritten before reuse** — see §2 failure F7. Needs its own branch + PR. |
 | 3 | **Region filter — NEW DEFECT, unreported until now** | `prove-feed` (run 30178947317, 23:11Z) shows **1,522 live events, 1,241 domain-mapped** — but the sample is heavily **San Antonio** (Jo Long Theatre, Majestic, Freeman Expo Hall) plus Cedar Park. Mission is **Austin/CAPCOG**. A user opening `/tonight` today would see events they cannot attend. Needs a read-path region filter, own PR. **Founder has not yet confirmed the scope decision — ask.** |
 | 4 | **281 events in Other/unmapped** | Honest (never fabricated), tracked as R-047. Needs schema.org `@type` capture at extraction time — extraction-surface work, re-cert gated. |
@@ -146,9 +146,8 @@ it **must trend to zero**, and it went **up** this session.
 
 ## 4. STATE ON DISK — nothing is stranded
 
-- Branch `claude/moat-sources-importable` @ `16d71bd`, pushed, PR #68 open (draft).
+- Branch `claude/moat-sources-importable`, pushed, PR #68 open (draft). For the CURRENT head, gate results and suite counts, read the PR's latest check runs — this file deliberately carries no copy of them (r17 nit: the copy drifted from the logs within one commit).
 - All 18 `validate` checks green except the known R-002 skip.
-- Suite: **1699 passed / 30 skipped**.
 - Live data: **1,522 events, 1,241 domain-mapped** (`prove-feed` 30178947317).
 - Kaizen rows through r16; RED_CLASSES has 5 new indexed classes:
   `failure-reads-as-empty`, `silent-data-loss`, `test-codifies-the-bad-contract`,

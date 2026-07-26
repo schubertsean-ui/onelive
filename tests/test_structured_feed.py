@@ -408,37 +408,37 @@ def test_declared_feed_link_is_tried_first():
     believed before any guessing — it told us where the data is."""
     html = ('<html><head><link rel="alternate" type="text/calendar" '
             'href="/cal/all.ics"></head><body></body></html>')
-    urls, _ = discover_feed_urls("https://venue.example/", html)
+    urls, _, _types = discover_feed_urls("https://venue.example/", html)
     assert urls[0] == "https://venue.example/cal/all.ics"
 
 
 def test_platform_endpoint_detected_from_markup():
     # WordPress "The Events Calendar" exposes a REST feed at a known path.
     html = '<html><body class="tribe-events-page"></body></html>'
-    urls, _ = discover_feed_urls("https://venue.example/", html)
+    urls, _, _types = discover_feed_urls("https://venue.example/", html)
     assert any("/wp-json/tribe/events/v1/events" in u for u in urls)
 
 
 def test_conventional_calendar_paths_are_offered():
-    urls, _ = discover_feed_urls("https://venue.example/", "<html></html>")
+    urls, _, _types = discover_feed_urls("https://venue.example/", "<html></html>")
     joined = " ".join(urls)
     for expected in ("/events", "/calendar", "ical=1"):
         assert expected in joined
 
 
 def test_discovery_never_re_offers_the_base_url():
-    urls, _ = discover_feed_urls("https://venue.example/", "<html></html>")
+    urls, _, _types = discover_feed_urls("https://venue.example/", "<html></html>")
     assert "https://venue.example/" not in urls
 
 
 def test_relative_links_are_absolutised_against_the_source():
     html = '<link rel="alternate" type="text/calendar" href="feed/events">'
-    urls, _ = discover_feed_urls("https://venue.example/whats-on/", html)
+    urls, _, _types = discover_feed_urls("https://venue.example/whats-on/", html)
     assert "https://venue.example/whats-on/feed/events" in urls
 
 
 def test_malformed_html_does_not_break_discovery():
-    urls, _ = discover_feed_urls("https://venue.example/", "<html><link rel=<<>")
+    urls, _, _types = discover_feed_urls("https://venue.example/", "<html><link rel=<<>")
     assert isinstance(urls, list) and urls  # still offers the conventions
 
 
@@ -760,7 +760,7 @@ def test_declared_and_guessed_candidates_have_separate_budgets():
     from worker.importers.structured_feed import discover_feed_urls
     html = "".join(
         f'<link rel="alternate" type="text/calendar" href="/d{i}.ics">' for i in range(10))
-    urls, declared = discover_feed_urls("https://venue.example/", html)
+    urls, declared, _types = discover_feed_urls("https://venue.example/", html)
     assert declared == 10
     # Conventional paths are still present in the full candidate list.
     assert any("ical=1" in u or u.endswith("/events") for u in urls)
@@ -788,7 +788,7 @@ def test_unsupported_declared_feed_types_are_not_offered_as_candidates():
     would fetch, parse to zero, and read as 'no events' (evaluator blocker r3)."""
     from worker.importers.structured_feed import discover_feed_urls
     html = '<link rel="alternate" type="application/rss+xml" href="/feed.rss">'
-    urls, declared = discover_feed_urls("https://venue.example/", html)
+    urls, declared, _types = discover_feed_urls("https://venue.example/", html)
     assert declared == 0, "an unparseable RSS feed must not count as declared"
     assert not any("feed.rss" in u for u in urls)
 
@@ -1891,3 +1891,187 @@ def test_an_oversized_body_FAILS_the_source_rather_than_truncating(monkeypatch):
     monkeypatch.setattr(sf.urllib.request, "urlopen", lambda req, timeout=None: _Resp())
     with pytest.raises(sf.ResponseTooLarge):
         sf.fetch_url("https://huge.example/feed.ics")
+
+
+# ---- r17: an authoritative empty vs a failing guess ---------------------------
+# Evaluator blocker r17 named a contract the code did not keep: "a source that
+# DID serve the asserted format and simply had no upcoming events still returns
+# []". It did not, because discovery kept probing GUESSED paths afterwards and
+# any 403/429/robots denial on one of those turned an honestly empty calendar
+# into a FAILED source. These tests assert the OUTCOME (what the source is
+# reported as), never the mechanism, and the second one deliberately uses the
+# input that would EVADE a naive fix.
+
+EMPTY_ICS = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n"
+
+
+def test_empty_ics_feed_stays_empty_when_a_guessed_path_is_denied(monkeypatch):
+    """The evaluator's exact scenario: the base URL IS the asserted calendar and
+    it is honestly empty; a path we invented is denied. The source is EMPTY."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return EMPTY_ICS
+        raise urllib.error.HTTPError(u, 403, "Forbidden", {}, None)
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    out = sf.import_source("https://venue.example/", provider_hint=sf.PROVIDER_ICS,
+                           source_name="venue")
+    assert out == []
+
+
+def test_an_html_page_with_incidental_jsonld_does_not_excuse_a_denied_guess(monkeypatch):
+    """THE EVADING INPUT. A venue homepage carrying LocalBusiness JSON-LD
+    satisfies the asserted-SHAPE sniff while being no calendar at all, so a fix
+    keyed on `asserted_shape_seen` would wrongly report this source empty and
+    bury the 403. Zero events here is not an answer, so the denial must still
+    fail the source."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+
+    homepage = ('<html><head><script type="application/ld+json">'
+                '{"@context":"https://schema.org","@type":"LocalBusiness",'
+                '"name":"The Venue"}</script></head><body>hi</body></html>')
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return homepage
+        raise urllib.error.HTTPError(u, 403, "Forbidden", {}, None)
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    with pytest.raises(urllib.error.HTTPError):
+        sf.import_source("https://venue.example/", provider_hint=sf.PROVIDER_JSONLD,
+                         source_name="venue")
+
+
+def test_a_denied_DECLARED_feed_fails_even_after_an_authoritative_empty(monkeypatch):
+    """The exception forgives GUESSES only. The site advertised this second feed,
+    so its denial is the source's own contradiction and must stay loud."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+
+    base_html = ('<html><head>'
+                 '<link rel="alternate" type="text/calendar" href="/a.ics">'
+                 '<link rel="alternate" type="text/calendar" href="/b.ics">'
+                 '</head><body></body></html>')
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return base_html
+        if u.endswith("/a.ics"):
+            return EMPTY_ICS
+        if u.endswith("/b.ics"):
+            raise urllib.error.HTTPError(u, 403, "Forbidden", {}, None)
+        return "<html>nothing</html>"
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    with pytest.raises(urllib.error.HTTPError):
+        sf.import_source("https://venue.example/", source_name="venue")
+
+
+def test_a_robots_denied_guess_does_not_refuse_a_source_that_answered(monkeypatch):
+    import worker.importers.structured_feed as sf
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return EMPTY_ICS
+        return "<html>nothing</html>"
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    # Every guessed candidate is robots-disallowed; the base already answered.
+    monkeypatch.setattr(sf, "_robots_allows",
+                        lambda u, ua=None: u.rstrip("/") == "https://venue.example")
+    out = sf.import_source("https://venue.example/", provider_hint=sf.PROVIDER_ICS,
+                           source_name="venue")
+    assert out == []
+
+
+# ---- r17: a DECLARED feed that serves the wrong bytes is BROKEN, not empty ----
+
+def test_declared_calendar_feed_serving_html_fails_the_source(monkeypatch):
+    """Blocker r17b: the site declared `text/calendar` and served an HTML error
+    page. Before this, the run logged a warning and exited GREEN with the source
+    counted among the empties — swallowed corrupt data with a log line in front
+    of it."""
+    import worker.importers.structured_feed as sf
+
+    base_html = ('<html><head><link rel="alternate" type="text/calendar" '
+                 'href="/events.ics"></head><body></body></html>')
+
+    def fake_fetch(u, timeout=30):
+        if u.endswith("/events.ics"):
+            return "<html><body><h1>503 Service Unavailable</h1></body></html>"
+        return base_html if u.rstrip("/") == "https://venue.example" else "<html/>"
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    with pytest.raises(sf.DeclaredFeedCorrupt):
+        sf.import_source("https://venue.example/", source_name="venue")
+
+
+def test_declared_feed_that_is_a_valid_empty_calendar_is_simply_empty(monkeypatch):
+    """The other side of the same discriminator — this must NOT fail. A valid,
+    genuinely empty VCALENDAR at a declared feed is an empty calendar."""
+    import worker.importers.structured_feed as sf
+
+    base_html = ('<html><head><link rel="alternate" type="text/calendar" '
+                 'href="/events.ics"></head><body></body></html>')
+
+    def fake_fetch(u, timeout=30):
+        if u.endswith("/events.ics"):
+            return EMPTY_ICS
+        return base_html if u.rstrip("/") == "https://venue.example" else "<html/>"
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    assert sf.import_source("https://venue.example/", source_name="venue") == []
+
+
+# ---- r17: the two lists that must not drift ----------------------------------
+
+def test_every_supported_declared_type_has_a_shape_check():
+    """incomplete-enumeration guard: adding a type to _FEED_LINK_TYPES without
+    mapping it would send a corrupt declared feed back down the "no events"
+    path. This is the mechanical cross-check that comment claims."""
+    import worker.importers.structured_feed as sf
+    for typ in sf._FEED_LINK_TYPES:
+        assert typ in sf._DECLARED_TYPE_PROVIDER, typ
+
+
+def test_declared_types_map_covers_exactly_the_declared_urls():
+    """The invariant that replaces a positionally-parallel second list."""
+    html = ('<html><head>'
+            '<link rel="alternate" type="text/calendar" href="/a.ics">'
+            '<link rel="alternate" type="application/ld+json" href="/b.json">'
+            '</head></html>')
+    urls, declared, declared_types = discover_feed_urls("https://venue.example/", html)
+    assert set(declared_types) == set(urls[:declared])
+    assert declared_types["https://venue.example/a.ics"] == "text/calendar"
+    assert declared_types["https://venue.example/b.json"] == "application/ld+json"
+
+
+def test_an_oversized_robots_txt_is_unreadable_not_permission(monkeypatch):
+    """nit r17: the robots fetch is bounded like the payload fetch, and over-cap
+    is treated as UNREADABLE (the documented fail-open-and-say-so path), never
+    silently as 'no restrictions'."""
+    import io
+    import worker.importers.structured_feed as sf
+
+    class _Resp(io.BytesIO):
+        headers = type("H", (), {"get_content_charset": lambda self: "utf-8"})()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    big = b"# pad\n" * (sf._MAX_ROBOTS_BYTES // 6 + 100)
+    monkeypatch.setattr(sf.urllib.request, "urlopen",
+                        lambda req, timeout=None: _Resp(big))
+    assert sf._fetch_robots_lines("https://venue.example") is None
