@@ -82,18 +82,52 @@ def page_url(category: str, region: str | None, page: int) -> str:
     return "/".join(parts)
 
 
+def candidate_urls(category: str, region: str | None) -> list:
+    """URL shapes to try, most-specific first.
+
+    The first guess — /results/{category}/region/{region}/p1 — returned HTTP
+    500, even though search engines have indexed exactly that shape (…/p5,
+    …/p11). So the path form, the casing, or the pagination suffix differs from
+    what is publicly linked. Probing every candidate in ONE run beats learning
+    one variant per CI round trip, which is the loop that has cost the most time
+    today.
+    """
+    base_lower = BASE.replace("/Apps/", "/apps/").lower()
+    shapes: list = []
+    for base in (BASE, base_lower):
+        for reg in ([region] if region else []) + [None]:
+            mid = f"{base}/{category}" + (f"/region/{reg}" if reg else "")
+            shapes += [f"{mid}/p1", f"{mid}/", mid]
+    # Deduplicate, preserving order.
+    seen: set = set()
+    return [u for u in shapes if not (u in seen or seen.add(u))]
+
+
 def describe(category: str, region: str | None) -> int:
     """Dump the real markup so a parser is written against fact, not memory."""
-    url = page_url(category, region, 1)
-    print(f"fetching {url}")
-    try:
-        html = _get(url)
-    except urllib.error.HTTPError as exc:
-        raise SystemExit(f"fetch_tmo_venues --describe: HTTP {exc.code} for {url}")
-    except urllib.error.URLError as exc:
+    html = None
+    url = None
+    print("probing URL shapes (the documented one 500s):")
+    for candidate in candidate_urls(category, region):
+        try:
+            body = _get(candidate)
+        except urllib.error.HTTPError as exc:
+            print(f"  HTTP {exc.code:<4} {candidate}")
+            continue
+        except urllib.error.URLError as exc:
+            raise SystemExit(
+                f"fetch_tmo_venues --describe: could not reach gov.texas.gov "
+                f"({exc.reason}). A network failure is not an empty directory.")
+        print(f"  HTTP 200  {candidate}   ({len(body):,} bytes)")
+        if html is None:
+            html, url = body, candidate
+    if html is None:
         raise SystemExit(
-            f"fetch_tmo_venues --describe: could not reach gov.texas.gov "
-            f"({exc.reason}). A network failure is not an empty directory.")
+            "fetch_tmo_venues --describe: every URL shape failed. The directory "
+            "is browsable by hand, so this is a request-shape or bot-policy "
+            "problem, not an empty directory. Next step is to check whether the "
+            "app needs a session cookie or a referrer.")
+    print(f"\nparsing the first success: {url}")
 
     print(f"  {len(html):,} bytes")
     # Tag histogram: shows at a glance whether listings are a table, a list, or
