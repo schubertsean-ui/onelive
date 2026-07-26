@@ -114,15 +114,23 @@ derived by commands, and each row names the command:
   the exact defect this record exists about. Each row now names an artifact a
   reader can open, and the classification is readable off it:
 
-  | Catch | Finder | Independently checkable at |
-  |---|---|---|
-  | key-exfil ordering hole in the review workflow | evaluator | PR #75 r5 review output, run 30204… onward — the seat's own `CLASS:` lines |
-  | deferring that fix to "next session" | evaluator | PR #75 r6 review output (`CLASS:deferred-trust-work`) |
-  | command-resolution half still open (`runner-env-poisoning`) | evaluator | PR #75 r7, job `89818994368` — both OpenAI seats, verbatim in this session's transcript |
-  | digest block landed in the wrong step | CI | PR #75 r7 commit `45707d0`'s own message, and the r6→r7 diff |
-  | fabricated "ambiguity bug" (withdrawn PR #77) | founder | PR #77, closed with its withdrawal note |
-  | unfollowable citations in the loop synthesis | founder | the directive quoted verbatim at the top of this record |
-  | status-token substring bypass, section-truncation, unnumbered-entry bugs | evaluator | PR #78 r1, job `89821248677` |
+  Every row links the run that produced the finding, or the commit that
+  carries it — an openable URL or a command that runs from a clone, never a
+  prose reference (PR #78 r11, `CLASS:unfollowable-citation`, openai
+  absence-only seat). The finding text is in the run's `adversarial-review`
+  job log under the seat's own `CLASS:` line; the fix is the commit named
+  beside it, readable offline with `git show <sha>`.
+
+  | Catch | Finder | Independently checkable at | Fix |
+  |---|---|---|---|
+  | key-exfil ordering hole in the review workflow | evaluator | https://github.com/schubertsean-ui/onelive/actions/runs/30210106373 (review of head `8e56a20`) | `git show 1397458` |
+  | deferring that fix to "next session" (`CLASS:deferred-trust-work`) | evaluator | https://github.com/schubertsean-ui/onelive/actions/runs/30210629877 (review of head `1397458`) | `git show 2a07458` |
+  | command-resolution half still open (`runner-env-poisoning`) | evaluator | https://github.com/schubertsean-ui/onelive/actions/runs/30211733778/job/89818994368 — both OpenAI seats | `git show 06a1b11` |
+  | digest block landed in the wrong step | CI | `git show 45707d0` and `git diff 2a07458 45707d0` | same commit |
+  | fabricated "ambiguity bug" | founder | https://github.com/schubertsean-ui/onelive/pull/77 — closed with its withdrawal note | closed, not merged |
+  | unfollowable citations in the loop synthesis | founder | the directive quoted verbatim at the top of this record | this record + `tools/source_verification_lint.py` |
+  | status-token substring bypass, section-truncation, unnumbered-entry bugs | evaluator | https://github.com/schubertsean-ui/onelive/actions/runs/30212592813/job/89821248677 (PR #78 r1) | `git log --oneline origin/master..HEAD` |
+  | status token read out of a QUOTED TITLE, and `_` outside the token boundary | evaluator | https://github.com/schubertsean-ui/onelive/actions/runs/30220698493 (PR #78 r10, head `8c4a4b0`) | this commit |
 
   **Zero rows have "me" in the Finder column.** That is the measurement, it is
   reproducible from the linked artifacts, and no gate change alters it.

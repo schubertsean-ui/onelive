@@ -218,10 +218,15 @@ STATUS_TOKENS = (
 # The longest tokens are tried first so `VERIFIED-READ` cannot shadow a
 # longer neighbour, and `\B-` guards the hyphen-prefixed negations that a
 # bare \b would let through.
+# The boundary is WORD characters plus the hyphen, spelled `\w` rather than a
+# hand-listed `[A-Za-z0-9]` (PR #78 r11, openai attacker-smuggle): the listed
+# form left `_` outside the class, so `NOT_VERIFIED-READ` and `VERIFIED-READ_x`
+# matched — the same enumerate-instead-of-derive mistake this file has made
+# four times. A token continues wherever an identifier continues.
 _STATUS_RE = re.compile(
-    r"(?<![A-Za-z0-9])(?<!-)(?:" +
+    r"(?<!\w)(?<!-)(?:" +
     "|".join(sorted((re.escape(t) for t in STATUS_TOKENS), key=len, reverse=True)) +
-    r")(?![A-Za-z0-9-])"
+    r")(?![\w-])"
 )
 # An explicit negation GOVERNING a token declares the opposite, not a status.
 # Scoped by SENTENCE, not by adjacency (PR #78 r6, class
@@ -245,15 +250,20 @@ _NEGATION_WORD_RE = re.compile(r"\b(?:not|never|isn'?t|aren'?t|no|without|"
 _CLAUSE_BREAK_RE = re.compile(r"[.;:!?(),]")
 # Quoted spans are TITLES, never the author's own assertion — "Parsing without
 # Regrets" and "No Silver Bullet" are works being cited, not denials of a
-# status (gemini r8). Removed before negation is judged, for the same reason
-# URLs are removed before a status token is looked for.
+# status (gemini r8), and a work titled "VERIFIED-READ considered harmful" is
+# not a declaration either (openai r11). Removed in status_field for the same
+# reason URLs are, so BOTH the token search and the negation check inherit it.
 _QUOTED_SPAN_RE = re.compile(r"[\"\u201c\u2018\u00ab][^\"\u201d\u2019\u00bb]{0,200}"
                              r"[\"\u201d\u2019\u00bb]")
 
 
 def _is_negated(text_before: str) -> bool:
-    """True when a negation governs the token that follows text_before."""
-    text_before = _QUOTED_SPAN_RE.sub(" ", text_before)   # titles are not claims
+    """True when a negation governs the token that follows text_before.
+
+    Receives a STATUS FIELD, never a raw line — quoted titles are already gone
+    (see status_field), so a work called "No Silver Bullet" cannot read as a
+    denial.
+    """
     breaks = list(_CLAUSE_BREAK_RE.finditer(text_before))
     clause = text_before[breaks[-1].end():] if breaks else text_before
     return bool(_NEGATION_WORD_RE.search(clause))
@@ -262,14 +272,18 @@ def _is_negated(text_before: str) -> bool:
 def status_field(line: str) -> str:
     """The part of an entry a status token may legitimately be declared in.
 
-    URLs and markdown link TEXT are stripped first (PR #78 r3, class
-    status-token-not-field): before this, `https://example.org/VERIFIED-READ`
-    or a paper title containing the token satisfied the gate while declaring
-    no status at all — the token has to be the author's own assertion, not a
-    substring of something they are citing.
+    Everything the author is CITING is stripped first — markdown link text,
+    URLs, and quoted titles — leaving only what the author is CLAIMING (PR #78
+    r3 and r11, class status-token-not-field). Before r3,
+    `https://example.org/VERIFIED-READ` satisfied the gate; before r11 a title
+    did: `- Author, "VERIFIED-READ considered harmful", https://e.org` declared
+    no status at all and passed, because quoted spans were removed only inside
+    the negation check. Three surfaces, one rule: a cited thing is not an
+    assertion, so all three are removed here rather than one at a time.
     """
     without_links = re.sub(r"\[[^\]]*\]\([^)]*\)", " ", line)   # [text](url)
-    return URL_RE.sub(" ", without_links)                        # bare urls
+    without_urls = URL_RE.sub(" ", without_links)               # bare urls
+    return _QUOTED_SPAN_RE.sub(" ", without_urls)               # "titles"
 
 
 def declares_status(line: str) -> bool:

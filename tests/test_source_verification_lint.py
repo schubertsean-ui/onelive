@@ -145,6 +145,34 @@ def test_status_token_substring_bypasses_are_closed():
         assert findings and "declares no verification status" in findings[0], bad
 
 
+def test_a_status_token_inside_a_quoted_title_is_not_a_declaration():
+    """openai attacker-smuggle + absence-only, PR #78 r11: the entry declares
+    nothing — the token belongs to the WORK BEING CITED. Straight and curly
+    quotes both, because closing one and leaving the other is exactly the
+    one-syntax-at-a-time pattern this file keeps reopening."""
+    for bad in ('- Author, "VERIFIED-READ considered harmful", https://e.org',
+                '- Lee, “VERIFIED-READ: a critique”, https://e.org',
+                "- Roy, «UNVERIFIED-BLOCKED and other myths», https://e.org"):
+        assert not svl.declares_status(bad), bad
+        findings = svl.scan_text("d.md", f"## Sources\n{bad}\n")
+        assert findings and "declares no verification status" in findings[0], bad
+
+
+def test_a_real_status_outside_a_quoted_title_still_counts():
+    """The strip must not eat the author's own assertion — false rejection is
+    a defect too."""
+    assert svl.declares_status(
+        '- Author, "VERIFIED-READ considered harmful", https://e.org UNVERIFIED-SECONDARY')
+
+
+def test_underscores_do_not_open_a_token_boundary():
+    """openai attacker-smuggle, PR #78 r11: `[A-Za-z0-9]` left `_` outside the
+    boundary class, so an underscore-joined near-miss matched a real token."""
+    for bad in ("NOT_VERIFIED-READ", "x_VERIFIED-READ", "VERIFIED-READ_foo",
+                "UNVERIFIED-BLOCKED_stale"):
+        assert not svl.declares_status(f"- x https://e.org {bad}"), bad
+
+
 def test_a_negated_status_does_not_count_as_declaring_one():
     """A negation GOVERNING the token declares the opposite of a read primary.
 
