@@ -8,7 +8,7 @@ true assertions (assert True / assert 1==1), a body that's just `pass`,
 overly-broad `pytest.raises(Exception)` (catches anything, proves little),
 and Mock/MagicMock objects that are asserted on (assert_called*) but never
 actually invoked in the test body. Reports per-file. `--strict` -> exit 1 on
-any finding; otherwise advisory (exit 0). Never silently "fixes" a test it
+any finding; otherwise advisory (exit 3). Never silently "fixes" a test it
 flags — surfacing false confidence is the whole point.
 """
 from __future__ import annotations

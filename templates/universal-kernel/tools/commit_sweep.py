@@ -7,7 +7,7 @@ files churned repeatedly (possible instability), commits that touch
 worker/ai/api/tools code with no matching test change, new migrations with no
 matching new test file, a growing count of TODO/FIXME markers commit-over-
 commit, and unusually large commits (churn over a threshold). Advisory by
-default (exit 0 always); `--strict` makes findings fail the run (exit 1).
+default (exit 3 on findings, 0 when clean); `--strict` makes findings fail the run (exit 1).
 """
 from __future__ import annotations
 
@@ -177,7 +177,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Cross-commit sweep over recent git history.")
     ap.add_argument("--n", type=int, default=15, help="Number of commits to scan (default 15).")
     ap.add_argument("--since", default=None, help="git --since spec (e.g. '2 weeks ago'); overrides --n.")
-    ap.add_argument("--strict", action="store_true", help="Exit 1 if any finding is reported (default: advisory, exit 0).")
+    ap.add_argument("--strict", action="store_true", help="Exit 1 if any finding is reported (default: advisory, exit 3 on findings).")
     ap.add_argument("--allow-empty-range", action="store_true",
                     help="Treat an empty commit range as OK (exit 0) instead of "
                          "unverified (exit 2). Use only when a no-op sweep is expected.")
