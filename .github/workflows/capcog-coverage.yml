@@ -36,12 +36,8 @@ on:
       - "tools/fetch_tabc_capcog.py"
       - "tools/build_capcog_targets.py"
       - "tools/capcog_coverage.py"
-      - "tools/source_scorecard.py"
-      - "tools/build_source_registry.py"
-      - "tools/dump_source_evidence.py"
       - "worker/region/capcog.py"
       - "sources/master_sources_catalog_120.json"
-      - "sources/discovered/**"
       - ".github/workflows/capcog-coverage.yml"
 
 permissions:
@@ -192,87 +188,16 @@ jobs:
       # founder has to answer to know where the next unit of work goes. They run
       # together because they read the same database in the same job; splitting
       # them would double the Actions minutes to answer half a question each.
-      - name: Build the source registry
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: python tools/build_source_registry.py
 
-      # Fails the step when a database identifier maps to no registry source.
-      # Those rows would be dropped, and the scorecard would then report a LIVE
-      # feed as NEVER_TRIED — a confident lie about which sources work.
-      - name: Dump per-source evidence
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        env:
-          ONELIVE_DB_DSN: ${{ secrets.ONELIVE_DB_DSN }}
-        run: python tools/dump_source_evidence.py
 
-      # The runner is ephemeral, so --record would append to a file that dies
-      # with the job and the trend would read FIRST SNAPSHOT forever — the
-      # "improvements over time" measure would never move. Restore the history
-      # from the previous run's artifact first.
-      #
-      # The two failure modes are kept APART on purpose. "No previous run" is a
-      # legitimate first snapshot. "The download broke" is a lost trend that
-      # would look identical to a first snapshot and silently reset the baseline
-      # every run. The first proceeds; the second fails the step.
-      - name: Restore the scorecard history from the previous run
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          # An empty token makes the call unauthenticated, which returns no
-          # artifacts and reads as "no previous run" — the trend would reset
-          # every run and look like a first snapshot forever.
-          : "${GH_TOKEN:?GH_TOKEN is empty — refusing to look up the previous
-          scorecard artifact unauthenticated, because the empty result would be
-          indistinguishable from there being no previous run}"
-          api="https://api.github.com/repos/${{ github.repository }}"
-          auth=(-sS -H "Authorization: Bearer $GH_TOKEN"
-                -H "Accept: application/vnd.github+json")
 
-          url=$(curl "${auth[@]}" \
-                  "$api/actions/artifacts?name=capcog-coverage&per_page=1" \
-                | python -c "import json,sys; a=json.load(sys.stdin)['artifacts']; print(a[0]['archive_download_url'] if a and not a[0]['expired'] else '')")
 
-          if [ -z "$url" ]; then
-            echo "No previous scorecard artifact — this is a genuine FIRST SNAPSHOT."
-            exit 0
-          fi
-
-          if ! curl "${auth[@]}" -L -o prev.zip "$url"; then
-            echo "::error::Previous scorecard artifact exists but could not be" \
-                 "downloaded. Recording now would silently reset the trend" \
-                 "baseline and read as a first snapshot. Refusing."
-            exit 1
-          fi
-          mkdir -p docs/metrics
-          unzip -o -j prev.zip 'docs/metrics/SOURCE_SCORECARD_HISTORY.jsonl' \
-            -d docs/metrics/ || {
-              echo "::error::Artifact downloaded but carries no history file." \
-                   "Recording now would reset the trend baseline. Refusing."
-              exit 1; }
-          echo "restored $(wc -l < docs/metrics/SOURCE_SCORECARD_HISTORY.jsonl) prior snapshot(s)"
-
-      - name: Score every source and record the snapshot
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: |
-          python tools/source_scorecard.py \
-            --rows source_rows.json \
-            --attempts source_attempts.json \
-            --record --stamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            | tee source_scorecard.txt
-
-      # The artifact NAMES its own layer set (evaluator blocker r2): a
-      # catalog-only run must not produce a file indistinguishable from a
-      # full-layer measurement, because the filename is what gets quoted later.
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ${{ github.event.inputs.skip_tabc == 'true' && 'capcog-coverage-CATALOG-FLOOR-ONLY' || 'capcog-coverage' }}
           path: |
             coverage_report.txt
-            source_scorecard.txt
-            docs/metrics/SOURCE_SCORECARD_HISTORY.jsonl
             sources/capcog_venue_targets.json
             sources/tabc_capcog_raw.json
           if-no-files-found: warn

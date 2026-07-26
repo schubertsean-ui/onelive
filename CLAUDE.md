@@ -59,6 +59,35 @@ the missing mechanism, not a new idea.
    and reject another? Then they are separate changes.
 Raising any threshold here is a gate-threshold relaxation: founder-crucial.
 
+## Execution bias — progress, not status (added 2026-07-26 at founder direction)
+Verbatim: *"I'm very very frustrated with all the feedback about what you are
+doing. Diarrhea from you about status not progress. I only want progress toward
+completion, solutions offered as prescribed to a problem, solutions executed by
+you 99% of the time ALWAYS ASKING AND CONFIRMING IT GETS US CLOSER TO A WORLD
+CLASS GO LIVE."* Root cause: on PR #74 the agent asked permission to split FIVE
+times across three hours while the founder had already said what they wanted —
+a shippable site. Asking is not diligence when the action is reversible; it is
+work transferred to the founder.
+1. **EXECUTE, do not request.** If an action is reversible (git, code, tests,
+   docs, workflow edits, branch/PR creation, splitting a change), DO IT and
+   report it done. The founder-crucial list is exhaustive — money/new services,
+   legal, trust-invariant changes, gate-threshold relaxations, go-live pushes,
+   credential minting. **If it is not on that list, executing is the default and
+   asking is the exception.** "I recommend X, shall I?" is banned; the correct
+   form is "X is done, here is the result."
+2. **Every report is measured against GO-LIVE.** Before sending, answer in one
+   line: *what is now closer to a world-class go-live than before?* If the
+   answer is "nothing, but here is what happened", DO NOT SEND IT — go do the
+   work instead. Status without a delta is noise.
+3. **A problem is reported only with its solution already applied**, or — when
+   genuinely blocked — with the single named unblock and the work that continued
+   around it. Never a problem alone.
+4. **Blocked ≠ idle.** If one thing is blocked (a credential, a founder call),
+   work the next item on the go-live plan. Reporting a block and stopping is a
+   failure mode, not patience.
+5. **Length is capped by news.** Long explanation is earned by a large delta,
+   never by a large effort. Nobody is paying for the narration of a loop.
+
 ## Communicating with the founder (added 2026-07-13 at founder direction)
 Every report, question, escalation, and PR description addressed to the founder follows these rules — they outrank brevity:
 1. **Plain language.** No unexplained jargon; assume a smart non-engineer. A one-line explanation beats an acronym.

@@ -135,3 +135,15 @@ def test_the_canon_document_exists_and_cites_its_evidence():
     for anchor in ("24 lines", "400", "dora.dev", "SCOPE FREEZE",
                    "one reversible decision"):
         assert anchor.lower() in doc.lower(), anchor
+
+
+def test_deleting_a_file_is_ONE_decision_not_N_lines(monkeypatch):
+    """Found by using the gate: splitting PR #74 removed ~2,500 lines and the
+    measured size went UP, so the tool punished the remedy it exists to demand.
+    Reviewing "should this be gone?" is one judgement."""
+    numstat = ("0\t900\ttools/removed_module.py\n"
+               "10\t2\ttools/edited.py\n")
+    monkeypatch.setattr(gate, "_git",
+                        lambda *a: numstat if a[0] == "diff" else "sha")
+    m = gate.measure("base")
+    assert m["reviewable_lines"] == gate.DELETED_FILE_COST + 12, m

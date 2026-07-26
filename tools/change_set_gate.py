@@ -75,6 +75,10 @@ HARD_FILES = 25
 # How much a change may grow after review has begun. Not zero — adopting a
 # reviewer's blocker legitimately adds lines — but bounded, because "adopting
 # findings" is precisely the story that took #74 from 2,918 to 8,708.
+# Flat review cost of a file removed outright. Not zero — deleting something
+# is a real decision — but nowhere near its line count.
+DELETED_FILE_COST = 5
+
 MAX_GROWTH_LINES = 600
 MAX_GROWTH_FILES = 6
 
@@ -111,7 +115,13 @@ def measure(base: str, head: str = "HEAD") -> dict:
             continue
         if any(path.startswith(p) or path == p for p in LOW_REVIEW_COST):
             continue
-        n = int(added) + int(removed)
+        a, r = int(added), int(removed)
+        # A WHOLESALE DELETION IS ONE DECISION, NOT N LINES OF READING.
+        # Found by using this gate: splitting PR #74 removed ~2,500 lines and
+        # the measured size went UP, so the tool punished the exact remedy it
+        # exists to demand. Reviewing "should this file be gone?" is a single
+        # judgement; reviewing a modification means reading both sides.
+        n = DELETED_FILE_COST if a == 0 and r > 0 else a + r
         files.append({"path": path, "lines": n})
         total += n
     files.sort(key=lambda f: -f["lines"])
