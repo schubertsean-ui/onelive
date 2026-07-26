@@ -200,3 +200,79 @@ def test_every_ledger_marker_class_has_an_index_row():
     assert marked, "ledger marker convention missing — test would be vacuous"
     missing = sorted(marked - set(index))
     assert not missing, f"ledger-marked classes absent from RED_CLASSES.md: {missing}"
+
+
+# --- base-ref freshness proof (#71 CI-caught: false-confidence-gate) ---
+# The gate's obligation is that origin/master REFLECTS the remote, not
+# that this process performed the fetch. Both accepted proofs and the
+# fail-closed default are red-tested here; none touches the network.
+
+
+def test_successful_fetch_here_proves_freshness():
+    from tools.construction_gate import assert_base_fresh
+
+    calls = []
+
+    def fetch(remote, branch):
+        calls.append((remote, branch))
+        return True
+
+    proof = assert_base_fresh("origin/master", fetch=fetch, age=lambda: None)
+    assert calls == [("origin", "master")]
+    assert "fetched master from origin" in proof
+
+
+def test_recent_recorded_fetch_proves_freshness_when_fetch_is_impossible():
+    # CI's shape: actions/checkout fetches the full history, then drops
+    # the credentials (persist-credentials: false), so a fetch from
+    # inside the job cannot authenticate while the base is fresher than
+    # any fetch this gate could perform.
+    from tools.construction_gate import assert_base_fresh
+
+    proof = assert_base_fresh("origin/master", fetch=lambda r, b: False, age=lambda: 120.0)
+    assert "last fetched 120s ago" in proof
+
+
+def test_stale_recorded_fetch_fails_closed():
+    from tools.construction_gate import BASE_FRESHNESS_WINDOW_S, assert_base_fresh
+
+    with pytest.raises(SystemExit, match="cannot prove origin/master is fresh"):
+        assert_base_fresh(
+            "origin/master", fetch=lambda r, b: False, age=lambda: BASE_FRESHNESS_WINDOW_S + 1
+        )
+
+
+def test_no_fetch_record_at_all_fails_closed():
+    from tools.construction_gate import assert_base_fresh
+
+    with pytest.raises(SystemExit, match="no fetch record"):
+        assert_base_fresh("origin/master", fetch=lambda r, b: False, age=lambda: None)
+
+
+def test_unresolvable_base_ref_fails_closed_even_inside_the_window(tmp_path, monkeypatch):
+    # A recent fetch record does not license a base ref that does not
+    # exist — both halves of proof 2 are required.
+    import tools.construction_gate as gate
+
+    repo = tmp_path / "repo3"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "master")
+    monkeypatch.setattr(gate, "REPO_ROOT", str(repo))
+    with pytest.raises(SystemExit, match="does not resolve"):
+        gate.assert_base_fresh("origin/master", fetch=lambda r, b: False, age=lambda: 1.0)
+
+
+def test_fetch_head_age_is_read_from_the_real_fetch_record(tmp_path, monkeypatch):
+    import os
+
+    import tools.construction_gate as gate
+
+    repo = tmp_path / "repo4"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "master")
+    monkeypatch.setattr(gate, "REPO_ROOT", str(repo))
+    assert gate._fetch_head_age_s() is None  # no fetch has ever run here
+    fetch_head = repo / ".git" / "FETCH_HEAD"
+    fetch_head.write_text("recorded\n", encoding="utf-8")
+    os.utime(fetch_head, (1000.0, 1000.0))
+    assert gate._fetch_head_age_s(now=1300.0) == 300.0

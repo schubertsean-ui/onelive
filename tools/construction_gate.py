@@ -29,6 +29,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX_RELPATH = os.path.join("docs", "memory", "RED_CLASSES.md")
@@ -36,6 +37,14 @@ DEFAULT_INDEX = os.path.join(REPO_ROOT, INDEX_RELPATH)
 CONTRACT_RELPATH = "STATE.md"
 
 _ROW_RE = re.compile(r"^\|\s*([a-z0-9][a-z0-9-]+)\s*\|\s*([^|]+)\|")
+
+# How recently the repository must have synchronized with its remote for
+# an ALREADY-fetched base ref to count as proven fresh. Generous by
+# design: CI fetches at checkout and reaches this gate ~2-3 minutes
+# later, and a slow dependency install must not turn a fresh base into a
+# red gate. Tightening it is safe; loosening it past the point where a
+# human's stale clone would qualify is a gate-threshold relaxation.
+BASE_FRESHNESS_WINDOW_S = 30 * 60
 
 
 def parse_index(text: str, origin: str) -> dict[str, list[str]]:
@@ -81,6 +90,81 @@ def _git(args: list[str], *, allow_fail: bool = False) -> str | None:
             "misconfiguration and never passes silently (fetch the base ref)"
         )
     return proc.stdout
+
+
+def _fetch_head_age_s(now: float | None = None) -> float | None:
+    """Seconds since this repository last completed a fetch, or None when
+    no fetch record exists. `.git/FETCH_HEAD` is written by every
+    successful `git fetch`, so its mtime is a RECORD of synchronization,
+    not a claim about one."""
+    git_dir = (_git(["rev-parse", "--git-dir"], allow_fail=True) or "").strip()
+    if not git_dir:
+        return None
+    if not os.path.isabs(git_dir):
+        git_dir = os.path.join(REPO_ROOT, git_dir)
+    try:
+        mtime = os.path.getmtime(os.path.join(git_dir, "FETCH_HEAD"))
+    except OSError:
+        return None
+    return max(0.0, (time.time() if now is None else now) - mtime)
+
+
+def assert_base_fresh(base_ref: str, *, fetch=None, age=None) -> str:
+    """PROVE the base ref is synchronized with its remote, or fail closed.
+
+    The obligation is the PROPERTY (`origin/master` reflects the remote),
+    never one particular mechanism for reaching it (#71 CI-caught, class:
+    false-confidence-gate). Two proofs are accepted, in order:
+
+      1. A fetch performed HERE succeeds — synchronization now.
+      2. The fetch is impossible here but the repository ALREADY
+         synchronized within BASE_FRESHNESS_WINDOW_S and the base ref
+         resolves. This is the CI shape: `actions/checkout` fetches the
+         full history and then drops the credentials
+         (`persist-credentials: false`), so the base is fresh BY
+         CONSTRUCTION while a fetch from inside the job cannot
+         authenticate. Demanding proof #1 there failed a base that was
+         provably fresher than any fetch this gate could perform.
+
+    Neither proof available (offline agent session, stale clone, no fetch
+    record) = FAIL, unchanged: a stale base widens the diff range and
+    lets this gate pass what CI correctly fails
+    (class: stale-base-widens-range). `fetch` and `age` are injected
+    CALLABLES, HERMETIC TESTS ONLY — callables, not values, so that
+    "no fetch record" (None) stays expressible and testable rather than
+    colliding with "argument not supplied". Returns the human-readable
+    proof, for printing.
+    """
+    remote, _, branch = base_ref.partition("/")
+    fetcher = fetch if fetch is not None else _run_fetch
+    if remote and branch and fetcher(remote, branch):
+        return f"fetched {branch} from {remote} in this run"
+    age_s = (_fetch_head_age_s if age is None else age)()
+    resolved = _git(["rev-parse", "--verify", "--quiet", base_ref], allow_fail=True)
+    if age_s is not None and age_s <= BASE_FRESHNESS_WINDOW_S and resolved:
+        return (
+            f"fetch from inside this run unavailable; {base_ref} resolves and "
+            f"this repository last fetched {int(age_s)}s ago "
+            f"(window {BASE_FRESHNESS_WINDOW_S}s)"
+        )
+    raise SystemExit(
+        f"construction_gate: FAIL — cannot prove {base_ref} is fresh. The fetch "
+        "did not succeed here and this repository carries no fetch record inside "
+        f"the {BASE_FRESHNESS_WINDOW_S}s freshness window"
+        + (f" (last fetch {int(age_s)}s ago)" if age_s is not None else " (no fetch record)")
+        + (f"; {base_ref} does not resolve" if not resolved else "")
+        + ". A stale base widens the diff range and lets this gate pass what CI "
+        "fails (class: stale-base-widens-range). Restore network/remote access "
+        "and rerun; never judge against an unverifiable base."
+    )
+
+
+def _run_fetch(remote: str, branch: str) -> bool:
+    proc = subprocess.run(
+        ["git", "fetch", remote, branch],
+        capture_output=True, text=True, cwd=REPO_ROOT,
+    )
+    return proc.returncode == 0
 
 
 def assert_index_not_weakened(head: dict[str, list[str]], base_text: str | None) -> None:
@@ -169,6 +253,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.diff_range is None:
+        # The base ref is only trustworthy if it is PROVEN synchronized —
+        # the gate owns that proof itself now (#71 CI-caught), instead of
+        # validate wrapping it in a fetch whose success it mistook for the
+        # property. Hermetic tests always pass --diff-range and so never
+        # reach the network.
+        print(f"construction_gate: base freshness — {assert_base_fresh(args.base_ref)}")
         # Default surface: merge-base vs the WORKING TREE (single-arg git
         # diff) — validate runs BEFORE the commit, and citations written in
         # this build must count whether or not they are committed yet. An

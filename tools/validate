@@ -259,19 +259,15 @@ run_check "kaizen_trends" "$PY" tools/kaizen_trends.py
 #     docs/memory/RED_CLASSES.md and requires this change to write its own
 #     citations. HARD GATE, same physics as kaizen_trends. A missing base
 #     ref is gate MISCONFIGURATION and FAILS CLOSED (#67 r5: never a
-#     silent no-op in shallow/local clones) — one fetch attempt first,
-#     then red.
-# Refresh the base ref ALWAYS, not only when absent (#71 CI-caught), and
-# FAIL LOUD when the refresh itself fails (#71 r4): `|| true` swallowed
-# the failure, so an unreachable remote left a STALE origin/master in
-# place and the gate could still pass against a wider range than CI —
-# the very stale-base-widens-range hole this wiring exists to close. A
-# base we cannot verify is fresh is a base we cannot judge against.
-if git fetch origin master >/dev/null 2>&1; then
-  run_check "construction_gate" "$PY" tools/construction_gate.py
-else
-  run_check "construction_gate" bash -c 'echo "construction_gate: FAIL — could not fetch origin/master, so the base ref cannot be proven fresh. A stale base widens the diff range and lets this gate pass what CI fails (class: stale-base-widens-range). Restore network/remote access and rerun; never judge against an unverifiable base."; exit 1'
-fi
+#     silent no-op in shallow/local clones).
+# Base freshness lives INSIDE the gate now (#71 CI-caught), not in this
+# wrapper. A shell `git fetch` here proved only that THIS process could
+# fetch — which CI's review job deliberately cannot (it checks out the
+# full history and then drops the credentials), so the wrapper failed a
+# base that was fresh by construction. The gate now proves the PROPERTY:
+# fetch here, or an already-recorded fetch inside its freshness window.
+# Same fail-closed physics, one mechanism, unit-tested.
+run_check "construction_gate" "$PY" tools/construction_gate.py
 
 # 8. Visual regression — needs a booted app + baselines; cannot run headless
 #    here. Detect and SKIP-LOUD (never a silent pass), per the item-15 harness.
