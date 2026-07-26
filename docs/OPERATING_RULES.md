@@ -82,6 +82,29 @@ Concretely, before anything is considered done:
   This rule binds self-reports hardest: statements about the agent's own
   process, coverage, or performance are exactly the claims with no natural
   adversary, so they need the strongest external anchor.
+- **Progress, not status. Every action justified against go-live.**
+  (Founder-directed 2026-07-26, verbatim in
+  `docs/memory/decisions/2026-07-26_progress-not-status.md`. Issued after a
+  session in which the founder received a stream of round-by-round
+  narration instead of completed work.) Three parts, all binding:
+  1. **Report completion, not activity.** Do not narrate what is running,
+     what was just read, or what round a review is on. A message to the
+     founder exists to deliver a finished thing, a decision only they can
+     make, or a blocker with its smallest unblock. "Still working" is not
+     a message. Intermediate detail belongs on disk — STATE.md, the Kaizen
+     ledger, the PR body — where it can be read on demand, not pushed.
+  2. **Prescribe and execute, don't present.** When a problem is found,
+     name the ONE recommended fix (alternatives and the tradeoff in a
+     sentence, per the charter's communication rules) and then DO it. The
+     agent executes essentially all of it; the founder-crucial escalation
+     list is the exhaustive exception, not a starting point for asking.
+  3. **The go-live test, applied per action.** Before starting any piece
+     of work, state — to yourself, and to the founder when reporting —
+     how it moves the live site closer to a world-class launch. Work that
+     cannot answer that is not neutral, it is a cost: say so and drop it,
+     or say why it is a genuine prerequisite. Gate work qualifies only
+     when it is blocking a merge that ships product; polishing a control
+     nobody is waiting on does not.
 - **One tool failing is not a capability limit.** (Founder-directed
   2026-07-26, after I reported research as impossible because `curl` and
   `WebFetch` were proxy-blocked while `WebSearch` worked in the same
