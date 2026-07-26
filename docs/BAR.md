@@ -31,6 +31,8 @@ Last full measurement pass: **2026-07-26** (`docs/V1_AUDIT_2026-07-26.md`).
 
 **The split that matters is not the total — it is where the misses cluster.**
 
+**A rule about the PROPOSED rows**, added at the PR #76 review: **every PROPOSED → ENFORCED transition gets its own reviewed PR.** A bar row silently becoming blocking is a gate-threshold change arriving without review, which is the one direction this file must never move on its own.
+
 | Section | MET | Not met / not built / unmeasured |
 |---|---|---|
 | **P — purpose and felt experience** | 6 of 14 | **8** |
@@ -89,10 +91,17 @@ ratified. It is quoted here, never paraphrased — paraphrase is how canon drift
 > about, and the show is exactly as promised when they walk in. That kept promise,
 > repeated nightly, is the entire brand."
 
-**What the product is for, in the founder's current framing** (2026-07-22, superseding
-the defensive "Less chaos. Real shows." tagline): *"This is about finding and
-engaging in experiences, helping individuals and the culture thrive."* Copy
-decisions pull toward what a night can **give**, never toward what the app removes.
+**What the product is for** — founder's words, and now ratified canon (brief §3, as
+amended 2026-07-26: *"Use the new description for the tagline. Remove the old."*):
+
+> *"This is about finding and engaging in experiences, helping individuals and the
+> culture thrive."*
+
+Copy decisions pull toward what a night can **give**, never toward what the app
+removes. **There is no tagline on any product surface** — the masthead carries the
+city and the date, nothing else. The former defensive line is struck from canon and
+from every comp, and is a FORBIDDEN string in `tests/test_design_proposals.py`, so
+it cannot return without a red test.
 
 **How to use §0.** It is a blocking question in review, at the same standing as a
 failing test: *does this change serve the fan on the sidewalk at 9:04 PM?* A change
@@ -269,7 +278,7 @@ Everything above is either MET or is one of these. If you read nothing else:
    needs one healthchecks check from the founder.
 2. **C3 — a passing candidate must reach users without a human click.** The
    policy is written and ratified; the wiring does not exist.
-3. **G1 — master must be green.** One red test, days old.
+3. **G5 — the gate must stop lying about why it is red.** Master IS green (1,665 on the audited tree). Four of nineteen rows go red in the agent's environment for reasons that are not code. *(This item said "one red test, days old" until the PR #76 review caught it contradicting the corrected G1 row.)*
 4. **E1–E4 — nobody has measured the experience users actually get.**
 5. **H7 — there is no recorded live deployment.**
 

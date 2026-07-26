@@ -27,7 +27,6 @@ DIRECTIONS = [
 # Verbatim canon copy (design brief §3/§4 + trust rules) — exact strings.
 REQUIRED_VERBATIM = [
     "Tonight in Austin",
-    "Less chaos. Real shows.",
     "Something off?",
     "Hear it",
     "— first notes",  # tier-C machine-drafted spark attribution
@@ -38,6 +37,18 @@ REQUIRED_VERBATIM = [
 REQUIRED_GENRES = [
     "Rock", "Hip-Hop", "Jazz", "Electronic",
     "Country", "Metal", "Experimental", "Latin",
+]
+
+# Copy REMOVED from canon — a comp may not carry it. The tagline "Less chaos.
+# Real shows." was mandated verbatim by brief v2.4 §3, removed from the masthead
+# by the founder on 2026-07-22 (FLOW round 6), and removed from canon outright on
+# 2026-07-26 ("Use the new description for the tagline. Remove the old.") in
+# favour of the thrive framing. It moved from REQUIRED to FORBIDDEN in the same
+# change that amended the brief, so the removal is mechanical rather than a note:
+# the brief now states there is NO tagline on any product surface.
+FORBIDDEN_VERBATIM = [
+    "Less chaos. Real shows.",
+    "Less chaos",  # catches punctuation/case variants of the same defensive line
 ]
 
 # Trust-display rule: competence shown, never told (brief §2).
@@ -76,6 +87,21 @@ def test_verbatim_canon_copy_present(direction):
     text = _visible_text(html)
     for phrase in REQUIRED_VERBATIM:
         assert phrase in text, f"{name}: verbatim canon copy missing from visible text: {phrase!r}"
+
+
+def test_removed_canon_copy_absent(direction):
+    """The removed tagline may not appear anywhere in the file — visible text OR
+    markup. Checked against the RAW html, not just visible text, because a
+    commented-out or aria-hidden copy of a retired canon string is exactly how it
+    creeps back into the next comp. Red-proven against the pre-amendment files."""
+    name, html = direction
+    for phrase in FORBIDDEN_VERBATIM:
+        assert phrase not in html, (
+            f"{name}: carries copy REMOVED from canon: {phrase!r}. The tagline was "
+            f"removed by the founder on 2026-07-22 and struck from the brief on "
+            f"2026-07-26 — there is no tagline on any product surface. The masthead "
+            f"carries the city and the date only."
+        )
 
 
 def test_all_eight_genres_present(direction):

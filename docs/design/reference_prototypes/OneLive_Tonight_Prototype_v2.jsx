@@ -54,8 +54,15 @@ const PALETTES = {
 
 /* Copy: VERBATIM from founder docs is default; ALT are Claude suggestions, clearly flagged */
 const COPY = {
-  verbatim: { h1: "Tonight in Austin", tagline: "Less chaos. Real shows.", hear: "Hear it", unverified: "Info may change", tbd: "Time TBD", off: "Something off?" },
-  alt: { h1: "Austin, tonight.", tagline: "Real shows, found fast.", hear: "Play a taste", unverified: "Not yet confirmed", tbd: "Start time coming", off: "Report an issue" },
+  // No tagline on any product surface (brief §3, founder-ratified 2026-07-26:
+  // "Use the new description for the tagline. Remove the old."). The masthead
+  // carries the city and the date only. The former "Less chaos. Real shows." and
+  // every alt tagline are removed so nothing copies a retired string out of this
+  // reference. Framing that replaces it: "finding and engaging in experiences,
+  // helping individuals and the culture thrive" — expressed through the design,
+  // not printed as a slogan.
+  verbatim: { h1: "Tonight in Austin", hear: "Hear it", unverified: "Info may change", tbd: "Time TBD", off: "Something off?" },
+  alt: { h1: "Austin, tonight.", hear: "Play a taste", unverified: "Not yet confirmed", tbd: "Start time coming", off: "Report an issue" },
 };
 
 const GENRES = ["Rock", "Hip-Hop", "Jazz", "Electronic", "Country", "Metal", "Experimental", "Latin"];
@@ -192,7 +199,6 @@ export default function OneLiveTonight() {
           <div style={{ ...t("'Unbounded', sans-serif"), fontWeight: 800, fontSize: 14, letterSpacing: 2 }}>
             ONE<span style={{ color: P.accent }}> LIVE</span>
           </div>
-          <div style={{ ...t("'Space Grotesk', monospace"), fontSize: 11, color: P.dim }}>{C.tagline}</div>
         </div>
         <h1 style={{ ...t("'Unbounded', sans-serif"), fontWeight: 800, fontSize: 32, lineHeight: 1.08, margin: "14px 0 4px" }}>{C.h1}</h1>
         <div style={{ ...t("'Archivo', sans-serif"), color: P.dim, fontSize: 13, marginBottom: 14 }}>

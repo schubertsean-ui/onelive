@@ -1,4 +1,17 @@
-# ONE LIVE — MASTER DESIGN BRIEF for AI Design Tool Intake (v2.4)
+# ONE LIVE — MASTER DESIGN BRIEF for AI Design Tool Intake (v2.4, amended 2026-07-26)
+
+> **AMENDMENT LOG** — this file keeps its v2.4 filename so the ~30 canon references
+> to it stay valid; amendments are listed here instead of renaming.
+>
+> **2026-07-26 (founder-ratified — "Use the new description for the tagline. Remove
+> the old.")** §3: the tagline **"Less chaos. Real shows." is REMOVED** from canon and
+> from every product surface, superseded by the founder's framing *"This is about
+> finding and engaging in experiences, helping individuals and the culture thrive."*
+> The founder removed the line from the masthead on 2026-07-22 (FLOW round 6); the
+> brief carried the contradiction until this amendment. Mechanically enforced: the
+> old string is now in the FORBIDDEN list in `tests/test_design_proposals.py`, so it
+> cannot return to a comp without a red test. Record:
+> `docs/memory/decisions/2026-07-26_vision-first-directive.md`.
 **Purpose:** Feed this brief to an AI design tool to generate **3 distinct visual/UX directions** for the ONE LIVE consumer product (Tonight feed → Filters → Event Detail), each deliberately differentiated from every existing competitor.
 **Compiled:** 2026-07-12 · Built from ratified ONE LIVE canon (Master Business Plan, Charter, PRD wireframe, founder trust-display rules of 2026-07-12). Copy strings are verbatim canon.
 **Note:** The internal Trust Equation formula stays internal per Part VII governance ("internal-only, never exposed"); its philosophy is expressed below in plain language instead.
@@ -57,7 +70,7 @@ Trust is not a feature of this product; it is the product's load-bearing wall. T
 **The emotion to create:** the small thrill of *anticipation* — the night is still unwritten and full of real options — fused with *calm certainty*: this thing knows, and it's right. No FOMO anxiety, no doomscroll dread, no decision fatigue. The feeling of a friend who always knows what's on and has never once been wrong — and never makes it about themselves.
 **The feel in the hand:** effortless, immediate, warm. One thumb. The list *is* the interface. Scrolling feels like walking down a street of open doors. Tapping "Hear it" is leaning your ear toward a doorway for three seconds. Nothing ever asks the user to work.
 **The mood of the surfaces:** night-native. The palette should feel like Austin after dark — stage light, marquee glow, warm air, human — never corporate, never clinical, never crypto-neon, never nostalgia-kitsch. Daylight mode exists but the soul is nocturnal. Typography is confident and a little loud (it's live music) yet never at the cost of instant scanability. Motion is minimal and physical — a soft settle, a gentle press — never showy; respect reduced-motion preferences.
-**The personality in words:** calm, useful, real. Understated confidence. Zero hype. The tagline is: **"Less chaos. Real shows."** — the design is that sentence made visual.
+**The personality in words:** calm, useful, real. Understated confidence. Zero hype. **There is no tagline on any product surface** — the masthead carries the city and the date, nothing else. What the product is *for*, in the founder's words (2026-07-22, ratified as canon 2026-07-26): **"This is about finding and engaging in experiences, helping individuals and the culture thrive."** That is the framing every copy and design decision serves, and the design is that sentence made visual. Copy pulls toward **what a night can give**, never toward what the app removes. *(This supersedes the former tagline "Less chaos. Real shows.", which was defensive framing and is removed from canon and from every surface — see the amendment note at the top of this file.)*
 **What it must never feel like:** an ad platform, a ticket kiosk, a social network, an algorithm's opinion, a brand shouting.
 
 ### 4 · FUNCTIONALITY (fixed product spec — do not redesign the logic, design its expression)

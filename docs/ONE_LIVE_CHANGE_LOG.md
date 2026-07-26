@@ -1,5 +1,48 @@
 # ONE LIVE — CHANGE LOG
 
+## 2026-07-26 (same session) — Review round 1 answered; the escape alarm is now RED and escalated
+
+The first independent review PR #76 actually received (run `30189681956`; earlier attempts were refused by the Actions outage). **Gemini: APPROVE ×2. OpenAI: REQUEST-CHANGES ×2, three blockers, all real, all fixed, none argued down.**
+
+### 1. The escape was recorded in prose while the gate printed CLEAN
+`docs/KAIZEN.md` §188 requires an M3 escape row to carry the literal token **`M3-ESCAPE`**. My row omitted it, so `kaizen_trends` reported `m3_escapes: 0` and `CLEAN` while the table recorded the project's first escape. The reviewer named the attack exactly: *"a malicious insider can record an escape in the M3 table while the mechanical trend gate still prints CLEAN."* It also caught the adjacent `none recorded to date` sentinel, leaving the table asserting both none and one.
+
+**Fixed:** token added, sentinel deleted. **Consequence escalated, not absorbed** — conforming makes `kaizen_trends` report FINDINGS, and `tools/validate` states an escape *"must never be waivable by `--allow-skips`"*. Since an escape is permanent history, the gate is now **red until the founder decides the semantics**: R-064, founder ask 5, recommendation stated (an escape stops blocking once its `Gate-gap closed` column is filled). **The gate itself was not touched** — loosening it is founder-crucial, and muting the alarm to get a green PR is the move the harness exists to prevent.
+
+### 2. The "every scheduled workflow" scanner had three evasion paths
+It globbed only `*.yml` (GitHub accepts `*.yaml`), matched `schedule:` only at exactly two spaces of indentation, and matched only `github.event.inputs.X` and not the `inputs.X` shorthand — each equally empty on a schedule run. **Fixed:** both extensions, any indentation, both spellings; coverage now asserted by its own test, with the pre-fix patterns executed against the evasion cases and observed not to match. New red class indexed: `incomplete-workflow-surface-scan`.
+
+### 3. Seven stale numbers survived inside the commit that claimed to fix them
+The changelog's *"CANON is 9 documents, about 4,400 words"* and *"exactly three founder asks"*; the audit's *"three things, nothing else"* and *"only 9 documents are CANON"*; BAR's *"one red test, days old"*; R-057's LCP ≤ 2.5 s after the bar tightened to 2.0 s; and `STATE.md`'s own ≈4,400-word claim. The reviewer's framing is the one that lands: **the false-confidence class recurring inside the fix for that class.** All seven corrected, each stating what it used to say rather than being silently swapped.
+
+### Nits fixed
+Unused `_SCHEDULE_BLOCK` deleted · the scanner docstring no longer claims a dispatch-gated exception the code lacks (the over-strictness is stated and justified as fail-closed) · **new standing rule in `docs/BAR.md`: every PROPOSED → ENFORCED transition gets its own reviewed PR**, so a bar row cannot become blocking without review.
+
+### Honest state
+**`bash tools/validate` is RED on one check — `kaizen_trends` — by design, and PR #76 must not merge until founder ask 5 is answered.** Every other check passes. This push is knowingly on red and is labelled as such in R-064, ask 5, and on the PR itself.
+
+
+## 2026-07-26 (same session) — The tagline is retired, mechanically (founder-ratified) + Actions recovered
+
+**Founder, verbatim:** *"Use the new description for the tagline. Remove the old."*
+
+### The brief is amended — a first for this project
+`docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md` §3 mandated **"Less chaos. Real shows."** as verbatim product copy. The founder removed it from the masthead on 2026-07-22 (FLOW round 6) and reframed to *"This is about finding and engaging in experiences, helping individuals and the culture thrive"* — but the ratified brief carried the old line for four more days, so a founder instruction and its own canon pointed in opposite directions. Now amended:
+- **There is no tagline on any product surface.** The masthead carries the city and the date, nothing else. The thrive framing is what copy and design decisions serve; it is deliberately **not** introduced as a replacement slogan, because the founder removed the line rather than swapping it.
+- An **AMENDMENT LOG** sits at the head of the brief. The filename stays `v2.4` on purpose: ~30 canon references point at that path, and renaming a ratified document to express a two-line edit trades real breakage risk for a cosmetic version bump.
+
+### The removal is a mechanism, not a note
+- `"Less chaos. Real shows."` moved out of `REQUIRED_VERBATIM` and into a new **`FORBIDDEN_VERBATIM`** list in `tests/test_design_proposals.py`, asserted against the **raw HTML** rather than visible text — a commented-out or aria-hidden copy of a retired canon string is exactly how it creeps back into the next comp.
+- **Proven red first:** the new assertion failed on all three pre-amendment comps before they were cleaned and it went green.
+- Also struck: the line and its now-orphaned `.tagline` CSS from direction-1/2/3 (dead code is a violation, not a leftover), the copy list in `design/proposals/README.md`, and the reference prototype — **including the render site that would otherwise have printed an undefined key**, which is the founding anti-pattern's exact shape: a failure indistinguishable from nothing to do.
+- Verified by a repo-wide grep across all file types: every remaining occurrence is the forbidden-list gate, a dated historical record, or an amendment note explaining the removal.
+
+### R-060 RESOLVED — Actions recovered at 15:03Z
+Run `30189681960` attempt 2 was assigned a real runner at **15:03:32Z** and **trust-gate returned SUCCESS at 15:04:43Z**, ending an ~11-hour window (from 03:50Z) in which every Actions job repo-wide was accepted and refused in 1–4 seconds with no steps, no runner and no logs. **Which cause it was is not determinable from the API and is not claimed** — the row records unexplained-but-recovered rather than attributing it to billing. Founder ask 0 is struck with its diagnosis preserved verbatim in case it recurs. The charter's APPROVE-plus-every-check-green merge rule was never bent while it held.
+
+**Founder asks now open: three** (healthchecks check + secret · the Anthropic cap decision · does auto-publish still stand).
+
+
 ## 2026-07-26 (same session) — The vision goes to the front of the canon (Contract #28 amended)
 
 **Founder directive, verbatim:** *"Everything is to be built toward the vision and goals and objectives and other content surrounding this project and how it is supposed to work and make people feel. All actions should be in support of all of those things."* Record: `docs/memory/decisions/2026-07-26_vision-first-directive.md`.
@@ -48,8 +91,8 @@ The ratified brief still mandates the tagline **"Less chaos. Real shows."** that
 - `CLAUDE.md` 2,834 to 1,237 words, every invariant enumerated intact; the 1,100-word exception sentence-chain preserved **verbatim** at `docs/EXTRACTION_EXCEPTION.md`, where the mechanism it describes lives.
 - **`docs/BAR.md` (new, CANON):** world class defined per aspect as a NUMBER, with the gate that enforces it, whether it is ENFORCED or merely PROPOSED, and an honest MET / NOT MET / UNMEASURED status. 66 rows across trust, extraction, coverage, security, web, code, testing, reliability, cost and process.
 - **`docs/HOW_WE_WORK.md` (new, CANON):** one process document replacing the working surface of five.
-- **`docs/INDEX.md` (new, CANON):** every document classified CANON / REFERENCE / HISTORICAL, so a proposal can no longer read as a rule. CANON is 9 documents, about 4,400 words.
-- **`docs/V1.md` (new, CANON):** what v1 is, five ordered done-criteria, and exactly three founder asks.
+- **`docs/INDEX.md` (new, CANON):** every document classified CANON / REFERENCE / HISTORICAL, so a proposal can no longer read as a rule. The read-before-you-code surface is MEASURED at 10,068 words across 4 files (down 14% from 11,770 across 7). *(Corrected 2026-07-26 at the PR #76 review: this line originally said "9 documents, about 4,400 words" — wrong on both counts, and leaving it would have been the false-confidence class recurring inside the fix for that class.)*
+- **`docs/V1.md` (new, CANON):** what v1 is, ordered done-criteria (five at first writing, **seven** after the vision-first amendment), and the consolidated founder asks (three at first writing; the list reached Ask 0–4 the same day, and asks 0 and 4 closed).
 - Deleted `LIVE_READINESS.md` and `docs/SPRINT_LIVE_SITE.md` — both stated facts that are now false; git history keeps them; every live reference repointed in the same change.
 
 ### Recorded

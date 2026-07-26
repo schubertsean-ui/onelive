@@ -21,9 +21,27 @@ The rule this pins: in any workflow carrying `on.schedule`, a value the run
 NEEDS must be supplied by an expression that is non-empty on the schedule path
 — either `github.event_name == 'schedule' && '<literal>' || github.event.inputs.X`
 (schedule side pinned, dispatch cannot raise it — ingest.yml's ceiling form) or
-`github.event.inputs.X || '<default>'`. A bare inputs reference is allowed only
-inside a step that is itself gated off the schedule path
-(`if: github.event_name == 'workflow_dispatch'`), where it cannot fire on cron.
+`github.event.inputs.X || '<default>'`.
+
+DELIBERATELY OVER-STRICT, and the docstring says so because an earlier draft of it
+did not (PR #76 reviewer nit): a bare inputs reference inside a step gated
+`if: github.event_name == 'workflow_dispatch'` genuinely cannot fire on cron and is
+therefore safe, but this scanner still rejects it. Path-sensitive step analysis
+would mean parsing step scopes and their `if:` conditions, and a scanner that has
+to be right about scope is a scanner that can be wrong in the fail-OPEN direction.
+The cost of the strict rule is one extra `github.event_name == 'schedule' &&`
+clause; the cost of the clever one is a silent hole. Fail closed, and write the
+defaulted form even where it is redundant.
+
+COVERAGE, widened at the PR #76 review (both OpenAI lenses found the same class —
+a gate claiming to cover "every scheduled workflow" that an attacker could step
+around):
+  * BOTH `*.yml` and `*.yaml` — GitHub accepts either, so globbing one extension
+    let a renamed workflow keep the defect while this gate reported clean.
+  * `schedule:` at ANY indentation, not exactly two spaces — alternate valid YAML
+    formatting was invisible to the original pattern.
+  * BOTH `${{ github.event.inputs.X }}` and the `${{ inputs.X }}` shorthand —
+    both are empty on a schedule-triggered run, and only the long form was matched.
 
 Static analysis, no network, no GitHub API: the workflow YAML on disk IS the
 contract.
@@ -37,21 +55,36 @@ import pytest
 
 WORKFLOWS = pathlib.Path(__file__).resolve().parent.parent / ".github" / "workflows"
 
-# A bare inputs reference: `${{ github.event.inputs.X }}` with nothing else in
-# the expression. Any `&&`, `||`, or `event_name` inside the braces means the
-# author wrote a conditional/defaulted form, which is what we want.
-_BARE_INPUT = re.compile(r"\$\{\{\s*github\.event\.inputs\.[A-Za-z0-9_]+\s*\}\}")
-_SCHEDULE_BLOCK = re.compile(r"^on:.*?^\S", re.DOTALL | re.MULTILINE)
+# A bare inputs reference with nothing else in the expression. Any `&&`, `||`, or
+# `event_name` inside the braces means the author wrote a conditional/defaulted
+# form, which is what we want. BOTH spellings are matched: `github.event.inputs.X`
+# and the `inputs.X` shorthand — both resolve to the empty string on a
+# schedule-triggered run, so matching only the long form left half the class open.
+_BARE_INPUT = re.compile(
+    r"\$\{\{\s*(?:github\.event\.)?inputs\.[A-Za-z0-9_-]+\s*\}\}"
+)
+# `schedule:` as a trigger key at ANY indentation. Pinning it to exactly two
+# spaces meant valid alternate YAML formatting silently excluded a workflow from
+# the scan — an under-trigger, which is this gate's only real failure mode.
+_SCHEDULE_KEY = re.compile(r"^\s+schedule:\s*$", re.MULTILINE)
+
+# GitHub accepts both extensions for workflow files. Globbing one of them let a
+# rename carry the defect past a gate that claimed to cover every workflow.
+_WORKFLOW_GLOBS = ("*.yml", "*.yaml")
+
+
+def _workflow_files() -> list[pathlib.Path]:
+    found: list[pathlib.Path] = []
+    for pattern in _WORKFLOW_GLOBS:
+        found.extend(WORKFLOWS.glob(pattern))
+    return sorted(set(found))
 
 
 def _scheduled_workflows() -> list[pathlib.Path]:
-    out = []
-    for path in sorted(WORKFLOWS.glob("*.yml")):
-        text = path.read_text(encoding="utf-8")
-        # `schedule:` at trigger-block indentation (two spaces under `on:`).
-        if re.search(r"^\s{2}schedule:\s*$", text, re.MULTILINE):
-            out.append(path)
-    return out
+    return [
+        path for path in _workflow_files()
+        if _SCHEDULE_KEY.search(path.read_text(encoding="utf-8"))
+    ]
 
 
 def test_there_are_scheduled_workflows_to_check():
@@ -92,6 +125,40 @@ def test_scheduled_workflow_has_no_bare_input_reference(workflow: pathlib.Path):
         f"'workflow_dispatch'` so it cannot fire on cron.\n"
         + "\n".join(offenders)
     )
+
+
+def test_scanner_detects_every_evasion_the_review_found():
+    """The scanner's own coverage, asserted directly rather than trusted.
+
+    Each case below is an evasion path that the FIRST version of this gate could
+    not see, found by the independent review on PR #76. They are asserted against
+    the patterns rather than against fixture files on disk, so the test states the
+    rule instead of depending on a workflow happening to be shaped a certain way.
+    """
+    # 1. The `inputs.X` shorthand — equally empty on a schedule run, and invisible
+    #    to a pattern that only matched the `github.event.` prefix.
+    assert _BARE_INPUT.search("LIMIT: ${{ inputs.limit }}"), (
+        "the inputs.X shorthand must be caught — it is empty on schedule runs too"
+    )
+    assert _BARE_INPUT.search("LIMIT: ${{ github.event.inputs.limit }}")
+
+    # 2. The defaulted and schedule-pinned forms must NOT trip it, or the gate
+    #    becomes noise and gets disabled.
+    assert not _BARE_INPUT.search("LIMIT: ${{ inputs.limit || '40' }}")
+    assert not _BARE_INPUT.search(
+        "LIMIT: ${{ github.event_name == 'schedule' && '40' || inputs.limit }}"
+    )
+
+    # 3. `schedule:` at indentations other than exactly two spaces — all valid
+    #    YAML, all previously excluded from the scan entirely, which is the
+    #    under-trigger this gate cannot afford.
+    for indent in (" ", "  ", "    ", "\t"):
+        assert _SCHEDULE_KEY.search(f"on:\n{indent}schedule:\n"), (
+            f"schedule: at indent {indent!r} must still put the workflow in scope"
+        )
+
+    # 4. Both workflow extensions GitHub accepts. A rename must not shed the gate.
+    assert set(_WORKFLOW_GLOBS) == {"*.yml", "*.yaml"}
 
 
 def test_structured_import_limit_expression_is_identical_in_both_steps():

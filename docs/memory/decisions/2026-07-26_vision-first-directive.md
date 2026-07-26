@@ -56,11 +56,11 @@ this session would produce: `docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md`
 at** that text; it does not restate or paraphrase it. Paraphrasing ratified canon
 is how canon drifts.
 
-## One open founder ask this directive surfaces
+## The founder ask this directive surfaced — RATIFIED THE SAME DAY
 
-The brief's §3 still mandates the tagline **"Less chaos. Real shows."** as verbatim
-copy. On 2026-07-22 (FLOW round 6) the founder **removed it** from product surfaces
-and reframed, in the founder's own words:
+The brief's §3 **had** mandated the tagline **"Less chaos. Real shows."** as verbatim
+copy. On 2026-07-22 (FLOW round 6) the founder removed it from product surfaces and
+reframed, in the founder's own words:
 
 > "This is about finding and engaging in experiences, helping individuals and the
 > culture thrive."
@@ -69,12 +69,22 @@ That is a change in the *feeling* the product is built toward — from defensive
 (what the app removes) to generative (what a night can give) — which is precisely
 what this directive governs. The delta was logged at the time
 (`docs/ONE_LIVE_CHANGE_LOG.md`, 2026-07-22) and queued in `TODOS.md`, but the
-ratified brief still carries the old line.
+ratified brief carried the old line for four more days — which is how a founder
+instruction and its canon end up pointing in opposite directions.
 
-`docs/BAR.md` §P therefore states the **thrive framing** as the current intent and
-marks the tagline row as awaiting the founder's brief edit. The brief itself is a
-founder-ratified document and is **not** edited by an agent — the proposal is put
-in front of the founder instead (`docs/V1.md` ask 4).
+**Ratified 2026-07-26, verbatim: "Use the new description for the tagline. Remove
+the old."** The brief is amended accordingly (§3 + an amendment log at its head, the
+filename kept so its ~30 canon references stay valid): **there is no tagline on any
+product surface**, the thrive framing is canon, and the old line is struck.
+
+The removal is mechanical rather than a note. `"Less chaos. Real shows."` moved from
+`REQUIRED_VERBATIM` to a new `FORBIDDEN_VERBATIM` list in
+`tests/test_design_proposals.py` — proven red against the three pre-amendment comps
+before being made green — so the retired string cannot reappear in a comp without a
+failing test. It was also removed from all three design comps (with their orphaned
+`.tagline` CSS, since dead code is a violation), from `design/proposals/README.md`'s
+copy list, and from the reference prototype including the render site that would
+otherwise have silently rendered nothing.
 
 ## What did NOT change
 
