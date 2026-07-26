@@ -21,7 +21,9 @@ Design rules (in priority order, matching CLAUDE.md's truth-first bar):
   3. The single-block fallback returns the WHOLE ORIGINAL content unchanged, so
      the extractor receives byte-identical input to today — behavior on the
      pages we already handle is provably unchanged.
-  4. Bounded: at most ``MAX_BLOCKS`` blocks; a page that would exceed the cap is
+  4. Bounded by a RUNAWAY GUARD of ``MAX_BLOCKS`` blocks (not a work bound —
+     the caller's per-page extraction cap governs per-run work and DEFERS its
+     overflow); a page that would exceed the guard is
      truncated to the cap and the drop is logged (never silent).
 
 Deliberately imports nothing from the pipeline (no promote/gating/AI) — it only
@@ -41,7 +43,13 @@ logger = logging.getLogger(__name__)
 # many events is unusual; rather than fan out an unbounded number of AI calls
 # (cost + a runaway page), cap and log. Kept generous so real month-view
 # calendars (typically 20-60 shows) are never clipped in practice.
-MAX_BLOCKS = 200
+# Runaway guard, not a work bound (2026-07-26). Segmentation makes no AI call,
+# so this never governed spend — the per-page extraction cap in
+# worker/ai_extract.py does, and it DEFERS overflow instead of dropping it.
+# Raised 200 -> 2000 because the old value silently discarded the tail of every
+# large calendar: a 495-block page lost 295 events before the accounted cap was
+# even reached. 2000 sits far above any real venue calendar observed.
+MAX_BLOCKS = 2000
 
 # A block is only kept if it has at least this much substantive text, so an
 # empty <li></li> or a whitespace-only anchor gap never becomes a candidate.
@@ -349,11 +357,32 @@ def _segment_by_date_anchors(text: str) -> List[str]:
 
 
 def _cap(blocks: List[str]) -> List[str]:
+    """Runaway guard ONLY — never the per-run work bound.
+
+    THE DEFECT THIS FIXES (2026-07-26, live run 30216970817). This used to cap
+    at 200 and drop the tail SILENTLY, before the caller's accounted cap ever
+    ran. On a real page — Llano Chamber, 495 blocks — segmentation threw away
+    295 events permanently, and only then did worker/ai_extract.py defer the
+    survivors past EXTRACT_MAX_EVENTS_PER_PAGE with its careful R-043
+    "DEFERRED to a later run, NOT dropped" accounting. The richest calendars
+    lost the most, and nothing recorded it.
+
+    Segmentation is pure local text work: it makes no AI call, so bounding it
+    tightly bought no spend safety. The real per-run bound is the caller's
+    per-page extraction cap, which DEFERS. This cap now exists only to stop a
+    pathological page from exhausting memory, so it sits far above any real
+    calendar — and exceeding it is reported as DROPPED, in those words, because
+    that is what it is.
+    """
     if len(blocks) > MAX_BLOCKS:
-        logger.warning(
-            "segment_events: %d blocks exceeds MAX_BLOCKS=%d; truncating "
-            "(the tail events on this page will not be extracted this run).",
-            len(blocks), MAX_BLOCKS,
+        logger.error(
+            "segment_events: %d blocks exceeds the runaway guard "
+            "MAX_BLOCKS=%d — %d block(s) DROPPED, not deferred, and NOT "
+            "recoverable on a later run. This is data loss: record it "
+            "(docs/RECORD.md) and raise the guard or split the page. Normal "
+            "over-cap work is DEFERRED by the caller's per-page extraction "
+            "cap, which is the bound that should be doing this job.",
+            len(blocks), MAX_BLOCKS, len(blocks) - MAX_BLOCKS,
         )
         return blocks[:MAX_BLOCKS]
     return blocks

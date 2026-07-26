@@ -130,3 +130,47 @@ def test_no_fabrication_block_text_is_substring_of_source():
     for b in segment_events(text):
         for token in b.split():
             assert token in text
+
+
+# ── the runaway guard must not be the work bound (2026-07-26) ───────────────
+# Live run 30216970817 logged "495 blocks exceeds MAX_BLOCKS=200; truncating"
+# on a real venue calendar. Segmentation dropped 295 events SILENTLY, before
+# worker/ai_extract.py's accounted per-page cap (which DEFERS, R-043) ever
+# ran. Segmentation makes no AI call, so the tight bound bought no spend
+# safety — it only lost data, and lost most of it on the richest sources.
+
+def test_the_block_guard_sits_far_above_a_real_calendar():
+    """A 495-block page must survive segmentation intact so the CALLER's
+    accounted cap can defer the overflow instead of it being dropped."""
+    from worker.segment import MAX_BLOCKS
+    assert MAX_BLOCKS >= 1000, (
+        "MAX_BLOCKS is a runaway guard, not a work bound — the per-page "
+        "extraction cap governs per-run work and DEFERS its overflow. A low "
+        "guard silently drops the tail of large calendars.")
+
+
+def test_over_guard_is_reported_as_DROPPED_not_as_deferred(caplog):
+    """The wording matters: this path loses data permanently, unlike the
+    caller's cap. It must not read like the recoverable case."""
+    import logging
+
+    from worker.segment import MAX_BLOCKS, _cap
+
+    blocks = [f"event block {i} with enough text to count" for i in range(MAX_BLOCKS + 5)]
+    with caplog.at_level(logging.ERROR, logger="worker.segment"):
+        kept = _cap(blocks)
+    assert len(kept) == MAX_BLOCKS
+    msg = caplog.text
+    assert "DROPPED" in msg and "not deferred" in msg
+    assert "recoverable" in msg
+
+
+def test_under_the_guard_nothing_is_dropped_or_logged(caplog):
+    import logging
+
+    from worker.segment import _cap
+
+    blocks = [f"block {i}" for i in range(50)]
+    with caplog.at_level(logging.WARNING, logger="worker.segment"):
+        assert _cap(blocks) == blocks
+    assert caplog.text == ""

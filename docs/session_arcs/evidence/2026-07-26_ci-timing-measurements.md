@@ -243,14 +243,32 @@ carrying `R-054`. (At r8 the same script printed 7 hits / 6 false; the count
 grew with this branch's own prose, which is itself the argument against the
 gate.)
 
-## 7. Duplicate suite execution removed
+## 7. Duplicate suite execution — REMOVED at r7, RESTORED at r14
+
+This section previously read "Duplicate suite execution removed" and printed
+`grep -c 'python -m pytest'` returning `0` as proof. **That is no longer
+true, and the evaluator was right to block it at r17.** The standalone step
+was restored at r14, so the current command returns 1:
 
 ```
 $ git show origin/claude/onelife-meta-carousel-wu7sh7:.github/workflows/adversarial-review.yml \
     | grep -c 'python -m pytest'
-0
+1
 ```
 
-Three suite runs per PR became two. The remaining second run is in
-`trust-gate.yml` and is KEPT deliberately: a separate workflow on a separate
-trigger is independent verification, not duplication.
+The counts in section 4 above are therefore HISTORICAL: they measure runs
+30187255366 and 30212687096, both taken while the step was removed. They are
+kept because the −71s they show is what motivated the removal, and because
+deleting the measurement that led to a reverted decision would hide the
+reasoning. They are not current-state evidence.
+
+WHY IT WAS RESTORED: removing it broke `blocking_failure_check`'s gate
+discovery and every repair attempt introduced a new gate-custody defect
+(rounds 9–13, four of them). The pre-existing detector was correct where my
+rewrites were not. 45 seconds is not worth that, so the duplicate run is back.
+
+CURRENT STATE, stated plainly: the suite runs THREE times per PR — the
+standalone step here, again inside `tools/validate` in the same job, and once
+more in `trust-gate.yml`. Only the trust-gate one is genuinely independent.
+The other two are a real duplication that a future change could remove, but
+only together with a gate-discovery approach that survives it.
