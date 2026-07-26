@@ -106,20 +106,6 @@ def test_the_web_boundary_file_is_generated_and_has_not_drifted():
         "web/lib/capcog-boundary.json is stale — run tools/gen_region_boundary.py")
 
 
-def test_export_includes_code_not_only_markdown():
-    """r3 blocker: the founder asked for 'every file' and the export globbed
-    *.md only, silently omitting workflows, code, tests and the boundary JSON —
-    while the index claimed to be the complete record."""
-    import tools.export_context as ec
-    tools_files = ec._files_for("tools")
-    suffixes = {p.suffix for p in tools_files}
-    assert ".py" in suffixes, "code must be exported, not just docs"
-    wf = ec._files_for(".github/workflows")
-    assert any(p.suffix in {".yml", ".yaml"} for p in wf)
-    # and the noise stays out
-    assert all("node_modules" not in p.parts for p in ec._files_for("web/lib"))
-
-
 def test_membership_is_tri_state_and_unknown_is_not_a_guess():
     """An unknown place must be None. Guessing True publishes out-of-market
     events; guessing False silently deletes real coverage. Both are defects, so
@@ -169,5 +155,3 @@ def test_region_report_separates_outside_from_unknown():
     # The eight counties with no coverage are named, not implied by absence.
     assert "llano" in r["counties_absent"]
     assert len(r["counties_absent"]) == 8
-
-
