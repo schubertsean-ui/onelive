@@ -202,30 +202,29 @@ def test_every_ledger_marker_class_has_an_index_row():
     assert not missing, f"ledger-marked classes absent from RED_CLASSES.md: {missing}"
 
 
-# --- base-ref freshness proof (#71 r5/r6/r7: false-confidence-gate ×3) ---
-# The gate must prove the PROPERTY (the base ref IS the commit this change
-# is measured against), never a mechanism standing in for it. r5 accepted
-# a fetch's exit code; r6 accepted a repo-wide .git/FETCH_HEAD mtime; r7
-# rejected a recent write to the ref as equally unproving, and rejected a
-# test double that encoded git behavior git does not have. Nothing here
-# reasons about time, and the SHIPPED probes are exercised against real
-# git — not only against the double.
+# --- base-ref freshness proof (#71 r5-r8: false-confidence-gate ×4) -----
+# Four offline proofs were proposed and each was shown to be reproducible
+# from a STALE base: a fetch's exit code (r5), a repo-wide .git/FETCH_HEAD
+# mtime (r6), a recent write to the ref (r7), and a two-parent HEAD whose
+# first parent matches the base ref (r8 — obtainable by checking out a
+# stale base and merging the feature branch). Staleness is a fact about
+# the REMOTE, so the gate now contacts it or fails. These tests pin that
+# there is NO offline path, and exercise the SHIPPED probes against real
+# git rather than only against a double.
 
 
 class _Probes:
     """Hermetic stand-in for _GitProbes: evidence as data.
 
-    `fetch` deliberately does NOT mutate anything (#71 r7 blocker): a
-    double that makes the fetch succeed is a double that cannot fail.
-    Convergence is expressed as the sequence of oids the ref reports,
-    which is what the real command's effect looks like from here, and
-    _GitProbes.fetch's real effect is pinned separately below.
+    `fetch` deliberately mutates NOTHING (#71 r7 blocker): a double that
+    makes the fetch succeed is a double that cannot fail. Convergence is
+    expressed as the sequence of ids the ref reports, and the real
+    command's effect is pinned separately against git below.
     """
 
-    def __init__(self, tip=None, oids=(), parents=()):
+    def __init__(self, tip=None, oids=()):
         self._tip = tip
         self._oids = list(oids)
-        self._parents = list(parents)
         self.fetched = []
 
     def remote_tip(self, remote, branch):
@@ -238,9 +237,6 @@ class _Probes:
         if not self._oids:
             return None
         return self._oids.pop(0) if len(self._oids) > 1 else self._oids[0]
-
-    def head_parents(self):
-        return list(self._parents)
 
 
 def test_matching_oids_are_the_proof_and_need_no_fetch():
@@ -272,52 +268,47 @@ def test_a_successful_fetch_that_leaves_the_ref_behind_fails_closed():
     assert probes.fetched == [("origin", "master")]
 
 
-def test_unreachable_remote_accepts_the_merge_commits_first_parent():
-    # CI's shape: the review job checks out the provider's synthetic
-    # merge commit — whose FIRST PARENT is the base being merged into —
-    # and then drops its credentials, which is why nothing can reach the
-    # remote. Accepted only because the base ref resolves to that same
-    # commit: two independent records agreeing, no time involved.
+def test_an_unreachable_remote_ALWAYS_fails_closed():
+    # THE r6/r7/r8 BLOCKERS, pinned as one contract: no local artifact
+    # substitutes for the remote. There is no argument, environment, or
+    # repository shape that reaches a PASS from here.
     from tools.construction_gate import assert_base_fresh
 
-    proof = assert_base_fresh(
-        "origin/master",
-        probes=_Probes(tip=None, oids=["c" * 40], parents=["c" * 40, "d" * 40]),
-    )
-    assert "two independent records agree" in proof
+    with pytest.raises(SystemExit, match="deliberately NO"):
+        assert_base_fresh("origin/master", probes=_Probes(tip=None, oids=["c" * 40]))
 
 
-def test_unreachable_remote_rejects_a_merge_whose_parent_is_not_the_base():
-    # A developer's local `git merge master`: HEAD's first parent is
-    # their own branch tip, not the base ref. Fails closed — this is the
-    # shape that would NARROW the range and under-demand citations.
-    from tools.construction_gate import assert_base_fresh
+def test_an_unreachable_remote_fails_closed_even_from_a_merge_checkout(tmp_path,
+                                                                      monkeypatch):
+    # THE r8 SHAPE, pinned against real git: a stale base checked out and
+    # merged with the feature branch produces a two-parent HEAD whose
+    # first parent IS origin/master. That was accepted in r7 and is
+    # rejected now — the topology proves nothing about the remote.
+    import tools.construction_gate as gate
 
-    with pytest.raises(SystemExit, match="the two records disagree"):
-        assert_base_fresh(
-            "origin/master",
-            probes=_Probes(tip=None, oids=["c" * 40], parents=["e" * 40, "f" * 40]),
-        )
+    _, clone = _real_pair(tmp_path, "merge-shape")
+    monkeypatch.setattr(gate, "REPO_ROOT", str(clone))
+    _git(clone, "config", "user.email", "t@t")
+    _git(clone, "config", "user.name", "t")
+    _git(clone, "checkout", "-q", "-b", "feature")
+    (clone / "g.txt").write_text("feature\n", encoding="utf-8")
+    _git(clone, "add", "-A")
+    _git(clone, "commit", "-qm", "feature")
+    _git(clone, "checkout", "-q", "--detach", "origin/master")
+    _git(clone, "merge", "-q", "--no-ff", "-m", "merge", "feature")
+    def read(*args):
+        return subprocess.run(
+            ["git", *args], cwd=clone, check=True, capture_output=True, text=True
+        ).stdout.strip()
 
-
-def test_unreachable_remote_on_an_ordinary_commit_fails_closed():
-    from tools.construction_gate import assert_base_fresh
-
-    with pytest.raises(SystemExit, match="does not itself contain the base"):
-        assert_base_fresh(
-            "origin/master",
-            probes=_Probes(tip=None, oids=["c" * 40], parents=["c" * 40]),
-        )
-
-
-def test_unreachable_remote_with_an_unresolvable_base_fails_closed():
-    from tools.construction_gate import assert_base_fresh
-
-    with pytest.raises(SystemExit, match="unresolvable"):
-        assert_base_fresh(
-            "origin/master",
-            probes=_Probes(tip=None, oids=[], parents=["c" * 40, "d" * 40]),
-        )
+    # the r7-accepted shape, exactly:
+    parents = read("rev-list", "--parents", "-n", "1", "HEAD").split()[1:]
+    assert len(parents) == 2
+    assert parents[0] == read("rev-parse", "origin/master")
+    # ...and with the remote unreachable it must still fail closed.
+    _git(clone, "remote", "set-url", "origin", str(tmp_path / "does-not-exist"))
+    with pytest.raises(SystemExit, match="deliberately NO"):
+        gate.assert_base_fresh("origin/master")
 
 
 def test_malformed_base_ref_cannot_be_proven():
@@ -379,27 +370,6 @@ def test_real_probes_carry_assert_base_fresh_end_to_end(tmp_path, monkeypatch):
     assert gate._GitProbes.local_oid("origin/master") == gate._GitProbes.remote_tip(
         "origin", "master"
     )
-
-
-def test_real_head_parents_counts_merge_parents(tmp_path, monkeypatch):
-    import tools.construction_gate as gate
-
-    _, clone = _real_pair(tmp_path, "parents")
-    monkeypatch.setattr(gate, "REPO_ROOT", str(clone))
-    assert len(gate._GitProbes.head_parents()) == 0  # root commit
-
-    _git(clone, "config", "user.email", "t@t")
-    _git(clone, "config", "user.name", "t")
-    _git(clone, "checkout", "-q", "-b", "side")
-    (clone / "g.txt").write_text("side\n", encoding="utf-8")
-    _git(clone, "add", "-A")
-    _git(clone, "commit", "-qm", "side")
-    _git(clone, "checkout", "-q", "master")
-    (clone / "h.txt").write_text("main\n", encoding="utf-8")
-    _git(clone, "add", "-A")
-    _git(clone, "commit", "-qm", "main")
-    _git(clone, "merge", "-q", "--no-ff", "-m", "merge", "side")
-    assert len(gate._GitProbes.head_parents()) == 2
 
 
 def test_real_remote_tip_is_none_when_the_remote_is_unreachable(tmp_path, monkeypatch):

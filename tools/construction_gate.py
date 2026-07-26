@@ -29,7 +29,6 @@ import os
 import re
 import subprocess
 import sys
-import time
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX_RELPATH = os.path.join("docs", "memory", "RED_CLASSES.md")
@@ -135,49 +134,32 @@ class _GitProbes:
         out = _git(["rev-parse", "--verify", "--quiet", ref], allow_fail=True)
         return (out or "").strip() or None
 
-    @staticmethod
-    def head_parents() -> list[str]:
-        """HEAD's parent oids, in order. Empty when HEAD is unresolvable."""
-        out = _git(["rev-list", "--parents", "-n", "1", "HEAD"], allow_fail=True)
-        parts = (out or "").split()
-        return parts[1:] if parts else []
-
-
 def assert_base_fresh(base_ref: str, *, probes=None) -> str:
-    """PROVE the base ref is the commit this change is measured against,
-    or fail closed.
+    """PROVE the base ref equals its remote's current tip, or fail closed.
 
-    The obligation is a PROPERTY, and this gate has now failed three
-    times by accepting a mechanism in its place (#71 r5/r6/r7, class:
-    false-confidence-gate): a fetch's exit code, a repo-wide fetch
-    record, and a recent write to the ref. All three are gone. Nothing
-    below reasons about TIME at all — freshness is decided only by
-    comparing two independently-obtained commit ids:
+    ONE proof, because there is only one (#71 r5-r8, class:
+    false-confidence-gate — four successive attempts to establish this
+    property WITHOUT contacting the remote were each shown to be a
+    mechanism standing in for the property: a fetch's exit code, a
+    repo-wide fetch record, a recent write to the ref, and a two-parent
+    HEAD whose first parent matches — that last one reproducible offline
+    by checking out a stale base and merging the feature branch). The
+    conclusion the reviewer drove us to, stated plainly: staleness is a
+    fact about the REMOTE, so no local artifact can settle it.
 
-      1. REMOTE REACHABLE: read the remote's current tip and compare it
-         to the local base ref, fetching once (explicit refspec) to
-         converge. Equal ids ARE the property. A surviving difference
-         FAILS — a fetch that "succeeded" while leaving the ref behind
-         proves nothing.
-      2. REMOTE UNREACHABLE: the base is taken from the checkout itself,
-         and only in the one shape where the checkout CONTAINS it. A CI
-         review job checks out the provider's synthetic merge commit,
-         whose FIRST PARENT is literally the base-branch commit this PR
-         is being merged into — not an estimate of the base, the base —
-         and then drops its credentials (`persist-credentials: false`),
-         which is why nothing here can reach the remote. That parent is
-         accepted only when the local base ref RESOLVES TO THE SAME
-         COMMIT, so two independent records agree. A developer sitting
-         on a local merge commit fails this (their first parent is their
-         own branch tip, not the base ref), and so does every shape that
-         is not a two-parent HEAD.
+    So: read the remote's current tip, fetch once (explicit refspec) to
+    converge, and compare ids. Equal is the property itself. Anything
+    else — a surviving difference, or a remote we cannot reach at all —
+    FAILS, because a stale base widens the diff range and lets this gate
+    pass what CI correctly fails (class: stale-base-widens-range).
 
-    Neither proof (offline session on an ordinary commit, stale clone,
-    unresolvable ref) = FAIL: a stale base widens the diff range and
-    lets this gate pass what CI correctly fails (class:
-    stale-base-widens-range). `probes` is a HERMETIC-TEST injection
-    point; the shipped probes are separately tested against real git.
-    Returns the proof, for printing.
+    Consequence, accepted rather than worked around: this gate cannot run
+    without remote access. The CI review job therefore grants read-only
+    remote access for the validate step alone (see
+    .github/workflows/adversarial-review.yml) instead of the gate
+    inventing an offline substitute. `probes` is a HERMETIC-TEST
+    injection point; the shipped probes are separately exercised against
+    real git. Returns the proof, for printing.
     """
     probes = probes or _GitProbes
     remote, _, branch = base_ref.partition("/")
@@ -187,40 +169,27 @@ def assert_base_fresh(base_ref: str, *, probes=None) -> str:
             "<remote>/<branch> form, so its freshness cannot be proven"
         )
     tip = probes.remote_tip(remote, branch)
-    if tip is not None:
-        local = probes.local_oid(base_ref)
-        if local != tip:
-            probes.fetch(remote, branch)
-            local = probes.local_oid(base_ref)
-        if local == tip:
-            return f"{base_ref} == remote tip {tip[:12]} (compared against ls-remote)"
+    if tip is None:
         raise SystemExit(
-            f"construction_gate: FAIL — {base_ref} is {local or 'unresolvable'} but "
-            f"the remote's {branch} is {tip}; a fetch did not converge them, so the "
-            "base is STALE and every range derived from it is wider than CI's "
-            "(class: stale-base-widens-range). Resolve the base ref and rerun."
+            f"construction_gate: FAIL — the remote for {base_ref} is unreachable, so "
+            "this gate cannot prove the base is current. There is deliberately NO "
+            "offline fallback: every local signal that might stand in for the remote "
+            "(a fetch's exit code, a fetch record, a recent ref write, a merge "
+            "commit's first parent) is reproducible from a STALE base, and accepting "
+            "one reopens stale-base-widens-range inside the gate that exists to close "
+            "it. Restore network/remote access and rerun."
         )
-    parents = probes.head_parents()
     local = probes.local_oid(base_ref)
-    if len(parents) == 2 and local and local == parents[0]:
-        return (
-            f"remote unreachable from here; HEAD is a merge commit whose FIRST "
-            f"PARENT is the base being merged into, and {base_ref} resolves to that "
-            f"same commit ({local[:12]}) — two independent records agree"
-        )
+    if local != tip:
+        probes.fetch(remote, branch)
+        local = probes.local_oid(base_ref)
+    if local == tip:
+        return f"{base_ref} == remote tip {tip[:12]} (compared against ls-remote)"
     raise SystemExit(
-        f"construction_gate: FAIL — cannot prove {base_ref} is the base this change "
-        "is measured against. The remote is unreachable from here and "
-        + (
-            f"HEAD has {len(parents)} parent(s), so the checkout does not itself "
-            "contain the base"
-            if len(parents) != 2
-            else f"HEAD's first parent is {parents[0][:12]} while {base_ref} is "
-                 f"{local[:12] if local else 'unresolvable'} — the two records disagree"
-        )
-        + ". A stale base widens the diff range and lets this gate pass what CI "
-        "fails (class: stale-base-widens-range). Restore network/remote access "
-        "and rerun; never judge against an unverifiable base."
+        f"construction_gate: FAIL — {base_ref} is {local or 'unresolvable'} but "
+        f"the remote's {branch} is {tip}; a fetch did not converge them, so the "
+        "base is STALE and every range derived from it is wider than CI's "
+        "(class: stale-base-widens-range). Resolve the base ref and rerun."
     )
 
 

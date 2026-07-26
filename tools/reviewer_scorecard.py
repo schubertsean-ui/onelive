@@ -103,6 +103,10 @@ def scorecard(arcs: dict[int, dict[int, set[str]]], merged: dict[int, int]) -> d
             if (round_one is not None and all_tokens)
             else None
         )
+        # LABEL HONESTY (#71 r8 nit): this counts every recorded round,
+        # INCLUDING seed rows (r0) that carry no classed findings — so
+        # the printed field says "rounds-recorded", not
+        # "rounds-with-classes", which it never was.
         out[pr] = {
             "rounds_recorded": len(rounds),
             "m1_merged": merged.get(pr),
@@ -136,7 +140,7 @@ def main() -> int:
                   if row["round1_recall"] is None
                   else f"{row['round1_recall']:.0%}")
         m1 = row["m1_merged"] if row["m1_merged"] is not None else "in flight"
-        print(f"  #{pr}: M1={m1} · rounds-with-classes={row['rounds_recorded']} · "
+        print(f"  #{pr}: M1={m1} · rounds-recorded={row['rounds_recorded']} · "
               f"distinct-classes={row['distinct_classes']} · round1-recall={recall} · "
               f"sibling-misses={row['sibling_misses']}")
         for rnd, new, total in row["novelty"]:
