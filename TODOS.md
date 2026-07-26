@@ -25,7 +25,8 @@ until the site is live. Bar rows cited are from `docs/BAR.md`.
 - [ ] (P1) **Step 4 — deploy and record the URL.** `docs/DEPLOY.md`'s preview path needs zero environment variables. Deploy, confirm `/api/health` returns `ok:true` with `eventCount>0`, paste the URL into `docs/V1.md`. Unblocks R-002 (visual-regression baselines). — bar H7
 - [ ] (P1) **Step 5 — measure the experience.** Nothing in CI measures what users touch: Lighthouse (LCP/INP/CLS at p75) + axe (WCAG 2.2 AA) against the preview URL, numbers recorded, and the E1–E4 bar rows flip from PROPOSED to ENFORCED (R-057, audit E-section). — bar E1–E4
 
-### Founder asks — three, consolidated (full text in docs/V1.md)
+### Founder asks — consolidated (full text in docs/V1.md)
+- [ ] (founder, **BLOCKS EVERY MERGE**) **Ask 0:** GitHub Actions stopped EXECUTING in this repo between 03:50Z and 04:25Z on 2026-07-26 — jobs fail in 1-4s with no steps, no runner, no logs, reproduced on PRs #73/#74/#75/#76 and on a re-run (R-060). Check <https://github.com/settings/billing> (Actions usage / spending limit), then <https://github.com/schubertsean-ui/onelive/settings/actions>. The charter's APPROVE-plus-green merge rule is NOT bent for this; the work waits.
 - [ ] (founder) **Ask 1:** one healthchecks.io check (`onelive-licensed-import`, period 12 h, grace 2 h) + repository secret `LICENSED_IMPORT_PING_URL`. ~2 minutes.
 - [ ] (founder) **Ask 2:** the Anthropic cap. Usage limit hit 2026-07-25, access returns **2026-08-01 00:00 UTC**; every scheduled extraction run fails until then (audit D2). Raise the cap, or launch v1 on the deterministic feeds — **recommended: launch without.**
 - [ ] (founder) **Ask 3:** one word confirming the 2026-07-25 auto-publish ratification still stands. The charter said the opposite until 2026-07-26 and is now corrected to match the decision; because it touches a trust invariant it is confirmed, not assumed. "stands" → Step 2 proceeds; "hold" → nothing is wired.
