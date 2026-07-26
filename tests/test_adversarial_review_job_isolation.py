@@ -72,11 +72,24 @@ def _executable_lines(step):
     execution produces a false finding (caught while writing this test).
     """
     out = []
+    pending = ""
     for raw in (step.get("run") or "").splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or line.startswith("echo "):
+            # A comment or echo cannot continue a command; drop any partial.
+            pending = ""
             continue
-        out.append(line)
+        # Shell line-continuations make ONE command. Splitting on newlines
+        # alone tore `pip install \` from its own flags, so a flag-shape
+        # check saw a bare `pip install` (self-caught by this file's own
+        # pinned-install test failing on a correctly-pinned command).
+        if line.endswith("\\"):
+            pending += line[:-1].rstrip() + " "
+            continue
+        out.append((pending + line).strip())
+        pending = ""
+    if pending:
+        out.append(pending.strip())
     return out
 
 
@@ -86,6 +99,52 @@ def _job_holding(workflow, key):
         for name, job in workflow["jobs"].items()
         if key in yaml.dump(job)
     }
+
+
+# A key-bearing job may install a dependency ONLY in this exact shape: a
+# pinned NAME==VERSION literal, --no-deps (nothing else comes along), and
+# --only-binary=:all: (no package's setup.py executes). The trusted job needs
+# PyYAML because the base-owned co-gate helper parses a workflow file, and
+# the job split deliberately removed its `pip install -r`.
+#
+# This is a NARROWING with conditions, not a loophole: `-r <file>` stays
+# banned because requirements files are PR-authored, and an unpinned or
+# path/editable install stays banned because it re-opens the same input.
+# test_a_key_bearing_pip_install_is_pinned_and_closed below asserts the shape
+# itself, so the exemption cannot be widened by writing a looser command.
+_PINNED_INSTALL_RE = re.compile(
+    r"pip install\b(?=.*--no-deps)(?=.*--only-binary=:all:)"
+    r"(?!.*\s-r\b)(?!.*\s-e\b)"
+)
+
+
+def _is_pinned_literal_install(line):
+    return bool(_PINNED_INSTALL_RE.search(line))
+
+
+@pytest.mark.parametrize("rel", WORKFLOWS)
+def test_a_key_bearing_pip_install_is_pinned_and_closed(rel):
+    """Every install in a key-bearing job takes the exempt shape AND names
+    only pinned `NAME==VERSION` packages. An unpinned name would let the
+    resolver pick tomorrow's release into the job that holds the secret."""
+    wf = _load(rel)
+    for name, job in wf["jobs"].items():
+        if not any(k in yaml.dump(job) for k in MODEL_API_KEYS):
+            continue
+        for step in job.get("steps", []):
+            for line in _executable_lines(step):
+                if "pip install" not in line:
+                    continue
+                assert _is_pinned_literal_install(line), (
+                    f"{rel}: job {name!r} holds a key and installs without the "
+                    f"required --no-deps --only-binary=:all: shape: {line!r}")
+                pkgs = re.findall(r'"([^"]+)"', line) or re.findall(
+                    r"(?<!-)\b([A-Za-z][\w.-]*==[\w.]+)", line)
+                assert pkgs, f"{rel}: install names no pinned package: {line!r}"
+                for pkg in pkgs:
+                    assert "==" in pkg, (
+                        f"{rel}: job {name!r} installs {pkg!r} unpinned into a "
+                        f"key-bearing job")
 
 
 @pytest.mark.parametrize("rel", WORKFLOWS)
@@ -99,6 +158,8 @@ def test_model_api_keys_never_share_a_job_with_untrusted_commands(rel):
             continue
         for step in job.get("steps", []):
             for line in _executable_lines(step):
+                if _is_pinned_literal_install(line):
+                    continue  # exempt shape, asserted by the test above
                 for cmd in UNTRUSTED_COMMANDS:
                     assert not re.search(cmd, line), (
                         f"{rel}: job {name!r} holds a model API key AND executes "

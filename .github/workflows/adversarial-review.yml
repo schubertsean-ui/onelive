@@ -264,6 +264,26 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      # The base-owned co-gate helper parses a workflow file and therefore
+      # imports PyYAML. The job split removed this job's `pip install` (that
+      # was the whole point), so the dependency has to be declared HERE, and
+      # declared narrowly: an exact pinned version, --no-deps so nothing else
+      # is pulled in, and wheels only so no package's setup.py executes.
+      # NOT `-r <requirements file>` — those files are PR-authored, which is
+      # precisely the input this job exists to be free of.
+      #
+      # SCOPE, stated rather than overclaimed: this does not make the job
+      # supply-chain-proof. The WORKFLOW FILE is PR-owned (a pre-existing
+      # property of `on: pull_request`, unchanged by this PR), so a malicious
+      # PR could edit this line. What compensates that is unchanged and named:
+      # the reviewer itself is base-owned and digest-verified, and every PR
+      # goes through the mandatory non-Claude review with the diff visible.
+      - name: Declare the trusted job's ONE dependency (pinned, no PR input)
+        run: |
+          python -m pip install --disable-pip-version-check \
+            --no-deps --only-binary=:all: "PyYAML==6.0.2"
+
       - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
         # TAMPER-EVIDENT PINNING (PR #75 r6 — evaluator finding, a live
         # key-exfiltration path). Every step AFTER this one runs code the
