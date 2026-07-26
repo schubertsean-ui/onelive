@@ -1,0 +1,132 @@
+name: Adversarial Review (independent, non-generator model)
+
+# KERNEL GATE — invariant I3 (verifier independence). The generator never
+# grades its own work. This posts the pull request's raw diff plus its test
+# and validate logs to an Independent Evaluator (a DIFFERENT model family)
+# and FAILS unless the evaluator answers "VERDICT: APPROVE".
+#
+# Runs on EVERY pull request — deliberately NO path filter. A path filter is
+# bypassable: trust rules live in CLAUDE.md, OVERLAY.md, and docs/** as much
+# as in code, and "mandatory" must not depend on where a file sits.
+#
+# Security posture — each line here was earned by an adversarial finding:
+# - The evaluator script executes ONLY from the TRUSTED BASE REF, never the
+#   pull request's copy: a PR's own reviewer could self-approve or exfiltrate
+#   the key. Run with `python -I` (stdlib-only; immune to PYTHONPATH/cwd
+#   hijack) from a trusted temp dir.
+# - If the script is absent on the base ref (bootstrap: the very PR that
+#   introduces it), this gate HARD-FAILS *before the secret enters the job*.
+#   A warning is not enforcement. That one bootstrap PR is human-reviewed and
+#   merged with this check red; afterwards the gate is self-consistent.
+# - No direct `${{ }}` interpolation inside `run:` — every value passes
+#   through guarded env and fails loud when empty (script-injection surface).
+# - `persist-credentials: false`; the API key is exposed ONLY to the final
+#   trusted-script step.
+#
+# Projects extend this by ADDING evidence to the bundle (more --test-log
+# arguments), never by narrowing when it runs.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      range:
+        description: "git diff range to review (e.g. main...HEAD)"
+        required: true
+        default: "origin/main...HEAD"
+
+concurrency:
+  group: adversarial-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  adversarial-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # merge-base diffs need full history
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve the base ref and diff range
+        id: range
+        env:
+          RESOLVED_BASE: ${{ github.event_name == 'workflow_dispatch' && 'origin/main' || format('origin/{0}', github.base_ref) }}
+          RESOLVED_RANGE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.range || format('origin/{0}...HEAD', github.base_ref) }}
+        run: |
+          : "${RESOLVED_BASE:?base unresolved — failing closed}"
+          : "${RESOLVED_RANGE:?range unresolved — failing closed}"
+          if ! [[ "$RESOLVED_RANGE" =~ ^[A-Za-z0-9_./^~-]+\.\.\.?[A-Za-z0-9_./^~-]+$ ]]; then
+            echo "::error::invalid diff range syntax (value redacted — expected <base>...<head>)"
+            exit 1
+          fi
+          echo "base=$RESOLVED_BASE" >> "$GITHUB_OUTPUT"
+          echo "range=$RESOLVED_RANGE" >> "$GITHUB_OUTPUT"
+
+      - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
+        env:
+          TRUSTED_BASE: ${{ steps.range.outputs.base }}
+        run: |
+          : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
+          mkdir -p /tmp/trusted
+          if git show "$TRUSTED_BASE:tools/adversarial_review.py" \
+               > /tmp/trusted/adversarial_review.py 2>/dev/null; then
+            echo "Using tools/adversarial_review.py from $TRUSTED_BASE (trusted)."
+          else
+            echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on $TRUSTED_BASE. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
+            exit 1
+          fi
+
+      - name: Install dependencies (project-supplied requirements, if any)
+        run: |
+          python -m pip install --upgrade pip
+          # Projects list their own requirements files here. Absent files are
+          # skipped LOUDLY — never silently.
+          for req in requirements.txt requirements-dev.txt; do
+            if [ -f "$req" ]; then pip install -r "$req"; else echo "NOTE: $req absent — not installed"; fi
+          done
+          pip install pytest
+
+      - name: Test suite (log captured for the evaluator)
+        run: |
+          set -o pipefail
+          python -m pytest -q 2>&1 | tee pytest.log
+
+      - name: Composite validate gate (machine evidence for the evaluator)
+        # The evaluator receives validate's OWN machine-generated log rather
+        # than a hand-copied summary: hand-copied evidence is unverifiable
+        # and has been caught wrong. --allow-skips acknowledges Record-bound
+        # environmental skips ONLY; a skip with no OPEN Record row, any
+        # Kaizen repeat-class alarm, and any project-check failure remain
+        # hard FAILs the flag cannot waive.
+        run: |
+          set -o pipefail
+          bash tools/validate --allow-skips 2>&1 | tee validate.log
+
+      - name: Produce the reviewed diff
+        env:
+          DIFF_RANGE: ${{ steps.range.outputs.range }}
+        run: |
+          : "${DIFF_RANGE:?diff range unresolved — failing closed}"
+          # Machine-generated lockfiles are excluded by policy and that
+          # exclusion is disclosed to the evaluator in the prompt.
+          git diff "$DIFF_RANGE" -- . ':(exclude)**/package-lock.json' \
+            ':(exclude)**/poetry.lock' ':(exclude)**/uv.lock' > pr.diff
+          wc -c pr.diff
+
+      - name: Independent evaluator — APPROVE or the gate fails
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          : "${OPENAI_API_KEY:?evaluator key absent — the mandatory review cannot run, failing closed}"
+          python -I /tmp/trusted/adversarial_review.py --require \
+            --max-diff-bytes 800000 \
+            --diff-file pr.diff --test-log pytest.log --test-log validate.log

@@ -242,6 +242,51 @@ ADDENDUM 2 (same session, founder product directive — second follow-up commit 
 STATUS ADDENDUM: see the r1 close addendum below; the directive work rides the same PR #63.
 CLOSE ADDENDUM (2026-07-25): **PR #65 MERGED (squash 5481c15)** — #65 superseded #63 after a base-merge conflict made #63's pull_request CI undeliverable (same branch history; #63 closed, nothing lost; the 13-hour stall it caused is the stalled-state-needs-active-diagnosis Kaizen row). Final arc: 15 evaluator rounds (r1 on #63; r2–r14 REQUEST-CHANGES all adopted in full; r15 APPROVE, no blockers) — the round-by-round record is the changelog's r-entries and the Kaizen in-flight rows, ending at the merged-PR M1=15 row. Merged SILENTLY by the agent at APPROVE + trust-gate green on head af6aeed per the founder's no-notify directive (docs/memory/decisions/2026-07-25_silent-merge-directive.md) under the charter merge protocol. r15's five non-blocking nits are all recorded in the TODOS stabilization entry — none dropped. Final counts: 128 engine tests at the merged head; for the SUITE total cite the r15 CI run's attached pytest log on af6aeed, never a retyped number (the #67 r1 nit caught exactly that drift — this line's earlier hand-copied "1240" disagreed with the CI log). Validate = EXECUTED-GATES-ACKNOWLEDGED at every pushed head. Founder-crucial queue unchanged (TODOS Meta-carousel section): Meta credentials, ONELIVE_APPROVAL_KEY mint (now with the r14 strength floor: >=32 bytes, >=8 distinct), posting posture, cron Sentinel wiring (R-027), autonomy ladder step, R-028 asymmetric upgrade.
 
+## Session Contract #25 (2026-07-26, `universal-kernel-staging` — founder: "just get this thing finished. Land the plane!")
+
+GOAL: Land the founder-ratified universal kernel (v1) durably in a repo the founder owns, after the repo-attach approval loop failed to complete five times and the agent sandbox (ephemeral) became the only home of 57 verified files.
+SCOPE: stage the complete kernel template at `templates/universal-kernel/` (inert: docs, portable tools, one workflow, its own tests) + `STAGING_NOTE.md` (why it is here, the 5-command transport out, and the repeated-error root-cause determination) + `pytest.ini` scoping OneLive's collection to `tests/`.
+NON-GOALS: no OneLive runtime/product/gate behavior change; nothing in OneLive imports the template; no transport to the standalone repo from this session (blocked, documented).
+DONE-CRITERIA: validate green (bar the documented pre-existing skips) · evaluator APPROVE · the kernel recoverable by anyone with the repo.
+DECISIONS: staging follows the `ventures/promise_ledger/` precedent (a separate venture lives in this private repo for gate coverage until extraction is a founder call). `pytest.ini` was REQUIRED, not cosmetic: the template's `tools/` shadows OneLive's `tools` package during collection (Python 3 namespace packages shadow with or without `__init__.py`), which broke 12 test modules — scoping collection is the correct fix, not deleting a file.
+
+STAGE 3 — RED-CLASS RETRIEVAL (docs/memory/RED_CLASSES.md, matched classes answered against THIS build):
+[S3:caller-suppliable-custody-inputs] No custody input is introduced; the template supplies no credentials and OneLive reads nothing from it.
+[S3:contract-scope-violation] Scope is exactly this contract: staged files + STAGING_NOTE + pytest.ini. No OneLive runtime file is touched.
+[S3:deferred-trust-work] Nothing trust-bearing is deferred; the ONE remaining step (transport) is stated with its exact commands and its accepted cost, not left implicit.
+[S3:env-dependent-hermetic-test] The template's 5 self-tests are path-relative to its own root and are deliberately NOT collected by OneLive (pytest.ini) — they cannot pass or fail on OneLive's environment.
+[S3:fabricated-qualitative-copy] Every claim in STAGING_NOTE is checkable: file count, test result, and the five failed approval attempts are session facts.
+[S3:fail-open-on-custody-misconfig] Unchanged: OneLive's gates are untouched; the template's own validate fails closed on a missing project gate (Record-bound SKIP that cannot go green).
+[S3:false-confidence-gate] pytest.ini NARROWS collection scope and says so plainly; it grants no pass to anything. The template's gates are not claimed to cover OneLive.
+[S3:false-price-claim] No pricing/cost claim is made.
+[S3:final-gate-trusts-generator] Unchanged: the evaluator reviews this PR like any other, from base-owned code.
+[S3:governance-ambiguity] STAGING_NOTE states exactly what this directory is (staged, inert, not its home) and what still must happen.
+[S3:grant-not-content-bound] No grant/allowlist is widened; norecursedirs excludes content rather than trusting it.
+[S3:malformed-ledger-row] The template's seed ledger row parses (verified by running its own kaizen_trends); OneLive's ledger is untouched by this diff.
+[S3:missing-record-read-as-state] The template ships two OPEN Record rows for its genuinely-unbuilt gates rather than an empty register read as clean.
+[S3:mutable-model-alias] The template's router table is copied verbatim with pinned ids; extraction ships fail-closed (flag literal False).
+[S3:nonfinite-decimal-accepted] No numeric parsing is added.
+[S3:nonfinite-numeric-accepted] Same — no numeric input path.
+[S3:pagination-integrity-gap] No paginated API is consumed.
+[S3:pushed-on-red] This lands only at evaluator APPROVE + required checks green; the one red test is the pre-existing shallow-clone arming binding, whose authoritative venue is CI (documented in its own failure message).
+[S3:release-path-weaker-than-generation] No release path exists for the template in OneLive — it is inert content, not shipped by any OneLive surface.
+[S3:retyped-evidence] Counts and results here come from commands run in-session, not retyped memory; CI's logs remain authoritative.
+[S3:rule-stronger-than-mechanism] The transport step is NOT stated as a rule someone must remember: it is a checked-in note with exact commands, and the staged copy is the mechanism keeping the work alive meanwhile.
+[S3:self-weakenable-gate] pytest.ini is a scope declaration in the PR under review; it cannot be edited by the template it excludes.
+[S3:self-weakenable-review-model] Unchanged: the evaluator model binding is base-owned.
+[S3:semantic-claim-not-rederived] The "57 files / tests pass / validate green" claims were re-derived by running them in a fresh extraction, not asserted from earlier context.
+[S3:stale-base-widens-range] Branch is cut from the current origin/master (construction_gate confirms base freshness against the remote tip).
+[S3:stale-live-incident-state] STATE's live NEXT block is untouched by this contract; this block is additive and dated.
+[S3:stalled-state-needs-active-diagnosis] The stalled approval was diagnosed, not waited on: five attempts, alternative channels tested (git proxy, GitHub MCP — both scoped to onelive), determination recorded in STAGING_NOTE per OPERATING_RULES §1.
+[S3:swallowed-corrupt-data] No data path; the template's own decoder/verifier steps fail loud (verified end-to-end).
+[S3:untested-gate-branch] The pytest.ini effect is demonstrated: 12 collection errors before, 1664 passed after.
+[S3:unusable-credential-tier] No credential is introduced or required by the staged content.
+[S3:volatile-safety-store] The point of this change: work that existed only in volatile sandbox state is now committed to durable storage.
+[S3:weak-key-accepted-at-custody] No key handling is added.
+[S3:workflow-tool-version-skew] The template's workflow is inert in OneLive (it is not in `.github/`); OneLive's own workflows are untouched.
+
+STATUS: OPEN — closes at this PR's merge.
+
 ## Session Contract #22 (2026-07-24, same session — founder decisions on the universal model's Part 5 asks; five directives, verbatim text confined to the decision record docs/memory/decisions/2026-07-24_kernel-ratified-and-directives.md per the evaluator's dissemination-minimization nit)
 
 GOAL: Execute all five — (1) mark the kernel RATIFIED (scope: the kernel AS MERGED in PR #61) in the doc + decision record; (2) deliver the founder-directed Kaizen-application review (context-specific/discrete vs one-size-fits-all, grounded in the ledger's recent rows and class watch) as Part 6 of the doc, with its distilled principle DRAFTED as a PROPOSED K-LOOP-5 amendment pending explicit founder ratification (r1 correction: the directive asked a review question and stated a preference — it did not ratify generator-authored canonical wording; the first draft mislabeled the principle "ratified" and the evaluator blocked it); (3) multibagger ON HOLD — no session scheduled, TODOS updated; (4) template repo APPROVED with the owner and PRIVATE visibility the founder named (details in the decision record) — creation still pending (this sandbox's GitHub scope is onelive-only and holds no repo-creation right; smallest founder step recorded); (5) Vercel fix APPROVED — no VERCEL_TOKEN/Clerk credentials exist in this sandbox, so the 2-minute dashboard step remains founder-hands (steps re-linked in the PR).

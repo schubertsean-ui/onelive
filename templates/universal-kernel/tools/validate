@@ -1,0 +1,331 @@
+#!/usr/bin/env bash
+# validate — the single end-of-shift "run everything" gate.
+# SUMMARY: runs every deterministic quality check in one pass, in order, and
+# fails LOUD on any failure. The KERNEL ships only the PORTABLE checks: the
+# project's OPTIONAL checks (lint of a second language, trust-invariant gate,
+# perf budgets, visual regression, eval harness, …) are discovered as
+# executable scripts in tools/project_checks.d/ and run first — each script's
+# exit code IS its verdict (0 = PASS, anything else = FAIL). If that directory
+# holds no runnable check, the run is SKIP-LOUD and Record-bound, never a
+# silent pass: a repo with zero project checks has verified nothing about its
+# own invariants.
+# Portable checks wired here: lint (conventions), deferral_scan (no silent
+# deferrals), full pytest, test_audit (false-confidence), commit_sweep
+# (cross-commit gotchas), kaizen_trends (trend meter, hard gate).
+# Prints a PASS/FAIL/SKIP summary table; non-zero exit if anything FAILED.
+#
+# Usage:
+#   bash tools/validate            # run every check
+#   bash tools/validate --strict   # also FAIL (not just advise) on commit_sweep
+#                                   # and test_audit findings
+#   bash tools/validate --quick    # skip the slow commit_sweep check
+#   bash tools/validate --allow-skips
+#                                   # human-acknowledged: exit 0 despite SKIP/
+#                                   # ADVISORY rows (records the acknowledgement
+#                                   # in the summary). Without this flag, ANY
+#                                   # skipped or advisory-with-findings check
+#                                   # makes the gate INCOMPLETE (exit 2).
+#
+# Exit codes (a SKIP or an unresolved ADVISORY is NOT a pass — the bar forbids
+# "couldn't verify" looking identical to "passed"):
+#             0 = every check RAN and PASSED (or skips were explicitly
+#                 acknowledged with --allow-skips);
+#             1 = at least one check FAILED;
+#             2 = INCOMPLETE — a check was SKIPPED or an advisory check
+#                 reported findings, and --allow-skips was not given.
+set -uo pipefail
+
+SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+STRICT=0
+QUICK=0
+ALLOW_SKIPS=0
+for arg in "$@"; do
+  case "$arg" in
+    --strict) STRICT=1 ;;
+    --quick)  QUICK=1 ;;
+    --allow-skips) ALLOW_SKIPS=1 ;;
+    -h|--help)
+      # Print the leading comment block (line 2 through the first non-comment
+      # line). Computed, never a hardcoded line range, so the help text cannot
+      # drift out of sync when this header is edited.
+      awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$SELF"
+      exit 0 ;;
+    *)
+      echo "validate: unknown argument '$arg' (see --help)." >&2
+      exit 1 ;;
+  esac
+done
+
+PY="${PYTHON:-python3}"
+
+# Where a project registers its own checks. Each executable *.sh here is one
+# check; its exit code is its verdict.
+PROJECT_CHECKS_DIR="tools/project_checks.d"
+
+# Results accumulate as "STATUS\tNAME\tNOTE" lines for the summary table.
+RESULTS=()
+ANY_FAIL=0
+ANY_SKIP=0
+ANY_ADVISORY=0
+
+record() {
+  # Statuses: PASS/FAIL/ADVISORY/SKIP, plus QSKIP — a STRUCTURED quick-mode
+  # skip recorded ONLY at the --quick site below. QSKIP is exempt from
+  # Record binding by status (never by note text — evaluator r3, PR #35) but
+  # still counts as a skip for the exit-code discipline.
+  RESULTS+=("$1"$'\t'"$2"$'\t'"${3:-}")
+  case "$1" in
+    SKIP|QSKIP) ANY_SKIP=1 ;;
+    ADVISORY)   ANY_ADVISORY=1 ;;
+  esac
+}
+
+run_check() {
+  # run_check <name> <cmd...> — PASS on exit 0, else FAIL (loud).
+  local name="$1"; shift
+  echo "── ${name} ─────────────────────────────────────────────"
+  if "$@"; then
+    echo "[PASS] ${name}"
+    record PASS "$name"
+  else
+    echo "[FAIL] ${name}" >&2
+    record FAIL "$name"
+    ANY_FAIL=1
+  fi
+  echo
+}
+
+run_advisory() {
+  # run_advisory <name> <cmd...> — advisory (findings don't fail) unless
+  # --strict, in which case findings become a FAIL. Always runs; never
+  # silent. Exit contract (evaluator r13): 0 = clean → PASS; 3 = findings,
+  # advisory → ADVISORY row (never plain PASS — evidence must distinguish
+  # clean from findings-present); anything else = the tool itself broke →
+  # FAIL regardless of strictness.
+  local name="$1"; shift
+  echo "── ${name}$( [ "$STRICT" -eq 1 ] && echo ' (strict)' ) ──────────────"
+  "$@"
+  local rc=$?
+  if [ "$rc" -eq 0 ]; then
+    echo "[PASS] ${name}"
+    record PASS "$name"
+  elif [ "$rc" -eq 3 ] && [ "$STRICT" -eq 0 ]; then
+    echo "[ADVISORY] ${name} reported findings — review them (non-blocking)."
+    record ADVISORY "$name" "findings — review"
+  elif [ "$rc" -eq 3 ]; then
+    echo "[FAIL] ${name} (findings, --strict)" >&2
+    record FAIL "$name" "findings (strict)"
+    ANY_FAIL=1
+  else
+    echo "[FAIL] ${name} — the tool itself failed (rc=${rc}), not a findings exit" >&2
+    record FAIL "$name" "tool failed (rc=${rc})"
+    ANY_FAIL=1
+  fi
+  echo
+}
+
+echo "================================================================"
+echo " tools/validate · $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo " strict=${STRICT} quick=${QUICK}"
+echo "================================================================"
+echo
+
+# 1. PROJECT CHECKS — the project's own gates (trust invariants first, exactly
+#    where the project-specific trust gate used to sit). Discovered, never
+#    hardcoded: every executable *.sh in tools/project_checks.d/ runs, and its
+#    exit code is its verdict. NEVER skipped by --quick: a project's trust
+#    invariants are not a speed knob.
+echo "── project checks (${PROJECT_CHECKS_DIR}) ──────────────────────"
+PROJECT_SCRIPTS=()
+INERT_SCRIPTS=()
+if [ -d "$PROJECT_CHECKS_DIR" ]; then
+  while IFS= read -r -d '' f; do
+    if [ -x "$f" ]; then
+      PROJECT_SCRIPTS+=("$f")
+    else
+      INERT_SCRIPTS+=("$f")
+    fi
+  done < <(find "$PROJECT_CHECKS_DIR" -maxdepth 1 -type f -name '*.sh' -print0 | sort -z)
+fi
+
+if [ "${#INERT_SCRIPTS[@]}" -gt 0 ]; then
+  # A registered-but-non-executable check is inert: it looks like coverage and
+  # verifies nothing. That is a FAILURE, not a skip — fail closed.
+  echo "[FAIL] project checks: ${#INERT_SCRIPTS[@]} registered script(s) are NOT executable" >&2
+  for f in "${INERT_SCRIPTS[@]}"; do
+    echo "        ${f} — chmod +x it, or delete it. An inert check is false coverage." >&2
+  done
+  record FAIL "project_checks" "${#INERT_SCRIPTS[@]} non-executable script(s)"
+  ANY_FAIL=1
+  echo
+fi
+
+if [ "${#PROJECT_SCRIPTS[@]}" -eq 0 ] && [ "${#INERT_SCRIPTS[@]}" -eq 0 ]; then
+  # Surface the Record binding at FIRST emission — computed, never hardcoded,
+  # so this message cannot drift from the register.
+  PC_RID="$("$PY" tools/skip_record_binding.py project_checks 2>/dev/null \
+            || echo 'NO OPEN RECORD ROW — this skip will FAIL below')"
+  echo "[SKIP-loud] NO PROJECT CHECKS ARE REGISTERED." >&2
+  echo "            ${PROJECT_CHECKS_DIR}/ is absent or holds no *.sh script, so NOTHING" >&2
+  echo "            in this run verified this project's own invariants — its trust gate," >&2
+  echo "            perf budgets, schema/RLS rules, eval thresholds. The portable checks" >&2
+  echo "            below cannot substitute for them. This is a SKIP, NOT a pass." >&2
+  echo "            To fix: add an executable check, e.g." >&2
+  echo "              mkdir -p ${PROJECT_CHECKS_DIR}" >&2
+  echo "              printf '#!/usr/bin/env bash\\nset -euo pipefail\\nexec python3 tools/trust_gate.py\\n' \\\\" >&2
+  echo "                > ${PROJECT_CHECKS_DIR}/10_trust_gate.sh && chmod +x ${PROJECT_CHECKS_DIR}/10_trust_gate.sh" >&2
+  echo "            (Record: ${PC_RID})" >&2
+  record SKIP "project_checks" "no ${PROJECT_CHECKS_DIR}/*.sh registered"
+  echo
+elif [ "${#PROJECT_SCRIPTS[@]}" -gt 0 ]; then
+  echo "found ${#PROJECT_SCRIPTS[@]} project check(s); each script's exit code is its verdict."
+  echo
+  for f in "${PROJECT_SCRIPTS[@]}"; do
+    base="$(basename "$f")"
+    run_check "project:${base%.sh}" "./$f"
+  done
+fi
+
+# 2. Conventions linter — must pass (no --fix here; validate must not mutate).
+run_check "lint" "$PY" tools/lint.py
+
+# 2b. Recording enforcement — no silent deferrals: deferral-language code
+#     comments must carry a live [R-###] tag from docs/RECORD.md (see the
+#     charter's "The Record" section).
+run_check "deferral_scan" "$PY" tools/deferral_scan.py
+
+# 3. Full test suite — must pass. Integration tests that self-skip without
+#    their environment do so inside pytest and are reported in its own output.
+run_check "pytest (full suite)" "$PY" -m pytest -q
+
+# 4. False-confidence test audit — advisory (surfaces weak tests).
+run_advisory "test_audit" "$PY" tools/test_audit.py
+
+# 5. Cross-commit sweep — advisory (higher-level gotchas across commits).
+if [ "$QUICK" -eq 1 ]; then
+  echo "── commit_sweep ──"
+  echo "[SKIP-loud] commit_sweep skipped by --quick. NOT a pass." >&2
+  record QSKIP "commit_sweep" "--quick (rerun before close)"
+  echo
+else
+  run_advisory "commit_sweep" "$PY" tools/commit_sweep.py
+fi
+
+# 6. Kaizen trend meter — computes the trend report from the ledger
+#    (docs/KAIZEN.md "Trend instrumentation"). HARD GATE (evaluator r5: an
+#    M3 escape or an unaddressed repeat-class alarm must never be waivable
+#    by --allow-skips — an alarm is a due fix, not information): findings
+#    turn the run RED outright.
+run_check "kaizen_trends" "$PY" tools/kaizen_trends.py
+
+# ---- Skip→Record binding (mechanical) ----------------------------------------
+# Class fixes: skip-report-missing-record-citation (founder-caught) and the
+# unverifiable-claim family (evaluator-caught on PRs #20/#27/#35). Every
+# ENVIRONMENTAL skip must correspond to an OPEN docs/RECORD.md row that names
+# the check as a backticked token (deviation + cited bar + objective trigger)
+# or it becomes a FAILURE — --allow-skips never covers an unrecorded skip.
+# Quick-mode skips are exempt via the STRUCTURED QSKIP status set only at the
+# --quick site above (never via note text — evaluator r3); they still block a
+# clean close without --allow-skips. This section only ADDS failure modes;
+# nothing that failed before can pass now.
+# The loop lives in a sourced, directly-tested file (evaluator r3: the
+# exemption must be structured state, and the loop itself must be testable).
+source "$REPO_ROOT/tools/validate_bind_skips.sh"
+bind_skips
+RESULTS=("${BOUND_RESULTS[@]}")
+
+# ---- Machine-stamped evidence block ------------------------------------------
+# Evidence is GENERATED, never hand-copied (the unverifiable-claim class fix):
+# printed to stdout and written to .validate-evidence.txt (gitignored) for
+# verbatim paste into session arcs / PR bodies. In CI this whole run is teed
+# to a log the evaluator receives, so the block also arrives as a command
+# artifact that can actually fail.
+emit_evidence() {
+  local result="$1"
+  local out=".validate-evidence.txt"
+  {
+    echo "---- VALIDATE EVIDENCE (machine-generated by tools/validate; paste verbatim) ----"
+    echo "generated_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "git_head: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+    echo "git_branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+    echo "worktree: $(git status --porcelain 2>/dev/null | grep -q . && echo dirty || echo clean)"
+    echo "flags: strict=${STRICT} quick=${QUICK} allow_skips=${ALLOW_SKIPS}"
+    local row status name note
+    for row in "${RESULTS[@]}"; do
+      IFS=$'\t' read -r status name note <<< "$row"
+      echo "check: ${name} = ${status}${note:+ (${note})}"
+    done
+    echo "result: ${result}"
+    echo "--------------------------------------------------------------------------------"
+  } | tee "$out"
+  echo "(evidence also written to ${out} — gitignored; paste it verbatim, never retype)"
+}
+
+# ---- Summary table -----------------------------------------------------------
+echo "================================================================"
+echo " VALIDATE SUMMARY"
+echo "================================================================"
+printf '  %-8s %-22s %s\n' "STATUS" "CHECK" "NOTE"
+printf '  %-8s %-22s %s\n' "------" "-----" "----"
+for row in "${RESULTS[@]}"; do
+  IFS=$'\t' read -r status name note <<< "$row"
+  printf '  %-8s %-22s %s\n' "$status" "$name" "$note"
+done
+echo "----------------------------------------------------------------"
+
+if [ "$ANY_FAIL" -ne 0 ]; then
+  emit_evidence "FAIL"
+  echo "RESULT: FAIL — at least one check failed. Do not finish/sleep on red." >&2
+  exit 1
+fi
+
+# A SKIP (something couldn't be verified) or an ADVISORY-with-findings (a weak
+# test / cross-commit gotcha surfaced) is NOT a pass. The bar forbids "couldn't
+# verify" or "found something" looking identical to "passed". The gate is
+# INCOMPLETE (exit 2) unless a human explicitly acknowledges with --allow-skips.
+if [ "$ANY_SKIP" -ne 0 ] || [ "$ANY_ADVISORY" -ne 0 ]; then
+  reasons=""
+  [ "$ANY_SKIP" -ne 0 ]     && reasons="skipped checks"
+  [ "$ANY_ADVISORY" -ne 0 ] && reasons="${reasons:+$reasons + }advisory findings"
+  if [ "$ALLOW_SKIPS" -eq 1 ]; then
+    # Message stays truthful in quick mode (evaluator r4 nit): only
+    # environmental skips are Record-bound; quick-mode skips are
+    # flag-inflicted and must be rerun before close.
+    if [ "$QUICK" -eq 1 ]; then
+      emit_evidence "INCOMPLETE-ACKNOWLEDGED (--allow-skips; environmental SKIPs Record-bound; --quick skips are flag-inflicted — rerun before close)"
+      echo "RESULT: INCOMPLETE-ACKNOWLEDGED (exit 0 because --allow-skips) — ${reasons} present, explicitly acknowledged."
+      echo "        Quick-mode skips are flag-inflicted — rerun without --quick before close."
+      exit 0
+    fi
+    # Precision (PR #46 r2/r5/r6): when NOT in quick mode, every surviving
+    # SKIP has already passed the skip->Record binding (an unrecorded skip
+    # is a hard FAIL above) — Record-bound debt, enumerated in rows above.
+    # ADVISORY gates are DIFFERENT (r6): they RAN and surfaced non-blocking
+    # findings — they are neither passes nor Record-bound, and the terminal
+    # state must never describe them as either. Exit semantics unchanged in
+    # both branches; release evidence still requires skipped gates to run.
+    if [ "$ANY_ADVISORY" -eq 0 ]; then
+      emit_evidence "EXECUTED-GATES-GREEN (--allow-skips; every executed gate PASSED; every SKIP is bound to an OPEN Record row above — release evidence still requires those gates to run)"
+      echo "RESULT: EXECUTED-GATES-GREEN (exit 0 via --allow-skips) — every executed gate PASSED; every SKIP is Record-bound (rows above)."
+      echo "        Release evidence still requires the skipped gates to run (see their Record rows)."
+    else
+      emit_evidence "EXECUTED-GATES-ACKNOWLEDGED (--allow-skips; no gate FAILED; ADVISORY findings present — those gates ran and surfaced non-blocking findings, which are NOT passes and NOT Record-bound (rows above); any SKIP is bound to an OPEN Record row — release evidence still requires skipped gates to run)"
+      echo "RESULT: EXECUTED-GATES-ACKNOWLEDGED (exit 0 via --allow-skips) — no gate FAILED."
+      echo "        ADVISORY findings present (rows above): those gates ran and surfaced non-blocking findings — not passes, not Record-bound; review them."
+      [ "$ANY_SKIP" -ne 0 ] && echo "        Every SKIP is Record-bound (rows above); release evidence still requires those gates to run."
+    fi
+    exit 0
+  fi
+  emit_evidence "INCOMPLETE"
+  echo "RESULT: INCOMPLETE — ${reasons}. This is NOT a pass." >&2
+  echo "        Resolve the SKIP/ADVISORY rows above, or re-run with --allow-skips" >&2
+  echo "        to record a human-acknowledged incomplete run (exit 0)." >&2
+  exit 2
+fi
+
+emit_evidence "PASS"
+echo "RESULT: PASS — every check ran and passed. Safe to finish."
+exit 0
