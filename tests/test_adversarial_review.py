@@ -326,3 +326,26 @@ def test_panel_prints_its_own_po_seed_and_provocations():
     assert "PO SEED: deadbeef" in header
     for provocation in ar.po_provocations("deadbeef"):
         assert provocation in header
+
+
+def test_workflow_second_seat_model_matches_the_tools_default():
+    # #72 r2, hardening the workflow-tool-version-skew fix after it
+    # RECURRED past its first marker. That first fix hardened CLI FLAGS
+    # only (feature-detect --panel); the class is broader — ANY value a
+    # PR changes in the BASE-owned reviewer is invisible to the run
+    # judging that PR, constants included. The workflow literal is the
+    # PR-owned compensation, which introduces a second place holding the
+    # same value. This pins them together so the pair can never drift:
+    # change one, this test names the other.
+    import pathlib as _pathlib
+    import re as _re
+
+    workflow = (_pathlib.Path(ar.__file__).parent.parent / ".github"
+                / "workflows" / "adversarial-review.yml").read_text()
+    match = _re.search(r"^\s*GEMINI_REVIEW_MODEL:\s*(\S+)\s*$", workflow,
+                       _re.MULTILINE)
+    assert match, ("the workflow must pin the second seat's model explicitly — "
+                   "without it the base-owned copy's older default silently wins")
+    assert match.group(1) == ar.GEMINI_DEFAULT_MODEL, (
+        f"workflow pins {match.group(1)!r} but the tool defaults to "
+        f"{ar.GEMINI_DEFAULT_MODEL!r} — these move together, in one PR")

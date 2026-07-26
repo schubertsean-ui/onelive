@@ -423,6 +423,26 @@ jobs:
           # script prints an EXPLICIT empty seat and runs single-family; the
           # panel never fails a PR for a credential that does not exist yet.
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # Second-seat model, set HERE as a literal because the reviewer
+          # script is BASE-owned (#72 r2, class: workflow-tool-version-skew).
+          # The PR that changes GEMINI_DEFAULT_MODEL cannot affect its own
+          # run — the trusted copy executing it still holds the old value —
+          # and the old value is gemini-2.5-pro, which has NO free-tier
+          # quota (429, `limit: 0`), so the seat hard-failed every run and
+          # the fix could never merge. A workflow literal is the PR-owned
+          # side of that deadlock, exactly as feature-detection was for the
+          # --panel flag.
+          #
+          # This does NOT reopen the PR #14 r4 finding that banned a runtime
+          # model override: that finding was about `${{ vars.* }}`, where an
+          # UNSET and a SET-BUT-EMPTY variable render identically so the
+          # workflow can never fail closed on the difference. A literal has
+          # no such ambiguity — it is visible in review, in this diff, and
+          # the script still fails loud on an empty or Claude-family id.
+          # Keep this in sync with GEMINI_DEFAULT_MODEL; both move together
+          # in one PR, and once that PR merges this literal simply restates
+          # what the trusted copy already defaults to.
+          GEMINI_REVIEW_MODEL: gemini-2.5-flash
           # NO runtime model override in CI — deliberately (evaluator finding,
           # PR #14 round 4): GitHub renders an UNSET repo variable and a
           # SET-BUT-EMPTY one identically in ${{ vars.* }}, so a workflow can
