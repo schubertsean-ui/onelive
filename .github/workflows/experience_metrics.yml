@@ -100,6 +100,40 @@ jobs:
           fi
           echo "measuring: ${BASE_URL}${PAGE_PATH} (the feed surface, not the redirect stub at /)"
 
+          # PROVE THE TARGET IS THE PRODUCT BEFORE MEASURING IT.
+          #
+          # Without this the gate could publish a green LCP/CLS/TBT/WCAG verdict
+          # over VERCEL'S LOGIN PAGE — which is fast and accessible, and is not the
+          # product. Two lenses blocked on it (`CLASS:login-page-metrics-can-pass`,
+          # `CLASS:missing-product-render-assertion`, PR #80): the bypass may be
+          # ABSENT, or a protection change may start serving an interstitial, and
+          # Lighthouse would happily score whatever came back. A gate that certifies
+          # the wrong surface is worse than no gate for v1 criterion 4.
+          #
+          # The masthead is server-rendered in EVERY branch of tonight/page.tsx, so
+          # this proves "the feed page rendered", not "the feed had data".
+          echo "=== verifying the target renders the product ==="
+          PRE_CODE="$(curl -sSL -m 45 -o /tmp/pre.html -w '%{http_code}' "$TARGET" || echo "000")"
+          echo "target_http_status: $PRE_CODE"
+          if [ "$PRE_CODE" != "200" ]; then
+            echo "::error::the measurement target answered $PRE_CODE, not 200 — refusing"
+            echo "to report experience metrics for a page that did not serve."
+            head -c 300 /tmp/pre.html
+            exit 1
+          fi
+          if ! grep -q "ONE LIVE" /tmp/pre.html; then
+            echo "::error::the target returned 200 but did not render the OneLive"
+            echo "masthead — this is Vercel's login/protection page or an error shell,"
+            echo "not the product. Measuring it would certify the wrong surface."
+            if [ "$VERCEL_BYPASS" = "ABSENT" ]; then
+              echo "  The bypass secret is ABSENT, which is the most likely cause:"
+              echo "  a protection-gated deployment serves its login wall instead."
+            fi
+            head -c 300 /tmp/pre.html
+            exit 1
+          fi
+          echo "target_surface: RENDERED (OneLive masthead present) — measuring this"
+
           lighthouse "$TARGET" \
             --quiet --output=json --output-path=/tmp/lh.json \
             --only-categories=performance,accessibility \

@@ -11,6 +11,26 @@ concurrency:
 
 jobs:
   hygiene:
+    # SECRET CUSTODY — the dispatch path is restricted to the DEFAULT BRANCH.
+    #
+    # GitHub runs the workflow file from the ref you dispatch, and Actions secret
+    # VALUES are write-only in the UI at every permission level — so an edited
+    # branch plus one dispatch is a complete way to extract this job's stored
+    # credentials. That is `CLASS:accepted-secret-custody-gap`, blocked on PR #80
+    # after an earlier round accepted it in prose.
+    #
+    # THE COST, STATED: dispatching this from an unmerged feature branch no longer
+    # works. Testing a change to this workflow means merging it first, then
+    # dispatching from the default branch. The scheduled path is untouched — GitHub
+    # only ever runs the default branch's copy on a schedule — so nothing about
+    # normal operation changes.
+    #
+    # Compared against `github.event.repository.default_branch`, never a literal
+    # name: a rename must not silently reopen this, and an absent field makes the
+    # comparison false, which fails CLOSED (no run).
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

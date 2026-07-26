@@ -1,19 +1,27 @@
 # ONE LIVE — CHANGE LOG
 
-## 2026-07-26 (same session) — the site is public with 1,532 events; 17 reviewer blockers closed
+## 2026-07-26 (same session) — 1,532 events in the feed; 24 reviewer blockers closed
 
 **The measurement.** `site-health` run
 [30217359539](https://github.com/schubertsean-ui/onelive/actions/runs/30217359539)
 read `/api/health` on the deployed preview with the founder's new bypass secret:
-`http_status: 200`, `supabase.reachable: true`, **`eventCount: 1532`**, verdict
-PUBLIC. A friend with the link can open the site.
+`http_status: 200`, `supabase.reachable: true`, **`eventCount: 1532`**.
 
-Closes `docs/V1.md` **ask 6**, Steps 4b/4c and **R-068**. Unblocks done-criteria
-**6** and **7**, which could not begin without a URL a stranger can open. **Nothing
-in the founder's queue blocks go-live** — the two remaining asks (Anthropic cap; one
-word on the auto-publish ratification) are off the critical path. Bar **H7** reads
-NOT MET for one reason only: the URL is a branch alias that dies on merge (**R-070**,
-trigger = the merge).
+Closes `docs/V1.md` **ask 6** and **R-068** for the agent-verification scope, and
+answers Step 4c. **Nothing in the founder's queue blocks go-live** — the two
+remaining asks (Anthropic cap; one word on the auto-publish ratification) are off
+the critical path.
+
+**What that run does NOT prove — corrected after the reviewer caught me claiming it
+did.** It read `/api/health` with a bypass HEADER. It says nothing about whether the
+friend-shareable query-parameter link opens the product, or whether `/tonight` renders
+at all. Those checks were added AFTER it, in this same PR, and they are
+default-branch-only for secret custody — so **their first run is on merge** (R-077).
+I had written *"a friend with the link can open the site"* from that run: the exact
+`missing-product-surface-verification` class I was fixing in the same diff, in seven
+documents. All seven are downgraded to what the run supports. Bar **H7** stays NOT MET
+for two reasons — unproven product reachability (R-077) and the branch-alias URL
+(**R-070**). Both triggers fire on the same merge.
 
 **v1 criterion 4's machine half now exists.** `.github/workflows/experience_metrics.yml`
 runs Lighthouse + axe on a runner against `/tonight`, judged by

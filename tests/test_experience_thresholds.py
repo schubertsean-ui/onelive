@@ -282,6 +282,44 @@ def test_the_workflow_measures_the_FEED_not_the_redirect_stub():
     assert '${BASE_URL}${PAGE_PATH}\\`' in text or "the feed surface" in text
 
 
+def test_the_workflow_REFUSES_to_measure_a_page_that_is_not_the_product():
+    """`CLASS:login-page-metrics-can-pass` / `CLASS:missing-product-render-assertion`
+    (both openai lenses, PR #80 r4).
+
+    Vercel's login page is fast and accessible. Without a render assertion the gate
+    could publish a green LCP/CLS/TBT/WCAG verdict over it — certifying the wrong
+    surface for v1 criterion 4, which is worse than no gate. Asserting `/tonight`
+    is in the URL is not enough: the bypass can be ABSENT, or protection can start
+    serving an interstitial, and Lighthouse scores whatever comes back.
+    """
+    text = (_ROOT / ".github" / "workflows" / "experience_metrics.yml").read_text(
+        encoding="utf-8")
+    code = "\n".join(line for line in text.splitlines()
+                     if not line.lstrip().startswith("#"))
+    # A pre-flight fetch of the SAME target, before Lighthouse runs.
+    assert "target_http_status" in code
+    lh_at = code.index("lighthouse \"$TARGET\"")
+    pre_at = code.index("PRE_CODE=")
+    assert pre_at < lh_at, \
+        "the render check must run BEFORE the measurement, or it proves nothing"
+    # Non-200 and a missing masthead must both fail closed.
+    assert 'if [ "$PRE_CODE" != "200" ]; then' in code
+    assert 'grep -q "ONE LIVE" /tmp/pre.html' in code
+    for marker in ('if [ "$PRE_CODE" != "200" ]', 'grep -q "ONE LIVE" /tmp/pre.html'):
+        # Window sized to reach past the nested ABSENT-diagnosis branch, and
+        # bounded so a stray `exit 1` from a LATER step cannot satisfy it.
+        segment = code[code.index(marker):code.index("lighthouse \"$TARGET\"")]
+        assert "exit 1" in segment, f"{marker} must fail closed"
+    # The ABSENT-bypass case is the likeliest cause, so it is named in the error.
+    assert 'if [ "$VERCEL_BYPASS" = "ABSENT" ]; then' in code
+
+    # ...and the string grepped for must still be in the page, or the check is
+    # vacuous — the same binding tests/test_site_health_contract.py enforces.
+    masthead = (_ROOT / "web" / "app" / "(public)" / "tonight" / "page.tsx").read_text(
+        encoding="utf-8")
+    assert "ONE LIVE" in masthead
+
+
 def test_the_measuring_tools_are_version_pinned():
     """A Lighthouse minor can move LCP scoring, and this gate compares against a
     FIXED bar — unpinned, a bar met in July silently fails in August (PR #80)."""

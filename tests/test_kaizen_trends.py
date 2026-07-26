@@ -353,3 +353,44 @@ def test_malformed_row_fails_loud():
     ledger = FAKE_LEDGER.replace("\n## Other section", "\n" + extra + "\n## Other section")
     with _pytest.raises(ValueError):
         parse_pr_rows(ledger)
+
+
+def test_a_citation_OUTSIDE_the_repo_does_not_close_a_gap(tmp_path):
+    """`CLASS:dataflow-taint-unvalidated-input` (gemini/dataflow-taint, PR #80 r4).
+
+    `(root / candidate).exists()` was not containment: `Path("/repo") / "/tmp/x.py"`
+    discards `/repo` and returns `/tmp/x.py`, so a citation naming ANY absolute
+    path to an existing host file closed an M3 escape — a bypass of the check
+    written one round earlier to stop prose closing that alarm. `..` traversal is
+    the same hole with extra steps.
+    """
+    from tools.kaizen_trends import _cited_mechanisms, _resolves_inside
+
+    outside = tmp_path / "outside.py"
+    outside.write_text("# a real file, in the wrong place\n", encoding="utf-8")
+    root = tmp_path / "repo"
+    (root / "tools").mkdir(parents=True)
+    inside = root / "tools" / "real.py"
+    inside.write_text("# a real file, in the right place\n", encoding="utf-8")
+
+    # Absolute path to a file that EXISTS — rejected because it is not in the repo.
+    assert _cited_mechanisms(f"`{outside}`", root) == []
+    assert not _resolves_inside(root, str(outside))
+    # `..` traversal escaping the root — same answer.
+    assert _cited_mechanisms("`tools/../../outside.py`", root) == []
+    # A directory is not a mechanism, even inside the root.
+    assert not _resolves_inside(root, "tools")
+    # ...and the legitimate citation still resolves, or the fix is a permanent red.
+    assert _cited_mechanisms("`tools/real.py`", root) == ["tools/real.py"]
+    # Traversal that stays INSIDE is fine — the rule is containment, not syntax.
+    assert _resolves_inside(root, "tools/../tools/real.py")
+
+
+def test_the_traversal_bypass_would_have_closed_a_real_escape(tmp_path):
+    """The bypass asserted end-to-end through build_report, not just the helper —
+    a containment check that the caller does not use is not a control."""
+    outside = tmp_path / "elsewhere.py"
+    outside.write_text("# not ours\n", encoding="utf-8")
+    row = f"| 2026-07-06 | M3-ESCAPE x | prod | cause | `{outside}` |"
+    _, findings = build_report(_ledger_with_escapes(row))
+    assert any("OPEN GATE GAP" in f for f in findings), findings

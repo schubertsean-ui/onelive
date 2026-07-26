@@ -43,7 +43,17 @@ compatibility only.
    `protection_bypass_secret: present`, `http_status: 200` and `event_count: 1532`.
    `docs/V1.md` ask 6 is therefore RESOLVED, not open; if any other document still
    says that secret must be created, that document is stale and this line wins (the
-   reason this file exists). Privacy now rests on possession of the bypass URL rather
+   reason this file exists).
+
+   **The boundary of that evidence, because this file is where people come for the
+   truth about config.** It proves the secret works in its **header** form and that
+   `/api/health` serves with 1,532 events. It does **not** prove the
+   query-parameter link form opens `/tonight` — that run predates the
+   product-surface and friend-link checks now in `site_health.yml`, which are
+   default-branch-only for secret custody and so first run on merge (R-077). Until
+   then the friend link is the documented form, not a measured fact.
+
+   Privacy rests on possession of the bypass URL rather
    than on Vercel's login wall. `/ops` is still denied on that code path regardless,
    and the real boundary remains row-level security, never URL secrecy. Setting
    `NEXT_PUBLIC_AUTH_DISABLED=1` still works but is no longer required — and note

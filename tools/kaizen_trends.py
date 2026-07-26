@@ -35,6 +35,7 @@ Usage: python tools/kaizen_trends.py [--ledger docs/metrics/KAIZEN_LEDGER.md]
 from __future__ import annotations
 
 import argparse
+import pathlib
 import re
 import subprocess
 import sys
@@ -297,6 +298,31 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+def _resolves_inside(root: Path, candidate: str) -> bool:
+    """Whether `candidate` names an existing file INSIDE `root`.
+
+    `(root / candidate).exists()` was not enough, and the gap was a real bypass of
+    this gate: `Path("/repo") / "/tmp/x.py"` discards `/repo` entirely and returns
+    `/tmp/x.py`, so a citation naming ANY absolute path to an existing file on the
+    host — `/usr/.../six.py` — closed an M3 escape. `..` traversal is the same
+    hole with extra steps. Found by the gemini/dataflow-taint seat on PR #80, in
+    the check written one round earlier to stop prose closing that alarm.
+
+    Absolute paths are rejected outright rather than reinterpreted as relative: a
+    citation in this ledger means "a file in this repository", and silently
+    re-rooting someone's absolute path would be guessing at intent.
+    """
+    if pathlib.PurePosixPath(candidate).is_absolute() or candidate.startswith("/"):
+        return False
+    try:
+        target = (root / candidate).resolve()
+    except (OSError, RuntimeError, ValueError):
+        return False
+    if not target.is_file():
+        return False
+    return target == root or root in target.parents
+
+
 def _cited_mechanisms(cell: str, root: Path | None = None) -> list[str]:
     """The citations in a 'Gate-gap closed' cell that RESOLVE to something real.
 
@@ -308,11 +334,11 @@ def _cited_mechanisms(cell: str, root: Path | None = None) -> list[str]:
     Returns the resolved citations; an empty list means the cell claims a closure
     it cannot point at.
     """
-    root = root or _repo_root()
+    root = (root or _repo_root()).resolve()
     found: list[str] = []
     for backticked, bare in _PATH_CITATION.findall(cell):
         candidate = backticked or bare
-        if candidate and (root / candidate).exists():
+        if candidate and _resolves_inside(root, candidate):
             found.append(candidate)
     rows = _RECORD_CITATION.findall(cell)
     if rows:
