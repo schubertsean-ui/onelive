@@ -93,6 +93,36 @@ export function buildPromotedQuery(opts?: PromotedQueryOpts): string {
   return p.toString();
 }
 
+// ONE artist-name resolution, used by the feed read and the single-event read
+// (PR #87 r4, gemini nit). The two had byte-identical copies of this block, and
+// a duplicated query is a place where two read paths can silently diverge.
+// Missing ids are simply absent from the map; reshapePromoted omits them rather
+// than inventing a name.
+async function resolveArtistNames(
+  url: string,
+  key: string,
+  rows: PromotedRow[],
+): Promise<Map<string, string>> {
+  const ids = [...new Set(rows.flatMap((r) => r.artist_ids ?? []))];
+  const byId = new Map<string, string>();
+  if (!ids.length) return byId;
+  // PostgREST parses the filter AFTER percent-decoding the parameter value, so
+  // the whole `in.("a","b")` expression is encoded as one value. Exercised by a
+  // test with non-empty artist_ids asserting both the request shape and the
+  // resolved name — this encoding was reported broken in two rounds, and a test
+  // settles it where prose could not.
+  const inList = `in.(${ids.map((id) => `"${id}"`).join(",")})`;
+  const aEndpoint =
+    `${url}/rest/v1/artist?select=artist_id,name&artist_id=${encodeURIComponent(inList)}`;
+  const aRows = (await fetchAllRows(url, key, aEndpoint)) as Array<{
+    artist_id: string;
+    name: string | null;
+  }>;
+  for (const a of aRows) if (a.name) byId.set(a.artist_id, a.name);
+  return byId;
+}
+
+
 // Pure reshape of raw `event` rows into the LicensedEvent card shape. `performer`
 // is resolved from the id→name map (missing ids are simply omitted — never a
 // fabricated name). Provenance is preserved as source_provider = "promoted" so
@@ -190,21 +220,7 @@ export async function fetchPromotedEvents(
   const rows = (await fetchAllRows(url, key, endpoint)) as PromotedRow[];
   if (rows.length === 0) return [];
 
-  // Batch-resolve artist names for `performer`.
-  const ids = [...new Set(rows.flatMap((r) => r.artist_ids ?? []))];
-  const artistNameById = new Map<string, string>();
-  if (ids.length) {
-    const inList = `in.(${ids.map((id) => `"${id}"`).join(",")})`;
-    const aEndpoint =
-      `${url}/rest/v1/artist?select=artist_id,name&artist_id=${encodeURIComponent(inList)}`;
-    const aRows = (await fetchAllRows(url, key, aEndpoint)) as Array<{
-      artist_id: string;
-      name: string | null;
-    }>;
-    for (const a of aRows) if (a.name) artistNameById.set(a.artist_id, a.name);
-  }
-
-  return reshapePromoted(rows, artistNameById);
+  return reshapePromoted(rows, await resolveArtistNames(url, key, rows));
 }
 
 
@@ -249,17 +265,6 @@ export async function fetchPromotedEventById(
   const rows = (await fetchAllRows(url, key, endpoint)) as PromotedRow[];
   if (rows.length === 0) return null;
 
-  const ids = [...new Set(rows.flatMap((r) => r.artist_ids ?? []))];
-  const artistNameById = new Map<string, string>();
-  if (ids.length) {
-    const inList = `in.(${ids.map((x) => `"${x}"`).join(",")})`;
-    const aEndpoint =
-      `${url}/rest/v1/artist?select=artist_id,name&artist_id=${encodeURIComponent(inList)}`;
-    const aRows = (await fetchAllRows(url, key, aEndpoint)) as Array<{
-      artist_id: string;
-      name: string | null;
-    }>;
-    for (const a of aRows) if (a.name) artistNameById.set(a.artist_id, a.name);
-  }
-  return exactlyOneOrNull(reshapePromoted(rows, artistNameById), id, "event");
+  const names = await resolveArtistNames(url, key, rows);
+  return exactlyOneOrNull(reshapePromoted(rows, names), id, "event");
 }

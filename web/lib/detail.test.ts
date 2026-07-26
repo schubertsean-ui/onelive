@@ -467,3 +467,108 @@ describe("detailPrice and contradictory free data", () => {
     expect(detailPrice(ev({ is_free: true, price_min: null })).free).toBe(true);
   });
 });
+
+// ── PR #87 r4: the artist-lookup branch, which no promoted test entered
+// because every stub row had `artist_ids: []` (gemini). Testing it also
+// SETTLES the encoding question raised in two rounds: if percent-encoding the
+// `in.(...)` expression broke PostgREST, the name would not resolve here.
+
+describe("promoted artist resolution", () => {
+  const ENV = {
+    NEXT_PUBLIC_SUPABASE_URL: "https://sb.test",
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
+  };
+  let saved: Record<string, string | undefined>;
+  let calls: string[];
+
+  beforeEach(() => {
+    saved = {};
+    for (const [k, v] of Object.entries(ENV)) {
+      saved[k] = process.env[k];
+      process.env[k] = v;
+    }
+    calls = [];
+  });
+  afterEach(() => {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    vi.unstubAllGlobals();
+  });
+
+  /** Routes by endpoint rather than by call order, so the artist request is
+   *  identified by what it asks for, not by when it happens. */
+  function stubByEndpoint(byPath: Record<string, unknown[]>) {
+    const served: Record<string, boolean> = {};
+    vi.stubGlobal("fetch", async (url: string) => {
+      const u = String(url);
+      calls.push(u);
+      const hit = Object.keys(byPath).find((k) => u.includes(k));
+      const body = hit && !served[hit] ? byPath[hit] : [];
+      if (hit) served[hit] = true;
+      return {
+        ok: true, status: 200,
+        json: async () => body,
+        text: async () => JSON.stringify(body),
+      } as unknown as Response;
+    });
+  }
+
+  it("resolves performer names through the encoded in.(...) filter", async () => {
+    stubByEndpoint({
+      "/rest/v1/event": [{
+        event_id: "u-2",
+        title: "Two Acts",
+        category: "music",
+        subsegment: null,
+        artist_ids: ["a-1", "a-2"],
+        start_time: "2026-08-01T02:00:00.000Z",
+        end_time: null,
+        status: "scheduled",
+        ticket_url: null,
+        confidence: "likely",
+        venue: null,
+      }],
+      "/rest/v1/artist": [
+        { artist_id: "a-1", name: "First Act" },
+        { artist_id: "a-2", name: "Second Act" },
+      ],
+    });
+    const { fetchPromotedEventById } = await import("./promoted");
+    const got = await fetchPromotedEventById("u-2");
+
+    // The branch ran at all...
+    const artistCall = calls.find((c) => c.includes("/rest/v1/artist"));
+    expect(artistCall).toBeDefined();
+    // ...asking for both ids, as ONE percent-encoded filter value...
+    expect(artistCall).toContain("artist_id=in.");
+    expect(decodeURIComponent(artistCall!)).toContain('in.("a-1","a-2")');
+    // ...and the names actually came back onto the event.
+    expect(got?.performer).toContain("First Act");
+    expect(got?.performer).toContain("Second Act");
+  });
+
+  it("omits an unresolved artist rather than inventing a name", async () => {
+    stubByEndpoint({
+      "/rest/v1/event": [{
+        event_id: "u-3",
+        title: "One Known",
+        category: "music",
+        subsegment: null,
+        artist_ids: ["a-1", "a-missing"],
+        start_time: "2026-08-01T02:00:00.000Z",
+        end_time: null,
+        status: "scheduled",
+        ticket_url: null,
+        confidence: "likely",
+        venue: null,
+      }],
+      "/rest/v1/artist": [{ artist_id: "a-1", name: "First Act" }],
+    });
+    const { fetchPromotedEventById } = await import("./promoted");
+    const got = await fetchPromotedEventById("u-3");
+    expect(got?.performer).toBe("First Act");
+    expect(got?.performer).not.toContain("a-missing");
+  });
+});

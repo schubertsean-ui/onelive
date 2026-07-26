@@ -46,9 +46,11 @@ export function detailWhen(x: LicensedEvent | string | null | undefined): string
   });
 }
 
-// An unknown price is "See tickets", never "Free". `free` is true only when the
-// row literally says so — inferring free from a missing price is the
-// false-price-claim class.
+// An unknown price is "See tickets", never "Free". A MISSING price never
+// implies free (the false-price-claim class); a zero floor does, unless the row
+// explicitly denies it. The comment used to say "only when the row literally
+// says so", which overstated the code — a null is_free with price_min 0 is
+// still read as free, deliberately (openai r4 nit).
 export function detailPrice(
   e: LicensedEvent,
 ): { text: string; free: boolean; known: boolean } {

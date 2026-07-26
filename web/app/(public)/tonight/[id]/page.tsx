@@ -133,7 +133,7 @@ export default async function EventDetailPage(
             string in a style object escapes nothing. It is also the better
             element — it can carry alt text and be sized by the browser. */}
         {img ? (
-          <img className="dph" src={img} alt="" />
+          <img className="dph" src={img} alt={event_.title} />
         ) : null}
 
         <h2 className="dti">{event_.title}</h2>
