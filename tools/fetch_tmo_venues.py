@@ -67,9 +67,31 @@ DEFAULT_REGION = "austin"
 MAX_PAGES = 80
 USER_AGENT = "OneLive/1.0 (CAPCOG venue denominator; contact via repo)"
 
+# Every URL shape returned HTTP 500 — including the bare base — while the same
+# pages are browsable by hand and indexed by search engines. A 500 rather than a
+# 403 points at the app erroring on an unexpected request shape rather than a
+# deliberate block, and the usual cause is missing browser headers. This is the
+# LAST hypothesis worth testing programmatically; if a browser-shaped request
+# also 500s, the directory needs a data export requested from the TMO rather
+# than more guessing.
+HEADER_SETS = {
+    "identified-bot": {"User-Agent": USER_AGENT},
+    "browser-like": {
+        "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) "
+                       "Chrome/126.0.0.0 Safari/537.36"),
+        "Accept": ("text/html,application/xhtml+xml,application/xml;q=0.9,"
+                   "image/avif,image/webp,*/*;q=0.8"),
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://gov.texas.gov/music/",
+        "Upgrade-Insecure-Requests": "1",
+    },
+}
 
-def _get(url: str, timeout: int = 45) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+
+def _get(url: str, timeout: int = 45, headers: dict | None = None) -> str:
+    req = urllib.request.Request(
+        url, headers=headers or HEADER_SETS["browser-like"])
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.read().decode("utf-8", errors="replace")
 
@@ -107,26 +129,36 @@ def describe(category: str, region: str | None) -> int:
     """Dump the real markup so a parser is written against fact, not memory."""
     html = None
     url = None
-    print("probing URL shapes (the documented one 500s):")
-    for candidate in candidate_urls(category, region):
-        try:
-            body = _get(candidate)
-        except urllib.error.HTTPError as exc:
-            print(f"  HTTP {exc.code:<4} {candidate}")
-            continue
-        except urllib.error.URLError as exc:
-            raise SystemExit(
-                f"fetch_tmo_venues --describe: could not reach gov.texas.gov "
-                f"({exc.reason}). A network failure is not an empty directory.")
-        print(f"  HTTP 200  {candidate}   ({len(body):,} bytes)")
-        if html is None:
-            html, url = body, candidate
+    print("probing URL shapes x header sets (all shapes 500'd as an "
+          "identified bot):")
+    for label, headers in HEADER_SETS.items():
+        for candidate in candidate_urls(category, region):
+            try:
+                body = _get(candidate, headers=headers)
+            except urllib.error.HTTPError as exc:
+                print(f"  [{label:<15}] HTTP {exc.code:<4} {candidate}")
+                continue
+            except urllib.error.URLError as exc:
+                raise SystemExit(
+                    f"fetch_tmo_venues --describe: could not reach "
+                    f"gov.texas.gov ({exc.reason}). A network failure is not "
+                    f"an empty directory.")
+            print(f"  [{label:<15}] HTTP 200  {candidate}  ({len(body):,} bytes)")
+            if html is None:
+                html, url = body, candidate
+        if html is not None:
+            break
     if html is None:
         raise SystemExit(
-            "fetch_tmo_venues --describe: every URL shape failed. The directory "
-            "is browsable by hand, so this is a request-shape or bot-policy "
-            "problem, not an empty directory. Next step is to check whether the "
-            "app needs a session cookie or a referrer.")
+            "fetch_tmo_venues --describe: every URL shape failed under every "
+            "header set, as an identified bot AND as a browser.\n"
+            "  The pages ARE browsable by hand and are indexed by search "
+            "engines, so the data exists and is public — this is a bot policy "
+            "or a session requirement, not an empty directory.\n"
+            "  STOP GUESSING. The Texas Music Office publishes a contact "
+            "(512-463-6666) and listing in the directory is free, so a data "
+            "export is a reasonable ask. That is a founder action, not another "
+            "round of URL variants.")
     print(f"\nparsing the first success: {url}")
 
     print(f"  {len(html):,} bytes")
