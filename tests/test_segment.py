@@ -7,6 +7,9 @@ Pins the three heuristic tiers and the two invariants that keep it safe:
     (byte-identical to today's single-event path);
   - a repeated NON-event list (a nav menu) is NOT over-segmented.
 """
+import logging
+
+from worker import segment
 from worker.segment import MAX_BLOCKS, segment_events
 
 
@@ -174,3 +177,98 @@ def test_under_the_guard_nothing_is_dropped_or_logged(caplog):
     with caplog.at_level(logging.WARNING, logger="worker.segment"):
         assert _cap(blocks) == blocks
     assert caplog.text == ""
+
+
+# ── Per-block PROMPT-SIZE bound (MAX_BLOCK_CHARS) ────────────────────────────
+# #73 r21 blocker, and the lens was right: the three r20 tests covered only the
+# block-COUNT runaway guard, so raising MAX_BLOCK_CHARS from 40_000 to 10_000_000
+# left all 14 of them green (mutation-verified before writing these). The
+# per-block ceiling is the half that actually fixes the live
+# "prompt is too long: 1092868 tokens > 1000000 maximum" failure, and it had no
+# test at all. These bind it through the PUBLIC entry point so the property is
+# asserted on what callers get, not on a helper's internals.
+
+def _oversized_page(paragraphs: int = 400, para_chars: int = 500) -> str:
+    """A no-anchor page far over the ceiling, built from real paragraph seams so
+    the paragraph-boundary path (not just the hard-split fallback) is exercised."""
+    return "\n\n".join(
+        f"Event {i}: doors 8pm at the venue. " + ("filler text " * (para_chars // 12))
+        for i in range(paragraphs)
+    )
+
+
+def test_no_returned_block_ever_exceeds_the_prompt_size_ceiling():
+    """THE property. Fails if MAX_BLOCK_CHARS is raised, if _split_oversized is
+    removed, or if a call site stops routing through it."""
+    page = _oversized_page()
+    assert len(page) > segment.MAX_BLOCK_CHARS * 3, "fixture must exceed the ceiling"
+    blocks = segment.segment_events(page)
+    assert blocks, "an oversized page must still yield blocks"
+    oversized = [len(b) for b in blocks if len(b) > segment.MAX_BLOCK_CHARS]
+    assert not oversized, (
+        f"{len(oversized)} block(s) exceed MAX_BLOCK_CHARS="
+        f"{segment.MAX_BLOCK_CHARS}: {oversized} — an over-ceiling block fails "
+        "the provider outright, which is the exact live failure this bound fixes"
+    )
+
+
+def test_splitting_preserves_every_event_line_rather_than_truncating():
+    """Truncation is the data-loss class this module already had once. Every
+    paragraph's identifying text must survive somewhere in the output."""
+    page = _oversized_page(paragraphs=300)
+    blocks = segment.segment_events(page)
+    joined = "\n\n".join(blocks)
+    missing = [i for i in range(300) if f"Event {i}:" not in joined]
+    assert not missing, (
+        f"{len(missing)} event line(s) lost by splitting (first few: "
+        f"{missing[:5]}) — splitting must never drop content")
+
+
+def test_a_single_paragraph_over_the_ceiling_is_hard_split_not_dropped():
+    """The `while` fallback: one paragraph with no internal seam still has to be
+    bounded, and its content still has to survive."""
+    marker = "UNIQUEMARKER-END-OF-GIANT-PARAGRAPH"
+    page = ("a" * (segment.MAX_BLOCK_CHARS * 2 + 500)) + marker
+    blocks = segment.segment_events(page)
+    assert blocks
+    assert all(len(b) <= segment.MAX_BLOCK_CHARS for b in blocks), (
+        "a seamless oversized paragraph must be hard-split, not passed through")
+    assert any(marker in b for b in blocks), (
+        "the tail of a hard-split paragraph must survive — better a seam "
+        "mid-paragraph than a lost event")
+
+
+def test_content_under_the_ceiling_is_not_split_at_all():
+    """The bound must not fire on ordinary pages — a spurious split would
+    multiply AI calls against the accounted per-page cap."""
+    page = "\n\n".join(f"Event {i}: doors 8pm." for i in range(5))
+    assert len(page) < segment.MAX_BLOCK_CHARS
+    before = segment.segment_events(page)
+    assert before == segment._split_oversized(before), (
+        "under-ceiling blocks must pass through _split_oversized unchanged")
+
+
+def test_the_split_is_logged_with_a_count_never_an_unqualified_claim(caplog):
+    """The log line is operator-facing evidence (it is what proved this fix live
+    in run 30218828785), so it must state the resulting block count and must not
+    claim 'nothing dropped' when a seam fragment was in fact shed."""
+    with caplog.at_level(logging.WARNING, logger="worker.segment"):
+        segment.segment_events(_oversized_page(paragraphs=200))
+    split_lines = [r.getMessage() for r in caplog.records
+                   if "exceeds MAX_BLOCK_CHARS" in r.getMessage()]
+    assert split_lines, "an over-ceiling split must be logged, never silent"
+    for line in split_lines:
+        assert "SPLIT into" in line
+        assert "truncat" not in line.lower(), (
+            "the split path must never describe itself as truncation")
+
+    # And the precise-claim half: a shed fragment is REPORTED, not glossed.
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="worker.segment"):
+        segment._split_oversized(["z" * (segment.MAX_BLOCK_CHARS + 3)])
+    shed_lines = [r.getMessage() for r in caplog.records
+                  if "exceeds MAX_BLOCK_CHARS" in r.getMessage()]
+    assert shed_lines
+    assert "seam fragment(s) shed" in shed_lines[0], (
+        "when a sub-minimum fragment is discarded the log must say so with a "
+        f"count; got: {shed_lines[0]!r}")

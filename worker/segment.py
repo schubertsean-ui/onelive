@@ -400,12 +400,22 @@ def _split_oversized(blocks: List[str]) -> List[str]:
         if current:
             pieces.append(current)
         kept = [p for p in pieces if len(p.strip()) >= _MIN_BLOCK_CHARS]
+        # Only sub-_MIN_BLOCK_CHARS (8) seam fragments can be discarded, and
+        # nothing event-bearing fits in 8 characters. Say so PRECISELY anyway:
+        # the unconditional "nothing dropped" wording claimed more than the
+        # code does the moment one fragment fell below the floor (#73 r21,
+        # caught while writing this path's missing tests). The count is the
+        # claim now, not an adjective.
+        shed = len(pieces) - len(kept)
         logger.warning(
             "segment_events: a %d-char block exceeds MAX_BLOCK_CHARS=%d — "
-            "SPLIT into %d block(s), nothing dropped. An unsplit block this "
+            "SPLIT into %d block(s), %s. An unsplit block this "
             "size fails the provider outright ('prompt is too long') and "
             "wastes one call per run.",
             len(block), MAX_BLOCK_CHARS, len(kept),
+            "nothing dropped" if not shed
+            else f"{shed} sub-{_MIN_BLOCK_CHARS}-char seam fragment(s) shed "
+                 f"(too small to carry an event), no event content dropped",
         )
         out.extend(kept)
     return out
