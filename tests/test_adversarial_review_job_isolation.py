@@ -325,3 +325,33 @@ def test_a_key_bearing_install_runs_before_any_checkout(rel):
             assert "python -I -m pip" in line, (
                 f"{rel}: job {name!r} installs without `python -I` (which implies "
                 f"-P, keeping the cwd off sys.path): {line!r}")
+
+
+@pytest.mark.parametrize("rel", WORKFLOWS)
+def test_a_key_bearing_job_invokes_no_pr_authored_local_action(rel):
+    """PR #75 r14, class untested-local-action-execution.
+
+    Every check above inspects shell `run:` lines. A LOCAL action —
+    `uses: ./.github/actions/whatever` — is PR-authored code checked out into
+    the workspace and executed in the job, with full ability to write
+    $GITHUB_ENV / $GITHUB_PATH before the key-bearing step. It carries no
+    `run:` line at all, so the entire boundary could be reopened through a
+    surface the compensating tests never looked at, and they would stay green.
+
+    Workspace-relative `uses:` is therefore banned outright in a key-bearing
+    job. Published actions (`owner/repo@ref`) stay allowed: they are not
+    authored by the pull request, which is the property that matters here.
+    """
+    wf = _load(rel)
+    for name, job in wf["jobs"].items():
+        if not any(k in yaml.dump(job) for k in MODEL_API_KEYS):
+            continue
+        for i, step in enumerate(job.get("steps", [])):
+            uses = str(step.get("uses", "")).strip()
+            if not uses:
+                continue
+            assert not uses.startswith((".", "/")), (
+                f"{rel}: job {name!r} step {i} invokes a workspace-relative "
+                f"action ({uses!r}) — that is PR-authored code executing in the "
+                f"job that holds the API key, able to poison $GITHUB_ENV / "
+                f"$GITHUB_PATH before the secret step. Published actions only.")

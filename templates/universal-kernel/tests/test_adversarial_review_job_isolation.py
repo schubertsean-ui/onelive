@@ -228,3 +228,23 @@ def test_nothing_is_hidden_from_the_reviewed_diff():
             f"{WORKFLOW}: the reviewed diff hides paths with no compensating "
             f"gate examining them — the Independent Evaluator would judge an "
             f"incomplete change: {line.strip()!r}")
+
+
+def test_a_key_bearing_job_invokes_no_pr_authored_local_action():
+    """A LOCAL action (`uses: ./...`) is PR-authored code executing in the job,
+    with no `run:` line for the other checks here to inspect — so the boundary
+    could be reopened through a surface this suite never looked at while every
+    test stayed green (PR #75 r14, class untested-local-action-execution).
+
+    Published actions (`owner/repo@ref`) remain allowed: they are not authored
+    by the pull request, which is the property this guards.
+    """
+    wf = _load()
+    for name, job in _key_bearing_jobs(wf).items():
+        for i, step in enumerate(job.get("steps", [])):
+            uses = str(step.get("uses", "")).strip()
+            if not uses:
+                continue
+            assert not uses.startswith((".", "/")), (
+                f"{WORKFLOW}: job {name!r} step {i} invokes a workspace-relative "
+                f"action ({uses!r}) — PR-authored code in the key-bearing job")
