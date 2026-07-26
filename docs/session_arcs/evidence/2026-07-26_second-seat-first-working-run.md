@@ -1,8 +1,13 @@
 # PROVENANCE — read this before the excerpts below.
 #
-# WHAT: the first CI run in which the second review seat (Gemini) actually
-# completed a review — both its lenses returning parseable verdicts —
-# rather than hard-failing on an uncallable model.
+# WHAT: the first CI run ON THIS BRANCH in which the second review seat
+# (Gemini) actually completed a review — both its lenses returning
+# parseable verdicts — rather than hard-failing on an uncallable model.
+# The branch qualifier is part of the claim, not a footnote to it: the
+# 04:06:50Z floor below is repo-wide and mechanical, but the "earliest
+# run after that floor" step is proven from a BRANCH-FILTERED enumeration.
+# A repo-wide ordinal would need the unfiltered run list, which is not
+# committed here and is therefore not claimed.
 #
 # WHY THIS FILE EXISTS: a claim ABOUT a run is not evidence OF it. #73 r5
 # blocked on exactly that (class: retyped-evidence / false-confidence-gate),
@@ -10,7 +15,7 @@
 #
 # CORRECTED AT r6 — TWICE, and both corrections are the reviewer's win.
 # The r5 version of this file named job 89754542551 as the first working
-# run. The r6 OpenAI absence-only lens blocked it as an unproven ORDINAL
+# run, unqualified. The r6 OpenAI absence-only lens blocked it as an unproven ORDINAL
 # claim (class: missing-ordinal-evidence). Going to prove it DISPROVED it:
 #   (1) job 89754542551 was NOT first. Job 89754035048 completed a Gemini
 #       review ~7 minutes earlier. The reviewer did not merely catch an
@@ -69,7 +74,7 @@
 # the enumeration without the branch filter.
 #
 # ============================================================================
-# EXCERPT A — THE FIRST WORKING RUN (the ordinal claim's actual subject)
+# EXCERPT A — THE FIRST WORKING RUN ON THIS BRANCH (the claim's subject)
 # ============================================================================
 # SOURCE:  GitHub Actions job 89754035048
 #          run  https://github.com/schubertsean-ui/onelive/actions/runs/30187255366

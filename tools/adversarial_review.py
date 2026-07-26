@@ -383,12 +383,19 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
     # first would let a red lens sit behind a slow or hung sibling — the gate
     # would still fail, but only after the slowest call — loud far too late,
     # which is the precise shape fail-loud physics exists to rule out.
-    # Cancellation is best-effort by design: a lens already running cannot be
-    # interrupted, so the executor is shut down WITHOUT waiting for it
-    # (wait=False) rather than blocking on an in-flight HTTP call. The
-    # verdict is unchanged either way — an erroring lens hard-fails the whole
-    # panel and never degrades it to a partial one, which would be a silent
-    # narrowing.
+    # WHAT DELIVERS THE SPEED, stated exactly because the two mechanisms
+    # here are easy to confuse (#73 r8, verified by mutation-testing this
+    # block): the observable fail-fast property comes from raising on the
+    # first error plus `shutdown(wait=False)` in the finally, which returns
+    # without blocking on an in-flight HTTP call. The `cancel()` loop only
+    # stops futures that have not STARTED, and since max_workers == len(jobs)
+    # nothing is ever queued — so today it is defensive, not load-bearing,
+    # and no test can observe it. It is kept because it becomes real the
+    # moment the pool is narrower than the job list, and because parse
+    # failures must reach the same path as transport failures.
+    # The verdict is unchanged by any of this — an erroring lens hard-fails
+    # the whole panel and never degrades it to a partial one, which would be
+    # a silent narrowing.
     results: list[tuple[str, str] | None] = [None] * len(jobs)
     if jobs:
         import concurrent.futures as _cf
@@ -402,12 +409,17 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
             for future in _cf.as_completed(futures):
                 i = futures[future]
                 try:
+                    # parse_verdict MUST be inside this try (#73 r8, Gemini
+                    # seat): an unparseable verdict is a lens failure exactly
+                    # like a transport error, and parsing outside would raise
+                    # past the handler, skipping cancellation and reinstating
+                    # the loud-but-late path this block exists to remove.
                     text = future.result()
+                    results[i] = (parse_verdict(text), text)
                 except BaseException:  # noqa: BLE001 — cancel siblings, then raise
                     for pending in futures:
                         pending.cancel()
                     raise
-                results[i] = (parse_verdict(text), text)
         finally:
             pool.shutdown(wait=False)
 

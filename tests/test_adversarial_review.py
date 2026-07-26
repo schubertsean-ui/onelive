@@ -496,3 +496,44 @@ def test_a_failing_lens_raises_WITHOUT_waiting_for_a_hung_sibling():
             "sibling instead of failing fast")
     finally:
         release.set()  # let the daemonless worker thread exit
+
+
+def test_an_UNPARSEABLE_verdict_also_fails_fast_not_just_a_transport_error():
+    # Gemini seat, #73 r8: my first fail-fast fix parsed the verdict OUTSIDE
+    # the try, so an unparseable lens raised past the handler and cancelled
+    # nothing. An unparseable verdict IS a lens failure and must take the
+    # same path as a transport error.
+    #
+    # HONEST SCOPE — this test pins the TIMING property (an unparseable
+    # verdict raises without waiting on a hung sibling), which is the
+    # user-visible one. It does NOT pin the cancellation, and cannot:
+    # mutation-testing showed it still passes with the parse moved back
+    # outside the try, because run_panel uses max_workers == len(jobs), so
+    # no future is ever queued for cancel() to stop and the speed comes from
+    # shutdown(wait=False). Recorded rather than dressed up as coverage the
+    # test does not provide.
+    import threading
+    import time
+
+    release = threading.Event()
+
+    def one_garbles_one_hangs(ri, sp):
+        if "ABSENCE-ONLY" in sp:
+            time.sleep(0.05)
+            return "confident prose with no verdict line at all"
+        release.wait(timeout=30)
+        return "ok\nVERDICT: APPROVE"
+
+    t0 = time.time()
+    try:
+        with pytest.raises(ValueError):
+            ar.run_panel("input", "seed", openai_key="k", model="gpt-5.5",
+                         base_url="u", gemini_key=None,
+                         request_openai=one_garbles_one_hangs,
+                         request_gemini=None)
+        elapsed = time.time() - t0
+        assert elapsed < 5.0, (
+            f"raised only after {elapsed:.1f}s — an unparseable verdict did "
+            "not cancel the hung sibling")
+    finally:
+        release.set()
