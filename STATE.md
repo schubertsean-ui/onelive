@@ -50,6 +50,53 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #29 (2026-07-26, founder-directed — verbatim: "Research and evaluate the world class methods for handling this - you are clearly not working in a world class manner for this to continue to be an issue. Codify your findings."; separately "I'm very very frustrated with all the feedback about what you are doing. Diarrhea from you about status not progress. Codify to the canon I only want progress toward completion... solutions executed by you 99% of the time."; and "Change any contradictory code or canon or rules.")
+
+GOAL: make change-set size and scope MECHANICAL rather than prose, and resolve
+the canon the resulting rules contradict. ROOT CAUSE: PR #68 ran 22 review
+rounds and PR #74 ran 13; both were diagnosed as "too large, split it" IN PROSE,
+to the founder, and nothing executed it. The Construction Loop already required
+small-batch execution (Stage 5) and machine-consumed lessons (Stage 6), and
+`tools/construction_gate.py` — the loop's own enforcement arm — contained no
+size or scope check at all. Measured from our own history, PR #74 GREW under
+review (2,918 -> 6,974 -> 8,708 reviewable lines), so each round judged a bigger
+subject than the last; round-counting cannot detect that, because the residual
+is not shrinking for the reason it appears to be. DONE-CRITERIA: a blocking gate
+in `tools/validate` with hard caps and a scope freeze; the canon that states the
+rule; every existing rule the new rules contradict resolved AT THE SOURCE rather
+than left for a reader to arbitrate. NON-GOALS: no threshold anywhere loosened;
+no product, pipeline, trust-path or auth code touched.
+[S3:rule-stronger-than-mechanism] this IS the class, named directly: the rule existed in prose twice and shipped no mechanism, so `tools/change_set_gate.py` lands in the same commit as the canon that states it, wired blocking into validate, with 12 tests — including one asserting the wiring, because a gate nothing runs is the prose it replaced.
+[S3:false-confidence-gate] the gate's self-description claims exactly what it implements: it measures a diff range and compares two numbers. It does NOT claim to judge whether a change is coherent, and the canon says so — "one PR, one reversible decision" is labelled a human test, never an implied capability.
+[S3:self-weakenable-gate] the thresholds are constants in the tool, not data the subject supplies: a PR cannot raise its own ceiling by editing a config file, and raising a constant is a diff to gate-custody code that the mandatory review sees. Widening LOW_REVIEW_COST is the same surface, deliberately a code edit for the same reason.
+[S3:self-weakenable-review-model] the reviewed subject chooses no input to its own review: this gate reports to the builder and to validate, never to the evaluator's verdict — and the reviewer-concurrency change was SPLIT to its own branch precisely so a change to the examiner is judged on its own diff.
+[S3:untested-gate-branch] every branch has a committed test: over-lines, over-files, warn-not-fail, deletion cost, freeze written, growth-lines fail, growth-files fail, corrupt-freeze fail-closed, low-review-cost exclusion, absent-freeze notice, and the validate wiring.
+[S3:pushed-on-red] validate ran unchained with its exit code read directly — not through `| tail`, which masked a FAIL twice in this session's earlier work, which is why this class is cited rather than assumed.
+[S3:stale-base-widens-range] the gate takes an explicit --base and validate refreshes origin/master before any range-derived gate; a stale base would UNDERSTATE the measured size, which is the fail-open direction for exactly this tool.
+[S3:contract-scope-violation] this contract is written for the change that exists after the split, not the session that produced it. The denominator, the TABC fetch, the coverage workflow, the source scorecard and the reviewer concurrency each carry their own contract on their own branch.
+[S3:deferred-trust-work] nothing is parked: the four canon contradictions these rules created were found and resolved in this same change (prime directive 3, the "outrank brevity" line, OPERATING_RULES section 6, Construction Loop Stage 5), rather than recorded as doc debt.
+[S3:governance-ambiguity] the precedent states its scope precisely: raising any threshold in the gate is named a gate-threshold relaxation and therefore founder-crucial, and "adopting a reviewer's blocker is in scope; new work is not" draws the line the freeze enforces.
+[S3:retyped-evidence] every number about our own history is machine-derived — the #74 growth figures come from running the gate on that diff, not from memory — and the study figures carry their citations.
+[S3:env-dependent-hermetic-test] the gate tests are hermetic and were RUN that way: they build diffs in tmp_path git repos and touch no network, no remote and no credentials.
+[S3:missing-record-read-as-state] an absent scope freeze is REPORTED as absent ("no scope freeze recorded"), never treated as "scope unchanged"; a corrupt freeze file fails closed rather than reading as no freeze.
+[S3:malformed-ledger-row] the freeze artifact is JSON with its own parse guard that raises; no ledger row is written by this change.
+[S3:nonfinite-numeric-accepted] the only arithmetic is integer line and file counting from git diff --numstat; a non-numeric field (binary files report "-") is handled explicitly rather than coerced.
+[S3:pagination-integrity-gap] the diff walk is not paged — git diff --numstat returns the whole range in one call, and a non-zero git exit fails the gate rather than reading as an empty change set.
+[S3:caller-suppliable-custody-inputs] no custody input is involved: the gate signs, verifies and approves nothing. Its only outputs are a number and an exit code.
+[S3:mutable-model-alias] no model, alias or provider is referenced anywhere in this change.
+[S3:weak-key-accepted-at-custody] no key material is read, written or checked.
+[S3:volatile-safety-store] the scope freeze is a COMMITTED file, not process state or a cache — it survives a fresh runner, which is the only way "did this change grow since review started" can be answered at all.
+[S3:stale-live-incident-state] no live-state claim is made; the #68 and #74 round counts are read from the PR histories and the ledger, and the growth figures were re-measured on the diffs rather than quoted from earlier prose.
+[S3:stalled-state-needs-active-diagnosis] the convergence rules ARE this class applied to review: a non-decreasing blocker count across two rounds is DIAGNOSED as a split, not waited out for more rounds.
+[S3:nonfinite-decimal-accepted] no decimal arithmetic occurs; the counts are integers and a non-numeric numstat field is handled explicitly.
+[S3:fabricated-qualitative-copy] no outward-facing text is generated: the tool emits counts and file paths taken from the diff, and the canon quotes its sources rather than characterising them.
+[S3:false-price-claim] nothing here touches a price surface, a cost figure or a monetary value.
+[S3:fail-open-on-custody-misconfig] every unreadable or malformed input to this tool fails the run rather than being read as "nothing to check" — an unparseable freeze file, a non-zero git exit, and a missing base ref all stop it.
+[S3:semantic-claim-not-rederived] the size of a change is RE-DERIVED from the diff on every run; it is never read from a stored number, a PR label, or the previous run's output.
+[S3:unusable-credential-tier] the tool needs no secret of any tier — it runs offline against local git, which is why it can run on every builder machine and in every CI job identically.
+[S3:workflow-tool-version-skew] no workflow is touched and there is no trusted base-owned counterpart to skew against; the tool is invoked only from tools/validate, which runs the working tree's own copy.
+[S3:featurability-dimension-missed] the gate reports every dimension it measures — reviewable lines, file count, the largest files, the freeze state, the growth delta — rather than one pass/fail that hides which bound was hit.
+
 ## Session Contract #27 (2026-07-26, same session — close-out for PR #71)
 
 GOAL (AMENDED at r4 — the original text is quoted below and was FALSE by r1, which is itself the contract-scope-violation the panel blocked on): record PR #71's merge (0d16d90, 12 rounds) across STATE, the Kaizen ledger, the changelog and the session handoff — AND, because this PR turned out to be the first one the v2 panel judges, make the second review seat actually function. The amendment is stated rather than silently absorbed: contract-first is the custody boundary, and a gate change shipped under a records-only contract is unreviewable against its own done-criteria. ORIGINAL GOAL, superseded: "record PR #71's merge ... so disk carries the outcome rather than chat" with NON-GOALS "no code, no gate change, no threshold change — records only". WHY THE SCOPE MOVED: the close-out PR's own review run surfaced that the Gemini seat could not call its pinned model (429 `limit: 0`), so the PR could not go green without fixing the seat; splitting it out would have meant a second PR that this one still could not merge behind. DONE-CRITERIA (amended): Contract #26 closed with the merge SHA; the merged Kaizen row with M1 read from the recorded arc; handoff rewritten from in-flight to merged; the second seat pinned to a model this key can call, with that callability PROVEN by a preflight (list + live probe) executing from the trusted base copy, branch-tested, and the pin bound by test to the tool's own default; validate green. NON-GOALS (amended, unchanged in substance): no threshold relaxation anywhere — an unreachable seat still reds the gate rather than narrowing the panel, which would be founder-crucial; no change to verdict physics, custody, or the diff cap.
