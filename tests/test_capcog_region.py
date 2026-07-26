@@ -194,14 +194,67 @@ def test_city_still_separates_same_named_venues_when_both_state_one():
     assert cc.coverage(rows, targets)["covered_venue_count"] == 0
 
 
-def test_a_cityless_target_matching_two_towns_is_reported_ambiguous():
-    """Never silently resolved in either direction — counted and named."""
+def test_the_county_disambiguates_a_cityless_target_across_towns():
+    """r3 sharpened this: a Travis target matching same-named rooms in Austin
+    AND Llano is no longer 'ambiguous' — the county settles it. Only the Austin
+    row counts."""
     import tools.capcog_coverage as cc
     rows = [{"venue_name": "The Grand", "venue_city": "Austin"},
             {"venue_name": "The Grand", "venue_city": "Llano"}]
     targets = [{"name": "The Grand", "city": None, "county": "travis"}]
     out = cc.coverage(rows, targets)
-    assert out["ambiguous_matches"] == ["The Grand"]
+    assert out["covered_venue_count"] == 1
+    assert out["ambiguous_matches"] == []
+
+
+def test_a_cityless_target_is_NOT_covered_by_a_venue_in_another_county():
+    """THE r3 blocker, and it is a defect I introduced fixing r1. Making the
+    match name-first stopped 61 city-less targets reading as misses — and let a
+    name match cross county lines, OVERSTATING coverage. Under-reporting and
+    over-reporting are the same defect pointed opposite ways."""
+    import tools.capcog_coverage as cc
+    rows = [{"venue_name": "The Parish", "venue_city": "Llano"}]
+    targets = [{"name": "The Parish", "city": None, "county": "travis"}]
+    assert cc.coverage(rows, targets)["covered_venue_count"] == 0
+
+
+def test_a_cityless_target_is_NOT_covered_by_an_out_of_market_venue():
+    import tools.capcog_coverage as cc
+    rows = [{"venue_name": "Majestic Theatre", "venue_city": "San Antonio"}]
+    targets = [{"name": "Majestic Theatre", "city": None, "county": "travis"}]
+    assert cc.coverage(rows, targets)["covered_venue_count"] == 0
+
+
+def test_two_towns_in_the_SAME_county_are_still_ambiguous():
+    """Where the county cannot settle it, we still refuse to pick."""
+    import tools.capcog_coverage as cc
+    rows = [{"venue_name": "The Grand", "venue_city": "Austin"},
+            {"venue_name": "The Grand", "venue_city": "Pflugerville"}]
+    targets = [{"name": "The Grand", "city": None, "county": "travis"}]
+    assert cc.coverage(rows, targets)["ambiguous_matches"] == ["The Grand"]
+
+
+def test_malformed_target_rows_are_excluded_AND_reported():
+    """A corrupt denominator row is corrupt input, not a smaller market.
+    Silently skipping it shrank the denominator and inflated the percentage."""
+    import tools.capcog_coverage as cc
+    targets = [
+        {"name": "Mohawk", "city": "Austin", "county": "travis"},
+        {"name": "", "county": "travis"},                       # nameless
+        {"name": "Majestic", "city": "San Antonio", "county": "bexar"},  # not CAPCOG
+    ]
+    out = cc.coverage([{"venue_name": "Mohawk", "venue_city": "Austin"}], targets)
+    assert out["target_venue_count"] == 1
+    assert len(out["malformed_target_rows"]) == 2
+
+
+def test_merge_keeps_same_named_venues_in_different_counties():
+    """r3: keying the merge on name alone let a city-less Travis entry absorb a
+    genuinely different same-named venue in Llano — undercounting."""
+    import tools.build_capcog_targets as bt
+    existing = [{"name": "The Grand", "city": None, "county": "travis"}]
+    incoming = [{"name": "The Grand", "city": "llano", "county": "llano"}]
+    assert len(bt.merge(existing, incoming)) == 2
 
 
 def test_layers_dedupe_a_cityless_catalog_venue_against_a_cited_import():
@@ -235,3 +288,17 @@ def test_the_web_boundary_file_is_generated_and_has_not_drifted():
         .read_text(encoding="utf-8"))
     assert committed == gen.build(), (
         "web/lib/capcog-boundary.json is stale — run tools/gen_region_boundary.py")
+
+
+def test_export_includes_code_not_only_markdown():
+    """r3 blocker: the founder asked for 'every file' and the export globbed
+    *.md only, silently omitting workflows, code, tests and the boundary JSON —
+    while the index claimed to be the complete record."""
+    import tools.export_context as ec
+    tools_files = ec._files_for("tools")
+    suffixes = {p.suffix for p in tools_files}
+    assert ".py" in suffixes, "code must be exported, not just docs"
+    wf = ec._files_for(".github/workflows")
+    assert any(p.suffix in {".yml", ".yaml"} for p in wf)
+    # and the noise stays out
+    assert all("node_modules" not in p.parts for p in ec._files_for("web/lib"))

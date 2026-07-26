@@ -101,6 +101,11 @@ def index_by_name(rows: list) -> dict:
     return idx
 
 
+def _county_of_ingested_city(city: str) -> str | None:
+    """CAPCOG county for an ingested row's city, or None when unknown."""
+    return county_for_place(city)
+
+
 def target_is_covered(target: dict, idx: dict) -> tuple:
     """Is this target venue present in what we ingested? Returns
     (covered, ambiguous).
@@ -126,8 +131,21 @@ def target_is_covered(target: dict, idx: dict) -> tuple:
     tcity = normalize_place(target.get("city"))
     if tcity:
         return (tcity in cities or cities == {""}), False
+
+    # City-less target. r1 made matching name-first so 61 city-less targets
+    # would stop reading as misses; r3 caught that the same change lets a name
+    # match cross COUNTY lines and OVERSTATE coverage — "The Parish" in Travis
+    # counted as covered by a same-named room in Llano, or by one in San
+    # Antonio. Under-reporting and over-reporting are the same defect pointed in
+    # opposite directions, so the county has to agree.
+    tcounty = target.get("county")
     known = {c for c in cities if c}
-    return True, len(known) > 1
+    if not known:
+        return True, False          # ingested rows carry no city either
+    matching = {c for c in known if _county_of_ingested_city(c) == tcounty}
+    if not matching:
+        return False, False         # every same-named row is in another county
+    return True, len(matching) > 1
 
 
 def coverage(rows: list, targets: list | None) -> dict:
@@ -140,12 +158,19 @@ def coverage(rows: list, targets: list | None) -> dict:
                         sorted(CAPCOG_COUNTIES)}
     matched = 0
     ambiguous_names: list = []
+    malformed: list = []
     for t in targets:
         city = t.get("city")
         county = t.get("county") or county_for_place(city)
+        # A malformed denominator row is CORRUPT INPUT, not a smaller market
+        # (evaluator blocker r3). Silently `continue`-ing shrank the denominator
+        # and inflated the percentage, and a nameless row was counted as a miss
+        # with `None` in the missing list. Both are recorded and surfaced.
+        if not (t.get("name") or "").strip():
+            malformed.append(f"<nameless row, county={county!r}>")
+            continue
         if county not in per_county:
-            # A target row outside CAPCOG is a defect in the TARGET LIST, and it
-            # must not quietly inflate or deflate coverage.
+            malformed.append(f"{t.get('name')} (county={county!r} not in CAPCOG)")
             continue
         per_county[county]["target"] += 1
         covered, ambiguous = target_is_covered(t, idx)
@@ -161,6 +186,7 @@ def coverage(rows: list, targets: list | None) -> dict:
         "status": "MEASURED",
         "ingested_venue_count": len(idx),
         "ambiguous_matches": ambiguous_names,
+        "malformed_target_rows": malformed,
         "target_venue_count": total_target,
         "covered_venue_count": matched,
         "coverage_pct": (round(100.0 * matched / total_target, 1)
@@ -218,6 +244,12 @@ def main(argv=None) -> int:
         print(f"  *** FLOOR, NOT THE MARKET UNIVERSE — layers present: {layers}")
         print(f"  *** This percentage answers 'are we ingesting what we already")
         print(f"  *** know about?', NOT 'what share of CAPCOG venues exist?'.")
+    if cov.get("malformed_target_rows"):
+        print(f"  MALFORMED target rows EXCLUDED from the denominator "
+              f"({len(cov['malformed_target_rows'])}) — the target list is "
+              f"corrupt, not the market smaller:")
+        for row in cov["malformed_target_rows"][:10]:
+            print(f"    - {row}")
     if cov.get("ambiguous_matches"):
         print(f"  ambiguous name-only matches (not silently resolved): "
               f"{', '.join(cov['ambiguous_matches'])}")

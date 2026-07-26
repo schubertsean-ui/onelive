@@ -67,6 +67,23 @@ SECTIONS: list = [
         "docs/design",
         "docs/strategy",
     ]),
+    ("THE CODE — pipeline, region boundary, web read path", [
+        "worker",
+        "web/lib",
+        "web/app",
+        "api",
+    ]),
+    ("THE GATES + TOOLING", [
+        "tools",
+        ".github/workflows",
+    ]),
+    ("TESTS", [
+        "tests",
+    ]),
+    ("DATA — source catalog, venue targets, schema", [
+        "sources",
+        "supabase/migrations",
+    ]),
     ("PROCESS — skills, hats, review personas", [
         "docs/skills",
         "docs/hats",
@@ -83,10 +100,26 @@ INSTRUCTION_ONLY = [
 ]
 
 
+# Extensions a directory export includes. Markdown-only was the defect
+# (evaluator blocker r3): the founder asked for "every file", and an export that
+# silently omitted the workflows, the code, the tests and the boundary/target
+# JSON was not the complete portable record it claimed to be — a claim I made in
+# the index itself. Binary/lockfile noise stays out on purpose, and the index
+# states what the filter is so the omission is declared rather than discovered.
+EXPORT_SUFFIXES = {".md", ".py", ".ts", ".tsx", ".js", ".jsx", ".sql",
+                   ".yml", ".yaml", ".json", ".toml", ".cfg", ".ini", ".sh"}
+EXPORT_SKIP_DIRS = {"node_modules", ".git", ".next", "__pycache__", "dist",
+                    "build", ".venv", "export"}
+
+
 def _files_for(entry: str) -> list:
     path = REPO / entry
     if path.is_dir():
-        return sorted(p for p in path.rglob("*.md") if p.is_file())
+        return sorted(
+            p for p in path.rglob("*")
+            if p.is_file()
+            and p.suffix.lower() in EXPORT_SUFFIXES
+            and not any(part in EXPORT_SKIP_DIRS for part in p.parts))
     return [path] if path.is_file() else []
 
 
@@ -135,6 +168,16 @@ def main(argv=None) -> int:
         "| `ONELIVE_INSTRUCTIONS.md` | Hand to a fresh AI first. The rules only — small enough to fit any context. |",
         "| `ONELIVE_FULL_CONTEXT.md` | Everything. Large; use when the AI has a big context window or can chunk. |",
         "| `ONELIVE_CONTEXT_INDEX.md` | This file — the map. |",
+        "",
+        "## What the export INCLUDES, stated so the filter is declared",
+        "",
+        "Documentation, the pipeline and web code, the gates and tooling, the",
+        "workflows, the tests, the source catalog, the venue target list and the",
+        "database migrations — every text file with one of these suffixes:",
+        f"`{'`, `'.join(sorted(EXPORT_SUFFIXES))}`.",
+        "",
+        "Deliberately excluded: lockfiles, build output, `node_modules`, and",
+        "binaries. Those are noise to a reading AI, not record.",
         "",
         "## Contents of the full export, in reading order",
         "",

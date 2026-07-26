@@ -120,17 +120,24 @@ def merge(existing: list, incoming: list) -> list:
     def name_of(t):
         return (t.get("name") or "").strip().lower()
 
-    by_name: dict = {}
+    # Keyed by (name, COUNTY). r2 collapsed on name alone when either side
+    # lacked a city, which r3 caught as the other half of the same defect: a
+    # city-less Travis entry would absorb a genuinely different same-named
+    # venue in Llano, UNDERCOUNTING the denominator. County is the coarse
+    # location every layer actually carries, so it is the safe discriminator.
+    by_key: dict = {}
     for t in existing:
-        by_name.setdefault(name_of(t), set()).add(normalize_place(t.get("city")) or "")
+        by_key.setdefault((name_of(t), t.get("county")), set()).add(
+            normalize_place(t.get("city")) or "")
 
     out = list(existing)
     for t in incoming:
-        n, c = name_of(t), normalize_place(t.get("city")) or ""
-        known = by_name.get(n)
+        n, county = name_of(t), t.get("county")
+        c = normalize_place(t.get("city")) or ""
+        known = by_key.get((n, county))
         if known is not None and (c in known or "" in known or not c):
-            continue          # same venue already present
-        by_name.setdefault(n, set()).add(c)
+            continue          # same venue, same county — already present
+        by_key.setdefault((n, county), set()).add(c)
         out.append(t)
     return out
 
