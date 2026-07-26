@@ -264,11 +264,14 @@ def request_review(review_input: str, api_key: str, model: str, base_url: str) -
 # so a founder-minted key on the free tier can never call it, and the seat
 # hard-failed the whole gate instead of reviewing anything. Flash has free-
 # tier quota and reviews; a working weaker second family is strictly more
-# review than a second family that cannot run. Changing this constant is a
+# review than a second family that cannot run. gemini-2.5-flash then answered
+# 404 'no longer available to new users' (#72 r3) — two guesses from error
+# strings, which is why the workflow now PREFLIGHTS the pin against the list
+# of models the key can actually call and prints that list. Changing this is a
 # gate-custody change and lands exactly like this: a PR judged by the
 # BASE-owned reviewer copy. If the founder ever enables billing on the
 # Gemini project, moving back to pro is a one-line PR through the same path.
-GEMINI_DEFAULT_MODEL = "gemini-2.5-flash"
+GEMINI_DEFAULT_MODEL = "gemini-flash-latest"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
 

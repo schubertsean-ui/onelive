@@ -50,6 +50,13 @@ jobs:
   adversarial-review:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # THE pin for the second seat's model — one literal, read by the
+      # preflight that proves it callable and by the reviewer that uses it.
+      # A test asserts it equals tools/adversarial_review.py's own
+      # GEMINI_DEFAULT_MODEL, so the two places holding this value cannot
+      # drift (#72 r2, class: workflow-tool-version-skew).
+      GEMINI_REVIEW_MODEL: gemini-flash-latest
     permissions:
       contents: read
       # Read-only visibility into the co-gates (PR #37 r1: the evaluator
@@ -414,6 +421,71 @@ jobs:
           wc -c "$EVID/golden-exam.log"
 
 
+      - name: Preflight — prove this key can call the pinned second-seat model
+        # MECHANIZING the unusable-credential-tier class (#72 r1/r3), which
+        # cost two rounds of guessing model names from failure messages.
+        # A minted credential is not a usable one: the key's TIER decides
+        # which models it may call, and a model can also be retired for new
+        # users. Both surfaced only after a ~3-minute review had already
+        # run, as an opaque 429 or 404 at the very end.
+        #
+        # So ASK, before the gate depends on the answer. This lists the
+        # models THIS key can actually call and fails immediately if the
+        # pinned one is absent — printing the callable list, so the fix is
+        # chosen from evidence instead of guessed from an error string.
+        #
+        # The key is read from the ENVIRONMENT inside python, never
+        # interpolated into shell text: the same discipline the reviewer
+        # step uses, and it keeps the secret out of argv and out of any
+        # URL (it travels as a header).
+        #
+        # An absent key is NOT a failure here: that is the founder-minted-
+        # credential case the panel already handles with an explicit empty
+        # seat, and this step must not turn "not yet minted" into red.
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          : "${GEMINI_REVIEW_MODEL:?second-seat model pin unresolved — failing closed}"
+          python3 -I - "$GEMINI_REVIEW_MODEL" <<'PYEOF'
+          import json, os, sys, urllib.request
+
+          pinned = sys.argv[1]
+          key = os.environ.get("GEMINI_API_KEY") or ""
+          if not key.strip():
+              print("second seat: no GEMINI_API_KEY minted — the panel will print an "
+                    "EXPLICIT empty seat and run single-family. Preflight n/a.")
+              sys.exit(0)
+          req = urllib.request.Request(
+              "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000",
+              headers={"x-goog-api-key": key.strip()},
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=60) as resp:
+                  models = json.loads(resp.read().decode("utf-8")).get("models") or []
+          except Exception as exc:
+              sys.exit(f"::error::second seat: could not list models for this key "
+                       f"({type(exc).__name__}) — the pin cannot be proven callable, "
+                       "failing closed rather than discovering it mid-review")
+          names = sorted(
+              m["name"].removeprefix("models/") for m in models
+              if "generateContent" in (m.get("supportedGenerationMethods") or [])
+          )
+          print(f"second seat: {len(names)} model(s) this key can call:")
+          for name in names:
+              print(f"  {name}")
+          if pinned in names:
+              print(f"second seat: PINNED MODEL {pinned!r} is callable — preflight OK")
+              sys.exit(0)
+          sys.exit(
+              f"::error::second seat: pinned model {pinned!r} is NOT callable by this "
+              "key (see the list above). Pin one of those names in the job-level "
+              "GEMINI_REVIEW_MODEL and in tools/adversarial_review.py's "
+              "GEMINI_DEFAULT_MODEL — the test that binds them keeps the pair in "
+              "sync. Do not guess from an error message."
+          )
+          PYEOF
+
       - name: Independent evaluator (APPROVE required)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -423,7 +495,7 @@ jobs:
           # script prints an EXPLICIT empty seat and runs single-family; the
           # panel never fails a PR for a credential that does not exist yet.
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          # Second-seat model, set HERE as a literal because the reviewer
+          # Second-seat model, pinned at JOB level below because the reviewer
           # script is BASE-owned (#72 r2, class: workflow-tool-version-skew).
           # The PR that changes GEMINI_DEFAULT_MODEL cannot affect its own
           # run — the trusted copy executing it still holds the old value —
@@ -440,9 +512,10 @@ jobs:
           # no such ambiguity — it is visible in review, in this diff, and
           # the script still fails loud on an empty or Claude-family id.
           # Keep this in sync with GEMINI_DEFAULT_MODEL; both move together
-          # in one PR, and once that PR merges this literal simply restates
-          # what the trusted copy already defaults to.
-          GEMINI_REVIEW_MODEL: gemini-2.5-flash
+          # in one PR, and once that PR merges the literal simply restates
+          # what the trusted copy already defaults to. The value itself is
+          # the job-level pin, so the preflight below checks the SAME string
+          # the reviewer will use.
           # NO runtime model override in CI — deliberately (evaluator finding,
           # PR #14 round 4): GitHub renders an UNSET repo variable and a
           # SET-BUT-EMPTY one identically in ${{ vars.* }}, so a workflow can
