@@ -175,6 +175,29 @@ def workflow_has_schedule(name: str) -> bool:
                 or _schedule_in_parsed_yaml(text))
 
 
+_REPO_SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def validate_repo(repo: str) -> str:
+    """Reject anything that is not a plain `owner/name` slug.
+
+    `repo` arrives from `sys.argv[1]` or `$GITHUB_REPOSITORY` and is interpolated
+    straight into API paths (`/repos/{repo}/actions/...`). Unvalidated, a value
+    containing `../` or a query string redirects the request to a different
+    endpoint — so the watchdog could report on a repository nobody asked about, or
+    read a crafted response as freshness (gemini/dataflow-taint, PR #80).
+
+    Raises rather than sanitising: silently rewriting a caller's input into
+    something that "works" is how a misconfiguration becomes an invisible one.
+    """
+    if not _REPO_SLUG.match(repo):
+        raise WatchdogError(
+            f"repo {repo!r} is not a plain owner/name slug. It is interpolated "
+            f"into GitHub API paths, so anything else could point this alarm at a "
+            f"different endpoint — refusing rather than guessing.")
+    return repo
+
+
 def last_success(repo: str, name: str, event: str = "schedule") -> _dt.datetime | None:
     """When this workflow last succeeded ON THE SCHEDULE CLOCK, or None if never.
 
@@ -224,6 +247,11 @@ def evaluate(name: str, cadence_h: int, grace_h: int,
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     repo = argv[0] if argv else os.environ.get("GITHUB_REPOSITORY", DEFAULT_REPO)
+    try:
+        repo = validate_repo(repo)
+    except WatchdogError as exc:
+        print(f"watchdog_check: ERROR — {exc}", file=sys.stderr)
+        return 2
     if not WATCHED:
         print("watchdog_check: ERROR — the WATCHED table is empty; a watchdog that "
               "watches nothing must never report OK", file=sys.stderr)

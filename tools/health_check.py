@@ -246,16 +246,32 @@ def _resolve_import_from(node: ast.ImportFrom, path: str) -> list[str]:
     reporting nothing.
     """
     if node.level == 0:
-        return [node.module] if node.module else []
-    parts = path.split("/")[:-1]          # the importing file's package parts
-    if node.level > 1:
-        parts = parts[: -(node.level - 1)] if node.level - 1 <= len(parts) else []
-        if not parts:
+        base = node.module or ""
+    else:
+        parts = path.split("/")[:-1]      # the importing file's package parts
+        if node.level > 1:
+            if node.level - 1 > len(parts):
+                return []                 # walks above the repo root: broken import
+            parts = parts[: -(node.level - 1)]
+            if not parts:
+                return []
+        prefix = ".".join(parts)
+        if not prefix:
             return []
-    base = ".".join(parts)
+        base = f"{prefix}.{node.module}" if node.module else prefix
     if not base:
         return []
-    return [f"{base}.{node.module}" if node.module else base]
+    # THE IMPORTED NAMES COUNT TOO. `from worker import confidence` reaches
+    # `worker.confidence`, not just `worker` — and recording only the base made a
+    # module imported that way look UNWIRED, a false dead-code claim on an F5
+    # metric (gemini/dataflow-taint, PR #80). tests/test_convergence_isolation.py
+    # already records base AND base.alias for exactly this reason; this metric did
+    # not, so the same import shape meant two different things in two tools.
+    names = [base]
+    for alias in node.names:
+        if alias.name and alias.name != "*":
+            names.append(f"{base}.{alias.name}")
+    return names
 
 
 _ASGI_APP = re.compile(r"^app\s*=|FastAPI\(|Flask\(", re.MULTILINE)

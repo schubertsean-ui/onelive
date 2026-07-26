@@ -21,9 +21,11 @@ on:
   # SECRET CUSTODY — identical rule to site_health.yml, and enforced for both by
   # tests/test_workflow_secret_custody.py. This job reads
   # VERCEL_AUTOMATION_BYPASS to reach a protection-gated deployment, and the
-  # workflow FILE that executes is the one on the triggering ref. So the automatic
-  # path is default-branch-only (base-owned YAML), and any other deployment is
-  # measured by dispatching from the default branch with its URL.
+  # workflow FILE that executes is the one on the triggering ref. So EVERY path —
+  # dispatch included — is restricted to the default branch on the job condition
+  # below. Measuring an unmerged branch's preview means dispatching from the default
+  # branch with that preview's URL as the `url` input: the ref decides which YAML
+  # runs, the input decides what gets measured.
   deployment_status:
   workflow_dispatch:
     inputs:
@@ -40,9 +42,30 @@ concurrency:
 
 jobs:
   measure:
+    # THE GUARD IS ON THE JOB, so no trigger path can miss it.
+    #
+    # It used to sit only on the `deployment_status` alternative, which left
+    # `workflow_dispatch` able to run BRANCH-OWNED YAML with the stored secret —
+    # blocked by the openai/absence-only seat on PR #80 as
+    # `CLASS:secret-dispatch-branch-owned-yaml`. The premise that made me stop at
+    # the automatic path was false: I had assumed a write-access collaborator could
+    # read the secret from the settings page anyway, and GitHub Actions secret
+    # VALUES are write-only in the UI at every permission level. Dispatching an
+    # edited branch is therefore the ONLY way to extract that value, which makes it
+    # a privilege boundary rather than defence in depth.
+    #
+    # NOTHING IS LOST. Dispatching from the DEFAULT branch satisfies the guard, and
+    # that is how any preview gets checked — the URL is an INPUT, not the ref. So
+    # verifying an unmerged branch's deployment still takes one dispatch.
+    #
+    # Compared against `github.event.repository.default_branch` rather than a
+    # literal name: renaming the default branch must not silently reopen this, and
+    # an absent field makes the comparison false, which fails CLOSED (no run).
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.deployment_status.state == 'success' &&
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref_name == github.event.repository.default_branch) ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
        github.ref_name == github.event.repository.default_branch)
     runs-on: ubuntu-latest
     steps:
@@ -56,7 +79,13 @@ jobs:
           node-version: "20"
 
       - name: Install the measuring tools
-        run: npm install --no-fund --no-audit -g lighthouse @axe-core/cli
+        # PINNED. An unpinned global install makes the numbers a function of
+        # whatever the registry served that morning: a Lighthouse minor can move
+        # LCP scoring, and this gate's whole job is to compare a measurement to a
+        # fixed bar. Unpinned, a bar "met" in July can silently fail in August with
+        # no code change (reviewer nit, openai seat, PR #80). Bumping either version
+        # is a deliberate act whose effect on the recorded numbers gets reviewed.
+        run: npm install --no-fund --no-audit -g lighthouse@12.8.2 @axe-core/cli@4.10.2
 
       - name: Measure and judge against the BAR
         env:
@@ -84,13 +113,23 @@ jobs:
           # (`requestedUrl`). That is exactly why NO artifact is uploaded from this
           # job — the judged table goes to the step summary, which contains
           # measurements only. GitHub masks the secret in log output.
-          TARGET="$BASE_URL"
+          # MEASURE `/tonight`, THE FEED — not the deployment's base URL.
+          #
+          # `/` is a 135-byte redirect stub (web/app/page.tsx calls redirect()), and
+          # `/tonight` is the 6.6 kB page users actually read. Measuring the base URL
+          # would have scored the redirect and reported E1-E4/P2 as met while the real
+          # feed was untested — blocked by the openai/absence-only seat on PR #80 as
+          # `CLASS:missing-product-surface-verification`. A gate that does not cover
+          # its own done-criterion is worse than no gate: it certifies the wrong page.
+          PAGE_PATH="/tonight"
+          TARGET="${BASE_URL}${PAGE_PATH}"
           if [ "$VERCEL_BYPASS" != "ABSENT" ]; then
-            TARGET="${BASE_URL}/?x-vercel-protection-bypass=${VERCEL_BYPASS}&x-vercel-set-bypass-cookie=true"
+            TARGET="${BASE_URL}${PAGE_PATH}?x-vercel-protection-bypass=${VERCEL_BYPASS}&x-vercel-set-bypass-cookie=true"
             echo "protection_bypass_secret: present"
           else
             echo "protection_bypass_secret: ABSENT — measuring bare; a protection-gated deployment will measure its LOGIN PAGE, not the product"
           fi
+          echo "measuring: ${BASE_URL}${PAGE_PATH} (the feed surface, not the redirect stub at /)"
 
           lighthouse "$TARGET" \
             --quiet --output=json --output-path=/tmp/lh.json \
@@ -139,7 +178,7 @@ jobs:
           {
             echo "## Experience metrics — judged against docs/BAR.md E1–E4, P2"
             echo
-            echo "Measured on \`$BASE_URL\` (bypass: $([ "$VERCEL_BYPASS" != "ABSENT" ] && echo present || echo ABSENT))."
+            echo "Measured on \`${BASE_URL}${PAGE_PATH}\` — the feed surface (bypass: $([ "$VERCEL_BYPASS" != "ABSENT" ] && echo present || echo ABSENT))."
             echo
             cat /tmp/judged.md
           } >> "$GITHUB_STEP_SUMMARY"

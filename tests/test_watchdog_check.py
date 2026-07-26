@@ -311,3 +311,39 @@ def test_detection_still_works_with_no_yaml_parser_available(tmp_path,
     (tmp_path / "dispatch_only.yml").write_text("on:\n  workflow_dispatch:\n",
                                                 encoding="utf-8")
     assert WD.workflow_has_schedule("dispatch_only.yml")
+
+
+def test_the_repo_argument_must_be_a_plain_owner_name_slug():
+    """`CLASS:dataflow-taint-unvalidated-input` (gemini/dataflow-taint, PR #80).
+
+    `repo` comes from argv or `$GITHUB_REPOSITORY` and is interpolated straight
+    into `/repos/{repo}/actions/...`. Unvalidated, a value carrying `../` or a
+    query string sends the request somewhere else — so the alarm could report
+    freshness for a repository nobody asked about, which is the worst possible
+    failure for a dead-man switch: confidently green about the wrong thing.
+    """
+    assert WD.validate_repo("schubertsean-ui/onelive") == "schubertsean-ui/onelive"
+    assert WD.validate_repo("owner.with-dots_and-dashes/repo.name-1") is not None
+    for bad in ("../../etc/passwd",
+                "owner/repo/../../other",
+                "owner/repo?per_page=1",
+                "owner/repo#frag",
+                "owner",
+                "owner/",
+                "/repo",
+                "owner//repo",
+                "owner repo",
+                "owner/repo/extra",
+                "",
+                "https://evil.example/owner/repo"):
+        with pytest.raises(WD.WatchdogError):
+            WD.validate_repo(bad)
+
+
+def test_main_refuses_a_malformed_repo_rather_than_calling_the_api(monkeypatch, capsys):
+    """Exit 2 (tool error), never 0. And it must not reach the network first."""
+    def must_not_run(*a, **k):
+        raise AssertionError("the API was called with an unvalidated repo")
+    monkeypatch.setattr(WD, "last_success", must_not_run)
+    assert WD.main(["../../evil"]) == 2
+    assert "owner/name slug" in capsys.readouterr().err

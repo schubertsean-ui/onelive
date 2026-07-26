@@ -217,6 +217,34 @@ def _direct_advisories(doc: dict) -> list[dict]:
     return records
 
 
+def below_threshold_advisories(doc: dict) -> list[str]:
+    """Advisories this gate deliberately does NOT block on, as `pkg GHSA (sev)`.
+
+    Reported, never acted on. The declared policy blocks high/critical production
+    advisories; moderate and low are out of scope BY DESIGN. That scope was silent,
+    and a silent scope reads as coverage: an independent reviewer on PR #80 read
+    `RESULT: PASS — no unmanaged high/critical production advisories` alongside
+    npm's node-level severity (which npm reports as the MAX across a package's
+    advisories) and concluded the gate was green over an unmanaged high. It was
+    not — `GHSA-qx2v-qp2m-jg93` is **moderate** — but a check whose boundary a
+    careful reader can misplace is a check that will be misread again.
+
+    So the boundary is now printed. This blocks nothing and relaxes nothing.
+    """
+    out = []
+    for name, node in (doc.get("vulnerabilities") or {}).items():
+        if not isinstance(node, dict):
+            continue
+        for via in node.get("via", []) or []:
+            if not isinstance(via, dict):
+                continue
+            sev = via.get("severity")
+            if sev in _BLOCKING or not sev:
+                continue
+            out.append(f"{name} {_ghsa_from_url(via.get('url', ''))} ({sev})")
+    return sorted(set(out))
+
+
 def evaluate(doc: dict, allowlist: dict[tuple[str, str], dict], today: _dt.date):
     """Return (ok, lines). ok=False means the gate FAILS."""
     advisories = _direct_advisories(doc)
@@ -294,8 +322,19 @@ def main(argv=None) -> int:
         print(line)
     if not lines:
         print("  clean — no high/critical production advisories.")
+    # The scope, stated. See below_threshold_advisories() for why.
+    below = below_threshold_advisories(doc)
+    if below:
+        print(f"  NOT IN SCOPE ({len(below)} advisory/advisories below the "
+              f"high/critical threshold this gate blocks on — reported so the "
+              f"boundary is visible, never acted on):")
+        for line in below:
+            print(f"    - {line}")
     if ok:
-        print("RESULT: PASS — no unmanaged high/critical production advisories.")
+        print("RESULT: PASS — no unmanaged high/critical production advisories "
+              f"(scope: production deps, high/critical only; "
+              f"{len(below)} lower-severity advisory/advisories listed above are "
+              f"outside that scope by policy).")
         return 0
     print(
         "RESULT: FAIL — high/critical production advisory not covered by a valid "

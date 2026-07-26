@@ -36,15 +36,16 @@ on:
   # (found by the openai/attacker-smuggle and absence-only seats on PR #80), and
   # `deployment_status` inherits it unchanged, because Vercel deploys every branch.
   #
-  # So the two entry points are both custody-safe rather than one being trusted
-  # by accident:
-  #   * deployment_status — ONLY on the default branch, where the file is
-  #     base-owned and no PR can have edited it.
-  #   * workflow_dispatch — a deliberate act by an actor with write access, who
-  #     can already read the secret from the settings page, so the dispatch grants
-  #     nothing new. This is also how ANY preview gets verified pre-merge: dispatch
-  #     from the default branch with the preview URL. No per-branch file, no
-  #     hardcoded host, and no automatic secret hand-off to branch-owned YAML.
+  # BOTH entry points are restricted to the DEFAULT BRANCH, on the job condition
+  # below. An earlier version restricted only `deployment_status` and left
+  # `workflow_dispatch` open on the false premise that a write-access collaborator
+  # could read the secret from the settings page anyway — Actions secret VALUES are
+  # write-only in the UI at every permission level, so dispatching an edited branch
+  # is the only way to extract one. See the job's own comment for the full note.
+  #
+  # Verifying an UNMERGED branch's preview still works and needs no per-branch file:
+  # dispatch from the default branch and pass its URL as the `url` input. The ref
+  # decides which YAML runs; the input decides what gets measured.
   deployment_status:
   workflow_dispatch:
     inputs:
@@ -61,19 +62,30 @@ concurrency:
 
 jobs:
   check:
-    # Two conditions, for two different reasons.
+    # THE GUARD IS ON THE JOB, so no trigger path can miss it.
     #
-    # (1) A failed or pending deployment has no serving URL; checking it would
-    #     report a fault that belongs to the build, not the site.
-    # (2) The deployment ref must be the DEFAULT BRANCH — the secret-custody
-    #     boundary described in the `on:` block above. Comparing against
-    #     `github.event.repository.default_branch` rather than a literal branch
-    #     name means a repository rename of the default branch cannot silently
-    #     open the hole; and if that field were ever absent the comparison is
-    #     false, so it fails CLOSED (no run) rather than open.
+    # It used to sit only on the `deployment_status` alternative, which left
+    # `workflow_dispatch` able to run BRANCH-OWNED YAML with the stored secret —
+    # blocked by the openai/absence-only seat on PR #80 as
+    # `CLASS:secret-dispatch-branch-owned-yaml`. The premise that made me stop at
+    # the automatic path was false: I had assumed a write-access collaborator could
+    # read the secret from the settings page anyway, and GitHub Actions secret
+    # VALUES are write-only in the UI at every permission level. Dispatching an
+    # edited branch is therefore the ONLY way to extract that value, which makes it
+    # a privilege boundary rather than defence in depth.
+    #
+    # NOTHING IS LOST. Dispatching from the DEFAULT branch satisfies the guard, and
+    # that is how any preview gets checked — the URL is an INPUT, not the ref. So
+    # verifying an unmerged branch's deployment still takes one dispatch.
+    #
+    # Compared against `github.event.repository.default_branch` rather than a
+    # literal name: renaming the default branch must not silently reopen this, and
+    # an absent field makes the comparison false, which fails CLOSED (no run).
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.deployment_status.state == 'success' &&
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref_name == github.event.repository.default_branch) ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
        github.ref_name == github.event.repository.default_branch)
     runs-on: ubuntu-latest
     steps:
@@ -138,7 +150,13 @@ jobs:
           # look identical to "there was nothing to do" (CLAUDE.md).
           case "$CODE" in
             200)
-              echo "VERDICT: reachable and PUBLIC — a friend with this link can open it."
+              # Deliberately NOT "a friend can open it" yet — that claim needs the
+              # product surface and the friend-link form, both checked further down.
+              # Claiming it here from /api/health alone is what the PR #80 reviewer
+              # blocked, and the wording was the tell.
+              echo "VERDICT: /api/health is reachable and PUBLIC. The product surface"
+              echo "  and the friend-shareable link form are verified below — this"
+              echo "  line alone is NOT evidence a friend can see the product."
               ;;
             302|307|401|403)
               echo "VERDICT: reachable but GATED — the host answered, and refused."
@@ -166,6 +184,77 @@ jobs:
               exit 1
               ;;
           esac
+
+          # ---------------------------------------------------------------------
+          # THE PRODUCT SURFACE, not just the diagnostic endpoint.
+          #
+          # Until now this workflow read `/api/health` and then printed
+          # "a friend with this link can open it" — a claim about `/tonight` made
+          # from evidence about `/api/health`. A deployment can have a perfectly
+          # healthy diagnostic endpoint while the feed page is blank, 500, or
+          # auth-walled, and this check would have called that PUBLIC. Blocked by
+          # the openai/absence-only seat on PR #80
+          # (`CLASS:missing-product-surface-verification`), and it is right: v1 H7
+          # and P1 evidence has to come from the surface users touch.
+          #
+          # `/` redirects to `/tonight` (web/app/page.tsx), so -L exercises the
+          # redirect a friend actually follows.
+          echo "=== GET $BASE_URL/ (the product surface a friend lands on) ==="
+          FEED_CODE="$(curl -sSL -m 45 -o /tmp/feed.html -w '%{http_code}' \
+                        "${HDR[@]}" "$BASE_URL/" || echo "000")"
+          echo "feed_http_status: $FEED_CODE"
+          FEED_BYTES="$(wc -c < /tmp/feed.html | tr -d ' ')"
+          echo "feed_bytes: $FEED_BYTES"
+          if [ "$FEED_CODE" != "200" ]; then
+            echo "::error::/api/health is healthy but the FEED PAGE returned $FEED_CODE."
+            echo "A friend clicking the link would not see the product. The diagnostic"
+            echo "endpoint being green is not evidence about the page."
+            exit 1
+          fi
+          # A 200 that renders nothing is the failure this check exists to catch, so
+          # the page's own masthead has to be present. Chosen because it is server
+          # rendered in every branch of web/app/(public)/tonight/page.tsx — including
+          # the empty-feed and error branches — so this asserts "the page rendered",
+          # never "the page happened to have data".
+          if ! grep -q "ONE LIVE" /tmp/feed.html; then
+            echo "::error::the feed page returned 200 but did not render its own"
+            echo "masthead — a blank or error shell, not the product."
+            head -c 400 /tmp/feed.html
+            exit 1
+          fi
+          echo "feed_surface: RENDERED (masthead present)"
+
+          # ---------------------------------------------------------------------
+          # THE LINK A FRIEND IS ACTUALLY GIVEN.
+          #
+          # Everything above used the bypass HEADER. The docs and docs/V1.md hand
+          # friends a QUERY-PARAMETER link
+          # (?x-vercel-protection-bypass=...&x-vercel-set-bypass-cookie=true), and
+          # header success is not evidence that the link form works — same seat,
+          # `CLASS:missing-friend-bypass-path-check`. This verifies the exact string
+          # the founder sends, with NO header, which is the friend's real conditions.
+          # Declared before the branch, like BYPASS_STATE above: a variable that
+          # only exists down one code path is the empty-env ambiguity in miniature,
+          # and tools/workflow_env_lint.py reads physical lines so an assignment
+          # inside an `if` credits nothing after it (R-073).
+          LINK_CODE="not-checked"
+          if [ "$VERCEL_BYPASS" != "ABSENT" ]; then
+            echo "=== GET the friend-shareable LINK form (no header, query param only) ==="
+            LINK_CODE="$(curl -sSL -m 45 -o /tmp/link.html -w '%{http_code}' \
+              "$BASE_URL/?x-vercel-protection-bypass=${VERCEL_BYPASS}&x-vercel-set-bypass-cookie=true" \
+              || echo "000")"
+            echo "friend_link_http_status: $LINK_CODE"
+            if [ "$LINK_CODE" != "200" ] || ! grep -q "ONE LIVE" /tmp/link.html; then
+              echo "::error::the bypass HEADER works but the friend-shareable LINK does"
+              echo "not (status $LINK_CODE). The link in docs/V1.md is what gets sent to"
+              echo "people, so it is the thing that has to be proven."
+              head -c 400 /tmp/link.html
+              exit 1
+            fi
+            echo "friend_link: WORKS — this exact URL form opens the product"
+          else
+            echo "friend_link: NOT CHECKED — no bypass secret, so there is no link form to verify"
+          fi
 
           # Only reached on 200. eventCount is the go/no-go for a real test:
           # a live site showing zero events is a worse first impression than no

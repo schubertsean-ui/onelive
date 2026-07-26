@@ -80,7 +80,21 @@ def judge_axe(report: object) -> tuple[int, list[str]]:
             raise JudgeError(
                 "axe report has no `violations` key — refusing to report an "
                 "accessibility verdict from a shape this tool does not understand")
-        for violation in page["violations"]:
+        violations = page["violations"]
+        if not isinstance(violations, list):
+            raise JudgeError(
+                "axe report's `violations` is not a list — refusing to count an "
+                "accessibility total out of a shape this tool does not understand")
+        for violation in violations:
+            # A non-dict entry would make `violation.get` raise AttributeError,
+            # which escapes as a crash instead of the JudgeError this tool promises
+            # (reviewer nit, gemini seat, PR #80). Every unreadable report must
+            # arrive as exit 2, never a traceback and never a silent count.
+            if not isinstance(violation, dict):
+                raise JudgeError(
+                    f"axe report contains a non-object violation entry "
+                    f"({type(violation).__name__}) — the report shape changed; "
+                    f"refusing to report an accessibility verdict from it")
             total += 1
             nodes = violation.get("nodes") or []
             lines.append(

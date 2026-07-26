@@ -188,12 +188,22 @@ export const config = {
   // Nothing is opened by this: the route itself returns only resolved config and
   // never a secret value (see app/api/health/route.ts), and it was already listed
   // as public in every mode including the fail-closed one.
+  //
+  // THE `$` IS LOAD-BEARING. Without it the lookahead excluded any path merely
+  // BEGINNING `api/health`, so a future `/api/healthz`, `/api/health-admin` or
+  // `/api/health/reset` would have skipped this middleware entirely and served with
+  // no auth check at all — an auth fail-open reachable by naming a route. Two
+  // independent reviewer seats caught it on PR #80 (`CLASS:auth-prefix-exemption`
+  // and `CLASS:auth-bypass-overwide-matcher-exclusion`), and they were right that
+  // the diff added segment-boundary tests to `lib/route_match.ts` while leaving the
+  // middleware's OWN exemption without the same invariant. Exactly one path is
+  // exempt, and it is spelled out. Negative cases: middleware.test.ts.
   // ONE pattern, because a second entry cannot express "api except health":
   // `"/api/(?!health)(.*)"` is not a valid Next middleware matcher and FAILED THE
   // BUILD when tried (deployment 2fMJR3Q, 2026-07-26). The single catch-all below
   // already covers extensionless routes including `/api/*` and `/trpc/*`, and the
   // negative lookahead is where the exclusions belong.
   matcher: [
-    "/((?!_next|api/health|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/((?!_next|api/health$|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
   ],
 };

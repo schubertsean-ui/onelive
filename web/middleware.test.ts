@@ -289,4 +289,37 @@ describe("the matcher excludes /api/health and nothing it should not", () => {
       expect(pattern.test(path)).toBe(true);
     }
   });
+
+  it("exempts ONLY /api/health, never a path that merely starts with it", async () => {
+    // An auth fail-open reachable by naming a route. The lookahead used to be a
+    // PREFIX test, so `/api/healthz`, `/api/health-admin` and `/api/health/reset`
+    // skipped this middleware entirely — measured against a real `next start`
+    // build in the fail-closed (unconfigured) mode, where they were served by
+    // Next's 404 handler with no auth check at all instead of the middleware's
+    // 503. Two independent reviewer seats caught it on PR #80.
+    const mod = await import("./middleware");
+    const pattern = new RegExp(`^${mod.config.matcher[0]}$`);
+    for (const path of [
+      "/api/healthz",
+      "/api/health-admin",
+      "/api/health/reset",
+      "/api/health/admin",
+      "/api/healthcheck",
+    ]) {
+      expect(pattern.test(path)).toBe(true);   // true = middleware DOES run
+    }
+    // ...and the one genuinely exempt path stays exempt, or /api/health dies with
+    // the deployment it is supposed to diagnose.
+    expect(pattern.test("/api/health")).toBe(false);
+  });
+
+  it("denies a health look-alike at RUNTIME, not just in the pattern", async () => {
+    // The pattern test above proves middleware is invoked; this proves what it
+    // then decides. Unconfigured mode = deny everything except /api/health.
+    const middleware = await loadMiddleware();
+    for (const path of ["/api/healthz", "/api/health-admin", "/api/health/reset"]) {
+      const res = await middleware(request(path));
+      expect(res?.status).toBe(503);
+    }
+  });
 });

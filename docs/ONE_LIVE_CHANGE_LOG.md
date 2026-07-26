@@ -1,5 +1,80 @@
 # ONE LIVE — CHANGE LOG
 
+## 2026-07-26 (same session) — round three: the reviewer corrected a fact, not just code
+
+Eight blockers on `2ea520f`. Seven were real and are fixed as classes; one did not
+survive verification and is answered with the measurement rather than an argument.
+
+### The one that mattered most, because it corrected me rather than the code
+
+I had left `workflow_dispatch` able to hand `VERCEL_AUTOMATION_BYPASS` to
+branch-owned YAML, and justified it in a comment: a write-access collaborator "can
+already read the secret from the settings page, so the dispatch grants nothing new."
+**That is false.** GitHub Actions secret VALUES are write-only in the UI at every
+permission level — nobody can read them back. So dispatching an edited branch is the
+*only* way to extract one, which makes it a privilege boundary, not defence in depth.
+
+The guard moved onto the **job condition**, where no trigger path can miss it, in
+both `site_health.yml` and `experience_metrics.yml`. Nothing was lost: dispatching
+from the default branch satisfies it, and the preview URL is an input, not the ref.
+`workflow_dispatch` joined the custody test's risky-trigger set, which surfaced six
+pre-existing schedule+dispatch workflows — enumerated in ACCEPTED with a shared
+reason and **R-075** (dispatching an importer from a branch is a real operation; the
+fix is a GitHub environment with required reviewers, which closes the path without
+removing the capability), rather than left invisible.
+
+The false premise is recorded in the test's own docstring, not edited out, because
+it is what made the first fix stop halfway.
+
+### An auth fail-open reachable by naming a route
+
+Two seats independently found that the middleware matcher excluded any path
+*beginning* `api/health`. Measured both ways against a real `next start` build in
+fail-closed mode:
+
+- **without** the anchor: `/api/healthz`, `/api/health-admin`, `/api/health/reset`
+  were served by Next's 404 handler — middleware never ran, no auth check at all
+- **with** `api/health$`: those paths get the middleware's 503, and `/api/health`
+  still reaches its route
+
+Five negative pattern cases and three runtime cases now pin it.
+
+### Evidence that matched its own claim
+
+`site_health.yml` read `/api/health` and then printed *"a friend with this link can
+open it"* — a claim about `/tonight` from evidence about a diagnostic endpoint. It
+now fetches the product surface, follows the `/` → `/tonight` redirect a friend
+follows, and greps the page's own masthead (chosen because every branch of the page
+renders it, so this proves *the page rendered*, not *the page had data*). It also
+verifies the **exact query-parameter link string** friends are sent — the header form
+is a different code path on Vercel's side and proved nothing about the link.
+`tests/test_site_health_contract.py` binds the published form to the verified form so
+they cannot drift, and it caught that `docs/V1.md` had no copy of that link at all.
+
+`experience_metrics.yml` was measuring `/` — a 135-byte redirect stub — and would
+have reported E1–E4/P2 met with the real 6.6 kB feed untested. It measures
+`/tonight` now, with pinned Lighthouse and axe versions so a bar met in July cannot
+silently fail in August.
+
+### Three smaller real ones
+
+`_resolve_import_from` recorded only the package for `from pkg import module`, so a
+module imported that way read as dead code. `watchdog_check` interpolated an
+unvalidated `repo` argument into API paths. `judge_axe` would raise AttributeError
+instead of its own JudgeError on a non-object violation entry.
+
+### The finding that was not real, verified rather than argued
+
+`GHSA-qx2v-qp2m-jg93` was reported as an unmanaged **high** PostCSS advisory the SCA
+gate was green over. It is **moderate** — `npm audit --omit=dev` confirms it — and
+npm reports node-level severity as the MAX across a package's advisories, which is
+easy to misattribute. The gate was behaving to its declared policy. But a boundary a
+careful reader can misplace will be misread again, so the gate now **prints its own
+out-of-scope set**: the silent scope became a stated one. That blocks nothing and
+relaxes nothing.
+
+`bash tools/validate`: every blocking check PASS. 1,922 pytest and 100 vitest cases.
+
 ## 2026-07-26 (same session) — THE SITE IS UP AND PUBLIC, and nine reviewer blockers close as classes
 
 **The measurement this whole session was chasing.** `site-health` run

@@ -236,17 +236,31 @@ def test_relative_imports_resolve_so_a_relatively_imported_module_is_not_dead():
                     if isinstance(n, _ast.ImportFrom))
         return hc._resolve_import_from(node, path)
 
-    # level 0 — already absolute, unchanged behaviour.
+    # The BASE and the imported NAMES, both. `from worker import confidence`
+    # reaches `worker.confidence`, and recording only `worker` made a module
+    # imported that way look unwired — the second half of this defect, caught by
+    # the gemini/dataflow-taint seat on PR #80 after the first half was fixed.
+    # tests/test_convergence_isolation.py has recorded both for the same reason
+    # since PR #25 r8; this metric had not, so one import shape meant two
+    # different things in two tools.
     assert names("from worker.confidence import x", "worker/promote.py") == \
-        ["worker.confidence"]
-    # level 1 — the sibling case that was broken.
+        ["worker.confidence", "worker.confidence.x"]
+    # level 1 — the sibling case that was broken first.
     assert names("from .confidence import x", "worker/promote.py") == \
-        ["worker.confidence"]
+        ["worker.confidence", "worker.confidence.x"]
     # level 2 — one package up, from inside a subpackage.
     assert names("from ..ai_extract import y", "worker/convergence/node.py") == \
-        ["worker.ai_extract"]
-    # `from . import sibling` — the package itself is what is reached.
-    assert names("from . import sibling", "worker/promote.py") == ["worker"]
+        ["worker.ai_extract", "worker.ai_extract.y"]
+    # `from . import sibling` — THE SUBMODULE is what is reached, and it must be
+    # recorded, or a package-relative sibling import still reads as dead code.
+    assert names("from . import sibling", "worker/promote.py") == \
+        ["worker", "worker.sibling"]
+    # `from worker import confidence` — the plain absolute form of the same shape.
+    assert names("from worker import confidence", "api/public.py") == \
+        ["worker", "worker.confidence"]
+    # A star import contributes only the base; there is no name to record.
+    assert names("from .confidence import *", "worker/promote.py") == \
+        ["worker.confidence"]
     # Walking above the root is a broken import; report nothing, invent nothing.
     assert names("from ... import z", "worker/promote.py") == []
 

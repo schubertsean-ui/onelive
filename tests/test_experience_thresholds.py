@@ -129,6 +129,16 @@ def test_an_axe_report_of_an_unknown_shape_is_exit_2(tmp_path):
         assert _run(tmp_path, _lh(), shape) == 2, shape
 
 
+def test_a_non_object_violation_entry_is_exit_2_not_a_crash(tmp_path):
+    """`violation.get` on a string raises AttributeError, which would escape as a
+    traceback instead of the JudgeError this tool promises. Every unreadable report
+    has to arrive as exit 2 (reviewer nit, PR #80)."""
+    for bad in (["not-a-dict"], [42], [None], [["nested"]]):
+        assert _run(tmp_path, _lh(), [{"violations": bad}]) == 2, bad
+    # A non-list `violations` too.
+    assert _run(tmp_path, _lh(), [{"violations": "many"}]) == 2
+
+
 # ------------------------------------------------------------------- the verdicts
 def test_everything_within_bar_exits_zero(tmp_path, capsys):
     assert _run(tmp_path, _lh(), _axe()) == 0
@@ -265,6 +275,36 @@ def test_the_workflow_does_not_upload_the_raw_reports():
     assert "upload-artifact" not in text
     assert "GITHUB_STEP_SUMMARY" in text, \
         "with no artefact, the step summary is the only record — it must exist"
+
+
+def test_the_workflow_measures_the_FEED_not_the_redirect_stub():
+    """`CLASS:missing-product-surface-verification` (openai/absence-only, PR #80).
+
+    `/` is a 135-byte redirect (web/app/page.tsx calls redirect("/tonight")) and
+    `/tonight` is the 6.6 kB page users read. Measuring the base URL would score
+    the stub and report E1-E4/P2 as met with the real feed untested — a gate
+    certifying the wrong page, which is worse than no gate.
+    """
+    text = (_ROOT / ".github" / "workflows" / "experience_metrics.yml").read_text(
+        encoding="utf-8")
+    assert 'PAGE_PATH="/tonight"' in text
+    assert '${BASE_URL}${PAGE_PATH}' in text, \
+        "the measured target must include the page path, not just the base URL"
+    # The step summary must name what was measured, or the recorded numbers are
+    # ambiguous about which page produced them.
+    assert '${BASE_URL}${PAGE_PATH}\\`' in text or "the feed surface" in text
+
+
+def test_the_measuring_tools_are_version_pinned():
+    """Unpinned, a bar "met" in July silently fails in August with no code change:
+    a Lighthouse minor can move LCP scoring, and this gate compares a measurement
+    to a FIXED bar (reviewer nit, PR #80)."""
+    text = (_ROOT / ".github" / "workflows" / "experience_metrics.yml").read_text(
+        encoding="utf-8")
+    install = next(line for line in text.splitlines()
+                   if "npm install" in line and "lighthouse" in line)
+    assert "lighthouse@" in install, f"lighthouse must be pinned: {install!r}"
+    assert "@axe-core/cli@" in install, f"axe must be pinned: {install!r}"
 
 
 def test_the_workflow_parses_and_declares_the_triggers_it_claims():
