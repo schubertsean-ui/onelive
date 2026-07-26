@@ -241,3 +241,43 @@ def test_two_DISCOVERED_rows_sharing_an_id_FAIL(tmp_path, monkeypatch):
                               encoding="utf-8")
     with pytest.raises(SystemExit, match="a.json and b.json"):
         reg.load_discovered()
+
+
+def test_the_committed_registry_IS_REDERIVABLE_from_its_inputs(tmp_path):
+    """r2 blocker: nothing recomputed the committed artifact from the catalog
+    and the discovered files, so a hand-edited or stale registry could lie in
+    its own metadata while every other test passed — source_count, class_count,
+    by_class and by_provides were all read from the file that was supposed to
+    be under test.
+
+    This is the same guard capcog-boundary.json already has, and for the same
+    reason: a generated file with no drift test is a second source of truth.
+    """
+    out = tmp_path / "regenerated.json"
+    assert reg.main(["--out", str(out)]) == 0
+    fresh = json.loads(out.read_text(encoding="utf-8"))
+    live = json.loads(
+        (REPO / "sources" / "source_registry.json").read_text(encoding="utf-8"))
+    # generated_by carries a path/stamp; everything that DESCRIBES the sources
+    # must match exactly.
+    for key in ("sources", "source_count", "class_count", "by_class",
+                "by_provides", "classes_with_no_instance",
+                "taxonomy_classes_total"):
+        assert fresh[key] == live[key], (
+            f"sources/source_registry.json is STALE or hand-edited: {key} "
+            f"differs from a fresh build. Re-run tools/build_source_registry.py")
+
+
+def test_the_registry_METADATA_is_derived_from_its_own_rows():
+    """The counts must be recomputable from the array they claim to describe —
+    otherwise the metadata is an independent assertion that can drift from the
+    data underneath it."""
+    live = json.loads(
+        (REPO / "sources" / "source_registry.json").read_text(encoding="utf-8"))
+    rows = live["sources"]
+    assert live["source_count"] == len(rows)
+    by_class: dict = {}
+    for r in rows:
+        by_class[r["source_class"]] = by_class.get(r["source_class"], 0) + 1
+    assert live["by_class"] == by_class
+    assert live["class_count"] == len(by_class)
