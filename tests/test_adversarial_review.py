@@ -282,7 +282,18 @@ def test_single_lens_path_keeps_the_v1_prompt_unpolluted():
     # SYSTEM_PROMPT and reach the model only through lens composition.
     assert "REVIEW DISCIPLINE" not in ar.SYSTEM_PROMPT
     assert "CLASS:<kebab-token>" not in ar.SYSTEM_PROMPT
-    assert ar.SYSTEM_PROMPT.rstrip().endswith("VERDICT: REQUEST-CHANGES")
+    # The v1 prompt must still CLOSE on the verdict demand (nothing appended
+    # after it). Asserted by intent, not by one literal string: PR #75
+    # rewrote the closing sentence to stop displaying a copyable two-line
+    # VERDICT template that models were imitating — the old
+    # `endswith("VERDICT: REQUEST-CHANGES")` check was pinning the very
+    # defect. Both option words and the VERDICT keyword must still appear in
+    # the final sentence, so "unpolluted" keeps its teeth.
+    tail = ar.SYSTEM_PROMPT.rstrip().split(". ")[-1]
+    assert "VERDICT:" in ar.SYSTEM_PROMPT
+    assert "APPROVE" in ar.SYSTEM_PROMPT and "REQUEST-CHANGES" in ar.SYSTEM_PROMPT
+    assert "VERDICT" in tail or "verdict" in tail.lower(), (
+        f"the v1 prompt no longer ends on the verdict demand: {tail!r}")
 
 
 def test_panel_lens_prompts_carry_v1_plus_discipline_plus_lens():
@@ -412,3 +423,52 @@ def test_every_floating_alias_in_the_allowlist_is_bound_to_an_OPEN_record():
             "OPEN docs/RECORD.md row naming it. An alias moves provider-side "
             "with no commit here, so it may only exist while a record carries "
             "its objective trigger to concretise it (class: mutable-model-alias)")
+
+
+def test_system_prompt_never_shows_a_copyable_two_verdict_template():
+    """The prompt must not DISPLAY both verdict lines (PR #75, twice).
+
+    Root cause of a real, repeated gate failure: the prompt said "end with
+    exactly one line" and then illustrated the options as two consecutive
+    `VERDICT:` lines separated by "or". Models copied the whole template,
+    emitting BOTH lines; `parse_verdict` correctly rejected the reply as
+    ambiguous, so two clean reviews ("no blocking issues") failed the gate
+    and blocked an otherwise-mergeable PR.
+
+    The parser is NOT relaxed by this test — ambiguity still hard-fails
+    (see test_ambiguous_verdict_and_empty_diff_are_hard_failures). This
+    pins the INPUT side: the instruction may never hand the model a
+    two-line verdict block to imitate.
+
+    Honest limit: a prompt can still elicit a double verdict for reasons
+    this check cannot see (model nondeterminism). What it guarantees is
+    narrow and exact: our own instruction text never displays more than
+    one `VERDICT:` line.
+    """
+    from tools.adversarial_review import SYSTEM_PROMPT
+
+    verdict_lines = [
+        line for line in SYSTEM_PROMPT.splitlines()
+        if line.strip().upper().startswith("VERDICT:")
+    ]
+    assert len(verdict_lines) <= 1, (
+        "SYSTEM_PROMPT displays a copyable multi-line VERDICT template "
+        f"({len(verdict_lines)} lines: {verdict_lines}) — models imitate it "
+        "and the reply is then rejected as ambiguous. State the choice "
+        "inline instead of stacking the options on their own lines."
+    )
+
+
+def test_the_prompt_gate_goes_red_on_the_pr75_defect_shape():
+    """Prove the check above can fail — on the exact text that shipped."""
+    defective = (
+        "Then end your reply with exactly one line, nothing after it:\n"
+        "VERDICT: APPROVE\n"
+        "or\n"
+        "VERDICT: REQUEST-CHANGES"
+    )
+    verdict_lines = [
+        line for line in defective.splitlines()
+        if line.strip().upper().startswith("VERDICT:")
+    ]
+    assert len(verdict_lines) == 2, "the historical defect had two verdict lines"

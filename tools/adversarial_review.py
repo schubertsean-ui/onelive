@@ -53,10 +53,10 @@ that can actually fail, no stubs or deferred work.
 
 Report every blocking issue as `file:line — issue — why it blocks`. \
 Non-blocking suggestions go in a separate NITS section. Then end your reply \
-with exactly one line, nothing after it:
-VERDICT: APPROVE
-or
-VERDICT: REQUEST-CHANGES"""
+with ONE final line and nothing after it. That line is the word `VERDICT:` \
+followed by exactly one of the two words APPROVE or REQUEST-CHANGES. Emit \
+that line ONCE — a reply containing two VERDICT lines is rejected as \
+ambiguous and wastes the review."""
 
 # The v2 discipline is PANEL-ONLY (#71 r3 blocker): appended to lens
 # prompts, never to the single-lens path — so `--panel`-absent runs stay

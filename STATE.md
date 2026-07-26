@@ -50,6 +50,49 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #27 (2026-07-26, `fix-evaluator-double-verdict` — unblocking PR #75 after the SAME examiner defect fired twice)
+
+GOAL: Fix the Independent Evaluator's own prompt, which caused two consecutive clean reviews ("no blocking issues") to fail the gate on an ambiguous double `VERDICT:` line.
+SCOPE: `tools/adversarial_review.py` SYSTEM_PROMPT closing sentence (states the choice inline instead of displaying a copyable two-line template) + a test pinning the input side + repair of an existing test that was itself pinning the defect + Kaizen row.
+NON-GOALS: NO change to `parse_verdict` — ambiguity must keep hard-failing; this is a prompt fix, never a gate relaxation. No unrelated harness edits; no changes to PR #75's staged content.
+DONE-CRITERIA: evaluator suite green · validate green (bar documented pre-existing skips) · evaluator APPROVE on this PR · PR #75's review re-run afterwards.
+DECISIONS: root cause is ours, not the model's — the prompt said "exactly one line" while showing two `VERDICT:` lines separated by "or". Diagnosed on the SECOND occurrence per OPERATING_RULES §1 rather than retried a third time.
+
+STAGE 3 — RED-CLASS RETRIEVAL (docs/memory/RED_CLASSES.md, answered against THIS build):
+[S3:caller-suppliable-custody-inputs] No custody input added; the prompt is a fixed constant, not caller-supplied.
+[S3:contract-scope-violation] Exactly the four items in SCOPE; PR #75's content is untouched, and this is deliberately a SEPARATE PR because #75's contract scoped gate changes out.
+[S3:deferred-trust-work] Nothing deferred: the prompt fix, its test, the repaired test, and the ledger row all land together.
+[S3:env-dependent-hermetic-test] Both new tests read only the in-process constant — no network, no env, no model call.
+[S3:fabricated-qualitative-copy] Every claim is checkable from the two CI logs (both said "no blocking issues" and both ended with two VERDICT lines).
+[S3:false-confidence-gate] The new test states its honest limit in-code: it guarantees only that OUR text never displays a copyable second verdict line; model nondeterminism is explicitly out of its reach.
+[S3:false-price-claim] No pricing claim.
+[S3:governance-ambiguity] The fix removes ambiguity rather than adding interpretation: one line, one of two words, emit once.
+[S3:malformed-ledger-row] The appended ledger row was checked by running kaizen_trends after the append.
+[S3:missing-record-read-as-state] No Record row is needed — nothing is deferred; the wasted evaluator calls are recorded as a Kaizen cost, not as a deferral.
+[S3:mutable-model-alias] No model id touched.
+[S3:pagination-integrity-gap] No paginated data.
+[S3:retyped-evidence] Verdict text quoted from the CI job logs, not memory.
+[S3:rule-stronger-than-mechanism] The rule ships with its mechanism: the "one verdict line" instruction is enforced by a test, and the historical two-line text is pinned red as the demonstration.
+[S3:self-weakenable-gate] `parse_verdict` is untouched — a double verdict still hard-fails. The change can only make compliant replies MORE likely, never make a bad reply pass.
+[S3:self-weakenable-review-model] The generator-family rejection is untouched.
+[S3:stale-base-widens-range] Branch cut from the current origin/master; construction_gate confirms base freshness against the remote tip.
+[S3:stalled-state-needs-active-diagnosis] This PR IS the diagnosis: the second identical failure triggered root-cause analysis instead of a third retry.
+[S3:untested-gate-branch] The new check is demonstrated red on the exact text that shipped, and the full evaluator suite (32 tests) passes.
+[S3:unusable-credential-tier] No credential involved.
+[S3:volatile-safety-store] No state store touched.
+[S3:weak-key-accepted-at-custody] No key handling.
+[S3:workflow-tool-version-skew] No workflow file changed; the workflow keeps loading this script from the trusted base ref.
+
+[S3:fail-open-on-custody-misconfig] Unchanged: a missing/empty evaluator key still hard-fails, and the workflow still loads this script only from the trusted base ref.
+[S3:nonfinite-decimal-accepted] No numeric parsing added or altered.
+[S3:pushed-on-red] This PR merges only at APPROVE + required checks green. It exists precisely BECAUSE merging PR #75 through a red examiner would have been pushing on red — the fix is to repair the examiner, not to bypass it.
+[S3:release-path-weaker-than-generation] The review path is strengthened, not weakened: the verdict instruction is now unambiguous while the parser's ambiguity rejection stays exactly as strict.
+[S3:semantic-claim-not-rederived] The root cause was re-derived from the shipped prompt text and both CI logs, not inferred from the earlier session's memory.
+[S3:gate-self-defect] This build IS the response to that class, freshly added to the index by this change: the examiner's prompt was the defect, the subject reviewed clean twice, and the fix repairs the instruction while leaving the ambiguity rejection exactly as strict.
+[S3:nonfinite-numeric-accepted] No numeric input path is added or altered by this change.
+
+STATUS: OPEN — closes at this PR's merge.
+
 ## Session Contract #27 (2026-07-26, same session — close-out for PR #71)
 
 GOAL (AMENDED at r4 — the original text is quoted below and was FALSE by r1, which is itself the contract-scope-violation the panel blocked on): record PR #71's merge (0d16d90, 12 rounds) across STATE, the Kaizen ledger, the changelog and the session handoff — AND, because this PR turned out to be the first one the v2 panel judges, make the second review seat actually function. The amendment is stated rather than silently absorbed: contract-first is the custody boundary, and a gate change shipped under a records-only contract is unreviewable against its own done-criteria. ORIGINAL GOAL, superseded: "record PR #71's merge ... so disk carries the outcome rather than chat" with NON-GOALS "no code, no gate change, no threshold change — records only". WHY THE SCOPE MOVED: the close-out PR's own review run surfaced that the Gemini seat could not call its pinned model (429 `limit: 0`), so the PR could not go green without fixing the seat; splitting it out would have meant a second PR that this one still could not merge behind. DONE-CRITERIA (amended): Contract #26 closed with the merge SHA; the merged Kaizen row with M1 read from the recorded arc; handoff rewritten from in-flight to merged; the second seat pinned to a model this key can call, with that callability PROVEN by a preflight (list + live probe) executing from the trusted base copy, branch-tested, and the pin bound by test to the tool's own default; validate green. NON-GOALS (amended, unchanged in substance): no threshold relaxation anywhere — an unreachable seat still reds the gate rather than narrowing the panel, which would be founder-crucial; no change to verdict physics, custody, or the diff cap.
