@@ -51,6 +51,49 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
 
+## Session Contract #31 (2026-07-26 — the venue universe, read from TABC)
+
+GOAL: replace a hand-written 69-venue list with the real CAPCOG venue
+universe, read from a public state record. ROOT CAUSE: the launch metric had
+no denominator, so coverage was scored against what we had already ingested —
+"100% of what we found" reads as success no matter how little we found, and
+seven of the ten counties sat at zero.
+DONE-CRITERIA: a reproducible fetch of licensed premises across all ten member
+counties; the query verified against the dataset's own schema rather than
+guessed; paging that cannot silently lose rows; a fetch that fails LOUD rather
+than returning a short plausible list.
+NON-GOALS: this change produces the raw premise list only — turning it into a
+denominator and scoring coverage against it are the next change in the stack.
+A liquor licence cannot see theatres, museums, libraries, all-ages rooms or
+coffee shops with stages, and this tool never claims otherwise.
+STACKED ON: claude/handoff-review-2026-07-25-15ucin (PR #74), whose boundary
+tables this tool reads.
+[S3:caller-suppliable-custody-inputs] the ten county codes and the boundary tables are committed constants, not parameters: no caller can widen the market by passing a different code list, a radius or a centre point — which is exactly how the 75-mile circle admitted Bexar.
+[S3:contract-scope-violation] this contract covers the raw fetch alone. The denominator builder, the coverage tool, the coverage workflow and the source scorecard each carry their own contract on their own branch in this stack.
+[S3:deferred-trust-work] nothing found here is parked: the paging defect, the chain-collapse defect and the guessed column names were all fixed in this change, in the commit that found them.
+[S3:env-dependent-hermetic-test] the tests are hermetic and were RUN that way — every HTTP call is stubbed, so no network and no credential is required. The live fetch is deliberately NOT in them.
+[S3:fail-open-on-custody-misconfig] every misconfiguration fails the run: an unrecognised schema, a non-200 response, an unparseable body and a county code whose cities do not match all abort rather than emitting a shorter list.
+[S3:false-confidence-gate] the tool's self-description claims exactly what it does: it reads mixed-beverage licence records. It states plainly that a licence cannot see theatres, museums, libraries or all-ages rooms, so its output is a floor, never the market.
+[S3:featurability-dimension-missed] each premise row carries its layer, county, city and address, so a reader can see WHICH dimension of a venue is known and which is missing, instead of inferring completeness.
+[S3:governance-ambiguity] the record's scope is stated precisely: mixed-beverage licensed premises in ten named counties, over an 18-month activity window — never 'all CAPCOG venues'.
+[S3:missing-record-read-as-state] an absent field on a row is reported as absent; a premise with no readable county goes to an unresolved list rather than being assigned a plausible one.
+[S3:mutable-model-alias] no model, alias or provider is referenced; this is a plain HTTP query against a public dataset.
+[S3:nonfinite-numeric-accepted] the only arithmetic is integer row counts and the two share thresholds, both guarded against a zero denominator; no floating configuration is accepted from anywhere.
+[S3:pagination-integrity-gap] this IS the class, caught live: Socrata does not guarantee a stable order across pages, so unordered paging silently skipped 26 premises. Every paged query now carries $order, and the walk EXHAUSTS rather than stopping at a cap — the cap is a runaway backstop that fails loud if reached.
+[S3:pushed-on-red] the test suite ran unchained with its exit code read directly before commit.
+[S3:retyped-evidence] no column name is guessed: --describe asks the dataset for its own schema, after guessing cost an HTTP 400 on a column that does not exist.
+[S3:self-weakenable-gate] this is a data-collection tool, not a gate; it decides nothing about what may merge or publish, and its output is judged by the coverage tool downstream.
+[S3:self-weakenable-review-model] nothing here feeds the review: the fetch runs on demand and its output is not an input to any verdict.
+[S3:semantic-claim-not-rederived] 'this venue is in a CAPCOG county' is re-derived from the returned CITIES, not trusted from the county code we filtered on — verify_counties() checks the towns each code brings back against the boundary tables, so a wrong code is caught by its own output.
+[S3:stale-base-widens-range] no range-derived gate is involved; the query range is the dataset's own activity window, stated explicitly in the committed artifact.
+[S3:stalled-state-needs-active-diagnosis] a non-200 response is diagnosed and reported with its status rather than retried indefinitely.
+[S3:swallowed-corrupt-data] monthly receipt rows are collapsed by name, city AND address — collapsing on name+city alone merged two branches of the same chain into one venue, which understates the universe in the flattering direction.
+[S3:untested-gate-branch] every failure branch has a committed test: wrong county code caught by its cities, over-threshold unrecognised share, monthly rows collapsing to one premise, two chain branches staying two venues, and grouping by address.
+[S3:unusable-credential-tier] the dataset is public and needs no token; the tool neither reads nor requires a credential of any tier.
+[S3:volatile-safety-store] no counter or safety state is kept; each run is stateless and rederives everything from the dataset.
+[S3:weak-key-accepted-at-custody] no key material of any kind is read, written or checked — the dataset is public.
+[S3:workflow-tool-version-skew] no workflow is touched by this change; the tool is a new leaf script with no trusted base-owned counterpart to skew against.
+
 ## Session Contract #28 (2026-07-26, founder-directed — verbatim: "Just get all the data for all the venues in CAPCOG. If you show San Antonio you've failed and need to fix it because Bear county is not part of CAPCOG." and "If you haven't already created the 'total potential number of venues in CAPCOG' list and are comparing your data ingestion to that... you don't know what you're testing against or reaching for.")
 
 GOAL: (1) make the market boundary CORRECT — CAPCOG's ten counties, not a radius — so out-of-region venues cannot reach a user; (2) create the DENOMINATOR (total potential CAPCOG venues) and measure ingestion against it, so coverage is a number instead of an anecdote. ROOT CAUSE FOUND: ticketmaster.py/seatgeek.py scope the market as a 75-mile circle around downtown Austin; San Antonio is ~75 mi away, so Bexar County was inside the query BY CONSTRUCTION — the Majestic/Freeman/Jo Long rows were the query working as written, not a data defect. R-025 recorded this and deferred it to "post-launch"; that deferral was wrong and the founder's flag fires its trigger. DONE-CRITERIA: canonical 10-county boundary + tri-state membership; region report separating OUTSIDE (defect) from UNKNOWN (worklist); coverage tool that REFUSES to print a percentage without a real denominator; target-list builder runnable where egress exists. NON-GOALS: no change to PR #68's importer semantics; no new spend.
