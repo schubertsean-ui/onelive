@@ -270,6 +270,15 @@ run_check "kaizen_trends" "$PY" tools/kaizen_trends.py
 # Same fail-closed physics, one mechanism, unit-tested.
 run_check "construction_gate" "$PY" tools/construction_gate.py
 
+# Change-set discipline (docs/skills/change_set_discipline.md), founder-directed
+# 2026-07-26 after the same review spiral happened twice — #68 at 22 rounds and
+# #74 at 11. Both times the lesson was written as PROSE and nothing executed it,
+# which the Construction Loop already calls an open defect. Review effectiveness
+# has a measured ceiling (~400 lines, Google/SmartBear); past it a change is
+# skimmed, not reviewed, and a change that GROWS under review can never
+# converge because each round judges a bigger subject than the last.
+run_check "change_set_gate" "$PY" tools/change_set_gate.py
+
 # 8. Visual regression — needs a booted app + baselines; cannot run headless
 #    here. Detect and SKIP-LOUD (never a silent pass), per the item-15 harness.
 echo "── visual_regression ──"
