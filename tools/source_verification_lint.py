@@ -38,6 +38,11 @@ to claim only what it does (PR #78 evaluator, class false-confidence-gate):
   - It does NOT check that a source says what the citing text claims.
   - It cannot detect a LYING `VERIFIED-READ` token.
   - Documents outside docs/research/ are not scanned at all.
+  - visible_text() APPROXIMATES CommonMark rendering (HTML comments,
+    fenced blocks, indented code, list-item continuation). It is not a
+    renderer, and an exotic construct may be judged differently from how
+    a browser shows it. Every divergence found so far is a test case;
+    the limit is stated here rather than rediscovered each round.
 Those remain human and independent-evaluator catches. What this removes is
 the ability to ship an unfollowable citation SILENTLY, and the ability to
 edit a research document without bringing it under the gate.
@@ -152,18 +157,34 @@ def visible_text(text: str) -> str:
         if m:
             fence = m.group(1)
             continue
+        # LIST-ITEM STATE MACHINE (PR #78 r9). CommonMark: an indented code
+        # block cannot interrupt a list item, so 4-space indentation means
+        # "code" only OUTSIDE an open item and "continuation" inside one.
+        # Getting the state transitions wrong breaks it in both directions,
+        # and the r8 version got two of them wrong (gemini):
+        #   - it reset the state on ANY non-bullet line, so a 2-space wrapped
+        #     line closed the item and a following 4-space line was dropped as
+        #     code — deleting real citation evidence;
+        #   - a blank line did NOT close the item, so an indented code block
+        #     after a bullet was kept as continuation — a hiding place.
+        # The transitions, stated once:
+        #   blank line        -> item closes (matches the entry parser, which
+        #                        also ends an entry at a blank line)
+        #   indented 4+       -> continuation if an item is open, else code
+        #   indented 1-3      -> continuation; state unchanged
+        #   column 0          -> a bullet opens an item; anything else closes
+        if not line.strip():
+            in_list = False
+            out.append(line)
+            continue
         if _INDENTED_CODE_RE.match(line):
-            # CommonMark: an indented code block cannot interrupt a list item.
-            # Stripping every 4-space-indented line unconditionally deleted
-            # legitimate wrapped citation lines before they were ever parsed
-            # (gemini r8) — a false REJECTION, and the mirror image of the
-            # bypass this stripper exists for. Inside an open list item the
-            # line is continuation; outside one it is code.
             if in_list:
                 out.append(line)
             continue
-        if line.strip():
-            in_list = bool(BULLET_RE.match(line))
+        if BULLET_RE.match(line):
+            in_list = True
+        elif not line[:1].isspace():
+            in_list = False
         out.append(line)
     return "\n".join(out)
 
@@ -379,7 +400,7 @@ def touched_research_docs(root: pathlib.Path, diff_range: str) -> list[str] | No
     # research document flagged the deleted path, and adding that path to
     # ENFORCED_DOCS to satisfy this check made scan_repo fail on the missing
     # file — an unresolvable deadlock (gemini dataflow-taint seat).
-    out = _git(["diff", "--name-only", "--diff-filter=d", diff_range], root)
+    out = _git(["diff", "--name-only", "--diff-filter=d", diff_range, "--"], root)
     if out is None:
         return None
     return sorted(

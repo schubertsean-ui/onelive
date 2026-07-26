@@ -485,3 +485,33 @@ def test_the_indented_code_bypass_stays_closed():
     """The fix above must not reopen r7: a four-space bullet with no open list
     item before it is still code, not a citation."""
     assert svl.scan_text("d.md", "## Sources\n\n    - x https://e.org VERIFIED-READ\n")
+
+
+# ── The list-item state machine, both directions (PR #78 r9). Getting the
+# transitions wrong breaks the gate as a bypass AND as a false rejection, and
+# r8 got two transitions wrong at once. One test per transition.
+
+def test_mixed_two_and_four_space_indentation_is_all_continuation():
+    """r8 reset the state on any non-bullet line, so a 2-space wrapped line
+    closed the item and the 4-space line after it was DROPPED as code — real
+    citation evidence deleted before the parser ever saw it."""
+    assert svl.scan_text("d.md", (
+        "## Sources\n- Wang et al.,\n  https://arxiv.org/abs/2405.16334\n"
+        "    VERIFIED-ABSTRACT — abstract only.\n")) == []
+
+
+def test_a_blank_line_closes_the_list_item():
+    """r8 left the item open across blank lines, so an indented code block
+    after a bullet was kept as continuation — a hiding place."""
+    assert svl.scan_text("d.md", "## Sources\n- a bare claim\n\n    https://e.org VERIFIED-READ\n")
+
+
+def test_an_unindented_line_closes_the_list_item():
+    assert svl.scan_text("d.md", (
+        "## Sources\n- a bare claim\nprose at column zero\n"
+        "    https://e.org VERIFIED-READ\n"))
+
+
+def test_indentation_of_one_to_three_spaces_keeps_the_item_open():
+    assert svl.scan_text("d.md", (
+        "## Sources\n- Wang,\n   https://e.org\n    VERIFIED-READ\n")) == []
