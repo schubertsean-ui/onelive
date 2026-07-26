@@ -18,8 +18,13 @@ phone-friendly, with the copy-paste value spelled out.
 ## 1. Meta credentials — the only hard blocker to live carousels
 
 Result: three secrets in GitHub — `META_ACCESS_TOKEN`, `META_IG_USER_ID`,
-`META_FB_PAGE_ID`. Budget 30–45 minutes the first time. Meta renames menu
-items often; where a label has moved, the nearby wording is usually close.
+`META_FB_PAGE_ID`. Budget 30–45 minutes the first time.
+
+**If a label has moved:** Meta renames menu items often. Do NOT guess at
+a similar-looking option — screenshot the screen you are stuck on, send
+it to Claude, and get the corrected step back. Guessing in a permissions
+dialog is how an account ends up with the wrong scopes granted, and the
+whole point of this file is that you never have to improvise.
 
 ### 1a. Make the Instagram account publishable (5 min)
 
@@ -107,8 +112,9 @@ post can be signed, so nothing can publish even with Meta connected.
    openssl rand -base64 48
    ```
    Copy the output. If you have no terminal handy, use
-   https://1password.com/password-generator with length 48 and all
-   character types on.
+   https://1password.com/password-generator set to **64 characters** with
+   letters, numbers and symbols all on — that lands near the ~256 bits of
+   entropy `openssl rand -base64 48` gives you. Do not shorten it.
 2. Go to https://vercel.com/sss-projects-e4775771/onelive/settings/environment-variables
 3. Click **Add New** (or **Create new**).
 4. Key: `ONELIVE_APPROVAL_KEY`
@@ -125,6 +131,18 @@ post can be signed, so nothing can publish even with Meta connected.
 
 ## 3. Posting posture — one decision, reply with a letter
 
+**The boundary that holds in ALL THREE options, and cannot be traded
+away by choosing one.** Whatever you pick, the AI never publishes
+directly: every post still passes the release gate, which re-renders the
+whole deck from the canonical store and refuses if a single fact drifted,
+and every release is still bound to a signed autonomy record naming the
+renderer fingerprint, the series, and the cadence. What A/B/C changes is
+WHO signs and HOW OFTEN you sign — never whether a signature and a
+re-verification happen. There is no option here that lets a deck reach
+Instagram unverified, and any change to that boundary is a trust-invariant
+change, which is yours to ratify explicitly and never an agent's to infer
+from a posture choice.
+
 Reply to Claude with **A**, **B**, or **C**:
 
 - **A (recommended to start).** You approve every post by hand. Cadence
@@ -133,9 +151,12 @@ Reply to Claude with **A**, **B**, or **C**:
 - **B.** You pre-approve a series (e.g. "Free tonight") for a fixed
   window; the engine posts within it at the cadence cap, and any deck
   that fails re-verification still stops for you.
-- **C.** Full autonomy within the cadence cap. Available, but the engine
-  should earn it on measured results first — this is the one that most
-  deserves a few weeks of A behind it.
+- **C.** Delegated signing within the cadence cap — the standing
+  authorisation signs on your behalf for a bounded window rather than you
+  signing each deck. NOT unsupervised publishing: the re-render check,
+  the content binding and the cadence ceiling all still run and still
+  refuse. Available, but the engine should earn it on measured results
+  first — this is the one that most deserves a few weeks of A behind it.
 
 A is the default if you say nothing. Moving A → B → C later is a
 one-line change, and moving back is too.
