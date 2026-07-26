@@ -4,11 +4,14 @@
 ask again for Explicit 'how to' step by step").** Any time the founder is
 asked to do something, the ask ships as click-by-click steps: the exact
 URL, the exact button text, the exact field name, and what to paste. A
-bullet naming a task without its steps is a defect, not a summary. This
-supersedes brevity and applies to every report, PR description, and
-escalation. CLAUDE.md's communication rule 5 already said this; it was
-violated repeatedly during the 2026-07-26 session, which is why it now
-has its own file and its own runbook below.
+bullet naming a task without its steps is a defect, not a summary.
+
+SCOPE, corrected 2026-07-26 after this sentence was found contradicting
+CLAUDE.md rule 7: this rule governs ASKS — anything the founder must DO. On
+those, step-detail supersedes brevity. It does NOT license long REPORTS. Rule
+7 governs those and is explicit that length is a defect; an ask written in
+full and a report kept under thirty seconds are not in tension, because most
+work should produce a report and no ask at all.
 
 Format each ask like the sections here: numbered, one action per line,
 phone-friendly, with the copy-paste value spelled out.
