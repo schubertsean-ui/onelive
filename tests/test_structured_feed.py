@@ -2148,10 +2148,56 @@ def test_a_lossy_calendar_is_not_an_empty_one(monkeypatch):
         return sf.import_source("https://venue.example/", provider_hint=hint,
                                 source_name="venue")
 
-    with pytest.raises(urllib.error.HTTPError):
+    # r21 strengthened this: the lossy document now fails the source OUTRIGHT
+    # (LossyFeed), rather than merely declining to forgive the later 403.
+    with pytest.raises(sf.LossyFeed):
         run(lossy_ics, sf.PROVIDER_ICS)
-    with pytest.raises(urllib.error.HTTPError):
+    with pytest.raises(sf.LossyFeed):
         run(lossy_platform, sf.PROVIDER_PLATFORM_JSON)
+
+
+def test_a_lossy_document_fails_even_with_no_other_candidates(monkeypatch):
+    """THE r21 blocker exactly. r19 only stopped a lossy document from
+    forgiving a later denial. If it was followed by guessed 404s — or nothing —
+    import_source still returned [] and the runner counted the source under
+    'yielded zero', so data loss still reached the operator as an empty
+    calendar. A warning is not a source-level outcome."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+
+    lossy_ics = ("BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+                 "BEGIN:VEVENT\r\nUID:only-an-id\r\nEND:VEVENT\r\n"
+                 "END:VCALENDAR\r\n")
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return lossy_ics
+        # Every guessed path is an honest 404 — the skippable case.
+        raise urllib.error.HTTPError(u, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    with pytest.raises(sf.LossyFeed):
+        sf.import_source("https://venue.example/", provider_hint=sf.PROVIDER_ICS,
+                         source_name="venue")
+
+
+def test_a_genuinely_empty_calendar_still_returns_empty(monkeypatch):
+    """The boundary the r21 fix must not cross: zero event OBJECTS is still an
+    honest empty, not a failure."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return EMPTY_ICS
+        raise urllib.error.HTTPError(u, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    assert sf.import_source("https://venue.example/",
+                            provider_hint=sf.PROVIDER_ICS,
+                            source_name="venue") == []
 
 
 def test_ics_and_platform_json_can_still_state_emptiness(monkeypatch):
@@ -2246,3 +2292,15 @@ def test_a_format_bearing_token_never_selects_without_asserting_its_format():
                                      or token.endswith("_verify")))
             assert not names_format, (
                 f"{token!r} names a wire format but asserts no provider")
+
+
+def test_a_lossy_source_is_not_waveable_through_by_allow_partial():
+    """r21: --allow-partial covers hosts that refused us, never data we dropped.
+    A lossy source exits 2 regardless, like a catalog defect (r12's reasoning)."""
+    import worker.importers.run_structured_import as r
+    assert r._exit_code([], True, [], ["venue_a"]) == 2
+    assert r._exit_code([], False, [], ["venue_a"]) == 2
+    # And the pre-existing outcomes are unchanged.
+    assert r._exit_code(["venue_b"], True, [], []) == 0
+    assert r._exit_code(["venue_b"], False, [], []) != 0
+    assert r._exit_code([], False, [], []) == 0

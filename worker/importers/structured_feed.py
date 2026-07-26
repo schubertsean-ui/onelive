@@ -1001,6 +1001,21 @@ class ProviderMismatch(OSError):
     changed — claim-vs-code drift is a class on our own watch list).
     """
 
+class LossyFeed(OSError):
+    """A document carried event objects and produced zero rows.
+
+    Evaluator blocker r21. "We could not read it" must never reach an operator
+    as "there was nothing there" — the whole contract of this PR. r19 closed the
+    half where a lossy document forgave a later denial; this closes the half
+    where it simply returned [] and joined the "yielded zero" count.
+
+    OSError, so the runner records it as a FAILED source and one broken feed
+    does not abort the other 63. NOT a ProviderMismatch: the catalog row is
+    right and the site served its own format — our parse of it lost everything,
+    which is a defect an operator must see either way.
+    """
+
+
 class DeclaredFeedCorrupt(OSError):
     """A site-DECLARED machine-readable feed served bytes that are not the type
     the site declared them to be.
@@ -1038,53 +1053,88 @@ _DECLARED_TYPE_PROVIDER = {
 }
 
 
-def _document_states_emptiness(provider: str, text: str) -> bool:
-    """True ONLY when the document itself ASSERTS it carries no events.
+def _event_object_count(provider: str, text: str) -> Optional[int]:
+    """How many event OBJECTS the document carries, or None when the format
+    cannot say.
 
-    Renamed and narrowed from the r17/r18 `_is_feed_document` at evaluator
-    blocker r19, because the old question was the wrong one. It asked "is this a
-    calendar document?" and treated a zero-ROW parse of any such document as
-    proof of emptiness. Those come apart exactly where it matters: a VCALENDAR
-    whose VEVENTs are all malformed (no DTSTART, no SUMMARY), or a platform
-    payload like {"events": [{"title": "no start"}]}, is a document FULL of
-    events that produced no rows. Reading that as "no upcoming events" is
-    silent-data-loss licensing failure-reads-as-empty — the source would report
-    a clean empty AND forgive a later denial, when the truth is that we dropped
-    everything it sent.
+    The one primitive behind two different questions (r21). Counting objects —
+    not rows — is what separates the three outcomes a zero-row parse can mean:
 
-    So the question is now about the DOCUMENT'S OWN CONTENT, not the parse
-    result: does it contain zero event OBJECTS? "Produced no rows" and "has no
-    rows" are different facts, and only the second one is an answer.
+        count == 0   the document STATES it carries no events  -> honestly empty
+        count  > 0   it carried events and we produced none     -> LOSSY
+        count is None the format cannot say                     -> unknown
 
-    Only two formats can state it, and each states it structurally:
-      * ICS — a VCALENDAR carrying no BEGIN:VEVENT anywhere in the body.
-      * platform JSON — a top-level "events" collection that is literally [].
-    schema.org JSON-LD cannot: it has no construct for "this is a calendar and
-    it is empty", so the absence of Event nodes is indistinguishable from a page
-    that was never a calendar (r18). It therefore never licenses an
-    authoritative empty, and a JSON-LD source facing a denied guess still FAILS.
+    Only ICS and the platform APIs can be counted. schema.org JSON-LD cannot:
+    the absence of Event nodes is indistinguishable from a page that was never
+    a calendar, so it answers None and never licenses either conclusion.
+
+    NOTE on why counting is safe here: neither parser filters by DATE — an ICS
+    VEVENT is dropped only for a missing SUMMARY/DTSTART — so a calendar full of
+    PAST events still produces rows and is never mistaken for lossy. The count
+    therefore measures parse loss, not staleness.
     """
     text = text or ""
     if provider == PROVIDER_ICS:
         # The VCALENDAR marker is a HEAD check (it opens the file); the VEVENT
-        # check must scan the WHOLE body — events live after the head window,
-        # and a head-only scan would call a full calendar empty.
+        # count must scan the WHOLE body — events live past the head window.
         head_lines = {ln.strip().upper() for ln in text[:4096].splitlines()}
         if "BEGIN:VCALENDAR" not in head_lines:
-            return False
-        return not any(ln.strip().upper() == "BEGIN:VEVENT"
-                       for ln in text.splitlines())
+            return None
+        return sum(1 for ln in text.splitlines()
+                   if ln.strip().upper() == "BEGIN:VEVENT")
     if provider == PROVIDER_PLATFORM_JSON:
-        # An EMPTY collection, not merely a well-formed one. _matches_asserted_
-        # shape accepts any list here (correctly — it answers a different
-        # question); emptiness requires the list to actually be empty.
         try:
             doc = _json_loads_finite(text)
         except (ValueError, TypeError):
-            return False
-        return (isinstance(doc, dict) and isinstance(doc.get("events"), list)
-                and len(doc["events"]) == 0)
-    return False
+            return None
+        if isinstance(doc, dict) and isinstance(doc.get("events"), list):
+            return len(doc["events"])
+        return None
+    return None
+
+
+def _document_states_emptiness(provider: str, text: str) -> bool:
+    """True ONLY when the document itself ASSERTS it carries no events.
+
+    Derived from :func:`_event_object_count` (r21) so emptiness and lossiness
+    can never disagree about the same bytes — they are now two readings of one
+    count rather than two hand-written checks.
+
+    Renamed and narrowed from the r17/r18 `_is_feed_document` at evaluator
+    blocker r19, because the old question was the wrong one: it asked "is this a
+    calendar document?" and treated a zero-ROW parse of any such document as
+    proof of emptiness. A VCALENDAR whose VEVENTs are all malformed is a
+    document FULL of events that produced no rows, and reading that as "no
+    upcoming events" is silent-data-loss licensing failure-reads-as-empty.
+    """
+    return _event_object_count(provider, text) == 0
+
+
+def _refuse_if_lossy(provider: Optional[str], text: str, rows: list,
+                     source_name: str, where: str) -> None:
+    """A document that carried event objects and produced NO rows fails the
+    source (evaluator blocker r21).
+
+    r19 stopped a lossy document from becoming an `authoritative_empty`, which
+    closed the "forgive a later denial" path — but only that path. If the lossy
+    document was followed by guessed 404s, or by no candidates at all,
+    import_source still RETURNED [] and the runner counted the source under
+    "yielded zero". So the headline contract of this PR — "produced no rows"
+    never reads the same as "has no rows" — was still false at the SOURCE level,
+    which is the level that actually reaches an operator.
+
+    An `_account()` warning is not an outcome. This is: the source is FAILED,
+    named in the summary, with the arithmetic in the message.
+    """
+    if provider is None or rows:
+        return
+    count = _event_object_count(provider, text)
+    if count is not None and count > 0:
+        raise LossyFeed(
+            f"source {source_name}: {where} carried {count} event object(s) and "
+            f"produced 0 rows — every event was dropped in parse/normalize. That "
+            f"is DATA LOSS, not an empty calendar: FAILED source, so it can never "
+            f"be counted among the sources that yielded zero.")
 
 
 _MAX_DECLARED_TRIES = 4
@@ -1552,6 +1602,10 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     # The base URL can itself BE the feed (a catalog row pointing straight at an
     # .ics or a platform endpoint). When it is, and it parsed to zero, the source
     # has already answered — see AUTHORITATIVE EMPTY above.
+    # A base document that carried events and produced none is DATA LOSS, so it
+    # fails HERE. Falling through to discovery would end in a bare `return []`,
+    # which is the outcome r21 blocked (r21).
+    _refuse_if_lossy(provider_hint, base_text, out, source_name, "the base URL")
     authoritative_empty: Optional[str] = None
     if provider_hint is not None and _document_states_emptiness(provider_hint, base_text):
         authoritative_empty = url
@@ -1636,14 +1690,33 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
         found = _events_from_text(text, provider_hint=provider_hint,
                                   source_name=source_name,
                                   cultural_domain=cultural_domain)
+        # Same rule on every candidate (r21): a document that carried events and
+        # produced none is data loss wherever we found it. Checked against the
+        # DECLARED provider for a declared feed, otherwise the asserted hint.
+        _refuse_if_lossy(
+            _DECLARED_TYPE_PROVIDER.get(declared_types.get(candidate))
+            if i < declared else provider_hint,
+            text, found, source_name, f"candidate {candidate}")
         if not found and i < declared:
-            # Reaching here means the declared type ALREADY verified above, so
-            # this is the honest case the r17 warning was meant for: the site's
+            # Reaching here means the declared type ALREADY verified above and
+            # the document was not lossy, so this is the honest case: the site's
             # own calendar, in the format it declared, with nothing upcoming.
-            logger.warning("source %s: DECLARED feed %s served valid %s that "
-                           "parsed to ZERO events — an empty calendar, verified "
-                           "against its declared type",
-                           source_name, candidate, declared_types.get(candidate))
+            # Worded per format (r21 nit): only ICS and platform JSON can STATE
+            # emptiness, so a declared JSON-LD feed is reported as UNREADABLE
+            # rather than empty — the code has said that since r18 and the
+            # message now says it too.
+            _dtype = declared_types.get(candidate)
+            if _document_states_emptiness(_DECLARED_TYPE_PROVIDER[_dtype], text):
+                logger.warning("source %s: DECLARED feed %s served valid %s "
+                               "stating ZERO events — an empty calendar, "
+                               "verified against its declared type",
+                               source_name, candidate, _dtype)
+            else:
+                logger.warning("source %s: DECLARED feed %s served valid %s but "
+                               "yielded no events, and this format cannot STATE "
+                               "emptiness — recorded as unreadable, NOT as an "
+                               "empty calendar",
+                               source_name, candidate, _dtype)
             declared_provider = _DECLARED_TYPE_PROVIDER[declared_types[candidate]]
             if authoritative_empty is None and _document_states_emptiness(declared_provider, text):
                 # The site pointed here and this IS its calendar document. That is

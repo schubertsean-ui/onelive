@@ -35,6 +35,7 @@ from worker.importers.structured_feed import (
     PROVIDER_ICS,
     PROVIDER_JSONLD,
     PROVIDER_PLATFORM_JSON,
+    LossyFeed,
     ProviderMismatch,
     import_source,
 )
@@ -286,7 +287,8 @@ _RECOVERABLE_SOURCE_ERRORS = (OSError,)   # incl. HTTPError, URLError, SSLError,
 
 
 def _exit_code(failed_sources: list, allow_partial: bool,
-               misconfigured_sources: list | None = None) -> int:
+               misconfigured_sources: list | None = None,
+               lossy_sources: list | None = None) -> int:
     """Fail the command when any source FAILED, and fail it UNCONDITIONALLY when
     any source was MISCONFIGURED.
 
@@ -304,6 +306,14 @@ def _exit_code(failed_sources: list, allow_partial: bool,
     fix, and it does not heal by itself on the next run. Misconfiguration exits 2
     — the config-error code, same as a contradictory or unparseable catalog.
     """
+    lossy = lossy_sources or []
+    if lossy:
+        log.error("%d source(s) LOSSY (%s) — each served its own format and "
+                  "produced ZERO rows, so every event they published is missing. "
+                  "--allow-partial does NOT apply: it covers hosts that refused "
+                  "us, never data we dropped. Fix the reader.",
+                  len(lossy), ", ".join(lossy))
+        return 2
     misconfigured = misconfigured_sources or []
     if misconfigured:
         log.error("%d source(s) MISCONFIGURED (%s) — the catalog asserts a wire "
@@ -399,6 +409,7 @@ def main(argv=None) -> int:
     # defect only we can fix, and --allow-partial must never wave it through
     # (evaluator blocker r12).
     misconfigured_sources: list[str] = []
+    lossy_sources: list[str] = []
 
     for entry in sources:
         sid = str(entry.get("id"))
@@ -417,6 +428,18 @@ def main(argv=None) -> int:
             # wrong about overridability until r12).
             log.error("source %-26s MISCONFIGURED (%s): %s", sid, url, exc)
             misconfigured_sources.append(sid)
+            continue
+        except LossyFeed as exc:
+            # Same overridability reasoning as r12, applied to r21's class: the
+            # source served its own format and we produced nothing from it, so
+            # every event it published is missing from tonight's feed. That is a
+            # defect that does NOT heal on the next run, which is exactly what
+            # --allow-partial must never wave through — the flag covers hosts
+            # that refused us, not data we silently dropped. Recorded in its own
+            # bucket so the message can say what actually happened rather than
+            # borrowing the catalog-defect wording.
+            log.error("source %-26s LOSSY (%s): %s", sid, url, exc)
+            lossy_sources.append(sid)
             continue
         except _RECOVERABLE_SOURCE_ERRORS as exc:
             # A single source being unreachable is logged, not fatal — the others
@@ -489,7 +512,8 @@ def main(argv=None) -> int:
 
     if args.dry_run:
         log.info("dry-run: no DB write")
-        return _exit_code(failed_sources, args.allow_partial, misconfigured_sources)
+        return _exit_code(failed_sources, args.allow_partial, misconfigured_sources,
+                          lossy_sources)
 
     import psycopg2
 
@@ -500,7 +524,8 @@ def main(argv=None) -> int:
     finally:
         conn.close()
     log.info("upserted %d events into licensed_event", written)
-    return _exit_code(failed_sources, args.allow_partial, misconfigured_sources)
+    return _exit_code(failed_sources, args.allow_partial, misconfigured_sources,
+                          lossy_sources)
 
 
 if __name__ == "__main__":

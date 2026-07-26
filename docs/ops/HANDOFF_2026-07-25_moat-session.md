@@ -36,7 +36,7 @@ must not inherit them silently.
 
 ## 1. WHAT IS OUTSTANDING TO GO LIVE
 
-### Blocking, agent-owned
+### Outstanding before public go-live, agent-owned (NOT merge blockers for #68)
 | # | Item | State |
 |---|---|---|
 | 1 | **PR #68 to APPROVE + merge** | Multi-round. Gate state and round count: read the PR's latest `adversarial-review` job log and `validate.log` — never this file (r17 nit: a hand-copied SHA/round count is stale the moment the next commit lands, which is the retyped-evidence class). Charter permits agent merge on evaluator APPROVE + all required checks green. |
