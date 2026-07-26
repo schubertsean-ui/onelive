@@ -98,13 +98,44 @@ def test_ordinary_prose_is_not_flagged():
     ) == []
 
 
-def test_claim_scan_covers_the_surfaces_that_actually_escaped():
-    """The escapes were in workflow comments, STATE.md and TODOS.md — none of
-    which governed_docs() reads. A scan of the wrong files cannot fail."""
-    scanned = {str(p) for p in gcl.claim_docs()}
-    for required in ("STATE.md", "TODOS.md"):
-        assert any(s.endswith(required) for s in scanned), f"{required} unscanned"
-    assert any(".github/workflows/adversarial-review.yml" in s for s in scanned)
+def test_claim_scan_covers_every_prose_file_that_could_carry_a_claim():
+    """DERIVED coverage, not a locked list (PR #75 r12, class
+    self-weakenable-gate).
+
+    The first version asserted the scan set contained STATE.md, TODOS.md and
+    the workflows — exactly the hand-picked set the implementation had — so it
+    could not fail when the round's actual false claim sat in
+    templates/universal-kernel/STAGING_NOTE.md, outside both. A test that
+    mirrors the implementation's blind spot certifies the blind spot.
+
+    Now: walk the repo for prose files and assert every one is scanned. A new
+    document is covered the day it is written, and a narrowing of claim_docs()
+    fails here.
+    """
+    scanned = {p.resolve() for p in gcl.claim_docs()}
+    missed = []
+    for path in _ROOT.rglob("*.md"):
+        rel = path.relative_to(_ROOT)
+        if any(part in gcl._CLAIM_EXCLUDED_TREES for part in rel.parts):
+            continue
+        if str(rel).replace("\\", "/").startswith("docs/research/sources/"):
+            continue  # someone else's captured text, not our claim
+        if path.resolve() not in scanned:
+            missed.append(str(rel))
+    assert not missed, f"prose files outside the claim scan: {missed[:10]}"
+
+
+def test_the_scan_reaches_the_file_that_escaped_it():
+    """The concrete regression: STAGING_NOTE.md carried a false 'OneLive gates
+    untouched' claim while sitting outside the scan."""
+    scanned = {str(p.relative_to(_ROOT)) for p in gcl.claim_docs()}
+    assert "templates/universal-kernel/STAGING_NOTE.md" in scanned
+
+
+def test_a_verbatim_source_capture_is_not_our_prose_to_scope():
+    """We may not rewrite a captured article to satisfy our own rule."""
+    scanned = {str(p.relative_to(_ROOT)) for p in gcl.claim_docs()}
+    assert not any(s.startswith("docs/research/sources/") for s in scanned)
 
 
 def test_the_live_tree_is_clean_on_both_halves():

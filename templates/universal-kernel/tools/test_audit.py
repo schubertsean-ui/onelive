@@ -40,10 +40,26 @@ class Findings:
         return not self.items
 
 
-def _test_files() -> list[pathlib.Path]:
-    if not TESTS_DIR.exists():
+# BOTH of pytest's default collection patterns (PR #75 r12, class
+# self-weakenable-gate). Auditing only `test_*.py` meant an adopting project
+# could add `foo_test.py` — which pytest DOES collect — and this gate against
+# tests-that-cannot-fail would never look at it. A false-confidence audit
+# bypassable by filename is worse than none, because it reads as coverage.
+COLLECTION_PATTERNS = ("test_*.py", "*_test.py")
+
+
+def _files_under(directory: pathlib.Path) -> list[pathlib.Path]:
+    if not directory.exists():
         return []
-    return sorted(p for p in TESTS_DIR.rglob("test_*.py") if "__pycache__" not in p.parts)
+    found = set()
+    for pattern in COLLECTION_PATTERNS:
+        found.update(p for p in directory.rglob(pattern)
+                     if "__pycache__" not in p.parts)
+    return sorted(found)
+
+
+def _test_files() -> list[pathlib.Path]:
+    return _files_under(TESTS_DIR)
 
 
 def _is_test_func(node: ast.AST) -> bool:
@@ -223,7 +239,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv if argv is not None else sys.argv[1:])
 
     tests_dir = pathlib.Path(args.tests_dir) if args.tests_dir else TESTS_DIR
-    files = sorted(p for p in tests_dir.rglob("test_*.py") if "__pycache__" not in p.parts) if tests_dir.exists() else []
+    files = _files_under(tests_dir)
 
     if not files:
         print(f"test_audit.py: no test files found under {tests_dir} — nothing to audit.", file=sys.stderr)

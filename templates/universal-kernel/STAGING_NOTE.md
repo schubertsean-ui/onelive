@@ -23,7 +23,16 @@ coverage until its extraction is a founder call.
 
 **Nothing in OneLive imports or depends on this directory.** It is inert
 template content: docs, portable tools, and one workflow file. OneLive's
-pipeline, gates, and product surfaces are untouched.
+pipeline and PRODUCT surfaces are untouched.
+
+**Its GATES are not** — correcting an overstatement this note carried from r1.
+The same pull request also hardened OneLive's live `.github/workflows/
+adversarial-review.yml` (a three-job split closing a key-exfiltration path),
+added `pytest.ini` collection scoping, and extended the governance lint. That
+work is not staging: the evaluator found the hole in the very workflow this
+template copies, so fixing it here and shipping it unfixed there was not an
+option. What stays untouched is the product path — ingestion, extraction,
+gate→candidate→promote, `/tonight`, auth.
 
 ## Transport (the remaining step, ~1 minute at a laptop)
 

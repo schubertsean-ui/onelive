@@ -131,15 +131,36 @@ SCOPE_MARKERS = (
 )
 
 
+# DERIVED, not enumerated (PR #75 r12, class self-weakenable-gate). The hand
+# listed set was CLAUDE.md + decisions + STATE + TODOS + workflows, and the
+# false claim that round was in templates/universal-kernel/STAGING_NOTE.md —
+# outside it. A blind spot in the scan set is indistinguishable from a clean
+# tree, and the accompanying test locked the incomplete set in place, so
+# neither could fail on the escape. Walking every markdown and workflow file
+# means a new document is covered the day it is written; the excluded trees
+# are machine content, never prose that makes claims.
+_CLAIM_EXCLUDED_TREES = {".git", "node_modules", ".venv", "venv", "__pycache__",
+                         ".next", "dist", "build"}
+
+
 def claim_docs() -> list[pathlib.Path]:
-    """Wider than governed_docs(): the escapes were in workflow comments, the
-    session contract and the TODO list, not in CLAUDE.md."""
-    docs = governed_docs() + [REPO / "STATE.md", REPO / "TODOS.md"]
-    for wf_dir in REPO.glob("**/.github/workflows"):
-        if ".git/" in str(wf_dir):
-            continue
-        docs.extend(sorted(wf_dir.glob("*.yml")))
-    return [d for d in docs if d.exists()]
+    """Every prose document that could carry a security claim."""
+    docs = []
+    for pattern in ("**/*.md", "**/.github/workflows/*.yml",
+                    "**/.github/workflows/*.yaml"):
+        for path in REPO.glob(pattern):
+            rel = path.relative_to(REPO)
+            if any(part in _CLAIM_EXCLUDED_TREES for part in rel.parts):
+                continue
+            # Verbatim source captures are SOMEONE ELSE'S text. We may not
+            # rewrite a captured article to satisfy our own prose rule, and
+            # its sentences are not our claims. Same path-based boundary the
+            # provenance branch uses.
+            if str(rel).replace("\\", "/").startswith("docs/research/sources/"):
+                continue
+            if path.is_file():
+                docs.append(path)
+    return sorted(set(docs))
 
 
 def scan_absolute_claims(text: str) -> list[str]:
