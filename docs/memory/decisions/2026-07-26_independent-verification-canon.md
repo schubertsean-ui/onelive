@@ -51,11 +51,12 @@ finding, or result — including, especially, self-reports.
     precisely because an unbacked trigger can silently never fire.
   Fails closed when it scans nothing, and when git cannot answer the diff.
   Tests: `tests/test_source_verification_lint.py`.
-- **Retrieval:** four new `docs/memory/RED_CLASSES.md` rows —
-  `tail-only-diagnosis`, `unfollowable-citation`, `scripted-edit-not-reread`,
-  and `premature-blocked-claim` (the founder's second directive the same day:
-  one tool failing is not a capability limit) — so the classes are matched
-  mechanically on future changes rather than remembered.
+- **Retrieval:** new rows in `docs/memory/RED_CLASSES.md`, so the classes are
+  matched mechanically on future changes rather than remembered. The list is
+  deliberately NOT typed here — it read "three", then "four", then "five" as
+  successive review rounds added classes, and each stale copy was correctly
+  blocked as the retyped-evidence class this record exists about. Read it with
+  `git diff origin/master -- docs/memory/RED_CLASSES.md | grep '^+| '`.
 - **Honest scope, recorded not hidden:** R-054. The lint's CONTENT half covers
   ONE document today; measured by the runnable command in that row, 12 of the
   other 12 research documents would fail it. Its SCOPE half already covers the

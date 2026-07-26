@@ -146,9 +146,27 @@ def test_status_token_substring_bypasses_are_closed():
 
 
 def test_a_negated_status_does_not_count_as_declaring_one():
-    """"not VERIFIED-READ" declares the OPPOSITE of a read primary."""
-    for bad in ("not VERIFIED-READ", "never VERIFIED-READ", "not yet VERIFIED-READ"):
+    """A negation GOVERNING the token declares the opposite of a read primary.
+
+    Adjacency is not the rule (PR #78 r6, class negated-status-bypass): the
+    first cut required the negation immediately before the token, so an
+    intervening adverb walked straight through it. Scoping by clause instead
+    of enumerating adverbs is the same derive-don't-list correction this arc
+    kept needing."""
+    for bad in ("not VERIFIED-READ", "never VERIFIED-READ", "not yet VERIFIED-READ",
+                "not actually VERIFIED-READ", "not really VERIFIED-READ",
+                "not currently VERIFIED-READ", "never fully VERIFIED-READ",
+                "without being VERIFIED-READ", "is not in any sense VERIFIED-READ"):
         assert not svl.declares_status(f"- x https://e.org {bad}"), bad
+
+
+def test_a_negation_does_not_leak_across_a_clause_boundary():
+    """An honest entry that mentions a negated status and THEN declares a real
+    one must still pass — over-rejection would push authors to omit context."""
+    for good in ("not VERIFIED-READ; UNVERIFIED-SECONDARY",
+                 "not VERIFIED-READ. UNVERIFIED-BLOCKED",
+                 "status: UNVERIFIED-SECONDARY"):
+        assert svl.declares_status(f"- x https://e.org {good}"), good
 
 
 def test_punctuation_around_a_real_token_still_counts():

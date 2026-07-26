@@ -151,15 +151,27 @@ _STATUS_RE = re.compile(
     "|".join(sorted((re.escape(t) for t in STATUS_TOKENS), key=len, reverse=True)) +
     r")(?![A-Za-z0-9-])"
 )
-# An explicit negation immediately before a well-formed token is a
-# DECLARATION OF THE OPPOSITE, not a status. "not VERIFIED-READ" must not
-# satisfy the requirement to declare one.
-# Anchored at the END of the text preceding the token — the negation must
-# immediately govern it. (First cut used a lookahead for the token's first
-# capital, which never fired because the preceding slice stops exactly
-# there; caught by probing the bypass rather than by reading the regex.)
-_NEGATED_STATUS_RE = re.compile(
-    r"\b(?:not|never|isn'?t|no)\s+(?:yet\s+)?$", re.IGNORECASE)
+# An explicit negation GOVERNING a token declares the opposite, not a status.
+# Scoped by SENTENCE, not by adjacency (PR #78 r6, class
+# negated-status-bypass). The first cut required the negation to sit
+# immediately before the token, so "not actually VERIFIED-READ", "not really
+# VERIFIED-READ" and "not currently VERIFIED-READ" all passed while saying the
+# opposite of what they claimed. Enumerating the adverbs would be the
+# one-instance-instead-of-the-category mistake this arc keeps making, so the
+# rule is positional: look back to the last sentence boundary and reject if any
+# negation word governs the token from there. A token after a `;` or `.` starts
+# a fresh clause and is judged on its own — which keeps
+# "not VERIFIED-READ; UNVERIFIED-SECONDARY" correctly accepted.
+_NEGATION_WORD_RE = re.compile(r"\b(?:not|never|isn'?t|aren'?t|no|without|"
+                               r"neither|nor|cannot|can'?t)\b", re.IGNORECASE)
+_CLAUSE_BREAK_RE = re.compile(r"[.;:!?]")
+
+
+def _is_negated(text_before: str) -> bool:
+    """True when a negation governs the token that follows text_before."""
+    breaks = list(_CLAUSE_BREAK_RE.finditer(text_before))
+    clause = text_before[breaks[-1].end():] if breaks else text_before
+    return bool(_NEGATION_WORD_RE.search(clause))
 
 
 def status_field(line: str) -> str:
@@ -185,8 +197,7 @@ def declares_status(line: str) -> bool:
     """
     field = status_field(line)
     for m in _STATUS_RE.finditer(field):
-        before = field[max(0, m.start() - 24):m.start()]
-        if not _NEGATED_STATUS_RE.search(before):
+        if not _is_negated(field[:m.start()]):
             return True
     return False
 
@@ -393,11 +404,14 @@ def main(argv: list[str] | None = None) -> int:
               "documents edited without joining the gate, fail closed here.",
               file=sys.stderr)
         return 1
-    print("source_verification_lint: clean — every enforced document's "
-          "sources carry an http(s) URL and an explicit verification-status "
-          "token, and this change edits no unenforced research document. "
-          "(URLs are checked for PRESENCE and form, never resolved; a token "
-          "is checked for being declared, never for being truthful.)")
+    total = len(list((REPO / "docs" / "research").rglob("*.md")))
+    print(f"source_verification_lint: clean — {len(ENFORCED_DOCS)} of {total} "
+          f"docs/research documents are CONTENT-enforced (the remainder is "
+          f"R-054; the scope check covers the whole tree). Their sources carry "
+          f"an http(s) URL and an explicit verification-status token, and this "
+          f"change edits no unenforced research document. URLs are checked for "
+          f"PRESENCE and form, never resolved; a token is checked for being "
+          f"declared, never for being truthful.")
     return 0
 
 
