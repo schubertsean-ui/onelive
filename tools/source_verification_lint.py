@@ -303,16 +303,101 @@ def _scan_provenance(rel_path: str, body: str) -> list[str]:
     return findings
 
 
+# A lead-in sentence before the list is legitimate; a SOURCE hiding in that
+# position is not (PR #78 r11). The r10 carve-out allowed ANY pre-list prose,
+# which meant a table row, a blockquote or a bare-domain citation placed above
+# the first bullet stayed unparsed and unreported — the same bypass r10 claimed
+# to close, moved to the top of the section. A pre-list line is allowed only if
+# it carries nothing that makes it look like evidence.
+_BARE_DOMAIN_RE = re.compile(r"\b[a-z0-9][a-z0-9-]*\.(?:com|org|net|edu|gov|io|dev|ai)\b",
+                             re.IGNORECASE)
+
+
+def _looks_like_a_source(line: str) -> bool:
+    return bool(URL_RE.search(line) or _STATUS_RE.search(line)
+                or _BARE_DOMAIN_RE.search(line))
+
+
+def _scan_section(rel_path: str, section: str) -> list[str]:
+    """Entries and stray content for ONE Sources section."""
+    findings: list[str] = []
+    entries: list[str] = []
+    stray: list[str] = []
+    open_entry = False
+    entries_in_block = False    # reset per subheading, so a lead-in under
+                                # `### Secondary` is judged like any other
+                                # lead-in rather than as trailing junk
+    for ln in section.splitlines():
+        if BULLET_RE.match(ln):
+            entries.append(ln)
+            open_entry = True
+            entries_in_block = True
+        elif not ln.strip():
+            open_entry = False
+        elif ln.strip().startswith("#"):
+            open_entry = False
+            entries_in_block = False
+        elif open_entry and ln[:1].isspace():
+            entries[-1] += " " + ln.strip()
+        else:
+            open_entry = False
+            # Flagged when the list has already started in this block, OR when
+            # the line looks like evidence wherever it sits. Everything inside
+            # the region this gate claims to cover is checked or reported.
+            if entries_in_block or _looks_like_a_source(ln):
+                stray.append(ln.strip())
+
+    if not entries:
+        findings.append(
+            f"{rel_path}: `## Sources` section has no entries — an empty "
+            "sources block is a gate that cannot fail")
+
+    for ln in stray:
+        label = (ln[:70] + "…") if len(ln) > 70 else ln
+        findings.append(
+            f"{rel_path}: visible line inside the Sources section is not a list "
+            f"entry, so it is never checked for a URL or a status token — put "
+            f"every source in the list (a lead-in sentence carrying no URL, "
+            f"domain or status token is fine): {label}")
+
+    for line in entries:
+        stripped = line.strip()
+        label = (stripped[:70] + "…") if len(stripped) > 70 else stripped
+        if not URL_RE.search(line):
+            findings.append(
+                f"{rel_path}: source entry has no http(s) URL — a citation "
+                f"a reader cannot follow is a claim, not evidence: {label}")
+        if not declares_status(line):
+            findings.append(
+                f"{rel_path}: source entry declares no verification status "
+                f"(one of {', '.join(STATUS_TOKENS)}) — unverified is allowed, "
+                f"silently unverified is not: {label}")
+    return findings
+
+
 def scan_text(rel_path: str, text: str) -> list[str]:
     """Findings for one document. Pure function — unit-testable."""
-    findings: list[str] = []
     text = visible_text(text)   # hidden evidence is not evidence
-    m = SOURCES_HEADING.search(text)
-    if not m:
-        prov = PROVENANCE_RE.search(text)
-        if prov and is_capture_path(rel_path):
-            return _scan_provenance(rel_path, prov.group("body"))
-        if prov:
+    headings = list(SOURCES_HEADING.finditer(text))
+    provenance = list(PROVENANCE_RE.finditer(text))
+
+    if not headings:
+        if provenance and is_capture_path(rel_path):
+            # EVERY provenance line is checked, and there must be exactly one
+            # (PR #78 r11): the first cut took `.search()` and examined only the
+            # first, so a capture could carry one compliant origin line plus a
+            # second, contradictory one that the gate never read. R-054 says "a
+            # single PROVENANCE line"; this is the invariant that makes "single"
+            # mean something.
+            if len(provenance) > 1:
+                return [
+                    f"{rel_path}: {len(provenance)} `PROVENANCE:` lines — a "
+                    f"capture has ONE origin, and extra lines would let a "
+                    f"compliant declaration sit beside a contradictory one that "
+                    f"nothing checks"
+                ]
+            return _scan_provenance(rel_path, provenance[0].group("body"))
+        if provenance:
             return [
                 f"{rel_path}: uses a `PROVENANCE:` line, but that alternative is "
                 f"only for verbatim source captures under "
@@ -330,84 +415,20 @@ def scan_text(rel_path: str, text: str) -> list[str]:
             "was actually read"
         ]
 
-    section = text[m.end():]
-    # The section ends at the next heading of the SAME-OR-HIGHER level —
-    # computed from the matched heading, not hard-coded. The first cut
-    # truncated at any `#`..`####`, so a `## Sources` block organised with
-    # `### Primary` / `### Secondary` subheadings lost every citation under
-    # them and reported "no entries" — a gate silently examining nothing
-    # (PR #78, gemini dataflow-taint seat; the comment claimed the correct
-    # behaviour while the regex did something else).
-    level = len(m.group(1))
-    nxt = re.search(r"^#{1,%d}\s+\S" % level, section, re.MULTILINE)
-    if nxt:
-        section = section[: nxt.start()]
-
-    # An entry is a bullet line PLUS its wrapped continuation lines — real
-    # markdown citations span several lines, and a line-only parser would
-    # demand the URL and status token share one physical line.
-    # An entry is a bullet PLUS its INDENTED continuation lines, and it CLOSES
-    # at a blank line, a heading, or an unindented line (PR #78 r4, class
-    # unbounded-continuation-bypass). Appending any following non-empty line
-    # let a free-standing paragraph — or a paragraph after a divider — supply
-    # the URL and status for a defective bullet above it, so "every entry
-    # carries its own URL and status" was not actually enforced.
-    entries: list[str] = []
-    stray: list[str] = []
-    open_entry = False
-    for ln in section.splitlines():
-        if BULLET_RE.match(ln):
-            entries.append(ln)
-            open_entry = True
-        elif not ln.strip():
-            open_entry = False          # a blank line ends the entry
-        elif ln.strip().startswith("#"):
-            open_entry = False          # a heading is a divider, never text
-        elif open_entry and ln[:1].isspace():
-            entries[-1] += " " + ln.strip()
-        else:
-            open_entry = False          # unindented prose is not continuation
-            if entries:
-                # Visible non-list content AFTER the list has started was
-                # silently DISCARDED (PR #78 r10): a document could carry one
-                # compliant bullet and then table rows, blockquotes or prose
-                # source lines that the gate never examined — exactly the
-                # unfollowable-citation class it exists to stop, hidden in
-                # plain sight rather than in a comment.
-                # Only after the first entry, so an introductory sentence
-                # before the list is still allowed (a rule that rejected
-                # ordinary prose would be the false-rejection defect r8 was
-                # about).
-                stray.append(ln.strip())
-    if not entries:
-        findings.append(
-            f"{rel_path}: `## Sources` section has no entries — an empty "
-            "sources block is a gate that cannot fail"
-        )
-        return findings
-
-    for ln in stray:
-        label = (ln[:70] + "…") if len(ln) > 70 else ln
-        findings.append(
-            f"{rel_path}: visible line inside the Sources section is not a list "
-            f"entry, so it is never checked for a URL or a status token — put "
-            f"every source in the list (introductory prose before the first "
-            f"entry is fine): {label}")
-
-    for line in entries:
-        stripped = line.strip()
-        label = (stripped[:70] + "…") if len(stripped) > 70 else stripped
-        if not URL_RE.search(line):
-            findings.append(
-                f"{rel_path}: source entry has no http(s) URL — a citation "
-                f"a reader cannot follow is a claim, not evidence: {label}"
-            )
-        if not declares_status(line):
-            findings.append(
-                f"{rel_path}: source entry declares no verification status "
-                f"(one of {', '.join(STATUS_TOKENS)}) — unverified is allowed, "
-                f"silently unverified is not: {label}"
-            )
+    # EVERY Sources section, not just the first (PR #78 r11). A document could
+    # satisfy the gate with one clean block while a later visible `## Sources`
+    # carried unfollowable citations nothing examined.
+    findings: list[str] = []
+    for m in headings:
+        section = text[m.end():]
+        # The section ends at the next heading of the SAME-OR-HIGHER level —
+        # computed from the matched heading, not hard-coded, so `### Primary`
+        # subheadings do not truncate a `## Sources` block.
+        level = len(m.group(1))
+        nxt = re.search(r"^#{1,%d}\s+\S" % level, section, re.MULTILINE)
+        if nxt:
+            section = section[: nxt.start()]
+        findings.extend(_scan_section(rel_path, section))
     return findings
 
 

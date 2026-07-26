@@ -476,20 +476,34 @@ def test_every_class_token_named_in_code_or_ledger_has_an_index_row():
 
     index = set(load_index(DEFAULT_INDEX))
     root = pathlib.Path(REPO_ROOT)
-    # Canonical ways this repo names a class: the word "class" followed by a
-    # kebab token, and the evaluator's own finding prefix. Written without a
-    # literal example, because an example in the canonical form makes this
-    # file match itself (self-caught: the first version flagged its own
-    # docstring).
-    pat = re.compile(r"(?:class[es]*[:\s]+`?|CLASS:)([a-z][a-z0-9]+(?:-[a-z0-9]+){2,})")
+    # TWO patterns, because one discriminator cannot do both jobs (PR #78 r11,
+    # gemini spec-vs-contract):
+    #   - the evaluator's `CLASS:` prefix is UNAMBIGUOUS, so any kebab token
+    #     after it counts. The single-pattern version demanded 3+ components
+    #     and therefore skipped every two-word class — including
+    #     `unfollowable-citation`, one of this PR's own.
+    #   - the prose form (the word "class" then a bare kebab token) has no such
+    #     marker, so it keeps
+    #     the 3+ heuristic. Loosening THAT one matched ordinary English:
+    #     "class fail-open", "pre-review", "doc-wide" (measured, 6 false
+    #     positives), and a check that cries wolf gets ignored.
+    pats = [re.compile(r"CLASS:([a-z][a-z0-9]+(?:-[a-z0-9]+)+)"),
+            re.compile(r"class(?:es)?[:\s]+`?([a-z][a-z0-9]+(?:-[a-z0-9]+){2,})")]
     referenced: dict[str, set[str]] = {}
     sources = list((root / "tools").rglob("*.py")) + list((root / "tests").rglob("*.py"))
     sources.append(root / "docs" / "metrics" / "KAIZEN_LEDGER.md")
     for path in sources:
         if not path.is_file():
             continue
-        for m in pat.finditer(path.read_text(encoding="utf-8")):
-            referenced.setdefault(m.group(1), set()).add(path.name)
+        text = path.read_text(encoding="utf-8")
+        for pat in pats:
+            for m in pat.finditer(text):
+                if text[m.end():m.end() + 1] == "-":
+                    # A token cut by a line-wrapped string literal
+                    # ("CLASS:rule-stronger-" + "than-mechanism") is a fragment,
+                    # not a class that is missing from the index.
+                    continue
+                referenced.setdefault(m.group(1), set()).add(path.name)
     assert referenced, "no class tokens found anywhere — the test would be vacuous"
     missing = {k: sorted(v) for k, v in referenced.items() if k not in index}
     assert not missing, (
@@ -515,3 +529,30 @@ def test_corrected_marks_a_live_answer_not_a_stale_one():
     answers — caught by the exactly-one rule the same round introduced."""
     from tools.construction_gate import contradictory_citations
     assert contradictory_citations("[S3:x] CORRECTED at r3 — the real answer.\n") == []
+
+
+def test_the_registry_check_catches_two_component_class_tokens():
+    """PR #78 r11: the single-pattern version required 3+ kebab components, so
+    every two-word class — `unfollowable-citation` among them — was skipped.
+
+    The sample token is ASSEMBLED at runtime rather than written literally: a
+    literal here would be found by the live scan above and reported as an
+    unindexed class, which is how the r8 version of this file flagged its own
+    docstring.
+    """
+    import re
+    pats = [re.compile(r"CLASS:([a-z][a-z0-9]+(?:-[a-z0-9]+)+)"),
+            re.compile(r"class(?:es)?[:\s]+`?([a-z][a-z0-9]+(?:-[a-z0-9]+){2,})")]
+    sample = "CLASS" + ":" + "fake" + "-" + "token"
+    hits = [m.group(1) for p in pats for m in p.finditer(f"# {sample} here")]
+    assert hits == ["fake" + "-" + "token"], hits
+
+
+def test_the_registry_check_ignores_line_wrapped_fragments():
+    """`"CLASS:rule-stronger-" + "than-mechanism"` in a wrapped string literal
+    is a fragment, not a class missing from the index."""
+    import re
+    pat = re.compile(r"CLASS:([a-z][a-z0-9]+(?:-[a-z0-9]+)+)")
+    text = "CLASS" + ":" + "rule-stronger" + "-"
+    m = pat.search(text)
+    assert m and text[m.end():m.end() + 1] == "-", "the fragment guard has nothing to skip"

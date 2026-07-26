@@ -566,3 +566,55 @@ def test_plus_is_a_valid_bullet():
     """CommonMark allows `+` alongside `-` and `*` (gemini nit); treating it as
     prose would have been a false rejection."""
     assert svl.scan_text("d.md", "## Sources\n+ x https://e.org VERIFIED-READ\n") == []
+
+
+# ── PR #78 r11: the r10 carve-out was itself the hole ────────────────────
+
+def test_source_shaped_content_before_the_first_entry_is_reported():
+    """openai: r10 allowed ANY pre-list prose, so a table row, blockquote or
+    bare-domain citation above the first bullet stayed unparsed — the same
+    bypass r10 claimed to close, moved to the top of the section."""
+    for stray in ("Klein 1998, dora.dev",
+                  "| Klein | https://k.org |",
+                  "> see arxiv.org for the rest",
+                  "Smith 2020 VERIFIED-READ"):
+        findings = svl.scan_text(
+            "d.md", f"## Sources\n{stray}\n- x https://e.org VERIFIED-READ\n")
+        assert any("not a list entry" in f for f in findings), stray
+
+
+def test_a_plain_lead_in_sentence_is_still_allowed():
+    """The discriminator is "does it look like evidence", not "is it prose" —
+    rejecting an ordinary lead-in would be the r8 false-rejection defect."""
+    assert svl.scan_text("d.md", (
+        "## Sources\nEverything the claims above rest on:\n"
+        "- x https://e.org VERIFIED-READ\n")) == []
+
+
+def test_a_lead_in_under_a_subheading_is_allowed():
+    """gemini nit: the r10 rule flagged section lead-ins under `### Secondary`
+    because an entry had already been seen earlier in the block."""
+    assert svl.scan_text("d.md", (
+        "## Sources\n### Primary\n- a https://e.org VERIFIED-READ\n"
+        "### Secondary\nSeen only in coverage:\n"
+        "- b https://e.org/b UNVERIFIED-SECONDARY\n")) == []
+
+
+def test_every_sources_section_is_scanned_not_just_the_first():
+    """A document could satisfy the gate with one clean block while a later
+    visible `## Sources` carried citations nothing examined."""
+    findings = svl.scan_text("d.md", (
+        "## Sources\n- a https://e.org VERIFIED-READ\n"
+        "\n## Notes\nsomething else\n"
+        "\n## Sources\n- b with no url and no token\n"))
+    assert len(findings) == 2, findings
+
+
+def test_a_capture_may_declare_only_one_provenance_line():
+    """R-054 says "a single PROVENANCE line"; without this the word "single"
+    meant nothing — a compliant origin could sit beside a contradictory one
+    that the gate never read."""
+    findings = svl.scan_text(CAPTURE, (
+        "PROVENANCE: https://e.org/a VERIFIED-READ\n"
+        "PROVENANCE: https://x.org/b UNVERIFIED-BLOCKED\n"))
+    assert findings and "ONE origin" in findings[0]

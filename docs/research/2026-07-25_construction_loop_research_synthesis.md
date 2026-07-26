@@ -109,7 +109,7 @@ per-iteration metric exists whose slippage triggers action.
    repeat-classes** — gate rule / indexed token / regression case; the
    difference between a ledger and a brain.
 
-## Sources
+## About the sources below
 
 Added 2026-07-26 at founder direction ("every claim or note or finding or
 result must be independently verified"). Until then this document cited
@@ -125,6 +125,7 @@ here. Search-engine retrieval DOES work, which is how identity, venue and
 authorship below were confirmed. Anyone with normal browser access can close
 these out; the token is the honest statement of what was actually checked.
 
+## Sources
 - Mitchell, D. J., Russo, J. E., & Pennington, N. (1989), "Back to the
   future: Temporal perspective in the explanation of events", *Journal of
   Behavioral Decision Making* 2(1) —
