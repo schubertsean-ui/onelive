@@ -51,6 +51,26 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
 
+## Session Contract #32 (2026-07-26 — a denominator the coverage number is measured against)
+
+GOAL: turn the raw premise list into a VENUE denominator, and score ingestion
+against it honestly. ROOT CAUSE: coverage was scored against the venues we had
+already ingested, so "100%" meant "100% of what we found" — the
+failure-reads-as-success shape this repo keeps catching. Separately, 30 of the
+original 69 "venues" were city calendars, annual festivals or touring
+companies: places nobody can attend, inflating the denominator with things that
+were never rooms.
+DONE-CRITERIA: a target builder that never invents a county and never counts a
+non-venue; a coverage tool that REFUSES to print a percentage it cannot
+honestly compute; every refusal branch test-pinned.
+NON-GOALS: the numerator is not read here (the database credential is
+outstanding), and running this on a schedule is the next change in the stack.
+STACKED ON: claude/tabc-fetch-2026-07-26.
+[S3:false-price-claim] no price, cost or monetary value appears anywhere in the denominator or the coverage report.
+[S3:grant-not-content-bound] no grant, autonomy or approval surface is involved; the denominator decides nothing about what may be shown, only what we are measured against.
+[S3:nonfinite-decimal-accepted] not applicable to this change — it touches no surface of this class; stated explicitly rather than left to inference.
+[S3:release-path-weaker-than-generation] no release or publish path is touched: this is measurement only, and it enforces MORE than before — a denominator now exists where none did — never less.
+
 ## Session Contract #31 (2026-07-26 — the venue universe, read from TABC)
 
 GOAL: replace a hand-written 69-venue list with the real CAPCOG venue
