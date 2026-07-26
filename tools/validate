@@ -121,6 +121,16 @@ echo " strict=${STRICT} quick=${QUICK}"
 echo "================================================================"
 echo
 
+# 0. Environment preflight — INFORMATIONAL, never blocking (v1 criterion 3, BAR G5,
+#    R-058). Names MISSING-TOOL / UNPROVABLE-HERE causes up front so a red row below
+#    can be attributed to an incomplete environment rather than to the code. It
+#    always exits 0 and changes NO verdict: a failing check still fails and this
+#    script still exits non-zero. Making a real failure report as an environment
+#    fault would be a gate relaxation, which is founder-crucial.
+echo "── env_preflight (informational; changes no verdict) ─────────────"
+"$PY" tools/env_preflight.py || true
+echo
+
 # 1. Trust invariants — deterministic, must pass.
 run_check "trust_gate" "$PY" tools/trust_gate.py
 
