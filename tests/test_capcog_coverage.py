@@ -396,3 +396,37 @@ def test_an_unreadable_NUMERATOR_fails_the_same_way_as_the_denominator(tmp_path)
     notalist.write_text('{"a": 1}', encoding="utf-8")
     with _pytest.raises(SystemExit, match="not a list"):
         cc.load_rows(str(notalist))
+
+
+def test_NO_numerator_suppresses_EVERY_numerator_derived_output(tmp_path, capsys):
+    """r3 blocker, and the shape is the one worth remembering: r1 guarded
+    coverage() and left its SIBLINGS printing zeros from `rows or []`.
+
+    "inside CAPCOG: 0", "counties covered: NONE" and an ingested-venue count
+    are real-looking facts about data the run never read — printed on the very
+    path that exists BECAUSE it cannot read it. Guarding one output and leaving
+    the others is how a fix looks complete and is not."""
+    import json
+    import tools.capcog_coverage as cc
+    targets = tmp_path / "t.json"
+    targets.write_text(json.dumps({"venues": [
+        {"name": "Mohawk", "city": "Austin", "county": "travis"}]}),
+        encoding="utf-8")
+    assert cc.main(["--targets", str(targets)]) == 0
+    out = capsys.readouterr().out
+    assert "NOT MEASURED" in out
+    assert "DENOMINATOR ONLY" in out
+    for zero_claim in ("inside CAPCOG : 0", "OUTSIDE CAPCOG: 0",
+                       "counties covered: NONE", "unknown place : 0"):
+        assert zero_claim not in out, (
+            f"{zero_claim!r} is a fact about data this run never read")
+
+
+def test_no_numerator_AND_no_denominator_measured_nothing(tmp_path, capsys):
+    """With neither, the honest report is that the run measured nothing — not
+    an ingested count of zero."""
+    import tools.capcog_coverage as cc
+    assert cc.main(["--targets", str(tmp_path / "absent.json")]) == 2
+    out = capsys.readouterr().out
+    assert "measured nothing at all" in out
+    assert "0 distinct venue" not in out

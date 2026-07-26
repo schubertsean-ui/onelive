@@ -279,7 +279,35 @@ def main(argv=None) -> int:
     # those two into 0% is the failure-reads-as-empty class applied to the
     # launch metric itself.
     rows = load_rows(args.rows) if args.rows else None
-    report = region_report(rows or [])
+
+    # EVERY numerator-derived output is suppressed when there is no numerator,
+    # not just the percentage. The r1 fix guarded `coverage()` and left these
+    # siblings printing zeros from `rows or []` — "inside CAPCOG: 0",
+    # "counties covered: NONE" — real-looking facts about data the run never
+    # read, printed on the very path that exists BECAUSE it cannot read it.
+    # Guarding one output and leaving its siblings is how a fix looks complete
+    # and is not. Evaluator finding, PR #84 r3.
+    if rows is None:
+        print("== REGION CORRECTNESS ==")
+        print("  NOT MEASURED — no numerator was supplied to this run, so there")
+        print("  are no held events to judge. This is not zero events inside,")
+        print("  zero outside and zero counties covered; it is a question this")
+        print("  run did not ask. Supply --rows, or read the denominator below.")
+        print()
+        targets, _tmeta = load_targets(pathlib.Path(args.targets))
+        cov = coverage(None, targets)
+        if cov["status"] == "NO_NUMERATOR":
+            print(f"  DENOMINATOR ONLY: {cov['target_venue_count']} CAPCOG venue(s).")
+            print("  The NUMERATOR was not read on this path — it needs the")
+            print("  database credential, which the push path deliberately does")
+            print("  not hold. Run the workflow_dispatch path on master for the")
+            print("  percentage.")
+            return 0
+        print(f"  NO TARGET LIST at {args.targets}, and no numerator either —")
+        print("  this run measured nothing at all. Build the target list first.")
+        return 2
+
+    report = region_report(rows)
 
     print("== REGION CORRECTNESS (of the events we hold) ==")
     print(f"  inside CAPCOG : {report['inside_count']}")
