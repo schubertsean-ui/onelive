@@ -83,7 +83,10 @@ GOAL: (1) make the market boundary CORRECT — CAPCOG's ten counties, not a radi
 [S3:fabricated-qualitative-copy] the report emits counts and place names derived from the rows given to it; no descriptive text about a venue or event is generated anywhere in this change.
 [S3:false-price-claim] no price surface is touched — the region layer reads city fields only and asserts nothing about cost.
 [S3:nonfinite-decimal-accepted] the only arithmetic here is a coverage share, guarded explicitly: a county with a zero denominator reports None rather than dividing, and no decimal or monetary value is handled.
-STATUS: OPEN — boundary + measurement landed; read-path enforcement and the live denominator next.
+CONTEXT EXPORT + GO-LIVE PLAN (2026-07-26, founder-directed: "pull together every file, all conversations and instruction from every session, put them into files... I need a link" and "a clear action plan listing all steps required to go live"):
+[S3:featurability-dimension-missed] the export states its own limits rather than implying completeness: chat transcripts were never on disk and the index says so explicitly, so a reader can see what dimension of the record is missing instead of inferring it is whole.
+[S3:weak-key-accepted-at-custody] the export carries NO key material — it concatenates committed docs only, and the founder-crucial credential list names what must be minted without ever containing a value.
+STATUS: OPEN — boundary + measurement landed; read-path enforcement and the live denominator next. Context export + GO_LIVE_PLAN.md delivered; the launch metric (CAPCOG venue coverage) is blocked on the founder's denominator-source choice and on GitHub Actions being unblocked.
 
 ## Session Contract #27 (2026-07-26, same session — close-out for PR #71)
 
