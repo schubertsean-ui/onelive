@@ -16,7 +16,7 @@
 //     `venue` (PostgREST embed) and resolve `artist_ids` → names for `performer`.
 //     No fabrication: fields absent on a promoted row stay null.
 
-import { supaEnv, type LicensedEvent } from "./licensed";
+import { exactlyOneOrNull, supaEnv, type LicensedEvent } from "./licensed";
 
 // Event listing columns granted to anon in migration 0012 (privacy/internal
 // columns are deliberately NOT granted). `venue:venue_id(...)` is a PostgREST
@@ -261,5 +261,5 @@ export async function fetchPromotedEventById(
     }>;
     for (const a of aRows) if (a.name) artistNameById.set(a.artist_id, a.name);
   }
-  return reshapePromoted(rows, artistNameById)[0] ?? null;
+  return exactlyOneOrNull(reshapePromoted(rows, artistNameById), id, "event");
 }

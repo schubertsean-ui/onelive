@@ -31,8 +31,8 @@ export function detailTrustKind(e: LicensedEvent): "ticketing" | "listing" {
 
 export function detailWhen(iso: string | null): string;
 export function detailWhen(e: LicensedEvent): string;
-export function detailWhen(x: LicensedEvent | string | null): string {
-  const iso = typeof x === "string" || x === null ? x : x.start_time;
+export function detailWhen(x: LicensedEvent | string | null | undefined): string {
+  const iso = typeof x === "object" && x !== null ? x.start_time : x ?? null;
   if (!iso) return "Date to be announced";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "Date to be announced";

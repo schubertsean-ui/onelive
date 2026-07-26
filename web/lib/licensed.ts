@@ -189,5 +189,25 @@ export async function fetchLicensedEventById(
   id: string,
 ): Promise<LicensedEvent | null> {
   const rows = await fetchLicensedEvents({ eventId: id, anyStatus: true });
-  return rows[0] ?? null;
+  return exactlyOneOrNull(rows, id, "licensed_event");
+}
+
+/** One row, none, or a LOUD failure — never an arbitrary pick (PR #87 r2,
+ *  class missing-cardinality-check). `licensed_event_id` is a primary key, so
+ *  two rows for one id is corruption; silently rendering the first would show
+ *  a visitor an event that is not the one they asked for, which is worse than
+ *  an error because nothing about the page would look wrong. */
+export function exactlyOneOrNull<T>(
+  rows: T[],
+  id: string,
+  table: string,
+): T | null {
+  if (rows.length === 0) return null;
+  if (rows.length > 1) {
+    throw new Error(
+      `${table} returned ${rows.length} rows for id ${id} — that id is unique, ` +
+      `so this is corrupt data. Refusing to render an arbitrary one of them.`,
+    );
+  }
+  return rows[0];
 }

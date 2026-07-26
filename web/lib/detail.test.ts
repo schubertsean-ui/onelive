@@ -2,7 +2,7 @@
 // is an assertion here rather than a sentence in a comment, because a rule with
 // no failing case is a claim, not a guarantee.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   detailMapUrl,
   detailPrice,
@@ -233,5 +233,88 @@ describe("the detail route is not accidentally public", () => {
     expect(body).not.toContain("/tonight");
     // Non-vacuous: the block really is the public list we think it is.
     expect(body).toContain("/access");
+  });
+});
+
+// ── PR #87 r2. The S3 evidence claimed "injected fetch doubles" and
+// "not-found path covered" and neither existed — the exact false-confidence
+// class this repo treats as a trust defect, in my own contract. Both seats
+// were right. These are the tests those sentences described.
+
+describe("single-event reads, with the fetch injected", () => {
+  const ENV = {
+    NEXT_PUBLIC_SUPABASE_URL: "https://sb.test",
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
+  };
+  let saved: Record<string, string | undefined>;
+  let calls: string[];
+
+  beforeEach(() => {
+    saved = {};
+    for (const [k, v] of Object.entries(ENV)) {
+      saved[k] = process.env[k];
+      process.env[k] = v;
+    }
+    calls = [];
+  });
+  afterEach(() => {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    vi.unstubAllGlobals();
+  });
+
+  /** Serves `pages` in order; every page after the data is empty, which is how
+   *  the real pagination loop terminates. */
+  function stubFetch(pages: unknown[][], ok = true, status = 200) {
+    let i = 0;
+    vi.stubGlobal("fetch", async (url: string) => {
+      calls.push(String(url));
+      const body = i < pages.length ? pages[i++] : [];
+      return {
+        ok,
+        status,
+        json: async () => body,
+        text: async () => JSON.stringify(body),
+      } as unknown as Response;
+    });
+  }
+
+  it("returns null when the row genuinely does not exist", async () => {
+    stubFetch([[]]);
+    const { fetchLicensedEventById } = await import("./licensed");
+    await expect(fetchLicensedEventById("no-such-id")).resolves.toBeNull();
+  });
+
+  it("returns the one row when it exists", async () => {
+    stubFetch([[ev({ licensed_event_id: "abc-123", title: "Real Show" })]]);
+    const { fetchLicensedEventById } = await import("./licensed");
+    const got = await fetchLicensedEventById("abc-123");
+    expect(got?.title).toBe("Real Show");
+  });
+
+  it("THROWS on a duplicate id instead of rendering an arbitrary row", async () => {
+    stubFetch([[ev({ title: "One" }), ev({ title: "Two" })]]);
+    const { fetchLicensedEventById } = await import("./licensed");
+    await expect(fetchLicensedEventById("abc-123")).rejects.toThrow(/corrupt data/i);
+  });
+
+  it("THROWS on a failed read — an error is never a missing row", async () => {
+    stubFetch([[]], false, 500);
+    const { fetchLicensedEventById } = await import("./licensed");
+    await expect(fetchLicensedEventById("abc-123")).rejects.toThrow(/read failed/i);
+  });
+
+  it("does NOT window a by-id read by date", async () => {
+    // gemini dataflow-taint reported a default 36-hour window that would make
+    // any event outside tonight read as absent. Refuted at the query: no
+    // start_time predicate is emitted unless a caller asks for one. Kept as a
+    // regression case so the refutation stays true.
+    stubFetch([[ev()]]);
+    const { fetchLicensedEventById } = await import("./licensed");
+    await fetchLicensedEventById("abc-123");
+    expect(calls[0]).not.toContain("start_time=");
+    expect(calls[0]).toContain("licensed_event_id=eq.abc-123");
   });
 });

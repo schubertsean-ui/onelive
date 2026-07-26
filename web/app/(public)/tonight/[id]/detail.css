@@ -62,7 +62,3 @@
 .detail .dunc { margin-top: 1.5rem; }
 .detail .dunc summary { cursor: pointer; opacity: 0.85; }
 .detail .dunc .sheet { margin-top: 0.6rem; opacity: 0.9; line-height: 1.5; }
-
-/* Feed: the card title is now a link; it must not look like a different thing. */
-.tilink { color: inherit; text-decoration: none; }
-.tilink:hover, .tilink:focus-visible { text-decoration: underline; }

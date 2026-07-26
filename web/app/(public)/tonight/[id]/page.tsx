@@ -47,14 +47,23 @@ export default async function EventDetailPage(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: rawId } = await params;
-  const id = decodeURIComponent(rawId);
+  // A malformed percent escape (`/tonight/%zz`) makes decodeURIComponent THROW.
+  // That is a bad link, not a server fault, so it takes the invalid-link path
+  // rather than a 500 (PR #87 r2, openai attacker-smuggle nit).
+  let id: string;
+  try {
+    id = decodeURIComponent(rawId);
+  } catch {
+    id = "";
+  }
 
   if (!supabaseConfigured()) {
     return (
       <Shell>
         <div className="err">
-          Connecting to live data… set <b>SUPABASE_URL</b> and{" "}
-          <b>SUPABASE_ANON_KEY</b> in the deployment environment and redeploy.
+          Connecting to live data… set <b>NEXT_PUBLIC_SUPABASE_URL</b> and{" "}
+          <b>NEXT_PUBLIC_SUPABASE_ANON_KEY</b> (the publishable key) in the
+          deployment environment and redeploy.
         </div>
       </Shell>
     );
