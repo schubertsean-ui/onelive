@@ -130,18 +130,31 @@ def score_source(entry: dict, events: dict, venues: dict, venue_owners: dict,
     n_unique = sum(1 for name in v if len(venue_owners.get(name, ())) == 1)
     att = attempts.get(sid, {})
 
+    # ORDER IS THE WHOLE CORRECTNESS ARGUMENT. Evidence outranks assumption.
+    #
+    # This previously tested the credential FIRST, and `credential_present` is
+    # initialised to None for every source because nothing populates it. `not
+    # None` is true, so every credentialed source — Ticketmaster included, with
+    # real rows in the store — scored BLOCKED_CREDENTIAL and was handed a "mint
+    # the key" remediation for a key that is already working. A measure that
+    # reports live feeds as blocked is worse than no measure.
+    #
+    # So: delivered rows are a FACT and settle it. Attempts are a fact and
+    # settle it next. Only when there is no attempt at all does the credential
+    # matter, and only when it is KNOWN absent — an unknown credential state is
+    # not evidence of a missing key, and calling it one is the same fabrication
+    # in the other direction.
     if not have_evidence:
         status = STATUS_UNKNOWN
-    elif entry.get("needs_credential") and not entry.get("credential_present"):
-        status = STATUS_BLOCKED_CREDENTIAL
-    elif not att.get("n"):
-        status = STATUS_NEVER_TRIED
     elif n_events > 0:
         status = STATUS_WORKING
-    elif att.get("ok", 0) == 0:
-        status = STATUS_TRIED_FAILING
+    elif att.get("n"):
+        status = (STATUS_TRIED_FAILING if att.get("ok", 0) == 0
+                  else STATUS_TRIED_EMPTY)
+    elif entry.get("needs_credential") and entry.get("credential_present") is False:
+        status = STATUS_BLOCKED_CREDENTIAL
     else:
-        status = STATUS_TRIED_EMPTY
+        status = STATUS_NEVER_TRIED
 
     return {
         "id": sid,
@@ -239,7 +252,13 @@ def main(argv=None) -> int:
 
     rows = load_json(args.rows, [])
     attempts_raw = load_json(args.attempts, [])
-    have_evidence = bool(rows or attempts_raw)
+    # "We measured, and nothing happened" is a RESULT. "We did not measure" is
+    # not. Deriving this from the file CONTENTS collapsed the two: a successful
+    # database read returning zero rows scored every source UNKNOWN, exactly as
+    # if the dump had never run — so the scorecard could never report a genuinely
+    # empty pipeline, which is the state it most needs to be able to report.
+    # Supplied-ness is the honest signal, so it is read from the ARGUMENTS.
+    have_evidence = args.rows is not None or args.attempts is not None
 
     events, venues, venue_owners = _index_rows(rows)
     attempts = _index_attempts(attempts_raw)
@@ -260,6 +279,9 @@ def main(argv=None) -> int:
     if not have_evidence:
         print(" NO EVIDENCE SUPPLIED — every status is UNKNOWN, which is NOT the")
         print(" same as 'not working'. Pass --rows/--attempts to measure.")
+    elif not rows and not attempts_raw:
+        print(" EVIDENCE SUPPLIED AND EMPTY — this IS a measurement: nothing has")
+        print(" been fetched and nothing has been stored. Not the same as unmeasured.")
     print()
     for status in STATUS_ORDER:
         if by_status.get(status):

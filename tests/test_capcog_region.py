@@ -4,6 +4,9 @@ The defect these tests pin: importers scoped the market as a 75-mile circle
 around downtown Austin, and San Antonio is ~75 miles away — so Bexar County was
 inside the query by construction and the live feed carried San Antonio venues.
 """
+import json
+import pathlib
+
 import pytest
 
 from worker.region.capcog import (
@@ -70,6 +73,32 @@ def test_state_suffixes_do_not_defeat_the_lookup():
     assert in_capcog("Austin, TX") is True
     assert in_capcog("Austin, Texas") is True
     assert normalize_place("  Round Rock, TX ") == "round rock"
+
+
+def test_a_country_suffix_does_not_smuggle_a_known_outside_city_through():
+    """The founder's invariant, failing open through formatting alone.
+
+    Stripping one qualifier per pass left "San Antonio, TX, USA" intact, so it
+    matched neither table and came back UNKNOWN — and the read path KEEPS
+    unknowns (deliberately, so coverage gaps stay visible). A known-outside city
+    would therefore be shown to a reader because a feed wrote the country.
+    """
+    for shape in ("San Antonio, TX, USA",
+                  "San Antonio, Texas, United States",
+                  "SAN ANTONIO, TX 78205, USA",
+                  "san antonio, tx, us"):
+        assert normalize_place(shape) == "san antonio", shape
+        assert in_capcog(shape) is False, shape
+    # and the same shapes must not break a city that IS in the market
+    for shape in ("Austin, TX, USA", "Austin, Texas, United States",
+                  "Austin, TX 78701-1234"):
+        assert in_capcog(shape) is True, shape
+
+
+def test_a_city_whose_name_merely_ends_in_a_qualifier_is_untouched():
+    """Two-letter qualifiers require a comma so trimming cannot eat a name."""
+    assert normalize_place("Columbus") == "columbus"
+    assert normalize_place("Texas City") == "texas city"
 
 
 def test_no_place_is_both_inside_and_outside():
@@ -168,6 +197,98 @@ def test_channels_are_not_counted_as_venues():
         {"category": "social", "name": "Some IG Account", "county": "travis"},
     ])
     assert targets == [] and unresolved == []
+
+
+def test_a_festival_or_a_city_calendar_is_not_a_VENUE_in_the_denominator():
+    """The launch metric is "X of Y CAPCOG VENUES".
+
+    Every admitted category used to count as a venue, so "Visit Austin Events"
+    (a city calendar), "Fusebox Festival" (an annual event) and "Austin Symphony
+    Orchestra" (a company performing in halls it does not own) each added 1 to
+    the denominator. None is a place that can be covered, so the percentage was
+    structurally false. They are LABELLED, not dropped.
+    """
+    import tools.build_capcog_targets as bt
+    targets, _ = bt.from_catalog([
+        {"id": "mohawk_austin", "category": "venue_calendar",
+         "name": "Mohawk Austin", "county": "travis"},
+        {"id": "visit_austin", "category": "city_calendar",
+         "name": "Visit Austin Events", "county": "travis"},
+        {"id": "fusebox_festival", "category": "festival_feed",
+         "name": "Fusebox Festival", "county": "travis"},
+        {"id": "austin_symphony", "category": "venue_calendar",
+         "name": "Austin Symphony Orchestra", "county": "travis"},
+        {"id": "ut_austin_localist", "category": "university_calendar",
+         "name": "UT Austin Events Calendar", "county": "travis"},
+    ])
+    kinds = {t["catalog_id"]: t["target_kind"] for t in targets}
+    assert kinds == {
+        "mohawk_austin": bt.KIND_VENUE,
+        "visit_austin": bt.KIND_CHANNEL,
+        "fusebox_festival": bt.KIND_FESTIVAL,
+        "austin_symphony": bt.KIND_PRODUCER,
+        "ut_austin_localist": bt.KIND_CHANNEL,
+    }
+    # kept, never silently discarded — a dropped row is an invisible change to
+    # the denominator, and shrinking it RAISES the coverage percentage
+    assert len(targets) == 5
+
+
+def test_the_coverage_report_divides_by_venues_only_and_says_so():
+    import tools.capcog_coverage as cc
+    import tempfile
+    doc = {"venues": [
+        {"name": "Mohawk", "county": "travis", "target_kind": "venue"},
+        {"name": "Fusebox Festival", "county": "travis", "target_kind": "festival"},
+        {"name": "Visit Austin", "county": "travis", "target_kind": "channel"},
+    ]}
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as fh:
+        json.dump(doc, fh)
+        path = pathlib.Path(fh.name)
+    venues, meta = cc.load_targets(path)
+    assert [v["name"] for v in venues] == ["Mohawk"]
+    assert meta["non_venue_targets_excluded"] == 2
+    assert meta["non_venue_by_kind"] == {"channel": 1, "festival": 1}
+
+
+def test_a_target_list_without_kinds_is_still_all_venues():
+    """Defaulting the other way would silently delete the denominator when run
+    against a target file generated before the field existed."""
+    import tools.capcog_coverage as cc
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as fh:
+        json.dump({"venues": [{"name": "Mohawk", "county": "travis"}]}, fh)
+        path = pathlib.Path(fh.name)
+    venues, meta = cc.load_targets(path)
+    assert len(venues) == 1
+    assert meta["non_venue_targets_excluded"] == 0
+
+
+def test_a_stale_kind_override_FAILS_rather_than_reverting_silently():
+    """A stale override stops applying and the row falls back to its category
+    default — a festival counted as a venue again, with nothing to notice."""
+    import tools.build_capcog_targets as bt
+    original = bt.KIND_OVERRIDE
+    bt.KIND_OVERRIDE = {"an_id_the_catalog_does_not_have": bt.KIND_FESTIVAL}
+    try:
+        with pytest.raises(SystemExit):
+            bt.assert_overrides_are_live(
+                [{"id": "mohawk_austin", "category": "venue_calendar"}])
+    finally:
+        bt.KIND_OVERRIDE = original
+
+
+def test_every_kind_override_still_names_a_real_catalog_row():
+    """The guard, run against the catalog that actually ships."""
+    import tools.build_capcog_targets as bt
+    catalog = json.loads(bt.CATALOG.read_text(encoding="utf-8"))
+    if isinstance(catalog, dict):
+        catalog = catalog.get("sources") or catalog.get("catalog")
+    live_ids = {r.get("id") for r in catalog}
+    assert set(bt.KIND_OVERRIDE) <= live_ids, (
+        f"KIND_OVERRIDE names ids the catalog no longer has: "
+        f"{sorted(set(bt.KIND_OVERRIDE) - live_ids)}")
+    bt.assert_overrides_are_live(catalog)
 
 
 # ---- the false-zero-coverage defect (Gemini seat, spec-vs-contract) ----------

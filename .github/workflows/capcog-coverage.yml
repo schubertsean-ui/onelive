@@ -63,17 +63,31 @@ jobs:
           coverage number with no numerator, which would read as zero coverage}"
           python - <<'PY'
           import json, os, psycopg2
+          # BOTH paths into the feed, or the numerator undercounts and the gap
+          # reads as worse than it is. Licensed rows arrive from the ticketing
+          # importers; everything else reaches a reader by being promoted out of
+          # event_candidate. Reading only the first table hid every venue the
+          # candidate pipeline covers — and those are exactly the long-tail
+          # rooms the coverage work is aimed at.
           conn = psycopg2.connect(os.environ["ONELIVE_DB_DSN"])
           with conn, conn.cursor() as cur:
               cur.execute("""
-                  select distinct venue_name, venue_city
-                    from licensed_event
-                   where venue_name is not null
+                  select distinct venue_name, venue_city from (
+                      select venue_name, venue_city
+                        from licensed_event
+                       where venue_name is not null
+                      union
+                      select venue_name, city as venue_city
+                        from event_candidate
+                       where venue_name is not null
+                         and promoted_event_id is not null
+                  ) both_paths
               """)
               rows = [{"venue_name": n, "venue_city": c} for n, c in cur.fetchall()]
           conn.close()
           json.dump(rows, open("ingested_venues.json", "w"), indent=2)
-          print(f"read {len(rows)} distinct ingested venue(s)")
+          print(f"read {len(rows)} distinct ingested venue(s) "
+                f"across licensed + promoted-candidate paths")
           PY
 
       - name: Report coverage

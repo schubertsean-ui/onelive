@@ -5,6 +5,8 @@ across the build, portable to any locale, scored on tried/working/remediation/
 volume with improvements tracked over time as an ongoing measure.
 """
 import json
+import pathlib
+import re
 
 import pytest
 
@@ -16,6 +18,8 @@ from worker.sources.taxonomy import (
     VENUE_CLASSES,
     portability_checklist,
 )
+
+REPO = pathlib.Path(__file__).resolve().parent.parent
 
 
 # ---- the taxonomy is the portable half ---------------------------------------
@@ -131,6 +135,25 @@ def test_a_catalog_that_repeats_an_id_FAILS():
                    {"id": "dup", "name": "B", "category": "ticketing"}])
 
 
+def test_STATE_does_not_claim_a_source_count_the_artifact_contradicts():
+    """`false-confidence-gate`: STATE.md said "123 sources across 20 classes"
+    while the generated registry said 118 and 19. A founder-facing inventory
+    that overstates itself is launch evidence that cannot be trusted, and the
+    only durable fix is to bind the prose claim to the machine artifact."""
+    live = json.loads(
+        (REPO / "sources" / "source_registry.json").read_text(encoding="utf-8"))
+    state = (REPO / "STATE.md").read_text(encoding="utf-8")
+    claims = re.findall(r"(\d+)\s+sources?\s+across\s+(\d+)\s+class", state)
+    assert claims, "STATE.md no longer states a source/class count — update this test"
+    for sources, classes in claims:
+        assert int(sources) == live["source_count"], (
+            f"STATE.md claims {sources} sources; the registry has "
+            f"{live['source_count']}")
+        assert int(classes) == live["class_count"], (
+            f"STATE.md claims {classes} classes; the registry has "
+            f"{live['class_count']}")
+
+
 def test_every_registry_row_binds_to_a_real_taxonomy_class():
     built = reg.build(_catalog_with_merge_targets(
         {"id": "v", "name": "V", "category": "venue_calendar"}))
@@ -173,6 +196,57 @@ def test_a_missing_credential_is_its_own_status_with_a_founder_action():
                  [], [])
     assert out["status"] == sc.STATUS_BLOCKED_CREDENTIAL
     assert "mints" in out["remediation"]
+
+
+def test_delivered_rows_OUTRANK_any_assumption_about_the_credential():
+    """A credentialed source with rows in the store is WORKING, full stop.
+
+    Nothing populates `credential_present`, so it is None for every source. The
+    status ladder used to test the credential FIRST and `not None` is true, so
+    every credentialed source — Ticketmaster included, with live rows — scored
+    BLOCKED_CREDENTIAL and was handed a 'mint the key' action for a key that
+    already works.
+    """
+    entry = {**ENTRY, "needs_credential": True, "credential_present": None}
+    out = _score(entry, [{"source_name": "s1", "venue_name": "Mohawk"}],
+                 [{"source_name": "s1", "ok": True}])
+    assert out["status"] == sc.STATUS_WORKING
+    assert out["remediation"] == ""
+
+
+def test_an_UNKNOWN_credential_state_is_not_evidence_of_a_missing_key():
+    """None means 'we did not check'. Reading it as 'absent' fabricates a
+    founder action; reading it as 'present' fabricates health. With no attempt
+    on record the honest answer is that nobody has tried it."""
+    entry = {**ENTRY, "needs_credential": True, "credential_present": None}
+    assert _score(entry, [], [])["status"] == sc.STATUS_NEVER_TRIED
+
+
+def test_a_credentialed_source_that_was_attempted_is_scored_on_the_attempt():
+    entry = {**ENTRY, "needs_credential": True, "credential_present": None}
+    out = _score(entry, [], [{"source_name": "s1", "ok": False}])
+    assert out["status"] == sc.STATUS_TRIED_FAILING
+
+
+def test_supplied_but_EMPTY_evidence_is_a_measurement_not_an_absence(tmp_path):
+    """A database read that legitimately returns nothing must report the
+    measured state. Deriving evidence-presence from file CONTENTS made a real
+    zero indistinguishable from never having run — so the scorecard could never
+    report a genuinely empty pipeline, the state it most needs to report."""
+    rows = tmp_path / "rows.json"
+    attempts = tmp_path / "attempts.json"
+    rows.write_text("[]", encoding="utf-8")
+    attempts.write_text("[]", encoding="utf-8")
+    registry = tmp_path / "registry.json"
+    registry.write_text(json.dumps({"sources": [
+        {**ENTRY, "needs_credential": False}]}), encoding="utf-8")
+
+    assert sc.main(["--registry", str(registry), "--rows", str(rows),
+                    "--attempts", str(attempts)]) == 0
+    scored = sc.score_source({**ENTRY, "needs_credential": False},
+                             {}, {}, {}, {}, True)
+    assert scored["status"] == sc.STATUS_NEVER_TRIED, (
+        "an empty-but-supplied dump must score NEVER_TRIED, not UNKNOWN")
 
 
 def test_every_non_working_status_yields_a_next_action():

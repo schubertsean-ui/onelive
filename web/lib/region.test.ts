@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { inCapcog, normalizePlace, filterToCapcog } from "./region";
+import boundary from "./capcog-boundary.json";
 
 describe("CAPCOG boundary on the read path", () => {
   it("drops the San Antonio venues that reached the live feed", () => {
@@ -45,6 +46,31 @@ describe("CAPCOG boundary on the read path", () => {
     expect(inCapcog("San Antonio, TX 78205")).toBe(false);
     expect(inCapcog("")).toBeNull();
     expect(inCapcog(null)).toBeNull();
+  });
+
+  it("a country suffix does not smuggle a known-outside city onto the page", () => {
+    // The founder's invariant failing open through formatting alone: one strip
+    // per pass left "San Antonio, TX, USA" matching neither table, so it came
+    // back null — and filterToCapcog KEEPS nulls.
+    for (const shape of [
+      "San Antonio, TX, USA",
+      "San Antonio, Texas, United States",
+      "SAN ANTONIO, TX 78205, USA",
+      "san antonio, tx, us",
+    ]) {
+      expect(normalizePlace(shape)).toBe("san antonio");
+      expect(inCapcog(shape)).toBe(false);
+    }
+    expect(inCapcog("Austin, TX, USA")).toBe(true);
+  });
+
+  it("normalizes exactly what the Python source of truth normalizes", () => {
+    // The tables were generated while this logic was hand-copied, which is
+    // precisely where the two sides drifted. These vectors carry Python's own
+    // answers, so a future one-sided edit fails here instead of on the page.
+    for (const { input, expected } of boundary.normalization_vectors) {
+      expect(normalizePlace(input)).toBe(expected);
+    }
   });
 
   it("an event with no city is shown, not assumed outside", () => {

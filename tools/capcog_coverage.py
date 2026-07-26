@@ -76,10 +76,29 @@ def load_targets(path: pathlib.Path):
     # only a floor. A number that has shed its own caveat is how "coverage"
     # becomes a claim about the market when it is a claim about our catalog.
     meta = data if isinstance(data, dict) else {}
+
+    # Score against PLACES only. The target file also carries producers (a
+    # company that performs in halls it does not own), festivals (annual
+    # events) and channels (a whole city's calendar). None can be "covered" in
+    # the sense "X of Y CAPCOG venues" means, and counting them made the
+    # denominator structurally wrong. They stay in the file — the non-venue
+    # count is reported beside the metric — but they are not divided by.
+    #
+    # A row with no `target_kind` is treated as a venue: this file predates the
+    # field, and defaulting the other way would silently delete most of the
+    # denominator against an older target list.
+    non_venue = [v for v in venues
+                 if v.get("target_kind") not in (None, "venue")]
+    venues = [v for v in venues if v.get("target_kind") in (None, "venue")]
     return venues, {
         "is_complete_universe": bool(meta.get("is_complete_universe", False)),
         "layers_present": meta.get("layers_present") or [],
         "completeness_note": meta.get("completeness_note") or "",
+        "non_venue_targets_excluded": len(non_venue),
+        "non_venue_by_kind": {
+            k: sum(1 for v in non_venue if v.get("target_kind") == k)
+            for k in sorted({v.get("target_kind") for v in non_venue})
+        },
     }
 
 
@@ -253,6 +272,16 @@ def main(argv=None) -> int:
     if cov.get("ambiguous_matches"):
         print(f"  ambiguous name-only matches (not silently resolved): "
               f"{', '.join(cov['ambiguous_matches'])}")
+    excluded = (tmeta or {}).get("non_venue_targets_excluded") or 0
+    if excluded:
+        # Declared, because excluding them SHRINKS the denominator and so
+        # RAISES this percentage. A change that flatters the number has to be
+        # visible next to the number.
+        kinds = ", ".join(f"{k} {n}" for k, n in
+                          ((tmeta or {}).get("non_venue_by_kind") or {}).items())
+        print(f"  NOT counted as venues ({excluded}): {kinds}")
+        print(f"  These are producers, annual events and city-wide calendars — "
+              f"kept in the target file, not places that can be covered.")
     print(f"  venues ingested : {cov['ingested_venue_count']}")
     print(f"  venues targeted : {cov['target_venue_count']}")
     print(f"  covered         : {cov['covered_venue_count']}  ({cov['coverage_pct']}%)")

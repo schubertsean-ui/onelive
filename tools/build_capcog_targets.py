@@ -51,14 +51,86 @@ from worker.region.capcog import (  # noqa: E402
 CATALOG = REPO / "sources" / "master_sources_catalog_120.json"
 OUT = REPO / "sources" / "capcog_venue_targets.json"
 
-# Catalog categories that name a PLACE a person can physically attend. Ticketing
-# aggregators, social accounts and search benchmarks are excluded: they are
-# channels, not venues, and counting them would inflate the denominator with
-# things that have no address.
+# Catalog categories that can contribute a target at all. Ticketing aggregators,
+# social accounts and search benchmarks never do: they are channels with no
+# address.
 VENUE_CATEGORIES = {
     "venue_calendar", "university_calendar", "library_calendar",
     "city_calendar", "festival_feed",
 }
+
+# The launch metric is "X of Y CAPCOG VENUES". Admitting every row above as a
+# venue made that number structurally false — "Visit Austin Events" is a city
+# calendar, "Fusebox Festival" is an event, and "Austin Symphony Orchestra"
+# performs in other people's halls. None of the three is a place a person can
+# be at, and counting them inflated the denominator with things that can never
+# be "covered" in the sense the metric means.
+#
+# Nothing is DROPPED. Every row stays in the file carrying a `target_kind`, and
+# the coverage report scores against VENUE while listing the other kinds beside
+# it. Silently filtering them would shrink the denominator invisibly — and
+# because a smaller denominator RAISES the percentage, that is the direction
+# that flatters us, which is exactly the direction that has to be declared.
+KIND_VENUE = "venue"            # an addressable place a person attends
+KIND_PRODUCER = "producer"      # programs events in venues it does not own
+KIND_FESTIVAL = "festival"      # a recurring event, not a place
+KIND_CHANNEL = "channel"        # a calendar feed covering many places
+
+TARGET_KINDS = (KIND_VENUE, KIND_PRODUCER, KIND_FESTIVAL, KIND_CHANNEL)
+
+KIND_BY_CATEGORY = {
+    "venue_calendar": KIND_VENUE,
+    "festival_feed": KIND_FESTIVAL,
+    "university_calendar": KIND_CHANNEL,
+    "library_calendar": KIND_CHANNEL,
+    "city_calendar": KIND_VENUE,   # most are a specific museum/park; see overrides
+}
+
+# Read per row, because the catalog's category does not always describe the
+# thing: several museums are filed under `city_calendar`, and several touring
+# companies and annual events are filed under `venue_calendar`. Keyed on catalog
+# id — a name match would be the name-only-county-collision class in another
+# coat. A stale id fails the build rather than silently doing nothing.
+KIND_OVERRIDE = {
+    # Filed as venue_calendar, but they perform in halls they do not own.
+    "austin_symphony": KIND_PRODUCER,
+    "ballet_austin": KIND_PRODUCER,
+    "austin_opera": KIND_PRODUCER,
+    "tapestry_dance": KIND_PRODUCER,
+    "golden_hornet": KIND_PRODUCER,
+    "austin_chamber_music_center": KIND_PRODUCER,
+    "haam": KIND_PRODUCER,
+    "austin_history_center": KIND_PRODUCER,
+    "austin_fc": KIND_PRODUCER,
+    "round_rock_express": KIND_PRODUCER,
+    "austin_spurs": KIND_PRODUCER,
+    "txstate_presents": KIND_PRODUCER,
+    "texas_performing_arts": KIND_PRODUCER,
+    # Filed as venue_calendar / city_calendar, but they are annual events.
+    "rodeo_austin": KIND_FESTIVAL,
+    "sfc_farmers_market": KIND_FESTIVAL,
+    # Filed as city_calendar, but they ARE a calendar for a whole city.
+    "visit_austin": KIND_CHANNEL,
+    "city_of_austin_events": KIND_CHANNEL,
+}
+
+
+def assert_overrides_are_live(catalog: list) -> None:
+    """Every KIND_OVERRIDE id must still exist in the catalog.
+
+    A stale override stops applying SILENTLY and the row reverts to its category
+    default — a festival counted as a venue again, with nothing to notice it.
+    Checked against the real catalog in main(), not inside from_catalog, so that
+    a caller passing a subset (tests, a single-layer run) is not failed for rows
+    it never claimed to include.
+    """
+    stale = sorted(set(KIND_OVERRIDE) - {r.get("id") for r in catalog})
+    if stale:
+        raise SystemExit(
+            f"build_capcog_targets: FAIL — KIND_OVERRIDE names catalog id(s) "
+            f"that no longer exist: {stale}. A stale override stops applying "
+            f"silently and the row reverts to its category default, which is "
+            f"how a festival gets counted as a venue again.")
 
 
 def from_catalog(catalog: list) -> tuple:
@@ -95,6 +167,8 @@ def from_catalog(catalog: list) -> tuple:
             "county_resolved_by": resolved_by if county in CAPCOG_COUNTIES else None,
             "source_layer": "catalog",
             "catalog_id": row.get("id"),
+            "target_kind": KIND_OVERRIDE.get(
+                row.get("id"), KIND_BY_CATEGORY[row["category"]]),
             "url": row.get("base_url"),
             "cultural_domain": row.get("cultural_domain"),
         }
@@ -167,6 +241,7 @@ def main(argv=None) -> int:
         raise SystemExit(
             f"build_capcog_targets: FAIL — {args.catalog} is not a list of rows.")
 
+    assert_overrides_are_live(catalog)
     targets, unresolved = from_catalog(catalog)
     layers = {"catalog": len(targets)}
 
@@ -182,18 +257,42 @@ def main(argv=None) -> int:
             incoming.append({
                 "name": r.get("name"), "city": r.get("city"), "county": county,
                 "source_layer": layer,
+                # A liquor licence and a Places result are both issued to a
+                # physical address, so these layers are venues by construction.
+                "target_kind": KIND_VENUE,
             })
         before = len(targets)
         targets = merge(targets, incoming)
         layers[layer] = len(targets) - before
 
+    # Per-county counts are VENUE counts, because that is what the launch
+    # metric measures. A county total that quietly included festivals and city
+    # calendars would make the per-county gap look smaller than it is.
     per_county: dict = {c: 0 for c in sorted(CAPCOG_COUNTIES)}
     for t in targets:
-        per_county[t["county"]] += 1
+        if t.get("target_kind") == KIND_VENUE:
+            per_county[t["county"]] += 1
+
+    by_kind: dict = {k: 0 for k in TARGET_KINDS}
+    for t in targets:
+        by_kind[t.get("target_kind", KIND_VENUE)] += 1
 
     doc = {
         "generated_by": "tools/build_capcog_targets.py",
         "is_complete_universe": False,
+        # The number the launch metric divides by. Named separately from
+        # target_count so a reader cannot quote the larger figure by accident.
+        "venue_target_count": by_kind[KIND_VENUE],
+        "by_target_kind": by_kind,
+        "target_kind_note": (
+            "Only `venue` rows are the denominator for 'X of Y CAPCOG venues'. "
+            "`producer` (companies performing in other people's halls), "
+            "`festival` (annual events) and `channel` (city/campus calendars) "
+            "are kept, listed and reported, but they are not places that can be "
+            "covered in the sense the metric means. They were previously "
+            "counted as venues, which inflated the denominator; excluding them "
+            "RAISES the coverage percentage, so the change is stated here "
+            "rather than left to be discovered."),
         "completeness_note": (
             "FLOOR, not the universe. Layer 1 is the curated catalog — the "
             "venues this project chose to track — so coverage against it "
@@ -218,7 +317,17 @@ def main(argv=None) -> int:
             "counties are not empty, so this is category/schema drift, not a "
             "finding. Refusing to write a denominator that would render as "
             "0% or 100% coverage depending on which way it is read.")
-    print(f"build_capcog_targets: {len(targets)} target venue(s) -> {args.out}")
+    if not by_kind[KIND_VENUE]:
+        raise SystemExit(
+            "build_capcog_targets: FAIL — targets exist but NONE of them is a "
+            "venue. The launch metric divides by the venue count, so this "
+            "would render as 0% or 100% depending which way it is read.")
+    print(f"build_capcog_targets: {len(targets)} target(s) -> {args.out}")
+    print(f"  VENUE targets (the denominator): {by_kind[KIND_VENUE]}")
+    for kind in TARGET_KINDS[1:]:
+        if by_kind[kind]:
+            print(f"    not a venue — {kind}: {by_kind[kind]} "
+                  f"(kept and listed, excluded from the metric)")
     print(f"  layers: {layers}")
     for county, n in per_county.items():
         print(f"    {county:<12} {n}")

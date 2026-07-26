@@ -22,18 +22,45 @@ const OUTSIDE: Record<string, string> = boundary.known_outside;
 
 export type RegionVerdict = true | false | null;
 
-/** Lowercase/trim a place name, dropping a trailing ZIP and state suffix.
- *  Venue cities arrive as "Austin", "Austin, TX" and "Austin, TX 78701". */
+// Generated from the Python source of truth, not hand-listed here. The data
+// tables were already generated while this LOGIC was hand-copied, and that is
+// exactly where the two normalizers drifted: the Python side learned to strip a
+// country suffix and this side did not.
+const TRAILING_QUALIFIERS: string[] = boundary.trailing_qualifiers;
+
+const ZIP_RE = /[\s,]+\d{5}(?:-\d{4})?$/;
+
+const trimPunct = (s: string) => s.replace(/^[,\s]+|[,\s]+$/g, "");
+
+/** Lowercase/trim a place name, dropping trailing ZIP, state and country
+ *  qualifiers. Venue cities arrive as "Austin", "Austin, TX",
+ *  "Austin, TX 78701" and "Austin, TX, USA".
+ *
+ *  Stripping runs to a FIXED POINT. A single pass left "San Antonio, TX, USA"
+ *  as-is, so it matched neither table, came back null (unrecognised), and
+ *  filterToCapcog KEEPS unrecognised rows — a known-outside city reaching the
+ *  page through nothing but a formatting difference. */
 export function normalizePlace(value: string | null | undefined): string | null {
   if (!value) return null;
-  let text = String(value).trim().toLowerCase();
+  let text = trimPunct(String(value).trim().toLowerCase());
   if (!text) return null;
-  text = text.replace(/[\s,]+\d{5}(?:-\d{4})?$/, "").trim();
-  for (const suffix of [", tx", ", texas", " tx", " texas"]) {
-    if (text.endsWith(suffix)) text = text.slice(0, -suffix.length).trim();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const stripped = trimPunct(text.replace(ZIP_RE, ""));
+    if (stripped !== text) {
+      text = stripped;
+      changed = true;
+    }
+    for (const suffix of TRAILING_QUALIFIERS) {
+      if (text.endsWith(suffix)) {
+        text = trimPunct(text.slice(0, -suffix.length));
+        changed = true;
+        break;
+      }
+    }
   }
-  text = text.replace(/^[,\s]+|[,\s]+$/g, "");
-  return text || null;
+  return trimPunct(text) || null;
 }
 
 /** TRI-STATE membership: true (in CAPCOG) / false (known outside) / null

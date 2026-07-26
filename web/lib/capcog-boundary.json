@@ -176,5 +176,88 @@
     "waco": "mclennan",
     "wichita falls": "wichita",
     "windcrest": "bexar"
-  }
+  },
+  "trailing_qualifiers": [
+    ", tx",
+    ", texas",
+    " tx",
+    " texas",
+    ", usa",
+    ", u.s.a.",
+    ", u.s.",
+    ", us",
+    ", united states",
+    " usa",
+    " united states"
+  ],
+  "normalization_vectors": [
+    {
+      "input": "Austin",
+      "expected": "austin"
+    },
+    {
+      "input": "Austin, TX",
+      "expected": "austin"
+    },
+    {
+      "input": "austin, texas",
+      "expected": "austin"
+    },
+    {
+      "input": "Austin, TX 78701",
+      "expected": "austin"
+    },
+    {
+      "input": "Austin, TX 78701-1234",
+      "expected": "austin"
+    },
+    {
+      "input": "Austin, TX, USA",
+      "expected": "austin"
+    },
+    {
+      "input": "Austin, Texas, United States",
+      "expected": "austin"
+    },
+    {
+      "input": "San Antonio",
+      "expected": "san antonio"
+    },
+    {
+      "input": "San Antonio, TX",
+      "expected": "san antonio"
+    },
+    {
+      "input": "San Antonio, TX, USA",
+      "expected": "san antonio"
+    },
+    {
+      "input": "SAN ANTONIO, TX 78205, USA",
+      "expected": "san antonio"
+    },
+    {
+      "input": "San Antonio, Texas, United States",
+      "expected": "san antonio"
+    },
+    {
+      "input": "New Braunfels, TX, USA",
+      "expected": "new braunfels"
+    },
+    {
+      "input": "Round Rock, TX",
+      "expected": "round rock"
+    },
+    {
+      "input": "Columbus",
+      "expected": "columbus"
+    },
+    {
+      "input": "  ",
+      "expected": null
+    },
+    {
+      "input": "",
+      "expected": null
+    }
+  ]
 }

@@ -18,10 +18,24 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
 from worker.region.capcog import (  # noqa: E402
-    CAPCOG_COUNTIES, CAPCOG_PLACES, KNOWN_OUTSIDE,
+    CAPCOG_COUNTIES, CAPCOG_PLACES, KNOWN_OUTSIDE, TRAILING_QUALIFIERS,
+    normalize_place,
 )
 
 OUT = REPO / "web" / "lib" / "capcog-boundary.json"
+
+# Inputs both normalizers must agree on, emitted WITH their Python answers so
+# the TypeScript test checks against the source of truth rather than against a
+# hand-copied expectation. The reviewer's finding was that the two normalizers
+# drifted while the two DATA tables were kept in sync — the tables were
+# generated and the logic was not. These vectors close that half.
+NORMALIZATION_VECTORS = [
+    "Austin", "Austin, TX", "austin, texas", "Austin, TX 78701",
+    "Austin, TX 78701-1234", "Austin, TX, USA", "Austin, Texas, United States",
+    "San Antonio", "San Antonio, TX", "San Antonio, TX, USA",
+    "SAN ANTONIO, TX 78205, USA", "San Antonio, Texas, United States",
+    "New Braunfels, TX, USA", "Round Rock, TX", "Columbus", "  ", "",
+]
 
 
 def build() -> dict:
@@ -31,6 +45,13 @@ def build() -> dict:
         "counties": sorted(CAPCOG_COUNTIES),
         "places": dict(sorted(CAPCOG_PLACES.items())),
         "known_outside": dict(sorted(KNOWN_OUTSIDE.items())),
+        # Order matters: two-letter forms must be tried after their longer
+        # variants, so the list is emitted as a sequence, not a set.
+        "trailing_qualifiers": list(TRAILING_QUALIFIERS),
+        "normalization_vectors": [
+            {"input": v, "expected": normalize_place(v)}
+            for v in NORMALIZATION_VECTORS
+        ],
     }
 
 

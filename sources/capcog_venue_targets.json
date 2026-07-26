@@ -1,6 +1,14 @@
 {
   "generated_by": "tools/build_capcog_targets.py",
   "is_complete_universe": false,
+  "venue_target_count": 39,
+  "by_target_kind": {
+    "venue": 39,
+    "producer": 13,
+    "festival": 11,
+    "channel": 6
+  },
+  "target_kind_note": "Only `venue` rows are the denominator for 'X of Y CAPCOG venues'. `producer` (companies performing in other people's halls), `festival` (annual events) and `channel` (city/campus calendars) are kept, listed and reported, but they are not places that can be covered in the sense the metric means. They were previously counted as venues, which inflated the denominator; excluding them RAISES the coverage percentage, so the change is stated here rather than left to be discovered.",
   "completeness_note": "FLOOR, not the universe. Layer 1 is the curated catalog \u2014 the venues this project chose to track \u2014 so coverage against it answers 'are we ingesting what we already know about?', NOT 'what share of CAPCOG venues exist?'. Layers 2 (TABC) and 3 (Places) raise it toward the real universe. Report the layer set with any coverage figure.",
   "layers_present": [
     "catalog"
@@ -15,11 +23,11 @@
     "burnet": 0,
     "caldwell": 0,
     "fayette": 0,
-    "hays": 2,
+    "hays": 0,
     "lee": 0,
     "llano": 0,
-    "travis": 65,
-    "williamson": 2
+    "travis": 39,
+    "williamson": 0
   },
   "unresolved_county_count": 6,
   "venues": [
@@ -30,6 +38,7 @@
       "county_resolved_by": "name_text",
       "source_layer": "catalog",
       "catalog_id": "mohawk_austin",
+      "target_kind": "venue",
       "url": "https://mohawkaustin.com/",
       "cultural_domain": "live-music"
     },
@@ -40,6 +49,7 @@
       "county_resolved_by": "name_text",
       "source_layer": "catalog",
       "catalog_id": "stubbs_austin",
+      "target_kind": "venue",
       "url": "https://www.stubbsaustin.com/",
       "cultural_domain": "live-music"
     },
@@ -50,6 +60,7 @@
       "county_resolved_by": "name_text",
       "source_layer": "catalog",
       "catalog_id": "continental_club",
+      "target_kind": "venue",
       "url": "https://continentalclub.com/austin",
       "cultural_domain": "live-music"
     },
@@ -60,6 +71,7 @@
       "county_resolved_by": "name_text",
       "source_layer": "catalog",
       "catalog_id": "parish_austin",
+      "target_kind": "venue",
       "url": "https://parishaustin.com/",
       "cultural_domain": "live-music"
     },
@@ -70,6 +82,7 @@
       "county_resolved_by": "name_text",
       "source_layer": "catalog",
       "catalog_id": "emos",
+      "target_kind": "venue",
       "url": "https://emosaustin.com/",
       "cultural_domain": "live-music"
     },
@@ -80,6 +93,7 @@
       "county_resolved_by": "name_text",
       "source_layer": "catalog",
       "catalog_id": "paramount_austin",
+      "target_kind": "venue",
       "url": "https://www.austintheatre.org/",
       "cultural_domain": null
     },
@@ -90,6 +104,7 @@
       "county_resolved_by": "name_text",
       "source_layer": "catalog",
       "catalog_id": "white_horse",
+      "target_kind": "venue",
       "url": "https://thewhitehorseaustin.com/",
       "cultural_domain": "live-music"
     },
@@ -100,6 +115,7 @@
       "county_resolved_by": "name_text",
       "source_layer": "catalog",
       "catalog_id": "visit_austin",
+      "target_kind": "channel",
       "url": "https://www.austintexas.org/events/",
       "cultural_domain": null
     },
@@ -110,6 +126,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "texas_performing_arts",
+      "target_kind": "producer",
       "url": "https://texasperformingarts.org/events/calendar/",
       "cultural_domain": "performing-arts"
     },
@@ -120,6 +137,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "ut_austin_localist",
+      "target_kind": "channel",
       "url": "https://calendar.utexas.edu/",
       "cultural_domain": "ideas"
     },
@@ -130,6 +148,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "txstate_presents",
+      "target_kind": "producer",
       "url": "https://txstatepresents.universitytickets.com/",
       "cultural_domain": "performing-arts"
     },
@@ -140,6 +159,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "txstate_events",
+      "target_kind": "channel",
       "url": "https://events.txst.edu/",
       "cultural_domain": "ideas"
     },
@@ -150,6 +170,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_cc_events",
+      "target_kind": "channel",
       "url": "https://students.austincc.edu/calendars/acc-events-calendar/",
       "cultural_domain": "ideas"
     },
@@ -160,6 +181,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_public_library",
+      "target_kind": "channel",
       "url": "https://library.austintexas.gov/events/calendar",
       "cultural_domain": "library"
     },
@@ -170,6 +192,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "city_of_austin_events",
+      "target_kind": "channel",
       "url": "https://www.austintexas.gov/events",
       "cultural_domain": "community"
     },
@@ -180,6 +203,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "blanton_museum",
+      "target_kind": "venue",
       "url": "https://blantonmuseum.org/calendar_events",
       "cultural_domain": "visual-arts"
     },
@@ -190,6 +214,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "the_contemporary_austin",
+      "target_kind": "venue",
       "url": "https://thecontemporaryaustin.org/",
       "cultural_domain": "visual-arts"
     },
@@ -200,6 +225,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "mexic_arte_museum",
+      "target_kind": "venue",
       "url": "https://mexic-artemuseum.org/upcoming-events-calendar/",
       "cultural_domain": "visual-arts"
     },
@@ -210,6 +236,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "zach_theatre",
+      "target_kind": "venue",
       "url": "https://www.zachtheatre.org/",
       "cultural_domain": "theater"
     },
@@ -220,6 +247,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "long_center",
+      "target_kind": "venue",
       "url": "https://thelongcenter.org/calendar/",
       "cultural_domain": "performing-arts"
     },
@@ -230,6 +258,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_film_society",
+      "target_kind": "venue",
       "url": "https://www.austinfilm.org/calendar/",
       "cultural_domain": "film"
     },
@@ -240,6 +269,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "bookpeople",
+      "target_kind": "venue",
       "url": "https://bookpeople.com/upcoming-events",
       "cultural_domain": "literary"
     },
@@ -250,6 +280,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "cap_city_comedy",
+      "target_kind": "venue",
       "url": "https://www.capcitycomedy.com/",
       "cultural_domain": "comedy"
     },
@@ -260,6 +291,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "hideout_theatre",
+      "target_kind": "venue",
       "url": "https://hideouttheatre.com/",
       "cultural_domain": "comedy"
     },
@@ -270,6 +302,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "velveeta_room",
+      "target_kind": "venue",
       "url": "https://www.thevelveetaroom.com/shows",
       "cultural_domain": "comedy"
     },
@@ -280,6 +313,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "scoot_inn",
+      "target_kind": "venue",
       "url": "https://www.scootinnaustin.com/",
       "cultural_domain": "live-music"
     },
@@ -290,6 +324,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "cheer_up_charlies",
+      "target_kind": "venue",
       "url": "https://cheerupcharlies.com/",
       "cultural_domain": "live-music"
     },
@@ -300,6 +335,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "the_far_out",
+      "target_kind": "venue",
       "url": "https://www.thefaroutaustin.com/events.html",
       "cultural_domain": "live-music"
     },
@@ -310,6 +346,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "come_and_take_it_live",
+      "target_kind": "venue",
       "url": "https://www.comeandtakeitlive.com/",
       "cultural_domain": "live-music"
     },
@@ -320,6 +357,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "elephant_room",
+      "target_kind": "venue",
       "url": "https://elephantroom.com/calendar",
       "cultural_domain": "live-music"
     },
@@ -330,6 +368,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "cboys_heart_and_soul",
+      "target_kind": "venue",
       "url": "https://www.cboys.com/calendar",
       "cultural_domain": "live-music"
     },
@@ -340,6 +379,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "3ten_acl_live",
+      "target_kind": "venue",
       "url": "https://www.acllive.com/events/venue/acl-live-at-3ten",
       "cultural_domain": "live-music"
     },
@@ -350,6 +390,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_symphony",
+      "target_kind": "producer",
       "url": "https://my.austinsymphony.org/events?view=list",
       "cultural_domain": "performing-arts"
     },
@@ -360,6 +401,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "ballet_austin",
+      "target_kind": "producer",
       "url": "https://my.balletaustin.org/events",
       "cultural_domain": "dance"
     },
@@ -370,6 +412,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_opera",
+      "target_kind": "producer",
       "url": "https://my.austinopera.org/events?view=list",
       "cultural_domain": "performing-arts"
     },
@@ -380,6 +423,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "fusebox_festival",
+      "target_kind": "festival",
       "url": "https://fuseboxlive.com/",
       "cultural_domain": "festivals"
     },
@@ -390,6 +434,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_chamber_music_center",
+      "target_kind": "producer",
       "url": "https://austinchambermusic.org/concert-season/",
       "cultural_domain": "performing-arts"
     },
@@ -400,6 +445,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "golden_hornet",
+      "target_kind": "producer",
       "url": "https://www.goldenhornet.org/calendar",
       "cultural_domain": "performing-arts"
     },
@@ -410,6 +456,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "round_rock_express",
+      "target_kind": "producer",
       "url": "https://www.milb.com/round-rock/schedule",
       "cultural_domain": "sports"
     },
@@ -420,6 +467,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_fc",
+      "target_kind": "producer",
       "url": "https://www.austinfc.com/schedule/",
       "cultural_domain": "sports"
     },
@@ -430,6 +478,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "circuit_of_the_americas",
+      "target_kind": "venue",
       "url": "https://circuitoftheamericas.com/events/",
       "cultural_domain": "sports"
     },
@@ -440,6 +489,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_spurs",
+      "target_kind": "producer",
       "url": "https://austin.gleague.nba.com/schedule",
       "cultural_domain": "sports"
     },
@@ -450,6 +500,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_food_wine_festival",
+      "target_kind": "festival",
       "url": "https://www.austinfoodandwinefestival.com/",
       "cultural_domain": "food-drink"
     },
@@ -460,6 +511,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "sfc_farmers_market",
+      "target_kind": "festival",
       "url": "https://sustainablefoodcenter.org/farmers-markets-support/sfc-farmers-markets/",
       "cultural_domain": "food-drink"
     },
@@ -470,6 +522,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "texas_craft_brewers_festival",
+      "target_kind": "festival",
       "url": "https://texascraftbrewersfestival.org/",
       "cultural_domain": "food-drink"
     },
@@ -480,6 +533,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "elysium_austin",
+      "target_kind": "venue",
       "url": "https://www.elysiumonline.net/events.html",
       "cultural_domain": "nightlife"
     },
@@ -490,6 +544,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "kingdom_nightclub",
+      "target_kind": "venue",
       "url": "https://kingdomnightclub.com/events/",
       "cultural_domain": "nightlife"
     },
@@ -500,6 +555,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "concourse_project",
+      "target_kind": "venue",
       "url": "https://concourseproject.com/calendar/",
       "cultural_domain": "nightlife"
     },
@@ -510,6 +566,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "tapestry_dance",
+      "target_kind": "producer",
       "url": "https://tapestry.org/season-shows",
       "cultural_domain": "dance"
     },
@@ -520,6 +577,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "bullock_museum",
+      "target_kind": "venue",
       "url": "https://www.thestoryoftexas.com/calendar/",
       "cultural_domain": "heritage"
     },
@@ -530,6 +588,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "lbj_library",
+      "target_kind": "venue",
       "url": "https://www.lbjlibrary.org/events",
       "cultural_domain": "heritage"
     },
@@ -540,6 +599,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_history_center",
+      "target_kind": "producer",
       "url": "https://austinhistory.org/events/",
       "cultural_domain": "heritage"
     },
@@ -550,6 +610,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "carver_museum",
+      "target_kind": "venue",
       "url": "https://www.austintexas.gov/carver/events",
       "cultural_domain": "heritage"
     },
@@ -560,6 +621,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "asian_american_resource_center",
+      "target_kind": "venue",
       "url": "https://www.austintexas.gov/aarc/asian-american-resource-center-event-calendar",
       "cultural_domain": "heritage"
     },
@@ -570,6 +632,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "thinkery",
+      "target_kind": "venue",
       "url": "https://my.thinkeryaustin.org/events",
       "cultural_domain": "family"
     },
@@ -580,6 +643,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_nature_science_center",
+      "target_kind": "venue",
       "url": "https://www.austintexas.gov/parks/austin-nature-science-center-camps-events-and-community-programs",
       "cultural_domain": "family"
     },
@@ -590,6 +654,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "umlauf_sculpture_garden",
+      "target_kind": "venue",
       "url": "https://www.umlaufsculpture.org/programs",
       "cultural_domain": "visual-arts"
     },
@@ -600,6 +665,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "elisabet_ney_museum",
+      "target_kind": "venue",
       "url": "https://www.austintexas.gov/ney/programs-education",
       "cultural_domain": "visual-arts"
     },
@@ -610,6 +676,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "republic_square_daa",
+      "target_kind": "venue",
       "url": "https://downtownaustin.com/republic-square-events/",
       "cultural_domain": "place-based"
     },
@@ -620,6 +687,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "waterloo_greenway",
+      "target_kind": "venue",
       "url": "https://waterloogreenway.org/events/",
       "cultural_domain": "place-based"
     },
@@ -630,6 +698,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "mueller_austin",
+      "target_kind": "venue",
       "url": "https://muelleraustin.com/events-at-mueller/",
       "cultural_domain": "place-based"
     },
@@ -640,6 +709,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "rodeo_austin",
+      "target_kind": "festival",
       "url": "https://rodeoaustin.com/events/",
       "cultural_domain": "fairs-expos"
     },
@@ -650,6 +720,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_maker_faire",
+      "target_kind": "festival",
       "url": "https://austin.makerfaire.com/schedule/",
       "cultural_domain": "fairs-expos"
     },
@@ -660,6 +731,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "texas_book_festival",
+      "target_kind": "festival",
       "url": "https://texasbookfestival.org/schedule/",
       "cultural_domain": "fairs-expos"
     },
@@ -670,6 +742,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_trail_of_lights",
+      "target_kind": "festival",
       "url": "https://austintrailoflights.org/the-event",
       "cultural_domain": "seasonal"
     },
@@ -680,6 +753,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "eeyores_birthday_party",
+      "target_kind": "festival",
       "url": "https://eeyores.org/",
       "cultural_domain": "seasonal"
     },
@@ -690,6 +764,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_yoga_festival",
+      "target_kind": "festival",
       "url": "http://www.austinyogafestival.com/",
       "cultural_domain": "wellness"
     },
@@ -700,6 +775,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "haam",
+      "target_kind": "producer",
       "url": "https://www.myhaam.org/calendar-of-events",
       "cultural_domain": "wellness"
     },
@@ -710,6 +786,7 @@
       "county_resolved_by": "county_field",
       "source_layer": "catalog",
       "catalog_id": "austin_fashion_week",
+      "target_kind": "festival",
       "url": "https://austinfashionweek.sched.com/",
       "cultural_domain": "fashion-design"
     }
@@ -722,6 +799,7 @@
       "county_resolved_by": null,
       "source_layer": "catalog",
       "catalog_id": "sxsw_schedule",
+      "target_kind": "festival",
       "url": "https://schedule.sxsw.com/",
       "cultural_domain": null
     },
@@ -732,6 +810,7 @@
       "county_resolved_by": null,
       "source_layer": "catalog",
       "catalog_id": "acllive",
+      "target_kind": "venue",
       "url": "https://www.acllive.com/",
       "cultural_domain": "live-music"
     },
@@ -742,6 +821,7 @@
       "county_resolved_by": null,
       "source_layer": "catalog",
       "catalog_id": "antones",
+      "target_kind": "venue",
       "url": "https://antonesnightclub.com/",
       "cultural_domain": "live-music"
     },
@@ -752,6 +832,7 @@
       "county_resolved_by": null,
       "source_layer": "catalog",
       "catalog_id": "empire_atx",
+      "target_kind": "venue",
       "url": "https://empireatx.com/",
       "cultural_domain": "live-music"
     },
@@ -762,6 +843,7 @@
       "county_resolved_by": null,
       "source_layer": "catalog",
       "catalog_id": "saxon_pub",
+      "target_kind": "venue",
       "url": "https://saxonpub.com/",
       "cultural_domain": "live-music"
     },
@@ -772,6 +854,7 @@
       "county_resolved_by": null,
       "source_layer": "catalog",
       "catalog_id": "hotel_vegas",
+      "target_kind": "venue",
       "url": "https://hotelvegasaustin.com/",
       "cultural_domain": "live-music"
     }

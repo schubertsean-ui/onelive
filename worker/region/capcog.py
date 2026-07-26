@@ -29,6 +29,7 @@ invisible loss. That is the failure-reads-as-empty lesson applied to geography.
 """
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 # The ten member counties. This is the boundary; everything else derives.
@@ -126,25 +127,49 @@ KNOWN_OUTSIDE: dict = {
 }
 
 
+# Trailing location qualifiers feeds append to a city. Stripped REPEATEDLY, not
+# once: "San Antonio, TX, USA" carries two of them, and a single pass left the
+# country attached, so the string matched neither the CAPCOG table nor the
+# known-outside table and came back UNKNOWN — which the read path KEEPS. That is
+# the founder's invariant failing open: San Antonio reaching the page through a
+# formatting difference alone. Two-letter forms require a comma so a city whose
+# name merely ends in those letters is untouched.
+TRAILING_QUALIFIERS = (
+    ", tx", ", texas", " tx", " texas",
+    ", usa", ", u.s.a.", ", u.s.", ", us", ", united states",
+    " usa", " united states",
+)
+
+_ZIP_RE = re.compile(r"[\s,]+\d{5}(?:-\d{4})?$")
+
+
 def normalize_place(value: Optional[str]) -> Optional[str]:
     """Lowercase/trim a place name for lookup, or None when there is nothing to
-    look up. Strips a trailing state suffix ('Austin, TX') because feeds write
-    the city field both ways."""
+    look up.
+
+    Strips trailing ZIP, state and country qualifiers because feeds write the
+    city field every way: 'Austin', 'Austin, TX', 'Austin, TX 78701',
+    'Austin, TX, USA'. Stripping runs to a FIXED POINT — one pass per qualifier
+    is not enough when a string carries several, and a leftover qualifier makes
+    a known place unrecognisable, which is worse than useless: an unrecognised
+    place is kept on the read path, so a known-outside city would be shown.
+    """
     if not value:
         return None
     text = str(value).strip().lower()
     if not text:
         return None
-    # Drop a trailing ZIP first (evaluator nit): venue address strings arrive as
-    # "Austin, TX 78701", and stripping only the state suffix left the ZIP
-    # attached, so the lookup missed and a known Austin venue resolved to
-    # UNKNOWN — a false gap in the report.
-    import re as _re
-    text = _re.sub(r"[\s,]+\d{5}(?:-\d{4})?$", "", text).strip()
-    # 'austin, tx' / 'austin, texas' -> 'austin'
-    for suffix in (", tx", ", texas", " tx", " texas"):
-        if text.endswith(suffix):
-            text = text[: -len(suffix)].strip()
+    changed = True
+    while changed:
+        changed = False
+        stripped = _ZIP_RE.sub("", text).strip(" ,")
+        if stripped != text:
+            text, changed = stripped, True
+        for suffix in TRAILING_QUALIFIERS:
+            if text.endswith(suffix):
+                text = text[: -len(suffix)].strip(" ,")
+                changed = True
+                break
     return text.strip(" ,") or None
 
 
