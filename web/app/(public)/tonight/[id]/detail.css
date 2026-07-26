@@ -1,0 +1,68 @@
+/* Event detail surface (Contract #28). Inherits flow.css for the shell; this
+   file only styles what the detail view adds. Light/dark both handled, and no
+   colour carries meaning on its own (WCAG 2.2 AA: the trust marker is a glyph
+   plus text, never a hue). */
+
+.mast .back { color: inherit; text-decoration: none; }
+.mast .back:hover { text-decoration: underline; }
+
+.detail { max-width: 46rem; margin: 0 auto; padding: 0 0 3rem; }
+
+.detail .dph {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background-size: cover;
+  background-position: center;
+  border-radius: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.detail .dti {
+  font-size: clamp(1.5rem, 4.5vw, 2.25rem);
+  line-height: 1.15;
+  margin: 0 0 0.25rem;
+}
+.detail .dperf { margin: 0 0 0.75rem; opacity: 0.85; font-size: 1.05rem; }
+
+/* A cancelled/postponed/moved event says so, prominently and factually. */
+.detail .dstatus {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.5rem;
+  border: 1px solid currentColor;
+  font-weight: 600;
+}
+
+.detail .dfacts {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, max-content) 1fr;
+  gap: 0.5rem 1rem;
+  margin: 1.25rem 0;
+}
+.detail .dfacts dt { opacity: 0.7; font-size: 0.9rem; }
+.detail .dfacts dd { margin: 0; }
+.detail .dfacts .dsub { opacity: 0.7; }
+.detail .dfacts .dfree { font-weight: 600; }
+.detail .dfacts a { color: inherit; }
+
+.detail .dtix {
+  display: inline-block;
+  margin: 0.5rem 0 1.5rem;
+  padding: 0.7rem 1.2rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.detail .dtix:hover { text-decoration: underline; }
+
+/* Trust: a quiet marker and a disclosure, never a badge and never the word
+   "confirmed" (design brief v2.4). Disputed opens by default because a dispute
+   is shown, never hidden. */
+.detail .dunc { margin-top: 1.5rem; }
+.detail .dunc summary { cursor: pointer; opacity: 0.85; }
+.detail .dunc .sheet { margin-top: 0.6rem; opacity: 0.9; line-height: 1.5; }
+
+/* Feed: the card title is now a link; it must not look like a different thing. */
+.tilink { color: inherit; text-decoration: none; }
+.tilink:hover, .tilink:focus-visible { text-decoration: underline; }
