@@ -192,15 +192,56 @@ def test_unquoted_pytest_mentions_are_not_invocations(line):
     "python -m pytest -q",
     "run: python -m pytest -q",
     "$PYTHON -m pytest",
-    "bash -c python; python -m pytest",
+    "python -m pytest -q 2>&1 | tee pytest.log",
 ])
 def test_real_pytest_invocations_survive_the_command_position_rule(line):
     assert bfc._is_full_suite_pytest(line) is True
 
 
-def test_the_allow_list_fails_CONSERVATIVELY_on_an_unknown_wrapper():
-    """An unrecognised first token yields False, so the tool credits FEWER
+def test_an_unknown_wrapper_fails_CONSERVATIVELY():
+    """An unrecognised command word yields False, so the tool credits FEWER
     gates than reality. Under-crediting understates how much a failure
-    blocks; over-crediting would claim protection that does not exist."""
+    blocks; over-crediting would claim protection that does not exist —
+    which is exactly what the r10 version did for wrapper forms, while its
+    comment claimed the opposite."""
     assert bfc._is_full_suite_pytest("weirdrunner $PY -m pytest -q") is False
-    assert bfc._in_command_position("weirdrunner $PY -m pytest") is False
+    assert bfc._segment_runs_full_suite_pytest("weirdrunner $PY -m pytest") is False
+
+
+# ── ALLOWED-WRAPPER DECOYS (#73 r11, attacker-smuggle seat) ─────────────────
+# The r10 rule checked only that a segment's FIRST token was an allowed
+# wrapper, then credited any later `-m pytest`. Every line below executed
+# NOTHING yet was counted as a blocking full-suite gate — the smuggle path
+# being: change tools/validate's `run_check "…" "$PY" -m pytest -q` to
+# `run_check "…" echo -m pytest -q`, and the suite silently stops running
+# while this detector still reports the runner as a gate.
+
+@pytest.mark.parametrize("decoy", [
+    'run_check "pytest (full suite)" echo -m pytest -q',
+    "bash -c echo $PY -m pytest",
+    "time echo $PY -m pytest",
+    "sudo echo -m pytest",
+    "env FOO=-m pytest true",
+    "xargs echo $PY -m pytest",
+])
+def test_an_allowed_wrapper_does_not_launder_a_decoy_command(decoy):
+    assert bfc._is_full_suite_pytest(decoy) is False
+
+
+@pytest.mark.parametrize("real", [
+    'run_check "pytest (full suite)" "$PY" -m pytest -q',
+    "env CI=1 python -m pytest -q",
+    "python -m pytest -q 2>&1 | tee pytest.log",
+    "python -m pytest",
+])
+def test_wrappers_still_credit_a_REAL_interpreter_invocation(real):
+    assert bfc._is_full_suite_pytest(real) is True
+
+
+def test_a_quoted_VALUE_survives_while_a_quoted_LABEL_is_dropped():
+    """r11 self-caught: deleting every quoted span removed `"$PY"` itself —
+    the interpreter in validate's real line — and broke detection of a
+    genuinely blocking gate. Spans are now judged by content."""
+    assert bfc._normalise('run_check "a label" "$PY" -m pytest').split() == \
+        ["run_check", "$PY", "-m", "pytest"]
+    assert "pytest" not in bfc._normalise('echo "python -m pytest"')

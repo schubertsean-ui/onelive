@@ -37,17 +37,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          # Cache wheels across runs (#73, founder-raised on CI latency):
-          # a cold pip install is paid on every round. MEASURED for the
-          # adversarial-review job (see §4 of the timing evidence file under
-          # docs/session_arcs/evidence/): the deps step took 10s at baseline
-          # and 8s after caching — a real but small win, NOT the "~20-35s"
-          # this comment previously asserted without any measurement. Pure
-          # wall-clock; the resolved dependency set is unchanged.
-          cache: pip
-          cache-dependency-path: |
-            worker/requirements.txt
-            api/requirements.txt
+          # NO DEPENDENCY CACHE HERE, deliberately (#73 r11, evaluator
+          # class cache-poisoning-boundary). `cache: pip` was added earlier
+          # in this PR for speed and is REMOVED again: this job executes
+          # PR-controlled code while holding review credentials, and a
+          # restore/save cache is mutable state crossing runs that the diff
+          # gave no invariant over. GitHub scopes caches per branch, which
+          # probably makes the attack impractical — but "probably" is not a
+          # custody argument, and the measured benefit was 2 seconds (deps
+          # step 10s -> 8s, §4 of the timing evidence file). Two seconds is
+          # not worth a boundary anyone has to reason about. If caching
+          # returns it needs an explicit read-only/trusted-base-only
+          # invariant, which is a gate-custody change and reviewable as one.
 
       - name: Install worker + api deps
         run: |

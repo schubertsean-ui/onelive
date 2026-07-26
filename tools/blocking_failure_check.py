@@ -66,64 +66,94 @@ _NARROWING = ("-k", "-m", "--ignore", "--deselect")
 _INVOCATION = re.compile(
     r"(?:-m\s+pytest|(?:^|[|;&]|\brun:\s*)\s*pytest)\b")
 
-# Commands that EXECUTE what follows them. A `-m pytest` only counts when the
-# line actually runs it (#73 r10): `echo $PY -m pytest` has the same shape as
-# tools/validate's real `run_check "label" "$PY" -m pytest -q`, and quote
-# stripping alone cannot tell them apart because the interpreter is an
-# ARGUMENT in both. So the FIRST token decides, from an explicit allow-list.
-#
-# This is an ALLOW-list, not a deny-list, on purpose: an unknown first token
-# yields False, so the tool credits FEWER gates than reality. That is the
-# conservative direction for this tool — under-crediting understates how much
-# a failure blocks, while over-crediting would claim protection that does not
-# exist. Adding a wrapper here is a deliberate, reviewable edit.
+# Commands that EXECUTE what follows them, e.g. `run_check "label" "$PY" -m
+# pytest -q` in tools/validate. A wrapper may PRECEDE the interpreter; it
+# never substitutes for it.
 _EXEC_WRAPPERS = frozenset({
     "run_check", "exec", "time", "env", "sudo", "xargs", "nice",
     "bash", "sh", "zsh", "poetry", "uv", "pipenv", "hatch", "tox",
 })
 _INTERPRETER = re.compile(r"^(?:[\w./-]*python[\w.]*|\$\{?[A-Z_]*PY[A-Z_]*\}?)$")
+_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+# Shell separators start a NEW command, so each segment is judged alone.
+_SEGMENT = re.compile(r"(?:&&|\|\||[;|&])")
 
 
-def _in_command_position(line: str) -> bool:
-    """True if the line actually RUNS something, rather than printing it."""
-    toks = line.split()
-    if toks and toks[0] == "run:":       # YAML `run: python -m pytest`
+def _segment_runs_full_suite_pytest(seg: str) -> bool:
+    """True if THIS command segment actually executes an unfiltered pytest.
+
+    #73 r11, attacker-smuggle seat. The r10 version checked only that the
+    segment's FIRST token was an allowed wrapper, then credited any later
+    `-m pytest`. That is smuggleable, and the r10 comment claiming it "fails
+    conservatively" was false for wrapper forms — all of these were credited
+    while executing nothing:
+        run_check "pytest (full suite)" echo -m pytest -q
+        bash -c echo $PY -m pytest
+        time echo $PY -m pytest
+        sudo echo -m pytest
+    The rule now walks the segment: leading wrappers and VAR=value
+    assignments are consumed, and what remains must BE the interpreter
+    immediately followed by the `-m pytest` tokens (or a bare `pytest`
+    command). A decoy like `echo` is not a wrapper and not an interpreter,
+    so it terminates the walk and the segment earns nothing.
+    """
+    toks = seg.split()
+    if toks and toks[0] == "run:":            # YAML `run: python -m pytest`
         toks = toks[1:]
-    if not toks:
+    i = 0
+    while i < len(toks) and (toks[i] in _EXEC_WRAPPERS or _ASSIGNMENT.match(toks[i])):
+        i += 1
+    if i >= len(toks):
         return False
-    head = toks[0]
-    return bool(head) and (head in _EXEC_WRAPPERS or bool(_INTERPRETER.match(head)))
+    head, rest = toks[i], toks[i + 1:]
+    if _INTERPRETER.match(head):
+        # `python -m pytest …` — the -m and pytest must be their own tokens
+        # immediately after the interpreter, never a substring elsewhere.
+        if len(rest) < 2 or rest[0] != "-m" or rest[1] != "pytest":
+            return False
+        args = rest[2:]
+    elif head == "pytest":
+        args = rest
+    else:
+        return False                          # a decoy command, or not pytest
+    # args is a TOKEN LIST here, so match by prefix — `--ignore=tests/x` is
+    # one token and plain membership would miss it (#73 r11, self-caught by
+    # running the case table rather than reading the diff).
+    if any(a == flag or a.startswith(flag + "=") for a in args for flag in _NARROWING):
+        return False
+    # A bare path argument (tests/…, a file) narrows it; flags (-q) do not.
+    return all(tok.startswith("-") or tok.isdigit() for tok in args)
+
+
+def _normalise(line: str) -> str:
+    """Prepare a line for segment analysis.
+
+    Quoted spans are handled by CONTENT, not deleted wholesale (#73 r11 —
+    deleting them removed `"$PY"`, the interpreter in tools/validate's real
+    invocation, and broke detection of a genuinely blocking gate):
+      * a quoted span containing whitespace is a LABEL or message — dropped,
+        so `echo "python -m pytest"` keeps nothing to credit;
+      * a whitespace-free quoted span is a VALUE — unquoted in place, so
+        `run_check "label" "$PY" -m pytest` keeps its interpreter.
+    Redirections are then removed so `2>&1` is not mistaken for a shell
+    separator by the segment split.
+    """
+    def _span(m):
+        inner = m.group(2)
+        return inner if inner and not re.search(r"\s", inner) else " "
+
+    line = re.sub(r"""(['"])(.*?)\1""", _span, line)
+    return re.sub(r"\s\d?>>?\s*\S+", " ", line)
 
 
 def _is_full_suite_pytest(line: str) -> bool:
     s = line.strip()
-    if "pytest" not in s or s.lstrip().startswith("#"):
+    if "pytest" not in s or s.startswith("#"):
         return False
-    # A quoted mention is data, not a command (#73 r9): `echo "python -m
-    # pytest"` must not be credited. Quoted spans are dropped before the
-    # invocation match; a genuine `run_check "label" "$PY" -m pytest` keeps
-    # its `-m pytest` because that part sits OUTSIDE the quotes.
-    s = re.sub(r"""(['"]).*?\1""", "", s)
+    s = _normalise(s)
     if "pytest" not in s:
         return False
-    # A MENTION is not an INVOCATION even unquoted (#73 r10): `echo $PY -m
-    # pytest` must not be credited as a blocking gate.
-    if "-m" in s and not _in_command_position(s):
-        return False
-    m = _INVOCATION.search(s)
-    if not m:
-        return False
-    # Inspect only the arguments that follow the invocation.
-    after = s[m.end():]
-    # A pipe/redirect ends the invocation's arguments (e.g. "| tee pytest.log").
-    after = re.split(r"[|>;&]", after)[0]
-    if any(flag in after for flag in _NARROWING):
-        return False
-    # A bare path argument (tests/…, a file) narrows it; flags (-q) do not.
-    for tok in after.split():
-        if not tok.startswith("-") and not tok.isdigit():
-            return False
-    return True
+    return any(_segment_runs_full_suite_pytest(seg) for seg in _SEGMENT.split(s))
 
 
 # A workflow can run the full suite INDIRECTLY, by invoking a repo runner
