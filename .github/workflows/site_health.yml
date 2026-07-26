@@ -1,0 +1,87 @@
+name: site-health
+
+# Reads the DEPLOYED site's /api/health and prints the answer into the job log.
+#
+# Why this exists: the agent sandbox's network policy blocks both *.vercel.app
+# and the Supabase host (403 to CONNECT), so nobody working in a session can
+# answer "is the site up, and does the feed have anything in it?" without asking
+# the founder to open a browser. That made every deployment question a founder
+# interrupt. GitHub's runners have open egress, which is the SAME reason
+# import_licensed.yml runs here rather than in the sandbox — this follows that
+# established pattern, it does not invent a new one.
+#
+# Reads only. No secrets, no database write, no AI spend, no schedule — so it
+# needs no dead-man alarm (the charter requires one for scheduled loops) and
+# cannot cost anything. Run it from the Actions tab, or an agent can trigger it
+# and read the result out of the job log.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Base URL of the deployment to check (no trailing slash)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-health
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read /api/health and report honestly
+        env:
+          BASE_URL: ${{ github.event.inputs.url }}
+        run: |
+          set -uo pipefail
+          : "${BASE_URL:?url input missing — the target is required — failing closed}"
+          case "$BASE_URL" in
+            https://*) ;;
+            *) echo "::error::url must start with https:// (got '$BASE_URL')"; exit 1 ;;
+          esac
+
+          echo "=== GET $BASE_URL/api/health ==="
+          CODE="$(curl -sS -m 30 -o /tmp/health.body -w '%{http_code}' \
+                    "$BASE_URL/api/health" || echo "000")"
+          echo "http_status: $CODE"
+          echo "--- body (first 2000 bytes) ---"
+          head -c 2000 /tmp/health.body || true
+          echo
+          echo "--- end body ---"
+
+          # The three states worth distinguishing, because "we failed" must never
+          # look identical to "there was nothing to do" (CLAUDE.md).
+          case "$CODE" in
+            200)
+              echo "VERDICT: reachable and PUBLIC — a friend with this link can open it."
+              ;;
+            401|403)
+              echo "VERDICT: reachable but GATED — the host answered, and refused."
+              echo "  Either Vercel Deployment Protection is on (a friend sees Vercel's"
+              echo "  login wall, not the product) or the app's own gate is denying."
+              echo "  The body above says which: Vercel's wall is HTML, the app's"
+              echo "  fail-closed gate is JSON from /api/health."
+              exit 1
+              ;;
+            000)
+              echo "VERDICT: UNREACHABLE — no HTTP response at all (DNS, TLS or timeout)."
+              exit 1
+              ;;
+            *)
+              echo "VERDICT: unexpected status $CODE — reported, not interpreted."
+              exit 1
+              ;;
+          esac
+
+          # Only reached on 200. eventCount is the go/no-go for a real test:
+          # a live site showing zero events is a worse first impression than no
+          # site at all, so this reports it loudly rather than passing quietly.
+          COUNT="$(python3 -c "import json,sys;d=json.load(open('/tmp/health.body'));print(d.get('supabase',{}).get('eventCount','UNKNOWN'))" 2>/dev/null || echo "UNPARSEABLE")"
+          echo "event_count: $COUNT"
+          if [ "$COUNT" = "0" ]; then
+            echo "::warning::The site is up and the feed is EMPTY. Run import-licensed before showing anyone."
+          fi
