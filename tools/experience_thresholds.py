@@ -42,7 +42,7 @@ class JudgeError(Exception):
     """Could not judge — never reported as a pass."""
 
 
-def _read_json(path: pathlib.Path) -> dict:
+def _read_json(path: pathlib.Path) -> object:
     if not path.is_file():
         raise JudgeError(f"{path} does not exist — nothing was measured")
     try:
@@ -53,6 +53,13 @@ def _read_json(path: pathlib.Path) -> dict:
 
 def judge_lighthouse(report: dict) -> list[tuple[str, float, float, str, bool]]:
     """Return (name, measured, bar, bar_row, within_bar) for each threshold."""
+    # The ROOT shape first: `[]` and `"text"` are valid JSON and invalid reports,
+    # and `.get` on either raises AttributeError — a traceback where this tool
+    # promises exit 2 (reviewer nit, PR #80 r5).
+    if not isinstance(report, dict):
+        raise JudgeError(
+            f"Lighthouse report is a {type(report).__name__}, not an object — "
+            f"refusing to judge a shape this tool does not understand")
     audits = report.get("audits")
     if not isinstance(audits, dict):
         raise JudgeError("Lighthouse report has no `audits` object")
@@ -64,7 +71,29 @@ def judge_lighthouse(report: dict) -> list[tuple[str, float, float, str, bool]]:
             raise JudgeError(
                 f"Lighthouse report has no numeric value for {key!r} ({name}) — "
                 f"refusing to report a verdict over a metric that was not measured")
-        measured = float(audit["numericValue"])
+        # `float()` on "N/A", a list or a dict raises ValueError/TypeError, which
+        # would escape as a traceback (exit 1) instead of the JudgeError this tool
+        # promises (exit 2, "could not judge"). Lighthouse does emit non-numeric
+        # placeholders when a metric could not be gathered, so this is the shape a
+        # real degraded report takes — not a hypothetical
+        # (`CLASS:unhandled-report-shape-crash`, PR #80 r5).
+        raw = audit["numericValue"]
+        # A BOOLEAN IS NOT A MEASUREMENT, and `float(True)` is 1.0 — so without this
+        # a `numericValue: true` would be graded as "1 ms, comfortably within bar",
+        # the most flattering possible reading of a report that measured nothing.
+        # `bool` is a subclass of `int`, so it slips through every numeric check
+        # that does not name it.
+        if isinstance(raw, bool):
+            raise JudgeError(
+                f"{key!r} ({name}) carried the boolean {raw!r} as its measurement — "
+                f"refusing to grade a true/false as a number of milliseconds")
+        try:
+            measured = float(raw)
+        except (ValueError, TypeError) as exc:
+            raise JudgeError(
+                f"{key!r} ({name}) carried a non-numeric value {raw!r} ({exc}) — "
+                f"refusing to report a verdict over a measurement that is not a "
+                f"number") from exc
         rows.append((f"{name} [{unit or 'ratio'}]", measured, bar, bar_row,
                      measured <= bar))
     return rows
@@ -73,6 +102,10 @@ def judge_lighthouse(report: dict) -> list[tuple[str, float, float, str, bool]]:
 def judge_axe(report: object) -> tuple[int, list[str]]:
     """Return (violation count, one summary line per violation)."""
     # @axe-core/cli emits a LIST of page results; the library emits one object.
+    if not isinstance(report, (list, dict)):
+        raise JudgeError(
+            f"axe report is a {type(report).__name__}, not a list or object — "
+            f"refusing to judge a shape this tool does not understand")
     pages = report if isinstance(report, list) else [report]
     total, lines = 0, []
     for page in pages:
@@ -96,7 +129,15 @@ def judge_axe(report: object) -> tuple[int, list[str]]:
                     f"({type(violation).__name__}) — the report shape changed; "
                     f"refusing to report an accessibility verdict from it")
             total += 1
+            # `len()` on an int or bool raises TypeError — same escape, and the
+            # node COUNT is what the operator reads to size the problem, so a
+            # wrong-typed value must fail rather than be coerced into a number.
             nodes = violation.get("nodes") or []
+            if not isinstance(nodes, (list, tuple)):
+                raise JudgeError(
+                    f"violation {violation.get('id', '?')!r} has `nodes` of type "
+                    f"{type(nodes).__name__}, not a list — the axe report shape "
+                    f"changed; refusing to report a node count from it")
             lines.append(
                 f"{violation.get('id', '?')} ({violation.get('impact', 'unknown')} "
                 f"impact, {len(nodes)} node(s)): "

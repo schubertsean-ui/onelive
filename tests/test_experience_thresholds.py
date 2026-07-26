@@ -132,6 +132,39 @@ def test_a_non_object_violation_entry_is_exit_2_not_a_crash(tmp_path):
     assert _run(tmp_path, _lh(), [{"violations": "many"}]) == 2
 
 
+@pytest.mark.parametrize("value", ["N/A", "", [1, 2], {"v": 1}, True, None])
+def test_a_non_numeric_metric_value_is_exit_2_not_a_traceback(tmp_path, value):
+    """`CLASS:unhandled-report-shape-crash` (gemini seat, PR #80 r5).
+
+    `float()` on "N/A", a list or a dict raises ValueError/TypeError, which would
+    escape as a traceback (exit 1) instead of the JudgeError this tool promises
+    (exit 2, "could not judge"). Lighthouse emits non-numeric placeholders when a
+    metric could not be gathered, so this is what a real degraded report looks like.
+    """
+    report = _lh()
+    report["audits"]["largest-contentful-paint"]["numericValue"] = value
+    assert _run(tmp_path, report, _axe()) == 2, value
+
+
+@pytest.mark.parametrize("nodes", [3, True, "two", {"n": 1}])
+def test_a_non_sequence_nodes_value_is_exit_2_not_a_traceback(tmp_path, nodes):
+    """`len()` on an int or bool raises TypeError. The node COUNT is what an
+    operator reads to size the problem, so a wrong-typed value must fail rather
+    than be coerced into a number."""
+    axe = _axe([{"id": "color-contrast", "nodes": nodes}])
+    assert _run(tmp_path, _lh(), axe) == 2, nodes
+
+
+@pytest.mark.parametrize("root", [[], "text", 42, None, True])
+def test_a_report_whose_ROOT_is_the_wrong_shape_is_exit_2(tmp_path, root):
+    """`[]` and `"text"` are valid JSON and invalid reports, and `.get` on either
+    raises AttributeError — a traceback where exit 2 is promised (reviewer nit)."""
+    assert _run(tmp_path, root, _axe()) == 2, root
+    # ...and the axe side symmetrically.
+    if root is not None and not isinstance(root, list):
+        assert _run(tmp_path, _lh(), root) == 2, root
+
+
 # ------------------------------------------------------------------- the verdicts
 def test_everything_within_bar_exits_zero(tmp_path, capsys):
     assert _run(tmp_path, _lh(), _axe()) == 0
