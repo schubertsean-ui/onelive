@@ -159,3 +159,52 @@ def test_trend_also_counts_regressions_so_decay_is_visible():
     assert t["status_improved"] == 0
 
 
+
+
+# ---- r1 evaluator findings ---------------------------------------------------
+
+def test_evidence_that_names_NO_registry_source_is_REFUSED():
+    """r1 blocker: rows and attempts whose source_name was blank — or a typo,
+    a stale name, a wrong namespace — were silently skipped. That excluded real
+    delivered rows from a source's score, so a working source read as
+    NEVER_TRIED: the scorecard reporting the exact false status it exists to
+    prevent. Worse for attempts, where a dropped row turns a source we KNOW is
+    broken into one we appear never to have touched."""
+    known = {"mohawk_austin", "Mohawk"}
+    with pytest.raises(SystemExit, match="name no registry source"):
+        sc._index_rows([{"source_name": "", "venue_name": "X"}], known)
+    with pytest.raises(SystemExit, match="name no registry source"):
+        sc._index_rows([{"source_name": "mohawk_austn"}], known)   # typo
+    with pytest.raises(SystemExit, match="never-tried"):
+        sc._index_attempts([{"source_name": "gone_away", "ok": False}], known)
+    # bound evidence still indexes normally
+    events, _v, _o = sc._index_rows([{"source_name": "mohawk_austin"}], known)
+    assert events["mohawk_austin"] == 1
+    assert sc._index_attempts([{"source_name": "Mohawk", "ok": True}],
+                              known)["Mohawk"]["ok"] == 1
+
+
+def test_a_status_REGRESSION_moves_the_trend():
+    """r1 blocker: the trend had status_improved and no status_regressed, so a
+    source sliding from WORKING to TRIED_FAILING moved it by zero and read as
+    'nothing happened'. A one-directional trend is flattering by construction —
+    and counting decay is an explicit done-criterion this contract claimed."""
+    prev = {"sources": [
+        {"id": "a", "status": sc.STATUS_WORKING, "events": 10},
+        {"id": "b", "status": sc.STATUS_NEVER_TRIED, "events": 0}]}
+    now = [{"id": "a", "status": sc.STATUS_TRIED_FAILING, "events": 0},
+           {"id": "b", "status": sc.STATUS_WORKING, "events": 5}]
+    t = sc.diff_against(prev, now)
+    assert t["status_regressed"] == 1, t
+    assert t["status_improved"] == 1, t
+
+
+def test_a_top_level_JSON_ARRAY_registry_does_not_crash(tmp_path, monkeypatch):
+    """`reg.get(...)` resolves the method on reg BEFORE the default expression
+    is evaluated, so the isinstance fallback never ran — a top-level array
+    crashed instead of being read."""
+    reg_file = tmp_path / "reg.json"
+    reg_file.write_text(json.dumps(
+        [{"id": "x", "name": "X", "source_class": "venue_calendar"}]),
+        encoding="utf-8")
+    assert sc.main(["--registry", str(reg_file)]) in (0, 1)

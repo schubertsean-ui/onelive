@@ -82,15 +82,29 @@ REMEDIATION_BY_STATUS = {
 }
 
 
-def _index_rows(rows: list) -> tuple:
-    """(events per source, venue set per source, venue -> sources)."""
+def _index_rows(rows: list, known: set | None = None) -> tuple:
+    """(events per source, venue set per source, venue -> sources).
+
+    Evidence that names no source, or names one the registry does not hold, is
+    a MISCONFIGURATION and is refused. Skipping it silently excluded real
+    delivered rows from a source's score, so a typo or a stale name made a
+    working source read as NEVER_TRIED — the scorecard reporting the exact
+    false status it exists to prevent. Evaluator finding, PR #86 r1.
+    """
+    unbound = sorted({(r.get("source_name") or "") for r in rows
+                      if not r.get("source_name")
+                      or (known is not None and r.get("source_name") not in known)})
+    if unbound:
+        raise SystemExit(
+            f"source_scorecard: FAIL — {len(unbound)} evidence row group(s) "
+            f"name no registry source: {unbound[:10]}. Unbound evidence is a "
+            f"misconfiguration, not an absence — silently dropping it makes a "
+            f"delivering source look never-tried.")
     events: dict = {}
     venues: dict = {}
     venue_owners: dict = {}
     for r in rows:
         src = r.get("source_name")
-        if not src:
-            continue
         events[src] = events.get(src, 0) + 1
         name = (r.get("venue_name") or "").strip().lower()
         if name:
@@ -99,13 +113,24 @@ def _index_rows(rows: list) -> tuple:
     return events, venues, venue_owners
 
 
-def _index_attempts(attempts: list) -> dict:
-    """source -> {'n': int, 'ok': int, 'last': iso}"""
+def _index_attempts(attempts: list, known: set | None = None) -> dict:
+    """source -> {'n': int, 'ok': int, 'last': iso}
+
+    Same binding rule as _index_rows, and it matters more here: attempts are
+    the evidence that distinguishes never-tried from tried-and-failing, so a
+    silently dropped attempt turns a source we KNOW is broken into one we
+    appear never to have touched."""
+    unbound = sorted({(a.get("source_name") or "") for a in attempts
+                      if not a.get("source_name")
+                      or (known is not None and a.get("source_name") not in known)})
+    if unbound:
+        raise SystemExit(
+            f"source_scorecard: FAIL — {len(unbound)} attempt row group(s) "
+            f"name no registry source: {unbound[:10]}. An unbound attempt "
+            f"makes a source we know is broken look never-tried.")
     out: dict = {}
     for a in attempts:
         src = a.get("source_name")
-        if not src:
-            continue
         rec = out.setdefault(src, {"n": 0, "ok": 0, "last": None})
         rec["n"] += 1
         if a.get("ok"):
@@ -216,12 +241,25 @@ def diff_against(previous: dict, current: list) -> dict:
                 d[m] = str(round(b - a, 2))
         if d:
             deltas[row["id"]] = d
-    status_moves = sum(
-        1 for row in current
-        if (was := prev_by_id.get(row["id"]))
-        and STATUS_ORDER.index(row["status"]) > STATUS_ORDER.index(was["status"]))
+    # Status moves BOTH ways. Only status_improved existed, while the contract
+    # says decay must be visible — so a source sliding from WORKING to
+    # TRIED_FAILING moved the trend by zero and read as "nothing happened".
+    # A one-directional trend is the flattering direction by construction.
+    # Evaluator finding, PR #86 r1.
+    status_up = status_down = 0
+    for row in current:
+        was = prev_by_id.get(row["id"])
+        if not was:
+            continue
+        now_i = STATUS_ORDER.index(row["status"])
+        was_i = STATUS_ORDER.index(was["status"])
+        if now_i > was_i:
+            status_up += 1
+        elif now_i < was_i:
+            status_down += 1
     return {"improved": improved, "regressed": regressed,
-            "status_improved": status_moves, "per_source": deltas}
+            "status_improved": status_up, "status_regressed": status_down,
+            "per_source": deltas}
 
 
 def load_json(path: str | None, default):
@@ -248,7 +286,10 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     reg = json.loads(pathlib.Path(args.registry).read_text(encoding="utf-8"))
-    entries = reg.get("sources", reg if isinstance(reg, list) else [])
+    # `reg.get(...)` resolves the method on `reg` BEFORE the default
+    # expression is evaluated, so a top-level JSON array crashed here
+    # rather than being read. Evaluator nit, PR #86 r1.
+    entries = reg if isinstance(reg, list) else reg.get("sources", [])
 
     rows = load_json(args.rows, [])
     attempts_raw = load_json(args.attempts, [])
@@ -260,8 +301,11 @@ def main(argv=None) -> int:
     # Supplied-ness is the honest signal, so it is read from the ARGUMENTS.
     have_evidence = args.rows is not None or args.attempts is not None
 
-    events, venues, venue_owners = _index_rows(rows)
-    attempts = _index_attempts(attempts_raw)
+    # The registry's own ids AND names are the namespace evidence must bind to.
+    known = {e.get("id") for e in entries} | {e.get("name") for e in entries}
+    known.discard(None)
+    events, venues, venue_owners = _index_rows(rows, known)
+    attempts = _index_attempts(attempts_raw, known)
     scored = [score_source(e, events, venues, venue_owners, attempts, have_evidence)
               for e in entries]
     scored.sort(key=lambda r: (STATUS_ORDER.index(r["status"]), -r["events"]))
@@ -314,7 +358,8 @@ def main(argv=None) -> int:
         for m in MEASURES:
             print(f"    {m:<20} improved {trend['improved'][m]:>3} · "
                   f"regressed {trend['regressed'][m]:>3}")
-        print(f"    {'status':<20} improved {trend['status_improved']:>3}")
+        print(f"    {'status':<20} improved {trend['status_improved']:>3}   "
+              f"REGRESSED {trend['status_regressed']:>3}")
 
     snapshot = {"stamp": args.stamp or "unstamped",
                 "source_count": len(scored),
