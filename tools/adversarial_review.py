@@ -258,7 +258,17 @@ def request_review(review_input: str, api_key: str, model: str, base_url: str) -
         raise RuntimeError(f"unexpected OpenAI response shape: {data!r:.500}") from exc
 
 
-GEMINI_DEFAULT_MODEL = "gemini-2.5-pro"
+# The second-family seat's model. FLASH, not pro, for a mechanical reason
+# found on the panel's first live run (#72): gemini-2.5-pro has NO free-tier
+# quota — the API answers 429 with `limit: 0`, not a retryable rate limit —
+# so a founder-minted key on the free tier can never call it, and the seat
+# hard-failed the whole gate instead of reviewing anything. Flash has free-
+# tier quota and reviews; a working weaker second family is strictly more
+# review than a second family that cannot run. Changing this constant is a
+# gate-custody change and lands exactly like this: a PR judged by the
+# BASE-owned reviewer copy. If the founder ever enables billing on the
+# Gemini project, moving back to pro is a one-line PR through the same path.
+GEMINI_DEFAULT_MODEL = "gemini-2.5-flash"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
 

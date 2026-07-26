@@ -78,6 +78,10 @@ PREMORTEM (tree, ledger-seeded): retyped-evidence branch — a merge SHA or roun
 [S3:nonfinite-numeric-accepted] no numeric input is introduced; M1 is read, not computed.
 [S3:workflow-tool-version-skew] the class that matters NEXT: from this merge the base-owned reviewer is v2, so the next PR is the first the panel judges — named in the handoff as the first check.
 [S3:stale-cross-reference] the handoff's "in flight" section is rewritten and its merged-state table extended, so no document still describes #71 as open.
+[S3:workflow-tool-version-skew] the panel's FIRST live run (PR #72) confirmed v2 is base-owned and active — the log prints the mode and the po seed — and immediately surfaced a real infrastructure fact: gemini-2.5-pro has no free-tier quota (429 with limit 0, not a retryable rate limit), so the second seat hard-failed the gate instead of reviewing. The seat now targets gemini-2.5-flash, which the tier can actually call.
+[S3:unusable-credential-tier] newly indexed from this very run — a minted credential is not a usable one, so a gate that depends on a model must first establish that the key's TIER can call that exact model; the seat now targets a model the tier reaches rather than the strongest one it refuses.
+[S3:false-confidence-gate] the 429 hard-fail is DELIBERATELY unchanged: an unreachable seat still reds the gate rather than quietly narrowing the panel. Only the model constant moved, so the panel that reports two families is running two families.
+[S3:governance-ambiguity] the scope of that change is stated: a working weaker second family is strictly more review than a second family that cannot run; it is not a threshold change, and moving back to pro if the founder enables billing is the same one-line path through the same gate.
 STATUS: CLOSED — records written, validate green.
 
 ## Session Contract #26 (2026-07-25, same session — founder: "Go" on Adversarial Review v2; ratifications verbatim in the decision record at close)
