@@ -72,3 +72,7 @@ precedent: a future reader should know a no-red-merge path existed.
 3. R-052 stays OPEN — `gemini-flash-latest` is a floating alias, and the
    first preflight run that prints the advertised list yields a concrete
    id to replace it.
+
+---
+
+**Codified by:** One-time founder authorisation, not a standing rule, so there is deliberately no mechanism; the general rule it did NOT change is `docs/EXTRACTION_EXCEPTION.md` plus `tools/blocking_failure_check.py`.

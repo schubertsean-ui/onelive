@@ -133,3 +133,7 @@ point at.
   same document, including a correction — a rollback path **does** partially exist
   (`set_event_confidence` / `mark_event_disputed`, audit-logged), contrary to what I
   told the founder earlier.
+
+---
+
+**Codified by:** `docs/HOW_WE_WORK.md` §6a (the three-tier budget); `tools/kpi_report.py` lru_cache + `tests/test_kpi_report.py` (the memoisation, proven red first); `.github/workflows/site_health.yml` (deployment verification without a founder interrupt); `docs/RECORD.md` R-067/R-068/R-069.

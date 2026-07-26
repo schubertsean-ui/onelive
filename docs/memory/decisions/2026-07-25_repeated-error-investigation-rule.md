@@ -43,3 +43,7 @@ founder(Red) catch, class: routinized-recurring-error. Counter-measure:
 this rule + the recorded-determination requirement. Escape definition:
 any future session found to have repeated the same error 3+ times
 without a recorded root-cause determination.
+
+---
+
+**Codified by:** `docs/OPERATING_RULES.md` §1 and `docs/HOW_WE_WORK.md` §10 ("a repeated error is a finding, not a rhythm"); trended by `tools/kaizen_trends.py::family_alarm`, which blocks on a post-fix recurrence.

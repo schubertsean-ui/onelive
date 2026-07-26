@@ -92,3 +92,7 @@ No gate, threshold, check, test or invariant was loosened. No trust invariant wa
 touched. The new §P rows are marked ENFORCED only where a mechanism already exists
 today; everything else is marked PROPOSED with the mechanism that would make it
 blocking named, exactly as the rest of the bar does.
+
+---
+
+**Codified by:** `CLAUDE.md` prime directive 5 + `docs/BAR.md` §0 and section P (14 measurable rows) + `docs/HOW_WE_WORK.md` §0, which asks the purpose question before the quality bar.

@@ -14,3 +14,7 @@ The 1D trigger (G-BRAIN-1D) fire conditions T1/T2/T3 and the on-fire
 protocol (friction attack → founder, because new infra = money) live in
 docs/strategy/ONE_LIVE_BRAIN_OPTIONS_v1.md §RATIFIED and as a STANDING
 TODOS item ("G-BRAIN-1D trigger watch") so every session's queue carries it.
+
+---
+
+**Codified by:** `brain/` package + `docs/RECORD.md` R-010 (1D deferred behind its standing trigger).

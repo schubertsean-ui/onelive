@@ -82,3 +82,7 @@ enabled.
 Founder confirms (or the deploy sets `AUTO_PUBLISH_RATIFIED=1`) after safeguards
 1–3 are verified live on a preview. Recorded as a live item so the flip is
 deliberate, not a default.
+
+---
+
+**Codified by:** `worker/publish_policy.py` (the decision table, pure + unit-tested) and `CLAUDE.md` prime directive 1's scope note. **Not yet wired, and pending by design** — `worker/autopromote.py` lands with `docs/V1.md` Step 2 in a future change and safeguard 1 is not live until then; tracked as `docs/RECORD.md` R-056, gated on founder ask 3.

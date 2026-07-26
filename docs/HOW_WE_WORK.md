@@ -260,6 +260,49 @@ not a gate — it never passes or fails, and any metric it cannot compute prints
 
 These outrank brevity.
 
+### 11.0 The required shape of every answer (founder directive, 2026-07-26)
+
+Verbatim: *"always — document this and make it permanent — provide me with your
+recommendation, plain language explanations, step by step directions to act,
+implications and tradeoffs. And confirm once a decision is made it has been
+codified in the code and not left in the session."*
+
+**Every founder-facing answer carries four parts, in this order.** This is not a
+template for big decisions only — it is the shape of a normal reply.
+
+| # | Part | The test it must pass |
+|---|---|---|
+| 1 | **Recommendation** | One named option. Would a reader know what you think should happen? *"It's your call"* fails. |
+| 2 | **Plain language** | No unexplained jargon. Would a smart non-engineer follow it on a phone? |
+| 3 | **Steps to act** | Numbered. What to click, where, in what order, how long. Each step marked **founder** or **agent**. |
+| 4 | **Implications and tradeoffs** | Cost of yes, cost of no, and what becomes hard to undo. |
+
+**Confidence goes alongside the recommendation, never instead of it.** Saying "my
+recommendation moved (a) → (d) → (a), read my confidence as moderate" and stopping
+there is a failure of part 1 — it hands the founder the deliberation instead of the
+answer. Report the reversals *and* land on one option.
+
+**Founder-crucial does not excuse omitting the recommendation.** The founder decides;
+the agent still says what it would do and why. Those are different jobs, and only
+the first is reserved.
+
+### 11.1 A decision is not done until it is in the repo
+
+When the founder decides, **the same session** produces all three:
+
+1. the **decision record** in `docs/memory/decisions/`, with the directive verbatim;
+2. the **code, config or gate** that implements it — or, if implementation is
+   staged, a `docs/RECORD.md` row with an objective trigger;
+3. a **`**Codified by:**`** line in the decision record naming the commit, file or
+   gate that carries it.
+
+A decision that exists only in a chat reply **did not happen** — the next session
+starts from disk and will not know. Mechanically enforced by
+`tools/decision_codified_lint.py`, wired into `tools/validate`: a decision record
+with no `Codified by:` line fails the gate.
+
+### 11.2 The standing rules
+
 1. **Plain language.** Assume a smart non-engineer. A one-line explanation beats
    an acronym.
 2. **Why this, not that.** Name the alternative considered and why this won.

@@ -51,6 +51,12 @@ jobs:
           # guards the schedule form of this class; this is the same discipline
           # applied to the pull_request form.
           BASE_URL: ${{ github.event_name == 'pull_request' && 'https://onelive-git-claude-onelive-v1-eval-90b9d1-sss-projects-e4775771.vercel.app' || github.event.inputs.url }}
+          # Defaults to the literal sentinel ABSENT rather than an empty string,
+          # so "no secret configured" is a STATED value the shell can guard and
+          # branch on. GitHub renders an unset secret and a set-but-empty secret
+          # identically, and treating that ambiguity as a value is the empty-env
+          # fail-open class this repo has already hit four times.
+          VERCEL_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS || 'ABSENT' }}
         run: |
           set -uo pipefail
           : "${BASE_URL:?url input missing — the target is required — failing closed}"
@@ -59,9 +65,25 @@ jobs:
             *) echo "::error::url must start with https:// (got '$BASE_URL')"; exit 1 ;;
           esac
 
+          # If the founder has created a Vercel "Protection Bypass for
+          # Automation" secret, use it — that is the ONE action that makes every
+          # future deployment agent-verifiable instead of founder-verifiable.
+          # Absent, the request goes bare and the verdict says so; a missing
+          # secret must never look like a passing check.
+          : "${VERCEL_BYPASS:?VERCEL_BYPASS resolved empty — it must be the secret or the literal ABSENT, never blank — failing closed}"
+          # Assigned unconditionally before any branch: a variable that only
+          # exists down one code path is the same ambiguity in miniature.
+          BYPASS_STATE="ABSENT — no VERCEL_AUTOMATION_BYPASS secret; request sent bare"
+          HDR=()
+          if [ "$VERCEL_BYPASS" != "ABSENT" ]; then
+            HDR=(-H "x-vercel-protection-bypass: ${VERCEL_BYPASS}")
+            BYPASS_STATE="present"
+          fi
+          echo "protection_bypass_secret: $BYPASS_STATE"
+
           echo "=== GET $BASE_URL/api/health ==="
           CODE="$(curl -sS -m 30 -o /tmp/health.body -w '%{http_code}' \
-                    "$BASE_URL/api/health" || echo "000")"
+                    "${HDR[@]}" "$BASE_URL/api/health" || echo "000")"
           echo "http_status: $CODE"
           echo "--- body (first 2000 bytes) ---"
           head -c 2000 /tmp/health.body || true
@@ -74,12 +96,17 @@ jobs:
             200)
               echo "VERDICT: reachable and PUBLIC — a friend with this link can open it."
               ;;
-            401|403)
+            302|307|401|403)
               echo "VERDICT: reachable but GATED — the host answered, and refused."
-              echo "  Either Vercel Deployment Protection is on (a friend sees Vercel's"
-              echo "  login wall, not the product) or the app's own gate is denying."
-              echo "  The body above says which: Vercel's wall is HTML, the app's"
-              echo "  fail-closed gate is JSON from /api/health."
+              echo "  A FRIEND CLICKING THIS LINK CANNOT SEE THE PRODUCT."
+              echo "  302/307 with a 'Redirecting...' body is Vercel Deployment"
+              echo "  Protection bouncing to its SSO login. 401/403 with JSON is the"
+              echo "  app's own fail-closed gate instead. The body above says which."
+              echo "  TO FIX, one of: (1) Vercel → Project → Settings → Deployment"
+              echo "  Protection → disable it for preview, or create a Shareable Link;"
+              echo "  (2) for agent verification only, create a Protection Bypass for"
+              echo "  Automation secret and add it as the VERCEL_AUTOMATION_BYPASS"
+              echo "  repository secret — then this check reads /api/health directly."
               exit 1
               ;;
             000)

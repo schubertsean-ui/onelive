@@ -39,3 +39,7 @@ block is lifted; the gate itself stands unchanged for all future research.
 **Not narrowed by:** provenance honesty, excerpt agreement across sources,
 appendices, or founder-spot-check asks. None of those convert secondary
 material into a primary source.
+
+---
+
+**Codified by:** `docs/OPERATING_RULES.md` §1 + `docs/RECORD.md` R-065, which records the gate actually firing and stopping research rather than caveating it.

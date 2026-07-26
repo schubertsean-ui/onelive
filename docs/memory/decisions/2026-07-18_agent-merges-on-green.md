@@ -73,3 +73,7 @@ same condition so the two never diverge):
    review's evidence step fails closed on it mechanically.
 4. Every other red or pending check still forbids merging — this
    exception names one check's one designed failure mode, nothing more.
+
+---
+
+**Codified by:** `CLAUDE.md` (agent may merge on APPROVED + all-green) and `docs/HOW_WE_WORK.md` §8; the one exception is `docs/EXTRACTION_EXCEPTION.md`, decided by `tools/classify_extraction_surface.py`.

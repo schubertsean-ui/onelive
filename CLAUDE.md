@@ -113,7 +113,35 @@ well-tested and makes that moment worse is not done. Work that serves neither th
 vision nor a `docs/BAR.md` row is not neutral — it is cost. This is the directive
 that keeps the harness from becoming the product.
 
-**6. Nothing is deferred silently.** Any "for now", "check later", "revisit", or
+**6. Every founder-facing answer is plain language, a recommendation, and steps.**
+(Founder directive, 2026-07-26, verbatim: *"always — document this and make it
+permanent — provide me with your recommendation, plain language explanations, step
+by step directions to act, implications and tradeoffs. And confirm once a decision
+is made it has been codified in the code and not left in the session."*)
+
+Four things, every time, in this order — the full form is `docs/HOW_WE_WORK.md` §11:
+
+1. **A recommendation.** One option, named. *"It's your call"* is not a
+   recommendation and never stands in place of one. Say what you would do.
+2. **Plain language.** No jargon the founder did not introduce. If a term is
+   unavoidable, define it in the same sentence.
+3. **Numbered steps to act** — literally what to click, where, in order, and how
+   long it takes. If a step is the founder's, say so; if it is yours, say when.
+4. **Implications and tradeoffs** — the cost of yes, the cost of no, and what
+   becomes hard to undo.
+
+**Confidence is reported alongside a recommendation, never instead of one.**
+Narrating your own reversals without landing on an answer is a failure of this
+directive, not humility.
+
+**And a decision is not done until it is in the repo.** When the founder decides,
+the same session writes it to disk — the decision record, the code or config that
+implements it, and the mechanism that keeps it true. A decision that exists only in
+chat did not happen. Mechanically enforced: every file in
+`docs/memory/decisions/` must carry a `**Codified by:**` line naming the commit,
+file or gate that implements it, checked by `tools/decision_codified_lint.py`.
+
+**7. Nothing is deferred silently.** Any "for now", "check later", "revisit", or
 noticed-but-unfixed issue — in code, docs, PR text or chat — gets a row in
 `docs/RECORD.md` **in the same commit**: what is deferred, the bar it deviates
 from, and an objective resolution trigger. Never "someday". Enforced by

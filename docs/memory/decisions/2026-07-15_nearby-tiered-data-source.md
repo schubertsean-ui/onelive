@@ -42,3 +42,7 @@ placements. OneLive's guarantee covers OneLive's surfaces; the link-out
 destination is disclosed as the provider's, not ours. If Tier 2+ ever
 renders nearby lists in-app, the full guarantee applies to that surface:
 distance sort only, no sponsorship, disputed-venue rules unchanged.
+
+---
+
+**Codified by:** NOTHING YET — the escalation ladder is specified, not built; Nearby is outside the v1 done-criteria in `docs/V1.md`. Trigger: revisit after v1 is live.

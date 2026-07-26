@@ -137,6 +137,9 @@ run_check "deferral_scan" "$PY" tools/deferral_scan.py
 #     and the vars. context (unset==empty, can't fail closed) is banned.
 run_check "workflow_env_lint" "$PY" tools/workflow_env_lint.py
 run_check "governance_claims" "$PY" tools/governance_claims_lint.py
+# Founder directive 2026-07-26: a decision must be codified in the repo, not left
+# in a session. CLAUDE.md prime directive 6.
+run_check "decision_codified" "$PY" tools/decision_codified_lint.py
 
 # 3. Full test suite — must pass. DB-integration tests self-skip without a DSN;
 #    that self-skip is internal to pytest and reported in its own output.

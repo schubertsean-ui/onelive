@@ -40,3 +40,7 @@ code diff and cannot verify a GitHub settings value, so it holds the finding ope
 R-018's trigger: the `master`-only deployment-branch policy MUST be set before
 `ANTHROPIC_API_KEY_EXAM` is ever configured; the runtime proof step keeps every
 exam run fail-closed until it is.
+
+---
+
+**Codified by:** GitHub environment deployment-branch policy (platform config, not a repo file) + `docs/ops/EXAM_ENVIRONMENT_SETUP.md`; runtime-proven at merge of PR #25.

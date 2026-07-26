@@ -20,3 +20,7 @@ changed between proposal and ratification.
 **Effect:** K-LOOP-5 including the amendment is kernel canon; adopting
 projects inherit it via the kernel verbatim. Changing it again is a
 founder decision, per the kernel's own I7.
+
+---
+
+**Codified by:** `docs/KAIZEN.md` (K-LOOP-5 amendment as written) + `tools/kaizen_trends.py`, which trends and blocks on the measures.

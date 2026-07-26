@@ -35,3 +35,7 @@ no recorded founder approval as the gate-custody amendment requires.
 - Any FUTURE change to this value, in either direction, is a new
   founder-crucial decision: down risks unreviewable evidence-rich PRs; up
   risks review dilution. Neither is an agent call.
+
+---
+
+**Codified by:** `tools/adversarial_review.py` cap constant, read by `tools/pr_size_check.py` from the workflow so the two cannot drift.
