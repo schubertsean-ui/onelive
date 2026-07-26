@@ -27,25 +27,12 @@ on:
   # of the deployment that just succeeded, so the check always measures the thing
   # that just shipped, with nothing to keep in sync.
   #
-  # SECRET CUSTODY — why the automatic path is restricted to the default branch.
-  # This job reads `secrets.VERCEL_AUTOMATION_BYPASS`, and the workflow FILE that
-  # runs is the one on the triggering ref. A trigger that fires automatically on
-  # a push to any branch therefore hands a repository secret to a workflow
-  # definition that branch controls: edit the curl target, and the Vercel bypass
-  # is exfiltrated. That is exactly the hole a `pull_request` trigger opened here
-  # (found by the openai/attacker-smuggle and absence-only seats on PR #80), and
-  # `deployment_status` inherits it unchanged, because Vercel deploys every branch.
-  #
-  # BOTH entry points are restricted to the DEFAULT BRANCH, on the job condition
-  # below. An earlier version restricted only `deployment_status` and left
-  # `workflow_dispatch` open on the false premise that a write-access collaborator
-  # could read the secret from the settings page anyway — Actions secret VALUES are
-  # write-only in the UI at every permission level, so dispatching an edited branch
-  # is the only way to extract one. See the job's own comment for the full note.
-  #
-  # Verifying an UNMERGED branch's preview still works and needs no per-branch file:
-  # dispatch from the default branch and pass its URL as the `url` input. The ref
-  # decides which YAML runs; the input decides what gets measured.
+  # SECRET CUSTODY. This job reads `secrets.VERCEL_AUTOMATION_BYPASS`, and GitHub
+  # runs the workflow file from the TRIGGERING REF — so any trigger reachable from
+  # an unreviewed branch hands the secret to YAML that branch controls. Both entry
+  # points are therefore restricted to the default branch on the job condition
+  # below. Verifying an unmerged preview still works: dispatch from the default
+  # branch and pass its URL as the `url` input.
   deployment_status:
   workflow_dispatch:
     inputs:
@@ -62,25 +49,14 @@ concurrency:
 
 jobs:
   check:
-    # THE GUARD IS ON THE JOB, so no trigger path can miss it.
-    #
-    # It used to sit only on the `deployment_status` alternative, which left
-    # `workflow_dispatch` able to run BRANCH-OWNED YAML with the stored secret —
-    # blocked by the openai/absence-only seat on PR #80 as
-    # `CLASS:secret-dispatch-branch-owned-yaml`. The premise that made me stop at
-    # the automatic path was false: I had assumed a write-access collaborator could
-    # read the secret from the settings page anyway, and GitHub Actions secret
-    # VALUES are write-only in the UI at every permission level. Dispatching an
-    # edited branch is therefore the ONLY way to extract that value, which makes it
-    # a privilege boundary rather than defence in depth.
-    #
-    # NOTHING IS LOST. Dispatching from the DEFAULT branch satisfies the guard, and
-    # that is how any preview gets checked — the URL is an INPUT, not the ref. So
-    # verifying an unmerged branch's deployment still takes one dispatch.
-    #
-    # Compared against `github.event.repository.default_branch` rather than a
-    # literal name: renaming the default branch must not silently reopen this, and
-    # an absent field makes the comparison false, which fails CLOSED (no run).
+    # THE GUARD IS ON THE JOB so no trigger path can miss it. It first sat only on
+    # the `deployment_status` alternative, leaving `workflow_dispatch` able to run
+    # branch-owned YAML with the secret (`CLASS:secret-dispatch-branch-owned-yaml`,
+    # PR #80). The premise behind that half-fix was FALSE: Actions secret values are
+    # write-only in the UI at every permission level, so dispatching an edited
+    # branch is the only extraction path — a privilege boundary, not defence in
+    # depth. Compared against `github.event.repository.default_branch`, not a
+    # literal: a rename must not reopen it, and an absent field fails CLOSED.
     if: >-
       (github.event_name == 'workflow_dispatch' &&
        github.ref_name == github.event.repository.default_branch) ||
@@ -185,20 +161,12 @@ jobs:
               ;;
           esac
 
-          # ---------------------------------------------------------------------
-          # THE PRODUCT SURFACE, not just the diagnostic endpoint.
-          #
-          # Until now this workflow read `/api/health` and then printed
-          # "a friend with this link can open it" — a claim about `/tonight` made
-          # from evidence about `/api/health`. A deployment can have a perfectly
-          # healthy diagnostic endpoint while the feed page is blank, 500, or
-          # auth-walled, and this check would have called that PUBLIC. Blocked by
-          # the openai/absence-only seat on PR #80
-          # (`CLASS:missing-product-surface-verification`), and it is right: v1 H7
-          # and P1 evidence has to come from the surface users touch.
-          #
-          # `/` redirects to `/tonight` (web/app/page.tsx), so -L exercises the
-          # redirect a friend actually follows.
+          # THE PRODUCT SURFACE, not just the diagnostic endpoint. This used to
+          # read `/api/health` and then print "a friend with this link can open it"
+          # — a claim about `/tonight` from evidence about a diagnostic endpoint,
+          # which can be healthy while the feed page is blank or auth-walled
+          # (`CLASS:missing-product-surface-verification`, PR #80). `/` redirects to
+          # `/tonight`, so -L exercises the redirect a friend follows.
           echo "=== GET $BASE_URL/ (the product surface a friend lands on) ==="
           FEED_CODE="$(curl -sSL -m 45 -o /tmp/feed.html -w '%{http_code}' \
                         "${HDR[@]}" "$BASE_URL/" || echo "000")"
@@ -211,11 +179,10 @@ jobs:
             echo "endpoint being green is not evidence about the page."
             exit 1
           fi
-          # A 200 that renders nothing is the failure this check exists to catch, so
-          # the page's own masthead has to be present. Chosen because it is server
-          # rendered in every branch of web/app/(public)/tonight/page.tsx — including
-          # the empty-feed and error branches — so this asserts "the page rendered",
-          # never "the page happened to have data".
+          # A 200 that renders nothing is the failure this catches. The masthead is
+          # server-rendered in EVERY branch of tonight/page.tsx (including the
+          # empty-feed and error ones), so this asserts "the page rendered", never
+          # "the page had data".
           if ! grep -q "ONE LIVE" /tmp/feed.html; then
             echo "::error::the feed page returned 200 but did not render its own"
             echo "masthead — a blank or error shell, not the product."
@@ -224,15 +191,11 @@ jobs:
           fi
           echo "feed_surface: RENDERED (masthead present)"
 
-          # ---------------------------------------------------------------------
-          # THE LINK A FRIEND IS ACTUALLY GIVEN.
-          #
-          # Everything above used the bypass HEADER. The docs and docs/V1.md hand
-          # friends a QUERY-PARAMETER link
-          # (?x-vercel-protection-bypass=...&x-vercel-set-bypass-cookie=true), and
-          # header success is not evidence that the link form works — same seat,
-          # `CLASS:missing-friend-bypass-path-check`. This verifies the exact string
-          # the founder sends, with NO header, which is the friend's real conditions.
+          # THE LINK A FRIEND IS ACTUALLY GIVEN. Everything above used the bypass
+          # HEADER; the docs hand friends a QUERY-PARAMETER link, which is a
+          # different code path on Vercel's side
+          # (`CLASS:missing-friend-bypass-path-check`, PR #80). This verifies the
+          # exact published string with NO header — the friend's real conditions.
           # Declared before the branch, like BYPASS_STATE above: a variable that
           # only exists down one code path is the empty-env ambiguity in miniature,
           # and tools/workflow_env_lint.py reads physical lines so an assignment

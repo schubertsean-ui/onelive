@@ -1,20 +1,14 @@
 // EXECUTABLE tests of the access decisions middleware.ts actually makes.
 //
-// WHY THIS FILE EXISTS. The middleware was rewritten on 2026-07-26 to stop
-// importing Clerk at module scope (that import returned HTTP 500 on every
-// non-Clerk deployment, including `/api/health`). The change touched the auth
-// boundary in six places — clerk-mode dispatch, disabled-mode `/ops` denial,
-// the unconfigured fail-closed path, the health exemption, the catch block, and
-// the matcher — and shipped with only STATIC tests: route-pattern unit tests plus
-// a grep asserting no top-level Clerk import. The openai/absence-only seat blocked
-// it on PR #80 as `CLASS:missing-auth-behavior-tests`, correctly: a static check
-// that a file does not contain a string proves nothing about what the file
-// decides. Auth is an invariant, so it needs tests that run the code.
+// The middleware rewrite (stop importing Clerk at module scope, which 500'd every
+// non-Clerk deployment) touched the auth boundary in six places and shipped with
+// only STATIC tests — route-pattern units plus a grep for an absent import.
+// `CLASS:missing-auth-behavior-tests`, PR #80: a check that a file lacks a string
+// proves nothing about what the file DECIDES, and auth is an invariant.
 //
-// The load-bearing constraint on how these are written: `middleware.ts` resolves
-// `authMode()` ONCE at module load, deliberately (env is fixed for a deployment's
-// lifetime). So each mode needs a fresh module instance — hence `vi.resetModules()`
-// and a dynamic `import()` per case, with the environment set BEFORE the import.
+// `middleware.ts` resolves `authMode()` once at module load, deliberately, so each
+// mode needs a fresh module — hence `vi.resetModules()` and a dynamic `import()`
+// per case, with the environment set BEFORE the import.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const AUTH_KEYS = [
@@ -83,9 +77,8 @@ describe("disabled mode — the consumer surface is public, ops is not", () => {
   it.each(["/ops", "/ops/inbox", "/ops/candidate/abc-123"])(
     "DENIES %s with a 404, because no provider can gate it",
     async (path) => {
-      // The invariant from evaluator PR #59: declaring the consumer feed public
-      // must never publish the admin surface. `disabled` means "no app-level
-      // gate", and an ungated /ops is the one thing that must not follow from it.
+      // Evaluator PR #59: declaring the consumer feed public must never publish
+      // the admin surface, and an ungated /ops is what must not follow from it.
       const middleware = await loadMiddleware();
       const res = await middleware(request(path));
       expect(res?.status).toBe(404);
@@ -125,9 +118,8 @@ describe("unconfigured mode — fail closed, but stay diagnosable", () => {
   });
 
   it("keeps /api/health reachable so the misconfiguration can be READ", async () => {
-    // The endpoint that reports why the deployment is broken must not be taken
-    // down by the deployment being broken. This is the exemption that failed on
-    // 2026-07-26 and cost the session hours of guessing.
+    // The endpoint reporting why a deployment is broken must not be taken down by
+    // the deployment being broken — the exemption that failed on 2026-07-26.
     const middleware = await loadMiddleware();
     const res = await middleware(request("/api/health"));
     expect(res?.status).not.toBe(503);
@@ -140,9 +132,9 @@ describe("clerk mode — the gate runs, and only the gate decides", () => {
   });
 
   it("dispatches to the Clerk gate, loading the provider LAZILY", async () => {
-    // Proves both halves of the fix at once: the provider is reachable when the
-    // mode needs it (otherwise the stealth gate is silently dead), and it was not
-    // imported until a request arrived (otherwise every non-Clerk deployment 500s).
+    // Both halves at once: the provider is reachable when the mode needs it (else
+    // the gate is silently dead), and not imported until a request arrives (else
+    // every non-Clerk deployment 500s).
     let constructedAt: "module-load" | "first-request" = "module-load";
     let calls = 0;
     vi.doMock("@clerk/nextjs/server", () => ({
@@ -170,8 +162,7 @@ describe("clerk mode — the gate runs, and only the gate decides", () => {
 
   it("memoises the gate but decides on EACH request's own path", async () => {
     // The closure bug caught during the rewrite: the memoised handler referenced
-    // the FIRST request's object, so every later request was judged against a
-    // stale URL. A gate that answers about the wrong path is worse than no gate.
+    // the FIRST request, so later requests were judged against a stale URL.
     const seen: string[] = [];
     vi.doMock("@clerk/nextjs/server", () => ({
       clerkMiddleware: (handler: unknown) => async (req: unknown) => {
@@ -232,8 +223,8 @@ describe("clerk mode — the gate runs, and only the gate decides", () => {
   });
 
   it("lets the public routes through WITHOUT consulting the session", async () => {
-    // /access and Clerk's own routes must be reachable, or a signed-out or
-    // non-allowlisted user can never reach a page from which to act.
+    // /access and Clerk's own routes must be reachable, or a signed-out user can
+    // never reach a page from which to act.
     let authCalls = 0;
     vi.doMock("@clerk/nextjs/server", () => ({
       clerkMiddleware: (handler: unknown) => async (req: unknown) =>
@@ -256,8 +247,8 @@ describe("clerk mode — the gate runs, and only the gate decides", () => {
 
 describe("the catch block fails CLOSED", () => {
   it("returns 500 — never next() — when the gate itself throws", async () => {
-    // The worst possible reading of a catch on an auth path is "let it through".
-    // If this ever regresses, a crash becomes a silent bypass of the whole gate.
+    // The worst reading of a catch on an auth path is "let it through": a crash
+    // would become a silent bypass of the whole gate.
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
     vi.doMock("@clerk/nextjs/server", () => ({
       clerkMiddleware: () => { throw new Error("boom from the provider"); },
@@ -277,8 +268,7 @@ describe("the catch block fails CLOSED", () => {
 describe("the matcher excludes /api/health and nothing it should not", () => {
   it("is a single pattern that skips health and Next internals", async () => {
     // `"/api/(?!health)(.*)"` is not a valid Next matcher and FAILED THE BUILD
-    // (deployment 2fMJR3Q). Asserting the count keeps the fix from being
-    // "improved" back into a build break.
+    // (deployment 2fMJR3Q); the count keeps it from being "improved" back.
     const mod = await import("./middleware");
     expect(mod.config.matcher).toHaveLength(1);
     const pattern = new RegExp(`^${mod.config.matcher[0]}$`);
@@ -291,12 +281,10 @@ describe("the matcher excludes /api/health and nothing it should not", () => {
   });
 
   it("exempts ONLY /api/health, never a path that merely starts with it", async () => {
-    // An auth fail-open reachable by naming a route. The lookahead used to be a
-    // PREFIX test, so `/api/healthz`, `/api/health-admin` and `/api/health/reset`
-    // skipped this middleware entirely — measured against a real `next start`
-    // build in the fail-closed (unconfigured) mode, where they were served by
-    // Next's 404 handler with no auth check at all instead of the middleware's
-    // 503. Two independent reviewer seats caught it on PR #80.
+    // An auth fail-open reachable by naming a route. The lookahead was a PREFIX
+    // test, so `/api/healthz` and `/api/health-admin` skipped this middleware —
+    // MEASURED against a real `next start` build in fail-closed mode, where they
+    // were served by Next's 404 handler with no auth check at all. Two seats, #80.
     const mod = await import("./middleware");
     const pattern = new RegExp(`^${mod.config.matcher[0]}$`);
     for (const path of [

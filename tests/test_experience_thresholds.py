@@ -1,17 +1,12 @@
 """Tests for tools/experience_thresholds.py — judging the experience users get.
 
-v1 done-criterion 4 / BAR E1–E4, P2. The tool shipped without these, and three
-independent reviewer lenses on PR #80 blocked on it
-(`CLASS:unwired-untested-judge`, `CLASS:missing-gate-caller`,
-`CLASS:untested-new-tool`, `CLASS:missing-tests-for-new-tool`). All four are the
-same finding: a gate-shaped tool with no caller and no test is a claim, not a
-mechanism.
+v1 done-criterion 4 / BAR E1–E4, P2. The tool shipped with no caller and no
+tests; three reviewer lenses on PR #80 blocked on it as the same finding — a
+gate-shaped tool nothing runs is a claim, not a mechanism.
 
-The property tested hardest is the one that makes this a gate rather than a
-report: **an absent measurement is EXIT 2, never a pass.** A judge that reports
-success over a metric it did not read is the false-confidence class this repo
-keeps catching, and it is worse here than elsewhere because the numbers it prints
-are the ones the founder would quote.
+The property tested hardest: **an absent measurement is EXIT 2, never a pass.** A
+judge reporting success over a metric it did not read is the false-confidence
+class this repo keeps catching, and worse here because these numbers get quoted.
 """
 from __future__ import annotations
 
@@ -103,9 +98,8 @@ def test_unparseable_json_is_a_tool_error(tmp_path):
 
 @pytest.mark.parametrize("metric", sorted(ET.THRESHOLDS))
 def test_an_absent_metric_is_exit_2_never_a_silent_within_bar(tmp_path, metric):
-    """The core property. A report that simply lacks LCP must not be graded as
-    fast — that is a fabricated measurement, and the most convincing kind because
-    the other rows in the table are real."""
+    """A report lacking LCP must not be graded as fast — a fabricated measurement,
+    and the convincing kind, because the other rows are real."""
     report = _lh()
     del report["audits"][metric]
     assert _run(tmp_path, report, _axe()) == 2
@@ -130,9 +124,8 @@ def test_an_axe_report_of_an_unknown_shape_is_exit_2(tmp_path):
 
 
 def test_a_non_object_violation_entry_is_exit_2_not_a_crash(tmp_path):
-    """`violation.get` on a string raises AttributeError, which would escape as a
-    traceback instead of the JudgeError this tool promises. Every unreadable report
-    has to arrive as exit 2 (reviewer nit, PR #80)."""
+    """`violation.get` on a string raises AttributeError, escaping as a traceback
+    instead of the JudgeError this tool promises (PR #80)."""
     for bad in (["not-a-dict"], [42], [None], [["nested"]]):
         assert _run(tmp_path, _lh(), [{"violations": bad}]) == 2, bad
     # A non-list `violations` too.
@@ -198,9 +191,8 @@ def test_a_failing_run_refuses_to_offer_widening_as_a_remedy(tmp_path, capsys):
 
 # ------------------------------------------------------------------ it is WIRED
 def test_the_workflow_this_tool_names_actually_exists():
-    """The blocker itself: the docstring named a measurement workflow that was not
-    in the tree, so the judge had nothing feeding it. "No dead code. A module
-    nothing can reach is not done: wire it or delete it." (CLAUDE.md)"""
+    """The blocker itself: the docstring named a workflow that was not in the tree,
+    so the judge had nothing feeding it. Wire it or delete it (CLAUDE.md)."""
     named = ET.__doc__ or ""
     assert ".github/workflows/experience_metrics.yml" in named
     workflow = _ROOT / ".github" / "workflows" / "experience_metrics.yml"
@@ -219,9 +211,8 @@ def test_the_workflow_invokes_this_tool_with_both_required_reports():
 
 
 def test_the_workflow_lets_the_judge_decide_not_the_axe_exit_code():
-    """`axe` exits non-zero when it finds violations, so a bare invocation would
-    end the job before the judge ran and no measurement would ever be printed.
-    The report's ABSENCE must still fail, though — hence the explicit test -f."""
+    """`axe` exits non-zero on violations, so a bare invocation would end the job
+    before the judge ran. The report's ABSENCE must still fail, though."""
     text = (_ROOT / ".github" / "workflows" / "experience_metrics.yml").read_text(
         encoding="utf-8")
     assert "|| true" in text
@@ -267,9 +258,9 @@ def test_the_workflow_resolves_chromedriver_instead_of_assuming_an_env_var():
 
 
 def test_the_workflow_does_not_upload_the_raw_reports():
-    """The bypass secret travels in the query string (the only form @axe-core/cli
-    accepts), so Lighthouse's report embeds it in `requestedUrl`. Uploading that
-    artefact would publish the secret to anyone who can read the run."""
+    """The bypass travels in the query string (the only form @axe-core/cli takes),
+    so Lighthouse's report embeds it in `requestedUrl` — uploading that artefact
+    would publish the secret to anyone who can read the run."""
     text = (_ROOT / ".github" / "workflows" / "experience_metrics.yml").read_text(
         encoding="utf-8")
     assert "upload-artifact" not in text
@@ -278,13 +269,9 @@ def test_the_workflow_does_not_upload_the_raw_reports():
 
 
 def test_the_workflow_measures_the_FEED_not_the_redirect_stub():
-    """`CLASS:missing-product-surface-verification` (openai/absence-only, PR #80).
-
-    `/` is a 135-byte redirect (web/app/page.tsx calls redirect("/tonight")) and
-    `/tonight` is the 6.6 kB page users read. Measuring the base URL would score
-    the stub and report E1-E4/P2 as met with the real feed untested — a gate
-    certifying the wrong page, which is worse than no gate.
-    """
+    """`CLASS:missing-product-surface-verification` (PR #80). `/` is a 135-byte
+    redirect; `/tonight` is the 6.6 kB page users read. Measuring the base URL
+    would report E1-E4/P2 met with the real feed untested."""
     text = (_ROOT / ".github" / "workflows" / "experience_metrics.yml").read_text(
         encoding="utf-8")
     assert 'PAGE_PATH="/tonight"' in text
@@ -296,9 +283,8 @@ def test_the_workflow_measures_the_FEED_not_the_redirect_stub():
 
 
 def test_the_measuring_tools_are_version_pinned():
-    """Unpinned, a bar "met" in July silently fails in August with no code change:
-    a Lighthouse minor can move LCP scoring, and this gate compares a measurement
-    to a FIXED bar (reviewer nit, PR #80)."""
+    """A Lighthouse minor can move LCP scoring, and this gate compares against a
+    FIXED bar — unpinned, a bar met in July silently fails in August (PR #80)."""
     text = (_ROOT / ".github" / "workflows" / "experience_metrics.yml").read_text(
         encoding="utf-8")
     install = next(line for line in text.splitlines()

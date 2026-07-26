@@ -3,29 +3,23 @@ name: experience-metrics
 # Measures the part users actually touch — load time, layout stability, blocking
 # time and WCAG 2.2 AA — and judges it against the BAR's own numbers.
 #
-# v1 done-criterion 4 / BAR E1–E4 and P2. Before this, `tools/experience_thresholds.py`
-# named this workflow in its own docstring and the workflow did not exist: a judge
-# with no measurement feeding it, which three independent reviewer lenses on PR #80
-# correctly called an unwired gate surface (`CLASS:unwired-untested-judge`,
-# `CLASS:missing-gate-caller`, `CLASS:untested-new-tool`). "Wire it or delete it."
+# v1 done-criterion 4 / BAR E1–E4 and P2. `tools/experience_thresholds.py` named
+# this workflow in its own docstring while the workflow did not exist — a judge with
+# nothing feeding it, which three reviewer lenses on PR #80 called an unwired gate
+# surface. Wire it or delete it.
 #
-# It runs here rather than in an agent session for the same reason import_licensed
-# and site_health do: a GitHub runner has a browser AND open egress, and the
-# sandbox has neither.
+# It runs here, not in a session, for the same reason import_licensed does: a runner
+# has a browser AND open egress; the sandbox has neither.
 #
-# THE LOAD BAR IS THE BRIEF'S 2.0 s, not Core Web Vitals' 2.5 s. The stricter
-# number wins; widening it is founder-crucial. The threshold lives in
-# tools/experience_thresholds.py, tested, not in this file.
+# THE LOAD BAR IS THE BRIEF'S 2.0 s, not Core Web Vitals' 2.5 s. Widening it is
+# founder-crucial. The threshold lives in the tool, tested, not in this file.
 
 on:
-  # SECRET CUSTODY — identical rule to site_health.yml, and enforced for both by
-  # tests/test_workflow_secret_custody.py. This job reads
-  # VERCEL_AUTOMATION_BYPASS to reach a protection-gated deployment, and the
-  # workflow FILE that executes is the one on the triggering ref. So EVERY path —
-  # dispatch included — is restricted to the default branch on the job condition
-  # below. Measuring an unmerged branch's preview means dispatching from the default
-  # branch with that preview's URL as the `url` input: the ref decides which YAML
-  # runs, the input decides what gets measured.
+  # SECRET CUSTODY — identical rule to site_health.yml, enforced for both by
+  # tests/test_workflow_secret_custody.py. This job reads VERCEL_AUTOMATION_BYPASS,
+  # and GitHub runs the file from the triggering ref, so EVERY path (dispatch
+  # included) is default-branch-only on the job condition below. Measuring an
+  # unmerged preview means dispatching from the default branch with its URL.
   deployment_status:
   workflow_dispatch:
     inputs:
@@ -42,25 +36,10 @@ concurrency:
 
 jobs:
   measure:
-    # THE GUARD IS ON THE JOB, so no trigger path can miss it.
-    #
-    # It used to sit only on the `deployment_status` alternative, which left
-    # `workflow_dispatch` able to run BRANCH-OWNED YAML with the stored secret —
-    # blocked by the openai/absence-only seat on PR #80 as
-    # `CLASS:secret-dispatch-branch-owned-yaml`. The premise that made me stop at
-    # the automatic path was false: I had assumed a write-access collaborator could
-    # read the secret from the settings page anyway, and GitHub Actions secret
-    # VALUES are write-only in the UI at every permission level. Dispatching an
-    # edited branch is therefore the ONLY way to extract that value, which makes it
-    # a privilege boundary rather than defence in depth.
-    #
-    # NOTHING IS LOST. Dispatching from the DEFAULT branch satisfies the guard, and
-    # that is how any preview gets checked — the URL is an INPUT, not the ref. So
-    # verifying an unmerged branch's deployment still takes one dispatch.
-    #
-    # Compared against `github.event.repository.default_branch` rather than a
-    # literal name: renaming the default branch must not silently reopen this, and
-    # an absent field makes the comparison false, which fails CLOSED (no run).
+    # The guard is on the JOB so no trigger path can miss it — see site_health.yml
+    # for the full note on why the dispatch path needs it too. Compared against
+    # `github.event.repository.default_branch`, not a literal: a rename must not
+    # reopen it, and an absent field fails CLOSED.
     if: >-
       (github.event_name == 'workflow_dispatch' &&
        github.ref_name == github.event.repository.default_branch) ||
@@ -79,12 +58,9 @@ jobs:
           node-version: "20"
 
       - name: Install the measuring tools
-        # PINNED. An unpinned global install makes the numbers a function of
-        # whatever the registry served that morning: a Lighthouse minor can move
-        # LCP scoring, and this gate's whole job is to compare a measurement to a
-        # fixed bar. Unpinned, a bar "met" in July can silently fail in August with
-        # no code change (reviewer nit, openai seat, PR #80). Bumping either version
-        # is a deliberate act whose effect on the recorded numbers gets reviewed.
+        # PINNED: a Lighthouse minor can move LCP scoring, and this gate compares a
+        # measurement to a FIXED bar — unpinned, a bar met in July silently fails in
+        # August with no code change (PR #80).
         run: npm install --no-fund --no-audit -g lighthouse@12.8.2 @axe-core/cli@4.10.2
 
       - name: Measure and judge against the BAR
@@ -104,23 +80,16 @@ jobs:
           esac
           : "${VERCEL_BYPASS:?VERCEL_BYPASS resolved empty — it must be the secret or the literal ABSENT, never blank}"
 
-          # Vercel's documented bypass accepts the secret as a QUERY PARAMETER as
-          # well as a header, which is what lets both tools through one gate:
-          # lighthouse takes --extra-headers, @axe-core/cli does not.
-          #
-          # The consequence is stated rather than discovered later: the secret is
-          # then inside the URL, so it appears in Lighthouse's own JSON report
-          # (`requestedUrl`). That is exactly why NO artifact is uploaded from this
-          # job — the judged table goes to the step summary, which contains
-          # measurements only. GitHub masks the secret in log output.
-          # MEASURE `/tonight`, THE FEED — not the deployment's base URL.
-          #
-          # `/` is a 135-byte redirect stub (web/app/page.tsx calls redirect()), and
-          # `/tonight` is the 6.6 kB page users actually read. Measuring the base URL
-          # would have scored the redirect and reported E1-E4/P2 as met while the real
-          # feed was untested — blocked by the openai/absence-only seat on PR #80 as
-          # `CLASS:missing-product-surface-verification`. A gate that does not cover
-          # its own done-criterion is worse than no gate: it certifies the wrong page.
+          # The bypass goes in a QUERY PARAMETER, not a header: lighthouse takes
+          # --extra-headers, @axe-core/cli does not, and one form serves both. The
+          # consequence, stated rather than discovered later: the secret then
+          # appears in Lighthouse's `requestedUrl`, which is why NO artifact is
+          # uploaded — the judged table goes to the step summary, measurements only.
+          # MEASURE `/tonight`, THE FEED. `/` is a 135-byte redirect stub; the feed
+          # is the 6.6 kB page users read. Measuring the base URL would have scored
+          # the redirect and reported E1-E4/P2 met with the real feed untested
+          # (`CLASS:missing-product-surface-verification`, PR #80) — a gate
+          # certifying the wrong page.
           PAGE_PATH="/tonight"
           TARGET="${BASE_URL}${PAGE_PATH}"
           if [ "$VERCEL_BYPASS" != "ABSENT" ]; then
@@ -135,20 +104,17 @@ jobs:
             --quiet --output=json --output-path=/tmp/lh.json \
             --only-categories=performance,accessibility \
             --chrome-flags="--headless=new --no-sandbox --disable-dev-shm-usage"
-          # Checked as its own statement rather than with a `|| { ...; exit 1; }`
-          # tail on the continuation line above: tools/workflow_env_lint.py reads
+          # Its own statement, not a `|| { exit 1; }` tail: workflow_env_lint reads
           # physical lines, so a terminator on a `||` continuation reads as an
-          # UNCONDITIONAL exit and every later assignment stops crediting (R-073).
+          # unconditional exit and later assignments stop crediting (R-073).
           if [ ! -s /tmp/lh.json ]; then
             echo "::error::lighthouse produced no report"
             exit 1
           fi
 
-          # chromedriver is RESOLVED, not assumed. The runner exports
-          # $CHROMEWEBDRIVER, but depending on an ambient variable is the
-          # empty-env class this repo has hit four times — and tools/workflow_env_lint.py
-          # correctly failed this workflow for consuming it with no visible source.
-          # Look it up, and fail closed if it is not there.
+          # chromedriver is RESOLVED, not assumed: depending on the runner's ambient
+          # variable is the empty-env class this repo has hit four times, and
+          # workflow_env_lint correctly failed this workflow for consuming it.
           CHROMEDRIVER="$(command -v chromedriver || true)"
           : "${CHROMEDRIVER:?chromedriver not on PATH — cannot run axe, failing closed rather than skipping the accessibility half}"
 
@@ -165,10 +131,9 @@ jobs:
             exit 1
           fi
 
-          # Captured with $? from a direct invocation rather than PIPESTATUS after a
-          # `tee`: a pipeline's exit status is the LAST command's, so piping the
-          # judge into tee would replace its verdict with tee's unconditional 0 —
-          # a blocking gate silently demoted to a report.
+          # $? from a direct invocation, not PIPESTATUS after a `tee`: a pipeline's
+          # status is the LAST command's, so piping into tee would replace the
+          # judge's verdict with tee's unconditional 0 — a gate demoted to a report.
           STATUS=0
           python3 tools/experience_thresholds.py \
             --lighthouse /tmp/lh.json --axe /tmp/axe.json > /tmp/judged.md 2>&1 \

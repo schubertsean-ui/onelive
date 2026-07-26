@@ -1,37 +1,21 @@
 """Who owns the YAML that a repository secret is handed to.
 
-THE DEFECT CLASS, in one sentence: the workflow FILE that GitHub executes is the
-one on the triggering ref, so a trigger that fires automatically on a push to any
-branch hands repository secrets to a workflow definition that branch controls.
-Edit the curl target in the PR, and the secret leaves the repo.
+THE CLASS: GitHub executes the workflow file on the TRIGGERING REF, so a trigger
+reachable from an unreviewed branch hands repository secrets to YAML that branch
+controls. Edit the curl target, and the secret leaves the repo. Found on PR #80
+against `site_health.yml` by two lenses; this test scans EVERY workflow so the
+class is enumerated rather than the one instance fixed.
 
-Found on PR #80 by two independent reviewer lenses (openai/attacker-smuggle as
-`CLASS:secret-exfiltration-pr-workflow`, openai/absence-only as
-`CLASS:secret-in-pr-owned-workflow`) against `site_health.yml`, which had a
-`pull_request` trigger and read `secrets.VERCEL_AUTOMATION_BYPASS`. Fixing only
-that file would have left the class unenumerated, which is the failure mode this
-repo has hit repeatedly — so this test scans EVERY workflow and requires each
-instance to be either safe by construction or listed below with a reason.
+A CLAIM THIS FILE USED TO MAKE, AND WHICH WAS FALSE — kept because it is why the
+first fix stopped at `pull_request` and left `workflow_dispatch` open. It said
+exposure was only to push-access actors "who can generally read the same secrets
+from the settings page". **Actions secret VALUES are write-only in the UI at every
+permission level.** Nobody reads them back, so this is a privilege boundary, not
+defence in depth, and `workflow_dispatch` belongs in the risky set.
 
-A CLAIM THIS FILE USED TO MAKE, AND WHICH WAS FALSE. The first version said the
-exposure was only to "actors with push access, who can generally read the same
-secrets from the settings page, meaning this is defence in depth rather than a
-privilege boundary." The openai/absence-only seat corrected it on the next round
-and is right: **GitHub Actions secret VALUES are write-only in the UI.** No
-collaborator, at any permission level, can read them back. So a workflow that
-hands a secret to branch-owned YAML is not defence in depth — it is the only way
-to extract that value, and it IS a privilege boundary. The correction is recorded
-here rather than quietly edited out, because the false premise is what made the
-first fix stop at `pull_request` and leave `workflow_dispatch` open.
-
-`workflow_dispatch` is therefore IN the risky set. It requires write access, but
-the file it runs is the one on the ref the dispatcher picks, so an unreviewed
-branch plus one dispatch is a complete exfiltration path.
-
-THE REAL LIMIT, which is a limit on what any table here can achieve: a write-access
-actor can also merge to the default branch, or push to it if it is unprotected. So
-this gate shrinks the paths, it does not close the category. What it does close is
-the accidental one — a secret quietly reachable from YAML nobody reviewed.
+THE REAL LIMIT: a push-access actor can also merge to the default branch. This
+gate shrinks the paths; it does not close the category. What it closes is the
+accidental one — a secret quietly reachable from YAML nobody reviewed.
 """
 from __future__ import annotations
 
@@ -44,18 +28,12 @@ import yaml
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _WORKFLOWS = _ROOT / ".github" / "workflows"
 
-# Triggers that execute the YAML from a ref the triggering party can choose or
-# influence — the property that matters, which is NOT the same as "automatic".
-#
-# `workflow_dispatch` is here despite requiring write access, because secret values
-# cannot be read from the settings UI at any permission level (see the module
-# docstring): dispatching an edited branch is a complete exfiltration path, not a
-# convenience. That correction is why this set is named for OWNERSHIP rather than
-# automation, as the first version was.
-#
-# `schedule` is absent because GitHub only ever runs the default branch's copy.
-# `pull_request_target` is absent because it deliberately runs the BASE copy —
-# that is the fix, not the bug.
+# Triggers that execute the YAML from a ref the triggering party can choose — the
+# property that matters, which is why this set is named for OWNERSHIP rather than
+# "automatic" as the first version was. `workflow_dispatch` is here despite needing
+# write access (see the docstring). `schedule` is absent: GitHub only runs the
+# default branch's copy. `pull_request_target` is absent: it runs the BASE copy,
+# which is the fix, not the bug.
 BRANCH_OWNED_TRIGGERS = frozenset({
     "push", "pull_request", "deployment", "deployment_status", "workflow_dispatch",
 })
@@ -69,14 +47,11 @@ NOT_A_STORED_SECRET = frozenset({"GITHUB_TOKEN"})
 # silent omission. A NEW entry in this table is a decision someone has to write
 # down; a new instance NOT in this table fails the test.
 _DISPATCH_OPERATIONAL = (
-    "Dispatching this from a feature branch is a REAL operation people perform — "
-    "the founder and the agent both run the importers by hand to seed or repair the "
-    "feed, and that is how the 1,532-event feed got there. A default-branch guard "
-    "would break the operation to close a path a write-access actor has by other "
-    "means anyway (they can merge to the default branch). Enumerated here with the "
-    "reason rather than left invisible, and tracked as R-075 whose trigger is "
-    "narrowing these to an environment with required reviewers — which closes the "
-    "path WITHOUT removing the capability."
+    "Dispatching from a feature branch is a REAL operation: the importers get run by "
+    "hand to seed or repair the feed, and that is how the 1,532-event feed got there. "
+    "A default-branch guard would break the operation to close a path a push-access "
+    "actor has anyway. Tracked as R-075, whose fix is a GitHub environment with "
+    "required reviewers — closing the path WITHOUT removing the capability."
 )
 
 # Accepted instances, each with the reason it is not fixed here rather than a silent
@@ -176,15 +151,12 @@ def test_a_stored_secret_is_never_handed_to_branch_owned_yaml_automatically(path
 
 @pytest.mark.parametrize("name", ["site_health.yml", "experience_metrics.yml"])
 def test_the_bypass_reading_workflows_guard_EVERY_path_including_dispatch(name):
-    """`CLASS:secret-dispatch-branch-owned-yaml` (openai/absence-only, PR #80 r3).
+    """`CLASS:secret-dispatch-branch-owned-yaml` (PR #80 r3).
 
-    The first fix narrowed only the automatic `deployment_status` path and left
-    `workflow_dispatch` able to run branch-owned YAML with the secret. Both of
-    these workflows read VERCEL_AUTOMATION_BYPASS, so the guard has to sit where
-    NO path can miss it — on the job condition itself, not on one branch of it.
-
-    Nothing is lost: dispatching from the DEFAULT branch satisfies the guard, and
-    that is how any preview gets measured (the URL is an input, not the ref).
+    The first fix narrowed only `deployment_status`, leaving `workflow_dispatch`
+    able to run branch-owned YAML with the secret. The guard has to sit where no
+    path can miss it — the job condition, not one branch of it. Nothing is lost:
+    dispatching from the default branch satisfies it, and the URL is an input.
     """
     path = _WORKFLOWS / name
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))

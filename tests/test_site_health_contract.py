@@ -1,23 +1,16 @@
 """What `site_health.yml` must actually verify before it says a friend can look.
 
-This workflow is the project's go/no-go for a real test: `docs/V1.md`, `TODOS.md`
-and bar row H7 all cite its output as evidence. So the thing it MEASURES has to be
-the thing the evidence CLAIMS, and for two rounds it was not.
+This workflow is the go/no-go for a real test — `docs/V1.md`, `TODOS.md` and bar
+row H7 all cite its output as evidence — so what it MEASURES has to be what the
+evidence CLAIMS. Two PR #80 findings, same seat: it read `/api/health` and printed
+*"a friend with this link can open it"* (`CLASS:missing-product-surface-verification`
+— a healthy diagnostic endpoint says nothing about a blank or auth-walled feed
+page), and it proved the bypass HEADER while the docs hand friends a
+QUERY-PARAMETER link (`CLASS:missing-friend-bypass-path-check`).
 
-Round 1 (PR #80, openai/absence-only, `CLASS:missing-product-surface-verification`):
-it read `/api/health` and then printed *"a friend with this link can open it"* — a
-claim about `/tonight` made from evidence about a diagnostic endpoint. A deployment
-can serve a healthy `/api/health` while the feed page is blank, 500 or auth-walled.
-
-Round 1 also, same seat (`CLASS:missing-friend-bypass-path-check`): it proved the
-bypass HEADER worked, while the docs hand friends a QUERY-PARAMETER link. Header
-success is not evidence about the link form, and the link is what gets sent.
-
-These are text assertions on the workflow rather than executions of it, and that
-limit is stated rather than implied: this file cannot prove the curl commands
-behave: only that the checks exist, are wired to the right URLs, and fail closed.
-The behaviour is proven by the workflow's own runs, whose output `docs/V1.md`
-quotes verbatim.
+THE LIMIT, stated: these are text assertions on the workflow, not executions of
+it. They prove the checks exist, target the right URLs and fail closed — not that
+curl behaves. That is proven by the workflow's own runs, quoted in `docs/V1.md`.
 """
 from __future__ import annotations
 

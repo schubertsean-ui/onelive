@@ -1,195 +1,97 @@
 # ONE LIVE — CHANGE LOG
 
-## 2026-07-26 (same session) — round three: the reviewer corrected a fact, not just code
+## 2026-07-26 (same session) — the site is public with 1,532 events; 17 reviewer blockers closed
 
-Eight blockers on `2ea520f`. Seven were real and are fixed as classes; one did not
-survive verification and is answered with the measurement rather than an argument.
-
-### The one that mattered most, because it corrected me rather than the code
-
-I had left `workflow_dispatch` able to hand `VERCEL_AUTOMATION_BYPASS` to
-branch-owned YAML, and justified it in a comment: a write-access collaborator "can
-already read the secret from the settings page, so the dispatch grants nothing new."
-**That is false.** GitHub Actions secret VALUES are write-only in the UI at every
-permission level — nobody can read them back. So dispatching an edited branch is the
-*only* way to extract one, which makes it a privilege boundary, not defence in depth.
-
-The guard moved onto the **job condition**, where no trigger path can miss it, in
-both `site_health.yml` and `experience_metrics.yml`. Nothing was lost: dispatching
-from the default branch satisfies it, and the preview URL is an input, not the ref.
-`workflow_dispatch` joined the custody test's risky-trigger set, which surfaced six
-pre-existing schedule+dispatch workflows — enumerated in ACCEPTED with a shared
-reason and **R-075** (dispatching an importer from a branch is a real operation; the
-fix is a GitHub environment with required reviewers, which closes the path without
-removing the capability), rather than left invisible.
-
-The false premise is recorded in the test's own docstring, not edited out, because
-it is what made the first fix stop halfway.
-
-### An auth fail-open reachable by naming a route
-
-Two seats independently found that the middleware matcher excluded any path
-*beginning* `api/health`. Measured both ways against a real `next start` build in
-fail-closed mode:
-
-- **without** the anchor: `/api/healthz`, `/api/health-admin`, `/api/health/reset`
-  were served by Next's 404 handler — middleware never ran, no auth check at all
-- **with** `api/health$`: those paths get the middleware's 503, and `/api/health`
-  still reaches its route
-
-Five negative pattern cases and three runtime cases now pin it.
-
-### Evidence that matched its own claim
-
-`site_health.yml` read `/api/health` and then printed *"a friend with this link can
-open it"* — a claim about `/tonight` from evidence about a diagnostic endpoint. It
-now fetches the product surface, follows the `/` → `/tonight` redirect a friend
-follows, and greps the page's own masthead (chosen because every branch of the page
-renders it, so this proves *the page rendered*, not *the page had data*). It also
-verifies the **exact query-parameter link string** friends are sent — the header form
-is a different code path on Vercel's side and proved nothing about the link.
-`tests/test_site_health_contract.py` binds the published form to the verified form so
-they cannot drift, and it caught that `docs/V1.md` had no copy of that link at all.
-
-`experience_metrics.yml` was measuring `/` — a 135-byte redirect stub — and would
-have reported E1–E4/P2 met with the real 6.6 kB feed untested. It measures
-`/tonight` now, with pinned Lighthouse and axe versions so a bar met in July cannot
-silently fail in August.
-
-### Three smaller real ones
-
-`_resolve_import_from` recorded only the package for `from pkg import module`, so a
-module imported that way read as dead code. `watchdog_check` interpolated an
-unvalidated `repo` argument into API paths. `judge_axe` would raise AttributeError
-instead of its own JudgeError on a non-object violation entry.
-
-### The finding that was not real, verified rather than argued
-
-`GHSA-qx2v-qp2m-jg93` was reported as an unmanaged **high** PostCSS advisory the SCA
-gate was green over. It is **moderate** — `npm audit --omit=dev` confirms it — and
-npm reports node-level severity as the MAX across a package's advisories, which is
-easy to misattribute. The gate was behaving to its declared policy. But a boundary a
-careful reader can misplace will be misread again, so the gate now **prints its own
-out-of-scope set**: the silent scope became a stated one. That blocks nothing and
-relaxes nothing.
-
-`bash tools/validate`: every blocking check PASS. 1,922 pytest and 100 vitest cases.
-
-## 2026-07-26 (same session) — THE SITE IS UP AND PUBLIC, and nine reviewer blockers close as classes
-
-**The measurement this whole session was chasing.** `site-health` run
+**The measurement.** `site-health` run
 [30217359539](https://github.com/schubertsean-ui/onelive/actions/runs/30217359539)
 read `/api/health` on the deployed preview with the founder's new bypass secret:
+`http_status: 200`, `supabase.reachable: true`, **`eventCount: 1532`**, verdict
+PUBLIC. A friend with the link can open the site.
 
-```
-protection_bypass_secret: present
-http_status: 200
-{"ok":true,...,"supabase":{...,"reachable":true,"eventCount":1532},"vercelEnv":"preview"}
-VERDICT: reachable and PUBLIC — a friend with this link can open it.
-event_count: 1532
-```
+Closes `docs/V1.md` **ask 6**, Steps 4b/4c and **R-068**. Unblocks done-criteria
+**6** and **7**, which could not begin without a URL a stranger can open. **Nothing
+in the founder's queue blocks go-live** — the two remaining asks (Anthropic cap; one
+word on the auto-publish ratification) are off the critical path. Bar **H7** reads
+NOT MET for one reason only: the URL is a branch alias that dies on merge (**R-070**,
+trigger = the merge).
 
-A friend with the link can open the site, and **the feed holds 1,532 events**. That
-closes `docs/V1.md` **ask 6**, **Step 4b**, **Step 4c** and **R-068**, and it unblocks
-done-criteria **6** and **7**, neither of which could begin without a URL a stranger
-can open. Bar row **H7** still reads NOT MET for exactly one remaining reason — the URL
-is a branch alias that dies on merge (**R-070**), whose trigger is the merge itself.
+**v1 criterion 4's machine half now exists.** `.github/workflows/experience_metrics.yml`
+runs Lighthouse + axe on a runner against `/tonight`, judged by
+`tools/experience_thresholds.py` against the brief's **2.0 s** (not Core Web Vitals'
+2.5 s), with pinned tool versions and 31 tests. The judge had named this workflow in
+its own docstring while the workflow did not exist.
 
-### The founder's queue
+### Reviewer blockers, closed as classes
 
-**Nothing in it blocks go-live.** Two asks remain: ask 2 (the Anthropic cap — no v1
-criterion depends on it) and ask 3 (one word on the auto-publish ratification, needed
-before criterion 2 ships, not before friends test).
+Three panel rounds, two seats, four lenses. Sixteen real, one not.
 
-### Nine independent-reviewer blockers, closed as CLASSES not instances
+| Class | What it was |
+|---|---|
+| `secret-exfiltration-pr-workflow` ·5 | `site_health.yml` handed `VERCEL_AUTOMATION_BYPASS` to branch-owned YAML — first via `pull_request`, then still via `workflow_dispatch` after a half-fix. The guard now sits on the **job condition** so no path misses it, and `tests/test_workflow_secret_custody.py` scans every workflow, with accepted exceptions named (**R-072**, **R-075**) |
+| `auth-prefix-exemption` ·2 seats | The middleware matcher excluded any path *beginning* `api/health`. **Measured** against a real `next start` build: without the anchor, `/api/healthz` and `/api/health-admin` were served by Next's 404 handler with **no auth check at all**; with `api/health$` they get the fail-closed 503 |
+| `unvalidated-escape-closure` ·3 | The M3 absolute-zero alarm accepted any non-placeholder prose as a closed gate gap — `fixed` typed in a column turned it green. Closure now requires a citation that **resolves** on disk or a real RECORD row |
+| `missing-product-surface-verification` ·2 | `site_health` claimed *"a friend can open it"* from `/api/health` alone; `experience_metrics` measured `/`, a 135-byte redirect stub, instead of the feed |
+| `missing-friend-bypass-path-check` | The bypass **header** was proven; the query-parameter **link** friends are sent was not. Now verified as the exact published string, bound to the docs by test |
+| `incomplete-workflow-surface-scan` ·3 | Recurrence: dot-only `inputs.x` matching missed `inputs['x']`; line-regex schedule detection missed `"schedule":` and inline mappings — in both the contract test and the watchdog |
+| `unwired-untested-judge` ·4 | `tools/experience_thresholds.py` had no caller and no tests |
+| `missing-auth-behavior-tests` | The middleware rewrite shipped with static greps. 25 executable tests now |
+| `false-confidence-gate` | `health_check`'s BAR-rows baseline rendered `0` for unmeasured — the **second** site of a defect fixed hours earlier at the first |
+| `swallowed-http-error` | `check_console_links` folded 5xx into AUTH and exited 0 |
+| `dead-module-detector-false-positive` | `from pkg import module` recorded only the package, so a module imported that way read as dead |
+| `dataflow-taint-unvalidated-input` | `watchdog_check` interpolated an unvalidated `repo` into API paths |
+| `contradictory-live-config-state` ·2 | Four documents disagreed about whether the bypass secret existed |
+| `auth-prefix-exemption` (route_match) | Route prefixes matched at any character, making `/sign-inevil` a **public** route |
 
-Two seats, four lenses, on PR #80. Every finding was real; none was argued down.
+### A fact the reviewer corrected, not just code
 
-- **A repository secret handed to branch-owned YAML.** `site_health.yml` ran on
-  `pull_request` and read `VERCEL_AUTOMATION_BYPASS` — so any same-repo branch could
-  edit the curl target and exfiltrate it. Fixed, and swept: the automatic path is now
-  default-branch-only, and `tests/test_workflow_secret_custody.py` enumerates EVERY
-  workflow in the tree against this rule. One accepted entry (`adversarial-review.yml`,
-  **R-072**) with its reason and its resolution trigger, because converting the
-  mandatory reviewer to `pull_request_target` could make it judge the wrong diff while
-  reporting green — a worse failure than the one being fixed.
-- **The M3 absolute-zero alarm could be silenced by typing.** `open_escapes` accepted
-  any non-placeholder prose as a closed gate gap, so `fixed` in that column turned it
-  green. It now requires a citation that RESOLVES — a repo path that exists or a real
-  `docs/RECORD.md` row — with the resolver injectable so the rule is testable. 13 new
-  cases; the existing "closed" fixture had been citing a file that does not exist.
-- **`incomplete-workflow-surface-scan`, a recurrence.** Bare-input matching saw
-  `inputs.x` but not `inputs['x']`; schedule detection was a line regex blind to
-  `"schedule":` and inline `on: {schedule: [...]}`. Both fixed in BOTH places that
-  carried them (the contract test and `tools/watchdog_check.py`), as the UNION of a
-  YAML parse and a widened regex — unparseable files stay IN scope, because
-  under-detection is the only direction that can hurt.
-- **An unwired gate surface.** `tools/experience_thresholds.py` named
-  `.github/workflows/experience_metrics.yml` in its own docstring and the workflow did
-  not exist: a judge with nothing feeding it, no caller, no tests. Wired, not deleted —
-  the workflow is built (Lighthouse + axe on a runner, judged against the BAR's 2.0 s,
-  not Core Web Vitals' 2.5 s) with 30 tests. **This is v1 criterion 4's machine half.**
-- **The auth boundary had static tests only.** The middleware rewrite shipped with
-  route-pattern units and a grep for the absence of a Clerk import — nothing that ran
-  the code. 23 executable tests now cover clerk dispatch, lazy provider loading, the
-  stale-closure bug, disabled-mode `/ops` 404, unconfigured 503, the `/api/health`
-  exemption, catch-fails-closed, and the matcher. Three were proven red by
-  reintroducing the regressions.
-- **`check_console_links` folded 5xx into AUTH** and exited 0, so a provider outage
-  read as "none provably broken" — the founding anti-pattern verbatim. Unexpected
-  statuses are BROKEN now.
-- **A false-confidence gate at its SECOND site.** `health_check`'s BAR-rows baseline
-  rendered `0` for unmeasured, asserting the repo had zero bar rows before the run and
-  rendering as a plausible delta. The same defect had been fixed hours earlier at the
-  first site, and shipped at the second because the fix was applied where it was found
-  instead of swept as a class.
-- **Contradictory config truth.** `docs/DEPLOY.md` said the bypass secret exists while
-  `docs/V1.md` ask 6, `TODOS.md` Step 4b and R-068 all still said create it. The secret
-  does exist — measured — so all four are reconciled to that.
-- **Route prefixes matched at any character**, making `/sign-inevil` a PUBLIC route.
-  Segment boundaries now, in both directions.
+I justified leaving `workflow_dispatch` open in writing: *"a write-access
+collaborator can already read the secret from the settings page, so the dispatch
+grants nothing new."* **False** — Actions secret values are write-only in the UI at
+every permission level, so dispatching an edited branch is the only way to extract
+one. That premise is why the first fix stopped halfway, so it stays recorded in the
+custody test's docstring rather than edited out.
 
-### Two defects the agent found in its own tooling while fixing the above
+### The finding that was not real
 
-- **`tools/env_preflight.py` certified a broken environment as sound.** It used
-  `importlib.util.find_spec`, which answers "can this be LOCATED" — so a distro
-  `cryptography` whose Rust bindings panic passed, `import jwt` died, and three gate
-  rows went red while the tool printed *"every dev dependency importable — any red row
-  below is about the CODE."* That is R-058's own tool failing at R-058's own job. It now
-  imports each dependency in a subprocess and probes the SUBMODULE the code actually
-  reaches.
-- **`--system-site-packages` let pip skip a declared requirement.** With the system
-  packages visible, pip considered the broken `cryptography` already satisfying the
-  requirement and never installed a working one. The bootstrap venv is hermetic now,
-  and it REBUILDS a venv left over from the old recipe rather than telling the founder
-  to delete it. It also **moved the venv OUT of the repository** (`$HOME/.venvs/onelive`,
-  overridable): a virtualenv inside a tree this harness introspects broke the harness —
-  `tests/test_golden_exam.py` computes the exam's "repo-local import closure" as
-  everything under the repo root, so a repo-local `.venv` made it demand that pydantic's
-  48 vendored files be bound into the exam's evidence hash, and `git add -A` staged 874k
-  lines of wheels. Both symptoms, one cause, one fix — and notably NOT a fix to the exam
-  harness, which `tools/classify_extraction_surface.py` would have refused to certify
-  (correctly: prompt-swap evidence cannot certify code the exam does not execute). The
-  harness's latent scope bug is recorded as **R-074** rather than smuggled in here.
+`GHSA-qx2v-qp2m-jg93` was reported as an unmanaged **high** the SCA gate was green
+over. It is **moderate** (`npm audit --omit=dev` confirms); npm reports node-level
+severity as the max across a package's advisories. The gate was correct — but a
+boundary a careful reader can misplace will be misread again, so it now **prints its
+own out-of-scope set**. Nothing blocks differently.
 
-### `/api/health` stopped contradicting itself (R-071, RESOLVED)
+### Two defects in my own tooling
 
-The deployed payload returned `auth.mode:"clerk"` and
-`disabledBy:"NEXT_PUBLIC_AUTH_DISABLED"` together — two mutually exclusive claims from
-the one endpoint whose job is to be diagnosable. `disabledBy` reported a flag's mere
-presence whatever the resolved mode was. It is null unless the gate is genuinely open
-now, names `VERCEL_ENV=preview` when a preview opens itself, and a new
-`overriddenDisableFlag` says so when a flag was set and Clerk beat it.
+`tools/env_preflight.py` — built for R-058 so red rows stop lying about their cause —
+used `find_spec`, which answers *can this be located*. A distro `cryptography` whose
+Rust bindings panic passed, `import jwt` died, three gate rows went red, and the tool
+printed *"every dev dependency importable — any red row below is about the CODE."* It
+imports in a subprocess now and probes the submodule the code reaches. Separately,
+`--system-site-packages` let pip treat that broken package as satisfying a declared
+requirement; the venv is hermetic and lives **outside** the repo, which also fixed
+`git add -A` staging 874k lines of wheels and the golden exam demanding pydantic's
+files be bound into its evidence hash.
 
-### Recorded, not silently deferred
+**`golden-exam` refused a harness change and was right twice over.**
+`classify_extraction_surface.py` blocked my edit to `tests/test_golden_exam.py` —
+the attended exam does not execute the harness, so prompt-swap evidence cannot
+certify it. Reading the refusal showed the change was unnecessary: the venv's
+location was the entire cause. **R-074** records the harness's latent scope bug for
+its own PR.
 
-**R-070** (branch-alias URL, trigger = the merge), **R-072** (the reviewer workflow's
-own secret custody), **R-073** (`workflow_env_lint` reads physical lines, so an `exit`
-on a `||` branch reads as unconditional and kills later definitions — worked around
-with `if`-blocks, commented at the site). **R-068** and **R-069** RESOLVED.
+### R-071 RESOLVED
 
-`bash tools/validate`: every blocking check PASS. The only non-green rows are the
-R-002-bound visual-regression SKIP and the pre-existing advisory churn findings.
+`/api/health` returned `auth.mode:"clerk"` with `disabledBy:"NEXT_PUBLIC_AUTH_DISABLED"`
+— mutually exclusive claims from the endpoint whose job is to be diagnosable.
+`disabledBy` reported a flag's mere presence whatever the mode resolved to. Null now
+unless the gate is genuinely open, names `VERCEL_ENV=preview` when a preview opens
+itself, and a new `overriddenDisableFlag` says when Clerk beat a flag. Also settles
+the original HTTP 500: Clerk **is** configured there, so the module-scope import was
+evaluating on every request.
+
+**Recorded, not deferred silently:** R-070, R-072, R-073, R-074, R-075.
+**Resolved:** R-068, R-069, R-071.
+
+`bash tools/validate`: every blocking check PASS. 1,922 pytest, 100 vitest.
 
 ## 2026-07-26 (same session) — Ask 5 ratified, the feed scheduled, and the suite goes fully green
 

@@ -27,6 +27,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import pathlib
 import re
 import subprocess
@@ -60,6 +61,26 @@ def workflow_excludes() -> list:
     return found or list(_FALLBACK_EXCLUDES)
 
 
+def default_base() -> str:
+    """The base the INDEPENDENT REVIEWER will actually diff against.
+
+    `.github/workflows/adversarial-review.yml` resolves its range as
+    `origin/${{ github.base_ref }}...HEAD` — the PR's real base, not master. So a
+    STACKED branch (this repo does that routinely: PRs #82-#86 each declare their
+    parent) is reviewed against its parent while this check measured it against
+    master. On PR #80 that reported 807 KB over the 781 KB cap when the diff the
+    reviewer would receive was 251 KB.
+
+    Measuring a different range than the reviewer makes the prediction wrong in
+    BOTH directions, so this is a correctness fix, not a relaxation: the cap itself
+    is untouched, and the range now matches the one whose truncation the cap exists
+    to prevent. `GITHUB_BASE_REF` is set by GitHub on `pull_request` events; locally
+    it is absent and master is the right answer.
+    """
+    base_ref = os.environ.get("GITHUB_BASE_REF", "").strip()
+    return f"origin/{base_ref}" if base_ref else "origin/master"
+
+
 def diff_bytes(base: str) -> int | None:
     args = ["git", "diff", f"{base}...HEAD", "--", "."]
     args += [f":(exclude){p}" for p in workflow_excludes()]
@@ -75,25 +96,27 @@ def diff_bytes(base: str) -> int | None:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--base", default="origin/master",
-                    help="integration branch to diff against (default origin/master)")
+    ap.add_argument("--base", default=None,
+                    help="branch to diff against (default: the PR's own base via "
+                         "GITHUB_BASE_REF, else origin/master)")
     ap.add_argument("--warn-pct", type=float, default=70.0,
                     help="warn once the diff reaches this %% of the cap (default 70)")
     args = ap.parse_args(argv)
 
+    base = args.base or default_base()
     cap = evaluator_cap_bytes()
-    size = diff_bytes(args.base)
+    size = diff_bytes(base)
     if cap is None or size is None:
         # Never fail the session on an undeterminable measurement — say so plainly.
         print("pr_size_check: SKIPPED — could not determine the evaluator cap or "
-              f"diff vs {args.base} (missing ref in a shallow clone?).")
+              f"diff vs {base} (missing ref in a shallow clone?).")
         return 0
 
     pct = 100.0 * size / cap
     kb, capkb = size / 1024, cap / 1024
     if size >= cap:
-        print(f"pr_size_check: OVER CAP — branch diff is {kb:.0f} KB vs the "
-              f"evaluator's {capkb:.0f} KB cap ({pct:.0f}%).", file=sys.stderr)
+        print(f"pr_size_check: OVER CAP — branch diff vs {base} is {kb:.0f} KB "
+              f"vs the evaluator's {capkb:.0f} KB cap ({pct:.0f}%).", file=sys.stderr)
         print("  The independent review will REFUSE to run (it will not review a "
               "truncated diff), so the mandatory evaluator pass cannot happen.",
               file=sys.stderr)

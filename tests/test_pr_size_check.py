@@ -73,3 +73,57 @@ def test_unmeasurable_skips_rather_than_failing_the_session(monkeypatch, capsys)
 
 def test_it_is_wired_into_validate():
     assert "pr_size_check" in (_ROOT / "tools" / "validate").read_text()
+
+
+# ---------------------------------------------------------------- the base used
+def test_the_base_defaults_to_the_PRs_OWN_base_not_master(monkeypatch):
+    """`CLASS:wrong-base-size-prediction` (found on PR #80, R-076).
+
+    The independent reviewer resolves its range as
+    `origin/${{ github.base_ref }}...HEAD` — the PR's real base. This check
+    hardcoded `origin/master`, so a STACKED branch (routine here: PRs #82-#86 each
+    declare a parent) was measured against master while the reviewer would receive
+    the diff against its parent. On PR #80 that reported 807 KB over a 781 KB cap
+    when the reviewed diff was 251 KB.
+
+    The cap is untouched. What changes is that the measured range is now the range
+    whose truncation the cap exists to prevent — wrong in both directions before.
+    """
+    monkeypatch.setenv("GITHUB_BASE_REF", "claude/some-parent-branch")
+    assert psc.default_base() == "origin/claude/some-parent-branch"
+
+
+def test_the_base_falls_back_to_master_when_not_in_a_PR(monkeypatch):
+    monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
+    assert psc.default_base() == "origin/master"
+    # An empty value is the same as absent — GitHub sets the variable to "" on
+    # non-PR events, and treating "" as a ref would produce `origin/` and a
+    # SKIPPED measurement, which reads as "nothing to worry about".
+    monkeypatch.setenv("GITHUB_BASE_REF", "")
+    assert psc.default_base() == "origin/master"
+    monkeypatch.setenv("GITHUB_BASE_REF", "   ")
+    assert psc.default_base() == "origin/master"
+
+
+def test_an_explicit_base_argument_still_wins(monkeypatch, capsys):
+    """So a human can measure any range without unsetting an env var."""
+    monkeypatch.setenv("GITHUB_BASE_REF", "ignored-branch")
+    monkeypatch.setattr(psc, "diff_bytes", lambda base: (_bases.append(base), 10)[1])
+    monkeypatch.setattr(psc, "evaluator_cap_bytes", lambda: 1000)
+    _bases.clear()
+    assert psc.main(["--base", "origin/explicit"]) == 0
+    assert _bases == ["origin/explicit"]
+
+
+def test_the_over_cap_message_names_the_base_it_measured(monkeypatch, capsys):
+    """A surprising number has to be attributable, or the next person argues with
+    the threshold instead of noticing the range was wrong — which is what happened."""
+    monkeypatch.setattr(psc, "diff_bytes", lambda base: 900)
+    monkeypatch.setattr(psc, "evaluator_cap_bytes", lambda: 800)
+    monkeypatch.setenv("GITHUB_BASE_REF", "some-parent")
+    psc.main([])
+    err = capsys.readouterr().err
+    assert "origin/some-parent" in err
+
+
+_bases: list = []

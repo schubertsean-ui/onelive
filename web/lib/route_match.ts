@@ -62,13 +62,11 @@ export function createRouteMatcher(
   return (req) => {
     const path = req.nextUrl.pathname;
     if (exact.includes(path)) return true;
-    // `prefix + "/"`, not a bare startsWith. A bare prefix test made
-    // `/sign-inevil` match `/sign-in(.*)` — and `/sign-in(.*)` is a PUBLIC route,
-    // so over-matching there is fail-OPEN: an attacker-chosen path becomes exempt
-    // from the gate (reviewer nit, openai seat, PR #80). `/opswhatever` matching
-    // `/ops(.*)` happened to be harmless because over-matching a DENIED route
-    // denies more, but a rule that is only safe depending on which caller uses it
-    // is not a rule. Segment boundaries in both directions.
+    // `prefix + "/"`, not a bare startsWith: a bare prefix test made
+    // `/sign-inevil` match `/sign-in(.*)`, which is a PUBLIC route — so an
+    // attacker-chosen path became exempt from the gate (PR #80). Over-matching
+    // `/ops(.*)` was harmless only because denying more is safe, and a rule that
+    // is safe only for some callers is not a rule.
     return prefixes.some(
       (prefix) => path === prefix || path.startsWith(`${prefix}/`),
     );
