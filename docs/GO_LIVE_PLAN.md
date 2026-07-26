@@ -21,20 +21,23 @@ site is not worth showing anyone — and until 2026-07-26 it did not exist. Even
 counts ("85 → 168") are numerators with no denominator and cannot answer
 "how much of the market is missing?"
 
-**Denominator: MEASURED ON LIVE DATA (2026-07-26).** **2,873 venues** across
-all ten counties:
+**Denominator: MEASURED ON LIVE DATA (2026-07-26).** **2,884 venues** across
+all ten counties.
+
+Produced by [this workflow run](https://github.com/schubertsean-ui/onelive/actions/runs/30214566799) — quoted with its source so the figure
+can be checked rather than believed:
 
 | county | venues | | county | venues |
 |---|---:|---|---|---:|
-| Travis | 1,718 | | Bastrop | 77 |
-| Williamson | 521 | | Burnet | 68 |
+| Travis | 1,721 | | Bastrop | 77 |
+| Williamson | 529 | | Burnet | 68 |
 | Hays | 263 | | Caldwell | 51 |
 | Fayette | 84 | | Llano | 39 |
 | | | | Blanco | 36 |
 | | | | Lee | 16 |
 
 Layer 1 (our curated catalog) contributed 39 of these. TABC — every
-establishment licensed to serve mixed beverages — supplied the other 2,834.
+establishment licensed to serve mixed beverages — supplied the other 2,845.
 
 **What this replaced.** The previous figure was 69 targets with SEVEN COUNTIES
 AT ZERO. That was never a fact about CAPCOG; those seven counties hold 362
@@ -48,8 +51,14 @@ prevent, made anyway.
   festivals, and companies that perform in other people's halls. They are kept
   and labelled, not counted.
 - The first live fetch reported 2,847. Paging without a sort order silently
-  skipped 26 venues; nothing failed. A denominator that quietly shrinks makes
-  coverage look better than it is.
+  skipped 26 venues; nothing failed.
+- 2,873 was still short: grouping premises by NAME AND CITY merged every branch
+  of a chain into one venue. The street address is what makes a premise
+  distinct. Corrected to 2,884.
+
+Every one of these errors shrank the denominator, and a smaller denominator
+raises the coverage percentage. All three flattered us, which is why none of
+them looked wrong.
 
 **Still a FLOOR, not the ceiling.** A liquor licence cannot see theatres,
 museums, libraries, galleries or all-ages rooms. That is layer 3 (Places,
@@ -57,8 +66,10 @@ founder's existing key) and a possible layer 4 (chamber-of-commerce listings).
 
 **The numerator is blocked on ONE founder action:** `ONELIVE_DB_DSN` is
 rejected by Supabase (`password authentication failed for user "postgres"`).
-The coverage workflow runs on push and produces the number in ~90 seconds once
-the secret is valid.
+The DENOMINATOR runs on every push (~30 seconds). The numerator runs on manual
+dispatch only — a push-triggered job that touches the database would run
+PR-editable code with a live credential, which is not a trade worth making for
+convenience.
 
 ---
 
@@ -68,7 +79,7 @@ the secret is valid.
 |---|---|---|---|
 | 0 | CI / GitHub Actions working | 🟢 RECOVERED ~15:21Z | — |
 | 1 | Region correctness (no out-of-market venues) | 🟡 Built + ENFORCED on the read path | PR #74 → needs review |
-| 2 | **CAPCOG venue denominator** | 🟢 MEASURED — 2,873 venues, all 10 counties | — |
+| 2 | **CAPCOG venue denominator** | 🟢 MEASURED — 2,884 venues, all 10 counties | — |
 | 2b | **Coverage % (the numerator)** | 🔴 blocked | Founder — `ONELIVE_DB_DSN` password rejected |
 | 3 | Ingest breadth: cover the 10 counties | 🔴 unknown until 2b | Step 2b |
 | 4 | Importer correctness (empty vs failed vs corrupt) | 🟡 In review | PR #68 — 22 rounds, needs split decision |
@@ -135,8 +146,8 @@ because grading against the venues we happen to hold is self-scoring (100% of
 what we found is what we found) and would read as success.
 
 **DONE, on live data.** Layer 1 (the curated catalog) contributed 39 venues.
-Layer 2 is TABC (`tools/fetch_tabc_capcog.py`) and supplied 2,834 more.
-**Total: 2,873.** Layer 3 (Places, founder's existing key) is still to come and
+Layer 2 is TABC (`tools/fetch_tabc_capcog.py`) and supplied 2,845 more.
+**Total: 2,884.** Layer 3 (Places, founder's existing key) is still to come and
 covers what a liquor licence cannot see — theatres, museums, libraries,
 all-ages rooms.
 
@@ -157,7 +168,7 @@ name so it cannot later be quoted as a full measurement.
 
 **Corrected 2026-07-26.** The "seven counties at zero" figure was an artifact
 of the old 69-row denominator, not a finding about CAPCOG. Those seven counties
-hold **362 venues**. What share of the 2,873 we actually cover is unknown until
+hold **362 venues**. What share of the 2,884 we actually cover is unknown until
 the numerator can be read — see Step 2b.
 
 **Also known:** 55 of 64 curated sources yield nothing, because the long tail of

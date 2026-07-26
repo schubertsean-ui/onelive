@@ -796,8 +796,8 @@
 
 ## 2026-07-26 — the denominator became real
 
-**The launch metric now exists and is measured on live data: 2,873 CAPCOG
-venues across all ten counties.** It was 69, with seven counties reported at
+**The launch metric now exists and is measured on live data: 2,884 CAPCOG
+venues across all ten counties** ([run](https://github.com/schubertsean-ui/onelive/actions/runs/30214566799)).** It was 69, with seven counties reported at
 zero. Those seven hold 362 venues; the zero was never a fact about CAPCOG, it
 was a fact about a denominator assembled from a list we had written ourselves.
 
