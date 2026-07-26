@@ -52,7 +52,21 @@ def load_rows(path: str | None) -> list:
     and testable without a database."""
     if not path:
         return []
-    return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    # Same fail-loud shape as load_targets. Corrupt rows raised a bare
+    # JSONDecodeError here while the target file produced a structured
+    # message — the numerator and the denominator must fail the same way, or
+    # one of them looks like a crash and the other like a decision.
+    # Evaluator nit, PR #83 r1.
+    try:
+        rows = json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
+    except (ValueError, OSError, UnicodeDecodeError) as exc:
+        raise SystemExit(
+            f"capcog_coverage: FAIL — {path} could not be read as JSON "
+            f"({exc}). An unreadable numerator is not an empty one.")
+    if not isinstance(rows, list):
+        raise SystemExit(
+            f"capcog_coverage: FAIL — {path} is not a list of rows.")
+    return rows
 
 
 def load_targets(path: pathlib.Path):

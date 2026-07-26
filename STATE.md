@@ -66,6 +66,31 @@ honestly compute; every refusal branch test-pinned.
 NON-GOALS: the numerator is not read here (the database credential is
 outstanding), and running this on a schedule is the next change in the stack.
 STACKED ON: claude/tabc-fetch-2026-07-26.
+[S3:workflow-tool-version-skew] no workflow is touched here; both tools are leaf scripts with no trusted base-owned counterpart to skew against. Scheduling them is the change stacked above this one, which carries that risk and its own contract.
+[S3:caller-suppliable-custody-inputs] the boundary tables and the kind overrides are committed constants, not caller parameters — no caller can widen the market or shrink the denominator by passing different data.
+[S3:contract-scope-violation] this contract covers the denominator and the coverage tool. The TABC fetch beneath it and the coverage workflow above it each carry their own contract on their own branch.
+[S3:deferred-trust-work] nothing is parked: every r1 finding was fixed in the change that received it.
+[S3:env-dependent-hermetic-test] the tests are hermetic and were RUN that way — named rows in memory and tmp_path files, with no network, no database and no credential.
+[S3:fail-open-on-custody-misconfig] every malformed input fails the run: an unparseable or non-list target file, an unparseable or non-list row file, a non-list import file, and a stale kind override all abort rather than producing a shorter, plausible answer.
+[S3:false-confidence-gate] the coverage tool refuses to print a percentage without a real denominator, and says so; nothing here claims a capability it does not implement.
+[S3:featurability-dimension-missed] each target row carries its layer, kind, county and city, and each excluded row carries its reason — so a reader sees WHICH dimension is missing instead of inferring completeness.
+[S3:governance-ambiguity] the artifact states its own scope: is_complete_universe=false with a completeness note that must travel with any coverage figure.
+[S3:missing-record-read-as-state] an absent target list is an explicit NO_TARGET_LIST status that exits non-zero — a missing denominator can never render as full coverage. After r1, a row dropped by any import layer is NAMED with its reason rather than being quietly absent.
+[S3:mutable-model-alias] no model, alias or provider is referenced anywhere in this change.
+[S3:nonfinite-numeric-accepted] the only arithmetic is a coverage share over integer counts, guarded against a zero denominator.
+[S3:pagination-integrity-gap] no paged walk occurs here; the target and row files are read in full and a read failure aborts rather than truncating.
+[S3:pushed-on-red] the suite ran unchained with its exit code read directly before commit.
+[S3:retyped-evidence] every figure is computed from the target file and the row set; the committed artifact carries the run that produced it.
+[S3:self-weakenable-gate] the denominator cannot be quietly shrunk to flatter the numerator: assert_overrides_are_live() FAILS on an override naming a catalog id that no longer exists, so a stale exclusion cannot persist unnoticed.
+[S3:self-weakenable-review-model] these tools feed no review verdict; they report to the operator and to the workflow.
+[S3:semantic-claim-not-rederived] 'this target is covered' is recomputed at every run from the ingested rows and the boundary tables; nothing is read from a stored covered flag.
+[S3:stale-base-widens-range] no range-derived gate is involved; the tools read committed files at whatever revision is checked out.
+[S3:stalled-state-needs-active-diagnosis] no external call is made by these tools, so there is no state to stall on — that is deliberate, and the fetching lives in the change beneath this one.
+[S3:swallowed-corrupt-data] a corrupt denominator EXITS NON-ZERO with no percentage; name matching needs a word boundary; an AMBIGUOUS match counts as NOT covered; and after r1 a corrupt or non-list NUMERATOR fails the same structured way the denominator does, so neither can be read as empty.
+[S3:untested-gate-branch] every refusal branch is tested: no target list, corrupt target file, ambiguous match, one row covering many same-named premises, stale override, malformed rows excluded AND reported, blank/nameless/non-object imports, and an unreadable numerator. Written by reading the test list, not from memory of the intent — the correction this contract carries twice already.
+[S3:unusable-credential-tier] no credential is read or required; the DB path lives in the caller so the tool stays runnable and testable without one.
+[S3:volatile-safety-store] the denominator is a committed JSON artifact, not process state, so any claim about it can be rechecked later by anyone.
+[S3:weak-key-accepted-at-custody] no key material is read, written or checked.
 [S3:false-price-claim] no price, cost or monetary value appears anywhere in the denominator or the coverage report.
 [S3:grant-not-content-bound] no grant, autonomy or approval surface is involved; the denominator decides nothing about what may be shown, only what we are measured against.
 [S3:nonfinite-decimal-accepted] not applicable to this change — it touches no surface of this class; stated explicitly rather than left to inference.

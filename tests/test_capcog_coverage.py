@@ -347,3 +347,52 @@ def test_layers_dedupe_a_cityless_catalog_venue_against_a_cited_import():
     assert len(bt.merge(existing, incoming)) == 1
 
 
+
+
+# ---- r1 evaluator findings ---------------------------------------------------
+
+def test_layers_2_and_3_are_held_to_the_SAME_shape_as_layer_1(
+        tmp_path, capsys, monkeypatch):
+    """Layer 1 strips names and refuses blank ones; layers 2 and 3 took
+    r.get("name") RAW. A nameless import went into the denominator, and the
+    coverage tool then read the target file as corrupt and refused to run — a
+    defect in the builder surfacing as a failure two tools downstream."""
+    import json
+    import tools.build_capcog_targets as bt
+    # The stale-override guard is a different rule with its own test; an empty
+    # catalog would trip it and mask what this test is actually pinning.
+    monkeypatch.setattr(bt, "KIND_OVERRIDE", {})
+    src = tmp_path / "tabc.json"
+    src.write_text(json.dumps([
+        {"name": "  Mohawk  ", "city": "Austin", "county": "travis"},
+        {"name": "", "city": "Austin", "county": "travis"},
+        {"name": None, "city": "Austin", "county": "travis"},
+        None,
+        {"name": "Cheatham", "city": "San Marcos", "county": "hays"},
+    ]), encoding="utf-8")
+    cat = tmp_path / "cat.json"
+    cat.write_text(json.dumps([]), encoding="utf-8")
+    out = tmp_path / "targets.json"
+    assert bt.main(["--catalog", str(cat), "--tabc", str(src),
+                    "--out", str(out)]) == 0
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    names = sorted(t["name"] for t in doc["venues"])
+    assert names == ["Cheatham", "Mohawk"], names   # stripped, blanks dropped
+    printed = capsys.readouterr().out
+    assert "EXCLUDED and named" in printed
+    assert "no name" in printed and "not an object" in printed
+
+
+def test_an_unreadable_NUMERATOR_fails_the_same_way_as_the_denominator(tmp_path):
+    """One input raising a bare JSONDecodeError while the other prints a
+    structured refusal makes one look like a crash and the other a decision."""
+    import pytest as _pytest
+    import tools.capcog_coverage as cc
+    bad = tmp_path / "rows.json"
+    bad.write_text("{not json", encoding="utf-8")
+    with _pytest.raises(SystemExit, match="could not be read as JSON"):
+        cc.load_rows(str(bad))
+    notalist = tmp_path / "rows2.json"
+    notalist.write_text('{"a": 1}', encoding="utf-8")
+    with _pytest.raises(SystemExit, match="not a list"):
+        cc.load_rows(str(notalist))

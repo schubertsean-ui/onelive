@@ -249,18 +249,42 @@ def main(argv=None) -> int:
         if not flag:
             continue
         rows = json.loads(pathlib.Path(flag).read_text(encoding="utf-8"))
+        if not isinstance(rows, list):
+            raise SystemExit(
+                f"build_capcog_targets: FAIL — {flag} is not a list of rows.")
         incoming: list = []
+        skipped: list = []
         for r in rows:
+            # Layer 1 strips names and refuses blank ones; layers 2 and 3 took
+            # r.get("name") RAW. An unstripped or nameless import went straight
+            # into the denominator, where the coverage tool then read it as a
+            # corrupt target file and refused to run — a defect in this builder
+            # surfacing as a failure two tools downstream. Every layer is held
+            # to the same shape, and what is dropped is NAMED rather than
+            # quietly absent. Evaluator finding, PR #83 r1.
+            if not isinstance(r, dict):
+                skipped.append({"why": "row is not an object", "row": repr(r)[:80]})
+                continue
+            name = (r.get("name") or "").strip()
+            if not name:
+                skipped.append({"why": "no name", "row": repr(r)[:80]})
+                continue
             county = normalize_place(r.get("county")) or county_for_place(r.get("city"))
             if county not in CAPCOG_COUNTIES:
                 continue
             incoming.append({
-                "name": r.get("name"), "city": r.get("city"), "county": county,
+                "name": name, "city": r.get("city"), "county": county,
                 "source_layer": layer,
                 # A liquor licence and a Places result are both issued to a
                 # physical address, so these layers are venues by construction.
                 "target_kind": KIND_VENUE,
             })
+        if skipped:
+            print(f"  {layer}: {len(skipped)} row(s) EXCLUDED and named:")
+            for x in skipped[:20]:
+                print(f"    {x['why']}: {x['row']}")
+            if len(skipped) > 20:
+                print(f"    ... and {len(skipped) - 20} more")
         before = len(targets)
         targets = merge(targets, incoming)
         layers[layer] = len(targets) - before
