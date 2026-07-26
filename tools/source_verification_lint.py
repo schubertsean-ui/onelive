@@ -139,7 +139,7 @@ def visible_text(text: str) -> str:
     hiding place and left its siblings.
     """
     text = _HTML_COMMENT_RE.sub(" ", text)
-    out, fence = [], None
+    out, fence, in_list = [], None, False
     for line in text.splitlines():
         if fence is not None:
             m = _FENCE_OPEN_RE.match(line)
@@ -153,7 +153,17 @@ def visible_text(text: str) -> str:
             fence = m.group(1)
             continue
         if _INDENTED_CODE_RE.match(line):
-            continue                      # indented code block
+            # CommonMark: an indented code block cannot interrupt a list item.
+            # Stripping every 4-space-indented line unconditionally deleted
+            # legitimate wrapped citation lines before they were ever parsed
+            # (gemini r8) — a false REJECTION, and the mirror image of the
+            # bypass this stripper exists for. Inside an open list item the
+            # line is continuation; outside one it is code.
+            if in_list:
+                out.append(line)
+            continue
+        if line.strip():
+            in_list = bool(BULLET_RE.match(line))
         out.append(line)
     return "\n".join(out)
 
@@ -198,14 +208,24 @@ _STATUS_RE = re.compile(
 # "not VERIFIED-READ; UNVERIFIED-SECONDARY" correctly accepted.
 _NEGATION_WORD_RE = re.compile(r"\b(?:not|never|isn'?t|aren'?t|no|without|"
                                r"neither|nor|cannot|can'?t)\b", re.IGNORECASE)
-# Parentheses close a clause too (gemini r7 nit): "Smith 2020 (no abstract)
-# https://e.org VERIFIED-READ" is an honest entry, and reading the parenthetical
-# "no" as governing the token three words later would reject it.
-_CLAUSE_BREAK_RE = re.compile(r"[.;:!?()]")
+# Commas close a clause too (gemini r8): a citation's own metadata routinely
+# contains negation words — `Vol 12, No 4, https://… VERIFIED-READ` was
+# rejected because "No 4" was read as governing the token. Parentheses likewise
+# (r7): "Smith 2020 (no abstract) https://… VERIFIED-READ" is honest.
+# A gate that forces authors to mangle real citation text to pass is defective,
+# and false REJECTION is as much a defect as false acceptance.
+_CLAUSE_BREAK_RE = re.compile(r"[.;:!?(),]")
+# Quoted spans are TITLES, never the author's own assertion — "Parsing without
+# Regrets" and "No Silver Bullet" are works being cited, not denials of a
+# status (gemini r8). Removed before negation is judged, for the same reason
+# URLs are removed before a status token is looked for.
+_QUOTED_SPAN_RE = re.compile(r"[\"\u201c\u2018\u00ab][^\"\u201d\u2019\u00bb]{0,200}"
+                             r"[\"\u201d\u2019\u00bb]")
 
 
 def _is_negated(text_before: str) -> bool:
     """True when a negation governs the token that follows text_before."""
+    text_before = _QUOTED_SPAN_RE.sub(" ", text_before)   # titles are not claims
     breaks = list(_CLAUSE_BREAK_RE.finditer(text_before))
     clause = text_before[breaks[-1].end():] if breaks else text_before
     return bool(_NEGATION_WORD_RE.search(clause))

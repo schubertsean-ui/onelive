@@ -452,3 +452,36 @@ def test_a_parenthetical_negation_does_not_govern_a_later_token():
     """gemini r7 nit: "(no abstract)" is description, not a status denial."""
     assert svl.declares_status("- Smith 2020 (no abstract) https://e.org VERIFIED-READ")
     assert svl.declares_status("- Smith (not peer reviewed) https://e.org UNVERIFIED-SECONDARY")
+
+
+# ── FALSE REJECTION is a defect too (PR #78 r8, gemini dataflow-taint). A gate
+# that forces authors to mangle real citation text to pass is broken in the
+# other direction, and pushes people to omit context rather than fix it.
+
+def test_negation_words_inside_a_title_do_not_deny_the_status():
+    """"Parsing without Regrets" and "No Silver Bullet" are WORKS BEING CITED,
+    not the author denying a verification status."""
+    for good in ('- Author, "Parsing without Regrets", https://e.org VERIFIED-READ',
+                 '- Smith, "No Silver Bullet", https://e.org VERIFIED-READ',
+                 '- Lee, “Neither Here Nor There”, https://e.org UNVERIFIED-BLOCKED'):
+        assert svl.declares_status(good), good
+
+
+def test_issue_metadata_does_not_deny_the_status():
+    """`Vol 12, No 4` is a citation's own metadata."""
+    assert svl.declares_status("- Brown, Vol 12, No 4, https://e.org VERIFIED-READ")
+
+
+def test_a_four_space_wrapped_continuation_is_not_treated_as_code():
+    """CommonMark: an indented code block cannot interrupt a list item, so a
+    four-space wrapped citation line is continuation, not code. Stripping it
+    unconditionally deleted evidence before it was ever parsed."""
+    assert svl.scan_text("d.md", (
+        "## Sources\n- Wang et al.,\n    https://arxiv.org/abs/2405.16334\n"
+        "    UNVERIFIED-SECONDARY — abstract only.\n")) == []
+
+
+def test_the_indented_code_bypass_stays_closed():
+    """The fix above must not reopen r7: a four-space bullet with no open list
+    item before it is still code, not a citation."""
+    assert svl.scan_text("d.md", "## Sources\n\n    - x https://e.org VERIFIED-READ\n")

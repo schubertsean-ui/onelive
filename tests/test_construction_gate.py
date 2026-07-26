@@ -454,3 +454,43 @@ def test_the_current_session_contract_carries_no_contradiction():
     current = blocks[1]
     assert "[S3:" in current, "the newest contract carries no citations — vacuous"
     assert contradictory_citations(current) == []
+
+
+def test_every_class_token_named_in_code_or_ledger_has_an_index_row():
+    """DERIVED registry binding (PR #78 r8, class
+    missing-redclass-registry-binding, caught 5x).
+
+    The existing coverage test only read `marker: <token>` stamps in the
+    ledger. A class named in a tool comment, a test docstring, or a ledger M2
+    column but never INDEXED is a prose-only lesson: construction_gate cannot
+    match it, so no future contract is ever forced to answer it — which is
+    exactly the Stage 6 defect the index exists to prevent.
+
+    Derived rather than enumerated, so a class introduced tomorrow is covered
+    the day it is written.
+    """
+    import pathlib, re
+    from tools.construction_gate import load_index, DEFAULT_INDEX, REPO_ROOT
+
+    index = set(load_index(DEFAULT_INDEX))
+    root = pathlib.Path(REPO_ROOT)
+    # Canonical ways this repo names a class: the word "class" followed by a
+    # kebab token, and the evaluator's own finding prefix. Written without a
+    # literal example, because an example in the canonical form makes this
+    # file match itself (self-caught: the first version flagged its own
+    # docstring).
+    pat = re.compile(r"(?:class[es]*[:\s]+`?|CLASS:)([a-z][a-z0-9]+(?:-[a-z0-9]+){2,})")
+    referenced: dict[str, set[str]] = {}
+    sources = list((root / "tools").rglob("*.py")) + list((root / "tests").rglob("*.py"))
+    sources.append(root / "docs" / "metrics" / "KAIZEN_LEDGER.md")
+    for path in sources:
+        if not path.is_file():
+            continue
+        for m in pat.finditer(path.read_text(encoding="utf-8")):
+            referenced.setdefault(m.group(1), set()).add(path.name)
+    assert referenced, "no class tokens found anywhere — the test would be vacuous"
+    missing = {k: sorted(v) for k, v in referenced.items() if k not in index}
+    assert not missing, (
+        f"class tokens named in code/ledger but absent from RED_CLASSES.md: "
+        f"{missing} — a class the index does not carry cannot be retrieved by "
+        f"construction_gate, so no future contract is forced to answer it")
