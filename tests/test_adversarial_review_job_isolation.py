@@ -86,9 +86,18 @@ MODEL_API_KEYS = ("OPENAI_API_KEY", "GEMINI_API_KEY")
 # EVERY unit of code in the key-bearing job was chosen by the base, not by
 # the subject. That is only expressible as an enumeration of what IS allowed,
 # so widening it is an edit to this gate file, visible in the same review.
-KEY_JOB_ALLOWED_PACKAGES = frozenset({"pyyaml"})
+# FULL SPECS, not names (PR #75 r16, openai both seats, class
+# key-job-code-not-content-bound). r15's allowlists bound `pyyaml` and
+# `actions/checkout` — the name and the repo — while the executable code is
+# selected by name+VERSION and repo+REF. `PyYAML==7.0.0` and
+# `actions/checkout@main` both stayed green, so the guard said "an approved
+# NAME runs here" when the property it claims is "approved CODE runs here".
+# Comparison is lowercased for the package (pip is case-insensitive on names,
+# not on versions) and exact for the action ref.
+KEY_JOB_ALLOWED_PACKAGES = frozenset({"pyyaml==6.0.2"})
 KEY_JOB_ALLOWED_ACTIONS = frozenset({
-    "actions/checkout", "actions/setup-python", "actions/download-artifact",
+    "actions/checkout@v4", "actions/setup-python@v5",
+    "actions/download-artifact@v4",
 })
 
 
@@ -177,8 +186,8 @@ def test_a_key_bearing_pip_install_is_pinned_and_closed(rel):
                     r"(?<!-)\b([A-Za-z][\w.-]*==[\w.]+)", line)
                 assert pkgs, f"{rel}: install names no pinned package: {line!r}"
                 for pkg in pkgs:
-                    base = pkg.split("==")[0].strip().lower()
-                    assert base in KEY_JOB_ALLOWED_PACKAGES, (
+                    spec = pkg.strip().lower()
+                    assert spec in KEY_JOB_ALLOWED_PACKAGES, (
                         f"{rel}: job {name!r} holds a key and installs {pkg!r}, "
                         f"which is not in KEY_JOB_ALLOWED_PACKAGES "
                         f"({sorted(KEY_JOB_ALLOWED_PACKAGES)}). Pinning says "
@@ -380,7 +389,7 @@ def test_a_key_bearing_job_invokes_no_pr_authored_local_action(rel):
             uses = str(step.get("uses", "")).strip()
             if not uses:
                 continue
-            assert uses.split("@")[0].strip() in KEY_JOB_ALLOWED_ACTIONS, (
+            assert uses.strip() in KEY_JOB_ALLOWED_ACTIONS, (
                 f"{rel}: job {name!r} step {i} invokes {uses!r}, which is not "
                 f"in KEY_JOB_ALLOWED_ACTIONS "
                 f"({sorted(KEY_JOB_ALLOWED_ACTIONS)}). 'Published' is not the "
@@ -428,6 +437,28 @@ def test_the_action_allowlist_rejects_a_published_third_party_action(rel,
     """`uses: attacker/action@v1` is published, so it passed the old
     workspace-relative ban while still being code the subject chose."""
     wf = _mutated_key_job(rel, {"uses": "attacker/action@v1"})
+    monkeypatch.setitem(globals(), "_load", lambda _rel: wf)
+    with pytest.raises(AssertionError, match="KEY_JOB_ALLOWED_ACTIONS"):
+        test_a_key_bearing_job_invokes_no_pr_authored_local_action(rel)
+
+
+@pytest.mark.parametrize("rel", WORKFLOWS)
+def test_the_package_allowlist_rejects_a_version_swap(rel, monkeypatch):
+    """PR #75 r16: the r15 allowlist bound the NAME, so the same package at a
+    different version — a different wheel, different code — stayed green."""
+    wf = _mutated_key_job(rel, {"run": (
+        'python -I -m pip install --no-deps --only-binary=:all: '
+        '"PyYAML==7.0.0"')})
+    monkeypatch.setitem(globals(), "_load", lambda _rel: wf)
+    with pytest.raises(AssertionError, match="KEY_JOB_ALLOWED_PACKAGES"):
+        test_a_key_bearing_pip_install_is_pinned_and_closed(rel)
+
+
+@pytest.mark.parametrize("rel", WORKFLOWS)
+def test_the_action_allowlist_rejects_a_ref_swap(rel, monkeypatch):
+    """Same shape one level over: `actions/checkout@main` is the allowed repo
+    at a ref the subject chose, which is different code before the key step."""
+    wf = _mutated_key_job(rel, {"uses": "actions/checkout@main"})
     monkeypatch.setitem(globals(), "_load", lambda _rel: wf)
     with pytest.raises(AssertionError, match="KEY_JOB_ALLOWED_ACTIONS"):
         test_a_key_bearing_job_invokes_no_pr_authored_local_action(rel)

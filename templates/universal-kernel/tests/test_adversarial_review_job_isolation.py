@@ -70,9 +70,18 @@ MODEL_API_KEYS = ("OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY")
 # so widening it is an edit to this gate file, visible in the same review.
 # ADOPTERS: if your evaluator job needs another dependency or action, add it
 # HERE, deliberately — do not loosen the check.
-KEY_JOB_ALLOWED_PACKAGES = frozenset({"pyyaml"})
+# FULL SPECS, not names (PR #75 r16, openai both seats, class
+# key-job-code-not-content-bound). r15's allowlists bound `pyyaml` and
+# `actions/checkout` — the name and the repo — while the executable code is
+# selected by name+VERSION and repo+REF. `PyYAML==7.0.0` and
+# `actions/checkout@main` both stayed green, so the guard said "an approved
+# NAME runs here" when the property it claims is "approved CODE runs here".
+# Comparison is lowercased for the package (pip is case-insensitive on names,
+# not on versions) and exact for the action ref.
+KEY_JOB_ALLOWED_PACKAGES = frozenset({"pyyaml==6.0.2"})
 KEY_JOB_ALLOWED_ACTIONS = frozenset({
-    "actions/checkout", "actions/setup-python", "actions/download-artifact",
+    "actions/checkout@v4", "actions/setup-python@v5",
+    "actions/download-artifact@v4",
 })
 
 
@@ -159,8 +168,8 @@ def test_a_key_bearing_install_is_pinned_isolated_and_precedes_checkout():
                 assert pkgs, (
                     f"{WORKFLOW}: job {name!r} installs an unpinned package: {line!r}")
                 for pkg in pkgs:
-                    base = pkg.split("==")[0].strip().lower()
-                    assert base in KEY_JOB_ALLOWED_PACKAGES, (
+                    spec = pkg.strip().lower()
+                    assert spec in KEY_JOB_ALLOWED_PACKAGES, (
                         f"{WORKFLOW}: job {name!r} holds a key and installs "
                         f"{pkg!r}, which is not in KEY_JOB_ALLOWED_PACKAGES "
                         f"({sorted(KEY_JOB_ALLOWED_PACKAGES)}). Pinning says "
@@ -279,7 +288,7 @@ def test_a_key_bearing_job_invokes_no_pr_authored_local_action():
             uses = str(step.get("uses", "")).strip()
             if not uses:
                 continue
-            assert uses.split("@")[0].strip() in KEY_JOB_ALLOWED_ACTIONS, (
+            assert uses.strip() in KEY_JOB_ALLOWED_ACTIONS, (
                 f"{WORKFLOW}: job {name!r} step {i} invokes {uses!r}, which is "
                 f"not in KEY_JOB_ALLOWED_ACTIONS "
                 f"({sorted(KEY_JOB_ALLOWED_ACTIONS)}). 'Published' is not the "
@@ -316,6 +325,24 @@ def test_the_package_allowlist_rejects_a_smuggled_dependency(monkeypatch):
 
 def test_the_action_allowlist_rejects_a_published_third_party_action(monkeypatch):
     wf = _mutated_key_job({"uses": "attacker/action@v1"})
+    monkeypatch.setitem(globals(), "_load", lambda: wf)
+    with pytest.raises(AssertionError, match="KEY_JOB_ALLOWED_ACTIONS"):
+        test_a_key_bearing_job_invokes_no_pr_authored_local_action()
+
+
+def test_the_package_allowlist_rejects_a_version_swap(monkeypatch):
+    """PR #75 r16: binding the NAME left the version — and therefore the
+    wheel, and therefore the code — free."""
+    wf = _mutated_key_job({"run": (
+        'python -I -m pip install --no-deps --only-binary=:all: '
+        '"PyYAML==7.0.0"')})
+    monkeypatch.setitem(globals(), "_load", lambda: wf)
+    with pytest.raises(AssertionError, match="KEY_JOB_ALLOWED_PACKAGES"):
+        test_a_key_bearing_install_is_pinned_isolated_and_precedes_checkout()
+
+
+def test_the_action_allowlist_rejects_a_ref_swap(monkeypatch):
+    wf = _mutated_key_job({"uses": "actions/checkout@main"})
     monkeypatch.setitem(globals(), "_load", lambda: wf)
     with pytest.raises(AssertionError, match="KEY_JOB_ALLOWED_ACTIONS"):
         test_a_key_bearing_job_invokes_no_pr_authored_local_action()
