@@ -67,10 +67,12 @@ def test_pytest_ini_declares_the_narrowing_it_relies_on():
         )
 
 
-def test_every_test_file_is_collected_or_deliberately_excluded():
-    """No test file may be invisible to the runner without a stated reason."""
+def unaccounted_test_files(files: list[Path]) -> list[str]:
+    """THE predicate. Both the live check and its red-case demonstration call
+    this — evaluator blocker (r3): a negative test that re-implements the rule
+    inline stays green even when the real rule breaks."""
     unaccounted = []
-    for rel in _all_test_files():
+    for rel in files:
         posix = rel.as_posix()
         if rel.parts[0] == "tests":
             continue                                   # collected
@@ -79,6 +81,12 @@ def test_every_test_file_is_collected_or_deliberately_excluded():
         if posix in TOOL_FILES_NAMED_LIKE_TESTS:
             continue                                   # a tool, not a suite
         unaccounted.append(posix)
+    return unaccounted
+
+
+def test_every_test_file_is_collected_or_deliberately_excluded():
+    """No test file may be invisible to the runner without a stated reason."""
+    unaccounted = unaccounted_test_files(_all_test_files())
 
     assert not unaccounted, (
         "test file(s) live outside tests/ and outside every declared exclusion, "
@@ -106,13 +114,37 @@ def test_the_excluded_tree_really_does_hold_tests_we_are_skipping():
     )
 
 
-def test_gate_goes_red_on_a_silently_dropped_test_file(tmp_path):
-    """Demonstrate the check can fail — the PR #75 defect shape."""
-    rogue = [Path("worker/test_sneaky.py")]
-    unaccounted = [
-        p.as_posix() for p in rogue
-        if p.parts[0] != "tests"
-        and p.parts[0] not in EXCLUDED_TREES
-        and p.as_posix() not in TOOL_FILES_NAMED_LIKE_TESTS
+def test_gate_goes_red_on_a_silently_dropped_test_file():
+    """Demonstrate the REAL predicate fails on the defect shape.
+
+    Calls `unaccounted_test_files` — the same function the live check uses —
+    so breaking the rule breaks this demonstration too.
+    """
+    assert unaccounted_test_files([Path("worker/test_sneaky.py")]) == [
+        "worker/test_sneaky.py"
     ]
-    assert unaccounted == ["worker/test_sneaky.py"]
+    # And the three accounted-for shapes must NOT be flagged by that same
+    # function, or the live check would be vacuous in the other direction.
+    assert unaccounted_test_files([
+        Path("tests/test_gates.py"),
+        Path("templates/universal-kernel/tests/test_kernel_integrity.py"),
+        Path("tools/test_audit.py"),
+    ]) == []
+
+
+def test_gate_goes_red_when_a_real_repo_file_would_be_dropped():
+    """Strongest form: run the predicate over the LIVE tree with the
+    exclusions emptied — every staged template test must then be reported,
+    proving the live scan reaches real files and is not silently empty."""
+    real = _all_test_files()
+    assert real, "the repository scan found no test files at all"
+    saved = dict(EXCLUDED_TREES)
+    try:
+        EXCLUDED_TREES.clear()
+        flagged = unaccounted_test_files(real)
+    finally:
+        EXCLUDED_TREES.update(saved)
+    assert any(f.startswith("templates/") for f in flagged), (
+        "with exclusions removed the predicate must flag the staged template "
+        "tests; it did not, so the live scan is not reaching them"
+    )

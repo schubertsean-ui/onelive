@@ -46,9 +46,18 @@ KERNEL_DOCS = [
 ]
 
 
+def missing_invariants(charter_text: str) -> list[str]:
+    """THE predicate, shared by the live check and its red-case proof.
+
+    A negative test that re-implements the rule inline stays green even when
+    the real rule breaks — so both call this one function.
+    """
+    return [i for i in INVARIANTS if i not in charter_text]
+
+
 def test_charter_carries_every_invariant_class():
     charter = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
-    missing = [i for i in INVARIANTS if i not in charter]
+    missing = missing_invariants(charter)
     assert not missing, (
         "CLAUDE.md is missing kernel invariant class(es) — an overlay may add "
         f"constraints but never drop one: {missing}"
@@ -93,7 +102,15 @@ def test_escalation_list_names_gate_threshold_relaxations():
 
 
 def test_the_gate_can_actually_fail():
-    """Prove this file is not decorative (kernel I2, applied to itself)."""
-    fake_charter = "I1 — Generation never self-certifies\n"  # missing I2–I7
-    missing = [i for i in INVARIANTS if i not in fake_charter]
-    assert len(missing) == 6, "the invariant check must red on a stripped charter"
+    """Prove this file is not decorative (kernel I2, applied to itself).
+
+    Exercises the REAL predicate `missing_invariants` — the same one the
+    live check uses — against a stripped charter, so a broken predicate
+    breaks this proof too.
+    """
+    stripped = "I1 — Generation never self-certifies\n"  # missing I2-I7
+    assert missing_invariants(stripped) == INVARIANTS[1:]
+    # ...and it must report NOTHING missing for the real charter, or the
+    # live assertion above would pass vacuously.
+    real = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert missing_invariants(real) == []
