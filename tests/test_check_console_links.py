@@ -84,6 +84,46 @@ def test_404_is_BROKEN(monkeypatch):
     assert status == "BROKEN" and "404" in detail
 
 
+def test_a_404_on_the_private_repo_is_PRIVATE_not_BROKEN(monkeypatch):
+    """The false positive the first real CI run produced.
+
+    This repo is private, so an anonymous request to any of its pages 404s
+    whether the path is right or wrong. Calling that BROKEN made the gate fail on
+    four correct links — a false-positive gate, which is worse than no gate
+    because it teaches people to ignore red.
+    """
+    monkeypatch.setattr(LINKS.urllib.request, "urlopen",
+                        lambda *a, **k: (_ for _ in ()).throw(_http_error(404)))
+    status, detail = LINKS.probe(
+        "https://github.com/schubertsean-ui/onelive/settings/secrets/actions")
+    assert status == "PRIVATE"
+    assert "not visible" in detail
+    # And a 404 elsewhere is still a real finding — the narrowing is targeted.
+    assert LINKS.probe("https://github.com/other/repo/x")[0] == "BROKEN"
+
+
+def test_a_workflow_link_is_verified_against_the_file_offline():
+    """A private page cannot be probed, but the workflow file is right here."""
+    status, detail = LINKS.probe(
+        "https://github.com/schubertsean-ui/onelive/actions/workflows/site_health.yml")
+    assert status == "PASS" and "exists" in detail
+
+
+def test_a_workflow_link_pointing_at_nothing_is_BROKEN():
+    status, detail = LINKS.probe(
+        "https://github.com/schubertsean-ui/onelive/actions/workflows/no_such.yml")
+    assert status == "BROKEN" and "does not exist" in detail
+
+
+def test_the_offline_workflow_check_does_not_hit_the_network(monkeypatch):
+    def explode(*a, **k):
+        raise AssertionError("probe made a network call for a workflow link")
+    monkeypatch.setattr(LINKS.urllib.request, "urlopen", explode)
+    assert LINKS.probe(
+        "https://github.com/schubertsean-ui/onelive/actions/workflows/"
+        "import_licensed.yml")[0] == "PASS"
+
+
 def test_head_not_allowed_is_not_a_broken_link(monkeypatch):
     monkeypatch.setattr(LINKS.urllib.request, "urlopen",
                         lambda *a, **k: (_ for _ in ()).throw(_http_error(405)))
@@ -108,11 +148,13 @@ def test_a_broken_link_fails_the_check(monkeypatch):
     assert LINKS.main() == 1
 
 
-def test_blocked_links_do_not_fail_but_are_not_reported_as_passing(monkeypatch, capsys):
-    monkeypatch.setattr(LINKS, "probe", lambda url: ("BLOCKED", "policy denied"))
+@pytest.mark.parametrize("status", ["BLOCKED", "PRIVATE"])
+def test_unverifiable_links_do_not_fail_but_are_not_reported_as_passing(
+        monkeypatch, capsys, status):
+    monkeypatch.setattr(LINKS, "probe", lambda url: (status, "cannot see it"))
     assert LINKS.main() == 0
     out = capsys.readouterr().out
-    assert "UNVERIFIABLE" in out and "NOT a pass" in out
+    assert "UNVERIFIABLE" in out and "NOT counted as passing" in out
     assert "OK —" not in out          # must never read as a clean pass
 
 

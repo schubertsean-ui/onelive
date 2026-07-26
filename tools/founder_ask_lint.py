@@ -33,6 +33,9 @@ REQUIRED_FIELDS: dict[str, str] = {
     "What": "one plain sentence naming the action",
     "Where": "the full URL — a click-path is not a link (docs/DEPLOY.md §console links)",
     "Exactly what to enter": "literal field names and values, or 'nothing to type'",
+    "Why this needs you": "what the agent tried and why this cannot be automated "
+                          "— the founder's manual work is the scarcest resource, so "
+                          "an ask with no such statement is an admission nobody looked",
     "Time": "an honest estimate",
     "Unblocks": "what becomes possible the moment it is done",
     "If you decline": "the cost and the alternative — never present a choice as free",

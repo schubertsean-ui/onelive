@@ -45,6 +45,8 @@ _FULL = """### Ask 9 — do a thing
 
 **Exactly what to enter:** nothing to type.
 
+**Why this needs you:** it is a setting in your account; no API path exists.
+
 **Time:** ~1 minute.
 
 **Unblocks:** the next thing.

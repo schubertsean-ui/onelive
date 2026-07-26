@@ -48,6 +48,36 @@ _URL_RE = re.compile(r"<(https://[^>\s]+)>")
 # to see it" — expected for every dashboard link here, and NOT a failure.
 _AUTH_CODES = frozenset({301, 302, 303, 307, 308, 401, 403})
 
+# Hosts serving PRIVATE resources, where an anonymous 404 means "not visible to
+# you", NOT "wrong path". Discovered the hard way: the first real run flagged four
+# correct github.com links as BROKEN because this repo is private. Treating that
+# 404 as a defect is a false-positive gate — worse than no gate, because it
+# trains people to ignore it.
+_PRIVATE_404_HOSTS = ("github.com/schubertsean-ui/",)
+
+# github.com/<owner>/<repo>/actions/workflows/<file> — the ONE github.com link
+# shape whose target is verifiable offline, because the workflow file is in this
+# repo. Checked locally instead of guessed at.
+_WORKFLOW_LINK_RE = re.compile(
+    r"github\.com/[^/]+/[^/]+/actions/workflows/(?P<file>[A-Za-z0-9_.-]+\.ya?ml)$")
+
+
+def _local_workflow_check(url: str) -> tuple[str, str] | None:
+    """Verify an Actions-workflow link against the file it points at.
+
+    A private repo cannot be probed anonymously, but the workflow file lives
+    here, so the link's target IS checkable — and a link to a workflow that does
+    not exist is a real defect this would otherwise miss entirely.
+    """
+    match = _WORKFLOW_LINK_RE.search(url)
+    if match is None:
+        return None
+    path = _REPO_ROOT / ".github" / "workflows" / match.group("file")
+    if path.is_file():
+        return "PASS", f"workflow file exists at {path.relative_to(_REPO_ROOT)}"
+    return "BROKEN", (f".github/workflows/{match.group('file')} does not exist — "
+                      f"this link points at nothing")
+
 
 def urls_in_section(text: str) -> list[str]:
     """Every URL inside the console-links section of DEPLOY.md, in order."""
@@ -68,7 +98,10 @@ def urls_in_section(text: str) -> list[str]:
 
 
 def probe(url: str) -> tuple[str, str]:
-    """Return (status, detail). Status is PASS, AUTH, BLOCKED or BROKEN."""
+    """Return (status, detail). PASS, AUTH, PRIVATE, BLOCKED or BROKEN."""
+    local = _local_workflow_check(url)
+    if local is not None:
+        return local
     request = urllib.request.Request(url, method="HEAD",
                                      headers={"User-Agent": "onelive-link-check"})
     try:
@@ -78,6 +111,10 @@ def probe(url: str) -> tuple[str, str]:
         if exc.code in _AUTH_CODES:
             return "AUTH", f"HTTP {exc.code} — host answered, login required"
         if exc.code == 404:
+            if any(marker in url for marker in _PRIVATE_404_HOSTS):
+                return "PRIVATE", ("HTTP 404 — this repo is PRIVATE, so an "
+                                   "anonymous 404 means 'not visible', not 'wrong "
+                                   "path'; unverifiable from here")
             return "BROKEN", "HTTP 404 — path not found"
         if exc.code == 405:  # HEAD not allowed is not a broken link
             return "AUTH", "HTTP 405 — HEAD refused, host is alive"
@@ -108,14 +145,14 @@ def main() -> int:
               file=sys.stderr)
         return 2
 
-    broken, blocked = [], []
+    broken, unverifiable = [], []
     for url in urls:
         status, detail = probe(url)
-        print(f"{status:8} {url}  ({detail})")
+        print(f"{status:9} {url}  ({detail})")
         if status == "BROKEN":
             broken.append(url)
-        elif status == "BLOCKED":
-            blocked.append(url)
+        elif status in ("BLOCKED", "PRIVATE"):
+            unverifiable.append(url)
 
     print()
     if broken:
@@ -123,11 +160,12 @@ def main() -> int:
               f"BROKEN — fix docs/DEPLOY.md 'The console links' in this change; the "
               f"next session copies from that table.")
         return 1
-    if blocked:
-        print(f"check_console_links: {len(blocked)} of {len(urls)} link(s) "
-              f"UNVERIFIABLE here (egress policy denied the host) — this is NOT a "
-              f"pass for those rows. Run this on a GitHub runner, which has open "
-              f"egress, to get a real answer.")
+    if unverifiable:
+        print(f"check_console_links: {len(urls) - len(unverifiable)} of {len(urls)} "
+              f"link(s) confirmed reachable; {len(unverifiable)} UNVERIFIABLE and "
+              f"NOT counted as passing — either the egress policy denied the host, "
+              f"or the target is private so an anonymous 404 proves nothing. "
+              f"Reported rather than guessed at.")
         return 0
     print(f"check_console_links: OK — {len(urls)} link(s), none provably broken. "
           f"AUTH rows mean the host answered and a login is required, which is "

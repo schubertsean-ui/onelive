@@ -121,6 +121,25 @@ is made it has been codified in the code and not left in the session."*)
 
 Four things, every time, in this order — the full form is `docs/HOW_WE_WORK.md` §11:
 
+**The constraint that outranks all four: the founder's manual work is the scarcest
+resource in this project.** (Founder directive, 2026-07-26: *"I want to do as little
+manual work as possible."*) So:
+
+- **An option that needs zero founder action beats a better option that needs one.**
+  Take the extra engineering yourself. Automating around a founder click is almost
+  always cheaper than the click, because the click recurs and the code does not.
+- **Never recommend founder labour as a convenience** — no *"worth doing whenever
+  you're next in there."* If it is worth doing, either automate it or make it a real
+  ask with a real justification. That exact phrasing was the violation that produced
+  this clause.
+- **Order options by founder effort, ascending.** Cheapest-for-the-founder first,
+  even when it is not your favourite.
+- **Every ask states why it cannot be automated**, and what you tried. An ask with no
+  such statement is an admission you did not look. Enforced as the
+  `**Why this needs you:**` field by `tools/founder_ask_lint.py`.
+- **An ask you can delete is worth more than an ask you can polish.** Re-examine the
+  open list every session: what could the agent now do that it could not before?
+
 0. **Never a problem alone — always three ways out.** (Founder directive,
    2026-07-26: *"never tell me the problem only: always tell me the solution options
    (always 3 options) and your recommendation and why, and the tradeoffs and
