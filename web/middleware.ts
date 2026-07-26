@@ -142,22 +142,55 @@ const _mode = authMode();
 export default async function middleware(
   req: import("next/server").NextRequest,
 ): Promise<Response | undefined> {
-  if (_mode === "clerk") return clerkGate(req);
-  if (_mode === "disabled") {
-    // Consumer surface is intentionally public; ops stays denied (no auth
-    // provider can gate it, so it must never be exposed by this switch).
-    return isOpsRoute(req) ? opsDenied() : NextResponse.next();
+  try {
+    if (_mode === "clerk") return await clerkGate(req);
+    if (_mode === "disabled") {
+      // Consumer surface is intentionally public; ops stays denied (no auth
+      // provider can gate it, so it must never be exposed by this switch).
+      return isOpsRoute(req) ? opsDenied() : NextResponse.next();
+    }
+    // Fully unconfigured: the health endpoint stays reachable so the
+    // misconfiguration is diagnosable; everything else fails closed.
+    return isHealthRoute(req) ? NextResponse.next() : accessNotConfigured();
+  } catch (err) {
+    // A throw here previously surfaced as Vercel's opaque
+    // MIDDLEWARE_INVOCATION_FAILED with no way to tell WHICH failure it was.
+    // "We failed" must never be indistinguishable from anything else
+    // (CLAUDE.md), so say what broke.
+    //
+    // FAIL CLOSED, not open: this returns an error, never `NextResponse.next()`.
+    // A catch that let the request through would turn a crash into a silent
+    // bypass of the gate — the worst possible reading of this block.
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error("[middleware] threw; failing closed:", err);
+    return new NextResponse(
+      "OneLive middleware failed while deciding access, so this request is " +
+        "refused rather than allowed. Resolved auth mode: " +
+        `${_mode}. Error: ${detail}\n` +
+        "Open /api/health (deliberately NOT routed through middleware) for the " +
+        "resolved configuration. Contract: docs/DEPLOY.md.",
+      { status: 500, headers: { "content-type": "text/plain; charset=utf-8" } },
+    );
   }
-  // Fully unconfigured: the health endpoint stays reachable so the
-  // misconfiguration is diagnosable; everything else fails closed.
-  return isHealthRoute(req) ? NextResponse.next() : accessNotConfigured();
 }
 
 export const config = {
   // Run on everything except Next internals and files with an extension (static
-  // assets), plus always run for API routes. Mirrors Clerk's recommended matcher.
+  // assets), plus API routes — BUT NEVER `/api/health`.
+  //
+  // `/api/health` is deliberately EXCLUDED from middleware. Its entire purpose is
+  // to stay reachable and truthful when a deployment is broken, and routing it
+  // through middleware meant a middleware fault took it down too: on 2026-07-26
+  // the whole site answered HTTP 500 MIDDLEWARE_INVOCATION_FAILED and the one
+  // endpoint that could have explained why was 500 as well. A diagnostic that
+  // dies with the thing it diagnoses is not a diagnostic.
+  //
+  // Nothing is opened by this: the route itself returns only resolved config and
+  // never a secret value (see app/api/health/route.ts), and it was already listed
+  // as public in every mode including the fail-closed one.
   matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    "/(api|trpc)(.*)",
+    "/((?!_next|api/health|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/api/(?!health)(.*)",
+    "/trpc(.*)",
   ],
 };
