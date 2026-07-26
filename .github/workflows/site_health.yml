@@ -21,7 +21,11 @@ on:
       url:
         description: "Base URL of the deployment to check (no trailing slash)"
         required: true
-  # [R-069] Also runs on this PR, deliberately and temporarily. workflow_dispatch can
+  # [R-069] Also runs on this PR, deliberately and temporarily. The literal below is
+  # THIS branch's Vercel alias — a PR's health check must test that PR's own
+  # deployment, or it reports on code the PR does not contain. That is why the
+  # hardcoded host has to be updated per branch until this reaches the default
+  # branch and `workflow_dispatch` becomes usable. workflow_dispatch can
   # only be triggered via the API once the file exists on the DEFAULT branch, so
   # until this merges the dispatch path is unusable and the check would be dead
   # on arrival. The pull_request path uses the branch's Vercel alias, which is
@@ -57,7 +61,7 @@ jobs:
           # first recorded escape). tests/test_scheduled_inputs_contract.py
           # guards the schedule form of this class; this is the same discipline
           # applied to the pull_request form.
-          BASE_URL: ${{ github.event_name == 'pull_request' && 'https://onelive-git-claude-onelive-v1-eval-90b9d1-sss-projects-e4775771.vercel.app' || github.event.inputs.url }}
+          BASE_URL: ${{ github.event_name == 'pull_request' && 'https://onelive-git-claude-experience-metr-e0a7c3-sss-projects-e4775771.vercel.app' || github.event.inputs.url }}
           # Defaults to the literal sentinel ABSENT rather than an empty string,
           # so "no secret configured" is a STATED value the shell can guard and
           # branch on. GitHub renders an unset secret and a set-but-empty secret
