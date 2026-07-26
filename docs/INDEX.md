@@ -97,16 +97,26 @@ Records of a moment. Do not build from these without re-verifying against realit
   (code: `brain/`) · `ventures/promise_ledger/docs/*` (code: `ventures/`)
 - `design/proposals/*` — design iterations and renders.
 
-## Deleted 2026-07-26, and why
+## Emptied 2026-07-26, and why
 
-Both were factually false and actively misleading; git history keeps them.
+Both stated facts that are now false and were actively misleading; git history
+keeps the original text.
 
-- `LIVE_READINESS.md` — dated 2026-07-12; reported master at `a0b3724`, zero
-  events, and PR #7 as the blocker. All superseded. Replaced by `docs/V1.md`.
-- `docs/SPRINT_LIVE_SITE.md` — stated in bold *"PLAN ONLY — nothing in this file
-  has been executed. Zero deploys, zero migrations, zero spend so far."* Thirteen
-  migrations are applied, the cron is armed, and the AI budget is exhausted.
-  Replaced by `docs/V1.md`.
+- `LIVE_READINESS.md` — **deleted.** Dated 2026-07-12; reported master at
+  `a0b3724`, zero events, and PR #7 as the blocker. All superseded. Replaced by
+  `docs/V1.md`.
+- `docs/SPRINT_LIVE_SITE.md` — **content deleted, file kept as a 3-line
+  tombstone** pointing at `docs/V1.md`. It stated in bold *"PLAN ONLY — nothing
+  in this file has been executed. Zero deploys, zero migrations, zero spend so
+  far."* Thirteen migrations are applied, the cron is armed, and the AI budget is
+  exhausted. The file itself survives for a mechanical reason worth knowing:
+  `.github/workflows/ingest.yml` cites the path in a missing-secret error message,
+  and `ingest.yml` sits permanently inside the armed cron's runtime closure, so
+  editing that one string would invalidate the arming-evidence binding
+  (`tests/test_arming_smoke_binding.py`) and demand a fresh **paid** smoke run.
+  A valid pointer costs nothing; a dangling one, or founder spend for a comment,
+  both cost more. The tombstone names the next change that should repoint the
+  message and delete it.
 
 ## The rule that keeps this file honest
 
