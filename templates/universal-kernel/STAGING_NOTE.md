@@ -5,8 +5,12 @@
 
 This directory is the founder-ratified universal kernel (v1, ratified
 2026-07-24, incl. the K-LOOP-5 amendment). It is a COMPLETE, self-contained
-template — 57 files — that was built and verified in an agent session:
-its own test suite passes and `tools/validate` runs green on a fresh copy.
+template that was built and verified in an agent session:
+its own test suite AND its `tools/validate` both run green — proven in CI by
+`tests/test_staged_template_selftests.py`, which executes both inside this
+staged copy, so the claim is produced by the evidence bundle rather than
+asserted beside it. No file count is quoted here: a number in prose drifts
+the moment a file is added, and the git tree is the authority.
 
 **Why it is here instead of in its own repo:** the agent session's GitHub
 access is scoped to `schubertsean-ui/onelive`, and the mechanism for

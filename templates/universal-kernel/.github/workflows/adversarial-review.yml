@@ -12,8 +12,12 @@ name: Adversarial Review (independent, non-generator model)
 # Security posture — each line here was earned by an adversarial finding:
 # - The evaluator script executes ONLY from the TRUSTED BASE REF, never the
 #   pull request's copy: a PR's own reviewer could self-approve or exfiltrate
-#   the key. Run with `python -I` (stdlib-only; immune to PYTHONPATH/cwd
-#   hijack) from a trusted temp dir.
+#   the key. It is materialised AFTER every PR-controlled step (deps, tests,
+#   validate) into a per-run mktemp dir and made read-only — writing it to a
+#   predictable path beforehand would let a malicious PR overwrite it while
+#   its own tests run. Executed with `python -I` (stdlib-only; ignores
+#   PYTHONPATH and the user site-dir, so a payload installed during those
+#   steps cannot be imported).
 # - If the script is absent on the base ref (bootstrap: the very PR that
 #   introduces it), this gate HARD-FAILS *before the secret enters the job*.
 #   A warning is not enforcement. That one bootstrap PR is human-reviewed and
@@ -71,15 +75,16 @@ jobs:
           echo "base=$RESOLVED_BASE" >> "$GITHUB_OUTPUT"
           echo "range=$RESOLVED_RANGE" >> "$GITHUB_OUTPUT"
 
-      - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
+      - name: Verify the base ref HAS an evaluator script (bootstrap check only)
+        # Existence is checked early so the bootstrap failure is reported
+        # before wasting a test run. The script is NOT materialised here —
+        # see the fetch step below, which runs AFTER all PR-controlled code.
         env:
           TRUSTED_BASE: ${{ steps.range.outputs.base }}
         run: |
           : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
-          mkdir -p /tmp/trusted
-          if git show "$TRUSTED_BASE:tools/adversarial_review.py" \
-               > /tmp/trusted/adversarial_review.py 2>/dev/null; then
-            echo "Using tools/adversarial_review.py from $TRUSTED_BASE (trusted)."
+          if git show "$TRUSTED_BASE:tools/adversarial_review.py" > /dev/null 2>&1; then
+            echo "Base ref carries the evaluator script (materialised later, post-untrusted-code)."
           else
             echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on $TRUSTED_BASE. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
             exit 1
@@ -122,11 +127,36 @@ jobs:
             ':(exclude)**/poetry.lock' ':(exclude)**/uv.lock' > pr.diff
           wc -c pr.diff
 
+      - name: Materialise the trusted evaluator AFTER all PR-controlled code
+        # SECURITY ORDERING — this step must stay LAST before the secret.
+        # Every step above runs code the pull request controls: dependency
+        # installation, the test suite, and the composite gate. If the
+        # trusted script were written to a predictable path BEFORE them, a
+        # malicious PR could overwrite that file (or drop a sitecustomize /
+        # .pth payload during pip install) and then have the secret-bearing
+        # step execute its own code — self-approval or key exfiltration.
+        # So: fetch it fresh, into a per-run mktemp directory, after the
+        # untrusted work is done, and make it read-only.
+        id: trusted
+        env:
+          TRUSTED_BASE: ${{ steps.range.outputs.base }}
+        run: |
+          : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
+          TRUSTED_DIR="$(mktemp -d)"
+          git show "$TRUSTED_BASE:tools/adversarial_review.py" \
+            > "$TRUSTED_DIR/adversarial_review.py"
+          chmod 0400 "$TRUSTED_DIR/adversarial_review.py"
+          echo "dir=$TRUSTED_DIR" >> "$GITHUB_OUTPUT"
+
       - name: Independent evaluator — APPROVE or the gate fails
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TRUSTED_DIR: ${{ steps.trusted.outputs.dir }}
         run: |
           : "${OPENAI_API_KEY:?evaluator key absent — the mandatory review cannot run, failing closed}"
-          python -I /tmp/trusted/adversarial_review.py --require \
+          : "${TRUSTED_DIR:?trusted dir unresolved — failing closed}"
+          # `python -I` also ignores PYTHONPATH and the user site-dir, so a
+          # payload installed during the untrusted steps cannot be imported.
+          python -I "$TRUSTED_DIR/adversarial_review.py" --require \
             --max-diff-bytes 800000 \
             --diff-file pr.diff --test-log pytest.log --test-log validate.log
