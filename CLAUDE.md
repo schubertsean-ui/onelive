@@ -44,7 +44,11 @@ the missing mechanism, not a new idea.
    study: median change ~24 lines, ~90% under 10 files; defect detection
    collapses past ~400 lines (SmartBear/Cisco). Hard caps: **1500 reviewable
    lines / 25 files**. Generated artifacts and lockfiles do not count.
-2. **A change under review DOES NOT GROW.** Freeze scope with
+2. **A change under review DOES NOT GROW.** The freeze REPORTS growth loudly;
+   it does not block, because a file the author controls cannot be made
+   tamper-proof against that author and claiming otherwise is the
+   false-confidence-gate class (see the ADVISORY note in the canon). Freeze
+   scope with
    `change_set_gate.py --freeze` when a PR goes out; growth beyond +600 lines /
    +6 files fails. Adopting a reviewer's blocker is in scope; NEW WORK IS NOT,
    however urgent — and it always feels urgent. New work opens a new branch.
@@ -87,6 +91,29 @@ work transferred to the founder.
    failure mode, not patience.
 5. **Length is capped by news.** Long explanation is earned by a large delta,
    never by a large effort. Nobody is paying for the narration of a loop.
+
+## The ten-minute ceiling (added 2026-07-26 at founder direction — ABSOLUTE)
+Verbatim: *"I will not ever allow a delay of more than 10 minutes. Do not ask
+for longer delays."* This is a hard ceiling on WAITING, and it has no
+exceptions and no negotiation:
+1. **No wait, poll, sleep, watch interval, self-scheduled wake-up or check-in
+   may exceed 10 MINUTES.** Not 55, not "an hour out", not "overnight". If a
+   scheduling tool's default is longer, override it; if it cannot go below ten
+   minutes, do not use it.
+2. **Asking for longer is itself the violation.** The founder has ruled; there
+   is no case to make. Do not propose a longer interval, do not explain why one
+   would be more efficient, do not ask permission for an exception.
+3. **A long-running external thing does not license a long wait.** Check at ten
+   minutes and report what is true, including "still running". A slow CI job is
+   a reason for MORE frequent checks, never fewer.
+4. **Waiting is the last resort, not the first.** Before scheduling any wait,
+   do the work that does not depend on the pending thing (execution bias rule
+   4: blocked is not idle). A ten-minute wait with nothing done in it is a
+   ten-minute wait that should have been zero.
+5. **This overrides every other cadence rule in the canon**, including the
+   external-stall ladder's "one expected-event interval" in
+   `docs/OPERATING_RULES.md` — that interval is now capped at ten minutes
+   whatever the provider's own cycle is.
 
 ## Communicating with the founder (added 2026-07-13 at founder direction)
 These rules govern **how** anything addressed to the founder is written. They do

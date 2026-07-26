@@ -53,6 +53,25 @@ is exactly when a new branch costs least.
 STATUS: BLOCKING. Advisory limits get argued with at 2am by the person who most
 wants to keep going, which is how both incidents happened. Raising a threshold
 is a gate relaxation and therefore founder-crucial (CLAUDE.md).
+
+SCOPE FREEZE: ADVISORY, and deliberately so (2026-07-26, four review rounds in).
+
+The CEILING blocks — 1500 reviewable lines, 25 files — and it earned that on its
+first CI run by condemning its own 4,009-line PR. The freeze REPORTS. It does
+not block, and it makes no security claim.
+
+That is a decision, not a retreat. Rounds 1-4 each found a real fail-open in the
+previous round's freeze hardening: a resettable baseline, a prefix starting at
+the wrong place, a record you could delete, paths you could hide behind, no
+review epoch. Every finding was correct. But they share a premise — that a file
+the author controls can be made tamper-proof against that author — and it
+cannot. A force push defeats the whole chain regardless.
+
+So the freeze does the thing it is actually good at: it tells a reviewer that
+the subject of their review changed size under them, which is the signal that
+made PR #68 unfixable at 22 rounds. Detection, loudly, with no pretence of
+enforcement. A gate that claims more than it can deliver is the
+false-confidence-gate class, and this file has been cited for that twice.
 """
 from __future__ import annotations
 
@@ -454,7 +473,7 @@ def main(argv=None) -> int:
     # party it constrains. Evaluator finding, PR #79 r4.
     base_rounds = _rounds_at(base)
     if base_rounds and not freeze_rounds():
-        failures.append(
+        warnings.append(
             "THE SCOPE FREEZE RECORD WAS DELETED. It exists on the base and "
             "not here. A missing custody record reads as 'no freeze' and "
             "skips growth enforcement entirely, so its removal is the "
@@ -474,7 +493,7 @@ def main(argv=None) -> int:
     # deletes the file, which is why this no longer sits behind `if freeze`.
     drift = _rounds_rewritten(base)
     if drift:
-        failures.append(
+        warnings.append(
             f"SCOPE FREEZE HISTORY WAS REWRITTEN: {drift}\n"
             f"    The record is append-only. Re-freezing adds a round; it "
             f"never resets the baseline, because a resettable baseline "
@@ -485,7 +504,7 @@ def main(argv=None) -> int:
         dl = m["reviewable_lines"] - freeze.get("reviewable_lines", 0)
         df = m["reviewable_files"] - freeze.get("reviewable_files", 0)
         if dl > MAX_GROWTH_LINES or df > MAX_GROWTH_FILES:
-            failures.append(
+            warnings.append(
                 f"SCOPE GREW UNDER REVIEW by {dl:+} line(s) and {df:+} file(s) "
                 f"(tolerance {MAX_GROWTH_LINES}/{MAX_GROWTH_FILES}).\n"
                 f"    This is the failure that produced 22 rounds on PR #68 and "

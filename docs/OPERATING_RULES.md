@@ -193,7 +193,13 @@ a deploy callback):
 - **Second miss:** if the remaining fix needs founder hands, the consolidated
   founder ask goes out NOW — options, recommendation, tradeoffs, links. Never
   wait for a round number of misses or an "escalation checkpoint" hours out.
-- **Watching cadence:** watch interval = ONE expected-event interval + provider
+- **Watching cadence: TEN MINUTES, HARD CEILING** (founder-directed 2026-07-26,
+  verbatim: "I will not ever allow a delay of more than 10 minutes. Do not ask
+  for longer delays."; charter section "The ten-minute ceiling"). No watch,
+  poll or self-scheduled wake exceeds ten minutes, whatever the provider's own
+  cycle is, and asking for longer is itself the violation. The rule below is
+  the FLOOR for how often to look, never a licence to look less often:
+  watch interval = min(10 minutes, ONE expected-event interval + provider
   lag allowance, never multi-interval windows.
 - **A watch turn never ends unarmed:** success is silent (CI success and
   merges deliver no webhook) — before ending ANY turn that awaits an

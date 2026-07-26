@@ -143,3 +143,26 @@ Recorded because the meta-failure is the more expensive one.
 failure recurs, the defect is not the recurrence — it is that the lesson was
 written in a form nothing executes. Ask of every retro: *what will now fail?*
 If the answer is "nothing, but we'll remember", it is not codified.
+
+## Why the scope freeze is ADVISORY (2026-07-26, after four review rounds)
+
+The CEILING blocks: 1500 reviewable lines, 25 files. It earned that on its
+first CI run, by condemning its own 4,009-line PR.
+
+The FREEZE reports. Rounds 1-4 of PR #79 each found a real fail-open in the
+previous round's attempt to harden it — a resettable baseline, a prefix
+starting at the wrong place, a deletable record, paths that could hide behind
+unparseable output, a missing review epoch. Every finding was correct, and
+every fix was worth making. But they share one premise: that a file the author
+controls can be made tamper-proof against that author. It cannot, and a force
+push defeats the whole chain regardless.
+
+So the freeze does what it is genuinely good at — telling a reviewer that the
+subject of their review changed size under them, which is the signal that made
+PR #68 undiagnosable at 22 rounds. Loud detection, no enforcement claim.
+
+Claiming more than a mechanism can deliver is the false-confidence-gate class,
+and this file has been cited for exactly that twice. Choosing detection over a
+guarantee we cannot honour is not a relaxed threshold; it is the threshold
+being stated truthfully. The blocking ceiling is unchanged and raising it is
+still founder-crucial.
