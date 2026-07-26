@@ -89,22 +89,63 @@ LOW_REVIEW_COST = (
     "sources/capcog_venue_targets.json",
     "sources/tabc_capcog_raw.json",
     "sources/source_registry.json",
+    "sources/discovered/",
     "web/lib/capcog-boundary.json",
     "docs/export/",
+)
+
+# Lockfiles are excluded WHEREVER they sit. Matching them as path prefixes
+# never fired: our only lockfile is web/package-lock.json, which starts with
+# neither "package-lock.json" nor equals it, so lockfiles were counted as
+# reviewable while CLAUDE.md and this docstring both said they were not.
+# Evaluator finding, PR #79 r1.
+LOW_REVIEW_COST_BASENAMES = (
     "package-lock.json",
     "pnpm-lock.yaml",
+    "yarn.lock",
+    "poetry.lock",
+    "Cargo.lock",
 )
 
 
+def _is_low_review_cost(path: str) -> bool:
+    if path.rsplit("/", 1)[-1] in LOW_REVIEW_COST_BASENAMES:
+        return True
+    return any(path == p or path.startswith(p) for p in LOW_REVIEW_COST)
+
+
 def _git(*args: str) -> str:
-    return subprocess.run(["git", *args], cwd=REPO, capture_output=True,
-                          text=True, check=False).stdout.strip()
+    """Run git, or STOP.
+
+    The first version passed check=False and returned "" on failure, so a
+    missing base ref, an unfetched remote or a broken repo produced an empty
+    diff — which measured 0 files, 0 lines, and PASSED. A size gate that reports
+    "nothing to review" when it could not look is the failure-reads-as-empty
+    class inside the gate written to enforce reviewability, and the session
+    contract asserted the opposite. Evaluator finding, PR #79 r1: three of four
+    seats found it independently.
+    """
+    proc = subprocess.run(["git", *args], cwd=REPO, capture_output=True,
+                          text=True, check=False)
+    if proc.returncode != 0:
+        raise SystemExit(
+            f"change_set_gate: FAIL — `git {' '.join(args)}` exited "
+            f"{proc.returncode}: {proc.stderr.strip() or '(no stderr)'}. "
+            f"The change set could not be measured, which is NOT the same as "
+            f"a small change set. Fetch the base ref and rerun.")
+    return proc.stdout.strip()
 
 
 def measure(base: str, head: str = "HEAD") -> dict:
     """Reviewable size of head against base."""
     files: list = []
     total = 0
+    # Which paths were actually DELETED, read from git rather than inferred.
+    deleted = {}
+    for line in _git("diff", "--name-status", base, head).splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 2 and parts[0].startswith("D"):
+            deleted[parts[-1]] = True
     numstat = _git("diff", "--numstat", base, head)
     for line in numstat.splitlines():
         parts = line.split("\t")
@@ -113,7 +154,7 @@ def measure(base: str, head: str = "HEAD") -> dict:
         added, removed, path = parts
         if added == "-":          # binary
             continue
-        if any(path.startswith(p) or path == p for p in LOW_REVIEW_COST):
+        if _is_low_review_cost(path):
             continue
         a, r = int(added), int(removed)
         # A WHOLESALE DELETION IS ONE DECISION, NOT N LINES OF READING.
@@ -121,7 +162,11 @@ def measure(base: str, head: str = "HEAD") -> dict:
         # the measured size went UP, so the tool punished the exact remedy it
         # exists to demand. Reviewing "should this file be gone?" is a single
         # judgement; reviewing a modification means reading both sides.
-        n = DELETED_FILE_COST if a == 0 and r > 0 else a + r
+        # `a == 0 and r > 0` is NOT a deletion test: cutting 500 lines out of
+        # a file that survives adds no lines either, and that IS 500 lines of
+        # reading. The status letter from --name-status is the fact; numstat
+        # cannot distinguish the two. Evaluator nit, PR #79 r1.
+        n = DELETED_FILE_COST if deleted.get(path) else a + r
         files.append({"path": path, "lines": n})
         total += n
     files.sort(key=lambda f: -f["lines"])
@@ -135,13 +180,13 @@ def load_freeze() -> dict | None:
         return None
     try:
         return json.loads(FREEZE.read_text(encoding="utf-8"))
-    except ValueError as exc:
+    except (ValueError, OSError, UnicodeDecodeError) as exc:
         # A corrupt freeze record must not read as "no freeze recorded" — that
         # would silently disable the one rule that matters most.
         raise SystemExit(
-            f"change_set_gate: FAIL — {FREEZE} is not valid JSON ({exc}). "
-            f"A corrupt scope record is not an absent one; fix or delete it "
-            f"deliberately.")
+            f"change_set_gate: FAIL — {FREEZE} could not be read as JSON "
+            f"({exc}). A corrupt or unreadable scope record is not an absent "
+            f"one; fix or delete it deliberately.")
 
 
 def main(argv=None) -> int:
@@ -196,7 +241,14 @@ def main(argv=None) -> int:
             f"(~90% of changes at Google touch fewer than 10). SPLIT IT.")
 
     freeze = load_freeze()
-    if freeze and freeze.get("branch") == _git("rev-parse", "--abbrev-ref", "HEAD"):
+    # NOT gated on the branch name. `git rev-parse --abbrev-ref HEAD` returns
+    # the literal "HEAD" on every detached checkout — which is what every CI
+    # runner does — so requiring a name match silently skipped the growth check
+    # in the one place it has to run. The freeze travels WITH the change (it is
+    # a committed file), so its presence is the whole condition; the branch is
+    # recorded for the operator, not consulted as a guard. Evaluator finding,
+    # PR #79 r1, and my own contract claimed the opposite.
+    if freeze:
         dl = m["reviewable_lines"] - freeze.get("reviewable_lines", 0)
         df = m["reviewable_files"] - freeze.get("reviewable_files", 0)
         if dl > MAX_GROWTH_LINES or df > MAX_GROWTH_FILES:

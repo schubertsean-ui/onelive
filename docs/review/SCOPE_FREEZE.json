@@ -1,7 +1,7 @@
 {
   "_what": "The scope a reviewer was asked to review. Growth beyond the documented tolerance means the review's subject changed under it, which is why round counting stops working. New work goes to a new branch.",
   "branch": "claude/change-set-discipline-2026-07-26",
-  "frozen_at_head": "37ce1af8700fe8064ea9e5447003130fbfbcc922",
+  "frozen_at_head": "d9ea8092e78c15b337e2be0a39eea0769ce2dcd7",
   "reviewable_files": 10,
-  "reviewable_lines": 684
+  "reviewable_lines": 853
 }
