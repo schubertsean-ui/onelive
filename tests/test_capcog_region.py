@@ -4,13 +4,12 @@ The defect these tests pin: importers scoped the market as a 75-mile circle
 around downtown Austin, and San Antonio is ~75 miles away — so Bexar County was
 inside the query by construction and the live feed carried San Antonio venues.
 """
-import json
-import pathlib
-
 import pytest
 
 from worker.region.capcog import (
     CAPCOG_COUNTIES,
+    normalize_county,
+    row_verdict,
     CAPCOG_PLACES,
     KNOWN_OUTSIDE,
     county_for_place,
@@ -155,3 +154,76 @@ def test_region_report_separates_outside_from_unknown():
     # The eight counties with no coverage are named, not implied by absence.
     assert "llano" in r["counties_absent"]
     assert len(r["counties_absent"]) == 8
+
+
+# ---- r12 evaluator findings: five ways the boundary was still defeatable -----
+
+def test_a_county_qualifier_does_not_smuggle_an_outside_city_through():
+    """'San Antonio, Bexar County, TX' stripped ZIP, state and country but not
+    the COUNTY, so it matched neither table, returned UNKNOWN — and the read
+    path KEEPS unknowns. The invariant was defeatable by naming the county."""
+    for shape in ("San Antonio, Bexar County, TX",
+                  "san antonio, bexar county",
+                  "SAN ANTONIO, BEXAR COUNTY, TEXAS, USA"):
+        assert normalize_place(shape) == "san antonio", shape
+        assert in_capcog(shape) is False, shape
+    # and it must not damage an in-market city written the same way
+    assert normalize_place("Austin, Travis County, TX") == "austin"
+    assert in_capcog("Austin, Travis County, TX") is True
+
+
+def test_a_blank_preferred_field_does_not_hide_a_real_one():
+    """`venue_city or city` looks safe but '' and '   ' are the two shapes that
+    beat it: '' is falsy in Python yet wins outright under JavaScript's ??, and
+    '   ' is TRUTHY in Python. Either way {venue_city: blank, city: 'San
+    Antonio'} was reported as a row with no city rather than an out-of-market
+    row — and unknown rows are kept."""
+    for blank in ("", "   ", "\t", ",", None):
+        row = {"venue_city": blank, "city": "San Antonio"}
+        assert row_verdict(row) is False, repr(blank)
+    assert row_verdict({"venue_city": "", "city": "Austin"}) is True
+
+
+def test_county_evidence_decides_a_row_the_city_cannot():
+    """CAPCOG IS ten counties. A row that names Bexar is out of market even
+    when its city is blank, unrecognised, or a town we have never catalogued —
+    ignoring the decisive field was the county-boundary-evidence-ignored
+    finding."""
+    assert row_verdict({"county": "Bexar", "venue_city": None}) is False
+    assert row_verdict({"venue_county": "Bexar County, TX", "city": "Nowhere"}) is False
+    assert row_verdict({"venue_county": "Travis"}) is True
+    assert row_verdict({"county": "Llano", "city": "Somewhere Unlisted"}) is True
+    # A county we do not know is still not a guess.
+    assert row_verdict({"county": "Nowhere County"}) is None
+
+
+def test_county_beats_city_when_they_disagree():
+    """The county is the definition; the place table is a convenience over it.
+    A mis-tagged city must not admit a row its county excludes."""
+    assert row_verdict({"county": "Bexar", "city": "Austin"}) is False
+    assert row_verdict({"venue_county": "Travis", "city": "San Antonio"}) is True
+
+
+def test_normalize_county_is_the_same_fact_written_four_ways():
+    for shape in ("Bexar County, TX", "bexar", "BEXAR COUNTY", "Bexar County, Texas"):
+        assert normalize_county(shape) == "bexar", shape
+    assert normalize_county(None) is None
+    assert normalize_county("   ") is None
+
+
+def test_a_county_known_row_is_not_filed_as_a_MISSING_city():
+    """A row decided by its county must not land in missing_city_count, which
+    reads as 'nothing to see here' — it is a real in/out fact."""
+    rows = [
+        {"venue_county": "Travis"},                       # inside, no city
+        {"county": "Bexar"},                              # outside, no city
+        {"venue_city": None},                             # genuinely nothing
+        {"venue_city": "", "city": "San Antonio"},        # blank-field smuggle
+    ]
+    r = region_report(rows)
+    assert r["missing_city_count"] == 1
+    assert r["inside_count"] == 1
+    assert r["outside_count"] == 2
+    assert r["inside_by_county"] == {"travis": 1}
+    assert r["outside_by_county"] == {"bexar": 1}
+    assert "travis" in r["counties_covered"]

@@ -19,7 +19,7 @@ sys.path.insert(0, str(REPO))
 
 from worker.region.capcog import (  # noqa: E402
     CAPCOG_COUNTIES, CAPCOG_PLACES, KNOWN_OUTSIDE, TRAILING_QUALIFIERS,
-    normalize_place,
+    in_capcog_county, normalize_county, normalize_place,
 )
 
 OUT = REPO / "web" / "lib" / "capcog-boundary.json"
@@ -35,7 +35,17 @@ NORMALIZATION_VECTORS = [
     "San Antonio", "San Antonio, TX", "San Antonio, TX, USA",
     "SAN ANTONIO, TX 78205, USA", "San Antonio, Texas, United States",
     "New Braunfels, TX, USA", "Round Rock, TX", "Columbus", "  ", "",
+    # r12: county qualifiers, which defeated the boundary until 2026-07-26.
+    "San Antonio, Bexar County, TX", "san antonio, bexar county",
+    "SAN ANTONIO, BEXAR COUNTY, TEXAS, USA", "Austin, Travis County, TX",
+    # r12: prototype-property names, which `key in obj` reported as real places.
+    "constructor", "toString", "valueOf", "hasOwnProperty", "__proto__",
 ]
+
+# County vectors: the two normalizers must agree on these too, and the TS side
+# must not hand-maintain a second outside-county list.
+COUNTY_VECTORS = ["Bexar County, TX", "bexar", "TRAVIS COUNTY", "Travis",
+                  "Nowhere County", "", "   "]
 
 
 def build() -> dict:
@@ -51,6 +61,11 @@ def build() -> dict:
         "normalization_vectors": [
             {"input": v, "expected": normalize_place(v)}
             for v in NORMALIZATION_VECTORS
+        ],
+        "county_vectors": [
+            {"input": v, "expected": normalize_county(v),
+             "verdict": in_capcog_county(v)}
+            for v in COUNTY_VECTORS
         ],
     }
 

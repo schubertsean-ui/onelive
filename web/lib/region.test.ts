@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { inCapcog, normalizePlace, filterToCapcog } from "./region";
+import {
+  inCapcog,
+  normalizePlace,
+  filterToCapcog,
+  normalizeCounty,
+  inCapcogCounty,
+  rowVerdict,
+} from "./region";
 import boundary from "./capcog-boundary.json";
 
 describe("CAPCOG boundary on the read path", () => {
@@ -76,5 +83,66 @@ describe("CAPCOG boundary on the read path", () => {
   it("an event with no city is shown, not assumed outside", () => {
     const out = filterToCapcog([{ venue_city: null, venue_name: "X" }]);
     expect(out.kept).toHaveLength(1);
+  });
+
+  // ---- r12 evaluator findings ------------------------------------------------
+
+  it("a county qualifier does not smuggle an outside city onto the page", () => {
+    for (const shape of [
+      "San Antonio, Bexar County, TX",
+      "san antonio, bexar county",
+      "SAN ANTONIO, BEXAR COUNTY, TEXAS, USA",
+    ]) {
+      expect(normalizePlace(shape)).toBe("san antonio");
+      expect(inCapcog(shape)).toBe(false);
+    }
+    expect(inCapcog("Austin, Travis County, TX")).toBe(true);
+  });
+
+  it("a prototype property name is not a CAPCOG place", () => {
+    // `"constructor" in {}` is TRUE. Feed-supplied city strings reached that
+    // check, so these were classified as real member places.
+    for (const key of ["constructor", "toString", "valueOf", "hasOwnProperty"]) {
+      expect(inCapcog(key)).toBe(null);
+    }
+    const out = filterToCapcog([{ venue_city: "constructor", venue_name: "X" }]);
+    expect(out.unknown).toHaveLength(1);
+    expect(out.kept).toHaveLength(1);
+  });
+
+  it("an EMPTY venue_city does not hide a real city", () => {
+    // `??` only falls through on null/undefined, so "" won outright and the
+    // row went out as unknown — which filterToCapcog keeps and renders.
+    const out = filterToCapcog([
+      { venue_city: "", city: "San Antonio", venue_name: "Majestic" },
+      { venue_city: "   ", city: "San Antonio", venue_name: "Freeman" },
+      { venue_city: "", city: "Austin", venue_name: "Mohawk" },
+    ]);
+    expect(out.kept.map((r) => r.venue_name)).toEqual(["Mohawk"]);
+    expect(out.droppedOutside).toHaveLength(2);
+  });
+
+  it("county evidence decides a row the city cannot", () => {
+    const out = filterToCapcog([
+      { county: "Bexar", venue_city: null, venue_name: "Majestic" },
+      { venue_county: "Bexar County, TX", city: "Nowhere", venue_name: "X" },
+      { venue_county: "Travis", venue_name: "Mohawk" },
+      { county: "Llano", city: "Somewhere Unlisted", venue_name: "Y" },
+    ]);
+    expect(out.kept.map((r) => r.venue_name)).toEqual(["Mohawk", "Y"]);
+    expect(out.droppedOutside).toHaveLength(2);
+  });
+
+  it("county beats city when the two disagree", () => {
+    expect(rowVerdict({ county: "Bexar", city: "Austin" })).toBe(false);
+    expect(rowVerdict({ venue_county: "Travis", city: "San Antonio" })).toBe(true);
+    expect(rowVerdict({ county: "Nowhere County" })).toBe(null);
+  });
+
+  it("agrees with Python on every county vector", () => {
+    for (const { input, expected, verdict } of boundary.county_vectors) {
+      expect(normalizeCounty(input)).toBe(expected);
+      expect(inCapcogCounty(input)).toBe(verdict);
+    }
   });
 });

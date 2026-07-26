@@ -794,40 +794,43 @@
 - PR #69 r1 (2026-07-25): REQUEST-CHANGES, both blockers + nits adopted — launch lookup is fail-loud enumeration (a misspelled scenario refuses, never posts a default disguised as the v1); reproducibility pinned by FULL-DECK golden equality (tests/golden/carousel_launch_v1.json, 41 slides across the 5 decks — any drift fails); bandit gains add_prior() (no external mutation of posterior internals); warm-start test asserts direct posterior state across every factor×level. Launch tests 5→6.
 - PR #69 r2 (2026-07-25): REQUEST-CHANGES, all 3 blockers + nits adopted — tier launch keys bind to the REAL domain registry (prefix-only wildcard closed: t1_liv-music refuses; all 22 canonical domains covered positively); non-finite prior/seed weights refuse at both add_prior and seed_bandit (NaN/inf/-inf red-tested); snapshot serializer schema-guarded; golden newline; stale docstring fixed. swallowed-corrupt-data hit threshold 3 — class marker stamped: identifier lookups bind to registries, never prefix checks.
 
-## 2026-07-26 — the denominator became real
+## 2026-07-26 — CAPCOG is ten counties, enforced where a reader can see it
 
-**The launch metric now exists and is measured on live data: 2,884 CAPCOG
-venues across all ten counties** ([run](https://github.com/schubertsean-ui/onelive/actions/runs/30214566799)).** It was 69, with seven counties reported at
-zero. Those seven hold 362 venues; the zero was never a fact about CAPCOG, it
-was a fact about a denominator assembled from a list we had written ourselves.
+**Scope note, and it is the point of this entry.** The 2026-07-26 session
+produced more than this change carries. It was split, so this entry describes
+ONLY what merges here; the rest is listed at the bottom with the branch that
+carries it, and each claim is evidenced in ITS OWN diff rather than asserted
+here. Naming a mechanism in a changelog whose diff does not contain it is the
+missing-authored-artifact class — the evaluator caught exactly that on r12 of
+this PR, where this section named five tools that had already moved out.
 
 - `worker/region/capcog.py` — CAPCOG is its ten NAMED COUNTIES, not a 75-mile
   radius around downtown Austin (which put Bexar inside the market by
-  construction). Tri-state membership: in / out / unknown, never a guess.
-  Enforced on the read path too, from a generated boundary file so the server
-  and the site cannot disagree.
-- Closed a bypass that made the whole thing defeatable by punctuation:
-  "San Antonio, TX, USA" stripped one qualifier per pass, matched neither
-  table, and came back UNKNOWN — which the read path keeps.
-- `tools/fetch_tabc_capcog.py` — TABC mixed-beverage premises, layer 2.
-  Numeric county codes cross-checked against the cities they return, monthly
-  receipt rows deduped to premises, 18-month activity window, ordered paging.
-- Target rows now carry a `target_kind`. 30 of the original 69 were city
-  calendars, annual festivals or touring companies — not places anyone can
-  attend. Kept and labelled, never counted.
-- `tools/build_source_registry.py` + `tools/source_scorecard.py` +
-  `tools/dump_source_evidence.py` — every ingestion source, its status derived
-  from evidence, and its trend over time.
-- Multi-source venue discovery at founder direction. Nine web searches gave all
-  seven previously-empty counties a source, and surfaced the Texas Music Office
-  industry directory (state-run, free, ~610 Austin-area music venues) and the
-  Texas dance-hall circuit.
-- Review lenses run concurrently instead of in series.
+  construction, which is why the live feed carried the Majestic Theatre).
+  Tri-state membership: in / out / unknown, never a guess.
+- Enforced on the READ path (`web/lib/region.ts`) from a GENERATED boundary
+  file, so the server and the site cannot enforce two different markets.
+- Four bypasses closed, all found by the evaluator, all of which defeated the
+  invariant through formatting alone rather than through bad data:
+  "San Antonio, TX, USA" (one qualifier stripped per pass);
+  "San Antonio, Bexar County, TX" (the county qualifier survived);
+  a blank `venue_city` beating a real `city` (an empty string wins outright
+  under JavaScript's `??`, and whitespace is truthy in Python's `or`); and
+  `"constructor"` as a city name, because `key in obj` consults the prototype
+  chain, so a JavaScript builtin read as a CAPCOG place.
+- County evidence is now an accepted boundary input. CAPCOG is DEFINED by
+  counties, so a row naming Bexar is out of market even when its city is blank
+  or unrecognised — previously the decisive field was ignored entirely.
+- Clerk 500 fix: a publishable key without a secret key was taking the deployed
+  site down with MIDDLEWARE_INVOCATION_FAILED. Both are required, both are
+  trimmed (a whitespace-only secret is not a credential), fallback fail-closed.
 
-**Corrections recorded, both in the flattering direction:** excluding 30
-non-venues and losing 26 rows to unordered paging each make coverage look
-better than it is. Neither was left to be discovered.
-
-**Blocked:** `ONELIVE_DB_DSN` is rejected by Supabase, so the numerator — and
-therefore the coverage percentage — could not be read. The denominator does not
-depend on it and is reported regardless.
+**Split out of this change, each on its own branch, reviewed on its own diff:**
+`claude/tabc-fetch-2026-07-26` (TABC premises fetch) ·
+`claude/capcog-denominator-2026-07-26` (the denominator + coverage tool) ·
+`claude/capcog-coverage-workflow-2026-07-26` (measure on every push) ·
+`claude/source-scorecard-2026-07-26` (source registry, taxonomy, scorecard) ·
+`claude/change-set-discipline-2026-07-26` (the change-set gate + canon) ·
+`claude/reviewer-concurrency-2026-07-26` (parallel review lenses).
+The measured venue figure and the "69 was wrong" correction belong to the
+denominator change and are recorded there, with the run that produced them.

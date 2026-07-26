@@ -36,8 +36,14 @@ def _run_blocks(path: pathlib.Path) -> list:
             if not isinstance(script, str):
                 continue
             # Only bash-like steps; a `shell: python` step is not shell.
-            shell = step.get("shell") or job.get("defaults", {}).get(
-                "run", {}).get("shell") or "bash"
+            # `(x or {})`, not `.get(k, {})`: YAML `defaults:` with no value
+            # parses to a PRESENT key holding None, so the default is never
+            # applied and the next .get() raises AttributeError — the check
+            # crashes instead of checking. Evaluator finding, PR #74 r12.
+            defaults = (job.get("defaults") or {})
+            shell = (step.get("shell")
+                     or (defaults.get("run") or {}).get("shell")
+                     or "bash")
             if not str(shell).startswith(("bash", "sh")):
                 continue
             blocks.append(

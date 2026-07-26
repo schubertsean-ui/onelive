@@ -142,6 +142,20 @@ TRAILING_QUALIFIERS = (
 
 _ZIP_RE = re.compile(r"[\s,]+\d{5}(?:-\d{4})?$")
 
+# "San Antonio, Bexar County, TX" — a county qualifier between the city and the
+# state. Found by the evaluator on PR #74 r12: stripping ZIP/state/country was
+# not enough, so this shape matched neither table, came back UNKNOWN, and the
+# read path KEEPS unknowns. A known-outside city was therefore still reachable
+# by writing its county. Requires a leading comma or space so it can never eat
+# a place whose own name ends in the word (there is no such CAPCOG place, but
+# the guard costs nothing and the alternative fails silently).
+_COUNTY_RE = re.compile(r"[\s,]+([a-z][a-z .'-]*?)\s+county$")
+
+# The counties we can decide on directly. Everything in KNOWN_OUTSIDE names the
+# county it sits in, so the outside set is derived rather than hand-listed —
+# a second hand-maintained list is the incomplete-enumeration class again.
+KNOWN_OUTSIDE_COUNTIES: frozenset = frozenset(KNOWN_OUTSIDE.values())
+
 
 def normalize_place(value: Optional[str]) -> Optional[str]:
     """Lowercase/trim a place name for lookup, or None when there is nothing to
@@ -164,6 +178,9 @@ def normalize_place(value: Optional[str]) -> Optional[str]:
         changed = False
         stripped = _ZIP_RE.sub("", text).strip(" ,")
         if stripped != text:
+            text, changed = stripped, True
+        stripped = _COUNTY_RE.sub("", text).strip(" ,")
+        if stripped != text and stripped:
             text, changed = stripped, True
         for suffix in TRAILING_QUALIFIERS:
             if text.endswith(suffix):
@@ -200,6 +217,72 @@ def in_capcog(city: Optional[str]) -> Optional[bool]:
     return None
 
 
+def normalize_county(value: Optional[str]) -> Optional[str]:
+    """Lowercase a county name for lookup, dropping the word 'county' and any
+    state/country qualifier. 'Bexar County, TX' and 'bexar' are the same fact."""
+    key = normalize_place(value)
+    if key is None:
+        return None
+    if key.endswith(" county"):
+        key = key[: -len(" county")].strip(" ,")
+    return key or None
+
+
+def in_capcog_county(county: Optional[str]) -> Optional[bool]:
+    """TRI-STATE membership from a COUNTY, which is what CAPCOG is actually
+    defined by. The place tables are a convenience over this; a row that
+    carries its county carries the decisive fact directly."""
+    key = normalize_county(county)
+    if key is None:
+        return None
+    if key in CAPCOG_COUNTIES:
+        return True
+    if key in KNOWN_OUTSIDE_COUNTIES:
+        return False
+    return None
+
+
+def _first_usable(row: dict, fields: tuple) -> Optional[str]:
+    """The first field whose value survives normalization.
+
+    NOT `a or b`: an empty or whitespace-only `venue_city` is truthy enough to
+    beat a perfectly good `city` in Python's `or` (and in JavaScript's `??` an
+    empty string wins outright), so `{"venue_city": "   ", "city":
+    "San Antonio"}` was reported as a row with no city instead of a row that is
+    out of market. Evaluator finding, PR #74 r12 — the boundary was defeatable
+    by writing a blank into the preferred field.
+    """
+    for field in fields:
+        if normalize_place(row.get(field)) is not None:
+            return row.get(field)
+    return None
+
+
+CITY_FIELDS = ("venue_city", "city")
+COUNTY_FIELDS = ("venue_county", "county")
+
+
+def row_verdict(row: dict) -> Optional[bool]:
+    """TRI-STATE membership for a whole row, county evidence first.
+
+    County beats city because CAPCOG *is* ten counties: if a row says Bexar, no
+    amount of city ambiguity should let it through. A row is UNKNOWN only when
+    neither field decides it, and unknown is still never a guess.
+    """
+    verdict = in_capcog_county(_first_usable(row, COUNTY_FIELDS))
+    if verdict is not None:
+        return verdict
+    # A city string can itself carry the county ("San Antonio, Bexar County").
+    city_raw = _first_usable(row, CITY_FIELDS)
+    if city_raw is not None:
+        match = _COUNTY_RE.search(str(city_raw).strip().lower())
+        if match:
+            verdict = in_capcog_county(match.group(1))
+            if verdict is not None:
+                return verdict
+    return in_capcog(city_raw)
+
+
 def region_report(rows: list) -> dict:
     """Partition rows by CAPCOG membership and return the counts an operator
     needs, INCLUDING the unknowns by name.
@@ -211,28 +294,44 @@ def region_report(rows: list) -> dict:
     inside: dict = {}
     outside: dict = {}
     unknown: dict = {}
+    by_county: dict = {"inside": {}, "outside": {}}
     missing = 0
+    credited: set = set()
     for row in rows:
-        city = row.get("venue_city") or row.get("city")
-        key = normalize_place(city)
+        key = normalize_place(_first_usable(row, CITY_FIELDS))
+        verdict = row_verdict(row)
+        county = normalize_county(_first_usable(row, COUNTY_FIELDS))
+        if verdict is True and county in CAPCOG_COUNTIES:
+            credited.add(county)
         if key is None:
-            missing += 1
+            # No usable city. The row is still decidable if it names its
+            # county — and a county-decided row must NOT be filed under
+            # "missing city", which reads as "nothing to see here".
+            if verdict is True and county:
+                by_county["inside"][county] = by_county["inside"].get(county, 0) + 1
+            elif verdict is False and county:
+                by_county["outside"][county] = by_county["outside"].get(county, 0) + 1
+            else:
+                missing += 1
             continue
-        verdict = in_capcog(key)
         if verdict is True:
             inside[key] = inside.get(key, 0) + 1
         elif verdict is False:
             outside[key] = outside.get(key, 0) + 1
         else:
             unknown[key] = unknown.get(key, 0) + 1
+    covered = {CAPCOG_PLACES[p] for p in inside if p in CAPCOG_PLACES}
+    covered |= set(by_county["inside"]) | credited
     return {
-        "inside_count": sum(inside.values()),
-        "outside_count": sum(outside.values()),
+        "inside_count": sum(inside.values()) + sum(by_county["inside"].values()),
+        "outside_count": sum(outside.values()) + sum(by_county["outside"].values()),
         "unknown_count": sum(unknown.values()),
         "missing_city_count": missing,
         "inside_by_place": dict(sorted(inside.items())),
         "outside_by_place": dict(sorted(outside.items())),
         "unknown_by_place": dict(sorted(unknown.items())),
-        "counties_covered": sorted({CAPCOG_PLACES[p] for p in inside}),
-        "counties_absent": sorted(CAPCOG_COUNTIES - {CAPCOG_PLACES[p] for p in inside}),
+        "inside_by_county": dict(sorted(by_county["inside"].items())),
+        "outside_by_county": dict(sorted(by_county["outside"].items())),
+        "counties_covered": sorted(covered),
+        "counties_absent": sorted(CAPCOG_COUNTIES - covered),
     }

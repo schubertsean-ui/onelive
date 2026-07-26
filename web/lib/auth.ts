@@ -84,8 +84,15 @@ function _hostProtectedPreview(): boolean {
 //   * PRODUCTION still refuses ('unconfigured' -> fail-closed 503), because a
 //     missing secret key must never be read as "no gate wanted".
 function _clerkFullyConfigured(): boolean {
-  const pk = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  const sk = process.env.CLERK_SECRET_KEY;
+  // TRIMMED. A whitespace-only value is not a credential, but it is truthy —
+  // so `CLERK_SECRET_KEY=" "` selected 'clerk' mode and sent the middleware
+  // into exactly the runtime Clerk failure this function exists to prevent.
+  // Evaluator finding, PR #74 r12 (fail-open-on-custody-misconfig): a custody
+  // misconfiguration must fail closed and loud, never activate a broken
+  // provider. Empty-after-trim is treated as absent, which routes it to the
+  // 'unconfigured' branch below — 503 in production, not a crash.
+  const pk = (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "").trim();
+  const sk = (process.env.CLERK_SECRET_KEY ?? "").trim();
   if (pk && !sk) {
     // Say it out loud rather than resolving quietly to a different mode — a
     // half-configured gate is an operator error someone must see (§1).

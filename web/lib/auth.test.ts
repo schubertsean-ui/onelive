@@ -87,4 +87,18 @@ describe("authMode — the fail-closed gate resolver", () => {
     process.env.AUTH_DISABLED = "0";
     expect(authMode()).toBe("unconfigured");
   });
+
+  it("a whitespace-only secret key is NOT a configured provider", () => {
+    // r12 fail-open-on-custody-misconfig: " " is truthy, so this selected
+    // 'clerk' mode and drove the middleware into the exact runtime failure the
+    // two-key rule exists to prevent. Blank-after-trim must read as absent.
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    process.env.CLERK_SECRET_KEY = "   ";
+    expect(authMode()).toBe("unconfigured");
+    process.env.CLERK_SECRET_KEY = "sk_test_x";
+    expect(authMode()).toBe("clerk");
+    // and a blank publishable key is equally not a configuration
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = " ";
+    expect(authMode()).toBe("unconfigured");
+  });
 });

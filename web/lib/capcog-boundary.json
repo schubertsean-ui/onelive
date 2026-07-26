@@ -258,6 +258,79 @@
     {
       "input": "",
       "expected": null
+    },
+    {
+      "input": "San Antonio, Bexar County, TX",
+      "expected": "san antonio"
+    },
+    {
+      "input": "san antonio, bexar county",
+      "expected": "san antonio"
+    },
+    {
+      "input": "SAN ANTONIO, BEXAR COUNTY, TEXAS, USA",
+      "expected": "san antonio"
+    },
+    {
+      "input": "Austin, Travis County, TX",
+      "expected": "austin"
+    },
+    {
+      "input": "constructor",
+      "expected": "constructor"
+    },
+    {
+      "input": "toString",
+      "expected": "tostring"
+    },
+    {
+      "input": "valueOf",
+      "expected": "valueof"
+    },
+    {
+      "input": "hasOwnProperty",
+      "expected": "hasownproperty"
+    },
+    {
+      "input": "__proto__",
+      "expected": "__proto__"
+    }
+  ],
+  "county_vectors": [
+    {
+      "input": "Bexar County, TX",
+      "expected": "bexar",
+      "verdict": false
+    },
+    {
+      "input": "bexar",
+      "expected": "bexar",
+      "verdict": false
+    },
+    {
+      "input": "TRAVIS COUNTY",
+      "expected": "travis",
+      "verdict": true
+    },
+    {
+      "input": "Travis",
+      "expected": "travis",
+      "verdict": true
+    },
+    {
+      "input": "Nowhere County",
+      "expected": "nowhere",
+      "verdict": null
+    },
+    {
+      "input": "",
+      "expected": null,
+      "verdict": null
+    },
+    {
+      "input": "   ",
+      "expected": null,
+      "verdict": null
     }
   ]
 }

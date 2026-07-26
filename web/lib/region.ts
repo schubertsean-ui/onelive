@@ -30,6 +30,20 @@ const TRAILING_QUALIFIERS: string[] = boundary.trailing_qualifiers;
 
 const ZIP_RE = /[\s,]+\d{5}(?:-\d{4})?$/;
 
+// "San Antonio, Bexar County, TX". Mirrors _COUNTY_RE in the Python source of
+// truth; the generated vectors below prove the two agree.
+const COUNTY_RE = /[\s,]+([a-z][a-z .'-]*?)\s+county$/;
+
+const COUNTIES: string[] = boundary.counties;
+const OUTSIDE_COUNTIES: string[] = Array.from(new Set(Object.values(OUTSIDE)));
+
+// Object.hasOwn, not `key in obj`. `"constructor" in {}` is TRUE — every plain
+// object inherits Object.prototype — so an externally-supplied venue city of
+// "constructor", "toString" or "valueOf" was classified as a real CAPCOG place.
+// Evaluator finding, PR #74 r12 (dataflow-taint). The lookup tables are plain
+// JSON objects and the keys come from feed data, so ownership must be checked.
+const owns = (obj: Record<string, string>, key: string) => Object.hasOwn(obj, key);
+
 const trimPunct = (s: string) => s.replace(/^[,\s]+|[,\s]+$/g, "");
 
 /** Lowercase/trim a place name, dropping trailing ZIP, state and country
@@ -52,6 +66,11 @@ export function normalizePlace(value: string | null | undefined): string | null 
       text = stripped;
       changed = true;
     }
+    const decounty = trimPunct(text.replace(COUNTY_RE, ""));
+    if (decounty !== text && decounty) {
+      text = decounty;
+      changed = true;
+    }
     for (const suffix of TRAILING_QUALIFIERS) {
       if (text.endsWith(suffix)) {
         text = trimPunct(text.slice(0, -suffix.length));
@@ -69,9 +88,70 @@ export function normalizePlace(value: string | null | undefined): string | null 
 export function inCapcog(city: string | null | undefined): RegionVerdict {
   const key = normalizePlace(city);
   if (key === null) return null;
-  if (key in PLACES) return true;
-  if (key in OUTSIDE) return false;
+  if (owns(PLACES, key)) return true;
+  if (owns(OUTSIDE, key)) return false;
   return null;
+}
+
+/** A county name, lowercased, with the word "county" and any state/country
+ *  qualifier dropped. "Bexar County, TX" and "bexar" are the same fact. */
+export function normalizeCounty(value: string | null | undefined): string | null {
+  let key = normalizePlace(value);
+  if (key === null) return null;
+  if (key.endsWith(" county")) key = trimPunct(key.slice(0, -" county".length));
+  return key || null;
+}
+
+/** TRI-STATE membership from a COUNTY — what CAPCOG is actually defined by.
+ *  The place table is a convenience over this; a row carrying its county
+ *  carries the decisive fact, so it must not be ignored just because the city
+ *  field is blank or unrecognised. */
+export function inCapcogCounty(county: string | null | undefined): RegionVerdict {
+  const key = normalizeCounty(county);
+  if (key === null) return null;
+  if (COUNTIES.includes(key)) return true;
+  if (OUTSIDE_COUNTIES.includes(key)) return false;
+  return null;
+}
+
+export interface RegionRow {
+  venue_city?: string | null;
+  city?: string | null;
+  venue_county?: string | null;
+  county?: string | null;
+}
+
+/** The first value that survives normalization.
+ *
+ *  NOT `a ?? b`: `??` only falls through on null/undefined, so an EMPTY STRING
+ *  in the preferred field wins outright. `{ venue_city: "", city: "San
+ *  Antonio" }` normalized to null, was classified unknown, and unknowns are
+ *  KEPT — so a San Antonio row reached /tonight through a blank field.
+ *  Evaluator finding, PR #74 r12. Whitespace does the same thing in the Python
+ *  `or` form; both are fixed the same way. */
+function firstUsable(row: RegionRow, fields: (keyof RegionRow)[]): string | null {
+  for (const field of fields) {
+    const raw = row[field];
+    if (normalizePlace(raw) !== null) return raw as string;
+  }
+  return null;
+}
+
+/** TRI-STATE membership for a whole row, county evidence FIRST. If a row says
+ *  Bexar, no amount of city ambiguity lets it through. */
+export function rowVerdict(row: RegionRow): RegionVerdict {
+  const byCounty = inCapcogCounty(firstUsable(row, ["venue_county", "county"]));
+  if (byCounty !== null) return byCounty;
+  const cityRaw = firstUsable(row, ["venue_city", "city"]);
+  if (cityRaw !== null) {
+    // The city string can itself carry the county ("San Antonio, Bexar County").
+    const match = COUNTY_RE.exec(String(cityRaw).trim().toLowerCase());
+    if (match) {
+      const nested = inCapcogCounty(match[1]);
+      if (nested !== null) return nested;
+    }
+  }
+  return inCapcog(cityRaw);
 }
 
 export interface RegionFilterResult<T> {
@@ -103,14 +183,14 @@ export interface RegionFilterResult<T> {
  * So the unknowns are shown and counted, and the count is the worklist for
  * extending the table. That is the same tri-state discipline the server uses.
  */
-export function filterToCapcog<T extends { venue_city?: string | null; city?: string | null }>(
+export function filterToCapcog<T extends RegionRow>(
   rows: T[],
 ): RegionFilterResult<T> {
   const kept: T[] = [];
   const droppedOutside: T[] = [];
   const unknown: T[] = [];
   for (const row of rows) {
-    const verdict = inCapcog(row.venue_city ?? row.city);
+    const verdict = rowVerdict(row);
     if (verdict === false) {
       droppedOutside.push(row);
       continue;
