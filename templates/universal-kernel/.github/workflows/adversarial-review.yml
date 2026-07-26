@@ -72,20 +72,30 @@ jobs:
             echo "::error::invalid diff range syntax (value redacted — expected <base>...<head>)"
             exit 1
           fi
+          # Top-level assignment (never inside a branch) so the value is
+          # provably set before use.
+          DIGEST="$(sha256sum /tmp/_pin_probe.py | cut -d" " -f1)"
+          rm -f /tmp/_pin_probe.py
+          echo "sha=$TRUSTED_SHA" >> "$GITHUB_OUTPUT"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Pinned evaluator @ $TRUSTED_SHA (sha256 $DIGEST); materialised after the untrusted steps."
           echo "base=$RESOLVED_BASE" >> "$GITHUB_OUTPUT"
           echo "range=$RESOLVED_RANGE" >> "$GITHUB_OUTPUT"
 
-      - name: Verify the base ref HAS an evaluator script (bootstrap check only)
-        # Existence is checked early so the bootstrap failure is reported
-        # before wasting a test run. The script is NOT materialised here —
-        # see the fetch step below, which runs AFTER all PR-controlled code.
+      - name: Pin the trusted evaluator's SHA + digest (before any PR code runs)
+        # Runs FIRST, while nothing the pull request controls has executed.
+        # Captures the two things the final step verifies against: an
+        # immutable commit SHA and the script's sha256. The script itself is
+        # materialised later (after the untrusted steps) so a predictable
+        # on-disk path never sits around waiting to be overwritten.
+        id: pin
         env:
           TRUSTED_BASE: ${{ steps.range.outputs.base }}
         run: |
           : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
-          if git show "$TRUSTED_BASE:tools/adversarial_review.py" > /dev/null 2>&1; then
-            echo "Base ref carries the evaluator script (materialised later, post-untrusted-code)."
-          else
+          TRUSTED_SHA="$(git rev-parse "$TRUSTED_BASE^{commit}")"
+          : "${TRUSTED_SHA:?base ref did not resolve to a commit — failing closed}"
+          if ! git show "$TRUSTED_SHA:tools/adversarial_review.py" > /tmp/_pin_probe.py 2>/dev/null; then
             echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on $TRUSTED_BASE. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
             exit 1
           fi
@@ -137,14 +147,25 @@ jobs:
         # step execute its own code — self-approval or key exfiltration.
         # So: fetch it fresh, into a per-run mktemp directory, after the
         # untrusted work is done, and make it read-only.
+        # A BRANCH NAME IS NOT A TRUST ANCHOR (r6): the untrusted steps can
+        # rewrite local refs, so re-resolving `origin/<base>` here could hand
+        # back attacker code. Verify against the two bindings captured before
+        # any PR code ran — an immutable commit SHA and the script's sha256.
         id: trusted
         env:
-          TRUSTED_BASE: ${{ steps.range.outputs.base }}
+          TRUSTED_SHA: ${{ steps.pin.outputs.sha }}
+          TRUSTED_DIGEST: ${{ steps.pin.outputs.digest }}
         run: |
-          : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
+          : "${TRUSTED_SHA:?trusted sha unresolved — failing closed}"
+          : "${TRUSTED_DIGEST:?trusted digest unresolved — failing closed}"
           TRUSTED_DIR="$(mktemp -d)"
-          git show "$TRUSTED_BASE:tools/adversarial_review.py" \
+          git show "$TRUSTED_SHA:tools/adversarial_review.py" \
             > "$TRUSTED_DIR/adversarial_review.py"
+          NOW="$(sha256sum "$TRUSTED_DIR/adversarial_review.py" | cut -d" " -f1)"
+          if [ "$NOW" != "$TRUSTED_DIGEST" ]; then
+            echo "::error::TRUSTED REVIEWER TAMPERED: digest $NOW != $TRUSTED_DIGEST captured before the PR-controlled steps. Refusing to run it with the API secret."
+            exit 1
+          fi
           chmod 0400 "$TRUSTED_DIR/adversarial_review.py"
           echo "dir=$TRUSTED_DIR" >> "$GITHUB_OUTPUT"
 

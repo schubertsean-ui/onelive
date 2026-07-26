@@ -89,18 +89,38 @@ jobs:
           echo "range=$RESOLVED_RANGE" >> "$GITHUB_OUTPUT"
 
       - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
+        # TAMPER-EVIDENT PINNING (PR #75 r6 — evaluator finding, a live
+        # key-exfiltration path). Every step AFTER this one runs code the
+        # pull request controls: dependency install, pytest, tools/validate.
+        # Those steps can write anywhere on the runner, INCLUDING over this
+        # pinned file, and can rewrite local git refs — so neither the file
+        # nor a branch name is trustworthy by the time the secret-bearing
+        # step runs. Two bindings are captured HERE, before any PR code
+        # executes, and re-verified at consumption:
+        #   1. the base ref resolved to an IMMUTABLE commit SHA (a rewritten
+        #      local ref cannot change what that SHA names), and
+        #   2. the sha256 of the script's content.
+        # The final step re-reads the script from the pinned SHA and hard-
+        # fails if the digest differs. An attacker would have to forge sha256.
+        id: trusted
         env:
           TRUSTED_BASE: ${{ steps.range.outputs.base }}
         run: |
           : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
           mkdir -p /tmp/trusted
-          if git show "$TRUSTED_BASE:tools/adversarial_review.py" \
-               > /tmp/trusted/adversarial_review.py 2>/dev/null; then
-            echo "Using tools/adversarial_review.py from $TRUSTED_BASE (trusted)."
-          else
+          TRUSTED_SHA="$(git rev-parse "$TRUSTED_BASE^{commit}")"
+          : "${TRUSTED_SHA:?base ref did not resolve to a commit — failing closed}"
+          if ! git show "$TRUSTED_SHA:tools/adversarial_review.py" \
+                 > /tmp/trusted/adversarial_review.py 2>/dev/null; then
             echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on $TRUSTED_BASE. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
             exit 1
           fi
+          # Assigned at top level (never inside a branch) so the value is
+          # provably set before every use — workflow_env_lint enforces this.
+          TRUSTED_DIGEST="$(sha256sum /tmp/trusted/adversarial_review.py | cut -d" " -f1)"
+          echo "sha=$TRUSTED_SHA" >> "$GITHUB_OUTPUT"
+          echo "digest=$TRUSTED_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Pinned tools/adversarial_review.py @ $TRUSTED_SHA (sha256 $TRUSTED_DIGEST)."
 
       - name: Install worker + api deps
         run: |
@@ -480,6 +500,12 @@ jobs:
       - name: Independent evaluator (APPROVE required)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # The two tamper-evident bindings captured BEFORE any PR-controlled
+          # step ran (PR #75 r6): an immutable commit SHA and the reviewer
+          # script's sha256. Step outputs are written by that earlier step and
+          # cannot be retroactively altered by later steps.
+          TRUSTED_SHA: ${{ steps.trusted.outputs.sha }}
+          TRUSTED_DIGEST: ${{ steps.trusted.outputs.digest }}
           # PR head SHA = the printed, rotating po-battery seed for the panel.
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # Second-family seat (founder-approved 2026-07-25). Absent = the
@@ -539,14 +565,31 @@ jobs:
           # copy advertises --panel in its own --help. Before this PR merges the
           # base copy is v1 (single lens, unchanged behavior); after, the panel
           # activates automatically with no second workflow edit.
+          # RE-VERIFY THE TRUSTED SCRIPT (PR #75 r6): re-read it from the
+          # immutable SHA pinned before any PR-controlled code ran, into a
+          # fresh per-run directory, and refuse to proceed unless the content
+          # digest still matches what was captured then.
+          : "${TRUSTED_SHA:?trusted sha unresolved — failing closed}"
+          : "${TRUSTED_DIGEST:?trusted digest unresolved — failing closed}"
+          VERIFIED_DIR="$(mktemp -d)"
+          git show "$TRUSTED_SHA:tools/adversarial_review.py" \
+            > "$VERIFIED_DIR/adversarial_review.py"
+          NOW_DIGEST="$(sha256sum "$VERIFIED_DIR/adversarial_review.py" | cut -d" " -f1)"
+          if [ "$NOW_DIGEST" != "$TRUSTED_DIGEST" ]; then
+            echo "::error::TRUSTED REVIEWER TAMPERED: the script at $TRUSTED_SHA now digests $NOW_DIGEST but was $TRUSTED_DIGEST before the PR-controlled steps ran. Refusing to execute it with the API secret."
+            exit 1
+          fi
+          chmod 0400 "$VERIFIED_DIR/adversarial_review.py"
+          REVIEWER="$VERIFIED_DIR/adversarial_review.py"
+
           PANEL_ARGS=""
-          if python -I /tmp/trusted/adversarial_review.py --help 2>&1 | grep -q -- "--panel"; then
+          if python -I "$REVIEWER" --help 2>&1 | grep -q -- "--panel"; then
             PANEL_ARGS="--panel --po-seed $HEAD_SHA"
             echo "reviewer: v2 panel supported by the trusted base copy — enabling (po seed = $HEAD_SHA)"
           else
             echo "reviewer: trusted base copy predates the v2 panel — running the v1 single-lens gate (unchanged physics)"
           fi
-          python -I /tmp/trusted/adversarial_review.py --require $PANEL_ARGS \
+          python -I "$REVIEWER" --require $PANEL_ARGS \
             --max-diff-bytes 800000 \
             --diff-file pr.diff --test-log pytest.log --test-log web.log \
             --test-log validate.log --test-log "$EVID_DIR/golden-exam.log"

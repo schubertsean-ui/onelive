@@ -99,8 +99,9 @@ def test_staged_template_ships_every_doc_its_tools_reference():
     eye" is precisely what missed `MODEL_ROUTING.md`, `FRICTION_LOG.md`, and
     `AGENT_FEEDBACK.md` on the first two passes.
 
-    Honest limit: it only covers `docs/<NAME>.md` citations found in the
-    template's own text — not every conceivable reference form.
+    Honest limit: it covers `docs/<NAME>.md` and nested `docs/<dir>/<NAME>.md`
+    citations found in the template's own text (nested form added at the r5
+    nit) — not every conceivable reference form.
     """
     import re
 
@@ -112,7 +113,7 @@ def test_staged_template_ships_every_doc_its_tools_reference():
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        for m in re.finditer(r"docs/([A-Z][A-Z0-9_]+\.md)", text):
+        for m in re.finditer(r"docs/((?:[a-z0-9_]+/)*[A-Z][A-Z0-9_]+\.md)", text):
             cited.setdefault(m.group(1), set()).add(
                 str(path.relative_to(TEMPLATE))
             )
