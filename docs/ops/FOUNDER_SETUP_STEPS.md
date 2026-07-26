@@ -59,9 +59,23 @@ whole point of this file is that you never have to improvise.
    - `pages_show_list`
    - `pages_read_engagement`
    - `business_management`
-5. Click **Generate Access Token**. Approve the popup, selecting the
-   Instagram account and Page from step 1a.
-6. Copy the token that appears. It is short-lived — step 1d fixes that.
+5. Click **Generate Access Token**. A Facebook popup opens. Work through
+   it in this order, and do not click "Opt in to all" shortcuts:
+   - a. Click **Continue as {your name}**.
+   - b. On the Pages screen, tick ONLY the Page from step 1a. Click
+     **Continue**.
+   - c. On the Instagram screen, tick ONLY the Instagram account from
+     step 1a. Click **Continue**.
+   - d. The permissions screen lists the five scopes as toggles. Confirm
+     every one is **On** — if `instagram_content_publish` is off, the
+     posting API will fail later with a permissions error that looks
+     unrelated. Click **Save** (some versions say **Done**).
+   - e. Back on the confirmation screen, click **Got it** / **OK**.
+6. Copy the token that appears in the **Access Token** box. It is
+   short-lived — step 1d fixes that.
+7. Sanity check before moving on: the box under the token should list all
+   five scopes. If any is missing, repeat 4–6; a token with partial
+   scopes fails silently at posting time, not now.
 
 ### 1d. Make the token long-lived (5 min)
 
@@ -111,10 +125,17 @@ post can be signed, so nothing can publish even with Meta connected.
    ```
    openssl rand -base64 48
    ```
-   Copy the output. If you have no terminal handy, use
-   https://1password.com/password-generator set to **64 characters** with
-   letters, numbers and symbols all on — that lands near the ~256 bits of
-   entropy `openssl rand -base64 48` gives you. Do not shorten it.
+   Copy the whole output line.
+
+   **No terminal?** Do this instead:
+   - a. Open https://1password.com/password-generator
+   - b. Under **Password type**, choose **Random Password**.
+   - c. Drag the **Length** slider to **64**. (Shorter is weaker than the
+     `openssl` path — do not reduce it.)
+   - d. Turn **Numbers** ON and **Symbols** ON.
+   - e. Click the **copy** icon to the right of the generated password.
+   - f. Paste it somewhere only long enough to complete step 5 below, then
+     clear it.
 2. Go to https://vercel.com/sss-projects-e4775771/onelive/settings/environment-variables
 3. Click **Add New** (or **Create new**).
 4. Key: `ONELIVE_APPROVAL_KEY`
@@ -169,9 +190,26 @@ Symptom seen 2026-07-26: every workflow failing in 2–3 seconds with no
 runner assigned and no logs. That is not a code failure.
 
 1. Go to https://github.com/settings/billing
-2. Look at **Actions minutes** for this month.
-3. If used equals included, click **Spending limit** and either raise it
-   or set a budget you're comfortable with.
-4. If minutes are fine, it was a transient GitHub incident — check
-   https://www.githubstatus.com and simply re-run.
-5. Tell Claude what you found; nothing merges until runners come back.
+2. In the left sidebar click **Plans and usage**.
+3. Find the **Actions** row. Read it as `used / included` minutes.
+
+**If used has reached included** — raise the limit:
+4. In the left sidebar click **Spending limit**.
+5. Find the **Actions and Packages** section.
+6. Select the radio button **Limited spending** (not *Unlimited* — an
+   unlimited setting removes your ceiling entirely).
+7. In the amount box type a number you are comfortable with. `20` (USD)
+   is roughly 2,000 extra Linux minutes, which is far more than a normal
+   week here.
+8. Click **Update limit**.
+9. Give it about a minute, then tell Claude "spending limit raised".
+
+**If minutes are NOT exhausted** — it was a GitHub incident:
+10. Check https://www.githubstatus.com for a green Actions row.
+11. Go to https://github.com/schubertsean-ui/onelive/actions
+12. Click the topmost failed run in the list.
+13. Top right, click **Re-run jobs** → **Re-run all jobs**.
+14. Tell Claude "re-ran, minutes are fine".
+
+Either way, nothing merges until runners come back — say which branch you
+took and Claude picks it up from there.
