@@ -124,6 +124,13 @@ LENSES = {
 }
 
 # Seat -> ordered lens pair (method lens, then the po-carrying lens).
+# Upper bound on the WHOLE panel, not per lens. Four concurrent calls to a
+# reasoning model take low single-digit minutes; ten minutes is generous enough
+# that a healthy slow run never trips it, and short enough that a hung run is
+# reported inside one review cycle instead of holding a CI job open. Exceeding
+# it RAISES — it is a deadline, never a partial-panel fallback.
+PANEL_TIMEOUT_S = 600
+
 SEAT_LENSES = {
     "openai": ("attacker-smuggle", "absence-only"),
     "gemini": ("dataflow-taint", "spec-vs-contract"),
@@ -382,14 +389,42 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
     live = [(i, p) for i, p in enumerate(planned) if p[1] is not None]
     texts: dict = {}
     if live:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(live)) as pool:
+        # FAIL FAST, and do not wait on a sibling to fail.
+        #
+        # The first version relied on the `with` block, whose __exit__ calls
+        # shutdown(wait=True) — so a lens that RAISED could not reach the caller
+        # until every other future finished. One hung HTTP call therefore turned
+        # a loud failure into an indefinite stall, in gate-custody code, where a
+        # review that never returns is indistinguishable from one that passed.
+        # Serially this could not happen: the raise landed immediately.
+        # Evaluator finding, PR #81 r1 (openai/absence-only).
+        #
+        # PANEL_TIMEOUT_S bounds the whole panel, and cancel_futures tears down
+        # the rest the moment any lens errors or the clock runs out. Both paths
+        # RAISE; neither is a silent short panel.
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=len(live))
+        try:
             futures = {
                 pool.submit(p[3], review_input, p[2]): i for i, p in live
             }
-            for fut in concurrent.futures.as_completed(futures):
-                # .result() re-raises inside the caller's thread, so a lens that
-                # fails still hard-fails the panel exactly as it did serially.
-                texts[futures[fut]] = fut.result()
+            try:
+                for fut in concurrent.futures.as_completed(
+                        futures, timeout=PANEL_TIMEOUT_S):
+                    # .result() re-raises in the caller's thread, so a lens that
+                    # fails hard-fails the panel exactly as it did serially.
+                    texts[futures[fut]] = fut.result()
+            except concurrent.futures.TimeoutError as exc:
+                pending = [planned[i][1] for f, i in futures.items()
+                           if not f.done()]
+                raise SystemExit(
+                    f"adversarial_review: FAIL — the review panel exceeded "
+                    f"{PANEL_TIMEOUT_S}s with {len(pending)} lens(es) still "
+                    f"running ({', '.join(pending)}). A review that never "
+                    f"returns is not a review that passed.") from exc
+        finally:
+            # wait=False so a hung worker cannot hold the process; the raise
+            # above has already decided the outcome.
+            pool.shutdown(wait=False, cancel_futures=True)
 
     for i, (seat, lens_name, _prompt, _req) in enumerate(planned):
         if lens_name is None:

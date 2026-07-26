@@ -64,6 +64,7 @@ NON-GOALS: no change to what is reviewed, who reviews it, or what counts as
 a pass. This is gate-custody code, so it is deliberately its own change set.
 [S3:caller-suppliable-custody-inputs] no custody input becomes caller-suppliable: the PR under review supplies no lens, no prompt, no model and no key, and the base-owned invocation path is untouched.
 [S3:contract-scope-violation] the contract is written for this change alone: 111 lines in one examiner file plus its tests, split out of PR #74 precisely so a change to the review machinery is judged on its own diff.
+[S3:deferred-trust-work] the r1 blocker was fixed in the change that found it: the panel now carries a deadline and cancels its siblings, rather than a Record row promising to bound it later — this is gate-custody code, so a known stall path could not be allowed to ship behind a trigger.
 [S3:env-dependent-hermetic-test] the tests are hermetic and were run that way: the model calls are stubbed, so no network, no key and no remote is required.
 [S3:fabricated-qualitative-copy] no outward-facing or user-visible text is produced by this change.
 [S3:fail-open-on-custody-misconfig] a lens whose call raises still fails the run: gathering concurrently does not convert an error into a missing seat, and an absent verdict is never merged as a non-red one.

@@ -469,3 +469,57 @@ def test_every_floating_alias_in_the_allowlist_is_bound_to_an_OPEN_record():
             "OPEN docs/RECORD.md row naming it. An alias moves provider-side "
             "with no commit here, so it may only exist while a record carries "
             "its objective trigger to concretise it (class: mutable-model-alias)")
+
+
+def test_a_hung_lens_cannot_swallow_a_sibling_FAILURE():
+    """r1 blocker: the panel ran inside `with ThreadPoolExecutor(...)`, whose
+    __exit__ calls shutdown(wait=True) — so a lens that RAISED could not reach
+    the caller until every other future finished. One hung HTTP call turned a
+    loud failure into an indefinite stall, in gate-custody code, where a review
+    that never returns is indistinguishable from one that passed. Serially this
+    was impossible: the raise landed immediately.
+
+    The hung lens blocks until this test releases it, so the test only
+    terminates if the panel refuses to wait for it.
+    """
+    import threading
+    import time
+    import tools.adversarial_review as ar
+
+    release = threading.Event()
+    started = threading.Event()
+
+    def hung(_input, _prompt):
+        started.set()
+        release.wait(30)      # bounded, so a regression fails instead of hanging
+        return "VERDICT: APPROVE"
+
+    def boom(_input, _prompt):
+        started.wait(5)       # guarantee the hung sibling is in flight first
+        raise RuntimeError("lens exploded")
+
+    # TIMING IS THE ASSERTION. Under the old `with` form the exception DID
+    # eventually reach the caller — after shutdown(wait=True) waited out the
+    # hung sibling. So a pytest.raises alone passes on the broken code and
+    # proves nothing; what changed is that the failure is now immediate.
+    started_at = time.monotonic()
+    try:
+        with pytest.raises(RuntimeError, match="lens exploded"):
+            ar.run_panel("diff", "seed", "openai-key", "m",
+                         "https://example.invalid", "gemini-key",
+                         request_openai=boom, request_gemini=hung)
+        elapsed = time.monotonic() - started_at
+    finally:
+        release.set()
+    assert elapsed < 5, (
+        f"the failure took {elapsed:.1f}s to surface while a sibling lens was "
+        f"hung — the panel is waiting on shutdown again")
+
+
+def test_the_panel_has_a_DEADLINE_and_it_raises(monkeypatch):
+    """A review that never returns is not a review that passed."""
+    import tools.adversarial_review as ar
+    assert isinstance(ar.PANEL_TIMEOUT_S, int)
+    assert 0 < ar.PANEL_TIMEOUT_S <= 1800, (
+        "the panel deadline must be bounded and short enough that a hung run "
+        "is reported inside one review cycle")
