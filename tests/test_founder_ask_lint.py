@@ -259,3 +259,63 @@ def test_the_P_section_is_a_valid_citation():
     citing it would have been rejected."""
     assert LINT._GOLIVE_CITATION.search("Unblocks: P1")
     assert LINT._GOLIVE_CITATION.search("Unblocks: P14")
+
+
+# ------------------------- a heading with nothing under it is not a structure
+def _ask(body: str) -> str:
+    return "### Ask 9 — a test ask\n\n" + body
+
+
+def test_a_field_label_with_nothing_under_it_is_a_finding():
+    """`CLASS:underconstrained-founder-ask-gate` (openai/absence-only, PR #76 r2).
+
+    The gate checked for LABEL PRESENCE only, so an ask could satisfy the founder's
+    "specific structure" requirement with eight headings and no actionable content.
+    Prose is not a control — the same lesson as the escape-closure gate.
+    """
+    for label in ("Why this needs you", "What you will see", "Time", "What",
+                  "Exactly what to enter", "If you decline"):
+        findings = LINT.audit(_ask(f"**{label}:**\n\n**Other:** x\n"))
+        assert any(label in f and "EMPTY" in f for f in findings), (label, findings)
+
+
+def test_bold_whitespace_does_not_count_as_content():
+    findings = LINT.audit(_ask("**Time:** **   **\n"))
+    assert any("Time" in f and "EMPTY" in f for f in findings), findings
+
+
+def test_a_click_path_is_not_a_URL():
+    """The founder's directive is explicit: "Always give me specific and accurate
+    and working links". `**Where:** Vercel > Settings` is the banned shape."""
+    findings = LINT.audit(_ask("**Where:** Vercel > Settings > Deployment\n"))
+    assert any("Where" in f and "no URL" in f for f in findings), findings
+
+
+def test_a_real_URL_satisfies_Where():
+    findings = LINT.audit(_ask("**Where:** <https://vercel.com/x/y/settings>\n"))
+    assert not any("Where" in f for f in findings), findings
+
+
+def test_no_page_to_open_satisfies_Where():
+    """An ask answered by replying has no URL to carry, and saying so is the
+    correct answer rather than an omission — several live asks are this shape."""
+    findings = LINT.audit(_ask("**Where:** nothing to open — reply here.\n"))
+    assert not any("Where" in f for f in findings), findings
+
+
+def test_a_short_but_complete_answer_is_accepted():
+    """Calibration matters: a first attempt at this rejected `**Time:** seconds.`,
+    which is a complete and honest answer. A gate that cries wolf gets routed
+    around, so the floor only catches genuine emptiness."""
+    findings = LINT.audit(_ask("**Time:** seconds.\n"))
+    assert not any("Time" in f for f in findings), findings
+
+
+def test_v1_criterion_without_a_number_is_not_a_citation():
+    """The same class as the bare `BAR`, incompletely fixed: `v1 criterion` with no
+    number names no part of go-live."""
+    for bare in ("Unblocks: v1 criterion", "Unblocks: v1 criteria",
+                 "Unblocks: v1 done-criterion"):
+        assert not LINT._GOLIVE_CITATION.search(bare), bare
+    assert LINT._GOLIVE_CITATION.search("Unblocks: v1 criterion 6")
+    assert LINT._GOLIVE_CITATION.search("Unblocks: v1 done-criterion 4")

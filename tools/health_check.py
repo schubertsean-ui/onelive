@@ -434,7 +434,14 @@ def build(baseline: str | None) -> Report:
     before = bars[0] if isinstance(bars[0], dict) else {}
     for key, bar in (("rows", "—"), ("purpose_rows", "P1–P14"), ("MET", "—"),
                      ("NOT MET", "—"), ("UNMEASURED", "—"), ("NOT BUILT", "—")):
-        rep.add(f"BAR rows — {key}", before.get(key, 0) if before else 0, after.get(key, 0), bar)
+        # An unmeasured baseline is "—", never 0. Defaulting to 0 asserted that
+        # ZERO bar rows existed before the run — a fabricated measurement, and the
+        # worse kind because it renders as a plausible delta (0 -> 55 reads as "we
+        # added 55 rows") directly under this tool's own claim that every number is
+        # computed (`CLASS:false-baseline-metric`, PR #76 r2).
+        rep.add(f"BAR rows — {key}",
+                before.get(key, "—") if before else "—",
+                after.get(key, "—"), bar)
 
     try:
         rec_a = record_status(None)

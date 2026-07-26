@@ -69,7 +69,10 @@ MIN_OPTIONS = 3
 # most important row in the file, and it would not have matched.
 _GOLIVE_CITATION = re.compile(
     r"(?:done-)?criteri(?:on|a)\s*#?\d"          # "criterion 6", "done-criteria 1"
-    r"|\bv1\s+(?:done-)?criteri"                  # "v1 criterion ..."
+    # The number is REQUIRED. `v1 criterion` with nothing after it named no part
+    # of go-live, so the gate still certified an ask that said nothing — the same
+    # class as the bare `BAR`, incompletely fixed (PR #76 r2).
+    r"|\bv1\s+(?:done-)?criteri(?:on|a)\s*#?\d"    # "v1 criterion 6"
     r"|\b(?:BAR\s+)?[A-JP]\d{1,2}\b",            # a BAR row: C2, H7, P1, J11
     re.IGNORECASE)
 
@@ -110,11 +113,67 @@ def count_options(section: str) -> int:
     return len(_OPTION_ITEM.findall(block))
 
 
-def _field_present(section: str, label: str) -> bool:
-    # `**Label:**` or `**Label —**` at line start, allowing list-item bullets.
+# How much text a field needs before it counts as answered. DELIBERATELY TINY: the
+# gate's job is to catch a HEADING WITH NOTHING UNDER IT, not to grade prose.
+# Calibrated by running it against the live asks, where a first attempt at 12 chars
+# rejected `**Time:** seconds.` — which is a complete and honest answer. A gate that
+# cries wolf gets routed around, so the floor only catches genuine emptiness.
+_MIN_FIELD_CHARS = 3
+
+# Fields whose whole purpose is a link. `**Where:** Vercel > Settings` is the exact
+# click-path the founder banned ("Always give me specific and accurate and working
+# links"), and the label-only check accepted it.
+_URL_REQUIRED = frozenset({"Where"})
+
+# ...but an ask with NO web page has no URL to carry, and saying so explicitly is
+# the correct answer rather than an omission — several live asks are answered by
+# replying here. The banned shape is a click-path STANDING IN FOR a URL, so an
+# explicit no-page declaration satisfies the field and vague navigation does not.
+_NO_PAGE = re.compile(r"nothing to open|no page|reply here|reply in this",
+                      re.IGNORECASE)
+
+
+def _field_body(section: str, label: str) -> str | None:
+    """The text AFTER a field's label, or None when the label is absent.
+
+    Runs to the next line-leading bold label or heading, so a field's content is
+    its own and cannot be satisfied by the next field's text.
+    """
     pattern = re.compile(
-        rf"^\s*(?:[-*]\s+)?\*\*{re.escape(label)}\s*(?::|—|-)", re.MULTILINE)
-    return bool(pattern.search(section))
+        rf"^[ \t]*(?:[-*][ \t]+)?\*\*{re.escape(label)}\s*(?::|—|-)\*{{0,2}}",
+        re.MULTILINE)
+    m = pattern.search(section)
+    if m is None:
+        return None
+    rest = section[m.end():]
+    stop = re.search(r"^[ \t]*(?:[-*][ \t]+)?\*\*[A-Z]|^#{1,6} ", rest, re.MULTILINE)
+    return rest[:stop.start()] if stop else rest
+
+
+def _field_present(section: str, label: str) -> bool:
+    """A label with SUBSTANCE under it — not a label alone.
+
+    The gate used to check for the label only, so an ask could satisfy the
+    founder's "specific structure" requirement with eight headings and no
+    actionable content: `**Where:**` with no URL, an empty
+    `**What you will see:**`, an empty `**Why this needs you:**`. That is the
+    same "prose is not a control" failure the escape-closure gate had
+    (`CLASS:underconstrained-founder-ask-gate`, PR #76 r2).
+    """
+    body = _field_body(section, label)
+    if body is None:
+        return False
+    stripped = body.strip()
+    # Strip markdown emphasis and list bullets before measuring, so `**  **`
+    # cannot pass as content.
+    bare = re.sub(r"[*_`>\-\s]", "", stripped)
+    if len(bare) < _MIN_FIELD_CHARS:
+        return False
+    if label in _URL_REQUIRED:
+        has_url = re.search(r"https?://\S", stripped)
+        if not has_url and not _NO_PAGE.search(stripped):
+            return False
+    return True
 
 
 def _sections(text: str) -> list[tuple[str, str, str]]:
@@ -139,9 +198,19 @@ def audit(text: str) -> list[str]:
             missing.append(_RECOMMENDATION)
         for label in missing:
             why = REQUIRED_FIELDS.get(label, "what you would do, named — not 'your call'")
-            findings.append(
-                f"Ask {number}: missing '**{label}:**' as a line-leading bold label "
-                f"— {why}. CLAUDE.md prime directive 6.")
+            body = _field_body(section, label)
+            if body is None:
+                how = f"missing '**{label}:**' as a line-leading bold label"
+            elif (label in _URL_REQUIRED
+                  and not re.search(r"https?://\S", body)
+                  and not _NO_PAGE.search(body)):
+                how = (f"'**{label}:**' carries no URL and does not say there is no "
+                       f"page to open — a click-path is not a link, and the founder "
+                       f"asked for links that work")
+            else:
+                how = (f"'**{label}:**' is present but EMPTY — a heading with nothing "
+                       f"under it satisfies the shape and not the ask")
+            findings.append(f"Ask {number}: {how} — {why}. CLAUDE.md prime directive 6.")
         # Rule zero: the ask must name what it moves toward go-live.
         if "Unblocks" not in missing and not cites_golive_progress(section):
             findings.append(

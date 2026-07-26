@@ -143,9 +143,27 @@ def last_success(repo: str, name: str, event: str = "schedule") -> _dt.datetime 
     """
     data = _api(f"/repos/{repo}/actions/workflows/{name}/runs"
                 f"?status=success&event={event}&per_page=1")
+    # The API's payload SHAPE is validated before `.get` touches it. An
+    # unexpected non-dict body, or a non-dict run entry, would raise
+    # AttributeError — which escapes `except WatchdogError` in main() and crashes
+    # the alarm with a traceback instead of failing closed at exit 2
+    # (`CLASS:swallowed-corrupt-data`, PR #76 r2).
+    if not isinstance(data, dict):
+        raise WatchdogError(
+            f"{name}: the Actions API returned a {type(data).__name__}, not an "
+            f"object — refusing to compute freshness from a payload this tool "
+            f"cannot read")
     runs = data.get("workflow_runs") or []
+    if not isinstance(runs, list):
+        raise WatchdogError(
+            f"{name}: `workflow_runs` is a {type(runs).__name__}, not a list — the "
+            f"API contract changed")
     if not runs:
         return None
+    if not isinstance(runs[0], dict):
+        raise WatchdogError(
+            f"{name}: the most recent run entry is a {type(runs[0]).__name__}, not "
+            f"an object — the API contract changed")
     stamp = runs[0].get("updated_at") or runs[0].get("created_at")
     if not stamp:
         raise WatchdogError(f"{name}: a successful run carried no timestamp")

@@ -92,8 +92,29 @@ jobs:
         run: |
           set -uo pipefail
           : "${BASE_URL:?url input missing — the target is required — failing closed}"
+
+          # THE SECRET'S NETWORK SINK IS CONSTRAINED, not just its caller.
+          #
+          # The default-branch job guard controls WHO can start this run. It does
+          # NOT control where the bypass secret is sent: the `url` input was
+          # arbitrary, so a dispatch from the default branch could still post the
+          # secret to any host on the internet. The custody comments claimed the
+          # guard covered that, and it did not — a false safety claim in the exact
+          # section written to justify using the secret
+          # (`CLASS:false-confidence-gate`, PR #76 r2, and the reviewer was right
+          # that this is the more important half).
+          #
+          # So the host is allowlisted to this Vercel project's own domains. Any
+          # other target fails closed BEFORE the secret is read into a request.
           case "$BASE_URL" in
-            https://*) ;;
+            https://*.vercel.app|https://*.vercel.app/*) ;;
+            https://onelive.*|https://*.onelive.*) ;;
+            https://*)
+              echo "::error::refusing to send the Vercel bypass secret to a host"
+              echo "outside this project's own domains (got '$BASE_URL'). The"
+              echo "default-branch guard says who may run this; this says where the"
+              echo "secret may go. Add the host here deliberately if it is ours."
+              exit 1 ;;
             *) echo "::error::url must start with https:// (got '$BASE_URL')"; exit 1 ;;
           esac
 

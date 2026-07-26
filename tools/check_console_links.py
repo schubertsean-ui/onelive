@@ -31,6 +31,7 @@ broken; 2 = tool error.
 """
 from __future__ import annotations
 
+import http.client
 import pathlib
 import re
 import sys
@@ -149,6 +150,12 @@ def probe(url: str) -> tuple[str, str]:
         if "403" in reason or "CONNECT" in reason or "Tunnel" in reason:
             return "BLOCKED", f"egress policy denied this host ({reason})"
         return "BROKEN", f"could not reach host ({reason})"
+    except http.client.HTTPException as exc:
+        # RemoteDisconnected, IncompleteRead, BadStatusLine and friends are raised
+        # by urllib WITHOUT being URLError or OSError subclasses, so a protocol-level
+        # disconnect crashed this tool with a traceback instead of reporting a
+        # finding (`CLASS:swallowed-corrupt-data`, PR #76 r2).
+        return "BROKEN", f"protocol error: {type(exc).__name__}: {exc}"
     except (OSError, ValueError) as exc:  # timeouts, malformed URLs
         return "BROKEN", f"{type(exc).__name__}: {exc}"
 

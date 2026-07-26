@@ -15,6 +15,8 @@ curl behaves. That is proven by the workflow's own runs, quoted in `docs/V1.md`.
 from __future__ import annotations
 
 import pathlib
+import re
+import subprocess
 
 import pytest
 import yaml
@@ -123,3 +125,84 @@ def test_event_count_zero_still_fails(script: str):
     no site, so it fails rather than warns."""
     assert "event_count" in script
     assert "The site is up and the feed is EMPTY" in script
+
+
+# ------------------------------------------------------------- secret custody
+def test_BOTH_secret_bearing_trigger_paths_are_default_branch_only():
+    """`CLASS:missing-secret-custody-regression-test` (openai/absence-only, PR #76 r2).
+
+    This workflow reads `secrets.VERCEL_AUTOMATION_BYPASS`, and GitHub runs the file
+    from the TRIGGERING REF — so a trigger reachable from an unreviewed branch hands
+    the secret to YAML that branch controls. The guard existed but nothing bound it,
+    so a future move of the `if:` or a widened trigger could reopen it silently.
+    Secret custody is an invariant class; an invariant with no failing test is a
+    convention.
+    """
+    doc = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
+    triggers = set(doc.get("on", doc.get(True)) or {})
+    assert triggers == {"deployment_status", "workflow_dispatch"}, (
+        f"the trigger set changed to {sorted(triggers)} — every new trigger needs "
+        f"its own custody answer, so this test must be updated deliberately")
+
+    condition = doc["jobs"]["check"].get("if", "")
+    assert condition, "the job has no `if:` — the secret is unguarded"
+    guard = re.compile(r"github\.ref_name\s*==\s*[^\n]*default_branch")
+    # EVERY top-level alternative must carry the guard, or one path bypasses it.
+    for branch in re.split(r"\|\|", condition):
+        assert guard.search(branch), (
+            f"this alternative runs WITHOUT a default-branch guard, so it can "
+            f"execute branch-owned YAML with the secret: {branch.strip()!r}")
+    assert "pull_request" not in triggers, \
+        "a pull_request trigger is the exfiltration path this replaced"
+
+
+def test_the_secret_is_only_ever_SENT_to_this_projects_own_hosts(script: str):
+    """`CLASS:false-confidence-gate` (openai/attacker-smuggle, PR #76 r2), and the
+    more important half of custody.
+
+    The default-branch guard controls WHO may start the run. It does NOT control
+    where the secret goes: the `url` input was arbitrary, so a dispatch from the
+    default branch could post the bypass to any host on the internet — while the
+    comments claimed the guard covered exactly that. The host is now allowlisted,
+    and the check happens BEFORE the secret is read into a request.
+    """
+    assert "vercel.app" in script, "the allowlist must name this project's hosts"
+    assert "refusing to send the Vercel bypass secret" in script, \
+        "a foreign host must be refused with a reason, not silently allowed"
+    # Ordering is the property: allowlist first, secret second.
+    assert script.index("refusing to send the Vercel bypass secret") < \
+        script.index("VERCEL_BYPASS:?"), \
+        "the host allowlist must be evaluated BEFORE the secret is required"
+
+
+@pytest.mark.parametrize("url,allowed", [
+    ("https://onelive-git-x-sss-projects.vercel.app", True),
+    ("https://onelive-git-x.vercel.app/api/health", True),
+    ("https://evil.example", False),
+    ("https://vercel.app.evil.example", False),
+    ("http://x.vercel.app", False),          # not https
+    ("ftp://x.vercel.app", False),
+    ("https://attacker.io/vercel.app", False),
+])
+def test_the_host_allowlist_decides_correctly(url, allowed):
+    """The case arms are EXECUTED with bash, not pattern-matched as text: a broken
+    arm placed after a catch-all would satisfy a grep and fail in production."""
+    block = _case_arms()
+    script_text = 'set -u\nBASE_URL="$1"\n' + block + '\necho ALLOWED\n'
+    proc = subprocess.run(["bash", "-c", script_text, "bash", url],
+                          capture_output=True, text=True, timeout=60)
+    got = proc.returncode == 0 and "ALLOWED" in proc.stdout
+    assert got is allowed, (
+        f"{url} -> {'allowed' if got else 'refused'}, expected "
+        f"{'allowed' if allowed else 'refused'}: {proc.stdout}{proc.stderr}")
+
+
+def _case_arms() -> str:
+    """The host-allowlist `case` block, lifted verbatim from the workflow."""
+    doc = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
+    body = next(s["run"] for s in doc["jobs"]["check"]["steps"]
+                if "run" in s and "/api/health" in s["run"])
+    lines = body.splitlines()
+    start = next(i for i, ln in enumerate(lines) if 'case "$BASE_URL" in' in ln)
+    end = next(i for i, ln in enumerate(lines[start:], start) if ln.strip() == "esac")
+    return "\n".join(lines[start:end + 1])

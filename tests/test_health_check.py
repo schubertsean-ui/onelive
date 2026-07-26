@@ -202,6 +202,36 @@ def test_no_baseline_mode_still_measures_the_CURRENT_snapshot():
         "with no baseline the BEFORE column should be blank"
 
 
+def test_no_baseline_means_the_BEFORE_column_is_never_a_fabricated_ZERO():
+    """`CLASS:false-baseline-metric` (openai/absence-only, PR #76 r2).
+
+    The no-baseline test asserted only that the CURRENT column was populated. The
+    BAR-rows block defaulted its before-column to 0, so a single snapshot printed
+    "0 bar rows before" directly under this tool's claim that every number is
+    computed — a fabricated measurement, and the convincing kind because it renders
+    as a plausible delta.
+    """
+    rows = {r[0]: r for r in hc.build(None).rows}
+    bar_rows = [label for label in rows if label.startswith("BAR rows — ")]
+    assert bar_rows, "no BAR-rows metrics built — this test checks nothing"
+    for label in bar_rows:
+        _, before, after, _bar = rows[label]
+        assert str(before).strip() == "—", (
+            f"{label}: unmeasured baseline rendered as {before!r} — a number here is "
+            f"a fabricated measurement")
+        assert str(after).strip() not in ("—", "", "0"), (
+            f"{label}: the CURRENT column must carry a real count, or the fix traded "
+            f"a false number for a missing one")
+
+    # And NO metric may show a numeric before-column with no baseline. The BAR rows
+    # were one instance; this is the invariant.
+    numeric_before = [label for label, (_, b, _a, _r) in rows.items()
+                      if str(b).strip().isdigit()]
+    assert not numeric_before, (
+        f"with no baseline these metrics printed a NUMBER in the before column: "
+        f"{numeric_before} — 'we did not measure' must never render as a value")
+
+
 def test_the_report_refuses_to_claim_completeness_over_placeholders(monkeypatch):
     """Even if a metric goes blank again, the summary must not say it measured."""
     real_build = hc.build

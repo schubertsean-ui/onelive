@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import subprocess
 import sys
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -29,15 +30,81 @@ DECISIONS_DIR = _REPO_ROOT / "docs" / "memory" / "decisions"
 # reader or a machine can find.
 _CODIFIED_RE = re.compile(r"^\*\*Codified by:\*\*\s*(\S.*)$", re.MULTILINE)
 
-# Accepted as naming something real. Deliberately broad — the point is to force
-# an explicit answer, not to police its wording.
-_SUBSTANTIVE_RE = re.compile(
-    r"(R-\d{3}"                      # a Record row (staged, with a trigger)
-    r"|[0-9a-f]{7,40}"               # a commit sha
-    r"|\.(py|ts|tsx|yml|yaml|sql|md|sh)\b"   # a file
-    r"|NOTHING YET\b"                # the honest, explicit gap
-    r")"
-)
+# CITATION SHAPES, and every one of them is then CHECKED AGAINST REALITY.
+#
+# Matching a shape was all this did, so any `.md`-looking string passed even when
+# the file did not exist, any `R-###` passed with no such Record row, any 7 hex
+# characters passed as a "commit" without asking git, and a bare `NOTHING YET`
+# passed with none of the reason and trigger it promises. A gate that certifies a
+# decision as codified when nothing in the repo carries it is worse than no gate —
+# `CLASS:codification-gate-nonbinding`, PR #76 r2, and it is the identical defect
+# the escape-closure gate had: a plausible-looking string is not evidence.
+_PATH_RE = re.compile(r"[A-Za-z0-9_./-]+\.(?:py|ts|tsx|yml|yaml|sql|md|sh)\b")
+# `tools/validate` is the most important gate file in the repo and has NO
+# extension, so an extension-anchored pattern alone would reject the single most
+# likely citation. Any backticked repo path counts, extension or not, provided it
+# resolves — which is the actual rule.
+_BACKTICKED_RE = re.compile(r"`([A-Za-z0-9_./-]+)`")
+_ROW_RE = re.compile(r"\bR-(\d{3})\b")
+_SHA_RE = re.compile(r"\b([0-9a-f]{7,40})\b")
+_NOTHING_YET_RE = re.compile(r"NOTHING YET\b")
+
+
+def _resolves_inside(candidate: str) -> bool:
+    """An existing file INSIDE the repo. Absolute paths and `..` escapes rejected:
+    `Path(root) / "/etc/x.md"` discards the root, so an absolute path to any host
+    file would otherwise count as a repo citation."""
+    if candidate.startswith("/"):
+        return False
+    try:
+        target = (_REPO_ROOT / candidate).resolve()
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return target.is_file() and _REPO_ROOT in target.parents
+
+
+def _record_row_exists(number: str) -> bool:
+    try:
+        text = (_REPO_ROOT / "docs" / "RECORD.md").read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return f"| R-{number} |" in text
+
+
+def _commit_exists(sha: str) -> bool:
+    """Ask git. A hex-looking string is not a commit until git says so."""
+    try:
+        proc = subprocess.run(["git", "-C", str(_REPO_ROOT), "cat-file", "-e",
+                               f"{sha}^{{commit}}"],
+                              capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return proc.returncode == 0
+
+
+def cited_mechanisms(value: str) -> list[str]:
+    """The citations in a `Codified by:` value that RESOLVE to something real.
+
+    Empty means the line names nothing checkable — which is the finding.
+    `NOTHING YET` is honest and accepted, but only WITH its promised reason and
+    trigger: the bare token was the escape hatch that made this gate optional.
+    """
+    found: list[str] = []
+    found += [c for c in _PATH_RE.findall(value) if _resolves_inside(c)]
+    found += [c for c in _BACKTICKED_RE.findall(value)
+              if c not in found and _resolves_inside(c)]
+    found += [f"R-{n}" for n in _ROW_RE.findall(value) if _record_row_exists(n)]
+    # A sha only counts if it is not part of a path already credited above.
+    for sha in _SHA_RE.findall(value):
+        if sha not in "".join(found) and _commit_exists(sha):
+            found.append(sha)
+    if _NOTHING_YET_RE.search(value):
+        # It must carry a reason AND a trigger, or "NOTHING YET" is just a way to
+        # pass. Length is the crude proxy for "there is an explanation here".
+        tail = _NOTHING_YET_RE.sub("", value).strip(" —-:.")
+        if len(tail) >= 30:
+            found.append("NOTHING YET (with reason and trigger)")
+    return found
 
 
 def _display(path: pathlib.Path) -> str:
@@ -69,11 +136,12 @@ def audit(paths: list[pathlib.Path]) -> list[str]:
                 f"CLAUDE.md prime directive 6.")
             continue
         value = match.group(1).strip()
-        if not _SUBSTANTIVE_RE.search(value):
+        if not cited_mechanisms(value):
             findings.append(
-                f"{rel}: '**Codified by:**' names nothing findable ({value!r}) — "
-                f"cite a commit sha, a file path, an R-### row, or the literal "
-                f"'NOTHING YET' with a reason.")
+                f"{rel}: '**Codified by:**' names nothing that EXISTS ({value!r}) — "
+                f"a plausible-looking string is not evidence. Cite a file path that "
+                f"is in this repo, an R-### row that is in docs/RECORD.md, a commit "
+                f"git can resolve, or 'NOTHING YET' WITH its reason and trigger.")
     return findings
 
 
