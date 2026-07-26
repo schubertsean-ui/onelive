@@ -33,6 +33,10 @@ REQUIRED_FIELDS: dict[str, str] = {
     "What": "one plain sentence naming the action",
     "Where": "the full URL — a click-path is not a link (docs/DEPLOY.md §console links)",
     "Exactly what to enter": "literal field names and values, or 'nothing to type'",
+    "What you will see": "the heading, button or screen state confirming the right "
+                         "place, what changes after acting, and what to do if it "
+                         "does NOT look like that — a URL plus a shape is not a "
+                         "walkthrough",
     "Why this needs you": "what the agent tried and why this cannot be automated "
                           "— the founder's manual work is the scarcest resource, so "
                           "an ask with no such statement is an admission nobody looked",
@@ -42,7 +46,11 @@ REQUIRED_FIELDS: dict[str, str] = {
 }
 _RECOMMENDATION = "Recommendation"
 
-_RESOLVED = re.compile(r"\bRESOLVED\b|\bDONE\b")
+# An ask that is finished, or folded into another one, is history — the structure
+# rules govern LIVE requests. SUPERSEDED counts because merging two asks into one
+# is the "an ask you can delete is worth more than an ask you can polish" rule
+# working; demanding full fields on the tombstone would punish that.
+_RESOLVED = re.compile(r"\bRESOLVED\b|\bDONE\b|\bSUPERSEDED\b")
 
 MIN_OPTIONS = 3
 # An enumerated option: "1." / "(a)" / "a)" at the start of a line.

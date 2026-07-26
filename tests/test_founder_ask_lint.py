@@ -45,6 +45,8 @@ _FULL = """### Ask 9 — do a thing
 
 **Exactly what to enter:** nothing to type.
 
+**What you will see:** a page headed Example, and a green tick after clicking.
+
 **Why this needs you:** it is a setting in your account; no API path exists.
 
 **Time:** ~1 minute.
@@ -98,6 +100,21 @@ def test_resolved_asks_are_skipped_as_history():
     assert LINT.audit(resolved) == []
     done = "### Ask 8 — DONE by the founder\n\nNo fields needed.\n"
     assert LINT.audit(done) == []
+    # SUPERSEDED counts too: folding two asks into one is the "an ask you can
+    # delete beats an ask you can polish" rule working, and demanding full fields
+    # on the tombstone would punish it.
+    superseded = "### Ask 7 — SUPERSEDED by ask 6\n\nNothing separate to do.\n"
+    assert LINT.audit(superseded) == []
+
+
+def test_a_url_plus_a_shape_without_a_walkthrough_is_a_finding():
+    """The exact failure that added this field: a link and a form, but no
+    statement of what the founder would SEE at each point."""
+    no_walkthrough = _FULL.replace(
+        "**What you will see:** a page headed Example, and a green tick after clicking.\n",
+        "")
+    findings = LINT.audit(no_walkthrough)
+    assert len(findings) == 1 and "What you will see" in findings[0]
 
 
 def test_an_em_dash_label_form_is_accepted():
