@@ -34,6 +34,10 @@ on:
   push:
     paths:
       - "tools/fetch_tabc_capcog.py"
+      # Layer 3. Omitted when this file was added, so a change to the TMO
+      # fetcher did not re-measure — the measurement quietly stopped tracking
+      # one of its own inputs, which is how a stale number survives a fix.
+      - "tools/fetch_tmo_venues.py"
       - "tools/build_capcog_targets.py"
       - "tools/capcog_coverage.py"
       - "tools/source_scorecard.py"
@@ -41,6 +45,7 @@ on:
       - "tools/dump_source_evidence.py"
       - "worker/region/capcog.py"
       - "sources/master_sources_catalog_120.json"
+      - "sources/discovered/**"
       - ".github/workflows/capcog-coverage.yml"
 
 permissions:
