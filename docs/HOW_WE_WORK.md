@@ -142,6 +142,63 @@ reviewer's model, its diff range, or any input to its own judgement. Weakening a
 review seat is a gate-threshold relaxation — founder-crucial, and the correct move
 when a seat cannot run is to fix the seat, never to narrow the panel.
 
+### 6a. Loop latency — the budget, measured, and the three tiers
+
+Founder question, 2026-07-26: *"why should any function or round or action take
+more than 10 sec, let alone 2 minutes or 30, to run and be verified it ran or
+didn't and evaluate the results and take action on them in similar timeframes?"*
+
+The answer is that **most of it should be under ten seconds, and the parts that
+cannot be are exactly three, all of them waits on something outside this
+machine.** The distinction is not "fast checks vs slow checks" — it is *local
+computation* (should be seconds, and where it is not, that is a defect) versus
+*another party's clock* (a runner queue, a model API, a venue's web server).
+Conflating the two is how a 6-second job comes to be described as taking half an
+hour.
+
+**Measured 2026-07-26 on this container, 4 cores** — every number below is a
+timed run, not an estimate:
+
+| Tier | What runs | Measured | Budget |
+|---|---|---|---|
+| **Inner** (every save) | the 10 static checks: `trust_gate` 0.7 s · `lint` 0.4 s · `deferral_scan` 0.2 s · `workflow_env_lint` 0.2 s · `governance_claims_lint` 0.04 s · `construction_gate` 0.5 s · `kaizen_trends` 2.7 s · `health_check` 0.4 s · `test_audit` 0.6 s · `pr_size_check` 0.1 s | **≈ 5.8 s combined** | **≤ 10 s** — MET |
+| **Pre-push** | inner + the full pytest suite | 49.7 s serial → **20.4 s** at `-n 4` | **≤ 30 s** — met once xdist is a declared dev dependency (R-067) |
+| **Outer** (PR) | two-seat non-Claude review · GitHub runner queue · real network fetch | minutes, irreducibly | **not 10 s, and must not pretend to be** |
+
+**Why the outer tier is honestly minutes, and why that is not the same excuse
+twice:**
+
+1. **Two independent model reviews.** Each seat reads the whole diff and the test
+   logs. That is another company's inference latency; there is no local knob.
+   Making it faster by reading less is a gate relaxation, not an optimisation.
+2. **The GitHub runner queue.** Time-to-first-log is queue time, not work time.
+   On 2026-07-26 it was pathological — jobs died in 1–4 s with no runner at all
+   (R-060, recovered 15:03:32Z) — and no amount of local speed touches it.
+3. **Real fetches against real venues.** Politeness delays and other people's
+   servers. A 200 ms crawl budget would be rude and would get us blocked.
+
+**Everything else that is slow is a bug, and this session fixed one.**
+`tools/kpi_report.py` shelled out a nested `pytest --collect-only` (≈3.3 s) and
+`trust_gate.py` (≈0.7 s) **on every call**, and six tests call `_compute_all` —
+one module was ~60% of the suite's wall clock, spent recomputing an identical
+answer about an unchanged working tree. Now memoised per process (a KPI run is
+one snapshot of one tree), with the call count asserted and the uncached version
+proven red. Raises are deliberately *not* cached: one flaky subprocess must never
+harden into a fact.
+
+**The rule this establishes.** *Slow is a defect until proven to be someone
+else's clock.* When a step exceeds its tier budget, profile it and name the line
+item — never widen the budget, and never report queue time as run time.
+
+**What is still not true and is not claimed:** "evaluate the results and take
+action in similar timeframes" is met for local checks and **not** met for the
+data pipeline, where verification is a scheduled job on a 12-hour period and
+failure is noticed by a dead-man alarm. That is the right design for a nightly
+feed and the wrong one for a red pipeline, which is exactly how
+`import_structured.yml` stayed broken across every scheduled run it ever had
+(R-054). Tightening pipeline feedback is `docs/V1.md` Step 1; the honest current
+status is R-055 and R-067.
+
 ## 7. Before anything irreversible
 
 Deploy, migration, spend, prompt-version bump. Write the plan into

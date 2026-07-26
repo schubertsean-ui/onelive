@@ -60,6 +60,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import pathlib
 import re
@@ -237,7 +238,15 @@ def _kpi_repeat_class_alarms() -> KPIValue:
     return KPIValue(current=current, status=status, raw=float(len(alarms)))
 
 
+@functools.lru_cache(maxsize=1)
 def _kpi_trust_gate() -> KPIValue:
+    # Cached for the life of the process: a KPI run is ONE snapshot of ONE
+    # working tree, so the second call in a process would spawn the same
+    # subprocess against the same bytes and get the same answer. Not caching
+    # cost the test suite ~4 s per test that touches _compute_all (see
+    # tests/test_kpi_report.py::test_subprocess_backed_kpis_are_computed_once).
+    # KPIComputeError raises are NOT cached by lru_cache, so a transient
+    # failure still retries — a failure is never memoised into a fact.
     try:
         proc = subprocess.run(
             [sys.executable, str(DEFAULT_TRUST_GATE)],
@@ -295,7 +304,12 @@ def _kpi_record_open_rows() -> KPIValue:
 _PYTEST_COUNT_RE = re.compile(r"(\d+)\s+tests?\s+collected")
 
 
+@functools.lru_cache(maxsize=1)
 def _kpi_pytest_count() -> KPIValue:
+    # Cached per process, same reasoning as _kpi_trust_gate. This one matters
+    # more: it is a nested `pytest --collect-only` (~3.3 s), and under pytest
+    # itself that is pytest collecting pytest — six times over, it was the
+    # single largest line item in the suite's wall clock.
     try:
         proc = subprocess.run(
             [sys.executable, "-m", "pytest", "-q", "--collect-only"],

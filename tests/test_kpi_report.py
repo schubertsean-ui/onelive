@@ -485,6 +485,67 @@ def test_record_open_rows_real_file_parses_cleanly():
 
 
 # ============================================================================
+# Snapshot caching — a KPI run measures ONE working tree, once
+# ============================================================================
+def test_subprocess_backed_kpis_are_computed_once_per_process(monkeypatch):
+    """The two subprocess-backed KPIs must not re-shell on every call.
+
+    A KPI run is one snapshot of one working tree: calling the same probe
+    twice in a process spawns an identical subprocess against identical bytes
+    for an identical answer. Uncached, `pytest_count` (a nested
+    `pytest --collect-only`) plus `trust_gate` cost ~4 s on EVERY test that
+    touches _compute_all — six of them — which was the largest single line
+    item in this repo's suite wall clock. Red before the lru_cache: calls
+    counted 2, not 1.
+    """
+    # getattr, not a direct call: on an UNcached implementation there is no
+    # cache_clear, and this test must then fail on the call COUNT (the real
+    # claim) rather than on an AttributeError in its own setup.
+    for fn in (kpi_report._kpi_trust_gate, kpi_report._kpi_pytest_count):
+        getattr(fn, "cache_clear", lambda: None)()
+    calls: list[list[str]] = []
+    real_run = subprocess.run
+
+    def counting_run(cmd, *a, **kw):
+        calls.append([str(c) for c in cmd])
+        return real_run(cmd, *a, **kw)
+
+    monkeypatch.setattr(kpi_report.subprocess, "run", counting_run)
+    first = kpi_report._kpi_trust_gate()
+    second = kpi_report._kpi_trust_gate()
+    assert first is second           # same object, not merely equal
+    assert len(calls) == 1, calls
+    third = kpi_report._kpi_pytest_count()
+    fourth = kpi_report._kpi_pytest_count()
+    assert third is fourth
+    assert len(calls) == 2, calls    # one trust_gate + one collect-only
+
+
+def test_a_failed_probe_is_never_memoised_as_a_fact(monkeypatch):
+    """lru_cache does not cache raises — a transient subprocess failure must
+    retry, never harden into a cached KPIComputeError for the whole process.
+
+    Honest about what this proves: it passes on the uncached implementation
+    too, because it is a REGRESSION guard, not a new gate — its job is to turn
+    red the day someone swaps lru_cache for a cache that memoises exceptions,
+    which would silently convert one flaky subprocess into a false KPI.
+    """
+    getattr(kpi_report._kpi_trust_gate, "cache_clear", lambda: None)()
+    attempts = {"n": 0}
+
+    def flaky_run(cmd, *a, **kw):
+        attempts["n"] += 1
+        raise OSError("transient")
+
+    monkeypatch.setattr(kpi_report.subprocess, "run", flaky_run)
+    for _ in range(2):
+        with pytest.raises(KPIComputeError):
+            kpi_report._kpi_trust_gate()
+    assert attempts["n"] == 2, "a raise was memoised — a failure became a fact"
+    getattr(kpi_report._kpi_trust_gate, "cache_clear", lambda: None)()
+
+
+# ============================================================================
 # Ledger read/append
 # ============================================================================
 def _seed_ledger(path: Path) -> None:
