@@ -1,7 +1,7 @@
 {
   "generated_by": "tools/build_source_registry.py",
-  "source_count": 123,
-  "class_count": 20,
+  "source_count": 118,
+  "class_count": 19,
   "by_class": {
     "alcohol_licensing": 1,
     "artist_aggregator": 2,
@@ -9,8 +9,7 @@
     "city_civic_calendar": 10,
     "claimed_upload": 1,
     "community_board": 1,
-    "directory": 1,
-    "email_newsletter": 2,
+    "email_newsletter": 1,
     "festival_feed": 10,
     "library_calendar": 1,
     "link_hub": 1,
@@ -20,19 +19,20 @@
     "places_api": 1,
     "search_benchmark": 2,
     "social": 4,
-    "ticketing_api": 13,
+    "ticketing_api": 10,
     "university_calendar": 3,
     "venue_calendar": 52
   },
   "by_provides": {
-    "EVENTS": 114,
+    "EVENTS": 110,
     "IDENTITY": 1,
     "SIGNAL": 4,
-    "VENUES": 4
+    "VENUES": 3
   },
   "taxonomy_classes_total": 23,
   "classes_with_no_instance": [
     "broadcast_calendar",
+    "directory",
     "museum_gallery",
     "performing_arts"
   ],
@@ -61,7 +61,10 @@
       "access_method": "api_key",
       "needs_credential": true,
       "credential_present": null,
-      "origin": "catalog"
+      "origin": "catalog+code_or_decision",
+      "evidence": "worker/importers/ticketmaster.py",
+      "remediation": "Live and credentialed. Replace the 75-mile radius scoping with county-scoped queries so it stops fetching out-of-market rows (R-025).",
+      "code_id": "ticketmaster_api"
     },
     {
       "id": "eventbrite_api",
@@ -74,7 +77,10 @@
       "access_method": "oauth_api",
       "needs_credential": true,
       "credential_present": null,
-      "origin": "catalog"
+      "origin": "catalog+code_or_decision",
+      "evidence": "worker/importers/eventbrite.py",
+      "remediation": "Founder mints EVENTBRITE_TOKEN; same one-dry-run shape verification (R-029). Migration 0011 lands with it.",
+      "code_id": "eventbrite_api"
     },
     {
       "id": "axs",
@@ -163,9 +169,12 @@
       "county": null,
       "cultural_domain": null,
       "access_method": "api_or_partner",
-      "needs_credential": false,
+      "needs_credential": true,
       "credential_present": null,
-      "origin": "catalog"
+      "origin": "catalog+code_or_decision",
+      "evidence": "worker/importers/seatgeek.py",
+      "remediation": "Founder mints SEATGEEK_CLIENT_ID; then ONE dry-run verifies the payload shape before the feed is trusted (R-029).",
+      "code_id": "seatgeek_api"
     },
     {
       "id": "stubhub",
@@ -514,9 +523,12 @@
       "county": null,
       "cultural_domain": null,
       "access_method": "opt_in_email_forward",
-      "needs_credential": false,
+      "needs_credential": true,
       "credential_present": null,
-      "origin": "catalog"
+      "origin": "catalog+code_or_decision",
+      "evidence": "docs/GO_LIVE_PLAN.md \u2014 55 of 64 curated sources have no feed",
+      "remediation": "Founder provides a dedicated address; then subscribe + parse. This is the ONLY route to most of the long tail.",
+      "code_id": "venue_newsletters"
     },
     {
       "id": "google_calendar_claimed",
@@ -560,7 +572,7 @@
     {
       "id": "google_places",
       "name": "Google Places API (Venue Identity)",
-      "source_class": "directory",
+      "source_class": "places_api",
       "catalog_category": "directory",
       "base_url": "https://developers.google.com/maps/documentation/places",
       "county": null,
@@ -568,7 +580,10 @@
       "access_method": "api_key",
       "needs_credential": true,
       "credential_present": null,
-      "origin": "catalog"
+      "origin": "catalog+code_or_decision",
+      "evidence": "docs/GO_LIVE_PLAN.md \u2014 denominator layer 3",
+      "remediation": "Founder has a key. Wire layer 3 to cover the venue types a liquor licence cannot see: theatres, museums, libraries, all-ages rooms.",
+      "code_id": "places_api"
     },
     {
       "id": "texas_performing_arts",
@@ -1546,67 +1561,12 @@
       "origin": "catalog"
     },
     {
-      "id": "ticketmaster_api",
-      "name": "Ticketmaster Discovery API",
-      "source_class": "ticketing_api",
-      "needs_credential": true,
-      "evidence": "worker/importers/ticketmaster.py",
-      "remediation": "Live and credentialed. Replace the 75-mile radius scoping with county-scoped queries so it stops fetching out-of-market rows (R-025).",
-      "catalog_category": null,
-      "origin": "code_or_decision",
-      "credential_present": null
-    },
-    {
-      "id": "seatgeek_api",
-      "name": "SeatGeek API",
-      "source_class": "ticketing_api",
-      "needs_credential": true,
-      "evidence": "worker/importers/seatgeek.py",
-      "remediation": "Founder mints SEATGEEK_CLIENT_ID; then ONE dry-run verifies the payload shape before the feed is trusted (R-029).",
-      "catalog_category": null,
-      "origin": "code_or_decision",
-      "credential_present": null
-    },
-    {
-      "id": "eventbrite_api",
-      "name": "Eventbrite API",
-      "source_class": "ticketing_api",
-      "needs_credential": true,
-      "evidence": "worker/importers/eventbrite.py",
-      "remediation": "Founder mints EVENTBRITE_TOKEN; same one-dry-run shape verification (R-029). Migration 0011 lands with it.",
-      "catalog_category": null,
-      "origin": "code_or_decision",
-      "credential_present": null
-    },
-    {
       "id": "tabc_licensed_premises",
       "name": "TABC licensed premises (state ABC open data)",
       "source_class": "alcohol_licensing",
       "needs_credential": false,
       "evidence": "tools/fetch_tabc_capcog.py",
       "remediation": "Built and founder-chosen. Runs in the CAPCOG Coverage workflow; needs the workflow on the default branch before GitHub will dispatch it.",
-      "catalog_category": null,
-      "origin": "code_or_decision",
-      "credential_present": null
-    },
-    {
-      "id": "places_api",
-      "name": "Places API (venue enumeration)",
-      "source_class": "places_api",
-      "needs_credential": true,
-      "evidence": "docs/GO_LIVE_PLAN.md \u2014 denominator layer 3",
-      "remediation": "Founder has a key. Wire layer 3 to cover the venue types a liquor licence cannot see: theatres, museums, libraries, all-ages rooms.",
-      "catalog_category": null,
-      "origin": "code_or_decision",
-      "credential_present": null
-    },
-    {
-      "id": "venue_newsletters",
-      "name": "Venue newsletters (opt-in email)",
-      "source_class": "email_newsletter",
-      "needs_credential": true,
-      "evidence": "docs/GO_LIVE_PLAN.md \u2014 55 of 64 curated sources have no feed",
-      "remediation": "Founder provides a dedicated address; then subscribe + parse. This is the ONLY route to most of the long tail.",
       "catalog_category": null,
       "origin": "code_or_decision",
       "credential_present": null

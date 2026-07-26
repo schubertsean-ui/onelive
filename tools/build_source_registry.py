@@ -59,43 +59,62 @@ CATEGORY_TO_CLASS = {
     "calendar_feed": "venue_calendar",
 }
 
-# Sources that live in code or in a founder decision but were never catalog
-# rows. Without these the registry is not "every source identified" — it is
-# every source someone remembered to catalogue.
-NON_CATALOG_SOURCES = [
-    {"id": "ticketmaster_api", "name": "Ticketmaster Discovery API",
+# Sources that exist in CODE or in a founder decision. Most of them are ALSO
+# catalog rows under a different id, which is the trap: appending them blindly
+# produced a registry where Ticketmaster appeared twice (`ticketmaster_discovery`
+# and `ticketmaster_api`) and Eventbrite appeared twice under the SAME id. That
+# is not a cosmetic duplicate. The scorecard attributes evidence by id, so one
+# row would show the real throughput and its twin would show a permanent zero —
+# a live feed rendered half-dead, and an inflated source count on top. So these
+# entries MERGE onto the catalog row when `merge_into` names one, and are only
+# appended when the source genuinely has no catalog entry.
+CODE_AND_DECISION_SOURCES = [
+    {"id": "ticketmaster_api", "merge_into": "ticketmaster_discovery",
+     "name": "Ticketmaster Discovery API",
      "source_class": "ticketing_api", "needs_credential": True,
      "evidence": "worker/importers/ticketmaster.py",
      "remediation": "Live and credentialed. Replace the 75-mile radius scoping "
                     "with county-scoped queries so it stops fetching "
                     "out-of-market rows (R-025)."},
-    {"id": "seatgeek_api", "name": "SeatGeek API", "source_class": "ticketing_api",
+    {"id": "seatgeek_api", "merge_into": "seatgeek", "name": "SeatGeek API",
+     "source_class": "ticketing_api",
      "needs_credential": True, "evidence": "worker/importers/seatgeek.py",
      "remediation": "Founder mints SEATGEEK_CLIENT_ID; then ONE dry-run "
                     "verifies the payload shape before the feed is trusted "
                     "(R-029)."},
-    {"id": "eventbrite_api", "name": "Eventbrite API", "source_class": "ticketing_api",
+    {"id": "eventbrite_api", "merge_into": "eventbrite_api",
+     "name": "Eventbrite API", "source_class": "ticketing_api",
      "needs_credential": True, "evidence": "worker/importers/eventbrite.py",
      "remediation": "Founder mints EVENTBRITE_TOKEN; same one-dry-run shape "
                     "verification (R-029). Migration 0011 lands with it."},
-    {"id": "tabc_licensed_premises", "name": "TABC licensed premises (state ABC open data)",
-     "source_class": "alcohol_licensing", "needs_credential": False,
-     "evidence": "tools/fetch_tabc_capcog.py",
-     "remediation": "Built and founder-chosen. Runs in the CAPCOG Coverage "
-                    "workflow; needs the workflow on the default branch before "
-                    "GitHub will dispatch it."},
-    {"id": "places_api", "name": "Places API (venue enumeration)",
+    # Google Places is catalogued as a `directory` row (venue IDENTITY). The code
+    # path uses it for venue ENUMERATION — denominator layer 3 — which provides
+    # VENUES, so the merge deliberately overrides the class to match what the
+    # source is actually used for. One row, the used class, no phantom twin.
+    {"id": "places_api", "merge_into": "google_places",
+     "name": "Places API (venue enumeration)",
      "source_class": "places_api", "needs_credential": True,
      "evidence": "docs/GO_LIVE_PLAN.md — denominator layer 3",
      "remediation": "Founder has a key. Wire layer 3 to cover the venue types a "
                     "liquor licence cannot see: theatres, museums, libraries, "
                     "all-ages rooms."},
-    {"id": "venue_newsletters", "name": "Venue newsletters (opt-in email)",
+    {"id": "venue_newsletters", "merge_into": "email_opt_in",
+     "name": "Venue newsletters (opt-in email)",
      "source_class": "email_newsletter", "needs_credential": True,
      "evidence": "docs/GO_LIVE_PLAN.md — 55 of 64 curated sources have no feed",
      "remediation": "Founder provides a dedicated address; then subscribe + "
                     "parse. This is the ONLY route to most of the long tail."},
-    {"id": "city_open_data", "name": "City/county open-data portal",
+    # Genuinely absent from the catalog — these two are the reason this list
+    # exists at all.
+    {"id": "tabc_licensed_premises", "merge_into": None,
+     "name": "TABC licensed premises (state ABC open data)",
+     "source_class": "alcohol_licensing", "needs_credential": False,
+     "evidence": "tools/fetch_tabc_capcog.py",
+     "remediation": "Built and founder-chosen. Runs in the CAPCOG Coverage "
+                    "workflow; needs the workflow on the default branch before "
+                    "GitHub will dispatch it."},
+    {"id": "city_open_data", "merge_into": None,
+     "name": "City/county open-data portal",
      "source_class": "open_data_portal", "needs_credential": False,
      "evidence": "taxonomy — identified, never instantiated for Austin",
      "remediation": "Identify the Austin/Travis portal datasets (special-event "
@@ -105,6 +124,7 @@ NON_CATALOG_SOURCES = [
 
 def build(catalog: list) -> list:
     out: list = []
+    by_id: dict = {}
     unmapped: set = set()
     for row in catalog:
         cat = row.get("category")
@@ -112,7 +132,7 @@ def build(catalog: list) -> list:
         if cls is None:
             unmapped.add(cat)
             continue
-        out.append({
+        entry = {
             "id": row.get("id"),
             "name": row.get("name"),
             "source_class": cls,
@@ -125,7 +145,14 @@ def build(catalog: list) -> list:
                 ("api_key", "oauth", "api_key_oauth")),
             "credential_present": None,
             "origin": "catalog",
-        })
+        }
+        if entry["id"] in by_id:
+            raise SystemExit(
+                f"build_source_registry: FAIL — the catalog itself contains the "
+                f"id {entry['id']!r} twice. Evidence is attributed by id, so a "
+                f"duplicate splits one source's throughput across two rows.")
+        by_id[entry["id"]] = entry
+        out.append(entry)
     if unmapped:
         # An unmapped category would DISAPPEAR from the scorecard — a source you
         # cannot see is worse than one you know is broken.
@@ -133,9 +160,42 @@ def build(catalog: list) -> list:
             f"build_source_registry: FAIL — catalog categories with no taxonomy "
             f"class: {sorted(unmapped)}. Map them in CATEGORY_TO_CLASS or the "
             f"sources vanish from the scorecard.")
-    for extra in NON_CATALOG_SOURCES:
-        out.append({**extra, "catalog_category": None, "origin": "code_or_decision",
+
+    for extra in CODE_AND_DECISION_SOURCES:
+        target = extra.get("merge_into")
+        if target is not None:
+            row = by_id.get(target)
+            if row is None:
+                # A stale merge target would silently become an append — the
+                # exact duplicate this list was rewritten to prevent.
+                raise SystemExit(
+                    f"build_source_registry: FAIL — {extra['id']!r} declares "
+                    f"merge_into={target!r}, which is not a catalog id. Fix the "
+                    f"target or set merge_into=None; a wrong target reintroduces "
+                    f"the duplicate row it was meant to prevent.")
+            # Catalog keeps its id and name (they are what the catalog's own
+            # tooling references); the code/decision entry supplies what only it
+            # knows — the class actually exercised, the credential requirement,
+            # the code path, and the specific fix.
+            row.update({
+                "source_class": extra["source_class"],
+                "needs_credential": extra["needs_credential"],
+                "evidence": extra["evidence"],
+                "remediation": extra["remediation"],
+                "origin": "catalog+code_or_decision",
+                "code_id": extra["id"],
+            })
+            continue
+        if extra["id"] in by_id:
+            raise SystemExit(
+                f"build_source_registry: FAIL — {extra['id']!r} is not marked as "
+                f"a merge but collides with a catalog id. Set merge_into to that "
+                f"id so the two become one row.")
+        row = {k: v for k, v in extra.items() if k != "merge_into"}
+        row.update({"catalog_category": None, "origin": "code_or_decision",
                     "credential_present": None})
+        by_id[row["id"]] = row
+        out.append(row)
     return out
 
 

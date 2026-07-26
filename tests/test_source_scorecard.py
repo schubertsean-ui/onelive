@@ -56,22 +56,84 @@ def test_an_unmapped_catalog_category_FAILS_rather_than_vanishing():
         reg.build([{"id": "x", "name": "X", "category": "a_brand_new_category"}])
 
 
+def _catalog_with_merge_targets(*extra_rows) -> list:
+    """A minimal catalog carrying every id CODE_AND_DECISION_SOURCES merges onto.
+
+    build() fails closed when a merge target is missing — that guard is the
+    point — so tests must supply the targets rather than pass an empty list.
+    Derived from the merge table itself, so adding a merge entry cannot leave
+    the tests silently exercising a shape the real build no longer has.
+    """
+    rows = [{"id": e["merge_into"], "name": e["merge_into"],
+             "category": "ticketing"}
+            for e in reg.CODE_AND_DECISION_SOURCES if e.get("merge_into")]
+    return rows + list(extra_rows)
+
+
 def test_the_registry_carries_sources_that_were_never_catalog_rows():
-    """The ticketing APIs, TABC, Places and the newsletter path live in code or
-    in a founder decision, never as catalog rows. A catalog-only list is how
-    'extensive' quietly becomes 'the ones we already wrote down'."""
-    built = reg.build([])
+    """TABC and the open-data portal live in code or in a founder decision and
+    were never catalog rows. A catalog-only list is how 'extensive' quietly
+    becomes 'the ones we already wrote down'."""
+    built = reg.build(_catalog_with_merge_targets())
     ids = {s["id"] for s in built}
-    for expected in ("ticketmaster_api", "seatgeek_api", "eventbrite_api",
-                     "tabc_licensed_premises", "places_api", "venue_newsletters"):
+    for expected in ("tabc_licensed_premises", "city_open_data"):
         assert expected in ids, expected
-    # and every non-catalog source names its own fix
     for s in built:
         assert s.get("remediation"), s["id"]
 
 
+def test_a_source_that_is_already_catalogued_MERGES_instead_of_duplicating():
+    """The scorecard attributes evidence by id. A source present under two ids
+    shows its real throughput on one row and a permanent zero on the twin — a
+    live feed rendered half-dead. This shipped, briefly: Ticketmaster appeared
+    as both `ticketmaster_discovery` and `ticketmaster_api`, and Eventbrite
+    appeared TWICE under the same id."""
+    built = reg.build([
+        {"id": "ticketmaster_discovery", "name": "Ticketmaster Discovery API",
+         "category": "ticketing"},
+        {"id": "eventbrite_api", "name": "Eventbrite API", "category": "ticketing"},
+        {"id": "seatgeek", "name": "SeatGeek", "category": "ticketing"},
+        {"id": "google_places", "name": "Google Places", "category": "directory"},
+        {"id": "email_opt_in", "name": "Opt-in Email", "category": "email_opt_in"},
+    ])
+    ids = [s["id"] for s in built]
+    assert len(ids) == len(set(ids)), f"duplicate ids: {ids}"
+    names = [(s.get("name") or "").lower() for s in built]
+    assert len(names) == len(set(names)), f"duplicate names: {names}"
+    # the merge carries the code path's knowledge onto the ONE surviving row
+    tm = next(s for s in built if s["id"] == "ticketmaster_discovery")
+    assert tm["evidence"] == "worker/importers/ticketmaster.py"
+    assert tm["origin"] == "catalog+code_or_decision"
+    assert tm["code_id"] == "ticketmaster_api"
+    # and Places is scored as what the code actually uses it for
+    assert next(s for s in built
+                if s["id"] == "google_places")["source_class"] == "places_api"
+
+
+def test_a_stale_merge_target_FAILS_rather_than_silently_appending():
+    """A merge_into pointing at an id the catalog no longer has would fall back
+    to an append — reintroducing the very duplicate the merge prevents."""
+    original = reg.CODE_AND_DECISION_SOURCES
+    reg.CODE_AND_DECISION_SOURCES = [
+        {"id": "x_api", "merge_into": "an_id_the_catalog_does_not_have",
+         "name": "X", "source_class": "ticketing_api", "needs_credential": True,
+         "evidence": "e", "remediation": "r"}]
+    try:
+        with pytest.raises(SystemExit):
+            reg.build([{"id": "unrelated", "name": "U", "category": "ticketing"}])
+    finally:
+        reg.CODE_AND_DECISION_SOURCES = original
+
+
+def test_a_catalog_that_repeats_an_id_FAILS():
+    with pytest.raises(SystemExit):
+        reg.build([{"id": "dup", "name": "A", "category": "ticketing"},
+                   {"id": "dup", "name": "B", "category": "ticketing"}])
+
+
 def test_every_registry_row_binds_to_a_real_taxonomy_class():
-    built = reg.build([{"id": "v", "name": "V", "category": "venue_calendar"}])
+    built = reg.build(_catalog_with_merge_targets(
+        {"id": "v", "name": "V", "category": "venue_calendar"}))
     for s in built:
         assert s["source_class"] in SOURCE_CLASSES, s
 
