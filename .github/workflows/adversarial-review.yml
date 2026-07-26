@@ -414,6 +414,69 @@ jobs:
           wc -c "$EVID/golden-exam.log"
 
 
+      - name: Preflight — prove this key can CALL the pinned second-seat model
+        # MECHANIZING the unusable-credential-tier class (#72 r1/r3/r4),
+        # which cost two rounds of guessing model names from error strings:
+        # gemini-2.5-pro answered 429 `limit: 0` (offered at zero quota on
+        # the free tier) and gemini-2.5-flash answered 404 "no longer
+        # available to new users" — each discovered only after a ~3-minute
+        # review had already run.
+        #
+        # The tool LISTS (so a wrong pin prints the real options) and then
+        # makes a MINIMAL generateContent call. The r4 blocker was precise:
+        # listing proves a model EXISTS, never that this key's quota may use
+        # it, which is exactly the 429 condition — so only the live probe
+        # proves callability, and a mechanism must verify the property it
+        # advertises.
+        #
+        # Executed from the TRUSTED BASE COPY, same custody as the reviewer:
+        # this step holds GEMINI_API_KEY, and PR-supplied code must never be
+        # the thing that holds a secret. Absent on base = the bootstrap case,
+        # stated explicitly and skipped — the tool becomes enforceable the
+        # moment it lands on the base branch, exactly like the reviewer did.
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TRUSTED_BASE: ${{ steps.range.outputs.base }}
+        run: |
+          set -euo pipefail
+          : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
+          # The model comes from the BASE-OWNED reviewer copy, never from
+          # this PR (#72 r8: the reviewed subject must not choose any input
+          # to the review judging it). Read it out of the trusted file and
+          # fail closed if it cannot be read.
+          git show "$TRUSTED_BASE:tools/adversarial_review.py" > /tmp/trusted/_ar_for_model.py
+          GEMINI_REVIEW_MODEL="$(sed -n 's/^GEMINI_DEFAULT_MODEL = "\(.*\)"$/\1/p' /tmp/trusted/_ar_for_model.py | head -1)"
+          : "${GEMINI_REVIEW_MODEL:?could not read GEMINI_DEFAULT_MODEL from the trusted base reviewer — failing closed rather than guessing the second seat model}"
+          echo "second seat: model taken from the BASE copy = $GEMINI_REVIEW_MODEL"
+          # Own the directory rather than inheriting it from an earlier
+          # step's side effect (#72 r7), and TEST EXISTENCE SEPARATELY from
+          # fetching. `git show ... > file 2>/dev/null` conflates two very
+          # different facts — "the tool is not on base" and "the write
+          # failed" — and routed BOTH to the bootstrap skip. Under
+          # `set -euo pipefail` the fetch below aborts the step on any
+          # failure, so only a genuine absence can reach the skip.
+          mkdir -p /tmp/trusted
+          if git cat-file -e "$TRUSTED_BASE:tools/gemini_preflight.py" 2>/dev/null; then
+            git show "$TRUSTED_BASE:tools/gemini_preflight.py" \
+              > /tmp/trusted/gemini_preflight.py
+            python3 -I /tmp/trusted/gemini_preflight.py "$GEMINI_REVIEW_MODEL"
+          elif [ -f tools/gemini_preflight.py ]; then
+            # BOOTSTRAP, and BOUNDED (#72 r6, class:
+            # fail-open-on-custody-misconfig): absent on base but present in
+            # THIS PR means this is the PR introducing the tool. Running the
+            # PR's copy would hand the API key to PR-controlled code, so the
+            # proof waits one merge. The bound is what matters — the skip is
+            # reachable ONLY while the PR itself carries the tool, so it
+            # expires by construction the moment this lands.
+            echo "second seat: tools/gemini_preflight.py is absent on $TRUSTED_BASE but present in this PR — this is the bootstrap PR that introduces it, so the callability proof SKIPS exactly once. It is enforced from the next PR onward; until then an unusable pin still surfaces at the reviewer call, which is the behaviour this step improves, not a new risk."
+          else
+            # Absent on BOTH: the tool was removed or renamed after landing.
+            # That silently disables a secret-holding callability proof, so
+            # it is a hard stop, never a skip.
+            echo "::error::second seat: tools/gemini_preflight.py is absent on $TRUSTED_BASE AND absent from this PR — the callability proof has been removed or renamed after landing. Deleting a gate-custody mechanism is a gate-threshold relaxation (founder-crucial), never a silent skip. Failing closed."
+            exit 1
+          fi
+
       - name: Independent evaluator (APPROVE required)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -423,6 +486,12 @@ jobs:
           # script prints an EXPLICIT empty seat and runs single-family; the
           # panel never fails a PR for a credential that does not exist yet.
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # NO GEMINI_REVIEW_MODEL here, deliberately and permanently
+          # (#72 r8, class: self-weakenable-review-model). Setting it from
+          # this PR-owned file would let the diff under review choose the
+          # model of the seat reviewing it. The second seat's model is the
+          # BASE-owned GEMINI_DEFAULT_MODEL, exactly like the first seat's
+          # (PR #14 r4). A test asserts this file never supplies it.
           # NO runtime model override in CI — deliberately (evaluator finding,
           # PR #14 round 4): GitHub renders an UNSET repo variable and a
           # SET-BUT-EMPTY one identically in ${{ vars.* }}, so a workflow can

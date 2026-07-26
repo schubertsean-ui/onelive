@@ -15,54 +15,31 @@ chat transfers.
 | Construction Loop canon + `construction_gate` (blocking Stage 3 retrieval) + `RED_CLASSES.md` | `docs/skills/construction_loop.md`, `tools/construction_gate.py`, `docs/memory/RED_CLASSES.md`, CLAUDE.md item 4 | `d4f4bc9` (PR #67, 9 rounds) |
 | V1 launch decks (founder-reviewed creative pinned, golden-snapshot drift-proof) | `social/carousel/launch.py`, `tests/golden/carousel_launch_v1.json` | `ec91a81` (PR #69, 3 rounds) |
 | Close records for #69 | STATE/Kaizen | `4ebbd88` (PR #70, 1 round) |
+| Adversarial Review v2 + construction_gate base-freshness rebuild | `tools/adversarial_review.py`, `tools/reviewer_scorecard.py`, `tools/construction_gate.py`, `.github/workflows/adversarial-review.yml` | `0d16d90` (PR #71, 12 rounds) |
 
-M1 trend across the session: **15 → 9 → 3 → 1** rounds. The Construction
+M1 trend across the session: **15 → 9 → 3 → 1 → 12** rounds. The last
+figure is not a regression in review quality: eleven of those twelve
+rounds landed on the reviewer's own upgrade and on a gate proving a
+property that turned out to be unprovable offline. The Construction
 Loop's Stage 3 gate governed the last two.
 
-## What is IN FLIGHT — PR #71 (Adversarial Review v2)
+## PR #71 — MERGED (no action needed)
 
-Branch `claude/onelife-meta-carousel-wu7sh7`; contract = STATE.md
-**Session Contract #26** (A3 form, premortem, `[S3:…]` citations already
-written). Draft PR: https://github.com/schubertsean-ui/onelive/pull/71
+`0d16d90` (12 rounds). Adversarial Review v2 shipped: the lens panel
+(ANY lens red = red, explicit empty seat, self-printed po seed), the
+structured escape hatch, the CLASS sibling mandate, the M9 scorecard,
+and the Gemini second-family seat.
 
-SHIPPED in the PR, all tested (docs/TESTS.md owns the per-file counts —
-this document deliberately carries NO numbers, because a count copied
-into prose drifts the moment a test is added; #71 r6/r10/r11 each spent a
-nit on exactly that drift):
-- `tools/adversarial_review.py` — lens PANEL: per seat a forced method
-  lens + a po-seeded lens (OpenAI: attacker-smuggle, absence-only;
-  Gemini: dataflow-taint, spec-vs-contract). ANY lens red = red;
-  unparseable = hard fail; absent seat key = EXPLICIT printed empty seat.
-  Structured escape hatch in the prompt (invariants MUST block any round;
-  post-r1 classes carry token + why-not-findable-earlier) + CLASS sibling
-  enumeration mandate.
-- `tools/reviewer_scorecard.py` — M9: round-1 recall, sibling-misses,
-  novelty, derived mechanically from the ledger; ADVISORY in validate.
-- Workflow wiring with FEATURE DETECTION (see gotchas below).
-- Docs: `docs/skills/adversarial_review_v2.md`,
-  `docs/memory/decisions/2026-07-25_adversarial-review-v2.md` (founder
-  verbatims: escape hatch, metrics, second seat, forcing functions, po).
+**The one thing the next session must check first:** the BASE-owned
+reviewer copy is v2 only from this merge onward, so PR #71 itself was
+judged by v1. The NEXT pull request is the first the two-family panel
+actually runs on — confirm from its job log that both seats fire (the
+log prints which mode it runs and the po seed).
 
-STATE at handoff: trust-gate GREEN on the pre-fix head; the review gate
-died twice on SELF-INFLICTED CI issues (both fixed, both class-indexed —
-see gotchas). The next run is the first true two-family panel run (the
-founder minted `GEMINI_API_KEY` on 2026-07-25).
-
-## The next session's job, in order
-
-1. `python tools/session_reconcile.py`, then read STATE.md Contract #26.
-2. Check PR #71's checks. If adversarial-review is red, pull the job log,
-   adopt findings MINIMALLY (scope frozen — this PR has already absorbed
-   two self-inflicted rounds), run
-   `bash tools/validate --allow-skips > /tmp/v.log 2>&1` and check the
-   exit code EXPLICITLY (never pipe — `pushed-on-red` class), satisfy any
-   `construction_gate` `[S3:…]` demands, commit, push.
-3. On APPROVE + trust-gate green: `update_pull_request draft:false`, then
-   squash-merge SILENTLY (founder no-notify directive, decision record
-   `2026-07-25_silent-merge-directive.md`). Vercel is NOT a required check.
-4. After merge: close Contract #26 in STATE.md with the SHA + a Kaizen
-   merged-PR row (M1 = rounds), and verify the panel actually ran
-   two-family on the NEXT PR (the base copy is v2 only after this merge).
+The arc also spent five rounds rebuilding `construction_gate`'s
+base-freshness proof, ending with: read the remote tip, compare commit
+ids, no offline path. CI grants read-only remote access to the validate
+step alone via per-process `GIT_CONFIG`.
 
 ## Gotchas this session paid for (all class-indexed in RED_CLASSES.md)
 

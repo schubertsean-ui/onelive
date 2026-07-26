@@ -258,7 +258,34 @@ def request_review(review_input: str, api_key: str, model: str, base_url: str) -
         raise RuntimeError(f"unexpected OpenAI response shape: {data!r:.500}") from exc
 
 
-GEMINI_DEFAULT_MODEL = "gemini-2.5-pro"
+# The second-family seat's model. FLASH, not pro, for a mechanical reason
+# found on the panel's first live run (#72): gemini-2.5-pro has NO free-tier
+# quota — the API answers 429 with `limit: 0`, not a retryable rate limit —
+# so a founder-minted key on the free tier can never call it, and the seat
+# hard-failed the whole gate instead of reviewing anything. Flash has free-
+# tier quota and reviews; a working weaker second family is strictly more
+# review than a second family that cannot run. gemini-2.5-flash then answered
+# 404 'no longer available to new users' (#72 r3) — two guesses from error
+# strings, which is why the workflow now runs a preflight that lists the
+# ADVERTISED models and then PROVES callability with a live generateContent
+# probe of this exact id. Listing alone shows existence and is blind to
+# quota; only the probe settles it.
+#
+# HONEST LIMIT — this id is a FLOATING ALIAS, not an immutable pin (#72 r6,
+# class: mutable-model-alias). `*-latest` resolves provider-side, so the
+# reviewer's actual model can change without any commit here, which is real
+# gate-custody drift: review strength is partly provider-controlled. It is
+# used anyway because it is the only id known to work — the two concrete ids
+# tried are refused by this key's tier — and because the preflight prints
+# the advertised list on every run, which is what makes a concrete id
+# choosable. Recorded with an objective trigger, NOT left as a silent
+# compromise: docs/RECORD.md R-052 (first CI run whose preflight prints the
+# list -> replace this alias with a concrete id from it, same-PR test
+# binding preserved). Changing this constant is a gate-custody change and
+# lands exactly like this one: a PR judged by the BASE-owned reviewer copy.
+# If the founder enables billing on the Gemini project, moving to a concrete
+# pro id is a one-line PR through the same path.
+GEMINI_DEFAULT_MODEL = "gemini-flash-latest"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
 
@@ -309,7 +336,8 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
     request_gemini = request_gemini or (
         lambda ri, sp: request_review_gemini(
             ri, sp, gemini_key,
-            _resolve_env_model("GEMINI_REVIEW_MODEL", GEMINI_DEFAULT_MODEL)))
+            _resolve_env_model("GEMINI_REVIEW_MODEL", GEMINI_DEFAULT_MODEL,
+                              GEMINI_ALLOWED_MODELS)))
     # The seed is printed BY THE TOOL (#71 r10 nit): the CLI contract says
     # the po seed is auditable, and a claim that depends on the caller's
     # workflow echoing it is not the tool keeping its own promise.
@@ -363,10 +391,32 @@ def request_review_openai_lens(review_input: str, system_prompt: str,
         raise RuntimeError(f"unexpected OpenAI response shape: {data!r:.500}") from exc
 
 
-def _resolve_env_model(env_name: str, default: str) -> str:
+# BASE-OWNED ALLOWLIST for the second seat (#72 r8, class:
+# self-weakenable-review-model). The workflow that sets
+# GEMINI_REVIEW_MODEL is PR-owned, so without this an environment
+# override lets the diff under review choose the model that reviews it —
+# an attacker picks the weakest callable Gemini id, sails through a
+# preflight that only proves callability, and self-certifies. This
+# constant lives in the BASE-owned reviewer copy, so an override can only
+# SELECT from models the base branch already blessed; introducing a new
+# one requires changing this list on master, which is itself a
+# gate-custody PR judged by the old copy. Same physics as the panel
+# bootstrap: it constrains every PR after the one that lands it.
+# Exactly the id in use. A second entry "for later" is unreviewed
+# surface, and adding one is the intended flow: a base-branch change,
+# reviewed. Every floating `*-latest` member must carry an OPEN
+# docs/RECORD.md row naming it — enforced by test, so the compromise
+# cannot outlive its trigger (#72 r8, class: mutable-model-alias).
+GEMINI_ALLOWED_MODELS = frozenset({"gemini-flash-latest"})
+
+
+def _resolve_env_model(env_name: str, default: str,
+                       allowed: frozenset[str] | None = None) -> str:
     """Fail-closed env rule shared by both seats: unset = default;
     present-but-empty = misconfiguration; Claude/Anthropic ids refused
-    (write/grade separation)."""
+    (write/grade separation); and, where an `allowed` set is supplied, the
+    resolved id must be a member — a caller-suppliable override that can
+    name ANY model is a self-weakenable gate, not a configuration knob."""
     value = os.environ.get(env_name)
     if value is not None and value.strip() == "":
         raise RuntimeError(
@@ -377,6 +427,13 @@ def _resolve_env_model(env_name: str, default: str) -> str:
         raise RuntimeError(
             f"{env_name} resolves to {value!r}, a generator-family model; the "
             "evaluator must be non-Claude (write/grade separation)")
+    if allowed is not None and value not in allowed:
+        raise RuntimeError(
+            f"{env_name} resolves to {value!r}, which is NOT in the "
+            f"base-owned allowlist {sorted(allowed)}. The review model is "
+            "gate custody: an override may only SELECT an already-blessed "
+            "model, never introduce one. Add it to GEMINI_ALLOWED_MODELS on "
+            "the base branch first — that change is itself reviewed.")
     return value
 
 
