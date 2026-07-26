@@ -121,8 +121,26 @@ jobs:
         # finding (M3 escape / unaddressed repeat-class alarm), and any
         # workflow_env_lint finding are hard FAILs the flag cannot waive
         # (evaluator r5) — this step can actually go red on all of them.
+        env:
+          # READ-ONLY remote access for the ONE gate that provably needs
+          # it (#71 r8). construction_gate proves its base ref is current
+          # by comparing ids against the remote tip, and four attempts to
+          # establish that offline were each shown reproducible from a
+          # STALE base — staleness is a fact about the remote, so the
+          # gate contacts it or fails closed. This does NOT undo the
+          # checkout's `persist-credentials: false`: nothing is written
+          # to .git/config, the credential lives only in this step's
+          # environment (GIT_CONFIG_* is per-process), and the job's
+          # `permissions:` block above grants contents: READ only — it
+          # cannot push, comment, or alter any check. The alternative
+          # was an offline heuristic the evaluator rejected four times.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -o pipefail
+          : "${GH_TOKEN:?token unresolved — the base-freshness gate cannot reach the remote, failing closed}"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           bash tools/validate --allow-skips 2>&1 | tee validate.log
 
       - name: Web checks + SCA when web/ is touched (log captured for the evaluator)
@@ -399,6 +417,12 @@ jobs:
       - name: Independent evaluator (APPROVE required)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # PR head SHA = the printed, rotating po-battery seed for the panel.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # Second-family seat (founder-approved 2026-07-25). Absent = the
+          # script prints an EXPLICIT empty seat and runs single-family; the
+          # panel never fails a PR for a credential that does not exist yet.
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           # NO runtime model override in CI — deliberately (evaluator finding,
           # PR #14 round 4): GitHub renders an UNSET repo variable and a
           # SET-BUT-EMPTY one identically in ${{ vars.* }}, so a workflow can
@@ -434,7 +458,26 @@ jobs:
           # evaluator r23 gate-custody finding. Changing this value again,
           # either direction, requires a new founder decision.
           : "${EVID_DIR:?co-gate evidence step did not run — failing closed}"
-          python -I /tmp/trusted/adversarial_review.py --require \
+          : "${HEAD_SHA:?head sha unresolved — panel po-seed cannot be defaulted}"
+          # v2 lens panel (--panel): forced method lenses + a po-battery lens
+          # per seat, po seed = the PR HEAD SHA (rotating, printed, never a
+          # chosen parameter). ANY lens red = red — a strict tightening of the
+          # single-lens gate. --require and the founder-ratified cap unchanged.
+          # VERSION-SKEW SAFE (#71 CI-caught): the workflow is PR-owned but the
+          # reviewer script is BASE-owned (trusted copy), so a PR that adds new
+          # flags would invoke an older tool that rejects them. Feature-detect
+          # instead of assuming: pass the v2 panel flags ONLY if the trusted
+          # copy advertises --panel in its own --help. Before this PR merges the
+          # base copy is v1 (single lens, unchanged behavior); after, the panel
+          # activates automatically with no second workflow edit.
+          PANEL_ARGS=""
+          if python -I /tmp/trusted/adversarial_review.py --help 2>&1 | grep -q -- "--panel"; then
+            PANEL_ARGS="--panel --po-seed $HEAD_SHA"
+            echo "reviewer: v2 panel supported by the trusted base copy — enabling (po seed = $HEAD_SHA)"
+          else
+            echo "reviewer: trusted base copy predates the v2 panel — running the v1 single-lens gate (unchanged physics)"
+          fi
+          python -I /tmp/trusted/adversarial_review.py --require $PANEL_ARGS \
             --max-diff-bytes 800000 \
             --diff-file pr.diff --test-log pytest.log --test-log web.log \
             --test-log validate.log --test-log "$EVID_DIR/golden-exam.log"

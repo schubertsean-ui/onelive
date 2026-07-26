@@ -237,6 +237,12 @@ if [ "$QUICK" -eq 1 ]; then
   echo
 else
   run_advisory "commit_sweep" "$PY" tools/commit_sweep.py
+  # M9 reviewer scorecard (Contract #26): ADVISORY measure of the adversarial
+  # reviewer itself, derived mechanically from the Kaizen ledger (round-1
+  # recall, sibling-misses, novelty). Instrumentation, not a gate — it feeds
+  # the weekly digest and lens-pruning; any threshold it enforces later is a
+  # gate change (evaluator-mandatory).
+  run_advisory "reviewer_scorecard" "$PY" tools/reviewer_scorecard.py
 fi
 
 # 7b. Kaizen trend meter — computes the trend report from the ledger
@@ -253,16 +259,16 @@ run_check "kaizen_trends" "$PY" tools/kaizen_trends.py
 #     docs/memory/RED_CLASSES.md and requires this change to write its own
 #     citations. HARD GATE, same physics as kaizen_trends. A missing base
 #     ref is gate MISCONFIGURATION and FAILS CLOSED (#67 r5: never a
-#     silent no-op in shallow/local clones) — one fetch attempt first,
-#     then red.
-if ! git rev-parse --verify -q origin/master >/dev/null 2>&1; then
-  git fetch origin master >/dev/null 2>&1 || true
-fi
-if git rev-parse --verify -q origin/master >/dev/null 2>&1; then
-  run_check "construction_gate" "$PY" tools/construction_gate.py
-else
-  run_check "construction_gate" bash -c 'echo "construction_gate: FAIL — base ref origin/master absent and unfetchable; the Stage 3 gate cannot resolve its diff, and misconfiguration never passes silently (git fetch origin master, then rerun)"; exit 1'
-fi
+#     silent no-op in shallow/local clones).
+# Base freshness lives INSIDE the gate now (#71 r5-r8), not in this
+# wrapper. A shell `git fetch` here proved only that THIS process could
+# fetch, which is not the property. The gate compares the base ref's id
+# against the remote's current tip and fails closed on anything else —
+# there is deliberately NO offline path (every local substitute is
+# reproducible from a stale base), so the gate needs remote access and
+# the CI review job grants it read-only for the validate step alone.
+# Same fail-closed physics, one mechanism, unit-tested.
+run_check "construction_gate" "$PY" tools/construction_gate.py
 
 # 8. Visual regression — needs a booted app + baselines; cannot run headless
 #    here. Detect and SKIP-LOUD (never a silent pass), per the item-15 harness.
