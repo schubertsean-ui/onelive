@@ -116,9 +116,13 @@ def describe() -> int:
     return 0
 
 
-def verify_shape(sample: dict) -> None:
-    """Fail LOUD when the live payload is not the shape this tool consumes."""
-    missing = [f for f in REQUIRED_FIELDS if f not in sample]
+def verify_shape(sample: dict, fields: tuple = REQUIRED_FIELDS) -> None:
+    """Fail LOUD when the live payload is not the shape this tool consumes.
+
+    `fields` is narrowed for grouped queries: the date column is a filter, not
+    a projection, so it is legitimately absent from a GROUP BY result.
+    """
+    missing = [f for f in fields if f not in sample]
     if missing:
         raise SystemExit(
             f"fetch_tabc_capcog: FAIL — the live TABC payload is missing the "
@@ -203,12 +207,21 @@ def fetch(counties: set, limit_pages: int = MAX_PAGES,
     if active_since:
         clause += f" AND {FIELD_END} >= '{active_since}'"
     where = urllib.parse.quote(clause)
+    # GROUP server-side. This is monthly receipts: ten counties over an 18-month
+    # window is tens of thousands of rows describing a few thousand premises, and
+    # paging all of them took minutes to compute something Socrata can collapse
+    # in one pass. Deduping locally as well is not redundant — the group is by
+    # RAW name/city, and normalisation (case, punctuation) can still merge two
+    # groups into one premise.
+    grouped = f"{FIELD_NAME},{FIELD_CITY},{FIELD_COUNTY}"
+    group = urllib.parse.quote(grouped)
+    select = urllib.parse.quote(grouped)
     out: list = []
     seen = 0
     verified = False
     page = 0
     while page < limit_pages:
-        url = (f"{BASE_URL}?$select={','.join(REQUIRED_FIELDS)}"
+        url = (f"{BASE_URL}?$select={select}&$group={group}"
                f"&$where={where}&$limit={PAGE}&$offset={page * PAGE}")
         try:
             batch = _get(url)
@@ -228,7 +241,7 @@ def fetch(counties: set, limit_pages: int = MAX_PAGES,
         if not batch:
             break
         if not verified:
-            verify_shape(batch[0])
+            verify_shape(batch[0], (FIELD_NAME, FIELD_CITY, FIELD_COUNTY))
             verified = True
         seen += len(batch)
         for r in batch:

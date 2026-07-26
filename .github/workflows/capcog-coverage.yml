@@ -125,7 +125,13 @@ jobs:
         run: |
           : "${ONELIVE_DB_DSN:?ONELIVE_DB_DSN is empty — refusing to report a
           coverage number with no numerator, which would read as zero coverage}"
-          python - <<'PY'
+          python - <<'PY'  || {
+            echo "::error::Could not read the numerator from the database." \
+                 "The DENOMINATOR above is still valid and was measured" \
+                 "successfully — only the 'how much do we cover' half is" \
+                 "missing. Fix ONELIVE_DB_DSN and re-run; do NOT read this as" \
+                 "zero coverage."
+            exit 1; }
           import json, os, psycopg2
           # BOTH paths into the feed, or the numerator undercounts and the gap
           # reads as worse than it is. Licensed rows arrive from the ticketing
