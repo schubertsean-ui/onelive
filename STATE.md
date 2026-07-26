@@ -51,6 +51,47 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
 
+## Session Contract #35 (2026-07-26 — status DERIVED from evidence, and its trend)
+
+GOAL: score every source on evidence rather than assumption, and trend it, so a
+source that quietly stopped working stops looking identical to one that was
+never tried. ROOT CAUSE: with 123 catalogued sources and no scoring, "which of
+these actually delivered anything, and is that improving?" had no answer — and
+the first draft scored a source on whether we held its credential, which is an
+assumption standing in for a measurement.
+DONE-CRITERIA: no evidence scores UNKNOWN, never broken; never-tried is
+distinct from tried-and-failing; a missing credential is its own status with a
+named founder action; DELIVERED ROWS OUTRANK any credential assumption; empty
+supplied evidence is a measurement, not an absence; trend counts regressions as
+well as improvements.
+NON-GOALS: the registry is the previous change in this stack, and gathering the
+evidence is a separate tool again. This one scores what it is given.
+STACKED ON: claude/source-scorecard-2026-07-26.
+[S3:caller-suppliable-custody-inputs] the scored source supplies no input to its own score: evidence is read from committed artifacts the source did not write, and the tool exposes no override.
+[S3:contract-scope-violation] this contract covers the scoring alone. The registry it reads is the previous change in this stack, with its own contract.
+[S3:deferred-trust-work] nothing is parked: the credential-before-evidence defect was self-caught during this work and fixed in the same change.
+[S3:env-dependent-hermetic-test] the tests are hermetic and were RUN that way — evidence is supplied through tmp_path, so no network, no database and no credential is required.
+[S3:fail-open-on-custody-misconfig] an unreadable or malformed evidence file fails the scoring rather than being read as 'no findings' — the failure-reads-as-empty shape applied to measurement.
+[S3:false-confidence-gate] this IS the class, and it is the whole point of the tool: a source with no evidence scores UNKNOWN, never 'working' and never 'broken'. A scorecard that reported an unmeasured source as fine would be exactly the false confidence it exists to remove.
+[S3:governance-ambiguity] the scope is stated precisely: this reports status and trend and gates nothing, so no precedent is set about what may merge or publish.
+[S3:malformed-ledger-row] no ledger row is written; the evidence artifacts are JSON with their own parse guard that raises rather than returning empty.
+[S3:missing-record-read-as-state] an absent evidence file is reported AS ABSENT; supplied-but-EMPTY evidence is a MEASUREMENT (we looked and found nothing) and is scored differently from never having looked. Those two were the same state before this change.
+[S3:mutable-model-alias] no model, alias or provider is referenced anywhere in this change.
+[S3:pagination-integrity-gap] no paged walk occurs: the registry and the evidence directory are read in full, and a read failure aborts rather than truncating.
+[S3:pushed-on-red] the suite ran unchained with its exit code read directly before commit.
+[S3:release-path-weaker-than-generation] no release or publish path is touched; the scorecard measures and never gates.
+[S3:retyped-evidence] every score is computed from the evidence files and the row counts; no status is hand-asserted, and the trend is derived from successive runs rather than remembered.
+[S3:self-weakenable-gate] a source cannot improve its own score: status is derived from evidence the source did not write, and the tool exposes no override.
+[S3:self-weakenable-review-model] the scorecard feeds no review verdict; it reports to the operator.
+[S3:semantic-claim-not-rederived] 'this source works' is re-derived from delivered rows at every run — never read from a stored status, and never inferred from the presence of a credential.
+[S3:stale-base-widens-range] no range-derived gate is involved; the tool reads the registry and the evidence directory at whatever revision is checked out.
+[S3:stalled-state-needs-active-diagnosis] a source that has stalled is DIAGNOSED into a status with a next action rather than left as an absence; that is the tool's reason for existing.
+[S3:untested-gate-branch] every scoring branch has a committed test: no evidence, never tried, missing credential, delivered-rows-outrank-credential, unknown credential state, empty-but-supplied evidence, every non-working status yielding an action, unique-venue credit, yield-per-attempt, and both trend directions.
+[S3:unusable-credential-tier] a source needing a credential we do not hold gets its own status with a named founder action, rather than being scored as broken — the distinction between 'cannot try' and 'tried and failed'.
+[S3:volatile-safety-store] the trend is computed from committed evidence artifacts, not from process state, so it survives a fresh runner.
+[S3:weak-key-accepted-at-custody] no key VALUE is read anywhere; only its tri-state presence, and even that is outranked by evidence: a source that handed us rows is working whatever we believe about its key.
+[S3:workflow-tool-version-skew] no workflow is touched; the scorecard is a leaf script with no trusted base-owned counterpart.
+
 ## Session Contract #34 (2026-07-26 — every source, catalogued exactly once)
 
 GOAL: one registry naming every ingestion source we have identified, portable
