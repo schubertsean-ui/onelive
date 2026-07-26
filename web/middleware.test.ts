@@ -260,8 +260,36 @@ describe("the catch block fails CLOSED", () => {
     expect(res?.status).toBe(500);
     const body = await res!.text();
     expect(body).toContain("refused rather than allowed");
-    expect(body).toContain("boom from the provider");
     expect(body).toContain("Resolved auth mode: clerk");
+  });
+
+  it("does NOT leak the exception text to the client", async () => {
+    // `CLASS:internal-error-disclosure` (PR #76 r4). This assertion previously ran
+    // the other way — it required the body to CONTAIN "boom from the provider" —
+    // so the test was pinning the leak in place. A test can enforce a defect as
+    // firmly as it enforces a fix, and this is what that looks like: written to
+    // prove the catch block said something useful, it made raw provider text at a
+    // public auth boundary a contract.
+    //
+    // The detail belongs in the log, which the operator reads and an anonymous
+    // requester does not. Asserted as ABSENCE from the body, with the presence of
+    // the useful parts asserted above so this cannot be satisfied by an empty
+    // response.
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    vi.doMock("@clerk/nextjs/server", () => ({
+      clerkMiddleware: () => { throw new Error("boom from the provider"); },
+      clerkClient: async () => ({ users: { getUser: async () => ({}) } }),
+    }));
+
+    const middleware = await loadMiddleware();
+    const res = await middleware(request("/tonight"));
+    expect(res?.status).toBe(500);
+    const body = await res!.text();
+    expect(body).not.toContain("boom from the provider");
+    // Still distinguishable from a normal deny — "we failed" must never look
+    // identical to "you may not" (CLAUDE.md's founding anti-pattern).
+    expect(body).toContain("refused rather than allowed");
+    expect(body).toContain("server logs");
   });
 });
 

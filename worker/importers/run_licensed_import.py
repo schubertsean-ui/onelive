@@ -17,12 +17,26 @@ from collections import Counter
 from worker.db_config import resolve_dsn
 from worker.importers.normalize import normalize_ticketmaster
 from worker.importers.ticketmaster import CAPCOG_RADIUS_MILES, fetch_events_capcog
+from worker.sentinel import init_sentry
 
 log = logging.getLogger("licensed_import")
 
 
 def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    # SENTRY IS THE OTHER HALF OF THE SENTINEL CONTRACT, and this importer shipped
+    # without it (`CLASS:missing-scheduled-loop-sentry`, PR #76 r4). `CLAUDE.md`
+    # requires "Sentry on web, API and worker; a dead-man alarm on every scheduled
+    # job. No scheduled loop ships without both." Scheduling this importer armed the
+    # dead-man half (the GitHub-native watchdog) and left the error-reporting half
+    # unwired — so a run that failed mid-import reported only into Actions logs.
+    # The alarm tells you the loop STOPPED; Sentry tells you what broke while it was
+    # still running, which are different questions.
+    #
+    # `init_sentry` is a documented no-op when `SENTRY_DSN` is unset, and raises
+    # loudly if the DSN is set while sentry-sdk is missing — so this is safe before
+    # the DSN exists and cannot degrade silently after.
+    init_sentry("worker")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--max-pages", type=int, default=10,
                     help="pages per time-window (<=10, the API deep-paging ceiling)")

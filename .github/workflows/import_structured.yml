@@ -146,6 +146,13 @@ jobs:
           # bound to be byte-identical by tests/test_scheduled_inputs_contract.py
           # so they can never drift apart again.
           LIMIT: ${{ github.event_name == 'schedule' && '40' || github.event.inputs.limit }}
+          # The Sentinel contract's OTHER half. This scheduled loop had a dead-man
+          # alarm and no error reporting (`CLASS:missing-scheduled-loop-sentry`,
+          # PR #76 r4): the alarm says the loop STOPPED, Sentry says what broke while
+          # it was still running. `worker.sentinel.init_sentry` is a documented no-op
+          # while this secret is unset, and raises loudly if it is set without the
+          # SDK — so it is safe now and cannot degrade quietly later.
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           : "${LIMIT:?limit input missing — the fetch bound is required — failing closed}"
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"

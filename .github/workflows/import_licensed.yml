@@ -51,6 +51,7 @@ jobs:
           ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
           ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
           MAX_PAGES: ${{ github.event.inputs.max_pages || '8' }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           : "${TICKETMASTER_API_KEY:?TICKETMASTER_API_KEY secret missing — add it in repo Settings → Secrets → Actions}"
           : "${MAX_PAGES:?max_pages missing — the fetch bound is required}"

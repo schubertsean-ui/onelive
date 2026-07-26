@@ -42,10 +42,44 @@ def script(text: str) -> str:
 
 def test_it_fetches_the_product_surface_not_only_the_diagnostic(script: str):
     assert "/api/health" in script, "the diagnostic read must still happen"
-    assert 'curl -sSL' in script, \
-        "the product fetch must FOLLOW redirects — / redirects to /tonight"
+    assert "$BASE_URL/tonight" in script, \
+        "the product PAGE must be fetched, not only the diagnostic endpoint"
     assert "feed_http_status" in script, \
         "the feed page's own status has to be reported as its own number"
+
+
+def test_no_secret_bearing_request_FOLLOWS_a_redirect(script: str):
+    """`CLASS:unbounded-secret-redirect-chain` (PR #76 r4, two seats independently).
+
+    This assertion is the REVERSE of the one it replaces. The old test REQUIRED
+    `curl -sSL` on the product fetch, reasoning that `/` redirects to `/tonight` so
+    the check should walk the redirect a friend walks. That was true about the fan's
+    journey and wrong about the request: `${HDR[@]}` carries the Vercel bypass
+    secret, and curl re-sends custom headers to the redirect TARGET — so the host
+    allowlist constrained the first hop and `-L` handed the secret to whatever host
+    a Location header named. The test was enforcing the leak.
+
+    The fix removed the need for the redirect rather than policing it: `/tonight` is
+    requested directly, and `--max-redirs 0` turns an unexpected bounce into a loud
+    failure instead of a second request to an unverified host.
+    """
+    assert "curl -sSL" not in script, (
+        "a secret-bearing request follows redirects again — the allowlist above only "
+        "constrains the FIRST host, so -L re-opens the exfiltration path it closes")
+    # Backslash continuations are joined first: every curl here spans two or three
+    # physical lines, so a per-line scan finds nothing and the assertion below would
+    # have been vacuous — the exact "green row proving nothing" shape this PR keeps
+    # running into.
+    joined = re.sub(r"\\\n\s*", " ", script)
+    secret_requests = [ln for ln in joined.splitlines()
+                       if "curl" in ln and ("HDR[@]" in ln or "protection-bypass=" in ln)]
+    assert len(secret_requests) >= 2, (
+        f"expected the header request and the friend-link request to be found; got "
+        f"{secret_requests!r} — this test is looking at the wrong lines")
+    for line in secret_requests:
+        assert "--max-redirs 0" in line, (
+            f"this request carries the bypass secret and does not pin redirects to "
+            f"zero: {line.strip()!r}")
 
 
 def test_a_non_200_feed_page_fails_the_check(script: str):
@@ -175,29 +209,42 @@ def test_the_secret_is_only_ever_SENT_to_this_projects_own_hosts(script: str):
         "the host allowlist must be evaluated BEFORE the secret is required"
 
 
+_TEAM = "sss-projects-e4775771"
+
+
 @pytest.mark.parametrize("url,allowed", [
-    ("https://onelive-git-x-sss-projects.vercel.app", True),
-    ("https://onelive-git-x.vercel.app/api/health", True),
-    ("https://onelive-git-x.vercel.app/", True),      # trailing slash normalised
-    ("https://onelive-git-x.vercel.app///", True),
-    ("https://onelive.com", True),
-    ("https://www.onelive.com", True),
+    # This project's real Vercel hosts — the observed preview form and the
+    # production alias.
+    (f"https://onelive-git-claude-x-{_TEAM}.vercel.app", True),
+    (f"https://onelive-git-x-{_TEAM}.vercel.app/api/health", True),
+    (f"https://onelive-git-x-{_TEAM}.vercel.app/", True),   # slash normalised
+    (f"https://onelive-git-x-{_TEAM}.vercel.app///", True),
+    ("https://onelive.vercel.app", True),
     ("https://evil.example", False),
     ("https://vercel.app.evil.example", False),
-    ("http://x.vercel.app", False),          # not https
-    ("ftp://x.vercel.app", False),
-    ("https://attacker.io/vercel.app", False),
-    # R-081, and the case that was ACTUALLY exploitable. bash's `*` matches `/`,
-    # so an allowlist matched against the whole URL let a path supply the allowed
-    # suffix. The row above passed only because `/vercel.app` lacks the leading
-    # dot — it was refused for the wrong reason, which is why the hole survived a
-    # test that looked like it covered this.
-    ("https://attacker.io/x.vercel.app", False),
-    ("https://attacker.io/x.vercel.app/", False),
-    ("https://attacker.io/?q=x.vercel.app", False),
+    (f"http://onelive-{_TEAM}.vercel.app", False),          # not https
+    (f"ftp://onelive-{_TEAM}.vercel.app", False),
+    (f"https://attacker.io/vercel.app", False),
+    # R-081: bash's `*` matches `/`, so an allowlist matched against the whole URL
+    # let a PATH supply the allowed suffix.
+    (f"https://attacker.io/x-{_TEAM}.vercel.app", False),
+    (f"https://attacker.io/x-{_TEAM}.vercel.app/", False),
+    (f"https://attacker.io/?q=x-{_TEAM}.vercel.app", False),
+    # R-082 — THE PATTERNS were the second half of the hole, and these are the exact
+    # hosts three reviewer seats named. Fixing the URL-vs-host bug (R-081) narrowed
+    # HOW the match ran; WHAT it matched still admitted the entire Vercel platform
+    # and any registrable domain containing "onelive".
+    ("https://attacker-project.vercel.app", False),
+    ("https://onelive.attacker.com", False),
+    ("https://x.onelive.evil", False),
+    ("https://onelive.evil", False),
+    # The team suffix must not be reachable by smuggling an extra DNS label in —
+    # `case` anchors the whole string but `*` still matches a dot.
+    (f"https://evil.com-{_TEAM}.vercel.app", False),
+    (f"https://onelive-x-{_TEAM}.vercel.app.evil.example", False),
     # Userinfo: the real host is after the `@`.
-    ("https://x.vercel.app@evil.example", False),
-    ("https://evil.example@x.vercel.app", False),  # refused outright, not parsed
+    (f"https://onelive-{_TEAM}.vercel.app@evil.example", False),
+    (f"https://evil.example@onelive-{_TEAM}.vercel.app", False),
     ("https://", False),
     ("", False),
 ])

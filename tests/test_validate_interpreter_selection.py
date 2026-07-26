@@ -30,6 +30,7 @@ accounting — asserted below rather than promised.
 from __future__ import annotations
 
 import pathlib
+import re
 import subprocess
 
 import pytest
@@ -57,6 +58,64 @@ def _block() -> str:
     return block
 
 
+def bootstrap_venv_dir() -> str:
+    """Where `bootstrap_dev.sh` ACTUALLY creates the venv, read from the script.
+
+    `CLASS:bootstrap-validate-venv-drift` (PR #76 r4). The first version of this
+    file hard-coded `$HOME/.venvs/onelive` — a path `bootstrap_dev.sh` never
+    creates — so nine tests passed green over a fallback that could not fire on the
+    one path it existed for. Restating a value in a test is how you prove the value
+    you restated; deriving it is how you prove the integration.
+    """
+    text = (_ROOT / "tools" / "bootstrap_dev.sh").read_text(encoding="utf-8")
+    match = re.search(r'^VENV="([^"]+)"', text, re.MULTILINE)
+    assert match, (
+        "could not find the VENV assignment in tools/bootstrap_dev.sh — this "
+        "extractor is now blind and every test below is testing a guess")
+    return match.group(1)
+
+
+def test_REPO_ROOT_is_already_set_before_the_selection_block_runs():
+    """Closes the one gap the executed tests structurally cannot cover.
+
+    The block resolves `${REPO_ROOT:-<derive>}`. Under `bash -c` REPO_ROOT is unset,
+    so every execution test above takes the DERIVE branch — meaning the branch
+    production actually uses is never run by them. If `REPO_ROOT`'s assignment ever
+    moved below the sentinel, production would silently switch to the derivation
+    with `BASH_SOURCE` pointing at the same file, which happens to still work — and
+    then a later refactor of that line would break the fallback with nothing red.
+    Asserting the ORDER is what makes the executed tests transferable.
+    """
+    text = (_ROOT / "tools" / "validate").read_text(encoding="utf-8")
+    assign = text.index('REPO_ROOT="$(cd ')
+    begin = text.index(_BEGIN)
+    assert assign < begin, (
+        "tools/validate assigns REPO_ROOT after the interpreter-selection block, so "
+        "the block falls back to re-deriving the repo root at runtime — move the "
+        "assignment back above the block")
+
+
+def test_validate_looks_where_bootstrap_actually_creates_the_venv():
+    """The integration the reviewer caught, bound so it cannot silently drift.
+
+    Static rather than executed, because what matters is that the two files agree
+    on a path — and an execution test with stubs cannot notice that both were
+    pointed at the same wrong place.
+    """
+    venv = bootstrap_venv_dir()
+    block = _block()
+    if "REPO_ROOT" in venv:
+        assert '"$_repo_root/.venv/bin/python"' in block, (
+            f"bootstrap_dev.sh creates the venv at {venv} (repo-relative) but the "
+            f"interpreter fallback does not look in the repo — the documented "
+            f"one-command bootstrap still leaves `bash tools/validate` red for an "
+            f"environment reason, which is the whole defect this block exists for")
+    else:
+        assert "ONELIVE_VENV" in block, (
+            f"bootstrap_dev.sh creates the venv at {venv} but the fallback does not "
+            f"consult ONELIVE_VENV, so the two disagree on the location")
+
+
 def _stub(path: pathlib.Path, *, works: bool) -> pathlib.Path:
     """A fake interpreter that either can or cannot import the probe modules."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -70,18 +129,29 @@ def _stub(path: pathlib.Path, *, works: bool) -> pathlib.Path:
 
 
 def _run(tmp_path: pathlib.Path, *, system_works: bool, venv_works: bool | None,
+         repo_venv_works: bool | None = None,
          env_extra: dict[str, str] | None = None) -> subprocess.CompletedProcess:
     """Execute the real block with stubs, and print the interpreter it settled on.
 
-    `venv_works=None` means there is no venv at all — the fresh-clone-without-
-    bootstrap case, where the behaviour must be unchanged from before this block
-    existed.
+    `venv_works=None` means there is no `$HOME/.venvs/onelive` at all;
+    `repo_venv_works=None` means there is no `$REPO_ROOT/.venv` — together they
+    cover the fresh-clone-without-bootstrap case, where the behaviour must be
+    unchanged from before this block existed.
+
+    `$0` is set to a path inside a FAKE REPO so the block's own
+    `dirname "${BASH_SOURCE[0]}"/..` derivation runs for real. Faking the answer
+    instead would leave the derivation — the exact thing that was wrong in r4 —
+    untested.
     """
     home = tmp_path / "home"
     binadd = tmp_path / "bin"
+    fake_repo = tmp_path / "fakerepo"
+    (fake_repo / "tools").mkdir(parents=True, exist_ok=True)
     _stub(binadd / "python3", works=system_works)
     if venv_works is not None:
         _stub(home / ".venvs" / "onelive" / "bin" / "python", works=venv_works)
+    if repo_venv_works is not None:
+        _stub(fake_repo / ".venv" / "bin" / "python", works=repo_venv_works)
 
     env = {
         "PATH": f"{binadd}:/usr/bin:/bin",
@@ -90,8 +160,9 @@ def _run(tmp_path: pathlib.Path, *, system_works: bool, venv_works: bool | None,
     }
     env.update(env_extra or {})
     script = "set -u\n" + _block() + '\necho "SELECTED=$PY"\n'
-    return subprocess.run(["bash", "-c", script], capture_output=True, text=True,
-                          timeout=60, env=env)
+    return subprocess.run(
+        ["bash", "-c", script, str(fake_repo / "tools" / "validate")],
+        capture_output=True, text=True, timeout=60, env=env)
 
 
 def _selected(proc: subprocess.CompletedProcess) -> str:
@@ -102,6 +173,25 @@ def _selected(proc: subprocess.CompletedProcess) -> str:
 
 
 # ------------------------------------------------------- the defect this closes
+def test_the_REPO_LOCAL_venv_from_bootstrap_dev_is_found(tmp_path):
+    """The r4 blocker, executed. `bootstrap_dev.sh` writes `$REPO_ROOT/.venv`; this
+    proves the fallback reaches it, deriving the repo root the same way the block
+    does rather than being told the answer."""
+    proc = _run(tmp_path, system_works=False, venv_works=None, repo_venv_works=True)
+    assert _selected(proc) == str(tmp_path / "fakerepo" / ".venv" / "bin" / "python"), (
+        "the venv the documented one-command bootstrap creates was not found — "
+        "`bash tools/validate` after `bash tools/bootstrap_dev.sh` still goes red "
+        "for an environment reason, which is the entire defect this block exists for")
+
+
+def test_the_repo_local_venv_WINS_over_the_home_one(tmp_path):
+    """Both present: prefer the one the documented command produced, so what the
+    gate runs matches what the bootstrap installed. A stale `$HOME` venv from
+    another checkout silently winning is how the r4 miss went unnoticed."""
+    proc = _run(tmp_path, system_works=False, venv_works=True, repo_venv_works=True)
+    assert _selected(proc) == str(tmp_path / "fakerepo" / ".venv" / "bin" / "python")
+
+
 def test_a_broken_default_interpreter_falls_back_to_the_bootstrapped_venv(tmp_path):
     """THE regression. Without this, the run goes red for an environment reason."""
     proc = _run(tmp_path, system_works=False, venv_works=True)
