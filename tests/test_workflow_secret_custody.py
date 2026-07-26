@@ -61,17 +61,32 @@ NOT_A_STORED_SECRET = frozenset({"GITHUB_TOKEN"})
 # it wrong makes the gate judge the WRONG DIFF while reporting green, and the
 # charter reserves examiner changes to the founder. Escalated with options rather
 # than either shipped inside a large PR or waved past. R-072.
+_EVIDENCE_BOUND = (
+    "EVIDENCE-BOUND, and a gate refused the fix. The guard was written and reverted "
+    "because this file sits inside a recorded evidence binding, so changing it "
+    "invalidates a run that cost money to produce. Re-binding needs a fresh PAID run "
+    "— founder spend, therefore founder-crucial. Measured against the gate, not "
+    "argued with."
+)
+
 ACCEPTED: dict[str, str] = {
+    "ingest.yml":
+        _EVIDENCE_BOUND + " Specifically: `ingest.yml` is in the ARMED CRON's runtime "
+        "closure, so guarding its dispatch path made "
+        "`tests/test_arming_smoke_binding.py` fail with 'armed-cron runtime code "
+        "changed since the recorded green smoke run'. The same refusal stopped an "
+        "error-string edit to this file earlier in the arc. R-079 carries it, with the "
+        "next paid smoke run as its trigger.",
     "extraction-exam-dispatch.yml":
         "HARNESS-BOUND, and the charter's own mechanism refused the fix. This file is "
         "in `ai/golden_exam.py`'s HARNESS_MANIFEST, so adding the guard changed the "
         "manifest hash and `trust_gate` failed with "
         "'harness has DRIFTED since the attended exam — extraction is uncertified "
-        "against this tree'. Re-certifying needs a fresh ATTENDED EXAM RUN, which "
-        "costs money: founder-crucial, and the same refusal that stopped an "
-        "`ingest.yml` error-string edit earlier in this arc. The guard was written, "
-        "measured against the gate, and REVERTED rather than argued with. R-078 "
-        "carries it, with the next attended exam as its trigger.",
+        "against this tree'. Re-certifying needs a fresh PAID attended exam run: "
+        "founder-crucial, and the same refusal that stopped an `ingest.yml` "
+        "error-string edit earlier in this arc. The guard was written, measured "
+        "against the gate, and REVERTED rather than argued with. R-078 carries it, "
+        "with the next attended exam as its trigger.",
     "adversarial-review.yml":
         "The mandatory reviewer runs on EVERY PR, so a default-branch guard would "
         "disable the gate. Its fix is a `pull_request_target` conversion, which "
@@ -201,7 +216,9 @@ def test_site_health_restricts_its_automatic_trigger_to_the_default_branch():
         "the pull_request trigger is the exfiltration path the reviewer blocked on"
 
 
-_GUARDED_NOW = ("import_licensed.yml", "import_structured.yml", "ingest.yml",
+# The four the guard could actually be applied to. `ingest.yml` and
+# `extraction-exam-dispatch.yml` are both refused by evidence bindings — see ACCEPTED.
+_GUARDED_NOW = ("import_licensed.yml", "import_structured.yml",
                 "dependency-hygiene.yml", "source-backfill.yml")
 
 
@@ -231,28 +248,40 @@ def test_the_dispatchable_secret_workflows_are_guarded_at_the_JOB_level():
             f"hole being closed")
 
 
-def test_the_only_accepted_entries_are_the_two_a_gate_refused():
-    """The allowlist must not grow back. Exactly two remain, and NEITHER is a
-    convenience: one is the examiner itself (changing its trigger is a gate-custody
-    decision the charter reserves to the founder), the other was WRITTEN, measured
-    against `trust_gate`, and reverted because it drifted the certified exam harness
-    and re-certifying costs money. Both are escalations with triggers, not deferrals.
+def test_every_accepted_entry_is_a_GATE_REFUSAL_or_a_founder_decision():
+    """The allowlist must not grow back, and no entry may be a convenience.
+
+    Three remain. Two were WRITTEN, measured against a gate, and reverted because
+    the gate refused them — changing those files invalidates evidence that cost
+    money to produce, and re-binding is founder spend. The third is the examiner
+    itself, whose trigger decides which ref supplies the reviewed diff, which the
+    charter reserves to the founder. Each cites its Record row and its trigger.
     """
-    assert set(ACCEPTED) == {"adversarial-review.yml",
+    assert set(ACCEPTED) == {"adversarial-review.yml", "ingest.yml",
                              "extraction-exam-dispatch.yml"}, (
         f"ACCEPTED grew or shrank unexpectedly: {sorted(ACCEPTED)}")
+
     assert "founder" in ACCEPTED["adversarial-review.yml"]
     assert "R-072" in ACCEPTED["adversarial-review.yml"]
     assert "escalation, not a deferral" in ACCEPTED["adversarial-review.yml"]
-    exam = ACCEPTED["extraction-exam-dispatch.yml"]
-    assert "HARNESS-BOUND" in exam and "R-078" in exam
-    assert "founder-crucial" in exam
-    # The claim that it is harness-bound must be TRUE, not asserted — otherwise this
-    # entry is an excuse dressed as a mechanism.
+
+    for name, row in (("extraction-exam-dispatch.yml", "R-078"),
+                      ("ingest.yml", "R-079")):
+        reason = ACCEPTED[name]
+        assert row in reason, f"{name} must cite its Record row"
+        assert "founder-crucial" in reason and "PAID" in reason
+
+    # Each evidence-bound claim must be TRUE, read from the binding itself —
+    # otherwise the exemption is an excuse dressed as a mechanism.
     manifest = (_ROOT / "ai" / "golden_exam.py").read_text(encoding="utf-8")
     assert '".github/workflows/extraction-exam-dispatch.yml"' in manifest, (
         "the exemption claims this file is in HARNESS_MANIFEST; it is not, so the "
-        "reason is false and the guard should simply be applied")
+        "guard should simply be applied")
+    arming = (_ROOT / "tests" / "test_arming_smoke_binding.py").read_text(
+        encoding="utf-8")
+    assert "runtime_files()" in arming, (
+        "the ingest.yml exemption rests on the armed-cron runtime closure; if that "
+        "binding no longer exists, apply the guard instead")
 
 
 def test_every_accepted_entry_names_a_real_workflow_and_gives_a_reason():
