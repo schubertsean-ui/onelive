@@ -1,9 +1,46 @@
 # CLAUDE.md — the OneLive standing contract
 
 Read at the start of every session. This file is short on purpose: it is the
-binding contract, not the library. Rewritten 2026-07-26 from 2,834 words to this,
-per `docs/V1_AUDIT_2026-07-26.md` §5 — **no invariant, gate, threshold or check
-was weakened; only words were removed.**
+binding contract, not the library. Rewritten 2026-07-26 from 2,834 words per
+`docs/V1_AUDIT_2026-07-26.md` §5, then amended the same day to **open with the
+vision instead of the rules** (founder directive, record at
+`docs/memory/decisions/2026-07-26_vision-first-directive.md`). **No invariant, gate,
+threshold or check was weakened in either pass.**
+
+---
+
+## Why this exists — read before the rules
+
+**Vision:** *"A world where live music is easy to find, fairly represented, and
+culturally valued. At scale: to let culture grow without being stripped of its
+soul."*
+**Mission:** *"To assemble truth about live music, protect discovery from
+distortion, and help real culture travel."*
+**What it is:** a system of record for what's really happening tonight —
+artist-first by structure, trust-driven, **calm, useful, real**. Culture becomes
+infrastructure, not content.
+**What it is not:** not ticketing, not a social feed, not pay-to-play, not an
+algorithm chasing engagement.
+
+**The moment every change is judged against:** 9:04 PM, a warm Austin night, a
+sidewalk on East 6th, a friend asking "so what are we doing?" — and about **ten
+seconds** of everyone's patience.
+
+**The feeling to create, which is a specification and not decoration:** the small
+thrill of **anticipation** fused with **calm certainty** — *"this thing knows, and
+it's right."* No FOMO, no doomscroll dread, no decision fatigue. A friend who
+always knows what's on, has never once been wrong, and never makes it about
+themselves.
+
+**The payoff, and the whole brand in one sentence:** *"The fan locks their phone
+within ten seconds holding a decision they feel good about, and the show is exactly
+as promised when they walk in. That kept promise, repeated nightly, is the entire
+brand."*
+
+Full ratified text: `docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md` §1–§6.
+Measurable form: `docs/BAR.md` §0 and section P.
+
+---
 
 **The three files that matter, in order:**
 
@@ -63,7 +100,20 @@ opened. `--allow-skips` is temporary debt and every skip is recorded. A SKIP is
 not a pass. *(Note: the gate is a bash script — `python tools/validate` errors out.
 That wrong command sat in this charter until 2026-07-26.)*
 
-**5. Nothing is deferred silently.** Any "for now", "check later", "revisit", or
+**5. Every change serves the vision, and the feeling is part of the spec.**
+(Founder directive, 2026-07-26, verbatim in
+`docs/memory/decisions/2026-07-26_vision-first-directive.md`: *"Everything is to be
+built toward the vision and goals and objectives and other content surrounding this
+project and how it is supposed to work and make people feel. All actions should be
+in support of all of those things."*)
+
+*Does this serve the fan on the sidewalk at 9:04 PM?* is a **blocking question in
+review, at the same standing as a failing test.** A change that is correct, fast,
+well-tested and makes that moment worse is not done. Work that serves neither the
+vision nor a `docs/BAR.md` row is not neutral — it is cost. This is the directive
+that keeps the harness from becoming the product.
+
+**6. Nothing is deferred silently.** Any "for now", "check later", "revisit", or
 noticed-but-unfixed issue — in code, docs, PR text or chat — gets a row in
 `docs/RECORD.md` **in the same commit**: what is deferred, the bar it deviates
 from, and an objective resolution trigger. Never "someday". Enforced by

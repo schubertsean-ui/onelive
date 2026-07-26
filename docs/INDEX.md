@@ -18,9 +18,26 @@ research. If a document is not CANON, it does not authorise work.
 
 ---
 
-## CANON — the binding set (9 documents, ≈4,400 words)
+## CANON — the binding set
 
 Read these. That is the whole contract.
+
+**The honest size, measured 2026-07-26.** The documents you must read *before
+writing code* — `CLAUDE.md` + `docs/BAR.md` + `docs/V1.md` + `docs/HOW_WE_WORK.md`
+— total **10,068 words across 4 files**. Before this session the equivalent surface
+was **11,770 words across 7 files** (`CLAUDE.md`, `OPERATING_RULES.md`,
+`WORLD_CLASS.md`, `KAIZEN.md`, `construction_loop.md`, `hats/README.md`,
+`adversarial_review_v2.md`).
+
+So the word reduction is **14%, not the order of magnitude an earlier draft of this
+file claimed** (it said ≈4,400, which was simply wrong and is corrected here). The
+real gain is structural, and worth stating plainly because the number alone
+undersells it: 7 documents became 4; a citation essay became a bar with numbers and
+honest statuses; a definition of v1 that did not previously exist now exists; and
+this index tells you which of the other 130+ documents bind you, which was
+previously unanswerable. `docs/BAR.md` also *grew*, because it now carries the
+product's purpose and felt experience (§0 and section P) — that is the right trade,
+not bloat.
 
 | Document | What it is |
 |---|---|
@@ -34,10 +51,17 @@ Read these. That is the whole contract.
 | `STATE.md` | Where we are + the session contracts. Machine block maintained by the reconciler. |
 | `TODOS.md` | The work queue. |
 
-Also binding, and mechanically enforced rather than read:
-`docs/memory/RED_CLASSES.md` (the red-class index `tools/construction_gate.py`
-requires citations against) and `docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md`
-(ratified design canon, scored by rubric on design PRs).
+**Also CANON, and the source of everything else:**
+`docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md` — **§1–§6 are the vision,
+mission, objectives, trust philosophy, emotion/feel/mood, payoff and behavioural
+architecture**, and PART C is the 8-criterion rubric every design PR is scored
+against. This is the *why* the rest of the canon serves; `docs/BAR.md` §0 quotes it
+and section P makes it measurable. Ratified — an agent does not rewrite it; it
+proposes edits to the founder (`docs/V1.md` ask 4).
+
+Also binding and mechanically enforced rather than read:
+`docs/memory/RED_CLASSES.md` — the red-class index `tools/construction_gate.py`
+requires citations against.
 
 ## REFERENCE — read when the task touches it
 

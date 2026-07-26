@@ -26,13 +26,112 @@ gate change and gets reviewed). Loosening any `ENFORCED` row is
 
 Last full measurement pass: **2026-07-26** (`docs/V1_AUDIT_2026-07-26.md`).
 
-**The scoreboard, 66 rows:** **46 MET** (one of them only informally) ·
-**13 NOT MET** · **6 UNMEASURED** · **1 partial** (H1, met for the two jobs that
-are scheduled). Read that as good news with a sharp edge: the *standards* are
-overwhelmingly met, and almost every miss is something built-but-not-connected or
-never-measured. **Nothing on the NOT MET list needs a new standard.** The six
-UNMEASURED rows are the honest embarrassment — five of them are the experience
-users actually get.
+**The scoreboard, 80 rows:** **51 MET** · **14 NOT MET** · **12 UNMEASURED** ·
+**2 NOT BUILT** · **1 partial** (H1, met for the two jobs that are scheduled).
+
+**The split that matters is not the total — it is where the misses cluster.**
+
+| Section | MET | Not met / not built / unmeasured |
+|---|---|---|
+| **P — purpose and felt experience** | 6 of 14 | **8** |
+| A–J — the engineering underneath | 45 of 66 | 21, and most are built-but-unwired |
+
+**Nothing on any NOT MET list needs a new standard.** Every engineering miss is
+something built and not connected, or never measured. But the P section is the
+honest indictment: the machine is in far better shape than the experience it exists
+to deliver, and **P1 — the ten-second answer, the single most important number in
+this product — has never been measured once.**
+
+---
+
+# §0 — What this is for
+
+Everything below section P exists to keep one promise. Founder directive,
+2026-07-26: *"Everything is to be built toward the vision and goals and objectives
+and other content surrounding this project and how it is supposed to work and make
+people feel. All actions should be in support of all of those things."*
+(`docs/memory/decisions/2026-07-26_vision-first-directive.md`.)
+
+The canonical text is `docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md` §1–§6,
+ratified. It is quoted here, never paraphrased — paraphrase is how canon drifts.
+
+> **Vision:** "A world where live music is easy to find, fairly represented, and
+> culturally valued. At scale: to let culture grow without being stripped of its
+> soul."
+>
+> **Mission:** "To assemble truth about live music, protect discovery from
+> distortion, and help real culture travel."
+>
+> **What ONE LIVE is:** "a system of record for what's really happening tonight —
+> artist-first by structure, trust-driven, calm, useful, real. Culture becomes
+> infrastructure, not content."
+>
+> **What ONE LIVE is not:** "not ticketing, not a social feed, not pay-to-play, not
+> an algorithm chasing engagement."
+
+**The moment the whole product is built for** (brief §3):
+
+> "It's 9:04 PM on a warm Austin night. You're on a sidewalk on East 6th, phone in
+> one hand, a friend saying 'so what are we doing?' … You have about ten seconds of
+> everyone's patience."
+
+**The feeling to create** (brief §3) — this is a specification, not decoration:
+
+> "the small thrill of *anticipation* — the night is still unwritten and full of
+> real options — fused with *calm certainty*: this thing knows, and it's right. No
+> FOMO anxiety, no doomscroll dread, no decision fatigue. The feeling of a friend
+> who always knows what's on and has never once been wrong — and never makes it
+> about themselves."
+
+**The payoff, and the whole brand in one sentence** (brief §5):
+
+> "The fan locks their phone within ten seconds holding a decision they feel good
+> about, and the show is exactly as promised when they walk in. That kept promise,
+> repeated nightly, is the entire brand."
+
+**What the product is for, in the founder's current framing** (2026-07-22, superseding
+the defensive "Less chaos. Real shows." tagline): *"This is about finding and
+engaging in experiences, helping individuals and the culture thrive."* Copy
+decisions pull toward what a night can **give**, never toward what the app removes.
+
+**How to use §0.** It is a blocking question in review, at the same standing as a
+failing test: *does this change serve the fan on the sidewalk at 9:04 PM?* A change
+that is correct, fast, well-tested and makes that moment worse is not done. A
+reviewer may block on §0 alone.
+
+---
+
+## P. Purpose and felt experience — the reason the rest exists
+
+Placed first deliberately. Rows P1–P14 are the product; A–J are how it is kept
+honest.
+
+| # | World class means | Number | Gate | Enforcement | Status 2026-07-26 |
+|---|---|---|---|---|---|
+| P1 | **The ten-second answer.** A stranger with no account answers "what should I do tonight?" and locks their phone with a decision they feel good about. | **≤ 10 s** from first paint to decision | — | PROPOSED | **UNMEASURED** — the single most important number in the product and nothing measures it (R-061) |
+| P2 | **It feels instant.** The feed is usable before impatience starts. | **≤ 2.0 s** load (brief §1). *Where canon disagreed, the stricter number won: Core Web Vitals' LCP ≤ 2.5 s is the floor of external acceptability, 2.0 s is the product bar* | — | PROPOSED | **UNMEASURED** (see E1) |
+| P3 | **No account, no login, no onboarding, no cognitive tax.** The first rewarding moment arrives in seconds. | 0 required accounts, 0 onboarding steps | `web/middleware.ts` (public feed is open; `/ops` denied) + `web/lib/auth.test.ts` | ENFORCED | **MET** |
+| P4 | **Trust is shown, never claimed.** No badges, no shields, no checkmarks, no "verified"/"confirmed" text, no trust-score chrome, no star ratings. | **0** badge elements in any shipped surface | design rubric + `web/lib/trust.test.ts` | ENFORCED | **MET** |
+| P5 | **Honesty is a courtesy, never an alarm.** Lower certainty is one small quiet icon; tapping opens a calm, one-tap-dismissible sheet with the venue's own link. | 1 icon, 0 labels, 0 colour alarms, ≤ 1 tap to dismiss | `web/lib/trust.ts` + its test | ENFORCED | **MET** |
+| P6 | **Nothing real is ever hidden and money never decides what is seen.** Uncertain shows still appear; sponsored anything, if it exists, is outside discovery. | 0 hidden real events, 0 paid ranking inputs | `tools/trust_gate.py` (see A5, A7) | ENFORCED | **MET** |
+| P7 | **The kept promise.** The show is as promised when the fan walks in. | **≥ 99%** of published events accurate on time / venue / existence, sampled | — | PROPOSED | **UNMEASURED** — extraction accuracy is measured (B1: 0.63% hallucination) but *published-event accuracy against the real world* is not (R-062) |
+| P8 | **Every real show is findable.** Coverage is the mission, not a metric of convenience. | coverage denominator defined and tracked per city | — | PROPOSED | **UNMEASURED** — CAPCOG denominator is an open question (R-025; PR #74 in flight) |
+| P9 | **Artist-first by structure.** An artist is findable without paying, and a creator's own words always beat ours. | creator override wins 100% of the time | Descriptor Foundry + Emotion Glyph creator control (brief appendices) | PROPOSED | **NOT BUILT** — claim flow and creator dashboard do not exist yet |
+| P10 | **AI never speaks over the artist.** A machine-drafted descriptor is a placeholder and a reason to claim: composed only from the artist's own materials, faithfulness-gated, marked without shouting. | 0 invented facts; 100% of AI descriptors through the Foundry (6 candidates → pairwise knockout → fusion → independent judge → provenance) | `ai/eval_harness.py` + golden-set regression | PROPOSED | **NOT BUILT** — the Foundry is specified, no descriptor ships today |
+| P11 | **Curiosity, honestly opened.** A card shows enough to activate a question and not so much that there's no reason to tap. | every card carries ≤ 1 deliberate hook | design rubric criterion 8 (click-pull) | PROPOSED | **UNMEASURED** |
+| P12 | **White-hat only.** Every persuasive mechanism passes the reflection test: shown exactly how the screen influenced them, the user says "yes, that's what I wanted anyway." | **0** dark patterns — no fake scarcity, no guilt, no confirm-shaming, no streak-shaming, no engagement-chasing | design rubric + review | ENFORCED (by review) | **MET** — no such mechanism has shipped |
+| P13 | **The daily edition.** Tonight happens once; the feed is dated, fresh, and finite. Anticipation over dread, never guilt for absence. | feed is bounded by tonight, refreshed ≥ 2×/day | C1, C2 | ENFORCED (the freshness half) | **NOT MET** — the freshness mechanism is broken/unscheduled (C1, C2) |
+| P14 | **Emotional fidelity, scored not vibed.** Design work is graded against the brief's own 8-criterion rubric (10-second answer · night-sidewalk legibility · trust-by-craft · distinctiveness vs named competitors · emotional fidelity to §3 · accessibility · survivability · click-pull). | **≥ 4/5 on every criterion**, deltas logged never silent | brief PART C rubric, applied on every design PR | ENFORCED (process) | **UNMEASURED against a shipped surface** |
+
+**Read the P column honestly.** Six rows MET, one NOT MET, two NOT BUILT, five
+UNMEASURED. Compare that with the engineering sections, which are overwhelmingly
+MET. **The machine is in far better shape than the experience it exists to
+deliver** — and P1, the ten-second answer, is the single most important number in
+this product and has never been measured once.
+
+That asymmetry is the true headline of the 2026-07-26 audit, sharper than the
+word-count findings, and it is why `docs/V1.md` now carries experience
+done-criteria rather than only mechanical ones.
 
 ---
 
@@ -87,7 +186,7 @@ users actually get.
 
 | # | World class means | Number | Gate | Enforcement | Status |
 |---|---|---|---|---|---|
-| E1 | Largest Contentful Paint, 75th percentile, mobile. | **≤ 2.5 s** | — | PROPOSED | **UNMEASURED** |
+| E1 | Largest Contentful Paint, 75th percentile, mobile. | **≤ 2.0 s** (the brief's number — see P2; Core Web Vitals' 2.5 s is the floor of external acceptability, not the bar) | — | PROPOSED | **UNMEASURED** |
 | E2 | Interaction to Next Paint, 75th percentile. | **≤ 200 ms** | — | PROPOSED | **UNMEASURED** |
 | E3 | Cumulative Layout Shift, 75th percentile. | **≤ 0.1** | — | PROPOSED | **UNMEASURED** |
 | E4 | Accessibility: WCAG 2.2 **AA**, including 4.5:1 text contrast. | AA, 0 violations | — | PROPOSED | **UNMEASURED** |
@@ -158,7 +257,7 @@ nothing. A proposed mechanism is in `docs/V1.md`.
 | J5 | The harness is pruned as well as grown — anything the model now does for free gets deleted. | 1 pruning pass per Kaizen cycle | — | PROPOSED | **NOT MET** — never done until this audit (audit §6) |
 | J6 | Every internally-caught defect gets a ledger row with its class; repeat classes trend to zero. | repeat-class rate ↓ | `tools/kaizen_trends.py` (blocking) | ENFORCED | **MET** — 194 rows |
 | J7 | The current bottleneck is named explicitly each session. | 1 named bottleneck | `STATE.md` | ENFORCED | **MET** — currently **delivery** |
-| J8 | The rule surface a builder must hold before writing code stays small enough to hold. | **≤ 5,000 words** of CANON | `docs/INDEX.md` classification | PROPOSED | **NOT MET at audit time** (~26,000 words); this change brings CANON to ≈4,400 |
+| J8 | The rule surface a builder must hold before writing code stays small enough to hold, and every part of it is reachable in one sitting. | **≤ 4 documents**, and the count published in `docs/INDEX.md` is measured, never estimated | `docs/INDEX.md` classification | PROPOSED | **document count MET** (4: charter, bar, v1, loop). Words: **10,068, down 14% from 11,770** across the 7 documents this replaced — measured 2026-07-26. An earlier draft claimed ≈4,400, which was wrong; the real gain is structural, not a word cull, and `docs/BAR.md` deliberately grew to carry §0 and section P |
 
 ---
 

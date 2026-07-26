@@ -1,5 +1,32 @@
 # ONE LIVE — CHANGE LOG
 
+## 2026-07-26 (same session) — The vision goes to the front of the canon (Contract #28 amended)
+
+**Founder directive, verbatim:** *"Everything is to be built toward the vision and goals and objectives and other content surrounding this project and how it is supposed to work and make people feel. All actions should be in support of all of those things."* Record: `docs/memory/decisions/2026-07-26_vision-first-directive.md`.
+
+### What it exposed
+The bar shipped earlier the same session had 66 rows grading trust, extraction, coverage, security, code, testing, reliability, cost and process — and **zero rows naming the vision, the mission, the promise to the fan, or the feeling the product exists to create.** All of that text already existed, ratified, in `docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md` §1-§6. A bar that measures correctness without measuring purpose passes a product that is accurate, fast, well-tested and dead.
+
+### Changed
+- **`docs/BAR.md` now opens with §0** — vision, mission, the 9:04 PM moment, the feeling to create, the payoff — **quoted** from the ratified brief, never paraphrased, because paraphrase is how canon drifts. §0 is a blocking review question at the standing of a failing test.
+- **New section P, placed ahead of every engineering section:** 14 rows on purpose and felt experience. The ten-second answer, the 2.0 s load, no-login, zero badges, honesty-as-courtesy, nothing-hidden, the kept promise, findability, artist-first, AI-never-speaks-over-the-artist, honest curiosity, white-hat only, the daily edition, and emotional fidelity scored against the brief's own 8-criterion rubric.
+- **`CLAUDE.md` opens with the vision rather than the rules**, and prime directive 5 makes "does this serve the fan on the sidewalk at 9:04 PM?" blocking in review.
+- **`docs/V1.md` gains done-criteria 6 and 7** — the ten-second answer timed on a real phone by three first-time users, and the brief's rubric scored against the shipped surface at ≥ 4/5 on every criterion. The list had been five entirely mechanical criteria.
+- **`docs/HOW_WE_WORK.md`** asks the purpose question before the quality bar, and requires a session contract to name the bar row the change exists to move.
+- **Where canon disagreed, the stricter number won:** the brief's "under 2 seconds" beats Core Web Vitals' 2.5 s, which is now recorded as the floor of external acceptability. A tightening, not a relaxation.
+
+### The finding that fell out of it — sharper than any word count
+**6 of 14 purpose rows are MET, against 45 of 66 engineering rows.** The machine is in far better shape than the experience it exists to deliver. **P1 — the ten-second answer, the brief's own headline objective and its payoff — has never been measured once, in any form, by anyone** (R-061). P7, the kept promise the brief calls *"the entire brand"*, is likewise unmeasured: extraction faithfulness grades the extractor against its source page, not the listing against reality (R-062). R-063 records that artist-first has no surface yet.
+
+### A second self-correction, same principle
+An earlier draft implied the simplification cut the rule surface to roughly a third. Measured with `git show` + `wc`: **11,770 words across 7 documents became 10,068 across 4 — a 14% word reduction**, not an order of magnitude. The structural gain is real; the word cull was modest, and `docs/BAR.md` deliberately GREW to carry the vision. The wrong figure is corrected in `docs/INDEX.md`, BAR row J8 and the audit rather than quietly dropped.
+
+### Escalated, not decided
+The ratified brief still mandates the tagline **"Less chaos. Real shows."** that the founder removed on 2026-07-22 in favour of *"finding and engaging in experiences, helping individuals and the culture thrive."* BAR §0 carries the thrive framing as current intent; the brief is founder-ratified, so an agent proposes rather than rewrites — founder ask 4, with the exact proposed edit quoted.
+
+**No gate, threshold, check, test or invariant was weakened.** New P rows are ENFORCED only where a mechanism exists today, PROPOSED otherwise.
+
+
 ## 2026-07-26 — Deep audit, canon simplification, and the first recorded escaped defect (Contract #28)
 
 **Session type:** founder-directed deep evaluation of everything built to date, plus the simplification it called for. Evidence: `docs/V1_AUDIT_2026-07-26.md`. Plan: `docs/V1.md`. Bar: `docs/BAR.md`.

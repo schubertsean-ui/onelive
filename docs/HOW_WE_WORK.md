@@ -12,14 +12,29 @@ many words you must read to know what to do.
 
 ---
 
-## 0. The quality bar, in one line
+## 0. What we are for, then the quality bar
+
+**Ask the purpose question first, because it is the one that can invalidate the
+work rather than improve it:**
+
+> **Does this serve the fan on the sidewalk at 9:04 PM, with ten seconds of
+> everyone's patience?**
+
+That is `docs/BAR.md` §0 — the vision, the mission, and the feeling the product
+exists to create (anticipation fused with calm certainty; *"this thing knows, and
+it's right"*). Founder directive, 2026-07-26: everything is built toward it, and
+**the feeling is part of the spec**. A change that is correct, fast, well-tested and
+makes that moment worse is not done, and a reviewer may block on that alone.
+
+Then the quality bar:
 
 > **No "ok" code. No "no immediate problems." Nothing lingers, is ignored, or is
 > set aside for later.**
 
 The measurable form of that sentence — per aspect, as a number, with the enforcing
-gate — is **`docs/BAR.md`**. If something is merely "fine," it is not done: state
-the gap and close it, or record it (§5).
+gate — is **`docs/BAR.md`**: section **P** for purpose and felt experience, A–J for
+the engineering that keeps the promise honest. If something is merely "fine," it is
+not done: state the gap and close it, or record it (§5).
 
 Three non-negotiables inside the bar, because they are the ones most often lost:
 
@@ -50,7 +65,11 @@ written that way. Repetition is not verification.
 ## 2. Write the contract before any code
 
 Into `STATE.md`: **goal · scope · non-goals · done-criteria.** Done-criteria cite
-`docs/BAR.md` rows, so "done" is a number rather than an opinion.
+`docs/BAR.md` rows, so "done" is a number rather than an opinion. **At least one
+cited row should be the one this change exists to move** — if a change cites no bar
+row and serves no §0 purpose, say so plainly in the contract and expect that to be
+questioned. Harness work is legitimate; harness work that nobody can trace to the
+fan on the sidewalk is how a build starts optimising itself.
 
 If the scope moves mid-build, **amend the contract in the same push, quoting the
 original**, and say why it moved. A change judged against done-criteria it no
@@ -109,6 +128,9 @@ bash tools/validate        # all 19 checks; must exit 0
 
 `--quick` skips the slow checks and is not a pass. `--allow-skips` is
 acknowledged debt and every skip is recorded. A SKIP is never green.
+
+The reviewer's first question is the purpose question (§0), not a style question.
+"Correct but makes the 9:04 PM moment worse" is a REQUEST-CHANGES, not a nit.
 
 Then the **independent non-Claude review**, mandatory on every PR, no path filter
 (`.github/workflows/adversarial-review.yml`). It reads the raw diff and the test
@@ -184,6 +206,7 @@ These outrank brevity.
 
 | For | Read |
 |---|---|
+| **Why the product exists, and the feeling it must create** | `docs/BAR.md` §0 + `docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md` §1–§6 |
 | The bar, per aspect, as a number | `docs/BAR.md` |
 | Citations behind every bar clause | `docs/WORLD_CLASS.md` |
 | What v1 is and what is left | `docs/V1.md` |
