@@ -35,7 +35,7 @@ compatibility only.
    deployment needs **no environment variables at all**: the auth gate
    auto-opens on `VERCEL_ENV=preview|development` (host-protected by Vercel), and
    the Supabase read uses the committed **public** default. Privacy comes from
-   Vercel Deployment Protection; ops (`/ops`) stays denied regardless. Setting
+   Vercel Deployment Protection; ops (`/ops`) stays denied regardless. **Amended 2026-07-26:** a *Protection Bypass for Automation* secret now exists for this project, so privacy rests on possession of the bypass URL rather than on Vercel's login wall — that was the point of `docs/V1.md` ask 6, and it is what let the agent verify the deployment and friends open it. `/ops` is still denied on that code path regardless, and the real boundary remains row-level security, never URL secrecy. Setting
    `NEXT_PUBLIC_AUTH_DISABLED=1` still works but is no longer required.
 2. **Stealth gate (before public launch):** `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
    + Clerk secret + `ONELIVE_ALLOWLIST` (+ optionally override the Supabase vars
