@@ -60,5 +60,20 @@ in flight, then in-flight work must be recoverable from disk without asking.
 That is already the reconcile contract (`docs/SESSION_START.md`,
 `tools/session_reconcile.py`) and it becomes load-bearing here.
 
+**Contradictions found and resolved in the same change** (the founder's
+follow-up: "Change any contradictory code or canon or rules"):
+- `CLAUDE.md` prime directive 1 still read "notifying the founder at merge",
+  which the 2026-07-25 silent-merge directive had already removed
+  (`docs/memory/decisions/2026-07-25_silent-merge-directive.md`: "I don't want
+  to know about merge - just get the job done at a world class level"). The
+  charter now states the narrowing in place, so the two cannot be read as
+  conflicting. The merge CONDITIONS are untouched — this was and remains a
+  notification-posture change only.
+- `CLAUDE.md` "Communicating with the founder" listed five rules, none of which
+  said not to narrate. It now carries rule 6 pointing at this one, and states
+  that it outranks the habit of narrating.
+- The two directives are consistent and now say so explicitly: the founder is
+  interrupted by DECISIONS, never by PROGRESS.
+
 **Retrieval:** `docs/memory/RED_CLASSES.md` row `status-narration-not-progress`,
 so the class is matched on future changes rather than remembered.
