@@ -168,3 +168,55 @@ def test_channels_are_not_counted_as_venues():
         {"category": "social", "name": "Some IG Account", "county": "travis"},
     ])
     assert targets == [] and unresolved == []
+
+
+# ---- the false-zero-coverage defect (Gemini seat, spec-vs-contract) ----------
+
+def test_a_cityless_target_still_matches_an_ingested_row_with_a_city():
+    """THE defect. 61 of 69 targets carry no city (the catalog states a county),
+    so an exact name|city key computed 'name|' for the target and 'name|austin'
+    for the ingested row — every one missed and coverage read ~0%. A measurement
+    tool that under-reports to zero is worse than no tool: it would have had me
+    report that we cover nothing."""
+    import tools.capcog_coverage as cc
+    rows = [{"venue_name": "Mohawk", "venue_city": "Austin"}]
+    targets = [{"name": "Mohawk", "city": None, "county": "travis"}]
+    out = cc.coverage(rows, targets)
+    assert out["covered_venue_count"] == 1
+    assert out["coverage_pct"] == 100.0
+
+
+def test_city_still_separates_same_named_venues_when_both_state_one():
+    """City remains a real discriminator where the data supports it."""
+    import tools.capcog_coverage as cc
+    rows = [{"venue_name": "The Grand", "venue_city": "Austin"}]
+    targets = [{"name": "The Grand", "city": "Llano", "county": "llano"}]
+    assert cc.coverage(rows, targets)["covered_venue_count"] == 0
+
+
+def test_a_cityless_target_matching_two_towns_is_reported_ambiguous():
+    """Never silently resolved in either direction — counted and named."""
+    import tools.capcog_coverage as cc
+    rows = [{"venue_name": "The Grand", "venue_city": "Austin"},
+            {"venue_name": "The Grand", "venue_city": "Llano"}]
+    targets = [{"name": "The Grand", "city": None, "county": "travis"}]
+    out = cc.coverage(rows, targets)
+    assert out["ambiguous_matches"] == ["The Grand"]
+
+
+def test_layers_dedupe_a_cityless_catalog_venue_against_a_cited_import():
+    """A city-less layer-1 venue must absorb the same venue arriving from TABC
+    with a city, or the denominator double-counts it."""
+    import tools.build_capcog_targets as bt
+    existing = [{"name": "Mohawk", "city": None, "county": "travis"}]
+    incoming = [{"name": "Mohawk", "city": "austin", "county": "travis"}]
+    assert len(bt.merge(existing, incoming)) == 1
+
+
+def test_a_zip_code_does_not_hide_a_known_city():
+    """Venue addresses arrive as 'Austin, TX 78701'; the ZIP used to survive the
+    suffix strip and turn a known Austin venue into UNKNOWN — a false gap."""
+    from worker.region.capcog import in_capcog, normalize_place
+    assert normalize_place("Austin, TX 78701") == "austin"
+    assert in_capcog("Austin, TX 78701") is True
+    assert in_capcog("San Antonio, TX 78205") is False

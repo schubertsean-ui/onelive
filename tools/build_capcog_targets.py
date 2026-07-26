@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import re
 import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -82,9 +83,8 @@ def from_catalog(catalog: list) -> tuple:
             # probably is. Longest place name first so "Round Rock" is not
             # matched as "Round Top" would be, and the match must sit on a word
             # boundary so "Austintatious" cannot resolve to Austin.
-            import re as _re
             for place in sorted(CAPCOG_PLACES, key=len, reverse=True):
-                if _re.search(rf"\b{_re.escape(place)}\b", name.lower()):
+                if re.search(rf"\b{re.escape(place)}\b", name.lower()):
                     county, resolved_by = CAPCOG_PLACES[place], "name_text"
                     city = city or place
                     break
@@ -103,19 +103,35 @@ def from_catalog(catalog: list) -> tuple:
 
 
 def merge(existing: list, incoming: list) -> list:
-    """Merge by (normalized name, normalized city). First layer wins on
-    conflict, so a hand-curated catalog entry is never overwritten by a bulk
-    import of the same venue."""
-    def key(t):
-        return ((t.get("name") or "").strip().lower(),
-                normalize_place(t.get("city")) or "")
+    """Merge across layers. First layer wins, so a hand-curated catalog entry is
+    never overwritten by a bulk import of the same venue.
 
-    seen = {key(t) for t in existing}
+    Evaluator blocker (Gemini seat): the key used to be (name, city) on both
+    sides. Layer 1 entries mostly have NO city — the catalog states a county —
+    so a Travis venue with city null would not dedupe against the same venue
+    arriving from TABC with city "austin", and the denominator would carry the
+    venue TWICE. A denominator that double-counts is a silently wrong
+    denominator, which is the whole thing this file exists to avoid.
+
+    So: name is the identity, city only separates when BOTH sides state one and
+    they disagree. A city-less entry absorbs the same-named incoming one rather
+    than duplicating it.
+    """
+    def name_of(t):
+        return (t.get("name") or "").strip().lower()
+
+    by_name: dict = {}
+    for t in existing:
+        by_name.setdefault(name_of(t), set()).add(normalize_place(t.get("city")) or "")
+
     out = list(existing)
     for t in incoming:
-        if key(t) not in seen:
-            seen.add(key(t))
-            out.append(t)
+        n, c = name_of(t), normalize_place(t.get("city")) or ""
+        known = by_name.get(n)
+        if known is not None and (c in known or "" in known or not c):
+            continue          # same venue already present
+        by_name.setdefault(n, set()).add(c)
+        out.append(t)
     return out
 
 

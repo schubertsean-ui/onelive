@@ -72,27 +72,63 @@ def load_targets(path: pathlib.Path) -> list | None:
     return venues
 
 
-def venue_key(name: str | None, city: str | None) -> str | None:
-    """Match key for a venue. Name plus city, both normalized — a bare name
-    collides across towns ('The Grand' exists more than once)."""
+def venue_name_key(name: str | None) -> str | None:
+    """Normalized venue NAME. The primary match key."""
     if not name:
         return None
-    return f"{str(name).strip().lower()}|{normalize_place(city) or ''}"
+    return str(name).strip().lower() or None
+
+
+def index_by_name(rows: list) -> dict:
+    """{normalized name -> set of normalized cities seen for it}."""
+    idx: dict = {}
+    for row in rows:
+        key = venue_name_key(row.get("venue_name"))
+        if key:
+            idx.setdefault(key, set()).add(
+                normalize_place(row.get("venue_city") or row.get("city")) or "")
+    return idx
+
+
+def target_is_covered(target: dict, idx: dict) -> tuple:
+    """Is this target venue present in what we ingested? Returns
+    (covered, ambiguous).
+
+    Evaluator blocker (Gemini seat, spec-vs-contract lens): matching used to be
+    an exact `name|city` string on BOTH sides. 61 of 69 catalog targets carry no
+    city — the catalog rows state a county, not a town — so every one of them
+    computed `name|` while the ingested row computed `name|austin`, the lookup
+    missed, and coverage reported ~0%. A measurement tool that under-reports to
+    zero is worse than none: it would have had me tell the founder we cover
+    nothing, in the exact session where a wrong number was the complaint.
+
+    So city is a DISAMBIGUATOR, not part of the key. A target matches on name;
+    city only has to agree when BOTH sides actually state one. When a
+    city-less target matches a name that we ingested in more than one distinct
+    town, that is AMBIGUOUS — counted and reported, never silently resolved in
+    either direction.
+    """
+    key = venue_name_key(target.get("name"))
+    if key is None or key not in idx:
+        return False, False
+    cities = idx[key]
+    tcity = normalize_place(target.get("city"))
+    if tcity:
+        return (tcity in cities or cities == {""}), False
+    known = {c for c in cities if c}
+    return True, len(known) > 1
 
 
 def coverage(rows: list, targets: list | None) -> dict:
     """Ingested venues vs the target denominator, per county."""
-    have: set = set()
-    for row in rows:
-        key = venue_key(row.get("venue_name"), row.get("venue_city") or row.get("city"))
-        if key:
-            have.add(key)
+    idx = index_by_name(rows)
     if targets is None:
-        return {"status": "NO_TARGET_LIST", "ingested_venue_count": len(have)}
+        return {"status": "NO_TARGET_LIST", "ingested_venue_count": len(idx)}
 
     per_county: dict = {c: {"target": 0, "covered": 0, "missing": []} for c in
                         sorted(CAPCOG_COUNTIES)}
     matched = 0
+    ambiguous_names: list = []
     for t in targets:
         city = t.get("city")
         county = t.get("county") or county_for_place(city)
@@ -101,8 +137,10 @@ def coverage(rows: list, targets: list | None) -> dict:
             # must not quietly inflate or deflate coverage.
             continue
         per_county[county]["target"] += 1
-        key = venue_key(t.get("name"), city)
-        if key and key in have:
+        covered, ambiguous = target_is_covered(t, idx)
+        if ambiguous:
+            ambiguous_names.append(t.get("name"))
+        if covered:
             per_county[county]["covered"] += 1
             matched += 1
         else:
@@ -110,7 +148,8 @@ def coverage(rows: list, targets: list | None) -> dict:
     total_target = sum(c["target"] for c in per_county.values())
     return {
         "status": "MEASURED",
-        "ingested_venue_count": len(have),
+        "ingested_venue_count": len(idx),
+        "ambiguous_matches": ambiguous_names,
         "target_venue_count": total_target,
         "covered_venue_count": matched,
         "coverage_pct": (round(100.0 * matched / total_target, 1)

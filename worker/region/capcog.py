@@ -135,11 +135,17 @@ def normalize_place(value: Optional[str]) -> Optional[str]:
     text = str(value).strip().lower()
     if not text:
         return None
+    # Drop a trailing ZIP first (evaluator nit): venue address strings arrive as
+    # "Austin, TX 78701", and stripping only the state suffix left the ZIP
+    # attached, so the lookup missed and a known Austin venue resolved to
+    # UNKNOWN — a false gap in the report.
+    import re as _re
+    text = _re.sub(r"[\s,]+\d{5}(?:-\d{4})?$", "", text).strip()
     # 'austin, tx' / 'austin, texas' -> 'austin'
     for suffix in (", tx", ", texas", " tx", " texas"):
         if text.endswith(suffix):
             text = text[: -len(suffix)].strip()
-    return text or None
+    return text.strip(" ,") or None
 
 
 def county_for_place(city: Optional[str]) -> Optional[str]:
