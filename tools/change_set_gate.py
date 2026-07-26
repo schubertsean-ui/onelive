@@ -123,6 +123,12 @@ def _is_low_review_cost(path: str) -> bool:
                for p in LOW_REVIEW_COST)
 
 
+def _git_z(*args: str) -> list:
+    """git output split on NUL, with the trailing empty field dropped."""
+    raw = _git(*args)
+    return [f for f in raw.split("\0") if f != ""]
+
+
 def _git(*args: str) -> str:
     """Run git, or STOP.
 
@@ -149,18 +155,59 @@ def measure(base: str, head: str = "HEAD") -> dict:
     """Reviewable size of head against base."""
     files: list = []
     total = 0
+    # --no-renames on BOTH walks. With rename detection on (a git config this
+    # tool does not control), numstat emits `old => new` and
+    # `{a => b}/file.py`, which are not paths — they would defeat the
+    # low-review-cost matching and the deleted-path lookup silently, in the
+    # direction of counting a moved file as new. Evaluator nit, PR #79 r4.
     # Which paths were actually DELETED, read from git rather than inferred.
+    # -z: NUL-delimited. A path may legally contain a TAB or a NEWLINE, and
+    # tab-splitting human-oriented output made such a file unparseable — which
+    # the old code then SKIPPED, so it vanished from the totals entirely. A
+    # size gate that silently drops the rows it cannot read is a size gate you
+    # bypass by naming a file oddly. Evaluator finding, PR #79 r4.
     deleted = {}
-    for line in _git("diff", "--name-status", base, head).splitlines():
-        parts = line.split("\t")
-        if len(parts) >= 2 and parts[0].startswith("D"):
-            deleted[parts[-1]] = True
-    numstat = _git("diff", "--numstat", base, head)
-    for line in numstat.splitlines():
-        parts = line.split("\t")
-        if len(parts) != 3:
-            continue
-        added, removed, path = parts
+    fields = _git_z("diff", "--no-renames", "--name-status", "-z", base, head)
+    i = 0
+    while i < len(fields):
+        status = fields[i]
+        if status.startswith(("C", "R")):        # never emitted: --no-renames
+            raise SystemExit(
+                f"change_set_gate: FAIL — git emitted a rename/copy status "
+                f"({status!r}) despite --no-renames; the diff cannot be "
+                f"measured reliably.")
+        if i + 1 >= len(fields):
+            raise SystemExit(
+                f"change_set_gate: FAIL — --name-status ended mid-record "
+                f"after {status!r}. An unparseable diff is not an empty one.")
+        if status.startswith("D"):
+            deleted[fields[i + 1]] = True
+        i += 2
+    # numstat -z emits "added\tremoved\t" then the path as its own NUL field.
+    fields = _git_z("diff", "--no-renames", "--numstat", "-z", base, head)
+    records = []
+    i = 0
+    while i < len(fields):
+        head_field = fields[i]
+        bits = head_field.split("\t")
+        if len(bits) != 3:
+            raise SystemExit(
+                f"change_set_gate: FAIL — unparseable numstat record "
+                f"{head_field!r}. The old code SKIPPED these, so any path "
+                f"shape the parser could not read disappeared from the "
+                f"totals — a size gate you bypass by naming a file oddly.")
+        added, removed, inline_path = bits
+        if inline_path:
+            records.append((added, removed, inline_path))
+            i += 1
+        else:
+            if i + 1 >= len(fields):
+                raise SystemExit(
+                    "change_set_gate: FAIL — numstat ended before its path.")
+            records.append((added, removed, fields[i + 1]))
+            i += 2
+
+    for added, removed, path in records:
         if _is_low_review_cost(path):
             continue
         if added == "-":
@@ -215,11 +262,27 @@ def load_freeze() -> dict | None:
         raise SystemExit(
             f"change_set_gate: FAIL — {FREEZE} has no 'rounds' list. A scope "
             f"record that cannot be read is not an absent one.")
-    first = rounds[0]
-    if not isinstance(first, dict):
-        raise SystemExit(
-            f"change_set_gate: FAIL — {FREEZE} round 0 is not an object.")
-    return first
+    for r in rounds:
+        if not isinstance(r, dict):
+            raise SystemExit(
+                f"change_set_gate: FAIL — a round in {FREEZE} is not an "
+                f"object.")
+    return rounds[0]
+
+
+def baseline_for(base_sha: str) -> dict | None:
+    """The first round taken against THIS base, or None.
+
+    Rounds from an earlier review are history, not this review's baseline.
+    Without the distinction the record lands on master and constrains the next
+    change as though its review had already begun — and rounds written before
+    the epoch field existed carry no base, so they are treated as history too
+    rather than being assumed to be ours. Evaluator finding, PR #79 r4.
+    """
+    for r in freeze_rounds():
+        if isinstance(r, dict) and r.get("base") == base_sha:
+            return r
+    return None
 
 
 def freeze_rounds() -> list:
@@ -280,7 +343,15 @@ def _rounds_rewritten(base: str) -> str:
                                   cwd=REPO, capture_output=True, text=True,
                                   check=False)
             if proc.returncode != 0:
-                continue                # deleted there; the next version wins
+                # DELETED at this revision. The old code skipped it, so a
+                # commit could remove the append-only record and a later one
+                # restore it with a different rounds[0] — the deletion itself
+                # being the bypass. Evaluator finding, PR #79 r4.
+                if previous:
+                    return (f"{label} DELETED the freeze record. Removing the "
+                            f"custody artifact is how the append-only rule "
+                            f"gets skipped, so removal is the violation.")
+                continue                # never existed yet; nothing to protect
             try:
                 rounds = (json.loads(proc.stdout) or {}).get("rounds") or []
             except ValueError:
@@ -329,6 +400,13 @@ def main(argv=None) -> int:
         FREEZE.parent.mkdir(parents=True, exist_ok=True)
         rounds = freeze_rounds()
         rounds.append({
+            # THE REVIEW EPOCH. Without it, this record lands on master and
+            # silently becomes the universal baseline for the NEXT change —
+            # a scope freeze from a finished review constraining an unrelated
+            # one, and reading as if that review had already started. The base
+            # SHA is what makes "this PR's reviewed scope" a distinct thing.
+            # Evaluator finding, PR #79 r4.
+            "base": _git("rev-parse", base),
             "branch": _git("rev-parse", "--abbrev-ref", "HEAD"),
             "frozen_at_head": m["head"],
             "reviewable_files": m["reviewable_files"],
@@ -370,7 +448,20 @@ def main(argv=None) -> int:
             f"{m['reviewable_files']} files exceeds the {HARD_FILES} ceiling "
             f"(~90% of changes at Google touch fewer than 10). SPLIT IT.")
 
-    freeze = load_freeze()
+    # RUN EVEN WITH NO CURRENT FREEZE. Gating this on `if freeze` meant that
+    # DELETING docs/review/SCOPE_FREEZE.json disabled the only append-only
+    # enforcement path — fail-open on the gate's own custody artifact, by the
+    # party it constrains. Evaluator finding, PR #79 r4.
+    base_rounds = _rounds_at(base)
+    if base_rounds and not freeze_rounds():
+        failures.append(
+            "THE SCOPE FREEZE RECORD WAS DELETED. It exists on the base and "
+            "not here. A missing custody record reads as 'no freeze' and "
+            "skips growth enforcement entirely, so its removal is the "
+            "violation — restore it, or say plainly why this change should "
+            "not be scope-checked.")
+
+    freeze = baseline_for(_git('rev-parse', base))
     # NOT gated on the branch name. `git rev-parse --abbrev-ref HEAD` returns
     # the literal "HEAD" on every detached checkout — which is what every CI
     # runner does — so requiring a name match silently skipped the growth check
@@ -378,18 +469,19 @@ def main(argv=None) -> int:
     # a committed file), so its presence is the whole condition; the branch is
     # recorded for the operator, not consulted as a guard. Evaluator finding,
     # PR #79 r1, and my own contract claimed the opposite.
+    # UNCONDITIONAL. A dropped or rewritten earlier round is a RESET, and a
+    # reset is the bypass this record exists to stop — including the reset that
+    # deletes the file, which is why this no longer sits behind `if freeze`.
+    drift = _rounds_rewritten(base)
+    if drift:
+        failures.append(
+            f"SCOPE FREEZE HISTORY WAS REWRITTEN: {drift}\n"
+            f"    The record is append-only. Re-freezing adds a round; it "
+            f"never resets the baseline, because a resettable baseline "
+            f"means 'this change did not grow' is a claim the author can "
+            f"make true after the fact.")
+
     if freeze:
-        # A dropped or rewritten earlier round is a RESET, and a reset is the
-        # bypass this record exists to stop. Compare against the base-owned
-        # copy: earlier rounds must survive verbatim.
-        drift = _rounds_rewritten(base)
-        if drift:
-            failures.append(
-                f"SCOPE FREEZE HISTORY WAS REWRITTEN: {drift}\n"
-                f"    The record is append-only. Re-freezing adds a round; it "
-                f"never resets the baseline, because a resettable baseline "
-                f"means 'this change did not grow' is a claim the author can "
-                f"make true after the fact.")
         dl = m["reviewable_lines"] - freeze.get("reviewable_lines", 0)
         df = m["reviewable_files"] - freeze.get("reviewable_files", 0)
         if dl > MAX_GROWTH_LINES or df > MAX_GROWTH_FILES:

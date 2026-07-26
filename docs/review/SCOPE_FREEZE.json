@@ -15,6 +15,14 @@
       "reviewable_files": 10,
       "reviewable_lines": 853,
       "_note": "after adopting r1's four fail-open fixes"
+    },
+    {
+      "base": "f907a5189ab44ee19238f862face50baec01710e",
+      "branch": "claude/change-set-discipline-2026-07-26",
+      "frozen_at_head": "r4",
+      "reviewable_files": 10,
+      "reviewable_lines": 684,
+      "_note": "r4: the SAME first-reviewed scope, now carrying its review epoch so this record cannot become the next change's baseline"
     }
   ]
 }

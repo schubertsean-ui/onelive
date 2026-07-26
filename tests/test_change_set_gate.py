@@ -47,7 +47,7 @@ def test_a_change_past_the_review_ceiling_FAILS(monkeypatch, capsys):
     """Beyond the measured collapse point a change is skimmed, not reviewed."""
     monkeypatch.setattr(gate, "measure", lambda base, head="HEAD":
                         _measure(5, gate.HARD_LINES + 1))
-    monkeypatch.setattr(gate, "load_freeze", lambda: None)
+    monkeypatch.setattr(gate, "baseline_for", lambda _b: None)
     monkeypatch.setattr(gate, "_git", lambda *a: "x")
     assert gate.main([]) == 1
     assert "SPLIT IT" in capsys.readouterr().err
@@ -56,7 +56,7 @@ def test_a_change_past_the_review_ceiling_FAILS(monkeypatch, capsys):
 def test_too_many_files_FAILS(monkeypatch, capsys):
     monkeypatch.setattr(gate, "measure", lambda base, head="HEAD":
                         _measure(gate.HARD_FILES + 1, 100))
-    monkeypatch.setattr(gate, "load_freeze", lambda: None)
+    monkeypatch.setattr(gate, "baseline_for", lambda _b: None)
     monkeypatch.setattr(gate, "_git", lambda *a: "x")
     assert gate.main([]) == 1
     assert "files exceeds" in capsys.readouterr().err
@@ -64,7 +64,7 @@ def test_too_many_files_FAILS(monkeypatch, capsys):
 
 def test_a_change_within_limits_PASSES(monkeypatch):
     monkeypatch.setattr(gate, "measure", lambda base, head="HEAD": _measure(4, 120))
-    monkeypatch.setattr(gate, "load_freeze", lambda: None)
+    monkeypatch.setattr(gate, "baseline_for", lambda _b: None)
     monkeypatch.setattr(gate, "_git", lambda *a: "x")
     assert gate.main([]) == 0
 
@@ -74,7 +74,7 @@ def test_the_soft_limit_WARNS_but_does_not_block(monkeypatch, capsys):
     Failing there would make the gate unusable and it would be turned off."""
     monkeypatch.setattr(gate, "measure", lambda base, head="HEAD":
                         _measure(5, gate.SOFT_LINES + 10))
-    monkeypatch.setattr(gate, "load_freeze", lambda: None)
+    monkeypatch.setattr(gate, "baseline_for", lambda _b: None)
     monkeypatch.setattr(gate, "_git", lambda *a: "x")
     assert gate.main([]) == 0
     assert "degrade" in capsys.readouterr().out
@@ -87,7 +87,7 @@ def test_SCOPE_GROWTH_UNDER_REVIEW_fails(monkeypatch, capsys):
     here."""
     monkeypatch.setattr(gate, "measure", lambda base, head="HEAD":
                         _measure(10, 1000))
-    monkeypatch.setattr(gate, "load_freeze", lambda: {
+    monkeypatch.setattr(gate, "baseline_for", lambda _b: {
         "branch": "feature", "reviewable_files": 8,
         "reviewable_lines": 1000 - gate.MAX_GROWTH_LINES - 1})
     monkeypatch.setattr(gate, "_git", lambda *a: "feature")
@@ -103,7 +103,7 @@ def test_adopting_a_blocker_is_allowed_growth(monkeypatch):
     would be disabled, which is the failure mode this whole file guards."""
     monkeypatch.setattr(gate, "measure", lambda base, head="HEAD":
                         _measure(8, 1000))
-    monkeypatch.setattr(gate, "load_freeze", lambda: {
+    monkeypatch.setattr(gate, "baseline_for", lambda _b: {
         "branch": "feature", "reviewable_files": 8,
         "reviewable_lines": 1000 - (gate.MAX_GROWTH_LINES // 2)})
     monkeypatch.setattr(gate, "_git", lambda *a: "feature")
@@ -119,7 +119,7 @@ def test_a_freeze_TRAVELS_WITH_the_change_regardless_of_branch_name(monkeypatch)
     condition. The branch is recorded for the operator, never consulted."""
     monkeypatch.setattr(gate, "measure", lambda base, head="HEAD":
                         _measure(10, 900))
-    monkeypatch.setattr(gate, "load_freeze", lambda: {
+    monkeypatch.setattr(gate, "baseline_for", lambda _b: {
         "branch": "some-other-branch", "reviewable_files": 1,
         "reviewable_lines": 1})
     monkeypatch.setattr(gate, "_git", lambda *a: "HEAD")
@@ -140,8 +140,8 @@ def test_a_corrupt_freeze_record_REFUSES_rather_than_reading_as_absent(tmp_path,
 def test_generated_artifacts_do_not_count_against_the_reviewer(monkeypatch):
     """A reviewer does not read a generated target list line by line. Counting
     it like logic would make the gate fire on noise and get it switched off."""
-    numstat = ("10\t0\ttools/real_code.py\n"
-               "9000\t0\tsources/capcog_venue_targets.json\n")
+    numstat = ("10\t0\ttools/real_code.py\0"
+               "9000\t0\tsources/capcog_venue_targets.json\0")
     monkeypatch.setattr(gate, "_git",
                         lambda *a: numstat if a[0] == "diff" else "sha")
     m = gate.measure("base")
@@ -167,11 +167,11 @@ def test_deleting_a_file_is_ONE_decision_not_N_lines(monkeypatch):
     """Found by using the gate: splitting PR #74 removed ~2,500 lines and the
     measured size went UP, so the tool punished the remedy it exists to demand.
     Reviewing "should this be gone?" is one judgement."""
-    numstat = ("0\t900\ttools/removed_module.py\n"
-               "10\t2\ttools/edited.py\n")
+    numstat = ("0\t900\ttools/removed_module.py\0"
+               "10\t2\ttools/edited.py\0")
     # The status letter is the fact, not the zero-addition count — a large CUT
     # to a surviving file also adds nothing, and that IS lines of reading.
-    names = "D\ttools/removed_module.py\nM\ttools/edited.py\n"
+    names = "D\0tools/removed_module.py\0M\0tools/edited.py\0"
 
     def fake_git(*a):
         if a[0] != "diff":
@@ -220,7 +220,10 @@ def test_the_freeze_is_enforced_on_a_DETACHED_head(tmp_path, monkeypatch):
     base = _commit(repo, "a.py", "x\n")
     monkeypatch.setattr(gate, "REPO", repo)
     monkeypatch.setattr(gate, "FREEZE", repo / "freeze.json")
+    # The round carries THIS review's base — that is what makes it this
+    # review's baseline rather than a leftover from a finished one (r4).
     gate.FREEZE.write_text(json.dumps({"rounds": [{
+        "base": base,
         "branch": "some-branch-that-is-not-checked-out",
         "reviewable_files": 1, "reviewable_lines": 1,
         "frozen_at_head": base,
@@ -316,7 +319,7 @@ def test_REWRITING_an_earlier_round_fails(tmp_path, monkeypatch):
 def test_BINARY_files_consume_the_file_ceiling(monkeypatch):
     """A binary has no line count but is unquestionably a file to account for.
     Skipping them meant unlimited binaries never touched the 25-file cap."""
-    numstat = "".join(f"-\t-\tassets/img{i}.png\n" for i in range(3))
+    numstat = "".join(f"-\t-\tassets/img{i}.png\0" for i in range(3))
     monkeypatch.setattr(gate, "_git",
                         lambda *a: "" if "--name-status" in a
                         else (numstat if a[0] == "diff" else "sha"))
@@ -346,7 +349,7 @@ def test_json_output_is_machine_readable(monkeypatch, capsys):
     how a dashboard goes quiet without anyone noticing."""
     monkeypatch.setattr(gate, "measure", lambda base, head="HEAD":
                         _measure(3, 100))
-    monkeypatch.setattr(gate, "load_freeze", lambda: None)
+    monkeypatch.setattr(gate, "baseline_for", lambda _b: None)
     monkeypatch.setattr(gate, "_git", lambda *a: "sha")
     assert gate.main(["--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
@@ -359,7 +362,7 @@ def test_FILE_growth_alone_fails_even_when_lines_do_not(monkeypatch):
     file side could have regressed silently."""
     monkeypatch.setattr(gate, "measure", lambda base, head="HEAD":
                         _measure(20, 100))
-    monkeypatch.setattr(gate, "load_freeze", lambda: {
+    monkeypatch.setattr(gate, "baseline_for", lambda _b: {
         "branch": "b", "reviewable_files": 20 - gate.MAX_GROWTH_FILES - 1,
         "reviewable_lines": 100})
     monkeypatch.setattr(gate, "_rounds_rewritten", lambda base: "")
@@ -426,8 +429,8 @@ def test_a_BINARY_in_a_low_review_cost_directory_is_still_excluded(monkeypatch):
     """r3 blocker: the binary branch ran BEFORE the exclusion check, so a
     generated binary under docs/export/ was counted as a reviewable file
     despite the rule that says generated artifacts are not."""
-    numstat = ("-\t-\tdocs/export/diagram.png\n"
-               "-\t-\tassets/real.png\n")
+    numstat = ("-\t-\tdocs/export/diagram.png\0"
+               "-\t-\tassets/real.png\0")
     monkeypatch.setattr(gate, "_git",
                         lambda *a: "" if "--name-status" in a
                         else (numstat if a[0] == "diff" else "sha"))
@@ -442,3 +445,53 @@ def test_an_exact_low_cost_path_does_not_match_by_PREFIX():
     assert gate._is_low_review_cost("web/lib/capcog-boundary.json")
     assert not gate._is_low_review_cost("web/lib/capcog-boundary.json.bak")
     assert gate._is_low_review_cost("docs/export/anything/at/all.md")
+
+
+def test_a_freeze_from_ANOTHER_review_is_not_this_review_baseline(tmp_path,
+                                                                  monkeypatch):
+    """r4 blocker: the record carried no review epoch, so once it landed on
+    master it became the universal baseline — a finished review's scope freeze
+    constraining an unrelated change, and reading as though that change's
+    review had already begun."""
+    repo = _repo(tmp_path)
+    base = _commit(repo, "a.py", "x\n")
+    monkeypatch.setattr(gate, "REPO", repo)
+    monkeypatch.setattr(gate, "FREEZE", repo / "freeze.json")
+    monkeypatch.setattr(gate, "FREEZE_REL", "freeze.json")
+    gate.FREEZE.write_text(json.dumps({"rounds": [{
+        "base": "0" * 40,                     # a DIFFERENT review
+        "branch": "old", "reviewable_files": 1, "reviewable_lines": 1,
+        "frozen_at_head": "deadbeef",
+    }]}), encoding="utf-8")
+    assert gate.baseline_for(base) is None, (
+        "a round taken against another base is history, not our baseline")
+    # ...and a round taken against OUR base is
+    gate.FREEZE.write_text(json.dumps({"rounds": [{
+        "base": base, "branch": "ours", "reviewable_files": 1,
+        "reviewable_lines": 1, "frozen_at_head": base,
+    }]}), encoding="utf-8")
+    assert gate.baseline_for(base)["branch"] == "ours"
+
+
+def test_DELETING_the_freeze_record_is_the_violation(tmp_path, monkeypatch):
+    """r4 blocker: `_rounds_rewritten` ran only `if freeze`, so removing
+    docs/review/SCOPE_FREEZE.json disabled the only append-only enforcement
+    path — fail-open on the gate's own custody artifact, by the party it
+    constrains."""
+    repo = _repo(tmp_path)
+    monkeypatch.setattr(gate, "REPO", repo)
+    monkeypatch.setattr(gate, "FREEZE", repo / "freeze.json")
+    monkeypatch.setattr(gate, "FREEZE_REL", "freeze.json")
+    _commit(repo, "a.py", "x\n")
+    _commit(repo, "b.py", "y\n" * 20)
+    gate.main(["--base", "HEAD~1", "--freeze"])
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "freeze"], cwd=repo, check=True)
+    base = gate._git("rev-parse", "HEAD")
+
+    gate.FREEZE.unlink()
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "drop the record"], cwd=repo,
+                   check=True)
+    assert gate.main(["--base", base]) != 0, (
+        "deleting the custody record must fail, not read as 'no freeze'")
