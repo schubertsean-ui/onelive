@@ -108,3 +108,55 @@ per-iteration metric exists whose slippage triggers action.
 3. **Define "committed to memory" mechanically and trend
    repeat-classes** — gate rule / indexed token / regression case; the
    difference between a ledger and a brain.
+
+## Sources
+
+Added 2026-07-26 at founder direction ("every claim or note or finding or
+result must be independently verified"). Until then this document cited
+Klein, NASA, DORA, CBR and arXiv papers with **zero resolvable URLs** — the
+"research-grounded" claim rested on citations no reader could follow, and no
+gate noticed. `tools/source_verification_lint.py` now fails closed on that.
+
+**Status tokens are literal and honest.** This sandbox's egress proxy refuses
+direct fetches to every external host tried (`curl: (56) CONNECT tunnel
+failed, response 403` against arxiv.org, aclanthology.org, dora.dev and
+wikipedia.org on 2026-07-26), so no primary full text has been read from
+here. Search-engine retrieval DOES work, which is how identity, venue and
+authorship below were confirmed. Anyone with normal browser access can close
+these out; the token is the honest statement of what was actually checked.
+
+- Mitchell, D. J., Russo, J. E., & Pennington, N. (1989), "Back to the
+  future: Temporal perspective in the explanation of events", *Journal of
+  Behavioral Decision Making* 2(1) —
+  <https://onlinelibrary.wiley.com/doi/abs/10.1002/bdm.3960020103> —
+  **UNVERIFIED-SECONDARY** (paper identity, authors and journal confirmed via
+  search; the +30% prospective-hindsight figure is reported consistently by
+  independent secondary sources, e.g.
+  <https://corporate.jasoncollins.blog/premortem>; Wiley abstract itself
+  proxy-blocked).
+- Klein, G. (2007), "Performing a Project Premortem", *Harvard Business
+  Review* — <https://hbr.org/2007/09/performing-a-project-premortem> —
+  **UNVERIFIED-BLOCKED** (canonical source of the premortem technique; not
+  retrievable from this environment).
+- Wang, H., Li, T., Deng, Z., Roth, D., & Li, Y. (2024), "Devil's Advocate:
+  Anticipatory Reflection for LLM Agents", EMNLP 2024 Findings —
+  <https://arxiv.org/abs/2405.16334> ·
+  <https://aclanthology.org/2024.findings-emnlp.53.pdf> —
+  **UNVERIFIED-SECONDARY** (arXiv id, title, authors and EMNLP-Findings venue
+  confirmed via search; reported results — 23.5% success rate, +3.5% over
+  zero-shot, 45% fewer trials/plan revisions — come from search synthesis,
+  NOT from reading the paper).
+- DORA, "Trunk-based development" capability —
+  <https://dora.dev/capabilities/trunk-based-development/> —
+  **UNVERIFIED-SECONDARY** (page exists; the small-batch/large-batch effect on
+  change failure rate confirmed via search synthesis only).
+- Aamodt, A., & Plaza, E. (1994), "Case-Based Reasoning: Foundational Issues,
+  Methodological Variations, and System Approaches" (Retrieve→Reuse→Revise→
+  Retain) — <https://www.iiia.csic.es/~enric/papers/AICom.pdf> —
+  **UNVERIFIED-BLOCKED**.
+- Shinn, N., et al. (2023), "Reflexion: Language Agents with Verbal
+  Reinforcement Learning" — <https://arxiv.org/abs/2303.11366> —
+  **UNVERIFIED-BLOCKED**.
+- NASA root-cause analysis / causal-factor-tree practice —
+  <https://nsc.nasa.gov/> — **UNVERIFIED-BLOCKED** (cited for the
+  multi-branch-over-5-Whys argument).
