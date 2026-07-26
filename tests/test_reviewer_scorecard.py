@@ -48,3 +48,31 @@ def test_real_ledger_parses_clean():
     text = (pathlib.Path(rs.REPO_ROOT) / "docs" / "metrics" / "KAIZEN_LEDGER.md").read_text()
     arcs, merged = rs.parse_arcs(text)
     assert arcs  # arcs were found
+
+
+def test_malformed_row_with_extra_pipes_fails_loud():
+    # #71 r4 nit: the r3 exact-schema fix must be red-tested so it cannot
+    # regress unnoticed. Extra raw pipes shift which cell is read as M2.
+    bad = ("| 2026-07-25 | #97 (in flight: r1) | 1 | evaluator r1: a-class ×1 "
+           "| fix | with | extra | pipes |\n")
+    with pytest.raises(ValueError, match="malformed ledger round row"):
+        rs.parse_arcs(bad)
+
+
+def test_uncounted_and_single_word_tokens_are_not_scorecard_inputs():
+    # The ×n count is mandatory, and legacy single-word tokens are out of
+    # M9's scope by documented design (#71 r4 nit).
+    ledger = ("| 2026-07-25 | #96 (in flight: r1) | 1 | evaluator r1: mentions "
+              "some-class without a count and contradictions ×2 | fix | c | n |\n")
+    arcs, _ = rs.parse_arcs(ledger)
+    assert arcs[96][1] == set()
+
+
+def test_round1_recall_requires_an_actual_round_one():
+    ledger = ("| 2026-07-25 | #95 (in flight: r2) | 2 | evaluator r2: alpha-class ×1 | f | c | n |\n"
+              "| 2026-07-25 | #95 (in flight: r3) | 3 | evaluator r3: beta-class ×1 | f | c | n |\n")
+    arcs, merged = rs.parse_arcs(ledger)
+    assert rs.scorecard(arcs, merged)[95]["round1_recall"] is None
+    with_r1 = ledger + ("| 2026-07-25 | #95 (in flight: r1) | 1 | evaluator r1: alpha-class ×1 | f | c | n |\n")
+    arcs, merged = rs.parse_arcs(with_r1)
+    assert rs.scorecard(arcs, merged)[95]["round1_recall"] == 0.5

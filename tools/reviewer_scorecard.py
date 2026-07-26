@@ -36,6 +36,13 @@ _LEDGER_PARTS = 9
 # ledger convention (kaizen_trends relies on it too), so an uncounted
 # `CLASS:` mention is deliberately NOT a scorecard input (#71 r3 nit:
 # contract stated here, next to the pattern that depends on it).
+# SCOPE, stated (#71 r4 nit): M9 counts only HYPHENATED kebab tokens —
+# the convention adopted 2026-07-18. Legacy single-word tokens (e.g.
+# `contradictions`) predate it and are deliberately EXCLUDED, because
+# single words cannot be distinguished from ordinary prose without false
+# positives. Consequence, stated rather than hidden: M9 undercounts
+# pre-convention arcs; kaizen_trends carries the same caveat in its own
+# note, and its class counts remain the authority for that era.
 _CLASS_TOKEN = re.compile(r"\b([a-z][a-z0-9]*(?:-[a-z0-9]+)+)\s*×\s*\d+")
 
 

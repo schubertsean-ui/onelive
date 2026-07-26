@@ -261,17 +261,16 @@ run_check "kaizen_trends" "$PY" tools/kaizen_trends.py
 #     ref is gate MISCONFIGURATION and FAILS CLOSED (#67 r5: never a
 #     silent no-op in shallow/local clones) — one fetch attempt first,
 #     then red.
-# Refresh the base ref ALWAYS, not only when absent (#71, CI-caught): a
-# STALE origin/master widens the local diff range with already-merged
-# commits, so the gate can pass locally on citations that CI — with a
-# fresh base — correctly demands. Staleness is not absence; best-effort
-# fetch (offline runs keep whatever ref exists, and the gate still fails
-# closed on an unresolvable range).
-git fetch origin master >/dev/null 2>&1 || true
-if git rev-parse --verify -q origin/master >/dev/null 2>&1; then
+# Refresh the base ref ALWAYS, not only when absent (#71 CI-caught), and
+# FAIL LOUD when the refresh itself fails (#71 r4): `|| true` swallowed
+# the failure, so an unreachable remote left a STALE origin/master in
+# place and the gate could still pass against a wider range than CI —
+# the very stale-base-widens-range hole this wiring exists to close. A
+# base we cannot verify is fresh is a base we cannot judge against.
+if git fetch origin master >/dev/null 2>&1; then
   run_check "construction_gate" "$PY" tools/construction_gate.py
 else
-  run_check "construction_gate" bash -c 'echo "construction_gate: FAIL — base ref origin/master absent and unfetchable; the Stage 3 gate cannot resolve its diff, and misconfiguration never passes silently (git fetch origin master, then rerun)"; exit 1'
+  run_check "construction_gate" bash -c 'echo "construction_gate: FAIL — could not fetch origin/master, so the base ref cannot be proven fresh. A stale base widens the diff range and lets this gate pass what CI fails (class: stale-base-widens-range). Restore network/remote access and rerun; never judge against an unverifiable base."; exit 1'
 fi
 
 # 8. Visual regression — needs a booted app + baselines; cannot run headless
