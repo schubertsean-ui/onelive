@@ -127,6 +127,13 @@ def build(catalog: list) -> list:
     by_id: dict = {}
     unmapped: set = set()
     for row in catalog:
+        # Same shape guard the discovered path now carries: a malformed row
+        # must refuse, not raise AttributeError three frames on where the
+        # message says nothing about the file that caused it.
+        if not isinstance(row, dict):
+            raise SystemExit(
+                f"build_source_registry: FAIL — the catalog holds a "
+                f"non-object row ({row!r:.60}).")
         cat = row.get("category")
         cls = CATEGORY_TO_CLASS.get(cat)
         if cls is None:
@@ -256,7 +263,18 @@ def load_discovered() -> list:
                 f"array. A malformed discovered file must not vanish as zero "
                 f"rows; that is exactly how a source gets lost.")
         for row in doc["sources"]:
+            if not isinstance(row, dict):
+                raise SystemExit(
+                    f"build_source_registry: FAIL — {path.name} holds a "
+                    f"non-object row ({row!r:.60}). A malformed row must "
+                    f"refuse, not crash with AttributeError three frames on.")
             rid = row.get("id")
+            if not isinstance(rid, str) or not rid.strip():
+                raise SystemExit(
+                    f"build_source_registry: FAIL — a row in {path.name} has "
+                    f"no usable id ({rid!r}). Every downstream binding — "
+                    f"evidence, scoring, trend — is keyed on it.")
+            rid = rid.strip()
             if rid in seen:
                 raise SystemExit(
                     f"build_source_registry: FAIL — discovered source id "
@@ -301,7 +319,11 @@ def load_discovered() -> list:
                 "verified": False,
                 "discovered_via": doc.get("discovered_via", "web_search"),
                 "discovered_at": doc.get("discovered_at"),
-                "evidence": row.get("url"),
+                # The value we VALIDATED above, not row["url"] again: a lead
+                # supplying `evidence` and no `url` passed the check and then
+                # landed with evidence: null — stripping the provenance that is
+                # a lead's entire claim to a row. Evaluator finding, #85 r4.
+                "evidence": evidence,
                 "remediation": row.get("note") or (
                     "Discovered by web search and NOT yet verified. Attempt one "
                     "fetch to confirm the calendar exists and parses before "
@@ -340,18 +362,28 @@ def main(argv=None) -> int:
     # lead happened to reuse the id. A rediscovery under a DIFFERENT id
     # appended a second unverified row for a source we already hold, which is
     # the duplicate defect wearing a different name. Evaluator finding, #85 r3.
-    by_url = {_url_key(s.get("base_url")): s["id"] for s in sources
-              if _url_key(s.get("base_url"))}
-    url_clashes = sorted(
-        f"{s['id']} -> {by_url[_url_key(s.get('base_url'))]}"
-        for s in discovered
-        if _url_key(s.get("base_url")) in by_url)
+    # ONE map over EVERY row, populated as we walk. The r3 version built the
+    # map from curated rows only and checked only the discovered ones against
+    # it — so two DISCOVERED leads sharing a URL both got in, and a duplicate
+    # URL among curated rows silently overwrote its own entry. Checking one
+    # pairing out of three is how "same source, different id" survived the fix
+    # meant to catch it. Evaluator finding, PR #85 r4.
+    by_url: dict = {}
+    url_clashes: list = []
+    for row in list(sources) + list(discovered):
+        key = _url_key(row.get("base_url"))
+        if not key:
+            continue
+        if key in by_url:
+            url_clashes.append(f"{row['id']} == {by_url[key]} ({key})")
+            continue
+        by_url[key] = row["id"]
     if url_clashes:
         raise SystemExit(
-            f"build_source_registry: FAIL — discovered source(s) point at a "
-            f"URL a curated row already holds: {url_clashes}. Same source, "
-            f"different id, is still a duplicate — merge it with merge_into "
-            f"rather than adding a second row for one source.")
+            f"build_source_registry: FAIL — these rows point at a URL another "
+            f"row already holds: {sorted(url_clashes)}. Same source, different "
+            f"id, is still a duplicate — merge it with merge_into rather than "
+            f"adding a second row for one source.")
     sources.extend(discovered)
 
     by_class: dict = {}

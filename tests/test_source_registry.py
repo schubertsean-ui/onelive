@@ -348,7 +348,7 @@ def test_the_SAME_SOURCE_under_a_different_id_is_still_a_duplicate(
     monkeypatch.setattr(reg, "DISCOVERED", _discovered_dir(tmp_path, {
         "sources": [_lead(id="totally_different_id",
                           evidence=curated["base_url"].upper() + "/")]}))
-    with pytest.raises(SystemExit, match="a URL a curated row already holds"):
+    with pytest.raises(SystemExit, match="a URL another row already holds"):
         reg.main(["--out", str(tmp_path / "out.json")])
 
 
@@ -357,3 +357,47 @@ def test_url_identity_ignores_scheme_www_and_trailing_slash():
     assert reg._url_key("http://example.com/x") == reg._url_key(
         "https://www.example.com/x/")
     assert reg._url_key(None) == ""
+
+
+def test_two_DISCOVERED_leads_sharing_a_URL_also_FAIL(tmp_path, monkeypatch):
+    """r4 blocker, and it is the r3 fix stopping one step short: the URL map
+    was built from CURATED rows and checked only the discovered ones against
+    it, so two leads pointing at the same source both got in — the exact
+    "same source, different id" case the r3 fix was written to catch, in the
+    pairing it did not check."""
+    monkeypatch.setattr(reg, "DISCOVERED", _discovered_dir(tmp_path, {
+        "sources": [
+            _lead(id="lead_one", evidence="https://example.test/cal"),
+            _lead(id="lead_two", evidence="http://WWW.example.test/cal/"),
+        ]}))
+    with pytest.raises(SystemExit, match="a URL another row already holds"):
+        reg.main(["--out", str(tmp_path / "out.json")])
+
+
+def test_a_lead_that_supplies_EVIDENCE_and_no_url_keeps_its_provenance(
+        tmp_path, monkeypatch):
+    """r4 blocker: `evidence` was extracted and validated, then the row was
+    built with row.get("url") anyway — so a lead supplying only `evidence`
+    passed the check and landed with evidence: null, stripping the provenance
+    that is a lead's entire claim to a registry row."""
+    monkeypatch.setattr(reg, "DISCOVERED", _discovered_dir(tmp_path, {
+        "sources": [_lead(id="only_evidence", url=None,
+                          evidence="https://example.test/proof")]}))
+    row = reg.load_discovered()[0]
+    assert row["evidence"] == "https://example.test/proof"
+    assert row["base_url"] == "https://example.test/proof"
+
+
+def test_a_malformed_discovered_ROW_refuses_rather_than_crashing(
+        tmp_path, monkeypatch):
+    for bad in ([None], ["a string"], [{"name": "no id"}], [{"id": "  "}]):
+        monkeypatch.setattr(reg, "DISCOVERED",
+                            _discovered_dir(tmp_path, {"sources": bad}))
+        with pytest.raises(SystemExit):
+            reg.load_discovered()
+
+
+def test_a_malformed_CATALOG_row_refuses_rather_than_crashing():
+    with pytest.raises(SystemExit, match="non-object row"):
+        reg.build([{"id": "ok", "name": "OK", "category": "venue_calendar"},
+                   "not an object"])
