@@ -128,3 +128,43 @@ def test_coverage_measures_against_a_real_denominator():
     assert out["covered_venue_count"] == 1
     assert out["coverage_pct"] == 50.0
     assert out["per_county"]["hays"]["missing"] == ["Cheatham Street Warehouse"]
+
+
+# ---- the denominator builder -------------------------------------------------
+
+def test_targets_never_get_an_invented_county():
+    """A venue whose county cannot be read off the row is listed as UNRESOLVED,
+    not assigned a plausible one. Inventing 'travis' would inflate Travis and
+    hide a gap in the county the venue is actually in."""
+    import tools.build_capcog_targets as bt
+    targets, unresolved = bt.from_catalog([
+        {"category": "venue_calendar", "name": "Mohawk Austin"},          # name says Austin
+        {"category": "venue_calendar", "name": "Cheatham Street",
+         "county": "hays"},                                               # county field
+        {"category": "venue_calendar", "name": "The Saxon Pub"},          # says nothing
+    ])
+    by_name = {t["name"]: t for t in targets}
+    assert by_name["Mohawk Austin"]["county"] == "travis"
+    assert by_name["Mohawk Austin"]["county_resolved_by"] == "name_text"
+    assert by_name["Cheatham Street"]["county"] == "hays"
+    assert [u["name"] for u in unresolved] == ["The Saxon Pub"]
+
+
+def test_name_matching_needs_a_word_boundary():
+    """'Austintatious' is not Austin. A substring match would silently place
+    venues in the wrong county."""
+    import tools.build_capcog_targets as bt
+    _, unresolved = bt.from_catalog(
+        [{"category": "venue_calendar", "name": "Austintatious Balloons"}])
+    assert len(unresolved) == 1
+
+
+def test_channels_are_not_counted_as_venues():
+    """Ticketing aggregators and social accounts have no address; counting them
+    would inflate the denominator with things nobody can attend."""
+    import tools.build_capcog_targets as bt
+    targets, unresolved = bt.from_catalog([
+        {"category": "ticketing", "name": "Ticketmaster", "county": "travis"},
+        {"category": "social", "name": "Some IG Account", "county": "travis"},
+    ])
+    assert targets == [] and unresolved == []

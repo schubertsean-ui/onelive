@@ -86,7 +86,17 @@ GOAL: (1) make the market boundary CORRECT — CAPCOG's ten counties, not a radi
 CONTEXT EXPORT + GO-LIVE PLAN (2026-07-26, founder-directed: "pull together every file, all conversations and instruction from every session, put them into files... I need a link" and "a clear action plan listing all steps required to go live"):
 [S3:featurability-dimension-missed] the export states its own limits rather than implying completeness: chat transcripts were never on disk and the index says so explicitly, so a reader can see what dimension of the record is missing instead of inferring it is whole.
 [S3:weak-key-accepted-at-custody] the export carries NO key material — it concatenates committed docs only, and the founder-crucial credential list names what must be minted without ever containing a value.
-STATUS: OPEN — boundary + measurement landed; read-path enforcement and the live denominator next. Context export + GO_LIVE_PLAN.md delivered; the launch metric (CAPCOG venue coverage) is blocked on the founder's denominator-source choice and on GitHub Actions being unblocked.
+DENOMINATOR BUILT (2026-07-26, founder: "Use TABC but there [are gobs] of other sources... All the answers are already in our content." — correct: layer 1 needed no network at all):
+[S3:incomplete-enumeration] the target list is LAYERED and every venue records which layer produced it (catalog / tabc / places), so the denominator can never quietly become "whatever we happened to find"; the doc carries is_complete_universe=false and a completeness note that must travel with any coverage figure.
+[S3:failure-reads-as-empty] a venue whose county cannot be READ off its row goes to a separate unresolved list — never assigned a plausible county, which would inflate one county and hide a gap in another. 6 rows are unresolved today and named.
+[S3:swallowed-corrupt-data] name-text county resolution requires a word boundary (Austintatious is not Austin) and longest-place-first ordering, both test-pinned; channels without an address (ticketing, social) are excluded from the denominator entirely.
+[S3:final-gate-trusts-generator] the coverage tool re-derives every venue key and county itself from the target file and the row set; it trusts no upstream classification, and the region verdict is recomputed rather than read from a stored flag.
+[S3:release-path-weaker-than-generation] no release or publish path is touched — this is measurement only, and it enforces MORE than before (a denominator now exists where none did), never less.
+[S3:grant-not-content-bound] no grant, autonomy or approval surface is involved in the denominator or the region layer.
+[S3:missing-record-read-as-state] the absence of a target list is an explicit NO TARGET LIST state that exits non-zero; a missing denominator can never be read as full coverage.
+[S3:malformed-ledger-row] no ledger row is written by this change; the target file is JSON with its own parse guard that raises rather than returning empty.
+[S3:nonfinite-numeric-accepted] the only arithmetic is a per-county share, guarded: a zero denominator reports None rather than dividing.
+STATUS: OPEN — boundary + denominator landed (69 targets from our own catalog, layer 1 of 3). Numerator needs a DB read; read-path enforcement, TABC layer 2 and Places layer 3 next. Context export + GO_LIVE_PLAN.md delivered; the launch metric (CAPCOG venue coverage) is blocked on the founder's denominator-source choice and on GitHub Actions being unblocked.
 
 ## Session Contract #27 (2026-07-26, same session — close-out for PR #71)
 

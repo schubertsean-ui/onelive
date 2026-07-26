@@ -1,0 +1,779 @@
+{
+  "generated_by": "tools/build_capcog_targets.py",
+  "is_complete_universe": false,
+  "completeness_note": "FLOOR, not the universe. Layer 1 is the curated catalog \u2014 the venues this project chose to track \u2014 so coverage against it answers 'are we ingesting what we already know about?', NOT 'what share of CAPCOG venues exist?'. Layers 2 (TABC) and 3 (Places) raise it toward the real universe. Report the layer set with any coverage figure.",
+  "layers_present": [
+    "catalog"
+  ],
+  "counts_added_per_layer": {
+    "catalog": 69
+  },
+  "target_count": 69,
+  "per_county": {
+    "bastrop": 0,
+    "blanco": 0,
+    "burnet": 0,
+    "caldwell": 0,
+    "fayette": 0,
+    "hays": 2,
+    "lee": 0,
+    "llano": 0,
+    "travis": 65,
+    "williamson": 2
+  },
+  "unresolved_county_count": 6,
+  "venues": [
+    {
+      "name": "Mohawk Austin",
+      "city": "austin",
+      "county": "travis",
+      "county_resolved_by": "name_text",
+      "source_layer": "catalog",
+      "catalog_id": "mohawk_austin",
+      "url": "https://mohawkaustin.com/",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "Stubb's Austin",
+      "city": "austin",
+      "county": "travis",
+      "county_resolved_by": "name_text",
+      "source_layer": "catalog",
+      "catalog_id": "stubbs_austin",
+      "url": "https://www.stubbsaustin.com/",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "The Continental Club (Austin)",
+      "city": "austin",
+      "county": "travis",
+      "county_resolved_by": "name_text",
+      "source_layer": "catalog",
+      "catalog_id": "continental_club",
+      "url": "https://continentalclub.com/austin",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "The Parish Austin",
+      "city": "austin",
+      "county": "travis",
+      "county_resolved_by": "name_text",
+      "source_layer": "catalog",
+      "catalog_id": "parish_austin",
+      "url": "https://parishaustin.com/",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "Emo's Austin",
+      "city": "austin",
+      "county": "travis",
+      "county_resolved_by": "name_text",
+      "source_layer": "catalog",
+      "catalog_id": "emos",
+      "url": "https://emosaustin.com/",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "Paramount Theatre (Austin)",
+      "city": "austin",
+      "county": "travis",
+      "county_resolved_by": "name_text",
+      "source_layer": "catalog",
+      "catalog_id": "paramount_austin",
+      "url": "https://www.austintheatre.org/",
+      "cultural_domain": null
+    },
+    {
+      "name": "The White Horse (Austin)",
+      "city": "austin",
+      "county": "travis",
+      "county_resolved_by": "name_text",
+      "source_layer": "catalog",
+      "catalog_id": "white_horse",
+      "url": "https://thewhitehorseaustin.com/",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "Visit Austin Events",
+      "city": "austin",
+      "county": "travis",
+      "county_resolved_by": "name_text",
+      "source_layer": "catalog",
+      "catalog_id": "visit_austin",
+      "url": "https://www.austintexas.org/events/",
+      "cultural_domain": null
+    },
+    {
+      "name": "Texas Performing Arts (UT Austin)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "texas_performing_arts",
+      "url": "https://texasperformingarts.org/events/calendar/",
+      "cultural_domain": "performing-arts"
+    },
+    {
+      "name": "UT Austin Events Calendar (Texas Today, Localist)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "ut_austin_localist",
+      "url": "https://calendar.utexas.edu/",
+      "cultural_domain": "ideas"
+    },
+    {
+      "name": "Texas State Presents (Texas State University)",
+      "city": null,
+      "county": "hays",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "txstate_presents",
+      "url": "https://txstatepresents.universitytickets.com/",
+      "cultural_domain": "performing-arts"
+    },
+    {
+      "name": "Texas State University Main Events",
+      "city": null,
+      "county": "hays",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "txstate_events",
+      "url": "https://events.txst.edu/",
+      "cultural_domain": "ideas"
+    },
+    {
+      "name": "Austin Community College Events Calendar",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_cc_events",
+      "url": "https://students.austincc.edu/calendars/acc-events-calendar/",
+      "cultural_domain": "ideas"
+    },
+    {
+      "name": "Austin Public Library Events",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_public_library",
+      "url": "https://library.austintexas.gov/events/calendar",
+      "cultural_domain": "library"
+    },
+    {
+      "name": "City of Austin Events (austintexas.gov)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "city_of_austin_events",
+      "url": "https://www.austintexas.gov/events",
+      "cultural_domain": "community"
+    },
+    {
+      "name": "Blanton Museum of Art",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "blanton_museum",
+      "url": "https://blantonmuseum.org/calendar_events",
+      "cultural_domain": "visual-arts"
+    },
+    {
+      "name": "The Contemporary Austin",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "the_contemporary_austin",
+      "url": "https://thecontemporaryaustin.org/",
+      "cultural_domain": "visual-arts"
+    },
+    {
+      "name": "Mexic-Arte Museum",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "mexic_arte_museum",
+      "url": "https://mexic-artemuseum.org/upcoming-events-calendar/",
+      "cultural_domain": "visual-arts"
+    },
+    {
+      "name": "ZACH Theatre",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "zach_theatre",
+      "url": "https://www.zachtheatre.org/",
+      "cultural_domain": "theater"
+    },
+    {
+      "name": "The Long Center for the Performing Arts",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "long_center",
+      "url": "https://thelongcenter.org/calendar/",
+      "cultural_domain": "performing-arts"
+    },
+    {
+      "name": "Austin Film Society (AFS Cinema)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_film_society",
+      "url": "https://www.austinfilm.org/calendar/",
+      "cultural_domain": "film"
+    },
+    {
+      "name": "BookPeople Events",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "bookpeople",
+      "url": "https://bookpeople.com/upcoming-events",
+      "cultural_domain": "literary"
+    },
+    {
+      "name": "Cap City Comedy Club",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "cap_city_comedy",
+      "url": "https://www.capcitycomedy.com/",
+      "cultural_domain": "comedy"
+    },
+    {
+      "name": "The Hideout Theatre",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "hideout_theatre",
+      "url": "https://hideouttheatre.com/",
+      "cultural_domain": "comedy"
+    },
+    {
+      "name": "The Velveeta Room",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "velveeta_room",
+      "url": "https://www.thevelveetaroom.com/shows",
+      "cultural_domain": "comedy"
+    },
+    {
+      "name": "Historic Scoot Inn",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "scoot_inn",
+      "url": "https://www.scootinnaustin.com/",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "Cheer Up Charlies",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "cheer_up_charlies",
+      "url": "https://cheerupcharlies.com/",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "The Far Out Lounge & Stage",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "the_far_out",
+      "url": "https://www.thefaroutaustin.com/events.html",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "Come and Take It Live",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "come_and_take_it_live",
+      "url": "https://www.comeandtakeitlive.com/",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "Elephant Room",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "elephant_room",
+      "url": "https://elephantroom.com/calendar",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "C-Boy's Heart & Soul",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "cboys_heart_and_soul",
+      "url": "https://www.cboys.com/calendar",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "3TEN ACL Live (Austin City Limits Live)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "3ten_acl_live",
+      "url": "https://www.acllive.com/events/venue/acl-live-at-3ten",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "Austin Symphony Orchestra",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_symphony",
+      "url": "https://my.austinsymphony.org/events?view=list",
+      "cultural_domain": "performing-arts"
+    },
+    {
+      "name": "Ballet Austin",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "ballet_austin",
+      "url": "https://my.balletaustin.org/events",
+      "cultural_domain": "dance"
+    },
+    {
+      "name": "Austin Opera",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_opera",
+      "url": "https://my.austinopera.org/events?view=list",
+      "cultural_domain": "performing-arts"
+    },
+    {
+      "name": "Fusebox Festival",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "fusebox_festival",
+      "url": "https://fuseboxlive.com/",
+      "cultural_domain": "festivals"
+    },
+    {
+      "name": "Austin Chamber Music Center / Festival",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_chamber_music_center",
+      "url": "https://austinchambermusic.org/concert-season/",
+      "cultural_domain": "performing-arts"
+    },
+    {
+      "name": "Golden Hornet",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "golden_hornet",
+      "url": "https://www.goldenhornet.org/calendar",
+      "cultural_domain": "performing-arts"
+    },
+    {
+      "name": "Round Rock Express (MiLB)",
+      "city": null,
+      "county": "williamson",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "round_rock_express",
+      "url": "https://www.milb.com/round-rock/schedule",
+      "cultural_domain": "sports"
+    },
+    {
+      "name": "Austin FC (MLS)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_fc",
+      "url": "https://www.austinfc.com/schedule/",
+      "cultural_domain": "sports"
+    },
+    {
+      "name": "Circuit of the Americas (COTA)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "circuit_of_the_americas",
+      "url": "https://circuitoftheamericas.com/events/",
+      "cultural_domain": "sports"
+    },
+    {
+      "name": "Austin Spurs (NBA G League)",
+      "city": null,
+      "county": "williamson",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_spurs",
+      "url": "https://austin.gleague.nba.com/schedule",
+      "cultural_domain": "sports"
+    },
+    {
+      "name": "Austin Food & Wine Festival",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_food_wine_festival",
+      "url": "https://www.austinfoodandwinefestival.com/",
+      "cultural_domain": "food-drink"
+    },
+    {
+      "name": "SFC Farmers' Market (Sustainable Food Center)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "sfc_farmers_market",
+      "url": "https://sustainablefoodcenter.org/farmers-markets-support/sfc-farmers-markets/",
+      "cultural_domain": "food-drink"
+    },
+    {
+      "name": "Texas Craft Brewers Festival",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "texas_craft_brewers_festival",
+      "url": "https://texascraftbrewersfestival.org/",
+      "cultural_domain": "food-drink"
+    },
+    {
+      "name": "Elysium",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "elysium_austin",
+      "url": "https://www.elysiumonline.net/events.html",
+      "cultural_domain": "nightlife"
+    },
+    {
+      "name": "Kingdom Nightclub",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "kingdom_nightclub",
+      "url": "https://kingdomnightclub.com/events/",
+      "cultural_domain": "nightlife"
+    },
+    {
+      "name": "The Concourse Project",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "concourse_project",
+      "url": "https://concourseproject.com/calendar/",
+      "cultural_domain": "nightlife"
+    },
+    {
+      "name": "Tapestry Dance Company",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "tapestry_dance",
+      "url": "https://tapestry.org/season-shows",
+      "cultural_domain": "dance"
+    },
+    {
+      "name": "Bullock Texas State History Museum",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "bullock_museum",
+      "url": "https://www.thestoryoftexas.com/calendar/",
+      "cultural_domain": "heritage"
+    },
+    {
+      "name": "LBJ Presidential Library",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "lbj_library",
+      "url": "https://www.lbjlibrary.org/events",
+      "cultural_domain": "heritage"
+    },
+    {
+      "name": "Austin History Center Association",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_history_center",
+      "url": "https://austinhistory.org/events/",
+      "cultural_domain": "heritage"
+    },
+    {
+      "name": "George Washington Carver Museum, Cultural & Genealogy Center",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "carver_museum",
+      "url": "https://www.austintexas.gov/carver/events",
+      "cultural_domain": "heritage"
+    },
+    {
+      "name": "Asian American Resource Center (AARC)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "asian_american_resource_center",
+      "url": "https://www.austintexas.gov/aarc/asian-american-resource-center-event-calendar",
+      "cultural_domain": "heritage"
+    },
+    {
+      "name": "Thinkery (Austin Children's Museum)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "thinkery",
+      "url": "https://my.thinkeryaustin.org/events",
+      "cultural_domain": "family"
+    },
+    {
+      "name": "Austin Nature & Science Center",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_nature_science_center",
+      "url": "https://www.austintexas.gov/parks/austin-nature-science-center-camps-events-and-community-programs",
+      "cultural_domain": "family"
+    },
+    {
+      "name": "UMLAUF Sculpture Garden & Museum",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "umlauf_sculpture_garden",
+      "url": "https://www.umlaufsculpture.org/programs",
+      "cultural_domain": "visual-arts"
+    },
+    {
+      "name": "Elisabet Ney Museum",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "elisabet_ney_museum",
+      "url": "https://www.austintexas.gov/ney/programs-education",
+      "cultural_domain": "visual-arts"
+    },
+    {
+      "name": "Republic Square (Downtown Austin Alliance)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "republic_square_daa",
+      "url": "https://downtownaustin.com/republic-square-events/",
+      "cultural_domain": "place-based"
+    },
+    {
+      "name": "Waterloo Greenway Conservancy (Waterloo Park)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "waterloo_greenway",
+      "url": "https://waterloogreenway.org/events/",
+      "cultural_domain": "place-based"
+    },
+    {
+      "name": "Mueller Austin (Parks & Events)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "mueller_austin",
+      "url": "https://muelleraustin.com/events-at-mueller/",
+      "cultural_domain": "place-based"
+    },
+    {
+      "name": "Rodeo Austin (Star of Texas Fair & Rodeo)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "rodeo_austin",
+      "url": "https://rodeoaustin.com/events/",
+      "cultural_domain": "fairs-expos"
+    },
+    {
+      "name": "Maker Faire Austin",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_maker_faire",
+      "url": "https://austin.makerfaire.com/schedule/",
+      "cultural_domain": "fairs-expos"
+    },
+    {
+      "name": "Texas Book Festival",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "texas_book_festival",
+      "url": "https://texasbookfestival.org/schedule/",
+      "cultural_domain": "fairs-expos"
+    },
+    {
+      "name": "Austin Trail of Lights",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_trail_of_lights",
+      "url": "https://austintrailoflights.org/the-event",
+      "cultural_domain": "seasonal"
+    },
+    {
+      "name": "Eeyore's Birthday Party",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "eeyores_birthday_party",
+      "url": "https://eeyores.org/",
+      "cultural_domain": "seasonal"
+    },
+    {
+      "name": "Austin Yoga Festival",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_yoga_festival",
+      "url": "http://www.austinyogafestival.com/",
+      "cultural_domain": "wellness"
+    },
+    {
+      "name": "HAAM (Health Alliance for Austin Musicians)",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "haam",
+      "url": "https://www.myhaam.org/calendar-of-events",
+      "cultural_domain": "wellness"
+    },
+    {
+      "name": "Austin Fashion Week",
+      "city": null,
+      "county": "travis",
+      "county_resolved_by": "county_field",
+      "source_layer": "catalog",
+      "catalog_id": "austin_fashion_week",
+      "url": "https://austinfashionweek.sched.com/",
+      "cultural_domain": "fashion-design"
+    }
+  ],
+  "unresolved_county": [
+    {
+      "name": "SXSW Official Schedule",
+      "city": null,
+      "county": null,
+      "county_resolved_by": null,
+      "source_layer": "catalog",
+      "catalog_id": "sxsw_schedule",
+      "url": "https://schedule.sxsw.com/",
+      "cultural_domain": null
+    },
+    {
+      "name": "ACL Live at The Moody Theater",
+      "city": null,
+      "county": null,
+      "county_resolved_by": null,
+      "source_layer": "catalog",
+      "catalog_id": "acllive",
+      "url": "https://www.acllive.com/",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "Antone's Nightclub",
+      "city": null,
+      "county": null,
+      "county_resolved_by": null,
+      "source_layer": "catalog",
+      "catalog_id": "antones",
+      "url": "https://antonesnightclub.com/",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "Empire Control Room & Garage",
+      "city": null,
+      "county": null,
+      "county_resolved_by": null,
+      "source_layer": "catalog",
+      "catalog_id": "empire_atx",
+      "url": "https://empireatx.com/",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "The Saxon Pub",
+      "city": null,
+      "county": null,
+      "county_resolved_by": null,
+      "source_layer": "catalog",
+      "catalog_id": "saxon_pub",
+      "url": "https://saxonpub.com/",
+      "cultural_domain": "live-music"
+    },
+    {
+      "name": "Hotel Vegas",
+      "city": null,
+      "county": null,
+      "county_resolved_by": null,
+      "source_layer": "catalog",
+      "catalog_id": "hotel_vegas",
+      "url": "https://hotelvegasaustin.com/",
+      "cultural_domain": "live-music"
+    }
+  ]
+}
