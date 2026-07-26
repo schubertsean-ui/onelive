@@ -328,29 +328,29 @@ def test_panel_prints_its_own_po_seed_and_provocations():
         assert provocation in header
 
 
-def test_workflow_second_seat_model_matches_the_tools_default():
-    # #72 r2, hardening the workflow-tool-version-skew fix after it
-    # RECURRED past its first marker. That first fix hardened CLI FLAGS
-    # only (feature-detect --panel); the class is broader — ANY value a
-    # PR changes in the BASE-owned reviewer is invisible to the run
-    # judging that PR, constants included. The workflow literal is the
-    # PR-owned compensation, which introduces a second place holding the
-    # same value. This pins them together so the pair can never drift:
-    # change one, this test names the other.
-    import pathlib as _pathlib
-    import re as _re
+def test_the_workflow_NEVER_supplies_the_second_seat_model():
+    # #72 r8 BLOCKER, the invariant that replaced a drift check: this
+    # workflow file is PR-OWNED, so anything it sets is chosen by the diff
+    # under review. Supplying GEMINI_REVIEW_MODEL let the subject pick the
+    # model of the seat judging it. The earlier test compared the workflow
+    # literal to the tool default — two PR-controlled copies — which
+    # catches an accident and never an attacker, and worse, REQUIRED the
+    # override to exist. The invariant now is absence: neither seat's
+    # model may come from this file.
+    import pathlib
 
-    workflow = (_pathlib.Path(ar.__file__).parent.parent / ".github"
-                / "workflows" / "adversarial-review.yml").read_text()
-    # Quote-tolerant (#72 r4 nit): a later reformat that quotes the scalar
-    # must not turn this binding into a silent no-match.
-    match = _re.search(r"""^\s*GEMINI_REVIEW_MODEL:\s*['"]?([^'"\s#]+)['"]?\s*$""",
-                       workflow, _re.MULTILINE)
-    assert match, ("the workflow must pin the second seat's model explicitly — "
-                   "without it the base-owned copy's older default silently wins")
-    assert match.group(1) == ar.GEMINI_DEFAULT_MODEL, (
-        f"workflow pins {match.group(1)!r} but the tool defaults to "
-        f"{ar.GEMINI_DEFAULT_MODEL!r} — these move together, in one PR")
+    workflow = (pathlib.Path(ar.__file__).parent.parent / ".github" / "workflows"
+                / "adversarial-review.yml").read_text()
+    for line in workflow.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue  # prose explaining WHY it is absent is not a setting
+        assert not stripped.startswith("GEMINI_REVIEW_MODEL:"), (
+            "the PR-owned workflow must not set the second seat's model — "
+            "the reviewed subject must not choose any input to the review "
+            "judging it (class: self-weakenable-review-model)")
+        assert not stripped.startswith("OPENAI_REVIEW_MODEL:"), (
+            "same rule for the first seat (PR #14 r4)")
 
 
 def test_second_seat_model_override_is_allowlisted_by_the_BASE_copy(monkeypatch):

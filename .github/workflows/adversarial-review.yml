@@ -50,13 +50,6 @@ jobs:
   adversarial-review:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      # THE pin for the second seat's model — one literal, read by the
-      # preflight that proves it callable and by the reviewer that uses it.
-      # A test asserts it equals tools/adversarial_review.py's own
-      # GEMINI_DEFAULT_MODEL, so the two places holding this value cannot
-      # drift (#72 r2, class: workflow-tool-version-skew).
-      GEMINI_REVIEW_MODEL: gemini-flash-latest
     permissions:
       contents: read
       # Read-only visibility into the co-gates (PR #37 r1: the evaluator
@@ -447,7 +440,14 @@ jobs:
         run: |
           set -euo pipefail
           : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
-          : "${GEMINI_REVIEW_MODEL:?second-seat model pin unresolved — failing closed}"
+          # The model comes from the BASE-OWNED reviewer copy, never from
+          # this PR (#72 r8: the reviewed subject must not choose any input
+          # to the review judging it). Read it out of the trusted file and
+          # fail closed if it cannot be read.
+          git show "$TRUSTED_BASE:tools/adversarial_review.py" > /tmp/trusted/_ar_for_model.py
+          GEMINI_REVIEW_MODEL="$(sed -n 's/^GEMINI_DEFAULT_MODEL = "\(.*\)"$/\1/p' /tmp/trusted/_ar_for_model.py | head -1)"
+          : "${GEMINI_REVIEW_MODEL:?could not read GEMINI_DEFAULT_MODEL from the trusted base reviewer — failing closed rather than guessing the second seat model}"
+          echo "second seat: model taken from the BASE copy = $GEMINI_REVIEW_MODEL"
           # Own the directory rather than inheriting it from an earlier
           # step's side effect (#72 r7), and TEST EXISTENCE SEPARATELY from
           # fetching. `git show ... > file 2>/dev/null` conflates two very
@@ -486,27 +486,12 @@ jobs:
           # script prints an EXPLICIT empty seat and runs single-family; the
           # panel never fails a PR for a credential that does not exist yet.
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          # Second-seat model, pinned at JOB level below because the reviewer
-          # script is BASE-owned (#72 r2, class: workflow-tool-version-skew).
-          # The PR that changes GEMINI_DEFAULT_MODEL cannot affect its own
-          # run — the trusted copy executing it still holds the old value —
-          # and the old value is gemini-2.5-pro, which has NO free-tier
-          # quota (429, `limit: 0`), so the seat hard-failed every run and
-          # the fix could never merge. A workflow literal is the PR-owned
-          # side of that deadlock, exactly as feature-detection was for the
-          # --panel flag.
-          #
-          # This does NOT reopen the PR #14 r4 finding that banned a runtime
-          # model override: that finding was about `${{ vars.* }}`, where an
-          # UNSET and a SET-BUT-EMPTY variable render identically so the
-          # workflow can never fail closed on the difference. A literal has
-          # no such ambiguity — it is visible in review, in this diff, and
-          # the script still fails loud on an empty or Claude-family id.
-          # Keep this in sync with GEMINI_DEFAULT_MODEL; both move together
-          # in one PR, and once that PR merges the literal simply restates
-          # what the trusted copy already defaults to. The value itself is
-          # the job-level pin, so the preflight below checks the SAME string
-          # the reviewer will use.
+          # NO GEMINI_REVIEW_MODEL here, deliberately and permanently
+          # (#72 r8, class: self-weakenable-review-model). Setting it from
+          # this PR-owned file would let the diff under review choose the
+          # model of the seat reviewing it. The second seat's model is the
+          # BASE-owned GEMINI_DEFAULT_MODEL, exactly like the first seat's
+          # (PR #14 r4). A test asserts this file never supplies it.
           # NO runtime model override in CI — deliberately (evaluator finding,
           # PR #14 round 4): GitHub renders an UNSET repo variable and a
           # SET-BUT-EMPTY one identically in ${{ vars.* }}, so a workflow can
