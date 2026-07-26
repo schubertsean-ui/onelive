@@ -127,6 +127,11 @@ Four things, every time, in this order — the full form is `docs/HOW_WE_WORK.md
    unavoidable, define it in the same sentence.
 3. **Numbered steps to act** — literally what to click, where, in order, and how
    long it takes. If a step is the founder's, say so; if it is yours, say when.
+   **Every step involving a web page carries its full URL** (founder directive,
+   2026-07-26: *"Always give me specific and accurate and working links (it gets me
+   where its supposed to)."*). A click-path is not a link. The URLs live in
+   `docs/DEPLOY.md` §"The console links" — copy from there; never reconstruct a
+   slug from memory.
 4. **Implications and tradeoffs** — the cost of yes, the cost of no, and what
    becomes hard to undo.
 

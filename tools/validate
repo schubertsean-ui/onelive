@@ -140,6 +140,9 @@ run_check "governance_claims" "$PY" tools/governance_claims_lint.py
 # Founder directive 2026-07-26: a decision must be codified in the repo, not left
 # in a session. CLAUDE.md prime directive 6.
 run_check "decision_codified" "$PY" tools/decision_codified_lint.py
+# Founder directive 2026-07-26: "never ask me to do something without the specific
+# structure defined." Every OPEN ask in docs/V1.md carries the six fields.
+run_check "founder_ask_structure" "$PY" tools/founder_ask_lint.py
 
 # 3. Full test suite — must pass. DB-integration tests self-skip without a DSN;
 #    that self-skip is internal to pytest and reported in its own output.

@@ -274,7 +274,7 @@ template for big decisions only — it is the shape of a normal reply.
 |---|---|---|
 | 1 | **Recommendation** | One named option. Would a reader know what you think should happen? *"It's your call"* fails. |
 | 2 | **Plain language** | No unexplained jargon. Would a smart non-engineer follow it on a phone? |
-| 3 | **Steps to act** | Numbered. What to click, where, in what order, how long. Each step marked **founder** or **agent**. |
+| 3 | **Steps to act** | Numbered. What to click, where, in what order, how long. Each step marked **founder** or **agent**. **Every step touching a web page carries its full URL** — a click-path like "Vercel → Settings → Protection" is a failure of this part. Links live in `docs/DEPLOY.md` §"The console links"; copy from there, never reconstruct a slug from memory. |
 | 4 | **Implications and tradeoffs** | Cost of yes, cost of no, and what becomes hard to undo. |
 
 **Confidence goes alongside the recommendation, never instead of it.** Saying "my

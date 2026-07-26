@@ -46,6 +46,37 @@ Note: the two Supabase values are committed as PUBLIC defaults (publishable key
 + URL — safe by design, RLS is the boundary), so data works with no config;
 any env var overrides them. A real secret is never committed.
 
+## The console links — never reconstruct these from memory
+
+Founder directive 2026-07-26: *"Always give me specific and accurate and working
+links (it gets me where its supposed to)."* Every founder-facing step that involves
+a web page carries its URL from this table. **Keep this table current; it is the
+reason a session never has to guess a slug.**
+
+| What | Link | Slug confirmed by |
+|---|---|---|
+| Vercel project | <https://vercel.com/sss-projects-e4775771/onelive> | Vercel's own PR bot comment on #76 |
+| **Deployment Protection** (lets friends in) | <https://vercel.com/sss-projects-e4775771/onelive/settings/deployment-protection> | project link above + Vercel's documented settings path |
+| Vercel env vars | <https://vercel.com/sss-projects-e4775771/onelive/settings/environment-variables> | same |
+| Vercel deployments list | <https://vercel.com/sss-projects-e4775771/onelive/deployments> | same |
+| **New GitHub Actions secret** | <https://github.com/schubertsean-ui/onelive/settings/secrets/actions/new> | repo `html_url` from the GitHub API |
+| GitHub Actions secrets list | <https://github.com/schubertsean-ui/onelive/settings/secrets/actions> | same |
+| `site-health` runs | <https://github.com/schubertsean-ui/onelive/actions/workflows/site_health.yml> | workflow file path |
+| `import-licensed` runs | <https://github.com/schubertsean-ui/onelive/actions/workflows/import_licensed.yml> | same |
+| Anthropic usage cap (ask 2) | <https://console.anthropic.com/settings/limits> | Anthropic console, documented path |
+| Supabase project | <https://supabase.com/dashboard/project/vqipjlvzfiwnandjumvx> | project ref in `CLAUDE.md` + `web/lib/licensed.ts` |
+
+**The honest limit on these, stated rather than hidden.** An agent session **cannot
+fetch any of them to prove they resolve** — the network policy denies
+`vercel.com` outright and returns 403 for `github.com` settings pages and
+`console.anthropic.com` (all three verified 2026-07-26). Even with egress, an
+unauthenticated request to a private settings page returns 404, so a green
+status-code check would prove nothing anyway. So the **slugs** are taken from
+authoritative sources — Vercel's own bot comment, the GitHub API's `html_url`, the
+project ref in canon — and the **paths** are the providers' documented shapes.
+A link that turns out to be wrong is a finding: fix this table in the same change,
+because the next session will copy from here.
+
 ## Verify without guessing — `/api/health`
 
 `GET /api/health` is **always reachable** (even in the fail-closed state) and
