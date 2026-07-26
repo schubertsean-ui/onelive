@@ -167,3 +167,71 @@ def test_the_tabc_query_groups_by_ADDRESS_not_just_name_and_city():
     finally:
         tabc._get = orig
     assert "location_address" in unquote(captured["url"]), unquote(captured["url"])
+
+
+# ---- r1 evaluator findings: a short denominator must never be silent --------
+
+def _stub_batches(monkeypatch, batches):
+    import tools.fetch_tabc_capcog as tabc
+    calls = iter(batches)
+    monkeypatch.setattr(tabc, "_get", lambda url: next(calls, []))
+    return tabc
+
+
+def test_a_row_MISSING_its_identity_fields_is_reported_not_dropped(monkeypatch):
+    """Address is the premise identity key — a blank one MERGES distinct
+    branches of a chain into one venue. City carries the evidence the county
+    codes are verified against. Silently skipping either makes the denominator
+    short in the flattering direction, which is the class this whole tool
+    exists to avoid."""
+    tabc = _stub_batches(monkeypatch, [[
+        {"location_name": "Good Bar", "location_address": "1 Main",
+         "location_city": "Austin", "location_county": "227"},
+        {"location_name": "", "location_address": "2 Main",
+         "location_city": "Austin", "location_county": "227"},
+        {"location_name": "No Address", "location_address": "",
+         "location_city": "Austin", "location_county": "227"},
+        {"location_name": "No City", "location_address": "3 Main",
+         "location_city": "", "location_county": "227"},
+        {"location_name": "Bad County", "location_address": "4 Main",
+         "location_city": "Austin", "location_county": "not-a-number"},
+    ], []])
+    rows, _pages, _seen, malformed = tabc.fetch({"travis"}, 5, None)
+    assert [r["name"] for r in rows] == ["Good Bar"]
+    assert len(malformed) == 4, malformed
+    whys = " ".join(m["why"] for m in malformed)
+    assert "name" in whys and "address" in whys and "city" in whys
+    assert "county" in whys
+    # each rejection carries enough to find the row upstream
+    assert all(m["row"] for m in malformed)
+
+
+def test_a_TRUNCATED_run_writes_no_artifact_at_all(monkeypatch, tmp_path):
+    """The exit code protected the caller, never the FILE. A known-truncated
+    run still left a short, entirely plausible denominator on disk — and the
+    coverage tool reads the file, not the exit code."""
+    import tools.fetch_tabc_capcog as tabc
+    monkeypatch.setattr(tabc, "fetch",
+                        lambda *a, **k: ([{"name": "X", "address": "1",
+                                           "city": "austin", "county": "travis",
+                                           "source_layer": "tabc"}],
+                                         99, 99, []))
+    out = tmp_path / "raw.json"
+    assert tabc.main(["--out", str(out), "--max-pages", "99"]) == 1
+    assert not out.exists(), (
+        "a truncated run must leave NO file — a plausible short denominator on "
+        "disk is worse than none, because the next tool reads it")
+
+
+def test_a_malformed_active_since_fails_BEFORE_the_network(monkeypatch):
+    """A bad date otherwise spends a minute fetching and then filters
+    everything out, which reads as an empty county rather than a typo."""
+    import tools.fetch_tabc_capcog as tabc
+
+    def explode(*a, **k):
+        raise AssertionError("the network must not be touched")
+
+    monkeypatch.setattr(tabc, "_get", explode)
+    monkeypatch.setattr(tabc, "fetch", explode)
+    assert tabc.main(["--active-since", "last-tuesday"]) == 2
+    assert tabc.main(["--active-since", "2026-13-45"]) == 2

@@ -191,6 +191,14 @@ def verify_counties(rows: list) -> dict:
     return per_county
 
 
+
+def _row_digest(row: dict) -> dict:
+    """Just enough of a rejected row to find it upstream, never the whole
+    record — a rejection list nobody can act on is only a longer silence."""
+    return {k: row.get(k) for k in
+            (FIELD_NAME, FIELD_ADDRESS, FIELD_CITY, FIELD_COUNTY)}
+
+
 def fetch(counties: set, limit_pages: int = MAX_PAGES,
           active_since: str | None = None) -> tuple:
     """Every licensed premise whose county is in `counties`. Returns
@@ -223,6 +231,7 @@ def fetch(counties: set, limit_pages: int = MAX_PAGES,
     select = urllib.parse.quote(grouped)
     order = urllib.parse.quote(grouped)
     out: list = []
+    malformed: list = []
     seen = 0
     verified = False
     page = 0
@@ -261,22 +270,39 @@ def fetch(counties: set, limit_pages: int = MAX_PAGES,
             try:
                 code = int(r.get(FIELD_COUNTY))
             except (TypeError, ValueError):
+                # NOT a skip. A row whose county cannot be read is a row we
+                # cannot place, and dropping it silently makes the denominator
+                # short in the flattering direction — the whole class this tool
+                # exists to avoid. It is recorded as MALFORMED and reported.
+                malformed.append({"why": "unreadable county code",
+                                  "row": _row_digest(r)})
                 continue
             county = COUNTY_CODES.get(code)
             if county not in counties:
                 continue          # server-side filter double-checked locally
             name = (r.get(FIELD_NAME) or "").strip()
-            if not name:
+            address = (r.get(FIELD_ADDRESS) or "").strip()
+            city = normalize_place(r.get(FIELD_CITY))
+            # ADDRESS is the premise identity key, so a blank one silently
+            # MERGES distinct branches of a chain into one venue. CITY carries
+            # the evidence verify_counties() checks the county codes against.
+            # A row missing either is not a venue we can count — it is a row we
+            # must show. Evaluator finding, PR #82 r1.
+            missing = [f for f, v in (("name", name), ("address", address),
+                                      ("city", city)) if not v]
+            if missing:
+                malformed.append({"why": f"missing {'/'.join(missing)}",
+                                  "row": _row_digest(r)})
                 continue
             out.append({"name": name,
-                        "address": (r.get(FIELD_ADDRESS) or "").strip(),
-                        "city": normalize_place(r.get(FIELD_CITY)),
+                        "address": address,
+                        "city": city,
                         "county": county,
                         "source_layer": "tabc"})
         page += 1
         if len(batch) < PAGE:
             break
-    return out, page, seen
+    return out, page, seen, malformed
 
 
 def main(argv=None) -> int:
@@ -294,6 +320,18 @@ def main(argv=None) -> int:
     if args.describe:
         return describe()
 
+    if args.active_since:
+        # Validated BEFORE the network call: a malformed date otherwise spends
+        # a minute fetching and then filters everything out, which reads as an
+        # empty county rather than as a typo.
+        try:
+            datetime.date.fromisoformat(args.active_since)
+        except ValueError:
+            print(f"fetch_tabc_capcog: FAIL — --active-since "
+                  f"{args.active_since!r} is not an ISO date (YYYY-MM-DD).",
+                  file=sys.stderr)
+            return 2
+
     # This is MONTHLY receipts data, so a still-trading bar appears dozens of
     # times and a bar that closed in 2015 is still in the file. Without a
     # recency window the denominator would count long-dead venues, which
@@ -301,7 +339,8 @@ def main(argv=None) -> int:
     active_since = args.active_since or (
         datetime.date.today() - datetime.timedelta(days=548)).isoformat()
 
-    raw, pages, seen = fetch(set(CAPCOG_COUNTIES), args.max_pages, active_since)
+    raw, pages, seen, malformed = fetch(
+        set(CAPCOG_COUNTIES), args.max_pages, active_since)
     if not raw:
         raise SystemExit(
             "fetch_tabc_capcog: FAIL — zero CAPCOG premises returned. Ten "
@@ -334,12 +373,20 @@ def main(argv=None) -> int:
     print(f"  active-since window: {active_since} "
           f"(monthly rows {len(raw)} -> {len(rows)} distinct premises)")
 
-    pathlib.Path(args.out).write_text(json.dumps(rows, indent=2) + "\n",
-                                      encoding="utf-8")
+    # REPORTED, never silent: rows we could not place are named with a digest,
+    # because a denominator that is short by N is only honest if N is visible.
+    if malformed:
+        print(f"  malformed rows EXCLUDED and reported: {len(malformed)}")
+        for m in malformed[:20]:
+            print(f"    {m['why']}: {m['row']}")
+        if len(malformed) > 20:
+            print(f"    ... and {len(malformed) - 20} more")
+
     print(f"fetch_tabc_capcog: {len(rows)} CAPCOG premise(s) from {seen} record(s) "
-          f"over {pages} page(s) -> {args.out}")
+          f"over {pages} page(s)")
     for county in sorted(CAPCOG_COUNTIES):
         print(f"    {county:<12} {by_county.get(county, 0)}")
+
     if pages >= args.max_pages:
         # Non-zero, not a note (evaluator blocker r2): a warning that returns
         # success lets the workflow build and publish a percentage from a
@@ -347,8 +394,18 @@ def main(argv=None) -> int:
         # denominator.
         print(f"fetch_tabc_capcog: FAIL — hit the {args.max_pages}-page bound, "
               f"so the result is TRUNCATED and the denominator would be short. "
-              f"Raise --max-pages and re-run.", file=sys.stderr)
+              f"Raise --max-pages and re-run. NOTHING WAS WRITTEN — a "
+              f"plausible short JSON denominator left on disk is worse than "
+              f"no file, because the next tool reads it.", file=sys.stderr)
         return 1
+
+    # WRITTEN LAST, after every failure check. The artifact used to be written
+    # before this check, so a known-truncated run still left a short, entirely
+    # plausible denominator on disk for the coverage tool to read — the exit
+    # code protects the caller, never the file. Evaluator finding, PR #82 r1.
+    pathlib.Path(args.out).write_text(json.dumps(rows, indent=2) + "\n",
+                                      encoding="utf-8")
+    print(f"fetch_tabc_capcog: wrote {len(rows)} premise(s) -> {args.out}")
     return 0
 
 
