@@ -129,7 +129,8 @@ def main(argv: list[str] | None = None, *, env=None, transport=_http_json) -> in
               file=sys.stderr)
         return 1
 
-    print(f"second seat: {len(names)} model(s) advertised to this key:")
+    print(f"second seat: {len(names)} model(s) ADVERTISED to this key "
+          "(advertised != callable — the probe below settles that):")
     for name in names:
         print(f"  {name}")
     if pinned not in names:

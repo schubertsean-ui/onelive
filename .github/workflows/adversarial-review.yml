@@ -451,8 +451,21 @@ jobs:
           if git show "$TRUSTED_BASE:tools/gemini_preflight.py" \
                > /tmp/trusted/gemini_preflight.py 2>/dev/null; then
             python3 -I /tmp/trusted/gemini_preflight.py "$GEMINI_REVIEW_MODEL"
+          elif [ -f tools/gemini_preflight.py ]; then
+            # BOOTSTRAP, and BOUNDED (#72 r6, class:
+            # fail-open-on-custody-misconfig): absent on base but present in
+            # THIS PR means this is the PR introducing the tool. Running the
+            # PR's copy would hand the API key to PR-controlled code, so the
+            # proof waits one merge. The bound is what matters — the skip is
+            # reachable ONLY while the PR itself carries the tool, so it
+            # expires by construction the moment this lands.
+            echo "second seat: tools/gemini_preflight.py is absent on $TRUSTED_BASE but present in this PR — this is the bootstrap PR that introduces it, so the callability proof SKIPS exactly once. It is enforced from the next PR onward; until then an unusable pin still surfaces at the reviewer call, which is the behaviour this step improves, not a new risk."
           else
-            echo "second seat: tools/gemini_preflight.py is not on $TRUSTED_BASE yet (bootstrap) — running a PR-supplied copy would hand the API key to PR-controlled code, so this preflight SKIPS. It becomes enforceable at merge; until then an unusable pin still surfaces at the reviewer call, which is the behaviour this step exists to improve, not a new risk."
+            # Absent on BOTH: the tool was removed or renamed after landing.
+            # That silently disables a secret-holding callability proof, so
+            # it is a hard stop, never a skip.
+            echo "::error::second seat: tools/gemini_preflight.py is absent on $TRUSTED_BASE AND absent from this PR — the callability proof has been removed or renamed after landing. Deleting a gate-custody mechanism is a gate-threshold relaxation (founder-crucial), never a silent skip. Failing closed."
+            exit 1
           fi
 
       - name: Independent evaluator (APPROVE required)

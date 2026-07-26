@@ -194,3 +194,86 @@ def test_bad_arguments_fail_loud(capsys):
     assert gp.main(["  "], env={"GEMINI_API_KEY": "k"},
                    transport=_Transport([])) == 2
     assert "exactly one argument" in capsys.readouterr().err
+
+
+# --- the WORKFLOW branch that decides whether this gate runs at all -----
+# #72 r6 blocker (class: fail-open-on-custody-misconfig): the tool's own
+# branches were tested, but not the YAML condition deciding whether the
+# secret-holding preflight executes. That branch can permanently treat
+# "tool absent on trusted base" as non-failure while every test stays
+# green — so the custody-critical shape is asserted here.
+
+
+def _preflight_step():
+    import pathlib
+
+    import yaml
+
+    workflow = yaml.safe_load(
+        (pathlib.Path(gp.__file__).parent.parent / ".github" / "workflows"
+         / "adversarial-review.yml").read_text())
+    steps = workflow["jobs"]["adversarial-review"]["steps"]
+    matches = [s for s in steps if "Preflight" in (s.get("name") or "")]
+    assert len(matches) == 1, "exactly one preflight step must exist"
+    return matches[0]
+
+
+def test_workflow_runs_the_preflight_from_the_TRUSTED_BASE_copy():
+    # It holds GEMINI_API_KEY; PR-supplied code must never be the thing
+    # that holds a secret.
+    run = _preflight_step()["run"]
+    assert 'git show "$TRUSTED_BASE:tools/gemini_preflight.py"' in run
+    assert "python3 -I /tmp/trusted/gemini_preflight.py" in run
+    assert "python3 -I tools/gemini_preflight.py" not in run
+
+
+def test_workflow_bootstrap_skip_is_BOUNDED_and_removal_fails_closed():
+    # The skip must be reachable ONLY while the PR itself carries the tool
+    # (the bootstrap PR introducing it), so it expires by construction at
+    # merge. Absent on base AND absent from the PR means the mechanism was
+    # removed after landing — a hard stop, never a skip.
+    run = _preflight_step()["run"]
+    assert 'elif [ -f tools/gemini_preflight.py ]; then' in run, (
+        "the bootstrap skip must be conditioned on the PR carrying the tool, "
+        "otherwise it never expires")
+    tail = run.split("elif [ -f tools/gemini_preflight.py ]; then", 1)[1]
+    assert "else" in tail and "exit 1" in tail, (
+        "absent on base AND absent from the PR must fail closed, not skip")
+    assert "::error::" in tail
+
+
+def test_EVERY_trusted_base_tool_fetch_in_the_workflow_fails_closed():
+    # #72 r6 HARDENING after the repeat-class alarm: fail-open-on-custody-
+    # misconfig already had a structural fix (#65 r12, corrupt trust
+    # ARTIFACT refuses everything) and recurred here as a missing trust
+    # TOOL falling into a success path. The general form of the class:
+    # ANY `git show "$TRUSTED_BASE:tools/..."` in this workflow is a
+    # custody fetch, and a custody fetch that misses must never reach a
+    # bare success path. This asserts that for every such fetch that
+    # exists today and every one added later — which is what makes it a
+    # class fix rather than a third instance patch.
+    import pathlib
+    import re
+
+    import yaml
+
+    text = (pathlib.Path(gp.__file__).parent.parent / ".github" / "workflows"
+            / "adversarial-review.yml").read_text()
+    workflow = yaml.safe_load(text)
+    fetches = 0
+    for step in workflow["jobs"]["adversarial-review"]["steps"]:
+        run = step.get("run") or ""
+        if not re.search(r'git show "\$TRUSTED_BASE:tools/', run):
+            continue
+        fetches += 1
+        # Everything after the fetch must contain a terminating failure
+        # path — `exit 1` — so an absent trusted tool cannot be shrugged off.
+        assert "exit 1" in run, (
+            f"step {step.get('name')!r} fetches a trusted-base tool but has no "
+            "fail-closed path if it is absent (class: "
+            "fail-open-on-custody-misconfig)")
+        assert "::error::" in run, (
+            f"step {step.get('name')!r} must say WHY it failed closed")
+    assert fetches >= 2, (
+        "expected at least the reviewer and preflight custody fetches — if "
+        "this drops, the guard above is silently covering nothing")
