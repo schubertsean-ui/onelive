@@ -202,6 +202,20 @@ def build(catalog: list) -> list:
 DISCOVERED = REPO / "sources" / "discovered"
 
 
+def _url_key(url) -> str:
+    """A URL reduced to what makes two references the SAME source: scheme,
+    "www.", trailing slashes and case are noise."""
+    if not url:
+        return ""
+    u = str(url).strip().lower()
+    for prefix in ("https://", "http://"):
+        if u.startswith(prefix):
+            u = u[len(prefix):]
+    if u.startswith("www."):
+        u = u[4:]
+    return u.rstrip("/")
+
+
 def load_discovered() -> list:
     """Agent-discovered sources (sources/discovered/*.json).
 
@@ -218,7 +232,14 @@ def load_discovered() -> list:
     """
     out: list = []
     if not DISCOVERED.is_dir():
-        return out
+        # The directory is COMMITTED. Its absence means a wrong path or a bad
+        # checkout, and returning [] built a shorter registry that looked
+        # complete — the same "cannot lose a source" rule the catalog path
+        # enforces, unenforced one directory over. Evaluator finding, #85 r3.
+        raise SystemExit(
+            f"build_source_registry: FAIL — {DISCOVERED} is not a directory. "
+            f"Discovered leads are committed inputs; their absence is a "
+            f"misconfiguration, not an empty set.")
     # WHERE each id came from, so a duplicate names both files rather than
     # just saying "duplicate". The collision check below only compared
     # discovered ids against CURATED ones, so two leads sharing an id — within
@@ -229,7 +250,12 @@ def load_discovered() -> list:
     seen: dict = {}
     for path in sorted(DISCOVERED.glob("*.json")):
         doc = json.loads(path.read_text(encoding="utf-8"))
-        for row in doc.get("sources", []):
+        if not isinstance(doc, dict) or not isinstance(doc.get("sources"), list):
+            raise SystemExit(
+                f"build_source_registry: FAIL — {path.name} has no 'sources' "
+                f"array. A malformed discovered file must not vanish as zero "
+                f"rows; that is exactly how a source gets lost.")
+        for row in doc["sources"]:
             rid = row.get("id")
             if rid in seen:
                 raise SystemExit(
@@ -246,12 +272,26 @@ def load_discovered() -> list:
                     f"{row.get('id')!r} in {path.name} declares source_class "
                     f"{cls!r}, which is not in the taxonomy. An unmapped class "
                     f"would vanish from the scorecard.")
+            # A lead's whole claim to being in the registry is that someone
+            # can go and check it. Without a URL it is an assertion, and the
+            # invariant existed only as a test against the CURRENT artifact —
+            # nothing stopped the next file. Evaluator finding, #85 r3.
+            evidence = (row.get("evidence") or row.get("url") or "").strip()
+            if not evidence:
+                raise SystemExit(
+                    f"build_source_registry: FAIL — discovered source "
+                    f"{row.get('id')!r} in {path.name} carries no evidence "
+                    f"URL. An unverifiable lead is an assertion, and the "
+                    f"registry's one rule for leads is that they are "
+                    f"traceable.")
             out.append({
                 "id": row["id"],
                 "name": row.get("name"),
                 "source_class": cls,
                 "catalog_category": None,
-                "base_url": row.get("url"),
+                # For a lead the evidence URL IS the source URL; keeping them
+                # apart let a rediscovery slip the URL-identity check below.
+                "base_url": row.get("url") or evidence,
                 "county": row.get("county"),
                 "cultural_domain": None,
                 "access_method": "scrape",
@@ -294,6 +334,24 @@ def main(argv=None) -> int:
             f"build_source_registry: FAIL — discovered source id(s) collide "
             f"with curated rows: {clashes}. Rename them; a lead must never "
             f"overwrite a source that has actually been verified.")
+
+    # IDENTITY IS THE URL, not just the id. KUTX was "discovered" and turned
+    # out to be catalogued already; the id check caught it only because the
+    # lead happened to reuse the id. A rediscovery under a DIFFERENT id
+    # appended a second unverified row for a source we already hold, which is
+    # the duplicate defect wearing a different name. Evaluator finding, #85 r3.
+    by_url = {_url_key(s.get("base_url")): s["id"] for s in sources
+              if _url_key(s.get("base_url"))}
+    url_clashes = sorted(
+        f"{s['id']} -> {by_url[_url_key(s.get('base_url'))]}"
+        for s in discovered
+        if _url_key(s.get("base_url")) in by_url)
+    if url_clashes:
+        raise SystemExit(
+            f"build_source_registry: FAIL — discovered source(s) point at a "
+            f"URL a curated row already holds: {url_clashes}. Same source, "
+            f"different id, is still a duplicate — merge it with merge_into "
+            f"rather than adding a second row for one source.")
     sources.extend(discovered)
 
     by_class: dict = {}

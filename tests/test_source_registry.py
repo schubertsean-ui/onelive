@@ -228,7 +228,8 @@ def test_two_DISCOVERED_rows_sharing_an_id_FAIL(tmp_path, monkeypatch):
     produced the 118-vs-123 error this builder was written to stop."""
     d = tmp_path / "discovered"
     d.mkdir()
-    row = {"id": "kutx", "name": "KUTX", "source_class": "broadcast_calendar"}
+    row = {"id": "kutx", "name": "KUTX", "source_class": "broadcast_calendar",
+           "evidence": "https://kutx.org/schedule"}
     (d / "a.json").write_text(json.dumps({"sources": [row, dict(row)]}),
                               encoding="utf-8")
     monkeypatch.setattr(reg, "DISCOVERED", d)
@@ -281,3 +282,78 @@ def test_the_registry_METADATA_is_derived_from_its_own_rows():
         by_class[r["source_class"]] = by_class.get(r["source_class"], 0) + 1
     assert live["by_class"] == by_class
     assert live["class_count"] == len(by_class)
+
+
+# ---- r3: the discovered path trusted its input where the catalog does not ----
+
+def _lead(**over) -> dict:
+    row = {"id": "new_lead", "name": "A Lead",
+           "source_class": "venue_calendar",
+           "evidence": "https://example.test/calendar"}
+    row.update(over)
+    return row
+
+
+def _discovered_dir(tmp_path, payload) -> pathlib.Path:
+    d = tmp_path / "discovered"
+    d.mkdir(exist_ok=True)
+    (d / "leads.json").write_text(json.dumps(payload), encoding="utf-8")
+    return d
+
+
+def test_a_MISSING_discovered_directory_FAILS(tmp_path, monkeypatch):
+    """It is a COMMITTED input. Returning [] built a shorter registry that
+    looked complete — "cannot lose a source" enforced on the catalog path and
+    unenforced one directory over."""
+    monkeypatch.setattr(reg, "DISCOVERED", tmp_path / "not-there")
+    with pytest.raises(SystemExit, match="not a directory"):
+        reg.load_discovered()
+
+
+def test_a_discovered_file_with_NO_sources_array_FAILS(tmp_path, monkeypatch):
+    """`doc.get("sources", [])` made a malformed file vanish as zero rows —
+    exactly how a source gets lost."""
+    for payload in ({}, {"sources": "not a list"}, [], "nope"):
+        monkeypatch.setattr(reg, "DISCOVERED",
+                            _discovered_dir(tmp_path, payload))
+        with pytest.raises(SystemExit, match="no 'sources' array"):
+            reg.load_discovered()
+
+
+def test_a_lead_with_NO_evidence_URL_FAILS(tmp_path, monkeypatch):
+    """A lead's entire claim to a registry row is that someone can go and check
+    it. The invariant existed only as a test against the CURRENT artifact, so
+    nothing stopped the next file."""
+    monkeypatch.setattr(reg, "DISCOVERED", _discovered_dir(
+        tmp_path, {"sources": [_lead(evidence=None, url=None)]}))
+    with pytest.raises(SystemExit, match="no evidence URL"):
+        reg.load_discovered()
+    # a URL under either key is enough
+    monkeypatch.setattr(reg, "DISCOVERED", _discovered_dir(
+        tmp_path, {"sources": [_lead(evidence=None,
+                                     url="https://example.test/x")]}))
+    assert reg.load_discovered()[0]["id"] == "new_lead"
+
+
+def test_the_SAME_SOURCE_under_a_different_id_is_still_a_duplicate(
+        tmp_path, monkeypatch, capsys):
+    """KUTX was 'discovered' and turned out to be catalogued already. The id
+    check caught it only because the lead happened to REUSE the id — a
+    rediscovery under a different id appended a second unverified row for a
+    source we already hold. Identity is the URL, not the label."""
+    live = json.loads(
+        (REPO / "sources" / "source_registry.json").read_text(encoding="utf-8"))
+    curated = next(s for s in live["sources"]
+                   if s.get("base_url") and s.get("origin") != "web_discovery")
+    monkeypatch.setattr(reg, "DISCOVERED", _discovered_dir(tmp_path, {
+        "sources": [_lead(id="totally_different_id",
+                          evidence=curated["base_url"].upper() + "/")]}))
+    with pytest.raises(SystemExit, match="a URL a curated row already holds"):
+        reg.main(["--out", str(tmp_path / "out.json")])
+
+
+def test_url_identity_ignores_scheme_www_and_trailing_slash():
+    assert reg._url_key("https://WWW.Example.com/x/") == "example.com/x"
+    assert reg._url_key("http://example.com/x") == reg._url_key(
+        "https://www.example.com/x/")
+    assert reg._url_key(None) == ""
