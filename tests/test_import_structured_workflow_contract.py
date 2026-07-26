@@ -98,3 +98,50 @@ def test_import_step_still_bounded_and_no_ai():
     # the mere presence of the string).
     assert not re.search(r"python[0-9 ]*\S*\brun_once\.py\b", _WF), (
         "import-structured must NOT invoke the AI ingest loop (run_once.py)")
+
+
+def test_every_limit_binding_supplies_a_value_on_a_schedule_event():
+    """R-057, and this is the test that was missing rather than the guard.
+
+    The workflow declares a twice-daily schedule, and each step that needs the
+    fetch bound also fails CLOSED when it is empty. Both halves were correct;
+    the WIRING between them was not. A `schedule` event carries no `inputs`
+    context at all, so `${{ github.event.inputs.limit }}` expands to the empty
+    string, the `:?` guard fires, and the scheduled import could never run — it
+    never once did. The pre-existing tests all passed throughout, because they
+    asserted the guard EXISTED (what the workflow contains) and never that the
+    schedule branch DECIDES a value (what the branch does) — the
+    `untested-gate-branch` class exactly.
+
+    So this asserts the decision, per binding, not the presence of a default
+    anywhere: every env binding of LIMIT must key on `github.event_name` and
+    offer a non-empty literal on the schedule side. A future step that reads
+    inputs.limit raw fails here rather than silently killing the cron again.
+    """
+    bindings = re.findall(r"^\s*LIMIT:\s*(.+)$", _WF, re.MULTILINE)
+    assert bindings, "no LIMIT env binding found — the fetch bound must be wired"
+    for b in bindings:
+        assert "github.event_name" in b, (
+            f"LIMIT binding {b!r} does not key on github.event_name — on a "
+            "schedule event `inputs` does not exist, so this expands to empty "
+            "and the fail-closed guard kills every scheduled run (R-057)")
+        literal = re.search(r"github\.event_name\s*==\s*'schedule'\s*&&\s*'(\d+)'", b)
+        assert literal, (
+            f"LIMIT binding {b!r} has no quoted integer literal on the "
+            "schedule side of the ternary")
+        assert int(literal.group(1)) >= 1, (
+            f"LIMIT binding {b!r} offers {literal.group(1)!r} on the schedule "
+            "side; the guard rejects 0, so that is still a dead cron")
+
+
+def test_scheduled_fetch_bound_matches_the_declared_dispatch_default():
+    """The scheduled bound and the dispatch input's own default must agree, so a
+    scheduled run and a hand-run run fetch the same breadth. Drifting them would
+    make the cron's real coverage differ from the documented one with nothing
+    saying so."""
+    declared = re.search(r"limit:\s*\n\s*description:[^\n]*\n\s*required:\s*true\s*\n\s*default:\s*\"(\d+)\"", _WF)
+    assert declared, "the dispatch `limit` input must declare a quoted integer default"
+    scheduled = set(re.findall(r"github\.event_name\s*==\s*'schedule'\s*&&\s*'(\d+)'", _WF))
+    assert scheduled == {declared.group(1)}, (
+        f"scheduled bound(s) {sorted(scheduled)} disagree with the dispatch "
+        f"default {declared.group(1)!r} — change both together")
