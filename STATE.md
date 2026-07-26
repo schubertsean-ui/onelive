@@ -50,6 +50,43 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #30 (2026-07-26 — the review panel's wall-clock, not its content)
+
+GOAL: stop paying four model round-trips in series for lenses that are
+independent by construction. ROOT CAUSE: the adversarial reviewer issued one
+call per method lens and awaited each before starting the next, so wall-clock
+was the SUM of four calls — while the whole point of the panel is that no lens
+sees another's output (docs/hats/README.md, Independence). Serialising them
+bought nothing and cost a review round's latency four times over.
+DONE-CRITERIA: the lenses run concurrently; every lens, prompt, model binding,
+threshold and verdict rule is unchanged; ANY-lens-red is still red.
+NON-GOALS: no change to what is reviewed, who reviews it, or what counts as
+a pass. This is gate-custody code, so it is deliberately its own change set.
+[S3:caller-suppliable-custody-inputs] no custody input becomes caller-suppliable: the PR under review supplies no lens, no prompt, no model and no key, and the base-owned invocation path is untouched.
+[S3:contract-scope-violation] the contract is written for this change alone: 111 lines in one examiner file plus its tests, split out of PR #74 precisely so a change to the review machinery is judged on its own diff.
+[S3:env-dependent-hermetic-test] the tests are hermetic and were run that way: the model calls are stubbed, so no network, no key and no remote is required.
+[S3:fabricated-qualitative-copy] no outward-facing or user-visible text is produced by this change.
+[S3:fail-open-on-custody-misconfig] a lens whose call raises still fails the run: gathering concurrently does not convert an error into a missing seat, and an absent verdict is never merged as a non-red one.
+[S3:false-confidence-gate] the reviewer's self-description is unchanged and still matches: it claims a panel of independent lenses, which is exactly what running them concurrently preserves — independence was always the design, and serialising them never added any check.
+[S3:false-price-claim] no price, cost or monetary surface is involved.
+[S3:governance-ambiguity] the scope is stated precisely — dispatch order only. No lens, prompt, model, threshold or verdict rule moves, so this sets no precedent about what the panel checks.
+[S3:mutable-model-alias] no model id, alias or provider binding is touched by this change; the seats resolve their models exactly as before.
+[S3:nonfinite-decimal-accepted] no decimal arithmetic is introduced.
+[S3:nonfinite-numeric-accepted] no numeric configuration is introduced; the concurrency bound is a fixed structural property of the lens list, not a tunable.
+[S3:pagination-integrity-gap] no paged walk is involved; each lens issues one call and the merge waits for all of them, so a partial panel cannot be read as a complete one.
+[S3:pushed-on-red] the test suite ran unchained with its exit code read directly before commit.
+[S3:retyped-evidence] no number is asserted about the speedup: the claim is structural (four awaited calls become four concurrent ones), which the diff shows, rather than a measured figure quoted from memory.
+[S3:self-weakenable-gate] the reviewer cannot be weakened through its own data here: no threshold, allowlist or verdict rule is exposed as configuration by this change.
+[S3:self-weakenable-review-model] the reviewed subject still chooses no input to its own review: the lens list, the prompts, the model bindings and the verdict rule are byte-identical to before. Only the ORDER of the calls changed — from awaited-in-turn to issued together.
+[S3:semantic-claim-not-rederived] each lens's verdict is still re-derived from its own model response at merge time; nothing is read from a cache or from another lens's result.
+[S3:stale-base-widens-range] the diff range the reviewer receives is unchanged — this change touches only how the resulting per-lens calls are dispatched.
+[S3:stalled-state-needs-active-diagnosis] this change IS that class applied to our own latency: four serial calls were a stall we had been waiting out rather than diagnosing.
+[S3:swallowed-corrupt-data] a malformed model response is still surfaced by the existing parse path rather than being read as an empty finding list; concurrency changes nothing about that handling.
+[S3:untested-gate-branch] the concurrency change ships with its own tests: the panel still returns one verdict per seat/lens, ANY-lens-red is still red, and a seat that errors still fails the run rather than being dropped from the merge.
+[S3:unusable-credential-tier] credential handling is untouched; a seat without a key still reports an explicit empty seat rather than silently vanishing from the panel.
+[S3:weak-key-accepted-at-custody] no key material is read, written, validated or logged by this change.
+[S3:workflow-tool-version-skew] no workflow file is touched. The base-owned copy of the reviewer is the one CI runs, and this change does not alter which copy is selected.
+
 ## Session Contract #27 (2026-07-26, same session — close-out for PR #71)
 
 GOAL (AMENDED at r4 — the original text is quoted below and was FALSE by r1, which is itself the contract-scope-violation the panel blocked on): record PR #71's merge (0d16d90, 12 rounds) across STATE, the Kaizen ledger, the changelog and the session handoff — AND, because this PR turned out to be the first one the v2 panel judges, make the second review seat actually function. The amendment is stated rather than silently absorbed: contract-first is the custody boundary, and a gate change shipped under a records-only contract is unreviewable against its own done-criteria. ORIGINAL GOAL, superseded: "record PR #71's merge ... so disk carries the outcome rather than chat" with NON-GOALS "no code, no gate change, no threshold change — records only". WHY THE SCOPE MOVED: the close-out PR's own review run surfaced that the Gemini seat could not call its pinned model (429 `limit: 0`), so the PR could not go green without fixing the seat; splitting it out would have meant a second PR that this one still could not merge behind. DONE-CRITERIA (amended): Contract #26 closed with the merge SHA; the merged Kaizen row with M1 read from the recorded arc; handoff rewritten from in-flight to merged; the second seat pinned to a model this key can call, with that callability PROVEN by a preflight (list + live probe) executing from the trusted base copy, branch-tested, and the pin bound by test to the tool's own default; validate green. NON-GOALS (amended, unchanged in substance): no threshold relaxation anywhere — an unreachable seat still reds the gate rather than narrowing the panel, which would be founder-crucial; no change to verdict physics, custody, or the diff cap.
