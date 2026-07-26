@@ -102,11 +102,15 @@ jobs:
               echo "  302/307 with a 'Redirecting...' body is Vercel Deployment"
               echo "  Protection bouncing to its SSO login. 401/403 with JSON is the"
               echo "  app's own fail-closed gate instead. The body above says which."
-              echo "  TO FIX, one of: (1) Vercel → Project → Settings → Deployment"
-              echo "  Protection → disable it for preview, or create a Shareable Link;"
-              echo "  (2) for agent verification only, create a Protection Bypass for"
-              echo "  Automation secret and add it as the VERCEL_AUTOMATION_BYPASS"
-              echo "  repository secret — then this check reads /api/health directly."
+              # Full URLs, never a click-path (CLAUDE.md prime directive 6 part 3).
+              # Source of truth for these links: docs/DEPLOY.md "The console links".
+              echo "  TO FIX — pick one:"
+              echo "  (1) LETS FRIENDS IN, ~30s. Set Vercel Authentication to Disabled at"
+              echo "      https://vercel.com/sss-projects-e4775771/onelive/settings/deployment-protection"
+              echo "  (2) AGENT VERIFICATION ONLY, ~90s. On that same page use"
+              echo "      'Protection Bypass for Automation' -> Add Secret, then add the value as"
+              echo "      the repository secret VERCEL_AUTOMATION_BYPASS at"
+              echo "      https://github.com/schubertsean-ui/onelive/settings/secrets/actions/new"
               exit 1
               ;;
             000)
