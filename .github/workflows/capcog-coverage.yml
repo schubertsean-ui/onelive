@@ -132,8 +132,20 @@ jobs:
                     f"{', '.join(d['layers_present'])}")
           PY
 
-      # The numerator: what we have actually ingested. Read-only.
+      # DATABASE STEPS RUN ON MANUAL DISPATCH ONLY.
+      #
+      # Adding a `push` trigger put the database credential on a path that runs
+      # SUBJECT-CONTROLLED code: every script below is editable by the same PR
+      # that triggers the run, so a malicious change would execute with live DB
+      # access on push. That was not possible before I added the trigger, and
+      # convenience is not a reason to widen what a secret is exposed to.
+      #
+      # The split costs nothing real: the DENOMINATOR — the part that changed
+      # today, and the part that needs a fast loop — touches no database and
+      # still runs on every push. The numerator is a measurement someone asks
+      # for, so requiring a human dispatch is the right shape anyway.
       - name: Read ingested venues from the database
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           ONELIVE_DB_DSN: ${{ secrets.ONELIVE_DB_DSN }}
         run: |
@@ -180,6 +192,7 @@ jobs:
           }
 
       - name: Report coverage
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           python tools/capcog_coverage.py \
             --rows ingested_venues.json \
@@ -192,12 +205,14 @@ jobs:
       # together because they read the same database in the same job; splitting
       # them would double the Actions minutes to answer half a question each.
       - name: Build the source registry
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: python tools/build_source_registry.py
 
       # Fails the step when a database identifier maps to no registry source.
       # Those rows would be dropped, and the scorecard would then report a LIVE
       # feed as NEVER_TRIED — a confident lie about which sources work.
       - name: Dump per-source evidence
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           ONELIVE_DB_DSN: ${{ secrets.ONELIVE_DB_DSN }}
         run: python tools/dump_source_evidence.py
@@ -212,6 +227,7 @@ jobs:
       # would look identical to a first snapshot and silently reset the baseline
       # every run. The first proceeds; the second fails the step.
       - name: Restore the scorecard history from the previous run
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -250,6 +266,7 @@ jobs:
           echo "restored $(wc -l < docs/metrics/SOURCE_SCORECARD_HISTORY.jsonl) prior snapshot(s)"
 
       - name: Score every source and record the snapshot
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           python tools/source_scorecard.py \
             --rows source_rows.json \

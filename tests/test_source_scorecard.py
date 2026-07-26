@@ -443,8 +443,8 @@ def test_monthly_receipt_rows_collapse_to_one_row_per_premise():
     reported and make coverage look far worse than it is."""
     import tools.fetch_tabc_capcog as tabc
     import tempfile
-    months = [{"location_name": "MOHAWK", "location_city": "AUSTIN",
-               "location_county": "227",
+    months = [{"location_name": "MOHAWK", "location_address": "912 RED RIVER ST",
+               "location_city": "AUSTIN", "location_county": "227",
                "obligation_end_date_yyyymmdd": "2026-0%d-31T00:00:00.000" % m}
               for m in range(1, 7)]
 
@@ -457,3 +457,54 @@ def test_monthly_receipt_rows_collapse_to_one_row_per_premise():
     finally:
         tabc._get = orig
     assert len(written) == 1, f"6 monthly rows must collapse to 1 premise: {written}"
+
+
+def test_two_branches_of_a_chain_are_TWO_venues_not_one():
+    """Grouping on name+city alone merged every branch of a chain into one row.
+
+    Two rooms at two addresses are two places a person can go to. Merging them
+    SHRINKS the denominator, which RAISES the coverage percentage — the error
+    flattered us, so nothing would have announced it. The address is what makes
+    a premise distinct.
+    """
+    import tools.fetch_tabc_capcog as tabc
+    import tempfile
+    rows = [
+        {"location_name": "TORCHY'S TACOS", "location_address": "2809 S 1ST ST",
+         "location_city": "AUSTIN", "location_county": "227",
+         "obligation_end_date_yyyymmdd": "2026-06-30T00:00:00.000"},
+        {"location_name": "TORCHY'S TACOS", "location_address": "1801 N LAMAR BLVD",
+         "location_city": "AUSTIN", "location_county": "227",
+         "obligation_end_date_yyyymmdd": "2026-06-30T00:00:00.000"},
+    ]
+    orig = tabc._get
+    tabc._get = lambda url, timeout=60: rows if "offset=0" in url.lower() else []
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".json") as fh:
+            tabc.main(["--out", fh.name, "--active-since", "2020-01-01"])
+            written = json.loads(pathlib.Path(fh.name).read_text())
+    finally:
+        tabc._get = orig
+    assert len(written) == 2, (
+        f"two addresses are two venues; merging them undercounts the market "
+        f"and inflates coverage: {written}")
+
+
+def test_the_tabc_query_groups_by_ADDRESS_not_just_name_and_city():
+    """The server-side grouping is where the collapse actually happened, so the
+    local dedupe fix alone would not have been enough."""
+    import tools.fetch_tabc_capcog as tabc
+    from urllib.parse import unquote
+    captured = {}
+
+    def fake_get(url, timeout=60):
+        captured["url"] = url
+        return []
+
+    orig = tabc._get
+    tabc._get = fake_get
+    try:
+        tabc.fetch({"travis"})
+    finally:
+        tabc._get = orig
+    assert "location_address" in unquote(captured["url"]), unquote(captured["url"])

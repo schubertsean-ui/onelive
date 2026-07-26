@@ -54,9 +54,14 @@ BASE_URL = f"https://data.texas.gov/resource/{DATASET}.json"
 # not.
 FIELD_NAME = "location_name"
 FIELD_CITY = "location_city"
+# THE ADDRESS IS WHAT MAKES A PREMISE DISTINCT. Grouping on name+city alone
+# merged every branch of a chain into one row — two "Torchy's" in Austin became
+# one venue. That SHRINKS the denominator, which RAISES the coverage
+# percentage, so the error flattered us and would not have announced itself.
+FIELD_ADDRESS = "location_address"
 FIELD_COUNTY = "location_county"
 FIELD_END = "obligation_end_date_yyyymmdd"
-REQUIRED_FIELDS = (FIELD_NAME, FIELD_CITY, FIELD_COUNTY, FIELD_END)
+REQUIRED_FIELDS = (FIELD_NAME, FIELD_ADDRESS, FIELD_CITY, FIELD_COUNTY, FIELD_END)
 
 # `location_county` is a NUMERIC CODE, not a name — Texas numbers its 254
 # counties alphabetically (Harris = 101, confirmed against a live record). These
@@ -213,7 +218,7 @@ def fetch(counties: set, limit_pages: int = MAX_PAGES,
     # in one pass. Deduping locally as well is not redundant — the group is by
     # RAW name/city, and normalisation (case, punctuation) can still merge two
     # groups into one premise.
-    grouped = f"{FIELD_NAME},{FIELD_CITY},{FIELD_COUNTY}"
+    grouped = f"{FIELD_NAME},{FIELD_ADDRESS},{FIELD_CITY},{FIELD_COUNTY}"
     group = urllib.parse.quote(grouped)
     select = urllib.parse.quote(grouped)
     order = urllib.parse.quote(grouped)
@@ -248,7 +253,8 @@ def fetch(counties: set, limit_pages: int = MAX_PAGES,
         if not batch:
             break
         if not verified:
-            verify_shape(batch[0], (FIELD_NAME, FIELD_CITY, FIELD_COUNTY))
+            verify_shape(batch[0],
+                         (FIELD_NAME, FIELD_ADDRESS, FIELD_CITY, FIELD_COUNTY))
             verified = True
         seen += len(batch)
         for r in batch:
@@ -263,6 +269,7 @@ def fetch(counties: set, limit_pages: int = MAX_PAGES,
             if not name:
                 continue
             out.append({"name": name,
+                        "address": (r.get(FIELD_ADDRESS) or "").strip(),
                         "city": normalize_place(r.get(FIELD_CITY)),
                         "county": county,
                         "source_layer": "tabc"})
@@ -310,7 +317,12 @@ def main(argv=None) -> int:
     rows: list = []
     dedupe: set = set()
     for r in raw:
-        key = ((r["name"] or "").strip().lower(), r["city"] or "")
+        # Keyed on ADDRESS too: two branches of a chain share a name and a
+        # city but are two rooms a person can go to, and merging them
+        # undercounts the market.
+        key = ((r["name"] or "").strip().lower(),
+               (r.get("address") or "").strip().lower(),
+               r["city"] or "")
         if key in dedupe:
             continue
         dedupe.add(key)
