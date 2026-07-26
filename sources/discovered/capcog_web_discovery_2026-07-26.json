@@ -1,0 +1,336 @@
+{
+  "_what_this_is": "Sources and venues found by AGENT WEB SEARCH on 2026-07-26, at founder direction: 'surely your work accesses multiple sources to verify what a place is, including something as simple as a web search... using all the local sources we've identified eg am fm radio, local periodicals, etc.'",
+  "_trust_status": "UNVERIFIED. Every row here is a LEAD, not a fact. A search result is a far weaker claim than a TABC licence, and nothing in this file may be treated as equal to one. Each row carries the query that produced it and the page that asserted it, so any claim can be traced back. Rows enter the source registry with origin 'web_discovery' and status NEVER_TRIED until a real fetch proves the feed exists and parses \u2014 the scorecard already distinguishes 'we have not measured this' from 'this is broken', and that distinction is the whole safety property here.",
+  "_why_it_matters": "TABC sees establishments licensed to serve mixed beverages. It cannot see the Texas dance hall circuit, county fairgrounds, performing-arts nonprofits, theatres, or the chamber-of-commerce and visitor-bureau calendars where the outer counties actually publish. Seven of the ten CAPCOG counties had ZERO curated sources before this pass.",
+  "_method_is_portable": "The queries come from tools/venue_discovery_plan.py, which templates them per county and per source class. Swap the county list and the same plan works for any metro \u2014 no Austin-specific knowledge is hard-coded in the method, only in these results.",
+  "discovered_at": "2026-07-26",
+  "discovered_via": "web_search",
+  "verified": false,
+  "_headline_find": "THE TEXAS MUSIC OFFICE INDUSTRY DIRECTORY (gov.texas.gov/Apps/Music/Directory/). State-operated, 15,000+ listings, free, NO CREDENTIAL REQUIRED, and filterable by region and by category \u2014 including 'Live Music Venues', 'Clubs, Dancehalls, Small Venues' and 'Radio Stations'. This is a better layer 3 than the Places API for this product's purpose: Places knows what a business IS, but the TMO directory knows which businesses are MUSIC venues, which is the actual question. It is also the direct answer to what TABC structurally cannot see, and unlike Places it costs nothing and waits on no founder action. Highest-value next build.",
+  "sources": [
+    {
+      "id": "texas_music_office_venues",
+      "name": "Texas Music Office \u2014 Industry Directory (Live Music Venues)",
+      "county": null,
+      "source_class": "directory",
+      "url": "https://gov.texas.gov/Apps/Music/Directory/results/venues/p1",
+      "kind": "state_government",
+      "priority": "HIGHEST",
+      "note": "State-run, free, no credential. Region- and category-filterable. Enumerates VENUES (a denominator layer), and separately lists Clubs/Dancehalls/Small Venues and Radio Stations. Music-specific where TABC is alcohol-specific \u2014 it sees the all-ages and alcohol-free rooms TABC cannot, and excludes the restaurants TABC wrongly includes."
+    },
+    {
+      "id": "texas_music_office_dancehalls",
+      "name": "Texas Music Office \u2014 Clubs, Dancehalls, Small Venues",
+      "county": null,
+      "source_class": "directory",
+      "url": "https://gov.texas.gov/Apps/Music/Directory/results/nightclubs-dancehalls-small-venues/p1",
+      "kind": "state_government",
+      "priority": "HIGHEST"
+    },
+    {
+      "id": "texas_music_office_radio",
+      "name": "Texas Music Office \u2014 Radio Stations",
+      "county": null,
+      "source_class": "broadcast_calendar",
+      "url": "https://gov.texas.gov/Apps/Music/Directory/RadStaDefault.aspx",
+      "kind": "state_government",
+      "note": "Founder named AM/FM radio explicitly. This enumerates the stations; their event calendars are then per-station sources."
+    },
+    {
+      "id": "giddings_chamber_events",
+      "name": "Giddings Area Chamber of Commerce \u2014 Events List",
+      "county": "lee",
+      "source_class": "community_board",
+      "url": "https://giddingstx.com/events-list/",
+      "kind": "chamber_of_commerce",
+      "note": "The only event channel found for Lee county, which had zero curated sources."
+    },
+    {
+      "id": "visit_bastrop_live_music",
+      "name": "Visit Bastrop \u2014 Live Music",
+      "county": "bastrop",
+      "source_class": "city_civic_calendar",
+      "url": "https://www.visitbastrop.com/things-to-do/live-music/",
+      "kind": "visitor_bureau"
+    },
+    {
+      "id": "bastrop_chamber_events",
+      "name": "Bastrop Regional Chamber of Commerce \u2014 Event Calendar",
+      "county": "bastrop",
+      "source_class": "community_board",
+      "url": "https://www.bastropchamber.com/bastrop-regional-event-calendar/",
+      "kind": "chamber_of_commerce"
+    },
+    {
+      "id": "bastrop_live_music_foundation",
+      "name": "Bastrop Live Music Foundation \u2014 Events",
+      "county": "bastrop",
+      "source_class": "community_board",
+      "url": "https://www.bastroplivemusicfoundation.org/events",
+      "kind": "nonprofit"
+    },
+    {
+      "id": "explore_bastrop_county",
+      "name": "Explore Bastrop County \u2014 Calendar",
+      "county": "bastrop",
+      "source_class": "city_civic_calendar",
+      "url": "https://explorebastropcounty.com/calendar-events/",
+      "kind": "county_tourism"
+    },
+    {
+      "id": "llano_chamber_calendar",
+      "name": "Llano Chamber of Commerce \u2014 Calendar",
+      "county": "llano",
+      "source_class": "community_board",
+      "url": "https://www.llanochamber.org/calendar",
+      "kind": "chamber_of_commerce"
+    },
+    {
+      "id": "visit_llano_texas",
+      "name": "City of Llano \u2014 Entertainment",
+      "county": "llano",
+      "source_class": "city_civic_calendar",
+      "url": "https://visitllanotexas.com/entertainment",
+      "kind": "city"
+    },
+    {
+      "id": "visit_llano_county",
+      "name": "Visit Llano County \u2014 Events",
+      "county": "llano",
+      "source_class": "city_civic_calendar",
+      "url": "https://visitllanocounty.com/",
+      "kind": "county_tourism"
+    },
+    {
+      "id": "texas_polka_news",
+      "name": "Texas Polka News \u2014 Live Music Calendar",
+      "county": null,
+      "source_class": "local_media",
+      "url": "https://www.texaspolkanews.com/live-music-calendar",
+      "kind": "local_periodical",
+      "note": "Regional, not county-scoped. Covers the Czech/German dance-hall circuit across Fayette, Lee, Caldwell and beyond \u2014 a live-music population no ticketing API indexes."
+    },
+    {
+      "id": "texasbob_fayette",
+      "name": "TexasBob Events \u2014 Fayette County",
+      "county": "fayette",
+      "source_class": "local_media",
+      "url": "https://texasbob.com/event/county.php?county_id=75",
+      "kind": "regional_calendar"
+    },
+    {
+      "id": "dancing_across_texas_halls",
+      "name": "Dancing Across Texas \u2014 Dance Hall List",
+      "county": null,
+      "source_class": "directory",
+      "url": "https://dancingacrosstexas.com/2019/05/13/dance-hall-list/",
+      "kind": "enthusiast_directory",
+      "note": "A directory, so it enumerates VENUES rather than events. Useful as a denominator layer for the dance-hall population."
+    },
+    {
+      "id": "lockhart_chamber_events",
+      "name": "Lockhart Chamber of Commerce \u2014 Events",
+      "county": "caldwell",
+      "source_class": "community_board",
+      "url": "https://business.lockhartchamber.com/events",
+      "kind": "chamber_of_commerce"
+    },
+    {
+      "id": "caldwell_chamber_events",
+      "name": "Caldwell Chamber of Commerce \u2014 Events",
+      "county": "caldwell",
+      "source_class": "community_board",
+      "url": "https://business.caldwellchamber.org/events",
+      "kind": "chamber_of_commerce",
+      "note": "CAUTION: the city of Caldwell is in BURLESON county, which is NOT CAPCOG. Verify this chamber's geography before trusting its rows \u2014 a name-only match here would import out-of-market events, the same class as the San Antonio defect."
+    },
+    {
+      "id": "caldwell_hispanic_chamber",
+      "name": "Greater Caldwell County Hispanic Chamber \u2014 Events",
+      "county": "caldwell",
+      "source_class": "community_board",
+      "url": "https://caldwellcountyhispanicchamber.com/events-calendar/",
+      "kind": "chamber_of_commerce"
+    },
+    {
+      "id": "luling_chamber_events",
+      "name": "Luling Chamber of Commerce \u2014 Event List",
+      "county": "caldwell",
+      "source_class": "community_board",
+      "url": "https://www.lulingcc.org/events/display_event_list.php",
+      "kind": "chamber_of_commerce"
+    },
+    {
+      "id": "blanco_chamber",
+      "name": "Blanco Chamber of Commerce",
+      "county": "blanco",
+      "source_class": "community_board",
+      "url": "http://www.blancochamber.com/",
+      "kind": "chamber_of_commerce"
+    },
+    {
+      "id": "dripping_springs_chamber_venues",
+      "name": "Dripping Springs Chamber \u2014 Music Venue Directory",
+      "county": "hays",
+      "source_class": "directory",
+      "url": "https://cca.dstxchamber.com/Music-Venue-__5007720_category.aspx",
+      "kind": "chamber_of_commerce",
+      "note": "A chamber directory filtered to MUSIC VENUES \u2014 a venue enumeration source, not an event feed."
+    },
+    {
+      "id": "visit_wimberley_live_music",
+      "name": "Visit Wimberley \u2014 Live Music",
+      "county": "hays",
+      "source_class": "city_civic_calendar",
+      "url": "https://www.visitwimberleytx.org/around-town/live-music/",
+      "kind": "visitor_bureau"
+    },
+    {
+      "id": "live_music_in_texas_hill_country",
+      "name": "Live Music in Texas \u2014 Hill Country",
+      "county": null,
+      "source_class": "local_media",
+      "url": "https://livemusicintexas.com/texas-cities/texas-hill-country/",
+      "kind": "regional_aggregator"
+    },
+    {
+      "id": "hill_country_portal",
+      "name": "Hill Country Portal \u2014 Rodeos and Fairs",
+      "county": null,
+      "source_class": "local_media",
+      "url": "https://www.hillcountryportal.com/hillcountry-rodeos-fairs.html",
+      "kind": "regional_aggregator"
+    }
+  ],
+  "venues": [
+    {
+      "name": "Neighbor's Kitchen & Yard",
+      "city": "bastrop",
+      "county": "bastrop"
+    },
+    {
+      "name": "The Grace Miller",
+      "city": "bastrop",
+      "county": "bastrop"
+    },
+    {
+      "name": "602 Brewing Co",
+      "city": "bastrop",
+      "county": "bastrop"
+    },
+    {
+      "name": "Lantex Theater",
+      "city": "llano",
+      "county": "llano",
+      "note": "Built 1927; home of the long-running Llano Opry."
+    },
+    {
+      "name": "The Barrel House",
+      "city": "llano",
+      "county": "llano"
+    },
+    {
+      "name": "The Bugle Boy",
+      "city": "la grange",
+      "county": "fayette"
+    },
+    {
+      "name": "Fayette County Fairgrounds",
+      "city": "la grange",
+      "county": "fayette"
+    },
+    {
+      "name": "Freyburg Hall",
+      "city": "schulenburg",
+      "county": "fayette",
+      "note": "Texas dance hall, established 1912, restored."
+    },
+    {
+      "name": "Sengelmann Dance Hall",
+      "city": "schulenburg",
+      "county": "fayette"
+    },
+    {
+      "name": "Swiss Alp Hall & Chalet",
+      "city": "schulenburg",
+      "county": "fayette",
+      "note": "Dance hall built c.1900."
+    },
+    {
+      "name": "Schulenburg KC Hall",
+      "city": "schulenburg",
+      "county": "fayette"
+    },
+    {
+      "name": "Watermelon Thump Pavilion",
+      "city": "luling",
+      "county": "caldwell"
+    },
+    {
+      "name": "Old Pal Texas Tavern",
+      "city": "lockhart",
+      "county": "caldwell"
+    },
+    {
+      "name": "Red Bud Cafe",
+      "city": "blanco",
+      "county": "blanco"
+    },
+    {
+      "name": "Uptown Blanco Restaurant",
+      "city": "blanco",
+      "county": "blanco"
+    },
+    {
+      "name": "Tenuta Bianco Wine Bar",
+      "city": "blanco",
+      "county": "blanco"
+    },
+    {
+      "name": "Blanco Performing Arts",
+      "city": "blanco",
+      "county": "blanco",
+      "note": "A PRODUCER, not a room \u2014 presents chamber music in venues it does not own. Must not be counted as a venue in the denominator."
+    },
+    {
+      "name": "Lee County Fairgrounds",
+      "city": "giddings",
+      "county": "lee"
+    },
+    {
+      "name": "Veterans Honor Park",
+      "city": "giddings",
+      "county": "lee"
+    },
+    {
+      "name": "Lee County Senior Center",
+      "city": "giddings",
+      "county": "lee",
+      "note": "Weekly Monday live music \u2014 the kind of standing community event no ticketing API carries."
+    },
+    {
+      "name": "Diamond I",
+      "city": "dime box",
+      "county": "lee"
+    }
+  ],
+  "queries_run": [
+    "Austin Texas live music venues all ages no alcohol theatres coffee shops with stages list",
+    "Bastrop Texas live music venue calendar 2026",
+    "Llano Burnet County Texas chamber of commerce events calendar live music venues",
+    "Fayette County La Grange Texas Schulenburg live music venue dance hall calendar",
+    "Caldwell County Lockhart Luling Texas live music venues chamber of commerce events calendar",
+    "Blanco Johnson City Wimberley Dripping Springs Texas music venue calendar chamber",
+    "Giddings Lee County Texas live music venue events calendar chamber of commerce",
+    "Austin radio station live music event calendar KUTX Sun Radio local show listings",
+    "Texas Music Office music industry directory venues searchable database gov.texas.gov"
+  ],
+  "not_yet_searched": [
+    "burnet county (marble falls, burnet) \u2014 folded into the llano query, deserves its own",
+    "williamson county (georgetown, round rock, taylor) \u2014 TABC-heavy, unsearched",
+    "commercial AM/FM stations beyond public radio \u2014 the TMO radio directory enumerates them",
+    "public library systems outside Austin",
+    "the remaining ~420 queries in tools/venue_discovery_plan.py"
+  ],
+  "_already_curated_dropped": "KUTX and KUT were 'discovered' by search and turned out to be ALREADY in the curated catalog. Dropped rather than renamed: they are the same sources, and carrying them twice would split their evidence across two rows and inflate the source count \u2014 the exact duplicate defect fixed earlier today. The registry's id-collision guard caught this, which is the guard working as intended. Dropped: ['kutx_presents', 'kut_events']"
+}
