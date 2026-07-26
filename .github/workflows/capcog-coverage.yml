@@ -1,0 +1,89 @@
+name: CAPCOG Coverage
+
+# THE launch metric: what share of CAPCOG venues do we actually cover?
+#
+# Founder-directed 2026-07-26 — "If you haven't already created the 'total
+# potential number of venues in CAPCOG' list and are comparing your data
+# ingestion to that, you don't know what you're testing against."
+#
+# The dev sandbox has no outbound network, so the denominator fetch (TABC) runs
+# HERE, where the importers already run. Manual dispatch on purpose: this is a
+# measurement, not a gate, and it should be run when someone wants the number —
+# not on every push, burning Actions minutes for an answer nobody is reading.
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_tabc:
+        description: "Skip the TABC fetch and measure against the catalog layer only"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install worker deps
+        run: pip install -q -r worker/requirements.txt
+
+      # Layer 2. Fails LOUD on a schema change or a bad response rather than
+      # yielding zero rows — "CAPCOG has no venues" would be a lie, not a result.
+      - name: Fetch TABC licensed premises (denominator layer 2)
+        if: ${{ github.event.inputs.skip_tabc != 'true' }}
+        run: python tools/fetch_tabc_capcog.py
+
+      - name: Build the venue target list
+        run: |
+          if [ -f sources/tabc_capcog_raw.json ]; then
+            python tools/build_capcog_targets.py --tabc sources/tabc_capcog_raw.json
+          else
+            python tools/build_capcog_targets.py
+          fi
+
+      # The numerator: what we have actually ingested. Read-only.
+      - name: Read ingested venues from the database
+        env:
+          ONELIVE_DB_DSN: ${{ secrets.ONELIVE_DB_DSN }}
+        run: |
+          : "${ONELIVE_DB_DSN:?ONELIVE_DB_DSN is empty — refusing to report a
+          coverage number with no numerator, which would read as zero coverage}"
+          python - <<'PY'
+          import json, os, psycopg2
+          conn = psycopg2.connect(os.environ["ONELIVE_DB_DSN"])
+          with conn, conn.cursor() as cur:
+              cur.execute("""
+                  select distinct venue_name, venue_city
+                    from licensed_event
+                   where venue_name is not null
+              """)
+              rows = [{"venue_name": n, "venue_city": c} for n, c in cur.fetchall()]
+          conn.close()
+          json.dump(rows, open("ingested_venues.json", "w"), indent=2)
+          print(f"read {len(rows)} distinct ingested venue(s)")
+          PY
+
+      - name: Report coverage
+        run: |
+          python tools/capcog_coverage.py \
+            --rows ingested_venues.json \
+            --targets sources/capcog_venue_targets.json \
+            | tee coverage_report.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: capcog-coverage
+          path: |
+            coverage_report.txt
+            sources/capcog_venue_targets.json
+            sources/tabc_capcog_raw.json
+          if-no-files-found: warn
