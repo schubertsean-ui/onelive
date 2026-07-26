@@ -259,6 +259,63 @@ def test_panel_gemini_seat_runs_when_key_present():
     assert verdict == ar.APPROVE
 
 
+def test_panel_lenses_run_CONCURRENTLY_not_one_after_another():
+    """Four large-diff model calls in series was 7-25 minutes per round — most
+    of this project's review latency, and enough to distort what gets built.
+
+    The lenses never see each other's output by design, so nothing about the
+    review depends on their order. This pins that they actually overlap: each
+    stub blocks until all of them have arrived, which can only complete if
+    they run at the same time.
+    """
+    import threading
+    started = threading.Barrier(4, timeout=10)
+
+    def lens(ri, sp):
+        started.wait()          # deadlocks (BrokenBarrier) if run serially
+        return "ok\nVERDICT: APPROVE"
+
+    verdict, _ = ar.run_panel(
+        "input", "seed", openai_key="k", model="m", base_url="u",
+        gemini_key="gk", request_openai=lens, request_gemini=lens)
+    assert verdict == ar.APPROVE
+
+
+def test_panel_output_order_is_STABLE_regardless_of_which_lens_finishes_first():
+    """A transcript whose sections move between runs cannot be diffed, and the
+    seat/lens order is how a reader finds a finding again."""
+    import time
+
+    def slow(ri, sp):
+        time.sleep(0.05)        # openai seat finishes LAST
+        return "slow\nVERDICT: APPROVE"
+
+    def fast(ri, sp):
+        return "fast\nVERDICT: APPROVE"
+
+    _, outputs = ar.run_panel(
+        "input", "seed", openai_key="k", model="m", base_url="u",
+        gemini_key="gk", request_openai=slow, request_gemini=fast)
+    seats = [line.split("/")[0].strip() for line in outputs
+             if line.startswith("### SEAT")]
+    assert seats == ["### SEAT openai", "### SEAT openai",
+                     "### SEAT gemini", "### SEAT gemini"]
+
+
+def test_a_lens_that_RAISES_still_hard_fails_the_panel_when_run_concurrently():
+    """Concurrency must not turn a lens error into a swallowed result — a panel
+    that loses a lens and still approves is a gate that stopped being one."""
+    def boom(ri, sp):
+        raise RuntimeError("upstream 500")
+
+    def ok(ri, sp):
+        return "ok\nVERDICT: APPROVE"
+
+    with pytest.raises(RuntimeError, match="upstream 500"):
+        ar.run_panel("input", "seed", openai_key="k", model="m", base_url="u",
+                     gemini_key="gk", request_openai=boom, request_gemini=ok)
+
+
 def test_panel_unparseable_lens_is_hard_failure():
     def hedged(ri, sp):
         return "maybe\nVERDICT: MAYBE"  # not a valid verdict
