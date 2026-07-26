@@ -51,6 +51,52 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
 
+## Session Contract #34 (2026-07-26 — every source, catalogued exactly once)
+
+GOAL: one registry naming every ingestion source we have identified, portable
+to any locale, that cannot lose or duplicate a source. ROOT CAUSE: we had 123
+catalogued sources spread across a catalog and several ad-hoc lists, and no way
+to answer "is this source already known?" — so five of seven sources added as
+new turned out to be duplicates, and the test that existed ASSERTED the
+phantoms.
+DONE-CRITERIA: an unmapped category fails rather than vanishing; a duplicate id
+fails; a non-catalog source merges rather than duplicating; discovered sources
+are marked as unverified leads; the count claimed in STATE.md is bound to the
+artifact by a test.
+NON-GOALS: SCORING sources — tried / working / remediation / volume, trended
+over time — is the next change in this stack. This one catalogues; it judges
+nothing.
+STACKED ON: claude/handoff-review-2026-07-25-15ucin (PR #74).
+[S3:caller-suppliable-custody-inputs] no caller supplies anything the registry trusts: the catalog and the discovered directory are read from committed paths, and the taxonomy is a module constant.
+[S3:contract-scope-violation] this contract covers the registry alone. The scorecard, the evidence dump and the discovery plan each carry their own contract on their own branch in this stack.
+[S3:deferred-trust-work] nothing is parked: the duplicate-source defect and the test that asserted the phantoms were both fixed in the change that found them.
+[S3:env-dependent-hermetic-test] the tests are hermetic and were RUN that way: they build registries from in-memory catalogs and read the committed artifact from disk, with no network and no credential.
+[S3:fabricated-qualitative-copy] no descriptive text about a source is generated: every field is copied from the catalog row or the discovery record, and discovered rows carry the URL the claim traces to.
+[S3:fail-open-on-custody-misconfig] every malformed input fails the build: an unreadable discovered file, an unmapped category and a duplicate id all abort rather than producing a shorter registry.
+[S3:false-confidence-gate] discovered sources are LEADS and are marked as such — verified:false, an evidence URL, a named remediation, and an explicitly UNKNOWN credential state. A web-search result is a far weaker claim than a licence record and the registry never lets the two look alike.
+[S3:false-price-claim] no price, cost or monetary surface appears in the registry.
+[S3:featurability-dimension-missed] every row carries origin, class, county, credential state and evidence, so a reader can see WHICH dimension of a source is unknown rather than inferring the row is complete.
+[S3:governance-ambiguity] the registry states its own scope precisely: it enumerates sources and their provenance, and asserts nothing about whether any of them currently works — that is the scorecard's job, on its own branch.
+[S3:missing-record-read-as-state] an UNKNOWN credential state is reported as unknown, never as evidence of a missing key; absence of a record is never rendered as a finding.
+[S3:mutable-model-alias] no model, alias or provider is referenced anywhere in this change.
+[S3:nonfinite-decimal-accepted] no decimal or monetary arithmetic occurs.
+[S3:nonfinite-numeric-accepted] the only arithmetic is integer counting of registry rows and classes.
+[S3:pagination-integrity-gap] no paged walk occurs: the catalog and the discovered directory are read in full, and a read failure aborts rather than truncating.
+[S3:pushed-on-red] the suite ran unchained with its exit code read directly before commit.
+[S3:release-path-weaker-than-generation] no release or publish path is touched: the registry is a catalogue and decides nothing about what may be shown.
+[S3:retyped-evidence] the source count in STATE.md is bound to the artifact by a test — a claimed count the registry contradicts fails the suite, which is how the 118-vs-123 error was caught.
+[S3:self-weakenable-gate] the registry cannot be quietly narrowed through its own data: a stale merge target FAILS rather than silently appending, and a discovered id colliding with a curated row FAILS rather than overwriting it in the direction that loses information.
+[S3:self-weakenable-review-model] the registry feeds no review verdict; it is data the scorecard reads on a later branch.
+[S3:semantic-claim-not-rederived] every registry row's class is re-derived from the taxonomy at build time and asserted to bind to a real class; nothing trusts a stored label.
+[S3:stale-base-widens-range] no range-derived gate is involved in building the registry; it reads committed files at whatever revision is checked out.
+[S3:stalled-state-needs-active-diagnosis] the build performs no network call, so there is no external state to stall on — that is deliberate, and the evidence-gathering that DOES call out lives in a separate tool.
+[S3:swallowed-corrupt-data] a non-catalog source declares merge_into and folds into the row it belongs to instead of appearing twice. Found the hard way: five of seven 'new' sources were already catalogued, the real count was 123 not 118, and the existing test ASSERTED the phantoms existed.
+[S3:untested-gate-branch] every refusal branch has a committed test: unmapped category, duplicate id, stale merge target, discovered/curated id collision, and the STATE-count binding.
+[S3:unusable-credential-tier] a source needing a credential we do not hold gets its own status with a named founder action, rather than being scored as broken or silently dropped.
+[S3:volatile-safety-store] the registry is a committed JSON artifact, not process state or a cache, so a claim about it can be checked by anyone at any later time.
+[S3:weak-key-accepted-at-custody] no key material is read or written; credential PRESENCE is recorded as a tri-state, and its value never is.
+[S3:workflow-tool-version-skew] no workflow is touched; the builder is a leaf script with no trusted base-owned counterpart to skew against.
+
 ## Session Contract #28 (2026-07-26, founder-directed — verbatim: "Just get all the data for all the venues in CAPCOG. If you show San Antonio you've failed and need to fix it because Bear county is not part of CAPCOG." and "If you haven't already created the 'total potential number of venues in CAPCOG' list and are comparing your data ingestion to that... you don't know what you're testing against or reaching for.")
 
 GOAL: (1) make the market boundary CORRECT — CAPCOG's ten counties, not a radius — so out-of-region venues cannot reach a user; (2) create the DENOMINATOR (total potential CAPCOG venues) and measure ingestion against it, so coverage is a number instead of an anecdote. ROOT CAUSE FOUND: ticketmaster.py/seatgeek.py scope the market as a 75-mile circle around downtown Austin; San Antonio is ~75 mi away, so Bexar County was inside the query BY CONSTRUCTION — the Majestic/Freeman/Jo Long rows were the query working as written, not a data defect. R-025 recorded this and deferred it to "post-launch"; that deferral was wrong and the founder's flag fires its trigger. DONE-CRITERIA: canonical 10-county boundary + tri-state membership; region report separating OUTSIDE (defect) from UNKNOWN (worklist); coverage tool that REFUSES to print a percentage without a real denominator; target-list builder runnable where egress exists. NON-GOALS: no change to PR #68's importer semantics; no new spend.
