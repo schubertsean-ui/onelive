@@ -203,8 +203,12 @@ stable: a majority of claim-shaped lines fire, so the scanner stays
 rejected. Run the script for the current figure rather than trusting this
 paste to still match.
 
-MEASURED AT COMMIT 22e8a4a — that is the run whose output is printed above,
-and it is the only claim-scan figure this repo now states. r12: earlier
+r14 (evaluator, class `self-contradictory-evidence-pin`): this paragraph
+previously said the pasted output was "MEASURED AT COMMIT 22e8a4a" while the
+paragraph above it pinned the SAME pasted output to 19d014f. Both cannot be
+true, and a proof object that contradicts itself on provenance is not proof.
+The pin is now stated ONCE, immediately beside the output it belongs to (see
+the block above), and nowhere else. r12: earlier
 rounds cited a `79 / 55 / 36` run whose output was never preserved; an
 unpreserved run is not evidence under this PR's own rule, so that pair is
 WITHDRAWN rather than repeated as a second data point. Counts move as the

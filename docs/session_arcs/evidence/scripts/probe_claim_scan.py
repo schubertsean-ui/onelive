@@ -17,8 +17,18 @@ CLAIM = (r"\b(verified|proven|proves?|identical|measured|confirmed|guarantee[sd]
          r"|ensures?|never|always|every|all of|none|complete(?:ly)?|fully|first|only)\b")
 PROOF = r"(job \d{6,}|run \d{6,}|[0-9a-f]{7,40}\b|\d+\.\d+s|\d+s\b|\d+%|`[^`]+`|tools/|tests/|https?://)"
 
-diff = subprocess.run(["git", "diff", "origin/master", "-U0", "--", *FILES],
-                      capture_output=True, text=True).stdout
+# FAIL LOUD (#73 r14, evaluator): without this, a missing or stale
+# `origin/master` makes git error, `.stdout` come back empty, and the script
+# print a confident "0 lines would fire" — a proof generator manufacturing
+# reassuring evidence, which is the exact thing this artifact exists against.
+_proc = subprocess.run(["git", "diff", "origin/master", "-U0", "--", *FILES],
+                       capture_output=True, text=True)
+if _proc.returncode != 0:
+    raise SystemExit(
+        "probe_claim_scan: `git diff origin/master` failed "
+        f"(exit {_proc.returncode}): {_proc.stderr.strip()}\n"
+        "Fetch the base ref first — counts from a failed diff are not evidence.")
+diff = _proc.stdout
 added = [ln[1:] for ln in diff.splitlines()
          if ln.startswith("+") and not ln.startswith("+++")]
 claim = [ln for ln in added if re.search(CLAIM, ln, re.I)]

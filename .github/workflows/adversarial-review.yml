@@ -119,24 +119,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r worker/requirements.txt -r api/requirements.txt pytest
 
-      # REMOVED 2026-07-26 (#73 r7, founder-directed): a standalone
-      # `pytest -q | tee pytest.log` step used to run here. It executed the
-      # FULL suite at the same commit that the validate step below runs it
-      # again — two identical runs in one job. MEASURED at 45s in job
-      # 89754035048 (§4 of the timing evidence file); the job total fell
-      # 489s -> 418s across this and the faster suite.
-      # Nothing is weakened by dropping it: `tools/validate` still runs the
-      # full suite as a BLOCKING check (run_check "pytest (full suite)"),
-      # still reds this job on any failing test, and validate.log carries
-      # pytest's own output verbatim (the "N passed, M skipped" summary and
-      # every failure), so the evaluator receives the same test evidence
-      # from --test-log validate.log. This removes a duplicate EXECUTION,
-      # not a check and not evidence — no threshold moves.
-      #
-      # The suite still runs a second time in trust-gate.yml, and that one
-      # is DELIBERATELY kept: it is a separate workflow on a separate
-      # trigger, so it is independent verification rather than duplication.
-      # Collapsing it would trade real redundancy for ~28s.
+      - name: Test suite (log captured for the evaluator)
+        # RESTORED at #73 r14. It was removed at r7 to drop a duplicate
+        # full-suite run (measured 45s). That saving cost rounds 7-14 of
+        # review: removing it broke `blocking_failure_check`'s gate
+        # discovery, and every subsequent attempt to repair the detector
+        # introduced a NEW gate-custody defect — `--ignore-glob` silently
+        # un-rejected, `-mperf` un-rejected, `run:` matched mid-line, allowed
+        # wrappers laundering decoys. The pre-existing detector had none of
+        # those. Trading 45 seconds for four self-inflicted defects in
+        # gate-evidence code is a bad trade, so the duplicate run comes back
+        # and the detector returns to its reviewed, working form.
+        run: |
+          set -o pipefail
+          python -m pytest -q 2>&1 | tee pytest.log
+
       - name: Full validate gate (machine evidence for the evaluator)
         # Added 2026-07-18 (evaluator r2 on PR #35, unverifiable-claim class
         # fix): the evaluator receives tools/validate's own machine-generated
@@ -574,5 +571,5 @@ jobs:
           fi
           python -I /tmp/trusted/adversarial_review.py --require $PANEL_ARGS \
             --max-diff-bytes 800000 \
-            --diff-file pr.diff --test-log web.log \
+            --diff-file pr.diff --test-log pytest.log --test-log web.log \
             --test-log validate.log --test-log "$EVID_DIR/golden-exam.log"
