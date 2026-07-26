@@ -41,6 +41,13 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      # Required by the link-check step below, which reads tools/ and docs/ from
+      # the repo. Omitting it shipped a step that could never run — caught by CI
+      # on its first execution ("can't open file .../check_console_links.py").
+      # Same family as R-054: a step whose trigger fires but whose preconditions
+      # were never on the runner.
+      - uses: actions/checkout@v4
+
       - name: Read /api/health and report honestly
         env:
           # The pull_request side is pinned to a LITERAL, never a bare
