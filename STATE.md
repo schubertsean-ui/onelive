@@ -107,7 +107,9 @@ PREMORTEM (tree, ledger-seeded): retyped-evidence branch — a merge SHA or roun
 [S3:caller-suppliable-custody-inputs] the literal is a workflow-file value visible in this diff, not a repo variable — the PR #14 r4 ban was on `vars.*`, where unset and set-but-empty render identically; the script still fails loud on an empty or Claude-family id, so no custody input becomes caller-choosable.
 [S3:false-confidence-gate] the 429 hard-fail is DELIBERATELY unchanged: an unreachable seat still reds the gate rather than quietly narrowing the panel. Only the model constant moved, so the panel that reports two families is running two families.
 [S3:governance-ambiguity] the scope of that change is stated: a working weaker second family is strictly more review than a second family that cannot run; it is not a threshold change, and moving back to pro if the founder enables billing is the same one-line path through the same gate.
-STATUS: CLOSED — records written, validate green.
+[S3:governance-ambiguity] r10 — the founder ratified ONE red-check merge for this PR ("Approve one red-check merge"), and the record states its scope narrowly enough that it cannot be cited loosely: this PR only, this cause only (the Gemini seat cannot call a retired model), with verdict physics, custody, and the standing APPROVE-plus-green rule all unchanged. The declined alternative is recorded too, because the road not taken is part of the precedent. docs/memory/decisions/2026-07-26_red-check-merge-pr72.md.
+[S3:stale-live-incident-state] r10 — the deadlock claim is not prose: master's copy was read directly (`git show origin/master:tools/adversarial_review.py`) and the 404 quoted from the live CI log before the escalation was written.
+STATUS: CLOSED — records written, validate green; merged under the founder-ratified one-time red-check exception (adversarial-review red = the Gemini seat cannot call a retired model on master's copy; the OpenAI seat completed nine rounds and its last objection was adopted in r9).
 
 ## Session Contract #26 (2026-07-25, same session — founder: "Go" on Adversarial Review v2; ratifications verbatim in the decision record at close)
 
