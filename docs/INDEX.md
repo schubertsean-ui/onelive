@@ -97,8 +97,17 @@ manifest)
 **Live operational records:** `docs/metrics/*` (Kaizen, KPI, Brain IQ ledgers —
 machine-read) · `docs/FRICTION_LOG.md` · `docs/AGENT_FEEDBACK.md` ·
 `docs/ONE_LIVE_CHANGE_LOG.md` · `docs/memory/decisions/*` (**each is binding for
-the decision it records** — read the one that governs your change) ·
-`docs/memory/gotchas/*`
+the decision it records** — read the one that governs your change, including
+`2026-07-26_latency-budget-and-golive-decisions.md`, which sets the three-tier
+loop-latency budget and the rule *slow is a defect until proven to be someone
+else's clock*) · `docs/memory/gotchas/*`
+
+**Decision support for OPEN founder asks — evidence, not authority:**
+`docs/ASK_ANALYSIS_2026-07-26.md` — the recurrence history and costed consequences
+of asks 5 (escape-alarm semantics, a gate-threshold change) and 3 (the auto-publish
+ratification, a trust invariant). It carries recommendations and **decides
+nothing**; both asks are founder-crucial and remain open in `docs/V1.md`. Goes
+HISTORICAL the day either ask is answered.
 
 ## HISTORICAL — never a rule
 
