@@ -412,3 +412,57 @@ def test_every_floating_alias_in_the_allowlist_is_bound_to_an_OPEN_record():
             "OPEN docs/RECORD.md row naming it. An alias moves provider-side "
             "with no commit here, so it may only exist while a record carries "
             "its objective trigger to concretise it (class: mutable-model-alias)")
+
+
+def test_panel_lenses_run_CONCURRENTLY_and_keep_report_order():
+    # Founder-raised (#73): the lenses are independent and the merge is
+    # ANY-red = red, so running them serially bought nothing and cost 4x
+    # the latency. This pins BOTH halves of the fix: they overlap in
+    # time, and the report still reads in the original seat/lens order so
+    # concurrency changed when calls happen, never what the panel says.
+    import threading
+    import time
+
+    started = threading.Barrier(4, timeout=5)
+    order = []
+
+    def slow(ri, sp):
+        # Barrier of 4 can only clear if all four calls are in flight at
+        # once — a serial implementation deadlocks here and times out.
+        started.wait()
+        time.sleep(0.05)
+        lens = next(n for n in ar.LENSES if ar.LENSES[n] in sp)
+        order.append(lens)
+        return f"checked\nVERDICT: {ar.APPROVE}"
+
+    t0 = time.time()
+    verdict, outputs = ar.run_panel(
+        "input", "seed", openai_key="k", model="gpt-5.5", base_url="u",
+        gemini_key="g", request_openai=slow, request_gemini=slow)
+    elapsed = time.time() - t0
+
+    assert verdict == ar.APPROVE
+    assert elapsed < 2.0, "four concurrent calls must not serialize"
+    # Report order is the declared seat/lens order regardless of which
+    # call finished first.
+    seat_lines = [o.split("\n")[0] for o in outputs if o.startswith("### SEAT")]
+    assert seat_lines == [
+        "### SEAT openai / LENS attacker-smuggle: APPROVE",
+        "### SEAT openai / LENS absence-only: APPROVE",
+        "### SEAT gemini / LENS dataflow-taint: APPROVE",
+        "### SEAT gemini / LENS spec-vs-contract: APPROVE",
+    ]
+
+
+def test_a_failing_lens_still_hard_fails_the_whole_panel():
+    # Concurrency must not degrade a raising lens into a partial panel —
+    # that would be a silent narrowing of the gate.
+    def one_explodes(ri, sp):
+        if "ABSENCE-ONLY" in sp:
+            raise RuntimeError("transport died")
+        return "ok\nVERDICT: APPROVE"
+
+    with pytest.raises(RuntimeError, match="transport died"):
+        ar.run_panel("input", "seed", openai_key="k", model="gpt-5.5",
+                     base_url="u", gemini_key=None,
+                     request_openai=one_explodes, request_gemini=None)

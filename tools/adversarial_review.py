@@ -345,7 +345,14 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
         f"### PO SEED: {po_seed} — provocations derived deterministically: "
         + " | ".join(po_provocations(po_seed))
     ]
-    verdicts: list[str] = []
+    # Build the work list first, THEN run it. The lenses are independent by
+    # construction — each gets the same input and its own system prompt, and
+    # none reads another's output (that isolation is the point: the hats rule
+    # forbids lenses seeing each other). The verdict merge is ANY-red = red,
+    # which is order-independent. So running them one after another bought
+    # nothing and cost four times the latency: ~150s serial versus the ~40s
+    # of the slowest single call (#73, founder-raised).
+    jobs: list[tuple[str, str, object, str]] = []
     for seat, seat_key, requester in (
         ("openai", openai_key, request_openai),
         ("gemini", gemini_key, request_gemini),
@@ -362,10 +369,41 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
             (po_lens, LENSES[po_lens] + "\n\n" + po_preamble(po_seed)),
         ):
             system_prompt = SYSTEM_PROMPT + "\n\n" + V2_DISCIPLINE + "\n\n" + extra
-            text = requester(review_input, system_prompt)
-            verdict = parse_verdict(text)  # unparseable raises -> hard fail
-            verdicts.append(verdict)
-            outputs.append(f"### SEAT {seat} / LENS {lens_name}: {verdict}\n{text}")
+            jobs.append((seat, lens_name, requester, system_prompt))
+
+    # Results are collected BY INDEX and emitted in the original order, so
+    # the report reads identically to the serial version and a rerun cannot
+    # reorder it — concurrency changes when calls happen, never what the
+    # panel says. A lens that raises (transport failure, unparseable
+    # verdict) still propagates: the first exception is re-raised here and
+    # the gate hard-fails exactly as before, never degrading to a partial
+    # panel, which would be a silent narrowing.
+    results: list[tuple[str, str] | None] = [None] * len(jobs)
+    first_error: BaseException | None = None
+    if jobs:
+        import concurrent.futures as _cf
+
+        with _cf.ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+            futures = {
+                pool.submit(requester, review_input, system_prompt): i
+                for i, (_seat, _lens, requester, system_prompt) in enumerate(jobs)
+            }
+            for future in _cf.as_completed(futures):
+                i = futures[future]
+                try:
+                    text = future.result()
+                    results[i] = (parse_verdict(text), text)
+                except BaseException as exc:  # noqa: BLE001 — re-raised below
+                    if first_error is None:
+                        first_error = exc
+    if first_error is not None:
+        raise first_error
+
+    verdicts: list[str] = []
+    for (seat, lens_name, _requester, _prompt), result in zip(jobs, results):
+        verdict, text = result  # type: ignore[misc]
+        verdicts.append(verdict)
+        outputs.append(f"### SEAT {seat} / LENS {lens_name}: {verdict}\n{text}")
     if not verdicts:
         raise RuntimeError("panel produced zero lens verdicts — wiring error, "
                            "never an approval")

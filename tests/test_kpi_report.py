@@ -12,6 +12,8 @@ cannot fail proves nothing, OPERATING_RULES §9.6); and the CLI's --print /
 """
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import subprocess
 import sys
@@ -53,8 +55,28 @@ _EMPTY_LEDGER_BODY = (
 
 
 def _run_cli(args: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, str(CLI), *args],
-                          capture_output=True, text=True, timeout=60)
+    """Drive the CLI IN-PROCESS via kpi_report.main(argv), shaped like
+    subprocess.run's result so every assertion below still tests the CLI
+    contract: the same argparse parsing, the same exit codes, the same
+    stdout/stderr split.
+
+    Why not a subprocess per case: each one paid ~6s of interpreter startup +
+    package import, and eight of them were 44 of this suite's 57 seconds. The
+    one property in-process running cannot prove — that `python
+    tools/kpi_report.py` imports cleanly as a script and that main()'s return
+    code reaches the process exit status through `raise SystemExit(main())` —
+    is kept as a real subprocess in
+    test_cli_entrypoint_propagates_exit_code_as_a_real_process below.
+    """
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        try:
+            code = kpi_report.main(args)
+        except SystemExit as exc:  # argparse --help and usage errors exit here
+            code = 0 if exc.code is None else exc.code
+    assert isinstance(code, int), f"CLI returned a non-int exit code: {code!r}"
+    return subprocess.CompletedProcess(args=args, returncode=code,
+                                       stdout=out.getvalue(), stderr=err.getvalue())
 
 
 # ============================================================================
@@ -553,8 +575,22 @@ def test_real_ledger_parses_and_has_a_row_per_slot_in_its_last_snapshot():
 
 
 # ============================================================================
-# CLI smoke tests (subprocess, matching tools/brain_iq.py's own test style)
+# CLI behaviour. All but one run in-process (see _run_cli); the exception is
+# the entrypoint test, which must be a real process to prove anything.
 # ============================================================================
+def test_cli_entrypoint_propagates_exit_code_as_a_real_process():
+    """The one genuine subprocess case. Proves what in-process calls cannot:
+    `python tools/kpi_report.py` imports cleanly when run as a script (not as
+    the `tools.kpi_report` module), argv reaches main(), and a NON-zero return
+    survives `raise SystemExit(main())` as the process exit status. A missing
+    timestamp is the cheapest argv path that returns 2 without computing.
+    """
+    proc = subprocess.run([sys.executable, str(CLI), "--append", ""],
+                          capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 2, proc.stdout + proc.stderr
+    assert "TIMESTAMP" in proc.stderr
+
+
 def test_cli_print_runs_clean():
     proc = _run_cli(["--print"])
     assert proc.returncode == 0, proc.stdout + proc.stderr

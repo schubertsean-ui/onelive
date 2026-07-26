@@ -67,6 +67,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          # Cache wheels across runs (#73, founder-raised on CI latency):
+          # a cold pip install cost ~20-35s per job on every round. Pure
+          # wall-clock; the resolved dependency set is unchanged.
+          cache: pip
+          cache-dependency-path: |
+            worker/requirements.txt
+            api/requirements.txt
 
       - name: Resolve the base ref and diff range
         # Values computed in the expression layer, consumed via guarded env

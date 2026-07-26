@@ -35,6 +35,7 @@ Usage: python tools/kaizen_trends.py [--ledger docs/metrics/KAIZEN_LEDGER.md]
 from __future__ import annotations
 
 import argparse
+import functools
 import re
 import subprocess
 import sys
@@ -107,9 +108,27 @@ def class_counts(rows: list[dict]) -> dict[str, int]:
     """Total ×N count per exact class token across all M2 columns."""
     counts: dict[str, int] = {}
     for row in rows:
-        for token, n in _CLASS_RE.findall(row["m2"]):
+        for token, n in _class_pairs(row["m2"]):
             counts[token] = counts.get(token, 0) + int(n)
     return counts
+
+
+# Row-cell parsing is pure in its input string, so it is memoized: the family
+# scans below are O(families x rows), and without this every one of ~300
+# families re-ran findall over all ~200 rows — 106k regex scans, 3.4s of a
+# 3.9s report. Cached, each distinct cell is parsed exactly once. Behaviour is
+# identical by construction (same regex, same input, no state); the cache is
+# bounded so a pathological ledger cannot grow it without limit.
+@functools.lru_cache(maxsize=8192)
+def _class_pairs(m2: str) -> tuple[tuple[str, str], ...]:
+    """(class_token, count) pairs in one M2 cell."""
+    return tuple(_CLASS_RE.findall(m2))
+
+
+@functools.lru_cache(maxsize=8192)
+def _m4_tokens(m4: str) -> frozenset[str]:
+    """Hyphen-delimited tokens in one M4 (gate-gap fixes) cell."""
+    return frozenset(_M4_TOKEN_RE.findall(m4))
 
 
 def _related(a: str, b: str) -> bool:
@@ -149,8 +168,7 @@ def family_marker_last_row(family: set[str], rows: list[dict]) -> int | None:
     structural fix marker exists."""
     last: int | None = None
     for i, row in enumerate(rows):
-        m4_tokens = set(_M4_TOKEN_RE.findall(row["m4"]))
-        if family & m4_tokens:
+        if family & _m4_tokens(row["m4"]):
             last = i
     return last
 
@@ -161,7 +179,7 @@ def family_row_counts(family: set[str], rows: list[dict]) -> list[tuple[int, int
     for i, row in enumerate(rows):
         n = sum(
             int(cnt)
-            for tok, cnt in _CLASS_RE.findall(row["m2"])
+            for tok, cnt in _class_pairs(row["m2"])
             if tok in family
         )
         if n:

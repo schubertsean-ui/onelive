@@ -98,6 +98,22 @@ whole point of this file is that you never have to improvise.
 4. Copy the new token. **This is your `META_ACCESS_TOKEN`.** It lasts
    about 60 days — set a calendar reminder for 50 days from today.
 
+**Handle this token like a password — it can post as you.** Unlike the two
+IDs in step 1e, this is a bearer credential: anyone holding it can publish
+to your Instagram account without any further check. So:
+   - a. Do NOT paste it into a chat with Claude, into a GitHub issue or PR,
+     into a commit, or into any file in the repo. The only place it goes is
+     the GitHub secret box in step 1f.
+   - b. Do NOT email it or send it over Slack/Messages to anyone, including
+     to yourself as a note.
+   - c. If it lands anywhere on that list even briefly, treat it as burned:
+     go to https://developers.facebook.com/apps → `OneLive Posting` →
+     **Settings** → **Advanced** → **Invalidate all access tokens**, then
+     repeat steps 1c and 1d to mint a fresh one.
+   - d. Between copying it in step 4 and pasting it in step 1f, keep it on
+     the clipboard only. If you must park it somewhere, use your password
+     manager, never a notes app or a text file.
+
 **When it expires (or if posting starts failing):** the symptom is a
 posting error mentioning an invalid or expired OAuth token. Recovery:
    - a. Repeat steps 1c and 1d exactly to mint a fresh long-lived token.
@@ -109,6 +125,11 @@ posting error mentioning an invalid or expired OAuth token. Recovery:
    - f. Tell Claude "token rotated".
 
 ### 1e. Find the two IDs (5 min)
+
+*Unlike the token, these two IDs are NOT secrets* — they are public
+account identifiers, and holding one grants nobody anything. You can paste
+them into chat or a file freely. Only `META_ACCESS_TOKEN` needs the
+handling rules in step 1d.
 
 1. Back in https://developers.facebook.com/tools/explorer, paste your
    long-lived token into the **Access Token** box.
@@ -134,8 +155,15 @@ posting error mentioning an invalid or expired OAuth token. Recovery:
    1d. Click **Add secret**.
 4. Repeat for `META_FB_PAGE_ID` (the value from 1e step 2).
 5. Repeat for `META_IG_USER_ID` (the value from 1e step 3).
-6. Confirm all three appear in the list. Tell Claude "Meta credentials
-   added" — that fires R-026 and unlocks the posting client.
+6. Confirm all three appear in the list. GitHub masks secrets after
+   saving — you will not be able to read `META_ACCESS_TOKEN` back, which is
+   correct and expected. If you need it again, re-mint it (steps 1c–1d).
+7. **Now clear the token from your clipboard** — copy any harmless text to
+   overwrite it. If you parked it anywhere in step 1d, delete that copy now.
+8. Tell Claude "Meta credentials added" — send that phrase and nothing
+   else. Do NOT paste the token or any part of it into the chat as
+   confirmation; Claude never needs to see it and cannot use it. That
+   phrase fires R-026 and unlocks the posting client.
 
 ---
 
