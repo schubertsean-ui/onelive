@@ -448,8 +448,17 @@ jobs:
           set -euo pipefail
           : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
           : "${GEMINI_REVIEW_MODEL:?second-seat model pin unresolved — failing closed}"
-          if git show "$TRUSTED_BASE:tools/gemini_preflight.py" \
-               > /tmp/trusted/gemini_preflight.py 2>/dev/null; then
+          # Own the directory rather than inheriting it from an earlier
+          # step's side effect (#72 r7), and TEST EXISTENCE SEPARATELY from
+          # fetching. `git show ... > file 2>/dev/null` conflates two very
+          # different facts — "the tool is not on base" and "the write
+          # failed" — and routed BOTH to the bootstrap skip. Under
+          # `set -euo pipefail` the fetch below aborts the step on any
+          # failure, so only a genuine absence can reach the skip.
+          mkdir -p /tmp/trusted
+          if git cat-file -e "$TRUSTED_BASE:tools/gemini_preflight.py" 2>/dev/null; then
+            git show "$TRUSTED_BASE:tools/gemini_preflight.py" \
+              > /tmp/trusted/gemini_preflight.py
             python3 -I /tmp/trusted/gemini_preflight.py "$GEMINI_REVIEW_MODEL"
           elif [ -f tools/gemini_preflight.py ]; then
             # BOOTSTRAP, and BOUNDED (#72 r6, class:

@@ -227,6 +227,28 @@ def test_workflow_runs_the_preflight_from_the_TRUSTED_BASE_copy():
     assert "python3 -I tools/gemini_preflight.py" not in run
 
 
+def test_workflow_separates_ABSENCE_from_FETCH_FAILURE():
+    # #72 r7 blocker (found by the Gemini seat): `git show ... > file
+    # 2>/dev/null` conflates "the tool is not on base" with "the write
+    # failed", and routed BOTH to the bootstrap skip — so any redirection
+    # problem would silently disable the callability proof forever.
+    # Existence is now tested on its own, and the step owns its directory
+    # instead of inheriting it from an earlier step's side effect.
+    run = _preflight_step()["run"]
+    assert "mkdir -p /tmp/trusted" in run, (
+        "the step must create its own output directory, not depend on "
+        "another step having done it")
+    assert 'git cat-file -e "$TRUSTED_BASE:tools/gemini_preflight.py"' in run, (
+        "existence must be tested separately from fetching, or a write "
+        "failure reads as absence and falls into the bootstrap skip")
+    # The fetch itself must NOT swallow errors: no 2>/dev/null on the
+    # redirecting git show, so set -e aborts the step on any failure.
+    fetch_line = next(l for l in run.splitlines()
+                      if 'git show "$TRUSTED_BASE:tools/gemini_preflight.py"' in l)
+    assert "2>/dev/null" not in fetch_line
+    assert "set -euo pipefail" in run
+
+
 def test_workflow_bootstrap_skip_is_BOUNDED_and_removal_fails_closed():
     # The skip must be reachable ONLY while the PR itself carries the tool
     # (the bootstrap PR introducing it), so it expires by construction at
