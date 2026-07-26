@@ -134,9 +134,15 @@ posting error mentioning an invalid or expired OAuth token. Recovery:
    - b. Go to https://github.com/schubertsean-ui/onelive/settings/secrets/actions
    - c. Click the pencil icon next to `META_ACCESS_TOKEN`.
    - d. Paste the new token and click **Update secret**.
-   - e. The two IDs do NOT change — leave `META_FB_PAGE_ID` and
+   - e. **Now clear it from your clipboard** — copy any harmless text to
+     overwrite it, and delete any temporary copy you made along the way. The
+     custody rules in step 1d apply in FULL to a rotated token: it is the
+     same kind of bearer credential, and a rotation happens right after
+     something already went wrong, so this is the path where a stray copy is
+     most likely and least noticed.
+   - f. The two IDs do NOT change — leave `META_FB_PAGE_ID` and
      `META_IG_USER_ID` alone.
-   - f. Tell Claude "token rotated".
+   - g. Tell Claude "token rotated".
 
 ### 1e. Find the two IDs (5 min)
 
@@ -285,7 +291,13 @@ boundary, stated here so this section stands on its own:
      - vi. Confirm the swap happened: the row now marked **Current** under
        the Production filter must be the deployment you just created (its
        timestamp is minutes old, not the old one).
-   - f. Then tell Claude "approval key rotated". Approvals signed with the
+   - f. **Now clear it from your clipboard** — copy any harmless text to
+     overwrite it, and delete any temporary copy made while generating the
+     replacement. Step 8's rule applies identically here: this is a
+     publish-approval SIGNING key, and a rotation is triggered by a leak, so
+     leaving the replacement on the clipboard reopens on the recovery path
+     exactly the exposure the rotation exists to close.
+   - g. Then tell Claude "approval key rotated". Approvals signed with the
      old key stop verifying, which is the point.
 10. Tell Claude "approval key added" — that phrase and nothing else. Do NOT
     paste the key or any part of it into the chat as confirmation; Claude
