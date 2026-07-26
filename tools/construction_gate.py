@@ -278,19 +278,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    if args.diff_range is None:
-        # The base ref is only trustworthy if it is PROVEN synchronized —
-        # the gate owns that proof itself now (#71 CI-caught), instead of
-        # validate wrapping it in a fetch whose success it mistook for the
-        # property. Hermetic tests always pass --diff-range and so never
-        # reach the network.
-        print(f"construction_gate: base freshness — {assert_base_fresh(args.base_ref)}")
-        # Default surface: merge-base vs the WORKING TREE (single-arg git
-        # diff) — validate runs BEFORE the commit, and citations written in
-        # this build must count whether or not they are committed yet. An
-        # unresolvable merge-base fails closed inside _git.
-        merge_base = (_git(["merge-base", args.base_ref, "HEAD"]) or "").strip()
-        args.diff_range = merge_base
+    # The diff range is resolved LAZILY, and proving the base ref current
+    # is part of resolving it (#71 r9, self-caught in CI): a run whose
+    # paths, content and citations are all supplied never derives anything
+    # from git, so demanding remote access there made supposedly hermetic
+    # tests depend on the network — they passed on a machine with a
+    # reachable remote and failed in CI's plain pytest step. Freshness is
+    # owed exactly when a value comes from the repository, never before.
+    resolved: dict[str, str | None] = {"range": args.diff_range}
+
+    def diff_range() -> str:
+        if resolved["range"] is None:
+            print(
+                "construction_gate: base freshness — "
+                f"{assert_base_fresh(args.base_ref)}"
+            )
+            # Default surface: merge-base vs the WORKING TREE (single-arg
+            # git diff) — validate runs BEFORE the commit, and citations
+            # written in this build must count whether or not they are
+            # committed yet. An unresolvable merge-base fails closed
+            # inside _git.
+            resolved["range"] = (
+                _git(["merge-base", args.base_ref, "HEAD"]) or ""
+            ).strip()
+        return resolved["range"]
 
     index = load_index(args.index)
 
@@ -306,11 +317,11 @@ def main(argv: list[str] | None = None) -> int:
     assert_index_not_weakened(index, base_text)
 
     hermetic = args.paths is not None
-    paths = args.paths if hermetic else changed_paths(args.diff_range)
+    paths = args.paths if hermetic else changed_paths(diff_range())
     if not paths:
         print(
             f"construction_gate: zero changed paths in a RESOLVED diff range "
-            f"({args.diff_range}) — nothing to retrieve against"
+            f"({diff_range()}) — nothing to retrieve against"
         )
         return 0
     if args.content_file is not None:
@@ -318,7 +329,7 @@ def main(argv: list[str] | None = None) -> int:
     elif hermetic:
         content = ""
     else:
-        content = diff_content(args.diff_range)
+        content = diff_content(diff_range())
 
     matched = match_classes(index, paths, content)
     if not matched:
@@ -335,7 +346,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"construction_gate: FAIL — citation text unreadable ({exc})")
             return 1
     else:
-        citation_text = contract_added_lines(args.diff_range)
+        citation_text = contract_added_lines(diff_range())
 
     uncited = [t for t in matched if citation_tag(t) not in citation_text]
     print(f"construction_gate: matched red classes: {', '.join(matched)}")

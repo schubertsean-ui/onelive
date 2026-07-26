@@ -380,3 +380,26 @@ def test_real_remote_tip_is_none_when_the_remote_is_unreachable(tmp_path, monkey
     _git(repo, "init", "-q", "-b", "master")
     monkeypatch.setattr(gate, "REPO_ROOT", str(repo))
     assert gate._GitProbes.remote_tip("origin", "master") is None
+
+
+def test_fully_supplied_runs_never_touch_the_remote(tmp_path, index_file, monkeypatch,
+                                                    capsys):
+    # #71 r9, self-caught in CI: a run whose paths, content and citations
+    # are all supplied derives nothing from git, so it must not demand
+    # remote access. Making freshness eager turned the hermetic tests into
+    # network-dependent ones — green on a machine with a reachable remote,
+    # red in CI's plain pytest step. Pinned by making the proof EXPLODE:
+    # if the gate reaches for it here, this test fails.
+    import tools.construction_gate as gate
+
+    def _must_not_be_called(*_args, **_kwargs):
+        raise AssertionError("base freshness demanded on a fully-supplied run")
+
+    monkeypatch.setattr(gate, "assert_base_fresh", _must_not_be_called)
+    rc = _run(
+        tmp_path, index_file,
+        paths=["social/carousel/publish_gate.py"],
+        citations="[S3:caller-suppliable-custody-inputs] answered.",
+    )
+    assert rc == 0
+    assert "[S3:…] contract citations — PASS" in capsys.readouterr().out
