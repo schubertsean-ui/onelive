@@ -1,3 +1,25 @@
+# ============================================================================
+# ORDINAL WITHDRAWN — PR #73 r29 (docs/RECORD.md R-061). READ THIS FIRST.
+#
+# Everything below about which run was FIRST is withdrawn. "First" is a claim
+# about ABSENCE — that no earlier run on this branch worked — and absence needs
+# a re-runnable ENUMERATION, not the hand-curated list this file contains. The
+# list may well be right; it is not PROVEN, and a reader cannot reproduce it.
+#
+# This is the third round one ordinal has cost: r6 disproved an earlier version
+# of it, r7/r8 narrowed its scope, r29 found the proof still not mechanical.
+# It is withdrawn rather than re-proved because the enumeration needs a
+# branch-filtered Actions query this sandbox cannot make (api.github.com is
+# blocked: `curl` returns "CONNECT tunnel failed, response 403"), so any recipe
+# written here would itself be unverified — the same class, one level up. And
+# nothing depends on the ordinal: it is a fact about our tooling's history, not
+# about the product.
+#
+# WHAT REMAINS VERIFIED, and is all this file should now be cited for: run
+# 30187255366 / job 89754542551 produced Gemini verdicts on this branch. The
+# excerpts below are that evidence. Read every "first" as "a".
+# ============================================================================
+
 # PROVENANCE — read this before the excerpts below.
 #
 # WHAT: the first CI run ON THIS BRANCH in which the second review seat

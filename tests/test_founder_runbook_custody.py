@@ -67,8 +67,30 @@ _SECRETS = ("META_ACCESS_TOKEN", "ONELIVE_APPROVAL_KEY")
 # Credential MINT/COPY points that are not named by an env var. Each must carry
 # its own nondisclosure boundary at the point of copying, not deferred to a
 # later step that exchanges or stores it.
+# r29: this held ONE anchor, so a test named
+# "every_mint_point_carries_its_boundary" could pass while every OTHER copy or
+# store point in the file lost its boundary. A one-anchor allowlist is not an
+# inventory. Enumerated from the runbook by grepping its own copy/paste/store
+# instructions, so adding a credential step to the document without its boundary
+# now reds here.
+#
+# `needs` says WHICH boundary each point owes, because they are not the same
+# obligation: a COPY point owes the nondisclosure rules (chat/email prohibition
+# + a burn path), while a STORE point owes the clipboard clear. Demanding both
+# everywhere would be noise, and a noisy gate gets weakened.
 _MINT_POINTS = (
-    ("short-lived Meta access token", "Copy the token that appears in the"),
+    ("short-lived Meta token (§1c/6, copy)",
+     "Copy the token that appears in the", "disclose"),
+    ("long-lived META_ACCESS_TOKEN (§1d/4, copy)",
+     "Copy the new token.", "disclose"),
+    ("META_ACCESS_TOKEN initial store (§1f/3)",
+     "Secret: paste the long-lived token", "clipboard"),
+    ("META_ACCESS_TOKEN rotation store (§1d recovery/d)",
+     "Paste the new token and click", "clipboard"),
+    ("ONELIVE_APPROVAL_KEY initial store (§2/5)",
+     "Value: paste the generated key", "clipboard"),
+    ("ONELIVE_APPROVAL_KEY rotation store (§2/9d)",
+     "Paste the new value, keep", "clipboard"),
 )
 
 # A step that puts a secret somewhere durable: the moment after which a stray
@@ -167,9 +189,13 @@ def test_every_credential_recovery_block_clears_the_clipboard():
     misses were, and they are unambiguously identifiable by their own headings.
     Mutation-verified below against the two real r25 deletions.
 
-    What it does NOT do: audit ordinary store steps. That is left to review, and
-    saying so is the point — an honest narrow gate beats a broad one whose
-    passes mean nothing.
+    r29: this docstring used to end "What it does NOT do: audit ordinary store
+    steps. That is left to review." That sentence survived the r28 paragraph
+    which declared exactly such sentences to be defect reports rather than
+    alibis — I wrote the rule and left the alibi two functions below it. Ordinary
+    store steps are now audited by
+    test_every_mint_point_carries_its_boundary_at_the_point_of_copying over a
+    complete inventory, so the exemption is gone rather than restated.
     """
     # A block that runs AFTER something went wrong: expiry, leak, burn, rotate.
     recovery_head = re.compile(
@@ -373,7 +399,7 @@ def test_every_mint_point_carries_its_boundary_at_the_point_of_copying():
     """
     flat_lines = _TEXT.splitlines()
     missing = []
-    for name, anchor in _MINT_POINTS:
+    for name, anchor, needs in _MINT_POINTS:
         idx = [i for i, l in enumerate(flat_lines) if anchor in l]
         assert idx, (
             f"the {name} mint point anchored on {anchor!r} is gone from the "
@@ -386,15 +412,46 @@ def test_every_mint_point_carries_its_boundary_at_the_point_of_copying():
                       if re.match(r"^(?:\d+\.\s|#{2,}\s)", flat_lines[j])),
                      len(flat_lines))
             block = " ".join("\n".join(flat_lines[i:e]).split())
-            has_chat = re.search(r"do NOT paste it into a chat|not paste[^.]{0,40}chat",
-                                 block, re.IGNORECASE)
-            has_burn = re.search(r"treat it as burned|invalidate all access tokens",
-                                 block, re.IGNORECASE)
-            if not (has_chat and has_burn):
-                missing.append(
-                    f"{name} (line {i + 1}) — "
-                    f"chat-prohibition: {bool(has_chat)}, "
-                    f"burn-path: {bool(has_burn)}")
+            if needs == "disclose":
+                has_chat = re.search(
+                    r"do NOT paste it into a chat|not paste[^.]{0,40}chat",
+                    block, re.IGNORECASE)
+                has_burn = re.search(
+                    r"treat it as burned|invalidate all access tokens",
+                    block, re.IGNORECASE)
+                if not (has_chat and has_burn):
+                    missing.append(
+                        f"{name} (line {i + 1}) — chat-prohibition: "
+                        f"{bool(has_chat)}, burn-path: {bool(has_burn)}")
+            else:
+                # A STORE point owes the clipboard clear, and its window is the
+                # enclosing ### subsection rather than the single step. That is
+                # a deliberate distinction from the RECOVERY test above, not a
+                # convenience: an initial-store sequence is worked top-to-bottom
+                # in one sitting, so a clear four steps down is genuinely
+                # reached; a recovery block is entered COLD, months later, out
+                # of order, which is why r25 scopes that one to the block. Same
+                # obligation, different reachability.
+                # Bounded by ANY heading level, not just "###". Caught by
+                # mutation: keying `sub_end` on "###" alone let §1f — the last
+                # subsection of §1 — run on into §2 and borrow ITS clipboard
+                # clear, so deleting 1f's own clear still passed. Third time a
+                # too-wide window in this file produced a fail-open, and the
+                # pattern is always the same: a scope defined by what comes
+                # NEXT must name every kind of boundary that can come next.
+                def _is_head(line: str) -> bool:
+                    return line.startswith("#")
+
+                sub_start = max((j for j in range(i, -1, -1)
+                                 if _is_head(flat_lines[j])), default=0)
+                sub_end = next((j for j in range(i + 1, len(flat_lines))
+                                if _is_head(flat_lines[j])), len(flat_lines))
+                block = " ".join("\n".join(
+                    flat_lines[sub_start:sub_end]).split())
+                if not _CLIPBOARD_CLEAR.search(block):
+                    missing.append(
+                        f"{name} (line {i + 1}) — no clipboard-clear / "
+                        "delete-temporary-copy instruction in this block")
     assert not missing, (
         "these credential MINT points copy a bearer credential without stating "
         "its nondisclosure boundary in the same step — a boundary deferred to a "

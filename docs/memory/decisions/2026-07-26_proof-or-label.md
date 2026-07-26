@@ -107,11 +107,24 @@ as protection. This is the second mechanism this session rejected by
 measuring first (the other: extending `deferral_scan` over prose, 6 of 7
 hits false).
 
-The compensating control is the one that has actually caught every instance
-of this class: the mandatory non-Claude adversarial review, whose v2 lens
-panel treats a false claim as a blocker in its own right
+The compensating control is the mandatory non-Claude adversarial review, whose
+v2 lens panel treats a false claim as a blocker in its own right
 (`CLASS:false-confidence-gate`, discipline rule 2 — "VERIFY that claimed
 fixes and citations are real").
+
+CORRECTED #73 r29. This sentence originally read "the one that has actually
+caught every instance of this class". That universal is FALSE, and this
+document's own opening disproves it: the instance that produced this rule was
+caught by the FOUNDER, not by the review. Several later instances were
+self-caught before review reached them, and at least one — the r21
+satisfiability overclaim — was caught by running a command rather than by any
+reviewer. The review catches many instances and is the strongest net available;
+it does not catch all of them, and no measurement here supports "every".
+
+A decision record codifying "proof or label" cannot itself ship an unproven
+universal about the control that enforces it. That it did, for three days,
+is the sharpest available illustration of why the rule exists — the claim was
+cheap to check and I did not check it.
 
 ## Scope note
 
