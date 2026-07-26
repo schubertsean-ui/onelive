@@ -219,10 +219,27 @@ jobs:
           DIFF_RANGE: ${{ needs.range.outputs.range }}
         run: |
           : "${DIFF_RANGE:?diff range unresolved — failing closed}"
-          # Machine-generated lockfiles are excluded by policy and that
-          # exclusion is disclosed to the evaluator in the prompt.
-          git diff "$DIFF_RANGE" -- . ':(exclude)**/package-lock.json' \
-            ':(exclude)**/poetry.lock' ':(exclude)**/uv.lock' > pr.diff
+          # NOTHING IS EXCLUDED FROM THE REVIEWED DIFF (PR #75 r13, class
+          # hidden-diff-exclusion-without-compensating-gate). This step used to
+          # drop package-lock.json / poetry.lock / uv.lock as "machine
+          # generated", copied from the origin repo — where that exclusion is
+          # paired with a BLOCKING supply-chain audit whose output the
+          # evaluator receives, so nothing is actually hidden.
+          #
+          # The kernel ships no such gate: it cannot assume npm, or Node, or
+          # any particular ecosystem. So in an adopting project the exclusion
+          # was pure loss — a pull request could change dependency RESOLUTION
+          # in a lockfile and the Independent Evaluator would never see it,
+          # with no second control looking. An exclusion is only legitimate
+          # when something else is verifiably examining what was removed.
+          #
+          # Cost of including them: lockfile diffs are large and noisy. That is
+          # bounded, not unbounded — the reviewer's --max-diff-bytes cap
+          # HARD-FAILS rather than truncating, so an oversized diff surfaces as
+          # a red gate to fix deliberately, never as a silent partial review.
+          # A project that adds its own blocking dependency-audit gate may
+          # reintroduce the exclusion together with it, in the same change.
+          git diff "$DIFF_RANGE" > pr.diff
           wc -c pr.diff
 
       - name: Materialise the trusted evaluator AFTER all PR-controlled code

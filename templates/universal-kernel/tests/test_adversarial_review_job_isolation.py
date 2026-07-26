@@ -204,3 +204,27 @@ def test_the_reviewer_is_executed_only_from_a_base_owned_copy():
         f"{WORKFLOW}: the reviewer is no longer fetched from a base-owned ref")
     assert "sha256sum" in text, f"{WORKFLOW}: the reviewer's digest is not verified"
     assert "python -I" in text, f"{WORKFLOW}: the reviewer no longer runs under -I"
+
+
+def test_nothing_is_hidden_from_the_reviewed_diff():
+    """PR #75 r13, class hidden-diff-exclusion-without-compensating-gate.
+
+    The kernel ships no supply-chain audit — it cannot assume npm, Node, or
+    any ecosystem. So excluding lockfiles from the reviewed diff would let a
+    pull request change dependency RESOLUTION with nothing looking at it. An
+    exclusion is legitimate only when a second control verifiably examines
+    what was removed; here there is none, so there is no exclusion.
+
+    A project that later adds a blocking dependency-audit gate may reintroduce
+    an exclusion in the same change — and must then update this test, which is
+    the point: the pairing becomes a deliberate, reviewed decision.
+    """
+    text = (_ROOT / WORKFLOW).read_text(encoding="utf-8")
+    diff_cmds = [ln for ln in text.splitlines()
+                 if "git diff" in ln and "pr.diff" in ln]
+    assert diff_cmds, f"{WORKFLOW}: no diff-producing command found"
+    for line in diff_cmds:
+        assert ":(exclude)" not in line, (
+            f"{WORKFLOW}: the reviewed diff hides paths with no compensating "
+            f"gate examining them — the Independent Evaluator would judge an "
+            f"incomplete change: {line.strip()!r}")
