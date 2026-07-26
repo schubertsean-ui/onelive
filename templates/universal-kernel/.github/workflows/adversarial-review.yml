@@ -112,7 +112,12 @@ jobs:
           for req in requirements.txt requirements-dev.txt; do
             if [ -f "$req" ]; then pip install -r "$req"; else echo "NOTE: $req absent — not installed"; fi
           done
-          pip install pytest
+          # PyYAML is NOT optional here: the kernel's own job-isolation test
+          # parses this workflow and hard-fails without it (never a skip — a
+          # silently skipped key-exfiltration guard is the anti-pattern). Named
+          # explicitly so a fresh adopter's suite works in THEIR checkout rather
+          # than only where the origin repo's environment happened to supply it.
+          pip install pytest PyYAML
 
       - name: Test suite (log captured for the evaluator)
         run: |

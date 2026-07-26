@@ -109,3 +109,36 @@ def test_claim_scan_covers_the_surfaces_that_actually_escaped():
 
 def test_the_live_tree_is_clean_on_both_halves():
     assert gcl.main() == 0
+
+
+# ── PR #75 r11: the gate against unconditional claims was itself bypassable
+# by adding an adverb. Red cases proving a "scope marker" actually scopes.
+
+def test_an_adverb_is_not_a_scope_marker():
+    """`still` and `never` were accepted as scope. They bound nothing — both
+    make the claim STRONGER. The absence-only seat found the gate could be
+    satisfied by exactly the move it exists to prevent."""
+    for unscoped in (
+        "The gate still cannot be bypassed.",
+        "This can never be bypassed by a pull request.",
+        "The secret step is still fully closed.",
+    ):
+        assert gcl.scan_absolute_claims(unscoped), f"adverb passed as scope: {unscoped!r}"
+
+
+def test_a_marker_that_names_what_is_not_covered_does_scope():
+    """The compliant shape stays cheap, or the gate produces filler."""
+    for scoped in (
+        "It cannot be bypassed by swapping the file; this says nothing about PATH.",
+        "An attacker would have to forge sha256, which does not cover command resolution.",
+        "No PR-controlled code executes here — scoped: third-party packages are not covered.",
+    ):
+        assert gcl.scan_absolute_claims(scoped) == [], f"scoped text flagged: {scoped!r}"
+
+
+def test_removed_markers_are_really_gone():
+    """Binds the removal so a future edit cannot quietly restore the bypass."""
+    for weak in ("still", "never"):
+        assert weak not in gcl.SCOPE_MARKERS, (
+            f"{weak!r} is back in SCOPE_MARKERS — it strengthens a claim rather "
+            f"than bounding it, and re-opens the adverb bypass")

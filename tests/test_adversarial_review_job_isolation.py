@@ -27,7 +27,21 @@ import re
 
 import pytest
 
-yaml = pytest.importorskip("yaml")
+# Imported, NOT `importorskip`ed (PR #75 r11, class
+# fail-open-trust-test-dependency). This is a key-exfiltration regression
+# suite: `importorskip` let the whole boundary check vanish into a skip when
+# the parser was missing, which is the founding anti-pattern — "we could not
+# check" looking identical to "there was nothing wrong". The template-local
+# copy already hard-failed; these two must not disagree about whether a trust
+# invariant may be silently skipped.
+try:
+    import yaml
+except ImportError as exc:  # pragma: no cover - environment defect, not logic
+    raise RuntimeError(
+        "PyYAML is required to verify the evaluator workflow's job isolation. "
+        "This guards a key-exfiltration boundary and must never be skipped into "
+        "silence — install PyYAML."
+    ) from exc
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 

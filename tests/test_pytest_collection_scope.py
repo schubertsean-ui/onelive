@@ -8,7 +8,8 @@ silently stop running it and every suite would still report green. That is
 the exact shape of a self-weakenable gate: the thing being narrowed is also
 the thing that would have complained.
 
-This test binds the narrowing to a checkable claim: every `test_*.py` in the
+This test binds the narrowing to a checkable claim: every file matching ANY of
+pytest's collection patterns (`test_*.py` AND `*_test.py`) in the
 repository is either COLLECTED (under `tests/`) or DELIBERATELY EXCLUDED for
 a reason enumerated here — never silently dropped.
 
@@ -43,13 +44,35 @@ TOOL_FILES_NAMED_LIKE_TESTS = {
 IGNORED_TREES = {".git", "node_modules", ".venv", "venv", "__pycache__"}
 
 
+# BOTH of pytest's default `python_files` patterns, not just the first (PR #75
+# r11, class self-weakenable-gate). Scanning only `test_*.py` left the guard
+# blind to `*_test.py`: someone could add `worker/sneaky_test.py`, which pytest
+# collected BEFORE pytest.ini narrowed the scope and silently drops after, and
+# this guard would still pass. A compensating control that misses half the
+# pattern set is a control that cannot fail on half the cases.
+#
+# Derived from pytest's own config where available, so a project that widens
+# `python_files` automatically widens this guard instead of quietly outgrowing
+# it; the defaults are the fallback, never a narrower hand-written list.
+def _collection_patterns() -> list[str]:
+    cfg = configparser.ConfigParser()
+    cfg.read(ROOT / "pytest.ini")
+    declared = ""
+    if cfg.has_section("pytest"):
+        declared = cfg.get("pytest", "python_files", fallback="").strip()
+    patterns = declared.split() if declared else ["test_*.py", "*_test.py"]
+    assert patterns, "no collection patterns resolved — the guard would scan nothing"
+    return patterns
+
+
 def _all_test_files() -> list[Path]:
-    out = []
-    for p in ROOT.rglob("test_*.py"):
-        rel = p.relative_to(ROOT)
-        if any(part in IGNORED_TREES for part in rel.parts):
-            continue
-        out.append(rel)
+    out = set()
+    for pattern in _collection_patterns():
+        for p in ROOT.rglob(pattern):
+            rel = p.relative_to(ROOT)
+            if any(part in IGNORED_TREES for part in rel.parts):
+                continue
+            out.add(rel)
     return sorted(out)
 
 
@@ -148,3 +171,31 @@ def test_gate_goes_red_when_a_real_repo_file_would_be_dropped():
         "with exclusions removed the predicate must flag the staged template "
         "tests; it did not, so the live scan is not reaching them"
     )
+
+
+def test_the_guard_covers_every_pattern_pytest_would_collect(tmp_path, monkeypatch):
+    """A guard blind to `*_test.py` cannot fail on `*_test.py` (r11 finding).
+
+    Proven by construction rather than asserted: drop a file matching each
+    pattern outside `tests/` and confirm the predicate reports BOTH."""
+    import tests.test_pytest_collection_scope as mod
+    fake = tmp_path / "repo"
+    (fake / "worker").mkdir(parents=True)
+    (fake / "worker" / "test_sneaky.py").write_text("def test_x(): pass\n")
+    (fake / "worker" / "sneaky_test.py").write_text("def test_y(): pass\n")
+    (fake / "pytest.ini").write_text("[pytest]\ntestpaths = tests\n")
+    monkeypatch.setattr(mod, "ROOT", fake)
+    found = {str(p) for p in mod._all_test_files()}
+    assert found == {"worker/test_sneaky.py", "worker/sneaky_test.py"}, found
+    assert mod.unaccounted_test_files(mod._all_test_files()), (
+        "both files sit outside tests/ and neither is an accounted tool file, so "
+        "the guard must report them")
+
+
+def test_the_patterns_come_from_config_when_declared(tmp_path, monkeypatch):
+    """A project that widens python_files widens this guard automatically."""
+    import tests.test_pytest_collection_scope as mod
+    fake = tmp_path / "repo"; fake.mkdir()
+    (fake / "pytest.ini").write_text("[pytest]\npython_files = check_*.py\n")
+    monkeypatch.setattr(mod, "ROOT", fake)
+    assert mod._collection_patterns() == ["check_*.py"]

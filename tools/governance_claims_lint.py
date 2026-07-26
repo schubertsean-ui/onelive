@@ -90,7 +90,11 @@ def scan_text(text: str, repo: pathlib.Path = REPO) -> list[str]:
 # which is how a gate stops meaning anything.
 ABSOLUTE_CLAIM_RE = re.compile(
     r"attacker would (?:have to|need to)"
-    r"|\b(?:cannot|can't|could not) be (?:bypassed|forged|subverted|circumvented)"
+    # "can NEVER be bypassed" slipped past the first form entirely — the
+    # negation can be carried by the adverb instead of the modal (PR #75 r11,
+    # found by writing the red case rather than by reading the regex).
+    r"|\b(?:cannot|can't|could not|can never|will never|is never|are never)\s+be\s+"
+    r"(?:bypassed|forged|subverted|circumvented)"
     r"|\bimpossible to\b"
     r"|\bgenuinely (?:base-owned|trusted|secure|isolated|closed)\b"
     r"|\bno longer possible\b"
@@ -112,9 +116,18 @@ ABSOLUTE_CLAIM_RE = re.compile(
 )
 # Words that turn a total claim into a bounded one, or mark the sentence as
 # quoted history rather than a live assertion.
+# A scope marker must BOUND the claim — name what the control does not cover,
+# or what it depends on. `still` and `never` were in this list and bound
+# nothing: "the gate still cannot be bypassed" and "can never be bypassed" are
+# STRONGER assertions, not scoped ones, so an author could satisfy a gate
+# against unconditional claims by adding an adverb (PR #75 r11, absence-only
+# seat — the gate was bypassable by exactly the move it exists to stop).
+# Removed. `superseded` and `false` stay: they mark a sentence as QUOTED
+# history rather than a live assertion, which is a different, legitimate case.
 SCOPE_MARKERS = (
     "only", "not sufficient", "says nothing", "half", "scope", "alone",
-    "except", "assuming", "still", "limit", "never", "superseded", "false",
+    "except", "assuming", "limit", "superseded", "false", "does not",
+    "cannot check", "not exhaustive", "depends on",
 )
 
 
