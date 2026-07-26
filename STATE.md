@@ -51,6 +51,20 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
 
+## Session Contract #33 (2026-07-26 — measure coverage on every push)
+
+GOAL: recompute the denominator and the coverage score automatically, so the
+number is never older than the last commit. ROOT CAUSE: a measurement that runs
+when someone remembers is a measurement that stops running.
+DONE-CRITERIA: the fetch and the score run on push; every DB-touching step is
+gated to workflow_dispatch so the push path never holds the secret; the
+workflow watches every tool it invokes.
+NON-GOALS: no threshold, no gate and no publish path is touched — this schedules
+an existing measurement, it does not decide anything.
+STACKED ON: claude/capcog-denominator-2026-07-26.
+[S3:final-gate-trusts-generator] the workflow re-runs the fetch and the coverage computation itself rather than reading a committed number; it trusts no artifact a previous run produced.
+[S3:malformed-ledger-row] the workflow writes no ledger row; its output is the tool's own stdout plus a JSON artifact with its own parse guard.
+
 ## Session Contract #32 (2026-07-26 — a denominator the coverage number is measured against)
 
 GOAL: turn the raw premise list into a VENUE denominator, and score ingestion
