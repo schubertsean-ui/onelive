@@ -97,6 +97,23 @@ def urls_in_section(text: str) -> list[str]:
     return out
 
 
+class _NoRedirects(urllib.request.HTTPRedirectHandler):
+    """Do not follow redirects.
+
+    Reviewer nit (openai / absence-only, PR #76), accepted as a real defect:
+    `urlopen` follows redirects by default, so a dashboard URL that bounces to a
+    login page which then answers 200 was reported **PASS** — a green row proving
+    only that a login screen exists. Surfacing the 3xx itself is the honest answer,
+    and it is what makes the AUTH classification meaningful rather than decorative.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirects)
+
+
 def probe(url: str) -> tuple[str, str]:
     """Return (status, detail). PASS, AUTH, PRIVATE, BLOCKED or BROKEN."""
     local = _local_workflow_check(url)
@@ -105,7 +122,7 @@ def probe(url: str) -> tuple[str, str]:
     request = urllib.request.Request(url, method="HEAD",
                                      headers={"User-Agent": "onelive-link-check"})
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+        with _OPENER.open(request, timeout=TIMEOUT) as response:
             return "PASS", f"HTTP {response.status}"
     except urllib.error.HTTPError as exc:
         if exc.code in _AUTH_CODES:

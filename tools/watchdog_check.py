@@ -126,10 +126,23 @@ def workflow_has_schedule(name: str) -> bool:
     return bool(_SCHEDULE_KEY.search(path.read_text(encoding="utf-8")))
 
 
-def last_success(repo: str, name: str) -> _dt.datetime | None:
-    """When this workflow last completed successfully, or None if never."""
+def last_success(repo: str, name: str, event: str = "schedule") -> _dt.datetime | None:
+    """When this workflow last succeeded ON THE SCHEDULE CLOCK, or None if never.
+
+    **`event=schedule` is the whole point, and omitting it was a real defect
+    caught by the independent reviewer (openai / absence-only, PR #76).** The
+    first version asked only for `status=success`, so a human clicking *Run
+    workflow* would refresh the timestamp and turn the watchdog green **while the
+    cron path stayed dead.** That is not a hypothetical: it is exactly R-054, the
+    project's first escaped defect — `import_structured.yml` had four successful
+    runs, every one a manual dispatch, and never once ran on its schedule. A
+    dead-man alarm that a manual click can silence is not an alarm.
+
+    Pass a different `event` only to ask a different question (e.g. auditing
+    manual history); the watched path is always `schedule`.
+    """
     data = _api(f"/repos/{repo}/actions/workflows/{name}/runs"
-                f"?status=success&per_page=1")
+                f"?status=success&event={event}&per_page=1")
     runs = data.get("workflow_runs") or []
     if not runs:
         return None
@@ -148,8 +161,10 @@ def evaluate(name: str, cadence_h: int, grace_h: int,
         return "STALE", (f"has NO schedule, so it can never refresh unattended — "
                          f"a watched job must be scheduled")
     if seen is None:
-        return "STALE", (f"has NEVER completed successfully — this is the "
-                         f"import_structured failure mode all over again (R-054)")
+        return "STALE", ("has NEVER completed successfully ON ITS SCHEDULE "
+                         "(manual `workflow_dispatch` successes are deliberately "
+                         "not counted) — this is the R-054 failure mode exactly: "
+                         "a workflow whose cron is dead while hand-runs look fine")
     age_h = (now - seen).total_seconds() / 3600.0
     if age_h > max_age_h:
         return "STALE", (f"last success {age_h:.1f} h ago, limit {max_age_h} h "

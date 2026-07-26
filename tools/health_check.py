@@ -381,10 +381,24 @@ def build(baseline: str | None) -> Report:
     refs: list[str | None] = [baseline, None]
 
     def pair(fn, *args):
+        """Measure the BEFORE column (index 0) and the AFTER column (index 1).
+
+        **The identity test that used to live here was a false-confidence bug**,
+        caught by the independent reviewer (openai / absence-only, PR #76). It read
+        `if ref is baseline and baseline is None` — but `refs` is
+        `[baseline, None]`, so with no `--baseline` BOTH entries are `None` and
+        both matched, meaning the tool skipped the *current* measurement too and
+        rendered `—` across the board while still printing "All metrics computed".
+        A health check that measures nothing and reports success is worse than no
+        health check.
+
+        Position, not identity: only index 0 may be skipped, and only when there
+        is genuinely no baseline to compare against.
+        """
         vals = []
-        for ref in refs:
-            if ref is baseline and baseline is None:
-                vals.append("—")
+        for index, ref in enumerate(refs):
+            if index == 0 and baseline is None:
+                vals.append("—")          # no baseline given: nothing to compare
                 continue
             try:
                 vals.append(fn(ref, *args))
@@ -483,7 +497,28 @@ def render(rep: Report, baseline: str | None, head: str) -> str:
         lines += ["", "## UNVERIFIED — measured nothing, and says so", ""]
         lines += [f"- {u}" for u in rep.unverified]
     else:
-        lines += ["", "All metrics computed; nothing unverified.", ""]
+        # Only claim completeness when the CURRENT column actually carries
+        # numbers. The reviewer's blocker was a report that said "All metrics
+        # computed" over a table of em-dashes; `rep.unverified` did not catch it
+        # because a skipped measurement never raised. Scoped to the after-column
+        # so a legitimately absent BEFORE column (no --baseline) is not misread as
+        # a failure.
+        blank_after = [row[0] for row in rep.rows
+                       if str(row[2]).strip() in ("—", "")]
+        if blank_after:
+            lines += [
+                "",
+                f"## INCOMPLETE — {len(blank_after)} metric(s) have no CURRENT value",
+                "",
+                "This report does NOT claim to have measured the system. A health "
+                "check that renders placeholders and reports success is worse than "
+                "no health check.",
+                "",
+            ]
+            lines += [f"- {label}" for label in blank_after]
+            lines += [""]
+        else:
+            lines += ["", "All metrics computed; nothing unverified.", ""]
     return "\n".join(lines) + "\n"
 
 

@@ -135,9 +135,25 @@ jobs:
           # site at all, so this reports it loudly rather than passing quietly.
           COUNT="$(python3 -c "import json,sys;d=json.load(open('/tmp/health.body'));print(d.get('supabase',{}).get('eventCount','UNKNOWN'))" 2>/dev/null || echo "UNPARSEABLE")"
           echo "event_count: $COUNT"
-          if [ "$COUNT" = "0" ]; then
-            echo "::warning::The site is up and the feed is EMPTY. Run import-licensed before showing anyone."
-          fi
+          # Reviewer nit (openai / absence-only, PR #76), accepted: this workflow is
+          # advertised as the go/no-go verifier, so an empty feed must FAIL rather
+          # than warn-and-pass. A live site showing zero events is a worse first
+          # impression than no site at all, and a green check over an empty feed is
+          # the same "we failed looks like nothing to do" pattern this repo bans.
+          case "$COUNT" in
+            0)
+              echo "::error::The site is up and the feed is EMPTY (event_count: 0)."
+              echo "Do NOT send the link to anyone yet — run import-licensed first:"
+              echo "  https://github.com/schubertsean-ui/onelive/actions/workflows/import_licensed.yml"
+              exit 1
+              ;;
+            UNKNOWN|UNPARSEABLE)
+              echo "::error::/api/health answered but event_count was $COUNT — the"
+              echo "endpoint's shape changed, or the body was not JSON. Refusing to"
+              echo "report a go/no-go verdict from a number we could not read."
+              exit 1
+              ;;
+          esac
 
       # Separate step so it runs even when the site check above fails: a broken
       # link in the founder's instructions is its own defect, independent of

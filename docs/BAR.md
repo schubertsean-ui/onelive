@@ -173,7 +173,7 @@ done-criteria rather than only mechanical ones.
 | # | World class means | Number | Gate | Enforcement | Status |
 |---|---|---|---|---|---|
 | C1 | Tonight's feed is fresh: the newest data is younger than one refresh cycle. | **≤ 12 h** since the last successful import | dead-man alarm per scheduled import | ENFORCED | **NOT MET** — the local-venue import had never completed a scheduled run before 2026-07-26 (audit D1) |
-| C2 | The ticketed feed refreshes without a human. | scheduled, **≥ 2×/day** | `import_licensed.yml` has **no schedule** | — | **NOT MET** — manual dispatch only (audit D4) |
+| C2 | The ticketed feed refreshes without a human. | scheduled, **≥ 2×/day** | `import_licensed.yml` `cron: "23 2,14 * * *"` + `tools/watchdog_check.py` | ENFORCED | **MET (scheduled 2026-07-26, founder: "do 2"), pending first-run proof** — 12-hourly at 02:23/14:23 UTC, offset from `import_structured.yml`; watched by `watchdog.yml`. Flips to plain MET when a scheduled run completes green (R-055) |
 | C3 | A passing long-tail candidate reaches users without a human click, except the ratified exceptions. | median time-to-publish **≤ 1 h** | `worker/publish_policy.py` exists but is wired to nothing | — | **NOT MET** — no automated promoter (audit D3) |
 | C4 | Geographic coverage matches the stated service area. | all 10 CAPCOG counties | `worker/importers/*` geo scoping | PROPOSED | **UNMEASURED** — single 60-mile radius today (R-025) |
 | C5 | A run that does zero useful work fails loudly rather than reporting success. | 0 silent no-op runs | `enforce_useful_work` in `worker/run_once.py` | ENFORCED | **MET** — proven by run `30186783965` failing correctly |
@@ -237,20 +237,20 @@ nothing. A proposed mechanism is in `docs/V1.md`.
 
 | # | World class means | Number | Gate | Enforcement | Status |
 |---|---|---|---|---|---|
-| H1 | No scheduled job runs unwatched: a dead-man alarm fires if it stops. | 100% of crons | `tools/assert_deadman_period.py`, blocking pre-run | ENFORCED | **MET** for `ingest.yml` and `import_structured.yml`; **N/A** for `import_licensed.yml` (not scheduled — C2) |
+| H1 | No scheduled job runs unwatched: a dead-man alarm fires if it stops. | 100% of crons | `tools/assert_deadman_period.py` (healthchecks path) + `tools/watchdog_check.py` / `watchdog.yml` (GitHub-native path, founder-approved 2026-07-26) | ENFORCED | **MET for all three scheduled jobs.** `ingest.yml` and `import_structured.yml` via healthchecks pings; `import_licensed.yml` via the watchdog's `WATCHED` table, added in the same change that scheduled it. Every scheduled workflow must appear in the watchdog's WATCHED / EXPECTED_SOON / EXCLUDED tables with a reason — enforced by `tests/test_watchdog_check.py`. Weakness stated: the watchdog shares GitHub's failure domain (R-060) |
 | H2 | The armed cadence is the delivered cadence. | delivered **≥ 80%** of armed | — | PROPOSED | **NOT MET** — 21% measured over 45.1 h (audit D5) |
 | H3 | Errors reach a human: Sentry on web, API and worker. | 3 surfaces | `worker/sentinel.py`, `api/main.py`, `web/instrumentation*.ts` | ENFORCED (wiring) | **wiring MET**, DSNs absent → inert (R-001) |
 | H4 | Every run leaves a replay log that can reconstruct what happened. | 100% of runs | `worker/replay_log.py` + artifact upload | ENFORCED | **MET** |
 | H5 | Config lives in the environment; the repository could be public without leaking a credential. | 0 secrets in git | `tools/lint.py`, `docs/DEPLOY.md` | ENFORCED | **MET** |
 | H6 | The deployment is observable without guessing: one endpoint reports resolved config and reachability. | `/api/health` always reachable | `web/app/api/health/route.ts` + its test | ENFORCED | **MET** |
-| H7 | There is a live deployment and its URL is recorded. | 1 URL on disk | — | PROPOSED | **NOT MET** — no URL anywhere in the repo (audit D11) |
+| H7 | There is a live deployment and its URL is recorded. | 1 URL on disk | `.github/workflows/site_health.yml` (reads `/api/health` from a runner) | ENFORCED | **NOT MET — but no longer for the original reason.** A preview URL IS on disk (`docs/V1.md` §Deployment, deployed Ready 2026-07-26T17:10Z, zero env vars). It does not satisfy this row because it is a branch alias that dies on merge, it is host-protected (measured: HTTP 302 to Vercel SSO), and `eventCount` is unverified. Flips when a stable URL a stranger can open renders real events (ask 6) |
 
 ## I. Cost
 
 | # | World class means | Number | Gate | Enforcement | Status |
 |---|---|---|---|---|---|
 | I1 | A per-run ceiling exists before any scheduled AI spend, and it is structurally pinned (a caller cannot raise it). | 10 sources/run on the schedule path | `ingest.yml` + `tests/test_ingest_workflow_contract.py` | ENFORCED | **MET** |
-| I2 | The provider account carries a hard monthly cap set in the console **before** the first scheduled run. | cap set | Anthropic console (founder-owned) | ENFORCED (externally) | **MET, and it fired** — limit reached 2026-07-25, access returns 2026-08-01 (audit D2) |
+| I2 | The provider account carries a hard monthly cap set in the console **before** the first scheduled run. | cap set | Anthropic console (founder-owned) | ENFORCED (externally) | **MET, and it fired** — the cap was reached 2026-07-25 and extraction stopped, which is the row working. **The reset date is deliberately NOT recorded here** (founder, 2026-07-26: *"Remove the 8/1 date — it was arbitrarily set by you"*): the API's own words are *"your **specified** API usage limits"*, i.e. a founder-owned setting raisable in about a minute, not a date to wait out. No step of the v1 plan waits on it (ask 2) |
 | I3 | Every stage uses the cheapest model tier that clears the same gates. Quality gates never relax for cost. | routing table, identical thresholds at every tier | `docs/MODEL_ROUTING.md` + `tools/model_router.py` | ENFORCED | **MET** |
 | I4 | Cost per verified event is measured, not guessed. | tracked per run | `tools/kpi_report.py` | ENFORCED | **UNMEASURED** — registry live, no populated series |
 | I5 | Zero-marginal-cost sources are preferred over metered ones for the same fact. | deterministic feeds first | — | PROPOSED | **NOT MET in priority** — the AI path is scheduled every 20 min; the free deterministic paths are 2×/day and manual (D1/D4) |

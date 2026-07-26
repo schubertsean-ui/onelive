@@ -181,6 +181,47 @@ def test_bar_status_counts_rows_and_purpose_rows():
     assert graded > 0, "statuses must parse; an ungraded bar is an unmeasured bar"
 
 
+def test_no_baseline_mode_still_measures_the_CURRENT_snapshot():
+    """The false-confidence bug the independent reviewer caught (PR #76).
+
+    `refs` is `[baseline, None]`, and the old guard read
+    `if ref is baseline and baseline is None` — so with no `--baseline` BOTH
+    entries matched, the tool skipped the *current* measurement as well, rendered
+    `—` across the whole table, and still printed "All metrics computed; nothing
+    unverified." A health check that measures nothing and reports success is worse
+    than none.
+    """
+    report = hc.build(None)
+    rows = report.rows
+    assert rows, "no rows built"
+    blank_after = [r[0] for r in rows if str(r[2]).strip() in ("—", "")]
+    assert not blank_after, f"current column is empty for: {blank_after}"
+    # The before column IS legitimately empty with no baseline — that is the
+    # distinction the fix rests on, so assert it rather than leaving it implied.
+    assert any(str(r[1]).strip() == "—" for r in rows), \
+        "with no baseline the BEFORE column should be blank"
+
+
+def test_the_report_refuses_to_claim_completeness_over_placeholders(monkeypatch):
+    """Even if a metric goes blank again, the summary must not say it measured."""
+    real_build = hc.build
+    real_build_for_control = hc.build
+
+    def build_with_a_hole(baseline):
+        rep = real_build(baseline)
+        rep.rows.append(("Deliberately blank metric", "—", "—", "—"))
+        return rep
+
+    monkeypatch.setattr(hc, "build", build_with_a_hole)
+    # render(rep, baseline, head) — baseline None means single-snapshot mode.
+    text = hc.render(hc.build(None), None, "deadbeef")
+    assert "All metrics computed" not in text
+    assert "INCOMPLETE" in text and "Deliberately blank metric" in text
+    # And the healthy path still claims completeness, so this is not vacuous.
+    clean = hc.render(real_build_for_control(None), None, "deadbeef")
+    assert "All metrics computed" in clean
+
+
 def test_gate_metric_counts_gate_files_not_the_whole_tools_directory():
     """The strongest claim the 2026-07-26 work makes is 'no gate was weakened',
     and this is its mechanical form — so what it counts has to be exactly right.

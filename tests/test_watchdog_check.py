@@ -99,9 +99,20 @@ def test_every_expected_soon_workflow_exists_and_cites_an_open_record_row():
 
 
 def test_every_scheduled_workflow_is_watched_pending_or_excluded_with_a_reason():
-    """No scheduled job may be silently absent from the watchdog's attention."""
+    """No scheduled job may be silently absent from the watchdog's attention.
+
+    BOTH extensions. GitHub accepts `.yml` AND `.yaml`, and the first version of
+    this test globbed only `*.yml` — so a scheduled `.yaml` workflow could bypass
+    the watchdog registry entirely. Caught by the independent reviewer (openai /
+    absence-only, PR #76), which correctly named it a repeat of the same
+    platform-surface class `tests/test_scheduled_inputs_contract.py` already
+    handles with `_WORKFLOW_GLOBS`.
+    """
     known = set(WD.WATCHED) | set(WD.EXPECTED_SOON) | set(WD.EXCLUDED)
-    for path in sorted(WD.WORKFLOW_DIR.glob("*.yml")):
+    workflows = sorted(p for ext in ("*.yml", "*.yaml")
+                       for p in WD.WORKFLOW_DIR.glob(ext))
+    assert workflows, "no workflow files found — the glob is wrong"
+    for path in workflows:
         if not WD.workflow_has_schedule(path.name):
             continue
         assert path.name in known, (
@@ -175,6 +186,45 @@ def test_both_data_importers_are_watched():
 def test_last_success_returns_none_when_there_are_no_successful_runs(monkeypatch):
     monkeypatch.setattr(WD, "_api", lambda path: {"workflow_runs": []})
     assert WD.last_success("owner/repo", "x.yml") is None
+
+
+def test_last_success_asks_only_for_SCHEDULE_runs(monkeypatch):
+    """A manual click must never be able to silence the dead-man alarm.
+
+    The blocker the independent reviewer raised (openai / absence-only, PR #76):
+    the first version queried `status=success` with no event filter, so a human
+    running the workflow by hand would refresh the timestamp and turn the watchdog
+    green while the cron path stayed dead. That is R-054 exactly —
+    import_structured.yml had four successful runs, all manual, and never once ran
+    on its schedule.
+    """
+    asked: list[str] = []
+
+    def spy(path):
+        asked.append(path)
+        return {"workflow_runs": [{"updated_at": "2026-07-26T12:00:00Z"}]}
+
+    monkeypatch.setattr(WD, "_api", spy)
+    WD.last_success("owner/repo", "x.yml")
+    assert len(asked) == 1
+    assert "event=schedule" in asked[0], asked[0]
+    assert "status=success" in asked[0]
+
+
+def test_a_workflow_with_only_manual_successes_reads_as_never_run(monkeypatch):
+    """End-to-end shape of the same defect: the API returns nothing for
+    event=schedule even though manual successes exist, so the watchdog alarms."""
+    def only_manual(path):
+        # Mirrors GitHub: filtering to event=schedule returns an empty list when
+        # every success came from workflow_dispatch.
+        return {"workflow_runs": []} if "event=schedule" in path else {
+            "workflow_runs": [{"updated_at": "2026-07-26T17:00:00Z"}]}
+
+    monkeypatch.setattr(WD, "_api", only_manual)
+    assert WD.last_success("owner/repo", "x.yml") is None
+    status, detail = WD.evaluate("x.yml", 12, 2, NOW, None, True)
+    assert status == "STALE"
+    assert "ON ITS SCHEDULE" in detail and "workflow_dispatch" in detail
 
 
 def test_last_success_parses_the_api_timestamp(monkeypatch):

@@ -72,13 +72,28 @@ def _http_error(code: int) -> urllib.error.HTTPError:
 @pytest.mark.parametrize("code", [301, 302, 307, 401, 403])
 def test_login_required_is_AUTH_not_broken(monkeypatch, code):
     # Expected for every dashboard link in the table.
-    monkeypatch.setattr(LINKS.urllib.request, "urlopen",
+    monkeypatch.setattr(LINKS._OPENER, "open",
                         lambda *a, **k: (_ for _ in ()).throw(_http_error(code)))
     assert LINKS.probe("https://x.example/")[0] == "AUTH"
 
 
+def test_redirects_are_not_followed_so_a_login_page_cannot_read_as_PASS():
+    """Reviewer nit accepted as a defect (openai / absence-only, PR #76).
+
+    urlopen follows redirects by default, so a dashboard URL bouncing to a login
+    page that answers 200 was reported PASS — a green row proving only that a
+    login screen exists. The opener must refuse to follow, so the 3xx surfaces and
+    lands in AUTH instead.
+    """
+    handlers = [type(h).__name__ for h in LINKS._OPENER.handlers]
+    assert "_NoRedirects" in handlers, handlers
+    # And the handler genuinely declines rather than merely existing.
+    assert LINKS._NoRedirects().redirect_request(
+        None, None, 302, "Found", {}, "https://login.example/") is None
+
+
 def test_404_is_BROKEN(monkeypatch):
-    monkeypatch.setattr(LINKS.urllib.request, "urlopen",
+    monkeypatch.setattr(LINKS._OPENER, "open",
                         lambda *a, **k: (_ for _ in ()).throw(_http_error(404)))
     status, detail = LINKS.probe("https://x.example/")
     assert status == "BROKEN" and "404" in detail
@@ -92,7 +107,7 @@ def test_a_404_on_the_private_repo_is_PRIVATE_not_BROKEN(monkeypatch):
     four correct links — a false-positive gate, which is worse than no gate
     because it teaches people to ignore red.
     """
-    monkeypatch.setattr(LINKS.urllib.request, "urlopen",
+    monkeypatch.setattr(LINKS._OPENER, "open",
                         lambda *a, **k: (_ for _ in ()).throw(_http_error(404)))
     status, detail = LINKS.probe(
         "https://github.com/schubertsean-ui/onelive/settings/secrets/actions")
@@ -118,26 +133,26 @@ def test_a_workflow_link_pointing_at_nothing_is_BROKEN():
 def test_the_offline_workflow_check_does_not_hit_the_network(monkeypatch):
     def explode(*a, **k):
         raise AssertionError("probe made a network call for a workflow link")
-    monkeypatch.setattr(LINKS.urllib.request, "urlopen", explode)
+    monkeypatch.setattr(LINKS._OPENER, "open", explode)
     assert LINKS.probe(
         "https://github.com/schubertsean-ui/onelive/actions/workflows/"
         "import_licensed.yml")[0] == "PASS"
 
 
 def test_head_not_allowed_is_not_a_broken_link(monkeypatch):
-    monkeypatch.setattr(LINKS.urllib.request, "urlopen",
+    monkeypatch.setattr(LINKS._OPENER, "open",
                         lambda *a, **k: (_ for _ in ()).throw(_http_error(405)))
     assert LINKS.probe("https://x.example/")[0] == "AUTH"
 
 
 def test_a_policy_denial_is_BLOCKED_and_distinct_from_a_dead_host(monkeypatch):
     denied = urllib.error.URLError("Tunnel connection failed: 403 Forbidden")
-    monkeypatch.setattr(LINKS.urllib.request, "urlopen",
+    monkeypatch.setattr(LINKS._OPENER, "open",
                         lambda *a, **k: (_ for _ in ()).throw(denied))
     assert LINKS.probe("https://x.example/")[0] == "BLOCKED"
 
     dead = urllib.error.URLError("[Errno -2] Name or service not known")
-    monkeypatch.setattr(LINKS.urllib.request, "urlopen",
+    monkeypatch.setattr(LINKS._OPENER, "open",
                         lambda *a, **k: (_ for _ in ()).throw(dead))
     assert LINKS.probe("https://x.example/")[0] == "BROKEN"
 
