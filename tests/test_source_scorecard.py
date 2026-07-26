@@ -170,7 +170,7 @@ def test_evidence_that_names_NO_registry_source_is_REFUSED():
     NEVER_TRIED: the scorecard reporting the exact false status it exists to
     prevent. Worse for attempts, where a dropped row turns a source we KNOW is
     broken into one we appear never to have touched."""
-    known = {"mohawk_austin", "Mohawk"}
+    known = {"mohawk_austin": "mohawk_austin", "Mohawk": "mohawk_austin"}
     with pytest.raises(SystemExit, match="name no registry source"):
         sc._index_rows([{"source_name": "", "venue_name": "X"}], known)
     with pytest.raises(SystemExit, match="name no registry source"):
@@ -180,8 +180,15 @@ def test_evidence_that_names_NO_registry_source_is_REFUSED():
     # bound evidence still indexes normally
     events, _v, _o = sc._index_rows([{"source_name": "mohawk_austin"}], known)
     assert events["mohawk_austin"] == 1
+    # r2: evidence logged under the DISPLAY NAME must resolve to the canonical
+    # id. It used to pass validation and then vanish at scoring, because
+    # score_source looks up strictly by id — the same false NEVER_TRIED via a
+    # different route. The r1 fix had moved the defect, not removed it.
     assert sc._index_attempts([{"source_name": "Mohawk", "ok": True}],
-                              known)["Mohawk"]["ok"] == 1
+                              known)["mohawk_austin"]["ok"] == 1
+    ev, _v, _o = sc._index_rows([{"source_name": "Mohawk"}], known)
+    assert ev["mohawk_austin"] == 1, (
+        "evidence named by display name must be indexed under the canonical id")
 
 
 def test_a_status_REGRESSION_moves_the_trend():
@@ -208,3 +215,28 @@ def test_a_top_level_JSON_ARRAY_registry_does_not_crash(tmp_path, monkeypatch):
         [{"id": "x", "name": "X", "source_class": "venue_calendar"}]),
         encoding="utf-8")
     assert sc.main(["--registry", str(reg_file)]) in (0, 1)
+
+
+def test_a_registry_with_NO_sources_is_REFUSED(tmp_path):
+    """r2 blocker: a dict with no `sources` key became [], and the tool printed
+    a cheerful "0 source(s)" scorecard and exited 0. For a tool whose entire
+    job is scoring every catalogued source, zero sources is a
+    misconfiguration — a wrong path, a wrong shape, or a build that produced
+    nothing — never a result."""
+    for payload in ({}, {"sources": []}, []):
+        f = tmp_path / "reg.json"
+        f.write_text(json.dumps(payload), encoding="utf-8")
+        assert sc.main(["--registry", str(f)]) == 2, payload
+
+
+def test_evidence_by_DISPLAY_NAME_reaches_the_score(tmp_path):
+    """The end-to-end version of the r2 blocker: a delivering source logged
+    under its display name must not read as NEVER_TRIED."""
+    reg_file = tmp_path / "reg.json"
+    reg_file.write_text(json.dumps({"sources": [
+        {"id": "mohawk_austin", "name": "Mohawk",
+         "source_class": "venue_calendar"}]}), encoding="utf-8")
+    rows_file = tmp_path / "rows.json"
+    rows_file.write_text(json.dumps(
+        [{"source_name": "Mohawk", "venue_name": "Mohawk"}]), encoding="utf-8")
+    assert sc.main(["--registry", str(reg_file), "--rows", str(rows_file)]) == 0

@@ -82,7 +82,19 @@ REMEDIATION_BY_STATUS = {
 }
 
 
-def _index_rows(rows: list, known: set | None = None) -> tuple:
+def _canonical(known: dict | None, name: str) -> str:
+    """Display name -> canonical id.
+
+    The r1 fix allowed evidence to name a source by either, then scoring looked
+    up strictly by id — so a row logged under the display name PASSED
+    validation and was silently dropped a step later, producing the same false
+    NEVER_TRIED it was supposed to prevent. The fix had moved the defect, not
+    removed it. Evaluator finding, PR #86 r2.
+    """
+    return (known or {}).get(name, name)
+
+
+def _index_rows(rows: list, known: dict | None = None) -> tuple:
     """(events per source, venue set per source, venue -> sources).
 
     Evidence that names no source, or names one the registry does not hold, is
@@ -104,7 +116,7 @@ def _index_rows(rows: list, known: set | None = None) -> tuple:
     venues: dict = {}
     venue_owners: dict = {}
     for r in rows:
-        src = r.get("source_name")
+        src = _canonical(known, r.get("source_name"))
         events[src] = events.get(src, 0) + 1
         name = (r.get("venue_name") or "").strip().lower()
         if name:
@@ -113,7 +125,7 @@ def _index_rows(rows: list, known: set | None = None) -> tuple:
     return events, venues, venue_owners
 
 
-def _index_attempts(attempts: list, known: set | None = None) -> dict:
+def _index_attempts(attempts: list, known: dict | None = None) -> dict:
     """source -> {'n': int, 'ok': int, 'last': iso}
 
     Same binding rule as _index_rows, and it matters more here: attempts are
@@ -130,7 +142,7 @@ def _index_attempts(attempts: list, known: set | None = None) -> dict:
             f"makes a source we know is broken look never-tried.")
     out: dict = {}
     for a in attempts:
-        src = a.get("source_name")
+        src = _canonical(known, a.get("source_name"))
         rec = out.setdefault(src, {"n": 0, "ok": 0, "last": None})
         rec["n"] += 1
         if a.get("ok"):
@@ -301,9 +313,22 @@ def main(argv=None) -> int:
     # Supplied-ness is the honest signal, so it is read from the ARGUMENTS.
     have_evidence = args.rows is not None or args.attempts is not None
 
-    # The registry's own ids AND names are the namespace evidence must bind to.
-    known = {e.get("id") for e in entries} | {e.get("name") for e in entries}
-    known.discard(None)
+    # A registry with no sources is a MISCONFIGURATION, not an empty result.
+    # Printing a successful "0 source(s)" scorecard and exiting 0 is fail-open
+    # for a tool whose whole job is scoring every catalogued source.
+    # Evaluator finding, PR #86 r2.
+    if not entries:
+        print("source_scorecard: FAIL — the registry holds NO sources. That is "
+              "a misconfiguration (wrong path, wrong shape, or a build that "
+              "produced nothing), never a scorecard of zero.", file=sys.stderr)
+        return 2
+
+    # Evidence may name a source by id OR by display name; both resolve to the
+    # canonical id here, so nothing binds successfully and then vanishes at
+    # lookup time.
+    known = {e["id"]: e["id"] for e in entries if e.get("id")}
+    known.update({e["name"]: e["id"] for e in entries
+                  if e.get("name") and e.get("id")})
     events, venues, venue_owners = _index_rows(rows, known)
     attempts = _index_attempts(attempts_raw, known)
     scored = [score_source(e, events, venues, venue_owners, attempts, have_evidence)
