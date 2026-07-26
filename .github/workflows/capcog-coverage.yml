@@ -66,6 +66,15 @@ jobs:
 
       # Layer 2. Fails LOUD on a schema change or a bad response rather than
       # yielding zero rows — "CAPCOG has no venues" would be a lie, not a result.
+      # Print the dataset's real columns BEFORE the fetch that depends on them.
+      # The sandbox has no egress to data.texas.gov, so the schema is only
+      # observable from here; when the fetch fails on a column name, this step
+      # has already answered why in the same run instead of costing another.
+      - name: Describe the TABC dataset schema
+        if: ${{ github.event.inputs.skip_tabc != 'true' }}
+        continue-on-error: true
+        run: python tools/fetch_tabc_capcog.py --describe
+
       - name: Fetch TABC licensed premises (denominator layer 2)
         if: ${{ github.event.inputs.skip_tabc != 'true' }}
         run: python tools/fetch_tabc_capcog.py

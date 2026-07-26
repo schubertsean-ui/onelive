@@ -62,6 +62,28 @@ def _get(url: str, timeout: int = 60) -> list:
         return json.loads(resp.read().decode("utf-8"))
 
 
+def describe() -> int:
+    """Print the dataset's ACTUAL columns and one sample record.
+
+    Added after this tool failed with `no-such-column: trade_name`. The column
+    names had been written from memory, and no amount of local testing could
+    catch that — the sandbox has no egress to data.texas.gov, so the schema is
+    only observable from CI. Guessing again and pushing again is the expensive
+    loop; asking the dataset what it contains costs one 15-second run.
+    """
+    sample = _get(f"{BASE_URL}?$limit=1")
+    if not sample:
+        raise SystemExit(
+            f"fetch_tabc_capcog --describe: {DATASET} returned no rows at all. "
+            f"That is an empty or wrong dataset id, not a schema answer.")
+    row = sample[0]
+    print(f"dataset {DATASET} — {len(row)} column(s):")
+    for key in sorted(row):
+        value = str(row[key])
+        print(f"    {key:<32} = {value[:60]}")
+    return 0
+
+
 def verify_shape(sample: dict) -> None:
     """Fail LOUD when the live payload is not the shape this tool consumes."""
     missing = [f for f in REQUIRED_FIELDS if f not in sample]
@@ -131,7 +153,13 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", default=str(REPO / "sources" / "tabc_capcog_raw.json"))
     ap.add_argument("--max-pages", type=int, default=MAX_PAGES)
+    ap.add_argument("--describe", action="store_true",
+                    help="print the dataset's actual columns and exit — use "
+                         "this instead of guessing column names")
     args = ap.parse_args(argv)
+
+    if args.describe:
+        return describe()
 
     rows, pages, seen = fetch(set(CAPCOG_COUNTIES), args.max_pages)
     if not rows:
