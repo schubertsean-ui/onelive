@@ -121,6 +121,15 @@ is made it has been codified in the code and not left in the session."*)
 
 Four things, every time, in this order — the full form is `docs/HOW_WE_WORK.md` §11:
 
+0. **Never a problem alone — always three ways out.** (Founder directive,
+   2026-07-26: *"never tell me the problem only: always tell me the solution options
+   (always 3 options) and your recommendation and why, and the tradeoffs and
+   implications."*) Any defect, blocker or **limitation** you report carries **three
+   named options**, then the recommendation. A stated constraint with no options is
+   the failure this rule exists to stop — including *your own* limits ("I cannot
+   reach X"), which are a problem to solve, not a fact to file. If a third option is
+   genuinely bad, name it and say why it is bad; do not present two and call it
+   three.
 1. **A recommendation.** One option, named. *"It's your call"* is not a
    recommendation and never stands in place of one. Say what you would do.
 2. **Plain language.** No jargon the founder did not introduce. If a term is

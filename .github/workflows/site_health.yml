@@ -131,3 +131,10 @@ jobs:
           if [ "$COUNT" = "0" ]; then
             echo "::warning::The site is up and the feed is EMPTY. Run import-licensed before showing anyone."
           fi
+
+      # Separate step so it runs even when the site check above fails: a broken
+      # link in the founder's instructions is its own defect, independent of
+      # whether the deployment is healthy.
+      - name: Check the founder-facing console links resolve
+        if: always()
+        run: python3 tools/check_console_links.py

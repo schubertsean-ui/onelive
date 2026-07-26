@@ -28,6 +28,8 @@ _ASK_HEADING = re.compile(r"^###\s+Ask\s+(\d+)\s*(?:—|-)?\s*(.*)$", re.MULTILI
 # Each field must appear as a BOLD LABEL at the start of a line. A fact buried in
 # prose is not a field the founder can scan on a phone, which is the whole point.
 REQUIRED_FIELDS: dict[str, str] = {
+    "Options": "THREE named ways out, enumerated `1.`/`2.`/`3.` or `(a)`/`(b)`/`(c)` "
+               "— never a problem or a limitation with no options",
     "What": "one plain sentence naming the action",
     "Where": "the full URL — a click-path is not a link (docs/DEPLOY.md §console links)",
     "Exactly what to enter": "literal field names and values, or 'nothing to type'",
@@ -38,6 +40,31 @@ REQUIRED_FIELDS: dict[str, str] = {
 _RECOMMENDATION = "Recommendation"
 
 _RESOLVED = re.compile(r"\bRESOLVED\b|\bDONE\b")
+
+MIN_OPTIONS = 3
+# An enumerated option: "1." / "(a)" / "a)" at the start of a line.
+_OPTION_ITEM = re.compile(r"^\s*(?:\d+\.|\([a-z]\)|[a-z]\))\s+\S", re.MULTILINE)
+# Where an Options block ENDS: the next line-leading bold label, or a heading.
+_NEXT_LABEL = re.compile(r"^\s*(?:[-*]\s+)?\*\*[A-Z]|^#{1,6}\s", re.MULTILINE)
+
+
+def _options_block(section: str) -> str | None:
+    """Text from the `**Options:**` label to the next label/heading, or None."""
+    label = re.search(r"^\s*(?:[-*]\s+)?\*\*Options\s*(?::|—|-)", section,
+                      re.MULTILINE)
+    if label is None:
+        return None
+    rest = section[label.end():]
+    nxt = _NEXT_LABEL.search(rest)
+    return rest[:nxt.start()] if nxt else rest
+
+
+def count_options(section: str) -> int:
+    """How many enumerated options the ask offers (0 if the label is absent)."""
+    block = _options_block(section)
+    if block is None:
+        return 0
+    return len(_OPTION_ITEM.findall(block))
 
 
 def _field_present(section: str, label: str) -> bool:
@@ -72,6 +99,17 @@ def audit(text: str) -> list[str]:
             findings.append(
                 f"Ask {number}: missing '**{label}:**' as a line-leading bold label "
                 f"— {why}. CLAUDE.md prime directive 6.")
+        # A present-but-thin Options block is the padding failure the directive
+        # calls out: two choices dressed up as three.
+        if "Options" not in missing:
+            n = count_options(section)
+            if n < MIN_OPTIONS:
+                findings.append(
+                    f"Ask {number}: '**Options:**' lists {n} enumerated option(s), "
+                    f"needs {MIN_OPTIONS} — every problem carries three named ways "
+                    f"out. If the third is a bad idea, name it AND say why it is "
+                    f"bad; do not present two and call it three. CLAUDE.md prime "
+                    f"directive 6.")
     return findings
 
 

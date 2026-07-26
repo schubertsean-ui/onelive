@@ -34,6 +34,11 @@ LINT = _load()
 
 _FULL = """### Ask 9 — do a thing
 
+**Options:**
+1. the first way.
+2. the second way.
+3. the third way, which is bad because reasons.
+
 **What:** the thing.
 
 **Where:** <https://example.com/page>
@@ -102,6 +107,58 @@ def test_a_bulleted_label_is_accepted():
     bulleted = _FULL.replace("**Unblocks:** the next thing.",
                              "- **Unblocks:** the next thing.")
     assert LINT.audit(bulleted) == []
+
+
+def test_two_options_padded_to_look_like_three_is_a_finding():
+    """The padding failure the founder directive names explicitly."""
+    two = _FULL.replace("3. the third way, which is bad because reasons.\n", "")
+    findings = two and LINT.audit(two)
+    assert len(findings) == 1
+    assert "lists 2 enumerated option(s), needs 3" in findings[0]
+
+
+def test_a_problem_with_no_options_at_all_is_a_finding():
+    """The exact failure this rule exists to stop: a limitation, no ways out."""
+    none = _FULL.replace("""**Options:**
+1. the first way.
+2. the second way.
+3. the third way, which is bad because reasons.
+
+""", "I cannot reach that host, so this cannot be verified.\n\n")
+    findings = LINT.audit(none)
+    assert len(findings) == 1 and "Options" in findings[0]
+
+
+def test_lettered_options_are_accepted():
+    lettered = _FULL.replace(
+        "1. the first way.\n2. the second way.\n"
+        "3. the third way, which is bad because reasons.",
+        "(a) the first way.\n(b) the second way.\n(c) the third, bad, way.")
+    assert LINT.audit(lettered) == []
+
+
+def test_options_after_the_block_ends_do_not_count():
+    """Enumerated lines under a LATER label must not pad the Options count."""
+    spillover = _FULL.replace(
+        "3. the third way, which is bad because reasons.\n",
+        "").replace("**Time:** ~1 minute.",
+                    "**Time:** ~1 minute.\n\n1. not an option\n2. also not")
+    findings = LINT.audit(spillover)
+    assert len(findings) == 1
+    assert "lists 2 enumerated option(s)" in findings[0]
+
+
+def test_count_options_is_zero_without_the_label():
+    assert LINT.count_options("### Ask 9\n\n1. a\n2. b\n3. c\n") == 0
+
+
+def test_the_real_v1_asks_each_offer_three_options():
+    text = LINT.DEFAULT_V1.read_text(encoding="utf-8")
+    for number, heading, section in LINT._sections(text):
+        if LINT._RESOLVED.search(heading):
+            continue
+        assert LINT.count_options(section) >= LINT.MIN_OPTIONS, \
+            f"Ask {number} offers fewer than {LINT.MIN_OPTIONS} options"
 
 
 def test_a_file_with_no_asks_errors_rather_than_passing(tmp_path):

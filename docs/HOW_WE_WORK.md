@@ -272,7 +272,8 @@ template for big decisions only — it is the shape of a normal reply.
 
 | # | Part | The test it must pass |
 |---|---|---|
-| 1 | **Recommendation** | One named option. Would a reader know what you think should happen? *"It's your call"* fails. |
+| 0 | **Three options** | Every problem, blocker or limitation carries **three named ways out** before the recommendation. A stated constraint with no options fails — including the agent's *own* limits, which are problems to solve, not facts to file. Two options padded to look like three also fails; if the third is bad, say it is bad and why. |
+| 1 | **Recommendation** | One named option, chosen from the three. Would a reader know what you think should happen? *"It's your call"* fails. |
 | 2 | **Plain language** | No unexplained jargon. Would a smart non-engineer follow it on a phone? |
 | 3 | **Steps to act** | Numbered. What to click, where, in what order, how long. Each step marked **founder** or **agent**. **Every step touching a web page carries its full URL** — a click-path like "Vercel → Settings → Protection" is a failure of this part. Links live in `docs/DEPLOY.md` §"The console links"; copy from there, never reconstruct a slug from memory. |
 | 4 | **Implications and tradeoffs** | Cost of yes, cost of no, and what becomes hard to undo. |
