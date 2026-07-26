@@ -95,11 +95,23 @@ derived by commands, and each row names the command:
   claude/universal-kernel-staging` → 8 commits, of which r1–r7 are review
   rounds. **Still not APPROVE at r7.** This is the worst M1 in the ledger and it
   is recorded as such rather than smoothed.
-- **M2 catches this session, by finder:** evaluator caught the key-exfil
-  ordering hole (r5), the deferral of its fix (r6), and the command-resolution
-  half still open at r7; CI caught the mis-landed digest block (r7); the founder
-  caught the fabricated diagnosis and the unfollowable citations. **Zero of
-  these were caught by me first** — which is the measurement that matters here.
+- **M2 catches this session, by finder.** The PR #78 evaluator was right that
+  the first draft of this list was self-attestation with no way to check it —
+  the exact defect this record exists about. Each row now names an artifact a
+  reader can open, and the classification is readable off it:
+
+  | Catch | Finder | Independently checkable at |
+  |---|---|---|
+  | key-exfil ordering hole in the review workflow | evaluator | PR #75 r5 review output, run 30204… onward — the seat's own `CLASS:` lines |
+  | deferring that fix to "next session" | evaluator | PR #75 r6 review output (`CLASS:deferred-trust-work`) |
+  | command-resolution half still open (`runner-env-poisoning`) | evaluator | PR #75 r7, job `89818994368` — both OpenAI seats, verbatim in this session's transcript |
+  | digest block landed in the wrong step | CI | PR #75 r7 commit `45707d0`'s own message, and the r6→r7 diff |
+  | fabricated "ambiguity bug" (withdrawn PR #77) | founder | PR #77, closed with its withdrawal note |
+  | unfollowable citations in the loop synthesis | founder | the directive quoted verbatim at the top of this record |
+  | status-token substring bypass, section-truncation, unnumbered-entry bugs | evaluator | PR #78 r1, job `89821248677` |
+
+  **Zero rows have "me" in the Finder column.** That is the measurement, it is
+  reproducible from the linked artifacts, and no gate change alters it.
 - **R-054's scope numbers** are a script over `docs/research/**/*.md`, quoted in
   the row with the command, not counted by eye. (Counting by eye produced a
   false "57 files" three times earlier in this session; the count was 52.)

@@ -140,10 +140,13 @@ run_check "governance_claims" "$PY" tools/governance_claims_lint.py
 
 # 2d. Source-verification linter (R-054, founder-directed 2026-07-26: "every
 #     claim or note or finding or result must be independently verified").
-#     Research documents may not cite what nobody can follow: every entry in
-#     a `## Sources` block needs a resolvable URL AND an explicit
-#     verification-status token. Unverified is legal; silently unverified is
-#     not. Fails closed if it scans nothing.
+#     On the documents in its ENFORCED_DOCS (one today; R-054 carries the
+#     other twelve, with a mechanical widening trigger), every entry in a
+#     `## Sources` block needs an http(s) URL AND a boundary-matched
+#     verification-status token — and this change may not edit an
+#     unenforced docs/research file without adding it to the gate.
+#     Unverified is legal; silently unverified is not. URLs are checked for
+#     PRESENCE, never resolved. Fails closed if it scans nothing.
 run_check "source_verification" "$PY" tools/source_verification_lint.py
 
 # 3. Full test suite — must pass. DB-integration tests self-skip without a DSN;

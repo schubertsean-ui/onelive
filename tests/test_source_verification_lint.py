@@ -131,3 +131,99 @@ def test_the_originating_document_actually_carries_followable_sources():
     text = doc.read_text(encoding="utf-8")
     assert svl.SOURCES_HEADING.search(text)
     assert len(svl.URL_RE.findall(text)) >= 4
+
+
+# ── PR #78 evaluator findings — every one of these is a real bypass or bug
+# the four-seat panel caught, kept as a red case so it cannot return. ──────
+
+def test_status_token_substring_bypasses_are_closed():
+    """Both OpenAI seats: `tok in line` accepted text that CONTAINS a token
+    while declaring something else — or the opposite of it."""
+    for bad in ("NOT-VERIFIED-READ", "XVERIFIED-READ", "UNVERIFIED-BLOCKEDNESS",
+                "VERIFIED-READING", "UNVERIFIED-BLOCKED-EXTRA"):
+        findings = svl.scan_text("d.md", f"## Sources\n- x https://e.org {bad}\n")
+        assert findings and "declares no verification status" in findings[0], bad
+
+
+def test_a_negated_status_does_not_count_as_declaring_one():
+    """"not VERIFIED-READ" declares the OPPOSITE of a read primary."""
+    for bad in ("not VERIFIED-READ", "never VERIFIED-READ", "not yet VERIFIED-READ"):
+        assert not svl.declares_status(f"- x https://e.org {bad}"), bad
+
+
+def test_punctuation_around_a_real_token_still_counts():
+    """Boundary tightening must not make honest formatting fail."""
+    for good in ("(VERIFIED-READ)", "VERIFIED-READ.", "— UNVERIFIED-BLOCKED;"):
+        assert svl.declares_status(f"- x https://e.org {good}"), good
+
+
+def test_subheadings_inside_sources_do_not_truncate_the_section():
+    """gemini dataflow-taint: the comment claimed same-or-higher level while
+    the regex cut at ANY heading, so a `## Sources` block organised with
+    `### Primary` lost every citation under it and reported 'no entries' —
+    a gate silently examining nothing."""
+    text = ("## Sources\n"
+            "### Primary\n- a https://e.org/a VERIFIED-READ\n"
+            "### Secondary\n- b https://e.org/b UNVERIFIED-SECONDARY\n"
+            "## Next section\n- unrelated bullet\n")
+    assert svl.scan_text("d.md", text) == []
+    # ...and a bad entry under a subheading is still caught, proving the
+    # section is genuinely being read rather than skipped.
+    bad = text.replace("- b https://e.org/b UNVERIFIED-SECONDARY", "- b (no url, no token)")
+    assert len(svl.scan_text("d.md", bad)) == 2
+
+
+def test_numbered_citations_are_entries():
+    """gemini dataflow-taint: numbered lists are standard markdown; excluding
+    them either false-failed or glued lines onto the previous bullet, masking
+    missing URLs and tokens on every one of them."""
+    assert svl.scan_text("d.md", "## Sources\n1. a https://e.org/a VERIFIED-READ\n2) b https://e.org/b UNVERIFIED-BLOCKED\n") == []
+    findings = svl.scan_text("d.md", "## Sources\n1. a https://e.org/a VERIFIED-READ\n2. b with no url or token\n")
+    assert len(findings) == 2, "a numbered entry's defects must be its own"
+
+
+# ── R-054's trigger as a MECHANISM (both OpenAI seats: an unbacked
+# "next time it is edited" trigger is a remediation that can silently
+# never happen). ──────────────────────────────────────────────────────────
+
+def test_touching_an_unenforced_research_doc_fails_the_gate(tmp_path, monkeypatch):
+    import subprocess
+    repo = tmp_path / "r"; (repo / "docs/research").mkdir(parents=True)
+    def git(*a): subprocess.run(["git", *a], cwd=repo, check=True, capture_output=True)
+    git("init", "-q", "-b", "master")
+    git("config", "user.email", "t@t"); git("config", "user.name", "t")
+    (repo / "docs/research/old.md").write_text("seed\n")
+    git("add", "-A"); git("commit", "-qm", "seed")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                          capture_output=True, text=True).stdout.strip()
+    (repo / "docs/research/new.md").write_text("a new synthesis\n")
+    (repo / "docs/research/old.md").write_text("edited\n")
+    git("add", "-A"); git("commit", "-qm", "touch two research docs")
+
+    findings = svl.scan_scope(repo, f"{base}...HEAD")
+    touched = {f.split(":")[0] for f in findings}
+    assert touched == {"docs/research/new.md", "docs/research/old.md"}
+    assert all("NOT in ENFORCED_DOCS" in f for f in findings)
+
+    # ...and a document already under the gate is not re-flagged.
+    monkeypatch.setattr(svl, "ENFORCED_DOCS", ("docs/research/old.md",))
+    assert {f.split(":")[0] for f in svl.scan_scope(repo, f"{base}...HEAD")} == {"docs/research/new.md"}
+
+
+def test_scope_check_reports_an_unanswerable_diff_rather_than_passing(tmp_path):
+    """§1: a failure must never look identical to 'there was nothing to do'."""
+    findings = svl.scan_scope(tmp_path, "origin/master...HEAD")
+    assert findings and "could not read the diff" in findings[0]
+
+
+def test_scope_check_is_silent_when_no_research_doc_is_touched(tmp_path):
+    import subprocess
+    repo = tmp_path / "r"; repo.mkdir()
+    def git(*a): subprocess.run(["git", *a], cwd=repo, check=True, capture_output=True)
+    git("init", "-q", "-b", "master")
+    git("config", "user.email", "t@t"); git("config", "user.name", "t")
+    (repo / "a.py").write_text("x = 1\n"); git("add", "-A"); git("commit", "-qm", "seed")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                          capture_output=True, text=True).stdout.strip()
+    (repo / "a.py").write_text("x = 2\n"); git("add", "-A"); git("commit", "-qm", "edit")
+    assert svl.scan_scope(repo, f"{base}...HEAD") == []

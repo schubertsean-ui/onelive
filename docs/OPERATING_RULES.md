@@ -63,10 +63,15 @@ Concretely, before anything is considered done:
      non-Claude reviewer's verdict. "I read it" / "I confirmed it" is not a
      check — it is the thing being checked.
   2. **Cite it where the claim lives.** Research documents carry a
-     `## Sources` block with a resolvable URL and an explicit
-     verification-status token per source (mechanically enforced by
-     `tools/source_verification_lint.py`, wired into `tools/validate`).
-     Metrics carry the command that produced them.
+     `## Sources` block with an http(s) URL and an explicit
+     verification-status token per source. Enforced by
+     `tools/source_verification_lint.py` (in `tools/validate`) on the
+     documents listed in its `ENFORCED_DOCS` — **one** today, with the
+     remaining twelve recorded as R-054. The gate also fails when this
+     change edits a `docs/research/` document not yet on that list, which
+     is how the list widens; what it does NOT do is resolve a URL or judge
+     whether a source supports the claim. Metrics carry the command that
+     produced them.
   3. **Unverified is legal; silently unverified is not.** An honest
      `UNVERIFIED-BLOCKED` beats a confident sentence. Downgrading a claim
      costs nothing; a claim that cannot be followed is a defect.
@@ -77,6 +82,20 @@ Concretely, before anything is considered done:
   This rule binds self-reports hardest: statements about the agent's own
   process, coverage, or performance are exactly the claims with no natural
   adversary, so they need the strongest external anchor.
+- **One tool failing is not a capability limit.** (Founder-directed
+  2026-07-26, after I reported research as impossible because `curl` and
+  `WebFetch` were proxy-blocked while `WebSearch` worked in the same
+  session: "you do the web research and prove you did it." Same decision
+  record as the verification rule above.) Before any claim that something
+  cannot be done — no access, blocked, unavailable, not supported — every
+  *distinct* route must have been tried and its failure named. Distinct
+  means a different mechanism, not a retry: a different tool, a different
+  protocol, a different surface, a different source, asking the founder.
+  Two tools that fail the same way are one data point. State the routes
+  tried and their exact errors; "I could not" without that list is an
+  assumption presented as a finding, and the primary-source gate above
+  does NOT license stopping at the first refusal — it requires the
+  primary, not a quick attempt at it.
 - **A repeated error is a finding, not a rhythm.** (Founder-directed
   2026-07-25 and ratified by the founder as a global standing condition;
   the verbatim directive lives in the decision record —
