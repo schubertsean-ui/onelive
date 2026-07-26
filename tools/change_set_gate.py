@@ -3,7 +3,8 @@
 
 Founder-directed 2026-07-26, after the same failure happened TWICE: PR #68 ran
 22 review rounds without converging, I diagnosed it as "too large, split it" —
-and then reproduced it exactly on PR #74 (11 rounds). Diagnosing an incident
+and then reproduced it exactly on PR #74 (11 rounds and counting at the time
+of writing). Diagnosing an incident
 twice instead of encoding it is not a world-class practice; it is the absence
 of one.
 
@@ -112,9 +113,14 @@ LOW_REVIEW_COST_BASENAMES = (
 
 
 def _is_low_review_cost(path: str) -> bool:
+    """Directory entries (trailing "/") match by prefix; everything else must
+    match EXACTLY. `startswith` on an exact filename also matched
+    `web/lib/capcog-boundary.json.bak`, quietly excluding a file nobody
+    approved. Evaluator nit, PR #79 r3."""
     if path.rsplit("/", 1)[-1] in LOW_REVIEW_COST_BASENAMES:
         return True
-    return any(path == p or path.startswith(p) for p in LOW_REVIEW_COST)
+    return any(path.startswith(p) if p.endswith("/") else path == p
+               for p in LOW_REVIEW_COST)
 
 
 def _git(*args: str) -> str:
@@ -155,6 +161,8 @@ def measure(base: str, head: str = "HEAD") -> dict:
         if len(parts) != 3:
             continue
         added, removed, path = parts
+        if _is_low_review_cost(path):
+            continue
         if added == "-":
             # BINARY. It has no line count, but it is unquestionably a file a
             # reviewer must account for, and skipping it entirely meant a PR
@@ -163,8 +171,6 @@ def measure(base: str, head: str = "HEAD") -> dict:
             # not N lines. Evaluator finding, PR #79 r2.
             files.append({"path": path, "lines": BINARY_FILE_COST})
             total += BINARY_FILE_COST
-            continue
-        if _is_low_review_cost(path):
             continue
         a, r = int(added), int(removed)
         # A WHOLESALE DELETION IS ONE DECISION, NOT N LINES OF READING.
@@ -251,29 +257,59 @@ def _rounds_rewritten(base: str) -> str:
     or appear on the PR timeline as a force push, which is a visible act a
     reviewer can see, not a number that silently changed.
     """
+    # SEEDED FROM BASE, not from empty. Starting at [] meant the FIRST commit
+    # in the range that touched the file established the baseline — so a single
+    # commit rewriting rounds[0] relative to base passed unnoticed, and my own
+    # test masked it by using two commits. The prefix rule only means anything
+    # if the prefix it starts from is the one the reviewer saw.
+    # Evaluator finding, PR #79 r3.
     revs = subprocess.run(
         ["git", "log", "--format=%H", "--reverse", f"{base}..HEAD",
          "--", FREEZE_REL],
         cwd=REPO, capture_output=True, text=True, check=False).stdout.split()
-    previous: list = []
+    previous: list = _rounds_at(base)
+    # ...and the WORKING TREE is the last revision in the chain. An uncommitted
+    # edit is what a person actually runs the gate against.
+    revs = list(revs) + [None]
     for rev in revs:
-        proc = subprocess.run(["git", "show", f"{rev}:{FREEZE_REL}"], cwd=REPO,
-                              capture_output=True, text=True, check=False)
-        if proc.returncode != 0:
-            continue                    # deleted in that commit; next version wins
-        try:
-            rounds = (json.loads(proc.stdout) or {}).get("rounds") or []
-        except ValueError:
-            return f"the freeze record at {rev[:8]} is not valid JSON"
+        label = "the working tree" if rev is None else rev[:8]
+        if rev is None:
+            rounds = freeze_rounds()
+        else:
+            proc = subprocess.run(["git", "show", f"{rev}:{FREEZE_REL}"],
+                                  cwd=REPO, capture_output=True, text=True,
+                                  check=False)
+            if proc.returncode != 0:
+                continue                # deleted there; the next version wins
+            try:
+                rounds = (json.loads(proc.stdout) or {}).get("rounds") or []
+            except ValueError:
+                return f"the freeze record at {label} is not valid JSON"
         if len(rounds) < len(previous):
-            return (f"{rev[:8]} dropped {len(previous) - len(rounds)} "
+            return (f"{label} dropped {len(previous) - len(rounds)} "
                     f"round(s) — the record is append-only")
         for i, was in enumerate(previous):
             if rounds[i] != was:
-                return (f"{rev[:8]} rewrote round {i} — the baseline is "
+                return (f"{label} rewrote round {i} — the baseline is "
                         f"rounds[0] and it does not move")
         previous = rounds
     return ""
+
+
+def _rounds_at(rev: str) -> list:
+    """The freeze rounds as of `rev`, or [] when the file is not there yet.
+
+    A branch that INTRODUCES its freeze has no base copy, and that is the
+    honest empty case: its rounds[0] is the first reviewed scope by definition.
+    """
+    proc = subprocess.run(["git", "show", f"{rev}:{FREEZE_REL}"], cwd=REPO,
+                          capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        return []
+    try:
+        return (json.loads(proc.stdout) or {}).get("rounds") or []
+    except ValueError:
+        return []
 
 
 
@@ -361,7 +397,7 @@ def main(argv=None) -> int:
                 f"SCOPE GREW UNDER REVIEW by {dl:+} line(s) and {df:+} file(s) "
                 f"(tolerance {MAX_GROWTH_LINES}/{MAX_GROWTH_FILES}).\n"
                 f"    This is the failure that produced 22 rounds on PR #68 and "
-                f"11 on PR #74: each round reviews a bigger subject than the "
+                f"11+ on PR #74: each round reviews a bigger subject than the "
                 f"last, so findings never converge and fixes from one round "
                 f"create blockers in the next.\n"
                 f"    Adopting a reviewer's blocker is fine. NEW WORK IS NOT, "

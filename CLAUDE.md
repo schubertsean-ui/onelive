@@ -36,7 +36,7 @@ Everything is checked against the documented world-class bar for that item, so d
 ## Change-set discipline (added 2026-07-26 at founder direction — MECHANICAL)
 Canon: `docs/skills/change_set_discipline.md`. Gate: `tools/change_set_gate.py`,
 blocking, in `tools/validate`. Added after the SAME failure ran twice — PR #68
-at 22 review rounds and PR #74 at 11 — where the lesson was written as prose
+at 22 review rounds and PR #74 at 11 AND COUNTING when this gate was written (#74 has since gone further, which is the point) — where the lesson was written as prose
 both times and nothing executed it. The Construction Loop already required
 small-batch execution (Stage 5) and machine-consumed lessons (Stage 6); this is
 the missing mechanism, not a new idea.

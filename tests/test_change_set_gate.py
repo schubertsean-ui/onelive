@@ -365,3 +365,80 @@ def test_FILE_growth_alone_fails_even_when_lines_do_not(monkeypatch):
     monkeypatch.setattr(gate, "_rounds_rewritten", lambda base: "")
     monkeypatch.setattr(gate, "_git", lambda *a: "sha")
     assert gate.main([]) == 1, "file growth alone must fail the gate"
+
+
+def test_a_SINGLE_commit_rewriting_the_baseline_fails(tmp_path, monkeypatch):
+    """r3 blocker, and my own r2 test was the thing hiding it.
+
+    `_rounds_rewritten` started from an EMPTY prefix, so the first commit in
+    the range that touched the record established the baseline — one commit
+    rewriting rounds[0] relative to base therefore passed. My r2 test used TWO
+    commits, which happened to exercise the prefix rule and looked like proof.
+    A prefix rule only means something if the prefix it starts from is the one
+    the reviewer actually saw, which is base's copy.
+    """
+    repo = _repo(tmp_path)
+    monkeypatch.setattr(gate, "REPO", repo)
+    monkeypatch.setattr(gate, "FREEZE", repo / "freeze.json")
+    monkeypatch.setattr(gate, "FREEZE_REL", "freeze.json")
+    _commit(repo, "a.py", "x\n")
+    _commit(repo, "b.py", "y\n" * 20)
+    gate.main(["--base", "HEAD~1", "--freeze"])
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "freeze"], cwd=repo, check=True)
+    base = gate._git("rev-parse", "HEAD")          # the freeze is ON the base
+
+    # ONE commit that launders the baseline
+    doc = json.loads((repo / "freeze.json").read_text(encoding="utf-8"))
+    doc["rounds"][0]["reviewable_lines"] = 99999
+    (repo / "freeze.json").write_text(json.dumps(doc), encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "reset"], cwd=repo, check=True)
+
+    assert gate._rounds_rewritten(base), (
+        "a single commit rewriting rounds[0] relative to base must be caught")
+    assert gate.main(["--base", base]) != 0
+
+
+def test_an_UNCOMMITTED_edit_to_the_baseline_fails(tmp_path, monkeypatch):
+    """The working tree is the last revision in the chain — it is what a person
+    actually runs the gate against, and it was not being checked at all."""
+    repo = _repo(tmp_path)
+    monkeypatch.setattr(gate, "REPO", repo)
+    monkeypatch.setattr(gate, "FREEZE", repo / "freeze.json")
+    monkeypatch.setattr(gate, "FREEZE_REL", "freeze.json")
+    _commit(repo, "a.py", "x\n")
+    _commit(repo, "b.py", "y\n" * 20)
+    gate.main(["--base", "HEAD~1", "--freeze"])
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "freeze"], cwd=repo, check=True)
+    base = gate._git("rev-parse", "HEAD")
+
+    doc = json.loads((repo / "freeze.json").read_text(encoding="utf-8"))
+    doc["rounds"][0]["reviewable_lines"] = 99999
+    (repo / "freeze.json").write_text(json.dumps(doc), encoding="utf-8")
+    # NOT committed
+    assert gate._rounds_rewritten(base), (
+        "an uncommitted rewrite of rounds[0] must be caught")
+
+
+def test_a_BINARY_in_a_low_review_cost_directory_is_still_excluded(monkeypatch):
+    """r3 blocker: the binary branch ran BEFORE the exclusion check, so a
+    generated binary under docs/export/ was counted as a reviewable file
+    despite the rule that says generated artifacts are not."""
+    numstat = ("-\t-\tdocs/export/diagram.png\n"
+               "-\t-\tassets/real.png\n")
+    monkeypatch.setattr(gate, "_git",
+                        lambda *a: "" if "--name-status" in a
+                        else (numstat if a[0] == "diff" else "sha"))
+    m = gate.measure("base")
+    assert [f["path"] for f in m["largest"]] == ["assets/real.png"]
+    assert m["reviewable_files"] == 1
+
+
+def test_an_exact_low_cost_path_does_not_match_by_PREFIX():
+    """`startswith` on an exact filename also matched `<name>.bak`, quietly
+    excluding a file nobody approved."""
+    assert gate._is_low_review_cost("web/lib/capcog-boundary.json")
+    assert not gate._is_low_review_cost("web/lib/capcog-boundary.json.bak")
+    assert gate._is_low_review_cost("docs/export/anything/at/all.md")

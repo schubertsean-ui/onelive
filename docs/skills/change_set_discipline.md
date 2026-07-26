@@ -2,7 +2,10 @@
 
 Greppable summary: founder-directed 2026-07-26 after the SAME failure occurred
 twice — PR #68 ran 22 review rounds without converging and was diagnosed as
-"too large, split it"; PR #74 then reproduced it exactly at 11 rounds. The
+"too large, split it"; PR #74 then reproduced it exactly, at 11 rounds AND
+COUNTING when this was written — the number is a floor, not a total, because
+the PR was still running. A round count quoted as final is retyped evidence.
+The
 lesson had been written as PROSE both times and never as a gate rule, which the
 Construction Loop (Stage 6) already names as an open defect: *"lessons committed
 to brain only in machine-consumed form — a prose-only ledger row is an open
