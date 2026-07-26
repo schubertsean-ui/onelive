@@ -465,7 +465,7 @@ def test_a_failing_lens_still_hard_fails_the_whole_panel():
                      request_openai=one_explodes, request_gemini=None)
 
 
-def test_a_failing_lens_raises_WITHOUT_waiting_for_a_hung_sibling():
+def test_a_failing_lens_RETURNS_without_waiting_for_a_hung_sibling():
     # Evaluator #73 r7 (class: missing-fail-fast-cancellation). Draining
     # every future before raising would still fail the gate, but only after
     # the SLOWEST lens — loud-but-late is the shape fail-loud physics
@@ -498,20 +498,20 @@ def test_a_failing_lens_raises_WITHOUT_waiting_for_a_hung_sibling():
         release.set()  # let the daemonless worker thread exit
 
 
-def test_an_UNPARSEABLE_verdict_also_fails_fast_not_just_a_transport_error():
+def test_an_UNPARSEABLE_verdict_also_returns_fast_not_just_a_transport_error():
     # Gemini seat, #73 r8: my first fail-fast fix parsed the verdict OUTSIDE
     # the try, so an unparseable lens raised past the handler and cancelled
     # nothing. An unparseable verdict IS a lens failure and must take the
     # same path as a transport error.
     #
-    # HONEST SCOPE — this test pins the TIMING property (an unparseable
-    # verdict raises without waiting on a hung sibling), which is the
-    # user-visible one. It does NOT pin the cancellation, and cannot:
-    # mutation-testing showed it still passes with the parse moved back
-    # outside the try, because run_panel uses max_workers == len(jobs), so
-    # no future is ever queued for cancel() to stop and the speed comes from
-    # shutdown(wait=False). Recorded rather than dressed up as coverage the
-    # test does not provide.
+    # HONEST SCOPE (tightened at r9): this pins that run_panel RETURNS
+    # without waiting — nothing more. It does NOT pin cancellation
+    # (mutation-testing showed it passes with the bug reintroduced, because
+    # max_workers == len(jobs) leaves nothing queued for cancel() to stop),
+    # and it does NOT pin process exit, because releasing the sibling in the
+    # finally lets the worker die before the interpreter would have joined
+    # it. The process-level truth is pinned separately and honestly by
+    # test_the_PROCESS_exit_bound_is_the_request_timeout_not_zero below.
     import threading
     import time
 
@@ -537,3 +537,51 @@ def test_an_UNPARSEABLE_verdict_also_fails_fast_not_just_a_transport_error():
             "not cancel the hung sibling")
     finally:
         release.set()
+
+
+def test_the_PROCESS_exit_bound_is_the_request_timeout_not_zero():
+    """The r9 correction, pinned so the overclaim cannot come back.
+
+    OpenAI attacker-smuggle seat: `shutdown(wait=False)` does NOT let the
+    process exit while a worker is in flight — concurrent.futures registers
+    its non-daemon workers with an atexit hook that JOINS them. Every other
+    fail-fast test here releases its hung sibling in a finally, so none of
+    them can see this; a test suite that only measures function return can
+    pass while the CI job sits pinned behind a hung model call.
+
+    This measures the real thing in a real subprocess: the raise is
+    immediate, the PROCESS exit is not. Asserting the gap exists keeps the
+    documentation honest — if a future change genuinely makes exit
+    immediate, this test fails and the comment block in
+    tools/adversarial_review.py must be updated with it.
+    """
+    import subprocess
+    import sys
+    import time
+
+    prog = (
+        "import concurrent.futures as cf, time\n"
+        "pool = cf.ThreadPoolExecutor(max_workers=2)\n"
+        "hang = pool.submit(time.sleep, 3)\n"
+        "t0 = time.time()\n"
+        "try:\n"
+        "    raise RuntimeError('lens failed')\n"
+        "except RuntimeError:\n"
+        "    hang.cancel()\n"
+        "    pool.shutdown(wait=False)\n"
+        "print(round(time.time() - t0, 2))\n"
+    )
+    t0 = time.time()
+    proc = subprocess.run([sys.executable, "-c", prog],
+                          capture_output=True, text=True, timeout=30)
+    wall = time.time() - t0
+
+    assert proc.returncode == 0, proc.stderr
+    raised_at = float(proc.stdout.strip())
+    assert raised_at < 0.5, "the raise itself must be immediate"
+    # The interpreter joins the non-daemon worker: process wall clock tracks
+    # the in-flight call, NOT the raise. This is the bound the docs state.
+    assert wall >= 2.5, (
+        f"process exited in {wall:.2f}s — if this is now genuinely immediate, "
+        "the fail-fast comment in tools/adversarial_review.py is stale and "
+        "must be corrected rather than this assertion loosened")

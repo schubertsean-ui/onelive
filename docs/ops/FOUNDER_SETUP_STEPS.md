@@ -178,15 +178,28 @@ post can be signed, so nothing can publish even with Meta connected.
    ```
    Copy the whole output line.
 
-   **No terminal?** Do this instead:
-   - a. Open https://1password.com/password-generator
-   - b. Under **Password type**, choose **Random Password**.
-   - c. Drag the **Length** slider to **64**. (Shorter is weaker than the
-     `openssl` path — do not reduce it.)
-   - d. Turn **Numbers** ON and **Symbols** ON.
-   - e. Click the **copy** icon to the right of the generated password.
-   - f. Paste it somewhere only long enough to complete step 5 below, then
-     clear it.
+   **No terminal? Use another OFFLINE generator — never a website.** This
+   key signs publish approvals, so it must never be created inside a page
+   served by someone else: you cannot verify from here what that page does
+   with it, and a signing key that leaves your machine can forge approvals.
+   Pick whichever applies:
+   - a. **Windows** — press Start, type `powershell`, open it, and paste:
+     ```
+     [Convert]::ToBase64String((1..48|%{Get-Random -Max 256}))
+     ```
+     Press Enter and copy the whole output line.
+   - b. **Linux** — open Terminal and run the same `openssl rand -base64 48`
+     as above.
+   - c. **A password manager you already have installed** (1Password,
+     Bitwarden, Apple Passwords) — use its BUILT-IN generator in the app,
+     not its website: create a new item, set length **64**, Numbers and
+     Symbols ON, and save the item. Generating it there also stores it
+     safely in one step.
+   - d. **iPhone, nothing else to hand** — in Notes you cannot generate one
+     safely; use Apple Passwords: add a new password entry for `onelive`
+     and let it generate, then reveal and copy it.
+   Do not shorten below 64 characters, and do not use a website generator
+   even if it claims to run locally — that claim is not checkable from here.
 
 **Handle this key like the Meta token — it signs publish approvals.** Same
 boundary, stated here so this section stands on its own:

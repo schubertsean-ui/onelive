@@ -114,9 +114,13 @@ def class_counts(rows: list[dict]) -> dict[str, int]:
 
 
 # Row-cell parsing is pure in its input string, so it is memoized: the family
-# scans below are O(families x rows), and without this every one of ~300
-# families re-ran findall over all ~200 rows — 106k regex scans, 3.4s of a
-# 3.9s report. Cached, each distinct cell is parsed exactly once. Behaviour is
+# scans below are O(families x rows), and without this every one of 296
+# families re-ran findall over all ~200 rows. MEASURED, not estimated —
+# cProfile output and the byte-identical before/after comparison are in
+# the timing evidence file in docs/session_arcs/evidence/, §2-3:
+# 106,476 findall calls, 3.410s of a 3.885s report; after caching the same
+# report is byte-identical in 0.087s. Cached, each distinct cell is parsed
+# exactly once. Behaviour is
 # identical by construction (same regex, same input, no state); the cache is
 # bounded so a pathological ledger cannot grow it without limit.
 @functools.lru_cache(maxsize=8192)

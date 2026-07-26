@@ -68,7 +68,11 @@ jobs:
         with:
           python-version: "3.12"
           # Cache wheels across runs (#73, founder-raised on CI latency):
-          # a cold pip install cost ~20-35s per job on every round. Pure
+          # a cold pip install is paid on every round. MEASURED for the
+          # adversarial-review job (see §4 of the timing evidence file under
+          # docs/session_arcs/evidence/): the deps step took 10s at baseline
+          # and 8s after caching — a real but small win, NOT the "~20-35s"
+          # this comment previously asserted without any measurement. Pure
           # wall-clock; the resolved dependency set is unchanged.
           cache: pip
           cache-dependency-path: |
@@ -117,7 +121,9 @@ jobs:
       # REMOVED 2026-07-26 (#73 r7, founder-directed): a standalone
       # `pytest -q | tee pytest.log` step used to run here. It executed the
       # FULL suite at the same commit that the validate step below runs it
-      # again — two identical runs in one job, ~30s of pure duplication.
+      # again — two identical runs in one job. MEASURED at 45s in job
+      # 89754035048 (§4 of the timing evidence file); the job total fell
+      # 489s -> 418s across this and the faster suite.
       # Nothing is weakened by dropping it: `tools/validate` still runs the
       # full suite as a BLOCKING check (run_check "pytest (full suite)"),
       # still reds this job on any failing test, and validate.log carries
@@ -129,7 +135,7 @@ jobs:
       # The suite still runs a second time in trust-gate.yml, and that one
       # is DELIBERATELY kept: it is a separate workflow on a separate
       # trigger, so it is independent verification rather than duplication.
-      # Collapsing it would trade real redundancy for ~30s.
+      # Collapsing it would trade real redundancy for ~28s.
       - name: Full validate gate (machine evidence for the evaluator)
         # Added 2026-07-18 (evaluator r2 on PR #35, unverifiable-claim class
         # fix): the evaluator receives tools/validate's own machine-generated

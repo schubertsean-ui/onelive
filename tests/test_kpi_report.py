@@ -60,8 +60,14 @@ def _run_cli(args: list[str]) -> subprocess.CompletedProcess:
     contract: the same argparse parsing, the same exit codes, the same
     stdout/stderr split.
 
-    Why not a subprocess per case: each one paid ~6s of interpreter startup +
-    package import, and eight of them were 44 of this suite's 57 seconds. The
+    Why not a subprocess per case: eight of these tests dominated the suite.
+    CORRECTION (#73 r9): the original version of this comment blamed "~6s of
+    interpreter startup + package import" per case. That was WRONG — the
+    retained real subprocess test below runs in 0.10s, so startup was never
+    the cost; profiling found it in redundant regex scanning inside
+    kaizen_trends (see the timing evidence file in
+    docs/session_arcs/evidence/, §2). In-process running is kept because it is the
+    right shape for a CLI-contract test, not because it bought the time. The
     one property in-process running cannot prove — that `python
     tools/kpi_report.py` imports cleanly as a script and that main()'s return
     code reaches the process exit status through `raise SystemExit(main())` —

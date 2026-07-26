@@ -71,6 +71,13 @@ def _is_full_suite_pytest(line: str) -> bool:
     s = line.strip()
     if "pytest" not in s or s.lstrip().startswith("#"):
         return False
+    # A quoted mention is data, not a command (#73 r9): `echo "python -m
+    # pytest"` must not be credited. Quoted spans are dropped before the
+    # invocation match; a genuine `run_check "label" "$PY" -m pytest` keeps
+    # its `-m pytest` because that part sits OUTSIDE the quotes.
+    s = re.sub(r"""(['"]).*?\1""", "", s)
+    if "pytest" not in s:
+        return False
     m = _INVOCATION.search(s)
     if not m:
         return False
@@ -111,11 +118,28 @@ def _runner_runs_full_suite(rel_path: str) -> bool:
     return any(_is_full_suite_pytest(ln) for ln in text.splitlines())
 
 
+# A MENTION is not an INVOCATION (#73 r9, evaluator): `echo "bash
+# tools/validate"` or a comment quoting the command must never be credited
+# as a gate. Gate-evidence custody fails in the reassuring direction here —
+# a false credit reports a failing suite as blocked by a workflow that only
+# TALKS about the runner. So the runner must sit in command position:
+# at line start, after `run:`, or after a shell separator — and never
+# inside quotes.
+_RUNNER_INVOCATION = re.compile(
+    r"(?:^|[|;&]|\brun:\s*)\s*(?:(?:ba|z|d)?sh|source|\.)?\s*\.?/?(%s)\b"
+    % "|".join(re.escape(r) for r in _RUNNER_SCRIPTS))
+
+
 def _invokes_full_suite_runner(line: str) -> bool:
     s = line.strip()
     if s.startswith("#"):
         return False
-    return any(r in s and _runner_runs_full_suite(r) for r in _RUNNER_SCRIPTS)
+    # Strip quoted spans first: anything inside quotes is data, not a command.
+    unquoted = re.sub(r"""(['"]).*?\1""", "", s)
+    m = _RUNNER_INVOCATION.search(unquoted)
+    if not m:
+        return False
+    return _runner_runs_full_suite(m.group(1))
 
 
 def full_suite_gates() -> list:

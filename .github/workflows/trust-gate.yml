@@ -38,7 +38,11 @@ jobs:
         with:
           python-version: "3.12"
           # Cache wheels across runs (#73, founder-raised on CI latency):
-          # a cold pip install cost ~20-35s per job on every round. Pure
+          # a cold pip install is paid on every round. MEASURED for the
+          # adversarial-review job (see §4 of the timing evidence file under
+          # docs/session_arcs/evidence/): the deps step took 10s at baseline
+          # and 8s after caching — a real but small win, NOT the "~20-35s"
+          # this comment previously asserted without any measurement. Pure
           # wall-clock; the resolved dependency set is unchanged.
           cache: pip
           cache-dependency-path: |

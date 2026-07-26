@@ -350,8 +350,13 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
     # none reads another's output (that isolation is the point: the hats rule
     # forbids lenses seeing each other). The verdict merge is ANY-red = red,
     # which is order-independent. So running them one after another bought
-    # nothing and cost four times the latency: ~150s serial versus the ~40s
-    # of the slowest single call (#73, founder-raised).
+    # nothing and cost four times the latency. MEASURED (§4 of the timing
+    # evidence file in docs/session_arcs/evidence/): the
+    # 'Independent evaluator' step took 207s with the lenses serial, on
+    # both job 89754035048 and job 89821493804. What it becomes when they
+    # overlap is UNVERIFIED and stays that way until a merged run reports
+    # it, because CI executes this file from the BASE ref — this change
+    # cannot speed up the PR that introduces it.
     jobs: list[tuple[str, str, object, str]] = []
     for seat, seat_key, requester in (
         ("openai", openai_key, request_openai),
@@ -378,22 +383,38 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
     # verdict) still propagates: the first exception is re-raised here and
     # the gate hard-fails exactly as before, never degrading to a partial
     # panel, which would be a silent narrowing.
-    # FAIL FAST (#73 r7, evaluator): the first error is raised as soon as it
-    # is seen, and every still-pending lens is cancelled. Draining the rest
-    # first would let a red lens sit behind a slow or hung sibling — the gate
-    # would still fail, but only after the slowest call — loud far too late,
-    # which is the precise shape fail-loud physics exists to rule out.
-    # WHAT DELIVERS THE SPEED, stated exactly because the two mechanisms
-    # here are easy to confuse (#73 r8, verified by mutation-testing this
-    # block): the observable fail-fast property comes from raising on the
-    # first error plus `shutdown(wait=False)` in the finally, which returns
-    # without blocking on an in-flight HTTP call. The `cancel()` loop only
-    # stops futures that have not STARTED, and since max_workers == len(jobs)
-    # nothing is ever queued — so today it is defensive, not load-bearing,
-    # and no test can observe it. It is kept because it becomes real the
-    # moment the pool is narrower than the job list, and because parse
+    # FAIL FAST — WITH ITS REAL BOUND STATED (#73 r7, corrected at r9 after
+    # the OpenAI attacker-smuggle seat refuted the earlier wording, which
+    # claimed more than the code delivers).
+    #
+    # WHAT IS TRUE: the first error — transport failure OR unparseable
+    # verdict — raises out of this function immediately, so the VERDICT is
+    # decided without waiting on any sibling. That is what the tests pin.
+    #
+    # WHAT IS NOT TRUE, and was claimed here before: that the PROCESS exits
+    # immediately. It does not. ThreadPoolExecutor workers are non-daemon and
+    # are joined by concurrent.futures' own atexit hook, so `shutdown(
+    # wait=False)` returns at once while the interpreter still blocks on any
+    # in-flight request at exit. Measured directly, not reasoned about: a
+    # worker sleeping 6s returned from the raise at t=0.00s and the process
+    # exited at t=6.07s. Evidence + the probe script:
+    # the timing evidence file in docs/session_arcs/evidence/, §5.
+    #
+    # SO THE HONEST GUARANTEE IS: verdict immediate, process exit bounded by
+    # the per-request timeout in _post_json (300s). A hung lens cannot make
+    # the job hang forever, and cannot change the verdict, but it CAN hold
+    # the runner until its own request times out. Lowering that timeout is
+    # the only lever that tightens the bound; it is left at 300s deliberately
+    # because a legitimately slow model call must not be cut off by a gate
+    # tuning change, and it is recorded rather than silently adjusted.
+    #
+    # The cancel() loop stops only futures that have not STARTED. Since
+    # max_workers == len(jobs) nothing is ever queued, so today it is
+    # defensive rather than load-bearing; it is kept because it becomes real
+    # the moment the pool is narrower than the job list, and because parse
     # failures must reach the same path as transport failures.
-    # The verdict is unchanged by any of this — an erroring lens hard-fails
+    #
+    # The verdict is unchanged by all of this — an erroring lens hard-fails
     # the whole panel and never degrades it to a partial one, which would be
     # a silent narrowing.
     results: list[tuple[str, str] | None] = [None] * len(jobs)

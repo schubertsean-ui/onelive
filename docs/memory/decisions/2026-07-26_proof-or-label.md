@@ -47,8 +47,15 @@ reason to run it, never the reason to skip it.**
 The class `unverified-claim-as-fact` is indexed in
 `docs/memory/RED_CLASSES.md` with claim-grammar trigger tokens. Since
 `tools/construction_gate.py` matches red classes against diff CONTENT (not
-only paths), any change carrying that language is BLOCKED until the Stage 3
-citation names the verification behind each claim.
+only paths), any change carrying that language is BLOCKED until an
+`[S3:unverified-claim-as-fact]` citation exists.
+
+STRENGTH, STATED EXACTLY (r9 — the first draft of this record overstated it,
+which was itself an instance of the class): the gate enforces that the
+citation is PRESENT. It cannot evaluate whether the proof behind each claim
+is real; that judgement stays with the adversarial review. This is a forcing
+function that makes the claim-audit unskippable, not an automated
+proof-checker.
 
 ## The alternative that was measured and rejected
 
@@ -58,10 +65,16 @@ claim-shaped line. Measured on this PR's own added record lines before
 building it:
 
 ```
+$ git diff origin/master -U0 -- STATE.md docs/ONE_LIVE_CHANGE_LOG.md \
+      docs/metrics/KAIZEN_LEDGER.md docs/memory/RED_CLASSES.md docs/RECORD.md \
+  | <count added lines matching claim-grammar, then those with no proof token>
 added record lines : 79
   claim-shaped     : 55
   WITHOUT any proof token (would fire): 36   → 65% of claim lines
 ```
+The full command and every other number in this arc are reproduced with their
+output in the timing/measurement evidence file under
+`docs/session_arcs/evidence/`.
 
 Rejected on that evidence. Judging whether prose is verified is a judgment
 task wearing a regex costume, and a 65%-noise gate is one that gets

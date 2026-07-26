@@ -134,3 +134,38 @@ def test_list_gates_is_informational_and_exits_zero(capsys):
 def test_it_is_wired_into_validate():
     # A control nobody runs is not a control.
     assert "blocking_failure_check" in (_ROOT / "tools" / "validate").read_text()
+
+
+# ── a MENTION is not an INVOCATION (#73 r9) ─────────────────────────────────
+# Gate-evidence custody fails in the REASSURING direction here: a false
+# credit reports a failing suite as blocked by a workflow that only talks
+# about the runner. These are the negative cases the r9 evaluator named.
+
+@pytest.mark.parametrize("line", [
+    'echo "bash tools/validate"',
+    "echo 'bash tools/validate'",
+    'echo "run tools/validate now"',
+    '# bash tools/validate',
+    'echo "see tools/validate for details"',
+])
+def test_quoted_or_commented_runner_mentions_are_not_gates(line):
+    assert bfc._invokes_full_suite_runner(line) is False
+
+
+@pytest.mark.parametrize("line", [
+    'echo "python -m pytest"',
+    "echo 'python -m pytest -q'",
+    'echo "the suite runs via python -m pytest"',
+])
+def test_quoted_pytest_mentions_are_not_invocations(line):
+    assert bfc._is_full_suite_pytest(line) is False
+
+
+@pytest.mark.parametrize("line", [
+    "bash tools/validate --allow-skips",
+    "run: bash tools/validate",
+    "./tools/validate",
+    "sh tools/validate && echo done",
+])
+def test_real_runner_invocations_are_still_credited(line):
+    assert bfc._invokes_full_suite_runner(line) is True
