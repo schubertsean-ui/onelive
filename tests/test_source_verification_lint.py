@@ -71,7 +71,7 @@ def test_empty_sources_section_fails():
 def test_entry_without_url_fails():
     findings = svl.scan_text("d.md", "## Sources\n- Klein, Sources of Power, 1998 VERIFIED-READ\n")
     assert len(findings) == 1
-    assert "no resolvable URL" in findings[0]
+    assert "no http(s) URL" in findings[0]
 
 
 def test_bare_domain_is_not_a_url():
@@ -79,7 +79,7 @@ def test_bare_domain_is_not_a_url():
     citation and resolves to nothing a reader can click."""
     findings = svl.scan_text("d.md", "## Sources\n- DORA capability catalog — dora.dev VERIFIED-READ\n")
     assert len(findings) == 1
-    assert "no resolvable URL" in findings[0]
+    assert "no http(s) URL" in findings[0]
 
 
 def test_entry_without_status_token_fails():
@@ -227,3 +227,87 @@ def test_scope_check_is_silent_when_no_research_doc_is_touched(tmp_path):
                           capture_output=True, text=True).stdout.strip()
     (repo / "a.py").write_text("x = 2\n"); git("add", "-A"); git("commit", "-qm", "edit")
     assert svl.scan_scope(repo, f"{base}...HEAD") == []
+
+
+# ── PR #78 r3 findings — each is a real bypass or dead end the panel found,
+# kept as a red case. Probed directly, not reasoned about. ────────────────
+
+def test_a_status_token_inside_a_url_does_not_count():
+    """openai attacker-smuggle: `https://example.org/VERIFIED-READ` satisfied
+    the gate while declaring no status at all. The token must be the author's
+    own assertion, not a substring of the thing being cited."""
+    findings = svl.scan_text("d.md", "## Sources\n- x https://example.org/VERIFIED-READ\n")
+    assert findings and "declares no verification status" in findings[0]
+
+
+def test_a_status_token_inside_markdown_link_text_does_not_count():
+    findings = svl.scan_text("d.md", "## Sources\n- [VERIFIED-READ paper](https://e.org)\n")
+    assert findings and "declares no verification status" in findings[0]
+
+
+def test_a_real_status_alongside_a_url_that_contains_one_still_passes():
+    """Stripping must not break the honest case."""
+    assert svl.scan_text(
+        "d.md", "## Sources\n- x https://example.org/VERIFIED-READ — UNVERIFIED-SECONDARY\n") == []
+
+
+def test_every_status_match_is_considered_not_only_the_first():
+    """gemini dataflow-taint: an entry mentioning a negated status and THEN
+    declaring an honest one was rejected, because only the first match was
+    inspected."""
+    assert svl.declares_status("- x https://e.org not VERIFIED-READ; UNVERIFIED-SECONDARY")
+
+
+def test_a_heading_after_a_bullet_is_not_continuation_text():
+    """gemini dataflow-taint: gluing a heading onto the previous bullet let the
+    heading's URL or token satisfy a bullet that had neither."""
+    findings = svl.scan_text(
+        "d.md", "## Sources\n- a bare claim with nothing\n### https://e.org VERIFIED-READ\n")
+    assert len(findings) == 2, findings
+
+
+def test_deleting_an_unenforced_research_doc_does_not_deadlock_the_gate(tmp_path):
+    """gemini dataflow-taint: a deleted path was flagged as touched, and adding
+    it to ENFORCED_DOCS to satisfy that made scan_repo fail on the missing
+    file — an unresolvable gate deadlock."""
+    import subprocess
+    repo = tmp_path / "r"; (repo / "docs/research").mkdir(parents=True)
+    def git(*a): subprocess.run(["git", *a], cwd=repo, check=True, capture_output=True)
+    git("init", "-q", "-b", "master")
+    git("config", "user.email", "t@t"); git("config", "user.name", "t")
+    (repo / "docs/research/gone.md").write_text("seed\n")
+    git("add", "-A"); git("commit", "-qm", "seed")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                          capture_output=True, text=True).stdout.strip()
+    (repo / "docs/research/gone.md").unlink()
+    git("add", "-A"); git("commit", "-qm", "delete it")
+    assert svl.scan_scope(repo, f"{base}...HEAD") == []
+
+
+# ── the provenance branch: a remediation that can actually be satisfied ──
+
+def test_a_source_capture_may_declare_provenance_instead_of_sources():
+    """openai absence-only: R-054 and the tool's own finding text offered
+    verbatim source captures 'a provenance line, not a Sources block', and no
+    code accepted one — a documented remediation that could never be met."""
+    assert svl.scan_text(
+        "cap.md", "# Captured article\n\nPROVENANCE: https://e.org/a UNVERIFIED-BLOCKED\n") == []
+    assert svl.scan_text(
+        "cap.md", "<!-- PROVENANCE: https://e.org/a VERIFIED-READ -->\n") == []
+
+
+def test_a_provenance_line_is_held_to_the_same_bar_as_a_citation():
+    """Otherwise it becomes the escape hatch that empties the gate."""
+    assert any("no http(s) URL" in f for f in
+               svl.scan_text("cap.md", "PROVENANCE: somewhere VERIFIED-READ\n"))
+    assert any("declares no verification status" in f for f in
+               svl.scan_text("cap.md", "PROVENANCE: https://e.org/a\n"))
+    assert len(svl.scan_text("cap.md", "PROVENANCE: nothing useful\n")) == 2
+
+
+def test_the_no_sources_finding_names_both_accepted_shapes():
+    """A finding that names an impossible remedy is a dead end; this one has
+    to point at something the tool will actually accept."""
+    findings = svl.scan_text("d.md", "# Doc\n\nNo sources, no provenance.\n")
+    assert len(findings) == 1
+    assert "PROVENANCE:" in findings[0] and "Sources" in findings[0]

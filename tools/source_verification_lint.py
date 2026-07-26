@@ -67,6 +67,11 @@ ENFORCED_DOCS = (
     "docs/research/2026-07-25_construction_loop_research_synthesis.md",
 )
 
+# Any level-1..4 `Sources` heading is accepted DELIBERATELY (PR #78 r3 nit):
+# the rule text says `## Sources` as the convention, and rejecting a document
+# that used `### Sources` would fail it for formatting rather than for an
+# unfollowable citation — which is not what this gate is for. The matched
+# level is what bounds the section, so nesting still works correctly.
 SOURCES_HEADING = re.compile(r"^(#{1,4})\s+Sources\b", re.IGNORECASE | re.MULTILINE)
 URL_RE = re.compile(r"https?://[^\s)\]>]+")
 # Bullets AND numbered citations. `1.` / `2)` are standard markdown list
@@ -75,6 +80,18 @@ URL_RE = re.compile(r"https?://[^\s)\]>]+")
 # masking the missing URL and token on all of them (PR #78, gemini
 # dataflow-taint seat).
 BULLET_RE = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+\S")
+
+# A VERBATIM SOURCE CAPTURE (docs/research/sources/*) is not a synthesis: it
+# has no citations of its own, it IS the cited thing. R-054 and this tool's
+# own finding text both offered such a file "a provenance line, not a Sources
+# block" — and no code accepted one, so the documented remediation was a dead
+# end that could never be satisfied (PR #78 r3, class
+# unimplemented-remediation-path, found by the absence-only seat). It is a
+# real branch now: one line declaring where the captured text came from and
+# whether the primary was actually read, held to the SAME two requirements as
+# a citation — a URL and a boundary-matched status token.
+PROVENANCE_RE = re.compile(r"^\s*(?:<!--\s*)?PROVENANCE:\s*(?P<body>.+?)\s*(?:-->)?\s*$",
+                           re.IGNORECASE | re.MULTILINE)
 
 # A status token must appear on the entry line. READ means a human or agent
 # actually retrieved the primary; every other token is an honest admission.
@@ -111,13 +128,49 @@ _NEGATED_STATUS_RE = re.compile(
     r"\b(?:not|never|isn'?t|no)\s+(?:yet\s+)?$", re.IGNORECASE)
 
 
+def status_field(line: str) -> str:
+    """The part of an entry a status token may legitimately be declared in.
+
+    URLs and markdown link TEXT are stripped first (PR #78 r3, class
+    status-token-not-field): before this, `https://example.org/VERIFIED-READ`
+    or a paper title containing the token satisfied the gate while declaring
+    no status at all — the token has to be the author's own assertion, not a
+    substring of something they are citing.
+    """
+    without_links = re.sub(r"\[[^\]]*\]\([^)]*\)", " ", line)   # [text](url)
+    return URL_RE.sub(" ", without_links)                        # bare urls
+
+
 def declares_status(line: str) -> bool:
-    """True when the line carries a real, unnegated status token."""
-    m = _STATUS_RE.search(line)
-    if not m:
-        return False
-    before = line[max(0, m.start() - 24):m.start()]
-    return not _NEGATED_STATUS_RE.search(before)
+    """True when the entry declares a real, unnegated status token.
+
+    EVERY match is considered, not just the first (gemini dataflow-taint seat):
+    an entry like `... not VERIFIED-READ; UNVERIFIED-SECONDARY` declares an
+    honest status after mentioning a negated one, and checking only the first
+    match rejected it.
+    """
+    field = status_field(line)
+    for m in _STATUS_RE.finditer(field):
+        before = field[max(0, m.start() - 24):m.start()]
+        if not _NEGATED_STATUS_RE.search(before):
+            return True
+    return False
+
+
+def _scan_provenance(rel_path: str, body: str) -> list[str]:
+    """A source capture's one-line origin declaration, same bar as a citation."""
+    findings = []
+    if not URL_RE.search(body):
+        findings.append(
+            f"{rel_path}: `PROVENANCE:` line has no http(s) URL — a captured "
+            f"document whose origin cannot be followed is exactly the defect "
+            f"this gate exists for: {body[:80]}")
+    if not declares_status(body):
+        findings.append(
+            f"{rel_path}: `PROVENANCE:` line declares no verification status "
+            f"(one of {', '.join(STATUS_TOKENS)}) — say whether the primary "
+            f"behind this capture was actually read: {body[:80]}")
+    return findings
 
 
 def scan_text(rel_path: str, text: str) -> list[str]:
@@ -125,10 +178,16 @@ def scan_text(rel_path: str, text: str) -> list[str]:
     findings: list[str] = []
     m = SOURCES_HEADING.search(text)
     if not m:
+        prov = PROVENANCE_RE.search(text)
+        if prov:
+            return _scan_provenance(rel_path, prov.group("body"))
         return [
-            f"{rel_path}: no `## Sources` section — every research document "
-            "must expose the sources its claims rest on, each with a URL and "
-            "a verification-status token"
+            f"{rel_path}: no `## Sources` section and no `PROVENANCE:` line — a "
+            "synthesis must expose the sources its claims rest on (each with a "
+            "URL and a verification-status token); a verbatim source capture "
+            "must instead declare ONE `PROVENANCE: <url> <STATUS-TOKEN>` line "
+            "saying where the captured text came from and whether the primary "
+            "was actually read"
         ]
 
     section = text[m.end():]
@@ -151,6 +210,11 @@ def scan_text(rel_path: str, text: str) -> list[str]:
     for ln in section.splitlines():
         if BULLET_RE.match(ln):
             entries.append(ln)
+        elif ln.strip().startswith("#"):
+            # A heading is a section divider, never continuation text. Gluing
+            # it onto the previous bullet let a heading's URL or status token
+            # satisfy a bullet that had neither (gemini dataflow-taint seat).
+            continue
         elif entries and ln.strip():
             entries[-1] += " " + ln.strip()
     if not entries:
@@ -165,7 +229,7 @@ def scan_text(rel_path: str, text: str) -> list[str]:
         label = (stripped[:70] + "…") if len(stripped) > 70 else stripped
         if not URL_RE.search(line):
             findings.append(
-                f"{rel_path}: source entry has no resolvable URL — a citation "
+                f"{rel_path}: source entry has no http(s) URL — a citation "
                 f"a reader cannot follow is a claim, not evidence: {label}"
             )
         if not declares_status(line):
@@ -190,7 +254,11 @@ def _git(args: list[str], root: pathlib.Path) -> str | None:
 
 def touched_research_docs(root: pathlib.Path, diff_range: str) -> list[str] | None:
     """Research documents this change touches. None = git could not answer."""
-    out = _git(["diff", "--name-only", diff_range], root)
+    # --diff-filter=d EXCLUDES deletions. Without it, deleting an unenforced
+    # research document flagged the deleted path, and adding that path to
+    # ENFORCED_DOCS to satisfy this check made scan_repo fail on the missing
+    # file — an unresolvable deadlock (gemini dataflow-taint seat).
+    out = _git(["diff", "--name-only", "--diff-filter=d", diff_range], root)
     if out is None:
         return None
     return sorted(
@@ -224,8 +292,9 @@ def scan_scope(root: pathlib.Path = REPO, diff_range: str = "origin/master...HEA
     return [
         f"{rel}: this change edits a research document that is NOT in "
         "ENFORCED_DOCS — R-054's trigger is that a touched document joins "
-        "the gate in the same commit. Add a `## Sources` block (or, for a "
-        "verbatim source capture, a provenance line) and append the path to "
+        "the gate in the same commit. Add a `## Sources` block — or, for a "
+        "verbatim source capture, a single `PROVENANCE: <url> <STATUS-TOKEN>` "
+        "line, which this tool accepts in its place — and append the path to "
         "ENFORCED_DOCS in tools/source_verification_lint.py"
         for rel in touched if rel not in enforced
     ]
