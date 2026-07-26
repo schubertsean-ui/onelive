@@ -207,8 +207,24 @@ Everything else: decide, write the decision record, proceed.
   prompt-version bump), the plan goes in `docs/FRICTION_LOG.md` and is attacked by
   a non-Claude model: *what breaks, who is harmed, cheaper path, founder-crucial
   or not?* Blockers are answered in writing.
-- **Sentinel** — Sentry on web, API and worker; a healthchecks.io dead-man ping on
-  every scheduled job. **No scheduled loop ships without both.**
+- **Sentinel** — Sentry on web, API and worker; **a dead-man alarm on every
+  scheduled job. No scheduled loop ships without both.** The requirement is the
+  alarm, not the vendor. Two accepted mechanisms:
+  1. **healthchecks.io ping** — independent of GitHub, the stronger alarm, needs a
+     founder account and a repository secret.
+  2. **`.github/workflows/watchdog.yml`** (`tools/watchdog_check.py`) — asks
+     GitHub's Actions API when each watched job last succeeded and fails the
+     scheduled run if it has gone silent, which emails the owner. Zero signup, zero
+     secrets. **Founder-approved 2026-07-26** ("build the watchdog"), amending the
+     previous healthchecks.io-only wording. Its weakness is named, not buried: it
+     lives inside Actions, so it dies with Actions (R-060), and GitHub disables
+     schedules in repos idle 60 days. Record:
+     `docs/memory/decisions/2026-07-26_github-native-watchdog.md`.
+
+  A job watched by neither is a scheduled loop with no alarm, which is still
+  forbidden. Every scheduled workflow must appear in the watchdog's `WATCHED`,
+  `EXPECTED_SOON` or `EXCLUDED` table, each with a reason — enforced by
+  `tests/test_watchdog_check.py`.
 - **Red hat is the founder, never an agent.**
 
 ---
