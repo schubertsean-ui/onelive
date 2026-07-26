@@ -16,7 +16,7 @@
 //     `venue` (PostgREST embed) and resolve `artist_ids` → names for `performer`.
 //     No fabrication: fields absent on a promoted row stay null.
 
-import { supaEnv, type LicensedEvent } from "./licensed";
+import { exactlyOneOrNull, supaEnv, type LicensedEvent } from "./licensed";
 
 // Event listing columns granted to anon in migration 0012 (privacy/internal
 // columns are deliberately NOT granted). `venue:venue_id(...)` is a PostgREST
@@ -71,6 +71,8 @@ export type PromotedQueryOpts = {
   category?: string;
   fromISO?: string; // start_time >= this
   toISO?: string; // start_time <= this
+  eventId?: string;   // detail surface: one row by id (raw uuid, no prefix)
+  anyStatus?: boolean; // detail surface: a cancelled event says so, never 404s
 };
 
 // Pure PostgREST query-string builder (no env, no network) — unit-tested. Same
@@ -80,13 +82,46 @@ export type PromotedQueryOpts = {
 export function buildPromotedQuery(opts?: PromotedQueryOpts): string {
   const p = new URLSearchParams();
   p.set("select", EVENT_SELECT);
-  p.append("status", "in.(scheduled,moved)"); // never hide anything by confidence
+  // never hide anything by confidence; anyStatus is the detail surface only
+  // (see LicensedQueryOpts.anyStatus for why one event by id is not a feed).
+  if (!opts?.anyStatus) p.append("status", "in.(scheduled,moved)");
+  if (opts?.eventId) p.append("event_id", `eq.${opts.eventId}`);
   if (opts?.category) p.append("category", `eq.${opts.category}`);
   if (opts?.fromISO) p.append("start_time", `gte.${opts.fromISO}`);
   if (opts?.toISO) p.append("start_time", `lte.${opts.toISO}`);
   p.set("order", "start_time.asc,event_id.asc");
   return p.toString();
 }
+
+// ONE artist-name resolution, used by the feed read and the single-event read
+// (PR #87 r4, gemini nit). The two had byte-identical copies of this block, and
+// a duplicated query is a place where two read paths can silently diverge.
+// Missing ids are simply absent from the map; reshapePromoted omits them rather
+// than inventing a name.
+async function resolveArtistNames(
+  url: string,
+  key: string,
+  rows: PromotedRow[],
+): Promise<Map<string, string>> {
+  const ids = [...new Set(rows.flatMap((r) => r.artist_ids ?? []))];
+  const byId = new Map<string, string>();
+  if (!ids.length) return byId;
+  // PostgREST parses the filter AFTER percent-decoding the parameter value, so
+  // the whole `in.("a","b")` expression is encoded as one value. Exercised by a
+  // test with non-empty artist_ids asserting both the request shape and the
+  // resolved name — this encoding was reported broken in two rounds, and a test
+  // settles it where prose could not.
+  const inList = `in.(${ids.map((id) => `"${id}"`).join(",")})`;
+  const aEndpoint =
+    `${url}/rest/v1/artist?select=artist_id,name&artist_id=${encodeURIComponent(inList)}`;
+  const aRows = (await fetchAllRows(url, key, aEndpoint)) as Array<{
+    artist_id: string;
+    name: string | null;
+  }>;
+  for (const a of aRows) if (a.name) byId.set(a.artist_id, a.name);
+  return byId;
+}
+
 
 // Pure reshape of raw `event` rows into the LicensedEvent card shape. `performer`
 // is resolved from the id→name map (missing ids are simply omitted — never a
@@ -185,19 +220,51 @@ export async function fetchPromotedEvents(
   const rows = (await fetchAllRows(url, key, endpoint)) as PromotedRow[];
   if (rows.length === 0) return [];
 
-  // Batch-resolve artist names for `performer`.
-  const ids = [...new Set(rows.flatMap((r) => r.artist_ids ?? []))];
-  const artistNameById = new Map<string, string>();
-  if (ids.length) {
-    const inList = `in.(${ids.map((id) => `"${id}"`).join(",")})`;
-    const aEndpoint =
-      `${url}/rest/v1/artist?select=artist_id,name&artist_id=${encodeURIComponent(inList)}`;
-    const aRows = (await fetchAllRows(url, key, aEndpoint)) as Array<{
-      artist_id: string;
-      name: string | null;
-    }>;
-    for (const a of aRows) if (a.name) artistNameById.set(a.artist_id, a.name);
-  }
+  return reshapePromoted(rows, await resolveArtistNames(url, key, rows));
+}
 
-  return reshapePromoted(rows, artistNameById);
+
+// ── Detail surface (SPRINT Step 9, Contract #28) ─────────────────────────────
+// One event by id. The `promoted:` prefix is the id shape reshapePromoted
+// assigns, so it is also the dispatch key: it says which TABLE the row lives in
+// without a lookup. Splitting on the first colon only — a uuid contains none,
+// and a stricter parse would reject ids this module itself produced.
+
+export const PROMOTED_ID_PREFIX = "promoted:";
+
+export type EventIdRoute =
+  | { kind: "promoted"; id: string }
+  | { kind: "licensed"; id: string };
+
+/** Pure dispatch — which read serves this id, and what to ask it for. */
+export function routeForEventId(rawId: string): EventIdRoute | null {
+  const id = rawId.trim();
+  if (!id) return null;
+  if (id.startsWith(PROMOTED_ID_PREFIX)) {
+    const inner = id.slice(PROMOTED_ID_PREFIX.length);
+    return inner ? { kind: "promoted", id: inner } : null;
+  }
+  return { kind: "licensed", id };
+}
+
+/** ONE promoted event, or null when no such row exists. Errors are NOT
+ *  swallowed: a failed read throws, because an empty page dressed as
+ *  "no such event" is the swallowed-corrupt-data class. */
+export async function fetchPromotedEventById(
+  id: string,
+): Promise<LicensedEvent | null> {
+  const { url, key } = supaEnv();
+  if (!url || !key) {
+    throw new Error(
+      "Supabase read env not set — configure NEXT_PUBLIC_SUPABASE_URL and " +
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY (the publishable key).",
+    );
+  }
+  const endpoint =
+    `${url}/rest/v1/event?${buildPromotedQuery({ eventId: id, anyStatus: true })}`;
+  const rows = (await fetchAllRows(url, key, endpoint)) as PromotedRow[];
+  if (rows.length === 0) return null;
+
+  const names = await resolveArtistNames(url, key, rows);
+  return exactlyOneOrNull(reshapePromoted(rows, names), id, "event");
 }

@@ -100,6 +100,15 @@ export type LicensedQueryOpts = {
   category?: string;
   fromISO?: string; // start_time >= this
   toISO?: string; // start_time <= this
+  // Detail surface: select ONE row by id. Same builder, same trust rules — the
+  // detail page must not become a second read shape with its own behaviour.
+  eventId?: string;
+  // Detail surface only. The feed shows `scheduled` + `moved`, which is a
+  // relevance filter over a list nobody asked for by name. A visitor who
+  // followed a LINK to one event asked for that event: telling them it was
+  // cancelled is the honest answer, and 404-ing it is the feed's filter
+  // silently deciding an event they can see a link to does not exist.
+  anyStatus?: boolean;
 };
 
 // Pure PostgREST query-string builder (no env, no network) — unit-tested. Two
@@ -111,7 +120,8 @@ export function buildLicensedQuery(opts?: LicensedQueryOpts): string {
   const p = new URLSearchParams();
   p.set("select", COLUMNS);
   // status: show scheduled + moved; never hide anything by confidence.
-  p.append("status", "in.(scheduled,moved)");
+  if (!opts?.anyStatus) p.append("status", "in.(scheduled,moved)");
+  if (opts?.eventId) p.append("licensed_event_id", `eq.${opts.eventId}`);
   if (opts?.category) p.append("category", `eq.${opts.category}`);
   if (opts?.fromISO) p.append("start_time", `gte.${opts.fromISO}`);
   if (opts?.toISO) p.append("start_time", `lte.${opts.toISO}`);
@@ -168,4 +178,36 @@ export async function fetchLicensedEvents(
     }
   }
   return all;
+}
+
+
+// ── Detail surface (SPRINT Step 9, Contract #28) ─────────────────────────────
+/** ONE licensed event by id, or null when no such row exists. A failed read
+ *  THROWS — the page must be able to say "couldn't load" instead of showing an
+ *  empty result that reads as "no such event". */
+export async function fetchLicensedEventById(
+  id: string,
+): Promise<LicensedEvent | null> {
+  const rows = await fetchLicensedEvents({ eventId: id, anyStatus: true });
+  return exactlyOneOrNull(rows, id, "licensed_event");
+}
+
+/** One row, none, or a LOUD failure — never an arbitrary pick (PR #87 r2,
+ *  class missing-cardinality-check). `licensed_event_id` is a primary key, so
+ *  two rows for one id is corruption; silently rendering the first would show
+ *  a visitor an event that is not the one they asked for, which is worse than
+ *  an error because nothing about the page would look wrong. */
+export function exactlyOneOrNull<T>(
+  rows: T[],
+  id: string,
+  table: string,
+): T | null {
+  if (rows.length === 0) return null;
+  if (rows.length > 1) {
+    throw new Error(
+      `${table} returned ${rows.length} rows for id ${id} — that id is unique, ` +
+      `so this is corrupt data. Refusing to render an arbitrary one of them.`,
+    );
+  }
+  return rows[0];
 }
