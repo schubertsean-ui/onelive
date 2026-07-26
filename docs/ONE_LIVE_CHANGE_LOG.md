@@ -793,3 +793,41 @@
 - Contract #25 (2026-07-25): the founder-reviewed scenario renders pinned as each series' V1 LAUNCH VERSION — social/carousel/launch.py (per-series launch assignments with engagement rationale, launch_assignment() for cold-start posts at R-026's surface, seed_bandit() warm-start prior weight 3 — favors launch creative, locks nothing) + 5 tests incl. reproducibility of the exact founder-seen decks through the real trust path. Decision record with verbatim. No gate/custody/cadence changes.
 - PR #69 r1 (2026-07-25): REQUEST-CHANGES, both blockers + nits adopted — launch lookup is fail-loud enumeration (a misspelled scenario refuses, never posts a default disguised as the v1); reproducibility pinned by FULL-DECK golden equality (tests/golden/carousel_launch_v1.json, 41 slides across the 5 decks — any drift fails); bandit gains add_prior() (no external mutation of posterior internals); warm-start test asserts direct posterior state across every factor×level. Launch tests 5→6.
 - PR #69 r2 (2026-07-25): REQUEST-CHANGES, all 3 blockers + nits adopted — tier launch keys bind to the REAL domain registry (prefix-only wildcard closed: t1_liv-music refuses; all 22 canonical domains covered positively); non-finite prior/seed weights refuse at both add_prior and seed_bandit (NaN/inf/-inf red-tested); snapshot serializer schema-guarded; golden newline; stale docstring fixed. swallowed-corrupt-data hit threshold 3 — class marker stamped: identifier lookups bind to registries, never prefix checks.
+
+## 2026-07-26 — the denominator became real
+
+**The launch metric now exists and is measured on live data: 2,873 CAPCOG
+venues across all ten counties.** It was 69, with seven counties reported at
+zero. Those seven hold 362 venues; the zero was never a fact about CAPCOG, it
+was a fact about a denominator assembled from a list we had written ourselves.
+
+- `worker/region/capcog.py` — CAPCOG is its ten NAMED COUNTIES, not a 75-mile
+  radius around downtown Austin (which put Bexar inside the market by
+  construction). Tri-state membership: in / out / unknown, never a guess.
+  Enforced on the read path too, from a generated boundary file so the server
+  and the site cannot disagree.
+- Closed a bypass that made the whole thing defeatable by punctuation:
+  "San Antonio, TX, USA" stripped one qualifier per pass, matched neither
+  table, and came back UNKNOWN — which the read path keeps.
+- `tools/fetch_tabc_capcog.py` — TABC mixed-beverage premises, layer 2.
+  Numeric county codes cross-checked against the cities they return, monthly
+  receipt rows deduped to premises, 18-month activity window, ordered paging.
+- Target rows now carry a `target_kind`. 30 of the original 69 were city
+  calendars, annual festivals or touring companies — not places anyone can
+  attend. Kept and labelled, never counted.
+- `tools/build_source_registry.py` + `tools/source_scorecard.py` +
+  `tools/dump_source_evidence.py` — every ingestion source, its status derived
+  from evidence, and its trend over time.
+- Multi-source venue discovery at founder direction. Nine web searches gave all
+  seven previously-empty counties a source, and surfaced the Texas Music Office
+  industry directory (state-run, free, ~610 Austin-area music venues) and the
+  Texas dance-hall circuit.
+- Review lenses run concurrently instead of in series.
+
+**Corrections recorded, both in the flattering direction:** excluding 30
+non-venues and losing 26 rows to unordered paging each make coverage look
+better than it is. Neither was left to be discovered.
+
+**Blocked:** `ONELIVE_DB_DSN` is rejected by Supabase, so the numerator — and
+therefore the coverage percentage — could not be read. The denominator does not
+depend on it and is reported regardless.
