@@ -33,9 +33,20 @@ whole point of this file is that you never have to improvise.
 3. Tap **Account type and tools** → **Switch to professional account**.
 4. Choose **Business** (not Creator — Creator accounts cannot use the
    content-publishing API).
-5. When it offers to connect a Facebook Page, connect one. If you have no
-   Page, create one at https://www.facebook.com/pages/create — any name,
-   any category; it exists to hold the API permission.
+5. Instagram now offers to connect a Facebook Page.
+   - **If you already have a Page:** tap **Connect an existing Page**,
+     tap your Page in the list, then tap **Done**.
+   - **If you have no Page**, make one first:
+     - i. Go to https://www.facebook.com/pages/create
+     - ii. In **Page name** type exactly: `OneLive`
+     - iii. In **Category** type `Entertainment Website` and pick it from
+       the dropdown that appears.
+     - iv. Leave **Bio** empty. Click **Create Page**.
+     - v. Skip every "add a photo / invite friends" prompt — click
+       **Skip** or **Next** until you land on the Page itself.
+     - vi. Return to the Instagram screen and tap **Connect an existing
+       Page**, pick `OneLive`, tap **Done**.
+   The Page holds the API permission; nobody has to visit it.
 
 ### 1b. Create the Meta app (10 min)
 
@@ -43,8 +54,10 @@ whole point of this file is that you never have to improvise.
 2. Click **Create app**.
 3. If asked "What do you want your app to do?", choose **Other**.
 4. For app type choose **Business**. Click **Next**.
-5. Name it `OneLive Posting`. Enter your email. Click **Create app** and
-   re-enter your password if prompted.
+5. In **App name** type exactly: `OneLive Posting`
+   In **App contact email** enter your own email address.
+   Leave **Business portfolio** as whatever is pre-selected.
+   Click **Create app**, and re-enter your Facebook password if prompted.
 6. On the app dashboard, find **Instagram** in the product list and click
    **Set up**.
 
@@ -83,7 +96,17 @@ whole point of this file is that you never have to improvise.
 2. Click **Open in Access Token Tool**.
 3. Click **Extend Access Token** at the bottom.
 4. Copy the new token. **This is your `META_ACCESS_TOKEN`.** It lasts
-   about 60 days; calendar a reminder to repeat 1c–1d before it expires.
+   about 60 days — set a calendar reminder for 50 days from today.
+
+**When it expires (or if posting starts failing):** the symptom is a
+posting error mentioning an invalid or expired OAuth token. Recovery:
+   - a. Repeat steps 1c and 1d exactly to mint a fresh long-lived token.
+   - b. Go to https://github.com/schubertsean-ui/onelive/settings/secrets/actions
+   - c. Click the pencil icon next to `META_ACCESS_TOKEN`.
+   - d. Paste the new token and click **Update secret**.
+   - e. The two IDs do NOT change — leave `META_FB_PAGE_ID` and
+     `META_IG_USER_ID` alone.
+   - f. Tell Claude "token rotated".
 
 ### 1e. Find the two IDs (5 min)
 
@@ -198,9 +221,9 @@ runner assigned and no logs. That is not a code failure.
 5. Find the **Actions and Packages** section.
 6. Select the radio button **Limited spending** (not *Unlimited* — an
    unlimited setting removes your ceiling entirely).
-7. In the amount box type a number you are comfortable with. `20` (USD)
-   is roughly 2,000 extra Linux minutes, which is far more than a normal
-   week here.
+7. In the field labelled **Spending limit (USD)** type a number you are
+   comfortable with. `20` is roughly 2,000 extra Linux minutes, far more
+   than a normal week here.
 8. Click **Update limit**.
 9. Give it about a minute, then tell Claude "spending limit raised".
 
