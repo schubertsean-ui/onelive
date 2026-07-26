@@ -52,6 +52,16 @@ TIMEOUT = 30
 WATCHED: dict[str, tuple[int, int]] = {
     # Runs 08:17 and 20:17 UTC — 12 h apart. Grace mirrors the healthchecks spec
     # the charter asked for (period 12 h, grace 2 h).
+    #
+    # THIS WILL REPORT STALE ON ITS FIRST RUN, AND CORRECTLY SO. Measured against
+    # the live Actions API on 2026-07-26T18:08Z: 4 successful runs ever, ALL of
+    # them manual `workflow_dispatch`, none from a schedule, most recent 22.8 h
+    # ago. Cause: the D1 cron fix (a literal on the schedule path) is on the
+    # unmerged PR #76 branch, while `origin/master` still reads the bare
+    # `github.event.inputs.limit` and so still dies in its own fail-closed guard.
+    # This is a REAL current condition, not the permanent-red trap of a gate that
+    # can never be satisfied — it clears the moment the fix merges and one
+    # scheduled run completes (R-054's own resolution trigger).
     "import_structured.yml": (12, 2),
 }
 
