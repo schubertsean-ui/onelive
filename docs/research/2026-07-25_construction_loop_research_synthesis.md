@@ -113,7 +113,7 @@ per-iteration metric exists whose slippage triggers action.
 
 Added 2026-07-26 at founder direction ("every claim or note or finding or
 result must be independently verified"). Until then this document cited
-Klein, NASA, DORA, CBR and arXiv papers with **zero resolvable URLs** — the
+Klein, NASA, DORA, CBR and arXiv papers with **zero followable http(s) URLs** — the
 "research-grounded" claim rested on citations no reader could follow, and no
 gate noticed. `tools/source_verification_lint.py` now fails closed on that.
 

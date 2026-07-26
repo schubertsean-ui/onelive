@@ -286,23 +286,67 @@ def test_deleting_an_unenforced_research_doc_does_not_deadlock_the_gate(tmp_path
 
 # ── the provenance branch: a remediation that can actually be satisfied ──
 
+CAPTURE = "docs/research/sources/some_capture.md"
+
+
 def test_a_source_capture_may_declare_provenance_instead_of_sources():
-    """openai absence-only: R-054 and the tool's own finding text offered
+    """openai absence-only (r3): R-054 and the tool's finding text offered
     verbatim source captures 'a provenance line, not a Sources block', and no
-    code accepted one — a documented remediation that could never be met."""
+    code accepted one — a remediation that could never be met."""
     assert svl.scan_text(
-        "cap.md", "# Captured article\n\nPROVENANCE: https://e.org/a UNVERIFIED-BLOCKED\n") == []
-    assert svl.scan_text(
-        "cap.md", "<!-- PROVENANCE: https://e.org/a VERIFIED-READ -->\n") == []
+        CAPTURE, "# Captured article\n\nPROVENANCE: https://e.org/a UNVERIFIED-BLOCKED\n") == []
+
+
+def test_a_synthesis_may_not_use_the_provenance_escape_hatch():
+    """openai r4, class provenance-escape-hatch — THE misuse case. Path-agnostic
+    acceptance let an enforced synthesis delete its Sources block, add one
+    provenance line, and pass: the escape hatch emptying the gate it completes.
+    A green-only test for an escape hatch codifies the bypass as intended."""
+    findings = svl.scan_text(
+        "docs/research/2026-07-25_some_synthesis.md",
+        "# Synthesis\n\nPROVENANCE: https://e.org/a VERIFIED-READ\n")
+    assert findings and "only for verbatim source captures" in findings[0]
+
+
+def test_provenance_hidden_in_an_html_comment_is_not_accepted():
+    """It renders invisibly, which defeats 'cite it where the claim lives'."""
+    findings = svl.scan_text(CAPTURE, "<!-- PROVENANCE: https://e.org/a VERIFIED-READ -->\n")
+    assert findings, "an invisible provenance declaration must not satisfy the gate"
 
 
 def test_a_provenance_line_is_held_to_the_same_bar_as_a_citation():
     """Otherwise it becomes the escape hatch that empties the gate."""
     assert any("no http(s) URL" in f for f in
-               svl.scan_text("cap.md", "PROVENANCE: somewhere VERIFIED-READ\n"))
+               svl.scan_text(CAPTURE, "PROVENANCE: somewhere VERIFIED-READ\n"))
     assert any("declares no verification status" in f for f in
-               svl.scan_text("cap.md", "PROVENANCE: https://e.org/a\n"))
-    assert len(svl.scan_text("cap.md", "PROVENANCE: nothing useful\n")) == 2
+               svl.scan_text(CAPTURE, "PROVENANCE: https://e.org/a\n"))
+    assert len(svl.scan_text(CAPTURE, "PROVENANCE: nothing useful\n")) == 2
+
+
+# ── continuation may not absorb arbitrary following text (r4) ────────────
+
+def test_a_paragraph_after_a_defective_bullet_does_not_rescue_it():
+    """openai attacker-smuggle r4, class unbounded-continuation-bypass: an
+    unindented paragraph — with or without a divider before it — was glued to
+    the previous bullet and supplied its URL and status."""
+    for filler in ("", "### Divider\n"):
+        text = ("## Sources\n- a bare claim with nothing\n" + filler +
+                "https://e.org/a VERIFIED-READ\n")
+        findings = svl.scan_text("d.md", text)
+        assert len(findings) == 2, (filler, findings)
+
+
+def test_a_blank_line_closes_an_entry():
+    text = "## Sources\n- a bare claim\n\n  https://e.org/a VERIFIED-READ\n"
+    assert len(svl.scan_text("d.md", text)) == 2
+
+
+def test_genuine_indented_wrapping_still_works():
+    """The tightening must not break honest multi-line citations."""
+    assert svl.scan_text("d.md", (
+        "## Sources\n- Devil's Advocate, Wang et al.,\n"
+        "  https://arxiv.org/abs/2405.16334\n"
+        "  UNVERIFIED-SECONDARY — abstract via search only.\n")) == []
 
 
 def test_the_no_sources_finding_names_both_accepted_shapes():

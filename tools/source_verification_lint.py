@@ -90,8 +90,23 @@ BULLET_RE = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+\S")
 # real branch now: one line declaring where the captured text came from and
 # whether the primary was actually read, held to the SAME two requirements as
 # a citation — a URL and a boundary-matched status token.
-PROVENANCE_RE = re.compile(r"^\s*(?:<!--\s*)?PROVENANCE:\s*(?P<body>.+?)\s*(?:-->)?\s*$",
+# CAPTURE-ONLY, enforced by PATH (PR #78 r4, class provenance-escape-hatch).
+# The first cut accepted a PROVENANCE line from ANY document lacking a Sources
+# block, which meant an enforced SYNTHESIS could delete its citations, add one
+# line, and pass — the escape hatch emptying the gate it was added to complete.
+# Only files under these prefixes may use it, because only they are verbatim
+# captures of someone else's text rather than arguments built on sources.
+CAPTURE_PATH_PREFIXES = ("docs/research/sources/",)
+
+# NOT accepted inside an HTML comment. A `<!-- PROVENANCE: ... -->` line is
+# invisible in rendered markdown, which defeats "cite it where the claim
+# lives" — the reader must see the origin, not find it in the source.
+PROVENANCE_RE = re.compile(r"^\s*PROVENANCE:\s*(?P<body>.+?)\s*$",
                            re.IGNORECASE | re.MULTILINE)
+
+
+def is_capture_path(rel_path: str) -> bool:
+    return rel_path.replace("\\", "/").startswith(CAPTURE_PATH_PREFIXES)
 
 # A status token must appear on the entry line. READ means a human or agent
 # actually retrieved the primary; every other token is an honest admission.
@@ -179,8 +194,17 @@ def scan_text(rel_path: str, text: str) -> list[str]:
     m = SOURCES_HEADING.search(text)
     if not m:
         prov = PROVENANCE_RE.search(text)
-        if prov:
+        if prov and is_capture_path(rel_path):
             return _scan_provenance(rel_path, prov.group("body"))
+        if prov:
+            return [
+                f"{rel_path}: uses a `PROVENANCE:` line, but that alternative is "
+                f"only for verbatim source captures under "
+                f"{', '.join(CAPTURE_PATH_PREFIXES)} — a synthesis argues FROM "
+                f"sources and must expose them in a `## Sources` block. Accepting "
+                f"provenance here would let any document drop its citations and "
+                f"pass with one line"
+            ]
         return [
             f"{rel_path}: no `## Sources` section and no `PROVENANCE:` line — a "
             "synthesis must expose the sources its claims rest on (each with a "
@@ -206,17 +230,26 @@ def scan_text(rel_path: str, text: str) -> list[str]:
     # An entry is a bullet line PLUS its wrapped continuation lines — real
     # markdown citations span several lines, and a line-only parser would
     # demand the URL and status token share one physical line.
+    # An entry is a bullet PLUS its INDENTED continuation lines, and it CLOSES
+    # at a blank line, a heading, or an unindented line (PR #78 r4, class
+    # unbounded-continuation-bypass). Appending any following non-empty line
+    # let a free-standing paragraph — or a paragraph after a divider — supply
+    # the URL and status for a defective bullet above it, so "every entry
+    # carries its own URL and status" was not actually enforced.
     entries: list[str] = []
+    open_entry = False
     for ln in section.splitlines():
         if BULLET_RE.match(ln):
             entries.append(ln)
+            open_entry = True
+        elif not ln.strip():
+            open_entry = False          # a blank line ends the entry
         elif ln.strip().startswith("#"):
-            # A heading is a section divider, never continuation text. Gluing
-            # it onto the previous bullet let a heading's URL or status token
-            # satisfy a bullet that had neither (gemini dataflow-taint seat).
-            continue
-        elif entries and ln.strip():
+            open_entry = False          # a heading is a divider, never text
+        elif open_entry and ln[:1].isspace():
             entries[-1] += " " + ln.strip()
+        else:
+            open_entry = False          # unindented prose is not continuation
     if not entries:
         findings.append(
             f"{rel_path}: `## Sources` section has no entries — an empty "
