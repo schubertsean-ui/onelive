@@ -262,15 +262,49 @@ def test_the_split_is_logged_with_a_count_never_an_unqualified_claim(caplog):
         assert "truncat" not in line.lower(), (
             "the split path must never describe itself as truncation")
 
-    # The shed-fragment half of this claim is NOT asserted here, deliberately,
-    # and R-059 says why: the log currently says "nothing dropped"
-    # unconditionally, which overclaims the moment a sub-_MIN_BLOCK_CHARS seam
-    # fragment is discarded. The wording fix was written and then REVERTED OUT of
-    # PR #73 — not because it is wrong, but because worker/segment.py is in the
-    # armed cron's runtime closure and the smoke run that would re-bind it cannot
-    # be made green while the spend cap starves every source (run 30219984064:
-    # "TotalRunFailure: all 10 attempted source(s) errored"). Keeping segment.py
-    # byte-identical to the genuinely green run 30218828785 is the honest choice;
-    # dispatching repeatedly until one source happens to progress would be gaming
-    # the binding. This comment is the marker: when R-059's trigger fires, this
-    # assertion lands with the wording.
+    # The shed-fragment sibling is asserted BELOW as the substantive property
+    # (no event-bearing text can be shed). What remains open is only the log
+    # STRING's unconditional "nothing dropped" wording — R-059 — and nothing in
+    # this PR cites that phrase as proof any more.
+
+
+def test_a_shed_seam_fragment_can_never_carry_event_text():
+    """#73 r22 blocker, answered with the property rather than the wording.
+
+    `_split_oversized` filters pieces below `_MIN_BLOCK_CHARS`, so a split CAN
+    discard a seam fragment — the log line's unconditional "nothing dropped" is
+    imprecise about that (R-059). What actually matters is whether anything
+    event-bearing can be lost, and that is testable NOW without touching
+    `worker/segment.py` (which is armed-cron runtime code and cannot be edited
+    without a fresh green smoke run the spend cap makes a matter of chance).
+
+    Constructed to force a real shed: a paragraph one char under the ceiling
+    followed by a 2-char paragraph, so the candidate overflows, the big
+    paragraph is emitted, and the tiny remainder falls below the floor.
+    """
+    tiny = "ab"
+    body = ("E" * (segment.MAX_BLOCK_CHARS - 1)) + "\n\n" + tiny
+    out = segment._split_oversized([body])
+
+    joined = "".join(out)
+    assert tiny not in joined, (
+        "fixture no longer forces a shed — rebuild it so this test still "
+        "exercises the discard path it exists to bound")
+
+    lost = len(body) - sum(len(piece) for piece in out)
+    assert lost < segment._MIN_BLOCK_CHARS + len("\n\n"), (
+        f"{lost} characters lost to a seam shed; the discard must stay bounded "
+        f"by the {segment._MIN_BLOCK_CHARS}-char floor plus its separator, "
+        "because anything larger could be a real event line")
+
+    # And the bound is what makes it safe. The filter KEEPS pieces of length
+    # >= _MIN_BLOCK_CHARS, so the most a shed can destroy is
+    # _MIN_BLOCK_CHARS - 1 characters. That must stay below the shortest
+    # plausible event line, or a shed could take real content and R-059 stops
+    # being cosmetic.
+    assert segment._MIN_BLOCK_CHARS - 1 < len("Jazz 8pm"), (
+        f"the floor is {segment._MIN_BLOCK_CHARS}, so a shed can destroy up to "
+        f"{segment._MIN_BLOCK_CHARS - 1} characters — that now reaches the "
+        "length of a plausible event line, which makes the log's 'nothing "
+        "dropped' wording a substantive lie rather than an imprecision, and "
+        "R-059 urgent rather than pending")
