@@ -342,8 +342,10 @@ def test_workflow_second_seat_model_matches_the_tools_default():
 
     workflow = (_pathlib.Path(ar.__file__).parent.parent / ".github"
                 / "workflows" / "adversarial-review.yml").read_text()
-    match = _re.search(r"^\s*GEMINI_REVIEW_MODEL:\s*(\S+)\s*$", workflow,
-                       _re.MULTILINE)
+    # Quote-tolerant (#72 r4 nit): a later reformat that quotes the scalar
+    # must not turn this binding into a silent no-match.
+    match = _re.search(r"""^\s*GEMINI_REVIEW_MODEL:\s*['"]?([^'"\s#]+)['"]?\s*$""",
+                       workflow, _re.MULTILINE)
     assert match, ("the workflow must pin the second seat's model explicitly — "
                    "without it the base-owned copy's older default silently wins")
     assert match.group(1) == ar.GEMINI_DEFAULT_MODEL, (
