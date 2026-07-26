@@ -63,12 +63,19 @@ WATCHED: dict[str, tuple[int, int]] = {
     # can never be satisfied — it clears the moment the fix merges and one
     # scheduled run completes (R-054's own resolution trigger).
     "import_structured.yml": (12, 2),
+    # Scheduled 2026-07-26 by founder direction ("do 2", ask 1) at 02:23/14:23 UTC
+    # — 12 h apart. Moved here from EXPECTED_SOON in the same change that gave it a
+    # schedule, so the watchdog IS its dead-man alarm from the first run rather
+    # than a promise to add one later.
+    "import_licensed.yml": (12, 2),
 }
 
 # workflow file -> the OPEN Record row that tracks why it is not scheduled yet.
-EXPECTED_SOON: dict[str, str] = {
-    "import_licensed.yml": "R-055",
-}
+# Empty as of 2026-07-26: import_licensed.yml graduated to WATCHED when it was
+# given a schedule. Kept as a mechanism, not deleted — the next importer that is
+# specified before it is scheduled belongs here with its OPEN Record row, rather
+# than being silently absent from the watchdog's attention.
+EXPECTED_SOON: dict[str, str] = {}
 
 # Deliberately NOT watched, with the reason, because a silent omission from a
 # watchdog is indistinguishable from a job nobody thought about.

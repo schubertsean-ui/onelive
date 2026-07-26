@@ -83,6 +83,7 @@ from tools.brain_iq import LedgerError as BrainIQLedgerError  # noqa: E402
 from tools.brain_iq import load_ledger_rows as load_brain_iq_rows  # noqa: E402
 from tools.kaizen_trends import build_report as kaizen_build_report  # noqa: E402
 from tools.kaizen_trends import escapes as kaizen_escapes  # noqa: E402
+from tools.kaizen_trends import open_escapes as kaizen_open_escapes  # noqa: E402
 from tools.model_router import STAGE_MODELS, resolve_model  # noqa: E402
 
 DEFAULT_LEDGER = _REPO_ROOT / "docs" / "metrics" / "KPI_LEDGER.md"
@@ -219,10 +220,22 @@ def _read_kaizen_ledger_text() -> str:
 
 
 def _kpi_escaped_defects() -> KPIValue:
+    """All-time escapes, with OFF_TARGET keyed to the OPEN ones.
+
+    Founder-ratified 2026-07-26 ("option a"), the same change as
+    ``kaizen_trends.open_escapes``: the all-time count is permanent history and
+    stays visible in ``current`` and ``raw`` — the target remains 0, absolute —
+    but an escape whose gate gap is CLOSED no longer holds this KPI off-target
+    forever. An escape with no shipped mechanism still does, because that one
+    will happen again.
+    """
     text = _read_kaizen_ledger_text()
     n = kaizen_escapes(text)
-    status = ON_TARGET if n == 0 else OFF_TARGET
-    return KPIValue(current=f"{n} (all-time, docs/metrics/KAIZEN_LEDGER.md)",
+    unclosed = kaizen_open_escapes(text)
+    status = ON_TARGET if not unclosed else OFF_TARGET
+    detail = (f"{n} all-time, {len(unclosed)} with an OPEN gate gap"
+              if n else "0 (none recorded)")
+    return KPIValue(current=f"{detail}, docs/metrics/KAIZEN_LEDGER.md",
                     status=status, raw=float(n))
 
 

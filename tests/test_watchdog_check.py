@@ -82,8 +82,12 @@ def test_every_watched_workflow_exists_and_is_scheduled():
 
 
 def test_every_expected_soon_workflow_exists_and_cites_an_open_record_row():
+    """EXPECTED_SOON may be EMPTY — that is the healthy state, and is exactly
+    what happened on 2026-07-26 when import_licensed.yml was given a schedule and
+    graduated to WATCHED. What must never happen is an entry that rests on a
+    closed Record row, because that is a permanent silent exemption.
+    """
     record = (_REPO_ROOT / "docs" / "RECORD.md").read_text(encoding="utf-8")
-    assert WD.EXPECTED_SOON, "the pending list vanished — was it silently dropped?"
     for name, row in WD.EXPECTED_SOON.items():
         assert (WD.WORKFLOW_DIR / name).is_file(), f"{name} does not exist"
         assert f"| {row} |" in record, f"{name} cites {row}, which is not in RECORD.md"
@@ -148,6 +152,24 @@ def test_main_exits_0_and_names_pending_and_excluded(monkeypatch, capsys):
         assert name in out            # pending is reported, never hidden
     for name in WD.EXCLUDED:
         assert name in out            # exclusions are visible too
+
+
+def test_a_pending_entry_is_reported_when_one_exists(monkeypatch, capsys):
+    """The PENDING path still works even though the live table is empty today —
+    otherwise the mechanism would rot unnoticed until it was next needed."""
+    monkeypatch.setattr(WD, "EXPECTED_SOON", {"future_import.yml": "R-999"})
+    monkeypatch.setattr(WD, "workflow_has_schedule", lambda name: True)
+    monkeypatch.setattr(WD, "last_success", lambda repo, name: _hours_ago(1))
+    assert WD.main(["owner/repo"]) == 0
+    out = capsys.readouterr().out
+    assert "PENDING future_import.yml" in out and "R-999" in out
+
+
+def test_both_data_importers_are_watched():
+    """The two deterministic feeds are the freshness of the product. Neither may
+    drop out of the watch list without this failing."""
+    assert "import_structured.yml" in WD.WATCHED
+    assert "import_licensed.yml" in WD.WATCHED
 
 
 def test_last_success_returns_none_when_there_are_no_successful_runs(monkeypatch):

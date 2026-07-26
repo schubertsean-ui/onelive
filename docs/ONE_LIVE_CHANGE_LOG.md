@@ -1,5 +1,52 @@
 # ONE LIVE — CHANGE LOG
 
+## 2026-07-26 (same session) — Ask 5 ratified, the feed scheduled, and the suite goes fully green
+
+**Founder, verbatim: "option a and do 2 and 3".** Three decisions in six words.
+
+### The gate change (founder-only, and the agent's own blocker)
+- **M3 escape alarm: blocking condition moved from "any escape ever recorded" to
+  "any escape whose `Gate-gap closed` column names no shipped mechanism."** This is a
+  gate-threshold change, reserved to the founder — and it would have loosened the gate
+  blocking the agent's own PR, which is exactly why the agent left it untouched
+  through several rounds and wrote `docs/ASK_ANALYSIS_2026-07-26.md` instead.
+- **Nothing was softened, and each guard is asserted:** the M3 target is still **0,
+  absolute**; `m3_escapes:` still prints and can never decrease; placeholder text
+  (`—`, `TBD`, `pending`, `none`, `n/a`) does not count as a closed gap; a malformed
+  row **fails closed**; a closed escape does not excuse a later open one. 8 new tests.
+- **Why this shape:** `kaizen_trends.family_alarm` already applied these exact
+  semantics to the repeat-class alarm, ratified by the independent evaluator at r6 of
+  an earlier PR. The M3 counter was the one meter in that file that never got them.
+  M7's one-way ratchet is not violated: no threshold moved, only which condition
+  trips. Record: `docs/memory/decisions/2026-07-26_escape-alarm-semantics.md`.
+- **Result: `validate` went from 2 failing tests to 1,794 passed / 0 failed** — the
+  first fully green suite of the session. Zero FAIL rows; `INCOMPLETE` only from the
+  pre-existing R-002 visual-regression skip.
+
+### The feed now refreshes itself
+- **`import_licensed.yml` is scheduled** — 02:23 / 14:23 UTC, 12 h apart, deliberately
+  offset from `import_structured.yml`'s 08:17/20:17 so the two importers never contend
+  for the same database connection window. Its schedule path is safe from the R-054
+  class: `MAX_PAGES` resolves through `|| '8'`, so it is never empty on a schedule
+  event. R-055 RESOLVED, pending verification on the next scheduled run.
+- **Its dead-man alarm is the new GitHub-native watchdog**, and it entered the
+  watchdog's `WATCHED` table in the same change — the alarm exists from the first
+  scheduled run rather than being promised for later. `EXPECTED_SOON` is now empty and
+  kept as a mechanism, with a test proving the PENDING path still works so it cannot
+  rot unnoticed.
+
+### What the founder no longer has to do
+Ask 1 is gone entirely: no healthchecks.io account, no `LICENSED_IMPORT_PING_URL`
+secret. Ask 5 is answered. **Two asks remain, and only one of them blocks anything.**
+
+### Item 3 is not done, and cannot be by an agent
+Creating a Vercel Protection Bypass secret requires the founder's Vercel account. The
+founder also reports the **Vercel Authentication toggle will not save** — it reverts to
+required and Save stays greyed out, which points at a team-level policy rather than a
+mis-click. Every line of code for the bypass path already exists and is unchanged;
+what is missing is a value only the founder can generate. Recorded in TODOS Step 4b
+with the exact URLs and the share-link form.
+
 ## 2026-07-26 (same session) — The streamline is performed, and the checkup joins the gate
 
 Founder, reaffirming after I asked instead of acting: *"I said what I said. I want a complete audit and streamline and revamp according to world class standards. Research the world class process and metrics and perform it, and incorporate as part of the ongoing process."*

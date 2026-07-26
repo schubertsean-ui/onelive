@@ -205,7 +205,34 @@ def test_gate_metric_counts_gate_files_not_the_whole_tools_directory():
     # threshold or a check moved, which needs saying out loud — so this asserts
     # the exact set rather than a count, and the correct response to a failure is
     # to state the change, never to widen the expectation.
-    assert hc.gate_files_changed("f907a51") == ["tools/validate"], (
-        "the only expected gate-file change since the baseline is the additive "
-        "advisory row in tools/validate; anything else means a gate moved"
+    #
+    # THE DECLARED SET GREW ON 2026-07-26, AND HERE IS EVERY REASON. This test
+    # failed when it grew, which is the test working; the fix is this paragraph,
+    # not a looser assertion.
+    #
+    #  1. `tools/validate` — ADDITIVE ONLY. Gained `health_check` (advisory),
+    #     `decision_codified` and `founder_ask_structure` (both new checks that
+    #     can only ADD ways to fail). No existing check was removed, reordered
+    #     into irrelevance, or made non-blocking. Exit-code discipline untouched.
+    #
+    #  2. `tools/kaizen_trends.py` — A REAL GATE CHANGE, FOUNDER-RATIFIED, and the
+    #     only one in this set. The M3 escape alarm's blocking condition moved from
+    #     "any escape ever recorded" to "any escape whose `Gate-gap closed` column
+    #     names no shipped mechanism" (founder: "option a", 2026-07-26; record at
+    #     docs/memory/decisions/2026-07-26_escape-alarm-semantics.md). The M3
+    #     TARGET is untouched — still 0, absolute — the all-time count still prints
+    #     and can never decrease, and an escape with no mechanism still blocks
+    #     forever. An agent may not make this change; the founder did.
+    #
+    # `tools/kpi_report.py` is NOT in this list even though it changed, because
+    # `gate_files_changed` compares content and its escaped-defects KPI now calls
+    # the same `open_escapes` helper — the identical ratified semantics, not a
+    # second decision.
+    assert hc.gate_files_changed("f907a51") == [
+        "tools/kaizen_trends.py", "tools/validate",
+    ], (
+        "the expected gate-file changes since the baseline are the additive check "
+        "rows in tools/validate and the founder-ratified M3 escape semantics in "
+        "kaizen_trends.py; anything else means an UNDECLARED gate moved — state "
+        "it here with its authority, never widen this expectation to hide it"
     )
