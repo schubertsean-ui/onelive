@@ -133,6 +133,35 @@ def test_callable_pin_passes_and_actually_probed(capsys):
     assert payload["generationConfig"]["maxOutputTokens"] == 1
 
 
+def test_unexhausted_pagination_raises_and_fails_the_gate_closed(capsys):
+    # #72 r5 BLOCKER: the cap is a runaway backstop, not a truncation
+    # point. Hitting it with a token still outstanding must RAISE — a
+    # partial registry can report a perfectly callable pin as absent,
+    # which is the false-confidence shape this tool exists to remove.
+    endless = _Transport([_page([f"m{i}"], token=f"t{i}") for i in range(gp._MAX_PAGES)])
+    with pytest.raises(RuntimeError, match="INCOMPLETE"):
+        gp.callable_models("k", endless)
+
+    # ...and through main(), that surfaces as a fail-closed exit, never a
+    # confident "pin absent" verdict computed from half a registry.
+    endless2 = _Transport([_page([f"m{i}"], token=f"t{i}") for i in range(gp._MAX_PAGES)])
+    rc = gp.main(["gemini-flash-latest"], env={"GEMINI_API_KEY": "k"},
+                 transport=endless2)
+    assert rc == 1
+    assert "could not list models" in capsys.readouterr().err
+
+
+def test_opaque_page_tokens_are_percent_encoded():
+    # Provider tokens are opaque blobs; an unescaped reserved character
+    # would corrupt the next request and silently truncate the walk.
+    nasty = "a&b=c d/e?f#g"
+    transport = _Transport([_page(["a"], token=nasty), _page(["b"])])
+    assert gp.callable_models("k", transport) == ["a", "b"]
+    second_url = transport.calls[1][0]
+    assert nasty not in second_url  # never raw
+    assert "pageToken=a%26b%3Dc%20d%2Fe%3Ff%23g" in second_url
+
+
 def test_listing_is_paginated_to_exhaustion():
     # #72 r4 nit: pageSize is a page size, not a completeness guarantee —
     # a truncated list would report a good pin as absent.

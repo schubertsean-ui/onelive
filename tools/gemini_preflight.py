@@ -33,6 +33,7 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
@@ -57,18 +58,32 @@ def _http_json(url: str, key: str, payload: dict | None = None) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
+# Bounded page walk. 20 x 1000 is far beyond any real registry, so the cap
+# is a runaway BACKSTOP, never a truncation point — reaching it with a token
+# still outstanding raises (#72 r5, class: pagination-integrity-gap).
+_MAX_PAGES = 20
+
+
 def callable_models(key: str, transport=_http_json) -> list[str]:
     """Every model this key's account lists as supporting generateContent.
 
-    PAGINATED to exhaustion (#72 r4 nit): `pageSize` is a page size, not a
-    completeness guarantee, and a truncated list would report a perfectly
-    good pin as absent."""
+    PAGINATED TO EXHAUSTION, and that claim is enforced rather than
+    asserted (#72 r5): `pageSize` is a page size, not a completeness
+    guarantee. If the walk hits its cap while the provider still offers a
+    nextPageToken, this RAISES and the caller fails closed, instead of
+    returning a partial registry that could declare a perfectly callable
+    pin absent — the same false-confidence shape this tool exists to
+    remove.
+
+    Page tokens are OPAQUE provider strings, so they are percent-encoded
+    before entering the query: an unescaped reserved character would
+    corrupt the next request and silently truncate the walk."""
     names: list[str] = []
     token = ""
-    for _ in range(20):  # bounded; 20 pages x 1000 is far beyond any real list
+    for _ in range(_MAX_PAGES):
         url = f"{BASE_URL}/models?pageSize=1000"
         if token:
-            url += f"&pageToken={token}"
+            url += f"&pageToken={urllib.parse.quote(token, safe='')}"
         page = transport(url, key)
         for model in page.get("models") or []:
             methods = model.get("supportedGenerationMethods") or []
@@ -77,8 +92,12 @@ def callable_models(key: str, transport=_http_json) -> list[str]:
                 names.append(name.removeprefix("models/"))
         token = page.get("nextPageToken") or ""
         if not token:
-            break
-    return sorted(set(names))
+            return sorted(set(names))
+    raise RuntimeError(
+        f"model registry still offered a nextPageToken after {_MAX_PAGES} "
+        "pages — the list is INCOMPLETE and must not be used as gate "
+        "evidence (a partial registry can report a callable pin as absent)"
+    )
 
 
 def probe_generate(key: str, model: str, transport=_http_json) -> None:
