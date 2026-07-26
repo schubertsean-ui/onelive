@@ -403,3 +403,54 @@ def test_fully_supplied_runs_never_touch_the_remote(tmp_path, index_file, monkey
     )
     assert rc == 0
     assert "[S3:…] contract citations — PASS" in capsys.readouterr().out
+
+
+# ── The gate must not accept evidence that contradicts itself (PR #78 r7,
+# class false-confidence-gate). It checked that every matched class HAS an
+# answer and never that the answers agree.
+
+def test_two_live_answers_for_one_class_are_rejected():
+    from tools.construction_gate import contradictory_citations
+    text = ("[S3:scripted-edit-not-reread] no scripted edit was applied.\n"
+            "[S3:scripted-edit-not-reread] a scripted edit destroyed the ledger.\n")
+    assert contradictory_citations(text) == ["scripted-edit-not-reread"]
+
+
+def test_a_marked_supersession_is_accepted():
+    """Corrections across review rounds are legitimate; SILENT ones are not."""
+    from tools.construction_gate import contradictory_citations
+    for marker in ("SUPERSEDED", "CORRECTED", "WITHDRAWN"):
+        text = (f"[S3:x] {marker} at r7 — this was written at r1 and is stale.\n"
+                "[S3:x] the live answer.\n")
+        assert contradictory_citations(text) == [], marker
+
+
+def test_the_check_is_order_independent():
+    """A contract is edited in place, so the stale line can sit anywhere —
+    'all but the last' was the wrong rule and passed the real contradiction."""
+    from tools.construction_gate import contradictory_citations
+    assert contradictory_citations(
+        "[S3:x] the live answer.\n[S3:x] SUPERSEDED — stale, kept for history.\n") == []
+
+
+def test_a_single_answer_is_never_flagged():
+    from tools.construction_gate import contradictory_citations
+    assert contradictory_citations("[S3:x] the only answer.\n") == []
+
+
+def test_the_current_session_contract_carries_no_contradiction():
+    """Scoped to the NEWEST contract block, matching what the gate judges.
+
+    The gate reads only the lines a change ADDS. STATE.md as a whole holds
+    every past contract, and the same token legitimately gets a different
+    answer in each — asserting over the whole file confused "reused across
+    contracts" with "contradictory within one", which is a different thing.
+    """
+    import os, re
+    from tools.construction_gate import contradictory_citations, REPO_ROOT, CONTRACT_RELPATH
+    text = open(os.path.join(REPO_ROOT, CONTRACT_RELPATH), encoding="utf-8").read()
+    blocks = re.split(r"^## Session Contract ", text, flags=re.MULTILINE)
+    assert len(blocks) > 1, "no session contract blocks found — test is vacuous"
+    current = blocks[1]
+    assert "[S3:" in current, "the newest contract carries no citations — vacuous"
+    assert contradictory_citations(current) == []

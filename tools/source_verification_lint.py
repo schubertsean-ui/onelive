@@ -79,7 +79,10 @@ URL_RE = re.compile(r"https?://[^\s)\]>]+")
 # entries" or silently glue every numbered line onto the preceding bullet,
 # masking the missing URL and token on all of them (PR #78, gemini
 # dataflow-taint seat).
-BULLET_RE = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+\S")
+# At most 3 leading spaces — CommonMark's threshold between a list item and an
+# indented code block. Arbitrary `\s*` counted a four-space-indented bullet as
+# a citation entry even though it renders as code (PR #78 r7).
+BULLET_RE = re.compile(r"^ {0,3}(?:[-*]|\d+[.)])\s+\S")
 
 # A VERBATIM SOURCE CAPTURE (docs/research/sources/*) is not a synthesis: it
 # has no citations of its own, it IS the cited thing. R-054 and this tool's
@@ -115,13 +118,44 @@ PROVENANCE_RE = re.compile(r"^\s*PROVENANCE:\s*(?P<body>.+?)\s*$",
 # per syntax is how the first four rounds went. Strip once, at the top, so
 # every downstream check inherits the property.
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-_FENCED_BLOCK_RE = re.compile(r"^[ \t]*(```+|~~~+).*?(?:^[ \t]*\1[ \t]*$|\Z)",
-                              re.DOTALL | re.MULTILINE)
+# CommonMark fences: opened by 3+ backticks or tildes indented at most 3
+# spaces, closed by a fence of the SAME character and AT LEAST the same
+# length. A regex backreference demands an exact-length match (PR #78 r7), so
+# ```` ... ``` and ``` ... ```` were both mis-handled. Line-based, because the
+# rule is about line prefixes and lengths, not about a pattern.
+_FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+# A line indented 4+ spaces is an INDENTED CODE BLOCK — rendered as code, so a
+# four-space-indented `- https://… VERIFIED-READ` under a Sources heading looks
+# like a citation to the parser and like code to the reader (r7 finding).
+_INDENTED_CODE_RE = re.compile(r"^(?: {4}|\t)")
 
 
 def visible_text(text: str) -> str:
-    """What a reader of the RENDERED document actually sees."""
-    return _FENCED_BLOCK_RE.sub("\n", _HTML_COMMENT_RE.sub(" ", text))
+    """What a reader of the RENDERED document actually sees.
+
+    Removes HTML comments, fenced code blocks and indented code blocks. Doing
+    this ONCE, before any parsing, is what stops the invisible-citation class
+    reopening per syntax — the failure mode of r4 and r5, which each closed one
+    hiding place and left its siblings.
+    """
+    text = _HTML_COMMENT_RE.sub(" ", text)
+    out, fence = [], None
+    for line in text.splitlines():
+        if fence is not None:
+            m = _FENCE_OPEN_RE.match(line)
+            # Closing fence: same character, at least as long, nothing after it.
+            if (m and m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence)
+                    and not line[m.end():].strip()):
+                fence = None
+            continue                      # everything inside a fence is code
+        m = _FENCE_OPEN_RE.match(line)
+        if m:
+            fence = m.group(1)
+            continue
+        if _INDENTED_CODE_RE.match(line):
+            continue                      # indented code block
+        out.append(line)
+    return "\n".join(out)
 
 
 def is_capture_path(rel_path: str) -> bool:
@@ -164,7 +198,10 @@ _STATUS_RE = re.compile(
 # "not VERIFIED-READ; UNVERIFIED-SECONDARY" correctly accepted.
 _NEGATION_WORD_RE = re.compile(r"\b(?:not|never|isn'?t|aren'?t|no|without|"
                                r"neither|nor|cannot|can'?t)\b", re.IGNORECASE)
-_CLAUSE_BREAK_RE = re.compile(r"[.;:!?]")
+# Parentheses close a clause too (gemini r7 nit): "Smith 2020 (no abstract)
+# https://e.org VERIFIED-READ" is an honest entry, and reading the parenthetical
+# "no" as governing the token three words later would reject it.
+_CLAUSE_BREAK_RE = re.compile(r"[.;:!?()]")
 
 
 def _is_negated(text_before: str) -> bool:

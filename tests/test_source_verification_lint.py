@@ -419,3 +419,36 @@ def test_visible_citations_are_unaffected_by_the_stripping():
     assert svl.scan_text("d.md", (
         "# Doc\n\n```\nsome example code\n```\n\n"
         "## Sources\n- x https://e.org VERIFIED-READ\n")) == []
+
+
+# ── CommonMark hiding places the r5 stripper still missed (PR #78 r7) ─────
+
+def test_a_longer_closing_fence_still_closes_the_block():
+    """CommonMark allows the closing fence to be LONGER than the opening one.
+    A regex backreference demands an exact-length match, so these were
+    mis-handled — and a mis-handled fence is a place to hide a citation."""
+    for opener, closer in (("```", "````"), ("````", "````"), ("~~~", "~~~~~")):
+        text = f"{opener}\n## Sources\n- x https://e.org VERIFIED-READ\n{closer}\n"
+        assert svl.scan_text("d.md", text), (opener, closer)
+
+
+def test_an_indented_code_block_cannot_carry_a_citation():
+    """Four spaces (or a tab) renders as code. The parser saw a bullet; the
+    reader sees a code listing."""
+    for indent in ("    ", "\t"):
+        text = f"## Sources\n\n{indent}- x https://e.org VERIFIED-READ\n"
+        assert svl.scan_text("d.md", text), repr(indent)
+
+
+def test_ordinary_wrapped_continuation_survives_the_code_rule():
+    """The list-vs-code threshold must not break honest two-space wrapping."""
+    assert svl.scan_text("d.md", (
+        "## Sources\n- Devil's Advocate, Wang et al.,\n"
+        "  https://arxiv.org/abs/2405.16334\n"
+        "  UNVERIFIED-SECONDARY — abstract only.\n")) == []
+
+
+def test_a_parenthetical_negation_does_not_govern_a_later_token():
+    """gemini r7 nit: "(no abstract)" is description, not a status denial."""
+    assert svl.declares_status("- Smith 2020 (no abstract) https://e.org VERIFIED-READ")
+    assert svl.declares_status("- Smith (not peer reviewed) https://e.org UNVERIFIED-SECONDARY")

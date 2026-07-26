@@ -259,6 +259,37 @@ def citation_tag(token: str) -> str:
     return f"[S3:{token}]"
 
 
+def contradictory_citations(citation_text: str) -> list[str]:
+    """Tokens answered MORE THAN ONCE with no supersession marker.
+
+    PR #78 r7, class false-confidence-gate. The gate checked that every matched
+    class HAS an answer and never that the answers agree, so a contract could
+    carry `[S3:x] no scripted edit was applied` from round 1 and
+    `[S3:x] a scripted edit destroyed the ledger` from round 6 — both added
+    lines, both passing, flatly contradicting each other. Retrieval evidence
+    that can say two opposite things verifies nothing.
+
+    Multiple answers are legitimate across review rounds; SILENTLY multiple is
+    not. All but the last must be explicitly marked stale, which is also the
+    honest way to correct a contract: show the correction rather than rewrite
+    history.
+    """
+    seen: dict[str, list[str]] = {}
+    for line in citation_text.splitlines():
+        for m in re.finditer(r"\[S3:([a-z0-9-]+)\]", line):
+            seen.setdefault(m.group(1), []).append(line)
+    # ORDER-INDEPENDENT: exactly one answer per token may be LIVE. Keying on
+    # "all but the last" assumed corrections are appended, and they are not —
+    # a contract is edited in place, so the superseded line can sit anywhere.
+    bad = []
+    for token, lines in seen.items():
+        live = [ln for ln in lines
+                if not re.search(r"\b(SUPERSEDED|CORRECTED|WITHDRAWN)\b", ln)]
+        if len(live) > 1:
+            bad.append(token)
+    return sorted(bad)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--index", default=DEFAULT_INDEX)
@@ -349,6 +380,17 @@ def main(argv: list[str] | None = None) -> int:
 
     uncited = [t for t in matched if citation_tag(t) not in citation_text]
     print(f"construction_gate: matched red classes: {', '.join(matched)}")
+    conflicting = contradictory_citations(citation_text)
+    if conflicting:
+        print(
+            "construction_gate: FAIL — the contract answers these classes more "
+            "than once with no supersession marker, so the retrieval evidence "
+            "contradicts itself: " + ", ".join(conflicting)
+            + "\n  (a later round may correct an earlier answer, but the stale "
+            "one must say SUPERSEDED / CORRECTED / WITHDRAWN in its own line — "
+            "two live answers for one class verify nothing)"
+        )
+        return 1
     if uncited:
         print(
             "construction_gate: FAIL — the session contract's added lines lack "
