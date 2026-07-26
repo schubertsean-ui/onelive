@@ -81,6 +81,12 @@ PREMORTEM (tree, ledger-seeded): contract-scope-violation branch — the last cl
 [S3:nonfinite-decimal-accepted] no decimal or price handling here; the shared normalizer remains the only price path and is untouched.
 [S3:nonfinite-numeric-accepted] no numeric input is introduced; M1 is read from the recorded arc, not computed.
 [S3:volatile-safety-store] no counter or store is introduced; every number here is derived from the committed ledger on each run.
+[S3:pushed-on-red] r2 self-caught — I committed the founder runbook WITHOUT running validate first, which is this exact class, and CI caught what I skipped. The five citations below are the ones that omission cost; validate now runs unchained with its exit code checked before every push, including for docs-only commits, since the gate matches on content and a docs commit is not exempt.
+[S3:release-path-weaker-than-generation] the runbook documents the EXISTING release path and weakens nothing: every step it describes ends at a human-signed approval that the gate re-verifies by total re-render.
+[S3:grant-not-content-bound] the posting-posture options A/B/C map to the autonomy grants already shipped — each stays bound to renderer fingerprint, series and cadence; documenting the choice does not loosen the binding.
+[S3:weak-key-accepted-at-custody] the approval-key steps specify 48 bytes from a CSPRNG (`openssl rand -base64 48`), Production-only, and never in the repo or chat — at or above the key-strength floor the gate enforces at sign and verify.
+[S3:swallowed-corrupt-data] the runbook's failure paths tell the founder what to do when a step FAILS (no Page, expired token, exhausted minutes) rather than describing only the happy path.
+[S3:stale-live-incident-state] the Actions-outage section states the observed symptom and its evidence (2-3 second failures, runner_id 0, no logs) rather than a diagnosis remembered from prose; the outage has since cleared, verified by a real run with a real runner.
 STATUS: CLOSED — records written, validate green, and the second seat's first working run recorded as observed fact (head d3a0d1f, job 89754542551: both Gemini lenses returned APPROVE verdicts). The bootstrap chain that began at PR #71 is complete: v2 reviewer, base-owned preflight, and a callable model all on master, with the two-family panel demonstrably running.
 
 ## Session Contract #27 (2026-07-26, same session — close-out for PR #71)
