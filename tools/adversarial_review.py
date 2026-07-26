@@ -51,7 +51,18 @@ swallowed errors, fail loud on misconfig, parameterized SQL only, AI never \
 publishes directly, disputed events never hidden, auth fail-closed, tests \
 that can actually fail, no stubs or deferred work.
 
-REVIEW DISCIPLINE (v2 — founder-ratified 2026-07-25):
+Report every blocking issue as `file:line — issue — why it blocks`. \
+Non-blocking suggestions go in a separate NITS section. Then end your reply \
+with exactly one line, nothing after it:
+VERDICT: APPROVE
+or
+VERDICT: REQUEST-CHANGES"""
+
+# The v2 discipline is PANEL-ONLY (#71 r3 blocker): appended to lens
+# prompts, never to the single-lens path — so `--panel`-absent runs stay
+# byte-identical to v1, which is exactly what the bootstrap/fallback
+# story claims ("v1 base = unchanged single-lens physics").
+V2_DISCIPLINE = """REVIEW DISCIPLINE (v2 — founder-ratified 2026-07-25):
 1. EXHAUSTIVE FIRST PASS WITH SIBLING ENUMERATION: when you find a defect, \
 name its CLASS as a kebab-case token and enumerate EVERY sibling instance \
 of that class visible in the diff NOW, in this same round — one class \
@@ -73,13 +84,7 @@ new evidence, or your own earlier miss — which the scorecard counts).
 4. SCOPE: judge against the session contract's done-criteria visible in \
 the diff. A real quality gap OUTSIDE that scope and NOT invariant-class \
 belongs in a `RECOMMEND-RECORD` section (for a RECORD row with an \
-objective trigger), not in blockers.
-
-Non-blocking suggestions go in a separate NITS section. Then end your \
-reply with exactly one line, nothing after it:
-VERDICT: APPROVE
-or
-VERDICT: REQUEST-CHANGES"""
+objective trigger), not in blockers."""
 
 # --- Forced method lenses (v2): each lens is a PROCEDURE constraint that
 # redirects the model's search; findings/format/verdict rules are the
@@ -298,7 +303,7 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
     request_openai/request_gemini are injectable for hermetic tests only;
     production passes None and uses the real clients."""
     request_openai = request_openai or (
-        lambda ri, sp: request_review_gemini_openai_shim(ri, sp, openai_key, model, base_url))
+        lambda ri, sp: request_review_openai_lens(ri, sp, openai_key, model, base_url))
     request_gemini = request_gemini or (
         lambda ri, sp: request_review_gemini(
             ri, sp, gemini_key,
@@ -320,7 +325,7 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
             (method_lens, LENSES[method_lens]),
             (po_lens, LENSES[po_lens] + "\n\n" + po_preamble(po_seed)),
         ):
-            system_prompt = SYSTEM_PROMPT + "\n\n" + extra
+            system_prompt = SYSTEM_PROMPT + "\n\n" + V2_DISCIPLINE + "\n\n" + extra
             text = requester(review_input, system_prompt)
             verdict = parse_verdict(text)  # unparseable raises -> hard fail
             verdicts.append(verdict)
@@ -332,7 +337,7 @@ def run_panel(review_input: str, po_seed: str, openai_key: str, model: str,
     return final, outputs
 
 
-def request_review_gemini_openai_shim(review_input: str, system_prompt: str,
+def request_review_openai_lens(review_input: str, system_prompt: str,
                                       api_key: str, model: str, base_url: str) -> str:
     """OpenAI call with a per-lens system prompt (the v1 request_review
     hardcodes SYSTEM_PROMPT; lenses need their own)."""

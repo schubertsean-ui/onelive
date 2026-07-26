@@ -27,8 +27,10 @@ def test_arc_parsing_and_metrics():
     # #65: caller-suppliable-custody-inputs appears in r3 AND r11 -> 1 sibling miss.
     assert card[65]["sibling_misses"] == 1
     assert card[65]["distinct_classes"] == 1
-    # Only class first appeared in r3 (the earliest recorded round) -> recall 100%.
-    assert card[65]["round1_recall"] == 1.0
+    # #71 r3: #65 has NO r1 row, so round-1 recall is unmeasurable —
+    # explicitly None, never the flattering "earliest recorded" reading.
+    assert card[65]["round1_recall"] is None
+    # #70 does have an r1 row, and its only class surfaced there.
     assert card[70]["round1_recall"] == 1.0
 
 

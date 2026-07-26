@@ -65,6 +65,7 @@ PREMORTEM (tree, ledger-seeded): gate-custody branch — the reviewer judging it
 [S3:nonfinite-numeric-accepted] scorecard math guards division by zero/empty arcs explicitly.
 [S3:malformed-ledger-row] scorecard parser fails loud on malformed rows (and is the second consumer enforcing the pipe rule).
 [S3-green] Reuse: v1's fail-closed env/verdict physics kept byte-identical; construction_gate's deterministic-seed pattern (SHA-derived) reused for po; kaizen_trends' ledger-parsing conventions reused by the scorecard; the hats independence rule reused for lens isolation.
+[S3:rule-stronger-than-mechanism] r3 fix — the "v1 unchanged when --panel absent" claim is now TRUE in code (V2_DISCIPLINE is lens-only) and red-tested in both directions, not just asserted in prose.
 [S3:workflow-tool-version-skew] this build's own second CI catch: the workflow now feature-detects --panel on the base-owned trusted copy before passing v2 flags, so the gate is green on v1 base and upgrades itself at merge; class indexed.
 [S3:stale-base-widens-range] the class this build itself hit (CI-caught): validate now always refreshes origin/master before the range-derived gate, so a local pass can never rest on a wider range than CI's.
 [S3:release-path-weaker-than-generation] the panel path enforces MORE than v1, never less: every lens runs the full v1 trust bar plus its own method constraint, and ANY lens red reddens the verdict (no path through v2 is weaker than the single-lens path it replaces).

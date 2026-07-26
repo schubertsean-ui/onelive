@@ -29,15 +29,21 @@ LEDGER = os.path.join(REPO_ROOT, "docs", "metrics", "KAIZEN_LEDGER.md")
 
 _ROUND_ROW = re.compile(r"^\|\s*[\d-]+\s*\|\s*#(\d+)\s*\(in flight: r(\d+)[^)]*\)\s*\|")
 _MERGED_ROW = re.compile(r"^\|\s*[\d-]+\s*\|\s*#(\d+)\s*\(MERGED[^)]*\)\s*\|\s*(\d+)\s*\|")
+# Ledger schema: | Date | PR | M1 | M2 | M4 | M5 | Notes | → 9 split parts.
+_LEDGER_PARTS = 9
+
+# Class tokens are recorded as `token ×n` — the count is MANDATORY by the
+# ledger convention (kaizen_trends relies on it too), so an uncounted
+# `CLASS:` mention is deliberately NOT a scorecard input (#71 r3 nit:
+# contract stated here, next to the pattern that depends on it).
 _CLASS_TOKEN = re.compile(r"\b([a-z][a-z0-9]*(?:-[a-z0-9]+)+)\s*×\s*\d+")
 
 
 def parse_arcs(text: str) -> tuple[dict[int, dict[int, set[str]]], dict[int, int]]:
     """ledger text -> ({pr: {round: class-token set}}, {pr: merged M1}).
-    Malformed table rows (wrong cell count after code-span masking is
-    kaizen_trends' job; here: a round row whose M2 cell is unparseable
-    still yields its tokens, but a row that starts like a ledger row and
-    has no cells at all raises)."""
+    FAIL-LOUD: a round row whose cell count differs from the ledger schema
+    raises — extra raw pipes shift which cell is read as M2, so a lenient
+    parse would silently score the wrong data (#71 r3)."""
     arcs: dict[int, dict[int, set[str]]] = {}
     merged: dict[int, int] = {}
     for line in text.splitlines():
@@ -45,9 +51,15 @@ def parse_arcs(text: str) -> tuple[dict[int, dict[int, set[str]]], dict[int, int
         m = _ROUND_ROW.match(line)
         if m:
             pr, rnd = int(m.group(1)), int(m.group(2))
+            # EXACT cell count (#71 r3 blocker): a floor check accepted
+            # rows with extra raw pipes, silently shifting which cell is
+            # read as M2 (or dropping tokens). The ledger schema is 7
+            # content cells → 9 parts with the leading/trailing empties.
             cells = [c.strip() for c in line.split("|")]
-            if len(cells) < 5:
-                raise ValueError(f"malformed ledger round row (too few cells): {line[:120]}")
+            if len(cells) != _LEDGER_PARTS:
+                raise ValueError(
+                    f"malformed ledger round row ({len(cells)} parts, need "
+                    f"{_LEDGER_PARTS} — escape raw pipes): {line[:120]}")
             tokens = set(_CLASS_TOKEN.findall(cells[4]))
             arcs.setdefault(pr, {}).setdefault(rnd, set()).update(tokens)
             continue
@@ -73,8 +85,17 @@ def scorecard(arcs: dict[int, dict[int, set[str]]], merged: dict[int, int]) -> d
             novelty.append((rnd, len(new), len(tokens)))
             seen_before |= tokens
             all_tokens |= tokens
-        first_round = rounds.get(min(rounds), set()) if rounds else set()
-        recall = (len(first_round & all_tokens) / len(all_tokens)) if all_tokens else None
+        # ROUND 1 means round 1 (#71 r3 blocker): using "earliest recorded
+        # round" would score an arc whose r1 went unrecorded as if its
+        # first surviving round were the exhaustive first pass. An arc
+        # with no r1 row reports None — an explicit unmeasurable, never a
+        # flattering substitute.
+        round_one = rounds.get(1)
+        recall = (
+            (len(round_one & all_tokens) / len(all_tokens))
+            if (round_one is not None and all_tokens)
+            else None
+        )
         out[pr] = {
             "rounds_recorded": len(rounds),
             "m1_merged": merged.get(pr),
@@ -104,7 +125,9 @@ def main() -> int:
         return 0
     print("reviewer_scorecard (M9) — per reviewed-PR arc:")
     for pr, row in scorecard(arcs, merged).items():
-        recall = "n/a (no classed findings)" if row["round1_recall"] is None else f"{row['round1_recall']:.0%}"
+        recall = ("n/a (no r1 row or no classed findings)"
+                  if row["round1_recall"] is None
+                  else f"{row['round1_recall']:.0%}")
         m1 = row["m1_merged"] if row["m1_merged"] is not None else "in flight"
         print(f"  #{pr}: M1={m1} · rounds-with-classes={row['rounds_recorded']} · "
               f"distinct-classes={row['distinct_classes']} · round1-recall={recall} · "

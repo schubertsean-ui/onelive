@@ -274,11 +274,37 @@ def test_panel_unparseable_lens_is_hard_failure():
 
 
 def test_v2_prompt_encodes_the_ratified_escape_hatch_and_class_mandate():
-    p = ar.SYSTEM_PROMPT
+    p = ar.V2_DISCIPLINE
     assert "MUST block, in any round" in p  # the invariant obligation
     assert "why it was not findable in round 1" in p  # structured discretion
     assert "CLASS:<kebab-token>" in p  # sibling-enumeration mandate
     assert "RECOMMEND-RECORD" in p  # scope -> record, not blocker
+
+
+def test_single_lens_path_keeps_the_v1_prompt_unpolluted():
+    # #71 r3 blocker: the bootstrap/fallback story claims "--panel absent
+    # = v1 unchanged". The v2 discipline must therefore live OUTSIDE
+    # SYSTEM_PROMPT and reach the model only through lens composition.
+    assert "REVIEW DISCIPLINE" not in ar.SYSTEM_PROMPT
+    assert "CLASS:<kebab-token>" not in ar.SYSTEM_PROMPT
+    assert ar.SYSTEM_PROMPT.rstrip().endswith("VERDICT: REQUEST-CHANGES")
+
+
+def test_panel_lens_prompts_carry_v1_plus_discipline_plus_lens():
+    seen = []
+
+    def fake(review_input, system_prompt):
+        seen.append(system_prompt)
+        return "finding\nVERDICT: APPROVE"
+
+    verdict, _ = ar.run_panel("diff", "seed", "k", "m", "u", None,
+                              request_openai=fake, request_gemini=fake)
+    assert verdict == ar.APPROVE
+    assert seen, "no lens ran"
+    for prompt in seen:
+        assert prompt.startswith(ar.SYSTEM_PROMPT)      # v1 bar intact
+        assert "REVIEW DISCIPLINE" in prompt            # v2 discipline added
+        assert "FORCED LENS" in prompt                  # method constraint added
 
 
 def test_env_model_resolver_fails_closed_on_claude_and_empty(monkeypatch):
