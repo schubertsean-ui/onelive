@@ -355,3 +355,49 @@ def test_the_no_sources_finding_names_both_accepted_shapes():
     findings = svl.scan_text("d.md", "# Doc\n\nNo sources, no provenance.\n")
     assert len(findings) == 1
     assert "PROVENANCE:" in findings[0] and "Sources" in findings[0]
+
+
+# ── Hidden evidence is not evidence (PR #78 r5, class
+# invisible-citation-bypass). r4 closed only the hidden-PROVENANCE case; every
+# sibling path stayed open. These bind the property for each syntax that can
+# render to nothing, so a future parser change cannot reopen one of them.
+
+def test_a_sources_block_hidden_in_an_html_comment_does_not_count():
+    assert svl.scan_text("d.md", "<!--\n## Sources\n- x https://e.org VERIFIED-READ\n-->\n")
+
+
+def test_a_citation_bullet_hidden_under_a_visible_heading_does_not_count():
+    """The heading renders; the entry does not. The gate must see what the
+    READER sees, not what the file contains."""
+    findings = svl.scan_text("d.md", "## Sources\n<!--\n- x https://e.org VERIFIED-READ\n-->\n")
+    assert findings and "no entries" in findings[0]
+
+
+def test_a_url_hidden_in_a_comment_does_not_satisfy_the_url_requirement():
+    findings = svl.scan_text("d.md", "## Sources\n- x <!-- https://e.org --> VERIFIED-READ\n")
+    assert findings and "no http(s) URL" in findings[0]
+
+
+def test_a_status_token_hidden_in_a_comment_does_not_declare_a_status():
+    findings = svl.scan_text("d.md", "## Sources\n- x https://e.org <!-- VERIFIED-READ -->\n")
+    assert findings and "declares no verification status" in findings[0]
+
+
+def test_a_fenced_code_block_cannot_carry_the_citations():
+    """Fenced blocks render as literal code, not as the document's sources."""
+    for fence in ("```", "~~~"):
+        text = f"{fence}\n## Sources\n- x https://e.org VERIFIED-READ\n{fence}\n"
+        assert svl.scan_text("d.md", text), fence
+
+
+def test_a_multiline_comment_cannot_carry_a_provenance_line():
+    """r4 rejected the single-line form only."""
+    assert svl.scan_text(CAPTURE, "<!--\nPROVENANCE: https://e.org/a VERIFIED-READ\n-->\n")
+
+
+def test_visible_citations_are_unaffected_by_the_stripping():
+    """The tightening must not break honest documents — including ones that
+    legitimately contain a code fence elsewhere."""
+    assert svl.scan_text("d.md", (
+        "# Doc\n\n```\nsome example code\n```\n\n"
+        "## Sources\n- x https://e.org VERIFIED-READ\n")) == []

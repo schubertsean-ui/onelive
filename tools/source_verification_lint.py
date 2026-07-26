@@ -105,6 +105,25 @@ PROVENANCE_RE = re.compile(r"^\s*PROVENANCE:\s*(?P<body>.+?)\s*$",
                            re.IGNORECASE | re.MULTILINE)
 
 
+# INVISIBLE REGIONS, removed before anything is parsed (PR #78 r5, class
+# invisible-citation-bypass). r4 rejected a `PROVENANCE:` line hidden in an
+# HTML comment but left every sibling path open: an entire `## Sources` block,
+# a citation bullet under a visible heading, a URL, or a status token could all
+# sit inside `<!-- ... -->` or a fenced code block and satisfy the gate while
+# rendering to nothing. The rule being mechanised is "cite it where the claim
+# lives" — evidence a reader cannot see is not a citation, and one-off fixes
+# per syntax is how the first four rounds went. Strip once, at the top, so
+# every downstream check inherits the property.
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+_FENCED_BLOCK_RE = re.compile(r"^[ \t]*(```+|~~~+).*?(?:^[ \t]*\1[ \t]*$|\Z)",
+                              re.DOTALL | re.MULTILINE)
+
+
+def visible_text(text: str) -> str:
+    """What a reader of the RENDERED document actually sees."""
+    return _FENCED_BLOCK_RE.sub("\n", _HTML_COMMENT_RE.sub(" ", text))
+
+
 def is_capture_path(rel_path: str) -> bool:
     return rel_path.replace("\\", "/").startswith(CAPTURE_PATH_PREFIXES)
 
@@ -191,6 +210,7 @@ def _scan_provenance(rel_path: str, body: str) -> list[str]:
 def scan_text(rel_path: str, text: str) -> list[str]:
     """Findings for one document. Pure function — unit-testable."""
     findings: list[str] = []
+    text = visible_text(text)   # hidden evidence is not evidence
     m = SOURCES_HEADING.search(text)
     if not m:
         prov = PROVENANCE_RE.search(text)
