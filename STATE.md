@@ -82,6 +82,8 @@ Stage 3 for this records-only diff — every class below is matched by construct
 - [S3:stale-live-incident-state] The one live-state check this session (the arming smoke-run binding) was re-verified against the actual git object after `--unshallow`, not against earlier prose.
 - [S3:weak-key-accepted-at-custody] N/A — no key/hmac/sign path is touched; the note reiterates that no secret is ever stored in a memory file.
 - [S3:grant-not-content-bound] N/A — this change confers no publish authority and binds no fingerprint; it is documentation of an API call shape only.
+- [S3:release-path-weaker-than-generation] N/A — this change edits only record documents; there is no first-and-second enforcement path here, so none can be weaker than another.
+- [S3:rule-stronger-than-mechanism] N/A — this change adds no rule and no mechanism; it records a call-shape convention and a verification step, both stated in full in the same commit with no unbuilt half.
 
 ## Session Contract #29 (2026-07-26, close-out for PR #87 — records only, no behaviour)
 
