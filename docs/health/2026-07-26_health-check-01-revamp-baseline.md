@@ -5,29 +5,16 @@ actually changed.** The founder asked to see it proven rather than described:
 *"I want an accounting of the number of lines of code, types, etc — whatever would
 be world class evaluation of a code and functionality and structure and
 
-## PRUNED to its numbers and its regeneration command (2026-07-27)
-
-**The prose sections of this snapshot were removed.** They are a *generated report's*
-commentary, and the r5 reviewer's own nit said it plainly: this file is "visibly stale
-relative to the current diff and validate output… future readers need to be steered
-harder toward regenerating rather than trusting the snapshot prose."
-
-**Steering, then.** Do not read a snapshot for current state — regenerate it:
+## Numbers only — regenerate, do not read a snapshot for current state
 
 ```
 PATH="$HOME/.venvs/onelive/bin:$PATH" python tools/health_check.py --baseline f907a51
 ```
 
-The numbers below are kept because they are the before/after accounting the founder
-asked for, and a table of measurements does not go stale silently — it is dated, and its
-`--baseline` is named. The removed narrative is in git history
-(`git show 94895a9:docs/health/2026-07-26_health-check-01-revamp-baseline.md`) and its
-uncomfortable findings are tracked where they can be acted on: R-066 (unwired modules),
-J8 (prose growth), and `docs/BAR.md`'s own status column.
-
-**Why now:** the mandatory independent review HARD-FAILED because PR #76 exceeded the
-founder-ratified reviewer cap. A generated report's prose is the cheapest thing in the
-diff to lose and the reviewer had already asked for exactly this change. R-088.
+The prose was pruned 2026-07-27 (R-088); the r6 reviewer had asked for exactly that,
+calling this file "visibly stale". The table stays because it is the before/after
+accounting the founder asked for and it is dated. Findings live where they can be acted
+on: R-066, BAR row J8, and BAR's status column. Git history holds the narrative.
 
 | Metric | Before | After | BAR row |
 |---|---|---|---|
