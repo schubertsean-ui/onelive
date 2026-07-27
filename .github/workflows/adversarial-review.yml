@@ -520,12 +520,22 @@ jobs:
           # FOUNDER-RATIFIED per the gate-custody rule that threshold changes
           # are founder-crucial — the founder approved the 800000 cap in both
           # active sessions ("approve 800k cap", 2026-07-16; "I approve the
-          # 800 KB adversarial-review diff cap", 2026-07-17). ONE decision,
-          # two records (kept additively):
+          # 800 KB adversarial-review diff cap", 2026-07-17). Records (additive):
           # docs/memory/decisions/2026-07-16_review-diff-cap-800k.md and
-          # docs/memory/decisions/2026-07-17_diff-cap-approval.md. Closes the
-          # evaluator r23 gate-custody finding. Changing this value again,
-          # either direction, requires a new founder decision.
+          # docs/memory/decisions/2026-07-17_diff-cap-approval.md.
+          #
+          # RAISED to 900000 on 2026-07-27, founder-ratified ("Raise cap to 900
+          # KB"), after PR #76 — a one-time audit + canon-rewrite + six rounds of
+          # security hardening — reached ~802 KB of legitimate, reviewed-in-pieces
+          # content that a clean split could not divide (the split was attempted and
+          # proven non-viable: a history-split re-hits #88's duplicate-ID collision
+          # whose fix lives in the late commits, and a content-split breaks the
+          # validate hub or ships code without its test). This is a bigger window,
+          # NOT a softer gate: --require is unchanged, so the reviewer still
+          # HARD-FAILS rather than truncating past the cap. Record:
+          # docs/memory/decisions/2026-07-27_reviewer-cap-raise-900k.md, which also
+          # carries the restore-or-ratify-permanent trigger (R-097). Changing this
+          # value again, either direction, requires a new founder decision.
           : "${EVID_DIR:?co-gate evidence step did not run — failing closed}"
           : "${HEAD_SHA:?head sha unresolved — panel po-seed cannot be defaulted}"
           # v2 lens panel (--panel): forced method lenses + a po-battery lens
@@ -547,6 +557,6 @@ jobs:
             echo "reviewer: trusted base copy predates the v2 panel — running the v1 single-lens gate (unchanged physics)"
           fi
           python -I /tmp/trusted/adversarial_review.py --require $PANEL_ARGS \
-            --max-diff-bytes 800000 \
+            --max-diff-bytes 900000 \
             --diff-file pr.diff --test-log pytest.log --test-log web.log \
             --test-log validate.log --test-log "$EVID_DIR/golden-exam.log"
