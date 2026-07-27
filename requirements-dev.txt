@@ -1,0 +1,36 @@
+# Everything needed to run `bash tools/validate` from a fresh clone.
+#
+# WHY THIS FILE EXISTS (v1 done-criterion 3, BAR G5, R-058): the gate used to turn
+# four rows red in a default environment for reasons that were not code — three from
+# interpreter packages nobody had written down, one from a shallow clone. Presented in
+# the same red column as a real regression, they train everyone to scan past red.
+# `tools/env_preflight.py` now names those two causes explicitly, and this file makes
+# them go away.
+#
+# Install with the one command in `tools/bootstrap_dev.sh`, which also un-shallows the
+# clone (the arming-evidence binding cannot be proven without full history — R-036).
+#
+# DELIBERATELY UNPINNED, unlike worker/requirements.txt. Those pins are bound into the
+# golden exam's harness-manifest hash, so bumping one is a reviewed harness change.
+# Nothing here touches the exam: these are test-execution tools, and pinning them
+# would add upgrade friction that buys no evidence.
+
+# --- the runner itself ---
+pytest
+pytest-xdist          # parallel runs: 49.7 s serial -> ~20 s at `-n 4` (R-067)
+
+# --- imported directly by tests in tests/ ---
+PyYAML                # workflow-contract tests parse .github/workflows/*.yml
+fastapi               # api/ TestClient suites
+httpx                 # starlette TestClient transport
+cryptography          # PyJWT RS256 key generation in the Clerk auth tests
+PyJWT[crypto]>=2.8    # Clerk session-JWT verification (api/clerk_auth.py)
+psycopg2-binary       # DB-integration tests self-skip without a DSN but still import
+pydantic              # AIEventExtraction schema validation
+python-dateutil
+requests
+
+# --- runtime deps the product imports at test-collection time ---
+uvicorn[standard]
+sentry-sdk            # no-op unless SENTRY_DSN is set (worker/sentinel.py)
+anthropic             # ai/claude_provider.py imports at module load

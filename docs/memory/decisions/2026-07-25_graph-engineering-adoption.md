@@ -134,3 +134,7 @@ Recorded so these are staged, not silent:
   `brain/__init__.py`.
 - Proof tests: `tests/test_brain_graph.py` (22 tests, all passing).
 - Run the proof yourself: `python -m brain.demo`.
+
+---
+
+**Codified by:** `brain/` package + `tools/brain_iq.py` and `docs/metrics/` Brain IQ ledger; FROZEN off-mission until v1 is live (`docs/UNWIRED_DECISIONS.md`, founder call pending).

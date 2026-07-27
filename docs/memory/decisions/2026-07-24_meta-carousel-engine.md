@@ -83,3 +83,7 @@ Include scenarios we've identified like date night, music and dancing,
 etc - several examples of these scenarios exist in OneLive. What are the
 world class practices for how many run per day? What are key metrics
 we'll gather and analyze?"
+
+---
+
+**Codified by:** `social/` package + `tests/test_social_carousel.py`; FROZEN off-mission until v1 is live per `CLAUDE.md` mission and `docs/UNWIRED_DECISIONS.md` (founder call pending).

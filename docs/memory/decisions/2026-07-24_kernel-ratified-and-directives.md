@@ -44,3 +44,7 @@
    the sandbox (verified 2026-07-24), so the fix stays founder-hands: add
    `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (Preview env checked) in the Vercel
    project settings, then redeploy — full steps with links on PR #60.
+
+---
+
+**Codified by:** `docs/strategy/UNIVERSAL_DEV_OPERATING_MODEL_v1.md` (the ratified kernel text) + the four directives' own records in this directory.

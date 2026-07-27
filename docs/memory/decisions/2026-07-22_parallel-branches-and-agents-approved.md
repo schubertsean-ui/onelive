@@ -26,3 +26,7 @@ First acts under this grant (same hour): convergence C2 build agent +
 a dedicated PR #51 pre-attack agent launched in parallel; C1 substrate
 and the R-023 PATH A probe had already been built by parallel worktree
 agents earlier in the evening.
+
+---
+
+**Codified by:** NOTHING YET as a mechanism — this is a working-practice approval with no gate to carry it. It is reflected in `docs/HOW_WE_WORK.md`. Trigger: if parallel work ever causes a merge-reconciliation defect, it needs a mechanical guard.

@@ -17,12 +17,20 @@ from collections import Counter
 from worker.db_config import resolve_dsn
 from worker.importers.normalize import normalize_ticketmaster
 from worker.importers.ticketmaster import CAPCOG_RADIUS_MILES, fetch_events_capcog
+from worker.sentinel import init_sentry
 
 log = logging.getLogger("licensed_import")
 
 
 def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    # THE OTHER HALF OF THE SENTINEL CONTRACT (R-086). CLAUDE.md: "no scheduled loop
+    # ships without both" — scheduling this importer armed the dead-man half and left
+    # error reporting unwired, so a mid-import failure reported only to Actions logs.
+    # The alarm says the loop STOPPED; Sentry says what broke while it still ran.
+    # `init_sentry` is a no-op when SENTRY_DSN is unset and raises loudly if the DSN
+    # is set without the SDK — safe now, cannot degrade quietly later.
+    init_sentry("worker")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--max-pages", type=int, default=10,
                     help="pages per time-window (<=10, the API deep-paging ceiling)")

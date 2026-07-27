@@ -1,0 +1,56 @@
+name: watchdog
+
+# Dead-man alarm for this repo's scheduled data jobs, founder-approved 2026-07-26
+# ("build the watchdog") as the zero-signup alternative to a healthchecks.io
+# account. Charter amendment and the accepted weakness:
+# docs/memory/decisions/2026-07-26_github-native-watchdog.md
+#
+# HOW THE ALARM ACTUALLY REACHES A HUMAN: this job exits non-zero when a watched
+# job has gone silent, and GitHub emails the repository owner when a SCHEDULED
+# workflow fails. That email is the ping. No secret, no third-party account — the
+# automatic GITHUB_TOKEN is enough to read Actions history on a private repo.
+#
+# THE WEAKNESS, STATED NOT HIDDEN: this watchdog runs inside GitHub Actions, so it
+# is down whenever Actions is down (which happened 2026-07-26, R-095), and GitHub
+# disables scheduled workflows in repos inactive for 60 days. An external dead-man
+# service does not share those failure modes. That trade was the founder's to make
+# and was made deliberately.
+#
+# Reads only. No secrets beyond the automatic token, no DB write, no AI spend.
+
+on:
+  schedule:
+    # Every 6 hours. Tighter than the 14 h staleness limit it enforces, so a
+    # missed run does not delay the alarm past the window it is watching.
+    - cron: "40 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read      # read other workflows' run history — nothing more
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ask GitHub when each watched job last succeeded
+        env:
+          # The automatic token. Named here rather than relied on implicitly so
+          # workflow_env_lint can see its source and a missing value fails closed
+          # below instead of silently producing an unauthenticated 403.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Literal on the schedule path — `github.event.inputs.*` is EMPTY on a
+          # schedule event, the defect that made import_structured's cron dead on
+          # arrival (R-054). This workflow takes no inputs, so the repo comes from
+          # the always-present built-in context instead.
+          TARGET_REPO: ${{ github.repository }}
+        run: |
+          : "${GITHUB_TOKEN:?GITHUB_TOKEN missing — a private repo's Actions history needs auth; failing closed rather than reporting a false OK}"
+          : "${TARGET_REPO:?github.repository resolved empty — failing closed}"
+          python3 tools/watchdog_check.py "$TARGET_REPO"

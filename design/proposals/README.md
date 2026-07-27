@@ -29,7 +29,9 @@ register (italic, one shade quieter, small ✳, "— first notes", same
 dismissible-sheet pattern); Emotion Glyphs as self-rendered inline SVGs with
 aria-labels (no platform emoji, no banned rating-glyphs, uniform placement so
 no visible hierarchy between listings); verbatim copy strings ("Tonight in
-Austin", "Less chaos. Real shows.", "Something off?"); WCAG 2.2 AA contrast
+Austin", "Something off?" — the former tagline "Less chaos. Real shows." was
+removed from canon 2026-07-26 and is now a FORBIDDEN string in
+tests/test_design_proposals.py); WCAG 2.2 AA contrast
 targets and ≥44px touch targets; date tabs; Free/Ticketed; "Hear it".
 Fixture artists are FICTIONAL (no facts asserted about real acts); Austin
 venue names appear as setting only. Typography uses licensed-face

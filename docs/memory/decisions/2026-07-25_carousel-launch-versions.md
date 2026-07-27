@@ -22,3 +22,7 @@ Reproducibility is test-pinned: each launch assignment re-renders the
 founder-seen hook through the real trust path. No gate, custody, or
 posting-posture change; the 100%-interaction goal is pursued by learning
 speed from a strong start, never by freezing it.
+
+---
+
+**Codified by:** `design/proposals/` renders + `tests/test_design_proposals.py`, which pins the required and FORBIDDEN verbatim copy strings.

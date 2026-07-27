@@ -1,5 +1,256 @@
 # ONE LIVE — CHANGE LOG
 
+## 2026-07-26 (same session) — "Measure it. Prove it." — PR #76 rounds 3-5
+
+**Founder: *"Are you getting closer to go live or spinning wheels? … Measure it. Prove
+it."*** Answered with numbers: **1 of 7 v1 criteria MET**, rounds 2-4 of the child PR
+flipped **zero**, **1,759 harness lines to 444 product lines**, and four remaining
+criteria need the default branch — blocked behind this PR as the base of a stack. The
+diagnosis was topology, not quality. Stopped adding to #80; closed #76's blockers.
+
+- **The gate registry, fixed as a class.** `tests/test_health_check.py` now DERIVES the
+  check-script list from `tools/validate` instead of trusting it, and found **six**
+  omissions — three the reviewer never named. Exception-free: no allowlist of justified
+  omissions, because that is the same hole wearing a justification.
+- **Secret custody, two rounds (R-081, R-082, R-083).** The host allowlist matched the
+  whole URL (bash's `*` matches `/`), then its PATTERNS admitted the entire Vercel
+  platform and any domain containing "onelive". And the secret went out under
+  `curl -sSL`, which re-sends headers to the redirect target — **a test REQUIRED that
+  flag**, so the suite enforced the leak. Now: extracted-host match bound to the
+  founder's own Vercel team namespace, wildcards deleted not narrowed, userinfo refused,
+  and every secret-bearing request pins `--max-redirs 0`.
+- **BAR G5 was graded MET on an untrue claim, twice (R-084).** The interpreter fallback
+  looked in `$HOME/.venvs/onelive` while `bootstrap_dev.sh` creates `$REPO_ROOT/.venv`,
+  so it could not fire on the documented path — and measured as working only because a
+  sibling branch's venv sat on this machine. The test now DERIVES the path from
+  `bootstrap_dev.sh`.
+- **Auth boundary leaked exception text (R-085)**, pinned in place by my own test. Detail
+  now goes to the log only.
+- **Two scheduled loops had the dead-man alarm and no Sentry (R-086)** — half the
+  charter's Sentinel contract. `init_sentry` wired into both importers, with a contract
+  test that made it a class and found a fourth workflow nobody named.
+- **Round 5: the review could not RUN.** `pr_size_check` failed at 801 KB against the
+  781 KB cap, so `validate` went red before the panel started. My own commits added
+  ~120 KB, mostly prose. Raising the cap is founder-crucial, so the fix was pruning my
+  own narration — facts and mechanisms kept, retrospective commentary cut (§0.8).
+  **Prose is not free: it consumes the reviewability budget the trust invariants depend
+  on, and it did so until the mandatory review physically could not execute.**
+- **Measured, not assumed: 1,522 real events are live** (run 30224714922) — the feed is
+  not empty. Two product defects that no test catches: `/tonight` defaults to the "all"
+  tab with no upper date bound (December events on a page titled "Tonight in Austin"),
+  and the feed serves San Antonio/Killeen/Cedar Park with no city filter. Queued for a
+  follow-up PR, deliberately not this one.
+
+Detail per defect: `docs/RECORD.md` R-081–R-086. Round-by-round: the Kaizen ledger.
+
+## 2026-07-26 (same session) — Ask 5 ratified, the feed scheduled, and the suite goes fully green
+
+**Founder, verbatim: "option a and do 2 and 3".** Three decisions in six words.
+
+### The gate change (founder-only, and the agent's own blocker)
+- **M3 escape alarm: blocking condition moved from "any escape ever recorded" to
+  "any escape whose `Gate-gap closed` column names no shipped mechanism."** This is a
+  gate-threshold change, reserved to the founder — and it would have loosened the gate
+  blocking the agent's own PR, which is exactly why the agent left it untouched
+  through several rounds and wrote `docs/ASK_ANALYSIS_2026-07-26.md` instead.
+- **Nothing was softened, and each guard is asserted:** the M3 target is still **0,
+  absolute**; `m3_escapes:` still prints and can never decrease; placeholder text
+  (`—`, `TBD`, `pending`, `none`, `n/a`) does not count as a closed gap; a malformed
+  row **fails closed**; a closed escape does not excuse a later open one. 8 new tests.
+- **Why this shape:** `kaizen_trends.family_alarm` already applied these exact
+  semantics to the repeat-class alarm, ratified by the independent evaluator at r6 of
+  an earlier PR. The M3 counter was the one meter in that file that never got them.
+  M7's one-way ratchet is not violated: no threshold moved, only which condition
+  trips. Record: `docs/memory/decisions/2026-07-26_escape-alarm-semantics.md`.
+- **Result: `validate` went from 2 failing tests to 1,794 passed / 0 failed** — the
+  first fully green suite of the session. Zero FAIL rows; `INCOMPLETE` only from the
+  pre-existing R-002 visual-regression skip.
+
+### The feed now refreshes itself
+- **`import_licensed.yml` is scheduled** — 02:23 / 14:23 UTC, 12 h apart, deliberately
+  offset from `import_structured.yml`'s 08:17/20:17 so the two importers never contend
+  for the same database connection window. Its schedule path is safe from the R-054
+  class: `MAX_PAGES` resolves through `|| '8'`, so it is never empty on a schedule
+  event. R-055 RESOLVED, pending verification on the next scheduled run.
+- **Its dead-man alarm is the new GitHub-native watchdog**, and it entered the
+  watchdog's `WATCHED` table in the same change — the alarm exists from the first
+  scheduled run rather than being promised for later. `EXPECTED_SOON` is now empty and
+  kept as a mechanism, with a test proving the PENDING path still works so it cannot
+  rot unnoticed.
+
+### What the founder no longer has to do
+Ask 1 is gone entirely: no healthchecks.io account, no `LICENSED_IMPORT_PING_URL`
+secret. Ask 5 is answered. **Two asks remain, and only one of them blocks anything.**
+
+### Item 3 is not done, and cannot be by an agent
+Creating a Vercel Protection Bypass secret requires the founder's Vercel account. The
+founder also reports the **Vercel Authentication toggle will not save** — it reverts to
+required and Save stays greyed out, which points at a team-level policy rather than a
+mis-click. Every line of code for the bypass path already exists and is unchanged;
+what is missing is a value only the founder can generate. Recorded in TODOS Step 4b
+with the exact URLs and the share-link form.
+
+## 2026-07-26 (same session) — The streamline is performed, and the checkup joins the gate
+
+Founder, reaffirming after I asked instead of acting: *"I said what I said. I want a complete audit and streamline and revamp according to world class standards. Research the world class process and metrics and perform it, and incorporate as part of the ongoing process."*
+
+### Research — settled, and my earlier framing was too pessimistic
+Fresh fetches are genuinely impossible: the proxy is not host-selective (`selective: false`) and every primary returns **403** (`dora.dev`, `sre.google`, `google.github.io`). **But the reframe that matters:** the **40 primary URLs already fetched, quoted and ratified in `docs/WORLD_CLASS.md` ARE the world-class standard set** for this kind of revamp — Google eng-practices + Beck + Fowler + Ousterhout + Kleppmann, 12-Factor + AWS/GCP Well-Architected, Google SRE ×3 + DORA Four Keys, Fowler ×3 + Google test sizes + PIT, OWASP + NIST, DAMA, NN/g + WCAG + Core Web Vitals. The research is ~95% done and on disk; the **one** real gap is DORA's numeric thresholds (§7.5–7.8, still `n.a.`). The revamp did not need re-fetching — it needed **applying what is already canon**.
+
+### Streamline — performed, not just measured
+Two modules **deleted** once the new detector proved nothing imports them:
+- **`worker/multiconfirm.py`** — a 7-line re-export shim whose own docstring said *"keep this file import-only"*, with **zero importers**, production or test. The subtlest dead-code shape: it looks like infrastructure.
+- **`worker/definition_of_done.py`** — 15 lines, and **worse than dead**. It required every feed event to be at least `likely`, which **contradicts BAR P6 and the founder's own auto-publish ratification** (single-source events publish at `unverified`). A future reader could have wired it in good faith and silently suppressed exactly the events the founder asked to show. Dead code encoding a superseded rule is a landmine, not clutter.
+
+**Product code moved for the first time this session: 13,295 → 13,273, all deletions. Unwired modules 16 → 14.**
+
+### The rest is a decision — and it is now decidable
+**`docs/UNWIRED_DECISIONS.md`** classifies all 14: **WIRE** (2 — v1 Step 2's unfinished feature, R-056), **FREEZE with a live trigger** (4), **FOUNDER CALL** (3 whole subsystems, **~9,300 lines**: `social/carousel` which has no posting client at all, the greenlit `ventures/promise_ledger`, and `brain/`). An agent does not delete founder-commissioned strategic work on a tidiness argument, so the three are one question with a recommendation and an honestly stated carrying cost. **R-066.**
+
+### Incorporated into the process — mechanically, not by intention
+`tools/health_check.py` is now wired into `tools/validate` as **`run_advisory "health_check"`** — non-blocking by design, because these numbers need judgement rather than a threshold. Documented cadence alone is exactly what let the §0.8 pruning obligation sit unperformed from 2026-07-12 to 2026-07-26; a row in the gate output is what makes it unavoidable.
+
+### The gate metric caught its own author, twice
+Wiring anything into `validate` touches a gate file, so the health check's own "gate files changed" metric flagged it. **The assertion was not relaxed.** The metric now reports *which* gate files changed (a count of `1` and an undeclared threshold edit read identically; the named set is the honest unit), the test pins the expected set to exactly `{tools/validate}`, and the change is declared as additive-and-advisory. Along the way the metric was also caught counting the whole `tools/` directory, and then comparing committed `HEAD` while every other metric reads the working tree — so a *staged* gate edit would have reported "none" precisely when it mattered most. Both fixed and pinned.
+
+### Not assumed
+The founder's message quoted my scope paragraph, which could be read as authorising Step 2 (wiring `autopromote`). **It is not read that way** — that step touches a trust invariant and stays gated on ask 3. Resolving an ambiguity about a trust invariant by assuming consent is what the charter forbids.
+
+
+## 2026-07-26 (same session) — The revamp proves itself, and the checkup becomes recurring
+
+Founder: *"I want to see before and after results… an accounting of the number of lines of code, types, etc"*, then *"make this a recurring action as part of a world class health check up of the entire system. Research what world class for this kind of process looks like."*
+
+### Shipped
+- **`tools/health_check.py`** — whole-system checkup, computed from git and the working tree. No network, no database, no model. `--baseline <ref>` gives a before/after. **A thermometer, not a gate:** it never passes or fails, and wiring it into `validate` would be a gate change (founder-crucial).
+- **`tests/test_health_check.py`** — 15 tests, aimed at the two ways a measurement tool betrays you: reporting a number it did not compute, and reporting a comparison that is not like-for-like. Both were live in the first draft.
+- **`docs/HEALTH_CHECK.md`** — what it measures and why each number earns its place, the cadence, **what a bad checkup looks like**, and what the tool cannot see.
+- **`docs/health/2026-07-26_health-check-01-revamp-baseline.md`** — snapshot #1, which *is* the before/after accounting.
+
+### The accounting's headline
+**Not a code, architecture or functionality revamp: product code changed by exactly ZERO lines (13,295 → 13,295).** The diff is 17 docs, 2 test files, 1 workflow (2 meaningful lines), 4 design artifacts. Three rows that do not flatter the work: **prose went UP ~27,000 words (+10%)** against a complaint about bloat; **unwired modules 16 → 16** (measured, none fixed); **RECORD open 40 → 50**. What did improve: **0 → 80 measurable bar rows** (14 on purpose), one defect class closed mechanically forever, the escape detector able to see escapes at all, and *"no gate was weakened"* now a command that reads `0`.
+
+### The new capability that outlives the accounting
+A **dead-module detector** — first-party modules imported by nothing but tests — the mechanical form of BAR F5, previously hand-only. Found **16**, independently reproducing two findings the audit made by hand: `worker/publish_policy.py` and `worker/source_reliability.py`, the founder-ratified auto-publish policy and its unmet safeguard 1. Written without reference to those findings, so the agreement is a check on the check. Its three entrypoint exemptions were calibrated against real files here rather than guessed.
+
+### Fourth numeric correction — and the first structural fix for it
+Four hand figures quoted this session were wrong: the test count (1,665 excluded skips; collected was 1,695), the rule-surface reduction (14% quoted, **−8.0%** measured, and it moves on every CANON edit), the validate check count (19 summary rows vs 14 `run_check` calls), and the code/prose totals (hand counts excluded `.js`/`.mjs`/`.sh` and some Markdown). **`docs/INDEX.md` and BAR row J8 now quote no number at all — they cite the command.** A figure typed into prose stops tracking the files it describes the moment anyone edits one.
+
+### Research: STOPPED under the primary-source gate, not caveated
+Every primary fetch from this sandbox returns **HTTP 403** at the proxy — `dora.dev`, `sre.google`, `google.github.io` each tried 2026-07-26. Web *search* works and returns summaries; using them would be precisely the defect the gate names, so **they are unused anywhere**. `docs/HEALTH_CHECK.md` is grounded in the **40 primary URLs already fetched, quoted and ratified in `docs/WORLD_CLASS.md`** plus engineering judgement labelled as such, and says so at the top. Blocker + cheapest founder action: **R-065** — pasting the DORA thresholds table alone converts `WORLD_CLASS` §7.5–7.8 from `n.a.` to four real numbers.
+
+### Cadence, derived from canon rather than invented
+`OPERATING_RULES` §2b already makes the Kaizen loop weekly, so the checkup attaches to it: **snapshot every session close · trend weekly · full checkup monthly**, the monthly one discharging §0.8 (harness pruning) and §0.9 (name the bottleneck) — both canon since 2026-07-12 and unperformed until today.
+
+
+## 2026-07-26 (same session) — Review round 1 answered; the escape alarm is now RED and escalated
+
+The first independent review PR #76 actually received (run `30189681956`; earlier attempts were refused by the Actions outage). **Gemini: APPROVE ×2. OpenAI: REQUEST-CHANGES ×2, three blockers, all real, all fixed, none argued down.**
+
+### 1. The escape was recorded in prose while the gate printed CLEAN
+`docs/KAIZEN.md` §188 requires an M3 escape row to carry the literal token **`M3-ESCAPE`**. My row omitted it, so `kaizen_trends` reported `m3_escapes: 0` and `CLEAN` while the table recorded the project's first escape. The reviewer named the attack exactly: *"a malicious insider can record an escape in the M3 table while the mechanical trend gate still prints CLEAN."* It also caught the adjacent `none recorded to date` sentinel, leaving the table asserting both none and one.
+
+**Fixed:** token added, sentinel deleted. **Consequence escalated, not absorbed** — conforming makes `kaizen_trends` report FINDINGS, and `tools/validate` states an escape *"must never be waivable by `--allow-skips`"*. Since an escape is permanent history, the gate is now **red until the founder decides the semantics**: R-064, founder ask 5, recommendation stated (an escape stops blocking once its `Gate-gap closed` column is filled). **The gate itself was not touched** — loosening it is founder-crucial, and muting the alarm to get a green PR is the move the harness exists to prevent.
+
+### 2. The "every scheduled workflow" scanner had three evasion paths
+It globbed only `*.yml` (GitHub accepts `*.yaml`), matched `schedule:` only at exactly two spaces of indentation, and matched only `github.event.inputs.X` and not the `inputs.X` shorthand — each equally empty on a schedule run. **Fixed:** both extensions, any indentation, both spellings; coverage now asserted by its own test, with the pre-fix patterns executed against the evasion cases and observed not to match. New red class indexed: `incomplete-workflow-surface-scan`.
+
+### 3. Seven stale numbers survived inside the commit that claimed to fix them
+The changelog's *"CANON is 9 documents, about 4,400 words"* and *"exactly three founder asks"*; the audit's *"three things, nothing else"* and *"only 9 documents are CANON"*; BAR's *"one red test, days old"*; R-057's LCP ≤ 2.5 s after the bar tightened to 2.0 s; and `STATE.md`'s own ≈4,400-word claim. The reviewer's framing is the one that lands: **the false-confidence class recurring inside the fix for that class.** All seven corrected, each stating what it used to say rather than being silently swapped.
+
+### Nits fixed
+Unused `_SCHEDULE_BLOCK` deleted · the scanner docstring no longer claims a dispatch-gated exception the code lacks (the over-strictness is stated and justified as fail-closed) · **new standing rule in `docs/BAR.md`: every PROPOSED → ENFORCED transition gets its own reviewed PR**, so a bar row cannot become blocking without review.
+
+### Honest state
+**`bash tools/validate` is RED on one check — `kaizen_trends` — by design, and PR #76 must not merge until founder ask 5 is answered.** Every other check passes. This push is knowingly on red and is labelled as such in R-064, ask 5, and on the PR itself.
+
+
+## 2026-07-26 (same session) — The tagline is retired, mechanically (founder-ratified) + Actions recovered
+
+**Founder, verbatim:** *"Use the new description for the tagline. Remove the old."*
+
+### The brief is amended — a first for this project
+`docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md` §3 mandated **"Less chaos. Real shows."** as verbatim product copy. The founder removed it from the masthead on 2026-07-22 (FLOW round 6) and reframed to *"This is about finding and engaging in experiences, helping individuals and the culture thrive"* — but the ratified brief carried the old line for four more days, so a founder instruction and its own canon pointed in opposite directions. Now amended:
+- **There is no tagline on any product surface.** The masthead carries the city and the date, nothing else. The thrive framing is what copy and design decisions serve; it is deliberately **not** introduced as a replacement slogan, because the founder removed the line rather than swapping it.
+- An **AMENDMENT LOG** sits at the head of the brief. The filename stays `v2.4` on purpose: ~30 canon references point at that path, and renaming a ratified document to express a two-line edit trades real breakage risk for a cosmetic version bump.
+
+### The removal is a mechanism, not a note
+- `"Less chaos. Real shows."` moved out of `REQUIRED_VERBATIM` and into a new **`FORBIDDEN_VERBATIM`** list in `tests/test_design_proposals.py`, asserted against the **raw HTML** rather than visible text — a commented-out or aria-hidden copy of a retired canon string is exactly how it creeps back into the next comp.
+- **Proven red first:** the new assertion failed on all three pre-amendment comps before they were cleaned and it went green.
+- Also struck: the line and its now-orphaned `.tagline` CSS from direction-1/2/3 (dead code is a violation, not a leftover), the copy list in `design/proposals/README.md`, and the reference prototype — **including the render site that would otherwise have printed an undefined key**, which is the founding anti-pattern's exact shape: a failure indistinguishable from nothing to do.
+- Verified by a repo-wide grep across all file types: every remaining occurrence is the forbidden-list gate, a dated historical record, or an amendment note explaining the removal.
+
+### R-060 RESOLVED — Actions recovered at 15:03Z
+Run `30189681960` attempt 2 was assigned a real runner at **15:03:32Z** and **trust-gate returned SUCCESS at 15:04:43Z**, ending an ~11-hour window (from 03:50Z) in which every Actions job repo-wide was accepted and refused in 1–4 seconds with no steps, no runner and no logs. **Which cause it was is not determinable from the API and is not claimed** — the row records unexplained-but-recovered rather than attributing it to billing. Founder ask 0 is struck with its diagnosis preserved verbatim in case it recurs. The charter's APPROVE-plus-every-check-green merge rule was never bent while it held.
+
+**Founder asks now open: three** (healthchecks check + secret · the Anthropic cap decision · does auto-publish still stand).
+
+
+## 2026-07-26 (same session) — The vision goes to the front of the canon (Contract #28 amended)
+
+**Founder directive, verbatim:** *"Everything is to be built toward the vision and goals and objectives and other content surrounding this project and how it is supposed to work and make people feel. All actions should be in support of all of those things."* Record: `docs/memory/decisions/2026-07-26_vision-first-directive.md`.
+
+### What it exposed
+The bar shipped earlier the same session had 66 rows grading trust, extraction, coverage, security, code, testing, reliability, cost and process — and **zero rows naming the vision, the mission, the promise to the fan, or the feeling the product exists to create.** All of that text already existed, ratified, in `docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md` §1-§6. A bar that measures correctness without measuring purpose passes a product that is accurate, fast, well-tested and dead.
+
+### Changed
+- **`docs/BAR.md` now opens with §0** — vision, mission, the 9:04 PM moment, the feeling to create, the payoff — **quoted** from the ratified brief, never paraphrased, because paraphrase is how canon drifts. §0 is a blocking review question at the standing of a failing test.
+- **New section P, placed ahead of every engineering section:** 14 rows on purpose and felt experience. The ten-second answer, the 2.0 s load, no-login, zero badges, honesty-as-courtesy, nothing-hidden, the kept promise, findability, artist-first, AI-never-speaks-over-the-artist, honest curiosity, white-hat only, the daily edition, and emotional fidelity scored against the brief's own 8-criterion rubric.
+- **`CLAUDE.md` opens with the vision rather than the rules**, and prime directive 5 makes "does this serve the fan on the sidewalk at 9:04 PM?" blocking in review.
+- **`docs/V1.md` gains done-criteria 6 and 7** — the ten-second answer timed on a real phone by three first-time users, and the brief's rubric scored against the shipped surface at ≥ 4/5 on every criterion. The list had been five entirely mechanical criteria.
+- **`docs/HOW_WE_WORK.md`** asks the purpose question before the quality bar, and requires a session contract to name the bar row the change exists to move.
+- **Where canon disagreed, the stricter number won:** the brief's "under 2 seconds" beats Core Web Vitals' 2.5 s, which is now recorded as the floor of external acceptability. A tightening, not a relaxation.
+
+### The finding that fell out of it — sharper than any word count
+**6 of 14 purpose rows are MET, against 45 of 66 engineering rows.** The machine is in far better shape than the experience it exists to deliver. **P1 — the ten-second answer, the brief's own headline objective and its payoff — has never been measured once, in any form, by anyone** (R-061). P7, the kept promise the brief calls *"the entire brand"*, is likewise unmeasured: extraction faithfulness grades the extractor against its source page, not the listing against reality (R-062). R-063 records that artist-first has no surface yet.
+
+### A second self-correction, same principle
+An earlier draft implied the simplification cut the rule surface to roughly a third. Measured with `git show` + `wc`: **11,770 words across 7 documents became 10,068 across 4 — a 14% word reduction**, not an order of magnitude. The structural gain is real; the word cull was modest, and `docs/BAR.md` deliberately GREW to carry the vision. The wrong figure is corrected in `docs/INDEX.md`, BAR row J8 and the audit rather than quietly dropped.
+
+### Escalated, not decided
+The ratified brief still mandates the tagline **"Less chaos. Real shows."** that the founder removed on 2026-07-22 in favour of *"finding and engaging in experiences, helping individuals and the culture thrive."* BAR §0 carries the thrive framing as current intent; the brief is founder-ratified, so an agent proposes rather than rewrites — founder ask 4, with the exact proposed edit quoted.
+
+**No gate, threshold, check, test or invariant was weakened.** New P rows are ENFORCED only where a mechanism exists today, PROPOSED otherwise.
+
+
+## 2026-07-26 — Deep audit, canon simplification, and the first recorded escaped defect (Contract #28)
+
+**Session type:** founder-directed deep evaluation of everything built to date, plus the simplification it called for. Evidence: `docs/V1_AUDIT_2026-07-26.md`. Plan: `docs/V1.md`. Bar: `docs/BAR.md`.
+
+### Found (measured against reality, not documents)
+- **ESCAPED DEFECT, the first ever recorded.** `import_structured.yml` had never once completed a scheduled run: its fetch bound came from a bare `github.event.inputs.limit`, which GitHub leaves EMPTY on a `schedule` event, so the workflow's own fail-closed guard killed every scheduled run before a single fetch. Proof: GitHub run 30175059075, the workflow's only scheduled run. The deterministic local-venue feed therefore never refreshed unattended. Nothing caught it because no test exercised the schedule path's variable resolution, and in review the guard reads as a virtue.
+- **AI extraction is capped off** — the Anthropic account's usage limit is exhausted (quoted verbatim from run 30186783965). The cap behaved correctly and nothing false entered the database. **Corrected framing, founder 2026-07-26 ("Remove the 8/1 date - it was arbitrarily set by you"):** the API's own words are *"you have reached **your specified** API usage limits"* — a founder-owned console setting raisable in about a minute, not a date to wait out. The reset date was reported here and in three other documents as though it were a fact of nature; it is not, and no step of the v1 plan waits on it.
+- **THE SITE IS DEPLOYED (2026-07-26T17:10Z).** The founder created the Vercel project within minutes of `docs/V1.md` naming it as the only blocker: `sss-projects-e4775771/onelive`, root directory `web`, **zero environment variables**, **Ready on the first attempt**. Commit `ebd9bd1`, status `Vercel — Deployment has completed / success`. `docs/DEPLOY.md`'s zero-config preview path was correct as written and needed no change. Two small founder actions remain before friends can test — a Deployment-Protection bypass link (a bare preview shows a friend Vercel's login wall, not the product) and reading `/api/health`'s `eventCount`. **Correction in the same breath:** the sentence *"there is no Vercel project linked to this repo — verified, no `vercel.json`, no `.vercel/`"* is now false, and its inference was never sound — a Vercel↔GitHub link lives in Vercel's dashboard and leaves no trace in the repo. The authoritative source for a deploy question is the commit status on the head SHA.
+- **The agent cannot verify its own deployment (R-068).** `/api/health` exists so a deploy is verifiable without guessing, and the network policy denies both the `*.vercel.app` host and the Supabase host with a 403 at the proxy — verified live. Deployment success is confirmable; the site's contents are not. Recorded with the cheapest founder action first, not worked around.
+- **The loop was slower than it needed to be, and one module was most of it.** Timed 2026-07-26 on 4 cores: the 10 static gate checks total **5.8 s** combined, but the pytest suite ran **49.7 s** — and `tools/kpi_report.py` alone was ~60% of it, because `_compute_all` re-shelled a nested `pytest --collect-only` (~3.3 s) plus `trust_gate.py` (~0.7 s) on **every** call, and six tests call it. Recomputing an identical answer about an unchanged working tree, six times.
+- **The ticketed feed has no schedule** — `import_licensed.yml` is manual-only, 9 runs ever, last 2026-07-24T23:52Z.
+- **The founder's 2026-07-25 auto-publish ratification was never wired.** `worker/publish_policy.py` is imported by nothing but its own test, `worker/autopromote.py` does not exist, and safeguard 1 (outcome-driven source-reliability grading) is not live. Meanwhile `CLAUDE.md` still asserted the opposite.
+- **Bloat, quantified:** 262,761 words of prose over 12,602 lines of product code; harness code 3.0x the product; 4,697 lines off-mission; 137 rule-bearing statements in six core docs; 46 open Record rows; 36 red classes; 14 open PRs.
+- **Ten canon contradictions**, including a charter that told readers to run `python tools/validate` on a bash script, a stack list naming Celery which does not exist anywhere in the tree, three different answers about the web framework and its directory, and two documents whose stated facts were false.
+
+### Fixed
+- `import_structured.yml`: the fetch bound now pins the SCHEDULE side to a literal in both places it is read, so the unattended path's ceiling is not caller-suppliable at all.
+- `tools/kpi_report.py`: the two subprocess-backed KPIs (`trust_gate`, `pytest_count`) are memoised per process — a KPI run is ONE snapshot of ONE working tree, so the second call was always spawning the same subprocess for the same answer. `tests/test_kpi_report.py` now asserts the call count (**proven red** on the uncached form: `first is second` fails) and separately guards that a *raise* is never memoised, so one flaky subprocess can never harden into a false KPI. The tiering this implies — inner ≤10 s, pre-push ≤30 s, and the three waits that are irreducibly minutes because they are someone else's clock — is written into `docs/HOW_WE_WORK.md` §6a with every number timed rather than estimated. Rule: **slow is a defect until proven to be someone else's clock**; never widen the budget, never report queue time as run time.
+- `tests/test_scheduled_inputs_contract.py`: new mechanical gate for the whole class — scans EVERY workflow carrying `on.schedule` for a bare inputs reference, pins the two LIMIT expressions byte-identical, and refuses to pass by finding nothing. Proven RED against the old expression before being accepted as green.
+- `CLAUDE.md`: the wrong gate command corrected, the stack list corrected against what is actually built, and the "never auto-publish" clause corrected to the invariant that is actually physics — the extractor never decides, the gate decides, fabrication is never published — citing the founder's ratification.
+
+### Simplified (no mechanism weakened — stated, and the gates re-run to prove it)
+- `CLAUDE.md` 2,834 to 1,237 words, every invariant enumerated intact; the 1,100-word exception sentence-chain preserved **verbatim** at `docs/EXTRACTION_EXCEPTION.md`, where the mechanism it describes lives.
+- **`docs/BAR.md` (new, CANON):** world class defined per aspect as a NUMBER, with the gate that enforces it, whether it is ENFORCED or merely PROPOSED, and an honest MET / NOT MET / UNMEASURED status. 66 rows across trust, extraction, coverage, security, web, code, testing, reliability, cost and process.
+- **`docs/HOW_WE_WORK.md` (new, CANON):** one process document replacing the working surface of five.
+- **`docs/INDEX.md` (new, CANON):** every document classified CANON / REFERENCE / HISTORICAL, so a proposal can no longer read as a rule. The read-before-you-code surface is MEASURED at 10,068 words across 4 files (down 14% from 11,770 across 7). *(Corrected 2026-07-26 at the PR #76 review: this line originally said "9 documents, about 4,400 words" — wrong on both counts, and leaving it would have been the false-confidence class recurring inside the fix for that class.)*
+- **`docs/V1.md` (new, CANON):** what v1 is, ordered done-criteria (five at first writing, **seven** after the vision-first amendment), and the consolidated founder asks (three at first writing; the list reached Ask 0–4 the same day, and asks 0 and 4 closed).
+- Deleted `LIVE_READINESS.md` and `docs/SPRINT_LIVE_SITE.md` — both stated facts that are now false; git history keeps them; every live reference repointed in the same change.
+
+### Recorded
+- Kaizen M3 escapes table: its first entry, with root cause and the gate-gap closed. New class token `empty-context-on-cron-path` in `docs/memory/RED_CLASSES.md`.
+- `docs/RECORD.md` R-054 through R-059: the escape (OPEN until a real scheduled run is green), the unscheduled ticketed feed, the unwired auto-publish decision, the unmeasured Core Web Vitals and accessibility, the missing dev-dependency bootstrap, and the armed-versus-delivered cadence contradiction.
+- A finding about the harness itself: `construction_gate` matched **34 of 36** red classes on a change that is almost entirely documentation. An index that fires on everything cannot discriminate. Queued as a gate IMPROVEMENT in TODOS.md, with an explicit note that resolving it by weakening the gate is founder-crucial and forbidden.
+
+### Verdict
+The engineering underneath is strong — 1,664 passing tests, a real trust architecture, credential handling better than most production systems, an independent reviewer that has caught real attacks. The bottleneck is **delivery**: every remaining v1 criterion is a connect-and-verify task over code that already exists.
+
+
 
 ## 2026-07-12 — Deep review of WORLD_CLASS bar + MASTER doc; v1.1 expansion proposed
 

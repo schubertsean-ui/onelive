@@ -41,3 +41,7 @@ founder interrupt on relaxations.
 removed or made advisory, skip-path widened). Making a gate STRICTER, or
 fixing a gate bug that produced false passes, is normal evaluator-reviewed
 work — it does not interrupt the founder.
+
+---
+
+**Codified by:** `CLAUDE.md` prime directive 1 + founder-crucial list; `.github/workflows/adversarial-review.yml` (no path filter); `docs/EXTRACTION_EXCEPTION.md`.

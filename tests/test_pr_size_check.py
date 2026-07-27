@@ -39,13 +39,37 @@ def test_excludes_mirror_the_workflows_review_diff():
     assert any("package-lock.json" in e for e in ex)
 
 
-def test_over_cap_exits_nonzero_and_says_the_review_cannot_happen(monkeypatch, capsys):
+def test_over_cap_is_an_ADVISORY_finding_not_a_tool_crash(monkeypatch, capsys):
+    """Founder-ratified 2026-07-27 ("yes to both"); record
+    docs/memory/decisions/2026-07-27_pr-size-guard-advisory.md.
+
+    Over-cap must exit 3 — the exit code `tools/validate`'s `run_advisory` reads as
+    "findings, advisory" — NOT 1, which it reads as "the tool itself broke (rc=1)".
+    Returning 1 turned an accurate, deliberately-conservative size finding into a RED
+    validate run and stopped the reviewer from ever running to make the real size
+    call. The distinction is the whole point of this change: a real internal error
+    still exits non-3 (see the test below) and is still reported as a tool failure.
+    """
     monkeypatch.setattr(psc, "evaluator_cap_bytes", lambda: 800_000)
     monkeypatch.setattr(psc, "diff_bytes", lambda base: 1_260_000)
     rc = psc.main([])
-    assert rc == 1
+    assert rc == 3, (
+        "over-cap must be the advisory-findings exit (3), so validate surfaces it "
+        "loudly without going red and the reviewer still runs to make the real call")
     err = capsys.readouterr().err
     assert "OVER CAP" in err and "REFUSE" in err
+
+
+def test_a_genuine_internal_failure_is_NOT_reported_as_a_finding(monkeypatch, capsys):
+    """The other half of the distinction: exit 3 is reserved for the size finding, so
+    a real crash must not borrow it. An undeterminable measurement (shallow clone,
+    unreadable workflow) is SKIPPED at exit 0 — never 3 — so it can never be mistaken
+    for "the diff is over cap"."""
+    monkeypatch.setattr(psc, "evaluator_cap_bytes", lambda: None)
+    monkeypatch.setattr(psc, "diff_bytes", lambda base: None)
+    rc = psc.main([])
+    assert rc != 3, "an undeterminable measurement must not masquerade as a size finding"
+    assert rc == 0 and "SKIPPED" in capsys.readouterr().out
 
 
 def test_warning_band_is_advisory_exit_zero(monkeypatch, capsys):
@@ -73,3 +97,44 @@ def test_unmeasurable_skips_rather_than_failing_the_session(monkeypatch, capsys)
 
 def test_it_is_wired_into_validate():
     assert "pr_size_check" in (_ROOT / "tools" / "validate").read_text()
+
+
+def test_the_counted_preamble_equals_what_the_SHELL_actually_writes():
+    """Refutes a r5 nit with an execution instead of an argument (R-089).
+
+    The nit blamed trailing `>> pr.diff` redirection for an over-count. There is
+    none — the echoes sit in a `{ … } > pr.diff` block with ONE redirect at the
+    close, and the only `>` on any note line is a literal `>=20`. Running the real
+    echo lines through bash found a genuine gap from a DIFFERENT cause: `$HEAD_SHA`
+    interpolation. So this asserts the guard never UNDER-reports, which is the
+    property it needs, rather than equality, which no static number can reach.
+    """
+    import pathlib
+    import re
+    import subprocess
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    wf = (root / ".github" / "workflows" / "adversarial-review.yml").read_text(
+        encoding="utf-8")
+    echoes = [ln.strip() for ln in wf.splitlines() if ln.strip().startswith('echo "#')]
+    assert len(echoes) > 20, f"only {len(echoes)} note lines found — extractor is blind"
+    assert not any(re.search(r'"\s*>>?\s*\S', ln) for ln in echoes), (
+        "an echo line now carries its own redirection, so the block-level "
+        "`{ … } > pr.diff` assumption no longer holds and the counter needs updating")
+
+    proc = subprocess.run(["bash", "-c", "\n".join(echoes)],
+                          capture_output=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr.decode()
+    actual = len(proc.stdout)          # with every $VAR unset, i.e. the MINIMUM
+    counted = psc.notes_preamble_bytes()
+    # NEVER UNDER-REPORT is the property, not exact equality — several note lines
+    # interpolate `$HEAD_SHA`/`$MERGE_SHA`, so the real size varies per run and no
+    # static number can equal it. Demanding equality would be a false requirement;
+    # demanding "at least the minimum" is the property the guard needs.
+    assert counted >= actual, (
+        f"the tool counts {counted} preamble bytes but bash writes at least "
+        f"{actual} — the guard under-reports again, which is R-089 reopening")
+    # And not absurdly loose: a 3x over-estimate would make the guard cry wolf.
+    assert counted < actual * 2, (
+        f"counted {counted} vs a {actual}-byte floor — the widening is now so "
+        f"generous the guard would block reviewable PRs")

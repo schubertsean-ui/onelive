@@ -60,7 +60,53 @@ def workflow_excludes() -> list:
     return found or list(_FALLBACK_EXCLUDES)
 
 
+def notes_preamble_bytes() -> int:
+    """Bytes of the evaluator NOTES the workflow prepends to the subject diff.
+
+    `CLASS:false-confidence-gate` (R-089). This tool exists to warn before the
+    reviewer refuses, and it reported **100%, PASS** on a head the reviewer then
+    HARD-FAILED with "diff exceeds --max-diff-bytes". The reason: CI builds
+    `pr.diff` as a notes preamble PLUS the subject diff, and `--max-diff-bytes`
+    applies to the combined file — so measuring the diff alone under-reports by the
+    preamble's size, and the guard's green row is worth nothing at the boundary.
+
+    DERIVED from the workflow, never a hardcoded constant: the notes are edited
+    from time to time, and a stale number would restore the same under-report
+    quietly. Each `echo "..."` inside the pr.diff construction contributes its text
+    plus a newline.
+    """
+    try:
+        text = _WORKFLOW.read_text(encoding="utf-8")
+    except OSError:
+        return 0
+    total = 0
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith('echo "#'):
+            continue
+        body = stripped[len('echo "'):]
+        if body.endswith('"'):
+            body = body[:-1]
+        # DELIBERATE UPPER BOUND, and the bias direction is the whole point.
+        #
+        # Several note lines interpolate `$HEAD_SHA` / `$MERGE_SHA` / `$CONCLUSION`,
+        # so the preamble's exact size is NOT statically knowable — it depends on
+        # runtime values. A 40-char sha expands well past the 10-char literal
+        # `$HEAD_SHA`, so counting literals UNDER-reports, which is precisely the
+        # defect this function exists to fix (R-089). Variables are therefore costed
+        # at a sha's width. Other lines sit in conditional branches and are not always
+        # emitted, so the total over-estimates there too.
+        #
+        # Over-estimating makes the guard warn EARLIER; under-estimating makes it lie
+        # at the boundary, which is what already happened. For a guard, early is free
+        # and late is worthless.
+        widened = re.sub(r"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?", "x" * 40, body)
+        total += len(widened.encode("utf-8")) + 1
+    return total
+
+
 def diff_bytes(base: str) -> int | None:
+    """The size the REVIEWER will see: the notes preamble plus the subject diff."""
     args = ["git", "diff", f"{base}...HEAD", "--", "."]
     args += [f":(exclude){p}" for p in workflow_excludes()]
     try:
@@ -69,7 +115,7 @@ def diff_bytes(base: str) -> int | None:
         return None
     if proc.returncode != 0:
         return None
-    return len(proc.stdout)
+    return len(proc.stdout) + notes_preamble_bytes()
 
 
 def main(argv=None) -> int:
@@ -99,7 +145,19 @@ def main(argv=None) -> int:
               file=sys.stderr)
         print("  Split this branch into reviewable PRs. Splitting AFTER the fact "
               "is high-risk churn — that is why this check exists.", file=sys.stderr)
-        return 1
+        # EXIT 3 (a FINDING), not 1 (a tool crash). Founder-ratified 2026-07-27
+        # ("yes to both"); record: docs/memory/decisions/2026-07-27_pr-size-guard-
+        # advisory.md. This is an early-warning instrument, not the size gate — the
+        # REVIEWER is the real gate, and it makes the actual size call on the diff CI
+        # constructs. Returning 1 meant `run_advisory` classified an accurate,
+        # deliberately-conservative size finding as "the tool itself broke (rc=1)",
+        # which turned `validate` RED and stopped the reviewer from ever running to
+        # make that call. Exit 3 routes it as ADVISORY in a normal run (surfaced
+        # loudly, non-blocking) and as FAIL under --strict (a final gate still
+        # blocks). A genuine internal error still exits non-3 and is still reported
+        # as a tool failure — the distinction this restores. Nothing is loosened: the
+        # cap is unchanged and the reviewer's own hard limit is untouched.
+        return 3
     if pct >= args.warn_pct:
         print(f"pr_size_check: WARNING — branch diff is {kb:.0f} KB, {pct:.0f}% of "
               f"the evaluator's {capkb:.0f} KB cap.")

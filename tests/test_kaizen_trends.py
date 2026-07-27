@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from tools.kaizen_trends import (
     build_report,
     class_counts,
@@ -19,6 +21,7 @@ from tools.kaizen_trends import (
     family_groups,
     family_marker_last_row,
     m1_direction,
+    open_escapes,
     parse_pr_rows,
 )
 
@@ -107,13 +110,75 @@ def test_m1_direction_falling_is_improving():
     assert m1_direction([3]) == "insufficient data"
 
 
-def test_escape_token_is_a_hard_finding():
-    ledger = FAKE_LEDGER.replace(
+# --- M3 escape semantics, founder-ratified 2026-07-26 ("option a") -----------
+# The blocking condition is "an escape whose gate gap is still OPEN", not "any
+# escape ever recorded". The count is permanent and stays visible; a closed gap
+# stops blocking. Mirrors what family_alarm already does for repeat classes.
+
+_ESCAPE_TABLE = """
+## M3 escapes (absolute-zero goal)
+
+| Date | What escaped | Where found | Root cause | Gate-gap closed |
+|---|---|---|---|---|
+{rows}
+
+## After
+"""
+
+
+def _ledger_with_escapes(*rows: str) -> str:
+    return FAKE_LEDGER.replace(
         "\n## Other section",
-        "\n| 2026-07-06 | #5 | 1 | M3-ESCAPE prod-bad-fact ×1 | — | — | escape |\n\n## Other section",
-    )
-    _, findings = build_report(ledger)
-    assert any("M3 ESCAPES" in f for f in findings)
+        _ESCAPE_TABLE.format(rows="\n".join(rows)) + "\n## Other section")
+
+
+_OPEN_ROW = ("| 2026-07-06 | M3-ESCAPE prod-bad-fact | prod | nothing tested it "
+             "| — |")
+_CLOSED_ROW = ("| 2026-07-06 | M3-ESCAPE prod-bad-fact | prod | nothing tested it "
+               "| `tests/test_thing.py`, proven red first |")
+
+
+def test_an_escape_with_an_open_gate_gap_is_a_hard_finding():
+    _, findings = build_report(_ledger_with_escapes(_OPEN_ROW))
+    assert any("OPEN GATE GAP" in f for f in findings), findings
+
+
+def test_an_escape_whose_gap_is_closed_no_longer_blocks():
+    """The whole point of option (a): permanent history, not permanent red."""
+    report, findings = build_report(_ledger_with_escapes(_CLOSED_ROW))
+    assert not any("OPEN GATE GAP" in f for f in findings), findings
+    # ...and the escape is STILL counted and visible. Never silently forgiven.
+    assert "m3_escapes: 1" in report
+    assert "m3_escapes_open: 0" in report
+
+
+def test_a_closed_escape_does_not_excuse_a_later_open_one():
+    report, findings = build_report(_ledger_with_escapes(_CLOSED_ROW, _OPEN_ROW))
+    assert any("OPEN GATE GAP" in f for f in findings), findings
+    assert "m3_escapes: 2" in report
+    assert "m3_escapes_open: 1" in report
+
+
+def test_a_malformed_escape_row_fails_closed():
+    """A row that cannot be shown to have a closed gap must count as open."""
+    malformed = "| 2026-07-06 | M3-ESCAPE something |"
+    _, findings = build_report(_ledger_with_escapes(malformed))
+    assert any("OPEN GATE GAP" in f for f in findings), findings
+
+
+@pytest.mark.parametrize("filler", ["", "-", "—", "none", "TBD", "pending",
+                                    "not yet", "n/a"])
+def test_placeholder_text_does_not_count_as_a_closed_gap(filler):
+    row = f"| 2026-07-06 | M3-ESCAPE x | prod | cause | {filler} |"
+    _, findings = build_report(_ledger_with_escapes(row))
+    assert any("OPEN GATE GAP" in f for f in findings), (filler, findings)
+
+
+def test_the_all_time_count_can_never_be_reduced_by_closing_a_gap():
+    open_report, _ = build_report(_ledger_with_escapes(_OPEN_ROW))
+    closed_report, _ = build_report(_ledger_with_escapes(_CLOSED_ROW))
+    assert "m3_escapes: 1" in open_report
+    assert "m3_escapes: 1" in closed_report
 
 
 def test_report_contains_the_curves():
@@ -139,14 +204,22 @@ def test_cli_missing_ledger_fails_closed():
     assert "cannot read" in proc.stderr
 
 
-def test_real_ledger_parses_and_has_zero_escapes():
-    # Smoke against the live ledger: it must parse (rows exist) and record
-    # zero M3 escapes — if this fails on escapes, that is the alarm working.
+def test_real_ledger_parses_and_has_no_open_escape_gaps():
+    """Smoke against the live ledger.
+
+    Renamed from ...has_zero_escapes: under option (a) the live ledger records
+    ONE escape permanently (2026-07-26, the cron that could never run) and that
+    number must never go down. What must be zero is escapes with an OPEN gate
+    gap. If this fails, that is the alarm working — an escape was recorded
+    without a shipped mechanism.
+    """
     text = REAL_LEDGER.read_text(encoding="utf-8")
     report, findings = build_report(text)
     assert "ledger_rows:" in report
-    assert "m3_escapes: 0" in report
-    assert not any("M3 ESCAPES" in f for f in findings)
+    assert "m3_escapes_open: 0" in report
+    assert not any("OPEN GATE GAP" in f for f in findings), findings
+    # The recorded escape is still there and still counted — history is permanent.
+    assert "m3_escapes: 0 (" not in report, "the recorded escape vanished from the ledger"
 
 
 def test_short_class_tokens_are_counted():

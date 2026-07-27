@@ -60,6 +60,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import pathlib
 import re
@@ -82,6 +83,7 @@ from tools.brain_iq import LedgerError as BrainIQLedgerError  # noqa: E402
 from tools.brain_iq import load_ledger_rows as load_brain_iq_rows  # noqa: E402
 from tools.kaizen_trends import build_report as kaizen_build_report  # noqa: E402
 from tools.kaizen_trends import escapes as kaizen_escapes  # noqa: E402
+from tools.kaizen_trends import open_escapes as kaizen_open_escapes  # noqa: E402
 from tools.model_router import STAGE_MODELS, resolve_model  # noqa: E402
 
 DEFAULT_LEDGER = _REPO_ROOT / "docs" / "metrics" / "KPI_LEDGER.md"
@@ -218,10 +220,22 @@ def _read_kaizen_ledger_text() -> str:
 
 
 def _kpi_escaped_defects() -> KPIValue:
+    """All-time escapes, with OFF_TARGET keyed to the OPEN ones.
+
+    Founder-ratified 2026-07-26 ("option a"), the same change as
+    ``kaizen_trends.open_escapes``: the all-time count is permanent history and
+    stays visible in ``current`` and ``raw`` — the target remains 0, absolute —
+    but an escape whose gate gap is CLOSED no longer holds this KPI off-target
+    forever. An escape with no shipped mechanism still does, because that one
+    will happen again.
+    """
     text = _read_kaizen_ledger_text()
     n = kaizen_escapes(text)
-    status = ON_TARGET if n == 0 else OFF_TARGET
-    return KPIValue(current=f"{n} (all-time, docs/metrics/KAIZEN_LEDGER.md)",
+    unclosed = kaizen_open_escapes(text)
+    status = ON_TARGET if not unclosed else OFF_TARGET
+    detail = (f"{n} all-time, {len(unclosed)} with an OPEN gate gap"
+              if n else "0 (none recorded)")
+    return KPIValue(current=f"{detail}, docs/metrics/KAIZEN_LEDGER.md",
                     status=status, raw=float(n))
 
 
@@ -237,7 +251,15 @@ def _kpi_repeat_class_alarms() -> KPIValue:
     return KPIValue(current=current, status=status, raw=float(len(alarms)))
 
 
+@functools.lru_cache(maxsize=1)
 def _kpi_trust_gate() -> KPIValue:
+    # Cached for the life of the process: a KPI run is ONE snapshot of ONE
+    # working tree, so the second call in a process would spawn the same
+    # subprocess against the same bytes and get the same answer. Not caching
+    # cost the test suite ~4 s per test that touches _compute_all (see
+    # tests/test_kpi_report.py::test_subprocess_backed_kpis_are_computed_once).
+    # KPIComputeError raises are NOT cached by lru_cache, so a transient
+    # failure still retries — a failure is never memoised into a fact.
     try:
         proc = subprocess.run(
             [sys.executable, str(DEFAULT_TRUST_GATE)],
@@ -295,7 +317,12 @@ def _kpi_record_open_rows() -> KPIValue:
 _PYTEST_COUNT_RE = re.compile(r"(\d+)\s+tests?\s+collected")
 
 
+@functools.lru_cache(maxsize=1)
 def _kpi_pytest_count() -> KPIValue:
+    # Cached per process, same reasoning as _kpi_trust_gate. This one matters
+    # more: it is a nested `pytest --collect-only` (~3.3 s), and under pytest
+    # itself that is pytest collecting pytest — six times over, it was the
+    # single largest line item in the suite's wall clock.
     try:
         proc = subprocess.run(
             [sys.executable, "-m", "pytest", "-q", "--collect-only"],

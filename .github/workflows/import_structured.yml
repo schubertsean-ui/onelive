@@ -105,7 +105,14 @@ jobs:
           ONELIVE_DB_DSN: ${{ secrets.ONELIVE_DB_DSN }}
           # Untrusted dispatch input reaches the shell ONLY via env (never
           # ${{ }}-interpolated into run:) and must be a positive integer.
-          LIMIT: ${{ github.event.inputs.limit }}
+          # SCHEDULE-SAFE, structurally pinned exactly like ingest.yml's source
+          # ceiling: `github.event.inputs.*` is EMPTY on a schedule event, so the
+          # bare form made the `:?` guard fail closed on every scheduled run —
+          # the cron never imported once (the defect this expression fixes; see
+          # docs/V1_AUDIT_2026-07-26.md D1). The schedule side supplies its own
+          # bound and a dispatch cannot raise it, so the ceiling is not
+          # caller-suppliable on the unattended path.
+          LIMIT: ${{ github.event_name == 'schedule' && '40' || github.event.inputs.limit }}
         run: |
           : "${LIMIT:?limit input missing — the fetch bound is required — failing closed}"
           if ! [[ "$LIMIT" =~ ^[1-9][0-9]*$ ]]; then
@@ -135,7 +142,17 @@ jobs:
         env:
           ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
           ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
-          LIMIT: ${{ github.event.inputs.limit }}
+          # Same schedule-safe expression as the precondition step — the two are
+          # bound to be byte-identical by tests/test_scheduled_inputs_contract.py
+          # so they can never drift apart again.
+          LIMIT: ${{ github.event_name == 'schedule' && '40' || github.event.inputs.limit }}
+          # The Sentinel contract's OTHER half. This scheduled loop had a dead-man
+          # alarm and no error reporting (`CLASS:missing-scheduled-loop-sentry`,
+          # PR #76 r4): the alarm says the loop STOPPED, Sentry says what broke while
+          # it was still running. `worker.sentinel.init_sentry` is a documented no-op
+          # while this secret is unset, and raises loudly if it is set without the
+          # SDK — so it is safe now and cannot degrade quietly later.
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           : "${LIMIT:?limit input missing — the fetch bound is required — failing closed}"
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"

@@ -48,3 +48,7 @@ custody code was trust-path, so it carried the mandatory non-Claude
 adversarial review on every round — which is the charter's compensating
 control for trust-path code, distinct from the founder-crucial category
 above.
+
+---
+
+**Codified by:** `docs/HOW_WE_WORK.md` §8 and `CLAUDE.md`'s merge clause.

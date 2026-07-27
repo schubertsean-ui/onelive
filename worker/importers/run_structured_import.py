@@ -32,6 +32,7 @@ from collections import Counter
 
 from worker.db_config import resolve_dsn
 from worker.importers.structured_feed import import_source
+from worker.sentinel import init_sentry
 
 log = logging.getLogger("structured_import")
 
@@ -72,6 +73,11 @@ def _select(catalog: list[dict], only: set[str], limit: int | None) -> list[dict
 
 def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    # The other half of the Sentinel contract — see the same call in
+    # run_licensed_import.main for why a dead-man alarm alone does not satisfy it
+    # (`CLASS:missing-scheduled-loop-sentry`, PR #76 r4). This importer is scheduled
+    # too, so it needs Sentry for the same reason.
+    init_sentry("worker")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--catalog", default=str(DEFAULT_CATALOG),
                     help="path to the master source catalog JSON")

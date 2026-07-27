@@ -47,3 +47,7 @@ follow-through discipline; PDCA trend measurement). Canon:
    tools/validate, evaluator-reviewed in that PR.]
 3. Retrofit: the ledger's existing prose-only rows get retrieval tokens
    as they are next touched (Stage 6's definition of "committed").
+
+---
+
+**Codified by:** `tools/construction_gate.py` (red-class citation enforcement) + `docs/memory/RED_CLASSES.md` + `docs/skills/construction_loop.md`.

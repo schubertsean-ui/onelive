@@ -1,0 +1,347 @@
+name: site-health
+
+# Reads the DEPLOYED site's /api/health and prints the answer into the job log.
+#
+# Why this exists: the agent sandbox's network policy blocks both *.vercel.app
+# and the Supabase host (403 to CONNECT), so nobody working in a session can
+# answer "is the site up, and does the feed have anything in it?" without asking
+# the founder to open a browser. That made every deployment question a founder
+# interrupt. GitHub's runners have open egress, which is the SAME reason
+# import_licensed.yml runs here rather than in the sandbox — this follows that
+# established pattern, it does not invent a new one.
+#
+# Reads only. No secrets, no database write, no AI spend, no schedule — so it
+# needs no dead-man alarm (the charter requires one for scheduled loops) and
+# cannot cost anything. Run it from the Actions tab, or an agent can trigger it
+# and read the result out of the job log.
+
+on:
+  # Fires when VERCEL REPORTS A DEPLOYMENT SUCCEEDED, which is the only moment there
+  # is anything meaningful to check. The previous `pull_request` trigger fired on
+  # push and therefore RACED the build: five consecutive readings this session all
+  # tested the PREVIOUS deployment and reported a 500 that had already been fixed.
+  # An eager check that measures the wrong artefact is worse than no check, because
+  # its answers look authoritative.
+  #
+  # This also DELETES the hardcoded preview host (R-069): the event carries the URL
+  # of the deployment that just succeeded, so the check always measures the thing
+  # that just shipped, with nothing to keep in sync.
+  #
+  # SECRET CUSTODY. This job reads `secrets.VERCEL_AUTOMATION_BYPASS`, and GitHub
+  # runs the workflow file from the TRIGGERING REF — so any trigger reachable from
+  # an unreviewed branch hands the secret to YAML that branch controls. Both entry
+  # points are therefore restricted to the default branch on the job condition
+  # below. Verifying an unmerged preview still works: dispatch from the default
+  # branch and pass its URL as the `url` input.
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Base URL of the deployment to check (no trailing slash)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-health
+  cancel-in-progress: true
+
+jobs:
+  check:
+    # THE GUARD IS ON THE JOB so no trigger path can miss it. It first sat only on
+    # the `deployment_status` alternative, leaving `workflow_dispatch` able to run
+    # branch-owned YAML with the secret (`CLASS:secret-dispatch-branch-owned-yaml`,
+    # PR #80). The premise behind that half-fix was FALSE: Actions secret values are
+    # write-only in the UI at every permission level, so dispatching an edited
+    # branch is the only extraction path — a privilege boundary, not defence in
+    # depth. Compared against `github.event.repository.default_branch`, not a
+    # literal: a rename must not reopen it, and an absent field fails CLOSED.
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref_name == github.event.repository.default_branch) ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       github.ref_name == github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    steps:
+      # Required by the link-check step below, which reads tools/ and docs/ from
+      # the repo. Omitting it shipped a step that could never run — caught by CI
+      # on its first execution ("can't open file .../check_console_links.py").
+      # Same family as R-054: a step whose trigger fires but whose preconditions
+      # were never on the runner.
+      - uses: actions/checkout@v4
+
+      - name: Read /api/health and report honestly
+        env:
+          # R-054's class, stated once: `github.event.inputs.*` is EMPTY on any
+          # event other than workflow_dispatch, so each event type must supply
+          # the URL from ITS OWN context. deployment_status reads the event's
+          # environment_url; workflow_dispatch reads its input. A bare
+          # `github.event.inputs.url` here is what made import_structured.yml's
+          # cron dead on arrival — the project's first recorded escape.
+          # tests/test_scheduled_inputs_contract.py guards the schedule form of
+          # this class; this is the same discipline on the event form.
+          BASE_URL: ${{ github.event_name == 'deployment_status' && github.event.deployment_status.environment_url || github.event.inputs.url }}
+          # Defaults to the literal sentinel ABSENT rather than an empty string,
+          # so "no secret configured" is a STATED value the shell can guard and
+          # branch on. GitHub renders an unset secret and a set-but-empty secret
+          # identically, and treating that ambiguity as a value is the empty-env
+          # fail-open class this repo has already hit four times.
+          VERCEL_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS || 'ABSENT' }}
+        run: |
+          set -uo pipefail
+          : "${BASE_URL:?url input missing — the target is required — failing closed}"
+
+          # THE SECRET'S NETWORK SINK IS CONSTRAINED, not just its caller. The
+          # default-branch job guard controls WHO may start this run; it does NOT
+          # control where the secret goes, and the `url` input was arbitrary — while
+          # the custody comments claimed otherwise (`CLASS:false-confidence-gate`,
+          # r2). The host is allowlisted below and a foreign target fails closed
+          # BEFORE the secret is read into a request.
+          # --- host-allowlist:begin ---
+          # A trailing slash is stripped first, so `$BASE_URL/api/health` cannot
+          # become `...//api/health` and the match below sees one canonical form.
+          while [ "${BASE_URL%/}" != "$BASE_URL" ]; do BASE_URL="${BASE_URL%/}"; done
+
+          # THE HOST IS MATCHED, NOT THE WHOLE URL (R-081). bash's `*` matches `/`,
+          # so `https://*.vercel.app` accepted `https://attacker.io/x.vercel.app` —
+          # the path supplied the allowed suffix and the secret went to attacker.io
+          # under a passed allowlist.
+          case "$BASE_URL" in
+            https://*) ;;
+            *) echo "::error::url must start with https:// (got '$BASE_URL')"; exit 1 ;;
+          esac
+          HOST="${BASE_URL#https://}"
+          HOST="${HOST%%/*}"
+
+          # Userinfo refused outright: `https://x.vercel.app@evil.example` really
+          # resolves to evil.example, and reasoning about which side of the `@` wins
+          # is not a thing to do in front of a secret.
+          case "$HOST" in
+            *@*)
+              echo "::error::refusing a url with embedded credentials ('$BASE_URL')"
+              exit 1 ;;
+          esac
+
+          # THE PATTERNS were the remaining hole — R-082, blocked by three seats.
+          # R-081 narrowed HOW the match ran; WHAT it matched stayed wide open:
+          # `*.vercel.app` admitted the whole platform (anyone can create
+          # `attacker-project.vercel.app`), `onelive.*` admitted
+          # `onelive.attacker.com`, `*.onelive.*` admitted `x.onelive.evil` — under a
+          # comment claiming "this project's own domains".
+          #
+          # THE BINDING is a fact an attacker cannot forge, not a name that reads like
+          # ours: every Vercel host for this project sits in the founder's own team
+          # namespace, suffix `-sss-projects-e4775771.vercel.app` (docs/V1.md
+          # §Deployment). A team slug is not registrable by an outsider, so the suffix
+          # is the security property. The production alias is listed exactly.
+          #
+          # Custom-domain wildcards are DELETED, not narrowed: none is live, and the
+          # first gets an exact entry in the change that points DNS at it.
+          case "$HOST" in
+            *-sss-projects-e4775771.vercel.app) ;;
+            onelive.vercel.app) ;;
+            *)
+              echo "::error::refusing to send the Vercel bypass secret to a host"
+              echo "outside this project's own Vercel team namespace (host '$HOST'"
+              echo "from '$BASE_URL'). Allowed: *-sss-projects-e4775771.vercel.app"
+              echo "and onelive.vercel.app. The default-branch guard says who may"
+              echo "run this; this says where the secret may go. A custom domain"
+              echo "gets an EXACT entry here, never a wildcard."
+              exit 1 ;;
+          esac
+
+          # The wildcard must not span a dot: `case` anchors the string but `*` still
+          # matches `.`, so `evil.com-sss-projects-e4775771.vercel.app` would satisfy
+          # the suffix arm. Every real host here has a single label before
+          # `.vercel.app`.
+          LABEL="${HOST%.vercel.app}"
+          case "$LABEL" in
+            *.*)
+              echo "::error::refusing '$HOST': the label before .vercel.app contains"
+              echo "a dot ('$LABEL'), so this is not a single Vercel deployment host."
+              exit 1 ;;
+          esac
+          # --- host-allowlist:end ---
+
+          # If the founder has created a Vercel "Protection Bypass for
+          # Automation" secret, use it — that is the ONE action that makes every
+          # future deployment agent-verifiable instead of founder-verifiable.
+          # Absent, the request goes bare and the verdict says so; a missing
+          # secret must never look like a passing check.
+          : "${VERCEL_BYPASS:?VERCEL_BYPASS resolved empty — it must be the secret or the literal ABSENT, never blank — failing closed}"
+          # Assigned unconditionally before any branch: a variable that only
+          # exists down one code path is the same ambiguity in miniature.
+          BYPASS_STATE="ABSENT — no VERCEL_AUTOMATION_BYPASS secret; request sent bare"
+          HDR=()
+          if [ "$VERCEL_BYPASS" != "ABSENT" ]; then
+            HDR=(-H "x-vercel-protection-bypass: ${VERCEL_BYPASS}")
+            BYPASS_STATE="present"
+          fi
+          echo "protection_bypass_secret: $BYPASS_STATE"
+
+          echo "=== GET $BASE_URL/api/health ==="
+          # `--max-redirs 0` is belt-and-braces here (no `-L`, and curl does not
+          # follow redirects unasked) but pinned so the invariant is UNIFORM: "every
+          # secret-bearing request pins redirects to zero" is checkable by
+          # construction, where "some pin it, some rely on a default" needs a human to
+          # re-derive. The contract test found this line itself.
+          CODE="$(curl -sS --max-redirs 0 -m 30 -o /tmp/health.body -w '%{http_code}' \
+                    "${HDR[@]}" "$BASE_URL/api/health" || echo "000")"
+          echo "http_status: $CODE"
+          echo "--- body (first 2000 bytes) ---"
+          head -c 2000 /tmp/health.body || true
+          echo
+          echo "--- end body ---"
+
+          # The three states worth distinguishing, because "we failed" must never
+          # look identical to "there was nothing to do" (CLAUDE.md).
+          case "$CODE" in
+            200)
+              # Deliberately NOT "a friend can open it" yet — that claim needs the
+              # product surface and the friend-link form, both checked further down.
+              # Claiming it here from /api/health alone is what the PR #80 reviewer
+              # blocked, and the wording was the tell.
+              echo "VERDICT: /api/health is reachable and PUBLIC. The product surface"
+              echo "  and the friend-shareable link form are verified below — this"
+              echo "  line alone is NOT evidence a friend can see the product."
+              ;;
+            302|307|401|403)
+              echo "VERDICT: reachable but GATED — the host answered, and refused."
+              echo "  A FRIEND CLICKING THIS LINK CANNOT SEE THE PRODUCT."
+              echo "  302/307 with a 'Redirecting...' body is Vercel Deployment"
+              echo "  Protection bouncing to its SSO login. 401/403 with JSON is the"
+              echo "  app's own fail-closed gate instead. The body above says which."
+              # Full URLs, never a click-path (CLAUDE.md prime directive 6 part 3).
+              # Source of truth for these links: docs/DEPLOY.md "The console links".
+              echo "  TO FIX — pick one:"
+              echo "  (1) LETS FRIENDS IN, ~30s. Set Vercel Authentication to Disabled at"
+              echo "      https://vercel.com/sss-projects-e4775771/onelive/settings/deployment-protection"
+              echo "  (2) AGENT VERIFICATION ONLY, ~90s. On that same page use"
+              echo "      'Protection Bypass for Automation' -> Add Secret, then add the value as"
+              echo "      the repository secret VERCEL_AUTOMATION_BYPASS at"
+              echo "      https://github.com/schubertsean-ui/onelive/settings/secrets/actions/new"
+              exit 1
+              ;;
+            000)
+              echo "VERDICT: UNREACHABLE — no HTTP response at all (DNS, TLS or timeout)."
+              exit 1
+              ;;
+            *)
+              echo "VERDICT: unexpected status $CODE — reported, not interpreted."
+              exit 1
+              ;;
+          esac
+
+          # THE PRODUCT SURFACE, not just the diagnostic endpoint. This used to
+          # read `/api/health` and then print "a friend with this link can open it"
+          # — a claim about `/tonight` from evidence about a diagnostic endpoint,
+          # which can be healthy while the feed page is blank or auth-walled
+          # (`CLASS:missing-product-surface-verification`, PR #80).
+          #
+          # NO LONGER FOLLOWS REDIRECTS — a secret-custody fix, not a tidy-up (R-083,
+          # two seats). It was `curl -sSL` to walk `/` -> `/tonight`, but `${HDR[@]}`
+          # carries the bypass secret and curl re-sends custom headers to the redirect
+          # TARGET: the allowlist governed only the first host while the `-L` two lines
+          # below undid it. The redirect is removed rather than policed — `/tonight` is
+          # requested directly, and `--max-redirs 0` makes an unexpected bounce a LOUD
+          # FAILURE instead of a second request to an unverified host.
+          echo "=== GET $BASE_URL/tonight (the product surface a friend lands on) ==="
+          FEED_CODE="$(curl -sS --max-redirs 0 -m 45 -o /tmp/feed.html -w '%{http_code}' \
+                        "${HDR[@]}" "$BASE_URL/tonight" || echo "000")"
+          echo "feed_http_status: $FEED_CODE"
+          FEED_BYTES="$(wc -c < /tmp/feed.html | tr -d ' ')"
+          echo "feed_bytes: $FEED_BYTES"
+          if [ "$FEED_CODE" != "200" ]; then
+            echo "::error::/api/health is healthy but the FEED PAGE returned $FEED_CODE."
+            echo "A friend clicking the link would not see the product. The diagnostic"
+            echo "endpoint being green is not evidence about the page."
+            exit 1
+          fi
+          # A 200 that renders nothing is the failure this catches. The masthead is
+          # server-rendered in EVERY branch of tonight/page.tsx (including the
+          # empty-feed and error ones), so this asserts "the page rendered", never
+          # "the page had data".
+          if ! grep -q "ONE LIVE" /tmp/feed.html; then
+            echo "::error::the feed page returned 200 but did not render its own"
+            echo "masthead — a blank or error shell, not the product."
+            head -c 400 /tmp/feed.html
+            exit 1
+          fi
+          echo "feed_surface: RENDERED (masthead present)"
+
+          # THE LINK A FRIEND IS ACTUALLY GIVEN. Everything above used the bypass
+          # HEADER; the docs hand friends a QUERY-PARAMETER link, which is a
+          # different code path on Vercel's side
+          # (`CLASS:missing-friend-bypass-path-check`, PR #80). This verifies the
+          # exact published string with NO header — the friend's real conditions.
+          # Declared before the branch, like BYPASS_STATE above: a variable that
+          # only exists down one code path is the empty-env ambiguity in miniature,
+          # and tools/workflow_env_lint.py reads physical lines so an assignment
+          # inside an `if` credits nothing after it (R-073).
+          LINK_CODE="not-checked"
+          if [ "$VERCEL_BYPASS" != "ABSENT" ]; then
+            echo "=== GET the friend-shareable LINK form (no header, query param only) ==="
+            # Same reason as the header request (R-083): this URL CARRIES THE SECRET
+            # and `-L` let curl walk to a host the allowlist never saw. The published
+            # link in docs/V1.md moved to `/tonight` in this change so verified form ==
+            # handed-out form (test-enforced), and a fan gets one hop fewer.
+            LINK_CODE="$(curl -sS --max-redirs 0 -m 45 -o /tmp/link.html -w '%{http_code}' \
+              "$BASE_URL/tonight?x-vercel-protection-bypass=${VERCEL_BYPASS}&x-vercel-set-bypass-cookie=true" \
+              || echo "000")"
+            echo "friend_link_http_status: $LINK_CODE"
+            if [ "$LINK_CODE" != "200" ] || ! grep -q "ONE LIVE" /tmp/link.html; then
+              echo "::error::the bypass HEADER works but the friend-shareable LINK does"
+              echo "not (status $LINK_CODE). The link in docs/V1.md is what gets sent to"
+              echo "people, so it is the thing that has to be proven."
+              head -c 400 /tmp/link.html
+              exit 1
+            fi
+            echo "friend_link: WORKS — this exact URL form opens the product"
+          else
+            echo "friend_link: NOT CHECKED — no bypass secret, so there is no link form to verify"
+          fi
+
+          # Only reached on 200. eventCount is the go/no-go for a real test:
+          # a live site showing zero events is a worse first impression than no
+          # site at all, so this reports it loudly rather than passing quietly.
+          COUNT="$(python3 -c "import json,sys;d=json.load(open('/tmp/health.body'));print(d.get('supabase',{}).get('eventCount','UNKNOWN'))" 2>/dev/null || echo "UNPARSEABLE")"
+          echo "event_count: $COUNT"
+          # Reviewer nit (openai / absence-only, PR #76), accepted: this workflow is
+          # advertised as the go/no-go verifier, so an empty feed must FAIL rather
+          # than warn-and-pass. A live site showing zero events is a worse first
+          # impression than no site at all, and a green check over an empty feed is
+          # the same "we failed looks like nothing to do" pattern this repo bans.
+          case "$COUNT" in
+            0)
+              echo "::error::The site is up and the feed is EMPTY (event_count: 0)."
+              echo "Do NOT send the link to anyone yet — run import-licensed first:"
+              echo "  https://github.com/schubertsean-ui/onelive/actions/workflows/import_licensed.yml"
+              exit 1
+              ;;
+            UNKNOWN|UNPARSEABLE)
+              echo "::error::/api/health answered but event_count was $COUNT — the"
+              echo "endpoint's shape changed, or the body was not JSON. Refusing to"
+              echo "report a go/no-go verdict from a number we could not read."
+              exit 1
+              ;;
+            *[!0-9]*|"")
+              # ANY value that is not a plain non-negative integer fails CLOSED.
+              # Without this arm the case fell through silently, so `-5`, `banana`,
+              # `null` or a JSON fragment exited 0 and reported a PASSING go/no-go
+              # check (`CLASS:fail-open-on-uncaught-invalid-input`, PR #76). A
+              # verifier that cannot read its own number must never pass.
+              echo "::error::event_count is not a number ($COUNT) — the endpoint's"
+              echo "contract changed. Refusing to report a go/no-go verdict from a"
+              echo "value this check cannot interpret."
+              exit 1
+              ;;
+          esac
+
+      # Separate step so it runs even when the site check above fails: a broken
+      # link in the founder's instructions is its own defect, independent of
+      # whether the deployment is healthy.
+      - name: Check the founder-facing console links resolve
+        if: always()
+        run: python3 tools/check_console_links.py

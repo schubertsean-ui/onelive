@@ -7,6 +7,18 @@ name: import-licensed
 # policy blocks it). Triggered manually via workflow_dispatch.
 
 on:
+  # Founder-directed 2026-07-26 ("do 2", answering docs/V1.md ask 1): the bulk of
+  # the feed now refreshes itself. 02:23 and 14:23 UTC — 12 h apart, deliberately
+  # offset from import_structured.yml's 08:17/20:17 so the two importers never
+  # contend for the same database connection window.
+  #
+  # ITS DEAD-MAN ALARM IS .github/workflows/watchdog.yml, not a healthchecks.io
+  # ping — accepted by the founder-amended Sentinel clause in CLAUDE.md and
+  # recorded at docs/memory/decisions/2026-07-26_github-native-watchdog.md. This
+  # workflow is in the watchdog's WATCHED table, so a silent stop is caught.
+  # The charter's "no scheduled loop ships without both" is satisfied, not waived.
+  schedule:
+    - cron: "23 2,14 * * *"
   workflow_dispatch:
     inputs:
       max_pages:
@@ -39,6 +51,7 @@ jobs:
           ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
           ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
           MAX_PAGES: ${{ github.event.inputs.max_pages || '8' }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           : "${TICKETMASTER_API_KEY:?TICKETMASTER_API_KEY secret missing — add it in repo Settings → Secrets → Actions}"
           : "${MAX_PAGES:?max_pages missing — the fetch bound is required}"

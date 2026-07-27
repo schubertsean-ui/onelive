@@ -56,3 +56,7 @@ are unchanged. No downstream gate relaxed — v2 ADDS lenses and a metric.
 ## This PR's custody note
 This PR is judged by v1 (the base copy), correct by design; v2 activates
 on PRs that land AFTER it merges.
+
+---
+
+**Codified by:** `tools/adversarial_review.py` (panel, forced lenses, two seats, any-lens-red blocks) + `.github/workflows/adversarial-review.yml` + `docs/skills/adversarial_review_v2.md`.

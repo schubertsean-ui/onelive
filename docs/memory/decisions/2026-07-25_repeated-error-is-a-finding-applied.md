@@ -58,3 +58,7 @@ routinized several, which is the defect the rule names.
   fix (gate-custody, founder-crucial), stop routinizing.
 - **Direction template + checklist gate** — operationalize (prevents classes 1-3).
 - **Kaizen ledger** — rows for classes 1-3 (routinized-recurring-error family).
+
+---
+
+**Codified by:** Applied instance of the rule above; carried by the same mechanism, `tools/kaizen_trends.py::family_alarm`.

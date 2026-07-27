@@ -30,3 +30,7 @@ PR #18 escalated it rather than self-resolving. This record closes that escalati
   unchanged). It is a wider window, not a softer gate.
 - Any *further* increase is a new founder-crucial decision.
 - Cited at the cap in `.github/workflows/adversarial-review.yml`.
+
+---
+
+**Codified by:** Superseded in effect by the same mechanism as the 2026-07-16 record: `tools/adversarial_review.py` + `tools/pr_size_check.py`.

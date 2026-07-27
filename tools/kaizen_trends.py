@@ -244,7 +244,64 @@ def gate_counts(rows: list[dict]) -> dict[str, int]:
 
 
 def escapes(ledger_text: str) -> int:
+    """Total escapes ever recorded. NEVER decreases — history is permanent."""
     return ledger_text.count("M3-ESCAPE")
+
+
+# A "Gate-gap closed" cell that names nothing. Anything else is treated as a
+# shipped mechanism, because the reviewer reads the cell and a machine cannot
+# judge whether a named test is adequate — only whether one was named at all.
+_EMPTY_CELL = frozenset({"", "-", "—", "–", "none", "n/a", "na", "tbd", "todo",
+                         "pending", "not yet", "nothing"})
+
+
+def _escape_table(ledger_text: str) -> list[str]:
+    """The data rows of the '## M3 escapes' table, in order."""
+    start = ledger_text.find("## M3 escapes")
+    if start == -1:
+        return []
+    rest = ledger_text[start:]
+    end = re.search(r"^## ", rest[3:], re.MULTILINE)
+    section = rest[:end.start() + 3] if end else rest
+    rows = []
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|") or "M3-ESCAPE" not in stripped:
+            continue
+        rows.append(stripped)
+    return rows
+
+
+def open_escapes(ledger_text: str) -> list[str]:
+    """Escapes whose 'Gate-gap closed' column names NO shipped mechanism.
+
+    **Founder-ratified 2026-07-26 ("option a").** An escape is permanent history,
+    so a gate keyed to the raw count is red forever — and a permanently red gate
+    is not a strict gate, it is an ignored one, and it creates a standing
+    incentive not to record escapes at all. That would destroy the measure the
+    alarm exists to protect.
+
+    So the blocking condition moves from "any escape ever recorded" to "any
+    escape whose gap is still open." **The M3 target is untouched — still 0,
+    absolute — and the count still prints on every run.** This is exactly the
+    semantics ``family_alarm`` already applies to the repeat-class alarm (a fix
+    marker is credit for catches at-or-before its row, and a recurrence after it
+    alarms immediately), ratified by the independent evaluator at r6 of an
+    earlier PR. The M3 counter was the one meter in this file that never got it.
+
+    Returns the offending row texts so the report can name them, not a count.
+    """
+    unclosed = []
+    for row in _escape_table(ledger_text):
+        cells = [c.strip() for c in row.strip("|").split("|")]
+        # Columns: Date | What escaped | Where found | Root cause | Gate-gap closed
+        if len(cells) < 5:
+            # A malformed row cannot be shown to have a closed gap — fail closed.
+            unclosed.append(row)
+            continue
+        if cells[-1].lower() in _EMPTY_CELL:
+            unclosed.append(row)
+    return unclosed
 
 
 def build_report(ledger_text: str) -> tuple[str, list[str]]:
@@ -256,8 +313,16 @@ def build_report(ledger_text: str) -> tuple[str, list[str]]:
     findings: list[str] = []
 
     n_escapes = escapes(ledger_text)
-    if n_escapes:
-        findings.append(f"M3 ESCAPES RECORDED: {n_escapes} — the absolute goal is 0")
+    unclosed = open_escapes(ledger_text)
+    if unclosed:
+        # Founder-ratified 2026-07-26 (option a): an OPEN escape blocks. A closed
+        # one stays counted and visible but no longer reds the gate forever.
+        findings.append(
+            f"M3 ESCAPE WITH AN OPEN GATE GAP: {len(unclosed)} of {n_escapes} "
+            f"recorded escape(s) name no shipped mechanism in their 'Gate-gap "
+            f"closed' column — the absolute goal is 0 escapes, and an escape with "
+            f"no mechanism WILL happen again. Ship the gate, then name it in that "
+            f"column. First offender: {unclosed[0][:140]}")
 
     counts = class_counts(rows)
     families = family_groups(list(counts))
@@ -288,7 +353,11 @@ def build_report(ledger_text: str) -> tuple[str, list[str]]:
         f"generated_at: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}",
         f"git_head: {head}",
         f"ledger_rows: {len(rows)}",
-        f"m3_escapes: {n_escapes} (goal: 0, absolute)",
+        # BOTH numbers, always. The all-time count is permanent history and must
+        # never be able to go down; the open count is what blocks. Printing only
+        # one of them is how this measure would quietly lose its meaning.
+        f"m3_escapes: {n_escapes} (all-time, goal: 0, absolute — never decreases)",
+        f"m3_escapes_open: {len(unclosed)} (gate gap not yet closed — this is what blocks)",
         f"m1_rounds_to_green: {series} -> {direction}",
         f"founder_red_catches: {founder_catches} (must trend to 0 — each one means every automated layer missed it)",
         f"m4_gate_gap_rows: {m4_rows} (compounding fixes; steady > 0 is healthy)",

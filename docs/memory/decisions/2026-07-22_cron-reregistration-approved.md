@@ -68,3 +68,7 @@ unchanged) and the truthful conditional packet preamble. R-022 →
 RESOLVED same day. Gate-custody review requirement is satisfied by this
 PR's own mandatory adversarial review — the same channel that demanded
 the changes.
+
+---
+
+**Codified by:** `.github/workflows/ingest.yml` (armed cron) + `tests/test_arming_smoke_binding.py`, which binds the arming evidence to the run.
