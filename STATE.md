@@ -50,6 +50,45 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #30 (2026-07-27, R-057 — the structured-import cron that has never run + the source-class dead-end guard)
+
+GOAL: two go-live ingestion fixes, split out of PR #73 at founder direction ("R-057 separate") so the go-live fix is not blocked by that PR's governance review. (1) `import_structured.yml`: the twice-daily structured import fails closed on EVERY scheduled run because `github.event.inputs.limit` is empty on a schedule event, so the required-LIMIT guard aborts — the cron has therefore never once executed (R-057). Key LIMIT on `event_name` exactly as ingest.yml does for MAX_SOURCES. (2) `import_sources.py`: a source with no/unknown `category` used to be written as the string "unknown", which is not a gate anchor and never self-corroborates, so its events were held forever on "Insufficient corroboration" — a silent permanent dead end. Now it FAILS LOUD at import.
+
+SCOPE (derived: `git diff --name-only origin/master HEAD`): `.github/workflows/import_structured.yml`, `tools/import_sources.py`, `tests/test_import_structured_workflow_contract.py`, `tests/test_import_sources_class_guard.py`, plus this contract and the append-only records. NON-GOALS: no AI path, no promote-gate threshold, no schema change.
+
+DONE-CRITERIA: `bash tools/validate` green (bar documented skips) · construction_gate PASS · adversarial-review APPROVE.
+
+STAGE 3 (blocking retrieval — matched against THIS diff; "not applicable, and why" is an answer):
+[S3:fail-open-on-custody-misconfig] This change is the OPPOSITE of fail-open: `import_sources` now raises SystemExit on a missing or unrecognised source class rather than defaulting to "unknown" (which promoted nothing and looked like no defect), and the workflow's `${LIMIT:?…}` guard still fails closed on an empty bound. Both refuse rather than silently proceed.
+[S3:final-gate-trusts-generator] `source_class` is evidence strength the promote gate reads; this TIGHTENS custody — the importer refuses to write a class it cannot justify and DELIBERATELY does not infer `venue_calendar` from a name, so it cannot manufacture anchor evidence that lets an unverified single source promote. `test_every_gate_anchor_class_is_a_known_class` binds the two vocabularies so they cannot drift.
+[S3:untested-gate-branch] Every decision branch is tested: the workflow test asserts each LIMIT binding keys on `github.event_name` and supplies a literal (never inline `inputs`), and that the scheduled bound equals the dispatch default; the guard test asserts missing→fail-loud, unrecognised→fail-loud, known→pass, never-infer-from-name, and the live catalog passes the guard it will be imported through.
+[S3:pagination-integrity-gap] No gate-depended paged walk. LIMIT is a documented FETCH bound (not a spend ceiling — the structured import makes no AI call); it caps how many sources one run attempts, and rotation (least-recently-attempted) covers the rest across runs — no list is silently truncated as evidence.
+[S3:workflow-tool-version-skew] No tool version or pin changes; the fix is a `${{ }}` expression change in the same workflow, keyed on event_name — the same shape ingest.yml already uses, so the two workflows do not skew.
+[S3:self-weakenable-review-model] No review input touched; the evaluator/seat bindings are base-owned and unchanged by this diff.
+[S3:self-weakenable-gate] No gate data, threshold or index is modified; construction_gate/trust_gate thresholds are untouched.
+[S3:false-confidence-gate] No gate is added or relaxed. The workflow guard still fails closed on a non-integer or empty LIMIT; this diff only makes the scheduled path reach that guard with a valid bound.
+[S3:release-path-weaker-than-generation] No promote/release path is weakened; the only trust-touching change strengthens the class custody the gate depends on.
+[S3:missing-cardinality-check] No single-row unique-key read is introduced; the importer processes a catalog list and the guard operates per-source.
+[S3:semantic-claim-not-rederived] No duplicated claim logic; the LIMIT default (40) is the dispatch input's own declared default, referenced not re-typed as a second source of truth.
+[S3:contract-scope-violation] Scope is the derived file list above; this contract is the split's amendment isolating R-057 from PR #73, per KAIZEN #72 r5.
+[S3:stale-base-widens-range] Branch cut fresh from origin/master (construction_gate confirms base == remote tip bef113c); no stale base widening the range.
+[S3:stale-redclass-count] No typed count or file list of this diff appears here; scope and matched classes are derived by command.
+[S3:stalled-state-needs-active-diagnosis] R-057 was DIAGNOSED, not waited out: re-run attempt 2 of run 30197873213 isolated the "Preconditions + validate the fetch bound" step as the sole failure, which is the empty-LIMIT abort this fixes.
+[S3:pushed-on-red] validate runs before the push and its exit code is read; only the documented visual_regression SKIP (R-002) and commit_sweep ADVISORY are non-PASS.
+[S3:weak-key-accepted-at-custody] No key, credential or auth surface is introduced; the structured import is public HTTP GET with no API key.
+[S3:env-dependent-hermetic-test] Both new tests are hermetic — one parses the workflow YAML, one calls `_require_source_class` on in-memory dicts; no network, no Supabase, no wall-clock.
+[S3:caller-suppliable-custody-inputs] No custody input is introduced; no PR-suppliable value enters a trust decision on this path.
+[S3:deferred-trust-work] Nothing trust-bearing is deferred — both the cron fix and the dead-end guard ship here, in the PR that owns them.
+[S3:governance-ambiguity] Both fixes' behaviour is pinned by the four tests, not left to review-time judgement.
+[S3:malformed-ledger-row] Any Kaizen row for this PR is appended at the table end in chronological order in the parseable `#<pr> (in flight: r<n> …)` shape; none is added before the first review round because there is nothing yet to record, and kaizen_trends parses the ledger CLEAN as it stands.
+[S3:missing-record-read-as-state] R-057's status is read from docs/RECORD.md, not restated; this contract cites the run that diagnosed it rather than asserting a state.
+[S3:mutable-model-alias] No model id, alias or pin appears in this diff; the structured import makes no model call.
+[S3:nonfinite-numeric-accepted] LIMIT is validated by the workflow as a positive integer via regex before use; no non-finite value is admitted.
+[S3:retyped-evidence] The single id (run 30197873213) is the diagnosing run, cited not recalled; no measurement is retyped into these records.
+[S3:status-narration-not-progress] This IS product movement — a scheduled importer that could never once run now can — and it is visible in the workflow diff, not narrated.
+[S3:unusable-credential-tier] No credential tier is involved; the structured import is public HTTP GET with no key.
+[S3:volatile-safety-store] No state is stored by either change; one is a YAML expression, the other an import-time guard, both stateless.
+
 ## Session Contract #29 (2026-07-26, close-out for PR #87 — records only, no behaviour)
 
 GOAL: write the merge of PR #87 to disk where it is retrievable — changelog entry marked MERGED with the round history, Contract #28 marked CLOSED, and the closing Kaizen row. The merge itself is silent per the founder's 2026-07-25 directive; this block IS its notification.

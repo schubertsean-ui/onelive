@@ -105,7 +105,17 @@ jobs:
           ONELIVE_DB_DSN: ${{ secrets.ONELIVE_DB_DSN }}
           # Untrusted dispatch input reaches the shell ONLY via env (never
           # ${{ }}-interpolated into run:) and must be a positive integer.
-          LIMIT: ${{ github.event.inputs.limit }}
+          # A SCHEDULE event carries no `inputs`, so reading inputs.limit
+          # directly left LIMIT empty and the required-input guard below
+          # failed closed on EVERY scheduled run — the twice-daily import
+          # had therefore never once executed (proven by re-run
+          # attempt 2 of run 30197873213, where the "Preconditions +
+          # validate the fetch bound" step is the sole failure). Keyed on
+          # event_name exactly as ingest.yml does for MAX_SOURCES. 40 is
+          # the dispatch input's own declared default, so scheduled and
+          # manual runs share one bound; this is a FETCH bound, not a
+          # spend ceiling — the structured import makes no AI call.
+          LIMIT: ${{ github.event_name == 'schedule' && '40' || github.event.inputs.limit }}
         run: |
           : "${LIMIT:?limit input missing — the fetch bound is required — failing closed}"
           if ! [[ "$LIMIT" =~ ^[1-9][0-9]*$ ]]; then
@@ -135,7 +145,17 @@ jobs:
         env:
           ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
           ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
-          LIMIT: ${{ github.event.inputs.limit }}
+          # A SCHEDULE event carries no `inputs`, so reading inputs.limit
+          # directly left LIMIT empty and the required-input guard below
+          # failed closed on EVERY scheduled run — the twice-daily import
+          # had therefore never once executed (proven by re-run
+          # attempt 2 of run 30197873213, where the "Preconditions +
+          # validate the fetch bound" step is the sole failure). Keyed on
+          # event_name exactly as ingest.yml does for MAX_SOURCES. 40 is
+          # the dispatch input's own declared default, so scheduled and
+          # manual runs share one bound; this is a FETCH bound, not a
+          # spend ceiling — the structured import makes no AI call.
+          LIMIT: ${{ github.event_name == 'schedule' && '40' || github.event.inputs.limit }}
         run: |
           : "${LIMIT:?limit input missing — the fetch bound is required — failing closed}"
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
