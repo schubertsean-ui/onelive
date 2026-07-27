@@ -161,3 +161,10 @@
   padding: 16px; color: var(--glow); margin: 20px 0;
 }
 .flow footer { color: var(--dim); font-size: 11.5px; border-top: 1px solid var(--line); margin-top: 28px; padding: 18px 0; line-height: 1.6; }
+
+/* Card titles are links to the event's own page (Contract #28). The rule lives
+   HERE, in the stylesheet the FEED imports — it was briefly in the detail
+   page's CSS, which the feed never loads, so feed links would have rendered
+   with default link styling (PR #87 r2, openai + gemini nit). */
+.tilink { color: inherit; text-decoration: none; }
+.tilink:hover, .tilink:focus-visible { text-decoration: underline; }

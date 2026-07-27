@@ -3,6 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { domainHue, domainLabel, timeBand } from "../../../lib/domains";
 import { trustDisplay } from "../../../lib/trust";
+import {
+  detailMapUrl as mapUrl,
+  detailPrice as fmtPrice,
+  detailProviderLabel,
+  detailTrustKind,
+  eventHref,
+  httpOrNull as httpUrl,
+} from "../../../lib/detail";
+import Link from "next/link";
 import type { LicensedEvent } from "../../../lib/licensed";
 import {
   DESIRES,
@@ -31,22 +40,6 @@ function fmtTime(iso: string | null): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" });
 }
-function fmtPrice(e: LicensedEvent): { text: string; free: boolean; known: boolean } {
-  if (e.is_free || e.price_min === 0) return { text: "Free", free: true, known: true };
-  if (e.price_min != null && e.price_max != null && e.price_max !== e.price_min)
-    return { text: `$${Math.round(e.price_min)}–$${Math.round(e.price_max)}`, free: false, known: true };
-  if (e.price_min != null) return { text: `$${Math.round(e.price_min)}+`, free: false, known: true };
-  return { text: "See tickets", free: false, known: false };
-}
-function httpUrl(u: string | null): string | null {
-  if (!u) return null;
-  try { const p = new URL(u).protocol; return p === "http:" || p === "https:" ? u : null; } catch { return null; }
-}
-function mapUrl(e: LicensedEvent): string | null {
-  if (e.venue_lat != null && e.venue_lng != null) return `https://maps.apple.com/?q=${e.venue_lat},${e.venue_lng}`;
-  const q = [e.venue_name, e.venue_address, e.venue_city].filter(Boolean).join(", ");
-  return q ? `https://maps.apple.com/?q=${encodeURIComponent(q)}` : null;
-}
 function focusLine(e: LicensedEvent): string {
   const parts = [domainLabel(e.category), e.subsegment].filter(Boolean) as string[];
   return parts.filter((v, i) => parts.indexOf(v) === i).join(" · ");
@@ -59,16 +52,10 @@ function headline(e: LicensedEvent): string {
 // authoritative ticketing source (Ticketmaster/SeatGeek/Eventbrite); a
 // "promoted" row was gated and published from a venue/organizer listing — so it
 // gets the honest "listing" wording, never "ticketing source".
-const _PROVIDER_LABEL: Record<string, string> = {
-  ticketmaster: "Ticketmaster",
-  seatgeek: "SeatGeek",
-  eventbrite: "Eventbrite",
-  promoted: "a local venue or organizer listing",
-};
+// Provider wording and trust KIND now live in lib/detail.ts, so the card and
+// the detail page cannot drift into different claims about the same row.
 function trustFor(e: LicensedEvent) {
-  const label = _PROVIDER_LABEL[e.source_provider] ?? e.source_provider;
-  const kind = e.source_provider === "promoted" ? "listing" : "ticketing";
-  return trustDisplay(e.confidence, label, kind);
+  return trustDisplay(e.confidence, detailProviderLabel(e), detailTrustKind(e));
 }
 
 function TrustMark({ e }: { e: LicensedEvent }) {
@@ -94,7 +81,7 @@ function RichCard({ e, onNow }: { e: LicensedEvent; onNow: boolean }) {
           {onNow ? <span className="onnow">on now</span> : null}
           <TrustMark e={e} />
         </span>
-        <span className="ti">{headline(e)}</span>
+        <Link className="ti tilink" href={eventHref(e)}>{headline(e)}</Link>
         {secondaryTitle ? <span className="subti">{secondaryTitle}</span> : null}
         <span className="focus">{focusLine(e)}</span>
         <span className="ven">
@@ -121,7 +108,7 @@ function CondensedRow({ e, onNow }: { e: LicensedEvent; onNow: boolean }) {
     <div className="row">
       <span className="when">{fmtWhen(e.start_time)}{onNow ? <span className="onnow">on now</span> : null}</span>
       <span className="bd2">
-        <span className="ti">{headline(e)}<TrustMark e={e} /></span><br />
+        <span className="ti"><Link className="tilink" href={eventHref(e)}>{headline(e)}</Link><TrustMark e={e} /></span><br />
         <span className="mt">{focusLine(e)} · {e.venue_name}{e.venue_area ? ` · ${e.venue_area}` : ""}</span>
       </span>
       <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
@@ -294,7 +281,7 @@ function AskPanel({ base, nowMs, desire, setDesire, isOnNow }: {
               <div key={e.licensed_event_id} className="row">
                 <span className="when">{fmtWhen(e.start_time)}{isOnNow(e) ? <span className="onnow">on now</span> : null}</span>
                 <span className="bd2">
-                  <span className="ti">{headline(e)}<TrustMark e={e} /></span><br />
+                  <span className="ti"><Link className="tilink" href={eventHref(e)}>{headline(e)}</Link><TrustMark e={e} /></span><br />
                   <span className="mt">{e.venue_name}{e.venue_area ? ` · ${e.venue_area}` : ""}</span><br />
                   <span className="why">why: {d.why(e)}</span>
                 </span>
@@ -333,7 +320,7 @@ function PlanPanel({ base, nowMs, plan, setPlan }: {
                 <div className="row">
                   <span className="when">{fmtTime(s.event.start_time)}</span>
                   <span className="bd2">
-                    <span className="ti">{headline(s.event)}</span><br />
+                    <span className="ti"><Link className="tilink" href={eventHref(s.event)}>{headline(s.event)}</Link></span><br />
                     <span className="mt">{s.event.venue_name}{s.event.venue_area ? ` · ${s.event.venue_area}` : ""}</span><br />
                     <span className="why">why: {s.why}</span>
                   </span>
