@@ -60,7 +60,39 @@ def workflow_excludes() -> list:
     return found or list(_FALLBACK_EXCLUDES)
 
 
+def notes_preamble_bytes() -> int:
+    """Bytes of the evaluator NOTES the workflow prepends to the subject diff.
+
+    `CLASS:false-confidence-gate` (R-089). This tool exists to warn before the
+    reviewer refuses, and it reported **100%, PASS** on a head the reviewer then
+    HARD-FAILED with "diff exceeds --max-diff-bytes". The reason: CI builds
+    `pr.diff` as a notes preamble PLUS the subject diff, and `--max-diff-bytes`
+    applies to the combined file — so measuring the diff alone under-reports by the
+    preamble's size, and the guard's green row is worth nothing at the boundary.
+
+    DERIVED from the workflow, never a hardcoded constant: the notes are edited
+    from time to time, and a stale number would restore the same under-report
+    quietly. Each `echo "..."` inside the pr.diff construction contributes its text
+    plus a newline.
+    """
+    try:
+        text = _WORKFLOW.read_text(encoding="utf-8")
+    except OSError:
+        return 0
+    total = 0
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith('echo "#'):
+            continue
+        body = stripped[len('echo "'):]
+        if body.endswith('"'):
+            body = body[:-1]
+        total += len(body.encode("utf-8")) + 1
+    return total
+
+
 def diff_bytes(base: str) -> int | None:
+    """The size the REVIEWER will see: the notes preamble plus the subject diff."""
     args = ["git", "diff", f"{base}...HEAD", "--", "."]
     args += [f":(exclude){p}" for p in workflow_excludes()]
     try:
@@ -69,7 +101,7 @@ def diff_bytes(base: str) -> int | None:
         return None
     if proc.returncode != 0:
         return None
-    return len(proc.stdout)
+    return len(proc.stdout) + notes_preamble_bytes()
 
 
 def main(argv=None) -> int:

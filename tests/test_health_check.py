@@ -329,11 +329,21 @@ def test_gate_metric_counts_gate_files_not_the_whole_tools_directory():
     # `gate_files_changed` compares content and its escaped-defects KPI now calls
     # the same `open_escapes` helper — the identical ratified semantics, not a
     # second decision.
+    #  5. `tools/pr_size_check.py` — a CORRECTNESS fix, and strictly TIGHTENING. It
+    #     measured `git diff` alone and reported "100%, PASS" on a head the reviewer
+    #     then HARD-FAILED: CI prepends a ~4 KB evaluator notes preamble and
+    #     `--max-diff-bytes` applies to the combined file, so the guard under-reported
+    #     by the preamble and its green row was worth nothing at the boundary
+    #     (`CLASS:false-confidence-gate`, R-089). It now derives the preamble from the
+    #     workflow and counts it. This makes the check FAIL EARLIER, never later — the
+    #     opposite of a relaxation, and the reason it is declared here rather than
+    #     quietly absorbed.
     assert hc.gate_files_changed("f907a51") == [
         "tools/decision_codified_lint.py",
         "tools/founder_ask_lint.py",
         "tools/health_check.py",
         "tools/kaizen_trends.py",
+        "tools/pr_size_check.py",
         "tools/validate",
     ], (
         "the expected gate-file changes since the baseline are the additive check "

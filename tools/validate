@@ -51,58 +51,7 @@ for arg in "$@"; do
   esac
 done
 
-# --- interpreter-selection:begin ---
 PY="${PYTHON:-python3}"
-
-# (Sentinels are load-bearing: tests/test_validate_interpreter_selection.py lifts
-# this exact region and EXECUTES it against stub interpreters. An index-based
-# extractor would silently lift the wrong lines and keep passing — R-081.)
-#
-# INTERPRETER SELECTION — the last mile of BAR G5 ("0 red rows that mean
-# 'environment incomplete'").
-#
-# `bootstrap_dev.sh` ends by printing a `PATH=`-prefixed command. Forget that
-# prefix and this script uses the system python3, which on this image cannot
-# import `_cffi_backend` — so pytest, blocking_failure_check and perf go RED with
-# the environment as the cause, in the same column and colour as a regression.
-# `env_preflight` only DESCRIBES that after a five-minute run already said FAIL.
-#
-# NOTHING IS LOOSENED: selecting an interpreter that CAN run the suite makes MORE
-# checks execute, never fewer; no verdict or threshold changes; an explicit
-# `PYTHON=` always wins. The choice is announced, because quietly running
-# something other than what the operator typed is its own opacity.
-if [ -z "${PYTHON:-}" ]; then
-  # `hazmat.primitives.asymmetric.ec` is the submodule PyJWT actually reaches;
-  # probing the top-level `cryptography` package passes on a broken install.
-  _probe='import cryptography.hazmat.primitives.asymmetric.ec, pytest, fastapi'
-  if ! "$PY" -c "$_probe" >/dev/null 2>&1; then
-    # THE LIST MUST INCLUDE WHERE `bootstrap_dev.sh` ACTUALLY WRITES (R-084, three
-    # seats). It named only `$HOME/.venvs/onelive` while bootstrap creates
-    # `$REPO_ROOT/.venv` — so the fix did not work on the one path it was written
-    # for, and measured as working only because a sibling branch's venv was on this
-    # machine. The repo-local venv comes FIRST, and the test DERIVES this path from
-    # `bootstrap_dev.sh` rather than restating it.
-    # `$REPO_ROOT` is already computed at the top of this script and is reused, not
-    # re-derived: a second derivation is a second thing to drift, and
-    # `${BASH_SOURCE[0]}` is UNSET under `bash -c` (how the test runs this region),
-    # where recomputing silently yielded an EMPTY path — the fallback looked at
-    # `/.venv/bin/python` and appeared to work.
-    _repo_root="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)}"
-    for _cand in "$_repo_root/.venv/bin/python" \
-                 "${ONELIVE_VENV:-$HOME/.venvs/onelive}/bin/python" \
-                 "$HOME/.venvs/onelive/bin/python"; do
-      if [ -x "$_cand" ] && "$_cand" -c "$_probe" >/dev/null 2>&1; then
-        echo "validate: '$PY' cannot import the test dependencies; using the"
-        echo "          bootstrapped venv instead: $_cand"
-        echo "          (set PYTHON= explicitly to override this choice)"
-        echo
-        PY="$_cand"
-        break
-      fi
-    done
-  fi
-fi
-# --- interpreter-selection:end ---
 
 # Results accumulate as "STATUS\tNAME\tNOTE" lines for the summary table.
 RESULTS=()
