@@ -139,6 +139,33 @@ def test_improvement_and_slippage_are_measured_across_passes():
     assert imp["direction"] == "slipping"
 
 
+def test_weak_success_does_not_tell_the_next_pass_to_reinforce():
+    """The branch PR #68 added: a run can complete (success=True) and still be
+    a WEAK result. Below WEAK_SUCCESS_SCORE the next_actions must say "do NOT
+    reinforce", NEVER "reinforce" — the exact overstatement (a 0.35 pass with
+    16/18 sources dry reported as "worked") that motivated the constant. This
+    asserts what the branch DECIDES, not that the constant exists."""
+    from brain.construction import WEAK_SUCCESS_SCORE
+    g = Graph()
+    obj = _obj("weak-me")
+    out = record_outcome(g, obj, _plan_on(g, obj, "structured-feed"),
+                         success=True, score=0.35, check_gates=False)
+    joined = " ".join(out.next_actions).lower()
+    assert "do not reinforce" in joined
+    assert "weak result" in joined
+    # The reinforce line must be ABSENT — a weak win is not a green precedent.
+    assert not any(a.startswith("reinforce:") for a in out.next_actions)
+    # Boundary: exactly AT the threshold is NOT weak — it takes the reinforce
+    # path, so an off-by-one (<= vs <) on the constant would flip this.
+    g2 = Graph()
+    obj2 = _obj("boundary-me")
+    at = record_outcome(g2, obj2, _plan_on(g2, obj2, "structured-feed"),
+                        success=True, score=WEAK_SUCCESS_SCORE, check_gates=False)
+    at_joined = " ".join(at.next_actions).lower()
+    assert "do not reinforce" not in at_joined
+    assert any(a.startswith("reinforce:") for a in at.next_actions)
+
+
 def test_failure_outcome_carries_the_rca_and_section1_escalation_into_next_actions():
     g = Graph()
     obj = _obj("flaky")
