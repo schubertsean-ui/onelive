@@ -54,6 +54,9 @@ EMBEDDED_COUNTY_VECTORS = [
     "Unlisted Spot, Bexar County, TX", "Unlisted Spot, Bexar County, TX, USA",
     "Unlisted Spot, Bexar County, TX 78205", "unlisted spot, bexar county",
     "Nowhere Bar, Travis County, TX", "Austin, TX", "San Antonio", "",
+    # r15: the county name ALONE in the field, with nothing in front of it.
+    "Bexar County", "Bexar County, TX", "bexar county", "Travis County",
+    "TRAVIS COUNTY, TEXAS",
 ]
 
 

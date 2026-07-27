@@ -262,3 +262,21 @@ def test_a_county_named_only_INSIDE_the_city_string_is_still_CREDITED():
     assert "travis" not in r["counties_absent"]
     assert "llano" not in r["counties_absent"]
     assert len(r["counties_absent"]) == 8
+
+
+def test_a_county_name_ALONE_in_the_field_is_still_county_evidence():
+    """r15: _COUNTY_RE required a leading separator, so a field holding just
+    "Bexar County" (or "Bexar County, TX") matched nothing, returned UNKNOWN,
+    and the read path KEEPS unknowns — a Bexar row rendered to a reader.
+
+    The guard felt safe and was not, and every vector I had written put a city
+    in front of the county, so the whole test set agreed with the bug."""
+    for shape in ("Bexar County", "Bexar County, TX", "bexar county",
+                  "BEXAR COUNTY, TEXAS"):
+        assert county_in_place(shape) == "bexar", shape
+        assert row_verdict({"venue_city": shape}) is False, shape
+    for shape in ("Travis County", "Travis County, TX"):
+        assert row_verdict({"venue_city": shape}) is True, shape
+    # and a real place is untouched
+    assert row_verdict({"venue_city": "Austin"}) is True
+    assert county_in_place("Columbus") is None

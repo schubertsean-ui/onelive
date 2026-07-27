@@ -328,6 +328,26 @@
     {
       "input": "",
       "expected": null
+    },
+    {
+      "input": "Bexar County",
+      "expected": "bexar"
+    },
+    {
+      "input": "Bexar County, TX",
+      "expected": "bexar"
+    },
+    {
+      "input": "bexar county",
+      "expected": "bexar"
+    },
+    {
+      "input": "Travis County",
+      "expected": "travis"
+    },
+    {
+      "input": "TRAVIS COUNTY, TEXAS",
+      "expected": "travis"
     }
   ],
   "county_vectors": [

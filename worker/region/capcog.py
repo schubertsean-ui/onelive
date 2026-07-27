@@ -149,7 +149,7 @@ _ZIP_RE = re.compile(r"[\s,]+\d{5}(?:-\d{4})?$")
 # by writing its county. Requires a leading comma or space so it can never eat
 # a place whose own name ends in the word (there is no such CAPCOG place, but
 # the guard costs nothing and the alternative fails silently).
-_COUNTY_RE = re.compile(r"[\s,]+([a-z][a-z .'-]*?)\s+county$")
+_COUNTY_RE = re.compile(r"(?:^|[\s,]+)([a-z][a-z .'-]*?)\s+county$")
 
 # The counties we can decide on directly. Everything in KNOWN_OUTSIDE names the
 # county it sits in, so the outside set is derived rather than hand-listed —

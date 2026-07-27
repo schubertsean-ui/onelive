@@ -30,9 +30,12 @@ const TRAILING_QUALIFIERS: string[] = boundary.trailing_qualifiers;
 
 const ZIP_RE = /[\s,]+\d{5}(?:-\d{4})?$/;
 
-// "San Antonio, Bexar County, TX". Mirrors _COUNTY_RE in the Python source of
+// "San Antonio, Bexar County, TX", and also a field holding ONLY "Bexar County".
+// The leading separator was once required, so a bare county name matched
+// nothing and came back unknown — which filterToCapcog KEEPS and renders.
+// Evaluator finding, PR #74 r15. Mirrors _COUNTY_RE in the Python source of
 // truth; the generated vectors below prove the two agree.
-const COUNTY_RE = /[\s,]+([a-z][a-z .'-]*?)\s+county$/;
+const COUNTY_RE = /(?:^|[\s,]+)([a-z][a-z .'-]*?)\s+county$/;
 
 const COUNTIES: string[] = boundary.counties;
 const OUTSIDE_COUNTIES: string[] = Array.from(new Set(Object.values(OUTSIDE)));
