@@ -15,7 +15,7 @@ scheduled run. That email is the dead-man ping.
 
 **The weakness, stated because a dead-man switch that hides its own failure mode
 is worse than none.** This watchdog lives inside GitHub Actions, so it is down
-whenever Actions is down — which happened on 2026-07-26 (R-060) — and GitHub
+whenever Actions is down — which happened on 2026-07-26 (R-095) — and GitHub
 disables scheduled workflows in repositories with no activity for 60 days. An
 external service does not share those failure modes. This is a deliberate trade of
 alarm independence for zero founder setup, made by the founder, not assumed.
@@ -93,7 +93,19 @@ EXCLUDED: dict[str, str] = {
     "site_health.yml": "on-demand deployment check, not scheduled.",
 }
 
-_SCHEDULE_KEY = re.compile(r"^\s+schedule:\s*$", re.MULTILINE)
+# Detects `schedule:` in EVERY GitHub-valid form, not just its own line
+# (`CLASS:incomplete-workflow-surface-scan`, PR #76 r6). The old pattern was
+# `^\s+schedule:\s*$`, which required the key alone on an indented line — so
+# `on: { schedule: [{cron: '...'}] }` and `schedule: [...]` on one line both read as
+# UNSCHEDULED, letting a cron bypass the registry that is supposed to guarantee every
+# scheduled job has a dead-man alarm.
+#
+# Deliberately permissive, and the bias is the point: a false POSITIVE only demands
+# that a workflow declare itself in the tables below, which is cheap and safe. A false
+# NEGATIVE is a scheduled loop with no alarm — the thing forbidden outright. Regex
+# rather than a YAML parse because this tool is stdlib-only on purpose: the alarm must
+# not depend on an install step that can fail.
+_SCHEDULE_KEY = re.compile(r"^\s*schedule\s*:|\{\s*schedule\s*:", re.MULTILINE)
 
 
 class WatchdogError(Exception):

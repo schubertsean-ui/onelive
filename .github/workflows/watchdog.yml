@@ -11,7 +11,7 @@ name: watchdog
 # automatic GITHUB_TOKEN is enough to read Actions history on a private repo.
 #
 # THE WEAKNESS, STATED NOT HIDDEN: this watchdog runs inside GitHub Actions, so it
-# is down whenever Actions is down (which happened 2026-07-26, R-060), and GitHub
+# is down whenever Actions is down (which happened 2026-07-26, R-095), and GitHub
 # disables scheduled workflows in repos inactive for 60 days. An external dead-man
 # service does not share those failure modes. That trade was the founder's to make
 # and was made deliberately.

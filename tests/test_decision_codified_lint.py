@@ -173,3 +173,50 @@ def test_citations_that_DO_resolve_pass(tmp_path):
         path = _record(tmp_path, f"2026-01-01_ok_{abs(hash(value))}.md",
                        f"\n**Codified by:** {value}\n")
         assert LINT.audit([path]) == [], value
+
+
+# --- r6: the gate's own known fail-open cases, pinned ---------------------------
+
+def test_a_DUPLICATE_record_id_fails_instead_of_resolving_arbitrarily(tmp_path, monkeypatch):
+    """`CLASS:codification-gate-nonbinding` (PR #76 r6).
+
+    `_record_row_exists` asked whether the row appeared "at least once", so a
+    duplicated ID let a citation certify a decision against whichever row a reader
+    guessed. Not hypothetical: two parallel sessions both allocated R-057..R-060
+    (R-091). An ambiguous handle is not a handle.
+    """
+    record = tmp_path / "docs" / "RECORD.md"
+    record.parent.mkdir(parents=True)
+    record.write_text(
+        "| R-500 | 2026-01-01 | first meaning | bar | trigger | OPEN |\n"
+        "| R-500 | 2026-01-02 | DIFFERENT meaning | bar | trigger | OPEN |\n"
+        "| R-501 | 2026-01-03 | unique | bar | trigger | OPEN |\n",
+        encoding="utf-8")
+    monkeypatch.setattr(LINT, "_REPO_ROOT", tmp_path)
+
+    assert LINT.cited_mechanisms("Codified by: R-501") == ["R-501"], \
+        "a unique row must still resolve, or this test proves only that everything fails"
+    assert LINT.cited_mechanisms("Codified by: R-500") == [], (
+        "a DUPLICATED R-number resolved anyway — the gate can certify a decision "
+        "against the wrong deferral, which is the whole defect")
+
+
+def test_NOTHING_YET_needs_an_objective_TRIGGER_not_just_length(tmp_path, monkeypatch):
+    """Length was a proxy for "there is an explanation here", and a poor one: 30
+    characters of prose with no trigger certified an uncodified decision. A trigger
+    is what makes a deferral answerable rather than indefinite."""
+    monkeypatch.setattr(LINT, "_REPO_ROOT", tmp_path)
+    (tmp_path / "docs").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "docs" / "RECORD.md").write_text("", encoding="utf-8")
+
+    long_no_trigger = ("NOTHING YET — this is a lengthy and entirely plausible "
+                       "sounding explanation that never says what would resolve it")
+    assert len(long_no_trigger) > 30
+    assert LINT.cited_mechanisms(long_no_trigger) == [], (
+        "a long NOTHING YET with no objective trigger was accepted — that is the "
+        "escape hatch this check exists to close")
+
+    with_trigger = ("NOTHING YET — deferred because the reviewer cap is full; "
+                    "trigger: the first commit of the follow-up PR")
+    assert LINT.cited_mechanisms(with_trigger), \
+        "a NOTHING YET carrying a real trigger must still pass, or the check is a ban"

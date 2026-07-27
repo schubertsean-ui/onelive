@@ -1,6 +1,6 @@
 """Tests for tools/env_preflight.py — telling an incomplete environment from bad code.
 
-v1 done-criterion 3 / BAR G5 / R-058. Four gate rows used to go red in a default
+v1 done-criterion 3 / BAR G5 / R-093. Four gate rows used to go red in a default
 environment for reasons that were not code, and nothing distinguished them from a
 real regression.
 

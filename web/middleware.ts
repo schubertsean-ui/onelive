@@ -40,6 +40,32 @@ const isHealthRoute = createRouteMatcher(["/api/health"]);
 // hidden (404), never opened.
 const isOpsRoute = createRouteMatcher(["/ops(.*)"]);
 
+/** Log-safe rendering of a caught error.
+ *
+ * `CLASS:secret-log-redaction-missing` (PR #76 r6). Both catch blocks passed the raw
+ * error OBJECT to `console.error`, so arbitrary provider/runtime text — and anything a
+ * future thrown error happens to embed, such as a key echoed in a message or a URL with
+ * credentials — reached the logs with no redaction invariant. The bar says no secrets
+ * are logged, and "we did not intend to log one" is not a mechanism.
+ *
+ * The name and message are kept because they are what makes a failure diagnosable; the
+ * stack and any nested cause are dropped, and anything shaped like a credential is
+ * masked. Deliberately conservative: an over-masked log is readable, a leaked one is
+ * not retractable.
+ */
+function logSafe(err: unknown): string {
+  const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  return raw
+    .replace(/\b(sk|pk|rk)_[A-Za-z0-9_-]{6,}/g, "$1_[REDACTED]")
+    .replace(/\b(eyJ[A-Za-z0-9_-]{8,})\b/g, "[REDACTED_JWT]")
+    // The keyword may sit anywhere in the param NAME — the real one is
+    // `x-vercel-protection-bypass`, which an anchored pattern missed.
+    .replace(/([?&][^=&\s]*(?:token|key|secret|password|bypass|auth)=)[^&\s]+/gi,
+             "$1[REDACTED]")
+    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, "[REDACTED_EMAIL]")
+    .slice(0, 300);
+}
+
 async function resolveEmail(
   userId: string,
   sessionClaims: Record<string, unknown> | null,
@@ -59,7 +85,7 @@ async function resolveEmail(
   } catch (err) {
     // Never swallow silently (docs/OPERATING_RULES.md §1): log, then fail
     // closed — an unresolved email yields `undefined`, which is denied below.
-    console.error("[stealth-gate] could not resolve user email; denying:", err);
+    console.error("[stealth-gate] could not resolve user email; denying:", logSafe(err));
     return undefined;
   }
 }
@@ -170,7 +196,7 @@ export default async function middleware(
     // middleware FAILURE rather than a deny (so "we failed" stays distinguishable
     // from "you may not"), and the resolved auth mode, which /api/health serves
     // unauthenticated by design.
-    console.error("[middleware] threw; failing closed:", err);
+    console.error("[middleware] threw; failing closed:", logSafe(err));
     return new NextResponse(
       "OneLive middleware failed while deciding access, so this request is " +
         "refused rather than allowed. Resolved auth mode: " +

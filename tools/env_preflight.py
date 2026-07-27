@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Name the environment faults that make the gate red for reasons that are not code.
 
-v1 done-criterion 3 / BAR G5 / R-058. The gate used to fail four rows in a default
+v1 done-criterion 3 / BAR G5 / R-093. The gate used to fail four rows in a default
 environment because three interpreter packages were missing and the clone was
 shallow — and it reported those in the same red column as a real regression, which
 teaches people to scan past red.

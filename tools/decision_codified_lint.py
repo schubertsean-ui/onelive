@@ -68,7 +68,26 @@ def _record_row_exists(number: str) -> bool:
         text = (_REPO_ROOT / "docs" / "RECORD.md").read_text(encoding="utf-8")
     except OSError:
         return False
-    return f"| R-{number} |" in text
+    # UNIQUENESS, not mere presence (`CLASS:codification-gate-nonbinding`, PR #76 r6).
+    # This returned True when the row string appeared "at least once", so a duplicated
+    # ID — which happened for real when two parallel sessions both allocated
+    # R-057..R-060 (R-091) — let a `Codified by: R-057` citation certify a decision
+    # against whichever row a reader guessed. An ambiguous handle is not a handle: a
+    # duplicate now FAILS rather than resolving arbitrarily.
+    hits = text.count(f"| R-{number} |")
+    if hits > 1:
+        print(f"decision_codified_lint: R-{number} appears {hits} times in "
+              f"docs/RECORD.md — an R-number must be a UNIQUE handle or a citation "
+              f"cannot certify anything. Renumber the newer row.", file=sys.stderr)
+        return False
+    return hits == 1
+
+
+# What counts as an objective trigger in a `NOTHING YET` line. Deliberately a small,
+# explicit vocabulary rather than a loose "looks like a sentence" check.
+_TRIGGER_WORDS = re.compile(
+    r"\btrigger\b|\bwhen\b|\bonce\b|\buntil\b|\bafter\b|\bresolved (?:when|by)\b|"
+    r"\bblocks? (?:on|until)\b|\bnext (?:PR|commit|session)\b", re.IGNORECASE)
 
 
 def _commit_exists(sha: str) -> bool:
@@ -101,9 +120,17 @@ def cited_mechanisms(value: str) -> list[str]:
     if _NOTHING_YET_RE.search(value):
         # It must carry a reason AND a trigger, or "NOTHING YET" is just a way to
         # pass. Length is the crude proxy for "there is an explanation here".
+        # LENGTH WAS ONLY A PROXY, and a poor one (r6): 30 characters of prose with
+        # no objective trigger certified an uncodified decision. A trigger is what
+        # makes a deferral answerable, so it is now required as a WORD, not a length.
         tail = _NOTHING_YET_RE.sub("", value).strip(" —-:.")
-        if len(tail) >= 30:
+        has_trigger = _TRIGGER_WORDS.search(tail) is not None
+        if len(tail) >= 30 and has_trigger:
             found.append("NOTHING YET (with reason and trigger)")
+        elif len(tail) >= 30:
+            print(f"decision_codified_lint: 'NOTHING YET' carries a reason but no "
+                  f"objective TRIGGER ({tail[:60]!r}…) — say what event resolves it, "
+                  f"or the deferral is unanswerable.", file=sys.stderr)
     return found
 
 

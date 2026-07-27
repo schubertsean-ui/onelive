@@ -39,7 +39,7 @@ the budget; never report queue time as run time.
 two independent non-Claude reviews (another company's inference latency — making it
 faster by reading less is a gate relaxation, not an optimisation); the GitHub runner
 queue (time-to-first-log is queue time, and on this very day it was pathological —
-R-060); real fetches against venue servers (politeness delays, or we get blocked).
+R-095); real fetches against venue servers (politeness delays, or we get blocked).
 
 **Stated as NOT met, deliberately:** pipeline verification is still a 12-hour
 scheduled period with a dead-man alarm. That is right for a nightly feed and wrong

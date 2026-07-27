@@ -334,3 +334,33 @@ describe("the matcher excludes /api/health and nothing it should not", () => {
     }
   });
 });
+
+describe("logged errors are redacted before they reach the log", () => {
+  it("keeps the message but masks anything credential-shaped", async () => {
+    // `CLASS:secret-log-redaction-missing` (r6). The catch blocks passed the raw error
+    // OBJECT to console.error, so a provider message embedding a key or a bypass URL
+    // reached the logs with no redaction invariant. "We did not intend to log a secret"
+    // is not a mechanism.
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    const logged: unknown[] = [];
+    vi.spyOn(console, "error").mockImplementation((...args) => { logged.push(...args); });
+    vi.doMock("@clerk/nextjs/server", () => ({
+      clerkMiddleware: () => {
+        throw new Error(
+          "provider failed for sk_live_abcdef123456 at " +
+          "https://x.vercel.app/?x-vercel-protection-bypass=SUPERSECRETVALUE " +
+          "user fan@example.com");
+      },
+      clerkClient: async () => ({ users: { getUser: async () => ({}) } }),
+    }));
+
+    const middleware = await loadMiddleware();
+    await middleware(request("/tonight"));
+
+    const line = logged.map(String).join(" ");
+    expect(line).toContain("provider failed");          // still diagnosable
+    expect(line).not.toContain("sk_live_abcdef123456"); // key masked
+    expect(line).not.toContain("SUPERSECRETVALUE");     // bypass value masked
+    expect(line).not.toContain("fan@example.com");      // PII masked
+  });
+});

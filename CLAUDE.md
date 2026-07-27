@@ -269,7 +269,7 @@ Everything else: decide, write the decision record, proceed.
      scheduled run if it has gone silent, which emails the owner. Zero signup, zero
      secrets. **Founder-approved 2026-07-26** ("build the watchdog"), amending the
      previous healthchecks.io-only wording. Its weakness is named, not buried: it
-     lives inside Actions, so it dies with Actions (R-060), and GitHub disables
+     lives inside Actions, so it dies with Actions (R-095), and GitHub disables
      schedules in repos idle 60 days. Record:
      `docs/memory/decisions/2026-07-26_github-native-watchdog.md`.
 

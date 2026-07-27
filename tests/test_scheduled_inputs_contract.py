@@ -66,7 +66,19 @@ _BARE_INPUT = re.compile(
 # `schedule:` as a trigger key at ANY indentation. Pinning it to exactly two
 # spaces meant valid alternate YAML formatting silently excluded a workflow from
 # the scan — an under-trigger, which is this gate's only real failure mode.
-_SCHEDULE_KEY = re.compile(r"^\s+schedule:\s*$", re.MULTILINE)
+# Detects `schedule:` in EVERY GitHub-valid form, not just its own line
+# (`CLASS:incomplete-workflow-surface-scan`, PR #76 r6). The old pattern was
+# `^\s+schedule:\s*$`, which required the key alone on an indented line — so
+# `on: { schedule: [{cron: '...'}] }` and `schedule: [...]` on one line both read as
+# UNSCHEDULED, letting a cron bypass the registry that is supposed to guarantee every
+# scheduled job has a dead-man alarm.
+#
+# Deliberately permissive, and the bias is the point: a false POSITIVE only demands
+# that a workflow declare itself in the tables below, which is cheap and safe. A false
+# NEGATIVE is a scheduled loop with no alarm — the thing forbidden outright. Regex
+# rather than a YAML parse because this tool is stdlib-only on purpose: the alarm must
+# not depend on an install step that can fail.
+_SCHEDULE_KEY = re.compile(r"^\s*schedule\s*:|\{\s*schedule\s*:", re.MULTILINE)
 
 # GitHub accepts both extensions for workflow files. Globbing one of them let a
 # rename carry the defect past a gate that claimed to cover every workflow.

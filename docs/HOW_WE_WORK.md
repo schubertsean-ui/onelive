@@ -173,7 +173,7 @@ twice:**
    Making it faster by reading less is a gate relaxation, not an optimisation.
 2. **The GitHub runner queue.** Time-to-first-log is queue time, not work time.
    On 2026-07-26 it was pathological — jobs died in 1–4 s with no runner at all
-   (R-060, recovered 15:03:32Z) — and no amount of local speed touches it.
+   (R-095, recovered 15:03:32Z) — and no amount of local speed touches it.
 3. **Real fetches against real venues.** Politeness delays and other people's
    servers. A 200 ms crawl budget would be rude and would get us blocked.
 

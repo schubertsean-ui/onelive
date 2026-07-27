@@ -41,7 +41,7 @@ emails the repository owner when a scheduled workflow fails. That email is the p
 
 1. **It shares a failure domain with what it watches.** The watchdog runs inside
    GitHub Actions. On 2026-07-26 Actions stopped executing in this repo entirely
-   (R-060); the watchdog would have been down alongside the jobs it watches.
+   (R-095); the watchdog would have been down alongside the jobs it watches.
    healthchecks.io does not share that failure mode — that is the entire point of an
    external dead-man switch.
 2. **GitHub disables scheduled workflows in repositories inactive for 60 days.** A

@@ -50,7 +50,10 @@ _NO_APP_CODE = {
 def _scheduled_workflows() -> dict[str, dict]:
     """Every workflow with a `schedule:` trigger, parsed."""
     out = {}
-    for path in sorted(_WORKFLOW_DIR.glob("*.yml")):
+    # BOTH extensions: GitHub accepts `.yml` and `.yaml`, so globbing one lets a
+    # scheduled `.yaml` workflow ship with no Sentry half while this test reports
+    # "every scheduled workflow" covered (`CLASS:incomplete-workflow-surface-scan`, r6).
+    for path in sorted([*_WORKFLOW_DIR.glob("*.yml"), *_WORKFLOW_DIR.glob("*.yaml")]):
         doc = yaml.safe_load(path.read_text(encoding="utf-8"))
         if not isinstance(doc, dict):
             continue
