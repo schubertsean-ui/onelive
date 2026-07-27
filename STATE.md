@@ -50,6 +50,39 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #30 (2026-07-27, founder Anthropic-call-pattern directive — records only, no behaviour)
+
+GOAL: persist the founder's standing directive ("use this in all future sessions ... current and future sessions") that Anthropic Messages-API work use a standard `anthropic.Anthropic()` call shape (model `claude-opus-5`, explicit `system=`, prompt caching on, print `response.usage`), TOGETHER WITH the correction that makes the directive's own intent actually hold — the supplied snippet cached nothing (top-level `cache_control` auto-places the breakpoint on the varying user message, and its ~30-token system prompt is below Opus 5's 512-token minimum), and its `max_tokens=1024` truncates output now that Opus 5 thinks by default. Recorded at docs/memory/entities/2026-07-27_anthropic-messages-api-call-pattern.md + a changelog entry; the previously-absent docs/memory/entities/ directory (already specified by the memory README) was created.
+
+SCOPE — the file LIST is derived, never typed: run `git diff --name-only origin/master...HEAD`. The BOUND: every path it prints is under docs/memory/ or is docs/ONE_LIVE_CHANGE_LOG.md and STATE.md — nothing under web/, worker/, api/, db/, tools/, ai/, or .github/. NON-GOALS: no executable code, no gate code, no threshold, no test, no model-routing change. This change alters no gate's CODE or THRESHOLD, so nothing here makes any check easier to pass — the Stage 3 citations below ADD an obligation (the cache-verification rule) rather than remove one.
+
+Stage 3 for this records-only diff — every class below is matched by construction_gate because its RED_CLASSES triggers match the diff CONTENT (the memory note and changelog discuss models, caching, credentials, and PR history by name), not because the class is live here. The count is NOT typed: derive it with `python tools/construction_gate.py | grep 'matched red classes' | tr ',' '\n' | wc -l`. Each answer is specific to how the class does or doesn't bear on a docs/memory + changelog change:
+- [S3:caller-suppliable-custody-inputs] No custody surface is touched; the note states explicitly that it does NOT license feeding `model="claude-opus-5"` into the gated extraction path.
+- [S3:contract-scope-violation] Scope is bound to docs/memory + the two record files (derived list above); no code path can change because none is edited.
+- [S3:deferred-trust-work] Nothing is deferred — the caching correction (misplaced breakpoint, sub-512 prefix, thinking-plus-text `max_tokens` cap) is stated in full in the note now, with a "revisit"-free verification rule, not parked.
+- [S3:false-confidence-gate] This is the note's whole subject: the supplied snippet PRINTS `usage` yet its cache is never read, so persistent zeros read as success — recorded so a future session treats a zero `cache_read_input_tokens` as a defect, not normal.
+- [S3:governance-ambiguity] The scope boundary is explicit — call-SHAPE guidance is not an extraction-routing change; changing `_resolve_extraction_model()` stays threshold-gated and founder-crucial.
+- [S3:mutable-model-alias] `claude-opus-5` appears only inside a documented CALL EXAMPLE; it does not rebind any resolver, and the note says so.
+- [S3:nonfinite-numeric-accepted] N/A — no numeric parsing is added; 512 and the `max_tokens` value are documented constants in prose, not runtime inputs.
+- [S3:pagination-integrity-gap] N/A — no list/pagination code is touched.
+- [S3:retyped-evidence] The validate result and the matched-class count are cited from tool output (command given above), never hand-copied.
+- [S3:self-weakenable-gate] No gate code changes; the note ADDS a verification obligation and removes none.
+- [S3:self-weakenable-review-model] No reviewer/evaluator model or config is altered.
+- [S3:stale-base-widens-range] construction_gate confirms origin/master == remote tip (base fresh) before the diff is measured; the branch was fetched to a real base this session.
+- [S3:stale-redclass-count] The count is derived by command, not typed; RED_CLASSES.md is unchanged.
+- [S3:stalled-state-needs-active-diagnosis] The lone pytest red was actively diagnosed (a shallow clone missing the arming smoke-run commit bb92ff894), fixed by `git fetch --unshallow`, and re-run green — not dismissed as pre-existing.
+- [S3:status-narration-not-progress] Completion is claimed only after validate is re-run green; this contract is the durable record, not a progress narration.
+- [S3:untested-gate-branch] No gate branch is added or changed, so none can go untested.
+- [S3:unusable-credential-tier] N/A — no credential/tier code; the note reiterates that keys are never stored in memory files.
+- [S3:volatile-safety-store] Memory files are on-disk (durable, disk-is-truth); the entities/ directory was created on disk, no volatile store introduced.
+- [S3:workflow-tool-version-skew] No workflow or tool version is touched.
+- [S3:fail-open-on-custody-misconfig] N/A — no publish-gate, autonomy, or trusted-base preflight code is edited; this change adds no success path to any custody mechanism.
+- [S3:pushed-on-red] validate is run unchained with its exit code read explicitly; this contract is committed only after the rerun is green, and nothing is pushed on a FAIL.
+- [S3:semantic-claim-not-rederived] N/A — no scenario/series predicate is emitted here; the note's only claim is about API call shape, which it re-derives from the caching prefix rule rather than asserting.
+- [S3:stale-live-incident-state] The one live-state check this session (the arming smoke-run binding) was re-verified against the actual git object after `--unshallow`, not against earlier prose.
+- [S3:weak-key-accepted-at-custody] N/A — no key/hmac/sign path is touched; the note reiterates that no secret is ever stored in a memory file.
+- [S3:grant-not-content-bound] N/A — this change confers no publish authority and binds no fingerprint; it is documentation of an API call shape only.
+
 ## Session Contract #29 (2026-07-26, close-out for PR #87 — records only, no behaviour)
 
 GOAL: write the merge of PR #87 to disk where it is retrievable — changelog entry marked MERGED with the round history, Contract #28 marked CLOSED, and the closing Kaizen row. The merge itself is silent per the founder's 2026-07-25 directive; this block IS its notification.
