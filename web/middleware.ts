@@ -56,10 +56,21 @@ const isOpsRoute = createRouteMatcher(["/ops(.*)"]);
 function logSafe(err: unknown): string {
   const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   return raw
+    // Provider API-key prefixes (Stripe/Clerk/etc.) AND GitHub token prefixes
+    // (ghp_/gho_/ghu_/ghs_/ghr_/github_pat_) — r7 named the GitHub shapes as missed.
     .replace(/\b(sk|pk|rk)_[A-Za-z0-9_-]{6,}/g, "$1_[REDACTED]")
+    .replace(/\b(gh[porsu]|github_pat)_[A-Za-z0-9_-]{6,}/gi, "[REDACTED_GH_TOKEN]")
     .replace(/\b(eyJ[A-Za-z0-9_-]{8,})\b/g, "[REDACTED_JWT]")
-    // The keyword may sit anywhere in the param NAME — the real one is
-    // `x-vercel-protection-bypass`, which an anchored pattern missed.
+    // `NAME=value` and `NAME: value` where NAME contains a credential word — catches
+    // `VERCEL_AUTOMATION_BYPASS=…`, `GITHUB_TOKEN=…`, `Authorization: …`, and the
+    // header form `x-vercel-protection-bypass: …`. The value runs to whitespace, `&`,
+    // `"`, `'` or `;` so surrounding prose survives. r7: the old form caught only
+    // query params, missing env-assignment and header shapes.
+    .replace(
+      /\b([\w-]*(?:token|secret|key|password|passwd|pwd|bypass|authorization|auth|credential|cookie)[\w-]*\s*[:=]\s*)(?:bearer\s+)?[^\s&"';]+/gi,
+      "$1[REDACTED]")
+    // Query-parameter form, kept explicit: the keyword may sit anywhere in the param
+    // NAME (the real one is `x-vercel-protection-bypass`).
     .replace(/([?&][^=&\s]*(?:token|key|secret|password|bypass|auth)=)[^&\s]+/gi,
              "$1[REDACTED]")
     .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, "[REDACTED_EMAIL]")

@@ -100,10 +100,13 @@ only at the merge. A merge preserves conflict; it never averages it.
 
 ## 4. Build in small batches
 
-- **~100 lines is a normal change. 1,000 is too large.** Hard ceiling: an 800 KB
-  diff, past which the independent reviewer refuses to review at all
-  (`tools/pr_size_check.py`). This has been breached once, and the review simply
-  did not happen — don't repeat it.
+- **~100 lines is a normal change. 1,000 is too large.** Hard ceiling: a **900 KB**
+  diff (raised from 800 KB on 2026-07-27, founder-ratified — R-097 /
+  `docs/memory/decisions/2026-07-27_reviewer-cap-raise-900k.md`), past which the
+  independent reviewer refuses to review at all (`tools/pr_size_check.py`). This has
+  been breached more than once, and the review simply did not happen — don't repeat
+  it. The cap is a bigger window, not a softer gate; it may return to 800 KB once
+  PR #76 merges (R-097's trigger).
 - **Tests ship in the same change**, and a new gate is **proven red before it is
   proven green.** A test that cannot fail proves nothing.
 - **Wire it or delete it.** A module nothing can reach is not done. Three

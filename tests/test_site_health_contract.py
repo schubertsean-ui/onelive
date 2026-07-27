@@ -205,13 +205,20 @@ _TEAM = "sss-projects-e4775771"
 
 
 @pytest.mark.parametrize("url,allowed", [
-    # This project's real Vercel hosts — the observed preview form and the
-    # production alias.
+    # This project's real Vercel hosts, passed as a BARE ORIGIN — which is the only
+    # accepted form (R-098, `secret-bearing-url-not-rejected`, r7): the check
+    # appends its own paths, so the input must be scheme+host only.
     (f"https://onelive-git-claude-x-{_TEAM}.vercel.app", True),
-    (f"https://onelive-git-x-{_TEAM}.vercel.app/api/health", True),
-    (f"https://onelive-git-x-{_TEAM}.vercel.app/", True),   # slash normalised
+    (f"https://onelive-git-x-{_TEAM}.vercel.app/", True),   # slash normalised → origin
     (f"https://onelive-git-x-{_TEAM}.vercel.app///", True),
     ("https://onelive.vercel.app", True),
+    # A PATH or QUERY on an otherwise-allowed host is now REFUSED, not allowed. This
+    # case read `True` until r7. It is the exploit: a friend-bypass URL carries the
+    # secret in its query, the host check passes, and the secret-bearing BASE_URL is
+    # then echoed into the Actions log verbatim. Origin-only closes it.
+    (f"https://onelive-git-x-{_TEAM}.vercel.app/api/health", False),
+    (f"https://onelive-git-x-{_TEAM}.vercel.app/tonight?x-vercel-protection-bypass=SEKRET", False),
+    (f"https://onelive-git-x-{_TEAM}.vercel.app?x-vercel-protection-bypass=SEKRET", False),
     ("https://evil.example", False),
     ("https://vercel.app.evil.example", False),
     (f"http://onelive-{_TEAM}.vercel.app", False),          # not https

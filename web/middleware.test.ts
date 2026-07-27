@@ -363,4 +363,34 @@ describe("logged errors are redacted before they reach the log", () => {
     expect(line).not.toContain("SUPERSECRETVALUE");     // bypass value masked
     expect(line).not.toContain("fan@example.com");      // PII masked
   });
+
+  it("masks the token / header / env-assignment shapes the r6 redactor missed", async () => {
+    // `CLASS:secret-log-redaction-incomplete` (r7). The first logSafe() masked only
+    // sk_/pk_/rk_, JWTs, query params and emails — a partial redactor claiming a
+    // whole invariant. These are the shapes a real thrown error embeds: GitHub
+    // tokens, Authorization headers, and NAME=value / header:value assignments.
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    const logged: unknown[] = [];
+    vi.spyOn(console, "error").mockImplementation((...args) => { logged.push(...args); });
+    vi.doMock("@clerk/nextjs/server", () => ({
+      clerkMiddleware: () => {
+        throw new Error(
+          "upstream 401: sent GITHUB_TOKEN=ghp_ABCDEF0123456789abcdef and header " +
+          "Authorization: Bearer eyJhbGciOiJIUzI1NiI9.payloadpart.sigpart plus " +
+          "x-vercel-protection-bypass: BYPASSHEADERVAL and " +
+          "VERCEL_AUTOMATION_BYPASS=ENVASSIGNEDSECRET while calling upstream");
+      },
+      clerkClient: async () => ({ users: { getUser: async () => ({}) } }),
+    }));
+
+    const middleware = await loadMiddleware();
+    await middleware(request("/tonight"));
+
+    const line = logged.map(String).join(" ");
+    expect(line).toContain("upstream 401");            // still diagnosable
+    expect(line).not.toContain("ghp_ABCDEF0123456789abcdef"); // GitHub token
+    expect(line).not.toContain("BYPASSHEADERVAL");     // header-form bypass
+    expect(line).not.toContain("ENVASSIGNEDSECRET");   // env-assignment secret
+    expect(line).not.toMatch(/eyJhbGciOiJIUzI1NiI9\.payloadpart\.sigpart/); // JWT
+  });
 });

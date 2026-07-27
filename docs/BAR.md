@@ -26,8 +26,12 @@ gate change and gets reviewed). Loosening any `ENFORCED` row is
 
 Last full measurement pass: **2026-07-26** (`docs/V1_AUDIT_2026-07-26.md`).
 
-**The scoreboard, 80 rows:** **51 MET** · **14 NOT MET** · **12 UNMEASURED** ·
-**2 NOT BUILT** · **1 partial** (H1, met for the two jobs that are scheduled).
+**The scoreboard, 83 rows** (computed by `tools/health_check.py`, not hand-kept —
+run it for the live count): **56 MET** · **11 NOT MET** · **12 UNMEASURED** ·
+**2 NOT BUILT** · **2 partial** (incl. G5, now PARTIAL pending R-088's interpreter
+fix). These numbers are the tool's, quoted here as of 2026-07-27; a drift between
+this line and the tool's output is the `false-confidence-gate` class (R-099) and is
+resolved by re-running it, never by hand-editing to match.
 
 **The split that matters is not the total — it is where the misses cluster.**
 
@@ -35,8 +39,8 @@ Last full measurement pass: **2026-07-26** (`docs/V1_AUDIT_2026-07-26.md`).
 
 | Section | MET | Not met / not built / unmeasured |
 |---|---|---|
-| **P — purpose and felt experience** | 6 of 14 | **8** |
-| A–J — the engineering underneath | 45 of 66 | 21, and most are built-but-unwired |
+| **P — purpose and felt experience** | 5 of 14 | **9** |
+| A–J — the engineering underneath | 51 of 69 | 18, and most are built-but-unwired |
 
 **Nothing on any NOT MET list needs a new standard.** Every engineering miss is
 something built and not connected, or never measured. But the P section is the
@@ -211,7 +215,7 @@ the preview deployment — cheap, and it is item 5 in `docs/V1.md`.
 
 | # | World class means | Number | Gate | Enforcement | Status |
 |---|---|---|---|---|---|
-| F1 | Small, self-contained changes. | ~100 lines typical; **1,000 too large**; hard cap 800 KB diff (past it the independent reviewer refuses) | `tools/pr_size_check.py` | ENFORCED | **NOT MET in practice** — PR #59 reached 1.26 MB and the review refused to run (R-051) |
+| F1 | Small, self-contained changes. | ~100 lines typical; **1,000 too large**; hard cap **900 KB diff** (raised from 800 KB on 2026-07-27, founder-ratified, R-097; past it the independent reviewer refuses) | `tools/pr_size_check.py` | ENFORCED | **NOT MET in practice** — PR #59 reached 1.26 MB and the review refused to run (R-051); PR #76 reached ~802 KB, which forced the cap decision (R-097) |
 | F2 | Tests ship in the same change as the code, and they can actually fail. | 100% of behaviour changes | `tools/test_audit.py` | ENFORCED | **MET** |
 | F3 | No swallowed errors. `except: pass` is banned unless the branch is itself logged and justified. | 0 | `tools/lint.py` | ENFORCED | **MET** |
 | F4 | No silent degradation: "we failed" must never look identical to "there was nothing to do". | 0 instances | `tools/lint.py` + `tools/test_audit.py` | ENFORCED | **MET** |

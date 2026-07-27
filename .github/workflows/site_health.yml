@@ -163,6 +163,27 @@ jobs:
               echo "a dot ('$LABEL'), so this is not a single Vercel deployment host."
               exit 1 ;;
           esac
+
+          # BASE_URL MUST BE A BARE ORIGIN — no path, no query, no fragment
+          # (`CLASS:secret-bearing-url-not-rejected`, PR #76 r7). The allowlist
+          # extracts HOST and validates it, but nothing constrained BASE_URL itself:
+          # a full friend-bypass URL
+          # (`https://<allowed-host>/tonight?x-vercel-protection-bypass=SECRET`)
+          # passed the host check with the secret-bearing query STILL IN BASE_URL —
+          # which the `echo "=== GET $BASE_URL/... ==="` lines below then print
+          # verbatim into the Actions log, and which the request builders append to,
+          # producing a malformed secret-bearing URL. A verifier must never make a
+          # leaked secret look like normal diagnostic output. Every request here
+          # constructs its own path (`$BASE_URL/api/health`, `/tonight`,
+          # `/tonight?<bypass>`), so BASE_URL is meant to be scheme+host only. Anything
+          # after the host is refused, fail-closed, BEFORE the secret is read or logged.
+          if [ "$BASE_URL" != "https://$HOST" ]; then
+            echo "::error::the target must be a bare origin (https://<host>), not a"
+            echo "path or query. Got a trailing '/...' or '?...' after the host, which"
+            echo "on this secret-custody path could carry a bypass token into the logs."
+            echo "Pass just the deployment origin; the check appends its own paths."
+            exit 1
+          fi
           # --- host-allowlist:end ---
 
           # If the founder has created a Vercel "Protection Bypass for
