@@ -87,7 +87,21 @@ def notes_preamble_bytes() -> int:
         body = stripped[len('echo "'):]
         if body.endswith('"'):
             body = body[:-1]
-        total += len(body.encode("utf-8")) + 1
+        # DELIBERATE UPPER BOUND, and the bias direction is the whole point.
+        #
+        # Several note lines interpolate `$HEAD_SHA` / `$MERGE_SHA` / `$CONCLUSION`,
+        # so the preamble's exact size is NOT statically knowable — it depends on
+        # runtime values. A 40-char sha expands well past the 10-char literal
+        # `$HEAD_SHA`, so counting literals UNDER-reports, which is precisely the
+        # defect this function exists to fix (R-089). Variables are therefore costed
+        # at a sha's width. Other lines sit in conditional branches and are not always
+        # emitted, so the total over-estimates there too.
+        #
+        # Over-estimating makes the guard warn EARLIER; under-estimating makes it lie
+        # at the boundary, which is what already happened. For a guard, early is free
+        # and late is worthless.
+        widened = re.sub(r"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?", "x" * 40, body)
+        total += len(widened.encode("utf-8")) + 1
     return total
 
 

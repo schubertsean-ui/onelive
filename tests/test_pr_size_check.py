@@ -73,3 +73,48 @@ def test_unmeasurable_skips_rather_than_failing_the_session(monkeypatch, capsys)
 
 def test_it_is_wired_into_validate():
     assert "pr_size_check" in (_ROOT / "tools" / "validate").read_text()
+
+
+def test_the_counted_preamble_equals_what_the_SHELL_actually_writes():
+    """Refutes a r5 nit with an execution instead of an argument.
+
+    The nit: `notes_preamble_bytes()` "does not strip trailing shell redirection
+    syntax (e.g. `>> pr.diff`), resulting in a minor overcount (~12 bytes per line)".
+    There is no such syntax to strip — the echoes sit inside a `{ … } > pr.diff`
+    block with ONE redirection at the close, verified by grep: the only `>` on any
+    `echo "#"` line is the literal `>=20` inside a sentence.
+
+    Rather than assert that, this EXECUTES the workflow's own echo lines with bash
+    and compares the bytes actually written against what the tool counts. If the
+    count ever drifts — from an escape, a `$`, or genuine redirection someone adds —
+    this fails with both numbers.
+    """
+    import pathlib
+    import re
+    import subprocess
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    wf = (root / ".github" / "workflows" / "adversarial-review.yml").read_text(
+        encoding="utf-8")
+    echoes = [ln.strip() for ln in wf.splitlines() if ln.strip().startswith('echo "#')]
+    assert len(echoes) > 20, f"only {len(echoes)} note lines found — extractor is blind"
+    assert not any(re.search(r'"\s*>>?\s*\S', ln) for ln in echoes), (
+        "an echo line now carries its own redirection, so the block-level "
+        "`{ … } > pr.diff` assumption no longer holds and the counter needs updating")
+
+    proc = subprocess.run(["bash", "-c", "\n".join(echoes)],
+                          capture_output=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr.decode()
+    actual = len(proc.stdout)          # with every $VAR unset, i.e. the MINIMUM
+    counted = psc.notes_preamble_bytes()
+    # NEVER UNDER-REPORT is the property, not exact equality — several note lines
+    # interpolate `$HEAD_SHA`/`$MERGE_SHA`, so the real size varies per run and no
+    # static number can equal it. Demanding equality would be a false requirement;
+    # demanding "at least the minimum" is the property the guard needs.
+    assert counted >= actual, (
+        f"the tool counts {counted} preamble bytes but bash writes at least "
+        f"{actual} — the guard under-reports again, which is R-089 reopening")
+    # And not absurdly loose: a 3x over-estimate would make the guard cry wolf.
+    assert counted < actual * 2, (
+        f"counted {counted} vs a {actual}-byte floor — the widening is now so "
+        f"generous the guard would block reviewable PRs")
