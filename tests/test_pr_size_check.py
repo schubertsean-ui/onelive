@@ -39,13 +39,37 @@ def test_excludes_mirror_the_workflows_review_diff():
     assert any("package-lock.json" in e for e in ex)
 
 
-def test_over_cap_exits_nonzero_and_says_the_review_cannot_happen(monkeypatch, capsys):
+def test_over_cap_is_an_ADVISORY_finding_not_a_tool_crash(monkeypatch, capsys):
+    """Founder-ratified 2026-07-27 ("yes to both"); record
+    docs/memory/decisions/2026-07-27_pr-size-guard-advisory.md.
+
+    Over-cap must exit 3 — the exit code `tools/validate`'s `run_advisory` reads as
+    "findings, advisory" — NOT 1, which it reads as "the tool itself broke (rc=1)".
+    Returning 1 turned an accurate, deliberately-conservative size finding into a RED
+    validate run and stopped the reviewer from ever running to make the real size
+    call. The distinction is the whole point of this change: a real internal error
+    still exits non-3 (see the test below) and is still reported as a tool failure.
+    """
     monkeypatch.setattr(psc, "evaluator_cap_bytes", lambda: 800_000)
     monkeypatch.setattr(psc, "diff_bytes", lambda base: 1_260_000)
     rc = psc.main([])
-    assert rc == 1
+    assert rc == 3, (
+        "over-cap must be the advisory-findings exit (3), so validate surfaces it "
+        "loudly without going red and the reviewer still runs to make the real call")
     err = capsys.readouterr().err
     assert "OVER CAP" in err and "REFUSE" in err
+
+
+def test_a_genuine_internal_failure_is_NOT_reported_as_a_finding(monkeypatch, capsys):
+    """The other half of the distinction: exit 3 is reserved for the size finding, so
+    a real crash must not borrow it. An undeterminable measurement (shallow clone,
+    unreadable workflow) is SKIPPED at exit 0 — never 3 — so it can never be mistaken
+    for "the diff is over cap"."""
+    monkeypatch.setattr(psc, "evaluator_cap_bytes", lambda: None)
+    monkeypatch.setattr(psc, "diff_bytes", lambda base: None)
+    rc = psc.main([])
+    assert rc != 3, "an undeterminable measurement must not masquerade as a size finding"
+    assert rc == 0 and "SKIPPED" in capsys.readouterr().out
 
 
 def test_warning_band_is_advisory_exit_zero(monkeypatch, capsys):

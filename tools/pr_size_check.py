@@ -145,7 +145,19 @@ def main(argv=None) -> int:
               file=sys.stderr)
         print("  Split this branch into reviewable PRs. Splitting AFTER the fact "
               "is high-risk churn — that is why this check exists.", file=sys.stderr)
-        return 1
+        # EXIT 3 (a FINDING), not 1 (a tool crash). Founder-ratified 2026-07-27
+        # ("yes to both"); record: docs/memory/decisions/2026-07-27_pr-size-guard-
+        # advisory.md. This is an early-warning instrument, not the size gate — the
+        # REVIEWER is the real gate, and it makes the actual size call on the diff CI
+        # constructs. Returning 1 meant `run_advisory` classified an accurate,
+        # deliberately-conservative size finding as "the tool itself broke (rc=1)",
+        # which turned `validate` RED and stopped the reviewer from ever running to
+        # make that call. Exit 3 routes it as ADVISORY in a normal run (surfaced
+        # loudly, non-blocking) and as FAIL under --strict (a final gate still
+        # blocks). A genuine internal error still exits non-3 and is still reported
+        # as a tool failure — the distinction this restores. Nothing is loosened: the
+        # cap is unchanged and the reviewer's own hard limit is untouched.
+        return 3
     if pct >= args.warn_pct:
         print(f"pr_size_check: WARNING — branch diff is {kb:.0f} KB, {pct:.0f}% of "
               f"the evaluator's {capkb:.0f} KB cap.")
