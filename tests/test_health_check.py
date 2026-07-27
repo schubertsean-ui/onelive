@@ -163,23 +163,12 @@ def test_unwired_modules_returns_paths_that_exist_and_finds_known_instances():
 
 
 def test_import_parser_credits_submodule_and_RELATIVE_imports(tmp_path, monkeypatch):
-    """`CLASS:false-confidence-gate` (PR #76 r5, gemini/spec-vs-contract).
-
-    `unwired_modules` recorded only `ast.ImportFrom.node.module`, so two ordinary
-    shapes went uncredited: `from worker import source_rank` (the submodule is in
-    `node.names`) and `from .gating import X` (a relative import's `node.module` has
-    no package, so "gating" was recorded where "worker.gating" was meant).
-
-    MEASURED CORRECTION to the reviewer's stated impact: the blocker said this
-    renders the F5 metric "unreliable". The defect is real and fixed here, but it
-    produced **zero false positives on this tree** — the repo contains no relative
-    imports in first-party non-test code, and the one `from worker import sentinel`
-    is in a test, which is excluded from production importers by design. The unwired
-    list is byte-identical before and after (14 modules), so R-066's founder ask is
-    NOT overstated. Recorded because "the reviewer was right about the code and
-    wrong about the consequence" is a different fact from either accepting or
-    dismissing the finding.
-    """
+    """`CLASS:false-confidence-gate` (r5, gemini). The parser recorded only
+    `ast.ImportFrom.node.module`, so `from worker import source_rank` (submodule in
+    `node.names`) went uncredited and `from .gating import X` credited "gating"
+    rather than "worker.gating". MEASURED CORRECTION in R-090: the code defect is
+    real but produced ZERO false positives here — the unwired list is identical
+    before and after — so R-066's ask is not overstated."""
     both_shapes = (
         "from worker import source_rank\n"
         "from .gating import GateResult\n"
@@ -211,8 +200,8 @@ def test_import_parser_credits_submodule_and_RELATIVE_imports(tmp_path, monkeypa
 
 
 def test_the_real_import_parser_agrees_with_that_logic():
-    """Binds the assertions above to the SHIPPED code rather than a copy of it —
-    otherwise the test proves only that the test's own arithmetic works."""
+    """Binds the assertions above to the SHIPPED code, not a copy of its logic —
+    otherwise the test proves only that its own arithmetic works."""
     src = (_ROOT / "tools" / "health_check.py").read_text(encoding="utf-8")
     assert "node.level" in src, "the parser ignores relative-import level again"
     assert 'f"{base}.{a.name}"' in src, "the parser ignores imported submodule names again"

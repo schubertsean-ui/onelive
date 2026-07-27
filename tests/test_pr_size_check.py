@@ -76,18 +76,14 @@ def test_it_is_wired_into_validate():
 
 
 def test_the_counted_preamble_equals_what_the_SHELL_actually_writes():
-    """Refutes a r5 nit with an execution instead of an argument.
+    """Refutes a r5 nit with an execution instead of an argument (R-089).
 
-    The nit: `notes_preamble_bytes()` "does not strip trailing shell redirection
-    syntax (e.g. `>> pr.diff`), resulting in a minor overcount (~12 bytes per line)".
-    There is no such syntax to strip — the echoes sit inside a `{ … } > pr.diff`
-    block with ONE redirection at the close, verified by grep: the only `>` on any
-    `echo "#"` line is the literal `>=20` inside a sentence.
-
-    Rather than assert that, this EXECUTES the workflow's own echo lines with bash
-    and compares the bytes actually written against what the tool counts. If the
-    count ever drifts — from an escape, a `$`, or genuine redirection someone adds —
-    this fails with both numbers.
+    The nit blamed trailing `>> pr.diff` redirection for an over-count. There is
+    none — the echoes sit in a `{ … } > pr.diff` block with ONE redirect at the
+    close, and the only `>` on any note line is a literal `>=20`. Running the real
+    echo lines through bash found a genuine gap from a DIFFERENT cause: `$HEAD_SHA`
+    interpolation. So this asserts the guard never UNDER-reports, which is the
+    property it needs, rather than equality, which no static number can reach.
     """
     import pathlib
     import re

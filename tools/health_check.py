@@ -300,15 +300,12 @@ def unwired_modules(ref: str | None) -> list[str]:
             if isinstance(node, ast.Import):
                 names = [alias.name for alias in node.names]
             elif isinstance(node, ast.ImportFrom):
-                # BOTH HALVES ARE NEEDED, and recording only `node.module` missed
-                # both (`CLASS:false-confidence-gate`, PR #76 r5, gemini):
-                #  · `from worker import source_rank` names the SUBMODULE in
-                #    `node.names`, so recording "worker" alone leaves
-                #    `worker.source_rank` looking unimported.
-                #  · a RELATIVE import (`from .gating import X`, node.level > 0)
-                #    carries a package-less `node.module`, so "gating" was recorded
-                #    where "worker.gating" was meant — crediting a module that may
-                #    not exist while the real one stays uncredited.
+                # Recording only `node.module` missed both shapes (R-090):
+                # `from worker import source_rank` names the submodule in
+                # `node.names`, and a RELATIVE import's `node.module` is
+                # package-less, so "gating" got credited where "worker.gating" was
+                # meant — crediting a module that may not exist while the real one
+                # stayed uncredited.
                 if node.level:
                     parts = _module_name(path).split(".")[:-1]  # this file's package
                     if node.level > 1:
@@ -319,9 +316,8 @@ def unwired_modules(ref: str | None) -> list[str]:
                 else:
                     base = node.module or ""
                 names = [base] if base else []
-                # Each imported name may be a submodule rather than an attribute.
-                # Recording both is safe: a non-module attribute simply never
-                # matches a candidate module path.
+                # An imported name may be a submodule or a plain attribute;
+                # recording both is safe — an attribute never matches a candidate.
                 names += [f"{base}.{a.name}" for a in node.names if base and a.name != "*"]
             else:
                 continue

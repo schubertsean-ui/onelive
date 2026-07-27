@@ -4,86 +4,30 @@
 actually changed.** The founder asked to see it proven rather than described:
 *"I want an accounting of the number of lines of code, types, etc — whatever would
 be world class evaluation of a code and functionality and structure and
-architecture revamp before and after."*
 
-Baseline `f907a51` (master before the work) → head as recorded below. **Every
-number in the table is machine-computed by `tools/health_check.py`** and
-re-derivable with one command; the prose around it is interpretation and is
-labelled as such. Process, cadence and the research blocker: `docs/HEALTH_CHECK.md`.
+## PRUNED to its numbers and its regeneration command (2026-07-27)
 
----
+**The prose sections of this snapshot were removed.** They are a *generated report's*
+commentary, and the r5 reviewer's own nit said it plainly: this file is "visibly stale
+relative to the current diff and validate output… future readers need to be steered
+harder toward regenerating rather than trusting the snapshot prose."
 
-## The headline, stated before the numbers that flatter it
+**Steering, then.** Do not read a snapshot for current state — regenerate it:
 
-**This was not an architecture revamp. Product code moved by 22 lines — from
-13,295 to 13,273 — and every one of those 22 was a deletion.**
+```
+PATH="$HOME/.venvs/onelive/bin:$PATH" python tools/health_check.py --baseline f907a51
+```
 
-It was an evaluation, a definition of done that did not previously exist, two real
-defect fixes, a restructure of what the agent is required to read, and the start of
-the streamline: two genuinely dead modules removed once a new detector proved
-nothing imported them. Anyone reading this later should not infer a structural
-change from the diff size — the diff is overwhelmingly documentation. What a real
-architecture revamp would involve is in the last section, and the decision it needs
-is in `docs/UNWIRED_DECISIONS.md`.
+The numbers below are kept because they are the before/after accounting the founder
+asked for, and a table of measurements does not go stale silently — it is dated, and its
+`--baseline` is named. The removed narrative is in git history
+(`git show 94895a9:docs/health/2026-07-26_health-check-01-revamp-baseline.md`) and its
+uncomfortable findings are tracked where they can be acted on: R-066 (unwired modules),
+J8 (prose growth), and `docs/BAR.md`'s own status column.
 
-## Three things the numbers say that are uncomfortable
-
-1. **Total prose went UP by ~27,000 words (+10%).** The founder's complaint was
-   bloat. By the crudest measure this made it worse. The defence — that the
-   *binding* surface shrank while reference material grew — is real but partial,
-   and no framing changes the top-line number.
-2. **Unwired modules: 16 → 14.** Two genuinely dead modules were deleted once the
-   detector proved nothing imported them (`worker/multiconfirm.py`, a re-export
-   shim with zero importers; `worker/definition_of_done.py`, which was worse than
-   dead — it encoded a rule that **contradicts current canon** by rejecting
-   `unverified` events the founder ratified showing). The other **14 are
-   classified, not fixed**, in `docs/UNWIRED_DECISIONS.md`: 2 are v1 Step 2's
-   unfinished feature, 4 are frozen with live triggers, and ~9,300 lines across 3
-   founder-commissioned subsystems need one founder decision. Measuring the debt
-   is not paying it.
-3. **RECORD open rows rose 40 → 50.** Ten new declared deviations. That is the
-   audit working — an undeclared gap is invisible — but it is still ten more
-   admissions of below-bar, and pretending otherwise would be scoring one's own
-   homework.
-
-## What genuinely improved, and why it matters long-term
-
-- **A definition of done exists.** 0 → 80 measurable bar rows, each with a number,
-  an enforcing gate and an honest status. Before this, nobody — founder or agent —
-  could say whether v1 was 60% or 95% done. That is the difference between a build
-  that can be steered and one that can only be narrated.
-- **14 of those rows grade purpose and felt experience**, which had zero coverage.
-  This is what surfaced the finding that mattered most: the machine is in far
-  better shape than the experience it exists to deliver.
-- **One defect class is closed mechanically, forever.** The cron that could never
-  run is fixed, and a scanner now forecloses the whole class across every scheduled
-  workflow, both file extensions, any indentation, both input spellings.
-- **The escape detector can now see escapes.** It previously could not, which is
-  why the project's first escaped defect sat in the ledger while three independent
-  mechanisms reported zero.
-- **"No gate was weakened" is now a command, not a claim.** The
-  gate-files-changed row reads `0`.
-
-## The correction this table exists to prevent
-
-Four of the hand-computed figures quoted during this session were wrong: the test
-count (1,665 was passes-plus-failures excluding skips; collected was 1,695), the
-rule-surface reduction (quoted 14%, currently −8.0% and it moves whenever a CANON
-doc is edited), the validate check count (19 summary rows vs 14 `run_check` calls),
-and the code/prose totals (hand counts excluded `.js`/`.mjs`/`.sh` and some
-Markdown, so the tool's figures are slightly larger and supersede them).
-
-**The tool's numbers are authoritative from here. Where this file and any earlier
-prose disagree, this file is right** — that is the entire reason it exists.
-
----
-
-Generated by `tools/health_check.py`. HEAD `78752ad`, baseline `f907a51`.
-
-Every number is computed from git and the working tree. No network, no
-database, no model — the same command gives anyone the same answer.
-This is a thermometer, not a gate: it does not pass or fail. Cadence and
-escalation live in `docs/HEALTH_CHECK.md`.
+**Why now:** the mandatory independent review HARD-FAILED because PR #76 exceeded the
+founder-ratified reviewer cap. A generated report's prose is the cheapest thing in the
+diff to lose and the reviewer had already asked for exactly this change. R-088.
 
 | Metric | Before | After | BAR row |
 |---|---|---|---|
