@@ -1604,8 +1604,15 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     # has already answered — see AUTHORITATIVE EMPTY above.
     # A base document that carried events and produced none is DATA LOSS, so it
     # fails HERE. Falling through to discovery would end in a bare `return []`,
-    # which is the outcome r21 blocked (r21).
-    _refuse_if_lossy(provider_hint, base_text, out, source_name, "the base URL")
+    # which is the outcome r21 blocked (r21). The check uses the DETECTED
+    # provider, not the raw hint: an UNHINTED source whose base URL is itself an
+    # .ics or platform-JSON endpoint has provider_hint=None, and passing that
+    # None short-circuited the guard so a lossy first-party feed read as an empty
+    # calendar (evaluator blocker, PR #68 review — silent-data-loss). _detect_provider
+    # returns JSONLD for ordinary HTML, whose object count is None, so a normal
+    # homepage still cannot be mistaken for lossy.
+    _refuse_if_lossy(_detect_provider(base_text, provider_hint), base_text, out,
+                     source_name, "the base URL")
     authoritative_empty: Optional[str] = None
     if provider_hint is not None and _document_states_emptiness(provider_hint, base_text):
         authoritative_empty = url
@@ -1692,10 +1699,14 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
                                   cultural_domain=cultural_domain)
         # Same rule on every candidate (r21): a document that carried events and
         # produced none is data loss wherever we found it. Checked against the
-        # DECLARED provider for a declared feed, otherwise the asserted hint.
+        # DECLARED provider for a declared feed, otherwise the DETECTED provider
+        # of the bytes — not the raw hint, which is None for an unhinted source
+        # and would short-circuit the guard on a guessed .ics/platform candidate
+        # that parsed to zero (evaluator blocker, PR #68 review — silent-data-loss,
+        # sibling of the base-URL instance above).
         _refuse_if_lossy(
             _DECLARED_TYPE_PROVIDER.get(declared_types.get(candidate))
-            if i < declared else provider_hint,
+            if i < declared else _detect_provider(text, provider_hint),
             text, found, source_name, f"candidate {candidate}")
         if not found and i < declared:
             # Reaching here means the declared type ALREADY verified above and

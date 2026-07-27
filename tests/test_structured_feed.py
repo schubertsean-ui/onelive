@@ -2182,6 +2182,90 @@ def test_a_lossy_document_fails_even_with_no_other_candidates(monkeypatch):
                          source_name="venue")
 
 
+def test_an_UNHINTED_lossy_base_url_fails_not_reads_empty(monkeypatch):
+    """PR #68 review blocker (silent-data-loss): the r21 lossy guard fired only
+    for HINTED sources. An UNHINTED source whose base URL is itself an .ics or
+    platform endpoint has provider_hint=None, and passing that None straight to
+    _refuse_if_lossy short-circuited the guard — so a first-party feed we dropped
+    every event from read as an empty calendar. The base check must use the
+    DETECTED provider, so this now fails loud with NO hint given at all."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+
+    lossy_ics = ("BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+                 "BEGIN:VEVENT\r\nUID:only-an-id\r\nEND:VEVENT\r\n"
+                 "END:VCALENDAR\r\n")
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return lossy_ics
+        raise urllib.error.HTTPError(u, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    # NO provider_hint — the exact gap the review found.
+    with pytest.raises(sf.LossyFeed):
+        sf.import_source("https://venue.example/", source_name="venue")
+
+
+def test_an_UNHINTED_lossy_guessed_candidate_fails_not_reads_empty(monkeypatch):
+    """Sibling of the above at the candidate loop (PR #68 review, silent-data-loss).
+    Base is ordinary HTML (JSON-LD object count is None, so never mistaken for
+    lossy), discovery falls through to the FIRST guessed conventional path
+    (`/events/?ical=1`), and THAT serves an ICS document with a real VEVENT that
+    cannot normalize. With no hint, the guessed-candidate guard used to receive
+    None and stay silent; it now uses the detected provider of the bytes and
+    fails loud. The lossy body sits at the first conventional path deliberately —
+    the guessed budget is bounded (_MAX_GUESSED_TRIES), so a body past it would
+    never be reached."""
+    import urllib.error
+    import worker.importers.structured_feed as sf
+
+    lossy_ics = ("BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+                 "BEGIN:VEVENT\r\nUID:only-an-id\r\nEND:VEVENT\r\n"
+                 "END:VCALENDAR\r\n")
+
+    def fake_fetch(u, timeout=30):
+        if u.rstrip("/") == "https://venue.example":
+            return "<html><body>no events here</body></html>"
+        if "ical=1" in u:
+            return lossy_ics
+        raise urllib.error.HTTPError(u, 404, "Not Found", {}, None)
+
+    monkeypatch.setattr(sf, "fetch_url", fake_fetch)
+    monkeypatch.setattr(sf, "_robots_allows", lambda u, ua=None: True)
+    with pytest.raises(sf.LossyFeed):
+        sf.import_source("https://venue.example/", source_name="venue")
+
+
+def test_zero_events_with_a_lossy_source_returns_the_LOSSY_code_not_systemic(monkeypatch):
+    """PR #68 review blocker (incomplete-enumeration, run_structured_import): the
+    zero-events handler mirrored _exit_code's priority (lossy -> misconfigured ->
+    failed) but OMITTED the lossy check, so a run that normalized 0 events with a
+    lossy source fell through to exit 3 (systemic markup breakage) instead of
+    exit 2 (LOSSY). Data we dropped is not a systemic breakage; the codes must
+    agree with _exit_code."""
+    import json
+    import logging
+    import pathlib as _pl
+    import tempfile
+    import worker.importers.run_structured_import as runner
+
+    def _lossy(url, **kwargs):
+        raise runner.LossyFeed(f"{kwargs.get('source_name')}: dropped every event")
+
+    monkeypatch.setattr(runner, "import_source", _lossy)
+    # A VALID catalog row (a classified token that asserts no wire format), so
+    # the run reaches the import loop rather than failing catalog validation
+    # early — otherwise this would pass for the wrong reason.
+    catalog = [{"id": "lossy_venue", "base_url": "https://venue.example/",
+                "allowed": ["structured_feed_verify"]}]
+    tmp = _pl.Path(tempfile.mkdtemp()) / "catalog.json"
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+    # exit 2 (LOSSY), never 3 (systemic). --dry-run so no DB is touched.
+    assert runner.main(["--catalog", str(tmp), "--dry-run"]) == 2
+
+
 def test_a_genuinely_empty_calendar_still_returns_empty(monkeypatch):
     """The boundary the r21 fix must not cross: zero event OBJECTS is still an
     honest empty, not a failure."""

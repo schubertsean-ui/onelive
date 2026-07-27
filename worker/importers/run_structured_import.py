@@ -484,6 +484,17 @@ def main(argv=None) -> int:
     # A real-data importer must not exit green on nothing. ONE empty source is
     # tolerated (logged above); EVERY source empty is a systemic failure.
     if not all_norm:
+        # Mirror _exit_code's priority EXACTLY (lossy → misconfigured → failed):
+        # a zero-events run with lossy sources is data we DROPPED, not systemic
+        # markup drift, so it must return the LOSSY code (2), never fall through
+        # to the systemic-breakage code (3) below (evaluator blocker, PR #68
+        # review — incomplete-enumeration: this branch omitted lossy_sources).
+        if lossy_sources:
+            log.error("normalized 0 events and %d source(s) are LOSSY (%s) — each "
+                      "served its own format and produced zero rows, so events were "
+                      "DROPPED in parse, not absent. --allow-partial does NOT apply.",
+                      len(lossy_sources), ", ".join(lossy_sources))
+            return 2
         if misconfigured_sources:
             log.error("normalized 0 events and %d source(s) are MISCONFIGURED (%s) — "
                       "a catalog defect, not a normalization breakage.",
