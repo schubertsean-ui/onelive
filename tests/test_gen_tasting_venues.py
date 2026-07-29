@@ -54,6 +54,15 @@ def test_kind_derivation_is_correct_for_known_shapes():
     assert gen.derive_kind("Garrison Brothers Distillery") == "distillery"
 
 
+def test_combined_estate_takes_its_leading_kind_word():
+    # A venue that names two kinds is classified by the FIRST one — its primary
+    # identity (adversarial-review, PR #96 data: Westcave Cellars Winery &
+    # Brewery is a winery that also brews, not a brewery).
+    assert gen.derive_kind("Westcave Cellars Winery & Brewery") == "winery"
+    assert gen.derive_kind("Yegua Creek Brewery & Restaurant") == "brewery"
+    assert gen.derive_kind("Silver Creek Beer Garden & Grille") == "beer-garden"
+
+
 def test_name_wins_over_a_co_located_other_kind_in_notes():
     # adversarial-review #96: a winery whose NOTES mention a co-located brewery
     # must stay a winery — the venue's own name is authoritative.

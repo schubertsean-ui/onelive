@@ -34,23 +34,39 @@ OUT = ROOT / "web" / "lib" / "tasting_venues.generated.ts"
 VALID_KINDS = ("winery", "brewery", "distillery", "beer-garden", "restaurant", "tasting-room")
 
 
+# Kind → its keyword vocabulary. A combined estate names its kinds in order of
+# primary identity ("Westcave Cellars Winery & Brewery" is a winery that also
+# brews; "Yegua Creek Brewery & Restaurant" is a brewery with a kitchen), so the
+# EARLIEST keyword in the text wins — see _match_kind. "beer garden"/"biergarten"
+# is its own kind ahead of the broader "beer"/brewery vocabulary, and the
+# whiskey/spirits words carry distillery even when no "distill" appears.
+_KIND_KEYWORDS: "list[tuple[str, tuple[str, ...]]]" = [
+    ("distillery", ("distill", "whiskey", "whisky", "bourbon", "spirits", "speakeasy")),
+    ("beer-garden", ("beer garden", "biergarten")),
+    ("brewery", ("brewery", "brewing", "beerworks", "brewpub")),
+    ("winery", ("winery", "vineyard", "cellars", "wine")),
+    ("restaurant", ("restaurant", "grille", "steakhouse", "saloon", "kitchen", "grill", "cafe")),
+]
+
+
 def _match_kind(text: str) -> "str | None":
-    """Match a kind by keyword in one string. Order matters: distillery and
-    beer-garden are checked before the broader brewery/winery/restaurant
-    keywords so a 'Beer Garden & Grille' is a beer-garden (not a restaurant)
-    and a 'Whiskey Co.' is a distillery. Returns None on no match."""
+    """Classify by the kind whose keyword appears EARLIEST in the string —
+    "leading word wins", because a venue's primary identity is the first kind it
+    names ('Cellars Winery & Brewery' → winery, 'Brewery & Restaurant' →
+    brewery). Ties are impossible (distinct keywords sit at distinct offsets);
+    on a tie of START offset the earlier-listed kind in _KIND_KEYWORDS wins, so
+    'beer garden' still beats the 'beer'-free brewery set. Returns None on no
+    match."""
     t = text.lower()
-    if any(k in t for k in ("distill", "whiskey", "whisky", "bourbon", "spirits", "speakeasy")):
-        return "distillery"
-    if "beer garden" in t or "biergarten" in t:
-        return "beer-garden"
-    if any(k in t for k in ("brewery", "brewing", "beerworks", "brewpub")):
-        return "brewery"
-    if any(k in t for k in ("winery", "vineyard", "cellars", "wine")):
-        return "winery"
-    if any(k in t for k in ("restaurant", "grille", "steakhouse", "saloon", "kitchen", "grill", "cafe")):
-        return "restaurant"
-    return None
+    best_pos: "int | None" = None
+    best_kind: "str | None" = None
+    for kind, kws in _KIND_KEYWORDS:
+        for kw in kws:
+            i = t.find(kw)
+            if i != -1 and (best_pos is None or i < best_pos):
+                best_pos = i
+                best_kind = kind
+    return best_kind
 
 
 def derive_kind(name: str, notes: str = "") -> str:
