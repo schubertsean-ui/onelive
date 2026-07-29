@@ -55,6 +55,14 @@ load-bearing.
 
 ## 2A. The unifying lens: Total Cost of Attention (TCA)
 
+> **Method note (de Bono's Po).** This lens began as a *provocation* — **"Po: the most
+> successful site is where people spend the *least* time and receive the *most*
+> satisfaction"** — a deliberate inversion of the attention-economy axiom (more time =
+> more success). Per ONE LIVE's own thinking-tools canon (`docs/skills/po_provocation.md`;
+> the po battery), a provocation is a *stimulus, never a fact*: this one earned its place
+> as a principle only by surviving the trust guardrails (§11) and the job-done-not-dwell
+> measurement rule — not because it is clever. Convergent gates stay convergent.
+
 Both pillars serve one measurable idea. **Total Cost of Attention** is the whole
 price a person pays — *time + cognitive effort + emotional toll* — to answer "what
 should I do (tonight)?" It is not just the seconds on our screen; it includes the
