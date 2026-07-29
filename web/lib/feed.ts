@@ -345,10 +345,14 @@ export function bucketByDate(events: LicensedEvent[], nowMs: number): DateBucket
     const b = timeBand(e.start_time, nowMs);
     (b === "rich" ? rich : b === "compact" ? compact : line).push(e);
   }
+  // Labels are RELATIVE durations, not calendar claims: "Later this month" was
+  // false for an 8–30-day event that actually falls in the next calendar month
+  // (adversarial-review #100). "In the coming weeks" is true regardless of where
+  // the month boundary sits.
   const buckets: DateBucket[] = [
     { key: "rich", label: "This week", blurb: "the next seven days", items: rich },
-    { key: "compact", label: "Later this month", blurb: "the next few weeks", items: compact.sort(byStart) },
-    { key: "line", label: "Beyond", blurb: "further out — dates set", items: line.sort(byStart) },
+    { key: "compact", label: "In the coming weeks", blurb: "the next few weeks", items: compact.sort(byStart) },
+    { key: "line", label: "Further out", blurb: "beyond a month — dates set", items: line.sort(byStart) },
   ];
   return buckets.filter((b) => b.items.length);
 }
