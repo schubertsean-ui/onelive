@@ -61,8 +61,30 @@ _SURFACE_FILES = (
 # field and the flip evidence rule.
 SUBJECT_CERTIFIABLE = {"ai/prompts.py", "tools/routing_data.py"}
 
+# Recognized SEPARATE, deliberately-uncertified harness (founder-ratified
+# 2026-07-29 — docs/memory/decisions/2026-07-29_golden-exam-vision-harness-scope.md).
+# The image/vision extraction path is NOT the certified text extractor: the
+# attended text exam never runs it, and the certified text extractor never
+# imports it. Its trust story is off-by-default + the human promote gate +
+# the mandatory adversarial review, NOT the prompt-swap exam. So a change
+# confined to these files is not a certified-harness change and does not trip
+# the exam refusal — that refusal (red-then-compensated) was the classifier
+# over-reaching past its jurisdiction onto code the exam has nothing to do
+# with. Anything touching the certified text path (the rest of ai/, the
+# runner, provider, scoring, golden set, the workflows) STILL refuses. This
+# list is EXPLICIT and narrow by design: a new vision-path file must be added
+# here deliberately, and adding one is a gate-scoping change (founder-crucial).
+SEPARATE_UNCERTIFIED_HARNESS = frozenset({
+    "ai/vision_provider.py",
+})
+
 
 def on_surface(p: str) -> bool:
+    # The recognized separate uncertified harness is NOT certified-text
+    # surface — exclude it before the ai/ catch-all so a vision-only change
+    # classifies clean instead of a red the charter then has to compensate.
+    if p in SEPARATE_UNCERTIFIED_HARNESS:
+        return False
     return p.startswith("ai/") or p in _SURFACE_FILES
 
 
