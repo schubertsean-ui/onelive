@@ -38,6 +38,8 @@ NORMALIZATION_VECTORS = [
     # r4: a trailing period ("…, TX.") left the string unmatched, so a known
     # San Antonio/Bexar row normalized to nothing recognisable and was kept.
     "San Antonio, TX.", "San Antonio, Texas.", "Austin, TX.", "Bexar County, TX.",
+    # r6: the "Co." / "Co" county abbreviation.
+    "San Antonio, Bexar Co., TX", "San Antonio, Bexar Co.",
     # r12: county qualifiers, which defeated the boundary until 2026-07-26.
     "San Antonio, Bexar County, TX", "san antonio, bexar county",
     "SAN ANTONIO, BEXAR COUNTY, TEXAS, USA", "Austin, Travis County, TX",
@@ -48,7 +50,9 @@ NORMALIZATION_VECTORS = [
 # County vectors: the two normalizers must agree on these too, and the TS side
 # must not hand-maintain a second outside-county list.
 COUNTY_VECTORS = ["Bexar County, TX", "bexar", "TRAVIS COUNTY", "Travis",
-                  "Nowhere County", "", "   "]
+                  "Nowhere County", "", "   ",
+                  # r6: the "Co." / "Co" abbreviation feeds also write.
+                  "Bexar Co.", "Bexar Co", "Travis Co.", "bexar co"]
 
 # r13: county evidence carried INSIDE a city string, with everything a feed
 # might append after it. The anchor only matches once the trailing qualifiers
@@ -60,6 +64,8 @@ EMBEDDED_COUNTY_VECTORS = [
     # r15: the county name ALONE in the field, with nothing in front of it.
     "Bexar County", "Bexar County, TX", "bexar county", "Travis County",
     "TRAVIS COUNTY, TEXAS",
+    # r6: county embedded with the abbreviated form.
+    "San Antonio, Bexar Co., TX", "Nowhere Bar, Travis Co., TX", "Bexar Co.",
 ]
 
 

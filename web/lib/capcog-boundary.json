@@ -285,6 +285,14 @@
       "expected": "bexar county"
     },
     {
+      "input": "San Antonio, Bexar Co., TX",
+      "expected": "san antonio"
+    },
+    {
+      "input": "San Antonio, Bexar Co.",
+      "expected": "san antonio"
+    },
+    {
       "input": "San Antonio, Bexar County, TX",
       "expected": "san antonio"
     },
@@ -373,6 +381,18 @@
     {
       "input": "TRAVIS COUNTY, TEXAS",
       "expected": "travis"
+    },
+    {
+      "input": "San Antonio, Bexar Co., TX",
+      "expected": "bexar"
+    },
+    {
+      "input": "Nowhere Bar, Travis Co., TX",
+      "expected": "travis"
+    },
+    {
+      "input": "Bexar Co.",
+      "expected": "bexar"
     }
   ],
   "county_vectors": [
@@ -410,6 +430,26 @@
       "input": "   ",
       "expected": null,
       "verdict": null
+    },
+    {
+      "input": "Bexar Co.",
+      "expected": "bexar",
+      "verdict": false
+    },
+    {
+      "input": "Bexar Co",
+      "expected": "bexar",
+      "verdict": false
+    },
+    {
+      "input": "Travis Co.",
+      "expected": "travis",
+      "verdict": true
+    },
+    {
+      "input": "bexar co",
+      "expected": "bexar",
+      "verdict": false
     }
   ]
 }

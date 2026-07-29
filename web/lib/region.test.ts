@@ -202,6 +202,16 @@ describe("CAPCOG boundary on the read path", () => {
     expect(out.droppedOutside.map((r) => r.venue_name)).toEqual(["Smuggled"]);
   });
 
+  it("recognizes the 'Co.' / 'Co' county abbreviation (PR #107 r6)", () => {
+    for (const shape of ["San Antonio, Bexar Co., TX", "Bexar Co.", "Bexar Co",
+                         "Nowhere, Bexar Co, TX"]) {
+      expect(rowVerdict({ venue_city: shape })).toBe(false);
+    }
+    expect(rowVerdict({ venue_county: "Bexar Co." })).toBe(false);
+    expect(normalizeCounty("Bexar Co.")).toBe("bexar");
+    expect(rowVerdict({ venue_county: "Travis Co." })).toBe(true);
+  });
+
   it("a BARE outside county name in the city field is dropped (no 'County' word)", () => {
     // PR #107 r2: "Bexar"/"Comal" in venue_city matched no city and no
     // countyInPlace (which needs the word "County"), so it leaked through as

@@ -35,7 +35,10 @@ const ZIP_RE = /[\s,]+\d{5}(?:-\d{4})?$/;
 // nothing and came back unknown — which filterToCapcog KEEPS and renders.
 // Evaluator finding, PR #74 r15. Mirrors _COUNTY_RE in the Python source of
 // truth; the generated vectors below prove the two agree.
-const COUNTY_RE = /(?:^|[\s,]+)([a-z][a-z .'-]*?)\s+county$/;
+// Matches "county" OR its abbreviation "Co." / "Co" ("San Antonio, Bexar Co.,
+// TX") — feeds write both, and missing the abbreviation let a known-outside
+// county leak through as unknown (PR #107 r6).
+const COUNTY_RE = /(?:^|[\s,]+)([a-z][a-z .'-]*?)\s+(?:county|co)\.?$/;
 
 const COUNTIES: string[] = boundary.counties;
 const OUTSIDE_COUNTIES: string[] = Array.from(new Set(Object.values(OUTSIDE)));
@@ -134,7 +137,11 @@ export function inCapcog(city: string | null | undefined): RegionVerdict {
 export function normalizeCounty(value: string | null | undefined): string | null {
   let key = normalizePlace(value);
   if (key === null) return null;
-  if (key.endsWith(" county")) key = trimPunct(key.slice(0, -" county".length));
+  // Drop the county word or its abbreviation ("bexar county"/"bexar co"/"bexar
+  // co." -> "bexar"). PR #107 r6: the abbreviated form leaked.
+  for (const suf of [" county", " co.", " co"]) {
+    if (key.endsWith(suf)) { key = trimPunct(key.slice(0, -suf.length)); break; }
+  }
   return key || null;
 }
 

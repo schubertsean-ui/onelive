@@ -168,7 +168,10 @@ _ZIP_RE = re.compile(r"[\s,]+\d{5}(?:-\d{4})?$")
 # by writing its county. Requires a leading comma or space so it can never eat
 # a place whose own name ends in the word (there is no such CAPCOG place, but
 # the guard costs nothing and the alternative fails silently).
-_COUNTY_RE = re.compile(r"(?:^|[\s,]+)([a-z][a-z .'-]*?)\s+county$")
+# Matches the county word OR its common abbreviation "Co." / "Co" ("San Antonio,
+# Bexar Co., TX"), which feeds write as often as the full word — missing it let a
+# known-outside county leak through as UNKNOWN (PR #107 r6).
+_COUNTY_RE = re.compile(r"(?:^|[\s,]+)([a-z][a-z .'-]*?)\s+(?:county|co)\.?$")
 
 # The counties we can decide on directly. Everything in KNOWN_OUTSIDE names the
 # county it sits in, so the outside set is derived rather than hand-listed —
@@ -271,8 +274,12 @@ def normalize_county(value: Optional[str]) -> Optional[str]:
     key = normalize_place(value)
     if key is None:
         return None
-    if key.endswith(" county"):
-        key = key[: -len(" county")].strip(" ,.")
+    # Drop the county word or its abbreviation ("bexar county" / "bexar co" /
+    # "bexar co." all -> "bexar"). PR #107 r6: the abbreviated form leaked.
+    for suf in (" county", " co.", " co"):
+        if key.endswith(suf):
+            key = key[: -len(suf)].strip(" ,.")
+            break
     return key or None
 
 

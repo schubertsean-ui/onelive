@@ -271,6 +271,20 @@ def test_hill_country_expansion_is_in_market():
         assert row_verdict({"venue_city": shape}) is False, shape
 
 
+def test_the_county_abbreviation_Co_is_recognized():
+    """PR #107 r6: feeds write "Bexar Co." / "Bexar Co" as often as the full
+    word. The parser recognized only "County", so the abbreviated form came back
+    unknown and the read path kept a Bexar/San Antonio row."""
+    for shape in ("San Antonio, Bexar Co., TX", "Bexar Co.", "Bexar Co",
+                  "Nowhere, Bexar Co, TX"):
+        assert row_verdict({"venue_city": shape}) is False, shape
+    assert row_verdict({"venue_county": "Bexar Co."}) is False
+    assert normalize_county("Bexar Co.") == "bexar"
+    assert normalize_county("Bexar Co") == "bexar"
+    # A member county abbreviated still keeps its venue:
+    assert row_verdict({"venue_county": "Travis Co."}) is True
+
+
 def test_a_trailing_period_does_not_smuggle_a_known_outside_city_through():
     """PR #107 r4: the terminal trim removed only commas/whitespace, so
     "San Antonio, TX." kept its period, matched no table, and was kept as
