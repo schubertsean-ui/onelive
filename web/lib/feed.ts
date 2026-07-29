@@ -352,7 +352,10 @@ export function bucketByDate(events: LicensedEvent[], nowMs: number): DateBucket
   const buckets: DateBucket[] = [
     { key: "rich", label: "This week", blurb: "the next seven days", items: rich },
     { key: "compact", label: "In the coming weeks", blurb: "the next few weeks", items: compact.sort(byStart) },
-    { key: "line", label: "Further out", blurb: "beyond a month — dates set", items: line.sort(byStart) },
+    // The line bucket also holds date-TBA rows (timeBand maps a null/invalid
+    // start_time here), which render as "Date TBA" — so the blurb must NOT claim
+    // dates are set (adversarial-review #100), it names both far-dated and TBA.
+    { key: "line", label: "Further out", blurb: "beyond a month out, and dates to be announced", items: line.sort(byStart) },
   ];
   return buckets.filter((b) => b.items.length);
 }

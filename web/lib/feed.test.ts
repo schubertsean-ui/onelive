@@ -249,4 +249,15 @@ describe("bucketByDate — the three-tier date density", () => {
   it("returns nothing for an empty set", () => {
     expect(bucketByDate([], NOW)).toEqual([]);
   });
+
+  it("puts a date-TBA (null/invalid start) row in the line bucket, not hidden (#100)", () => {
+    const tba = ev({ licensed_event_id: "tba", start_time: null });
+    const bad = ev({ licensed_event_id: "bad", start_time: "not-a-date" });
+    const b = bucketByDate([mk("soon", 2), tba, bad], NOW);
+    const line = b.find((x) => x.key === "line");
+    expect(line).toBeTruthy();
+    expect(line!.items.map((e) => e.licensed_event_id).sort()).toEqual(["bad", "tba"]);
+    // sum-preserving even with undated rows — nothing dropped.
+    expect(b.reduce((s, x) => s + x.items.length, 0)).toBe(3);
+  });
 });
