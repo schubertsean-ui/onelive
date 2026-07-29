@@ -115,8 +115,11 @@ def extract_candidate_from_image(
         prov = meta.get("_provenance")
         meta["_provenance"] = dict(prov) if isinstance(prov, dict) else {}
         meta["_provenance"]["image_had_no_event"] = True
-        # Ensure the vision extractor marker survives even on the empty path.
-        meta["_provenance"].setdefault("extractor", "vision")
+        # AUTHORITATIVELY stamp the vision marker — never setdefault. A caller-
+        # or model-supplied `_provenance.extractor` must NOT be able to survive
+        # and disguise a vision candidate as certified-text extraction; ops rely
+        # on this marker to tell the uncertified image path apart.
+        meta["_provenance"]["extractor"] = "vision"
 
     candidate_id = _shape_and_store_one(
         fields,
@@ -156,7 +159,10 @@ def _shape_and_store_one(
     # image path from the certified text path.
     prov = meta.get("_provenance")
     meta["_provenance"] = dict(prov) if isinstance(prov, dict) else {}
-    meta["_provenance"].setdefault("extractor", "vision")
+    # AUTHORITATIVE, not setdefault (adversarial-review #92, openai seats): a
+    # model- or caller-supplied `_provenance.extractor` must never survive and
+    # mislabel a vision candidate as certified-text extraction.
+    meta["_provenance"]["extractor"] = "vision"
 
     adapter = TypeAdapter(AIEventExtraction)
     try:
@@ -170,8 +176,13 @@ def _shape_and_store_one(
         shaped = AIEventExtraction().model_dump()
         meta["_provenance"]["validation_error"] = True
 
-    if not shaped.get("city"):
-        shaped["city"] = "Austin"
+    # Truth-first (adversarial-review #92, openai seats + the vision prompt's
+    # own rule 8): NEVER fabricate a city. Unlike the legacy text path, the
+    # vision extractor leaves city NULL when the image does not evidence it —
+    # inventing "Austin" would assert a location the flyer may not show and,
+    # for the Austin->Lexington multi-city plan, would mislabel out-of-region
+    # flyers. An absent city is the honest answer; ops (and the human promote
+    # gate) see null, never a guessed place.
 
     # R-021: store a timestamp only when a full calendar date is evidenced;
     # time-only claims become NULL with the raw claim preserved in provenance.

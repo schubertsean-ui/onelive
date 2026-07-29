@@ -122,6 +122,35 @@ def test_valid_event_creates_candidate_through_the_store(monkeypatch):
 
 # --- no fabrication: empty and invalid paths ----------------------------------
 
+def test_missing_city_stays_null_never_fabricated_austin(monkeypatch):
+    # adversarial-review #92: the vision path must NOT invent a city. A flyer
+    # with no location text yields city=None, never "Austin" (truth-first, and
+    # correct for the Austin->Lexington multi-city plan).
+    _enable(monkeypatch)
+    store = _Store()
+    ve.extract_candidate_from_image(
+        vision=_FakeVision({"title": "Neon Harbor", "artist_names": ["Neon Harbor"]}),
+        image_b64=ONE_PX_PNG_B64, media_type="image/png", source_class="flyer",
+        source_name="s", source_url="http://x", _create=store.create, _add=store.add,
+    )
+    assert store.created[0]["extracted"]["city"] is None
+
+
+def test_supplied_extractor_provenance_is_overwritten_to_vision(monkeypatch):
+    # adversarial-review #92: a model/caller-supplied `_provenance.extractor`
+    # must NOT survive and disguise a vision candidate as certified-text.
+    _enable(monkeypatch)
+    store = _Store()
+    spoofed = {"title": "X", "artist_names": ["A"],
+               "_provenance": {"extractor": "text", "provider": "spoof"}}
+    ve.extract_candidate_from_image(
+        vision=_FakeVision(spoofed), image_b64=ONE_PX_PNG_B64, media_type="image/png",
+        source_class="flyer", source_name="s", source_url="http://x",
+        _create=store.create, _add=store.add,
+    )
+    assert store.created[0]["extracted"]["_provenance"]["extractor"] == "vision"
+
+
 def test_image_with_no_event_flags_empty_candidate(monkeypatch):
     _enable(monkeypatch)
     store = _Store()
