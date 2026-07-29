@@ -73,6 +73,14 @@ GRAPH_API_BASE = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
 
 ACCESS_TOKEN_ENV = "META_ACCESS_TOKEN"
 
+# The trusted, IMMUTABLE, content-addressed image host(s) — deployment config
+# (comma-separated https origin/prefixes). A content-addressed url only proves
+# the bytes are the approved bytes when the host is trusted to serve that digest
+# immutably (evaluator PR #106 r4: an arbitrary host can serve different pixels
+# from /<approved-sha>.png). Empty = fail-closed, nothing posts. The R-061 card
+# host must be an immutable, object-locked, content-addressed store.
+CARD_IMAGE_HOSTS_ENV = "ONELIVE_CARD_IMAGE_HOSTS"
+
 # Which env var holds the posting node id for each supported surface. Only
 # instagram_feed has a real Graph API carousel flow in this client; the
 # facebook_page carousel endpoint is a separate build (R-061), and an
@@ -176,13 +184,24 @@ def _require_https(url: str, context: str) -> str:
     return url
 
 
+def _trusted_image_hosts() -> tuple:
+    raw = os.environ.get(CARD_IMAGE_HOSTS_ENV, "")
+    return tuple(h.strip() for h in raw.split(",") if h.strip())
+
+
 def _require_content_addressed_image(slide, index: int) -> str:
-    """The slide's image must be an https url CONTENT-ADDRESSED to the approved
-    bytes: the bound image_sha256 (covered by content_hash, so the release binds
-    it) must appear in the url. This makes the hosted bytes immutable relative to
-    the approval — a swap to different bytes would change the digest and the url.
-    Empty image_sha256 refuses (fail-closed until the R-061 renderer hosts the
-    card at its content-addressed url)."""
+    """The slide's image must be an https url that is BOTH content-addressed to
+    the approved bytes AND served from a trusted immutable host:
+
+      1. the bound image_sha256 (covered by content_hash, so the release binds
+         it) must appear in the url — the url names the approved bytes; and
+      2. the url must sit on a configured trusted-host prefix — a content-
+         addressed url only proves the bytes on an immutable store we trust to
+         serve that digest and never mutate it (evaluator PR #106 r4: an
+         arbitrary host can serve different pixels from /<sha>.png).
+
+    Empty digest OR no configured trusted host refuses (fail-closed until the
+    R-061 renderer hosts the card at its content-addressed url on that store)."""
     context = f"slide {index} ({slide.kind})"
     url = _require_https(slide.image_ref, context)
     digest = (slide.image_sha256 or "").strip().lower()
@@ -197,6 +216,19 @@ def _require_content_addressed_image(slide, index: int) -> str:
             f"{context}: image url is not content-addressed to the approved "
             "bytes (bound sha256 not present in the url) — refusing to post "
             "possibly-swapped imagery"
+        )
+    hosts = _trusted_image_hosts()
+    if not hosts:
+        raise MetaPublishError(
+            f"{context}: no trusted image-host allowlist configured "
+            f"({CARD_IMAGE_HOSTS_ENV}) — a content-addressed url is only "
+            "trustworthy on an immutable store we control, so nothing posts "
+            "(fail-closed; the R-061 card host)"
+        )
+    if not any(url.startswith(prefix) for prefix in hosts):
+        raise MetaPublishError(
+            f"{context}: image host is not in the trusted immutable-host "
+            "allowlist — refusing possibly-mutable imagery from an untrusted host"
         )
     return url
 

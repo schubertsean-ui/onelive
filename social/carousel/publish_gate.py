@@ -313,11 +313,27 @@ def assert_events_still_publishable(draft: CarouselDraft) -> None:
                 f"post refused: {slide.event_id} is not a canonical published "
                 "row — candidate/pipeline rows are never amplified"
             )
-        if not slide.start_time or not within_timeframe(
-            slide.start_time, now, draft.timeframe
-        ):
+        # Time is re-read from the FRESH canonical row, not the approved slide
+        # (evaluator PR #106 r4): if the event was re-timed after approval —
+        # even while it stays confirmed/scheduled — the slide's displayed time
+        # is now stale. Refuse if the canonical time drifted from what was
+        # approved, AND require the CURRENT time to still be strictly ahead in
+        # window. Either failure means the draft would post a false listing.
+        row_start = row.get("start_time")
+        if not row_start:
             raise ValueError(
-                f"post refused: {slide.event_id} (start {slide.start_time!r}) is "
+                f"post refused: canonical row for {slide.event_id} has no "
+                "start_time — cannot re-verify the event time"
+            )
+        if row_start != slide.start_time:
+            raise ValueError(
+                f"post refused: {slide.event_id} was re-timed since approval "
+                f"(approved {slide.start_time!r}, canonical now {row_start!r}) — "
+                "the draft's displayed time is stale"
+            )
+        if not within_timeframe(row_start, now, draft.timeframe):
+            raise ValueError(
+                f"post refused: {slide.event_id} (canonical start {row_start!r}) is "
                 f"no longer strictly ahead within the {draft.timeframe} window at "
                 f"{now} — carousels never post what has already started"
             )

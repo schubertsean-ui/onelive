@@ -86,7 +86,7 @@ def _signed_release(draft, released_by="Sean Schubert", surface=None, released_a
 def _featurable(ids):
     return {
         i: {"confidence": "confirmed", "event_status": "scheduled",
-            "origin": "canonical_event"}
+            "origin": "canonical_event", "start_time": EVENT_START}
         for i in ids
     }
 
@@ -107,6 +107,7 @@ def enabled(monkeypatch):
     monkeypatch.setenv("META_ACCESS_TOKEN", "founder-minted-token")
     monkeypatch.setenv("META_IG_USER_ID", "17841400000000000")
     monkeypatch.setenv("ONELIVE_APPROVAL_KEY", TEST_KEY)
+    monkeypatch.setenv("ONELIVE_CARD_IMAGE_HOSTS", "https://cards.example/")
     monkeypatch.setattr(publish_gate, "_utcnow", lambda: datetime.fromisoformat(REF_NOW))
     monkeypatch.setattr(publish_gate, "_STATE_READER", _featurable)
 
@@ -216,6 +217,34 @@ def test_event_now_disputed_refuses(enabled, monkeypatch):
 
 def test_no_state_reader_refuses(enabled, monkeypatch):
     monkeypatch.setattr(publish_gate, "_STATE_READER", None)
+    draft = _draft()
+    with pytest.raises(MetaPublishError):
+        MetaPublisher(transport=_FakeTransport()).post(draft, _signed_release(draft))
+
+
+def test_event_retimed_since_approval_refuses(enabled, monkeypatch):
+    # Canonical time drifted after approval (still confirmed/scheduled): the
+    # slide's displayed time is stale, so the fresh-canonical recheck refuses.
+    monkeypatch.setattr(
+        publish_gate, "_STATE_READER",
+        lambda ids: {i: {"confidence": "confirmed", "event_status": "scheduled",
+                         "origin": "canonical_event",
+                         "start_time": "2026-07-24T22:30:00-05:00"} for i in ids},
+    )
+    draft = _draft()
+    with pytest.raises(MetaPublishError):
+        MetaPublisher(transport=_FakeTransport()).post(draft, _signed_release(draft))
+
+
+def test_untrusted_image_host_refuses(enabled, monkeypatch):
+    monkeypatch.setenv("ONELIVE_CARD_IMAGE_HOSTS", "https://cdn.trusted.example/")
+    draft = _draft()  # images are on cards.example — not the trusted host
+    with pytest.raises(MetaPublishError):
+        MetaPublisher(transport=_FakeTransport()).post(draft, _signed_release(draft))
+
+
+def test_no_trusted_host_allowlist_refuses(enabled, monkeypatch):
+    monkeypatch.delenv("ONELIVE_CARD_IMAGE_HOSTS", raising=False)
     draft = _draft()
     with pytest.raises(MetaPublishError):
         MetaPublisher(transport=_FakeTransport()).post(draft, _signed_release(draft))
