@@ -52,3 +52,29 @@ def test_kind_derivation_is_correct_for_known_shapes():
     assert gen.derive_kind("Becker Vineyards") == "winery"
     assert gen.derive_kind("Meanwhile Brewing Co.") == "brewery"
     assert gen.derive_kind("Garrison Brothers Distillery") == "distillery"
+
+
+def test_name_wins_over_a_co_located_other_kind_in_notes():
+    # adversarial-review #96: a winery whose NOTES mention a co-located brewery
+    # must stay a winery — the venue's own name is authoritative.
+    assert gen.derive_kind(
+        "Carter Creek Winery Resort & Spa",
+        "Winery; events: live music. Winery + Old 290 Brewery on site.",
+    ) == "winery"
+    assert gen.derive_kind(
+        "Bell Springs Winery",
+        "Winery; events: live music. Dripping Springs winery+brewery.",
+    ) == "winery"
+    # When the name carries no kind keyword, fall back to the notes' OWN leading
+    # kind label (never a downstream mention of another kind).
+    assert gen.derive_kind("Vinovium", "Winery; events: wine bar & restaurant.") == "winery"
+    assert gen.derive_kind("Redbud Cafe", "Restaurant; events: live music.") == "restaurant"
+
+
+def test_generated_file_has_no_winery_named_venue_mislabeled():
+    # Guard the specific regression on the real data: any venue whose name ends
+    # in a winery word must be classified winery.
+    import re
+    for v in gen.build_venues():
+        if re.search(r"\b(winery|vineyards?|cellars)\b", v["name"], re.IGNORECASE):
+            assert v["kind"] == "winery", f"{v['name']} mislabeled as {v['kind']}"

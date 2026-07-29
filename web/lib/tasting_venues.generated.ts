@@ -6,11 +6,11 @@ import type { TastingVenue } from "./venues";
 export const TASTING_VENUES: TastingVenue[] = [
   { id: "rising_sun_vineyard", name: "Rising Sun Vineyard", kind: "winery", county: "bastrop", url: "https://www.risingsunvineyard.com/" },
   { id: "yegua_creek_brewery_restaurant", name: "Yegua Creek Brewery & Restaurant", kind: "brewery", county: "bastrop", url: "https://www.yeguacreekbrewery.com/events" },
-  { id: "carter_creek_winery_resort_spa", name: "Carter Creek Winery Resort & Spa", kind: "brewery", county: "blanco", url: "https://www.cartercreek.com/calendar-of-events" },
+  { id: "carter_creek_winery_resort_spa", name: "Carter Creek Winery Resort & Spa", kind: "winery", county: "blanco", url: "https://www.cartercreek.com/calendar-of-events" },
   { id: "garrison_brothers_distillery", name: "Garrison Brothers Distillery", kind: "distillery", county: "blanco", url: "https://www.garrisonbros.com/events" },
   { id: "iron_wolf_ranch_distillery", name: "Iron Wolf Ranch & Distillery", kind: "distillery", county: "burnet", url: "https://ironwolfranch.com/events/" },
   { id: "round_top_brewing_co", name: "Round Top Brewing Co.", kind: "brewery", county: "fayette", url: "http://www.roundtopbrewing.com/new-events-1" },
-  { id: "bell_springs_winery", name: "Bell Springs Winery", kind: "brewery", county: "hays", url: "https://www.bellsprings.co/events" },
+  { id: "bell_springs_winery", name: "Bell Springs Winery", kind: "winery", county: "hays", url: "https://www.bellsprings.co/events" },
   { id: "dripping_springs_distilling", name: "Dripping Springs Distilling", kind: "distillery", county: "hays", url: "https://drippingspringsdistilling.com/events/list/" },
   { id: "fitzhugh_brewing", name: "Fitzhugh Brewing", kind: "brewery", county: "hays", url: "https://www.fitzhughbrewing.com/upcoming-events" },
   { id: "treaty_oak_distilling", name: "Treaty Oak Distilling", kind: "distillery", county: "hays", url: "https://www.treatyoakdistilling.com/events" },

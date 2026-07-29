@@ -34,11 +34,11 @@ OUT = ROOT / "web" / "lib" / "tasting_venues.generated.ts"
 VALID_KINDS = ("winery", "brewery", "distillery", "beer-garden", "restaurant", "tasting-room")
 
 
-def derive_kind(text: str) -> str:
-    """Classify a tasting venue by keyword. Order matters: distillery and
+def _match_kind(text: str) -> "str | None":
+    """Match a kind by keyword in one string. Order matters: distillery and
     beer-garden are checked before the broader brewery/winery/restaurant
-    keywords so e.g. a 'Beer Garden & Grille' is a beer-garden, not a
-    restaurant, and a 'Whiskey Co.' is a distillery."""
+    keywords so a 'Beer Garden & Grille' is a beer-garden (not a restaurant)
+    and a 'Whiskey Co.' is a distillery. Returns None on no match."""
     t = text.lower()
     if any(k in t for k in ("distill", "whiskey", "whisky", "bourbon", "spirits", "speakeasy")):
         return "distillery"
@@ -48,8 +48,26 @@ def derive_kind(text: str) -> str:
         return "brewery"
     if any(k in t for k in ("winery", "vineyard", "cellars", "wine")):
         return "winery"
-    if any(k in t for k in ("restaurant", "grille", "steakhouse", "saloon", "kitchen", "grill")):
+    if any(k in t for k in ("restaurant", "grille", "steakhouse", "saloon", "kitchen", "grill", "cafe")):
         return "restaurant"
+    return None
+
+
+def derive_kind(name: str, notes: str = "") -> str:
+    """Classify a tasting venue. The venue's OWN NAME is authoritative — a
+    '<X> Winery' whose notes mention a co-located brewery ('Old 290 Brewery on
+    site', 'winery+brewery') is still a WINERY, not a brewery (adversarial-
+    review #96: matching name+notes together mislabeled Carter Creek and Bell
+    Springs). Only when the name carries no kind keyword do we fall back to the
+    notes' OWN leading kind label (we format notes as '<Kind>; events: …'),
+    using just the segment before the first ';' so a downstream mention of some
+    other kind can't override it."""
+    from_name = _match_kind(name)
+    if from_name is not None:
+        return from_name
+    from_notes = _match_kind(notes.split(";", 1)[0])
+    if from_notes is not None:
+        return from_notes
     return "tasting-room"
 
 
@@ -67,7 +85,7 @@ def build_venues() -> list[dict]:
         out.append({
             "id": str(e.get("id")),
             "name": name,
-            "kind": derive_kind(f"{name} {notes}"),
+            "kind": derive_kind(name, notes),
             "county": str(e.get("county") or "").lower(),
             "url": e.get("base_url") or "",
         })
