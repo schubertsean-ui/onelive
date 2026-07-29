@@ -59,6 +59,15 @@ jobs:
           # from the raw payload already stored (no re-fetch). Idempotent.
           python3 tools/backfill_venue_contact.py
       - name: Import SeatGeek CAPCOG events (same licensed_event store)
+        # continue-on-error: SeatGeek is an ADDITIVE second provider. If its key
+        # is absent/misconfigured the step still fails LOUD (the guard below +
+        # a visible red step in the run), but it must NOT fail the whole ticketed
+        # import — Ticketmaster already wrote 1300+ events in the step above.
+        # This keeps the pipeline from chronically red-flagging on an optional
+        # provider's missing key while still surfacing the exact reason. The
+        # fail-closed guard is retained (workflow_env_lint R4 stays satisfied);
+        # only the JOB conclusion is spared, never the visibility of the failure.
+        continue-on-error: true
         env:
           SEATGEEK_CLIENT_ID: ${{ secrets.SEATGEEK_CLIENT_ID }}
           ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
@@ -66,9 +75,9 @@ jobs:
           MAX_PAGES: ${{ github.event.inputs.max_pages || '8' }}
         run: |
           # Fail-closed like the Ticketmaster step (workflow_env_lint R4): a
-          # missing key is a loud, visible failure, never a silent skip. The
-          # Ticketmaster step above already wrote its events, so its coverage is
-          # unaffected; a red here means "add or fix the SeatGeek secret".
+          # missing key is a loud, visible failure, never a silent skip. With
+          # continue-on-error above, this red is surfaced but does not sink the
+          # ticketed import; it means "add or fix the SeatGeek secret".
           : "${SEATGEEK_CLIENT_ID:?SEATGEEK_CLIENT_ID secret missing — add it in repo Settings → Secrets → Actions}"
           : "${MAX_PAGES:?max_pages missing — the fetch bound is required}"
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
