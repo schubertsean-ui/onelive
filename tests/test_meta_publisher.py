@@ -38,7 +38,7 @@ def _img(i, *, sha=None, https=True):
 
 
 def _draft(surface="instagram_feed", banned=False, missing_sha=False, non_https=False,
-           bad_addressing=False, bad_digest=False):
+           bad_addressing=False, bad_digest=False, digest_in_query=False):
     overlay = ("Selling out soon",) if banned else ("Doors at 8",)
     ev_ref = _img(1, https=not non_https)
     ev_sha = "" if missing_sha else SHA[1]
@@ -47,6 +47,9 @@ def _draft(surface="instagram_feed", banned=False, missing_sha=False, non_https=
     if bad_digest:  # digest is not a real 64-hex sha, but appears in the url
         ev_sha = "promo"
         ev_ref = "https://cards.example/promo.png"
+    if digest_in_query:  # digest rides the query on a mutable object path
+        ev_sha = SHA[1]
+        ev_ref = f"https://cards.example/latest.png?sha={SHA[1]}"
     return CarouselDraft(
         series_key="live-music",
         surface=surface,
@@ -260,6 +263,14 @@ def test_non_hex_digest_refuses(enabled):
     # A non-digest string that happens to appear in the url must not pass as a
     # content address.
     draft = _draft(bad_digest=True)
+    with pytest.raises(MetaPublishError):
+        MetaPublisher(transport=_FakeTransport()).post(draft, _signed_release(draft))
+
+
+def test_digest_in_query_string_refuses(enabled):
+    # The digest must be the object's path address, not a query param on a
+    # mutable object (…/latest.png?sha=<digest>).
+    draft = _draft(digest_in_query=True)
     with pytest.raises(MetaPublishError):
         MetaPublisher(transport=_FakeTransport()).post(draft, _signed_release(draft))
 

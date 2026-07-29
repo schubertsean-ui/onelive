@@ -226,11 +226,18 @@ def _require_content_addressed_image(slide, index: int) -> str:
             f"{context}: image_sha256 {digest!r} is not a canonical 64-hex "
             "SHA-256 — a non-digest string must not pass as a content address"
         )
-    if digest not in url.lower():
+    # The digest must ADDRESS the object — a path segment (e.g. /<sha>.png),
+    # not merely appear anywhere in the url (evaluator PR #106 r6):
+    # ".../latest.png?sha=<digest>" would serve a mutable object while the
+    # approved digest rides the query string.
+    path_segments = [
+        seg for seg in urllib.parse.urlsplit(url).path.lower().split("/") if seg
+    ]
+    if not any(seg == digest or seg.split(".")[0] == digest for seg in path_segments):
         raise MetaPublishError(
-            f"{context}: image url is not content-addressed to the approved "
-            "bytes (bound sha256 not present in the url) — refusing to post "
-            "possibly-swapped imagery"
+            f"{context}: image url does not address the approved bytes by digest "
+            "(the sha256 must be a path segment, e.g. /<sha>.png — not a query "
+            "param or substring on a mutable object) — refusing swapped imagery"
         )
     hosts = _trusted_image_hosts()
     if not hosts:
