@@ -16,7 +16,42 @@
 //     which already fails toward "See tickets".
 
 import type { LicensedEvent } from "./licensed";
-import { detailWhen, detailPrice } from "./detail";
+import {
+  detailWhen,
+  detailPrice,
+  detailProviderLabel,
+  detailTrustKind,
+  statusNote,
+} from "./detail";
+import { trustDisplay } from "./trust";
+
+// Compact per-state caveat for a SHARED artifact — shorter than the detail
+// page's full "How we know" sheet, but carrying the same fact. Keyed on the
+// confidence state trustDisplay resolves (which already degrades unknown ->
+// unverified), so a shared row can never claim more certainty than the card.
+const CONFIDENCE_CAVEAT: Record<string, string> = {
+  disputed: "Sources disagree on the details — check the venue before you go.",
+  likely: "Listed by a single source, not yet confirmed — check the venue.",
+  unverified: "Not yet verified — check the venue before you go.",
+};
+
+// The one caveat line the share text and the link-preview both carry, highest
+// stakes first:
+//   1. a cancelled / postponed / moved STATUS — a recipient must never be texted
+//      a dead event as if it were on (reused from statusNote, the same sentence
+//      the detail page shows);
+//   2. otherwise, an uncertainty note for any non-confirmed confidence
+//      (likely / unverified / disputed) — unverified data never rides into a
+//      forwardable artifact wearing confirmed-fact authority.
+// Returns null only for a scheduled, confirmed row (which shows clean, no badge,
+// per the trust rules).
+export function shareCaveat(e: LicensedEvent): string | null {
+  const status = statusNote(e);
+  if (status) return status;
+  const t = trustDisplay(e.confidence, detailProviderLabel(e), detailTrustKind(e));
+  if (!t.surface) return null;
+  return CONFIDENCE_CAVEAT[t.key] ?? CONFIDENCE_CAVEAT.unverified;
+}
 
 // Short, human title for the OS share sheet. The details go in the TEXT so the
 // sheet's title stays a glanceable headline (many share targets show them
@@ -50,10 +85,11 @@ export function shareText(e: LicensedEvent): string {
   // texting, and stating it as if it were a price would overclaim.
   if (price.known) lines.push(price.text);
 
-  // disputed-shown-never-hidden: the caveat travels WITH the artifact.
-  if (e.confidence === "disputed") {
-    lines.push("⚠ Sources disagree on the details — check the venue before you go.");
-  }
+  // The trust caveat travels WITH the artifact: a cancelled/postponed/moved
+  // status, or an uncertainty note for any non-confirmed row. A recipient must
+  // never be sent a dead or unverified event dressed as an ordinary show.
+  const caveat = shareCaveat(e);
+  if (caveat) lines.push(`⚠ ${caveat}`);
 
   lines.push("via ONE LIVE");
   return lines.join("\n");

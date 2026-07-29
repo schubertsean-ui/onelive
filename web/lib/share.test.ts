@@ -4,7 +4,7 @@
 // resolves to the same detail page an in-app tap does.
 
 import { describe, expect, it } from "vitest";
-import { shareTitle, shareText, shareUrl, shareData, buildClipboardText } from "./share";
+import { shareTitle, shareText, shareUrl, shareData, buildClipboardText, shareCaveat } from "./share";
 import { eventHref } from "./detail";
 import type { LicensedEvent } from "./licensed";
 
@@ -84,10 +84,33 @@ describe("shareText", () => {
     expect(t.toLowerCase()).toContain("sources disagree");
   });
 
-  it("does not add a disputed caveat to a non-disputed row", () => {
-    for (const c of ["confirmed", "likely", "unverified"]) {
-      expect(shareText(ev({ confidence: c })).toLowerCase()).not.toContain("sources disagree");
-    }
+  it("carries an uncertainty caveat for likely AND unverified — not just disputed", () => {
+    // adversarial-review #98: an unverified/likely row must not ride into a
+    // forwardable artifact wearing confirmed-fact authority.
+    expect(shareText(ev({ confidence: "likely" }))).toContain("⚠");
+    expect(shareText(ev({ confidence: "unverified" }))).toContain("⚠");
+    expect(shareText(ev({ confidence: "likely" })).toLowerCase()).toContain("not yet confirmed");
+    expect(shareText(ev({ confidence: "unverified" })).toLowerCase()).toContain("not yet verified");
+  });
+
+  it("carries a cancellation/status warning into the artifact", () => {
+    // adversarial-review #98: a cancelled event must never be texted as an
+    // ordinary upcoming show — a recipient could go to a dead event.
+    expect(shareText(ev({ status: "cancelled" })).toLowerCase()).toContain("cancelled");
+    expect(shareText(ev({ status: "postponed" })).toLowerCase()).toContain("postponed");
+    expect(shareText(ev({ status: "moved" })).toLowerCase()).toContain("moved");
+  });
+
+  it("stays clean for a scheduled, confirmed row — no caveat, no badge", () => {
+    const t = shareText(ev({ confidence: "confirmed", status: "scheduled" }));
+    expect(t).not.toContain("⚠");
+    expect(shareCaveat(ev({ confidence: "confirmed", status: "scheduled" }))).toBeNull();
+  });
+
+  it("status outranks a confidence caveat (highest-stakes fact first)", () => {
+    const t = shareText(ev({ status: "cancelled", confidence: "unverified" }));
+    expect(t.toLowerCase()).toContain("cancelled");
+    expect(t.toLowerCase()).not.toContain("not yet verified");
   });
 });
 

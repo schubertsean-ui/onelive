@@ -22,6 +22,7 @@ import {
   statusNote,
 } from "../../../../lib/detail";
 import ShareButton from "./ShareButton";
+import { shareCaveat } from "../../../../lib/share";
 
 // Server component — reads ONE event at request time. Deliberately NOT cached:
 // the same freshness rule the feed uses, for the same reason (an event that
@@ -49,11 +50,14 @@ export async function generateMetadata(
     if (!e) return fallback;
 
     const price = detailPrice(e);
+    // The link preview carries the SAME status/uncertainty caveat as the share
+    // text (shareCaveat): a cancelled/postponed/moved event, or a non-confirmed
+    // row, must not unfurl in Messages as an ordinary upcoming show.
     const desc = [
       detailWhen(e),
       [e.venue_name, e.venue_area].filter(Boolean).join(" · ") || null,
       price.known ? price.text : null,
-      e.confidence === "disputed" ? "Sources disagree — check the venue." : null,
+      shareCaveat(e),
     ].filter(Boolean).join(" · ");
     const img = httpOrNull(e.image_url);
     const title = `${e.title} — ONE LIVE`;
