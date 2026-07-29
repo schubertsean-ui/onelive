@@ -134,10 +134,32 @@ describe("CAPCOG boundary on the read path", () => {
     expect(out.droppedOutside).toHaveLength(2);
   });
 
-  it("county beats city when the two disagree", () => {
+  it("a KNOWN-OUTSIDE signal drops the row even against an in-market county", () => {
+    // PR #107 attacker-smuggle: county precedence let a contradictory in-market
+    // county field carry a known-outside CITY onto /tonight. A boundary whose
+    // job is "never show San Antonio" resolves a contradiction to DROP.
+    // Known-outside county still drops an in-market-looking city (unchanged):
     expect(rowVerdict({ county: "Bexar", city: "Austin" })).toBe(false);
-    expect(rowVerdict({ venue_county: "Travis", city: "San Antonio" })).toBe(true);
+    // Known-outside CITY now vetoes an in-market county (the fix):
+    expect(rowVerdict({ venue_county: "Travis", city: "San Antonio" })).toBe(false);
+    expect(rowVerdict({ venue_county: "Travis", venue_city: "San Antonio" })).toBe(false);
+    // A city string that embeds a contradictory in-market county is still dropped
+    // on its known-outside city:
+    expect(rowVerdict({ venue_city: "San Antonio, Travis County, TX" })).toBe(false);
+    // County still RESCUES a merely-unrecognised city (true beats null):
+    expect(rowVerdict({ venue_county: "Travis", venue_city: "Rollingwood" })).toBe(true);
     expect(rowVerdict({ county: "Nowhere County" })).toBe(null);
+  });
+
+  it("a contradictory in-market county cannot smuggle a known-outside city to the feed", () => {
+    const out = filterToCapcog([
+      { venue_county: "Travis", venue_city: "San Antonio", venue_name: "Majestic" },
+      { venue_city: "San Antonio, Travis County, TX", venue_name: "Freeman" },
+      { venue_county: "Travis", venue_city: "Austin", venue_name: "Mohawk" },
+      { venue_county: "Travis", venue_city: "Rollingwood", venue_name: "Rescued" },
+    ]);
+    expect(out.kept.map((r) => r.venue_name)).toEqual(["Mohawk", "Rescued"]);
+    expect(out.droppedOutside.map((r) => r.venue_name)).toEqual(["Majestic", "Freeman"]);
   });
 
   it("agrees with Python on every county vector", () => {

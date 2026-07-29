@@ -169,18 +169,38 @@ function firstUsable(row: RegionRow, fields: (keyof RegionRow)[]): string | null
   return null;
 }
 
-/** TRI-STATE membership for a whole row, county evidence FIRST. If a row says
- *  Bexar, no amount of city ambiguity lets it through. */
+/** TRI-STATE membership for a whole row. Gather EVERY location signal, then let
+ *  a KNOWN-OUTSIDE reading from any of them win in the DROP direction.
+ *
+ *  A boundary whose whole job is "never show San Antonio" must treat a
+ *  CONTRADICTION as a drop, never a keep: an in-market county paired with a
+ *  known-outside city, or a city string that embeds a county contradicting the
+ *  city it sits in. Evaluator finding, PR #107 (attacker-smuggle) — county
+ *  precedence let `{ venue_county: "Travis", venue_city: "San Antonio" }` and
+ *  `venue_city: "San Antonio, Travis County, TX"` reach /tonight, so a feed or
+ *  insider could publish a known-outside listing just by adding a contradictory
+ *  in-market county field.
+ *
+ *  Precedence: any `false` (known outside) → drop; else any `true` (known
+ *  inside) → keep; else `null` (unrecognised) → kept-and-counted. The earlier
+ *  intent is preserved as a consequence, not a special case: county evidence
+ *  still RESCUES a row whose city is merely unrecognised (true beats null), and
+ *  a known-outside county still drops a row whose city looks in-market (false
+ *  beats true). What changes is that a known-outside CITY now also vetoes an
+ *  in-market county — the symmetric hole the single-precedence rule left open. */
 export function rowVerdict(row: RegionRow): RegionVerdict {
-  const byCounty = inCapcogCounty(firstUsable(row, ["venue_county", "county"]));
-  if (byCounty !== null) return byCounty;
+  const verdicts: RegionVerdict[] = [
+    inCapcogCounty(firstUsable(row, ["venue_county", "county"])),
+  ];
   const cityRaw = firstUsable(row, ["venue_city", "city"]);
   if (cityRaw !== null) {
-    // The city string can itself carry the county ("San Antonio, Bexar County").
-    const nested = inCapcogCounty(countyInPlace(cityRaw));
-    if (nested !== null) return nested;
+    // The city string can itself carry a county ("San Antonio, Bexar County").
+    verdicts.push(inCapcogCounty(countyInPlace(cityRaw)));
+    verdicts.push(inCapcog(cityRaw));
   }
-  return inCapcog(cityRaw);
+  if (verdicts.some((v) => v === false)) return false;
+  if (verdicts.some((v) => v === true)) return true;
+  return null;
 }
 
 export interface RegionFilterResult<T> {

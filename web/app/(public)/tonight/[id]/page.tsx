@@ -166,6 +166,18 @@ export default async function EventDetailPage(
       </Shell>
     );
   }
+  if (view.kind === "outside-market") {
+    // A real event, just outside the CAPCOG market — the same boundary the feed
+    // enforces, held on the direct-link surface too (PR #107).
+    return (
+      <Shell>
+        <div className="err">
+          This event is outside the Central Texas area ONE LIVE covers, so it
+          isn&rsquo;t one of our listings.
+        </div>
+      </Shell>
+    );
+  }
 
   const event_ = view.event;
 
