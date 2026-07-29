@@ -178,6 +178,10 @@ describe("CAPCOG boundary on the read path", () => {
     expect(rowVerdict({ city: "Taylor, TX" })).toBe(true);
     // The bare-county catch still fires for a token that is NOT a known city:
     expect(rowVerdict({ venue_city: "Bexar" })).toBe(false);
+    // BUT an EXPLICIT outside county in the string vetoes even the in-market
+    // city name (PR #107 r5): "Taylor, Taylor County, TX" names outside Taylor.
+    expect(rowVerdict({ venue_city: "Taylor, Taylor County, TX" })).toBe(false);
+    expect(rowVerdict({ venue_city: "Taylor, Williamson County, TX" })).toBe(true);
   });
 
   it("a trailing period does not smuggle a known-outside city through (r4)", () => {

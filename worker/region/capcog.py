@@ -349,18 +349,32 @@ def row_verdict(row: dict) -> Optional[bool]:
 
 
 def _token_verdict(value) -> Optional[bool]:
-    """One field VALUE, resolved PLACE-FIRST. A known city is decisive for its
-    own token, so "Taylor" — an in-market Williamson city — is NOT overridden by
-    the outside Taylor-County reading of the same string (PR #107 r4). Only when
-    the value is not a known place do we read it as a county: embedded in a
-    string first ("…, Bexar County, TX"), then as a bare county name ("Bexar").
-    Byte-for-byte the TypeScript tokenVerdict."""
+    """One field VALUE, resolved by STRONG-then-WEAK readings.
+
+    STRONG = the value as a place (city) AND as an EXPLICIT embedded county (the
+    word "County" literally present, "…, Bexar County, TX"). Either being
+    known-outside vetoes the token (drop), so explicit outside-county evidence
+    beats an in-market city name — "Taylor, Taylor County, TX" drops even though
+    Taylor is a Williamson city (PR #107 r5).
+
+    WEAK = the value as a BARE county name ("Bexar"), consulted ONLY when neither
+    strong reading decided — so a bare city that merely shares a name with an
+    outside county ("Taylor") is NOT dropped (PR #107 r4). Byte-for-byte the
+    TypeScript tokenVerdict."""
+    # STRONG readings — the value as a place (city), and as an EXPLICIT embedded
+    # county ("…, Bexar County, TX", the word "County" literally present).
+    # Either being known-outside VETOES (drop), so explicit outside-county
+    # evidence beats an in-market city name: "Taylor, Taylor County, TX" drops
+    # even though Taylor is a Williamson city (PR #107 r5).
     as_place = in_capcog(value)
-    if as_place is not None:
-        return as_place
-    embedded = in_capcog_county(county_in_place(value))
-    if embedded is not None:
-        return embedded
+    as_explicit_county = in_capcog_county(county_in_place(value))
+    if as_place is False or as_explicit_county is False:
+        return False
+    if as_place is True or as_explicit_county is True:
+        return True
+    # WEAK fallback — the value as a BARE county name ("Bexar"). Consulted ONLY
+    # when neither strong reading decided, so a bare city that merely shares a
+    # name with an outside county ("Taylor") is not dropped (PR #107 r4).
     return in_capcog_county(value)
 
 

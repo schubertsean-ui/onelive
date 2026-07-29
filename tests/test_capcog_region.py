@@ -246,6 +246,11 @@ def test_an_in_market_city_sharing_an_outside_countys_name_is_kept():
     assert row_verdict({"city": "Taylor, TX"}) is True
     # The bare-county catch still works for a token that is NOT a known city:
     assert row_verdict({"venue_city": "Bexar"}) is False
+    # BUT an EXPLICIT outside county in the string vetoes even the in-market city
+    # name (PR #107 r5): "Taylor, Taylor County, TX" names outside Taylor County.
+    assert row_verdict({"venue_city": "Taylor, Taylor County, TX"}) is False
+    # A member county named explicitly keeps an otherwise-unknown venue:
+    assert row_verdict({"venue_city": "Taylor, Williamson County, TX"}) is True
 
 
 def test_hill_country_expansion_is_in_market():

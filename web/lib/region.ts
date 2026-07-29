@@ -193,10 +193,18 @@ const LOCATION_FIELDS: (keyof RegionRow)[] = ["venue_county", "county", "venue_c
  *  not a known place do we read it as a county — embedded in a string first
  *  ("…, Bexar County, TX"), then as a bare county name ("Bexar"). */
 function tokenVerdict(value: string | null | undefined): RegionVerdict {
+  // STRONG readings — the value as a place (city), and as an EXPLICIT embedded
+  // county ("…, Bexar County, TX", where the word "County" is literally
+  // present). Either being known-outside VETOES (drop), so explicit
+  // outside-county evidence beats an in-market city name: "Taylor, Taylor
+  // County, TX" drops even though Taylor is a Williamson city (PR #107 r5).
   const asPlace = inCapcog(value);
-  if (asPlace !== null) return asPlace;
-  const embedded = inCapcogCounty(countyInPlace(value));
-  if (embedded !== null) return embedded;
+  const asExplicitCounty = inCapcogCounty(countyInPlace(value));
+  if (asPlace === false || asExplicitCounty === false) return false;
+  if (asPlace === true || asExplicitCounty === true) return true;
+  // WEAK fallback — the value as a BARE county name ("Bexar"). Consulted ONLY
+  // when neither strong reading decided, so a bare city that merely shares a
+  // name with an outside county ("Taylor") is not dropped (PR #107 r4).
   return inCapcogCounty(value);
 }
 
