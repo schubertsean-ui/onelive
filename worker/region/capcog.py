@@ -36,6 +36,11 @@ from typing import Optional
 CAPCOG_COUNTIES: frozenset = frozenset({
     "bastrop", "blanco", "burnet", "caldwell", "fayette",
     "hays", "lee", "llano", "travis", "williamson",
+    # Gillespie (Fredericksburg wine country) — founder-directed 2026-07-29 to
+    # be IN the launch market. It is not one of CAPCOG's ten official counties,
+    # so the OneLive market = CAPCOG + Hill Country, not CAPCOG strictly; the
+    # name is kept for continuity but the SET is the source of truth.
+    "gillespie",
 })
 
 # Places within the member counties, keyed to their county. Incorporated cities,
@@ -89,6 +94,9 @@ CAPCOG_PLACES: dict = {
     "la grange": "fayette", "schulenburg": "fayette", "flatonia": "fayette",
     "fayetteville": "fayette", "round top": "fayette", "carmine": "fayette",
     "warrenton": "fayette", "ellinger": "fayette",
+    # --- Gillespie (Hill Country wine country; founder-directed 2026-07-29) ---
+    "fredericksburg": "gillespie", "stonewall": "gillespie",
+    "harper": "gillespie", "doss": "gillespie", "willow city": "gillespie",
 }
 
 # Places we KNOW are outside CAPCOG. Not required for correctness — anything
@@ -123,7 +131,9 @@ KNOWN_OUTSIDE: dict = {
     "wichita falls": "wichita", "denton": "denton", "plano": "collin",
     "arlington": "tarrant", "irving": "dallas", "frisco": "collin",
     "sugar land": "fort bend", "the woodlands": "montgomery",
-    "fredericksburg": "gillespie", "kerrville": "kerr", "gruene": "comal",
+    # Kerrville (Kerr) stays outside; Fredericksburg/Gillespie is now IN-market
+    # (founder-directed 2026-07-29) and lives in CAPCOG_PLACES above.
+    "kerrville": "kerr", "gruene": "comal",
 }
 
 
