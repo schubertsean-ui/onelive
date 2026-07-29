@@ -1,6 +1,31 @@
 # ONE LIVE — CHANGE LOG
 
 
+## 2026-07-29 — Frictionless & Automagical Navigation design spec (PROPOSAL)
+
+**Session type:** Founder-requested design research + spec. Output:
+`docs/design/ONE_LIVE_FRICTIONLESS_NAV_v1.md`. Status: PROPOSAL — needs founder
+ratification of (1) the mantra as design canon and (2) the spec as the nav standard.
+
+- Founder direction: "No friction / smooth as smooth can be" as a UX mantra;
+  "automagical … created by no friction and accurate anticipation." Proposes the
+  mantra **Automagical = (No Friction) × (Accurate Anticipation)**, with anticipation
+  bound as a *lens, never a gate*.
+- Grounded in deep external UX research (three cited threads: external-link/in-app-browser
+  handling, navigation-state/back/sheets/transitions, frictionless-auth/perceived-speed/resume)
+  — NN/g, Material 3, Apple HIG, web.dev/Chrome, plus named app exemplars.
+- Key constraint documented: a web PWA cannot invoke native in-app browser tabs
+  (SFSafariViewController / Chrome Custom Tabs) and gets ejected on outbound links,
+  so the strategy is reduce-leaves (in-context sheets/previews) + labeled handoff +
+  return-URL, with a native wrapper as an evidence-gated future upgrade.
+- Two pillars (Frictionlessness × Anticipation), a pattern catalog (URL-addressable
+  intercepted-modal detail, scroll/filter restoration, history-modeled back, external-link-by-intent,
+  skeletons/optimistic-UI/prefetch/View-Transitions, lazy+anon-first+passwordless auth,
+  resume + the Anticipatory Greeting), consolidated trust guardrails, and 15 mechanical
+  acceptance tests. Delta-from-current-build section revises today's blanket target=_blank.
+- No code changed; no gate/threshold/invariant touched.
+
+
 ## 2026-07-12 — Deep review of WORLD_CLASS bar + MASTER doc; v1.1 expansion proposed
 
 **Session type:** Independent deep review ("best technologists / company-spin-up" lens). Output: `OneLive_WORLD_CLASS_v1.1_DEEP_REVIEW.md`. Status: PROPOSAL — pending founder gap-by-gap ratification (per §0.3 contract-first).
