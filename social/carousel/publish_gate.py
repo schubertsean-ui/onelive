@@ -41,6 +41,7 @@ from social.carousel.config import (
 )
 from social.carousel.generator import (
     BANNED_CLAIM_RE,
+    CANONICAL_ORIGIN,
     renderer_fingerprint,
     CarouselDraft,
     CarouselTrustError,
@@ -267,6 +268,59 @@ def verify_release(release: "PublishRelease", draft: CarouselDraft) -> None:
             "release refused: signature does not verify under the approval key — "
             "this release was not issued by the gate"
         )
+
+
+def assert_events_still_publishable(draft: CarouselDraft) -> None:
+    """Re-read the draft's events from the canonical store at the LAST moment
+    before an outward post and refuse on any drift since approval (evaluator PR
+    #106: a signed release must not post an event that became disputed,
+    cancelled, or started inside the freshness window). Uses the registered
+    state reader against the gate's own clock; no reader registered = refuse
+    (fail-closed, the same posture as release itself). This is the focused
+    at-post state invariant — NOT the full re-render (the post-time canonical
+    rows do not carry the rendered-card surface), so it complements, never
+    replaces, the release-time _recheck_trust."""
+    if _STATE_READER is None:
+        raise ValueError(
+            "post refused: no canonical state reader configured — the boundary "
+            "cannot re-verify current event state, so nothing posts (register "
+            "the reader at deployment; R-026's trigger)"
+        )
+    now = _release_moment().isoformat()
+    event_ids = [s.event_id for s in draft.slides if s.kind == "event"]
+    current = _STATE_READER(event_ids)
+    for slide in draft.slides:
+        if slide.kind != "event":
+            continue
+        row = current.get(slide.event_id)
+        if row is None:
+            raise ValueError(
+                f"post refused: canonical store returned no state for "
+                f"{slide.event_id} — cannot confirm it is still featurable"
+            )
+        if row.get("confidence") not in FEATURABLE_CONFIDENCE:
+            raise ValueError(
+                f"post refused: {slide.event_id} is now {row.get('confidence')!r} — "
+                "marketing never amplifies what the gate no longer settles"
+            )
+        if row.get("event_status") not in FEATURABLE_EVENT_STATUS:
+            raise ValueError(
+                f"post refused: {slide.event_id} event_status is now "
+                f"{row.get('event_status')!r} — only scheduled events post"
+            )
+        if row.get("origin") != CANONICAL_ORIGIN:
+            raise ValueError(
+                f"post refused: {slide.event_id} is not a canonical published "
+                "row — candidate/pipeline rows are never amplified"
+            )
+        if not slide.start_time or not within_timeframe(
+            slide.start_time, now, draft.timeframe
+        ):
+            raise ValueError(
+                f"post refused: {slide.event_id} (start {slide.start_time!r}) is "
+                f"no longer strictly ahead within the {draft.timeframe} window at "
+                f"{now} — carousels never post what has already started"
+            )
 
 
 def _resolve_key() -> bytes:

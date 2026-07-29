@@ -113,14 +113,31 @@ def test_import_exported_metrics_round_trip():
             "insights": _total_value_payload(reach=1200, accounts_engaged=240),
         },
     ]
-    out = import_exported_metrics(json.dumps(records))
+    out = import_exported_metrics(json.dumps(records), known_post_ids={"p1", "p2"})
     assert [m.post_id for m in out] == ["p1", "p2"]
     assert out[1].interaction_rate == pytest.approx(0.2)
 
 
 def test_import_exported_metrics_rejects_missing_insights():
     with pytest.raises(InsightsImportError):
-        import_exported_metrics(json.dumps([{"post_id": "p"}]))
+        import_exported_metrics(json.dumps([{"post_id": "p"}]), known_post_ids={"p"})
+
+
+def test_import_exported_metrics_rejects_unknown_post_id():
+    # A fabricated record for a post OneLive never published is refused, so the
+    # learning loop can't be poisoned by hand-authored metrics.
+    records = [{
+        "post_id": "not-a-real-post", "surface": "instagram_feed", "tier": "T1",
+        "posted_at": "2026-07-28T09:00:00-05:00",
+        "insights": _values_payload(reach=800, accounts_engaged=100),
+    }]
+    with pytest.raises(InsightsImportError):
+        import_exported_metrics(json.dumps(records), known_post_ids={"p1"})
+
+
+def test_import_exported_metrics_empty_allowlist_refuses():
+    with pytest.raises(InsightsImportError):
+        import_exported_metrics(json.dumps([]), known_post_ids=set())
 
 
 def test_live_fetch_disabled_without_token(monkeypatch):

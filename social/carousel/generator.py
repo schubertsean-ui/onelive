@@ -93,6 +93,12 @@ class Slide:
     headline: str
     overlay_lines: tuple[str, ...] = field(default_factory=tuple)
     image_ref: str = ""
+    # The sha256 of the approved rendered-card bytes (evaluator PR #106): the
+    # posting boundary requires image_ref to be CONTENT-ADDRESSED to this digest
+    # so the url cannot be swapped to different bytes after approval. Covered by
+    # content_hash, so the signed release binds it. Empty until the R-061
+    # renderer produces and hosts the card; empty = fail-closed (nothing posts).
+    image_sha256: str = ""
     alt_text: str = ""
     # Trust plumbing: which event this slide asserts, from which source,
     # when it starts (so the release gate can re-check future-ness with its

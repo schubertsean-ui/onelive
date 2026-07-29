@@ -154,10 +154,24 @@ def post_metrics_from_insights(
     return metrics
 
 
-def import_exported_metrics(json_str: str) -> list[PostMetrics]:
+def import_exported_metrics(json_str: str, known_post_ids) -> list[PostMetrics]:
     """The credential-free path (spec §9.1): read a list of exported records,
     each {post_id, surface, tier, posted_at, insights: <payload>}, into
-    validated PostMetrics. One malformed record fails the whole import loud."""
+    validated PostMetrics. One malformed record fails the whole import loud.
+
+    known_post_ids (evaluator PR #106) is the REQUIRED allowlist of post ids
+    OneLive actually published (from the release/publish record). Every record's
+    post_id must be a member, or the import refuses — hand-authored JSON cannot
+    fabricate metrics for an arbitrary post and have the learning loop trust them
+    as real public outcomes. An empty allowlist means nothing can be imported
+    (fail-closed), never "trust everything"."""
+    known = set(known_post_ids or ())
+    if not known:
+        raise InsightsImportError(
+            "no known published-post ids supplied — exported metrics cannot be "
+            "bound to real posts, refusing (fail-closed; pass the publish "
+            "record's post ids)"
+        )
     try:
         records = json.loads(json_str)
     except json.JSONDecodeError as exc:
@@ -168,9 +182,15 @@ def import_exported_metrics(json_str: str) -> list[PostMetrics]:
     for i, record in enumerate(records):
         if not isinstance(record, dict) or "insights" not in record:
             raise InsightsImportError(f"exported record {i} is missing an `insights` payload")
+        post_id = record.get("post_id", "")
+        if post_id not in known:
+            raise InsightsImportError(
+                f"exported record {i} post_id {post_id!r} is not a known "
+                "published post — refusing to trust unbound metrics"
+            )
         out.append(
             post_metrics_from_insights(
-                post_id=record.get("post_id", ""),
+                post_id=post_id,
                 surface=record.get("surface", ""),
                 tier=record.get("tier", ""),
                 posted_at=record.get("posted_at", ""),

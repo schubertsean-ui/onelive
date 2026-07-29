@@ -52,7 +52,12 @@ from social.carousel.generator import (
     CarouselDraft,
     all_draft_text,
 )
-from social.carousel.publish_gate import PublishRelease, current_moment, verify_release
+from social.carousel.publish_gate import (
+    PublishRelease,
+    assert_events_still_publishable,
+    current_moment,
+    verify_release,
+)
 
 # A signed release is fresh only briefly: the human (or autonomy grant) approves
 # and the post follows within this window. Beyond it the release is stale — the
@@ -171,6 +176,31 @@ def _require_https(url: str, context: str) -> str:
     return url
 
 
+def _require_content_addressed_image(slide, index: int) -> str:
+    """The slide's image must be an https url CONTENT-ADDRESSED to the approved
+    bytes: the bound image_sha256 (covered by content_hash, so the release binds
+    it) must appear in the url. This makes the hosted bytes immutable relative to
+    the approval — a swap to different bytes would change the digest and the url.
+    Empty image_sha256 refuses (fail-closed until the R-061 renderer hosts the
+    card at its content-addressed url)."""
+    context = f"slide {index} ({slide.kind})"
+    url = _require_https(slide.image_ref, context)
+    digest = (slide.image_sha256 or "").strip().lower()
+    if not digest:
+        raise MetaPublishError(
+            f"{context}: no bound image_sha256 — the slide's image is not "
+            "content-addressed, so it cannot be posted (fail-closed until the "
+            "renderer hosts the rendered card; R-061)"
+        )
+    if digest not in url.lower():
+        raise MetaPublishError(
+            f"{context}: image url is not content-addressed to the approved "
+            "bytes (bound sha256 not present in the url) — refusing to post "
+            "possibly-swapped imagery"
+        )
+    return url
+
+
 def _caption_with_tags(draft: CarouselDraft) -> str:
     """The exact caption text posted: the draft's caption (which already ends
     with the short link) followed by its hashtags — one assembled string, the
@@ -244,14 +274,25 @@ class MetaPublisher:
             )
         if draft.surface not in SURFACE_CONSTRAINTS:
             raise MetaPublishError(f"refusing to post: unknown surface {draft.surface!r}")
+        # Final trust check at the LAST moment before the outward post: re-read
+        # the events from the canonical store and refuse if any drifted
+        # (disputed/cancelled/started) since approval — a fresh signature is not
+        # a fresh fact. Fail-closed if no reader is wired.
+        try:
+            assert_events_still_publishable(draft)
+        except ValueError as exc:
+            raise MetaPublishError(f"refusing to post: {exc}") from exc
 
         token = _resolve_access_token()
         node = _resolve_surface_node(draft.surface)
 
-        # Post the draft's OWN images (hash-bound, so the verified release
-        # covers them); a slide with no bound image ref refuses the whole post.
+        # Post the draft's OWN images (hash-bound, so the verified release covers
+        # them), and require each image_ref to be CONTENT-ADDRESSED to the
+        # approved bytes: the slide's bound image_sha256 must appear in the url,
+        # so the host cannot swap the bytes behind an unchanged url. Empty
+        # image_sha256 (today's generator) refuses — fail-closed until R-061.
         child_urls = [
-            _require_https(slide.image_ref, f"slide {i} ({slide.kind})")
+            _require_content_addressed_image(slide, i)
             for i, slide in enumerate(draft.slides)
         ]
         draft_hash = release.draft_hash
