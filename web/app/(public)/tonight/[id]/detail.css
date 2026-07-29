@@ -62,6 +62,16 @@
   margin: 0.5rem 0 1.5rem;
 }
 
+/* Tickets + Share sit on one action row so the two primary actions read as a
+   pair; they wrap on narrow screens. */
+.detail .dactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0.5rem 0 1.5rem;
+}
+
 .detail .dtix {
   display: inline-block;
   padding: 0.7rem 1.2rem;

@@ -21,6 +21,7 @@ import {
   buildPlan,
   dayTabs,
   facet,
+  genreFacet,
   groupByDomain,
   liveEvents,
   type PlanScope,
@@ -129,6 +130,7 @@ export default function FeedApp({ events, serverNowMs }: { events: LicensedEvent
   const [tabKey, setTabKey] = useState("all");
   const [domains, setDomains] = useState<Set<string>>(new Set());
   const [areas, setAreas] = useState<Set<string>>(new Set());
+  const [genres, setGenres] = useState<Set<string>>(new Set());
   const [freeOnly, setFreeOnly] = useState(false);
   const [desire, setDesire] = useState<string | null>(null);
   const [plan, setPlan] = useState<PlanScope | null>(null);
@@ -143,11 +145,13 @@ export default function FeedApp({ events, serverNowMs }: { events: LicensedEvent
   const tab = tabs.find((t) => t.key === tabKey) ?? tabs[0];
 
   const areaFacet = useMemo(() => facet(base, "venue_area").slice(0, 8), [base]);
+  // Layer-0 genre rail: up to 12 canonical genres present in the live set.
+  const genreRail = useMemo(() => genreFacet(base).slice(0, 12), [base]);
   const domainGroupsAll = useMemo(() => groupByDomain(base), [base]);
 
   const filtered = useMemo(
-    () => applyFilters(base, { tab, domains, areas, freeOnly }),
-    [base, tab, domains, areas, freeOnly],
+    () => applyFilters(base, { tab, domains, areas, genreIds: genres, freeOnly }),
+    [base, tab, domains, areas, genres, freeOnly],
   );
 
   const total = base.length;
@@ -200,7 +204,18 @@ export default function FeedApp({ events, serverNowMs }: { events: LicensedEvent
                   </button>
                 ))}
               </div>
-              {areaFacet.length > 1 ? (
+              {/* Genre rail (Layer 0): the canonical genres present tonight,
+                  derived from local inventory. A lens, never a gate. */}
+              {genreRail.length > 1 ? (
+                <div className="frow">
+                  {genreRail.map((g) => (
+                    <button key={g.id} className={`chip${genres.has(g.id) ? " on" : ""}`} onClick={() => setGenres(toggle(genres, g.id))}>
+                      {g.label}<span className="n">{g.n}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {areaFacet.length > 1 || genres.size || domains.size ? (
                 <div className="frow">
                   {areaFacet.map((a) => (
                     <button key={a.value} className={`chip area${areas.has(a.value) ? " on" : ""}`} onClick={() => setAreas(toggle(areas, a.value))}>
@@ -208,8 +223,8 @@ export default function FeedApp({ events, serverNowMs }: { events: LicensedEvent
                     </button>
                   ))}
                   <button className={`chip${freeOnly ? " on" : ""}`} onClick={() => setFreeOnly(!freeOnly)}>Free only</button>
-                  {(domains.size || areas.size || freeOnly || tabKey !== "all") ? (
-                    <button className="chip clear" onClick={() => { setDomains(new Set()); setAreas(new Set()); setFreeOnly(false); setTabKey("all"); }}>Clear</button>
+                  {(domains.size || areas.size || genres.size || freeOnly || tabKey !== "all") ? (
+                    <button className="chip clear" onClick={() => { setDomains(new Set()); setAreas(new Set()); setGenres(new Set()); setFreeOnly(false); setTabKey("all"); }}>Clear</button>
                   ) : null}
                 </div>
               ) : null}
