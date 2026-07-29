@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { domainHue, domainLabel, timeBand } from "../../../lib/domains";
+import { domainHue, domainLabel } from "../../../lib/domains";
 import { trustDisplay } from "../../../lib/trust";
 import {
   detailMapUrl as mapUrl,
@@ -18,6 +18,7 @@ import {
   DESIRE_BY_KEY,
   applyDesire,
   applyFilters,
+  bucketByDate,
   buildPlan,
   dayTabs,
   facet,
@@ -40,6 +41,14 @@ function fmtTime(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" });
+}
+// Date only (no time) — for the far-out "Beyond" rows, where the exact minute
+// months away is noise; the day is what's scannable.
+function fmtDate(iso: string | null): string {
+  if (!iso) return "Date TBA";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Date TBA";
+  return d.toLocaleDateString("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric" });
 }
 function focusLine(e: LicensedEvent): string {
   const parts = [domainLabel(e.category), e.subsegment].filter(Boolean) as string[];
@@ -112,6 +121,23 @@ function CondensedRow({ e, onNow }: { e: LicensedEvent; onNow: boolean }) {
         <span className="ti"><Link className="tilink" href={eventHref(e)}>{headline(e)}</Link><TrustMark e={e} /></span><br />
         <span className="mt">{focusLine(e)} · {e.venue_name}{e.venue_area ? ` · ${e.venue_area}` : ""}</span>
       </span>
+      <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
+    </div>
+  );
+}
+
+// The tersest tier — one scannable line for far-out events: date · act · venue ·
+// price. Trust marker still rides along (never dropped, even here).
+function LineRow({ e }: { e: LicensedEvent }) {
+  const price = fmtPrice(e);
+  return (
+    <div className="lrow">
+      <span className="lwhen">{fmtDate(e.start_time)}</span>
+      <span className="lti">
+        <Link className="tilink" href={eventHref(e)}>{headline(e)}</Link>
+        <TrustMark e={e} />
+      </span>
+      <span className="lven">{e.venue_name}{e.venue_area ? ` · ${e.venue_area}` : ""}</span>
       <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
     </div>
   );
@@ -254,22 +280,47 @@ function eventOnNow(e: LicensedEvent, nowMs: number): boolean {
   return endMs > nowMs;
 }
 
+// The near-term "This week" bucket keeps the cultural-domain grouping (the
+// categorization that helps most when there's a lot on), rendered as rich cards.
+function RichBucket({ items, isOnNow }: { items: LicensedEvent[]; isOnNow: (e: LicensedEvent) => boolean }) {
+  const groups = groupByDomain(items);
+  return (
+    <>
+      {groups.map(({ domain: d, items: dItems }) => (
+        <div key={d.id} className="dgroup" id={d.id}>
+          <div className="sec"><span className="dot" style={{ background: `hsl(${d.hue} 65% 55%)`, width: 12, height: 12 }} /><h3>{d.label}</h3><span className="n">{dItems.length}</span></div>
+          <div className="grid">{dItems.map((e) => <RichCard key={e.licensed_event_id} e={e} onNow={isOnNow(e)} />)}</div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+// The feed renders in THREE date buckets of descending density — This week
+// (rich cards, domain-grouped) · Later this month (compact rows) · Beyond (terse
+// lines) — so longer-dated events are scannable instead of a wall of tall cards
+// (founder directive). bucketByDate is sum-preserving, so nothing is dropped.
 function EventList({ events, nowMs, isOnNow }: { events: LicensedEvent[]; nowMs: number; isOnNow: (e: LicensedEvent) => boolean }) {
-  const groups = useMemo(() => groupByDomain(events), [events]);
+  const buckets = useMemo(() => bucketByDate(events, nowMs), [events, nowMs]);
   if (events.length === 0) return <div className="err">No events match — clear a filter or pick another day.</div>;
   return (
     <>
-      {groups.map(({ domain: d, items }) => {
-        const rich = items.filter((e) => timeBand(e.start_time, nowMs) === "rich");
-        const later = items.filter((e) => timeBand(e.start_time, nowMs) !== "rich");
-        return (
-          <section key={d.id} id={d.id}>
-            <div className="sec"><span className="dot" style={{ background: `hsl(${d.hue} 65% 55%)`, width: 12, height: 12 }} /><h2>{d.label}</h2><span className="n">{items.length}</span></div>
-            {rich.length ? <div className="grid">{rich.map((e) => <RichCard key={e.licensed_event_id} e={e} onNow={isOnNow(e)} />)}</div> : null}
-            {later.length ? <div style={{ display: "grid", gap: 8, marginTop: rich.length ? 10 : 0 }}>{later.map((e) => <CondensedRow key={e.licensed_event_id} e={e} onNow={isOnNow(e)} />)}</div> : null}
-          </section>
-        );
-      })}
+      {buckets.map((b) => (
+        <section key={b.key} className={`bucket b-${b.key}`}>
+          <div className="bhead">
+            <h2>{b.label}</h2>
+            <span className="bblurb">{b.blurb}</span>
+            <span className="n">{b.items.length}</span>
+          </div>
+          {b.key === "rich" ? (
+            <RichBucket items={b.items} isOnNow={isOnNow} />
+          ) : b.key === "compact" ? (
+            <div className="clist">{b.items.map((e) => <CondensedRow key={e.licensed_event_id} e={e} onNow={isOnNow(e)} />)}</div>
+          ) : (
+            <div className="llist">{b.items.map((e) => <LineRow key={e.licensed_event_id} e={e} />)}</div>
+          )}
+        </section>
+      ))}
     </>
   );
 }
