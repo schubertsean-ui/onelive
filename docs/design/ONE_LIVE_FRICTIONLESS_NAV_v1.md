@@ -126,6 +126,51 @@ mantra and betray the keystone). This ties to the KPI framework's North-Star wor
 (`ONE_LIVE_KPI_FRAMEWORK_v1.md`): a low-TCA, high-satisfaction, recurring visit is the
 honest shape of the metric.
 
+### Proving "give attention back" + "help me thrive" — inverted, surveillance-free metrics
+
+The fun, differentiating move: **publicly celebrate how *little* time people spend.**
+Every other product brags about time-on-app; ONE LIVE brags about the seconds it took
+to hand you your night. But we **don't surveil** — so value and "thriving" are measured
+with **aggregate, consent-gated, opt-in proxies, never a per-user behavioral profile.**
+Two metric families (all PROPOSED — founder-ratify via the KPI framework):
+
+**Family 1 — "Attention Returned" (efficiency; a LOW number is the win):**
+
+| Metric | Direction | Note |
+|---|---|---|
+| **Time-to-plan** (median seconds) | ↓ celebrate | the headline — "your night, in N seconds" |
+| **Taps-to-plan** | ↓ | fewest steps to a decision |
+| **Sessions-to-decision** | → ~1 | come, decide, leave (not "come back 5×") |
+| **Session length** | ↓ = win | the deliberately *inverted* metric |
+| **Fast-satisfied-exit rate** | ↑ | % of sessions ending in a decision/save/share/handoff *then a quick leave* — distinguishes "left satisfied" from "left empty-handed" |
+| **Attention Returned** | ↑ | estimated aggregate minutes saved vs the 2/5/20/45-min status quo → a public number ("ONE LIVE gave Austin back ~N hours this month") |
+
+**Family 2 — Life enrichment / thriving (aggregate & opt-in proxies, no profiling):**
+
+| Proxy | What it stands for | How measured (no surveillance) |
+|---|---|---|
+| **Plans made & shared** | real outings organized | aggregate count of group-plan/share cards created |
+| **Intent-to-attend** | people actually going | aggregate calendar-adds, directions-taps, ticket-handoffs — counts, not profiles |
+| **Post-event "how was it?" feels** | real attendance + satisfaction | opt-in one-tap (emotion layer P2), aggregate only |
+| **Discovery breadth / serendipity** | broadened horizons = thriving | % of plans involving a venue/genre/neighborhood new to a *consented* member; aggregate |
+| **"Your night" memory-card shares** | a night worth remembering | opt-in peak-end artifact |
+| **Voluntary "was this useful?"** | did we help? | sampled thumbs, never forced |
+| **City cultural coverage** (Heartbeat) | more real culture surfaced = more life to enrich | aggregate, resolved-strata |
+
+**The privacy stance (why these are proxies — stated honestly, not hidden):**
+aggregate-only, consent-gated, opt-in samples, on-device where possible, k-anonymity/
+differential-privacy thresholds, **never a per-user behavioral profile, never sold**
+(consistent with Heartbeat aggregate-only and TDPSA/GDPR). **Because we refuse
+surveillance, some of these are directional opt-in samples, not precise counts — and
+we say so.** That honesty *is* the differentiator: a walled garden could measure all
+of this exactly, by watching you; we choose not to, and prove value another way.
+
+**The fun/public framing:** an **"Attention Returned"** counter and an annual,
+aggregate **"State of the Scene"** (hours saved · nights enabled · new things
+discovered), plus an opt-in personal "your year in going out." Marketing that *is* the
+mantra — proof that we gave your attention back, enriched your life, and helped the
+culture thrive, without ever having watched you to do it.
+
 ---
 
 ## 3. The two pillars
@@ -540,3 +585,42 @@ a GATE") · `docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md` (4-state) · `CLAUD
 4. **Anticipatory Greeting go-live:** confirm it launches *after* Member-Preferences
    consent surfaces exist, and that the anonymous (impersonal) variant is acceptable
    for first-time visitors.
+
+---
+
+## Appendix A — Ad-campaign concept: "The app that wants you to leave" (DRAFT)
+
+**Status:** DRAFT marketing concept for founder ratification — the "give attention
+back" keystone (§2A) turned into a campaign. **Honesty rule:** pre-launch claims are
+framed as intent ("built to…"), the "Attention Returned" number is only used once it's
+a real measured aggregate, and every line must pass the design brief's reflection test
+(white-hat — funny, never manipulative). Not product UI copy.
+
+**The insight:** every other app fights to keep you. ONE LIVE is the one that's *proud*
+when you close it fast and go live your night. That's inherently funny and inherently
+trustworthy — the joke *is* the differentiator.
+
+**Hero lines (for testing):**
+- "The app that wants you to leave."
+- "Open. Decide. Go." / "…now put the phone away."
+- "We measure success by how fast you close us."
+- "Less time deciding. More time dancing."
+- "Screen time down. Life up."
+- "Doomscroll less. Do more."
+- "Your phone's least needy app."
+
+**"Attention Returned" as the campaign spine** (once the aggregate is real):
+- "Austin gave itself back ~40,000 hours this month. You're welcome. Now go out."
+- A live public counter of hours returned — the anti-engagement scoreboard.
+
+**Witty placements:**
+- *Billboard/transit:* "You've read this sign for 7 seconds. That's longer than it
+  takes to find tonight's plan."
+- *Pre-roll:* a 6-second ad that apologizes for existing — "You've got better things to
+  do. So do we. Bye." then ends early.
+- *Social:* screenshots of *short* session times as the flex ("14 seconds. Sorted.").
+
+**The honest brand promise underneath the joke:** we lower your total cost of attention
+so you get your night *and your attention* back — enrich your life, help the culture
+thrive — and we do it without ever watching you (§2A privacy stance). Funny on top,
+foundational trust underneath.
