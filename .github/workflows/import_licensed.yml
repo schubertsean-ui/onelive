@@ -1,16 +1,23 @@
 name: import-licensed
 
-# Deterministic licensed-feed import: Ticketmaster Discovery → licensed_event.
+# Deterministic licensed-feed import: Ticketmaster Discovery + SeatGeek -> licensed_event.
 # NO AI, NO extraction spend (this is not the AI ingest cron; it does not run
 # worker/run_once.py and is not covered by the arming-evidence binding). Runs on
-# GitHub's runners, where egress reaches Ticketmaster (the dev sandbox's network
-# policy blocks it). Triggered manually via workflow_dispatch.
+# GitHub's runners, where egress reaches the provider APIs (the dev sandbox's
+# network policy blocks it). Scheduled twice daily so a live site stays fresh
+# without a manual click, plus manual workflow_dispatch for on-demand refreshes.
 
 on:
+  schedule:
+    # Twice daily at 08:00 and 20:00 UTC (~3am/3pm Central), offset from the
+    # structured-import cron so the two do not contend for a runner or the DB.
+    # GitHub runs scheduled workflows ONLY from the default branch, and its
+    # scheduler has known pickup lag — both expected.
+    - cron: "0 8,20 * * *"
   workflow_dispatch:
     inputs:
       max_pages:
-        description: "Ticketmaster pages to fetch (100 events/page; deep-paging caps ~9)"
+        description: "Provider pages to fetch per window (100 events/page)"
         required: false
         default: "8"
 
@@ -46,3 +53,21 @@ jobs:
           export ONELIVE_DB_DSN
           python3 tools/apply_migration.py supabase/migrations/0010_licensed_feed_and_domains.sql
           python -m worker.importers.run_licensed_import --max-pages "$MAX_PAGES"
+      - name: Import SeatGeek CAPCOG events (same licensed_event store)
+        env:
+          SEATGEEK_CLIENT_ID: ${{ secrets.SEATGEEK_CLIENT_ID }}
+          ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
+          ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
+          MAX_PAGES: ${{ github.event.inputs.max_pages || '8' }}
+        run: |
+          # Fail-closed like the Ticketmaster step (workflow_env_lint R4): a
+          # missing key is a loud, visible failure, never a silent skip. The
+          # Ticketmaster step above already wrote its events, so its coverage is
+          # unaffected; a red here means "add or fix the SeatGeek secret".
+          : "${SEATGEEK_CLIENT_ID:?SEATGEEK_CLIENT_ID secret missing — add it in repo Settings → Secrets → Actions}"
+          : "${MAX_PAGES:?max_pages missing — the fetch bound is required}"
+          ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
+          export ONELIVE_DB_DSN
+          # Migration 0010 (licensed_event + domains) was applied idempotently by
+          # the Ticketmaster step above; SeatGeek upserts into the same table.
+          python -m worker.importers.run_seatgeek_import --max-pages "$MAX_PAGES"
