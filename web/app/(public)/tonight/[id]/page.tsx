@@ -19,6 +19,7 @@ import {
   detailMapUrl,
   httpOrNull,
   telHref,
+  venueWebsite,
   resolveDetailView,
   statusNote,
 } from "../../../../lib/detail";
@@ -179,9 +180,10 @@ export default async function EventDetailPage(
   const img = httpOrNull(event_.image_url);
   const note = statusNote(event_);
   // Venue contact — the venue is always the last word, so make confirming easy:
-  // a website link and a one-tap call. Each appears only when we actually have
-  // it (telHref returns null unless the number is dialable).
-  const website = httpOrNull(event_.venue_url);
+  // a website link and a one-tap call. The website shows only when it's the
+  // venue's OWN site (not a ticketing-provider page — venueWebsite drops those);
+  // the call shows only when the number is dialable.
+  const website = venueWebsite(event_.venue_url);
   const call = telHref(event_.venue_phone);
 
   return (

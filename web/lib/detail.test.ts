@@ -12,6 +12,7 @@ import {
   eventHref,
   httpOrNull,
   telHref,
+  venueWebsite,
   resolveDetailView,
   statusNote,
 } from "./detail";
@@ -589,5 +590,24 @@ describe("telHref — a dialable tel: only when the number is real", () => {
     expect(telHref("call the box office")).toBeNull();
     expect(telHref("867-5309")).toBeNull(); // 7 digits, not dialable as-is
     expect(telHref("")).toBeNull();
+  });
+});
+
+describe("venueWebsite — only the venue's OWN site, never a ticketing page", () => {
+  it("passes a genuine external venue domain", () => {
+    expect(venueWebsite("https://elephantroomjazz.com")).toBe("https://elephantroomjazz.com");
+    expect(venueWebsite("https://www.thecontinentalclub.com/austin")).toBe(
+      "https://www.thecontinentalclub.com/austin",
+    );
+  });
+  it("drops a ticketing-provider page (not the venue's authority, #101)", () => {
+    expect(venueWebsite("https://www.ticketmaster.com/venue/12345")).toBeNull();
+    expect(venueWebsite("https://seatgeek.com/venues/acl-live")).toBeNull();
+    expect(venueWebsite("https://www.eventbrite.com/o/some-venue")).toBeNull();
+  });
+  it("drops non-http and unparseable values", () => {
+    expect(venueWebsite(null)).toBeNull();
+    expect(venueWebsite("javascript:alert(1)")).toBeNull();
+    expect(venueWebsite("not a url")).toBeNull();
   });
 });
