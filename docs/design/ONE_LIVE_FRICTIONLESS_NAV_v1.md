@@ -53,6 +53,81 @@ load-bearing.
 
 ---
 
+## 2A. The unifying lens: Total Cost of Attention (TCA)
+
+Both pillars serve one measurable idea. **Total Cost of Attention** is the whole
+price a person pays — *time + cognitive effort + emotional toll* — to answer "what
+should I do (tonight)?" It is not just the seconds on our screen; it includes the
+hidden costs the founder named: **figuring out where to go, what to do, how to get
+there, what to do before and after, and what else is around.**
+
+Today that job costs **2, 5, 20, 45 minutes** spread across a dozen tabs, apps, and
+group texts — and often ends in decision fatigue or FOMO rather than a plan. **ONE
+LIVE collapses it to seconds**, and answers the *whole night* (before → event →
+after → nearby → how to get there), not one listing.
+
+> **The equation:** highest value at the **lowest attention cost** = the most
+> emotionally satisfying = the thing people come back to. **Automagical is
+> maximizing value ÷ attention-cost.** Frictionlessness (Pillar A) lowers the cost;
+> Anticipation (Pillar B) raises the value delivered per unit of attention.
+
+**Design rule (use it to cut, not just to add):** evaluate every feature and flow by
+*"does this lower TCA, or raise value-per-attention?"* If a thing adds attention cost
+without proportional value, it does not ship. The whole-night answer (before/after/
+nearby/how-to-get-there — the Night Out and nearby lenses) is one of the largest TCA
+reductions available, because it removes *many* separate searches at once.
+
+### The behavioral science (white-hat, because trust is foundational)
+
+This operationalizes the design brief's behavioral architecture (§6 — Eyal's Hook
+Model, Thaler/Sunstein choice architecture, the reflection test, the Virtual Advisory
+Council) and names the canon explicitly:
+
+- **Kahneman — System 1 / cognitive ease.** Keep the user in effortless System 1: the
+  answer is immediate, legible, low-deliberation. Never impose a System 2 tax (forms,
+  ambiguous choices, dead ends). Cognitive ease *is* trust and comfort. This is the
+  sharpest lens for "no friction."
+- **Clear (Atomic Habits) — obvious / attractive / easy / satisfying.** Especially
+  **make it easy** (fewest possible steps; the sub-10-second answer is the two-minute
+  rule taken to its limit) and **make it satisfying** (an immediate reward — the night
+  feels *handled*).
+- **Duhigg (Power of Habit) — cue → routine → reward.** The genuine cue ("what's on?")
+  → open ONE LIVE → a satisfying plan. A real reward loop, not a slot machine.
+- **Eyal (Hooked) — trigger → action → variable reward → investment.** Frictionless
+  action; a *genuine* variable reward (tonight is a real new edition — the brief notes
+  "the Hook needs no manufacturing"); investment (preferences, saved events, group
+  plans) that deepens value over time.
+- **Thaler/Sunstein (Nudge) — choice architecture + smart defaults.** Default to
+  tonight + nearby; reduce choice overload — but **libertarian paternalism**: the
+  mandatory "…or something else?" (§10) always preserves autonomy.
+
+### The keystone: we lower TCA to give attention *back*, not to capture it
+
+The attention economy uses these same techniques to **maximize time-on-app** — to
+capture more of you. **ONE LIVE uses them for the opposite end: to complete the job
+fast and let you go live your night.** The reward is *finishing* (you have your plan)
+and leaving satisfied — anti-doomscroll by design, "calmer than infinite scroll…
+finite (tonight ends)" (brief §4). Recurrence is earned by genuine satisfaction, never
+by a trap.
+
+That is what "trust as foundational, not an attribute" means here: trust is not a
+badge we display (the brief forbids badges) or a feature we bolt on — it is *who we
+are*, embedded as physics (CLAUDE.md invariants). These persuasion mechanics are safe
+to use **only because** trust is foundational: a company optimizing extraction would
+harm with them; we use them to help people "find and engage in experiences, helping
+individuals and the culture thrive" (founder framing). Every mechanism passes the
+brief's **reflection test**.
+
+**Measurement corollary (binding):** our success metric is **job-done-fast**, never
+**time-on-app**. We optimize *time-to-a-satisfying-answer* and *taps-to-a-plan
+downward*, and % of sessions that end in a decided/saved/shared plan **upward** — and
+we explicitly **do not** optimize dwell time or session length (that would invert the
+mantra and betray the keystone). This ties to the KPI framework's North-Star work
+(`ONE_LIVE_KPI_FRAMEWORK_v1.md`): a low-TCA, high-satisfaction, recurring visit is the
+honest shape of the metric.
+
+---
+
 ## 3. The two pillars
 
 Everything below hangs off two intertwined pillars. Neither alone is enough.
@@ -329,6 +404,12 @@ constraints, in one place:
    an authorization escape hatch.
 6. **Honesty over polish** — no faked native in-app browser, no interstitial theater,
    no "smooth" that misleads (e.g., never render a read error as "no such event").
+7. **Behavioral mechanics are white-hat only, and success is job-done — not dwell.**
+   Hook/habit/nudge techniques (§2A) serve fast completion and genuine satisfaction,
+   never attention extraction; every one passes the brief's reflection test. We
+   optimize time-to-answer and taps-to-plan *down* and decided-plan rate *up*, and we
+   **never** optimize time-on-app or session length. Trust is foundational (who we
+   are), not an attribute — which is the only reason these mechanics are safe to use.
 
 ---
 
@@ -397,6 +478,9 @@ test · **[lint]** static check · **[a11y]** axe/keyboard · **[perf]** Lightho
 15. **[qa]** Every interactive control has a voice-phrase mapping (ties to the
     existing Voice-Navigation founder requirement) — anticipation and voice share the
     same accessibility grammar.
+16. **[lint/qa]** Analytics/KPI dashboards expose job-done metrics (time-to-answer,
+    taps-to-plan, decided-plan rate) and **not** time-on-app / session-length as a
+    success metric — a guard that ONE LIVE never optimizes dwell (§2A keystone, §11.7).
 
 ---
 
