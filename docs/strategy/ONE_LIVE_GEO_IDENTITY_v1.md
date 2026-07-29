@@ -8,6 +8,16 @@ build.
 Plain-language note (per the charter's founder-communication rules): this doc
 assumes a smart non-engineer. Jargon is explained the first time it appears.
 
+**Research companion (founder-directed 2026-07-29):** the world-leading
+approaches to this class of problem — how Google/Meta/Spotify, orbital-object
+tracking, the 2-billion-star Gaia catalog, CERN, and genomics registries keep
+identity correct at massive scale — are researched and mapped to this build in
+`ONE_LIVE_GEO_IDENTITY_RESEARCH_v1.md`. Headline: they all use the SAME shape
+OneLive already uses for events (extract → candidate → gate → promote), so the
+identity layer is that proven architecture applied to entities, not a new
+invention. Read it alongside this proposal — it informs how Phases 1 & 2 get
+built and it carries the verified data-licensing table (incl. the ODbL answer).
+
 ---
 
 ## 1. Why this exists — the problem in one paragraph
