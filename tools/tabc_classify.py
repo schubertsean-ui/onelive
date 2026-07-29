@@ -57,6 +57,19 @@ def normalize_name(s: str) -> str:
     return t
 
 
+def normalize_county(s) -> str:
+    """Lowercase, strip whitespace and a trailing ' county' word — so the TABC
+    'GILLESPIE' and the catalog 'gillespie' (or a stray 'Gillespie County')
+    resolve to one key. Counties are NOT run through the business-suffix stripper
+    (a county is not a trade name)."""
+    if not s:
+        return ""
+    t = _WS.sub(" ", str(s).lower()).strip()
+    if t.endswith(" county"):
+        t = t[: -len(" county")].strip()
+    return t
+
+
 def permit_kind(code) -> "str | None":
     """The tasting kind for a TABC permit code, or None if it is not a producer
     permit we surface."""
@@ -70,15 +83,23 @@ def permit_kind(code) -> "str | None":
 KINDS = frozenset(PERMIT_KIND.values())
 
 
-def build_index(records) -> "dict[str, str]":
-    """Build {normalized_trade_name: kind} from TABC records, PRODUCER permits
-    only. Accepts BOTH shapes so the two halves can never silently drift apart
-    (adversarial-review #104): (a) fetch_tabc.py's OUTPUT, which already resolved
-    the permit to a `kind` field (this is what sources/tabc_producers.json
-    holds); and (b) a RAW TABC record with a `permit_type`/`license_type`/`type`
-    code. First producer for a name wins (a winery+brewery estate is a winery
-    under its own name — consistent with the keyword rule it replaces)."""
-    idx: "dict[str, str]" = {}
+def build_index(records) -> "dict[tuple[str, str], str]":
+    """Build {(normalized_trade_name, normalized_county): kind} from TABC records,
+    PRODUCER permits only. Accepts BOTH shapes so the two halves can never
+    silently drift apart (adversarial-review #104): (a) fetch_tabc.py's OUTPUT,
+    which already resolved the permit to a `kind` field (this is what
+    sources/tabc_producers.json holds); and (b) a RAW TABC record with a
+    `permit_type`/`license_type`/`type` code.
+
+    The key is (name, COUNTY), not name alone (adversarial-review #104 r3): a
+    different producer with the same or similar trade name in another county must
+    NOT be able to hand its permit's authority to an unrelated catalog venue. A
+    record carrying no county is DROPPED — an unqualifiable identity is never
+    admitted to the authoritative index (fail-closed; the caller then falls back
+    to the keyword guess, never to a wrong authoritative kind). First producer
+    for a (name, county) wins (a winery+brewery estate is a winery under its own
+    name — consistent with the keyword rule it replaces)."""
+    idx: "dict[tuple[str, str], str]" = {}
     for r in records:
         # Prefer an already-resolved, valid kind; else map a raw permit code.
         k = r.get("kind")
@@ -89,16 +110,26 @@ def build_index(records) -> "dict[str, str]":
             continue
         raw = r.get("trade_name") or r.get("name") or r.get("location_name") or ""
         name = normalize_name(raw)
-        if not name or name in idx:
+        county = normalize_county(r.get("county") or r.get("location_county"))
+        if not name or not county:
+            continue  # fail-closed: an unqualifiable identity never enters
+        key = (name, county)
+        if key in idx:
             continue
-        idx[name] = kind
+        idx[key] = kind
     return idx
 
 
-def classify(name: str, index: "dict[str, str]") -> "str | None":
-    """Authoritative tasting kind for a venue NAME via the TABC index, or None
-    when the venue holds no producer permit under that name (caller falls back to
-    the keyword guess)."""
+def classify(name: str, county, index: "dict[tuple[str, str], str]") -> "str | None":
+    """Authoritative tasting kind for a venue via the TABC index, matched by
+    (NAME, COUNTY) so a same-name producer in another county can never supply the
+    kind (adversarial-review #104 r3). Returns None when the venue holds no
+    producer permit under that name AND county — the caller falls back to the
+    keyword guess. A venue with no county cannot be authoritatively matched
+    (fail-closed) and likewise returns None."""
     if not index:
         return None
-    return index.get(normalize_name(name))
+    c = normalize_county(county)
+    if not c:
+        return None
+    return index.get((normalize_name(name), c))

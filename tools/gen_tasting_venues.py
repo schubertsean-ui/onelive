@@ -115,10 +115,10 @@ def derive_kind(name: str, notes: str = "") -> "str | None":
     return None
 
 
-def load_tabc_index() -> "dict[str, str]":
-    """The authoritative TABC producer index ({normalized_name: kind}), or empty
-    when the file has not been fetched yet — in which case classification falls
-    back entirely to the keyword guess (no regression)."""
+def load_tabc_index() -> "dict[tuple[str, str], str]":
+    """The authoritative TABC producer index ({(normalized_name, county): kind}),
+    or empty when the file has not been fetched yet — in which case
+    classification falls back entirely to the keyword guess (no regression)."""
     if not TABC_INDEX.exists():
         return {}
     from tools.tabc_classify import build_index
@@ -143,8 +143,11 @@ def build_venues(tabc_index: "dict[str, str] | None" = None) -> list[dict]:
             continue
         name = e.get("name") or ""
         notes = e.get("notes") or ""
-        # TABC (authoritative) first; keyword guess only when TABC has no match.
-        kind = tabc_classify(name, idx) or derive_kind(name, notes)
+        county = e.get("county") or ""
+        # TABC (authoritative) first, matched by NAME+COUNTY so a same-name
+        # producer elsewhere can't mislabel this venue (adversarial-review #104
+        # r3); keyword guess only when TABC has no county-qualified match.
+        kind = tabc_classify(name, county, idx) or derive_kind(name, notes)
         if kind not in TASTING_KINDS:
             continue  # restaurant, or no positive tasting signal — not this section
         out.append({

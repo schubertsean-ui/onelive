@@ -97,7 +97,12 @@ def to_producers(rows: list) -> list:
         if not kind:
             continue
         county = (_field(r, _COUNTY_FIELDS) or "").strip().upper()
-        if county and county not in COUNTIES:
+        # Fail-closed (adversarial-review #104 r3): a row whose county is missing,
+        # blank, or outside our region is REJECTED — an out-of-region or
+        # unqualifiable permit must never enter the authoritative index. If the
+        # live county field name drifts, EVERY row drops (a visible zero the run
+        # warns on), not a statewide flood admitted silently.
+        if county not in COUNTIES:
             continue
         name = _field(r, _NAME_FIELDS)
         if not name:
