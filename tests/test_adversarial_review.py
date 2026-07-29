@@ -268,12 +268,19 @@ def test_panel_unparseable_lens_is_hard_failure():
                      gemini_key=None, request_openai=hedged, request_gemini=None)
 
 
-def test_v2_prompt_encodes_the_ratified_escape_hatch_and_class_mandate():
+def test_v2_discipline_scopes_to_user_facing_harm_and_pauses_ceremony():
+    # Founder-ratified 2026-07-29 scale-back (decision record
+    # docs/memory/decisions/2026-07-29_process-scaleback-ship-capcog.md):
+    # the discipline now blocks ONLY user-facing harm and explicitly puts
+    # internal process ceremony out of scope. This test pins that scope so a
+    # future edit cannot silently re-introduce the recitation mandate.
     p = ar.V2_DISCIPLINE
-    assert "MUST block, in any round" in p  # the invariant obligation
-    assert "why it was not findable in round 1" in p  # structured discretion
-    assert "CLASS:<kebab-token>" in p  # sibling-enumeration mandate
-    assert "RECOMMEND-RECORD" in p  # scope -> record, not blocker
+    assert "USER-FACING HARM ONLY" in p  # the narrowed mandate
+    assert "OUT OF SCOPE" in p  # process ceremony is not a blocker
+    assert "APPROVE" in p  # process-only findings -> approve
+    # The paused ceremony must NOT be demanded any longer.
+    assert "CLASS:<kebab-token>" not in p  # sibling-enumeration mandate gone
+    assert "RECOMMEND-RECORD" not in p
 
 
 def test_single_lens_path_keeps_the_v1_prompt_unpolluted():

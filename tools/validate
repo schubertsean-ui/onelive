@@ -250,7 +250,14 @@ fi
 #     M3 escape or an unaddressed repeat-class alarm must never be waivable
 #     by --allow-skips — an alarm is a due fix, not information): findings
 #     turn the run RED outright.
-run_check "kaizen_trends" "$PY" tools/kaizen_trends.py
+# FOUNDER-RATIFIED PROCESS SCALE-BACK (2026-07-29 — decision record
+# docs/memory/decisions/2026-07-29_process-scaleback-ship-capcog.md): the
+# Kaizen ledger obligation is DOWNGRADED from a hard gate to ADVISORY for the
+# go-live push. It still RUNS and prints findings; it no longer blocks a merge.
+# The user-facing trust gates (trust_gate, lint, deferral_scan, pytest) stay
+# blocking above. Revert = restore `run_check`. The `|| exit 3` adapts the
+# tool's exit-1 to run_advisory's findings contract (0=clean, 3=findings).
+run_advisory "kaizen_trends" bash -c '"$0" tools/kaizen_trends.py || exit 3' "$PY"
 
 # 7c. Construction Loop Stage 3 gate (charter Thinking-tools item 4, #67 r4:
 #     the blocking-retrieval rule ships WITH its mechanism; r5: citations
@@ -268,7 +275,14 @@ run_check "kaizen_trends" "$PY" tools/kaizen_trends.py
 # reproducible from a stale base), so the gate needs remote access and
 # the CI review job grants it read-only for the validate step alone.
 # Same fail-closed physics, one mechanism, unit-tested.
-run_check "construction_gate" "$PY" tools/construction_gate.py
+# FOUNDER-RATIFIED PROCESS SCALE-BACK (2026-07-29 — decision record
+# docs/memory/decisions/2026-07-29_process-scaleback-ship-capcog.md): the
+# construction_gate [S3:...] red-class recitation is DOWNGRADED from a hard
+# gate to ADVISORY for the go-live push — it was pure ceremony that blocked
+# even a two-file docs PR (#91) while protecting no user. It still RUNS and
+# prints findings; it no longer blocks a merge. Revert = restore `run_check`.
+# The `|| exit 3` adapts the tool's exit-1 to run_advisory's findings contract.
+run_advisory "construction_gate" bash -c '"$0" tools/construction_gate.py || exit 3' "$PY"
 
 # 8. Visual regression — needs a booted app + baselines; cannot run headless
 #    here. Detect and SKIP-LOUD (never a silent pass), per the item-15 harness.
