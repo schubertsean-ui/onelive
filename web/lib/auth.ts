@@ -63,12 +63,25 @@ function _hostProtectedPreview(): boolean {
   return v === "preview" || v === "development";
 }
 
-// Resolve the gate mode. Clerk (a configured provider) wins; an explicit or
-// preview-implied disable is honored next; otherwise we are unconfigured and
-// callers must fail closed. Production never auto-opens.
+// Resolve the gate mode. Precedence (fixed 2026-07-29 after a preview 500):
+//   1. an EXPLICIT disable flag wins — it is a declared operator choice, and the
+//      documented preview escape hatch (NEXT_PUBLIC_AUTH_DISABLED) must actually
+//      work even when a Clerk publishable key is present in the env;
+//   2. a preview/development Vercel deployment is host-protected and a declared
+//      no-app-gate state — it must NOT run the Clerk gate even if it inherited
+//      the project's Clerk publishable key, because the preview URL is not an
+//      authorized Clerk domain (and may lack the secret key), so clerkMiddleware
+//      THROWS -> MIDDLEWARE_INVOCATION_FAILED (a 500 on every route). Founder-
+//      directed: previews need ZERO auth config;
+//   3. otherwise a configured Clerk key gates the deployment (production);
+//   4. otherwise unconfigured — callers FAIL CLOSED.
+// PRODUCTION is never a preview and won't carry a disable flag, so it still
+// resolves to clerk (when configured) or unconfigured (fail closed) — the
+// no-silent-publish invariant (evaluator PR #59) is preserved.
 export function authMode(): AuthMode {
+  if (_explicitlyDisabled()) return "disabled";
+  if (_hostProtectedPreview()) return "disabled";
   if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return "clerk";
-  if (_explicitlyDisabled() || _hostProtectedPreview()) return "disabled";
   return "unconfigured";
 }
 

@@ -45,6 +45,24 @@ describe("authMode — the fail-closed gate resolver", () => {
     expect(authMode()).toBe("disabled");
   });
 
+  // The preview-500 regression: a preview that INHERITED the project's Clerk
+  // publishable key must still resolve to 'disabled', never 'clerk' — running
+  // the Clerk gate on a preview URL throws MIDDLEWARE_INVOCATION_FAILED (500).
+  it("a preview with the Clerk key present still -> disabled (no 500)", () => {
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    process.env.VERCEL_ENV = "preview";
+    expect(authMode()).toBe("disabled");
+    expect(authProviderActive()).toBe(false); // ClerkProvider is NOT rendered
+  });
+
+  // The documented escape hatch must work even with a Clerk key present.
+  it("an explicit disable flag beats a present Clerk key -> disabled", () => {
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    process.env.VERCEL_ENV = "production";
+    process.env.NEXT_PUBLIC_AUTH_DISABLED = "1";
+    expect(authMode()).toBe("disabled");
+  });
+
   it("PRODUCTION never auto-opens — no provider, no flag -> unconfigured (fail closed)", () => {
     process.env.VERCEL_ENV = "production";
     expect(authMode()).toBe("unconfigured");
