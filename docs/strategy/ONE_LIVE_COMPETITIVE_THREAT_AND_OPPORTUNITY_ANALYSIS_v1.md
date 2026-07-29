@@ -33,6 +33,7 @@ are flagged where they carry material uncertainty.
 2. ONE LIVE SWOT — scored from a rival's chair
 3. The incumbents, one by one — how each would attack
 4. **Open aggregator vs. walled garden** — benefits and costs to every party
+4A. **The Open Distribution Thesis** — "Source of Record, not Walled Garden" (the promoted strategic pillar)
 5. **Moat-by-moat replicability table** — copy difficulty × incumbent effort × how we out-run
 6. **IP & legal defensibility** — what we can actually protect
 7. **Heartbeat Analytics** — the differentiated data engine, fully formulated, and how to monetize it
@@ -314,6 +315,77 @@ free" lose their reason to trust it, and the data moat stops compounding. This
 means the natural acquirers value us *less than a naive strategic-fit analysis
 suggests*, and it means our independence is not just a value — it's a
 **price-protection mechanism** we should deliberately entrench (§6, §10).
+
+---
+
+## 4A. The Open Distribution Thesis — "Source of Record, not Walled Garden"
+
+*(Promoted from §9.4 to a top-level pillar because it is the strategic core of
+ONE LIVE, not a feature of the entity agent. The moat table (§5), the entity
+agent (§9), the acquisition case (§10), and the premortem (§11) all resolve back
+to this section.)*
+
+### The thesis in one line
+**ONE LIVE does not trap culture inside its walls to monetize attention; it aims
+to be the trusted *source of record* for what's happening that every other surface
+reads *from* — so a creator maintains their truth *once, here,* and it appears
+*everywhere fans and machines look.***
+
+### Why this is the whole strategy, not a feature
+Every incumbent is a walled garden that *must* keep the audience inside to
+monetize it (attention, GMV, ads). That economic necessity is also their ceiling:
+**they will never build a tool whose job is to push a creator's event *out* to
+their rivals and to answer engines**, because that leaks the audience they exist
+to hoard. ONE LIVE has the opposite economic model — we monetize the *insight*
+(Heartbeat, §7), the *relationship/tooling* (§9), and civic/enterprise contracts,
+**not** the hoarded listing — so we are *free to distribute maximally*, and that
+freedom is a position no walled garden can occupy without breaking its own
+business. Openness is not our handicap to apologize for; it is the one move the
+incumbents structurally cannot copy.
+
+### Value to each party (why it is not zero-sum)
+- **Fans / machines:** the most complete, accurate, un-gamed answer to "what's on
+  tonight" — wherever they ask it (our app, Google, Maps, a voice assistant, an AI).
+- **Artists / venues / groups / communities:** maintain *one* accurate source of
+  truth (agent-assisted, §9); get reach *across every walled garden at once*;
+  keep control (listed by default, corrections honored instantly, own your data,
+  70% split); never pay for rank.
+- **ONE LIVE:** becomes the upstream truth layer the whole ecosystem depends on —
+  the most valuable and least-assailable position in the category, precisely
+  *because* we compete with none of them for the transaction.
+
+### The flywheel (strategic altitude; mechanism detailed in §9.4)
+```
+truth maintained here (agent-assisted)
+  → cleanest / freshest / most-verifiable event data anywhere
+  → search + GEO + answer engines prefer and cite ONE LIVE
+  → ONE LIVE becomes the highest-used "what's on tonight" source
+  → creators get the most reach by maintaining their truth here
+  → more truth maintained here  ↺
+```
+
+### The provable claim that turns the thesis into a moat
+*ONE LIVE will demonstrate, early and measurably, that it is the most-cited /
+highest-used source for these events across search, GEO, and answer engines in its
+launch metro.* The day that is true and shown, the entire supply side has a
+self-evident reason to keep their truth here, and the moat becomes
+self-reinforcing. This is why "instrument and prove GEO / answer-engine primacy"
+is a **Tier-1 objective (§12)**, not a nice-to-have — the whole thesis cashes out
+on winning that citation race. **Honesty rule:** pre-launch we say "we are
+building to be the source everyone reads from," never "we are" — the claim is a
+commitment to prove, not an achieved fact.
+
+### How it reframes the rest of this document
+- The **entity agent (§9)** is how this thesis is *operationalized* on the supply
+  side ("maintain once here, appear everywhere").
+- The **acquisition case (§10)** is this thesis stated *defensively*: a
+  walled-garden buyer destroys the outward-distribution value in the act of buying
+  it (the observer effect) — you cannot own "the neutral source everyone reads
+  from" and remain neutral.
+- **Moat #6 (§5)** is this thesis made *measurable* (citation primacy).
+- The **premortem's #2 (distribution starvation, §11)** is this thesis's chief
+  external risk — an incumbent making "tonight near you" one tap away *before* we
+  win citation primacy.
 
 ---
 
@@ -815,8 +887,8 @@ Not the shipped app (copyable in weeks). The real targets, in order of value:
    discipline and the pipeline design.
 
 ### 10.2 The observer effect (why the price is capped)
-**The core asset is neutrality, and a walled-garden acquirer destroys it in the
-act of buying.** Meta-owned ONE LIVE is no longer credibly "the one that doesn't
+**The core asset is neutrality and outward distribution (§4A), and a walled-garden
+acquirer destroys both in the act of buying.** Meta-owned ONE LIVE is no longer credibly "the one that doesn't
 sell your attention." Artists and venues who fed it "by default, for free" lose
 their reason to trust it; the supply relationships and the data inflow decay; the
 compounding stops. So the parties with the *most strategic fit* (Meta,
@@ -998,7 +1070,7 @@ can neither copy nor, having bought it, keep.*
 
 ---
 
-### Appendix — honest gaps and caveats in this analysis
+### Appendix A — honest gaps and caveats in this analysis
 - **Most moats are designed, not built** (Heartbeat, Emotion Graph, Convergence,
   entity agent all PROPOSAL/shadow). Their competitive value is *potential* until
   they run and accumulate.
@@ -1012,3 +1084,60 @@ can neither copy nor, having bought it, keep.*
   Act) is drafted and un-ratified — engage counsel before relying on any of it.
 - **No pricing/TAM validation** exists for the data products; §7's price anchors
   come from the reference spec, not from market testing.
+
+---
+
+### Appendix B — Artist / venue / community-facing messaging (DRAFT copy)
+
+**Status:** DRAFT go-to-market / marketing copy for founder ratification, derived
+from the Open Distribution Thesis (§4A). This is *not* product UI copy — the design
+brief's verbatim-copy rule governs in-product strings; this is the outward pitch to
+the supply side. **Honesty rule (binding):** the citation-primacy claim is framed
+as a commitment we will *prove*, never as an achieved fact pre-launch; nothing here
+implies pay-for-visibility, which the trust invariants forbid.
+
+**The core promise (headline options to test):**
+- *"Your shows — everywhere fans and AI look. Maintained once. Never gamed. Never
+  for sale."*
+- *"One place to keep your shows right. Every place people find them."*
+- *"Update once. Show up everywhere. Ranked by no one's wallet."*
+
+**The pitch (short form, ~50 words):**
+> Keep your events accurate in one place, and ONE LIVE makes sure they show up
+> correctly *everywhere* people — and AI assistants — look for what's on tonight.
+> You're listed by default, free. Corrections happen instantly. You own your data.
+> No one can pay to outrank you. We're not another feed to feed — we're the source
+> everyone else reads from.
+
+**By audience:**
+- **Artist:** "You play the show. We make sure the whole city — and every search and
+  AI assistant — knows, accurately. Free, listed by default, and no one can buy
+  their way above you."
+- **Venue:** "One calendar to maintain. Every fan, map, search, and assistant gets
+  it right. Corrections in seconds. You appear because you're active — never
+  because you paid."
+- **Community / org / group:** "Your events, represented faithfully everywhere at
+  once — maintained in one place, never buried by someone with a bigger ad budget."
+
+**The proof (what backs the promise — no slogan without a number):**
+- *The claim:* in our launch metro, when a fan or an AI asks "what's on tonight,"
+  the answer comes from ONE LIVE more than from anywhere else.
+- *How we show it:* a published, measured **citation-primacy figure** — how often
+  ONE LIVE is the cited/ranked source across Google, Maps, and answer engines
+  (§9.4, §12 Tier 1) — not a slogan. Until proven, we say "we're building to be,"
+  not "we are."
+
+**Objection handling (honest):**
+- *"Isn't this just another listing site?"* — No. A listing site keeps you inside
+  it. ONE LIVE pushes your truth *out* to every place people already look, and
+  earns from insight and tooling, not from your visibility.
+- *"What's the catch on 'free'?"* — None for being found. We never charge for
+  discovery and never let anyone pay to rank. We earn from analytics and venue
+  tooling, never from selling your position.
+- *"Why should I trust the data?"* — Because everything is verified through a gate
+  before it's shown, disputed items are shown as disputed (never hidden), and
+  nothing is ranked by money. That's *why* search engines and AIs prefer us — and
+  why your listing carries weight.
+
+**Taglines (for testing):** "The source everyone reads from." · "Maintained once.
+Found everywhere." · "Ranked by nobody's wallet."
