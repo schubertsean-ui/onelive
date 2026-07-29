@@ -35,6 +35,9 @@ NORMALIZATION_VECTORS = [
     "San Antonio", "San Antonio, TX", "San Antonio, TX, USA",
     "SAN ANTONIO, TX 78205, USA", "San Antonio, Texas, United States",
     "New Braunfels, TX, USA", "Round Rock, TX", "Columbus", "  ", "",
+    # r4: a trailing period ("…, TX.") left the string unmatched, so a known
+    # San Antonio/Bexar row normalized to nothing recognisable and was kept.
+    "San Antonio, TX.", "San Antonio, Texas.", "Austin, TX.", "Bexar County, TX.",
     # r12: county qualifiers, which defeated the boundary until 2026-07-26.
     "San Antonio, Bexar County, TX", "san antonio, bexar county",
     "SAN ANTONIO, BEXAR COUNTY, TEXAS, USA", "Austin, Travis County, TX",

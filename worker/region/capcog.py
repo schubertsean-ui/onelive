@@ -191,19 +191,19 @@ def _strip_qualifiers(text: str, *, drop_county: bool) -> str:
     changed = True
     while changed:
         changed = False
-        stripped = _ZIP_RE.sub("", text).strip(" ,")
+        stripped = _ZIP_RE.sub("", text).strip(" ,.")
         if stripped != text:
             text, changed = stripped, True
         if drop_county:
-            stripped = _COUNTY_RE.sub("", text).strip(" ,")
+            stripped = _COUNTY_RE.sub("", text).strip(" ,.")
             if stripped != text and stripped:
                 text, changed = stripped, True
         for suffix in TRAILING_QUALIFIERS:
             if text.endswith(suffix):
-                text = text[: -len(suffix)].strip(" ,")
+                text = text[: -len(suffix)].strip(" ,.")
                 changed = True
                 break
-    return text.strip(" ,")
+    return text.strip(" ,.")
 
 
 def county_in_place(value: Optional[str]) -> Optional[str]:
@@ -253,7 +253,7 @@ def normalize_county(value: Optional[str]) -> Optional[str]:
     if key is None:
         return None
     if key.endswith(" county"):
-        key = key[: -len(" county")].strip(" ,")
+        key = key[: -len(" county")].strip(" ,.")
     return key or None
 
 
@@ -321,17 +321,28 @@ def row_verdict(row: dict) -> Optional[bool]:
     This is byte-for-byte the TypeScript rowVerdict rule so the ingestion path
     and the web read path enforce ONE market boundary.
     """
-    verdicts = []
-    for field in LOCATION_FIELDS:
-        v = row.get(field)
-        verdicts.append(in_capcog(v))                       # as a place / city name
-        verdicts.append(in_capcog_county(v))                # as a bare county name
-        verdicts.append(in_capcog_county(county_in_place(v)))  # as a county in a string
+    verdicts = [_token_verdict(row.get(f)) for f in LOCATION_FIELDS]
     if any(x is False for x in verdicts):
         return False
     if any(x is True for x in verdicts):
         return True
     return None
+
+
+def _token_verdict(value) -> Optional[bool]:
+    """One field VALUE, resolved PLACE-FIRST. A known city is decisive for its
+    own token, so "Taylor" — an in-market Williamson city — is NOT overridden by
+    the outside Taylor-County reading of the same string (PR #107 r4). Only when
+    the value is not a known place do we read it as a county: embedded in a
+    string first ("…, Bexar County, TX"), then as a bare county name ("Bexar").
+    Byte-for-byte the TypeScript tokenVerdict."""
+    as_place = in_capcog(value)
+    if as_place is not None:
+        return as_place
+    embedded = in_capcog_county(county_in_place(value))
+    if embedded is not None:
+        return embedded
+    return in_capcog_county(value)
 
 
 def region_report(rows: list) -> dict:

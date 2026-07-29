@@ -159,6 +159,27 @@ describe("CAPCOG boundary on the read path", () => {
     expect(rowVerdict({ venue_city: "Austin", city: "San Antonio" })).toBe(false);
     // Symmetric: a known-outside CITY sitting in a COUNTY field is still caught.
     expect(rowVerdict({ venue_county: "San Antonio" })).toBe(false);
+  });
+
+  it("an in-market city sharing an outside county's name is KEPT, place-first (r4)", () => {
+    // "Taylor" is a Williamson city AND an outside county name; a known city is
+    // decisive for its own token, so the real in-market listing is not dropped.
+    expect(rowVerdict({ venue_city: "Taylor" })).toBe(true);
+    expect(rowVerdict({ city: "Taylor, TX" })).toBe(true);
+    // The bare-county catch still fires for a token that is NOT a known city:
+    expect(rowVerdict({ venue_city: "Bexar" })).toBe(false);
+  });
+
+  it("a trailing period does not smuggle a known-outside city through (r4)", () => {
+    // The normalizer fix, proven directly on a city shape:
+    expect(inCapcog("San Antonio, TX.")).toBe(false);
+    expect(inCapcog("San Antonio, Texas.")).toBe(false);
+    // The row boundary drops all three (the county shape drops via its county
+    // reading, inCapcog being city-only returns null for it — that's expected):
+    for (const shape of ["San Antonio, TX.", "San Antonio, Texas.", "Bexar County, TX."]) {
+      expect(rowVerdict({ venue_city: shape })).toBe(false);
+    }
+    expect(rowVerdict({ venue_city: "Austin, TX." })).toBe(true);
     const out = filterToCapcog([
       { venue_city: "Austin", city: "San Antonio", venue_name: "Smuggled" },
       { venue_city: "Austin", venue_name: "Mohawk" },

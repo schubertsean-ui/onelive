@@ -260,6 +260,22 @@
       "expected": null
     },
     {
+      "input": "San Antonio, TX.",
+      "expected": "san antonio"
+    },
+    {
+      "input": "San Antonio, Texas.",
+      "expected": "san antonio"
+    },
+    {
+      "input": "Austin, TX.",
+      "expected": "austin"
+    },
+    {
+      "input": "Bexar County, TX.",
+      "expected": "bexar county"
+    },
+    {
       "input": "San Antonio, Bexar County, TX",
       "expected": "san antonio"
     },

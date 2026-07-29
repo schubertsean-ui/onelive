@@ -228,6 +228,26 @@ def test_a_known_outside_value_cannot_hide_in_the_fallback_field():
     assert row_verdict({"venue_county": "San Antonio"}) is False
 
 
+def test_an_in_market_city_sharing_an_outside_countys_name_is_kept():
+    """PR #107 r4: reading a city value ALSO as a bare county name made "Taylor"
+    (an in-market Williamson city) collide with the outside Taylor County, and
+    the drop-veto wrongly dropped a real in-market listing. Resolution is
+    PLACE-FIRST: a known city is decisive for its own token."""
+    assert row_verdict({"venue_city": "Taylor"}) is True      # Williamson city, kept
+    assert row_verdict({"city": "Taylor, TX"}) is True
+    # The bare-county catch still works for a token that is NOT a known city:
+    assert row_verdict({"venue_city": "Bexar"}) is False
+
+
+def test_a_trailing_period_does_not_smuggle_a_known_outside_city_through():
+    """PR #107 r4: the terminal trim removed only commas/whitespace, so
+    "San Antonio, TX." kept its period, matched no table, and was kept as
+    unknown. The trim now drops a trailing period too."""
+    for shape in ("San Antonio, TX.", "San Antonio, Texas.", "Bexar County, TX."):
+        assert row_verdict({"venue_city": shape}) is False, shape
+    assert row_verdict({"venue_city": "Austin, TX."}) is True
+
+
 def test_a_bare_outside_county_name_in_the_city_field_is_dropped():
     """PR #107 r2: a BARE outside county name in the city field — "Bexar",
     "Comal", no word "County" — matched no city and no county_in_place, so it

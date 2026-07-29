@@ -47,7 +47,11 @@ const OUTSIDE_COUNTIES: string[] = Array.from(new Set(Object.values(OUTSIDE)));
 // JSON objects and the keys come from feed data, so ownership must be checked.
 const owns = (obj: Record<string, string>, key: string) => Object.hasOwn(obj, key);
 
-const trimPunct = (s: string) => s.replace(/^[,\s]+|[,\s]+$/g, "");
+// Strip leading/trailing commas, whitespace AND periods. A trailing period —
+// "San Antonio, TX." — is a common scraped shape that otherwise left "…tx."
+// unmatched by the " tx" qualifier, so the string normalized to nothing
+// recognisable and the read path kept a known-outside city (PR #107 r4).
+const trimPunct = (s: string) => s.replace(/^[.,\s]+|[.,\s]+$/g, "");
 
 /** Lowercase/trim a place name, dropping trailing ZIP, state and country
  *  qualifiers. Venue cities arrive as "Austin", "Austin, TX",
@@ -181,14 +185,23 @@ const LOCATION_FIELDS: (keyof RegionRow)[] = ["venue_county", "county", "venue_c
  *  a known-outside county still drops an in-market-looking city (false beats
  *  true), and an EMPTY preferred field can no longer hide a real value in the
  *  fallback field (PR #74 r12) because every field is read, not just the first. */
+/** One field VALUE, resolved PLACE-FIRST. A known city is decisive for its own
+ *  token, so `"Taylor"` — an in-market Williamson city — is NOT overridden by
+ *  the outside Taylor-County reading of the same string (PR #107 r4: reading
+ *  every value as a bare county too made a real in-market city collide with a
+ *  same-named outside county, and `false` wrongly won). Only when the value is
+ *  not a known place do we read it as a county — embedded in a string first
+ *  ("…, Bexar County, TX"), then as a bare county name ("Bexar"). */
+function tokenVerdict(value: string | null | undefined): RegionVerdict {
+  const asPlace = inCapcog(value);
+  if (asPlace !== null) return asPlace;
+  const embedded = inCapcogCounty(countyInPlace(value));
+  if (embedded !== null) return embedded;
+  return inCapcogCounty(value);
+}
+
 export function rowVerdict(row: RegionRow): RegionVerdict {
-  const verdicts: RegionVerdict[] = [];
-  for (const field of LOCATION_FIELDS) {
-    const v = row[field];
-    verdicts.push(inCapcog(v));                       // as a place / city name
-    verdicts.push(inCapcogCounty(v));                 // as a bare county name
-    verdicts.push(inCapcogCounty(countyInPlace(v)));  // as a county inside a string
-  }
+  const verdicts = LOCATION_FIELDS.map((field) => tokenVerdict(row[field]));
   if (verdicts.some((v) => v === false)) return false;
   if (verdicts.some((v) => v === true)) return true;
   return null;
