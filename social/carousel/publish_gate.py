@@ -189,12 +189,57 @@ class Approval:
 
 @dataclass(frozen=True)
 class PublishRelease:
-    """Proof that the gate released this exact draft for posting."""
+    """Proof that the gate released this exact draft for posting. The signature
+    (evaluator PR #106: forgeable-release finding) is an HMAC over the release's
+    canonical fields under the environment-held founder key — the SAME physics
+    as an Approval, so a caller without the key cannot hand-build a release the
+    posting boundary will accept. verify_release() is that check."""
 
     draft_hash: str
     surface: str
     series_key: str
     released_by: str  # approver identity, or "autonomy:<level>"
+    signature: str = ""
+
+
+def _release_signature(
+    draft_hash: str, surface: str, series_key: str, released_by: str, key: bytes
+) -> str:
+    message = "|".join((draft_hash, surface, series_key, released_by)).encode("utf-8")
+    return hmac.new(key, message, hashlib.sha256).hexdigest()
+
+
+def verify_release(release: "PublishRelease", draft: CarouselDraft) -> None:
+    """Authenticate a release against this exact draft, fail closed. Raises
+    unless `release` binds this draft (content-hash identity) AND its signature
+    verifies under the environment-held approval key. The posting boundary
+    (meta_publisher) calls this so that only a release the gate actually signed
+    — never a matching-fields object a caller constructed — can publish."""
+    if not isinstance(release, PublishRelease):
+        raise ValueError("release refused: not a PublishRelease")
+    draft_hash = content_hash(draft)
+    if release.draft_hash != draft_hash:
+        raise ValueError(
+            "release refused: does not bind this draft (content-hash mismatch)"
+        )
+    if release.surface != draft.surface:
+        raise ValueError(
+            f"release refused: release surface {release.surface!r} does not match "
+            f"draft surface {draft.surface!r}"
+        )
+    if not release.signature:
+        raise ValueError(
+            "release refused: unsigned — a release the gate did not sign is forged"
+        )
+    key = _resolve_key()
+    expected = _release_signature(
+        release.draft_hash, release.surface, release.series_key, release.released_by, key
+    )
+    if not hmac.compare_digest(expected, release.signature):
+        raise ValueError(
+            "release refused: signature does not verify under the approval key — "
+            "this release was not issued by the gate"
+        )
 
 
 def _resolve_key() -> bytes:
@@ -472,6 +517,9 @@ def release_for_publish(
             surface=draft.surface,
             series_key=draft.series_key,
             released_by=approval.approved_by,
+            signature=_release_signature(
+                draft_hash, draft.surface, draft.series_key, approval.approved_by, key
+            ),
         )
         # Human-approved releases are journaled too when a journal exists
         # (complete record), but per-post human custody never depends on
@@ -513,11 +561,19 @@ def release_for_publish(
                 f"({active_policy.max_releases_per_day}/day) is already spent "
                 f"for {now.date()} ({released_today} released)"
             )
+        # The autonomy path signs the release too: load_policy() already
+        # required and verified the founder key for any level above L0, so it
+        # is present here — an auto-released post is as unforgeable as a
+        # human-approved one at the posting boundary.
+        released_by = f"autonomy:{active_policy.level}"
         release = PublishRelease(
             draft_hash=draft_hash,
             surface=draft.surface,
             series_key=draft.series_key,
-            released_by=f"autonomy:{active_policy.level}",
+            released_by=released_by,
+            signature=_release_signature(
+                draft_hash, draft.surface, draft.series_key, released_by, _resolve_key()
+            ),
         )
         _RELEASE_JOURNAL.record(release, now)
         return release

@@ -137,8 +137,9 @@ def test_live_fetch_with_injected_transport(monkeypatch):
     monkeypatch.setenv("META_ACCESS_TOKEN", "founder-minted-token")
     seen = {}
 
-    def transport(url):
+    def transport(url, headers):
         seen["url"] = url
+        seen["headers"] = headers
         return _values_payload(reach=900, accounts_engaged=180)
 
     m = fetch_and_import(
@@ -148,4 +149,6 @@ def test_live_fetch_with_injected_transport(monkeypatch):
     assert m.reach == 900 and m.unique_interactions == 180
     assert "17900000000000000/insights" in seen["url"]
     assert "reach" in seen["url"] and "accounts_engaged" in seen["url"]
-    assert "access_token=founder-minted-token" in seen["url"]
+    # The token rides an Authorization header, never the URL (log-leak nit).
+    assert "access_token" not in seen["url"]
+    assert seen["headers"]["Authorization"] == "Bearer founder-minted-token"

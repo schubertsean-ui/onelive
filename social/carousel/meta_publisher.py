@@ -14,23 +14,28 @@ construction, not by policy.
 Trust bindings enforced here, every one fail-closed:
   1. Credentials come from the deployment environment ONLY (never a parameter,
      never present in agent sessions). Absent = MetaConfigError, nothing posts.
-  2. A PublishRelease is REQUIRED and its draft_hash must equal this draft's
-     content_hash — a draft edited after release is a void release.
-  3. release.surface must match draft.surface (a release for one surface never
-     posts to another).
-  4. Every slide needs a hosted https image URL supplied by the caller; a
-     missing or non-https URL refuses the whole post (no partial/broken deck).
-  5. A banned-claim rescan (same regex as generation and the gate) runs as a
+  2. The release must AUTHENTICATE via publish_gate.verify_release: it binds
+     this exact draft (content-hash identity) AND its signature verifies under
+     the founder key. A caller with the Meta token but not the founder key
+     cannot hand-build an accepted release (evaluator PR #106, forgeable-release
+     finding) — only a release the gate actually signed can publish.
+  3. Slides are posted from the DRAFT's own hash-bound image refs, never from
+     caller-supplied urls (evaluator PR #106, unbound-image finding): a caller
+     cannot swap in unapproved imagery, because any change to a slide image
+     changes content_hash and voids the release. Every image must be https;
+     a slide with no bound image refuses the whole post (fail-closed until the
+     R-061 renderer populates every slide's image ref).
+  4. A banned-claim rescan (same regex as generation and the gate) runs as a
      belt over the exact copy about to be posted.
 
 The autonomous loop (agent_loop.py) is structurally forbidden to import this
 module — enforced by tests/test_social_carousel.py's import guard, same physics
 as the publish_gate/autonomy bar. The HTTP transport is injected so the trust
 logic is unit-tested with zero network; the real urllib transport is built only
-when it is actually used. The rendered-slide-image hosting surface that feeds
-`slide_image_urls`, and the Facebook-Page carousel endpoint, are the remaining
-go-live builds tracked as R-061 — this client fails loud rather than pretending
-either exists.
+when it is actually used. The rendered-slide-image hosting surface that must
+populate every slide's bound image ref, and the Facebook-Page carousel
+endpoint, are the remaining go-live builds tracked as R-061 — this client fails
+loud rather than pretending either exists.
 """
 from __future__ import annotations
 
@@ -45,9 +50,8 @@ from social.carousel.generator import (
     BANNED_CLAIM_RE,
     CarouselDraft,
     all_draft_text,
-    content_hash,
 )
-from social.carousel.publish_gate import PublishRelease
+from social.carousel.publish_gate import PublishRelease, verify_release
 
 # Graph API version pinned so an upstream default bump never silently changes
 # request shape; bump deliberately when Meta deprecates a version.
@@ -190,16 +194,17 @@ class MetaPublisher:
         self,
         draft: CarouselDraft,
         release: PublishRelease,
-        slide_image_urls,
     ) -> PublishedPost:
         """Publish `draft` to Meta. Refuses unless the capability is enabled,
-        the release authenticates this exact draft/surface, every slide has a
-        hosted https image, and the copy carries no banned claim.
+        the release AUTHENTICATES this exact draft (gate signature verified),
+        every slide carries a hash-bound https image ref, and the copy carries
+        no banned claim.
 
-        slide_image_urls: an ordered sequence, one https url per slide in
-        deck order (hook, events…, cta). The rendered-card hosting surface
-        (R-061) supplies these; event slides' cover urls are NOT assumed here
-        because a Meta carousel is branded rendered cards, not raw photos.
+        Images come from the draft's own slides (draft.slides[i].image_ref),
+        which are covered by content_hash and therefore by the verified release
+        — a caller cannot substitute unapproved imagery. The R-061 renderer is
+        what populates every slide's image ref with its hosted rendered-card
+        url; until it does, hook/cta slides have no image ref and this refuses.
         """
         if not meta_publishing_enabled():
             raise MetaConfigError(
@@ -211,32 +216,25 @@ class MetaPublisher:
                 "refusing to post: a PublishRelease from the human-approval gate "
                 "is required — this client never posts an unreleased draft"
             )
-        draft_hash = content_hash(draft)
-        if release.draft_hash != draft_hash:
-            raise MetaPublishError(
-                "refusing to post: the release does not bind this exact draft "
-                "(hash mismatch) — the draft changed after release, so it is void"
-            )
-        if release.surface != draft.surface:
-            raise MetaPublishError(
-                f"refusing to post: release surface {release.surface!r} does not "
-                f"match draft surface {draft.surface!r}"
-            )
+        # The one authentication point: only a release the gate signed (binding
+        # this exact draft) verifies. A hand-built matching-fields object fails.
+        try:
+            verify_release(release, draft)
+        except ValueError as exc:
+            raise MetaPublishError(f"refusing to post: {exc}") from exc
         if draft.surface not in SURFACE_CONSTRAINTS:
             raise MetaPublishError(f"refusing to post: unknown surface {draft.surface!r}")
 
         token = _resolve_access_token()
         node = _resolve_surface_node(draft.surface)
 
-        urls = list(slide_image_urls or [])
-        if len(urls) != len(draft.slides):
-            raise MetaPublishError(
-                f"refusing to post: {len(urls)} image url(s) supplied for "
-                f"{len(draft.slides)} slides — every slide needs a hosted image"
-            )
+        # Post the draft's OWN images (hash-bound, so the verified release
+        # covers them); a slide with no bound image ref refuses the whole post.
         child_urls = [
-            _require_https(url, f"slide {i}") for i, url in enumerate(urls)
+            _require_https(slide.image_ref, f"slide {i} ({slide.kind})")
+            for i, slide in enumerate(draft.slides)
         ]
+        draft_hash = release.draft_hash
 
         # Belt over the exact posted copy (same regex as generation + gate):
         # a banned claim never reaches Meta even if a caller hand-built a draft.

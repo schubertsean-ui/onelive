@@ -180,9 +180,10 @@ def import_exported_metrics(json_str: str) -> list[PostMetrics]:
     return out
 
 
-def _urllib_transport(url: str) -> dict:
+def _urllib_transport(url: str, headers: dict) -> dict:
+    request = urllib.request.Request(url, headers=headers or {})
     try:
-        with urllib.request.urlopen(url, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=30) as response:
             body = response.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")
@@ -213,11 +214,12 @@ def fetch_and_import(
             "Use import_exported_metrics() for the credential-free path."
         )
     fetch = transport or _urllib_transport
-    query = urllib.parse.urlencode(
-        {"metric": ",".join(INSIGHTS_METRICS), "access_token": token}
-    )
+    # Token in the Authorization header, not the query string (evaluator PR #106
+    # nit): a bearer header is far less likely to be captured in access logs or
+    # referrers than a token baked into the URL.
+    query = urllib.parse.urlencode({"metric": ",".join(INSIGHTS_METRICS)})
     url = f"{GRAPH_API_BASE}/{post_id}/insights?{query}"
-    payload = fetch(url)
+    payload = fetch(url, {"Authorization": f"Bearer {token}"})
     return post_metrics_from_insights(
         post_id=post_id, surface=surface, tier=tier, posted_at=posted_at, payload=payload
     )
