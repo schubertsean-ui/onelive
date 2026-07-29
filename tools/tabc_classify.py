@@ -65,15 +65,24 @@ def permit_kind(code) -> "str | None":
     return PERMIT_KIND.get(str(code).strip().upper())
 
 
+# The kinds a record may already carry (fetch_tabc.py resolves permit -> kind
+# and writes {"kind": ...}, so its output must be readable directly).
+KINDS = frozenset(PERMIT_KIND.values())
+
+
 def build_index(records) -> "dict[str, str]":
     """Build {normalized_trade_name: kind} from TABC records, PRODUCER permits
-    only. Accepts a few common field spellings so the fetch tool can pass rows
-    through with minimal reshaping. First producer permit for a name wins (a
-    winery+brewery estate is a winery under its own name — consistent with the
-    keyword rule it replaces)."""
+    only. Accepts BOTH shapes so the two halves can never silently drift apart
+    (adversarial-review #104): (a) fetch_tabc.py's OUTPUT, which already resolved
+    the permit to a `kind` field (this is what sources/tabc_producers.json
+    holds); and (b) a RAW TABC record with a `permit_type`/`license_type`/`type`
+    code. First producer for a name wins (a winery+brewery estate is a winery
+    under its own name — consistent with the keyword rule it replaces)."""
     idx: "dict[str, str]" = {}
     for r in records:
-        kind = permit_kind(
+        # Prefer an already-resolved, valid kind; else map a raw permit code.
+        k = r.get("kind")
+        kind = k if k in KINDS else permit_kind(
             r.get("permit_type") or r.get("license_type") or r.get("type")
         )
         if not kind:

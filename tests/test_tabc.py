@@ -49,6 +49,32 @@ def test_build_index_keeps_producers_and_maps_kinds():
     }
 
 
+def test_build_index_reads_fetch_tabc_output_format():
+    # adversarial-review #104: fetch_tabc.py writes {trade_name, county, kind}
+    # (permit already resolved), NOT a raw permit_type. build_index MUST read
+    # that shape, or the whole authoritative index silently empties.
+    fetched = [
+        {"trade_name": "Jester King Brewery", "county": "Travis", "kind": "brewery"},
+        {"trade_name": "Becker Vineyards", "county": "Gillespie", "kind": "winery"},
+    ]
+    idx = tabc.build_index(fetched)
+    assert idx == {"jester king brewery": "brewery", "becker vineyards": "winery"}
+
+
+def test_fetch_to_index_roundtrip_connects():
+    # End-to-end: a RAW Socrata row -> fetch_tabc.to_producers -> build_index ->
+    # classify. Proves the two modules actually connect (the #104 regression).
+    fetch = _load("fetch_tabc", "tools/fetch_tabc.py")
+    raw_rows = [
+        {"trade_name": "Still Austin Whiskey Co.", "permit_type": "D", "county": "TRAVIS"},
+        {"trade_name": "Corner Icehouse", "permit_type": "BE", "county": "TRAVIS"},  # retailer -> dropped
+    ]
+    producers = fetch.to_producers(raw_rows)
+    idx = tabc.build_index(producers)
+    assert tabc.classify("Still Austin Whiskey Co.", idx) == "distillery"
+    assert tabc.classify("Corner Icehouse", idx) is None
+
+
 def test_classify_matches_by_normalized_name():
     idx = {"still austin whiskey": "distillery"}
     assert tabc.classify("Still Austin Whiskey Co.", idx) == "distillery"
