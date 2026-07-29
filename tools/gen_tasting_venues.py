@@ -27,8 +27,17 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+# Run as a script (`python tools/gen_tasting_venues.py`), so self-insert the repo
+# root on sys.path — otherwise `from tools.tabc_classify import ...` fails (tools/
+# is not on the path when the file is the entrypoint).
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 CATALOG = ROOT / "sources" / "master_sources_catalog_120.json"
 OUT = ROOT / "web" / "lib" / "tasting_venues.generated.ts"
+# Optional AUTHORITATIVE kind source: TABC licensed-producer index (written by
+# tools/fetch_tabc.py where egress reaches data.texas.gov). When present it
+# overrides the keyword guess — a licensed winery is a winery no matter its name.
+TABC_INDEX = ROOT / "sources" / "tabc_producers.json"
 
 # Valid kinds derive_kind can return — kept in sync with web/lib/venues.ts.
 VALID_KINDS = ("winery", "brewery", "distillery", "beer-garden", "restaurant", "tasting-room")
@@ -106,13 +115,27 @@ def derive_kind(name: str, notes: str = "") -> "str | None":
     return None
 
 
-def build_venues() -> list[dict]:
+def load_tabc_index() -> "dict[tuple[str, str], str]":
+    """The authoritative TABC producer index ({(normalized_name, county): kind}),
+    or empty when the file has not been fetched yet — in which case
+    classification falls back entirely to the keyword guess (no regression)."""
+    if not TABC_INDEX.exists():
+        return {}
+    from tools.tabc_classify import build_index
+    return build_index(json.loads(TABC_INDEX.read_text(encoding="utf-8")))
+
+
+def build_venues(tabc_index: "dict[str, str] | None" = None) -> list[dict]:
     """The TASTING venues from the catalog, mapped to directory records and
     sorted deterministically (county, then name) so the generated file is
-    stable across runs. Only genuine tasting kinds are admitted (TASTING_KINDS);
-    a restaurant or an unclassifiable food-drink venue is excluded from this
-    directory — it still reaches users through the events feed when it has an
-    event (#96)."""
+    stable across runs. Kind is AUTHORITATIVE from TABC when the venue holds a
+    producer permit under its name (a licensed winery is a winery regardless of
+    its name), else the keyword guess. Only genuine tasting kinds are admitted
+    (TASTING_KINDS); a restaurant or an unclassifiable food-drink venue is
+    excluded from this always-on directory — it still reaches users through the
+    events feed when it has an event (#96)."""
+    from tools.tabc_classify import classify as tabc_classify
+    idx = load_tabc_index() if tabc_index is None else tabc_index
     cat = json.loads(CATALOG.read_text(encoding="utf-8"))
     out = []
     for e in cat:
@@ -120,7 +143,11 @@ def build_venues() -> list[dict]:
             continue
         name = e.get("name") or ""
         notes = e.get("notes") or ""
-        kind = derive_kind(name, notes)
+        county = e.get("county") or ""
+        # TABC (authoritative) first, matched by NAME+COUNTY so a same-name
+        # producer elsewhere can't mislabel this venue (adversarial-review #104
+        # r3); keyword guess only when TABC has no county-qualified match.
+        kind = tabc_classify(name, county, idx) or derive_kind(name, notes)
         if kind not in TASTING_KINDS:
             continue  # restaurant, or no positive tasting signal — not this section
         out.append({
