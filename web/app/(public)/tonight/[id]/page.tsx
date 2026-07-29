@@ -18,6 +18,7 @@ import {
   detailWhen,
   detailMapUrl,
   httpOrNull,
+  telHref,
   resolveDetailView,
   statusNote,
 } from "../../../../lib/detail";
@@ -177,6 +178,11 @@ export default async function EventDetailPage(
   const tix = httpOrNull(event_.ticket_url);
   const img = httpOrNull(event_.image_url);
   const note = statusNote(event_);
+  // Venue contact — the venue is always the last word, so make confirming easy:
+  // a website link and a one-tap call. Each appears only when we actually have
+  // it (telHref returns null unless the number is dialable).
+  const website = httpOrNull(event_.venue_url);
+  const call = telHref(event_.venue_phone);
 
   return (
     <Shell>
@@ -229,6 +235,24 @@ export default async function EventDetailPage(
               <dd>
                 {event_.category}
                 {event_.subsegment ? <span className="dsub"> · {event_.subsegment}</span> : null}
+              </dd>
+            </>
+          ) : null}
+
+          {/* Check with the venue — the last word on any listing. Shown only
+              when we have a real website and/or a dialable number. */}
+          {(website || call) ? (
+            <>
+              <dt>Check the venue</dt>
+              <dd className="dcontact">
+                {call ? (
+                  <a className="dcall" href={call}>📞 Want to call and confirm?</a>
+                ) : null}
+                {website ? (
+                  <a href={website} target="_blank" rel="noopener noreferrer">
+                    Venue website ↗
+                  </a>
+                ) : null}
               </dd>
             </>
           ) : null}

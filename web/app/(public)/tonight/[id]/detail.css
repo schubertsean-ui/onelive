@@ -46,6 +46,11 @@
 .detail .dfacts .dsub { opacity: 0.7; }
 .detail .dfacts .dfree { font-weight: 600; }
 .detail .dfacts a { color: inherit; }
+/* Check-the-venue: a call-to-confirm link + website, stacked. The call link
+   reads as the primary confirm affordance. */
+.detail .dcontact { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.detail .dcontact a { text-decoration: underline; text-underline-offset: 2px; }
+.detail .dcontact .dcall { font-weight: 600; }
 
 /* Tickets + Share sit on one action row so the two primary actions read as a
    pair; they wrap on narrow screens. */

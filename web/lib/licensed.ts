@@ -32,7 +32,7 @@ const COLUMNS = [
   "subsegment", "performer", "start_time", "end_time", "status", "on_sale_status",
   "price_min", "price_max", "currency", "is_free", "ticket_url", "image_url",
   "venue_name", "venue_city", "venue_area", "venue_address", "venue_lat",
-  "venue_lng", "confidence",
+  "venue_lng", "venue_url", "venue_phone", "confidence",
 ].join(",");
 
 export type LicensedEvent = {
@@ -59,6 +59,8 @@ export type LicensedEvent = {
   venue_address: string | null;
   venue_lat: number | null;
   venue_lng: number | null;
+  venue_url: string | null;
+  venue_phone: string | null;
   confidence: string;
 };
 

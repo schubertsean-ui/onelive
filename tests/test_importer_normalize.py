@@ -208,3 +208,49 @@ def test_tm_undefined_recovered_from_title_and_performer():
     ev3 = {"id": "u3", "name": "XZ Event 9910",
            "classifications": [{"segment": {"name": "Undefined"}}]}
     assert normalize_ticketmaster(ev3)["category"] == "unmapped"
+
+
+# ---- venue contact (website + phone) ----------------------------------------
+
+def test_tm_venue_contact_extracted():
+    """Ticketmaster venue url + box-office phone flow into venue_url/venue_phone;
+    the phone number is EXTRACTED from the provider's free-text prose."""
+    ev = {
+        "id": "vc1", "name": "A Show",
+        "dates": {"start": {"dateTime": "2026-08-01T02:00:00Z"}},
+        "_embedded": {"venues": [{
+            "name": "Elephant Room",
+            "url": "https://www.ticketmaster.com/elephant-room",
+            "boxOfficeInfo": {"phoneNumberDetail": "To reach the box office call (512) 473-2279."},
+        }]},
+    }
+    n = normalize_ticketmaster(ev)
+    assert n["venue_url"] == "https://www.ticketmaster.com/elephant-room"
+    assert n["venue_phone"] == "(512) 473-2279"
+
+
+def test_venue_contact_absent_is_none_never_fabricated():
+    ev = {
+        "id": "vc2", "name": "No Contact Show",
+        "dates": {"start": {"dateTime": "2026-08-01T02:00:00Z"}},
+        "_embedded": {"venues": [{"name": "Some Venue"}]},
+    }
+    n = normalize_ticketmaster(ev)
+    assert n["venue_url"] is None
+    assert n["venue_phone"] is None
+
+
+def test_backfill_contact_from_raw_matches_the_importer():
+    """The backfill re-derives the SAME two fields from stored raw, so it can't
+    drift from a live import."""
+    from tools.backfill_venue_contact import contact_from_raw
+    raw = {
+        "id": "vc3", "name": "Show",
+        "dates": {"start": {"dateTime": "2026-08-01T02:00:00Z"}},
+        "_embedded": {"venues": [{
+            "name": "V", "url": "https://v.example/x",
+            "boxOfficeInfo": {"phoneNumberDetail": "call 512.474.5664"},
+        }]},
+    }
+    assert contact_from_raw("ticketmaster", raw) == ("https://v.example/x", "512.474.5664")
+    assert contact_from_raw("unknown-provider", raw) == (None, None)

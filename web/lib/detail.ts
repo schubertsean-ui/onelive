@@ -79,6 +79,18 @@ export function detailPrice(
   return { text: "See tickets", free: false, known: false };
 }
 
+// A dialable `tel:` href from a stored phone string (which may carry prose,
+// punctuation, or a leading country code). Digits only, preserving a leading
+// `+`; null when there aren't enough digits to be a real number — so a
+// tap-to-call control is only ever offered when it will actually dial.
+export function telHref(phone: string | null): string | null {
+  if (!phone) return null;
+  const plus = phone.trim().startsWith("+");
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 15) return null;
+  return `tel:${plus ? "+" : ""}${digits}`;
+}
+
 // Only http(s) survives — a stored `javascript:` or `data:` URL must never
 // reach an href.
 export function httpOrNull(u: string | null): string | null {

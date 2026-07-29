@@ -11,6 +11,7 @@ import {
   detailWhen,
   eventHref,
   httpOrNull,
+  telHref,
   resolveDetailView,
   statusNote,
 } from "./detail";
@@ -42,6 +43,8 @@ function ev(over: Partial<LicensedEvent> = {}): LicensedEvent {
     venue_address: null,
     venue_lat: null,
     venue_lng: null,
+    venue_url: null,
+    venue_phone: null,
     confidence: "likely",
     ...over,
   };
@@ -570,5 +573,21 @@ describe("promoted artist resolution", () => {
     const got = await fetchPromotedEventById("u-3");
     expect(got?.performer).toBe("First Act");
     expect(got?.performer).not.toContain("a-missing");
+  });
+});
+
+describe("telHref — a dialable tel: only when the number is real", () => {
+  it("extracts digits from prose/punctuation and builds tel:", () => {
+    expect(telHref("(512) 474-5664")).toBe("tel:5124745664");
+    expect(telHref("Box office: 512.474.5664")).toBe("tel:5124745664");
+  });
+  it("preserves a leading + country code", () => {
+    expect(telHref("+1 512-474-5664")).toBe("tel:+15124745664");
+  });
+  it("returns null for a non-number, empty, or too-short string", () => {
+    expect(telHref(null)).toBeNull();
+    expect(telHref("call the box office")).toBeNull();
+    expect(telHref("867-5309")).toBeNull(); // 7 digits, not dialable as-is
+    expect(telHref("")).toBeNull();
   });
 });

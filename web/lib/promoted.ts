@@ -163,6 +163,10 @@ export function reshapePromoted(
       venue_address: v?.address ?? null,
       venue_lat: v?.lat ?? null,
       venue_lng: v?.lng ?? null,
+      // Promoted venue contact arrives with the catalog/Places enrichment pass;
+      // the licensed (ticketing) feed carries it now.
+      venue_url: null,
+      venue_phone: null,
       confidence: r.confidence,
     };
   });

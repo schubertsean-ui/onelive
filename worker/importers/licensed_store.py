@@ -21,7 +21,7 @@ _COLS = [
     "performer", "start_time", "end_time", "status", "on_sale_status",
     "price_min", "price_max", "currency", "is_free", "ticket_url", "image_url",
     "venue_name", "venue_city", "venue_area", "venue_address", "venue_lat",
-    "venue_lng", "confidence", "raw",
+    "venue_lng", "venue_url", "venue_phone", "confidence", "raw",
 ]
 _KEY = ("source_provider", "external_id")
 _UPDATABLE = [c for c in _COLS if c not in _KEY]
@@ -47,7 +47,9 @@ def _params(n: dict) -> list:
         n.get("price_min"), n.get("price_max"), n.get("currency"), n.get("is_free"),
         n.get("ticket_url"), n.get("image_url"), n.get("venue_name"),
         n.get("venue_city"), n.get("venue_area"), n.get("venue_address"),
-        n.get("venue_lat"), n.get("venue_lng"), n.get("confidence", "confirmed"),
+        n.get("venue_lat"), n.get("venue_lng"),
+        n.get("venue_url"), n.get("venue_phone"),
+        n.get("confidence", "confirmed"),
         raw,
     ]
 

@@ -9,6 +9,7 @@ invent data to fill a gap.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Optional
 
 from worker.importers.domain_map import (
@@ -25,6 +26,28 @@ def _f(x: Any) -> Optional[float]:
         return float(x) if x is not None else None
     except (TypeError, ValueError):
         return None
+
+
+# A US/NANP phone number embedded in free text (e.g. Ticketmaster's box-office
+# "phoneNumberDetail" is prose like "To reach the box office call (512)
+# 474-5664"). We extract the NUMBER so the UI can offer a tap-to-call `tel:`
+# link; None when no clear number is present — we never fabricate a number.
+_PHONE_RE = re.compile(r"(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}")
+
+
+def _phone(text: Any) -> Optional[str]:
+    if not isinstance(text, str) or not text:
+        return None
+    m = _PHONE_RE.search(text)
+    return m.group(0).strip() if m else None
+
+
+def _http(u: Any) -> Optional[str]:
+    """Keep only an http(s) URL — a venue 'url' that isn't a real web link never
+    reaches the stored column."""
+    if not isinstance(u, str) or not u:
+        return None
+    return u if u.startswith("http://") or u.startswith("https://") else None
 
 
 def _first(seq: Any) -> Any:
@@ -144,6 +167,10 @@ def normalize_ticketmaster(ev: dict) -> Optional[dict]:
         "venue_address": (venue.get("address") or {}).get("line1"),
         "venue_lat": _f(loc.get("latitude")),
         "venue_lng": _f(loc.get("longitude")),
+        # Venue contact (for "call/visit to confirm"): TM gives a venue page url
+        # and a box-office phone in free text; both may be absent.
+        "venue_url": _http(venue.get("url")),
+        "venue_phone": _phone((venue.get("boxOfficeInfo") or {}).get("phoneNumberDetail")),
         "confidence": "confirmed",
         "raw": ev,
     }
@@ -193,6 +220,9 @@ def normalize_seatgeek(ev: dict) -> Optional[dict]:
         "venue_address": venue.get("address"),
         "venue_lat": _f(loc.get("lat")),
         "venue_lng": _f(loc.get("lon")),
+        # SeatGeek exposes a venue page url; it carries no phone.
+        "venue_url": _http(venue.get("url")),
+        "venue_phone": None,
         "confidence": "confirmed",
         "raw": ev,
     }
@@ -281,6 +311,9 @@ def normalize_eventbrite(ev: dict) -> Optional[dict]:
         "venue_address": addr.get("localized_address_display"),
         "venue_lat": _f(addr.get("latitude")),
         "venue_lng": _f(addr.get("longitude")),
+        # Eventbrite's basic venue expand carries neither a website nor a phone.
+        "venue_url": None,
+        "venue_phone": None,
         "confidence": "confirmed",
         "raw": ev,
     }

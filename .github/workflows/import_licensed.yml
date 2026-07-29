@@ -40,7 +40,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r worker/requirements.txt
-      - name: Apply migration 0010 (idempotent) + import Ticketmaster CAPCOG events
+      - name: Apply migrations (idempotent) + import Ticketmaster CAPCOG events + backfill venue contact
         env:
           TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
           ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
@@ -52,7 +52,12 @@ jobs:
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
           export ONELIVE_DB_DSN
           python3 tools/apply_migration.py supabase/migrations/0010_licensed_feed_and_domains.sql
+          # 0014 adds venue_url/venue_phone; must exist BEFORE the import writes them.
+          python3 tools/apply_migration.py supabase/migrations/0014_venue_contact.sql
           python -m worker.importers.run_licensed_import --max-pages "$MAX_PAGES"
+          # Fill venue contact onto rows imported before the columns existed,
+          # from the raw payload already stored (no re-fetch). Idempotent.
+          python3 tools/backfill_venue_contact.py
       - name: Import SeatGeek CAPCOG events (same licensed_event store)
         env:
           SEATGEEK_CLIENT_ID: ${{ secrets.SEATGEEK_CLIENT_ID }}
