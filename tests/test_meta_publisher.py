@@ -32,6 +32,7 @@ from social.carousel.meta_publisher import (
 )
 
 TEST_KEY = "test-founder-approval-key-4f8a2c9d7e1b"  # >=32 bytes, >=8 distinct
+REF_NOW = "2026-07-24T12:00:00-05:00"  # the gate clock in these tests
 
 
 def _draft(surface="instagram_feed", banned=False, missing_image=False, non_https=False):
@@ -66,13 +67,15 @@ def _draft(surface="instagram_feed", banned=False, missing_image=False, non_http
     )
 
 
-def _signed_release(draft, released_by="Sean Schubert", surface=None):
+def _signed_release(draft, released_by="Sean Schubert", surface=None, released_at=REF_NOW):
     surface = surface or draft.surface
     dh = content_hash(draft)
-    sig = _release_signature(dh, surface, draft.series_key, released_by, TEST_KEY.encode())
+    sig = _release_signature(
+        dh, surface, draft.series_key, released_by, released_at, TEST_KEY.encode()
+    )
     return PublishRelease(
         draft_hash=dh, surface=surface, series_key=draft.series_key,
-        released_by=released_by, signature=sig,
+        released_by=released_by, released_at=released_at, signature=sig,
     )
 
 
@@ -81,8 +84,8 @@ class _FakeTransport:
         self.calls = []
         self._n = 0
 
-    def __call__(self, url, params):
-        self.calls.append((url, params))
+    def __call__(self, url, params, headers):
+        self.calls.append((url, params, headers))
         self._n += 1
         return {"id": f"node-{self._n}"}
 
@@ -92,6 +95,7 @@ def enabled(monkeypatch):
     monkeypatch.setenv("META_ACCESS_TOKEN", "founder-minted-token")
     monkeypatch.setenv("META_IG_USER_ID", "17841400000000000")
     monkeypatch.setenv("ONELIVE_APPROVAL_KEY", TEST_KEY)  # verify_release needs it
+    monkeypatch.setattr(publish_gate, "_utcnow", lambda: datetime.fromisoformat(REF_NOW))
 
 
 def test_disabled_without_token_refuses(monkeypatch):
@@ -183,26 +187,44 @@ def test_happy_path_runs_the_carousel_sequence(enabled):
     assert published.released_by == "Sean Schubert"
 
     assert len(transport.calls) == len(draft.slides) + 2
-    for url, params in transport.calls[: len(draft.slides)]:
+    for url, params, headers in transport.calls[: len(draft.slides)]:
         assert url.endswith("/17841400000000000/media")
         assert params["is_carousel_item"] == "true"
         assert params["image_url"].startswith("https://")
-        assert params["access_token"] == "founder-minted-token"
+        # Token rides the Authorization header, never the body/query.
+        assert "access_token" not in params
+        assert headers["Authorization"] == "Bearer founder-minted-token"
 
-    _, container_params = transport.calls[-2]
+    _, container_params, _ = transport.calls[-2]
     assert container_params["media_type"] == "CAROUSEL"
     assert container_params["children"].count(",") == len(draft.slides) - 1
     assert "#AustinTonight" in container_params["caption"]
 
-    publish_url, publish_params = transport.calls[-1]
+    publish_url, publish_params, _ = transport.calls[-1]
     assert publish_url.endswith("/media_publish")
     assert "creation_id" in publish_params
+
+
+def test_stale_release_refuses(enabled):
+    # A release stamped well outside the freshness window is stale — the event
+    # state it was checked against may have drifted, so posting refuses.
+    draft = _draft()
+    old = _signed_release(draft, released_at="2026-07-24T09:00:00-05:00")  # 3h before REF_NOW
+    with pytest.raises(MetaPublishError):
+        MetaPublisher(transport=_FakeTransport()).post(draft, old)
+
+
+def test_future_dated_release_refuses(enabled):
+    draft = _draft()
+    future = _signed_release(draft, released_at="2026-07-24T18:00:00-05:00")  # after REF_NOW
+    with pytest.raises(MetaPublishError):
+        MetaPublisher(transport=_FakeTransport()).post(draft, future)
 
 
 def test_api_error_object_fails_loud(enabled):
     draft = _draft()
 
-    def erroring(url, params):
+    def erroring(url, params, headers):
         return {"error": {"message": "Invalid OAuth access token", "code": 190}}
 
     with pytest.raises(meta_publisher.MetaAPIError):

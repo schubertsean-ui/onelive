@@ -199,22 +199,43 @@ class PublishRelease:
     surface: str
     series_key: str
     released_by: str  # approver identity, or "autonomy:<level>"
+    # Issuance moment (gate clock, ISO 8601). Signed into the HMAC so it cannot
+    # be back-dated, and enforced as a freshness bound at the posting boundary
+    # (evaluator PR #106: a signed release must not be an unbounded bearer token
+    # that could post stale/later-disputed listings long after approval).
+    released_at: str = ""
     signature: str = ""
 
 
 def _release_signature(
-    draft_hash: str, surface: str, series_key: str, released_by: str, key: bytes
+    draft_hash: str,
+    surface: str,
+    series_key: str,
+    released_by: str,
+    released_at: str,
+    key: bytes,
 ) -> str:
-    message = "|".join((draft_hash, surface, series_key, released_by)).encode("utf-8")
+    message = "|".join(
+        (draft_hash, surface, series_key, released_by, released_at)
+    ).encode("utf-8")
     return hmac.new(key, message, hashlib.sha256).hexdigest()
+
+
+def current_moment() -> datetime:
+    """The gate's own clock, exposed so the posting boundary measures release
+    age against the SAME clock the gate stamped it with (r11: the subject of a
+    release never chooses the clock that judges it)."""
+    return _release_moment()
 
 
 def verify_release(release: "PublishRelease", draft: CarouselDraft) -> None:
     """Authenticate a release against this exact draft, fail closed. Raises
-    unless `release` binds this draft (content-hash identity) AND its signature
-    verifies under the environment-held approval key. The posting boundary
-    (meta_publisher) calls this so that only a release the gate actually signed
-    — never a matching-fields object a caller constructed — can publish."""
+    unless `release` binds this draft (content-hash identity), names a real
+    issuance moment, AND its signature verifies under the environment-held
+    approval key. The posting boundary (meta_publisher) calls this so that only
+    a release the gate actually signed — never a matching-fields object a caller
+    constructed — can publish. Release-AGE enforcement is the caller's (the
+    publisher bounds it against current_moment())."""
     if not isinstance(release, PublishRelease):
         raise ValueError("release refused: not a PublishRelease")
     draft_hash = content_hash(draft)
@@ -227,13 +248,19 @@ def verify_release(release: "PublishRelease", draft: CarouselDraft) -> None:
             f"release refused: release surface {release.surface!r} does not match "
             f"draft surface {draft.surface!r}"
         )
+    _assert_iso_moment(release.released_at, "release refused: release timestamp")
     if not release.signature:
         raise ValueError(
             "release refused: unsigned — a release the gate did not sign is forged"
         )
     key = _resolve_key()
     expected = _release_signature(
-        release.draft_hash, release.surface, release.series_key, release.released_by, key
+        release.draft_hash,
+        release.surface,
+        release.series_key,
+        release.released_by,
+        release.released_at,
+        key,
     )
     if not hmac.compare_digest(expected, release.signature):
         raise ValueError(
@@ -512,13 +539,16 @@ def release_for_publish(
                 "release refused: approval signature does not verify under the "
                 "approval key — a name string alone approves nothing"
             )
+        released_at = now.isoformat()
         release = PublishRelease(
             draft_hash=draft_hash,
             surface=draft.surface,
             series_key=draft.series_key,
             released_by=approval.approved_by,
+            released_at=released_at,
             signature=_release_signature(
-                draft_hash, draft.surface, draft.series_key, approval.approved_by, key
+                draft_hash, draft.surface, draft.series_key,
+                approval.approved_by, released_at, key,
             ),
         )
         # Human-approved releases are journaled too when a journal exists
@@ -566,13 +596,16 @@ def release_for_publish(
         # is present here — an auto-released post is as unforgeable as a
         # human-approved one at the posting boundary.
         released_by = f"autonomy:{active_policy.level}"
+        released_at = now.isoformat()
         release = PublishRelease(
             draft_hash=draft_hash,
             surface=draft.surface,
             series_key=draft.series_key,
             released_by=released_by,
+            released_at=released_at,
             signature=_release_signature(
-                draft_hash, draft.surface, draft.series_key, released_by, _resolve_key()
+                draft_hash, draft.surface, draft.series_key,
+                released_by, released_at, _resolve_key(),
             ),
         )
         _RELEASE_JOURNAL.record(release, now)

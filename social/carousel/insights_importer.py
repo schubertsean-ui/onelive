@@ -218,7 +218,10 @@ def fetch_and_import(
     # nit): a bearer header is far less likely to be captured in access logs or
     # referrers than a token baked into the URL.
     query = urllib.parse.urlencode({"metric": ",".join(INSIGHTS_METRICS)})
-    url = f"{GRAPH_API_BASE}/{post_id}/insights?{query}"
+    # Quote post_id into the path (evaluator PR #106 nit): defend against
+    # unexpected characters even though it is a numeric Meta id in practice.
+    safe_id = urllib.parse.quote(str(post_id), safe="")
+    url = f"{GRAPH_API_BASE}/{safe_id}/insights?{query}"
     payload = fetch(url, {"Authorization": f"Bearer {token}"})
     return post_metrics_from_insights(
         post_id=post_id, surface=surface, tier=tier, posted_at=posted_at, payload=payload

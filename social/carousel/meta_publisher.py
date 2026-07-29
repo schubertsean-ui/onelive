@@ -44,6 +44,7 @@ import os
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from datetime import datetime
 
 from social.carousel.config import SURFACE_CONSTRAINTS
 from social.carousel.generator import (
@@ -51,7 +52,14 @@ from social.carousel.generator import (
     CarouselDraft,
     all_draft_text,
 )
-from social.carousel.publish_gate import PublishRelease, verify_release
+from social.carousel.publish_gate import PublishRelease, current_moment, verify_release
+
+# A signed release is fresh only briefly: the human (or autonomy grant) approves
+# and the post follows within this window. Beyond it the release is stale — the
+# event state it was checked against may have drifted (disputed/cancelled/
+# started), so the boundary refuses and a new approval is required (evaluator
+# PR #106: a release must not be an unbounded bearer token).
+MAX_RELEASE_AGE_SECONDS = 3600
 
 # Graph API version pinned so an upstream default bump never silently changes
 # request shape; bump deliberately when Meta deprecates a version.
@@ -131,12 +139,14 @@ def _resolve_surface_node(surface: str) -> str:
     return node
 
 
-def _urllib_transport(url: str, params: dict) -> dict:
+def _urllib_transport(url: str, params: dict, headers: dict) -> dict:
     """The real HTTP transport: form-encoded POST to the Graph API, JSON
-    response, fail LOUD on transport error or a Graph `error` object. Built
-    only when a post actually runs — tests inject a fake transport instead."""
+    response, fail LOUD on transport error or a Graph `error` object. The access
+    token rides an Authorization header (evaluator PR #106 nit), never the body
+    or query. Built only when a post actually runs — tests inject a fake
+    transport instead."""
     data = urllib.parse.urlencode(params).encode("utf-8")
-    request = urllib.request.Request(url, data=data, method="POST")
+    request = urllib.request.Request(url, data=data, headers=headers or {}, method="POST")
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
             body = response.read().decode("utf-8")
@@ -180,7 +190,7 @@ class MetaPublisher:
 
     def _call(self, node: str, edge: str, params: dict, token: str) -> dict:
         url = f"{GRAPH_API_BASE}/{node}/{edge}"
-        payload = self._transport(url, {**params, "access_token": token})
+        payload = self._transport(url, params, {"Authorization": f"Bearer {token}"})
         if not isinstance(payload, dict):
             raise MetaAPIError(f"Graph API {edge} returned {type(payload).__name__}, expected object")
         if "error" in payload:
@@ -222,6 +232,16 @@ class MetaPublisher:
             verify_release(release, draft)
         except ValueError as exc:
             raise MetaPublishError(f"refusing to post: {exc}") from exc
+        # Freshness: a stale (or future-dated) release refuses. Age is measured
+        # against the gate's OWN clock, the same one that stamped released_at,
+        # so the release's subject cannot choose the clock that judges its age.
+        age = (current_moment() - datetime.fromisoformat(release.released_at)).total_seconds()
+        if age < 0 or age > MAX_RELEASE_AGE_SECONDS:
+            raise MetaPublishError(
+                f"refusing to post: release age {age:.0f}s is outside the "
+                f"[0, {MAX_RELEASE_AGE_SECONDS}]s freshness window — re-approve "
+                "against current event state"
+            )
         if draft.surface not in SURFACE_CONSTRAINTS:
             raise MetaPublishError(f"refusing to post: unknown surface {draft.surface!r}")
 
