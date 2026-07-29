@@ -1,6 +1,35 @@
 # ONE LIVE — CHANGE LOG
 
 
+## 2026-07-29 — Competitive threat & opportunity analysis (first market/competitive doc for ONE LIVE)
+
+**Session type:** Founder-requested strategy analysis. Output:
+`docs/strategy/ONE_LIVE_COMPETITIVE_THREAT_AND_OPPORTUNITY_ANALYSIS_v1.md`. Status:
+PROPOSAL — analysis + recommendations; changes no gate/threshold/invariant.
+
+- First competitive/market document for ONE LIVE itself (prior market/TAM material
+  in the repo belongs to the unrelated Promise-Ledger venture; this fills a real gap).
+- Covers: attacker's-eye SWOT; incumbent-by-incumbent attack analysis (Meta, Google,
+  Live Nation/Ticketmaster, Eventbrite, DICE/Bandsintown/Fever, Spotify/TikTok, a
+  funded fast-follower); the **open-aggregator-vs-walled-garden** lens; a
+  **moat-by-moat replicability table**; an **IP/legal defensibility** program (none
+  exists today — trademarks, trade-secret hygiene, selective defensive patents,
+  contract/consent data rights, and charter/PBC entrenchment of the trust invariants
+  as an acquisition "poison pill"); a full formulation of **Heartbeat Analytics** as
+  a differentiated, monetizable data engine (resolved-strata, provenance-clean,
+  aggregate-only; "Cultural Vital Signs"); the **per-entity AI agent** as an
+  anti-walled-garden supply moat ("maintain once here, appear everywhere" via
+  GEO/answer-engine primacy); the **acquisition case** (observer effect caps the
+  price — a walled-garden buyer destroys the neutrality it's buying); and a
+  tree-shaped **premortem**.
+- Honest framing throughout: most moats are designed-not-built, there is no demand
+  proof pre-launch, and no formal IP/legal program exists yet — the top competitive
+  risk is speed/focus, not quality.
+- Founder-crucial decisions surfaced (queued in TODOS): trademark filings, charter/PBC
+  neutrality entrenchment, GEO/answer-engine primacy instrumentation, Heartbeat shadow
+  build, and the entity-agent P1 spec.
+
+
 ## 2026-07-12 — Deep review of WORLD_CLASS bar + MASTER doc; v1.1 expansion proposed
 
 **Session type:** Independent deep review ("best technologists / company-spin-up" lens). Output: `OneLive_WORLD_CLASS_v1.1_DEEP_REVIEW.md`. Status: PROPOSAL — pending founder gap-by-gap ratification (per §0.3 contract-first).
