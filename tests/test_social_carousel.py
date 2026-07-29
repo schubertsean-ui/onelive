@@ -1317,7 +1317,7 @@ def test_agent_loop_cannot_import_the_publish_path():
             imported.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
             imported.add(node.module or "")
-    for forbidden in ("publish_gate", "autonomy"):
+    for forbidden in ("publish_gate", "autonomy", "meta_publisher"):
         assert not any(forbidden in mod for mod in imported), (
             f"agent_loop imports {forbidden} — the autonomous loop must never "
             "hold the publish path"

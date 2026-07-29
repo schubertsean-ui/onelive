@@ -41,6 +41,7 @@ from social.carousel.config import (
 )
 from social.carousel.generator import (
     BANNED_CLAIM_RE,
+    CANONICAL_ORIGIN,
     renderer_fingerprint,
     CarouselDraft,
     CarouselTrustError,
@@ -189,12 +190,153 @@ class Approval:
 
 @dataclass(frozen=True)
 class PublishRelease:
-    """Proof that the gate released this exact draft for posting."""
+    """Proof that the gate released this exact draft for posting. The signature
+    (evaluator PR #106: forgeable-release finding) is an HMAC over the release's
+    canonical fields under the environment-held founder key — the SAME physics
+    as an Approval, so a caller without the key cannot hand-build a release the
+    posting boundary will accept. verify_release() is that check."""
 
     draft_hash: str
     surface: str
     series_key: str
     released_by: str  # approver identity, or "autonomy:<level>"
+    # Issuance moment (gate clock, ISO 8601). Signed into the HMAC so it cannot
+    # be back-dated, and enforced as a freshness bound at the posting boundary
+    # (evaluator PR #106: a signed release must not be an unbounded bearer token
+    # that could post stale/later-disputed listings long after approval).
+    released_at: str = ""
+    signature: str = ""
+
+
+def _release_signature(
+    draft_hash: str,
+    surface: str,
+    series_key: str,
+    released_by: str,
+    released_at: str,
+    key: bytes,
+) -> str:
+    message = "|".join(
+        (draft_hash, surface, series_key, released_by, released_at)
+    ).encode("utf-8")
+    return hmac.new(key, message, hashlib.sha256).hexdigest()
+
+
+def current_moment() -> datetime:
+    """The gate's own clock, exposed so the posting boundary measures release
+    age against the SAME clock the gate stamped it with (r11: the subject of a
+    release never chooses the clock that judges it)."""
+    return _release_moment()
+
+
+def verify_release(release: "PublishRelease", draft: CarouselDraft) -> None:
+    """Authenticate a release against this exact draft, fail closed. Raises
+    unless `release` binds this draft (content-hash identity), names a real
+    issuance moment, AND its signature verifies under the environment-held
+    approval key. The posting boundary (meta_publisher) calls this so that only
+    a release the gate actually signed — never a matching-fields object a caller
+    constructed — can publish. Release-AGE enforcement is the caller's (the
+    publisher bounds it against current_moment())."""
+    if not isinstance(release, PublishRelease):
+        raise ValueError("release refused: not a PublishRelease")
+    draft_hash = content_hash(draft)
+    if release.draft_hash != draft_hash:
+        raise ValueError(
+            "release refused: does not bind this draft (content-hash mismatch)"
+        )
+    if release.surface != draft.surface:
+        raise ValueError(
+            f"release refused: release surface {release.surface!r} does not match "
+            f"draft surface {draft.surface!r}"
+        )
+    _assert_iso_moment(release.released_at, "release refused: release timestamp")
+    if not release.signature:
+        raise ValueError(
+            "release refused: unsigned — a release the gate did not sign is forged"
+        )
+    key = _resolve_key()
+    expected = _release_signature(
+        release.draft_hash,
+        release.surface,
+        release.series_key,
+        release.released_by,
+        release.released_at,
+        key,
+    )
+    if not hmac.compare_digest(expected, release.signature):
+        raise ValueError(
+            "release refused: signature does not verify under the approval key — "
+            "this release was not issued by the gate"
+        )
+
+
+def assert_events_still_publishable(draft: CarouselDraft) -> None:
+    """Re-read the draft's events from the canonical store at the LAST moment
+    before an outward post and refuse on any drift since approval (evaluator PR
+    #106: a signed release must not post an event that became disputed,
+    cancelled, or started inside the freshness window). Uses the registered
+    state reader against the gate's own clock; no reader registered = refuse
+    (fail-closed, the same posture as release itself). This is the focused
+    at-post state invariant — NOT the full re-render (the post-time canonical
+    rows do not carry the rendered-card surface), so it complements, never
+    replaces, the release-time _recheck_trust."""
+    if _STATE_READER is None:
+        raise ValueError(
+            "post refused: no canonical state reader configured — the boundary "
+            "cannot re-verify current event state, so nothing posts (register "
+            "the reader at deployment; R-026's trigger)"
+        )
+    now = _release_moment().isoformat()
+    event_ids = [s.event_id for s in draft.slides if s.kind == "event"]
+    current = _STATE_READER(event_ids)
+    for slide in draft.slides:
+        if slide.kind != "event":
+            continue
+        row = current.get(slide.event_id)
+        if row is None:
+            raise ValueError(
+                f"post refused: canonical store returned no state for "
+                f"{slide.event_id} — cannot confirm it is still featurable"
+            )
+        if row.get("confidence") not in FEATURABLE_CONFIDENCE:
+            raise ValueError(
+                f"post refused: {slide.event_id} is now {row.get('confidence')!r} — "
+                "marketing never amplifies what the gate no longer settles"
+            )
+        if row.get("event_status") not in FEATURABLE_EVENT_STATUS:
+            raise ValueError(
+                f"post refused: {slide.event_id} event_status is now "
+                f"{row.get('event_status')!r} — only scheduled events post"
+            )
+        if row.get("origin") != CANONICAL_ORIGIN:
+            raise ValueError(
+                f"post refused: {slide.event_id} is not a canonical published "
+                "row — candidate/pipeline rows are never amplified"
+            )
+        # Time is re-read from the FRESH canonical row, not the approved slide
+        # (evaluator PR #106 r4): if the event was re-timed after approval —
+        # even while it stays confirmed/scheduled — the slide's displayed time
+        # is now stale. Refuse if the canonical time drifted from what was
+        # approved, AND require the CURRENT time to still be strictly ahead in
+        # window. Either failure means the draft would post a false listing.
+        row_start = row.get("start_time")
+        if not row_start:
+            raise ValueError(
+                f"post refused: canonical row for {slide.event_id} has no "
+                "start_time — cannot re-verify the event time"
+            )
+        if row_start != slide.start_time:
+            raise ValueError(
+                f"post refused: {slide.event_id} was re-timed since approval "
+                f"(approved {slide.start_time!r}, canonical now {row_start!r}) — "
+                "the draft's displayed time is stale"
+            )
+        if not within_timeframe(row_start, now, draft.timeframe):
+            raise ValueError(
+                f"post refused: {slide.event_id} (canonical start {row_start!r}) is "
+                f"no longer strictly ahead within the {draft.timeframe} window at "
+                f"{now} — carousels never post what has already started"
+            )
 
 
 def _resolve_key() -> bytes:
@@ -467,11 +609,17 @@ def release_for_publish(
                 "release refused: approval signature does not verify under the "
                 "approval key — a name string alone approves nothing"
             )
+        released_at = now.isoformat()
         release = PublishRelease(
             draft_hash=draft_hash,
             surface=draft.surface,
             series_key=draft.series_key,
             released_by=approval.approved_by,
+            released_at=released_at,
+            signature=_release_signature(
+                draft_hash, draft.surface, draft.series_key,
+                approval.approved_by, released_at, key,
+            ),
         )
         # Human-approved releases are journaled too when a journal exists
         # (complete record), but per-post human custody never depends on
@@ -513,11 +661,22 @@ def release_for_publish(
                 f"({active_policy.max_releases_per_day}/day) is already spent "
                 f"for {now.date()} ({released_today} released)"
             )
+        # The autonomy path signs the release too: load_policy() already
+        # required and verified the founder key for any level above L0, so it
+        # is present here — an auto-released post is as unforgeable as a
+        # human-approved one at the posting boundary.
+        released_by = f"autonomy:{active_policy.level}"
+        released_at = now.isoformat()
         release = PublishRelease(
             draft_hash=draft_hash,
             surface=draft.surface,
             series_key=draft.series_key,
-            released_by=f"autonomy:{active_policy.level}",
+            released_by=released_by,
+            released_at=released_at,
+            signature=_release_signature(
+                draft_hash, draft.surface, draft.series_key,
+                released_by, released_at, _resolve_key(),
+            ),
         )
         _RELEASE_JOURNAL.record(release, now)
         return release
