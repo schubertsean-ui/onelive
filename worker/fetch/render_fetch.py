@@ -157,6 +157,79 @@ def render_html(
     return html
 
 
+def screenshot_page(
+    *,
+    url: str,
+    timeout_ms: int = DEFAULT_RENDER_TIMEOUT_MS,
+    wait_selector: Optional[str] = None,
+    user_agent: str = DEFAULT_USER_AGENT,
+    full_page: bool = True,
+    executable_path: Optional[str] = None,
+) -> bytes:
+    """Screenshot `url` through the SAME headless Chromium render_html uses and
+    return PNG bytes — the input to the vision extractor (ai/vision_provider.py).
+
+    This is the counterpart to render_html: render_html recovers TEXT and blocks
+    images to stay fast; this recovers the PIXELS, so it does NOT block images —
+    an event flyer IS the image. Same honest User-Agent, same bounded timeout,
+    same loud failure policy: any Playwright/timeout error is re-raised as
+    RenderError so the caller's per-source isolation records it as a visible
+    failure, never a blank screenshot masquerading as success.
+
+    Cost note (CLAUDE.md "least costly method first"): a screenshot + a vision
+    model call is more expensive than a text fetch, so callers fire this only as
+    a bounded fallback for image-only sources, never on every page.
+    """
+    try:
+        from playwright.sync_api import (  # noqa: PLC0415 — lazy: absent package must not break import
+            Error as PlaywrightError,
+            TimeoutError as PlaywrightTimeoutError,
+            sync_playwright,
+        )
+    except ImportError as exc:
+        raise RenderError(
+            "the `playwright` Python package is not installed, so screenshotting "
+            "for vision extraction is unavailable — add `playwright` to "
+            "worker/requirements.txt (the Chromium binary is already present)."
+        ) from exc
+
+    exe = executable_path or resolve_chromium_path()
+    if not os.path.exists(exe):
+        raise RenderError(
+            f"Chromium binary not found at {exe!r} — set ONELIVE_CHROMIUM_PATH or "
+            "PLAYWRIGHT_BROWSERS_PATH to the pre-installed browser location."
+        )
+
+    logger.info("screenshot: launching headless Chromium for %s (timeout=%dms)", url, timeout_ms)
+    try:
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(
+                headless=True,
+                executable_path=exe,
+                args=["--no-sandbox", "--disable-dev-shm-usage"],
+            )
+            try:
+                context = browser.new_context(user_agent=user_agent)
+                page = context.new_page()
+                # No route-blocking here: images are exactly what we want.
+                page.goto(url, wait_until="networkidle", timeout=timeout_ms)
+                if wait_selector:
+                    page.wait_for_selector(wait_selector, timeout=timeout_ms)
+                png = page.screenshot(full_page=full_page, type="png")
+            finally:
+                browser.close()
+    except PlaywrightTimeoutError as exc:
+        raise RenderError(
+            f"screenshot timed out after {timeout_ms}ms for {url!r} "
+            f"(wait_selector={wait_selector!r})"
+        ) from exc
+    except PlaywrightError as exc:
+        raise RenderError(f"headless screenshot failed for {url!r}: {exc}") from exc
+
+    logger.info("screenshot: %s produced %d bytes of PNG", url, len(png))
+    return png
+
+
 def should_render(reading: SensorReading) -> bool:
     """Decide whether a plain fetch should be re-fetched through the browser.
 
