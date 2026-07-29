@@ -63,12 +63,32 @@ function _hostProtectedPreview(): boolean {
   return v === "preview" || v === "development";
 }
 
-// Resolve the gate mode. Clerk (a configured provider) wins; an explicit or
-// preview-implied disable is honored next; otherwise we are unconfigured and
-// callers must fail closed. Production never auto-opens.
+// Resolve the gate mode. Precedence (fixed 2026-07-29 after a preview 500):
+//   1. an EXPLICIT disable flag wins — it is a declared operator choice, and the
+//      documented preview escape hatch (NEXT_PUBLIC_AUTH_DISABLED) must actually
+//      work even when a Clerk publishable key is present in the env;
+//   2. a preview/development Vercel deployment is host-protected and a declared
+//      no-app-gate state — it must NOT run the Clerk gate even if it inherited
+//      the project's Clerk publishable key, because the preview URL is not an
+//      authorized Clerk domain (and may lack the secret key), so clerkMiddleware
+//      THROWS -> MIDDLEWARE_INVOCATION_FAILED (a 500 on every route). Founder-
+//      directed: previews need ZERO auth config;
+//   2. a configured Clerk key gates the deployment (production). A PRESENT
+//      provider is NEVER overridden by a disable flag — otherwise
+//      NEXT_PUBLIC_AUTH_DISABLED could flip a correctly-configured PRODUCTION
+//      deployment to public and expose protected user/ops surfaces (adversarial-
+//      review #102, a production fail-open). The disable flag is honored ONLY
+//      where there is no provider to override;
+//   3. an explicit disable with NO provider is a declared "intentionally public"
+//      choice (the go-live / no-provider case);
+//   4. otherwise unconfigured — callers FAIL CLOSED.
+// PRODUCTION is never a preview, and a present Clerk key wins over the flag, so
+// a configured production stays gated — the no-silent-publish and no-fail-open
+// invariants (evaluator PR #59) are preserved.
 export function authMode(): AuthMode {
+  if (_hostProtectedPreview()) return "disabled";
   if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return "clerk";
-  if (_explicitlyDisabled() || _hostProtectedPreview()) return "disabled";
+  if (_explicitlyDisabled()) return "disabled";
   return "unconfigured";
 }
 
