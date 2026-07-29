@@ -21,11 +21,62 @@ import {
   resolveDetailView,
   statusNote,
 } from "../../../../lib/detail";
+import ShareButton from "./ShareButton";
 
 // Server component — reads ONE event at request time. Deliberately NOT cached:
 // the same freshness rule the feed uses, for the same reason (an event that
 // moved or was cancelled must not be served from a stale render).
 export const dynamic = "force-dynamic";
+
+// Open Graph / Twitter tags so a SHARED link (group-plans P0 / brief §6.D5)
+// unfurls as a compact card in Messages, iMessage, WhatsApp, etc. — that link
+// preview IS the "share card" in a texting context. Trust rules hold here too:
+// the description states facts the row carries (when · venue · known price),
+// never a badge or "confirmed", and a disputed event says so. Best-effort and
+// never throws — a metadata read that fails degrades to the generic title.
+export async function generateMetadata(
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const fallback = { title: "A show — ONE LIVE" };
+  try {
+    if (!supabaseConfigured()) return fallback;
+    const { id } = await params;
+    const route = routeForEventId(id);
+    if (!route) return fallback;
+    const e = route.kind === "promoted"
+      ? await fetchPromotedEventById(route.id)
+      : await fetchLicensedEventById(route.id);
+    if (!e) return fallback;
+
+    const price = detailPrice(e);
+    const desc = [
+      detailWhen(e),
+      [e.venue_name, e.venue_area].filter(Boolean).join(" · ") || null,
+      price.known ? price.text : null,
+      e.confidence === "disputed" ? "Sources disagree — check the venue." : null,
+    ].filter(Boolean).join(" · ");
+    const img = httpOrNull(e.image_url);
+    const title = `${e.title} — ONE LIVE`;
+
+    return {
+      title,
+      description: desc,
+      openGraph: {
+        title,
+        description: desc,
+        type: "website",
+        ...(img ? { images: [{ url: img }] } : {}),
+      },
+      twitter: {
+        card: img ? "summary_large_image" : "summary",
+        title,
+        description: desc,
+      },
+    };
+  } catch {
+    return fallback;
+  }
+}
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -179,11 +230,16 @@ export default async function EventDetailPage(
           ) : null}
         </dl>
 
-        {tix ? (
-          <a className="dtix" href={tix} target="_blank" rel="noopener noreferrer">
-            Tickets ↗
-          </a>
-        ) : null}
+        {/* Tickets + Share. Share is always offered (it needs nothing but a
+            link); Tickets appears only when the row carries a real ticket URL. */}
+        <div className="dactions">
+          {tix ? (
+            <a className="dtix" href={tix} target="_blank" rel="noopener noreferrer">
+              Tickets ↗
+            </a>
+          ) : null}
+          <ShareButton event={event_} />
+        </div>
 
         {/* Trust display: the SAME trustDisplay the card uses, so the two
             surfaces cannot drift into different claims about one row. Quiet
