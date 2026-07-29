@@ -199,6 +199,18 @@ describe("genre rail (canonical Layer-1) — facet + filter", () => {
     expect(applyFilters(events, { genreIds: new Set() })).toHaveLength(events.length);
   });
 
+  it("does NOT classify a non-music event's subsegment as a music genre (#100)", () => {
+    // A dance PERFORMANCE (performing-arts) whose subsegment reads "Dance" must
+    // not become an Electronic/Dance music chip, nor filter into that set.
+    const ballet = ev({ category: "performing-arts", subsegment: "Dance" });
+    const rail = genreFacet([...events, ballet]);
+    // The ballet adds no chip and no count to electronic-dance.
+    const ed = rail.find((r) => r.id === "electronic-dance");
+    expect(ed).toBeUndefined();
+    // And it isn't captured by an electronic-dance genre filter.
+    expect(applyFilters([ballet], { genreIds: new Set(["electronic-dance"]) })).toHaveLength(0);
+  });
+
   it("a row that doesn't canonicalize is narrowed out by a genre filter, never crashes", () => {
     const latin = applyFilters(events, { genreIds: new Set(["latin"]) });
     expect(latin).toHaveLength(1);

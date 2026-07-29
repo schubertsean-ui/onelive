@@ -83,7 +83,7 @@ export function applyFilters(events: LicensedEvent[], f: FeedFilters): LicensedE
     // words normalized to a Layer-1 id. A row that doesn't canonicalize (null)
     // simply isn't in any selected genre — narrowed out, never hidden by trust.
     if (f.genreIds && f.genreIds.size) {
-      const g = canonicalGenre(e.subsegment);
+      const g = musicGenreOf(e);
       if (!(g && f.genreIds.has(g))) return false;
     }
     if (f.freeOnly && !(e.is_free || e.price_min === 0)) return false;
@@ -101,16 +101,30 @@ export function facet(events: LicensedEvent[], key: "venue_area" | "subsegment")
   return [...m.entries()].map(([value, n]) => ({ value, n })).sort((a, b) => b.n - a.n);
 }
 
+// Genre is a MUSIC concept — only music-domain events carry a meaningful genre.
+// Running the lexicon over EVERY event mislabels e.g. a dance PERFORMANCE (a
+// performing-arts row whose subsegment "Dance" hits the electronic-dance
+// keyword) as a music genre, producing a fabricated chip and a misleading
+// filter result (adversarial-review #100). So genre is scoped to music domains;
+// a non-music row canonicalizes to null and contributes to no chip.
+const MUSIC_DOMAINS = new Set(["live-music", "nightlife"]);
+
+export function musicGenreOf(e: LicensedEvent): GenreId | null {
+  if (!MUSIC_DOMAINS.has(normalizeDomain(e.category))) return null;
+  return canonicalGenre(e.subsegment);
+}
+
 // The Layer-0 UI rail, DERIVED from local inventory: the canonical genres
-// actually present in this set, most-common first, with counts. Rows whose
-// genre words don't (yet) canonicalize contribute to no chip — they're "Other",
-// a growth signal, never a fabricated genre. The caller slices to 8–12 chips.
+// actually present among MUSIC events in this set, most-common first, with
+// counts. A row that doesn't canonicalize (non-music, or an unknown label)
+// contributes to no chip — it's "Other", a growth signal, never a fabricated
+// genre. The caller slices to 8–12 chips.
 export function genreFacet(
   events: LicensedEvent[],
 ): Array<{ id: GenreId; label: string; n: number }> {
   const m = new Map<GenreId, number>();
   for (const e of events) {
-    const g = canonicalGenre(e.subsegment);
+    const g = musicGenreOf(e);
     if (g) m.set(g, (m.get(g) ?? 0) + 1);
   }
   return [...m.entries()]
