@@ -455,6 +455,22 @@ describe("resolveDetailView", () => {
     expect(view.kind).toBe("event");
     expect(statusNote(cancelled)).toMatch(/cancelled/i);
   });
+
+  it("refuses a KNOWN-OUTSIDE event on the direct-link surface too (PR #107)", () => {
+    // The feed's CAPCOG filter never links to a San Antonio event, but the
+    // detail route fetches by id, so a direct/shared URL must not render it.
+    const outside = ev({ venue_city: "San Antonio", venue_name: "Majestic" });
+    expect(resolveDetailView({ ...base, event: outside }).kind).toBe("outside-market");
+    // A city string that embeds a contradictory in-market county cannot smuggle
+    // it back in (the reachable vector for a licensed row, which has no county field):
+    const smuggled = ev({ venue_city: "San Antonio, Travis County, TX" });
+    expect(resolveDetailView({ ...base, event: smuggled }).kind).toBe("outside-market");
+    // An in-market event still renders; an unrecognised city still renders.
+    expect(resolveDetailView({ ...base, event: ev({ venue_city: "Austin" }) }).kind)
+      .toBe("event");
+    expect(resolveDetailView({ ...base, event: ev({ venue_city: "Nowheresville" }) }).kind)
+      .toBe("event");
+  });
 });
 
 // ── a denial of free entry outranks a zero floor ─────────────────────────────

@@ -8,6 +8,7 @@
 // network.
 
 import type { LicensedEvent } from "./licensed";
+import { rowVerdict } from "./region";
 
 export const TZ = "America/Chicago";
 
@@ -176,6 +177,13 @@ export type DetailView =
   | { kind: "bad-link" }
   | { kind: "read-error"; message: string }
   | { kind: "not-found" }
+  // A known-OUTSIDE-market event reached by a direct/shared /tonight/[id] URL.
+  // The feed's CAPCOG filter never links to it, but the detail route fetches by
+  // id independently, so the same boundary must hold here or a direct link would
+  // render San Antonio to a user (PR #107, openai absence-only NIT — a
+  // half-enforced market invariant is the gap that bites). Distinct from
+  // not-found so the message is honest: the event is real, just not ours.
+  | { kind: "outside-market" }
   | { kind: "event"; event: LicensedEvent };
 
 export function resolveDetailView(input: {
@@ -190,5 +198,10 @@ export function resolveDetailView(input: {
   // into one message: "the database is down" is not "there is no such event".
   if (input.error !== null) return { kind: "read-error", message: input.error };
   if (input.event === null) return { kind: "not-found" };
+  // The market boundary holds on EVERY user-facing surface, not just the feed:
+  // a known-outside event reached by a direct link is not one we carry. An
+  // unrecognised city still renders (keep-and-count discipline, same as the
+  // feed) — only a KNOWN-OUTSIDE reading is refused (PR #107).
+  if (rowVerdict(input.event) === false) return { kind: "outside-market" };
   return { kind: "event", event: input.event };
 }
