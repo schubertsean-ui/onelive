@@ -222,11 +222,21 @@ def fetch_and_import(
     surface: str,
     tier: str,
     posted_at: str,
+    known_post_ids,
     transport=None,
 ) -> PostMetrics:
     """Live path: pull a post's insights from the Graph API and import them.
-    Fail-closed OFF — refuses without META_ACCESS_TOKEN. The transport is
-    injectable for hermetic tests; the real urllib GET is the default."""
+    Fail-closed OFF — refuses without META_ACCESS_TOKEN. Like the exported path
+    (evaluator PR #106 r5), the post_id must be a member of the known
+    published-post allowlist — metrics from an arbitrary Meta post are never
+    recorded as OneLive carousel performance. The transport is injectable for
+    hermetic tests; the real urllib GET is the default."""
+    known = set(known_post_ids or ())
+    if post_id not in known:
+        raise InsightsImportError(
+            f"post_id {post_id!r} is not a known OneLive-published post — "
+            "refusing to record metrics for an unbound post"
+        )
     token = os.environ.get(ACCESS_TOKEN_ENV, "").strip()
     if not token:
         raise MetaConfigError(

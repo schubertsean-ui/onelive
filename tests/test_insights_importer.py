@@ -146,7 +146,17 @@ def test_live_fetch_disabled_without_token(monkeypatch):
     with pytest.raises(MetaConfigError):
         fetch_and_import(
             post_id="p", surface="instagram_feed", tier="T1",
-            posted_at="2026-07-28T09:00:00-05:00",
+            posted_at="2026-07-28T09:00:00-05:00", known_post_ids={"p"},
+        )
+
+
+def test_live_fetch_rejects_unknown_post_id(monkeypatch):
+    monkeypatch.setenv("META_ACCESS_TOKEN", "founder-minted-token")
+    with pytest.raises(InsightsImportError):
+        fetch_and_import(
+            post_id="not-ours", surface="instagram_feed", tier="T1",
+            posted_at="2026-07-28T09:00:00-05:00", known_post_ids={"p1"},
+            transport=lambda url, headers: _values_payload(reach=1, accounts_engaged=1),
         )
 
 
@@ -161,7 +171,8 @@ def test_live_fetch_with_injected_transport(monkeypatch):
 
     m = fetch_and_import(
         post_id="17900000000000000", surface="instagram_feed", tier="T1",
-        posted_at="2026-07-28T09:00:00-05:00", transport=transport,
+        posted_at="2026-07-28T09:00:00-05:00", known_post_ids={"17900000000000000"},
+        transport=transport,
     )
     assert m.reach == 900 and m.unique_interactions == 180
     assert "17900000000000000/insights" in seen["url"]

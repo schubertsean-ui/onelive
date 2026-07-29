@@ -38,11 +38,15 @@ def _img(i, *, sha=None, https=True):
 
 
 def _draft(surface="instagram_feed", banned=False, missing_sha=False, non_https=False,
-           bad_addressing=False):
+           bad_addressing=False, bad_digest=False):
     overlay = ("Selling out soon",) if banned else ("Doors at 8",)
     ev_ref = _img(1, https=not non_https)
+    ev_sha = "" if missing_sha else SHA[1]
     if bad_addressing:  # url does not contain the bound digest
         ev_ref = "https://cards.example/UNRELATED.png"
+    if bad_digest:  # digest is not a real 64-hex sha, but appears in the url
+        ev_sha = "promo"
+        ev_ref = "https://cards.example/promo.png"
     return CarouselDraft(
         series_key="live-music",
         surface=surface,
@@ -60,7 +64,7 @@ def _draft(surface="instagram_feed", banned=False, missing_sha=False, non_https=
                   image_ref=_img(0), image_sha256=SHA[0]),
             Slide(kind="event", headline="The Midnight Brass", overlay_lines=overlay,
                   event_id="ex-1", start_time=EVENT_START,
-                  image_ref=ev_ref, image_sha256="" if missing_sha else SHA[1]),
+                  image_ref=ev_ref, image_sha256=ev_sha),
             Slide(kind="cta", headline="Send this to your crew",
                   image_ref=_img(2), image_sha256=SHA[2]),
         ),
@@ -239,6 +243,23 @@ def test_event_retimed_since_approval_refuses(enabled, monkeypatch):
 def test_untrusted_image_host_refuses(enabled, monkeypatch):
     monkeypatch.setenv("ONELIVE_CARD_IMAGE_HOSTS", "https://cdn.trusted.example/")
     draft = _draft()  # images are on cards.example — not the trusted host
+    with pytest.raises(MetaPublishError):
+        MetaPublisher(transport=_FakeTransport()).post(draft, _signed_release(draft))
+
+
+def test_bare_origin_host_prefix_is_not_trusted(enabled, monkeypatch):
+    # A prefix without the trailing '/' would also match cards.example.evil —
+    # it is dropped, so nothing is trusted and the post fails closed.
+    monkeypatch.setenv("ONELIVE_CARD_IMAGE_HOSTS", "https://cards.example")
+    draft = _draft()
+    with pytest.raises(MetaPublishError):
+        MetaPublisher(transport=_FakeTransport()).post(draft, _signed_release(draft))
+
+
+def test_non_hex_digest_refuses(enabled):
+    # A non-digest string that happens to appear in the url must not pass as a
+    # content address.
+    draft = _draft(bad_digest=True)
     with pytest.raises(MetaPublishError):
         MetaPublisher(transport=_FakeTransport()).post(draft, _signed_release(draft))
 

@@ -41,10 +41,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime
+
+# A canonical lowercase hex SHA-256 — the only shape a content address may take.
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 from social.carousel.config import SURFACE_CONSTRAINTS
 from social.carousel.generator import (
@@ -185,8 +189,14 @@ def _require_https(url: str, context: str) -> str:
 
 
 def _trusted_image_hosts() -> tuple:
+    """The configured trusted-host prefixes — ONLY those ending in '/' count
+    (evaluator PR #106 r5): a bare-origin prefix like 'https://cards.example'
+    would also match 'https://cards.example.evil/…', so a prefix without the
+    trailing path boundary is dropped, never trusted."""
     raw = os.environ.get(CARD_IMAGE_HOSTS_ENV, "")
-    return tuple(h.strip() for h in raw.split(",") if h.strip())
+    return tuple(
+        h.strip() for h in raw.split(",") if h.strip() and h.strip().endswith("/")
+    )
 
 
 def _require_content_addressed_image(slide, index: int) -> str:
@@ -210,6 +220,11 @@ def _require_content_addressed_image(slide, index: int) -> str:
             f"{context}: no bound image_sha256 — the slide's image is not "
             "content-addressed, so it cannot be posted (fail-closed until the "
             "renderer hosts the rendered card; R-061)"
+        )
+    if not _SHA256_RE.match(digest):
+        raise MetaPublishError(
+            f"{context}: image_sha256 {digest!r} is not a canonical 64-hex "
+            "SHA-256 — a non-digest string must not pass as a content address"
         )
     if digest not in url.lower():
         raise MetaPublishError(
