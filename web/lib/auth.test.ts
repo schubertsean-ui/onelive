@@ -55,9 +55,20 @@ describe("authMode — the fail-closed gate resolver", () => {
     expect(authProviderActive()).toBe(false); // ClerkProvider is NOT rendered
   });
 
-  // The documented escape hatch must work even with a Clerk key present.
-  it("an explicit disable flag beats a present Clerk key -> disabled", () => {
+  // NO production fail-open: a present Clerk provider is NEVER overridden by a
+  // disable flag, so NEXT_PUBLIC_AUTH_DISABLED cannot flip a configured
+  // production deployment to public (adversarial-review #102).
+  it("a present Clerk key beats a disable flag in production -> clerk (no fail-open)", () => {
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    process.env.VERCEL_ENV = "production";
+    process.env.NEXT_PUBLIC_AUTH_DISABLED = "1";
+    expect(authMode()).toBe("clerk");
+    expect(authProviderActive()).toBe(true);
+  });
+
+  // The disable flag is honored only where there is NO provider to override — a
+  // deliberate public deploy (go-live / no-provider), still an explicit choice.
+  it("an explicit disable with no provider (non-preview) -> disabled", () => {
     process.env.VERCEL_ENV = "production";
     process.env.NEXT_PUBLIC_AUTH_DISABLED = "1";
     expect(authMode()).toBe("disabled");

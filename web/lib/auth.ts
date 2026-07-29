@@ -73,15 +73,22 @@ function _hostProtectedPreview(): boolean {
 //      authorized Clerk domain (and may lack the secret key), so clerkMiddleware
 //      THROWS -> MIDDLEWARE_INVOCATION_FAILED (a 500 on every route). Founder-
 //      directed: previews need ZERO auth config;
-//   3. otherwise a configured Clerk key gates the deployment (production);
+//   2. a configured Clerk key gates the deployment (production). A PRESENT
+//      provider is NEVER overridden by a disable flag — otherwise
+//      NEXT_PUBLIC_AUTH_DISABLED could flip a correctly-configured PRODUCTION
+//      deployment to public and expose protected user/ops surfaces (adversarial-
+//      review #102, a production fail-open). The disable flag is honored ONLY
+//      where there is no provider to override;
+//   3. an explicit disable with NO provider is a declared "intentionally public"
+//      choice (the go-live / no-provider case);
 //   4. otherwise unconfigured — callers FAIL CLOSED.
-// PRODUCTION is never a preview and won't carry a disable flag, so it still
-// resolves to clerk (when configured) or unconfigured (fail closed) — the
-// no-silent-publish invariant (evaluator PR #59) is preserved.
+// PRODUCTION is never a preview, and a present Clerk key wins over the flag, so
+// a configured production stays gated — the no-silent-publish and no-fail-open
+// invariants (evaluator PR #59) are preserved.
 export function authMode(): AuthMode {
-  if (_explicitlyDisabled()) return "disabled";
   if (_hostProtectedPreview()) return "disabled";
   if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) return "clerk";
+  if (_explicitlyDisabled()) return "disabled";
   return "unconfigured";
 }
 
