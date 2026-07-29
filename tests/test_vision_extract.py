@@ -151,6 +151,22 @@ def test_supplied_extractor_provenance_is_overwritten_to_vision(monkeypatch):
     assert store.created[0]["extracted"]["_provenance"]["extractor"] == "vision"
 
 
+def test_provider_none_result_raises_never_false_no_event(monkeypatch):
+    # adversarial-review #92 (both openai seats): a None result from the
+    # provider = "we failed to look" (transient failure / blank input), NOT
+    # "the image had no event". It must fail LOUD and record NO candidate —
+    # never a false image_had_no_event row that could bury a real event.
+    _enable(monkeypatch)
+    store = _Store()
+    with pytest.raises(ve.VisionExtractionError):
+        ve.extract_candidate_from_image(
+            vision=_FakeVision(None), image_b64=ONE_PX_PNG_B64,
+            media_type="image/png", source_class="flyer", source_name="s",
+            source_url="http://x", _create=store.create, _add=store.add,
+        )
+    assert store.created == []  # no false "no event" candidate on a failed read
+
+
 def test_image_with_no_event_flags_empty_candidate(monkeypatch):
     _enable(monkeypatch)
     store = _Store()

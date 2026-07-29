@@ -50,6 +50,13 @@ _META_PREFIX = "_"
 VISION_ZERO_EVENTS_MARKER = "VISION_EXTRACT_ZERO_EVENTS_IN_IMAGE"
 
 
+class VisionExtractionError(RuntimeError):
+    """A vision extraction produced NO result (provider degradation after
+    retries, or blank input). Raised — never swallowed — so a failed read is a
+    loud failure the caller's per-source isolation records, never a false
+    'image had no event' candidate (the banned silent-degradation anti-pattern)."""
+
+
 @dataclass
 class VisionExtractionOutcome:
     """Result of extracting one image into a candidate.
@@ -101,7 +108,24 @@ def extract_candidate_from_image(
     schema = AIEventExtraction.model_json_schema()
     raw = vision.extract_event_json_from_image(
         image_b64, media_type, schema, VISION_EXTRACTION_SYSTEM_PROMPT
-    ) or {}
+    )
+    if raw is None:
+        # None = "the provider could NOT read this image" (a transient failure
+        # after retries, or blank/empty input) — it is NEVER "the image had no
+        # event". Conflating the two is the banned silent-degradation
+        # anti-pattern (ai/claude_provider.py keeps None and {} distinct for
+        # exactly this reason): a false `image_had_no_event` candidate would
+        # assert we looked and saw nothing when we never successfully looked,
+        # and could bury a real image-only event under a fake "empty" row. Fail
+        # LOUD so the caller's per-source isolation records it, mirroring
+        # worker/fetch/render_fetch.RenderError. Only a dict the provider
+        # actually returns (empty or not) can mean "no event". (adversarial-
+        # review #92, both openai seats.)
+        raise VisionExtractionError(
+            f"vision provider returned no result for source {source_name!r} "
+            f"({source_url}): a failed or blank read, not a 'no event' finding — "
+            "refusing to record a false image_had_no_event candidate."
+        )
     meta, fields = _split_meta(raw)
 
     image_had_no_event = not any(v for v in fields.values())
