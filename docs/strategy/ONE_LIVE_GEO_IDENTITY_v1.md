@@ -109,7 +109,67 @@ and counted as a coverage-gap worklist item, never silently dropped.
 
 ---
 
-## 5. Phased plan (what to build, and when)
+## 5. Draw-to-search — the geometry engine's headline consumer feature
+
+Founder idea, 2026-07-29: alongside **speaking** or **typing** what they want
+(activities, locales, geographies, timeframes, and combinations), a user can just
+**draw a loop on the map with their finger** — and we return the events inside
+it. Crucially, the loop can be **any size**: a single block, "everything within a
+ten-minute walk," a whole neighborhood, a metro, a region, or a country. One
+gesture, every zoom level.
+
+**Why this is nearly free once geometry exists:** a finger-drawn loop *is* a
+polygon. Answering "what events are in it?" is the **exact same point-in-polygon
+query** as the market-boundary check (§4) — just with a user-supplied shape
+instead of a county boundary. Building the geometry engine (Phase 1) is what
+makes this feature a small UI addition rather than a from-scratch system. It is
+the single most compelling reason to prioritize the geometry foundation.
+
+**"Truing up" the freehand shape** (the founder's phrase — interpret the rough
+loop into a meaningful area, in the background):
+- **Literal first, always honest.** We query the *actual shape drawn*, so "these
+  three blocks" means those blocks — never silently widened. Keep-and-count
+  holds: unknowns inside the loop are shown and counted, and if the loop covers a
+  coverage gap we say so rather than making it look empty.
+- **Name it by the right layer, chosen by the loop's SIZE.** A tiny loop is named
+  by neighborhood/district; a large one by county / region / country. So the user
+  sees "Searching your area · **East Austin**" or "· **Hill Country**" — a
+  nameable, **shareable** area (this feeds the Group-Plans / share-card path).
+- **Offer a snap, never force one.** "Looks like you meant *downtown* — use that
+  boundary instead?" The user stays in control; we never override the literal
+  selection with an assumption.
+- **Walk/drive-time variant.** A small loop can offer "within a 10-minute walk of
+  here" — an **isochrone** (travel-time area), which is the same containment
+  query against a travel-time polygon. This is the Night Out "what's nearby"
+  feature in map form.
+
+**One input model, three ways in.** Speak, type, or draw all resolve to the same
+underlying query: **{ geo-area × timeframe × filters }**. The geo-area is a
+polygon (drawn, or resolved from a spoken/typed place name via §3's authority
+crosswalk); the rest is unchanged. This keeps the voice-navigation requirement,
+typed search, and draw-to-search as three faces of one engine, not three
+codebases.
+
+**Trust & privacy rails (unchanged invariants):**
+- **No pay-to-rank, ever** — a drawn-area result must never be gameable by who
+  paid; results are ranked by honest relevance/time/proximity only.
+- **Location is opt-in and disclosed** — if we center the map on the user's
+  position, that's an explicit permission with a visible indicator and a
+  plain-language disclosure, same discipline as the voice-nav Web Speech note.
+  The drawn gesture itself is client-side.
+- **Disputed/again shown, never hidden** — a low-confidence event inside the loop
+  still appears with its quiet caveat.
+
+**Where it lands:** the geometry engine (Phase 1) is the prerequisite; the
+draw-to-search UI is a consumer feature that rides on it (proposed for the same
+wave as, or just after, Phase 1 — a design-brief item, since it touches the map
+UX and the trust-display rules). Informal/vernacular naming of arbitrary drawn
+areas leans on the §3 authority crosswalk (Wikidata/OSM named regions), so it
+strengthens the case for Phase 2 as international coverage grows.
+
+---
+
+## 6. Phased plan (what to build, and when)
 
 **Phase 1 — County geometry (proposed: build NOW, as the next increment).**
 A pure point-in-polygon module: venue lat/lng → county → in-market or not, using
@@ -135,7 +195,7 @@ Phase 2, not throwaway.
 
 ---
 
-## 6. Tradeoffs & risks (stated honestly)
+## 7. Tradeoffs & risks (stated honestly)
 
 - **Coordinate coverage isn't 100%.** Long-tail/promoted events often lack
   lat/lng — which is *why* the name-based boundary stays as the fallback. We
@@ -159,7 +219,7 @@ Phase 2, not throwaway.
 
 ---
 
-## 7. Connections to existing canon
+## 8. Connections to existing canon
 
 - **Graph-brain (G-BRAIN option 1D).** Entity + geography + relationship queries
   ("what artists played in this region last summer?") are precisely the
@@ -176,23 +236,27 @@ Phase 2, not throwaway.
 
 ---
 
-## 8. The decisions this proposal asks the founder to make
+## 9. The decisions this proposal asks the founder to make
 
 1. **Approve Phase 1 (county geometry) as the next build increment?** (Recommended.)
-2. **Market scope for launch** — confirmed so far: CAPCOG's ten counties +
-   **Gillespie** (done). Any others now (Kerr? Kendall?), or is geometry the
-   place to settle the exact boundary?
-3. **Phase 2 timing** — agree the objective trigger "before the first non-Texas
+2. **Market scope for launch** — confirmed: CAPCOG's ten counties **+ Gillespie,
+   Comal, Kendall, Kerr** (fourteen, done 2026-07-29). Any further Hill Country
+   counties, or is geometry now the place to settle the exact boundary?
+3. **Draw-to-search (§5)** — approve as a headline consumer feature riding on the
+   geometry engine? If yes, it becomes a design-brief item (map UX + trust
+   display) for the Phase-1 wave or just after.
+4. **Phase 2 timing** — agree the objective trigger "before the first non-Texas
    locale opens"? Or sooner?
-4. **Licensing posture** — willing to use ODbL (OpenStreetMap) data, or prefer
+5. **Licensing posture** — willing to use ODbL (OpenStreetMap) data, or prefer
    to stay on public-domain/CC0/CC-BY sources only? (Affects how much informal-
-   region coverage we can get cheaply.)
-5. **Graph-DB** — evaluate the graph-brain (1D) option alongside Phase 2, given
+   region coverage — and how well draw-to-search can *name* arbitrary areas — we
+   get cheaply.)
+6. **Graph-DB** — evaluate the graph-brain (1D) option alongside Phase 2, given
    the trigger this work would fire?
 
 ---
 
-## 9. What this proposal deliberately does NOT propose
+## 10. What this proposal deliberately does NOT propose
 
 - It does **not** propose a proprietary global ID scheme built from scratch.
 - It does **not** propose building the full multi-scale system (neighborhoods,
