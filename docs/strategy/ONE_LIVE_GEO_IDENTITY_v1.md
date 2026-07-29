@@ -179,6 +179,79 @@ strengthens the case for Phase 2 as international coverage grows.
 
 ---
 
+## 5A. Temporal & adjacency ("heartbeat") analytics — attached to the identifier
+
+Founder idea, 2026-07-29: alongside identity, "identify and catalogue **time,
+frequency, and adjacent actions** to see what patterns let us infer interesting
+things" — future "heartbeat analytics" — as **a section of data connected to the
+identifier.**
+
+**The model: the identifier is the anchor; a signal record hangs off it.** Every
+canonical entity (place, artist, venue, group — and, privacy-gated, a user) has,
+beside its immutable identity core, an **append-only, timestamped SIGNAL RECORD**
+keyed to its ID. Identity stays small and stable; the signal record accumulates
+observations over the entity's life. This is exactly how the research systems do
+it (a stable ID keys a stream of timestamped observations; feature-store
+point-in-time correctness). Analytics reads the signal record; it never mutates
+the identity core.
+
+**Defining "adjacent" — six distinct dimensions (naming them is what makes the
+data mineable):**
+
+| Adjacency | "Close along…" | Powered by | Example pattern |
+|---|---|---|---|
+| **Temporal** | time (before/after in a window) | the timestamped signal record | "views a jazz show → looks for food nearby within 10 min" |
+| **Periodic / frequency** | recurring cadence | time + entity | "this venue has a Tuesday residency"; "this user goes out biweekly" |
+| **Spatial** | distance / same area | the geometry engine (§4) | "these three events are one walkable cluster" |
+| **Relational** | linked entities | the identity crosswalk/graph (§3) | "same artist / genre / venue family" |
+| **Sequential** | ordered steps in one session | the session log | the real shape of a "night out" |
+| **Social** | connected people | the group-plans thread | "friend groups that co-plan" |
+
+An **adjacency observation is itself an edge** — keyed by the *two* identifiers
+it connects, with a timestamp and a type. A pile of these edges IS a temporal
+graph, which is the concrete condition that fires the graph-DB decision (brain
+option 1D, trigger T3). Frequency is the third axis: how often an event/user
+recurs, and *how often a pattern repeats* — which is what separates a real signal
+from noise (a co-occurrence seen 200 times is a pattern; seen twice is chance).
+
+**"Heartbeat" = the aggregate pulse** over these axes: the city's cultural cadence,
+a venue heating up (emergence detection), demand rhythms, and — usefully —
+**source-health anomalies** (a feed that goes quiet), which doubles as ops
+monitoring alongside the existing dead-man pings.
+
+**Why it's worth instrumenting NOW (even though mining comes later):** you cannot
+backfill behavior and timing you never recorded. The log + the adjacency model
+are cheap to build and un-backfillable; the heavy pattern-mining/ML is a later,
+separable stage. Applications once the data exists: trend/emergence detection,
+demand forecasting, coverage-gap discovery, a strong matching-engine signal,
+opt-in personalization, and genuine cultural/civic insight ("applicable to a
+variety of areas").
+
+**Guardrails — and the split that keeps this safe:**
+- **Two lanes, very different risk.** *Event-world* signals (public events, times,
+  venues, cadences) carry **no personal data** — safe to catalogue and mine now.
+  *User-behavioral* signals are sensitive — TRAIGA/TDPSA and the §13 privacy canon
+  apply: minimize, **aggregate/de-identify first**, disclose, consent, retention
+  limits, purpose limitation. **Individual behavioral profiling is a legal-posture
+  decision, founder-crucial — never an agent call.**
+- **No manipulation, ever.** Heartbeat analytics *informs* product and ops; it must
+  never secretly optimize for engagement or become a pay-to-rank lever. Red Line.
+- **Inference honesty.** A pattern is an inference *with a confidence*, not a fact
+  — the same discipline as our event trust states; never shown to users as
+  certainty; a disputed/weak pattern says so.
+- **Append-only + provenance.** The signal record is immutable/versioned, so
+  analytics is reproducible and can never corrupt the identity or event data.
+- **Tastemaker separation preserved** — human/opinion content never enters this
+  behavioral catalogue as if it were verified signal.
+
+**Phasing:** instrument the identifier-anchored signal record (event-world lane)
+as part of Phase 2's identity build — same append-only/provenance primitives.
+Gate the user-behavioral lane behind the founder-crucial privacy decision. The
+pattern-mining engine (sequence mining, cadence detection, co-occurrence, cohort,
+anomaly) is a later, separable stage that reads the record.
+
+---
+
 ## 6. Phased plan (what to build, and when)
 
 **Phase 1 — County geometry (proposed: build NOW, as the next increment).**
@@ -243,6 +316,12 @@ Phase 2, not throwaway.
   containment geometry; Phase 1 is its foundation.
 - **Descriptor Foundry / matching engine** — both get cleaner when every
   candidate resolves to one canonical entity with provenance.
+- **Temporal/adjacency signal record (§5A)** — the identifier-anchored signal
+  record turns the identity backbone into a temporal graph, which is itself the
+  concrete condition (edges over time) that fires the graph-DB T3 trigger above.
+- **Emotion & Vibe layer** — the "categorical/semantic adjacency" axis (jazz ↔
+  wine bar) and the Emotion Graph overlap the signal record; build the adjacency
+  model once, feed both. (EU-AI-Act guardrails in that spec apply to inference.)
 
 ---
 
@@ -255,6 +334,12 @@ Phase 2, not throwaway.
 3. **Draw-to-search (§5)** — approve as a headline consumer feature riding on the
    geometry engine? If yes, it becomes a design-brief item (map UX + trust
    display) for the Phase-1 wave or just after.
+3b. **Temporal/adjacency "heartbeat" signal record (§5A)** — approve building the
+   identifier-anchored, append-only signal record for the **event-world lane** (no
+   personal data) as part of Phase 2? AND — the separate, **founder-crucial**
+   decision — do we open the **user-behavioral lane** at all, and under what
+   privacy posture (aggregate-first / consent / retention)? These are two
+   decisions, not one; the event lane is safe now, the user lane is a legal call.
 4. **Phase 2 timing** — agree the objective trigger "before the first non-Texas
    locale opens"? Or sooner?
 5. **Licensing posture** — willing to use ODbL (OpenStreetMap) data, or prefer
