@@ -44,6 +44,33 @@ def test_every_venue_record_is_well_formed():
         seen_ids.add(v["id"])
 
 
+def test_directory_admits_only_genuine_tasting_venues():
+    # adversarial-review #96: the Tasting Trail is breweries/wineries/
+    # distilleries/tasting rooms — NOT restaurants or dance halls. A plain
+    # restaurant (Redbud Cafe) or an arts/dance venue (Uptown Blanco) must not
+    # appear in this always-on directory (it still shows in the events feed).
+    venues = gen.build_venues()
+    for v in venues:
+        assert v["kind"] in gen.TASTING_KINDS, f"{v['name']} has non-tasting kind {v['kind']!r}"
+    names = {v["name"] for v in venues}
+    assert "Redbud Cafe" not in names
+    assert "Uptown Blanco Arts & Entertainment" not in names
+
+
+def test_unclassifiable_food_drink_venue_is_none_not_a_default_tasting_room():
+    # A venue with no positive tasting/kind signal returns None — it is NOT
+    # assumed a tasting room (the old default swept in a dance hall, #96).
+    assert gen.derive_kind("Uptown Blanco Arts & Entertainment",
+                           "Dance hall; events: ballroom concerts, arts programming.") is None
+    assert gen.derive_kind("Some Random Place", "") is None
+
+
+def test_genuine_tasting_rooms_classify_positively():
+    assert gen.derive_kind("Fitzhugh Cidery") == "tasting-room"
+    assert gen.derive_kind("Family Business Taproom") == "tasting-room"
+    assert gen.derive_kind("Texas Keeper Cider") == "tasting-room"
+
+
 def test_kind_derivation_is_correct_for_known_shapes():
     assert gen.derive_kind("Still Austin Whiskey Co.") == "distillery"
     assert gen.derive_kind("Altdorf Biergarten") == "beer-garden"

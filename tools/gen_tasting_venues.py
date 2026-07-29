@@ -30,8 +30,17 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 CATALOG = ROOT / "sources" / "master_sources_catalog_120.json"
 OUT = ROOT / "web" / "lib" / "tasting_venues.generated.ts"
 
-# Valid kinds — kept in sync with web/lib/venues.ts TastingKind.
+# Valid kinds derive_kind can return — kept in sync with web/lib/venues.ts.
 VALID_KINDS = ("winery", "brewery", "distillery", "beer-garden", "restaurant", "tasting-room")
+
+# The kinds the Tasting Trail DIRECTORY admits: genuine tasting venues only
+# (breweries / wineries / distilleries / beer gardens / tasting rooms), the
+# section's founder-stated scope. A plain restaurant or a dance hall that merely
+# has music is NOT a tasting venue — it is excluded from this always-on
+# directory (adversarial-review #96: Redbud Cafe / Uptown Blanco Arts &
+# Entertainment). Such a venue still appears in the EVENTS feed when it has an
+# event — the two surfaces are complementary, and nothing here hides an event.
+TASTING_KINDS = frozenset({"winery", "brewery", "distillery", "beer-garden", "tasting-room"})
 
 
 # Kind → its keyword vocabulary. A combined estate names its kinds in order of
@@ -45,6 +54,10 @@ _KIND_KEYWORDS: "list[tuple[str, tuple[str, ...]]]" = [
     ("beer-garden", ("beer garden", "biergarten")),
     ("brewery", ("brewery", "brewing", "beerworks", "brewpub")),
     ("winery", ("winery", "vineyard", "cellars", "wine")),
+    # Tasting rooms proper — taprooms, cideries, meaderies. Positive signals so a
+    # genuine tasting room classifies WITHOUT relying on a catch-all default
+    # (which would sweep in non-tasting food-drink venues, #96).
+    ("tasting-room", ("tasting room", "taproom", "tap room", "cellar door", "cidery", "cider", "meadery", "kombucha")),
     ("restaurant", ("restaurant", "grille", "steakhouse", "saloon", "kitchen", "grill", "cafe")),
 ]
 
@@ -69,28 +82,37 @@ def _match_kind(text: str) -> "str | None":
     return best_kind
 
 
-def derive_kind(name: str, notes: str = "") -> str:
-    """Classify a tasting venue. The venue's OWN NAME is authoritative — a
-    '<X> Winery' whose notes mention a co-located brewery ('Old 290 Brewery on
-    site', 'winery+brewery') is still a WINERY, not a brewery (adversarial-
-    review #96: matching name+notes together mislabeled Carter Creek and Bell
-    Springs). Only when the name carries no kind keyword do we fall back to the
-    notes' OWN leading kind label (we format notes as '<Kind>; events: …'),
-    using just the segment before the first ';' so a downstream mention of some
-    other kind can't override it."""
+def derive_kind(name: str, notes: str = "") -> "str | None":
+    """Classify a venue by kind, or None when nothing positively matches. The
+    venue's OWN NAME is authoritative — a '<X> Winery' whose notes mention a
+    co-located brewery ('Old 290 Brewery on site', 'winery+brewery') is still a
+    WINERY, not a brewery (adversarial-review #96: matching name+notes together
+    mislabeled Carter Creek and Bell Springs). Only when the name carries no kind
+    keyword do we fall back to the notes' OWN leading kind label (we format notes
+    as '<Kind>; events: …'), using just the segment before the first ';' so a
+    downstream mention of some other kind can't override it.
+
+    Returns None (NOT a 'tasting-room' default) when neither name nor notes carry
+    a kind keyword: a food-drink venue with no positive tasting/kind signal — a
+    dance hall, an arts venue — must not be ASSUMED a tasting room and swept into
+    the directory (#96: Uptown Blanco Arts & Entertainment). build_venues drops
+    the Nones."""
     from_name = _match_kind(name)
     if from_name is not None:
         return from_name
     from_notes = _match_kind(notes.split(";", 1)[0])
     if from_notes is not None:
         return from_notes
-    return "tasting-room"
+    return None
 
 
 def build_venues() -> list[dict]:
-    """The food-drink venues from the catalog, mapped to directory records and
+    """The TASTING venues from the catalog, mapped to directory records and
     sorted deterministically (county, then name) so the generated file is
-    stable across runs."""
+    stable across runs. Only genuine tasting kinds are admitted (TASTING_KINDS);
+    a restaurant or an unclassifiable food-drink venue is excluded from this
+    directory — it still reaches users through the events feed when it has an
+    event (#96)."""
     cat = json.loads(CATALOG.read_text(encoding="utf-8"))
     out = []
     for e in cat:
@@ -98,10 +120,13 @@ def build_venues() -> list[dict]:
             continue
         name = e.get("name") or ""
         notes = e.get("notes") or ""
+        kind = derive_kind(name, notes)
+        if kind not in TASTING_KINDS:
+            continue  # restaurant, or no positive tasting signal — not this section
         out.append({
             "id": str(e.get("id")),
             "name": name,
-            "kind": derive_kind(name, notes),
+            "kind": kind,
             "county": str(e.get("county") or "").lower(),
             "url": e.get("base_url") or "",
         })
