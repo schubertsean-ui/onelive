@@ -9,6 +9,7 @@ import {
   applyDesire,
   buildPlan,
   genreFacet,
+  bucketByDate,
 } from "./feed";
 import type { LicensedEvent } from "./licensed";
 
@@ -214,5 +215,49 @@ describe("genre rail (canonical Layer-1) — facet + filter", () => {
     const latin = applyFilters(events, { genreIds: new Set(["latin"]) });
     expect(latin).toHaveLength(1);
     expect(latin[0].subsegment).toBe("Cumbia");
+  });
+});
+
+describe("bucketByDate — the three-tier date density", () => {
+  const mk = (id: string, daysOut: number) =>
+    ev({ licensed_event_id: id, start_time: new Date(NOW + daysOut * 86_400_000).toISOString() });
+  const events = [
+    mk("soon", 2), //     -> rich (This week)
+    mk("thisweek", 6), // -> rich
+    mk("midmonth", 20), //-> compact (Later this month)
+    mk("faraway", 60), // -> line (Beyond)
+  ];
+
+  it("splits into rich/compact/line by time-to-start, in that order", () => {
+    const b = bucketByDate(events, NOW);
+    expect(b.map((x) => x.key)).toEqual(["rich", "compact", "line"]);
+    expect(b[0].items.map((e) => e.licensed_event_id).sort()).toEqual(["soon", "thisweek"]);
+    expect(b[1].items[0].licensed_event_id).toBe("midmonth");
+    expect(b[2].items[0].licensed_event_id).toBe("faraway");
+  });
+
+  it("is sum-preserving — every event lands in exactly one bucket (nothing hidden)", () => {
+    const b = bucketByDate(events, NOW);
+    expect(b.reduce((s, x) => s + x.items.length, 0)).toBe(events.length);
+  });
+
+  it("omits empty buckets", () => {
+    const b = bucketByDate([mk("only", 3)], NOW);
+    expect(b.map((x) => x.key)).toEqual(["rich"]);
+  });
+
+  it("returns nothing for an empty set", () => {
+    expect(bucketByDate([], NOW)).toEqual([]);
+  });
+
+  it("puts a date-TBA (null/invalid start) row in the line bucket, not hidden (#100)", () => {
+    const tba = ev({ licensed_event_id: "tba", start_time: null });
+    const bad = ev({ licensed_event_id: "bad", start_time: "not-a-date" });
+    const b = bucketByDate([mk("soon", 2), tba, bad], NOW);
+    const line = b.find((x) => x.key === "line");
+    expect(line).toBeTruthy();
+    expect(line!.items.map((e) => e.licensed_event_id).sort()).toEqual(["bad", "tba"]);
+    // sum-preserving even with undated rows — nothing dropped.
+    expect(b.reduce((s, x) => s + x.items.length, 0)).toBe(3);
   });
 });

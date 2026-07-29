@@ -6,7 +6,7 @@
 // per-domain cap may drop rows. A `disputed` event in an unknown category, or
 // in position 13, must still be shown.
 
-import { DOMAINS, DOMAIN_LABEL, domainLabel, type DomainMeta } from "./domains";
+import { DOMAINS, DOMAIN_LABEL, domainLabel, timeBand, type Band, type DomainMeta } from "./domains";
 import { canonicalGenre, genreLabel, type GenreId } from "./genres";
 import type { LicensedEvent } from "./licensed";
 
@@ -326,4 +326,36 @@ export function groupByDomain(events: LicensedEvent[]): DomainGroup[] {
     if (items && items.length) groups.push({ domain: d, items });
   }
   return groups;
+}
+
+// ── Date buckets (the three-tier density) ────────────────────────────────────
+// Longer-dated events don't deserve the same tall card as tonight's — a founder
+// directive. Events split by time-to-start into three descending densities,
+// each with a plain scannable header. The three bands are exactly timeBand's
+// (rich ≤7d, compact 8–30d, line >30d), so the density IS the date bucket.
+// Sum-preserving like groupByDomain: every event lands in exactly one bucket
+// (proven in tests) — the "nothing hidden" invariant holds across the split.
+export type DateBucket = { key: Band; label: string; blurb: string; items: LicensedEvent[] };
+
+export function bucketByDate(events: LicensedEvent[], nowMs: number): DateBucket[] {
+  const rich: LicensedEvent[] = [];
+  const compact: LicensedEvent[] = [];
+  const line: LicensedEvent[] = [];
+  for (const e of events) {
+    const b = timeBand(e.start_time, nowMs);
+    (b === "rich" ? rich : b === "compact" ? compact : line).push(e);
+  }
+  // Labels are RELATIVE durations, not calendar claims: "Later this month" was
+  // false for an 8–30-day event that actually falls in the next calendar month
+  // (adversarial-review #100). "In the coming weeks" is true regardless of where
+  // the month boundary sits.
+  const buckets: DateBucket[] = [
+    { key: "rich", label: "This week", blurb: "the next seven days", items: rich },
+    { key: "compact", label: "In the coming weeks", blurb: "the next few weeks", items: compact.sort(byStart) },
+    // The line bucket also holds date-TBA rows (timeBand maps a null/invalid
+    // start_time here), which render as "Date TBA" — so the blurb must NOT claim
+    // dates are set (adversarial-review #100), it names both far-dated and TBA.
+    { key: "line", label: "Further out", blurb: "beyond a month out, and dates to be announced", items: line.sort(byStart) },
+  ];
+  return buckets.filter((b) => b.items.length);
 }
