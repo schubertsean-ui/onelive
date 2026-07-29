@@ -50,6 +50,35 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #32 (2026-07-29, founder-ratified process scale-back → ship CAPCOG)
+
+FOUNDER DIRECTIVE ("Go — do both, then CAPCOG"): break the review/re-review cycle
+(measured this session: 44 commits / 83 product-file touches / **412** harness+docs
+touches over 14 days; PRs running 12–21 adversarial rounds; a 2-file docs PR (#91)
+red on construction_gate alone). Decision record: `docs/memory/decisions/2026-07-29_process-scaleback-ship-capcog.md`.
+
+DONE (this contract, gate-custody change — founder-crucial, founder-ratified):
+(1) `tools/adversarial_review.py` — reviewer scope narrowed to USER/PUBLIC-FACING
+harm only (fabricated/unverified data on a user surface, AI publishing without the
+gate, disputed hidden, auth/RLS fail-open, non-parameterized SQL, unvalidated input,
+broken trust display, pay-to-rank, un-failable test); internal process ceremony
+([S3:...] recitation, Kaizen rows, construction contracts, premortems, doc formatting)
+EXPLICITLY out of scope. (2) `tools/validate` — `construction_gate` and `kaizen_trends`
+DOWNGRADED from blocking to ADVISORY (still run + print findings; no longer block).
+KEPT BLOCKING (unchanged): trust_gate, lint, deferral_scan, workflow_env_lint,
+governance_claims, full pytest, blocking_failure_check. NO trust invariant relaxed.
+
+BOOTSTRAP CATCH (honest): the CURRENT base-owned reviewer hard-blocks gate-custody
+weakening, so `adversarial-review` on the PR carrying THIS change will (correctly) go
+RED, flagging a founder-crucial gate change. Resolution = FOUNDER merges (gate tuning
+is the founder's call by charter). The tamed reviewer + advisory gates take effect for
+every PR after this lands. Reversal = one commit (restore `run_check` + revert prompt).
+
+NEXT (the product): CAPCOG live behind the Clerk stealth gate — licensed importers
+(Ticketmaster + SeatGeek, deterministic/confirmed-tier, no AI) for the ticketed spine
++ crawl/AI pipeline for the long tail → real events → production Vercel deploy →
+allowlist testers → founder go/no-go. Then replicate for Lexington KY.
+
 ## Session Contract #31 (2026-07-27, founder Anthropic-call-pattern directive — records only, no behaviour)
 
 GOAL: persist the founder's standing directive ("use this in all future sessions ... current and future sessions") that Anthropic Messages-API work use a standard `anthropic.Anthropic()` call shape (model `claude-opus-5`, explicit `system=`, prompt caching on, print `response.usage`), TOGETHER WITH the correction that makes the directive's own intent actually hold — the supplied snippet cached nothing (top-level `cache_control` auto-places the breakpoint on the varying user message, and its ~30-token system prompt is below Opus 5's 512-token minimum), and its `max_tokens=1024` truncates output now that Opus 5 thinks by default. Recorded at docs/memory/entities/2026-07-27_anthropic-messages-api-call-pattern.md + a changelog entry; the previously-absent docs/memory/entities/ directory (already specified by the memory README) was created.
