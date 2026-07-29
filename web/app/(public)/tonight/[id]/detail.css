@@ -90,6 +90,14 @@
 }
 .detail .dshare:hover { text-decoration: underline; }
 
+/* "Hear them" — search links to the act on the major music services. */
+.detail .dlisten {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.9rem;
+  margin: 0 0 1.25rem; font-size: 0.95rem;
+}
+.detail .dlisten .dlisten-l { opacity: 0.7; }
+.detail .dlisten a { text-decoration: underline; text-underline-offset: 2px; }
+
 /* Screen-reader-only live region for the "Link copied" confirmation. */
 .visually-hidden {
   position: absolute;
