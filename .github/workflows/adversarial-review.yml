@@ -47,27 +47,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  adversarial-review:
+  # ── JOB 1 ── Pure string resolution. No checkout, no code, no secrets: this
+  # job only validates the diff-range SYNTAX and publishes it, so both jobs
+  # below consume ONE definition and cannot drift apart.
+  range:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      # Read-only visibility into the co-gates (PR #37 r1: the evaluator
-      # rejected a record it could not see the authenticator accept — the
-      # review's evidence bundle must carry the golden-exam job's log).
-      checks: read
-      actions: read
+    timeout-minutes: 5
+    outputs:
+      base: ${{ steps.range.outputs.base }}
+      range: ${{ steps.range.outputs.range }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          # Full history so merge-base diffs (base...head) resolve.
-          fetch-depth: 0
-          persist-credentials: false
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Resolve the base ref and diff range
         # Values computed in the expression layer, consumed via guarded env
         # (r14: no direct expressions in run: — empty-able values must fail
@@ -88,20 +77,49 @@ jobs:
           echo "base=$RESOLVED_BASE" >> "$GITHUB_OUTPUT"
           echo "range=$RESOLVED_RANGE" >> "$GITHUB_OUTPUT"
 
-      - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
-        env:
-          TRUSTED_BASE: ${{ steps.range.outputs.base }}
-        run: |
-          : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
-          mkdir -p /tmp/trusted
-          if git show "$TRUSTED_BASE:tools/adversarial_review.py" \
-               > /tmp/trusted/adversarial_review.py 2>/dev/null; then
-            echo "Using tools/adversarial_review.py from $TRUSTED_BASE (trusted)."
-          else
-            echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on $TRUSTED_BASE. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
-            exit 1
-          fi
+  # ── JOB 2 ── PR-CONTROLLED CODE RUNS HERE, AND ONLY HERE.
+  #
+  # WHY THIS JOB EXISTS (PR #75 r8, class runner-env-poisoning; both OpenAI
+  # seats blocked on it at r7 and they were right). Until r7 the whole
+  # workflow was a SINGLE job: `pip install`, `pytest`, `bash tools/validate`
+  # and the npm build — all PR-controlled — ran in the same job that later
+  # held OPENAI_API_KEY. r6 had pinned the reviewer FILE by immutable SHA +
+  # sha256, which stops the file being swapped but does nothing about the
+  # COMMANDS that verify and run it: any earlier step in a job can append to
+  # $GITHUB_PATH or $GITHUB_ENV, and the runner applies those to every LATER
+  # step. A malicious PR could therefore shadow `git`, `sha256sum`, `mktemp`
+  # or `python` — or set BASH_ENV / OPENAI_BASE_URL — and its own binary would
+  # execute, or the API call redirect, with the secret in the environment.
+  # `python -I` does not help: it isolates the interpreter's import path, not
+  # WHICH interpreter PATH resolves to.
+  #
+  # Enumerating dangerous variables would be a blacklist, and a blacklist on a
+  # key-exfiltration path is fail-open by construction. A job boundary is a
+  # WHITELIST by construction: $GITHUB_PATH and $GITHUB_ENV are per-job, so a
+  # fresh runner starts with an environment no PR step has touched. Nothing
+  # crosses from here to the gate except inert log FILES, carried as an
+  # artifact and read as text.
+  #
+  # This job holds no model API key. GITHUB_TOKEN (contents: read, job-scoped,
+  # auto-expiring) is still needed by the base-freshness gate inside validate
+  # and stays here deliberately: it is not the exfiltration class, and the
+  # alternative is running PR code in the trusted job, which is the hole.
+  pr-evidence:
+    needs: range
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so merge-base diffs (base...head) resolve.
+          fetch-depth: 0
+          persist-credentials: false
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Install worker + api deps
         run: |
           python -m pip install --upgrade pip
@@ -145,7 +163,7 @@ jobs:
 
       - name: Web checks + SCA when web/ is touched (log captured for the evaluator)
         env:
-          DIFF_RANGE: ${{ steps.range.outputs.range }}
+          DIFF_RANGE: ${{ needs.range.outputs.range }}
         run: |
           set -euo pipefail
           : "${DIFF_RANGE:?diff range unresolved — failing closed}"
@@ -184,9 +202,165 @@ jobs:
             echo "no web/ files in this diff — web checks not applicable" | tee web.log
           fi
 
+      # The ONLY thing that crosses the job boundary: inert log text. Uploaded
+      # with if: always() so a red suite still hands its log over — the gate
+      # decides what a failing log means, this job never withholds evidence.
+      - name: Publish the evidence logs for the trusted gate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-evidence-logs
+          path: |
+            pytest.log
+            validate.log
+            web.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ── JOB 3 ── THE TRUSTED GATE. Holds OPENAI_API_KEY and GEMINI_API_KEY.
+  #
+  # NO PR-CONTROLLED CODE EXECUTES IN THIS JOB — a claim with a stated
+  # scope, because r9 made the unqualified version false. It holds on
+  # exactly two legs, both asserted by
+  # tests/test_adversarial_review_job_isolation.py: nothing PR-authored is
+  # invoked here, and the one dependency install runs before checkout and
+  # under `python -I` so no PR file can be imported as a module. It does
+  # NOT claim supply-chain safety (PyPI is third-party) and does NOT claim
+  # the workflow FILE is trusted — that stays PR-owned, compensated by the
+  # base-owned reviewer and the mandatory review. The PR tree is checked out
+  # (files are written, never run) so that base-relative git operations —
+  # `git show <base sha>:...`, `git show HEAD^1:...`, the diff extraction —
+  # resolve exactly as before. Everything this job EXECUTES comes from the
+  # base ref: the reviewer via `git show $TRUSTED_SHA:` into a fresh mktemp
+  # dir under a re-verified sha256, and the co-gate helper the same way.
+  # Because job 2 ran on a different runner, $GITHUB_PATH / $GITHUB_ENV /
+  # BASH_ENV here are untouched by anything the PR did — that is the ONLY
+  # thing the boundary buys, and it is not by itself sufficient: a step in
+  # THIS job that reads a PR file (the r9 `python -m pip` cwd import) would
+  # reopen the path from inside.
+  adversarial-review:
+    needs: [range, pr-evidence]
+    # always() so a failed evidence job cannot make the REQUIRED check report
+    # "skipped" — GitHub can treat a skipped required check as satisfied, which
+    # would be fail-open on exactly the runs most likely to be broken. The
+    # guard step below turns that into an explicit red.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # Read-only visibility into the co-gates (PR #37 r1: the evaluator
+      # rejected a record it could not see the authenticator accept — the
+      # review's evidence bundle must carry the golden-exam job's log).
+      checks: read
+      actions: read
+    steps:
+      - name: Refuse to review without complete evidence (fail closed)
+        env:
+          EVIDENCE_RESULT: ${{ needs.pr-evidence.result }}
+        run: |
+          : "${EVIDENCE_RESULT:?evidence job result unresolved — failing closed}"
+          if [ "$EVIDENCE_RESULT" != "success" ]; then
+            echo "::error::the pr-evidence job concluded '$EVIDENCE_RESULT', so the test/validate evidence this review is judged on is missing or red. The single-job workflow aborted at the failing step for the same reason; this is that behaviour preserved across the job split, and it fails RED rather than skipping."
+            exit 1
+          fi
+          echo "evidence job succeeded — proceeding with the trusted review."
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ORDER IS THE CONTROL (PR #75 r10, class runner-env-poisoning — the r9
+      # form of this step REOPENED the very hole r8 closed, and the OpenAI
+      # seats caught it). `python -m pip` puts the CURRENT WORKING DIRECTORY on
+      # sys.path, so with the PR checked out first, a malicious PR shipping
+      # `pip.py` or `pip/__main__.py` at the repo root would have its OWN code
+      # executed here — inside the trusted job, before the key-bearing steps,
+      # free to write $GITHUB_ENV/$GITHUB_PATH or set OPENAI_BASE_URL. Pinning
+      # the PACKAGE said nothing about which `pip` MODULE got imported.
+      #
+      # Two independent guards, either of which alone closes it:
+      #   1. This step runs BEFORE actions/checkout, so the workspace is empty —
+      #      there is no PR file to import. Do not reorder these two steps.
+      #   2. `python -I` isolates the interpreter (implies -P, so the cwd is
+      #      never prepended to sys.path; -E and -s too).
+      # Asserted by tests/test_adversarial_review_job_isolation.py, which fails
+      # if the install ever moves after a checkout or drops -I.
+      #
+      # WHY IT IS NEEDED AT ALL: the base-owned co-gate helper parses a
+      # workflow file and imports PyYAML, and the r8 job split deliberately
+      # removed this job's `pip install -r`. `-r <file>` stays banned: those
+      # files are PR-authored, the exact input this job exists to be free of.
+      #
+      # SCOPE, stated rather than overclaimed: this is not supply-chain proof.
+      # The WORKFLOW FILE is PR-owned (a pre-existing property of
+      # `on: pull_request`), so a PR could edit this line. What compensates is
+      # unchanged and named: the reviewer is base-owned and digest-verified,
+      # and every PR goes through the mandatory non-Claude review.
+      - name: Install the trusted job's ONE dependency (before any PR file exists)
+        run: |
+          python -I -m pip install --disable-pip-version-check \
+            --no-deps --only-binary=:all: "PyYAML==6.0.2"
+
+      - uses: actions/checkout@v4
+        with:
+          # Full history so merge-base diffs (base...head) resolve.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Pin the TRUSTED evaluator script from the base ref (or hard-fail)
+        # TAMPER-EVIDENT PINNING (PR #75 r6 — evaluator finding, a live
+        # key-exfiltration path). HISTORICAL FRAMING, corrected at r10 (gemini
+        # nit, both copies): this comment was written when ONE job ran the
+        # PR's dependency install, pytest and tools/validate before the secret
+        # steps. Since r8's job split those run on a different runner, so this
+        # pin is no longer the thing standing between PR code and the key —
+        # the job boundary is. It remains valid defense-in-depth for what it
+        # always covered: WHICH file executes.
+        # Those steps can write anywhere on the runner, INCLUDING over this
+        # pinned file, and can rewrite local git refs — so neither the file
+        # nor a branch name is trustworthy by the time the secret-bearing
+        # step runs. Two bindings are captured HERE, before any PR code
+        # executes, and re-verified at consumption:
+        #   1. the base ref resolved to an IMMUTABLE commit SHA (a rewritten
+        #      local ref cannot change what that SHA names), and
+        #   2. the sha256 of the script's content.
+        # The final step re-reads the script from the pinned SHA and hard-
+        # fails if the digest differs.
+        #
+        # SCOPE OF THIS CONTROL, stated precisely (r7: both OpenAI seats
+        # blocked because the earlier wording here — "an attacker would have
+        # to forge sha256" — was FALSE). These two bindings protect WHAT is
+        # executed. They say nothing about WHICH `git`, `sha256sum` or
+        # `python` performs the check, and while the untrusted work shared
+        # this job an attacker did not need to forge a digest at all: they
+        # could poison $GITHUB_PATH and have their own `sha256sum` agree.
+        # The command-resolution half is closed by the JOB SPLIT above, not
+        # here. Neither control is sufficient alone; this comment claims only
+        # its own half.
+        id: trusted
+        env:
+          TRUSTED_BASE: ${{ needs.range.outputs.base }}
+        run: |
+          : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
+          mkdir -p /tmp/trusted
+          TRUSTED_SHA="$(git rev-parse "$TRUSTED_BASE^{commit}")"
+          : "${TRUSTED_SHA:?base ref did not resolve to a commit — failing closed}"
+          if ! git show "$TRUSTED_SHA:tools/adversarial_review.py" \
+                 > /tmp/trusted/adversarial_review.py 2>/dev/null; then
+            echo "::error::BOOTSTRAP HARD-FAIL: tools/adversarial_review.py does not exist on $TRUSTED_BASE. Running a PR-supplied reviewer with the API secret would let any PR self-approve or exfiltrate the key, so this gate refuses. The PR that introduces the tool must be HUMAN-reviewed and merged with this check red — the gate becomes enforceable the moment the tool lands on the base branch."
+            exit 1
+          fi
+          # Assigned at top level (never inside a branch) so the value is
+          # provably set before every use — workflow_env_lint enforces this.
+          TRUSTED_DIGEST="$(sha256sum /tmp/trusted/adversarial_review.py | cut -d" " -f1)"
+          echo "sha=$TRUSTED_SHA" >> "$GITHUB_OUTPUT"
+          echo "digest=$TRUSTED_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Pinned tools/adversarial_review.py @ $TRUSTED_SHA (sha256 $TRUSTED_DIGEST)."
+
       - name: Extract the diff under review (lockfiles + fetched corpus excluded by policy)
         env:
-          DIFF_RANGE: ${{ steps.range.outputs.range }}
+          DIFF_RANGE: ${{ needs.range.outputs.range }}
         run: |
           set -euo pipefail
           : "${DIFF_RANGE:?diff range unresolved — failing closed}"
@@ -414,6 +588,15 @@ jobs:
           wc -c "$EVID/golden-exam.log"
 
 
+      # Job 2's logs, as data. Landed in a dedicated directory rather than the
+      # workspace root so PR-authored filenames cannot collide with anything
+      # here; nothing downloaded is ever executed.
+      - name: Fetch the evidence logs from the untrusted job
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-evidence-logs
+          path: pr-evidence
+
       - name: Preflight — prove this key can CALL the pinned second-seat model
         # MECHANIZING the unusable-credential-tier class (#72 r1/r3/r4),
         # which cost two rounds of guessing model names from error strings:
@@ -436,7 +619,7 @@ jobs:
         # moment it lands on the base branch, exactly like the reviewer did.
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          TRUSTED_BASE: ${{ steps.range.outputs.base }}
+          TRUSTED_BASE: ${{ needs.range.outputs.base }}
         run: |
           set -euo pipefail
           : "${TRUSTED_BASE:?trusted base ref unresolved — failing closed}"
@@ -480,6 +663,12 @@ jobs:
       - name: Independent evaluator (APPROVE required)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # The two tamper-evident bindings captured BEFORE any PR-controlled
+          # step ran (PR #75 r6): an immutable commit SHA and the reviewer
+          # script's sha256. Step outputs are written by that earlier step and
+          # cannot be retroactively altered by later steps.
+          TRUSTED_SHA: ${{ steps.trusted.outputs.sha }}
+          TRUSTED_DIGEST: ${{ steps.trusted.outputs.digest }}
           # PR head SHA = the printed, rotating po-battery seed for the panel.
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # Second-family seat (founder-approved 2026-07-25). Absent = the
@@ -539,14 +728,32 @@ jobs:
           # copy advertises --panel in its own --help. Before this PR merges the
           # base copy is v1 (single lens, unchanged behavior); after, the panel
           # activates automatically with no second workflow edit.
+          # RE-VERIFY THE TRUSTED SCRIPT (PR #75 r6): re-read it from the
+          # immutable SHA pinned before any PR-controlled code ran, into a
+          # fresh per-run directory, and refuse to proceed unless the content
+          # digest still matches what was captured then.
+          : "${TRUSTED_SHA:?trusted sha unresolved — failing closed}"
+          : "${TRUSTED_DIGEST:?trusted digest unresolved — failing closed}"
+          VERIFIED_DIR="$(mktemp -d)"
+          git show "$TRUSTED_SHA:tools/adversarial_review.py" \
+            > "$VERIFIED_DIR/adversarial_review.py"
+          NOW_DIGEST="$(sha256sum "$VERIFIED_DIR/adversarial_review.py" | cut -d" " -f1)"
+          if [ "$NOW_DIGEST" != "$TRUSTED_DIGEST" ]; then
+            echo "::error::TRUSTED REVIEWER TAMPERED: the script at $TRUSTED_SHA now digests $NOW_DIGEST but was $TRUSTED_DIGEST before the PR-controlled steps ran. Refusing to execute it with the API secret."
+            exit 1
+          fi
+          chmod 0400 "$VERIFIED_DIR/adversarial_review.py"
+          REVIEWER="$VERIFIED_DIR/adversarial_review.py"
+
           PANEL_ARGS=""
-          if python -I /tmp/trusted/adversarial_review.py --help 2>&1 | grep -q -- "--panel"; then
+          if python -I "$REVIEWER" --help 2>&1 | grep -q -- "--panel"; then
             PANEL_ARGS="--panel --po-seed $HEAD_SHA"
             echo "reviewer: v2 panel supported by the trusted base copy — enabling (po seed = $HEAD_SHA)"
           else
             echo "reviewer: trusted base copy predates the v2 panel — running the v1 single-lens gate (unchanged physics)"
           fi
-          python -I /tmp/trusted/adversarial_review.py --require $PANEL_ARGS \
+          python -I "$REVIEWER" --require $PANEL_ARGS \
             --max-diff-bytes 800000 \
-            --diff-file pr.diff --test-log pytest.log --test-log web.log \
-            --test-log validate.log --test-log "$EVID_DIR/golden-exam.log"
+            --diff-file pr.diff \
+            --test-log pr-evidence/pytest.log --test-log pr-evidence/web.log \
+            --test-log pr-evidence/validate.log --test-log "$EVID_DIR/golden-exam.log"

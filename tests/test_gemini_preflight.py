@@ -269,7 +269,7 @@ def test_EVERY_trusted_base_tool_fetch_in_the_workflow_fails_closed():
     # misconfig already had a structural fix (#65 r12, corrupt trust
     # ARTIFACT refuses everything) and recurred here as a missing trust
     # TOOL falling into a success path. The general form of the class:
-    # ANY `git show "$TRUSTED_BASE:tools/..."` in this workflow is a
+    # ANY trusted-base tool fetch in this workflow is a
     # custody fetch, and a custody fetch that misses must never reach a
     # bare success path. This asserts that for every such fetch that
     # exists today and every one added later — which is what makes it a
@@ -285,7 +285,14 @@ def test_EVERY_trusted_base_tool_fetch_in_the_workflow_fails_closed():
     fetches = 0
     for step in workflow["jobs"]["adversarial-review"]["steps"]:
         run = step.get("run") or ""
-        if not re.search(r'git show "\$TRUSTED_BASE:tools/', run):
+        # Two equivalent trust anchors are recognised: the mutable base ref
+        # ($TRUSTED_BASE) and the STRONGER immutable pin ($TRUSTED_SHA,
+        # PR #75 r6 — a branch name can be rewritten by untrusted steps, a
+        # commit SHA cannot). Both are custody fetches and both must fail
+        # closed; matching only the weaker form would let a hardening change
+        # silently drop a fetch out of this guard's sight, which is exactly
+        # what happened when r6 landed.
+        if not re.search(r'git show "\$TRUSTED_(BASE|SHA):tools/', run):
             continue
         fetches += 1
         # Everything after the fetch must contain a terminating failure

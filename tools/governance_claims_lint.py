@@ -68,12 +68,136 @@ def scan_text(text: str, repo: pathlib.Path = REPO) -> list[str]:
     return findings
 
 
+# ── The OTHER half of false-confidence-gate ──────────────────────────────
+#
+# scan_text above catches a claim whose cited artifact is ABSENT. The class's
+# other half — the artifact EXISTS but does LESS than the sentence claims —
+# escaped it 8 times in PR #75 alone, past this file's own structural-fix
+# marker, and false-confidence-gate is the top class in the Kaizen ledger at
+# 29. Root cause: existence is checkable, semantics are not.
+#
+# What IS mechanically checkable is the shape every one of those escapes took:
+# an UNCONDITIONAL security assertion. "An attacker would have to forge
+# sha256" (they could poison PATH instead). "Now genuinely base-owned"
+# (execution was, command resolution was not). A security property stated
+# with no scope is the tell, because real controls close a specific half of a
+# specific threat.
+#
+# So: an absolute claim must carry its scope IN THE SAME SENTENCE. This does
+# not verify the claim — nothing here can — it forbids stating one as though
+# it were total. Deliberately narrow, seeded from the phrasings that actually
+# escaped rather than from imagination; over-broad prose lints produce filler,
+# which is how a gate stops meaning anything.
+ABSOLUTE_CLAIM_RE = re.compile(
+    r"attacker would (?:have to|need to)"
+    # "can NEVER be bypassed" slipped past the first form entirely — the
+    # negation can be carried by the adverb instead of the modal (PR #75 r11,
+    # found by writing the red case rather than by reading the regex).
+    r"|\b(?:cannot|can't|could not|can never|will never|is never|are never)\s+be\s+"
+    r"(?:bypassed|forged|subverted|circumvented)"
+    r"|\bimpossible to\b"
+    r"|\bgenuinely (?:base-owned|trusted|secure|isolated|closed)\b"
+    r"|\bno longer possible\b"
+    r"|\b(?:fully|completely|entirely) (?:closed|fixed|mitigated|secure)\b"
+    r"|\bguarantees that\b"
+    # ── Added PR #75 r10, after the class RECURRED 9x past the marker above.
+    # Root cause of THAT escape: the first pattern set was seeded from r6's
+    # phrasings, and r9 asserted the same kind of totality in words it did not
+    # cover — "no PR input", "NO PR-CONTROLLED CODE EXECUTES IN THIS JOB",
+    # a job "free of" an input. Same shape, different vocabulary. Seeded again
+    # from what actually escaped; this list is explicitly NOT exhaustive, and
+    # the structural half of the fix is that claims of this kind now carry
+    # tests that fail when they stop being true.
+    r"|\bno PR input\b"
+    r"|\bno PR-controlled code\b"
+    r"|\bfree of PR\b"
+    r"|\buntouched by (?:anything |any )?(?:the )?PR\b",
+    re.IGNORECASE,
+)
+# Words that turn a total claim into a bounded one, or mark the sentence as
+# quoted history rather than a live assertion.
+# A scope marker must BOUND the claim — name what the control does not cover,
+# or what it depends on. `still` and `never` were in this list and bound
+# nothing: "the gate still cannot be bypassed" and "can never be bypassed" are
+# STRONGER assertions, not scoped ones, so an author could satisfy a gate
+# against unconditional claims by adding an adverb (PR #75 r11, absence-only
+# seat — the gate was bypassable by exactly the move it exists to stop).
+# Removed. `superseded` and `false` stay: they mark a sentence as QUOTED
+# history rather than a live assertion, which is a different, legitimate case.
+SCOPE_MARKERS = (
+    "only", "not sufficient", "says nothing", "half", "scope", "alone",
+    "except", "assuming", "limit", "superseded", "false", "does not",
+    "cannot check", "not exhaustive", "depends on",
+)
+
+
+# DERIVED, not enumerated (PR #75 r12, class self-weakenable-gate). The hand
+# listed set was CLAUDE.md + decisions + STATE + TODOS + workflows, and the
+# false claim that round was in templates/universal-kernel/STAGING_NOTE.md —
+# outside it. A blind spot in the scan set is indistinguishable from a clean
+# tree, and the accompanying test locked the incomplete set in place, so
+# neither could fail on the escape. Walking every markdown and workflow file
+# means a new document is covered the day it is written; the excluded trees
+# are machine content, never prose that makes claims.
+_CLAIM_EXCLUDED_TREES = {".git", "node_modules", ".venv", "venv", "__pycache__",
+                         ".next", "dist", "build"}
+
+
+def claim_docs() -> list[pathlib.Path]:
+    """Every prose document that could carry a security claim."""
+    docs = []
+    for pattern in ("**/*.md", "**/.github/workflows/*.yml",
+                    "**/.github/workflows/*.yaml"):
+        for path in REPO.glob(pattern):
+            rel = path.relative_to(REPO)
+            if any(part in _CLAIM_EXCLUDED_TREES for part in rel.parts):
+                continue
+            # Verbatim source captures are SOMEONE ELSE'S text. We may not
+            # rewrite a captured article to satisfy our own prose rule, and
+            # its sentences are not our claims. Same path-based boundary the
+            # provenance branch uses.
+            if str(rel).replace("\\", "/").startswith("docs/research/sources/"):
+                continue
+            if path.is_file():
+                docs.append(path)
+    return sorted(set(docs))
+
+
+def scan_absolute_claims(text: str) -> list[str]:
+    """Findings: unconditional security claims with no scope in-sentence."""
+    findings = []
+    for sentence in _SENTENCE_SPLIT.split(text):
+        m = ABSOLUTE_CLAIM_RE.search(sentence)
+        if not m:
+            continue
+        if any(s in sentence.lower() for s in SCOPE_MARKERS):
+            continue
+        findings.append(
+            f"states the security claim {m.group(0)!r} with no scope in the "
+            f"same sentence — a control closes a specific half of a specific "
+            f"threat; an unconditional claim is how false-confidence-gate "
+            f"recurs (name what it does NOT cover): "
+            f"\"{sentence.strip()[:160]}…\""
+        )
+    return findings
+
+
 def main() -> int:
     findings = []
     for doc in governed_docs():
         rel = doc.relative_to(REPO)
         for f in scan_text(doc.read_text(encoding="utf-8")):
             findings.append(f"{rel}: {f}")
+    scanned_for_claims = claim_docs()
+    for doc in scanned_for_claims:
+        rel = doc.relative_to(REPO)
+        for f in scan_absolute_claims(doc.read_text(encoding="utf-8")):
+            findings.append(f"{rel}: {f}")
+    if not scanned_for_claims:
+        # A scan that examined nothing must never read as clean.
+        findings.append(
+            "absolute-claim scan matched ZERO documents — failing closed "
+            "rather than reporting a clean tree")
     if findings:
         print("governance_claims_lint: FAIL — governance prose ahead of "
               "the mechanism (class: prose-classified-bypass):",
@@ -85,7 +209,8 @@ def main() -> int:
               f"sentence.", file=sys.stderr)
         return 1
     print(f"governance_claims_lint: OK — {len(governed_docs())} governance "
-          f"doc(s): every cited mechanism exists or is explicitly staged.")
+          f"doc(s): every cited mechanism exists or is explicitly staged; "
+          f"{len(scanned_for_claims)} doc(s) carry no unscoped security claim.")
     return 0
 
 
