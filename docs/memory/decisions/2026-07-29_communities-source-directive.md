@@ -17,6 +17,15 @@ and a consolidated founder-decision list (§9). Status: PROPOSAL — nothing bui
 until the founder ratifies §9. First increment if ratified is a read-only,
 licensed, lens-only Meetup beachhead for Austin.
 
+## Founder ratification (2026-07-29, follow-up)
+"Good with Communities as the category. I like find my people — it's a nice play
+in the Find My in an iphone. New trust category — bless communities."
+→ RATIFIED: **"communities"** is a new first-class trust category, and the lens
+is named **"Find your people"** (echoing iPhone "Find My"). STILL PENDING (do
+NOT build the ingestion path until ratified): scope/timing, Meetup licensing,
+FB/Nextdoor posture, feed integration, the values-exclusion safety line (§9 of
+the proposal).
+
 ## Foundational principles this must never violate
 AI never publishes · categories don't bleed (no `event` pipeline contact) ·
 no pay-to-rank (claim ≠ boost) · trust display (no badges, quiet provenance) ·

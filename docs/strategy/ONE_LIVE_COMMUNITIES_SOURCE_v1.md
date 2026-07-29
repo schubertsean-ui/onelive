@@ -6,9 +6,15 @@ point people to those sites to sign up but they'd find it on ours … design and
 honoring our foundational operating beliefs and principles become crucial."
 This proposes a THIRD content category — *communities* (ongoing groups/clubs) —
 alongside verified events and tastemaker posts, with its own trust category,
-card, placement, source tiers, safety line, and founder-decision list. STATUS:
-**PROPOSAL — not a license to build.** Nothing here ships until the founder
-ratifies the gap list in §9. Verbatim directive recorded at
+card, placement, source tiers, safety line, and founder-decision list.
+
+STATUS: **PARTIALLY RATIFIED (2026-07-29).** The founder BLESSED "communities"
+as a new trust category and RATIFIED the **"Find your people"** lens name
+("Good with Communities as the category. I like find my people — it's a nice
+play in the Find My in an iphone. New trust category — bless communities"). The
+remaining §9 decisions (scope/timing, Meetup licensing, FB/Nextdoor posture,
+feed integration, safety line) are STILL PENDING — this is not yet a license to
+build the ingestion path. Verbatim directives recorded at
 `docs/memory/decisions/2026-07-29_communities-source-directive.md`.
 
 ---
@@ -213,9 +219,11 @@ Consolidated so it's one sitting, not a dribble:
    (Recommendation: **hybrid**, §2.)
 5. **Community content/safety line** — ratify where the values-exclusion line
    sits (§6); this is a judgment only you should set.
-6. **The verbatim design intent** — confirm the "Find your people" lens + the
-   labeled feed band as the placement direction for the Stitch/design loop to
-   render against.
+6. **The verbatim design intent** — ✅ **RATIFIED 2026-07-29**: "communities" is
+   the trust-category name and **"Find your people"** is the lens name (a
+   deliberate echo of the iPhone "Find My"). The labeled feed band remains part
+   of the §9.4 feed-integration decision. This is the placement direction the
+   Stitch/design loop renders against.
 
 ## 10. If ratified — the smallest first increment
 
