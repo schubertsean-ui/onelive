@@ -75,6 +75,28 @@ def test_record_is_neither_harness_nor_certifiable(tmp_path):
     assert out["surface_beyond_record"] is False
 
 
+def test_vision_harness_is_recognized_separate_and_does_not_refuse(tmp_path):
+    """Founder-ratified 2026-07-29: the vision path is a SEPARATE, deliberately-
+    uncertified harness (off-by-default + human promote gate + adversarial
+    review), NOT the certified text extractor the exam runs. A change confined
+    to it classifies clean — no red-then-compensated refusal."""
+    out = ces.classify(_compare("ai/vision_provider.py", "worker/vision_extract.py"),
+                       tmp_path, tmp_path)
+    assert out["record_changed"] is False
+    # vision_provider.py is excluded from surface; worker/ was never surface.
+    assert out["surface"] == []
+    assert out["surface_beyond_record"] is False
+
+
+def test_vision_exclusion_is_no_smuggle_path(tmp_path):
+    """The exclusion must not become a way to sneak a CERTIFIED-harness change
+    through: a diff touching the vision file AND a certified text-harness file
+    still refuses on the certified file."""
+    with pytest.raises(SystemExit):
+        ces.classify(_compare("ai/vision_provider.py", "ai/golden_exam.py"),
+                     tmp_path, tmp_path)
+
+
 def test_record_plus_prompt_sets_both_flags(tmp_path):
     out = ces.classify(
         _compare("ai/golden/CERTIFIED_HARNESS.json", "ai/prompts.py"),
