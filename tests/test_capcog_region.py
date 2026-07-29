@@ -198,11 +198,36 @@ def test_county_evidence_decides_a_row_the_city_cannot():
     assert row_verdict({"county": "Nowhere County"}) is None
 
 
-def test_county_beats_city_when_they_disagree():
-    """The county is the definition; the place table is a convenience over it.
-    A mis-tagged city must not admit a row its county excludes."""
+def test_a_known_outside_signal_drops_the_row_even_against_an_in_market_county():
+    """PR #107: county-first precedence let a contradictory in-market county
+    field carry a known-outside CITY onto /tonight. A boundary whose job is
+    "never show San Antonio" resolves a contradiction to DROP, and this rule is
+    identical to the TypeScript rowVerdict so the two paths are one boundary."""
+    # Known-outside county still drops an in-market-looking city (unchanged):
     assert row_verdict({"county": "Bexar", "city": "Austin"}) is False
-    assert row_verdict({"venue_county": "Travis", "city": "San Antonio"}) is True
+    # Known-outside CITY now vetoes an in-market county (the fix):
+    assert row_verdict({"venue_county": "Travis", "city": "San Antonio"}) is False
+    assert row_verdict({"venue_county": "Travis", "venue_city": "San Antonio"}) is False
+    # A city string embedding a contradictory in-market county still drops on its
+    # known-outside city:
+    assert row_verdict({"venue_city": "San Antonio, Travis County, TX"}) is False
+    # County still RESCUES a merely-unrecognised city (True beats None):
+    assert row_verdict({"venue_county": "Travis", "venue_city": "Rollingwood"}) is True
+
+
+def test_a_bare_outside_county_name_in_the_city_field_is_dropped():
+    """PR #107 r2: a BARE outside county name in the city field — "Bexar",
+    "Comal", no word "County" — matched no city and no county_in_place, so it
+    returned UNKNOWN and the read path KEEPS unknowns. The city value is now read
+    as a bare county name too."""
+    for outside in ("Bexar", "Comal", "Guadalupe", "Bell"):
+        assert row_verdict({"venue_city": outside}) is False, outside
+    # A member county's name as the city value is in-market (kept):
+    for inside in ("Travis", "Llano", "Bastrop"):
+        assert row_verdict({"venue_city": inside}) is True, inside
+    # A real city and an unrecognised one are untouched:
+    assert row_verdict({"venue_city": "Austin"}) is True
+    assert row_verdict({"venue_city": "Nowheresville"}) is None
 
 
 def test_normalize_county_is_the_same_fact_written_four_ways():

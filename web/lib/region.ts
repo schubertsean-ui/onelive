@@ -194,8 +194,12 @@ export function rowVerdict(row: RegionRow): RegionVerdict {
   ];
   const cityRaw = firstUsable(row, ["venue_city", "city"]);
   if (cityRaw !== null) {
-    // The city string can itself carry a county ("San Antonio, Bexar County").
+    // The city string can carry a county ("San Antonio, Bexar County"), and the
+    // city field can itself BE a bare county name ("Bexar", "Comal" — no word
+    // "County"), which matched no city and no countyInPlace and leaked through
+    // as unknown (PR #107 r2). Read it all three ways.
     verdicts.push(inCapcogCounty(countyInPlace(cityRaw)));
+    verdicts.push(inCapcogCounty(cityRaw));
     verdicts.push(inCapcog(cityRaw));
   }
   if (verdicts.some((v) => v === false)) return false;

@@ -151,6 +151,26 @@ describe("CAPCOG boundary on the read path", () => {
     expect(rowVerdict({ county: "Nowhere County" })).toBe(null);
   });
 
+  it("a BARE outside county name in the city field is dropped (no 'County' word)", () => {
+    // PR #107 r2: "Bexar"/"Comal" in venue_city matched no city and no
+    // countyInPlace (which needs the word "County"), so it leaked through as
+    // unknown. The city value is now read as a bare county name too.
+    for (const outside of ["Bexar", "Comal", "Guadalupe", "Bell"]) {
+      expect(rowVerdict({ venue_city: outside })).toBe(false);
+    }
+    for (const inside of ["Travis", "Llano", "Bastrop"]) {
+      expect(rowVerdict({ venue_city: inside })).toBe(true);
+    }
+    expect(rowVerdict({ venue_city: "Austin" })).toBe(true);
+    expect(rowVerdict({ venue_city: "Nowheresville" })).toBe(null);
+    const out = filterToCapcog([
+      { venue_city: "Bexar", venue_name: "Smuggled" },
+      { venue_city: "Austin", venue_name: "Mohawk" },
+    ]);
+    expect(out.kept.map((r) => r.venue_name)).toEqual(["Mohawk"]);
+    expect(out.droppedOutside.map((r) => r.venue_name)).toEqual(["Smuggled"]);
+  });
+
   it("a contradictory in-market county cannot smuggle a known-outside city to the feed", () => {
     const out = filterToCapcog([
       { venue_county: "Travis", venue_city: "San Antonio", venue_name: "Majestic" },

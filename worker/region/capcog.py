@@ -292,22 +292,40 @@ COUNTY_FIELDS = ("venue_county", "county")
 
 
 def row_verdict(row: dict) -> Optional[bool]:
-    """TRI-STATE membership for a whole row, county evidence first.
+    """TRI-STATE membership for a whole row. Gather EVERY location signal, then
+    let a KNOWN-OUTSIDE reading from ANY of them win in the DROP direction.
 
-    County beats city because CAPCOG *is* ten counties: if a row says Bexar, no
-    amount of city ambiguity should let it through. A row is UNKNOWN only when
-    neither field decides it, and unknown is still never a guess.
+    A boundary whose whole job is "never show San Antonio" must treat a
+    CONTRADICTION as a drop, never a keep. Evaluator findings, PR #107:
+      - county-first precedence let a contradictory in-market county field carry
+        a known-outside city through ({"venue_county":"Travis","city":
+        "San Antonio"} was kept);
+      - a BARE outside county name in the city field ("Bexar", "Comal" — no word
+        "County") matched no city and no county_in_place, came back UNKNOWN, and
+        the read path KEEPS unknowns.
+
+    So the city value is read three ways — as a place, as a county embedded in a
+    string ("…, Bexar County, TX"), AND as a bare county name — and the verdict
+    is: any False (known outside) -> drop; else any True (known inside) -> keep;
+    else None (unrecognised) -> kept-and-counted. The earlier intent survives as
+    a consequence: county still RESCUES a merely-unrecognised city (True beats
+    None), and a known-outside county still drops an in-market-looking city
+    (False beats True). This is byte-for-byte the TypeScript rowVerdict rule so
+    the ingestion path and the web read path enforce ONE market boundary.
     """
-    verdict = in_capcog_county(_first_usable(row, COUNTY_FIELDS))
-    if verdict is not None:
-        return verdict
-    # A city string can itself carry the county ("San Antonio, Bexar County").
+    verdicts = [in_capcog_county(_first_usable(row, COUNTY_FIELDS))]
     city_raw = _first_usable(row, CITY_FIELDS)
     if city_raw is not None:
-        verdict = in_capcog_county(county_in_place(city_raw))
-        if verdict is not None:
-            return verdict
-    return in_capcog(city_raw)
+        # A city string can carry the county ("San Antonio, Bexar County"), and
+        # the city field can itself BE a bare county name ("Bexar", "Travis").
+        verdicts.append(in_capcog_county(county_in_place(city_raw)))
+        verdicts.append(in_capcog_county(city_raw))
+        verdicts.append(in_capcog(city_raw))
+    if any(v is False for v in verdicts):
+        return False
+    if any(v is True for v in verdicts):
+        return True
+    return None
 
 
 def region_report(rows: list) -> dict:
