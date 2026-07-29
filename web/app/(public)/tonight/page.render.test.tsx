@@ -65,7 +65,9 @@ describe("/tonight never renders an out-of-market event", () => {
       row({ venue_name: "Mohawk", venue_city: "Austin" }),
     ]);
     promoted.mockResolvedValue([
-      row({ venue_name: "Gruene Hall", venue_city: "New Braunfels" }),
+      // Seguin (Guadalupe) is still outside — Comal/New Braunfels is now
+      // in-market, so an out-of-market example must use a county that stays out.
+      row({ venue_name: "Seguin Coliseum", venue_city: "Seguin" }),
       row({ venue_name: "Cheatham", venue_city: "San Marcos" }),
     ]);
     const props = await render();

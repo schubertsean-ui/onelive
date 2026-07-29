@@ -36,11 +36,14 @@ from typing import Optional
 CAPCOG_COUNTIES: frozenset = frozenset({
     "bastrop", "blanco", "burnet", "caldwell", "fayette",
     "hays", "lee", "llano", "travis", "williamson",
-    # Gillespie (Fredericksburg wine country) — founder-directed 2026-07-29 to
-    # be IN the launch market. It is not one of CAPCOG's ten official counties,
-    # so the OneLive market = CAPCOG + Hill Country, not CAPCOG strictly; the
-    # name is kept for continuity but the SET is the source of truth.
-    "gillespie",
+    # Hill Country expansion — founder-directed 2026-07-29 to be IN the launch
+    # market. These are NOT CAPCOG's ten official counties, so the OneLive market
+    # = CAPCOG + Hill Country, not CAPCOG strictly; the name is kept for
+    # continuity but the SET is the source of truth. Gillespie = Fredericksburg
+    # wine country; Comal = New Braunfels/Gruene; Kendall = Boerne/Comfort;
+    # Kerr = Kerrville. Bexar (San Antonio), Guadalupe (Seguin) and Bell
+    # (Killeen/Temple) remain OUT.
+    "gillespie", "comal", "kendall", "kerr",
 })
 
 # Places within the member counties, keyed to their county. Incorporated cities,
@@ -97,6 +100,11 @@ CAPCOG_PLACES: dict = {
     # --- Gillespie (Hill Country wine country; founder-directed 2026-07-29) ---
     "fredericksburg": "gillespie", "stonewall": "gillespie",
     "harper": "gillespie", "doss": "gillespie", "willow city": "gillespie",
+    # --- Comal / Kendall / Kerr (Hill Country; founder-directed 2026-07-29) ---
+    "new braunfels": "comal", "gruene": "comal", "bulverde": "comal",
+    "garden ridge": "comal", "canyon lake": "comal", "spring branch": "comal",
+    "boerne": "kendall", "comfort": "kendall",
+    "kerrville": "kerr", "ingram": "kerr",
 }
 
 # Places we KNOW are outside CAPCOG. Not required for correctness — anything
@@ -111,15 +119,16 @@ KNOWN_OUTSIDE: dict = {
     "selma": "bexar", "terrell hills": "bexar", "universal city": "bexar",
     "windcrest": "bexar", "kirby": "bexar", "shavano park": "bexar",
     "balcones heights": "bexar", "china grove": "bexar",
-    # Comal / Guadalupe — the I-35 corridor south of Hays.
-    "new braunfels": "comal", "bulverde": "comal", "garden ridge": "comal",
-    "canyon lake": "comal", "spring branch": "comal",
+    # Guadalupe — the I-35 corridor south of Hays. (Comal is now IN-market —
+    # New Braunfels/Gruene/Canyon Lake — founder-directed 2026-07-29; it lives
+    # in CAPCOG_PLACES above. Guadalupe stays OUT.)
     "seguin": "guadalupe", "schertz": "guadalupe", "cibolo": "guadalupe",
     "marion": "guadalupe", "santa clara": "guadalupe",
-    # Bell / Lampasas / Kendall — the northern and western near-misses.
+    # Bell / Lampasas — the northern near-misses. (Kendall — Boerne/Comfort —
+    # is now IN-market, founder-directed 2026-07-29; see CAPCOG_PLACES.)
     "killeen": "bell", "temple": "bell", "belton": "bell", "harker heights": "bell",
     "copperas cove": "coryell", "salado": "bell", "nolanville": "bell",
-    "lampasas": "lampasas", "boerne": "kendall", "comfort": "kendall",
+    "lampasas": "lampasas",
     # Other Texas metros that appear in statewide feeds.
     "houston": "harris", "dallas": "dallas", "fort worth": "tarrant",
     "el paso": "el paso", "corpus christi": "nueces", "waco": "mclennan",
@@ -131,9 +140,9 @@ KNOWN_OUTSIDE: dict = {
     "wichita falls": "wichita", "denton": "denton", "plano": "collin",
     "arlington": "tarrant", "irving": "dallas", "frisco": "collin",
     "sugar land": "fort bend", "the woodlands": "montgomery",
-    # Kerrville (Kerr) stays outside; Fredericksburg/Gillespie is now IN-market
-    # (founder-directed 2026-07-29) and lives in CAPCOG_PLACES above.
-    "kerrville": "kerr", "gruene": "comal",
+    # Fredericksburg (Gillespie), New Braunfels/Gruene (Comal), Boerne (Kendall)
+    # and Kerrville (Kerr) are all now IN-market (founder-directed 2026-07-29)
+    # and live in CAPCOG_PLACES above.
 }
 
 

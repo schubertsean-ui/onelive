@@ -20,19 +20,21 @@ from worker.region.capcog import (
 )
 
 
-def test_market_is_capcog_ten_plus_gillespie_and_excludes_bexar():
-    # CAPCOG's ten official counties PLUS Gillespie (Fredericksburg Hill Country
-    # wine market), founder-directed 2026-07-29 — the launch market is
-    # CAPCOG + Hill Country, not CAPCOG strictly.
+def test_market_is_capcog_ten_plus_hill_country_and_excludes_bexar():
+    # CAPCOG's ten official counties PLUS the Hill Country expansion
+    # (founder-directed 2026-07-29): Gillespie, Comal, Kendall, Kerr — the launch
+    # market is CAPCOG + Hill Country, not CAPCOG strictly.
     assert CAPCOG_COUNTIES == {
         "bastrop", "blanco", "burnet", "caldwell", "fayette",
-        "hays", "lee", "llano", "travis", "williamson", "gillespie",
+        "hays", "lee", "llano", "travis", "williamson",
+        "gillespie", "comal", "kendall", "kerr",
     }
-    # The whole point: Bexar is not a member, however near the radius put it.
-    assert "bexar" not in CAPCOG_COUNTIES
-    assert "comal" not in CAPCOG_COUNTIES      # New Braunfels
-    assert "guadalupe" not in CAPCOG_COUNTIES  # Seguin
-    assert "bell" not in CAPCOG_COUNTIES       # Killeen / Temple / Belton
+    # The whole point still holds: Bexar is not a member, however near the radius
+    # put it — and Guadalupe/Bell remain out (only the named Hill Country
+    # counties were added, not the whole ring).
+    assert "bexar" not in CAPCOG_COUNTIES       # San Antonio
+    assert "guadalupe" not in CAPCOG_COUNTIES   # Seguin
+    assert "bell" not in CAPCOG_COUNTIES        # Killeen / Temple / Belton
 
 
 def test_the_san_antonio_venues_that_reached_the_live_feed_are_excluded():
@@ -55,9 +57,12 @@ def test_capcog_cities_across_all_ten_counties_are_included():
 
 
 def test_near_misses_inside_a_75_mile_radius_are_correctly_outside():
-    """Each of these is close enough to Austin to fall in the old circle."""
-    for city in ("New Braunfels", "Seguin", "Killeen", "Temple", "Belton",
-                 "Lampasas", "Bulverde", "Schertz", "Cibolo"):
+    """Each of these is close enough to Austin to fall in the old circle, and is
+    NOT one of the founder-added Hill Country counties — so still outside.
+    (New Braunfels/Bulverde — Comal — are now IN-market; see the Hill Country
+    test below.)"""
+    for city in ("Seguin", "Killeen", "Temple", "Belton",
+                 "Lampasas", "Schertz", "Cibolo"):
         assert in_capcog(city) is False, city
 
 
@@ -154,10 +159,11 @@ def test_region_report_separates_outside_from_unknown():
     assert r["outside_by_place"] == {"san antonio": 1}
     assert r["unknown_by_place"] == {"flavortown": 1}
     assert set(r["counties_covered"]) == {"travis", "hays"}
-    # The nine counties with no coverage are named, not implied by absence
-    # (eleven-county market: CAPCOG ten + Gillespie, minus the two covered).
+    # The counties with no coverage are named, not implied by absence
+    # (fourteen-county market: CAPCOG ten + Gillespie/Comal/Kendall/Kerr, minus
+    # the two covered).
     assert "llano" in r["counties_absent"]
-    assert len(r["counties_absent"]) == 9
+    assert len(r["counties_absent"]) == 12
 
 
 # ---- r12 evaluator findings: five ways the boundary was still defeatable -----
@@ -242,17 +248,22 @@ def test_an_in_market_city_sharing_an_outside_countys_name_is_kept():
     assert row_verdict({"venue_city": "Bexar"}) is False
 
 
-def test_gillespie_hill_country_is_in_market():
-    """Founder-directed 2026-07-29: Gillespie (Fredericksburg wine country) is IN
-    the launch market. Fredericksburg was previously KNOWN_OUTSIDE and would have
-    been dropped from /tonight — a Hill Country market the founder explicitly
-    wants included."""
-    assert "gillespie" in CAPCOG_COUNTIES
-    for shape in ("Fredericksburg", "Fredericksburg, TX", "Stonewall", "Harper"):
+def test_hill_country_expansion_is_in_market():
+    """Founder-directed 2026-07-29: Gillespie (Fredericksburg), Comal (New
+    Braunfels/Gruene), Kendall (Boerne) and Kerr (Kerrville) are IN the launch
+    market. These were previously KNOWN_OUTSIDE and would have been dropped from
+    /tonight — Hill Country the founder explicitly wants included."""
+    for county in ("gillespie", "comal", "kendall", "kerr"):
+        assert county in CAPCOG_COUNTIES, county
+    for shape in ("Fredericksburg", "Fredericksburg, TX", "Stonewall", "Harper",
+                  "New Braunfels", "Gruene", "Canyon Lake", "Boerne", "Comfort",
+                  "Kerrville"):
         assert row_verdict({"venue_city": shape}) is True, shape
-    assert in_capcog("Fredericksburg") is True
-    # Kerrville (Kerr county) is still outside — only Gillespie was added.
-    assert row_verdict({"venue_city": "Kerrville"}) is False
+    assert in_capcog("New Braunfels") is True
+    # San Antonio (Bexar), Seguin (Guadalupe) and Killeen (Bell) stay OUT — only
+    # the named Hill Country counties were added, not the whole near-miss ring.
+    for shape in ("San Antonio", "Seguin", "Killeen"):
+        assert row_verdict({"venue_city": shape}) is False, shape
 
 
 def test_a_trailing_period_does_not_smuggle_a_known_outside_city_through():
@@ -269,7 +280,7 @@ def test_a_bare_outside_county_name_in_the_city_field_is_dropped():
     "Comal", no word "County" — matched no city and no county_in_place, so it
     returned UNKNOWN and the read path KEEPS unknowns. The city value is now read
     as a bare county name too."""
-    for outside in ("Bexar", "Comal", "Guadalupe", "Bell"):
+    for outside in ("Bexar", "Guadalupe", "Bell"):
         assert row_verdict({"venue_city": outside}) is False, outside
     # A member county's name as the city value is in-market (kept):
     for inside in ("Travis", "Llano", "Bastrop"):
@@ -335,7 +346,7 @@ def test_a_county_named_only_INSIDE_the_city_string_is_still_CREDITED():
     assert set(r["counties_covered"]) == {"travis", "llano"}
     assert "travis" not in r["counties_absent"]
     assert "llano" not in r["counties_absent"]
-    assert len(r["counties_absent"]) == 9   # eleven-county market minus the two covered
+    assert len(r["counties_absent"]) == 12   # fourteen-county market minus the two covered
 
 
 def test_a_county_name_ALONE_in_the_field_is_still_county_evidence():

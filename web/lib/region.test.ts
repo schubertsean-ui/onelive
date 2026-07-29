@@ -15,12 +15,19 @@ describe("CAPCOG boundary on the read path", () => {
     const rows = [
       { venue_city: "San Antonio", venue_name: "Majestic Theatre" },
       { venue_city: "San Antonio", venue_name: "Freeman Expo Hall" },
-      { venue_city: "New Braunfels", venue_name: "Gruene Hall" },
+      { venue_city: "Seguin", venue_name: "Guadalupe (still outside)" },
       { venue_city: "Austin", venue_name: "Mohawk" },
     ];
     const out = filterToCapcog(rows);
     expect(out.kept.map((r) => r.venue_name)).toEqual(["Mohawk"]);
     expect(out.droppedOutside).toHaveLength(3);
+  });
+
+  it("keeps the Hill Country counties the founder added (Comal/Kendall/Kerr/Gillespie)", () => {
+    for (const city of ["New Braunfels", "Gruene", "Canyon Lake", "Boerne",
+                        "Comfort", "Kerrville", "Fredericksburg", "Stonewall"]) {
+      expect(inCapcog(city)).toBe(true);
+    }
   });
 
   it("KEEPS unrecognised cities and counts them, never silently drops", () => {
@@ -42,7 +49,10 @@ describe("CAPCOG boundary on the read path", () => {
   });
 
   it("rejects the near-misses that a 75-mile radius swept in", () => {
-    for (const city of ["San Antonio", "New Braunfels", "Seguin", "Killeen",
+    // New Braunfels (Comal) is now IN-market by founder direction; the ones
+    // still outside are San Antonio (Bexar), Seguin (Guadalupe) and the Bell
+    // county ring — none of which were added.
+    for (const city of ["San Antonio", "Seguin", "Killeen",
                         "Temple", "Belton", "Lampasas"]) {
       expect(inCapcog(city)).toBe(false);
     }
@@ -192,7 +202,7 @@ describe("CAPCOG boundary on the read path", () => {
     // PR #107 r2: "Bexar"/"Comal" in venue_city matched no city and no
     // countyInPlace (which needs the word "County"), so it leaked through as
     // unknown. The city value is now read as a bare county name too.
-    for (const outside of ["Bexar", "Comal", "Guadalupe", "Bell"]) {
+    for (const outside of ["Bexar", "Guadalupe", "Bell"]) {
       expect(rowVerdict({ venue_city: outside })).toBe(false);
     }
     for (const inside of ["Travis", "Llano", "Bastrop"]) {
