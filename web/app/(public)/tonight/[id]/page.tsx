@@ -25,6 +25,7 @@ import {
 } from "../../../../lib/detail";
 import ShareButton from "./ShareButton";
 import { shareCaveat } from "../../../../lib/share";
+import { listenLinks } from "../../../../lib/listen";
 
 // Server component — reads ONE event at request time. Deliberately NOT cached:
 // the same freshness rule the feed uses, for the same reason (an event that
@@ -185,6 +186,11 @@ export default async function EventDetailPage(
   // the call shows only when the number is dialable.
   const website = venueWebsite(event_.venue_url);
   const call = telHref(event_.venue_phone);
+  // "Hear them" (music player, Option A): search links to the act on the major
+  // services — MUSIC events with a named performer only ("hear them on Spotify"
+  // is nonsense for a lecture or exhibition).
+  const isMusic = event_.category === "live-music" || event_.category === "nightlife";
+  const listen = isMusic ? listenLinks(event_.performer) : [];
 
   return (
     <Shell>
@@ -270,6 +276,20 @@ export default async function EventDetailPage(
           ) : null}
           <ShareButton event={event_} />
         </div>
+
+        {/* Hear them (music player, Option A): search the act on the services
+            the listener already uses. A preview, not a claim — opens their own
+            Spotify/Apple/YouTube search. Music events with a performer only. */}
+        {listen.length ? (
+          <div className="dlisten">
+            <span className="dlisten-l">Hear them:</span>
+            {listen.map((l) => (
+              <a key={l.service} href={l.url} target="_blank" rel="noopener noreferrer">
+                {l.service} ↗
+              </a>
+            ))}
+          </div>
+        ) : null}
 
         {/* Trust display: the SAME trustDisplay the card uses, so the two
             surfaces cannot drift into different claims about one row. Quiet
