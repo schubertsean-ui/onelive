@@ -33,6 +33,8 @@ function ev(over: Partial<LicensedEvent> = {}): LicensedEvent {
     venue_address: null,
     venue_lat: null,
     venue_lng: null,
+    venue_url: null,
+    venue_phone: null,
     confidence: "confirmed",
     ...over,
   };

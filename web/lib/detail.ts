@@ -79,6 +79,42 @@ export function detailPrice(
   return { text: "See tickets", free: false, known: false };
 }
 
+// A dialable `tel:` href from a stored phone string (which may carry prose,
+// punctuation, or a leading country code). Digits only, preserving a leading
+// `+`; null when there aren't enough digits to be a real number — so a
+// tap-to-call control is only ever offered when it will actually dial.
+export function telHref(phone: string | null): string | null {
+  if (!phone) return null;
+  const plus = phone.trim().startsWith("+");
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 15) return null;
+  return `tel:${plus ? "+" : ""}${digits}`;
+}
+
+// Ticketing-provider hosts — a venue "url" pointing at one of these is a
+// THIRD-PARTY page, not the venue's own site.
+const PROVIDER_HOSTS = [
+  "ticketmaster.com", "livenation.com", "seatgeek.com", "eventbrite.com",
+];
+
+// The venue's OWN website, or null. A provider's stored venue url (often
+// `ticketmaster.com/venue/...`) must NOT be presented as "the venue's website"
+// in a confirm-with-the-venue affordance — a user could treat a ticketing page
+// as venue-confirmation authority (adversarial-review #101). So a provider-hosted
+// URL returns null here; only a genuine external venue domain passes. Real venue
+// sites for the rest arrive with the Places enrichment.
+export function venueWebsite(url: string | null): string | null {
+  const safe = httpOrNull(url);
+  if (!safe) return null;
+  try {
+    const host = new URL(safe).hostname.toLowerCase().replace(/^www\./, "");
+    if (PROVIDER_HOSTS.some((h) => host === h || host.endsWith("." + h))) return null;
+    return safe;
+  } catch {
+    return null;
+  }
+}
+
 // Only http(s) survives — a stored `javascript:` or `data:` URL must never
 // reach an href.
 export function httpOrNull(u: string | null): string | null {
