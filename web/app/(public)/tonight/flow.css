@@ -134,6 +134,42 @@
 .flow .row .mt { color: var(--dim); font-size: 12.5px; }
 .flow .row .pr { margin-left: auto; }
 
+/* ── Three-tier date buckets: This week / Later this month / Beyond ────────── */
+.flow .bucket { margin-top: 30px; }
+.flow .bucket:first-of-type { margin-top: 18px; }
+.flow .bhead {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-bottom: 12px;
+}
+.flow .bhead h2 { font-family: Georgia, serif; font-size: 24px; }
+.flow .bhead .bblurb { color: var(--dim); font-size: 12.5px; font-style: italic; }
+.flow .bhead .n { color: var(--glow); font-weight: 700; font-size: 14px; margin-left: auto; }
+
+/* Near-term bucket keeps the cultural-domain sub-grouping (h3, quieter than the
+   bucket h2). */
+.flow .dgroup { margin-bottom: 8px; }
+.flow .dgroup .sec { margin: 14px 0 6px; }
+.flow .dgroup .sec h3 { font-family: Georgia, serif; font-size: 17px; }
+.flow .dgroup .sec .n { color: var(--glow); font-weight: 700; font-size: 13px; }
+
+/* Compact + line lists. */
+.flow .clist { display: grid; gap: 8px; }
+.flow .llist { display: grid; gap: 4px; }
+
+/* Line tier — one scannable row for far-out dates. Terser than .row: no second
+   line, tighter padding. */
+.flow .lrow {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 6px 12px; border-bottom: 1px solid var(--line);
+}
+.flow .lrow .lwhen { color: var(--glow); font-weight: 700; font-size: 12.5px; min-width: 92px; white-space: nowrap; }
+.flow .lrow .lti { font-family: Georgia, serif; font-size: 15px; min-width: 0; flex: 1; }
+.flow .lrow .lven { color: var(--dim); font-size: 12.5px; text-align: right; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flow .lrow .pr { margin-left: 4px; }
+@media (max-width: 560px) {
+  .flow .lrow .lven { display: none; } /* keep the far-out line to date · act · price on small screens */
+}
+
 /* Confidence caution marker — quiet by design (no badge, no "confirmed" text).
    Always visible for any non-confirmed state; disputed reads a touch stronger
    but never alarming. Trust invariant: disputed/unverified are never hidden. */
