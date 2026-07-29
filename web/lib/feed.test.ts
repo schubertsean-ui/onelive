@@ -8,6 +8,7 @@ import {
   applyFilters,
   applyDesire,
   buildPlan,
+  genreFacet,
 } from "./feed";
 import type { LicensedEvent } from "./licensed";
 
@@ -165,5 +166,53 @@ describe("buildPlan — a suggestion assembled from the honest set", () => {
   });
   it("returns an empty plan when nothing fits (never throws/fabricates)", () => {
     expect(buildPlan([], "night", NOW)).toEqual([]);
+  });
+});
+
+describe("genre rail (canonical Layer-1) — facet + filter", () => {
+  const events = [
+    ev({ subsegment: "Alternative Rock" }), // -> indie-alternative
+    ev({ subsegment: "Indie" }), //            -> indie-alternative
+    ev({ subsegment: "Cumbia" }), //           -> latin
+    ev({ subsegment: "R&B" }), //              -> rnb-soul
+    ev({ subsegment: "Polka" }), //            -> null (Other, no chip)
+    ev({ subsegment: null }), //               -> null (Other, no chip)
+  ];
+
+  it("derives the present canonical genres with counts, most-common first", () => {
+    const rail = genreFacet(events);
+    expect(rail[0]).toEqual({ id: "indie-alternative", label: "Indie/Alternative", n: 2 });
+    const ids = rail.map((r) => r.id);
+    expect(ids).toContain("latin");
+    expect(ids).toContain("rnb-soul");
+    // "Polka" and the null subsegment contribute to NO chip (Other, not faked).
+    expect(rail.reduce((s, r) => s + r.n, 0)).toBe(4);
+  });
+
+  it("filters by canonical id — raw variants of one genre collapse together", () => {
+    const only = applyFilters(events, { genreIds: new Set(["indie-alternative"]) });
+    expect(only).toHaveLength(2); // both "Alternative Rock" and "Indie"
+  });
+
+  it("an empty genre set is no filter (the honest full set passes)", () => {
+    expect(applyFilters(events, { genreIds: new Set() })).toHaveLength(events.length);
+  });
+
+  it("does NOT classify a non-music event's subsegment as a music genre (#100)", () => {
+    // A dance PERFORMANCE (performing-arts) whose subsegment reads "Dance" must
+    // not become an Electronic/Dance music chip, nor filter into that set.
+    const ballet = ev({ category: "performing-arts", subsegment: "Dance" });
+    const rail = genreFacet([...events, ballet]);
+    // The ballet adds no chip and no count to electronic-dance.
+    const ed = rail.find((r) => r.id === "electronic-dance");
+    expect(ed).toBeUndefined();
+    // And it isn't captured by an electronic-dance genre filter.
+    expect(applyFilters([ballet], { genreIds: new Set(["electronic-dance"]) })).toHaveLength(0);
+  });
+
+  it("a row that doesn't canonicalize is narrowed out by a genre filter, never crashes", () => {
+    const latin = applyFilters(events, { genreIds: new Set(["latin"]) });
+    expect(latin).toHaveLength(1);
+    expect(latin[0].subsegment).toBe("Cumbia");
   });
 });

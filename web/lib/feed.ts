@@ -7,6 +7,7 @@
 // in position 13, must still be shown.
 
 import { DOMAINS, DOMAIN_LABEL, domainLabel, type DomainMeta } from "./domains";
+import { canonicalGenre, genreLabel, type GenreId } from "./genres";
 import type { LicensedEvent } from "./licensed";
 
 // ── Timing ───────────────────────────────────────────────────────────────────
@@ -69,7 +70,7 @@ export type FeedFilters = {
   tab?: DayTab;
   domains?: Set<string>; // category ids; empty/undefined = all
   areas?: Set<string>; // venue_area values
-  genres?: Set<string>; // subsegment values
+  genreIds?: Set<string>; // canonical Layer-1 genre ids (see lib/genres.ts)
   freeOnly?: boolean;
 };
 
@@ -78,13 +79,19 @@ export function applyFilters(events: LicensedEvent[], f: FeedFilters): LicensedE
     if (f.tab && !inDayTab(e, f.tab)) return false;
     if (f.domains && f.domains.size && !f.domains.has(normalizeDomain(e.category))) return false;
     if (f.areas && f.areas.size && !(e.venue_area && f.areas.has(e.venue_area))) return false;
-    if (f.genres && f.genres.size && !(e.subsegment && f.genres.has(e.subsegment))) return false;
+    // Genre is a LENS over the canonical taxonomy: match the row's raw genre
+    // words normalized to a Layer-1 id. A row that doesn't canonicalize (null)
+    // simply isn't in any selected genre — narrowed out, never hidden by trust.
+    if (f.genreIds && f.genreIds.size) {
+      const g = musicGenreOf(e);
+      if (!(g && f.genreIds.has(g))) return false;
+    }
     if (f.freeOnly && !(e.is_free || e.price_min === 0)) return false;
     return true;
   });
 }
 
-// Distinct areas / genres present in a set, with counts, most-common first.
+// Distinct venue AREAS present in a set, with counts, most-common first.
 export function facet(events: LicensedEvent[], key: "venue_area" | "subsegment"): Array<{ value: string; n: number }> {
   const m = new Map<string, number>();
   for (const e of events) {
@@ -92,6 +99,37 @@ export function facet(events: LicensedEvent[], key: "venue_area" | "subsegment")
     if (v) m.set(v, (m.get(v) ?? 0) + 1);
   }
   return [...m.entries()].map(([value, n]) => ({ value, n })).sort((a, b) => b.n - a.n);
+}
+
+// Genre is a MUSIC concept — only music-domain events carry a meaningful genre.
+// Running the lexicon over EVERY event mislabels e.g. a dance PERFORMANCE (a
+// performing-arts row whose subsegment "Dance" hits the electronic-dance
+// keyword) as a music genre, producing a fabricated chip and a misleading
+// filter result (adversarial-review #100). So genre is scoped to music domains;
+// a non-music row canonicalizes to null and contributes to no chip.
+const MUSIC_DOMAINS = new Set(["live-music", "nightlife"]);
+
+export function musicGenreOf(e: LicensedEvent): GenreId | null {
+  if (!MUSIC_DOMAINS.has(normalizeDomain(e.category))) return null;
+  return canonicalGenre(e.subsegment);
+}
+
+// The Layer-0 UI rail, DERIVED from local inventory: the canonical genres
+// actually present among MUSIC events in this set, most-common first, with
+// counts. A row that doesn't canonicalize (non-music, or an unknown label)
+// contributes to no chip — it's "Other", a growth signal, never a fabricated
+// genre. The caller slices to 8–12 chips.
+export function genreFacet(
+  events: LicensedEvent[],
+): Array<{ id: GenreId; label: string; n: number }> {
+  const m = new Map<GenreId, number>();
+  for (const e of events) {
+    const g = musicGenreOf(e);
+    if (g) m.set(g, (m.get(g) ?? 0) + 1);
+  }
+  return [...m.entries()]
+    .map(([id, n]) => ({ id, label: genreLabel(id), n }))
+    .sort((a, b) => b.n - a.n);
 }
 
 // ── The Ask layer — "what are you feeling?" desire lenses ─────────────────────

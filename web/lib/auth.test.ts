@@ -45,6 +45,35 @@ describe("authMode — the fail-closed gate resolver", () => {
     expect(authMode()).toBe("disabled");
   });
 
+  // The preview-500 regression: a preview that INHERITED the project's Clerk
+  // publishable key must still resolve to 'disabled', never 'clerk' — running
+  // the Clerk gate on a preview URL throws MIDDLEWARE_INVOCATION_FAILED (500).
+  it("a preview with the Clerk key present still -> disabled (no 500)", () => {
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    process.env.VERCEL_ENV = "preview";
+    expect(authMode()).toBe("disabled");
+    expect(authProviderActive()).toBe(false); // ClerkProvider is NOT rendered
+  });
+
+  // NO production fail-open: a present Clerk provider is NEVER overridden by a
+  // disable flag, so NEXT_PUBLIC_AUTH_DISABLED cannot flip a configured
+  // production deployment to public (adversarial-review #102).
+  it("a present Clerk key beats a disable flag in production -> clerk (no fail-open)", () => {
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_x";
+    process.env.VERCEL_ENV = "production";
+    process.env.NEXT_PUBLIC_AUTH_DISABLED = "1";
+    expect(authMode()).toBe("clerk");
+    expect(authProviderActive()).toBe(true);
+  });
+
+  // The disable flag is honored only where there is NO provider to override — a
+  // deliberate public deploy (go-live / no-provider), still an explicit choice.
+  it("an explicit disable with no provider (non-preview) -> disabled", () => {
+    process.env.VERCEL_ENV = "production";
+    process.env.NEXT_PUBLIC_AUTH_DISABLED = "1";
+    expect(authMode()).toBe("disabled");
+  });
+
   it("PRODUCTION never auto-opens — no provider, no flag -> unconfigured (fail closed)", () => {
     process.env.VERCEL_ENV = "production";
     expect(authMode()).toBe("unconfigured");

@@ -1,4 +1,13 @@
-# Genre taxonomy v1 — standards-based core, fine-grained on top (PROPOSAL for founder ratification; supersedes the flat 8 when ratified)
+# Genre taxonomy v1 — standards-based core, fine-grained on top (RATIFIED — founder 2026-07-29, "ratify-and-wire the 18 genres"; supersedes the flat 8)
+
+> **STATUS: RATIFIED & WIRED (2026-07-29).** The founder ratified the Layer-1
+> eighteen verbatim. Layer 1 is live in the product as `web/lib/genres.ts`
+> (the 18 + the lossless today's-8 map + the synonym lexicon seed +
+> `canonicalGenre()` normalizer) and surfaced as the derived Layer-0 genre rail
+> on `/tonight` (`genreFacet` in `web/lib/feed.ts`). Layer 2 + the full lexicon
+> proceed as config under normal gates. The hard pre-ratification Spotify
+> recheck was completed (see Sources) and the citation upgraded. Decision
+> record: `docs/memory/decisions/2026-07-29_genre-taxonomy-ratified.md`.
 
 Greppable summary: founder-directed (2026-07-15: "start with what's common
 or standard and architect it so we can improve on it… more fine grained and
@@ -11,8 +20,9 @@ LAYER 0 = the UI rail (8–12 chips per market, chosen from Layer 1 by local
 inventory — Austin's rail ≠ Nashville's rail). Search synonyms map spoken/
 typed vocabulary onto all layers. Unmatched search terms feed taxonomy
 growth (the voice-persona H5 loop). Everything is CONFIG, not code.
-STATUS: PROPOSAL — resolves the G-VT taxonomy gap with the R&B/Soul absence
-(exposed by voice persona #7) as its first proof case.
+STATUS: RATIFIED & WIRED (2026-07-29) — resolves the G-VT taxonomy gap with the
+R&B/Soul absence (exposed by voice persona #7) as its first proof case, now an
+exact home (canonicalGenre("R&B") === "rnb-soul").
 
 ## Layer 1 — the canonical 18 (the "common standard" core)
 
@@ -80,16 +90,29 @@ founder's "improve on it re: searches people do" made mechanical.
 
 Apple Music genre codes (hierarchical, partner docs): https://itunespartner.apple.com/music/support/5318-updated-genre-codes ·
 https://developer.apple.com/documentation/applemusicapi/music-genres —
-Spotify's two-tier reality (browse layer over thousands of microgenres;
-secondary source — verify against official Spotify documentation/data
-before ratification): https://www.spudart.org/blog/six-thousand-spotify-genres/ —
-Bandsintown live-event genre tagging + Spotify live-events integration:
+Spotify's two-tier reality (a small official BROWSE layer over thousands of
+microgenres). RECHECK 2026-07-29 (the hard pre-ratification gate, now cleared):
+the "thousands of microgenres" claim is confirmed against the AUTHORITATIVE
+source — Every Noise at Once (built by Glenn McDonald, Spotify's own genre-data
+lead), which maps ~6,000 named genres: https://everynoise.com/ (background:
+https://ca.billboard.com/business/streaming/spotify-s-former-data-alchemist-gives-every-song-a-genre).
+The honest correction to the prior draft: that 6,000 figure comes from Every
+Noise / Spotify's own data, NOT a "Spotify publishes 6,000 genres" doc page —
+Spotify's OFFICIAL API surface is the smaller browse-categories layer
+(https://developer.spotify.com/documentation/web-api). This STRENGTHENS the
+design: 6,000 is an analysis layer, not a choice layer; 18 is the choose-from
+tier. The earlier blog citation (spudart.org) is superseded by the two sources
+above. Bandsintown live-event genre tagging + Spotify live-events integration:
 https://www.artist.bandsintown.com/integrations/spotify
 
-## Ratification ask (G-VT partial resolution)
+## Ratification (G-VT partial resolution) — CLOSED 2026-07-29
 
-One founder decision: ratify the Layer-1 eighteen (or edit the list), and
-Layer 2 + Layer 0 + the lexicon proceed as config under normal gates.
-HARD pre-ratification check (not optional): the Spotify microgenre claim
-is re-verified against official Spotify documentation/data and the
-citation upgraded before the ratified doc becomes canon.
+RESOLVED. The founder ratified the Layer-1 eighteen verbatim
+("ratify-and-wire the 18 genres"). The HARD pre-ratification check — re-verify
+the Spotify microgenre claim against authoritative data and upgrade the
+citation — was completed (see Sources: Every Noise at Once + the official
+browse API; the spudart blog is superseded). Layer 2 + Layer 0 + the lexicon
+now proceed as config under normal gates. Wiring landed in the same change:
+`web/lib/genres.ts` (18 + lossless today's-8 map + synonym lexicon +
+`canonicalGenre`) and the derived Layer-0 rail on `/tonight`
+(`genreFacet`/`applyFilters` in `web/lib/feed.ts`).
