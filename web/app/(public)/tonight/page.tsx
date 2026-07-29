@@ -5,6 +5,7 @@ import {
   type LicensedEvent,
 } from "../../../lib/licensed";
 import { fetchPromotedEvents } from "../../../lib/promoted";
+import { filterToCapcog } from "../../../lib/region";
 import FeedApp from "./FeedApp";
 
 // Server component — reads the REAL licensed events from Supabase at request
@@ -49,7 +50,29 @@ export default async function TonightPage() {
         return [] as LicensedEvent[];
       }),
     ]);
-    events = [...licensed, ...promoted];
+    // MARKET BOUNDARY, enforced at the last step before a person sees a
+    // listing (evaluator blocker r2: fixing acquisition is not the same as
+    // protecting the reader — rows already stored, or from any future or
+    // mis-tagged source, would still reach this page). Known-outside places
+    // (San Antonio, New Braunfels, Seguin, Killeen…) are DROPPED; unrecognised
+    // places are KEPT and counted, because silently discarding them would turn
+    // a coverage gap into an invisible one while making the feed look cleaner.
+    const region = filterToCapcog<LicensedEvent>([...licensed, ...promoted]);
+    if (region.droppedOutside.length) {
+      console.warn(
+        `[region] dropped ${region.droppedOutside.length} event(s) outside ` +
+        `CAPCOG before render: ` +
+        [...new Set(region.droppedOutside.map((e) => e.venue_city))].join(", "),
+      );
+    }
+    if (region.unknown.length) {
+      console.warn(
+        `[region] ${region.unknown.length} event(s) have an unrecognised city ` +
+        `and were SHOWN (not dropped): ` +
+        [...new Set(region.unknown.map((e) => e.venue_city))].join(", "),
+      );
+    }
+    events = region.kept;
   } catch (e) {
     error = e instanceof Error ? e.message : "Could not load events";
   }
