@@ -11,16 +11,18 @@ reason or be green — never "red, but the charter compensates it elsewhere."
 
 `tools/classify_extraction_surface.py::on_surface` flagged **anything** under
 `ai/` as certified-extraction surface. The golden-exam exists to protect the
-attended-exam-**certified text extractor**; that catch-all also swept up
-`ai/vision_provider.py`, a genuinely separate module the text exam never runs
+attended-exam-**certified text extractor**; that catch-all also swept up the
+vision provider module (`ai/vision_provider.py`, which lands via PR #92 and is
+NOT in this PR's tree), a genuinely separate module the text exam never runs
 and the certified extractor never imports. So every vision PR got a designed
 refusal that the charter then patched as "NOT-manifest-bound, compensated by
 the adversarial review" — a standing red with no real cause.
 
 ## The fix
 
-`SEPARATE_UNCERTIFIED_HARNESS = {"ai/vision_provider.py"}` is excluded from
-`on_surface` before the `ai/` catch-all. A vision-only change now classifies
+`SEPARATE_UNCERTIFIED_HARNESS` (a frozenset naming the vision provider path,
+which lands via PR #92 and is not yet in this tree) is excluded from
+`on_surface` before the `ai/` catch-all. A vision-only change then classifies
 clean (green). The list is explicit and narrow: adding a new vision-path file
 is a deliberate gate-scoping change (founder-crucial).
 
