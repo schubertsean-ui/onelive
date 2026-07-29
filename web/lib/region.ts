@@ -153,54 +153,41 @@ export interface RegionRow {
   county?: string | null;
 }
 
-/** The first value that survives normalization.
- *
- *  NOT `a ?? b`: `??` only falls through on null/undefined, so an EMPTY STRING
- *  in the preferred field wins outright. `{ venue_city: "", city: "San
- *  Antonio" }` normalized to null, was classified unknown, and unknowns are
- *  KEPT — so a San Antonio row reached /tonight through a blank field.
- *  Evaluator finding, PR #74 r12. Whitespace does the same thing in the Python
- *  `or` form; both are fixed the same way. */
-function firstUsable(row: RegionRow, fields: (keyof RegionRow)[]): string | null {
-  for (const field of fields) {
-    const raw = row[field];
-    if (normalizePlace(raw) !== null) return raw as string;
-  }
-  return null;
-}
+// Every location field a row can carry. The boundary reads ALL of them — see
+// rowVerdict for why the "first usable field" shortcut was itself the bug.
+const LOCATION_FIELDS: (keyof RegionRow)[] = ["venue_county", "county", "venue_city", "city"];
 
-/** TRI-STATE membership for a whole row. Gather EVERY location signal, then let
- *  a KNOWN-OUTSIDE reading from any of them win in the DROP direction.
+/** TRI-STATE membership for a whole row. Read EVERY location field EVERY way,
+ *  then let a KNOWN-OUTSIDE reading from any of them win in the DROP direction.
  *
  *  A boundary whose whole job is "never show San Antonio" must treat a
- *  CONTRADICTION as a drop, never a keep: an in-market county paired with a
- *  known-outside city, or a city string that embeds a county contradicting the
- *  city it sits in. Evaluator finding, PR #107 (attacker-smuggle) — county
- *  precedence let `{ venue_county: "Travis", venue_city: "San Antonio" }` and
- *  `venue_city: "San Antonio, Travis County, TX"` reach /tonight, so a feed or
- *  insider could publish a known-outside listing just by adding a contradictory
- *  in-market county field.
+ *  CONTRADICTION as a drop, never a keep. Three evaluator findings on PR #107
+ *  are all the same shape — a known-outside value hidden behind an in-market
+ *  one — and are all closed by the same rule:
+ *    - county-first precedence let `{ venue_county:"Travis", venue_city:
+ *      "San Antonio" }` through (r1);
+ *    - a bare outside county name in the city field ("Bexar", no word "County")
+ *      leaked as unknown (r2);
+ *    - taking only the FIRST usable field let a known-outside value hide in the
+ *      OTHER field — `{ venue_county:"Travis", county:"Bexar" }` and
+ *      `{ venue_city:"Austin", city:"San Antonio" }` (r3).
  *
- *  Precedence: any `false` (known outside) → drop; else any `true` (known
- *  inside) → keep; else `null` (unrecognised) → kept-and-counted. The earlier
- *  intent is preserved as a consequence, not a special case: county evidence
- *  still RESCUES a row whose city is merely unrecognised (true beats null), and
- *  a known-outside county still drops a row whose city looks in-market (false
- *  beats true). What changes is that a known-outside CITY now also vetoes an
- *  in-market county — the symmetric hole the single-precedence rule left open. */
+ *  So there is no "preferred field" and no early return: gather a verdict from
+ *  every field, read each value THREE ways — as a place, as a bare county name,
+ *  and as a county embedded in a string ("…, Bexar County, TX") — and combine:
+ *  any `false` (known outside) → drop; else any `true` (known inside) → keep;
+ *  else `null` (unrecognised) → kept-and-counted. Consequences preserved:
+ *  county evidence still RESCUES a merely-unrecognised city (true beats null),
+ *  a known-outside county still drops an in-market-looking city (false beats
+ *  true), and an EMPTY preferred field can no longer hide a real value in the
+ *  fallback field (PR #74 r12) because every field is read, not just the first. */
 export function rowVerdict(row: RegionRow): RegionVerdict {
-  const verdicts: RegionVerdict[] = [
-    inCapcogCounty(firstUsable(row, ["venue_county", "county"])),
-  ];
-  const cityRaw = firstUsable(row, ["venue_city", "city"]);
-  if (cityRaw !== null) {
-    // The city string can carry a county ("San Antonio, Bexar County"), and the
-    // city field can itself BE a bare county name ("Bexar", "Comal" — no word
-    // "County"), which matched no city and no countyInPlace and leaked through
-    // as unknown (PR #107 r2). Read it all three ways.
-    verdicts.push(inCapcogCounty(countyInPlace(cityRaw)));
-    verdicts.push(inCapcogCounty(cityRaw));
-    verdicts.push(inCapcog(cityRaw));
+  const verdicts: RegionVerdict[] = [];
+  for (const field of LOCATION_FIELDS) {
+    const v = row[field];
+    verdicts.push(inCapcog(v));                       // as a place / city name
+    verdicts.push(inCapcogCounty(v));                 // as a bare county name
+    verdicts.push(inCapcogCounty(countyInPlace(v)));  // as a county inside a string
   }
   if (verdicts.some((v) => v === false)) return false;
   if (verdicts.some((v) => v === true)) return true;

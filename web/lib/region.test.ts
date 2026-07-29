@@ -151,6 +151,22 @@ describe("CAPCOG boundary on the read path", () => {
     expect(rowVerdict({ county: "Nowhere County" })).toBe(null);
   });
 
+  it("a known-outside value cannot hide in the fallback field (PR #107 r3)", () => {
+    // Reading only the FIRST usable field let a known-outside value hide behind
+    // an in-market one in the OTHER field. Every field is read now.
+    expect(rowVerdict({ venue_county: "Travis", county: "Bexar", venue_city: "Unlisted" }))
+      .toBe(false);
+    expect(rowVerdict({ venue_city: "Austin", city: "San Antonio" })).toBe(false);
+    // Symmetric: a known-outside CITY sitting in a COUNTY field is still caught.
+    expect(rowVerdict({ venue_county: "San Antonio" })).toBe(false);
+    const out = filterToCapcog([
+      { venue_city: "Austin", city: "San Antonio", venue_name: "Smuggled" },
+      { venue_city: "Austin", venue_name: "Mohawk" },
+    ]);
+    expect(out.kept.map((r) => r.venue_name)).toEqual(["Mohawk"]);
+    expect(out.droppedOutside.map((r) => r.venue_name)).toEqual(["Smuggled"]);
+  });
+
   it("a BARE outside county name in the city field is dropped (no 'County' word)", () => {
     // PR #107 r2: "Bexar"/"Comal" in venue_city matched no city and no
     // countyInPlace (which needs the word "County"), so it leaked through as

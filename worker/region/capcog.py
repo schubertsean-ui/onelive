@@ -291,39 +291,45 @@ CITY_FIELDS = ("venue_city", "city")
 COUNTY_FIELDS = ("venue_county", "county")
 
 
+LOCATION_FIELDS = ("venue_county", "county", "venue_city", "city")
+
+
 def row_verdict(row: dict) -> Optional[bool]:
-    """TRI-STATE membership for a whole row. Gather EVERY location signal, then
-    let a KNOWN-OUTSIDE reading from ANY of them win in the DROP direction.
+    """TRI-STATE membership for a whole row. Read EVERY location field EVERY way,
+    then let a KNOWN-OUTSIDE reading from ANY of them win in the DROP direction.
 
     A boundary whose whole job is "never show San Antonio" must treat a
-    CONTRADICTION as a drop, never a keep. Evaluator findings, PR #107:
-      - county-first precedence let a contradictory in-market county field carry
-        a known-outside city through ({"venue_county":"Travis","city":
-        "San Antonio"} was kept);
-      - a BARE outside county name in the city field ("Bexar", "Comal" — no word
-        "County") matched no city and no county_in_place, came back UNKNOWN, and
-        the read path KEEPS unknowns.
+    CONTRADICTION as a drop, never a keep. Three evaluator findings on PR #107
+    are all the same shape — a known-outside value hidden behind an in-market
+    one — and all close with the same rule:
+      - county-first precedence let {"venue_county":"Travis","city":
+        "San Antonio"} through (r1);
+      - a BARE outside county name in the city field ("Bexar", no word "County")
+        leaked as UNKNOWN and the read path keeps unknowns (r2);
+      - taking only the FIRST usable field let a known-outside value hide in the
+        OTHER field — {"venue_county":"Travis","county":"Bexar"} and
+        {"venue_city":"Austin","city":"San Antonio"} (r3).
 
-    So the city value is read three ways — as a place, as a county embedded in a
-    string ("…, Bexar County, TX"), AND as a bare county name — and the verdict
-    is: any False (known outside) -> drop; else any True (known inside) -> keep;
-    else None (unrecognised) -> kept-and-counted. The earlier intent survives as
-    a consequence: county still RESCUES a merely-unrecognised city (True beats
-    None), and a known-outside county still drops an in-market-looking city
-    (False beats True). This is byte-for-byte the TypeScript rowVerdict rule so
-    the ingestion path and the web read path enforce ONE market boundary.
+    So there is no "preferred field" and no early return: gather a verdict from
+    every field, read each value THREE ways — as a place, as a bare county name,
+    and as a county embedded in a string ("…, Bexar County, TX") — and combine:
+    any False (known outside) -> drop; else any True (known inside) -> keep; else
+    None (unrecognised) -> kept-and-counted. Consequences preserved: county still
+    RESCUES a merely-unrecognised city (True beats None), a known-outside county
+    still drops an in-market-looking city (False beats True), and an empty
+    preferred field can no longer hide a real value in the fallback (PR #74 r12).
+    This is byte-for-byte the TypeScript rowVerdict rule so the ingestion path
+    and the web read path enforce ONE market boundary.
     """
-    verdicts = [in_capcog_county(_first_usable(row, COUNTY_FIELDS))]
-    city_raw = _first_usable(row, CITY_FIELDS)
-    if city_raw is not None:
-        # A city string can carry the county ("San Antonio, Bexar County"), and
-        # the city field can itself BE a bare county name ("Bexar", "Travis").
-        verdicts.append(in_capcog_county(county_in_place(city_raw)))
-        verdicts.append(in_capcog_county(city_raw))
-        verdicts.append(in_capcog(city_raw))
-    if any(v is False for v in verdicts):
+    verdicts = []
+    for field in LOCATION_FIELDS:
+        v = row.get(field)
+        verdicts.append(in_capcog(v))                       # as a place / city name
+        verdicts.append(in_capcog_county(v))                # as a bare county name
+        verdicts.append(in_capcog_county(county_in_place(v)))  # as a county in a string
+    if any(x is False for x in verdicts):
         return False
-    if any(v is True for v in verdicts):
+    if any(x is True for x in verdicts):
         return True
     return None
 

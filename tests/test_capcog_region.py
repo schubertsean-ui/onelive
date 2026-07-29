@@ -215,6 +215,19 @@ def test_a_known_outside_signal_drops_the_row_even_against_an_in_market_county()
     assert row_verdict({"venue_county": "Travis", "venue_city": "Rollingwood"}) is True
 
 
+def test_a_known_outside_value_cannot_hide_in_the_fallback_field():
+    """PR #107 r3: reading only the FIRST usable field let a known-outside value
+    hide behind an in-market one in the OTHER field. Every field is read now."""
+    # Outside county hiding behind an in-market county field:
+    assert row_verdict({"venue_county": "Travis", "county": "Bexar",
+                        "venue_city": "Unlisted"}) is False
+    # Outside city hiding behind an in-market city field:
+    assert row_verdict({"venue_city": "Austin", "city": "San Antonio"}) is False
+    # Symmetric: a known-outside CITY sitting in a COUNTY field is still caught
+    # (every value is read as a place, a bare county, and an embedded county):
+    assert row_verdict({"venue_county": "San Antonio"}) is False
+
+
 def test_a_bare_outside_county_name_in_the_city_field_is_dropped():
     """PR #107 r2: a BARE outside county name in the city field — "Bexar",
     "Comal", no word "County" — matched no city and no county_in_place, so it
