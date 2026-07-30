@@ -146,11 +146,19 @@ money.**
   description) — the *principle* (a 3-second sensory taste without leaving the list) is
   kept and generalized. Spark Line + Emotion Glyph are **already domain-agnostic** (the
   emotion spec covers all verticals) — reaffirm.
-- **Tagline:** retire **"Less chaos. Real shows."** (already founder-directed
-  2026-07-22). Proposed replacement direction to test (not final): something that
-  carries *all-culture + least-attention + thriving* — e.g. *"Everything worth doing.
-  None of the noise."* / *"Your city, worth showing up for."* (founder picks/writes the
-  final line.)
+- **Tagline (WORK IN PROGRESS — founder writes/picks the final line):** retire
+  **"Less chaos. Real shows."** (already founder-directed 2026-07-22). The line should
+  do double duty on *all-culture breadth* and the *anti-attention → go-live-your-life →
+  thrive* arc, ideally hinging on the name's own word **"live"** (both *live* events and
+  *live* your life). Two registers worth keeping distinct — per the §0 phasing (v1 leads
+  with the practical; flourishing is the brand-level promise):
+  - *Brand / mission (aspirational):* **"Culture. Live. Flourish."** (founder) ·
+    **"Living Culture"** (founder) · **"Time to thrive"** (founder) · "Live your city." ·
+    "Where culture lives."
+  - *Product / utility (v1, practical):* **"All the things."** (founder) · "Everything
+    happening. None of the noise." · "Less screen. More scene." · "Know what's on. Go
+    live it." · "Find it. Go."
+  None final — a live brainstorm for the founder to react to.
 
 ---
 
