@@ -132,8 +132,15 @@ money.**
 - **Filters:** the 8 music genres → the **22-domain taxonomy + per-domain
   sub-categories** (already specified in `ONE_LIVE_CATEGORY_TAXONOMY_v1.md`), surfaced
   as member-default lenses.
-- **Feed title:** "Tonight in Austin" → generalized per market ("Tonight in
-  {community}"), spanning all culture.
+- **Feed title & window (time-aware, relative to *now*):** the title tracks the
+  current time of day rather than a static label — **"This morning in {community}" →
+  "This afternoon in {community}" → "Tonight in {community}"**, with **"Today in
+  {community}"** as the neutral all-day framing. The feed shows events **from *now*
+  forward**, dropping what's already ended; and it **surfaces and marks things in
+  progress** — events that started before now and are still going — as **"Happening
+  now" / "On now"** at the top, so the feed answers *"what can I do right now"* as well
+  as *later today/tonight*. The bounded daily edition still resolves at end of day
+  ("today/tonight ends"), but its title and window **advance with the clock**.
 - **Card anatomy:** the music-specific **"Hear it"** preview → a **per-domain preview**
   (music = listen; film = trailer; visual art/museum = image; talk/comedy = clip or
   description) — the *principle* (a 3-second sensory taste without leaving the list) is
