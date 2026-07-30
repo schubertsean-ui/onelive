@@ -27,8 +27,9 @@ time, the cultural-intelligence layer that helps communities, their culture, and
 people in them thrive and flourish.*
 
 Two altitudes, and the update must hold both:
-- **v1, the practical wedge (now):** find the good thing across *all* culture, know
-  what it's like, plan the night, go — at the least possible cost to your attention.
+- **v1, the practical wedge (now):** find the good thing across *all* culture —
+  including things you didn't know to look for ("I didn't know about that!") — know
+  what it's like, plan the night, go; all at the least possible cost to your attention.
 - **The ambition (the mountain):** unparalleled data, insight, and actionable content
   for individuals, organizations, and cities — all pointed at **thriving**. (Directional
   vision; each surface a later, separately-gated, founder-crucial build.)
@@ -51,8 +52,9 @@ Two altitudes, and the update must hold both:
 > the attention economy, and help people, their culture, and their communities thrive.
 >
 > **What ONE LIVE is.** The open, trusted **system of record for everything happening
-> in your community**, delivered at the **least possible cost to your attention**.
-> Culture becomes infrastructure, not content.
+> in your community**, delivered at the **least possible cost to your attention** —
+> your city's culture kept true and easy to reach, never repackaged as content to feed
+> an algorithm.
 >
 > **What ONE LIVE is not.** Not ticketing, not a social feed, not pay-to-play, not an
 > algorithm chasing engagement — and **not a walled garden, not free at the cost of
@@ -63,12 +65,16 @@ Two altitudes, and the update must hold both:
 > (Total Attention Cost)** to help people thrive by getting the information they want,
 > to do the things they want, to live the life they want.*
 >
-> **Objectives v1.** (1) Answer "what should I do?" across all culture in **under 10
-> seconds**, no account, loads under 2s. (2) **Completeness** — everything really
-> happening is findable; the junk and the thinness of what exists today are the bar we
-> beat. (3) **Discovery is never for sale.** (4) **Practical value now** — find it,
-> know what it's like, plan the night, go have a **great experience**; flourishing is
-> the later chapter.
+> **Objectives v1.** (1) Answer not just **"what should I do?"** but **"what *can* I
+> do?"** and **"what *could* I do?"** — and spark **"I didn't know about that!"** —
+> across all culture, in **under 10 seconds**, no account, loads under 2s. *Directed
+> intent, open possibility, and the delight of discovery.* (Guardrail: serendipity
+> surfaces **fast** and stays within the bounded daily edition — delight, never a
+> rabbit hole; discovery here is low-attention, not doomscroll bait.) (2)
+> **Completeness** — everything really happening is findable; the junk and the
+> thinness of what exists today are the bar we beat. (3) **Discovery is never for
+> sale.** (4) **Practical value now** — find it, know what it's like, plan the night,
+> go have a **great experience**; flourishing is the later chapter.
 
 ---
 
