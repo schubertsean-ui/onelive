@@ -18,6 +18,8 @@ a value from the **build**. This is the asymmetry that caused the mistakes.
 | `SUPABASE_URL` | **Yes** | **Server component** (runtime) | plain (no prefix) | **Yes — Sensitive is fine** | Read at request time in a server component; runtime env is injected then, so Sensitive is OK and no build-inlining is needed. |
 | `SUPABASE_ANON_KEY` | **Yes** | Server component (runtime) | plain (no prefix) | Yes — Sensitive is fine | Same as above. Value = the Supabase **publishable** key (`sb_publishable_…`). |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Only for the real stealth gate | Middleware + client | `NEXT_PUBLIC_` | No (it's a public client id anyway) | Turns on the Clerk allowlist gate instead of the open-preview mode. |
+| `CLERK_SECRET_KEY` | With the stealth gate | Middleware (server) | plain | Yes — Sensitive is fine | Clerk's server secret (`sk_…`); the SDK reads this name by default. Verifies the session server-side. |
+| `ONELIVE_ALLOWLIST` | With the stealth gate | Edge **middleware** (build-inlined) | plain | **NO — must be non-Sensitive** | Comma-separated tester emails (lowercased/trimmed, case-insensitive; empty ⇒ denies everyone, fail-closed — `web/lib/allowlist.ts`). Read by the edge gate, so like row 1 it must be build-visible; **redeploy to apply a change**. |
 
 Fallbacks the code accepts (so old setups keep working): auth also reads plain
 `AUTH_DISABLED`; Supabase also reads `NEXT_PUBLIC_SUPABASE_URL` /
@@ -45,6 +47,19 @@ compatibility only.
 Note: the two Supabase values are committed as PUBLIC defaults (publishable key
 + URL — safe by design, RLS is the boundary), so data works with no config;
 any env var overrides them. A real secret is never committed.
+
+## Custom domain
+
+The founder owns **`1live.co`** (registered at **GoDaddy**). It is the intended
+public address, pointed at the Vercel **Production** deployment.
+
+- Add `1live.co` + `www.1live.co` in Vercel → Settings → Domains; put the exact
+  DNS records Vercel shows into GoDaddy DNS (A record for the apex, CNAME for
+  `www`). Canonical: `1live.co`, with `www` redirecting to it.
+- Because it maps to **Production**, the domain shows the **stealth gate** (the
+  fail-closed default), NOT the open preview — so the Clerk gate + allowlist must
+  be configured before testers visit, or they hit `/access`. Full ordered
+  runbook: `docs/ops/GO_LIVE_TESTERS_CHECKLIST.md`.
 
 ## Verify without guessing — `/api/health`
 
