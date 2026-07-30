@@ -90,12 +90,6 @@ programmers.)*
 > 7. **No data sold without consent.**
 > 8. **Compete on the work, not money.**
 
-Note on the **70% split**: keep it as a specific commitment where it applies
-(artist/creator revenue from amplification/livestreaming and any future creator
-payments); the *general* principle above is fair economics + no pay-to-discover across
-all creator types. (Flag for founder: confirm the 70% figure generalizes or stays
-music/amplification-specific.)
-
 Also generalize **Venue Principles** and **Platform Rules** verbatim (they already read
 as culture-wide: appear by activity not payment; no sponsored discovery; no hidden
 boosts; no algorithmic suppression; no social-only listings).
@@ -228,8 +222,8 @@ The update generalizes and elevates; it relaxes nothing. Unchanged and binding:
 
 1. **Vision / Mission / Positioning (§1)** — adopt the all-culture, anti-attention,
    thriving statements as canon?
-2. **Creator & Organizer Bill of Rights (§2)** — generalize from "Artist"? And: does
-   the **70% split** generalize across creator types or stay music/amplification-specific?
+2. **Creator & Organizer Bill of Rights (§2)** — generalize from "Artist" to all
+   creators and organizers?
 3. **All-culture at launch (§3)** — supersede "expansion is earned" with all-domains-at-launch?
 4. **Taxonomy & surface language (§4)** — 22-domain filters, generalized feed title +
    per-domain preview; and pick/approve a new tagline direction.
