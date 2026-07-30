@@ -1,6 +1,22 @@
 # ONE LIVE — CHANGE LOG
 
 
+## 2026-07-29 — All-Culture v1 CANON UPDATE proposal (founder ratification pending)
+
+**Session type:** Founder-directed canon-update draft. Output:
+`docs/strategy/ONE_LIVE_ALL_CULTURE_V1_CANON_UPDATE_PROPOSAL_v1.md`. Status: PROPOSAL —
+drafts the actual replacement language to fold the founder's current direction into the
+stale music-first canon (propose-don't-unilaterally-rewrite). Contains: proposed
+all-culture Vision/Mission/Positioning; a generalized Creator & Organizer Bill of Rights
+(from music-only "Artist"); all-culture-at-launch (superseding "expansion is earned");
+22-domain taxonomy + de-music-ified surface language; the Least-Total-Attention-Cost
+principle; and an EXPANDED Heartbeat vision — "Cultural Intelligence for Thriving" —
+serving individuals / creators / organizations / cities with unparalleled, aggregate-only,
+consent-gated insight pointed at community + cultural + individual flourishing. Reaffirms
+all trust invariants unchanged; ends with a founder ratification checklist. No code/gate/
+threshold touched; applying it later edits docs only.
+
+
 ## 2026-07-29 — All-Culture v1 strategic analysis (founder-corrected premise)
 
 **Session type:** Founder-directed strategy analysis. Output:
