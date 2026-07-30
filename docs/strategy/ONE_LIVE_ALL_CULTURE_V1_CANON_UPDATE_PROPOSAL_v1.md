@@ -142,11 +142,18 @@ money.**
   I do right now"* as well
   as *later today/tonight*. The bounded daily edition still resolves at end of day
   ("today/tonight ends"), but its title and window **advance with the clock**.
-- **Card anatomy:** the music-specific **"Hear it"** preview → a **per-domain preview**
-  (music = listen; film = trailer; visual art/museum = image; talk/comedy = clip or
-  description) — the *principle* (a 3-second sensory taste without leaving the list) is
-  kept and generalized. Spark Line + Emotion Glyph are **already domain-agnostic** (the
-  emotion spec covers all verticals) — reaffirm.
+- **Card anatomy — the preview generalizes to every *type* ("a taste of the thing"):**
+  the music-specific **"Hear it"** becomes a **per-type preview** — a ~3-second sensory
+  taste, **inline, without leaving the list** — in whatever medium fits the type:
+  music = a track; **comedy = a bit/clip**; **cooking / food = a segment**; **author
+  talk / interview = a snippet**; film = a trailer; visual art / museum = an image or
+  walkthrough; theater / dance = a clip; lecture / ideas = a short quote or clip.
+  Every type within every domain gets its own version. The **principle is constant**
+  (activate curiosity with a *real* taste, three seconds, no redirect); the **format
+  adapts per type**. Spark Line + Emotion Glyph are **already domain-agnostic** (the
+  emotion spec covers all verticals) — reaffirm. (Label note: **"Hear it"** is
+  audio-specific and doesn't fit a clip or an image — a generalized label is a
+  founder/design call, e.g. *"Preview" / "Peek" / "Taste it" / "Sample."*)
 - **Tagline (WORK IN PROGRESS — founder writes/picks the final line):** retire
   **"Less chaos. Real shows."** (already founder-directed 2026-07-22). The line should
   do double duty on *all-culture breadth* and the *anti-attention → go-live-your-life →
