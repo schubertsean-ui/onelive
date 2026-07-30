@@ -91,7 +91,8 @@ programmers.)*
 > 2. **Never pay for discovery.**
 > 3. **Instant corrections.**
 > 4. **Proper representation** — accurate type, category, and description of the work.
-> 5. **Free access to your own data.**
+> 5. **Freely manage everything about you** — as an individual, group, or organization
+>    (access, correct, export, or delete your own data; you are in control).
 > 6. **Opt-in monetization / amplification.**
 > 7. **No data sold without consent.**
 > 8. **Compete on the work, not money.**
