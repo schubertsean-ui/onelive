@@ -41,9 +41,10 @@ def main(argv=None) -> int:
         log.error("TICKETMASTER_API_KEY is not set — cannot import. Failing closed.")
         return 2
 
-    log.info("scope: CAPCOG ~%d mi radius around Austin, sweeping %d rolling ~monthly "
-             "windows (breaks the ~1000/query deep-paging cap so every category is pulled). "
-             "Radius still approximate (R-025).", CAPCOG_RADIUS_MILES, args.windows)
+    log.info("scope: market = Austin core (~%d mi) + western Hill Country (Kerrville), "
+             "sweeping %d rolling ~monthly windows per center (breaks the ~1000/query "
+             "deep-paging cap; de-duped across centers). Circles still approximate "
+             "(R-025).", CAPCOG_RADIUS_MILES, args.windows)
     raws = list(fetch_events_capcog(key, windows=args.windows, per_window_pages=args.max_pages, size=100))
     norm = [n for n in (normalize_ticketmaster(e) for e in raws) if n]
     by_domain = Counter(n["category"] for n in norm)

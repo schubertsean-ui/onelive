@@ -42,9 +42,10 @@ def main(argv=None) -> int:
         log.error("SEATGEEK_CLIENT_ID is not set — cannot import. Failing closed.")
         return 2
 
-    log.info("scope: CAPCOG ~%d mi radius around Austin, sweeping %d rolling ~monthly "
-             "windows (full forward calendar so every category is pulled). "
-             "Radius still approximate (R-025).", CAPCOG_RANGE_MILES, args.windows)
+    log.info("scope: market = Austin core (~%d mi) + western Hill Country (Kerrville), "
+             "sweeping %d rolling ~monthly windows per center (full forward calendar; "
+             "de-duped across centers). Circles still approximate (R-025).",
+             CAPCOG_RANGE_MILES, args.windows)
     raws = list(fetch_events_capcog(cid, windows=args.windows, per_window_pages=args.max_pages, per_page=100))
     norm = [n for n in (normalize_seatgeek(e) for e in raws) if n]
     by_domain = Counter(n["category"] for n in norm)

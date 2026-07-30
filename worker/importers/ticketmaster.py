@@ -30,6 +30,26 @@ ROOT_URL = "https://app.ticketmaster.com/discovery/v2/events.json"
 CAPCOG_LATLONG = "30.2672,-97.7431"
 CAPCOG_RADIUS_MILES = 75
 
+# Western Hill Country center (Kerrville). The market counties added
+# 2026-07-29 (Gillespie/Fredericksburg, Kerr/Kerrville, Kendall/Boerne) sit WEST
+# of the 75-mi Austin circle, so their venues were PERMITTED by the read-path
+# boundary (worker/region/capcog.py) yet never FETCHED. A second acquisition
+# center covers them; a 45-mi radius from Kerrville reaches Fredericksburg
+# (~24 mi), Boerne (~34 mi) and Kerrville itself. Any out-of-market overflow the
+# wider net pulls in is trimmed by the read-path boundary, so widening
+# acquisition is trust-safe.
+HILL_COUNTRY_WEST_LATLONG = "30.0474,-99.1403"
+HILL_COUNTRY_WEST_RADIUS_MILES = 45
+
+# The market's acquisition centers: the CAPCOG core (Austin) + the western Hill
+# Country. fetch_events_capcog sweeps EVERY center and de-dupes across them, so a
+# show near the seam is fetched once. (R-025's precise fix is still county/city-
+# scoped queries; two circles is the pragmatic cover until then.)
+MARKET_CENTERS = [
+    (CAPCOG_LATLONG, CAPCOG_RADIUS_MILES),
+    (HILL_COUNTRY_WEST_LATLONG, HILL_COUNTRY_WEST_RADIUS_MILES),
+]
+
 
 def _get(url: str, timeout: int = 30) -> dict:
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
@@ -99,13 +119,12 @@ def fetch_events_capcog(
     windows: int = 6,
     window_days: int = 30,
     per_window_pages: int = 10,
-    latlong: str = CAPCOG_LATLONG,
-    radius: int = CAPCOG_RADIUS_MILES,
+    centers: "list[tuple[str, int]]" = MARKET_CENTERS,
     size: int = 100,
     sleep: float = 0.2,
     _now: Optional[_dt.datetime] = None,
 ) -> Iterator[dict]:
-    """Comprehensive CAPCOG fetch — breaks the Discovery API's deep-paging cap.
+    """Comprehensive market fetch — breaks the Discovery API's deep-paging cap.
 
     A single query truncates at ~1000 results (size*page < 1000), so a busy
     metro's calendar is silently cut off and low-volume categories (comedy,
@@ -113,6 +132,11 @@ def fetch_events_capcog(
     next `windows` rolling ~monthly time windows, deep-page each up to the cap,
     and de-duplicate by event id — pulling the FULL forward calendar across every
     category. `per_window_pages` is clamped to the API's 10-page ceiling.
+
+    We also sweep every acquisition CENTER (default MARKET_CENTERS: the Austin
+    core PLUS the western Hill Country), so the added western counties actually
+    get fetched. The single `seen` set spans centers AND windows, so a show in
+    the overlap between two circles is yielded exactly once.
     """
     api_key = api_key or os.environ.get("TICKETMASTER_API_KEY", "")
     if not api_key:
@@ -120,25 +144,26 @@ def fetch_events_capcog(
     pages = max(1, min(per_window_pages, 10))
     now = _now or _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
     seen: set[str] = set()
-    for i in range(max(1, windows)):
-        start = now + _dt.timedelta(days=i * window_days)
-        end = now + _dt.timedelta(days=(i + 1) * window_days)
-        for ev in fetch_events(
-            api_key,
-            latlong=latlong,
-            radius=radius,
-            size=size,
-            max_pages=pages,
-            start=_iso_z(start),
-            end=_iso_z(end),
-            sleep=sleep,
-        ):
-            eid = ev.get("id")
-            if eid is not None:
-                if eid in seen:
-                    continue
-                seen.add(eid)
-            yield ev
+    for latlong, radius in centers:
+        for i in range(max(1, windows)):
+            start = now + _dt.timedelta(days=i * window_days)
+            end = now + _dt.timedelta(days=(i + 1) * window_days)
+            for ev in fetch_events(
+                api_key,
+                latlong=latlong,
+                radius=radius,
+                size=size,
+                max_pages=pages,
+                start=_iso_z(start),
+                end=_iso_z(end),
+                sleep=sleep,
+            ):
+                eid = ev.get("id")
+                if eid is not None:
+                    if eid in seen:
+                        continue
+                    seen.add(eid)
+                yield ev
 
 
 def _summary(argv=None):

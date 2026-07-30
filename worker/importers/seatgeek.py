@@ -36,6 +36,23 @@ CAPCOG_LAT = 30.2672
 CAPCOG_LON = -97.7431
 CAPCOG_RANGE_MILES = 75
 
+# Western Hill Country center (Kerrville) — mirrors the Ticketmaster importer.
+# The market counties added 2026-07-29 (Gillespie, Kerr, Kendall) sit WEST of the
+# 75-mi Austin circle, so their venues were permitted by the read-path boundary
+# but never FETCHED. A 45-mi radius from Kerrville reaches Fredericksburg
+# (~24 mi), Boerne (~34 mi) and Kerrville; the read-path boundary trims any
+# out-of-market overflow, so this is trust-safe.
+HILL_COUNTRY_WEST_LAT = 30.0474
+HILL_COUNTRY_WEST_LON = -99.1403
+HILL_COUNTRY_WEST_RANGE_MILES = 45
+
+# The market's acquisition centers: (lat, lon, range_miles). fetch_events_capcog
+# sweeps EVERY center and de-dupes across them.
+MARKET_CENTERS = [
+    (CAPCOG_LAT, CAPCOG_LON, CAPCOG_RANGE_MILES),
+    (HILL_COUNTRY_WEST_LAT, HILL_COUNTRY_WEST_LON, HILL_COUNTRY_WEST_RANGE_MILES),
+]
+
 
 def _get(url: str, timeout: int = 30) -> dict:
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
@@ -120,14 +137,12 @@ def fetch_events_capcog(
     windows: int = 6,
     window_days: int = 30,
     per_window_pages: int = 10,
-    lat: float = CAPCOG_LAT,
-    lon: float = CAPCOG_LON,
-    range_miles: int = CAPCOG_RANGE_MILES,
+    centers: "list[tuple[float, float, int]]" = MARKET_CENTERS,
     per_page: int = 100,
     sleep: float = 0.2,
     _now: Optional[_dt.datetime] = None,
 ) -> Iterator[dict]:
-    """Comprehensive CAPCOG fetch — sweeps rolling time windows, de-dupes by id.
+    """Comprehensive market fetch — sweeps rolling time windows, de-dupes by id.
 
     A single unbounded query can truncate a busy metro's calendar at the API's
     practical deep-paging depth, and high-volume music crowds out low-volume
@@ -136,6 +151,10 @@ def fetch_events_capcog(
     de-duplicate by event id — pulling the FULL forward calendar across every
     category. Mirrors worker.importers.ticketmaster.fetch_events_capcog exactly,
     including the injectable `_now` for deterministic tests.
+
+    We also sweep every acquisition CENTER (default MARKET_CENTERS: the Austin
+    core PLUS the western Hill Country) so the added western counties get
+    fetched. The single `seen` set spans centers AND windows.
     """
     client_id = client_id or os.environ.get("SEATGEEK_CLIENT_ID", "")
     if not client_id:
@@ -143,26 +162,27 @@ def fetch_events_capcog(
     pages = max(1, per_window_pages)
     now = _now or _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
     seen: set = set()
-    for i in range(max(1, windows)):
-        start = now + _dt.timedelta(days=i * window_days)
-        end = now + _dt.timedelta(days=(i + 1) * window_days)
-        for ev in fetch_events(
-            client_id,
-            lat=lat,
-            lon=lon,
-            range_miles=range_miles,
-            per_page=per_page,
-            max_pages=pages,
-            start=_iso_naive(start),
-            end=_iso_naive(end),
-            sleep=sleep,
-        ):
-            eid = ev.get("id")
-            if eid is not None:
-                if eid in seen:
-                    continue
-                seen.add(eid)
-            yield ev
+    for lat, lon, range_miles in centers:
+        for i in range(max(1, windows)):
+            start = now + _dt.timedelta(days=i * window_days)
+            end = now + _dt.timedelta(days=(i + 1) * window_days)
+            for ev in fetch_events(
+                client_id,
+                lat=lat,
+                lon=lon,
+                range_miles=range_miles,
+                per_page=per_page,
+                max_pages=pages,
+                start=_iso_naive(start),
+                end=_iso_naive(end),
+                sleep=sleep,
+            ):
+                eid = ev.get("id")
+                if eid is not None:
+                    if eid in seen:
+                        continue
+                    seen.add(eid)
+                yield ev
 
 
 def _summary(argv=None):

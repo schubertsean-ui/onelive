@@ -170,9 +170,10 @@ def test_capcog_fetch_windows_and_dedupes(monkeypatch):
 
     calls = []
 
-    def fake_fetch_events(api_key, *, start=None, end=None, **kw):
-        calls.append((start, end))
-        # Each window returns two events; id "shared" recurs in every window.
+    def fake_fetch_events(api_key, *, start=None, end=None, latlong=None, radius=None, **kw):
+        calls.append((latlong, start, end))
+        # Each window returns two events; id "shared" recurs in every window AND
+        # every center — so it exercises cross-window AND cross-center dedup.
         yield {"id": f"w-{start[:10]}", "name": "unique per window"}
         yield {"id": "shared", "name": "same show seen in every window"}
 
@@ -180,12 +181,16 @@ def test_capcog_fetch_windows_and_dedupes(monkeypatch):
     fixed_now = dt.datetime(2026, 7, 24, tzinfo=dt.timezone.utc)
     out = list(tm.fetch_events_capcog("k", windows=3, _now=fixed_now))
 
-    assert len(calls) == 3  # swept three windows
+    # 2 market centers × 3 windows = 6 fetch calls, and BOTH centers are swept.
+    assert len(calls) == 6
+    centers_hit = {c[0] for c in calls}
+    assert centers_hit == {tm.CAPCOG_LATLONG, tm.HILL_COUNTRY_WEST_LATLONG}
     ids = [e["id"] for e in out]
-    assert ids.count("shared") == 1  # de-duped across windows
-    assert len([i for i in ids if i.startswith("w-")]) == 3  # one unique per window
-    # windows are consecutive and non-overlapping in ordering
-    assert calls[0][0] < calls[1][0] < calls[2][0]
+    assert ids.count("shared") == 1  # de-duped across windows AND centers
+    # one unique-per-window id, de-duped across the two centers (same dates)
+    assert len([i for i in ids if i.startswith("w-")]) == 3
+    # within a center, windows are consecutive and non-overlapping in ordering
+    assert calls[0][1] < calls[1][1] < calls[2][1]
 
 
 def test_tm_undefined_recovered_from_title_and_performer():
