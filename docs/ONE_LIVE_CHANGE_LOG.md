@@ -1,6 +1,35 @@
 # ONE LIVE — CHANGE LOG
 
 
+## 2026-07-29 — All-Culture v1 strategic analysis (founder-corrected premise)
+
+**Session type:** Founder-directed strategy analysis. Output:
+`docs/strategy/ONE_LIVE_ALL_CULTURE_V1_STRATEGIC_ANALYSIS_v1.md`. Status: PROPOSAL.
+
+- Re-runs the competitive/opportunity analysis under the founder's CURRENT premise
+  (which supersedes the stale music-first / "expansion-earned" framing in older canon):
+  v1 = ALL CULTURE at launch (all ~22 domains, not music-first), a dozen US markets,
+  text-me-events as a first-class surface, anti-attention-economy positioning ("least
+  Total Attention Cost"), starter Heartbeat at launch, and public-agency data as a
+  source strategy. Positioning captured in the founder's words (open, anti-attention,
+  help people thrive by doing).
+- Grounded in three cited research threads: US public/government open data for venues &
+  events (special-event permits, LIVES health standard, TABC, LibCal, Socrata); text-me
+  SMS/RCS reality (TCPA/10DLC/quiet-hours/cost/Community.com precedent); and the
+  all-culture competitor landscape + demand evidence (the graveyard, third-places/local-
+  news vacuum).
+- Core theses: (1) universal + neutral + all-culture local discovery is a category no
+  walled garden can structurally own (the unmonetizable long tail is orphaned); (2) the
+  QUALITY wedge — rich context without clutter beats both incumbent failure modes
+  (Do512 junk / Chronicle thinness) and LOWERS Total Attention Cost while enabling
+  "great experiences"; (3) public-agency data is the long-tail unlock; (4) the graveyard's
+  killers map onto design choices ONE LIVE already makes; (5) the honest risk is
+  habit-formation + dozen-market coverage/execution, not whether the need exists.
+- Flags the stale canon docs (non-music-expansion "earned" framing, music-first design
+  brief, Artist Bill of Rights) for a founder-approved all-culture-v1 update pass (§11).
+- No code changed; no gate/threshold/invariant touched.
+
+
 ## 2026-07-29 — Competitive threat & opportunity analysis (first market/competitive doc for ONE LIVE)
 
 **Session type:** Founder-requested strategy analysis. Output:
