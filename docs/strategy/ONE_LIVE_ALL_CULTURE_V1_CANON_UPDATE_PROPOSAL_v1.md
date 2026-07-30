@@ -137,8 +137,9 @@ money.**
   "This afternoon in {community}" → "Tonight in {community}"**, with **"Today in
   {community}"** as the neutral all-day framing. The feed shows events **from *now*
   forward**, dropping what's already ended; and it **surfaces and marks things in
-  progress** — events that started before now and are still going — as **"Happening
-  now" / "On now"** at the top, so the feed answers *"what can I do right now"* as well
+  progress** — events that started before now and are still going — simply as
+  **"Now"** (or "Happening now" / "On now") at the top, so the feed answers *"what can
+  I do right now"* as well
   as *later today/tonight*. The bounded daily edition still resolves at end of day
   ("today/tonight ends"), but its title and window **advance with the clock**.
 - **Card anatomy:** the music-specific **"Hear it"** preview → a **per-domain preview**
@@ -176,6 +177,34 @@ already grounded in design brief §2 "Automagic" and §6 behavioral architecture
 > to it. We give attention **back**, so people go live their lives. Trust is
 > foundational — who we are — not an attribute; these behavioral mechanics are white-hat
 > only, and safe to use *because* trust is foundational.
+
+---
+
+## 5A. Subscription & delivery surfaces — value comes to you
+
+*(New surface note. The **delivery side** of least Total Attention Cost: value reaches
+people in the channel they already live in, so they don't have to come and scroll. Each
+is a separately-gated build where it touches new services / PII / spend.)*
+
+All opt-in, consent-gated, never sold, easy to leave:
+- **Text me** (SMS/RCS) — the flagship (strategic analysis §4.3): a short, personalized
+  "what's on" digest, quiet-hours-safe, reply-to-refine.
+- **Email newsletter / digest** — an opt-in, personalized email of your community's
+  culture (your defaults, your cadence) — the calm-inbox version, no feed to scroll.
+- **Subscribable calendars (ICS feeds)** — subscribe your Google / Apple / Outlook
+  calendar to a **live feed** of your filtered events ("R&B this month," "my defaults,"
+  or a specific venue's / artist's / community's calendar) so what's on shows up where
+  you already plan your life. (Add-to-calendar handles a single event; **subscribe**
+  handles the ongoing feed.)
+- **A subscription hub** — sign up for and manage, in one place, the newsletters and
+  calendars you care about: ONE LIVE's, and — via ONE LIVE — the creators' / venues' /
+  organizations' **own** newsletters and calendars, with one-tap unsubscribe and full
+  control (Bill of Rights item 5).
+
+**Trust posture (binding):** explicit opt-in; **never sell numbers or emails**; data
+minimization; honor unsubscribe/revocation immediately; no surveillance. *(Distinct from
+ingestion: the newsletters/ICS feeds ONE LIVE **subscribes to as sources** are the sensor
+side; this section is what a **user chooses to receive**.)*
 
 Add the framing pair as canon: **practical value now, flourishing later.**
 
