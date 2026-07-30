@@ -143,17 +143,17 @@ money.**
   as *later today/tonight*. The bounded daily edition still resolves at end of day
   ("today/tonight ends"), but its title and window **advance with the clock**.
 - **Card anatomy — the preview generalizes to every *type* ("a taste of the thing"):**
-  the music-specific **"Hear it"** becomes a **per-type preview** — a ~3-second sensory
-  taste, **inline, without leaving the list** — in whatever medium fits the type:
-  music = a track; **comedy = a bit/clip**; **cooking / food = a segment**; **author
-  talk / interview = a snippet**; film = a trailer; visual art / museum = an image or
-  walkthrough; theater / dance = a clip; lecture / ideas = a short quote or clip.
-  Every type within every domain gets its own version. The **principle is constant**
-  (activate curiosity with a *real* taste, three seconds, no redirect); the **format
-  adapts per type**. Spark Line + Emotion Glyph are **already domain-agnostic** (the
-  emotion spec covers all verticals) — reaffirm. (Label note: **"Hear it"** is
-  audio-specific and doesn't fit a clip or an image — a generalized label is a
-  founder/design call, e.g. *"Preview" / "Peek" / "Taste it" / "Sample."*)
+  the music-specific **"Hear it"** becomes a **per-type preview** — a short,
+  medium-appropriate taste, **inline, without leaving the list** — in whatever medium
+  fits the type: music = a track; **comedy = a bit/clip**; **cooking / food = a
+  segment**; **author talk / interview = a snippet**; film = a teaser; visual art /
+  museum = an image or short walkthrough; theater / dance = a clip; lecture / ideas =
+  a short quote or clip. Every type within every domain gets its own version. The
+  **principle is constant** (activate curiosity with a *real* taste, no redirect); the
+  **format and length adapt per type** (durations + measurement in the spec below).
+  Spark Line + Emotion Glyph are **already domain-agnostic** — reaffirm. (Label note:
+  **"Hear it"** is audio-specific and doesn't fit a clip or an image — a generalized
+  label is a founder/design call, e.g. *"Preview" / "Peek" / "Taste it" / "Sample."*)
 - **Tagline (WORK IN PROGRESS — founder writes/picks the final line):** retire
   **"Less chaos. Real shows."** (already founder-directed 2026-07-22). The line should
   do double duty on *all-culture breadth* and the *anti-attention → go-live-your-life →
@@ -167,6 +167,60 @@ money.**
     happening. None of the noise." · "Less screen. More scene." · "Know what's on. Go
     live it." · "Find it. Go."
   None final — a live brainstorm for the founder to react to.
+
+### The preview ("Taste it") — format, duration & measurement (research-grounded)
+
+*(Design + measurement spec for the per-type preview. External best-in-class research
+cited below; the measurement framework is proposed and ties to the KPI framework.)*
+
+**Two clocks, not one — don't conflate them.** The old "3-second taste" mixed up:
+- the **HOOK** — the first **~1–3 seconds** that decide whether someone keeps watching
+  *this preview* or scrolls on (open on the peak — the drop, the punchline, the most
+  arresting frame — never a slow build); and
+- the **SAMPLE** — the *whole* taste, which is longer and **medium-specific**.
+
+**Sample durations per medium (recommended defaults — measure and tune):**
+
+| Type | Sample length | Design note |
+|---|---|---|
+| **Music** | **20–30s** | Open on the chorus/drop (the "best 30s"), not the intro. 30s is the industry-standard preview (Spotify/Apple); genre is recognizable in ~3s, so 30s is comfort margin. |
+| **Comedy / talk / interview** | **20–45s** | One *complete* bit or a single sharp point — a self-contained unit, not a 5-min audiobook-style sample (that becomes the show). |
+| **Film / theater / dance** | **15–30s teaser** | Teaser, not a 2.5-min trailer — a card is a scroll surface, and short avoids the trailer *spoiler/cannibalization* trap. |
+| **Cooking / visual art** | **strong still + 10–20s silent loop** | Visual reads instantly; atmosphere (plating, a gallery pan, hands working), not narration. |
+| **Lecture / ideas** | **20–40s** | One idea, landed. |
+
+**Universal rules:** cap at **~30s** (≤60s hard ceiling — engagement falls off a cliff
+past ~2 min); **muted autoplay only, never auto-sound** (uninvited sound is a dark
+pattern), with an obvious unmute and an honest still-frame fallback; **captions** (most
+previews are watched muted; also WCAG-AA); respect `prefers-reduced-motion`/`Save-Data`.
+
+**Decide-don't-consume (the core principle).** The preview's job is to *reduce the "will
+I like this?" uncertainty enough to decide to go* — **not** to substitute for the
+experience. Lead with the peak, **withhold the payoff** (a fragment, never a summary).
+Shorter is the anti-rabbit-hole *and* protects the creator: a taste drives attendance;
+a full set/talk cannibalizes it. (This is the "rich context that *lowers* Total Attention
+Cost" wedge — enough to choose well in seconds, then go.)
+
+**Measurement — three axes (the two you named + internal health):**
+- **Internal performance (is the taste working, and fast?):** preview **play/start
+  rate**; **3-second hold** (the best leading indicator — ≥50% functional, ≥60%
+  strong, <40% broken); **completion rate**; load latency (against the LCP budget).
+- **External USER value (the north-star):** **preview → decision** — the % of previews
+  that lead to a *save / add-to-calendar / plan / share / ticket-tap* — measured as
+  **job-done, not dwell** (consistent with §5); validated by **with-vs-without A/B** so
+  we isolate the preview's real lift, not raw views; plus the opt-in post-event "how was
+  it?" to check that a previewed choice led to a *good experience*.
+- **External CREATOR value (the supply-side promise, made honest):** **preview →
+  interest → attributed attendance** for their work — the measurable proof that ONE
+  LIVE sends real people to real creators (precedent: trailer-view velocity predicts
+  box office). Aggregate + consent-gated; never individual resale.
+
+**Judge previews by incremental lift in the target action (A/B with vs. without), never
+by view counts.** Foundational research: Spotify/Apple 30s previews; MPA 2:30 trailer
+cap + the spoiler critique; TikTok 1–3s hook retention; Netflix 30s muted autoplay
+("browse less, discover faster"); NN/g on autoplay + honest thumbnails; free-sampling
+studies (a sample reduces purchase uncertainty — give exactly enough to decide, then
+stop). (Full URLs in the research thread behind this spec.)
 
 ---
 
