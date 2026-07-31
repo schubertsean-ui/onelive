@@ -187,9 +187,6 @@ export default function FeedApp({ events, serverNowMs }: { events: LicensedEvent
 
   return (
     <main className="flow">
-      <div className="demobar">
-        Real, licensed events for the CAPCOG area — live from Ticketmaster. Private preview.
-      </div>
       <div className="wrap">
         <div className="mast">
           <h1>ONE LIVE · Tonight in Austin</h1>
