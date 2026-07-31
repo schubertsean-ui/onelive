@@ -127,7 +127,24 @@ and APPROVE if nothing user-reachable-today remains. Confirm the fail-closed \
 property from the diff/tests; if you cannot, it stays a blocker. A refined \
 restatement of a finding already fixed or already routed to an arming item is \
 not a new blocker. This exists because dormant, fail-closed code drew six \
-rounds of "once-armed" refinements that block nothing real (PR #106)."""
+rounds of "once-armed" refinements that block nothing real (PR #106).
+5. "THE GATE" MEANS VALIDATION, NOT A HUMAN CLICK (founder clarification \
+2026-07-31). Rule 1's "publishes AI output without the gate" is about output \
+reaching a user WITHOUT passing the trust-gate/earned-confidence validation — \
+fabricated or schema-invalid extractions, output that BYPASSES gate3 / the \
+confidence model / source-reliability grading, or a disputed event shown as \
+anything but disputed. It is NOT a violation for AI output to publish THROUGH \
+that validation without a human click: the founder RATIFIED (2026-07-25) \
+earned-confidence auto-publish, where an AI find is TRIANGULATED against \
+independent sources and published at its EARNED 4-state confidence \
+(unverified | likely | confirmed), with the deepest change fail-closed behind a \
+single flag (OFF by default) and the promote path still guarded by trust_gate's \
+import allowlist. So do NOT block an auto-publish change on the sole ground that \
+"a human did not approve it" — that is the intended, ratified design. DO still \
+block such a change if it publishes fabricated/unvalidated data, lets AI output \
+SKIP the confidence/reliability/gate checks, hides or downgrades a disputed \
+event, is not actually fail-closed, or removes the structural promote-allowlist \
+control — those remain real user-facing trust harms."""
 
 # --- Forced method lenses (v2): each lens is a PROCEDURE constraint that
 # redirects the model's search; findings/format/verdict rules are the

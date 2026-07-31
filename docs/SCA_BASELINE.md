@@ -20,20 +20,28 @@ evaluator finding, PR #11 round 2 — "npm ci succeeded is not security review."
 
 ## Current baseline
 
-HIGH/CRITICAL (machine-enforced — see `security/sca_allowlist.json`), reviewed 2026-07-24, founder-directed:
-
-| Advisory | Severity | Chain | Why accepted | Clears when |
-|---|---|---|---|---|
-| GHSA-6g55-p6wh-862q (postcss arbitrary file read via sourceMappingURL) | high | `postcss ≤8.5.11` ← `next` ← (`@clerk/nextjs`, `@sentry/nextjs`) | **No fix available upstream** (npm `fixAvailable:false`); postcss runs at build time over our own authored CSS, never attacker-controlled input. Expires 2026-08-24. | `next` publishes a release depending on postcss ≥ 8.5.12 — the gate auto-fails (fix now available); bump `next`, delete the entry. |
-| GHSA-f88m-g3jw-g9cj (sharp / libvips CVEs) | high | `sharp <0.35.0` ← `next` (optional image dep) | **No fix available upstream** (npm `fixAvailable:false`); the consumer feed uses CSS `background-image`, not `next/image`, so `sharp` is never in the runtime path. Expires 2026-08-24. | `next` publishes a release depending on sharp ≥ 0.35.0 — the gate auto-fails; bump `next`, delete the entry. |
-
-MODERATE (below the high/critical gate — not machine-blocked; tracked here), reviewed 2026-07-13, PR #11:
-
-| Advisory | Severity | Chain | Why accepted | Clears when |
-|---|---|---|---|---|
-| GHSA-qx2v-qp2m-jg93 (postcss XSS via unescaped `</style>` in stringify output) | moderate | `postcss` ← `next` ← (`@clerk/nextjs`, `@sentry/nextjs`) | **No fix available upstream** — pinned by `next`; not directly exploitable in our usage (we do not stringify user-controlled CSS). Below the high/critical gate. | `next` publishes a release depending on a patched postcss — re-checked on every web dependency PR. |
+**CLEAN as of 2026-07-31.** `npm audit --omit=dev` reports **zero** advisories at
+any severity, so `security/sca_allowlist.json` carries **no exceptions** (empty
+`entries`). The postcss and sharp advisories that previously required exceptions
+were removed at the root rather than suppressed: `web/package.json` pins
+`overrides` forcing `postcss` ≥ 8.5.12 (resolves 8.5.25) and `sharp` ≥ 0.35.0
+(resolves 0.35.3), so the patched packages replace the versions `next` pins.
+This is the real fix the exceptions' resolution triggers pointed to — because
+`next` still pins the vulnerable `postcss 8.4.31` / `sharp ^0.34.x` even at
+15.5.x and 16.x, a `next` bump alone was insufficient; the override reaches the
+patched packages deterministically (same result in CI and locally, ending the
+`fixAvailable` nondeterminism). Retained the SCA gate and its anti-rot rules
+unchanged; only the (now dead) exception rows were deleted.
 
 ## Resolved (kept for the record)
+
+- 2026-07-31: postcss/sharp advisories cleared by upgrading past them via
+  `overrides` (postcss ≥ 8.5.12 → 8.5.25, sharp ≥ 0.35.0 → 0.35.3). Removed
+  all three high/critical allowlist entries (GHSA-6g55-p6wh-862q,
+  GHSA-r28c-9q8g-f849, GHSA-f88m-g3jw-g9cj — R-048) and cleared the moderate
+  postcss row (GHSA-qx2v-qp2m-jg93 — R-003). `npm run build` + `typecheck` pass
+  unchanged; the SCA gate reports clean. Founder directive 2026-07-31 ("Do 1"):
+  upgrade to patched postcss/sharp, retire the exceptions.
 
 - 2026-07-13 (PR #11): `vitest`/`vite`/`esbuild` chain — 1 critical (Vitest UI
   arbitrary file read/execute), 1 high (Vite path traversal), 3 moderate.

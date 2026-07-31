@@ -283,6 +283,22 @@ def test_v2_discipline_scopes_to_user_facing_harm_and_pauses_ceremony():
     assert "RECOMMEND-RECORD" not in p
 
 
+def test_v2_discipline_defines_the_gate_as_validation_not_a_human_click():
+    # Founder clarification 2026-07-31: "the gate" is the trust-gate/earned-
+    # confidence validation, not a human click. The reviewer must NOT block the
+    # ratified earned-confidence auto-publish on the sole ground that no human
+    # approved it — while STILL blocking real harms (skipping the checks, hiding
+    # disputed, not fail-closed, dropping the promote allowlist). This test pins
+    # that clarification so a future edit cannot silently drop it and let the
+    # reviewer reflexively block the ratified auto-publish path.
+    p = ar.V2_DISCIPLINE
+    assert 'THE GATE" MEANS VALIDATION' in p
+    assert "did not approve it" in p          # the sole-ground-to-not-block
+    assert "TRIANGULATED" in p                # earned via corroboration
+    assert "fail-closed" in p and "allowlist" in p  # the protections that REMAIN
+    assert "hides or downgrades a disputed event" in p
+
+
 def test_single_lens_path_keeps_the_v1_prompt_unpolluted():
     # #71 r3 blocker: the bootstrap/fallback story claims "--panel absent
     # = v1 unchanged". The v2 discipline must therefore live OUTSIDE
