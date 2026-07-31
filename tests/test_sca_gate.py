@@ -210,18 +210,24 @@ def test_end_to_end_main_passes_on_real_shape(tmp_path, capsys):
 
 def test_the_shipped_allowlist_covers_current_audit(tmp_path):
     """The real committed allowlist must actually clear the current committed
-    audit shape (both known roots), or CI is red-by-construction."""
-    doc = _audit(
-        ("next", "high", None, False),
-        ("postcss", "high", "GHSA-6g55-p6wh-862q", False),
-        # Second postcss advisory, published upstream 2026-07-25 (path traversal
-        # in previous-source-map auto-loading). Same package/root-cause/exposure
-        # as the entry above, also fixAvailable=false. Added here because the
-        # LIVE audit now reports it — the gate's anti-rot rule fails any
-        # allowlist entry whose advisory is absent from the audit shape.
-        ("postcss", "high", "GHSA-r28c-9q8g-f849", False),
-        ("sharp", "high", "GHSA-f88m-g3jw-g9cj", False),
-    )
+    audit shape, or CI is red-by-construction.
+
+    As of 2026-07-31 the postcss/sharp advisories that previously required
+    exceptions were REMOVED from the tree at the root: web/package.json pins
+    `overrides` forcing postcss >= 8.5.12 and sharp >= 0.35.0, so the patched
+    packages resolve and `npm audit --omit=dev` reports zero high/critical
+    advisories. The shipped allowlist is therefore empty — no live advisory to
+    suppress, and (by the gate's anti-rot rule) no stale entry left behind. This
+    pins that post-fix invariant: a clean audit + an empty allowlist PASSES, and
+    the allowlist carries no exceptions that would go stale against a clean audit.
+    """
     al = sca_gate._load_allowlist(sca_gate._DEFAULT_ALLOWLIST, TODAY)
-    ok, lines = sca_gate.evaluate(doc, al, TODAY)
+    assert al == {}, (
+        "shipped SCA allowlist must be empty now that postcss/sharp are patched "
+        f"via overrides — found stale exceptions: {sorted(al)}"
+    )
+    # A clean production audit (the reality after the override upgrade) passes
+    # with the empty allowlist and produces no findings.
+    clean = _audit(("next", "high", None, False))  # transitive-only, no direct advisory
+    ok, lines = sca_gate.evaluate(clean, al, TODAY)
     assert ok is True, "\n".join(lines)
