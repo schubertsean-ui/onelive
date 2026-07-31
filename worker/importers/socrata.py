@@ -20,6 +20,7 @@ stated plainly so it is never mistaken for feed volume.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import urllib.parse
 import urllib.request
@@ -137,8 +138,19 @@ def normalize_venue_record(record: dict, field_map: dict, *, provider: str,
     out["latitude"] = _num(out["latitude"])
     out["longitude"] = _num(out["longitude"])
     out["capacity"] = _num(out["capacity"])
-    if not out.get("name") and not out.get("external_id"):
-        return None
+    if not out.get("external_id"):
+        # No stable id column in this dataset: synthesize a DETERMINISTIC id from
+        # the venue's own name + address so an idempotent re-import updates the
+        # same row instead of duplicating (venue_truth is keyed on external_id).
+        # A row with neither an id nor a name has nothing to anchor on — dropped,
+        # never fabricated.
+        if out.get("name"):
+            digest = hashlib.sha1(
+                f"{provider}|{source_name}|{out['name']}|{out.get('address') or ''}"
+                .encode("utf-8")).hexdigest()
+            out["external_id"] = f"{provider}:{digest}"
+        else:
+            return None
     out["source_provider"] = provider
     out["source_name"] = source_name
     out["raw"] = record
