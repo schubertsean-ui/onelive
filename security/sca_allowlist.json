@@ -13,45 +13,5 @@
     "A malformed entry or an unreadable allowlist FAILS the gate (fail-closed).",
     "Entries are scoped to an exact (package, ghsa). No wildcards."
   ],
-  "entries": [
-    {
-      "package": "postcss",
-      "ghsa": "GHSA-6g55-p6wh-862q",
-      "severity": "high",
-      "title": "PostCSS: arbitrary file read / info disclosure via attacker-controlled sourceMappingURL in CSS comments",
-      "chain": "postcss <=8.5.11  <-  next  <-  (@clerk/nextjs, @sentry/nextjs)",
-      "no_fix_reason": "npm reports fixAvailable=false: every Next.js release in range pins this postcss; postcss cannot be bumped independently without breaking next. No stable upstream fix exists yet.",
-      "operational_exposure": "LOW / not reachable. postcss runs at BUILD time over OUR OWN authored CSS (Tailwind output), never over attacker-controlled input at runtime. The advisory needs an attacker-controlled sourceMappingURL, which our build never ingests.",
-      "owner": "founder-directed 2026-07-24 (schubertsean@gmail.com)",
-      "added": "2026-07-24",
-      "expires": "2026-08-24",
-      "resolution_trigger": "Next.js publishes a release that depends on postcss >= 8.5.12 (npm audit fixAvailable flips to a version) -> bump next, delete this entry. Re-checked automatically on every web dependency change; hard re-review at expiry."
-    },
-    {
-      "package": "postcss",
-      "ghsa": "GHSA-r28c-9q8g-f849",
-      "severity": "high",
-      "title": "PostCSS: path traversal in previous-source-map auto-loading (sourceMappingURL)",
-      "chain": "postcss <=8.5.11  <-  next  <-  (@clerk/nextjs, @sentry/nextjs)",
-      "no_fix_reason": "npm reports fixAvailable=false. Newly published upstream (surfaced 2026-07-25); it is the SAME package and the SAME source-map-handling root cause as the already-approved GHSA-6g55-p6wh-862q entry above, and postcss is pinned by next, so it cannot be bumped independently. No stable upstream fix exists yet.",
-      "operational_exposure": "LOW / not reachable — IDENTICAL to the GHSA-6g55 analysis: postcss runs at BUILD time over OUR OWN authored CSS (Tailwind output), never over attacker-controlled input at runtime. The advisory requires an attacker-controlled sourceMappingURL, which our build never ingests.",
-      "owner": "AGENT-ADDED 2026-07-25 under time pressure to unblock PR #59 — PENDING FOUNDER RATIFICATION. It extends the founder-directed 2026-07-24 postcss exception to a new advisory id of the same package/root-cause/exposure; the founder may revoke it by deleting this entry (the gate then fails until next ships a patched postcss).",
-      "added": "2026-07-25",
-      "expires": "2026-08-24",
-      "resolution_trigger": "Next.js publishes a release depending on a patched postcss (npm audit fixAvailable flips) -> bump next, delete this entry. Shares the 2026-08-24 hard re-review date with the other postcss entry so both are reconsidered together."
-    },
-    {
-      "package": "sharp",
-      "ghsa": "GHSA-f88m-g3jw-g9cj",
-      "severity": "high",
-      "title": "sharp inherited libvips vulnerabilities (CVE-2026-33327/33328/35590/35591)",
-      "chain": "sharp <0.35.0  <-  next (optional image-optimization dependency)",
-      "no_fix_reason": "npm reports fixAvailable=false: sharp's version is bounded by the installed Next.js, which does not yet accept sharp >= 0.35.0. No stable upstream fix path without a next release.",
-      "operational_exposure": "LOW / not reachable at runtime. The consumer feed renders imagery via CSS background-image, NOT next/image, so sharp is never invoked in the request path. The libvips CVEs require processing attacker-supplied images through sharp, which this product does not do.",
-      "owner": "founder-directed 2026-07-24 (schubertsean@gmail.com)",
-      "added": "2026-07-24",
-      "expires": "2026-08-24",
-      "resolution_trigger": "Next.js publishes a release depending on sharp >= 0.35.0 (npm audit fixAvailable flips) -> bump next, delete this entry. Re-checked automatically on every web dependency change; hard re-review at expiry."
-    }
-  ]
+  "entries": []
 }
