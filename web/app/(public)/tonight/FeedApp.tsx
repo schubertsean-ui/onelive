@@ -134,7 +134,24 @@ function Lens({ e, side, onNow, onSide, onClose }: {
   const sheetRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     sheetRef.current?.focus();
-    function onKey(ev: KeyboardEvent) { if (ev.key === "Escape") onClose(); }
+    // Escape closes; Tab is trapped inside the sheet so keyboard focus can never
+    // wander to the (inert) feed behind the modal (evaluator #130 a11y note).
+    function onKey(ev: KeyboardEvent) {
+      if (ev.key === "Escape") { onClose(); return; }
+      if (ev.key !== "Tab") return;
+      const root = sheetRef.current;
+      if (!root) return;
+      const f = Array.from(
+        root.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+      );
+      if (f.length === 0) return;
+      const first = f[0];
+      const last = f[f.length - 1];
+      const active = document.activeElement;
+      if (active && !root.contains(active)) { ev.preventDefault(); first.focus(); return; }
+      if (ev.shiftKey && active === first) { ev.preventDefault(); last.focus(); }
+      else if (!ev.shiftKey && active === last) { ev.preventDefault(); first.focus(); }
+    }
     document.addEventListener("keydown", onKey);
     document.body.classList.add("lens-open");
     return () => {
@@ -165,55 +182,62 @@ function Lens({ e, side, onNow, onSide, onClose }: {
               <button type="button" role="tab" aria-selected={side === "artist"} className={side === "artist" ? "on" : ""} onClick={() => onSide("artist")}>Artist</button>
               <button type="button" role="tab" aria-selected={side === "venue"} className={side === "venue" ? "on" : ""} onClick={() => onSide("venue")}>Venue</button>
             </div>
+            {/* Trust marker lives in the header so it shows on BOTH tabs — the
+                modal covers the card's own marker, and a disputed/unverified
+                event's trust state must never be hidden behind the venue tab
+                (evaluator #130, absence-only lens: disputed shown-never-hidden). */}
+            <span className="lhtrust"><TrustMark e={e} /></span>
             <button type="button" className="lclose" onClick={onClose} aria-label="Close">×</button>
           </div>
 
-          {side === "artist" ? (
-            <div className="lbody">
-              <p className="lwhen2">{detailWhen(e)}{onNow ? <span className="onnow">on now</span> : null}</p>
-              <h3 className="lti2">{headline(e)}</h3>
-              {secondary ? <p className="lsub2">{secondary}</p> : null}
-              {focusLine(e) ? <p className="lfocus">{focusLine(e)}</p> : null}
-              {status ? <p className="lstatus">{status}</p> : null}
-              <div className="lact">
-                <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
-                {tix ? <a className="lbtn" href={tix} target="_blank" rel="noopener noreferrer">Get tickets ↗</a> : null}
-              </div>
-              {links.length ? (
-                <div className="llisten">
-                  <span className="llbl">Hear them</span>
-                  {links.map((l) => (
-                    <a key={l.service} className="lchip" href={l.url} target="_blank" rel="noopener noreferrer">{l.service} ↗</a>
-                  ))}
+          <div className="lbody">
+            {side === "artist" ? (
+              <>
+                <p className="lwhen2">{detailWhen(e)}{onNow ? <span className="onnow">on now</span> : null}</p>
+                <h3 className="lti2">{headline(e)}</h3>
+                {secondary ? <p className="lsub2">{secondary}</p> : null}
+                {focusLine(e) ? <p className="lfocus">{focusLine(e)}</p> : null}
+                {status ? <p className="lstatus">{status}</p> : null}
+                <div className="lact">
+                  <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
+                  {tix ? <a className="lbtn" href={tix} target="_blank" rel="noopener noreferrer">Get tickets ↗</a> : null}
                 </div>
-              ) : null}
-              <div className="lknow">
-                <span className="llbl">How we know</span>
-                <p>{sub.sheet}</p>
-              </div>
-              <Link className="lfull" href={eventHref(e)}>Open full page ↗</Link>
+                {links.length ? (
+                  <div className="llisten">
+                    <span className="llbl">Hear them</span>
+                    {links.map((l) => (
+                      <a key={l.service} className="lchip" href={l.url} target="_blank" rel="noopener noreferrer">{l.service} ↗</a>
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <h3 className="lti2">{e.venue_name ?? "Venue"}</h3>
+                {(e.venue_area || e.venue_city) ? (
+                  <p className="lsub2">{[e.venue_area, e.venue_city].filter(Boolean).join(" · ")}</p>
+                ) : null}
+                {map ? (
+                  <a className="laddr" href={map} target="_blank" rel="noopener noreferrer">{e.venue_address ? `${e.venue_address} ↗` : "Open in maps ↗"}</a>
+                ) : null}
+                <div className="lact">
+                  {tel ? <a className="lbtn" href={tel}>Call the venue</a> : null}
+                  {site ? <a className="lbtn" href={site} target="_blank" rel="noopener noreferrer">Venue website ↗</a> : null}
+                </div>
+                {!e.venue_address && !tel && !site ? (
+                  <p className="lgap">We only have this venue&rsquo;s name and area so far — more venue detail is on the way.</p>
+                ) : null}
+              </>
+            )}
+
+            {/* Provenance shown on EVERY tab — trust display is a property of the
+                event, not of the door you came through. */}
+            <div className="lknow">
+              <span className="llbl">How we know</span>
+              <p>{sub.sheet}</p>
             </div>
-          ) : (
-            <div className="lbody">
-              <h3 className="lti2">{e.venue_name ?? "Venue"}</h3>
-              {(e.venue_area || e.venue_city) ? (
-                <p className="lsub2">{[e.venue_area, e.venue_city].filter(Boolean).join(" · ")}</p>
-              ) : null}
-              {e.venue_address && map ? (
-                <a className="laddr" href={map} target="_blank" rel="noopener noreferrer">{e.venue_address} ↗</a>
-              ) : map ? (
-                <a className="laddr" href={map} target="_blank" rel="noopener noreferrer">Open in maps ↗</a>
-              ) : null}
-              <div className="lact">
-                {tel ? <a className="lbtn" href={tel}>Call the venue</a> : null}
-                {site ? <a className="lbtn" href={site} target="_blank" rel="noopener noreferrer">Venue website ↗</a> : null}
-              </div>
-              {!e.venue_address && !tel && !site ? (
-                <p className="lgap">We only have this venue&rsquo;s name and area so far — more venue detail is on the way.</p>
-              ) : null}
-              <Link className="lfull" href={eventHref(e)}>Open full page ↗</Link>
-            </div>
-          )}
+            <Link className="lfull" href={eventHref(e)}>Open full page ↗</Link>
+          </div>
         </div>
       </div>
     </div>

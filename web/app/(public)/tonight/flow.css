@@ -225,9 +225,13 @@ body.lens-open { overflow: hidden; }
 
 .lensroot .lhead {
   position: sticky; top: 0; z-index: 1; background: var(--night2);
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center;
   gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line);
 }
+/* Push the trust marker + close to the right; the switch stays left. The marker
+   is visible on both tabs (trust display is never hidden behind a tab). */
+.lensroot .lhtrust { margin-left: auto; display: inline-flex; align-items: center; }
+.lensroot .lhtrust .cau { margin-left: 0; }
 /* The switch — flip artist↔venue in either order (design canon §6). */
 .lensroot .lswitch { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
 .lensroot .lswitch button {
