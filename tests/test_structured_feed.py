@@ -13,6 +13,7 @@ import worker.importers.run_structured_import as runner
 from worker.importers.structured_feed import (
     PROVIDER_ICS,
     PROVIDER_JSONLD,
+    discover_ics_links,
     import_source,
     normalize_structured,
     parse_ics,
@@ -266,6 +267,104 @@ def test_import_source_autodetects_jsonld(monkeypatch):
     assert len(out) == 1
     assert out[0]["source_provider"] == "jsonld"
     assert out[0]["category"] == "live-music"  # hint honored end-to-end
+
+
+# ---- ICS-feed auto-discovery (the "16 of 18 sources yield zero" fix) ----------
+
+# A calendar INDEX page that renders its event list client-side: it carries NO
+# schema.org Event JSON-LD, but it advertises the same schedule as an iCalendar
+# feed three ways — the standard <link rel="alternate" type="text/calendar">, a
+# webcal: subscribe link, and a visible ".ics" download link (relative).
+HTML_NO_JSONLD_WITH_ICS = """<!doctype html>
+<html><head>
+  <title>Mohawk — Upcoming Shows</title>
+  <link rel="alternate" type="text/calendar" href="/events/feed.ics">
+</head><body>
+  <div id="calendar-app"><!-- events rendered by JS, no server-side markup --></div>
+  <a href="webcal://mohawkaustin.com/subscribe.ics">Subscribe</a>
+  <a href="https://mohawkaustin.com/download/shows.ics?token=x">Download .ics</a>
+  <a href="mailto:box@mohawkaustin.com">Email us</a>
+</body></html>"""
+
+
+def test_discover_ics_links_orders_and_resolves():
+    links = discover_ics_links(HTML_NO_JSONLD_WITH_ICS, "https://mohawkaustin.com/")
+    # <link rel=alternate> first (resolved relative → absolute), then webcal:
+    # rewritten to https:, then the .ics href. mailto: dropped.
+    assert links == [
+        "https://mohawkaustin.com/events/feed.ics",
+        "https://mohawkaustin.com/subscribe.ics",
+        "https://mohawkaustin.com/download/shows.ics?token=x",
+    ]
+
+
+def test_discover_ics_links_empty_when_no_feed():
+    assert discover_ics_links("<html><body>no calendar here</body></html>",
+                              "https://x/") == []
+
+
+def test_import_source_falls_back_to_advertised_ics(monkeypatch):
+    """An HTML calendar page with no JSON-LD must not report zero: import_source
+    finds the advertised .ics feed and parses it. This is the exact failure mode
+    that left 16 of 18 first-party 'cultural' sources empty on the live feed."""
+    fetched: list[str] = []
+
+    def fake_fetch(url, **kw):
+        fetched.append(url)
+        if url.endswith(".ics"):
+            return ICS_FIXTURE            # the advertised feed serves real events
+        return HTML_NO_JSONLD_WITH_ICS    # the index page has no JSON-LD
+
+    monkeypatch.setattr("worker.importers.structured_feed.fetch_url", fake_fetch)
+    out = import_source("https://mohawkaustin.com/", source_name="mohawk_austin")
+    assert len(out) == 2                                  # from ICS_FIXTURE
+    assert all(n["source_provider"] == "ics" for n in out)  # provenance is the feed
+    # The page was fetched first; the highest-priority feed (<link>) was used and
+    # no further feed URLs were fetched once it yielded events.
+    assert fetched[0] == "https://mohawkaustin.com/"
+    assert fetched[1] == "https://mohawkaustin.com/events/feed.ics"
+    assert len(fetched) == 2
+
+
+def test_import_source_ics_fallback_skips_dead_feed(monkeypatch):
+    """A first advertised feed that 404s is skipped (logged, not fatal) and the
+    next advertised feed is tried."""
+    def fake_fetch(url, **kw):
+        if url.endswith("feed.ics"):
+            raise OSError("HTTP Error 404: Not Found")
+        if url.endswith(".ics"):
+            return ICS_FIXTURE
+        return HTML_NO_JSONLD_WITH_ICS
+
+    monkeypatch.setattr("worker.importers.structured_feed.fetch_url", fake_fetch)
+    out = import_source("https://mohawkaustin.com/", source_name="mohawk_austin")
+    assert len(out) == 2  # recovered from the second advertised feed
+
+
+def test_import_source_no_jsonld_no_feed_returns_empty(monkeypatch):
+    """No JSON-LD and no advertised feed → honestly empty (the runner logs it and,
+    only if EVERY source is empty, fails loud). Never fabricated, never raised."""
+    monkeypatch.setattr("worker.importers.structured_feed.fetch_url",
+                        lambda url, **kw: "<html><body>rendered client-side</body></html>")
+    assert import_source("https://x/", source_name="empty_src") == []
+
+
+def test_import_source_prefers_jsonld_over_ics_fallback(monkeypatch):
+    """When the page DOES carry JSON-LD events, those are used and no ICS feed is
+    fetched — the fallback is only for the zero-JSON-LD case."""
+    html_with_both = HTML_JSONLD.replace(
+        "</head>", '<link rel="alternate" type="text/calendar" href="/f.ics"></head>')
+    fetched: list[str] = []
+
+    def fake_fetch(url, **kw):
+        fetched.append(url)
+        return html_with_both
+
+    monkeypatch.setattr("worker.importers.structured_feed.fetch_url", fake_fetch)
+    out = import_source("https://presenter.example/", source_name="presenter",
+                        cultural_domain="live-music")
+    assert len(out) == 1 and out[0]["source_provider"] == "jsonld"
+    assert fetched == ["https://presenter.example/"]  # ICS feed never fetched
 
 
 # ---- runner selection + fail-loud (no network, no DB) ------------------------

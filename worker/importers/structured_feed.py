@@ -26,6 +26,8 @@ from __future__ import annotations
 import datetime as _dt
 import hashlib
 import json
+import logging
+import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 from typing import Any, Optional
@@ -38,6 +40,8 @@ from worker.importers.domain_map import UNMAPPED, classify_from_title
 # supabase/migrations/0013_structured_feed_provider.sql) — HOW the row was parsed.
 PROVIDER_ICS = "ics"
 PROVIDER_JSONLD = "jsonld"
+
+log = logging.getLogger("structured_feed")
 
 _USER_AGENT = "OneLiveStructuredImporter/1.0 (+https://onelive.example; deterministic no-AI calendar import)"
 _ACCEPT = "text/calendar, text/html, application/xhtml+xml, application/ld+json;q=0.9, */*;q=0.5"
@@ -567,6 +571,102 @@ def normalize_structured(raw: dict, *, provider: str, source_name: str,
     }
 
 
+# ---- ICS feed auto-discovery from an HTML calendar page ----------------------
+#
+# Most first-party venue / civic / university calendars render their event LIST
+# in the browser (client-side JS) — so the index HTML carries no schema.org
+# Event JSON-LD to parse — yet they DO publish the same schedule as an iCalendar
+# feed, advertised as a <link rel="alternate" type="text/calendar"> in the page
+# head or a visible "Subscribe / Add to calendar" .ics / webcal: link. When the
+# JSON-LD parse of a page yields nothing, we look for that feed and parse it with
+# the already-proven parse_ics, instead of reporting the source as empty. This is
+# still first-party structured data (the venue's OWN .ics) — no AI, no scraping
+# of rendered HTML, no fabricated field.
+
+class _CalendarLinkExtractor(HTMLParser):
+    """Collect candidate iCalendar-feed URLs from an HTML page, kept in three
+    priority tiers so the most authoritative advertisement wins:
+
+      1. <link rel="alternate" type="text/calendar" href="…"> — the standard,
+         explicit feed declaration (highest confidence).
+      2. any href whose scheme is webcal: — a calendar-subscription link.
+      3. any href ending in '.ics' (querystring tolerated) — a download link.
+
+    href values are captured verbatim here; resolution to absolute URLs and
+    de-duplication happen in discover_ics_links so this parser stays a pure
+    collector.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.alternate: list[str] = []
+        self.webcal: list[str] = []
+        self.dotics: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, Optional[str]]]) -> None:
+        a = {k.lower(): (v or "") for k, v in attrs}
+        href = a.get("href", "").strip()
+        if not href:
+            return
+        t = tag.lower()
+        if t == "link":
+            rel = a.get("rel", "").lower()
+            typ = a.get("type", "").strip().lower()
+            if typ == "text/calendar" or ("alternate" in rel and typ == "text/calendar"):
+                self.alternate.append(href)
+            return
+        if t == "a":
+            low = href.lower()
+            if low.startswith("webcal:"):
+                self.webcal.append(href)
+            elif low.split("?", 1)[0].split("#", 1)[0].endswith(".ics"):
+                self.dotics.append(href)
+
+
+def _normalize_feed_url(href: str, base_url: str) -> Optional[str]:
+    """Resolve one discovered href to an absolute http(s) feed URL, or None if it
+    is not a fetchable calendar link. A 'webcal:' scheme (subscription form of an
+    ICS feed) is rewritten to 'https:' — urllib cannot open webcal, but the same
+    host serves the identical body over https. Only http(s)/webcal are accepted;
+    mailto:, tel:, javascript:, and data: are dropped."""
+    href = href.strip()
+    if href.lower().startswith("webcal:"):
+        href = "https:" + href[len("webcal:"):]
+    absolute = urllib.parse.urljoin(base_url, href)
+    scheme = urllib.parse.urlparse(absolute).scheme.lower()
+    if scheme not in ("http", "https"):
+        return None
+    return absolute
+
+
+def discover_ics_links(html: str, base_url: str, *, limit: int = 5) -> list[str]:
+    """Return up to `limit` absolute ICS-feed URLs advertised by an HTML calendar
+    page, most-authoritative first (declared <link> feeds, then webcal:, then
+    .ics hrefs), de-duplicated while preserving that order. Empty when the page
+    advertises no calendar feed."""
+    ex = _CalendarLinkExtractor()
+    try:
+        ex.feed(html)
+    except Exception as exc:  # noqa: BLE001 — a malformed page must not crash discovery
+        # html.parser is lenient, but never let a pathological page raise here:
+        # discovery is a best-effort fallback, so we LOG the parse failure (not
+        # silently swallow it) and fall through to whatever links were collected
+        # before the error — an empty result is the honest outcome, not a crash.
+        log.warning("ICS-link discovery: HTML parse raised (%s); using partial "
+                    "results (%d link(s) collected).", exc,
+                    len(ex.alternate) + len(ex.webcal) + len(ex.dotics))
+    seen: set[str] = set()
+    out: list[str] = []
+    for href in (*ex.alternate, *ex.webcal, *ex.dotics):
+        absolute = _normalize_feed_url(href, base_url)
+        if absolute and absolute not in seen:
+            seen.add(absolute)
+            out.append(absolute)
+            if len(out) >= limit:
+                break
+    return out
+
+
 # ---- fetch + auto-detect ------------------------------------------------------
 
 def fetch_url(url: str, *, timeout: int = 30) -> str:
@@ -589,14 +689,8 @@ def _detect_provider(text: str, provider_hint: Optional[str]) -> str:
     return PROVIDER_JSONLD
 
 
-def import_source(url: str, *, provider_hint: Optional[str] = None,
-                  source_name: str, cultural_domain: Optional[str] = None) -> list[dict]:
-    """Fetch `url`, auto-detect ICS vs HTML-with-JSON-LD, parse every event, and
-    return the normalized licensed_event dicts. provider_hint ('ics'|'jsonld')
-    forces the parser; otherwise the body is sniffed (BEGIN:VCALENDAR ⇒ ICS)."""
-    text = fetch_url(url)
-    provider = _detect_provider(text, provider_hint)
-    raws = parse_ics(text) if provider == PROVIDER_ICS else parse_jsonld(text)
+def _normalize_all(raws: list[dict], *, provider: str, source_name: str,
+                   cultural_domain: Optional[str]) -> list[dict]:
     out: list[dict] = []
     for raw in raws:
         n = normalize_structured(
@@ -604,4 +698,47 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
             cultural_domain=cultural_domain)
         if n:
             out.append(n)
+    return out
+
+
+def import_source(url: str, *, provider_hint: Optional[str] = None,
+                  source_name: str, cultural_domain: Optional[str] = None) -> list[dict]:
+    """Fetch `url`, auto-detect ICS vs HTML-with-JSON-LD, parse every event, and
+    return the normalized licensed_event dicts. provider_hint ('ics'|'jsonld')
+    forces the parser; otherwise the body is sniffed (BEGIN:VCALENDAR ⇒ ICS).
+
+    ICS-FEED FALLBACK: when the page is HTML (JSON-LD path) and carries NO
+    schema.org Event JSON-LD — the common case for a calendar whose event list is
+    rendered client-side — we look for an iCalendar feed the page advertises
+    (<link rel="alternate" type="text/calendar">, a webcal: link, or a visible
+    .ics link) and parse THAT with parse_ics. This is still the venue's own
+    first-party structured schedule; it turns "16 of 18 sources yield zero" into
+    real coverage without AI, scraping, or a fabricated field. A discovered feed
+    that fails to fetch is tried-then-skipped (logged, never fatal) so one dead
+    link does not sink the source; the caller's loud-fail on the PRIMARY fetch is
+    unchanged.
+    """
+    text = fetch_url(url)
+    provider = _detect_provider(text, provider_hint)
+    raws = parse_ics(text) if provider == PROVIDER_ICS else parse_jsonld(text)
+    out = _normalize_all(raws, provider=provider, source_name=source_name,
+                         cultural_domain=cultural_domain)
+    if out or provider == PROVIDER_ICS:
+        return out
+
+    # HTML page with no parseable JSON-LD events — try the advertised ICS feed.
+    for feed_url in discover_ics_links(text, url):
+        try:
+            feed_text = fetch_url(feed_url)
+        except OSError as exc:
+            log.warning("source %s: advertised ICS feed %s failed to fetch (%s) — "
+                        "trying next.", source_name, feed_url, exc)
+            continue
+        feed_events = _normalize_all(
+            parse_ics(feed_text), provider=PROVIDER_ICS,
+            source_name=source_name, cultural_domain=cultural_domain)
+        if feed_events:
+            log.info("source %s: %d event(s) via advertised ICS feed %s (page had "
+                     "no JSON-LD).", source_name, len(feed_events), feed_url)
+            return feed_events
     return out
