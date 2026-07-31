@@ -39,11 +39,12 @@ The engine is **half-built, and nothing runs it** — audited, not assumed:
 
 - `worker/publish_policy.py` (the DECISION layer) exists and is unit-tested. It
   ratifies the earned-confidence model (2026-07-25).
-- **`worker/autopromote.py` — the promoter its own docstring names as "the only
-  new promoter" — was never created** (confirmed absent from all of git history).
-- **`decide_publish()` is called by nothing** — it is an orphan, not wired into
-  the ingestion loop. Flipping `AUTO_PUBLISH_RATIFIED` on today would therefore
-  change nothing.
+- The promoter `worker/autopromote.py` its own docstring names as "the only new
+  promoter" is a **pending**, **future** build — absent from the tree today
+  (confirmed across all of git history; never created).
+- **`decide_publish()` is called by nothing** — it is an orphan; wiring it into
+  the ingestion loop is a **pending** step. Flipping `AUTO_PUBLISH_RATIFIED` on
+  today would therefore change nothing.
 - The **triangulation itself is not built**: `decide_publish` *consumes* a
   corroboration signal, but nothing *assembles* it — no component matches an AI
   find against other aggregators' feeds, venue social posts, licensed rows, or

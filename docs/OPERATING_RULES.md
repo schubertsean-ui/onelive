@@ -251,13 +251,15 @@ considered position, not a shrug.
 The agent is the **manager** and reports to the founder; driving work to done and
 keeping the founder informed is the agent's job, never the founder's to chase.
 
-1. **Shortest-possible follow-up.** Whenever a task, PR, or run needs a check-back,
-   schedule it for the **least amount of time possible**, and/or bind it to an
-   **activity-based wake trigger** (PR-webhook subscriptions for CI/reviews;
-   `send_later` for a short time-based fallback). Never pick a long, lazy interval;
-   never end a turn with in-flight work and no wake set.
-2. **Activity beats polling.** Prefer a trigger that fires on the real event over a
-   timer; use a short timer only as the fallback when no activity signal exists.
+1. **Keep working — no delays.** Default to **immediate continuation**: finish one
+   step, start the next, in the same run. Do NOT stop to schedule a far-out
+   check-in and do NOT sit on a timer. Long delays are banned (founder-directed
+   2026-07-31: *"Stop with the long delays and check-ins!"*).
+2. **Completion-triggered, not clock-triggered.** Continuation is driven by an
+   event finishing — a build step done, a PR going green, a CI/review webhook —
+   not by an arbitrary interval. Use the **activity wake** (PR-webhook
+   subscriptions) as the signal. Only if genuinely blocked on external state with
+   no event to wake on, use the **shortest** possible timer, never a long one.
 3. **Own it; report, don't ask.** Decisions the agent can make and reversibly
    verify, the agent makes — then reports the outcome. Do not park buildable work
    as a founder "switch/decision" when the honest blocker is unbuilt code. Naming

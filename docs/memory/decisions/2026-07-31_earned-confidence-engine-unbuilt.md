@@ -16,10 +16,12 @@ the corrected principle:
 
 - `worker/publish_policy.py` (decision layer) exists, is unit-tested, ratified
   2026-07-25.
-- `worker/autopromote.py` — the promoter that module's docstring names — **never
-  existed** (checked across all of git history).
-- `decide_publish()` is **called by nothing**; it is not wired into the loop.
-  `AUTO_PUBLISH_RATIFIED` gates code that never runs.
+- The promoter `worker/autopromote.py` that that module's docstring names is a
+  **pending** build (a **future** file, not covered by the tree today; confirmed
+  absent across all of git history — it was never created).
+- `decide_publish()` is **called by nothing**; wiring it into the loop is a
+  **pending** step, so `AUTO_PUBLISH_RATIFIED` currently gates code that never
+  runs.
 - The **triangulation/corroboration assembly is not built** — nothing matches an
   AI find against independent sources to *earn* multi-source confidence;
   `decide_publish` only consumes a signal that is never assembled.
@@ -32,8 +34,9 @@ That is the skip, owned by the agent (the manager).
 
 ## Correction / build plan (manager-owned, not a founder toggle)
 
-1. Build `worker/autopromote.py` — run `decide_publish` inside the loop; stays
-   fail-closed OFF; nothing publishes until safeguards are proven live.
+1. Build the **pending** `worker/autopromote.py` (a **future** promoter) — it will
+   run `decide_publish` inside the loop; stays fail-closed OFF; nothing publishes
+   until the safeguards are proven live.
 2. Build the triangulation/corroboration engine — match each AI find against
    licensed rows, structured/ICS/calendar-platform feeds, venue social, and
    `gov_open_data` venue-truth, so confidence is earned.
