@@ -353,10 +353,22 @@ insights (premium dashboards, city contracts)."* This section defines how the in
 convert into external insight products **without** breaking a single trust invariant.
 
 ### Built on resolved ground truth (trustworthy by construction)
-Heartbeat insights consume the **resolved strata** — post-gate, verified event ground truth —
-**never raw unresolved belief** (`CONVERGENCE_v1.md §8`, H10). An ingestion error the closure
-loop later catches can never pollute an insight: the cultural layer inherits the trust layer's
-verification for free. Every external number is as honest as the internal one (§0.1).
+Heartbeat insights consume the **resolved strata** — the trust layer's **settled, published
+output** (post-gate promoted events, each carrying its confidence state) — **never raw
+unresolved pre-gate belief** (`CONVERGENCE_v1.md §8`, H10). An ingestion error the closure loop
+later catches can never pollute an insight, because the raw pre-gate layer where such errors
+live is exactly what's excluded; a later correction updates the resolved state and the snapshot
+follows it. Every external number is as honest as the internal one (§0.1).
+
+**"Resolved" means all four confidence states, disputed included — NOT "confirmed only."** This
+is the load-bearing distinction, and getting it wrong would break two of our own invariants:
+dropping `disputed`/`unverified` events would (a) violate *disputed shown-never-hidden* by
+erasing real activity from the cultural picture, and (b) make the confidence-distribution (§2B)
+and coverage (§2A) metrics uncomputable. So the **confidence state travels into every insight as
+a dimension** — a city dashboard reads "X confirmed, Y disputed," honestly, disputed always
+labeled and never hidden. What "resolved" excludes is *only* the raw pre-gate candidate/belief
+churn, not the published low-confidence or disputed events (which are themselves resolved
+states). Insights are thus poison-proof *and* fully faithful to the four-state model.
 
 ### The three audiences (same lenses, pointed at the culture instead of at us)
 Each gets the *same* four lenses (breadth/depth/accuracy/usage) and the *same* ITR
@@ -386,7 +398,9 @@ and time:
    never reorder the discovery feed. The no-pay-to-rank invariant applied to the insights
    business: the insights surface is **walled off from the discovery pipeline exactly as
    tastemaker posts are.**
-5. **Resolved strata only** — verified ground truth, never live/unresolved belief.
+5. **Resolved strata only** — the trust layer's settled/published output across **all four
+   confidence states (disputed included, carried as a dimension)**, never raw pre-gate
+   unresolved belief. "Resolved" ≠ "confirmed-only" (see the note above).
 
 ### Status & prerequisites
 Heartbeat Analytics as a **monetized product is a net-new surface** (money flows, new services,
