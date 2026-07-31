@@ -29,9 +29,12 @@ added; tracked as a follow-up.)
 
 ---
 
-## 1. What is on the live feed RIGHT NOW (~1,397 events)
+## 1. Baseline snapshot — the feed as of 2026-07-30 (~1,397 events)
 
-Source of truth: the `licensed_event` table (anon-readable), last imports 2026-07-30.
+This is the **baseline** the rest of the report compares against — the feed after
+the 2026-07-30 imports. **For the current figure, see §6** (the 2026-07-31 re-run:
+1,403). Source of truth: the `licensed_event` table (anon-readable), 2026-07-30
+imports; every count is bound to a run in §0.
 
 | Source | Live events | Notes |
 |---|---:|---|
