@@ -9,15 +9,21 @@ JSON-LD @graph Event/non-Event filter and field mapping (name/startDate/offers/
 location), the "no title / no id → skipped, never fabricated" invariant, @type
 list/single/array tolerance, and the runner's fail-loud selection behavior.
 """
+import json as _json
+
 import worker.importers.run_structured_import as runner
 from worker.importers.structured_feed import (
     PROVIDER_ICS,
     PROVIDER_JSONLD,
+    PROVIDER_LOCALIST,
     discover_ics_links,
+    import_localist,
     import_source,
+    localist_events_url,
     normalize_structured,
     parse_ics,
     parse_jsonld,
+    parse_localist,
 )
 
 # ---- ICS fixtures ------------------------------------------------------------
@@ -458,3 +464,135 @@ def test_event_type_beats_a_misleading_title_and_venue():
     n3 = normalize_structured(generic, provider=PROVIDER_JSONLD, source_name="Mohawk",
                               cultural_domain="live-music")
     assert n3["category"] == "live-music"
+
+
+# ---- Localist calendar-platform JSON API (the calendar_platform pathway) ------
+
+def _localist_body(events, total=None):
+    """Build a Localist /api/2/events response body around a list of event dicts."""
+    return _json.dumps({
+        "events": [{"event": e} for e in events],
+        "page": {"current": 1, "size": 100, "total": total if total is not None else len(events)},
+    })
+
+
+_LOCALIST_EVENT = {
+    "id": 55123,
+    "title": "Distinguished Lecture: The Physics of Music",
+    "localist_url": "https://events.txst.edu/event/distinguished_lecture",
+    "photo_url": "https://events.txst.edu/photos/55123.jpg",
+    "location_name": "Performing Arts Center",
+    "address": "601 University Dr",
+    "allday": False,
+    "event_instances": [
+        {"event_instance": {"id": 1, "start": "2026-07-25T19:00:00-05:00",
+                            "end": "2026-07-25T21:00:00-05:00"}},
+    ],
+    "geo": {"latitude": "29.8899", "longitude": "-97.9389", "city": "San Marcos",
+            "street": "601 University Dr"},
+}
+
+
+def test_localist_events_url_derivation():
+    assert localist_events_url("https://events.txst.edu/") == \
+        "https://events.txst.edu/api/2/events?days=365&pp=100&page=1"
+    assert localist_events_url("https://calendar.utexas.edu/anything", page=3) == \
+        "https://calendar.utexas.edu/api/2/events?days=365&pp=100&page=3"
+
+
+def test_localist_events_url_rejects_bad_base():
+    import pytest
+    with pytest.raises(ValueError):
+        localist_events_url("not-a-url")
+
+
+def test_parse_localist_maps_fields_including_geo():
+    raws = parse_localist(_localist_body([_LOCALIST_EVENT]))
+    assert len(raws) == 1
+    r = raws[0]
+    assert r["title"] == "Distinguished Lecture: The Physics of Music"
+    assert r["start_time"] == "2026-07-26T00:00:00Z"   # 19:00 -05:00 → 00:00Z next day
+    assert r["end_time"] == "2026-07-26T02:00:00Z"
+    assert r["venue_name"] == "Performing Arts Center"
+    assert r["venue_city"] == "San Marcos"
+    assert r["venue_address"] == "601 University Dr"
+    assert r["venue_lat"] == 29.8899 and r["venue_lng"] == -97.9389
+    assert r["url"].endswith("/event/distinguished_lecture")
+    assert r["uid"] == "localist:55123"
+
+
+def test_parse_localist_normalizes_end_to_end_keeping_coords():
+    raws = parse_localist(_localist_body([_LOCALIST_EVENT]))
+    n = normalize_structured(raws[0], provider=PROVIDER_LOCALIST,
+                             source_name="txstate_events", cultural_domain="ideas")
+    assert n is not None
+    assert n["source_provider"] == "localist"
+    assert n["external_id"] == "localist:55123"
+    assert n["confidence"] == "confirmed"            # first-party anchor by construction
+    assert n["category"] == "ideas"                  # venue cultural_domain hint honored
+    assert n["venue_lat"] == 29.8899 and n["venue_lng"] == -97.9389  # coords preserved
+    assert n["venue_city"] == "San Marcos"
+
+
+def test_parse_localist_skips_untitled_and_non_event_wrappers():
+    body = _localist_body([{"id": 1}, {"id": 2, "title": "Real Event",
+                                       "event_instances": [
+                                           {"event_instance": {"start": "2026-08-01T18:00:00-05:00"}}]}])
+    raws = parse_localist(body)
+    titles = [r["title"] for r in raws if r["title"]]
+    assert titles == ["Real Event"]  # the id-only (untitled) event is dropped, never fabricated
+
+
+def test_parse_localist_non_json_raises_valueerror():
+    import pytest
+    with pytest.raises(ValueError):
+        parse_localist("<html>not localist</html>")
+
+
+def test_import_localist_paginates_and_dedupes(monkeypatch):
+    """import_localist pages until a short page, de-duping a show that recurs
+    across pages, and stops cleanly."""
+    pages = {
+        1: _localist_body([dict(_LOCALIST_EVENT, id=i) for i in range(100)], total=150),
+        2: _localist_body([dict(_LOCALIST_EVENT, id=i) for i in range(90, 140)], total=150),
+    }
+
+    def fake_fetch(url, **kw):
+        import urllib.parse as up
+        page = int(up.parse_qs(up.urlparse(url).query)["page"][0])
+        return pages[page]
+
+    monkeypatch.setattr("worker.importers.structured_feed.fetch_url", fake_fetch)
+    out = import_localist("https://events.txst.edu/", source_name="txstate_events")
+    ids = {n["external_id"] for n in out}
+    assert len(ids) == len(out)          # de-duped by external_id (ids 90..99 overlap)
+    assert len(out) == 140               # 100 + 40 new, page 2 short → stop
+    assert all(n["source_provider"] == "localist" for n in out)
+
+
+def test_import_localist_clean_skip_on_non_localist(monkeypatch):
+    """A non-Localist host: /api/2/events 404s (OSError) or returns HTML
+    (ValueError) → [] with no raise."""
+    monkeypatch.setattr("worker.importers.structured_feed.fetch_url",
+                        lambda url, **kw: (_ for _ in ()).throw(OSError("404")))
+    assert import_localist("https://example.com/", source_name="x") == []
+
+    monkeypatch.setattr("worker.importers.structured_feed.fetch_url",
+                        lambda url, **kw: "<html>not localist</html>")
+    assert import_localist("https://example.com/", source_name="x") == []
+
+
+def test_import_source_tier3_localist_fallback(monkeypatch):
+    """A Localist-backed calendar page: no JSON-LD, no advertised ICS feed, so
+    import_source falls through to the Localist API and returns its events."""
+    def fake_fetch(url, **kw):
+        if "/api/2/events" in url:
+            return _localist_body([_LOCALIST_EVENT])
+        return "<html><body>rendered client-side, no jsonld, no ics link</body></html>"
+
+    monkeypatch.setattr("worker.importers.structured_feed.fetch_url", fake_fetch)
+    out = import_source("https://events.txst.edu/", source_name="txstate_events",
+                        cultural_domain="ideas")
+    assert len(out) == 1
+    assert out[0]["source_provider"] == "localist"
+    assert out[0]["venue_city"] == "San Marcos"

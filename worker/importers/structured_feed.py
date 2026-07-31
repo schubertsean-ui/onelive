@@ -40,6 +40,13 @@ from worker.importers.domain_map import UNMAPPED, classify_from_title
 # supabase/migrations/0013_structured_feed_provider.sql) — HOW the row was parsed.
 PROVIDER_ICS = "ics"
 PROVIDER_JSONLD = "jsonld"
+# A hosted event-calendar PLATFORM's JSON API. "localist" is a third-party vendor
+# (localist.com) that universities, libraries, and cities pay to run their public
+# calendars; its /api/2/events endpoint returns the same schedule as structured
+# JSON. First-party + deterministic (no AI) exactly like ics/jsonld, so its rows
+# are 'confirmed' by construction. Registered in the provider CHECK by
+# supabase/migrations/0015_localist_provider.sql.
+PROVIDER_LOCALIST = "localist"
 
 log = logging.getLogger("structured_feed")
 
@@ -516,9 +523,10 @@ def normalize_structured(raw: dict, *, provider: str, source_name: str,
     absent/generic signal falls through, never guesses. Returns None when there is
     no stable id or no title — never invents data.
     """
-    if provider not in (PROVIDER_ICS, PROVIDER_JSONLD):
+    if provider not in (PROVIDER_ICS, PROVIDER_JSONLD, PROVIDER_LOCALIST):
         raise ValueError(
-            f"provider must be {PROVIDER_ICS!r} or {PROVIDER_JSONLD!r}, got {provider!r}")
+            f"provider must be one of {PROVIDER_ICS!r}, {PROVIDER_JSONLD!r}, "
+            f"{PROVIDER_LOCALIST!r}, got {provider!r}")
     title = raw.get("title")
     if not title:
         return None
@@ -564,8 +572,10 @@ def normalize_structured(raw: dict, *, provider: str, source_name: str,
         "venue_city": raw.get("venue_city"),
         "venue_area": None,  # neighborhood derived later from geo; not asserted here
         "venue_address": raw.get("venue_address"),
-        "venue_lat": None,   # calendars rarely carry coordinates; honest null
-        "venue_lng": None,
+        # ICS/JSON-LD calendars rarely carry coordinates (the key is absent →
+        # honest null); a platform feed that DOES (Localist geo) keeps them.
+        "venue_lat": _f(raw.get("venue_lat")),
+        "venue_lng": _f(raw.get("venue_lng")),
         "confidence": "confirmed",  # first-party anchor ⇒ confirmed by construction
         "raw": raw,
     }
@@ -701,6 +711,121 @@ def _normalize_all(raws: list[dict], *, provider: str, source_name: str,
     return out
 
 
+# ---- Localist calendar-platform JSON API -------------------------------------
+#
+# Localist (localist.com) is a hosted calendar platform many universities,
+# libraries, and cities use; it exposes a public, documented JSON API at
+# /api/2/events. A page on such a site renders its event list client-side (so
+# JSON-LD and ICS discovery both come up empty), but the API returns the same
+# schedule as structured JSON — deterministic, no key, no AI. The adapter is
+# reusable for EVERY Localist customer in any market, which is the whole point of
+# a platform pathway.
+
+def localist_events_url(base_url: str, *, page: int = 1, per_page: int = 100,
+                        days: int = 365) -> str:
+    """Derive the Localist /api/2/events endpoint for a site from its base URL.
+    Pulls the full forward window (days) at the API's max page size. Raises
+    ValueError on a base URL with no scheme/host (never guesses a host)."""
+    p = urllib.parse.urlparse(base_url)
+    if not p.scheme or not p.netloc:
+        raise ValueError(f"cannot derive a Localist API URL from {base_url!r}")
+    return (f"{p.scheme}://{p.netloc}/api/2/events"
+            f"?days={int(days)}&pp={int(per_page)}&page={int(page)}")
+
+
+def _localist_first_instance(ev: dict) -> tuple[Optional[str], Optional[str]]:
+    """Return (start, end) ISO strings from a Localist event's first
+    event_instance, or (None, None). Localist nests instances as
+    [{'event_instance': {'start': ..., 'end': ...}}, ...]."""
+    instances = ev.get("event_instances")
+    if not isinstance(instances, list) or not instances:
+        return None, None
+    first = instances[0]
+    inst = first.get("event_instance") if isinstance(first, dict) else None
+    if not isinstance(inst, dict):
+        return None, None
+    start = inst.get("start")
+    end = inst.get("end")
+    return (start if isinstance(start, str) else None,
+            end if isinstance(end, str) else None)
+
+
+def parse_localist(json_text: str) -> list[dict]:
+    """Parse a Localist /api/2/events JSON body into canonical intermediate dicts.
+
+    Reads title, the first instance's start/end (ISO-8601 with offset → UTC 'Z'),
+    location_name/address, geo lat/lng/city, localist_url, photo_url, and a stable
+    id. Non-fabricating: a wrapper that is not an event, or an event with no
+    title, is skipped; absent fields stay None. Raises ValueError (json.loads)
+    when the body is not JSON — the caller treats that as "not a Localist host"
+    and moves on, never as fatal."""
+    doc = json.loads(json_text)
+    if not isinstance(doc, dict):
+        return []
+    events = doc.get("events")
+    if not isinstance(events, list):
+        return []
+    out: list[dict] = []
+    for wrapper in events:
+        ev = wrapper.get("event") if isinstance(wrapper, dict) else None
+        if not isinstance(ev, dict):
+            continue
+        start, end = _localist_first_instance(ev)
+        geo = ev.get("geo") if isinstance(ev.get("geo"), dict) else {}
+        eid = ev.get("id")
+        out.append({
+            "title": _ld_str(ev.get("title")),
+            "start_time": _to_utc_z(start) if start else None,
+            "end_time": _to_utc_z(end) if end else None,
+            "all_day": bool(ev.get("allday")),
+            "venue_name": (ev.get("location_name") or None),
+            "venue_city": (_ld_str(geo.get("city")) if geo else None),
+            "venue_address": (ev.get("address") or (_ld_str(geo.get("street")) if geo else None) or None),
+            "venue_lat": _f(geo.get("latitude")) if geo else None,
+            "venue_lng": _f(geo.get("longitude")) if geo else None,
+            "url": (ev.get("localist_url") or None),
+            "image_url": (ev.get("photo_url") or None),
+            "price_min": None,
+            "price_max": None,
+            "currency": None,
+            "uid": (f"localist:{eid}" if eid is not None else None),
+            "_raw_props": ev,
+        })
+    return out
+
+
+def import_localist(base_url: str, *, source_name: str,
+                    cultural_domain: Optional[str] = None,
+                    max_pages: int = 5, per_page: int = 100) -> list[dict]:
+    """Fetch + normalize a Localist calendar via its JSON API, paging until a
+    short page (the last) or max_pages. Self-detecting: if the host is not a
+    Localist site the endpoint 404s (OSError) or returns non-JSON (ValueError),
+    and we return [] — never raise, so a non-Localist source is a clean skip, not
+    a failure. De-dupes by external_id across pages."""
+    out: list[dict] = []
+    seen: set[str] = set()
+    for page in range(1, max_pages + 1):
+        api_url = localist_events_url(base_url, page=page, per_page=per_page)
+        try:
+            body = fetch_url(api_url)
+        except OSError:
+            break  # not a Localist host / unreachable — clean skip
+        try:
+            raws = parse_localist(body)
+        except ValueError:
+            break  # not JSON → not Localist
+        if not raws:
+            break
+        for n in _normalize_all(raws, provider=PROVIDER_LOCALIST,
+                                source_name=source_name, cultural_domain=cultural_domain):
+            if n["external_id"] not in seen:
+                seen.add(n["external_id"])
+                out.append(n)
+        if len(raws) < per_page:
+            break  # last page reached
+    return out
+
+
 def import_source(url: str, *, provider_hint: Optional[str] = None,
                   source_name: str, cultural_domain: Optional[str] = None) -> list[dict]:
     """Fetch `url`, auto-detect ICS vs HTML-with-JSON-LD, parse every event, and
@@ -717,6 +842,11 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     that fails to fetch is tried-then-skipped (logged, never fatal) so one dead
     link does not sink the source; the caller's loud-fail on the PRIMARY fetch is
     unchanged.
+
+    LOCALIST FALLBACK: if the page still yields nothing (no JSON-LD, no advertised
+    ICS feed), try the Localist calendar-platform JSON API at the same host. On a
+    non-Localist site this is one extra GET that 404s or returns non-JSON and is
+    skipped cleanly — never a failure.
     """
     text = fetch_url(url)
     provider = _detect_provider(text, provider_hint)
@@ -726,7 +856,7 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
     if out or provider == PROVIDER_ICS:
         return out
 
-    # HTML page with no parseable JSON-LD events — try the advertised ICS feed.
+    # Tier 2 — HTML page with no parseable JSON-LD events: try the advertised ICS feed.
     for feed_url in discover_ics_links(text, url):
         try:
             feed_text = fetch_url(feed_url)
@@ -741,4 +871,12 @@ def import_source(url: str, *, provider_hint: Optional[str] = None,
             log.info("source %s: %d event(s) via advertised ICS feed %s (page had "
                      "no JSON-LD).", source_name, len(feed_events), feed_url)
             return feed_events
+
+    # Tier 3 — a Localist calendar-platform JSON API at this host (self-detecting).
+    localist_events = import_localist(
+        url, source_name=source_name, cultural_domain=cultural_domain)
+    if localist_events:
+        log.info("source %s: %d event(s) via the Localist JSON API (page had no "
+                 "JSON-LD or ICS feed).", source_name, len(localist_events))
+        return localist_events
     return out

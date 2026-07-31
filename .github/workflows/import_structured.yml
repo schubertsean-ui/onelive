@@ -161,6 +161,9 @@ jobs:
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
           export ONELIVE_DB_DSN
           python3 tools/apply_migration.py supabase/migrations/0013_structured_feed_provider.sql
+          # 0015 widens the provider CHECK to accept 'localist'; must exist BEFORE
+          # the import upserts any Localist calendar-platform rows.
+          python3 tools/apply_migration.py supabase/migrations/0015_localist_provider.sql
           python -m worker.importers.run_structured_import --limit "$LIMIT"
 
       - name: Dead-man SUCCESS ping (scheduled runs only)
