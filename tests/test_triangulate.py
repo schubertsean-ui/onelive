@@ -60,8 +60,39 @@ def test_same_event_unmatchable_when_field_missing():
 
 def test_same_event_tolerates_datetime_and_bare_date():
     import datetime as dt
+    # A tz-naive datetime is treated as UTC — 20:00 naive vs TM_ROW 20:30Z = 30 min.
     a = dict(TARGET, start_time=dt.datetime(2026, 8, 1, 20, 0))
     assert same_event(a, TM_ROW) is True
+    # A bare date (all-day) parses to midnight UTC; a same-venue show near that
+    # midnight matches on the date bucket.
+    allday = dict(TARGET, start_time="2026-08-02", title="Spoon")
+    near_midnight = dict(TM_ROW, start_time="2026-08-02T00:30:00Z", title="Spoon")
+    assert same_event(allday, near_midnight) is True
+
+
+def test_same_event_converts_non_utc_offset_to_utc():
+    """The regression the reviewer caught: an offset-bearing start must be
+    CONVERTED to UTC, not stripped in place. 19:30-05:00 == 00:30Z the next day;
+    it must match a 00:30Z row (0 min apart). A naive strip would read them as
+    19:30 vs 00:30 (~23h apart) and wrongly REJECT — proving conversion happened."""
+    src_offset = {"source_id": "s1", "source_class": "blog", "venue_name": "Mohawk",
+                  "start_time": "2026-08-01T19:30:00-05:00", "title": "Spoon"}
+    utc_row = {"source_id": "s2", "source_provider": "ticketing", "venue_name": "Mohawk",
+               "start_time": "2026-08-02T00:30:00Z", "title": "Spoon"}
+    assert same_event(src_offset, utc_row) is True
+
+    # And the inverse: the SAME wall-clock string with vs without offset must NOT
+    # be treated as identical instants. 20:00-05:00 (01:00Z Aug 2) is 5h from a
+    # 20:00Z Aug 1 row → no match, where a naive strip would have fused them.
+    aware = dict(TARGET, start_time="2026-08-01T20:00:00-05:00")
+    naive_utc = dict(TM_ROW, start_time="2026-08-01T20:00:00Z")
+    assert same_event(aware, naive_utc) is False
+
+
+def test_same_event_non_string_field_does_not_raise():
+    # A raw int/bool in a title/venue field must not raise (unmatchable, not crash).
+    weird = dict(TM_ROW, title=12345, venue_name=True)
+    assert same_event(TARGET, weird) is False
 
 
 # ---- corroborate ------------------------------------------------------------

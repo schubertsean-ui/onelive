@@ -47,7 +47,10 @@ _WORD_RE = re.compile(r"[a-z0-9]+")
 
 
 def _tokens(s: Optional[str]) -> frozenset[str]:
-    if not s:
+    # Only a real string carries tokens. A non-string (an int/bool from an
+    # unparsed raw JSON field) is not lowered/tokenized — it simply matches
+    # nothing, never raises.
+    if not isinstance(s, str) or not s:
         return frozenset()
     return frozenset(
         t for t in _WORD_RE.findall(s.lower())
@@ -70,15 +73,27 @@ def _jaccard(a: frozenset[str], b: frozenset[str]) -> float:
     return inter / len(a | b)
 
 
+def _to_naive_utc(dt: _dt.datetime) -> _dt.datetime:
+    """Reduce a datetime to a tz-naive UTC-comparable instant. A tz-AWARE value is
+    first CONVERTED to UTC, then its tzinfo dropped — never stripped in place,
+    which would silently reinterpret a local wall-clock time as UTC and shift the
+    real instant (e.g. 20:00-05:00 must become 01:00 UTC, not stay 20:00). A naive
+    value is treated as already-UTC (the codebase's normalized form)."""
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(_dt.timezone.utc)
+    return dt.replace(tzinfo=None)
+
+
 def _parse_dt(value: Any) -> Optional[_dt.datetime]:
-    """Parse an ISO string (tolerating a trailing 'Z' or a bare date) or accept a
-    datetime/date as-is. Returns a tz-naive UTC-comparable datetime, or None when
+    """Parse an ISO string (tolerating a trailing 'Z', an explicit offset, or a
+    bare date) or accept a datetime/date as-is. Returns a tz-naive UTC-comparable
+    datetime (offsets converted to UTC first — see _to_naive_utc), or None when
     unparseable — an event with no usable start is simply unmatchable, never
     matched by guesswork."""
     if value is None:
         return None
     if isinstance(value, _dt.datetime):
-        return value.replace(tzinfo=None) if value.tzinfo else value
+        return _to_naive_utc(value)
     if isinstance(value, _dt.date):
         return _dt.datetime(value.year, value.month, value.day)
     if not isinstance(value, str):
@@ -88,8 +103,7 @@ def _parse_dt(value: Any) -> Optional[_dt.datetime]:
         return None
     iso = s[:-1] + "+00:00" if s.endswith("Z") else s
     try:
-        dt = _dt.datetime.fromisoformat(iso)
-        return dt.replace(tzinfo=None) if dt.tzinfo else dt
+        return _to_naive_utc(_dt.datetime.fromisoformat(iso))
     except ValueError:
         try:
             return _dt.datetime.strptime(s[:10], "%Y-%m-%d")
