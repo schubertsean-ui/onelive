@@ -7,6 +7,16 @@ built to **answer any question** we can pose. Wiring any analytics *vendor* (Pos
 warehouse) is a **new service = founder-crucial** — this doc specifies the framework; the
 founder authorizes the spend/keys.
 
+**This is the internal face of Heartbeat Analytics.** Per the founder (2026-07-31), this
+self-measurement is *part of the overall Heartbeat Analytics vision, pointed at us
+internally* — and the **same measurement engine**, pointed at the resolved cultural ground
+truth, becomes the **external Heartbeat insights** offered to orgs, cities, and artists
+(§12). One engine, two faces: OneLive measuring *itself*, and OneLive measuring *the culture*.
+Both inherit the same spine (four lenses · ITR rate-of-change · one semantic layer) and the
+same honesty floor. The external face is governed by the Product Vision canon's hard rules —
+**aggregate-only, consent-gated, no artist-level resale without consent** — and monetizing it
+is founder-crucial (§12).
+
 **The ask (founder, 2026-07-31):** *"A consistent analysis to understand depth, breadth,
 accuracy of venues available, venues shown in a search, changes over time [3/12, 6/12, 12/12
 per ITR Economics] — same for groups, people, orgs; same by category (22); same by genre;
@@ -330,6 +340,60 @@ estimation — the highest-leverage measurement investment (turns yield into hon
 
 **Discipline throughout:** never a guessed number; metrics never rank; no PII; every deferral a
 Record trigger.
+
+---
+
+## §12 · Heartbeat Analytics — the external insights layer (founder-gated)
+
+The internal engine (§1–§11) and the external product are **the same measurement spine serving
+two audiences.** Heartbeat Analytics is already named canon
+(`ONE_LIVE_PRODUCT_VISION_AND_PRINCIPLES_v1.md`; cultural-heartbeat spec
+`ONE_LIVE_CONVERGENCE_v1.md §8`): *"aggregate, real-time analytics on flows… monetized as
+insights (premium dashboards, city contracts)."* This section defines how the internal metrics
+convert into external insight products **without** breaking a single trust invariant.
+
+### Built on resolved ground truth (trustworthy by construction)
+Heartbeat insights consume the **resolved strata** — post-gate, verified event ground truth —
+**never raw unresolved belief** (`CONVERGENCE_v1.md §8`, H10). An ingestion error the closure
+loop later catches can never pollute an insight: the cultural layer inherits the trust layer's
+verification for free. Every external number is as honest as the internal one (§0.1).
+
+### The three audiences (same lenses, pointed at the culture instead of at us)
+Each gets the *same* four lenses (breadth/depth/accuracy/usage) and the *same* ITR
+3/12–6/12–12/12 trending + A/B/C/D phase, sliced by the 22 categories, the 18 genres, geography,
+and time:
+
+- **Cities / civic / tourism / economic-development** — *cultural vitality*: event density and
+  its growth by neighborhood, **genre momentum** (which scenes are rising vs slowing — the
+  cycle phase of "live music in East Austin"), venue-vitality trends, and "ambiguity as cultural
+  signal" (rising cross-genre entropy = scenes cross-pollinating, `CONVERGENCE §8`). Delivered as
+  premium dashboards / city contracts. *Aggregate only.*
+- **Orgs — venues, promoters, festivals** — demand patterns in their area/category, their *own*
+  venue vitality (listing-accuracy, cancellation, resolution trends over time), and where the
+  unmet-demand gaps are (the supply-gap metric, §2A). A venue can *see* demand — never *buy*
+  placement.
+- **Artists** — their *own* momentum and reach, **consent-gated**: an artist's own data shown to
+  that artist (a Spotify-for-Artists analog). No artist-level data is sold or shared at the
+  individual level without that artist's explicit consent.
+
+### Governance (hard rules from the Product Vision canon — non-negotiable)
+1. **Aggregate-only** externally; individual-level data is never sold or shared — partners get
+   aggregates.
+2. **Consent-gated artist data** — no artist-level resale or individual sharing without the
+   artist's consent (artist sovereignty: their data is theirs).
+3. **No PII, ever**, in any external artifact.
+4. **Insights never touch ranking** — a paying city/venue/partner can *see* the heartbeat; it can
+   never reorder the discovery feed. The no-pay-to-rank invariant applied to the insights
+   business: the insights surface is **walled off from the discovery pipeline exactly as
+   tastemaker posts are.**
+5. **Resolved strata only** — verified ground truth, never live/unresolved belief.
+
+### Status & prerequisites
+Heartbeat Analytics as a **monetized product is a net-new surface** (money flows, new services,
+data-resale, legal posture) → **founder-crucial**, arriving with its own contract and trust
+review. Its prerequisite is the **internal engine** (Phases 1–4 above): you cannot honestly sell
+a cultural heartbeat you cannot yet measure. Build internal first; the external product is a
+later, founder-gated turn of the same crank.
 
 ---
 
