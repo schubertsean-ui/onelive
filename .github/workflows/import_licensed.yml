@@ -54,6 +54,9 @@ jobs:
           python3 tools/apply_migration.py supabase/migrations/0010_licensed_feed_and_domains.sql
           # 0014 adds venue_url/venue_phone; must exist BEFORE the import writes them.
           python3 tools/apply_migration.py supabase/migrations/0014_venue_contact.sql
+          # 0017 grants anon SELECT on venue_url/venue_phone — 0014 added the
+          # columns but a column-level grant never covered them, so the feed 401'd.
+          python3 tools/apply_migration.py supabase/migrations/0017_grant_licensed_venue_contact_read.sql
           python -m worker.importers.run_licensed_import --max-pages "$MAX_PAGES"
           # Fill venue contact onto rows imported before the columns existed,
           # from the raw payload already stored (no re-fetch). Idempotent.

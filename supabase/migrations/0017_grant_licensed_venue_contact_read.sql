@@ -1,0 +1,23 @@
+-- 0017 — FIX: grant anon/authenticated SELECT on the venue-contact columns.
+--
+-- BUG (feed-breaking, found 2026-07-31 from a live 401 on /tonight): migration
+-- 0010's public read grant on `licensed_event` is COLUMN-LEVEL (every public
+-- listing column EXCEPT `raw`). Migration 0014 then added `venue_url` and
+-- `venue_phone` and assumed 0010's grant "covers columns added later" — it does
+-- NOT: a column-level GRANT never extends to columns added afterward. So anon
+-- lacked SELECT on those two columns, and because the feed query
+-- (web/lib/licensed.ts COLUMNS) selects them, PostgREST rejected the WHOLE
+-- request with 42501 "permission denied for table licensed_event" — the feed
+-- rendered zero events despite the rows existing.
+--
+-- Fix: grant SELECT on exactly the two missing PUBLIC columns. `raw` stays
+-- excluded (its audit payload must never be publicly selectable) — the trust
+-- posture from 0010 is preserved, only the two intended public columns are added.
+-- Idempotent: GRANT is a no-op when the privilege already exists. RLS and the
+-- `public_read` policy from 0010 are unchanged.
+--
+-- Applied by the import-licensed workflow (like 0010/0014) and by any migration
+-- run; regression-guarded by tests/test_licensed_read_grant.py, which fails if
+-- the feed's selected columns ever again exceed the granted set.
+
+grant select (venue_url, venue_phone) on licensed_event to anon, authenticated;
