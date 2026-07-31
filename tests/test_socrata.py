@@ -139,3 +139,17 @@ def test_normalize_dataset_drops_unanchorable_rows():
     rows = [_TABC_ROW, {"city": "Austin"}, {"license_number": "Y2"}]
     out = normalize_dataset(rows, _TABC_MAP, provider="socrata", source_name="tabc")
     assert len(out) == 2  # the city-only row dropped; named + id-only kept
+
+
+def test_normalize_synthesizes_stable_id_when_no_id_column():
+    # A dataset with a name but NO id column → deterministic synthesized id so
+    # idempotent re-imports update the same venue_truth row, never duplicate.
+    row = {"trade_name": "The Mohawk", "address": "912 Red River St"}
+    a = normalize_venue_record(row, _TABC_MAP, provider="socrata", source_name="fire_occupancy")
+    b = normalize_venue_record(row, _TABC_MAP, provider="socrata", source_name="fire_occupancy")
+    assert a["external_id"] and a["external_id"].startswith("socrata:")
+    assert a["external_id"] == b["external_id"]        # deterministic
+    # A different venue (or different source) → a different id.
+    other = normalize_venue_record({"trade_name": "Stubbs"}, _TABC_MAP,
+                                   provider="socrata", source_name="fire_occupancy")
+    assert other["external_id"] != a["external_id"]
