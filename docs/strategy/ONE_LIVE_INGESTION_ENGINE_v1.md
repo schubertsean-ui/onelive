@@ -33,6 +33,28 @@ build. The hard trust rules are unchanged and still physics: `disputed` is shown
 never hidden; no pay-to-rank surface, ever; RLS stays fail-closed; the promote
 path stays gate-custodied.
 
+### 1a. Honest state of that engine (audited 2026-07-31)
+
+The engine is **half-built, and nothing runs it** — audited, not assumed:
+
+- `worker/publish_policy.py` (the DECISION layer) exists and is unit-tested. It
+  ratifies the earned-confidence model (2026-07-25).
+- **`worker/autopromote.py` — the promoter its own docstring names as "the only
+  new promoter" — was never created** (confirmed absent from all of git history).
+- **`decide_publish()` is called by nothing** — it is an orphan, not wired into
+  the ingestion loop. Flipping `AUTO_PUBLISH_RATIFIED` on today would therefore
+  change nothing.
+- The **triangulation itself is not built**: `decide_publish` *consumes* a
+  corroboration signal, but nothing *assembles* it — no component matches an AI
+  find against other aggregators' feeds, venue social posts, licensed rows, or
+  `gov_open_data` venue-truth to earn multi-source confidence.
+
+The 2026-07-25 record already conditions the switch on *"the safeguards being
+live."* They are not. Closing this — the promoter wiring + the triangulation
+assembly + proven reliability grading and uncertainty display — is the top build
+item, and it is manager-owned work, not a founder toggle. (See the decision
+record `2026-07-31_earned-confidence-engine-unbuilt.md`.)
+
 ## 2. Pathways are reusable KINDS, not cities
 
 A source's ingestion pathway is defined by the **machine protocol it speaks**, not
