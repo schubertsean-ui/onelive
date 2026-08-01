@@ -15,7 +15,7 @@ import {
   telHref,
   venueWebsite,
 } from "../../../lib/detail";
-import { listenLinks } from "../../../lib/listen";
+import { contextualPreview } from "../../../lib/preview";
 import Link from "next/link";
 import type { LicensedEvent } from "../../../lib/licensed";
 import {
@@ -61,11 +61,6 @@ function focusLine(e: LicensedEvent): string {
 }
 function headline(e: LicensedEvent): string {
   return e.performer && e.performer.length <= 80 ? e.performer : e.title;
-}
-// "Hear them" is a music-only affordance (listen.ts): a lecture or exhibition
-// has no track to search. Mirrors the detail page's gate.
-function isMusic(e: LicensedEvent): boolean {
-  return e.category === "live-music" || e.category === "nightlife";
 }
 
 // Provenance-accurate trust display. Licensed rows are stated by an
@@ -166,8 +161,7 @@ function Lens({ e, side, onNow, onSide, onClose }: {
   const site = venueWebsite(e.venue_url);
   const tel = telHref(e.venue_phone);
   const sub = trustFor(e);
-  const music = isMusic(e) && !!headline(e);
-  const links = music ? listenLinks(headline(e)) : [];
+  const preview = contextualPreview(e);
   const status = statusNote(e);
   const secondary = headline(e) !== e.title ? e.title : null;
 
@@ -202,10 +196,10 @@ function Lens({ e, side, onNow, onSide, onClose }: {
                   <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
                   {tix ? <a className="lbtn" href={tix} target="_blank" rel="noopener noreferrer">Get tickets ↗</a> : null}
                 </div>
-                {links.length ? (
+                {preview ? (
                   <div className="llisten">
-                    <span className="llbl">Hear them</span>
-                    {links.map((l) => (
+                    <span className="llbl">{preview.label}</span>
+                    {preview.links.map((l) => (
                       <a key={l.service} className="lchip" href={l.url} target="_blank" rel="noopener noreferrer">{l.service} ↗</a>
                     ))}
                   </div>
