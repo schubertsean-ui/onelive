@@ -8,7 +8,7 @@ the deliverable's truth model internally ambiguous ("drift" used as if it
 were a state; owner assertion conflated with independent corroboration).
 Supersedes the 4-state model of 2026-07-15 **additively** — no state is
 removed or redefined; two are added and observations become flags.
-Implementation in the running pipeline is pending (R-026); this doc is the
+Implementation in the running pipeline is pending (R-064); this doc is the
 spec it implements.
 
 ## 1 · The six truth states
@@ -99,5 +99,5 @@ reservations, revenue — not views or taps.
   `docs/strategy/marketing_model/` builders — references updated;
   `check_artifacts.py` forbids stray "4-state" wording in deliverable
   sources.
-- **R-026** — pipeline implementation trigger (enum, gating, tests,
+- **R-064** — pipeline implementation trigger (enum, gating, tests,
   display, CLAUDE.md charter text) in the next code-armed session.

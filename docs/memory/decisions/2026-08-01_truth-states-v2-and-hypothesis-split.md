@@ -53,6 +53,6 @@ Canon, personas, ledger, and tests land now (docs/ + tests/). The
 **pipeline implementation** of the two new states (DB enum, gate logic in
 `worker/confidence.py`/`worker/gating.py`, `tests/test_gates.py`
 transitions, public API display) and the CLAUDE.md charter-text update are
-code-arm work — recorded as R-026 in `docs/RECORD.md` with an objective
+code-arm work — recorded as R-064 in `docs/RECORD.md` with an objective
 trigger. Until that lands, the running pipeline remains 4-state and honest
 about it; no doc claims the new states are live.

@@ -55,13 +55,30 @@ require("make_casestudy.py", "unique per-event page URL", "one crawlable URL per
 # stray "4-state" wording in deliverable sources is stale canon
 forbid_everywhere("4-state", "truth-states v2 is six-state (decision 2026-08-01)")
 
-# claim ledger C-01 scope: the 83% figure is restaurant/QSR (Uberall), never
-# "of local businesses" (evaluator catch, PR #142 r1)
+# claim-ledger population scopes stay attached to their numbers (evaluator
+# catches, PR #142 r1: 83% broadened past C-01; r2: 76% broadened past C-08 —
+# so the guard now covers the CLASS: every ledger-scoped percentage must
+# carry its population keyword wherever it appears)
+SCOPED = {
+    "83%": ("restaurant", "QSR"),          # C-01 — Uberall restaurant/QSR
+    "76%": ("smartphone",),                # C-08 — smartphone local searchers
+    "45%": ("survey",),                    # C-02 — surveyed US consumers
+    "97%": ("Ahrefs", "crawl"),            # C-05 — Ahrefs crawl sample
+}
 for f, s in SOURCES.items():
-    for m in re.finditer(r"83%[^.\n]{0,120}", s):
-        frag = m.group(0)
-        if "restaurant" not in frag and "QSR" not in frag:
-            errors.append(f"{f}: 83% claim without its restaurant/QSR scope (C-01): {frag[:80]!r}")
+    for pct, keywords in SCOPED.items():
+        for m in re.finditer(re.escape(pct) + r"[^.\n]{0,140}", s):
+            frag = m.group(0)
+            if not any(k.lower() in frag.lower() for k in keywords):
+                errors.append(f"{f}: {pct} claim without its ledger population scope {keywords}: {frag[:90]!r}")
+
+# positive six-state guard (evaluator suggestion, PR #142 r2): a source that
+# enumerates the confidence-state model must anchor it to Truth States v2 —
+# stating only the observed subset as if it were the model is the same
+# scope-drift class as the percentages above
+for f, s in SOURCES.items():
+    if "CONFIRMED / LIKELY / UNVERIFIED" in s and not ("six-state" in s or "Truth States v2" in s):
+        errors.append(f"{f}: enumerates confidence states without anchoring to the six-state model (Truth States v2)")
 
 # connector honesty (evaluator catch, PR #142 r1): the customer document's
 # channel table must be registry-bound — it may not present PLANNED

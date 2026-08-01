@@ -15,7 +15,7 @@ flat legend below is superseded by `ONE_LIVE_CONNECTOR_REGISTRY_v1.md`
 adopted from the external review at founder direction. This doc remains the
 typed INVENTORY of surfaces and roles.
 
-**Legend — how the agent touches a surface:** **READ** = source it extracts
+**Legend — how the agent touches a surface** (DESIGN roles, not live status: per the connector registry every connector is PLANNED today and nothing publishes anywhere — quote capability only from the registry)**:** **READ** = source it extracts
 from · **SYNC** = kept correct automatically (Tier 1) · **STAGE** = content
 drafted, ships only on the owner's tap (Tier 2) · **MEASURE** = results read
 back · **PHASE-C** = later, behind platform review. Costs shown are the
@@ -24,7 +24,7 @@ business's, not ours.
 ## 1 · Search & maps — where high-intent discovery happens
 | Surface | Use | Role | Cost |
 |---|---|---|---|
-| Google Business Profile (Search · Maps · "Things to do" · posts) | READ · SYNC · STAGE | Highest-intent local surface; event posts, hours, "Buy tickets" buttons; 76% of local searchers visit within 24h | Free |
+| Google Business Profile (Search · Maps · "Things to do" · posts) | READ · SYNC · STAGE | Highest-intent local surface; event posts, hours, "Buy tickets" buttons; 76% of consumers who search locally on a smartphone visit within 24h (C-08) | Free |
 | Bing Places | SYNC | Feeds Bing/Copilot answers | Free |
 | Apple Maps (Apple Business Connect) | READ · SYNC | The iPhone half of the audience; the winter-hours drift class | Free |
 | Nextdoor Business | SYNC · STAGE | The neighborhood layer — events reach the streets that walk in | Free |

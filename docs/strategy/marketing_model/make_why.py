@@ -23,7 +23,7 @@ ax.text(6.95,7.62,"ONE SOURCE OF TRUTH — their calendar + photos + voice",font
 ax.text(6.95,7.14,"raw material the agent turns into listings, posts, stories, ads, and emails — synced and re-checked continuously",fontsize=12.2,color=INK,ha="center")
 
 cards=[
- ("SEARCH & MAPS","Google Business Profile · Search · Maps · 'Things to do' · Bing Places · Apple Maps · Nextdoor","fresh event content = high-intent discovery tonight; 76% of local searchers visit within 24h"),
+ ("SEARCH & MAPS","Google Business Profile · Search · Maps · 'Things to do' · Bing Places · Apple Maps · Nextdoor","fresh event content = high-intent discovery tonight; 76% of smartphone local searchers visit a business within 24h (C-08)"),
  ("DISCOVERY APPS & DATABASES","Yelp · Foursquare · Bandsintown · city calendars (Do512-class) · TripAdvisor / Untappd / Vivino by segment","the databases AI assistants draw on for local answers — feed them and you are in the answer pool"),
  ("AI ASSISTANTS & ANSWER ENGINES","ChatGPT · Gemini · Perplexity · voice — fed by the databases at left, open AI-search-crawler access (OAI-SearchBot etc.), IndexNow submissions","45% of surveyed US consumers have used AI to pick local businesses (BrightLocal '26) — feed the sources, stay crawlable, stay fresh"),
  ("THEIR OWN PROPERTY","website events widget (always current, machine-readable) · link-in-bio · email/SMS list","email returns $36–42 per $1 — the list the agent grows at every touch"),
