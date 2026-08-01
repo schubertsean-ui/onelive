@@ -54,22 +54,37 @@ no promoted-placement path into the alert stream, ever.
 
 ---
 
-## §3 · The demand-sensing dividend (the clever half)
+## §3 · The demand-sensing dividend — a MIRROR, not a promoter
 
-Saved alerts are not just retention — **what people save tells us what to source.**
+Saved alerts are not just retention. What people save is a **demand signal** — and OneLive's job is
+to **sense and reflect** it honestly, **never to drive demand or manufacture supply** (founder
+correction, 2026-08-01: *"we do not drive demand"*). We do not promote a genre, book a band, or tilt
+ranking toward what's popular. There are exactly two neutral, trust-safe uses of the signal:
 
-- **Aggregate saved demand** (privacy-safe, counts not identities) ranks what locals actually want:
-  "412 people saved Tejano in the Eastside" is a sourcing priority, not a guess.
-- **A saved search that returns _nothing_ is the coverage-gap queue.** Zero-result saves are the
-  highest-signal input to "where do we expand supply next" — the direct, demand-weighted answer to the
-  venue-coverage question (event-level coverage, `ONE_LIVE_SOURCE_EXPANSION_PLAN_v1.md`; the H5
-  "zero-result coverage-gap queue" po-harvest candidate).
-- **The loop closes and compounds:** user demand → tells us where to grow supply → we onboard those
-  venues/sources (Owned Agent, gov registries, harvest) → the once-empty saved search now matches →
-  we notify → the user returns. Demand pulls supply; supply pays back the demand.
+1. **Sharpen our own SENSING coverage (internal).** If many people save "cumbia in South Austin" and
+   we show few, the first question is *are cumbia shows already happening that we're simply not
+   catching?* — a gap in our **coverage**, not a gap in the world. It tells us where to aim
+   ingestion/sources so we surface what **already exists** (event-level coverage,
+   `ONE_LIVE_SOURCE_EXPANSION_PLAN_v1.md`; the H5 "zero-result coverage-gap queue"). This is coverage
+   of the real, never inventing supply.
+2. **Hand venues/organizers neutral demand intelligence (external Heartbeat).** The honest, powerful
+   move is to give the *actual supply-side actors* the signal and let **them** decide — founder's
+   exact framing: *"lots of people have saved cumbia but there have only been X shows the last 3
+   months. We're not promoting cumbia — but you may want to book those bands, and we'll show it in
+   1Live [once it's real and verified]."* We inform; the venue decides; if they book it and it passes
+   the gate, it appears exactly like any other verified event, with **no paid tilt**. This is the
+   analytics canon's "external Heartbeat insight for orgs/cities/artists" in action.
 
-This feeds the **Heartbeat analytics** canon (depth/breadth/coverage) and is reported as a real
-measured signal, never a vanity number.
+**The invariant this protects:** OneLive is a neutral **mirror of demand + verified supply**, never a
+demand-driver or a promoter. Nothing gets a thumb on the scale for being popular or because a signal
+was shared — **sharing intelligence is not promoting**, and ranking still reflects only verification +
+relevance (no pay-to-rank). The loop, stated correctly: **demand is sensed → used to sharpen our own
+coverage AND shared as honest intelligence → the supply-side actors act on their own → whatever
+becomes real passes the gate → the once-empty saved search now matches → we notify → the user
+returns.** We move *information*, not markets.
+
+Aggregate only (privacy-safe — counts, never identities), fed to the **Heartbeat analytics** canon
+and reported as a real measured signal, never a vanity number.
 
 ---
 
@@ -120,6 +135,9 @@ This spec **unifies threads already in flight** rather than inventing a sixth ov
 4. **Preferences are user-owned, minimal, never sold** (TDPSA); personalization is a lens, never a gate.
 5. **Demand signals are aggregate/anonymized** — counts of what's wanted, never a surveillance profile.
 6. **Frictionless creation** — a saved alert is one tap from the current view, never a form.
+7. **We sense demand, we never drive it.** The demand signal sharpens our own *coverage* and is
+   shared as *neutral intelligence* with supply-side actors who decide for themselves; OneLive never
+   promotes a genre/venue or manufactures supply. A mirror, not a promoter (§3).
 
 ---
 
