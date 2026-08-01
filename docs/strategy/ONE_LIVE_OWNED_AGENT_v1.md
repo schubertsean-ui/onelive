@@ -291,6 +291,37 @@ platform risk, so it goes last and behind explicit decisions.
 Anything the flow cannot auto-discover, it asks for in one consolidated
 step — the same one-question-set discipline we hold for the founder.
 
+### 9a. The hard triviality bar (founder directive 2026-08-01 — TIGHTENS §9)
+
+Founder, verbatim: *"this tool needs to be the epitome of simple and easy and
+no more than 3 clicks and no reading or entering multiple items. It has to be
+stupid simple - no friction!"* and *"similar to Luma we need to make the AI
+agent trivial."* This turns the §9 bar into a **hard, quantified Phase-A
+acceptance criterion**, tighter than §9's softer numbers where they conflict:
+
+1. **≤3 clicks, end to end**, for the core loop (claim → confirm → broadcast the
+   first event). Not "under five minutes" — three taps.
+2. **No reading.** No walls of text, no settings to study. The discovered
+   preview is *glanceable* — a card that already looks like the finished result
+   — never a document the partner must read in order to proceed.
+3. **No entering multiple items. One input, maximum** — the URL (website or
+   Instagram). Everything else (ICS/JSON-LD/handles, notification defaults, the
+   F1–F4 functions) is **auto-discovered or set to a safe default the partner
+   can change later**, never a decision they must make up front. The §9 "five
+   checkboxes" become **defaults-on with a one-tap 'change these later,'** not
+   five decisions on the critical path.
+4. **Luma-trivial** is the UX benchmark: spinning up and broadcasting must feel
+   as effortless as creating a Luma event page — and *lower*, because the partner
+   starts from a URL we already read, not a blank form.
+
+**Acceptance test (mechanical, Phase A):** a venue with a working website
+completes claim + first broadcast in **≤3 taps and zero free-text fields beyond
+the single URL**, with **no required reading step**. Any flow that needs a fourth
+decision-tap or a second typed field fails this bar and must push that decision
+to a post-onboarding "refine" surface. The trust physics (§4) and the discrete
+function set (§5) are unchanged — this bar governs the *interaction cost*, never
+the gate.
+
 ## 10. Consolidated founder questions (Q1–Q5; the same-day addendum adds Q6–Q8 in §17 — one combined list, nothing else asked anywhere in this doc)
 
 1. **Ratify the concept?** The three-layer decomposition (pipe = ratified
