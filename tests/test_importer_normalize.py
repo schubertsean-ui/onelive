@@ -1,0 +1,261 @@
+"""Unit tests for the deterministic licensed-feed importer core
+(worker/importers/{domain_map,normalize}.py). No network, no DB — fixtures only,
+so this proves the full mapping/normalization WITHOUT a live API key.
+
+Fixtures under tests/fixtures/licensed/ are modeled on the documented
+Ticketmaster Discovery / SeatGeek Platform schemas; they are replaced with
+captured live payloads once the keys land (the shapes are asserted here so a
+drift in the real payload fails loudly).
+"""
+import json
+import pathlib
+
+from worker.importers.domain_map import (
+    DOMAINS,
+    seatgeek_domain,
+    ticketmaster_domain,
+    unmapped,
+)
+from worker.importers.normalize import normalize_seatgeek, normalize_ticketmaster
+
+FIX = pathlib.Path(__file__).parent / "fixtures" / "licensed"
+
+
+def _load(name):
+    return json.loads((FIX / name).read_text())
+
+
+# ---- domain_map --------------------------------------------------------------
+
+def test_tm_segment_music_is_live_music():
+    assert ticketmaster_domain("Music", "Jazz", "Bebop") == ("live-music", "Jazz · Bebop")
+
+
+def test_tm_arts_theatre_refines_by_genre():
+    assert ticketmaster_domain("Arts & Theatre", "Theatre", None)[0] == "theater"
+    assert ticketmaster_domain("Arts & Theatre", "Classical", None)[0] == "performing-arts"
+    assert ticketmaster_domain("Arts & Theatre", "Comedy", None)[0] == "comedy"
+    assert ticketmaster_domain("Arts & Theatre", "Dance", None)[0] == "dance"
+    assert ticketmaster_domain("Arts & Theatre", "Children's Theatre", None)[0] == "family"
+
+
+def test_tm_sports_and_film():
+    assert ticketmaster_domain("Sports", "Basketball", "NBA")[0] == "sports"
+    assert ticketmaster_domain("Film", "Miscellaneous", None)[0] == "film"
+
+
+def test_tm_unknown_segment_is_unmapped_not_fabricated():
+    # An UNRECOGNIZED SEGMENT (no provider taxonomy at all) must surface as
+    # 'unmapped', never guessed into a real domain (no fabricated data).
+    assert ticketmaster_domain("Nonsense", "Whatever", None)[0] == "unmapped"
+    assert ticketmaster_domain("Undefined", None, None)[0] == "unmapped"
+    # A bare "Miscellaneous" (no recognized genre) has no cultural signal.
+    assert ticketmaster_domain("Miscellaneous", None, None)[0] == "unmapped"
+    assert "UNMAPPED" in unmapped("ticketmaster", "Nonsense/Whatever")
+
+
+def test_tm_arts_theatre_falls_back_to_segment_not_unmapped():
+    # An "Arts & Theatre" event with a missing/generic genre is theater by the
+    # provider's OWN segment (not a guess) — it must not be dumped into 'Other'.
+    assert ticketmaster_domain("Arts & Theatre", "SomeGenreWeDontKnow", None)[0] == "theater"
+    assert ticketmaster_domain("Arts & Theatre", None, None)[0] == "theater"
+    assert ticketmaster_domain("Arts & Theatre", "Miscellaneous", None)[0] == "theater"
+    # A recognized A&T genre still refines past the segment default.
+    assert ticketmaster_domain("Arts & Theatre", "Opera", None)[0] == "performing-arts"
+
+
+def test_tm_placeholder_genre_is_not_shown_as_subsegment():
+    # A card must never read "Theater · Miscellaneous" / "· Undefined".
+    assert ticketmaster_domain("Arts & Theatre", "Miscellaneous", None)[1] is None
+    assert ticketmaster_domain("Arts & Theatre", None, "Undefined")[1] is None
+    # A real genre is still surfaced.
+    assert ticketmaster_domain("Music", "Jazz", None)[1] == "Jazz"
+
+
+def test_sg_unknown_type_is_unmapped():
+    assert seatgeek_domain("totally_unknown_type", None)[0] == "unmapped"
+
+
+def test_sg_type_mapping():
+    assert seatgeek_domain("concert", ["Indie Rock"]) == ("live-music", "Indie Rock")
+    assert seatgeek_domain("theater", None)[0] == "theater"
+    assert seatgeek_domain("comedy", None)[0] == "comedy"
+    assert seatgeek_domain("nba", None)[0] == "sports"
+    assert seatgeek_domain("classical_opera", None)[0] == "performing-arts"
+
+
+def test_all_mapped_domains_are_canonical():
+    for seg, gen in [("Music", "Rock"), ("Sports", "NBA"), ("Arts & Theatre", "Theatre"),
+                     ("Arts & Theatre", "Classical"), ("Film", None)]:
+        d, _ = ticketmaster_domain(seg, gen, None)
+        assert d in DOMAINS
+
+
+# ---- Ticketmaster normalize --------------------------------------------------
+
+def test_tm_normalize_fields():
+    ev = normalize_ticketmaster(_load("ticketmaster_event.json"))
+    assert ev is not None
+    assert ev["source_provider"] == "ticketmaster"
+    assert ev["external_id"] == "vvG1zZfbn0aK-A"
+    assert ev["title"] == "Austin Symphony: Beethoven's Ninth"
+    assert ev["category"] == "performing-arts"
+    assert ev["subsegment"] == "Classical · Classical/Vocal"
+    assert ev["start_time"] == "2026-07-25T01:00:00Z"
+    assert ev["on_sale_status"] == "onsale"
+    assert ev["status"] == "scheduled"
+    assert ev["price_min"] == 25.0 and ev["price_max"] == 95.0
+    assert ev["currency"] == "USD"
+    assert ev["is_free"] is False
+    assert ev["venue_name"] == "Bass Concert Hall"
+    assert ev["venue_city"] == "Austin"
+    assert ev["venue_lat"] == 30.2849 and ev["venue_lng"] == -97.7304
+    assert ev["performer"] == "Austin Symphony Orchestra"
+    assert ev["confidence"] == "confirmed"
+    # widest 16:9 image chosen
+    assert ev["image_url"].endswith("widest.jpg")
+
+
+def test_tm_cancelled_status_maps_event_status():
+    raw = _load("ticketmaster_event.json")
+    raw["dates"]["status"]["code"] = "cancelled"
+    ev = normalize_ticketmaster(raw)
+    assert ev["on_sale_status"] == "cancelled"
+    assert ev["status"] == "cancelled"
+
+
+def test_tm_missing_id_or_name_returns_none():
+    assert normalize_ticketmaster({"name": "no id"}) is None
+    assert normalize_ticketmaster({"id": "x"}) is None
+
+
+def test_tm_free_event_flag():
+    raw = _load("ticketmaster_event.json")
+    raw["priceRanges"] = [{"currency": "USD", "min": 0.0, "max": 0.0}]
+    ev = normalize_ticketmaster(raw)
+    assert ev["is_free"] is True
+
+
+# ---- SeatGeek normalize ------------------------------------------------------
+
+def test_sg_normalize_fields():
+    ev = normalize_seatgeek(_load("seatgeek_event.json"))
+    assert ev is not None
+    assert ev["source_provider"] == "seatgeek"
+    assert ev["external_id"] == "6234567"
+    assert ev["title"] == "Spoon"
+    assert ev["category"] == "live-music"
+    assert ev["subsegment"] == "Indie Rock"
+    assert ev["start_time"] == "2026-07-25T02:00:00Z"  # UTC made explicit for timestamptz
+    assert ev["price_min"] == 35.0 and ev["price_max"] == 75.0
+    assert ev["currency"] == "USD"
+    assert ev["venue_name"] == "Stubb's"
+    assert ev["venue_lat"] == 30.2686 and ev["venue_lng"] == -97.7361
+    assert ev["performer"] == "Spoon"
+    assert ev["confidence"] == "confirmed"
+
+
+def test_sg_missing_id_or_title_returns_none():
+    assert normalize_seatgeek({"title": "no id"}) is None
+    assert normalize_seatgeek({"id": 1}) is None
+
+
+def test_capcog_fetch_windows_and_dedupes(monkeypatch):
+    """The comprehensive fetch sweeps multiple time windows and de-dupes by id,
+    breaking the API's ~1000-per-query cap without double-counting a show that
+    appears in overlapping windows."""
+    import datetime as dt
+
+    from worker.importers import ticketmaster as tm
+
+    calls = []
+
+    def fake_fetch_events(api_key, *, start=None, end=None, latlong=None, radius=None, **kw):
+        calls.append((latlong, start, end))
+        # Each window returns two events; id "shared" recurs in every window AND
+        # every center — so it exercises cross-window AND cross-center dedup.
+        yield {"id": f"w-{start[:10]}", "name": "unique per window"}
+        yield {"id": "shared", "name": "same show seen in every window"}
+
+    monkeypatch.setattr(tm, "fetch_events", fake_fetch_events)
+    fixed_now = dt.datetime(2026, 7, 24, tzinfo=dt.timezone.utc)
+    out = list(tm.fetch_events_capcog("k", windows=3, _now=fixed_now))
+
+    # 2 market centers × 3 windows = 6 fetch calls, and BOTH centers are swept.
+    assert len(calls) == 6
+    centers_hit = {c[0] for c in calls}
+    assert centers_hit == {tm.CAPCOG_LATLONG, tm.HILL_COUNTRY_WEST_LATLONG}
+    ids = [e["id"] for e in out]
+    assert ids.count("shared") == 1  # de-duped across windows AND centers
+    # one unique-per-window id, de-duped across the two centers (same dates)
+    assert len([i for i in ids if i.startswith("w-")]) == 3
+    # within a center, windows are consecutive and non-overlapping in ordering
+    assert calls[0][1] < calls[1][1] < calls[2][1]
+
+
+def test_tm_undefined_recovered_from_title_and_performer():
+    """A provider 'Undefined' event is recovered from REAL signal (performer
+    classification, then title keywords) — shrinking 'Other' without fabricating."""
+    from worker.importers.normalize import normalize_ticketmaster
+    # Performer classification present even though the event header is Undefined
+    ev = {
+        "id": "u1", "name": "An Evening of Standup",
+        "classifications": [{"segment": {"name": "Undefined"}}],
+        "_embedded": {"attractions": [{"classifications": [
+            {"segment": {"name": "Arts & Theatre"}, "genre": {"name": "Comedy"}}]}]},
+    }
+    assert normalize_ticketmaster(ev)["category"] == "comedy"
+    # No performer signal -> deterministic keyword read of the real title
+    ev2 = {"id": "u2", "name": "Austin Symphony: Mahler 2",
+           "classifications": [{"segment": {"name": "Undefined"}}]}
+    assert normalize_ticketmaster(ev2)["category"] == "performing-arts"
+    # Genuinely no signal -> stays honestly unmapped
+    ev3 = {"id": "u3", "name": "XZ Event 9910",
+           "classifications": [{"segment": {"name": "Undefined"}}]}
+    assert normalize_ticketmaster(ev3)["category"] == "unmapped"
+
+
+# ---- venue contact (website + phone) ----------------------------------------
+
+def test_tm_venue_contact_extracted():
+    """Ticketmaster venue url + box-office phone flow into venue_url/venue_phone;
+    the phone number is EXTRACTED from the provider's free-text prose."""
+    ev = {
+        "id": "vc1", "name": "A Show",
+        "dates": {"start": {"dateTime": "2026-08-01T02:00:00Z"}},
+        "_embedded": {"venues": [{
+            "name": "Elephant Room",
+            "url": "https://www.ticketmaster.com/elephant-room",
+            "boxOfficeInfo": {"phoneNumberDetail": "To reach the box office call (512) 473-2279."},
+        }]},
+    }
+    n = normalize_ticketmaster(ev)
+    assert n["venue_url"] == "https://www.ticketmaster.com/elephant-room"
+    assert n["venue_phone"] == "(512) 473-2279"
+
+
+def test_venue_contact_absent_is_none_never_fabricated():
+    ev = {
+        "id": "vc2", "name": "No Contact Show",
+        "dates": {"start": {"dateTime": "2026-08-01T02:00:00Z"}},
+        "_embedded": {"venues": [{"name": "Some Venue"}]},
+    }
+    n = normalize_ticketmaster(ev)
+    assert n["venue_url"] is None
+    assert n["venue_phone"] is None
+
+
+def test_backfill_contact_from_raw_matches_the_importer():
+    """The backfill re-derives the SAME two fields from stored raw, so it can't
+    drift from a live import."""
+    from tools.backfill_venue_contact import contact_from_raw
+    raw = {
+        "id": "vc3", "name": "Show",
+        "dates": {"start": {"dateTime": "2026-08-01T02:00:00Z"}},
+        "_embedded": {"venues": [{
+            "name": "V", "url": "https://v.example/x",
+            "boxOfficeInfo": {"phoneNumberDetail": "call 512.474.5664"},
+        }]},
+    }
+    assert contact_from_raw("ticketmaster", raw) == ("https://v.example/x", "512.474.5664")
+    assert contact_from_raw("unknown-provider", raw) == (None, None)

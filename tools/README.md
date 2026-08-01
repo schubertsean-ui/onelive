@@ -59,6 +59,9 @@ below; keep it current in the same commit that adds/changes a script.
 | `tools/validate` (bash) | Single "run everything" end-of-shift entrypoint: trust_gate, lint, full pytest, eval_harness import check, perf benchmarks, test_audit, commit_sweep, in order, with a PASS/FAIL summary table | 0 all passed / 1 any check failed |
 | `tools/install_hooks.sh` (bash) | Installs a real git pre-commit hook (framework-free fallback) that runs `lint.py --fix` then `trust_gate.py`, blocking the commit on failure | n/a (installer) |
 | `tools/import_sources.py` | Source-catalog import for the pipeline's source registry | see script's own `--help` |
+| `tools/apply_migration.py` | Applies one idempotent SQL migration file to the DB (ONELIVE_DB_DSN) in a single transaction; fails loud on error | 0 applied / 2 file missing |
+| `tools/arming_runtime.py` | Computes the armed ingest-cron's true runtime file set (import closure of ingest.yml's scripts + package __init__ files + installed requirements + an explicit non-import registry) so the arming-evidence binding fires only on code the cron actually runs | 0 prints the set / 2 fail-closed on a dynamic import or a missing declared/first-party input |
+| `tools/kpi_report.py` | KPI scorecard for the quarterly-prioritization process (`docs/strategy/ONE_LIVE_KPI_FRAMEWORK_v1.md`): reads (never recomputes) the extraction certification record, the Kaizen ledger, the trust gate, `docs/RECORD.md`, the model router, and the Brain IQ score into one scorecard; `--append TIMESTAMP` writes a snapshot to `docs/metrics/KPI_LEDGER.md`; not-yet-instrumented KPIs render honestly, never a guessed number | 0 ok / 1 `--check` found an off-target KPI / 2 could not compute (fail loud) |
 
 ## Adding a new script
 

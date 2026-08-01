@@ -1,0 +1,185 @@
+{
+  "_comment": "HELD-OUT (hidden) memory benchmark for the OneLive brain — the TEST split of the classic ML dev/test discipline, mirroring the golden-exam's base-ownership. This corpus is DISJOINT from the VISIBLE benchmark (brain/eval/benchmark.py): no question text and no gold answer is shared, so overfitting the visible questions does NOT carry over to here. The AUTHORITY that scores it is the copy of brain/eval/held_out.py + this file + brain/eval/harness.py that lives on the BASE ref, run by .github/workflows/brain-held-out-eval.yml on pull_request_target — so a PR that edits or peeks at this file is judged by BASE's copy, not its own. The in-repo copy is a DEV MIRROR (it lets us run and test the machinery here); the BASE-run copy is the judge. Six standard agent-memory categories, same deterministic scorer, no LLM/network/spend. Floors are a one-way ratchet: raise them (never lower) when the brain improves, in the same PR, re-measured. See docs/strategy/ONE_LIVE_HELDOUT_EVAL_v1.md and docs/RECORD.md R-044.",
+  "measured_on": "2026-07-25",
+  "baselines": {
+    "categories": {
+      "single_fact_recall": 1.0,
+      "multi_hop": 1.0,
+      "knowledge_update": 1.0,
+      "contradiction": 1.0,
+      "entity_resolution": 1.0,
+      "abstention": 1.0
+    },
+    "overall_accuracy": 1.0,
+    "provenance_citation_rate": 1.0,
+    "abstention_correctness": 1.0
+  },
+  "scenarios": [
+    {
+      "id": "held_houston_venues",
+      "sources": {
+        "s_woh": {"uri": "https://whiteoakmusichall.test/cal", "title": "White Oak official calendar"},
+        "s_dir": {"uri": "https://houstondir.test/venues", "title": "Houston venue directory"},
+        "s_num": {"uri": "https://numbersnightclub.test", "title": "Numbers site"},
+        "s_khr": {"uri": "https://khruangbin.test/tour", "title": "Khruangbin tour page"}
+      },
+      "entities": {
+        "white_oak": {"name": "White Oak Music Hall", "entity_type": "venue"},
+        "numbers": {"name": "Numbers", "entity_type": "venue"},
+        "rudyards": {"name": "Rudyard's", "entity_type": "venue"},
+        "khruangbin": {"name": "Khruangbin", "entity_type": "artist"},
+        "heights": {"name": "The Heights", "entity_type": "district"},
+        "houston": {"name": "Houston", "entity_type": "city"}
+      },
+      "attrs": [
+        {"subject": "white_oak", "predicate": "address", "value": "2915 N Main St", "source": "s_woh"},
+        {"subject": "white_oak", "predicate": "capacity", "value": "1400", "source": "s_woh"},
+        {"subject": "numbers", "predicate": "genre", "value": "goth", "source": "s_num"},
+        {"subject": "rudyards", "predicate": "address", "value": "2010 Waugh Dr", "source": "s_dir"},
+        {"subject": "khruangbin", "predicate": "genre", "value": "psych funk", "source": "s_khr"}
+      ],
+      "rels": [
+        {"subject": "khruangbin", "predicate": "plays_at", "object": "white_oak", "source": "s_khr"},
+        {"subject": "white_oak", "predicate": "located_in", "object": "heights", "source": "s_dir"},
+        {"subject": "rudyards", "predicate": "located_in", "object": "heights", "source": "s_dir"},
+        {"subject": "heights", "predicate": "located_in", "object": "houston", "source": "s_dir"}
+      ],
+      "questions": [
+        {"id": "ho-sf-1", "category": "single_fact_recall", "text": "What is White Oak Music Hall's street address?",
+         "op": "single_fact", "subject": "white_oak", "predicate": "address", "gold": {"value": "2915 N Main St"}},
+        {"id": "ho-sf-2", "category": "single_fact_recall", "text": "What is White Oak Music Hall's capacity?",
+         "op": "single_fact", "subject": "white_oak", "predicate": "capacity", "gold": {"value": "1400"}},
+        {"id": "ho-sf-3", "category": "single_fact_recall", "text": "What genre does Numbers play?",
+         "op": "single_fact", "subject": "numbers", "predicate": "genre", "gold": {"value": "goth"}},
+        {"id": "ho-sf-4", "category": "single_fact_recall", "text": "What is Rudyard's street address?",
+         "op": "single_fact", "subject": "rudyards", "predicate": "address", "gold": {"value": "2010 Waugh Dr"}},
+        {"id": "ho-mh-1", "category": "multi_hop", "text": "What city is the White Oak venue in?",
+         "op": "multi_hop", "subject": "white_oak", "path": ["located_in", "located_in"], "gold": {"value": "Houston"}},
+        {"id": "ho-mh-2", "category": "multi_hop", "text": "What district does the band Khruangbin play in?",
+         "op": "multi_hop", "subject": "khruangbin", "path": ["plays_at", "located_in"], "gold": {"value": "The Heights"}},
+        {"id": "ho-mh-3", "category": "multi_hop", "text": "What city does the band Khruangbin play in?",
+         "op": "multi_hop", "subject": "khruangbin", "path": ["plays_at", "located_in", "located_in"], "gold": {"value": "Houston"}},
+        {"id": "ho-mh-4", "category": "multi_hop", "text": "What city is Rudyard's in?",
+         "op": "multi_hop", "subject": "rudyards", "path": ["located_in", "located_in"], "gold": {"value": "Houston"}},
+        {"id": "ho-ab-1", "category": "abstention", "text": "What is White Oak's liquor license number?",
+         "op": "single_fact", "subject": "white_oak", "predicate": "liquor_license", "gold": {"unknown": true}},
+        {"id": "ho-ab-2", "category": "abstention", "text": "What year was Numbers founded?",
+         "op": "single_fact", "subject": "numbers", "predicate": "founded_year", "gold": {"unknown": true}},
+        {"id": "ho-ab-3", "category": "abstention", "text": "What city does Rudyard's owner live in?",
+         "op": "multi_hop", "subject": "rudyards", "path": ["owned_by", "lives_in"], "gold": {"unknown": true}}
+      ]
+    },
+    {
+      "id": "held_touring",
+      "sources": {
+        "s_pre": {"uri": "https://presale.test/early", "title": "Presale listing (2026-09-05)"},
+        "s_night": {"uri": "https://satellitebar.test/cal", "title": "Night-of page (2026-09-12)"},
+        "s_permit": {"uri": "https://permit.test/occ", "title": "Occupancy permit history"},
+        "s_zine": {"uri": "https://localzine.test/fest", "title": "Local zine"},
+        "s_box": {"uri": "https://boxoffice.test/fest", "title": "Box office"}
+      },
+      "entities": {
+        "satellite": {"name": "Satellite Bar", "entity_type": "venue"},
+        "boogie": {"name": "Bayou Boogie", "entity_type": "event"}
+      },
+      "attrs": [
+        {"subject": "satellite", "predicate": "headliner", "value": "The Suffers", "source": "s_pre", "valid_from": "2026-09-05", "valid_to": "2026-09-12"},
+        {"subject": "satellite", "predicate": "headliner", "value": "Robert Ellis", "source": "s_night", "valid_from": "2026-09-12"},
+        {"subject": "satellite", "predicate": "cover", "value": "$10", "source": "s_pre", "valid_from": "2026-09-05", "valid_to": "2026-09-12"},
+        {"subject": "satellite", "predicate": "cover", "value": "$18", "source": "s_night", "valid_from": "2026-09-12"},
+        {"subject": "satellite", "predicate": "door_time", "value": "6:30pm", "source": "s_pre", "valid_from": "2026-09-05", "valid_to": "2026-09-12"},
+        {"subject": "satellite", "predicate": "door_time", "value": "8:30pm", "source": "s_night", "valid_from": "2026-09-12"},
+        {"subject": "satellite", "predicate": "capacity", "value": "250", "source": "s_permit", "valid_from": "2026-02-15", "valid_to": "2026-05-15"},
+        {"subject": "satellite", "predicate": "capacity", "value": "450", "source": "s_permit", "valid_from": "2026-05-15", "valid_to": "2026-08-15"},
+        {"subject": "satellite", "predicate": "capacity", "value": "700", "source": "s_permit", "valid_from": "2026-08-15"},
+        {"subject": "boogie", "predicate": "start_time", "value": "5pm", "source": "s_zine", "ref": "boogie_start_a"},
+        {"subject": "boogie", "predicate": "start_time", "value": "6pm", "source": "s_box", "ref": "boogie_start_b"},
+        {"subject": "boogie", "predicate": "at", "value": "Satellite Bar", "source": "s_zine", "ref": "boogie_at_a"},
+        {"subject": "boogie", "predicate": "at", "value": "Numbers", "source": "s_box", "ref": "boogie_at_b"}
+      ],
+      "contradicts": [
+        {"a": "boogie_start_a", "b": "boogie_start_b"},
+        {"a": "boogie_at_a", "b": "boogie_at_b"}
+      ],
+      "questions": [
+        {"id": "to-ku-1", "category": "knowledge_update", "text": "Who is tonight's headliner at Satellite Bar right now?",
+         "op": "current_value", "subject": "satellite", "predicate": "headliner", "gold": {"value": "Robert Ellis"}},
+        {"id": "to-ku-2", "category": "knowledge_update", "text": "What is the current cover charge at Satellite Bar?",
+         "op": "current_value", "subject": "satellite", "predicate": "cover", "gold": {"value": "$18"}},
+        {"id": "to-ku-3", "category": "knowledge_update", "text": "What is the current door time at Satellite Bar?",
+         "op": "current_value", "subject": "satellite", "predicate": "door_time", "gold": {"value": "8:30pm"}},
+        {"id": "to-ku-4", "category": "knowledge_update", "text": "What is Satellite Bar's current capacity?",
+         "op": "current_value", "subject": "satellite", "predicate": "capacity", "gold": {"value": "700"}},
+        {"id": "to-ku-5", "category": "knowledge_update", "text": "As of the presale listing (2026-09-05), who was the headliner?",
+         "op": "as_of", "subject": "satellite", "predicate": "headliner", "as_of_date": "2026-09-05", "gold": {"value": "The Suffers"}},
+        {"id": "to-ku-6", "category": "knowledge_update", "text": "As of 2026-09-05, what was the cover charge?",
+         "op": "as_of", "subject": "satellite", "predicate": "cover", "as_of_date": "2026-09-05", "gold": {"value": "$10"}},
+        {"id": "to-ku-7", "category": "knowledge_update", "text": "As of the night-of page (2026-09-14), who was the headliner?",
+         "op": "as_of", "subject": "satellite", "predicate": "headliner", "as_of_date": "2026-09-14", "gold": {"value": "Robert Ellis"}},
+        {"id": "to-ku-8", "category": "knowledge_update", "text": "As of 2026-09-05, what was the door time?",
+         "op": "as_of", "subject": "satellite", "predicate": "door_time", "as_of_date": "2026-09-05", "gold": {"value": "6:30pm"}},
+        {"id": "to-ku-9", "category": "knowledge_update", "text": "What was Satellite Bar's capacity as of 2026-03-01?",
+         "op": "as_of", "subject": "satellite", "predicate": "capacity", "as_of_date": "2026-03-01", "gold": {"value": "250"}},
+        {"id": "to-ku-10", "category": "knowledge_update", "text": "What was Satellite Bar's capacity as of 2026-06-01?",
+         "op": "as_of", "subject": "satellite", "predicate": "capacity", "as_of_date": "2026-06-01", "gold": {"value": "450"}},
+        {"id": "to-ku-11", "category": "knowledge_update", "text": "What was Satellite Bar's capacity as of 2026-09-01?",
+         "op": "as_of", "subject": "satellite", "predicate": "capacity", "as_of_date": "2026-09-01", "gold": {"value": "700"}},
+        {"id": "to-ku-12", "category": "knowledge_update", "text": "What was Satellite Bar's capacity as of 2026-01-01 (before any record)?",
+         "op": "as_of", "subject": "satellite", "predicate": "capacity", "as_of_date": "2026-01-01", "gold": {"unknown": true}},
+        {"id": "to-co-1", "category": "contradiction", "text": "What time does Bayou Boogie start?",
+         "op": "contradiction", "subject": "boogie", "predicate": "start_time", "gold": {"disputed": true, "values": ["5pm", "6pm"]}},
+        {"id": "to-co-2", "category": "contradiction", "text": "Where is Bayou Boogie held?",
+         "op": "contradiction", "subject": "boogie", "predicate": "at", "gold": {"disputed": true, "values": ["Numbers", "Satellite Bar"]}}
+      ]
+    },
+    {
+      "id": "held_aliases",
+      "sources": {
+        "s_site": {"uri": "https://axelrad.test", "title": "Axelrad site"},
+        "s_m1": {"uri": "https://blog-m.test", "title": "Blog M"},
+        "s_m2": {"uri": "https://blog-n.test", "title": "Blog N"},
+        "s_fire": {"uri": "https://fire-marshal.test/axelrad", "title": "Fire-marshal record"}
+      },
+      "entities": {
+        "axelrad": {"name": "Axelrad", "entity_type": "venue"},
+        "surf_garden": {"name": "Axelrad Beer Garden", "entity_type": "venue", "source_docs": ["doc:garden"]},
+        "surf_axe": {"name": "The Axe", "entity_type": "venue", "source_docs": ["doc:axe"]},
+        "dj_sun": {"name": "DJ Sun", "entity_type": "artist"}
+      },
+      "attrs": [
+        {"subject": "axelrad", "predicate": "address", "value": "1517 Alabama St", "source": "s_site"},
+        {"subject": "axelrad", "predicate": "genre", "value": "chill patio", "source": "s_site"},
+        {"subject": "dj_sun", "predicate": "genre", "value": "soul", "source": "s_m1", "ref": "sun_genre_a"},
+        {"subject": "dj_sun", "predicate": "genre", "value": "downtempo", "source": "s_m2", "ref": "sun_genre_b"},
+        {"subject": "axelrad", "predicate": "capacity", "value": "180", "source": "s_site", "ref": "axe_cap_a"},
+        {"subject": "axelrad", "predicate": "capacity", "value": "260", "source": "s_fire", "ref": "axe_cap_b"}
+      ],
+      "contradicts": [
+        {"a": "sun_genre_a", "b": "sun_genre_b"},
+        {"a": "axe_cap_a", "b": "axe_cap_b"}
+      ],
+      "resolutions": [
+        {"canonical": "axelrad", "others": ["surf_garden", "surf_axe"],
+         "rationale": "same venue: same address + same listings", "confidence": 0.9}
+      ],
+      "questions": [
+        {"id": "ax-er-1", "category": "entity_resolution", "text": "What is the address of 'Axelrad Beer Garden'?",
+         "op": "via_alias", "alias": "Axelrad Beer Garden", "predicate": "address", "gold": {"value": "1517 Alabama St"}},
+        {"id": "ax-er-2", "category": "entity_resolution", "text": "What genre is 'The Axe'?",
+         "op": "via_alias", "alias": "The Axe", "predicate": "genre", "gold": {"value": "chill patio"}},
+        {"id": "ax-er-3", "category": "entity_resolution", "text": "What is the address of 'Axelrad'?",
+         "op": "via_alias", "alias": "Axelrad", "predicate": "address", "gold": {"value": "1517 Alabama St"}},
+        {"id": "ax-er-4", "category": "entity_resolution", "text": "What genre does 'Axelrad Beer Garden' play?",
+         "op": "via_alias", "alias": "Axelrad Beer Garden", "predicate": "genre", "gold": {"value": "chill patio"}},
+        {"id": "ax-co-1", "category": "contradiction", "text": "What genre is DJ Sun?",
+         "op": "contradiction", "subject": "dj_sun", "predicate": "genre", "gold": {"disputed": true, "values": ["downtempo", "soul"]}},
+        {"id": "ax-co-2", "category": "contradiction", "text": "What is the capacity of Axelrad?",
+         "op": "contradiction", "subject": "axelrad", "predicate": "capacity", "gold": {"disputed": true, "values": ["180", "260"]}},
+        {"id": "ax-ab-1", "category": "abstention", "text": "What is Axelrad's phone number?",
+         "op": "single_fact", "subject": "axelrad", "predicate": "phone", "gold": {"unknown": true}},
+        {"id": "ax-ab-2", "category": "abstention", "text": "What is the address of 'Rooftop Cinema'?",
+         "op": "via_alias", "alias": "Rooftop Cinema", "predicate": "address", "gold": {"unknown": true}}
+      ]
+    }
+  ]
+}

@@ -38,6 +38,34 @@ Concretely, before anything is considered done:
   first, then proceed.
 - **Findings are claims until verified.** Row counts, scores, "it works" — prove
   them against ground truth (DB query, passing test, real run) before asserting.
+- **No research without the primary source.** (Founder directive, verbatim,
+  2026-07-24: "Don't ever assume or summarize or proceed to perform any
+  strategic or deep research that you are unable to access the primary
+  documents or files or information." Decision record:
+  `docs/memory/decisions/2026-07-24_primary-source-gate.md`.) If the primary
+  document/file/data behind a strategic or deep-research task cannot be
+  accessed (paywall, 403, missing attachment, login gate), the research does
+  NOT proceed on excerpts, mirrors, search summaries, or memory — however
+  heavily caveated. STOP that thread, deliver a blocker report naming exactly
+  what was inaccessible and the smallest founder action that unblocks it
+  (paste the text, attach the file, grant access), and only continue work
+  that does not depend on the inaccessible source. Secondary-source
+  reconstruction is not a fallback; it is the defect.
+- **A repeated error is a finding, not a rhythm.** (Founder-directed
+  2026-07-25 and ratified by the founder as a global standing condition;
+  the verbatim directive lives in the decision record —
+  `docs/memory/decisions/2026-07-25_repeated-error-investigation-rule.md`
+  — kept there per dissemination minimization, r12 nit.)
+  The SAME error, warning, or anomalous message appearing more than twice —
+  in a loop, across polls, across tool calls, across sessions — is itself a
+  defect signal that MUST be investigated at its root before (or alongside)
+  any workaround: name the cause, decide deliberately whether the fix is
+  ours, upstream, or a justified accepted-cost workaround, and record the
+  determination (session note or Kaizen row) so the repetition never
+  normalizes. Routinizing a recurring error without a recorded root-cause
+  determination is the defect, whatever the error turns out to be. Applies
+  to every project adopting the universal kernel (K-GATE class; queued as a
+  kernel amendment in the universal model doc).
 
 If something is merely "fine," it is not done. State the gap and close it.
 
@@ -57,6 +85,21 @@ Understand → Implement → Self-review against §1 → Fix what review finds �
   `_provenance` key and the null-city bug is the standard, not the exception.
 - A loop iteration ends only when review finds nothing new *and* verification is
   green.
+- **Build through the Construction Loop.** (Founder-directed 2026-07-25;
+  canon: `docs/skills/construction_loop.md`; verbatim directive + RCA:
+  `docs/memory/decisions/2026-07-25_construction-loop-directive.md`.)
+  Every substantive build runs the seven stages — A3-form contract →
+  ledger-seeded premortem (tree, not chain) → BLOCKING memory retrieval
+  (cite matched green examples and red classes before any design is
+  accepted; "no matches" is a printed result, never silence) → scored
+  path selection (precedent collapses the search; no precedent = 2-3
+  independent candidates judged against the contract) → small-batch
+  execution with validate BEFORE the evaluator → lessons committed only
+  in machine-consumed form (gate rule / retrieval token / regression
+  case — prose-only rows are open defects) → rounds-to-APPROVE and
+  repeat-class rate trended as the loop's own health metrics. The loop
+  adds an upstream pass; no downstream gate relaxes, ever.
+
 - **Mechanical backstop:** the pre-commit hook (`tools/install_hooks.sh` →
   `lint.py --fix` + `trust_gate.py`) enforces the floor on every commit, and
   `bash tools/validate` runs the *full* gate (trust_gate, lint, full pytest,
@@ -139,6 +182,32 @@ are prior to the need to compact."
   (`docs/session_arcs/YYYY-MM-DD_slug.md`, indexed in the README), mirror to
   memory. Note any new external dependency in STATE.md (CLAUDE.md review rule #3).
 
+**External-stall escalation ladder (founder-directed 2026-07-22: "Do not let
+things run for so long without firing. Troubleshoot faster. Fix faster."):**
+When an external system misses an expected event (a scheduler slot, a webhook,
+a deploy callback):
+- **First miss:** verify our own configuration immediately and completely
+  (config on the authoritative branch, service state via API). Apply every
+  self-serve mitigation in the same pass — do not save any available action
+  for later.
+- **Second miss:** if the remaining fix needs founder hands, the consolidated
+  founder ask goes out NOW — options, recommendation, tradeoffs, links. Never
+  wait for a round number of misses or an "escalation checkpoint" hours out.
+- **Watching cadence:** watch interval = ONE expected-event interval + provider
+  lag allowance, never multi-interval windows.
+- **A watch turn never ends unarmed:** success is silent (CI success and
+  merges deliver no webhook) — before ending ANY turn that awaits an
+  external outcome, arm a wake-up for it; if the preferred scheduling
+  mechanism is unavailable or declined, use the best available fallback
+  and SAY SO. (Added 2026-07-22 after the 05:28Z→11:56Z gap: an APPROVE
+  sat unmerged 6.5h because the awaiting turn ended with no timer.) Bridging actions (manual runs,
+  pings) buy time; they never substitute for the escalation.
+- Origin: the 2026-07-22 cron-arming stall — first missed slot 01:07Z,
+  founder ask not delivered until 04:02Z, while the fix (a two-tap
+  disable/enable only the founder could perform) was available from the first
+  miss. Three hours of patience with a stuck external scheduler was a process
+  defect, not diligence (founder(Red) catch; Kaizen ledger row same date).
+
 ---
 
 ## 5. Standard of "world-class"
@@ -174,6 +243,28 @@ recommendation and its reasoning. Every set of options must include:
 This applies to plans, technical choices, sequencing, and `ask_user_question`
 prompts alike. A recommendation can still be overridden — but the default is a
 considered position, not a shrug.
+
+---
+
+## 6a. Follow-ups & keeping the founder informed (canon, founder-directed 2026-07-31)
+
+The agent is the **manager** and reports to the founder; driving work to done and
+keeping the founder informed is the agent's job, never the founder's to chase.
+
+1. **Keep working — no delays.** Default to **immediate continuation**: finish one
+   step, start the next, in the same run. Do NOT stop to schedule a far-out
+   check-in and do NOT sit on a timer. Long delays are banned (founder-directed
+   2026-07-31: *"Stop with the long delays and check-ins!"*).
+2. **Completion-triggered, not clock-triggered.** Continuation is driven by an
+   event finishing — a build step done, a PR going green, a CI/review webhook —
+   not by an arbitrary interval. Use the **activity wake** (PR-webhook
+   subscriptions) as the signal. Only if genuinely blocked on external state with
+   no event to wake on, use the **shortest** possible timer, never a long one.
+3. **Own it; report, don't ask.** Decisions the agent can make and reversibly
+   verify, the agent makes — then reports the outcome. Do not park buildable work
+   as a founder "switch/decision" when the honest blocker is unbuilt code. Naming
+   an unbuilt engine as a founder toggle is the 2026-07-31 anti-pattern this rule
+   exists to prevent.
 
 ---
 

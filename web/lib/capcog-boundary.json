@@ -1,0 +1,455 @@
+{
+  "_generated_by": "tools/gen_region_boundary.py from worker/region/capcog.py \u2014 DO NOT EDIT BY HAND",
+  "counties": [
+    "bastrop",
+    "blanco",
+    "burnet",
+    "caldwell",
+    "comal",
+    "fayette",
+    "gillespie",
+    "hays",
+    "kendall",
+    "kerr",
+    "lee",
+    "llano",
+    "travis",
+    "williamson"
+  ],
+  "places": {
+    "andice": "williamson",
+    "austin": "travis",
+    "bartlett": "williamson",
+    "bastrop": "bastrop",
+    "bear creek": "hays",
+    "bee cave": "travis",
+    "bee caves": "travis",
+    "bertram": "burnet",
+    "blanco": "blanco",
+    "boerne": "kendall",
+    "briarcliff": "travis",
+    "brushy creek": "williamson",
+    "buchanan dam": "llano",
+    "buda": "hays",
+    "bulverde": "comal",
+    "burnet": "burnet",
+    "canyon lake": "comal",
+    "carmine": "fayette",
+    "cedar creek": "bastrop",
+    "cedar park": "williamson",
+    "comfort": "kendall",
+    "cottonwood shores": "burnet",
+    "coupland": "williamson",
+    "creedmoor": "travis",
+    "dale": "caldwell",
+    "del valle": "travis",
+    "dime box": "lee",
+    "doss": "gillespie",
+    "driftwood": "hays",
+    "dripping springs": "hays",
+    "elgin": "bastrop",
+    "ellinger": "fayette",
+    "fayetteville": "fayette",
+    "fentress": "caldwell",
+    "flatonia": "fayette",
+    "florence": "williamson",
+    "fredericksburg": "gillespie",
+    "garden ridge": "comal",
+    "garfield": "travis",
+    "georgetown": "williamson",
+    "giddings": "lee",
+    "granger": "williamson",
+    "granite shoals": "burnet",
+    "gruene": "comal",
+    "harper": "gillespie",
+    "hays": "hays",
+    "highland haven": "burnet",
+    "horseshoe bay": "burnet",
+    "hutto": "williamson",
+    "hye": "blanco",
+    "ingram": "kerr",
+    "jarrell": "williamson",
+    "johnson city": "blanco",
+    "jonestown": "travis",
+    "kerrville": "kerr",
+    "kingsland": "llano",
+    "kyle": "hays",
+    "la grange": "fayette",
+    "lago vista": "travis",
+    "lakeway": "travis",
+    "leander": "williamson",
+    "lexington": "lee",
+    "liberty hill": "williamson",
+    "llano": "llano",
+    "lockhart": "caldwell",
+    "luling": "caldwell",
+    "manchaca": "travis",
+    "manor": "travis",
+    "marble falls": "burnet",
+    "martindale": "caldwell",
+    "maxwell": "caldwell",
+    "mcdade": "bastrop",
+    "meadowlakes": "burnet",
+    "mountain city": "hays",
+    "mustang ridge": "travis",
+    "new braunfels": "comal",
+    "niederwald": "hays",
+    "paige": "bastrop",
+    "pflugerville": "travis",
+    "point venture": "travis",
+    "red rock": "bastrop",
+    "rollingwood": "travis",
+    "round mountain": "blanco",
+    "round rock": "williamson",
+    "round top": "fayette",
+    "san leanna": "travis",
+    "san marcos": "hays",
+    "schulenburg": "fayette",
+    "serenada": "williamson",
+    "smithville": "bastrop",
+    "spicewood": "travis",
+    "spring branch": "comal",
+    "stonewall": "gillespie",
+    "sunrise beach village": "llano",
+    "sunset valley": "travis",
+    "taylor": "williamson",
+    "the hills": "travis",
+    "thrall": "williamson",
+    "tow": "llano",
+    "uhland": "hays",
+    "volente": "travis",
+    "walburg": "williamson",
+    "warrenton": "fayette",
+    "webberville": "travis",
+    "weir": "williamson",
+    "west lake hills": "travis",
+    "willow city": "gillespie",
+    "wimberley": "hays",
+    "woodcreek": "hays",
+    "wyldwood": "bastrop"
+  },
+  "known_outside": {
+    "abilene": "taylor",
+    "alamo heights": "bexar",
+    "amarillo": "potter",
+    "arlington": "tarrant",
+    "balcones heights": "bexar",
+    "beaumont": "jefferson",
+    "belton": "bell",
+    "brownsville": "cameron",
+    "bryan": "brazos",
+    "china grove": "bexar",
+    "cibolo": "guadalupe",
+    "college station": "brazos",
+    "converse": "bexar",
+    "copperas cove": "coryell",
+    "corpus christi": "nueces",
+    "dallas": "dallas",
+    "denton": "denton",
+    "el paso": "el paso",
+    "fort worth": "tarrant",
+    "frisco": "collin",
+    "galveston": "galveston",
+    "harker heights": "bell",
+    "helotes": "bexar",
+    "houston": "harris",
+    "irving": "dallas",
+    "killeen": "bell",
+    "kirby": "bexar",
+    "lampasas": "lampasas",
+    "laredo": "webb",
+    "leon valley": "bexar",
+    "live oak": "bexar",
+    "lubbock": "lubbock",
+    "marion": "guadalupe",
+    "mcallen": "hidalgo",
+    "midland": "midland",
+    "nolanville": "bell",
+    "odessa": "ector",
+    "plano": "collin",
+    "salado": "bell",
+    "san angelo": "tom green",
+    "san antonio": "bexar",
+    "santa clara": "guadalupe",
+    "schertz": "guadalupe",
+    "seguin": "guadalupe",
+    "selma": "bexar",
+    "shavano park": "bexar",
+    "sugar land": "fort bend",
+    "temple": "bell",
+    "terrell hills": "bexar",
+    "the woodlands": "montgomery",
+    "tyler": "smith",
+    "universal city": "bexar",
+    "victoria": "victoria",
+    "waco": "mclennan",
+    "wichita falls": "wichita",
+    "windcrest": "bexar"
+  },
+  "trailing_qualifiers": [
+    ", tx",
+    ", texas",
+    " tx",
+    " texas",
+    ", usa",
+    ", u.s.a.",
+    ", u.s.",
+    ", us",
+    ", united states",
+    " usa",
+    " united states"
+  ],
+  "normalization_vectors": [
+    {
+      "input": "Austin",
+      "expected": "austin"
+    },
+    {
+      "input": "Austin, TX",
+      "expected": "austin"
+    },
+    {
+      "input": "austin, texas",
+      "expected": "austin"
+    },
+    {
+      "input": "Austin, TX 78701",
+      "expected": "austin"
+    },
+    {
+      "input": "Austin, TX 78701-1234",
+      "expected": "austin"
+    },
+    {
+      "input": "Austin, TX, USA",
+      "expected": "austin"
+    },
+    {
+      "input": "Austin, Texas, United States",
+      "expected": "austin"
+    },
+    {
+      "input": "San Antonio",
+      "expected": "san antonio"
+    },
+    {
+      "input": "San Antonio, TX",
+      "expected": "san antonio"
+    },
+    {
+      "input": "San Antonio, TX, USA",
+      "expected": "san antonio"
+    },
+    {
+      "input": "SAN ANTONIO, TX 78205, USA",
+      "expected": "san antonio"
+    },
+    {
+      "input": "San Antonio, Texas, United States",
+      "expected": "san antonio"
+    },
+    {
+      "input": "New Braunfels, TX, USA",
+      "expected": "new braunfels"
+    },
+    {
+      "input": "Round Rock, TX",
+      "expected": "round rock"
+    },
+    {
+      "input": "Columbus",
+      "expected": "columbus"
+    },
+    {
+      "input": "  ",
+      "expected": null
+    },
+    {
+      "input": "",
+      "expected": null
+    },
+    {
+      "input": "San Antonio, TX.",
+      "expected": "san antonio"
+    },
+    {
+      "input": "San Antonio, Texas.",
+      "expected": "san antonio"
+    },
+    {
+      "input": "Austin, TX.",
+      "expected": "austin"
+    },
+    {
+      "input": "Bexar County, TX.",
+      "expected": "bexar county"
+    },
+    {
+      "input": "San Antonio, Bexar Co., TX",
+      "expected": "san antonio"
+    },
+    {
+      "input": "San Antonio, Bexar Co.",
+      "expected": "san antonio"
+    },
+    {
+      "input": "San Antonio, Bexar County, TX",
+      "expected": "san antonio"
+    },
+    {
+      "input": "san antonio, bexar county",
+      "expected": "san antonio"
+    },
+    {
+      "input": "SAN ANTONIO, BEXAR COUNTY, TEXAS, USA",
+      "expected": "san antonio"
+    },
+    {
+      "input": "Austin, Travis County, TX",
+      "expected": "austin"
+    },
+    {
+      "input": "constructor",
+      "expected": "constructor"
+    },
+    {
+      "input": "toString",
+      "expected": "tostring"
+    },
+    {
+      "input": "valueOf",
+      "expected": "valueof"
+    },
+    {
+      "input": "hasOwnProperty",
+      "expected": "hasownproperty"
+    },
+    {
+      "input": "__proto__",
+      "expected": "__proto__"
+    }
+  ],
+  "embedded_county_vectors": [
+    {
+      "input": "Unlisted Spot, Bexar County, TX",
+      "expected": "bexar"
+    },
+    {
+      "input": "Unlisted Spot, Bexar County, TX, USA",
+      "expected": "bexar"
+    },
+    {
+      "input": "Unlisted Spot, Bexar County, TX 78205",
+      "expected": "bexar"
+    },
+    {
+      "input": "unlisted spot, bexar county",
+      "expected": "bexar"
+    },
+    {
+      "input": "Nowhere Bar, Travis County, TX",
+      "expected": "travis"
+    },
+    {
+      "input": "Austin, TX",
+      "expected": null
+    },
+    {
+      "input": "San Antonio",
+      "expected": null
+    },
+    {
+      "input": "",
+      "expected": null
+    },
+    {
+      "input": "Bexar County",
+      "expected": "bexar"
+    },
+    {
+      "input": "Bexar County, TX",
+      "expected": "bexar"
+    },
+    {
+      "input": "bexar county",
+      "expected": "bexar"
+    },
+    {
+      "input": "Travis County",
+      "expected": "travis"
+    },
+    {
+      "input": "TRAVIS COUNTY, TEXAS",
+      "expected": "travis"
+    },
+    {
+      "input": "San Antonio, Bexar Co., TX",
+      "expected": "bexar"
+    },
+    {
+      "input": "Nowhere Bar, Travis Co., TX",
+      "expected": "travis"
+    },
+    {
+      "input": "Bexar Co.",
+      "expected": "bexar"
+    }
+  ],
+  "county_vectors": [
+    {
+      "input": "Bexar County, TX",
+      "expected": "bexar",
+      "verdict": false
+    },
+    {
+      "input": "bexar",
+      "expected": "bexar",
+      "verdict": false
+    },
+    {
+      "input": "TRAVIS COUNTY",
+      "expected": "travis",
+      "verdict": true
+    },
+    {
+      "input": "Travis",
+      "expected": "travis",
+      "verdict": true
+    },
+    {
+      "input": "Nowhere County",
+      "expected": "nowhere",
+      "verdict": null
+    },
+    {
+      "input": "",
+      "expected": null,
+      "verdict": null
+    },
+    {
+      "input": "   ",
+      "expected": null,
+      "verdict": null
+    },
+    {
+      "input": "Bexar Co.",
+      "expected": "bexar",
+      "verdict": false
+    },
+    {
+      "input": "Bexar Co",
+      "expected": "bexar",
+      "verdict": false
+    },
+    {
+      "input": "Travis Co.",
+      "expected": "travis",
+      "verdict": true
+    },
+    {
+      "input": "bexar co",
+      "expected": "bexar",
+      "verdict": false
+    }
+  ]
+}

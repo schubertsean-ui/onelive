@@ -1,0 +1,25 @@
+[
+  {
+    "_comment": "EXAMPLE ONLY — copy to gov_open_data_datasets.json and replace with REAL dataset ids + column names looked up from the live portal. The runner fails loud until a real config exists; it never imports placeholder ids.",
+    "domain": "data.austintexas.gov",
+    "dataset": "REPLACE-WITH-REAL-4x4-ID",
+    "provider": "socrata",
+    "source_name": "austin_example_licensing",
+    "where": "optional SoQL filter, e.g. license_status='Active'",
+    "page_size": 1000,
+    "field_map": {
+      "name": "business_name",
+      "address": "street_address",
+      "city": "city",
+      "state": "state",
+      "postal_code": "zip_code",
+      "latitude": "latitude",
+      "longitude": "longitude",
+      "capacity": "occupant_load",
+      "license_type": "license_class",
+      "license_status": "status",
+      "service_type": "business_type",
+      "external_id": "license_number"
+    }
+  }
+]

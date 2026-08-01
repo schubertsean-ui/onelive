@@ -6,15 +6,49 @@ import json
 import psycopg2
 
 from worker.candidate_store import load_candidate_gate_signals
+from worker.classify import resolve_category
 from worker.confidence import derive_confidence, is_valid_confidence
 from worker.db_config import resolve_dsn
 from worker.dedupe import find_possible_duplicates
+from worker.importers.domain_map import UNMAPPED
 from worker.resolve_entities import resolve_venue_id, resolve_artist_ids
+from worker.source_catalog import cultural_domain_for_source
 from worker.trust_gate3 import GateDecision, evaluate_gate
 
 
 def db():
     return psycopg2.connect(resolve_dsn())
+
+
+def card_fields(title, ticket_link, *, schema_type=None, venue_domain_hint=None,
+                venue_business_type=None):
+    """Derive the user-facing card columns on `event` (title, category,
+    subsegment, ticket_url) from the candidate's OWN real data — the fields
+    migration 0010 added and documented promote.py as the writer of, but which
+    were never populated (so promoted long-tail events rendered titleless and in
+    'Other'). Pure function so the mapping is unit-testable without a database.
+
+    Category is resolved by the Router classifier (worker.classify) from the
+    STRONGEST available signal — the event's schema.org @type, then the host
+    venue's business type / curated domain, then a last-resort title read — each
+    with provenance (docs/memory/decisions/2026-07-25_graph-engineering-
+    adoption.md). NO FABRICATION: when every signal is silent the category stays
+    NULL and the feed shows it honestly as 'Other', never a guessed domain.
+    price/image/currency are absent from the crawl extraction schema, so they
+    stay NULL rather than being invented.
+    """
+    r = resolve_category(
+        schema_type=schema_type,
+        venue_domain_hint=venue_domain_hint,
+        venue_business_type=venue_business_type,
+        title=title,
+    )
+    return {
+        "title": title or None,
+        "category": None if r.domain == UNMAPPED else r.domain,
+        "subsegment": r.genre,
+        "ticket_url": ticket_link or None,
+    }
 
 
 def assert_promotable(*, source_classes, sxsw_mode, extracted, evidence_signals):
@@ -74,7 +108,8 @@ def promote_candidate(candidate_id: str) -> str:
 
             cur.execute("""
               select title, start_time, end_time, venue_name, city, artist_names,
-                     is_private_rsvp, private_access, ticket_link, rsvp_link, raw_text
+                     is_private_rsvp, private_access, ticket_link, rsvp_link, raw_text,
+                     source_name
               from event_candidate
               where candidate_id=%s
             """, (candidate_id,))
@@ -82,7 +117,7 @@ def promote_candidate(candidate_id: str) -> str:
             if not c:
                 raise ValueError("candidate not found")
             (title, start_time, end_time, venue_name, city, artist_names, is_private,
-             private_access, ticket_link, rsvp_link, raw_text) = c
+             private_access, ticket_link, rsvp_link, raw_text, source_name) = c
 
             # Resolve entities on THIS cursor so placeholder venue/artist rows are
             # part of the same transaction as the dedupe-check-and-insert below.
@@ -97,13 +132,31 @@ def promote_candidate(candidate_id: str) -> str:
             if dups:
                 raise ValueError(f"Possible duplicate canonical events exist: {dups}")
 
+            # User-facing card columns (title/category/subsegment/ticket_url) from
+            # the candidate's OWN data — the fields 0010 added and named promote.py
+            # as writer of. Without these a promoted event had no title (only the
+            # truncated raw_text in `notes`) and no category (→ always 'Other'),
+            # so it could not appear as a real card on the feed. Derivation is
+            # deterministic + non-fabricating (see card_fields).
+            #
+            # Feed the classifier the source's CURATED cultural_domain (founder:
+            # "read what the source IS" — a museum's event is visual-arts). This
+            # is the human-vetted catalog signal (resolve_category signal #3),
+            # ranked above the title-keyword last resort. None for an unknown /
+            # untagged source, so the classifier falls through honestly — never a
+            # fabricated category. This finally WIRES the resolver in production;
+            # before it, promote passed no signal and every event fell to the title.
+            venue_domain_hint = cultural_domain_for_source(source_name)
+            card = card_fields(title, ticket_link, venue_domain_hint=venue_domain_hint)
+
             cur.execute("""
               insert into event(
                 venue_id, artist_ids, start_time, end_time,
                 status, confidence, override_lock,
-                is_private_rsvp, private_access, notes
+                is_private_rsvp, private_access, notes,
+                title, category, subsegment, ticket_url
               )
-              values (%s,%s,%s,%s,'scheduled',%s,false,%s,%s::jsonb,%s)
+              values (%s,%s,%s,%s,'scheduled',%s,false,%s,%s::jsonb,%s,%s,%s,%s,%s)
               returning event_id
             """, (
                 venue_id,
@@ -113,7 +166,11 @@ def promote_candidate(candidate_id: str) -> str:
                 confidence,
                 bool(is_private),
                 json.dumps(private_access or {}),
-                title or (raw_text or "")[:120]
+                title or (raw_text or "")[:120],
+                card["title"],
+                card["category"],
+                card["subsegment"],
+                card["ticket_url"],
             ))
             event_id = cur.fetchone()[0]
 

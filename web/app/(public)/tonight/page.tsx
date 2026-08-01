@@ -1,113 +1,92 @@
-"use client";
+import "./flow.css";
+import {
+  fetchLicensedEvents,
+  supabaseConfigured,
+  type LicensedEvent,
+} from "../../../lib/licensed";
+import { fetchPromotedEvents } from "../../../lib/promoted";
+import { filterToCapcog } from "../../../lib/region";
+import FeedApp from "./FeedApp";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchTonight } from "../../../lib/public-api";
-import { TonightEvent } from "../../../lib/public-types";
-import { formatDayLabel } from "../../../lib/time";
-import { EventCard } from "../../../components/EventCard";
-import { BrandMark } from "../../../components/BrandMark";
-import { FeedSkeleton, FeedEmpty, FeedError } from "../../../components/FeedStates";
+// Server component — reads the REAL licensed events from Supabase at request
+// time and hands them to the interactive client feed (date/filter/ask/plan).
+// The fetch never filters on confidence (disputed always included); it starts a
+// little before "now" so events already in progress are still surfaced, and the
+// client hides only what has genuinely ended (a time filter, never a trust one).
+export const dynamic = "force-dynamic";
 
-type Status = "loading" | "ready" | "error";
-
-const CITY = "Austin";
-
-// Small legend so the confidence vocabulary is explained up front.
-const LEGEND: { tone: string; label: string }[] = [
-  { tone: "confirmed", label: "Confirmed" },
-  { tone: "likely", label: "Likely" },
-  { tone: "unverified", label: "Unverified" },
-  { tone: "disputed", label: "Disputed" },
-];
-
-export default function TonightPage() {
-  const [status, setStatus] = useState<Status>("loading");
-  const [events, setEvents] = useState<TonightEvent[]>([]);
-  const now = useMemo(() => new Date(), []);
-
-  const load = useCallback(async () => {
-    setStatus("loading");
-    try {
-      const data = await fetchTonight({ city: CITY, hours: 12, limit: 60 });
-      setEvents(data);
-      setStatus("ready");
-    } catch {
-      setStatus("error");
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  // Group by day label ("Tonight", "Sat, Jul 12", ...) preserving API order,
-  // which is already sorted by confidence-tier then start_time.
-  const groups = useMemo(() => {
-    const out: { label: string; items: TonightEvent[] }[] = [];
-    for (const ev of events) {
-      const label = formatDayLabel(ev.start_time, now);
-      const last = out[out.length - 1];
-      if (last && last.label === label) last.items.push(ev);
-      else out.push({ label, items: [ev] });
-    }
-    return out;
-  }, [events, now]);
-
-  return (
-    <main className="pub-wrap">
-      <header className="pub-header">
-        <a className="pub-brand" href="/tonight" aria-label="OneLive home">
-          <BrandMark size={26} />
-          <span className="pub-brand-name">One<b>Live</b></span>
-        </a>
-        <span className="pub-city" data-testid="text-city">{CITY}, TX</span>
-      </header>
-
-      <section className="pub-hero">
-        <p className="pub-kicker">Live right now</p>
-        <h1 className="pub-title">What&rsquo;s happening tonight</h1>
-        <p className="pub-sub">
-          Music, art, food, and culture across Austin and the surrounding counties.
-          Every listing shows how well we&rsquo;ve verified it &mdash; so you always
-          know what you&rsquo;re looking at.
-        </p>
-      </section>
-
-      <div className="pub-legend" aria-label="What the confidence labels mean">
-        <span className="pub-legend-title">How verified is it?</span>
-        {LEGEND.map((l) => (
-          <span className="pub-legend-item" key={l.tone}>
-            <span className="pub-badge" data-tone={l.tone} style={{ padding: "3px 8px" }}>
-              <span className="pub-badge-dot" aria-hidden="true" />
-              {l.label}
-            </span>
-          </span>
-        ))}
-      </div>
-
-      {status === "loading" ? <FeedSkeleton /> : null}
-      {status === "error" ? <FeedError onRetry={load} /> : null}
-      {status === "ready" && events.length === 0 ? <FeedEmpty city={CITY} /> : null}
-
-      {status === "ready" && events.length > 0 ? (
-        <div data-testid="feed-events">
-          {groups.map((g) => (
-            <section key={g.label} aria-label={g.label}>
-              <h2 className="pub-daygroup-label">{g.label}</h2>
-              <div className="pub-feed">
-                {g.items.map((ev) => (
-                  <EventCard key={ev.event_id} event={ev} now={now} />
-                ))}
-              </div>
-            </section>
-          ))}
+export default async function TonightPage() {
+  if (!supabaseConfigured()) {
+    return (
+      <main className="flow">
+        <div className="wrap">
+          <div className="mast"><h1>ONE LIVE · Tonight in Austin</h1></div>
+          <div className="err">
+            Connecting to live data… set <b>SUPABASE_URL</b> and{" "}
+            <b>SUPABASE_ANON_KEY</b> (the Supabase publishable key) in the
+            deployment environment and redeploy.
+          </div>
         </div>
-      ) : null}
+      </main>
+    );
+  }
 
-      <footer className="pub-footer">
-        OneLive shows verified and unverified listings side by side, each labeled with
-        its verification state. Disputed events are shown on purpose &mdash; verify before you go.
-      </footer>
-    </main>
-  );
+  const nowMs = Date.now();
+  let events: LicensedEvent[] = [];
+  let error: string | null = null;
+  try {
+    // 12h back so an event already under way is still shown ("on now"); the
+    // client drops anything actually ended.
+    const fromISO = new Date(nowMs - 12 * 60 * 60 * 1000).toISOString();
+    // The consumer read path is `event ∪ licensed_event` (migration 0010):
+    // licensed rows (Ticketmaster/SeatGeek/…) PLUS pipeline-promoted long-tail
+    // events. The promoted union is ADDITIVE — if it fails we still render the
+    // licensed feed (never blank a working feed over the smaller source); a
+    // licensed-read failure remains the hard error, exactly as before.
+    const [licensed, promoted] = await Promise.all([
+      fetchLicensedEvents({ fromISO }),
+      fetchPromotedEvents({ fromISO }).catch((e) => {
+        console.error("promoted-event read failed; showing licensed feed only:", e);
+        return [] as LicensedEvent[];
+      }),
+    ]);
+    // MARKET BOUNDARY, enforced at the last step before a person sees a
+    // listing (evaluator blocker r2: fixing acquisition is not the same as
+    // protecting the reader — rows already stored, or from any future or
+    // mis-tagged source, would still reach this page). Known-outside places
+    // (San Antonio, New Braunfels, Seguin, Killeen…) are DROPPED; unrecognised
+    // places are KEPT and counted, because silently discarding them would turn
+    // a coverage gap into an invisible one while making the feed look cleaner.
+    const region = filterToCapcog<LicensedEvent>([...licensed, ...promoted]);
+    if (region.droppedOutside.length) {
+      console.warn(
+        `[region] dropped ${region.droppedOutside.length} event(s) outside ` +
+        `CAPCOG before render: ` +
+        [...new Set(region.droppedOutside.map((e) => e.venue_city))].join(", "),
+      );
+    }
+    if (region.unknown.length) {
+      console.warn(
+        `[region] ${region.unknown.length} event(s) have an unrecognised city ` +
+        `and were SHOWN (not dropped): ` +
+        [...new Set(region.unknown.map((e) => e.venue_city))].join(", "),
+      );
+    }
+    events = region.kept;
+  } catch (e) {
+    error = e instanceof Error ? e.message : "Could not load events";
+  }
+
+  if (error) {
+    return (
+      <main className="flow">
+        <div className="wrap">
+          <div className="mast"><h1>ONE LIVE · Tonight in Austin</h1></div>
+          <div className="err">Couldn&rsquo;t load events: {error}</div>
+        </div>
+      </main>
+    );
+  }
+
+  return <FeedApp events={events} serverNowMs={nowMs} />;
 }

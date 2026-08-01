@@ -172,3 +172,20 @@ mechanism pointed at our gates is the threat model above.
   docs/KAIZEN.md · docs/MODEL_ROUTING.md · docs/memory/README.md (Brain 1A) ·
   TODOS.md (Brain 1B item; Weco-pattern inner-loop item) ·
   docs/skills/night_shift.md.
+
+## Addendum (2026-07-25, appended from the meta-carousel/construction-loop session — reciprocal cross-link, founder-directed)
+
+The Loop leg gained its missing retrieval discipline: the founder-ratified
+**Construction Loop** (`docs/skills/construction_loop.md`, charter
+Thinking-tools item 4; arc
+`docs/session_arcs/2026-07-25_meta-carousel-and-construction-loop.md`)
+makes memory retrieval a BLOCKING pre-design step (Stage 3, enforced by
+`tools/construction_gate.py` over the red-class index
+`docs/memory/RED_CLASSES.md`) and redefines "committed to brain" as
+machine-consumed form only (Stage 6). The measured motivation is this
+repo's own data — the PR #65 arc: a class lesson recorded at review r3
+was not retrieved at design time and its siblings shipped at r11/r13
+(M1=15 rounds). That is the operational confirmation of this review's
+premise: the Brain's value is realized only when recall is wired INTO the
+loop, not adjacent to it. Brain 1B's recall tool is the natural Stage 3
+substrate; build them together.

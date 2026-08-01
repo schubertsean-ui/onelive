@@ -1,0 +1,10 @@
+{
+  "_comment": "OneLive source-rank weight config -- the EDITABLE source of truth for worker/source_rank.py's priority-score formula (ONE_LIVE_Reconciled_Master_Spec.md sec.14). Values here MUST reproduce the historical hardcoded weights byte-for-byte (see tests/test_source_rank_config.py's 'values unchanged' proof). Schema: top-level 'weights' object with exactly five keys -- credibility_weight, access_reliability, coverage_uniqueness, update_frequency_score, verification_anchor_score -- summing to 1.0. Loaded and validated by worker.source_rank.load_source_rank_config(); a missing file, unknown/missing key, or a sum off by more than 1e-9 fails LOUD, never silently defaults.",
+  "weights": {
+    "credibility_weight": 0.40,
+    "access_reliability": 0.20,
+    "coverage_uniqueness": 0.15,
+    "update_frequency_score": 0.15,
+    "verification_anchor_score": 0.10
+  }
+}

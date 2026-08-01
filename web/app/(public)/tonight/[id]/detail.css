@@ -1,0 +1,119 @@
+/* Event detail surface (Contract #28). Inherits flow.css for the shell; this
+   file only styles what the detail view adds. Light/dark both handled, and no
+   colour carries meaning on its own (WCAG 2.2 AA: the trust marker is a glyph
+   plus text, never a hue). */
+
+.mast .back { color: inherit; text-decoration: none; }
+.mast .back:hover { text-decoration: underline; }
+
+.detail { max-width: 46rem; margin: 0 auto; padding: 0 0 3rem; }
+
+/* An <img>, not a background — see page.tsx for why. object-fit reproduces
+   what background-size: cover was doing. */
+.detail .dph {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.detail .dti {
+  font-size: clamp(1.5rem, 4.5vw, 2.25rem);
+  line-height: 1.15;
+  margin: 0 0 0.25rem;
+}
+.detail .dperf { margin: 0 0 0.75rem; opacity: 0.85; font-size: 1.05rem; }
+
+/* A cancelled/postponed/moved event says so, prominently and factually. */
+.detail .dstatus {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.5rem;
+  border: 1px solid currentColor;
+  font-weight: 600;
+}
+
+.detail .dfacts {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, max-content) 1fr;
+  gap: 0.5rem 1rem;
+  margin: 1.25rem 0;
+}
+.detail .dfacts dt { opacity: 0.7; font-size: 0.9rem; }
+.detail .dfacts dd { margin: 0; }
+.detail .dfacts .dsub { opacity: 0.7; }
+.detail .dfacts .dfree { font-weight: 600; }
+.detail .dfacts a { color: inherit; }
+/* Check-the-venue: a call-to-confirm link + website, stacked. The call link
+   reads as the primary confirm affordance. */
+.detail .dcontact { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.detail .dcontact a { text-decoration: underline; text-underline-offset: 2px; }
+.detail .dcontact .dcall { font-weight: 600; }
+
+/* Tickets + Share sit on one action row so the two primary actions read as a
+   pair; they wrap on narrow screens. */
+.detail .dactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.detail .dtix {
+  display: inline-block;
+  padding: 0.7rem 1.2rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.detail .dtix:hover { text-decoration: underline; }
+
+/* Share is a peer of Tickets but visually secondary (no fill), so the ticket
+   link stays the primary call to action. It is a real <button>, keyboard-
+   operable and focus-visible like any control. */
+.detail .dshare {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.detail .dshare:hover { text-decoration: underline; }
+
+/* "Hear them" — search links to the act on the major music services. */
+.detail .dlisten {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.9rem;
+  margin: 0 0 1.25rem; font-size: 0.95rem;
+}
+.detail .dlisten .dlisten-l { opacity: 0.7; }
+.detail .dlisten a { text-decoration: underline; text-underline-offset: 2px; }
+
+/* Screen-reader-only live region for the "Link copied" confirmation. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Trust: a quiet marker and a disclosure, never a badge and never the word
+   "confirmed" (design brief v2.4). Disputed opens by default because a dispute
+   is shown, never hidden. */
+.detail .dunc { margin-top: 1.5rem; }
+.detail .dunc summary { cursor: pointer; opacity: 0.85; }
+.detail .dunc .sheet { margin-top: 0.6rem; opacity: 0.9; line-height: 1.5; }

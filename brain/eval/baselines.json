@@ -1,0 +1,15 @@
+{
+  "_comment": "Recorded baselines for the OneLive brain memory eval (tools/brain_eval.py). A ONE-WAY RATCHET, mirroring tools/surface_regression_exam.py: these are the REAL measured scores of the current brain — the gate FAILS if any category drops below its baseline, and when the brain improves you RE-MEASURE and RAISE the affected number in the same PR (it only ever goes up). 2026-07-25 bi-temporal upgrade: knowledge_update rose 0.60 -> 1.00 and overall 0.9231 -> 1.00 because the point-in-time 'as of <date>' questions are now ANSWERABLE — Claims carry VALID-time intervals (valid_from/valid_to) and Graph.claims_valid_at / as_of_subgraph serve the version valid at a queried instant (closes the R-010/R-031/G-BRAIN-1D temporal gap ON OUR OWN benchmark, not the public LongMemEval leaderboard). Do not inflate; do not lower. See docs/strategy/ONE_LIVE_BRAIN_BENCHMARK_v1.md.",
+  "measured_on": "2026-07-25",
+  "categories": {
+    "single_fact_recall": 1.0,
+    "multi_hop": 1.0,
+    "knowledge_update": 1.0,
+    "contradiction": 1.0,
+    "entity_resolution": 1.0,
+    "abstention": 1.0
+  },
+  "overall_accuracy": 1.0,
+  "provenance_citation_rate": 1.0,
+  "abstention_correctness": 1.0
+}

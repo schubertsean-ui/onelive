@@ -45,9 +45,13 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 # covered automatically, the same closure discipline as the exam scan.
 SQL_DIRS = ["api", "worker", "tools"]
 
-# Dependency/build trees excluded from repo-wide sweeps.
+# Dependency/build trees excluded from repo-wide sweeps. ".claude" holds
+# transient parallel-agent worktrees (full scratch clones of the repo,
+# gitignored, never part of the tracked tree) — scanning them duplicates
+# every allowlisted file at a non-allowlisted path and produces false
+# violations; the gate's subject is the repository's own tree (PR #51).
 SKIP_PARTS = {"__pycache__", "node_modules", ".git", ".venv", "venv",
-              "dist", "build", ".eggs", ".tox"}
+              "dist", "build", ".eggs", ".tox", ".claude"}
 
 
 def _all_production_py() -> list[pathlib.Path]:

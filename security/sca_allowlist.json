@@ -1,0 +1,17 @@
+{
+  "$schema_note": "Machine-enforced allowlist for the SCA (npm audit) gate. Read the policy first: docs/EXTERNAL_FINDINGS_POLICY.md. Enforced by tools/sca_gate.py (blocking CI step in .github/workflows/adversarial-review.yml). This file NEVER covers trust-invariant gates (trust_gate/evaluator/eval-harness/RLS) — it is only for external dependency/tooling findings we cannot fix under our own control.",
+  "policy": {
+    "gate": "npm-audit-prod-high",
+    "blocks_severities": ["high", "critical"],
+    "scope": "production dependencies (npm audit --omit=dev)"
+  },
+  "rules_enforced_by_tool": [
+    "Every high/critical production advisory MUST be either fixed or listed here — an unlisted one FAILS the gate.",
+    "An entry suppresses ONLY while the scanner reports fixAvailable=false for its package. The moment a fix ships, fixAvailable flips and the gate FAILS — forcing the upgrade (anti-rot).",
+    "An entry past its 'expires' date FAILS the gate — forcing periodic human + evaluator re-review.",
+    "A STALE entry (its advisory no longer appears in the audit — i.e. it was fixed/removed) FAILS the gate, forcing deletion so dead exceptions cannot accrete.",
+    "A malformed entry or an unreadable allowlist FAILS the gate (fail-closed).",
+    "Entries are scoped to an exact (package, ghsa). No wildcards."
+  ],
+  "entries": []
+}

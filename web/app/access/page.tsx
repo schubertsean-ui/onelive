@@ -1,5 +1,12 @@
 import { SignedIn, SignedOut, SignInButton, SignOutButton } from "@clerk/nextjs";
 import { BrandMark } from "../../components/BrandMark";
+import { authProviderActive } from "../../lib/auth";
+
+// Not prerendered at build — this screen uses Clerk components, which need the
+// Clerk key at render. When no provider is configured we render the branded
+// shell WITHOUT any Clerk components (they would throw with no ClerkProvider),
+// so a stray visit in a non-Clerk deployment degrades gracefully.
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "OneLive — Private preview",
@@ -10,6 +17,7 @@ export const metadata = {
 // (the middleware redirects the latter here — they are never let through). This
 // is a designed, on-brand screen, not a stub.
 export default function AccessPage() {
+  const clerk = authProviderActive();
   return (
     <main style={styles.wrap}>
       <div style={styles.card}>
@@ -31,29 +39,37 @@ export default function AccessPage() {
           preview.
         </p>
 
-        <SignedOut>
-          <p style={styles.body}>
-            If you&rsquo;ve been invited, sign in with the email on your invitation.
-          </p>
-          <div style={styles.actions}>
-            <SignInButton mode="modal">
-              <button style={styles.primary} data-testid="button-signin">Sign in</button>
-            </SignInButton>
-          </div>
-        </SignedOut>
+        {clerk ? (
+          <>
+            <SignedOut>
+              <p style={styles.body}>
+                If you&rsquo;ve been invited, sign in with the email on your invitation.
+              </p>
+              <div style={styles.actions}>
+                <SignInButton mode="modal">
+                  <button style={styles.primary} data-testid="button-signin">Sign in</button>
+                </SignInButton>
+              </div>
+            </SignedOut>
 
-        <SignedIn>
+            <SignedIn>
+              <p style={styles.body}>
+                You&rsquo;re signed in, but this account isn&rsquo;t on the preview list
+                yet. If you think that&rsquo;s a mistake, reach out to the person who
+                invited you &mdash; or sign out and try the invited email.
+              </p>
+              <div style={styles.actions}>
+                <SignOutButton>
+                  <button style={styles.secondary} data-testid="button-signout">Sign out</button>
+                </SignOutButton>
+              </div>
+            </SignedIn>
+          </>
+        ) : (
           <p style={styles.body}>
-            You&rsquo;re signed in, but this account isn&rsquo;t on the preview list
-            yet. If you think that&rsquo;s a mistake, reach out to the person who
-            invited you &mdash; or sign out and try the invited email.
+            Invitations open soon. Check back with the person who invited you.
           </p>
-          <div style={styles.actions}>
-            <SignOutButton>
-              <button style={styles.secondary} data-testid="button-signout">Sign out</button>
-            </SignOutButton>
-          </div>
-        </SignedIn>
+        )}
 
         <p style={styles.footnote}>
           Want in? Ask your host for an invite &mdash; we&rsquo;re expanding the preview
