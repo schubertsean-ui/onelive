@@ -16,11 +16,18 @@ follow-a-venue + waitlist demand signal, the coverage/gap map, the credible-data
 and anti-vanity positioning-as-growth — plus an explicit **trust-invariant conflict table** that
 marks the sleazy mechanics as non-starters. §5 reconciles the two docs so nothing is duplicated.
 
-**The decisive difference from every platform below.** OneLive's supply is **verified, gated
-event data — not user-uploaded pages.** That rules out the dominant event-platform loop ("anyone
-publishes a page → brings their audience") *in raw form*, but it hands us loops nobody else can
-run credibly, because **trust and honesty are themselves the differentiator.** The synthesis
-optimizes for *fast growth that compounds our trust asset instead of eroding it.*
+**The decisive difference from every platform below.** OneLive keeps the supply-side / owned-page
+loop that powers most event platforms — **but runs it the trust-first way.** An org, venue, or
+artist **owns its OneLive page** and publishes its *own* events through the **Owned Agent** — the
+dead-simple "easy button" (stupid-simple: **≤3 clicks, no reading, no multi-field entry, zero
+friction**) that broadcasts their content **1:many to social AND feeds OneLive as a clean,
+first-party ingestion source at the same time.** This is *not* the "anyone types unverified hype"
+version of the loop: **a venue/artist/org posting its own event is the highest-authority
+first-party signal in our model** (`worker/authority.py`), so it enters the gate as *authoritative*,
+not as noise. So we get the dominant growth loop **and** the trust asset — because the publisher is
+the authority, the AI is only their easy button, and the gate still holds. It is in fact a **triple
+loop** — supply + 1:many distribution + our cleanest ingestion feed — that no pure event platform
+can run. The synthesis below optimizes for *fast growth that compounds that trust asset.*
 
 **Method / caveats.** 2024–2026 web sources, 2–3 searches per platform. Third-party "business
 model" write-ups reporting internal metrics that could not be independently confirmed are marked
@@ -249,6 +256,21 @@ The ranking optimizes for *fast growth that compounds our trust asset instead of
 "New?" marks loops not in `ONE_LIVE_GROWTH_LOOPS_AND_DESIGN_TOOLS_v1.md`; the rest map to an
 existing native loop (see §5).
 
+### The supply engine, first: owned pages + the Owned Agent (Luma-trivial)
+
+Before the ranked list — the single most important loop is the **owned-page + Owned Agent supply
+engine**, because it is the one loop that is *also* our ingestion. **The UX bar is Luma-trivial.**
+Luma grew by making it effortless for a host to spin up a page and reach their audience; the Owned
+Agent must clear that same bar **and go lower — stupid-simple: ≤3 clicks, no reading, no
+multi-field entry, zero friction** (founder directive 2026-08-01, "it has to be the epitome of
+simple and easy… no friction," "similar to Luma we need to make the AI agent trivial"). What the
+org gets: a one-tap way to broadcast an event **1:many** to its socials. What OneLive gets: the same
+tap delivers a clean, **first-party authoritative** event straight into the gate. The org is the
+authority; the AI is only the easy button; the gate still holds. Design + build spec lives in the
+**Owned Agent** research (PR #48, unmerged) — **this triviality bar (Luma-trivial / ≤3 clicks / no
+friction) must be adopted as a hard acceptance criterion there when that spec is next touched.** The
+ranked table below covers the *additional* loops that compound on top of this engine.
+
 | # | Loop | Type | New? | Why it fits OneLive | Honest tradeoff / risk | Build |
 |---|---|---|---|---|---|---|
 | 1 | **Event-schema SEO: our verified pages win Google for "[event/venue] tonight in [neighborhood]"** | Content/SEO | **NEW** | Our data is *more accurate* than competitors'; structured data + honest canonical pages should out-rank hype. Compounding, cheap, on-brand (Eventbrite proves the ceiling). | Slow to compound (months); needs disciplined canonical URLs, schema, dedupe; Google-algo dependence. | Medium |
@@ -302,7 +324,7 @@ rules. This survey does not replace them — it maps onto and extends them:
 |---|---|
 | **Plan-share loop** (Partiful analog, "the growth engine") | #2 no-wall viewing + #5 whole-group plan URL — sharpen it with Partiful's *no-account-to-view* and BAND's *one-link-moves-the-group* |
 | **Artifact loop** (Wordle share card, §6.D5) | reinforced by #8 anti-vanity positioning + the peak-end memory card already in canon |
-| **Supply-side loop** (claimed venues promote their pages) | #6 trusted-scout ladder (Mobilize) — a *gate-custodied* extension, contributions enter as evidence |
+| **Supply-side loop** (claimed venues promote their pages) | **The Owned Agent** — owned pages + a Luma-trivial ≤3-click broadcast that *is* first-party authoritative ingestion (the primary supply engine, see the §3 callout + PR #48); plus #6 trusted-scout ladder (Mobilize) as the gate-custodied community-contributor extension |
 | **Seeding loop** (Tastemaker organic / ambassador paid) | Skool's transparent contribution leaderboard — status-not-cash, consistent with the canon's "reward with status, not cash" rule |
 | *(not in canon)* | **#1 SEO/event-schema, #3 follow+waitlist demand signal, #4 coverage-gap map, #7 credible-data report engine** — the four genuinely new loops to evaluate |
 
