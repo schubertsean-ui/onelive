@@ -254,3 +254,22 @@ from v6.
 - Gate-custody decision queued: STATE.md classification in the arming
   binding's non-runtime set (evaluator-mandatory; any widening is a
   gate-relaxation question → founder-crucial).
+
+
+## Directive set 11 (2026-08-01, later): proof, engagement canon, Model v1, surfaces, MERGE
+
+Founder directives, in order: prove the agent on a real crawl → case study on
+The Continental Club from real public data (search-index snapshots; R-025) —
+extraction with 4-state confidence, a REAL drift catch (Do512 "Friday" on the
+Sat Aug 1 Peterson Brothers show), engagement-canon campaign kit (video-first
+carousel on brief v2.4 §3/§6, their footage/audio via IG Collab; same spine on
+every channel), machine layer incl. GEO deploys. Then: fonts/layout escalations
+(deliverable-visual-QA class, Kaizen-ledgered), integration into **Marketing
+Research & AI Agent Model v1** (v9 + proof section + typed surfaces appendix),
+GEO + wider SEO surfaces added to the appendix AND swept through every example
+(fanout, factory, storyboards, threads, model chart rebuilt clean, case-study
+artifacts). Session close: "update the repo and canon as appropriate" →
+**PR #48 checked: all seats APPROVE + all checks green on a6966b3 → MERGED
+(42b8b80) under the standing merge-on-green directive; founder notified.**
+Canon landing on the restarted branch: AGENT_SURFACES_v1, CASE_STUDY v1,
+marketing_model/ sources, R-025, Kaizen rows, Addendum 11, TODOS updates.
