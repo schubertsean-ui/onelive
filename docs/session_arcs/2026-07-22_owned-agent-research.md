@@ -165,9 +165,32 @@ and they keep everything" as a Phase-A acceptance test), S as separate
 venture no (Q19, revisitable at scale signals), the Standard alone goes
 standalone via site-builder adoption (Q20). Questions now Q1–Q20.
 
+## Seventh directive (2026-08-01): the Promotion Studio
+
+Founder directed an additional-service concept: actual promotion
+execution — ad/content creation, design, posting, carousels, measurement
+— explicitly NOT on OneLive, via the business's own social channels
+("wine tasting coming up → spin up ads and a carousel for them to run in
+FB and IG"). Delivered: `docs/strategy/ONE_LIVE_PROMOTION_STUDIO_v1.md`
+(PROPOSAL, same PR): proactive event-triggered campaign kits (the F1
+spine means the agent already knows the event — the kit shows up before
+they ask), the agency arbitrage table (the $1k–$5k/mo retainer's
+event-promotion core is templated work over data we hold; genuinely-hard
+work named and left to the REFER world), hard guardrails (their
+channels/ad accounts/budgets, owner tap = send button always, no spend
+percentage, artist framing rules, consumer data never feeds targeting,
+and the Studio corollary: nothing ever affects any OneLive surface),
+v1 with NO Meta API (2-tap boost recipe in their own app; authorized
+execution is Phase C behind Meta review), COGS ~cents/kit, three pricing
+postures presented (capped-free / low flat fee / defer — recommendation:
+defer formally, build switchable). Records the F5/§14.2 posture
+amendment honestly. Also this directive-pair produced the partner-facing
+pitch drafts in-conversation (venue + artist voices, then extended with
+the Studio section). Questions now Q1–Q22.
+
 ## Open threads carried forward
 
-- Founder Q1–Q20 across the four strategy docs — nothing in the Owned Agent section of TODOS is
+- Founder Q1–Q22 across the five strategy docs — nothing in the Owned Agent section of TODOS is
   buildable until answered.
 - R-023 — fold Contract #20 into STATE.md when the trigger fires.
 - Gate-custody decision queued: STATE.md classification in the arming
