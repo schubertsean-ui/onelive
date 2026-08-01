@@ -211,6 +211,27 @@ the SEGMENTATION is canon; the briefs are conversation-validated
 hypotheses. PDF editions (segment analysis v2, category research v2)
 delivered in-conversation.
 
+## Ninth directive-set (2026-08-01): the agent visuals arc + the comms framework enters canon
+
+A rapid iterative arc produced the "Marketing Research & AI Agent" visual
+package (v1→v5, delivered as PDFs in-conversation; all diagrams
+regenerable from scratchpad scripts): process swimlanes with time/cost
+ledgers per use case (bar/nightclub, winery/brewery/distillery, solo
+artist), owner-facing phone-thread panels, the content factory (from the
+first paste: four learned inputs — calendar, photos, voice, brand),
+the demand-engine fan-out with explicit social formats, high-level flow
+strips for both sides, a first-door glance pair, and the full OneLive
+engine model (two ingestion paths, the trust machine, distribution, the
+adoption loop). Framing corrections applied at founder direction:
+maintenance (Tier 1) kept distinct from demand generation (Tier 2);
+minder framing demoted to one-time floor; spiel removed. RATIFIED at
+close: the five-part communication framework — WHAT · HOW · WHY · WHY
+THAT WHY MATTERS · EXPECTED OUTCOMES — is canon for research and
+explanatory materials, modifiable only on founder instruction
+(docs/memory/decisions/2026-08-01_comms-framework-canon.md; CLAUDE.md
+pointer amendment queued in TODOS — CLAUDE.md sits outside the arming
+binding's non-runtime set).
+
 ## Open threads carried forward
 
 - Founder Q1–Q22 across the five strategy docs — nothing in the Owned Agent section of TODOS is
