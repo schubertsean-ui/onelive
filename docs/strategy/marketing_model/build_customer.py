@@ -122,16 +122,17 @@ body = f"""
 <div class="warn"><b>Honesty rule:</b> the worked examples in this document are illustrative pilot targets, not observed customer results. We publish observed numbers only from live campaigns with tracking and retained records.</div>
 
 <div class="pg"></div><h2>Where your events can go</h2>
+<div class="warn"><b>Where this stands today:</b> these channel connections are in build (each one's status is tracked in OneLive's connector registry) and are being validated with pilot partners — nothing publishes anywhere today. The table shows how each channel is <i>designed</i> to work once you connect it. Reporting status honestly, channel by channel, is the product.</div>
 <table>
-<tr><th>Channel</th><th style="width:34%">What you'll see</th></tr>
-<tr><td>Your website event pages + OneLive listing + link-in-bio</td><td>Connected — kept current</td></tr>
-<tr><td>Google Business Profile (posts, hours, events)</td><td>Connected — publishes after your approval</td></tr>
-<tr><td>Instagram + Facebook Page posts · YouTube Shorts</td><td>Connected — publishes after your approval (platform authorization required)</td></tr>
-<tr><td>Facebook boost (your ad account)</td><td>Ready — one tap to finish in your own app</td></tr>
-<tr><td>Email + text, through the tools you already use</td><td>Connected — sends on your approval</td></tr>
-<tr><td>Bing + search indexing</td><td>Submitted — monitored until public</td></tr>
-<tr><td>City event calendars &amp; local press listings</td><td>Submitted — awaiting their review</td></tr>
-<tr><td>Apple Maps · Yelp · Nextdoor · Foursquare</td><td>Monitored now; direct updates planned — some need platform partner approval</td></tr>
+<tr><th>Channel</th><th style="width:40%">How it's designed to work once you connect it</th></tr>
+<tr><td>Your website event pages + OneLive listing + link-in-bio</td><td>Kept current automatically — the first channels a pilot turns on</td></tr>
+<tr><td>Google Business Profile (posts, hours, events)</td><td>Publishes after your approval — needs you to authorize access to your profile</td></tr>
+<tr><td>Instagram + Facebook Page posts · YouTube Shorts</td><td>Publishes after your approval — needs platform authorization and the platforms' app review</td></tr>
+<tr><td>Facebook boost (your ad account)</td><td>Prepared as a two-tap recipe — you finish it in your own app, on your own budget</td></tr>
+<tr><td>Email + text, through the tools you already use</td><td>Drafted into your existing tools — sends only on your approval</td></tr>
+<tr><td>Bing + search indexing</td><td>Submitted, then monitored until public — indexing is always the engine's decision</td></tr>
+<tr><td>City event calendars &amp; local press listings</td><td>Submitted on your behalf — then awaiting each editor's review</td></tr>
+<tr><td>Apple Maps · Yelp · Nextdoor · Foursquare</td><td>Monitored for accuracy from day one — direct updates depend on platform partner programs</td></tr>
 </table>
 <p class="sub">Channel availability varies. Some integrations require your authorization, platform approval, or a final step in the platform's own app. Search and AI visibility are eligibility outcomes, not guarantees — OneLive maximizes eligibility and reports status honestly.</p>
 

@@ -73,7 +73,7 @@ body = f"""
 <table>
 <tr><th style="width:22%">Step</th><th>What happened</th><th style="width:32%">Production equivalent</th></tr>
 <tr><td><b>Read pass</b></td><td>Public data gathered via search-index snapshots of the venue's official site and listing surfaces — Bandsintown, Songkick, Do512, Eventbrite, Yelp, austintexas.org, Spotify. (The build sandbox blocks direct page fetches; production reads the same public surfaces directly.)</td><td>F1 read pass: site + calendar + the pipes</td></tr>
-<tr><td><b>Corroboration</b></td><td>Every fact cross-checked and assigned a state — CONFIRMED / LIKELY / UNVERIFIED — the gate's 4-state logic. One real cross-source error surfaced: Do512 labels the Aug 1 Saturday show 'Friday'.</td><td>Candidate → evidence → gate</td></tr>
+<tr><td><b>Corroboration</b></td><td>Every fact cross-checked and assigned a truth state — CONFIRMED / LIKELY / UNVERIFIED observed in this run (six-state model per Truth States v2, 2026-08-01). One real cross-source error surfaced: Do512 labels the Aug 1 Saturday show 'Friday'.</td><td>Candidate → evidence → gate</td></tr>
 <tr><td><b>Drafting</b></td><td>Preview card, engagement-canon campaign kit (video-first carousel + per-channel posts), and machine-readable markup generated from the verified facts and the venue's public voice.</td><td>Tier-2 content factory</td></tr>
 <tr><td><b>Publishing</b></td><td><b>Nothing</b> — every artifact is a draft; the send button belongs to the owner. Ticket prices were not verifiable and are absent: the agent does not invent.</td><td>Owner-tapped distribution</td></tr>
 </table>

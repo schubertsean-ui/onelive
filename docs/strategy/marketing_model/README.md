@@ -49,10 +49,10 @@ card grids, no empty lanes, type sized for print at arm's length, actor hues
 (blue owner / orange agent / green world / yellow tap), venue-brand colors only
 inside mocked artifacts. Page aspect ≈ 0.70 (Letter-landscape full-bleed).
 
-## Case-study data caveat (R-025)
+## Case-study data caveat (R-063)
 
 `make_casestudy.py` encodes REAL public data on The Continental Club gathered
 2026-08-01 via search-index snapshots (sandbox network policy blocked direct
-fetches). Per `docs/RECORD.md` R-025 the read must be re-run as a direct crawl
+fetches). Per `docs/RECORD.md` R-063 (formerly a duplicate R-025 id) the read must be re-run as a direct crawl
 before any partner-facing use. Nothing was published anywhere; the venue is not
 affiliated. See `../ONE_LIVE_CASE_STUDY_CONTINENTAL_v1.md`.

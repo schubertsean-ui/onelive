@@ -262,7 +262,7 @@ body = f"""
 </table>
 <p class="note"><b>Also decided before compiling:</b> (a) the 23 categories below are PROPOSED — no canonical list existed in our documents; confirm or amend before the outreach program treats them as fixed; (b) size tiers within categories use the five-tier model from segment analysis v2 (SOLO/SMALL/MEDIUM/LARGE/JUMBO) — only tiers that meaningfully exist in a category get recommendations; (c) briefs deliberately mix sourced fact with labeled hypothesis, because the program's design is data → hypothesis → validated conversation, not data → assumption → pitch.</p>
 
-<h2>Part 1 · The 22 categories (proposed)</h2>
+<h2>Part 1 · The 23 categories (proposed)</h2>
 <table class="plain">
 <tr><th>Venues &amp; Places (11)</th><th>Organizers &amp; Groups (6)</th><th>Artists &amp; People (6)</th></tr>
 <tr>

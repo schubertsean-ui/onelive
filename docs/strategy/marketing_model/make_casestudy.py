@@ -21,8 +21,10 @@ def canvas(title, sub, badge="DEMONSTRATED", bcol=AQUA):
     fig,ax=plt.subplots(figsize=(FW,FH))
     fig.patch.set_facecolor(SURFACE); ax.set_facecolor(SURFACE)
     ax.set_position((0,0,1,1)); ax.set_xlim(0,FW); ax.set_ylim(0,FH); ax.axis("off")
+    # title wraps clear of the badge; sub wraps at the frame edge (PR #142 r1
+    # visual QA — a longer caption clipped, and the title ran under the badge)
     ax.text(0.2,FH-0.38,title,fontsize=19,fontweight="bold",color=INK)
-    ax.text(0.2,FH-0.76,esc(sub),fontsize=11.8,color=INK2)
+    ax.text(0.2,FH-0.62,W(sub,150),fontsize=11.8,color=INK2,va="top",linespacing=1.3)
     if badge:
         bw_=0.34+0.128*len(badge)
         ax.add_patch(FancyBboxPatch((FW-0.2-bw_,FH-0.52),bw_,0.4,boxstyle="round,pad=0.05",fc="white",ec=bcol,lw=2.0))
@@ -155,8 +157,8 @@ plt.savefig("cs_kit.png",dpi=185,facecolor=SURFACE); plt.close()
 print("cs_kit")
 
 # ============ 4 · THE MACHINE-READABLE LAYER ============
-fig,ax=canvas("Artifact 4 — the layer machines read: what search engines and AI assistants receive",
- "Generated from the same verified facts. This is the layer 83% of local businesses never publish — and the reason they are invisible in AI answers.")
+fig,ax=canvas("Artifact 4 — the layer machines read: what search and AI assistants receive",
+ "Generated from the same verified facts. Most local venues never publish this layer — in Uberall's 2026 benchmark, 83% of restaurant/QSR locations were invisible in AI recommendations (C-01: a proxy for the wider local gap, not a measurement of it).")
 code = """<script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -198,7 +200,7 @@ for t,d in who:
     ax.text(8.45,y-0.42,t,fontsize=12.8,fontweight="bold",color=INK)
     ax.text(8.45,y-0.82,W(d,44),fontsize=11.2,color=INK2)
     y-=1.34
-ax.text(8.2,2.35,W("Deployed with it: NAP held identical across Google, Yelp, Bing, Apple, Foursquare, Nextdoor · AI-crawler access (OAI-SearchBot for ChatGPT search · PerplexityBot · ClaudeBot; GPTBot managed separately as a training decision) · IndexNow submissions — notification, not guaranteed indexing · an llms.txt hedge. Same drift-watch that caught the 'Friday' mislabel.",52),
+ax.text(8.2,2.18,W("Deployed with it: NAP held identical across Google, Yelp, Bing, Apple, Foursquare, Nextdoor · AI-crawler access (OAI-SearchBot for ChatGPT search · PerplexityBot · ClaudeBot; GPTBot managed separately as a training decision) · IndexNow submissions — notification, not guaranteed indexing · an llms.txt hedge. Same drift-watch that caught the 'Friday' mislabel.",52),
  fontsize=11.0,color=INK2,va="top",linespacing=1.38)
 plt.savefig("cs_machine.png",dpi=185,facecolor=SURFACE); plt.close()
 print("cs_machine")

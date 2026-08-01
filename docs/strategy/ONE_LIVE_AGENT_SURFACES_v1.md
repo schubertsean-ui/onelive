@@ -99,7 +99,7 @@ Every row is mechanical over data the agent already holds — free-tier work.
 | Component | Type | Role |
 |---|---|---|
 | Claude API extraction | AI (read-only) | Weak-signal extraction from fetched public text — reads, never publishes |
-| Evidence → gate → promote pipeline (PostgreSQL/Supabase · FastAPI/Celery) | Trust machine | 4-state corroboration; disputed always shown; human-custodied promotion |
+| Evidence → gate → promote pipeline (PostgreSQL/Supabase · FastAPI/Celery) | Trust machine | Six-state corroboration (Truth States v2, 2026-08-01; running pipeline implements the original four until R-064 lands); disputed always shown; human-custodied promotion |
 | /tonight PWA (Next.js) · Clerk auth · Sentry + dead-man monitoring | Platform | The consumer feed and ops rails |
 
 **Standing rules across every row (canon):** their accounts stay theirs · no

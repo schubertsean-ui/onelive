@@ -8,17 +8,17 @@ Agent Model v1 deliverable (§10, artifacts 10a–10f; sources in
 `marketing_model/`). This file is the durable record of what was done, what
 was found, and what it does and does not prove.**
 
-## Method (and its one caveat — R-025)
+## Method (and its one caveat — R-063, renumbered from a duplicate R-025 id)
 
 - **Read pass:** public data on The Continental Club (1315 S Congress Ave,
   Austin) gathered 2026-08-01 via search-index snapshots of its official site
   and listing surfaces — Bandsintown, Songkick, Do512, Eventbrite, Yelp,
   austintexas.org, heyaustin.com, Spotify. The build sandbox's network policy
   blocked direct page fetches; production reads the same surfaces directly.
-  **R-025 (docs/RECORD.md): re-run as a direct crawl before any partner-facing
+  **R-063 (docs/RECORD.md): re-run as a direct crawl before any partner-facing
   use.**
 - **Corroboration:** every fact cross-checked and assigned a state —
-  CONFIRMED / LIKELY / UNVERIFIED — the gate's 4-state logic.
+  CONFIRMED / LIKELY / UNVERIFIED — the gate's truth-state logic (six-state model per Truth States v2, 2026-08-01; this run observed CONFIRMED / LIKELY / UNVERIFIED).
 - **Drafting:** preview card, engagement-canon campaign kit (video-first
   carousel + per-channel posts per design brief v2.4 §3/§6), machine-readable
   markup — from verified facts and the venue's public voice only.

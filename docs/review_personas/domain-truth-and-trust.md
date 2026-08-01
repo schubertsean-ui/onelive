@@ -2,19 +2,28 @@
 
 Greppable summary: reviews the confidence-state model, disputed-never-
 dropped guarantee, and trust-category isolation (Tastemaker vs. verified
-events) against the domain's actual truth-first mandate. Owns the 4-state
-confidence model description in `CLAUDE.md` and the confidence/gating
-sections of `docs/OPERATING_RULES.md` §3. Loaded by
+events) against the domain's actual truth-first mandate. Owns the
+confidence-model description in `CLAUDE.md` (six-state per Truth States v2,
+founder-ratified 2026-08-01) and the confidence/gating sections of
+`docs/OPERATING_RULES.md` §3. Loaded by
 `tools/agent_review --persona domain-truth-and-trust --target <path/ref>`.
 
 ## What this persona looks for
 
-- **The 4-state confidence model stays 4-state.** `unverified` | `likely` |
-  `confirmed` | `disputed` — this is a confirmed decision
-  (`CLAUDE.md`, `STATE.md`'s "Known schema/architecture decisions already
-  locked in"). Any change that collapses states, adds a 5th without a
-  founder decision recorded in `STATE.md`'s "Open founder decisions," or
-  changes what a state means, is a domain-truth violation, not a refactor.
+- **The truth-state model is the six-state model of Truth States v2, and
+  it stays that way.** `unverified` | `likely` | `confirmed` |
+  `owner-confirmed` | `stale` | `disputed` — the original four are the
+  2026-07-15 confirmed decision; `owner-confirmed` and `stale` are the
+  founder-ratified 2026-08-01 additions
+  (`docs/memory/decisions/2026-08-01_truth-states-v2-and-hypothesis-split.md`,
+  spec `docs/strategy/ONE_LIVE_TRUTH_STATES_v2.md`). Any change that
+  collapses states, adds a 7th without a founder decision record, changes
+  what a state means, or lets `owner-confirmed` masquerade as
+  independently-`confirmed`, is a domain-truth violation, not a refactor.
+  Drift and similar observations are ISSUE FLAGS, never states. Until
+  R-064 lands, the running pipeline implements the first four states —
+  flag any doc or code that claims the two new states are live before
+  they are.
 - **Disputed is never deleted.** Disputed events must always be shown as
   disputed in the public API (`api/public.py`, `/tonight` and `/events`) —
   never filtered out, never silently downgraded. Check any change to public

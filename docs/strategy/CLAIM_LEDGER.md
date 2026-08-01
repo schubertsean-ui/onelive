@@ -26,7 +26,7 @@ criterion, not a result) · HYPOTHESIS (to be tested).
 | C-09 | agency/freelancer pricing ($300–$1.5k freelance; $500–$25k agency tiers; $1k–$5k venue social) | as stated with tier labels and "typical ranges" | SolidGigs · SocialRails · NewMedia · Sprout · 2025–26 | US SMB market rates | EXTERNAL BENCHMARK | 2027-02 |
 | C-10 | GEO/AEO retainers $1.5k–$25k/mo | as stated ("advertised retainer ranges") | assessment §16 sources · 2026 | US agency market | EXTERNAL BENCHMARK | 2027-02 |
 | C-11 | worked-example outcomes (38 door codes · 41 signups · 9 club conversions · 62 taps · 12 signups · "carousel beat flyer 3-to-1" · owner minutes) | ALWAYS carry the badge "ILLUSTRATIVE — pilot targets, not observed results"; the 3-to-1 line is additionally a measurement HYPOTHESIS pending controlled comparison | internal design targets | fictional composites | PILOT TARGET | at first pilot readout |
-| C-12 | Continental Club facts, states, and the Do512 "Friday" drift catch | as recorded in ONE_LIVE_CASE_STUDY_CONTINENTAL_v1.md, badge DEMONSTRATED; scope: extraction, corroboration, conflict detection, preview, drafting, structured data — NO live publishing, NO measurement | session run · 2026-08-01 | one venue, one run, search-snapshot read path (R-025) | DEMONSTRATED | R-025 trigger |
+| C-12 | Continental Club facts, states, and the Do512 "Friday" drift catch | as recorded in ONE_LIVE_CASE_STUDY_CONTINENTAL_v1.md, badge DEMONSTRATED; scope: extraction, corroboration, conflict detection, preview, drafting, structured data — NO live publishing, NO measurement | session run · 2026-08-01 | one venue, one run, search-snapshot read path (R-063) | DEMONSTRATED | R-063 trigger |
 | C-13 | "set up from one pasted URL, ≤3 taps" | "paste one link → complete PREVIEW in minutes, no accounts connected. Activation is progressive: connect only the channels you choose; some require platform authorization or approval" | product design + platform API requirements | — | PILOT TARGET (preview) / capability-dependent (activation) | at pilot |
 | C-14 | "updates everywhere within the hour" | "OneLive updates connected channels immediately, reports each platform's publication status, and monitors until the change is public — submission, acceptance, display, and indexing are distinct states" | connector reality (registry) | — | PILOT TARGET | at pilot |
 | C-15 | Gartner 7.7% budgets · Census 30.4M nonemployers · NIVA 64% · Brewers Assoc 434/268 · $10.3B listings leak · 68% would stop · ~40% tickets unsold | as sourced inline in Part I / research companions, populations preserved | per-claim sources in those docs | per claim | EXTERNAL BENCHMARK | 2027-02 |
@@ -36,4 +36,11 @@ observed data unless badged; (2) a retired wording (C-03, C-04) must not
 reappear; (3) capability claims about platforms defer to
 `ONE_LIVE_CONNECTOR_REGISTRY_v1.md` — marketing copy never outruns the
 registry; (4) new numeric claims enter this ledger in the same commit that
-uses them.
+uses them; (5) every reported OUTCOME carries a measurement class from
+`ONE_LIVE_TRUTH_STATES_v2.md` §4 (directly tracked / attributed / assisted /
+self-reported / modeled / incremental) — comparative claims without
+treatment assignment ship as HYPOTHESIS (founder-ratified 2026-08-01);
+(6) a claim's approved wording keeps its population scope verbatim —
+restating a scoped benchmark as a universal fact is a defect
+(the C-01 "83% of local businesses" escape, caught by the evaluator on
+PR #142 r1, now mechanically guarded in `check_artifacts.py`).
