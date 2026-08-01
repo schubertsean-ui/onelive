@@ -50,9 +50,14 @@ export function contextualPreview(e: LicensedEvent): ContextualPreview | null {
       return { label: "Watch a talk", links: [ytSearch(`${name} talk lecture`)] };
     case "comedy":
       return { label: "See a set", links: [ytSearch(`${name} comedy`)] };
-    case "film":
-      // The title is the searchable thing for a screening, not a performer.
-      return { label: "Watch the trailer", links: [ytSearch(`${(e.title ?? name).trim()} trailer`)] };
+    case "film": {
+      // The title is the searchable thing for a screening, not a performer —
+      // but fall back to the subject name when the title is blank/whitespace, so
+      // we never render "Watch the trailer" pointing at a search for just
+      // "trailer" (evaluator #131, absence-only lens).
+      const filmTitle = e.title?.trim() || name;
+      return { label: "Watch the trailer", links: [ytSearch(`${filmTitle} trailer`)] };
+    }
     case "theater":
     case "performing-arts":
     case "dance":

@@ -67,6 +67,13 @@ describe("contextualPreview — polymorphic by event type", () => {
     expect(decodeURIComponent(p!.links[0].url)).toContain("Dune trailer");
   });
 
+  it("film with a blank title falls back to the performer, never a bare 'trailer' search", () => {
+    const p = contextualPreview(ev({ category: "film", title: "  ", performer: "Austin Film Society" }));
+    const url = decodeURIComponent(p!.links[0].url);
+    expect(url).toContain("Austin Film Society trailer");
+    expect(url).not.toMatch(/search_query=\s*trailer\s*$/); // never just "trailer"
+  });
+
   it("visual arts links to a web search for the artist's work", () => {
     const p = contextualPreview(ev({ category: "visual-arts", performer: "Painter Z" }));
     expect(p?.label).toBe("See their work");
