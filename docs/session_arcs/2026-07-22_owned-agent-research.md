@@ -254,3 +254,55 @@ from v6.
 - Gate-custody decision queued: STATE.md classification in the arming
   binding's non-runtime set (evaluator-mandatory; any widening is a
   gate-relaxation question → founder-crucial).
+
+
+## Directive set 11 (2026-08-01, later): proof, engagement canon, Model v1, surfaces, MERGE
+
+Founder directives, in order: prove the agent on a real crawl → case study on
+The Continental Club from real public data (search-index snapshots; R-063, renumbered from a duplicate R-025 id) —
+extraction with 4-state confidence, a REAL drift catch (Do512 "Friday" on the
+Sat Aug 1 Peterson Brothers show), engagement-canon campaign kit (video-first
+carousel on brief v2.4 §3/§6, their footage/audio via IG Collab; same spine on
+every channel), machine layer incl. GEO deploys. Then: fonts/layout escalations
+(deliverable-visual-QA class, Kaizen-ledgered), integration into **Marketing
+Research & AI Agent Model v1** (v9 + proof section + typed surfaces appendix),
+GEO + wider SEO surfaces added to the appendix AND swept through every example
+(fanout, factory, storyboards, threads, model chart rebuilt clean, case-study
+artifacts). Session close: "update the repo and canon as appropriate" →
+**PR #48 checked: all seats APPROVE + all checks green on a6966b3 → MERGED
+(42b8b80) under the standing merge-on-green directive; founder notified.**
+Canon landing on the restarted branch: AGENT_SURFACES_v1, CASE_STUDY v1,
+marketing_model/ sources, R-063 (né R-025), Kaizen rows, Addendum 11, TODOS updates.
+
+
+## Directive set 12 (2026-08-01): external review adopted — "Go with 1–4"
+
+Founder commissioned an external review of Model v1 (PDF-only context) and
+directed items 1–4: artifact fixes (InStock removed, PostalAddress, crawler
+naming, check_artifacts.py regression), claim ledger + evidence badges
+(Model v2 reissued badged; ILLUSTRATIVE stamps on all fictional examples,
+DEMONSTRATED on the Continental artifacts), connector capability registry
+(supersedes flat SYNC/STAGE; Songkick HELD for legal), and the 12-page
+Customer Story v1 on the review's canonical six-step sequence. Reviewer's
+disputed-display weakening REJECTED (charter invariant); their 11pm JSON-LD
+contradiction claim disproven (artifact reads 21:30). Founder-crucial holds
+queued in TODOS. Kaizen: ESCAPED-to-external-review row.
+
+## Directive set 13 (2026-08-01): the three ratifications + evaluator round 1
+
+Founder: "Confirm you're addressing 1-8" (the assessment's Real-catches list)
+plus three explicit adoptions — truth-state additions (OWNER-CONFIRMED,
+STALE), the invariants-vs-testable-hypotheses split, and the automated
+cross-artifact consistency test as standing canon. Landed: Truth States v2
+(six states + flags + evidence dependency graph + outcome classes; R-064
+holds the pipeline implementation for a code-armed session),
+ONE_LIVE_ENGAGEMENT_HYPOTHESES_v1.md (8 invariants, 10 hypotheses,
+rotation rule), tests/test_artifact_consistency.py (checker now runs in
+validate's pytest sweep). Same push answers PR #142 r1's REQUEST-CHANGES —
+every finding real: dead check branch (false-confidence-gate, again),
+83% caption outran C-01, Customer Story channel table outran the registry
+(new class copy-outruns-registry, mechanically guarded), duplicate R-025
+→ R-063, 22→23 label. Catches 1–3, 5–8 of the founder's "1–8" are now
+executed; catch 4 (Songkick) remains the legal-review hold, with catch 8's
+standing-authorization half also still held (interim: everything outbound
+needs the tap).
