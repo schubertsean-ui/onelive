@@ -134,7 +134,10 @@ This spec **unifies threads already in flight** rather than inventing a sixth ov
 3. **SMS is a separate, explicit, revocable opt-in** (TCPA); push/email default; STOP honored forever.
 4. **Preferences are user-owned, minimal, never sold** (TDPSA); personalization is a lens, never a gate.
 5. **Demand signals are aggregate/anonymized** — counts of what's wanted, never a surveillance profile.
-6. **Frictionless creation** — a saved alert is one tap from the current view, never a form.
+6. **Frictionless — the ≤3-click / Luma-trivial bar (standing, same as the Owned Agent §9a).**
+   Saving an alert, and running any search, costs **≤3 taps, no required reading, no multi-field
+   entry** — one tap from whatever the user is already looking at, never a form. Interaction cost is
+   a *tested* criterion (§8), not an aspiration.
 7. **We sense demand, we never drive it.** The demand signal sharpens our own *coverage* and is
    shared as *neutral intelligence* with supply-side actors who decide for themselves; OneLive never
    promotes a genre/venue or manufactures supply. A mirror, not a promoter (§3).
@@ -143,6 +146,9 @@ This spec **unifies threads already in flight** rather than inventing a sixth ov
 
 ## §7 · Build sequence (all gated on founder ratification)
 
+- **SA-0 (exam-first):** stand up the persona×query golden set + the query-exam runner (§8) **before**
+  the ranking/matching work, so discovery is contract-first — we define "satisfying" and can measure it
+  before we build to it.
 - **SA-1 (data):** a `saved_alert` record (user · query-axes · channels · consent flags · created_at)
   + RLS fail-closed (a user reads only their own). Trust-critical (SQL/RLS) → evaluator mandatory.
 - **SA-2 (match):** on promote, evaluate promoted events against saved queries (a lens over the
@@ -152,6 +158,46 @@ This spec **unifies threads already in flight** rather than inventing a sixth ov
 - **SA-4 (demand signal):** aggregate saved-demand + the zero-result coverage-gap queue wired into the
   Heartbeat coverage metrics and the sourcing backlog.
 - Every phase: verified-only, match-not-pay, consent-clean, measured by the analytics canon.
+
+---
+
+## §8 · The Discovery Exam — how we know it actually works (the acceptance gate)
+
+**"The query is the exam."** The discovery / search / alert experience is validated the **same way
+extraction is already gated** (golden set → live-exam runner → blocking CI → held-out custody), pointed
+at the UI's *real* search path. This is what makes this spec's promises **mechanical, not hopeful** —
+the UI cannot ship a regression the exam would catch.
+
+1. **Persona × query golden set.** A versioned corpus built as a **matrix** — personas (seeded from the
+   `docs/domain_experts/` lenses: live-music superfan, new-in-town explorer, date-night planner,
+   all-ages parent, ideas/culture seeker, budget/free, Spanish-speaking local, "near me tonight") ×
+   save-axes (§1) × real phrasings (natural language, misspellings, Spanish, combos, **and deliberately
+   empty-coverage queries**). Custodied like the extraction golden set — the search code **never edits
+   its own exam** — with a **held-out slice** (the R-045 pattern) so we can't teach to the test.
+2. **Objective satisfaction labels.** Each query carries: **must-include** (known-item — surfaces
+   specific verified events we know match); **must-exclude** (zero-tolerance trust assertions: never an
+   unverified/disputed event shown as confirmed, never out-of-area, never stale/past); **honest-empty
+   correctness** (a thin query returning an honest "nothing verified yet" + firing the demand signal is
+   a **PASS**; filler is a hard fail); and **recall vs. the ground-truth DB**. Labels come from humans +
+   domain lenses + the DB — **never the system grading itself**.
+3. **Metrics (industry IR + a trust overlay).** precision@k · recall · nDCG · MRR; **plus** 0%
+   hallucinated/misrepresented results · 0% out-of-area · 0% stale · disputed-shown-honestly ·
+   honest-empty correctness — reported as a **per-persona pass rate** ("does the explorer get a
+   satisfying result for ≥X% of their queries?").
+4. **Interaction cost is tested too (the ≤3-click bar, §6.6).** The exam asserts the mechanical UX bar:
+   save-an-alert and act-on-a-result complete in **≤3 taps, no required reading, no multi-field entry**.
+   A flow that regresses past 3 taps or adds a typed field **fails the exam** — the same Luma-trivial bar
+   the Owned Agent holds (its §9a), made a gate here.
+5. **Blocking gate on the REAL path.** A query-exam runner (mirroring `golden_exam`) runs the whole set
+   against the **actual API the UI calls**; any change to search / ranking / filters / alert-matching
+   must pass the thresholds **before it can merge**.
+6. **Online loop (once live).** Real queries that return nothing become **both** the demand-gap signal
+   **and** new golden queries (real user language is the best test data), added under the same custody.
+   Online metrics are **never** juiced by fabricating results — a trust-invariant, not a preference.
+
+**Honest hard part:** "satisfying" for a *taste* product is partly subjective, so the objective anchors
+above are complemented by **human/domain-lens judgment on a sampled subset** and **real behavioral
+signals** (tap-in / save / return) once live — never self-grading, never filler-to-pass.
 
 ---
 
