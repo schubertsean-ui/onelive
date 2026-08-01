@@ -188,6 +188,29 @@ amendment honestly. Also this directive-pair produced the partner-facing
 pitch drafts in-conversation (venue + artist voices, then extended with
 the Studio section). Questions now Q1–Q22.
 
+## Eighth directive-set (2026-08-01): segmentation research → CANON
+
+Founder directed (in sequence): the marketing-operating-reality analysis
+by size (with segment validation and tactic-level spend folded in), the
+category-specific research paper for outreach conversations (originally
+22 categories, split to 23 — bars separated from
+breweries/wineries/distilleries, whose three-sided revenue model
+[visit · product · experience/education] was added at founder note), and
+finally RATIFICATION: "let's add to the canon the 23 segments and add
+this content." Landed: decision record
+`docs/memory/decisions/2026-08-01_supply-segments-canon.md`; canon doc
+`docs/strategy/ONE_LIVE_SUPPLY_SEGMENTS_v1.md` (23 categories × 5 size
+tiers — SOLO/SMALL/MEDIUM/LARGE/JUMBO per OECD bands + Census
+nonemployer split); research companions
+`ONE_LIVE_MARKETING_OPERATING_REALITY_v1.md` (sourced tier analysis;
+figures in docs/strategy/assets/) and
+`ONE_LIVE_CATEGORY_RESEARCH_23_v1.md` (23 briefs: challenges, growth
+desires, validation questions, recommendations by size, outreach
+angles). Canon/research boundary stated explicitly in all three docs:
+the SEGMENTATION is canon; the briefs are conversation-validated
+hypotheses. PDF editions (segment analysis v2, category research v2)
+delivered in-conversation.
+
 ## Open threads carried forward
 
 - Founder Q1–Q22 across the five strategy docs — nothing in the Owned Agent section of TODOS is
