@@ -25,7 +25,7 @@ import {
 } from "../../../../lib/detail";
 import ShareButton from "./ShareButton";
 import { shareCaveat } from "../../../../lib/share";
-import { listenLinks } from "../../../../lib/listen";
+import { contextualPreview } from "../../../../lib/preview";
 
 // Server component — reads ONE event at request time. Deliberately NOT cached:
 // the same freshness rule the feed uses, for the same reason (an event that
@@ -198,11 +198,11 @@ export default async function EventDetailPage(
   // the call shows only when the number is dialable.
   const website = venueWebsite(event_.venue_url);
   const call = telHref(event_.venue_phone);
-  // "Hear them" (music player, Option A): search links to the act on the major
-  // services — MUSIC events with a named performer only ("hear them on Spotify"
-  // is nonsense for a lecture or exhibition).
-  const isMusic = event_.category === "live-music" || event_.category === "nightlife";
-  const listen = isMusic ? listenLinks(event_.performer) : [];
+  // Contextual preview (preview.ts): the polymorphic, type-aware "hook" — music
+  // → tracks, a talk → lectures, film → the trailer, an artist → their work.
+  // Honest by construction (a search, never a claim); an un-previewable type
+  // yields null (an honest gap, no filler).
+  const preview = contextualPreview(event_);
 
   return (
     <Shell>
@@ -289,13 +289,13 @@ export default async function EventDetailPage(
           <ShareButton event={event_} />
         </div>
 
-        {/* Hear them (music player, Option A): search the act on the services
-            the listener already uses. A preview, not a claim — opens their own
-            Spotify/Apple/YouTube search. Music events with a performer only. */}
-        {listen.length ? (
+        {/* Contextual preview (preview.ts): the type-aware hook — a search on
+            the user's own service, never a claim. The label varies by event
+            type ("Hear them" / "Watch a talk" / "Watch the trailer" …). */}
+        {preview ? (
           <div className="dlisten">
-            <span className="dlisten-l">Hear them:</span>
-            {listen.map((l) => (
+            <span className="dlisten-l">{preview.label}:</span>
+            {preview.links.map((l) => (
               <a key={l.service} href={l.url} target="_blank" rel="noopener noreferrer">
                 {l.service} ↗
               </a>
