@@ -11,6 +11,18 @@ for every one of the 22 cultural domains, (B) how external provider taxonomies
 architecture — time-tiered card density + facet model — that keeps a
 high-volume feed legible.
 
+**Segment count reconciliation (founder, 2026-08-01 — "there are 23 segments; we
+split wineries, breweries and distilleries").** The 22 below are the **event
+domains** — how *events* are classified. The **Tasting Trail** — the always-on,
+**venue-first** section for breweries · wineries · distilleries
+(`docs/design/TASTING_TRAIL_SECTION_v1.md`, founder-directed 2026-07-29) — is a
+**23rd segment**: it is browsable even when a venue has no event, and it **splits
+the three kinds** (brewery · winery · distillery) as its own filter. So the honest
+count is **23 segments = 22 event domains + the Tasting Trail venue-first
+section**, with W/B/D split there. To keep the two docs consistent, the Food &
+Drink sub-category below is now also split into **Brewery · Distillery · Winery**
+(previously one combined facet).
+
 **Ownership (to avoid drift):** THIS doc owns the *taxonomy* — the sub-category
 lists per domain (§A). `worker/importers/domain_map.py` owns the *machine
 mapping* — provider taxonomy → domain id (§B) — and mirrors a subset of these
@@ -48,8 +60,10 @@ from provider taxonomy. These are the FILTER facets and the card's "focus" line.
    Business/Economics
 9. **Festivals** — Music · Arts · Film · Food/Drink · Cultural/Heritage ·
    Street/Community · Craft/Maker · Seasonal
-10. **Food & Drink** — Tasting/Pairing · Restaurant Week · Brewery/Distillery/Winery ·
-    Farmers Market · Pop-up/Supper Club · Food Truck · Cooking Class · Food Festival
+10. **Food & Drink** — Tasting/Pairing · Restaurant Week · **Brewery · Distillery · Winery**
+    (split per the Tasting Trail; the venue-first browse lives in
+    `TASTING_TRAIL_SECTION_v1.md`) · Farmers Market · Pop-up/Supper Club · Food Truck ·
+    Cooking Class · Food Festival
 11. **Nightlife & Clubs** — DJ Night · Dance Party · Rooftop/Lounge ·
     Themed Night · Drag/Cabaret · Karaoke · Late-night
 12. **Dance** — Concert/Contemporary · Ballet · Social/Partner (Salsa/Swing/Tango) ·
@@ -128,8 +142,34 @@ without a combinatorial menu: **domain** (the 22) → **sub-category** (this doc
 one phrase ("Jazz", "Symphony", "University Lecture"). This is what makes 800+
 events feel like "everything, findable" instead of a wall.
 
+## D. Forward note — this taxonomy is a LIVING one (founder, 2026-08-01)
+
+**This is a US / Central-Texas-shaped v1, not the final list.** Founder directive:
+*we will likely need to **expand our categories or revise them and add
+sub-categories as we go across the US and then global.*** As ONE LIVE moves into
+new markets we should expect to:
+- **Add or revise segments** for event forms this v1 under-serves in other regions
+  (e.g. regional festivals & fairs, faith/cultural observances, market-specific
+  nightlife and tasting traditions, sport forms), and
+- **Add sub-categories** as local scenes describe themselves differently — plus
+  **language/locale variants** (per the multilingual principle) once we leave
+  English-first markets.
+
+Rules that keep this safe as it grows:
+1. **Additions/revisions land through the normal evaluator-gated PR path**, edited
+   HERE first, then mirrored into `worker/importers/domain_map.py` (§B ownership
+   rule) so taxonomy and code never contradict.
+2. **`unmapped` is the signal, not a failure.** The `unmapped`/"Other" share per
+   import (logged every run) rising in a new market is the honest flag that the
+   market needs new facets — never force-fit a new region's event into an
+   ill-fitting domain.
+3. **The segment count is not frozen.** Today: 22 event domains + the Tasting Trail
+   = 23 segments; that number is expected to move as we expand, and every change to
+   it is recorded here with its rationale.
+
 ## Status & next
 PROPOSAL. C encodes the founder's time-tiered idea; the sub-category lists are
 mirrored into `domain_map.py` (`DOMAINS` sub-tuples). Open founder dial: the
 time-band thresholds (C1). Coverage metric to watch: the `unmapped` share per
-import (logged every run) trends toward zero as the mapping tables fill.
+import (logged every run) trends toward zero as the mapping tables fill (and
+rises, expectedly, when we enter a new market that needs new facets — §D).
