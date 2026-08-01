@@ -19,6 +19,20 @@ a **name is a fact** (not copyrightable), so once we have an entity's name we in
 universe. Web-searching for long-tail groups and pulling their public pages is clean and
 complementary. Everything still passes the corroboration gate — **AI never publishes**.
 
+**Coverage is measured at the EVENT level — no venue is pre-excluded (founder correction,
+2026-08-01).** A place is never disqualified for "not being a cultural venue." Any premises that
+can host a gathering is a potential one-off cultural-event source — an anniversary party with a
+special guest, an author reading in a shop, a street fair in a parking lot. That **once-a-year
+moment is exactly when the place needs ONE LIVE**, and those long-tail one-offs are the moat, not
+noise. So the registries define a **universe to WATCH, never a list to prune** to an "obviously
+cultural" subset. Consequences, binding on everything below:
+- **Report coverage as events caught vs events that happened** (per city / per category), never
+  as "% of cultural venues." A venue earns its listing by hosting an event; any venue can, sometimes.
+- **Any NAICS/registry count (e.g. CBP NAICS 71/7224) is a market-SIZING proxy only** — never a
+  gate on inclusion. Sizing the market ≠ selecting who to monitor.
+- **The engineering problem is cheap long-tail monitoring + one-off detection** (first-party
+  pages, newsletter/RSS harvest, municipal special-event permits) — not venue classification.
+
 ---
 
 ## Part A · Government data (the fast, mostly-free unlock)
