@@ -2,8 +2,14 @@
 
 **Status:** committed 2026-08-01 at founder direction ("update the repo and canon
 as appropriate"). These scripts are the source of truth for the founder-facing
-deliverable **Marketing Research & AI Agent Model v1** (27-page PDF, delivered
-in-conversation 2026-08-01; ~7 MB, not committed — regenerable below). The
+deliverable **Marketing Research & AI Agent Model v2** (25-page evidence-badged PDF) and
+**OneLive Customer Story v1** (12-page customer document), both delivered
+in-conversation 2026-08-01 (binaries not committed — regenerable below).
+v2 incorporates the external review adopted at founder direction ("Go with
+1–4"): evidence badges + claim ledger (`../CLAIM_LEDGER.md`), connector
+capability registry (`../ONE_LIVE_CONNECTOR_REGISTRY_v1.md`), corrected
+JSON-LD (PostalAddress, no invented availability), corrected crawler naming
+(OAI-SearchBot vs GPTBot), and the `check_artifacts.py` regression. The
 CONTENT they encode follows canon: the five-part communication framework
 (WHAT · HOW · WHY · WHY THAT WHY MATTERS · EXPECTED OUTCOMES), the 23-segment
 taxonomy, the engagement/behavioral architecture (design brief v2.4 §3/§6),
@@ -24,7 +30,10 @@ python make_model.py       # flow_model.png (the OneLive engine)
 python make_friendly.py    # phone_bar/winery/artist.png (reads build_paper.py)
 python make_casestudy.py   # cs_*.png  (Continental Club case study artifacts)
 python make_kit2.py        # cs_kit.png (engagement carousel) + cs_channels.png
-python build_model.py      # -> Marketing_Research_and_AI_Agent_Model_v1.pdf
+python make_sixstep.py     # flow_sixstep.png (customer six-step flow)
+python check_artifacts.py  # consistency regression — MUST pass after any edit
+python build_model.py      # -> Marketing_Research_and_AI_Agent_Model_v2.pdf (evidence-badged)
+python build_customer.py   # -> OneLive_Customer_Story_v1.pdf (12 pp)
 ```
 
 Run order matters only in the last three lines (`make_kit2.py` overwrites the

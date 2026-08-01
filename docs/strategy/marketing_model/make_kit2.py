@@ -16,12 +16,16 @@ def esc(t): return t.replace("$","\\$")
 def W(t,w): return esc("\n".join(textwrap.wrap(t,w)))
 
 FW,FH=14.2,9.7
-def canvas(title, sub):
+def canvas(title, sub, badge="DEMONSTRATED (drafted, never published)", bcol=AQUA):
     fig,ax=plt.subplots(figsize=(FW,FH))
     fig.patch.set_facecolor(SURFACE); ax.set_facecolor(SURFACE)
     ax.set_position((0,0,1,1)); ax.set_xlim(0,FW); ax.set_ylim(0,FH); ax.axis("off")
     ax.text(0.2,FH-0.38,title,fontsize=19,fontweight="bold",color=INK)
     ax.text(0.2,FH-0.76,esc(sub),fontsize=11.8,color=INK2)
+    if badge:
+        bw_=0.3+0.104*len(badge)
+        ax.add_patch(FancyBboxPatch((FW-0.2-bw_,FH-0.52),bw_,0.4,boxstyle="round,pad=0.05",fc="white",ec=bcol,lw=2.0))
+        ax.text(FW-0.2-bw_/2,FH-0.32,badge,fontsize=9.6,fontweight="bold",color=bcol,ha="center",va="center")
     return fig,ax
 
 def chip(ax,x,y,label,col):
@@ -35,7 +39,7 @@ def play(ax,cx,cy,r=0.22,col="white"):
     ax.add_patch(Polygon([(cx-r*0.32,cy+r*0.5),(cx-r*0.32,cy-r*0.5),(cx+r*0.55,cy)],fc=col,ec=col))
 
 # ================= PAGE: THE CAROUSEL, v2 =================
-fig,ax=canvas("Artifact 3 — the carousel, rebuilt on the engagement canon (video-first, sound on)",
+fig,ax=canvas("Artifact 3 — the carousel on the engagement structure (video-first, sound on)",
  "One idea per card · attention → emotion → fact → curiosity → action (brief v2.4 §3/§6). Media: their OWN footage and live audio, via an IG Collab post.")
 
 SW,SH=2.55,3.3; y0=4.95; gap=0.22

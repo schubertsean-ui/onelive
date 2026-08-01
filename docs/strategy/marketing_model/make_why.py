@@ -24,8 +24,8 @@ ax.text(6.95,7.14,"raw material the agent turns into listings, posts, stories, a
 
 cards=[
  ("SEARCH & MAPS","Google Business Profile · Search · Maps · 'Things to do' · Bing Places · Apple Maps · Nextdoor","fresh event content = high-intent discovery tonight; 76% of local searchers visit within 24h"),
- ("DISCOVERY APPS & DATABASES","Yelp · Foursquare · Bandsintown · city calendars (Do512-class) · TripAdvisor / Untappd / Vivino by segment","the databases AI tools pull from — ~70% of ChatGPT local draws on them; feed them and you ARE the answer"),
- ("AI ASSISTANTS & ANSWER ENGINES","ChatGPT · Gemini · Perplexity · voice — fed via Bing/IndexNow, open AI-crawler access, and the databases at left","45% of consumers now ask AI where to go — GEO is mechanical: feed the sources, stay crawlable, stay fresh"),
+ ("DISCOVERY APPS & DATABASES","Yelp · Foursquare · Bandsintown · city calendars (Do512-class) · TripAdvisor / Untappd / Vivino by segment","the databases AI assistants draw on for local answers — feed them and you are in the answer pool"),
+ ("AI ASSISTANTS & ANSWER ENGINES","ChatGPT · Gemini · Perplexity · voice — fed by the databases at left, open AI-search-crawler access (OAI-SearchBot etc.), IndexNow submissions","45% of surveyed US consumers have used AI to pick local businesses (BrightLocal '26) — feed the sources, stay crawlable, stay fresh"),
  ("THEIR OWN PROPERTY","website events widget (always current, machine-readable) · link-in-bio · email/SMS list","email returns $36–42 per $1 — the list the agent grows at every touch"),
  ("ONELIVE","verified listing · confirmed states · agent-readable endpoint (Phase C)","night-of deciders in the city, seeing your events as verified"),
  ("THEIR SOCIALS (staged)","Instagram: feed post · story · carousel — Facebook: event + page post — Google Business posts — YouTube Short — ad variants","one event, 8+ formats, written and sized per platform — sent ONLY on their tap"),

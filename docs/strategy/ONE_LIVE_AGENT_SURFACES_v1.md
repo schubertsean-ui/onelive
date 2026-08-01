@@ -9,6 +9,12 @@ when a surface is added here, the examples must follow (founder directive:
 "follow through so the examples show that all relevant sources are being
 used").**
 
+**SUPERSEDED IN PART (2026-08-01, same day):** for CAPABILITY claims the
+flat legend below is superseded by `ONE_LIVE_CONNECTOR_REGISTRY_v1.md`
+(capability classes, statuses, auth requirements, publication states) —
+adopted from the external review at founder direction. This doc remains the
+typed INVENTORY of surfaces and roles.
+
 **Legend — how the agent touches a surface:** **READ** = source it extracts
 from · **SYNC** = kept correct automatically (Tier 1) · **STAGE** = content
 drafted, ships only on the owner's tap (Tier 2) · **MEASURE** = results read
@@ -26,7 +32,7 @@ business's, not ours.
 ## 2 · Discovery apps & event databases — what AI tools actually pull from
 | Surface | Use | Role | Cost |
 |---|---|---|---|
-| Yelp | READ · SYNC | NAP/hours consistency; major AI-recommendation source (~70% of ChatGPT local draws on Yelp/Foursquare-class data) | Free listing |
+| Yelp | READ · SYNC | NAP/hours consistency; a major source AI assistants draw on for local answers (C-03: share percentages retired) | Free listing |
 | Foursquare | READ · SYNC | The location database many AI stacks license | Free |
 | Bandsintown · Songkick | READ · SYNC | Artist/venue event databases; concert-discovery + artist-follow alerts | Free |
 | City guides & press calendars (Do512-class per city; alt-weeklies; visitor bureaus) | READ · STAGE (submit) · drift-watch | Free editorial surfaces with real domain authority — foot traffic AND backlinks; where the case study caught a real day-of-week mislabel | Free |
@@ -58,14 +64,14 @@ business's, not ours.
 ## 6 · SEO mechanics (on-site)
 | Resource | Use | Role | Cost |
 |---|---|---|---|
-| One crawlable URL per event · sitemap · IndexNow pings · review responses (GBP/Yelp) | SYNC (deployed) | The hygiene layer that makes everything indexable the hour it changes | Free |
+| One crawlable URL per event · sitemap · IndexNow pings · review responses (GBP/Yelp) | SYNC (deployed) | The hygiene layer: changes submitted immediately, then MONITORED until crawled — indexing is the engine's decision (C-14) | Free |
 
 ## 7 · GEO — generative-engine optimization, done mechanically
 | Resource | Use | Role | Cost |
 |---|---|---|---|
-| AI-crawler access (robots.txt: GPTBot · ClaudeBot · PerplexityBot · Google-Extended) | SYNC (deployed) | Step zero — many sites silently block the crawlers whose answers they want to appear in | Free |
-| Bing index + IndexNow | SYNC | ChatGPT/Copilot retrieval runs largely on Bing's index — freshness there IS ChatGPT visibility | Free |
-| Retrieval-source presence (the §1–§2 databases) | SYNC | ~70% of AI local recommendations draw on these — most of GEO is feeding the sources | Free |
+| AI-crawler access (robots.txt: OAI-SearchBot for ChatGPT search · PerplexityBot · ClaudeBot; GPTBot managed separately as a TRAINING decision; Google-Extended governs Gemini/Vertex grounding, NOT Google Search) | SYNC (deployed) | Step zero — many sites silently block the crawlers whose answers they want to appear in | Free |
+| Bing index + IndexNow | SYNC | IndexNow is NOTIFICATION, not guaranteed indexing (C-04: the Bing-share architecture assumption is retired; ChatGPT search eligibility runs through OAI-SearchBot) | Free |
+| Retrieval-source presence (the §1–§2 databases) | SYNC | AI assistants draw heavily on these — most of GEO is feeding the sources (C-03) | Free |
 | Entity data (Wikidata; Wikipedia only where notability is real) | SYNC (where eligible) | The knowledge-graph identity AI systems resolve against | Free |
 | AI-answer monitoring (what ChatGPT/Gemini/Perplexity actually say) | MEASURE · drift-watch | Catches stale facts (the artist's old band name); GEO tools charge $29–500/mo for this | Free |
 | llms.txt | SYNC (deployed, hedged) | Deployed because it costs nothing — flagged per our own research correction: ~97% of AI crawls ignore it; Google states no AI system uses it. A hedge, never the strategy | Free |
@@ -77,7 +83,7 @@ Every row is mechanical over data the agent already holds — free-tier work.
 ## 8 · Machine-readable layer & AI-answer consumers
 | Resource | Use | Role | Cost |
 |---|---|---|---|
-| schema.org JSON-LD (MusicEvent · MusicVenue · Offer) | SYNC (deployed) | The structured layer 83% of local businesses never publish | Free |
+| schema.org JSON-LD (MusicEvent · MusicVenue · Offer) | SYNC (deployed) | The structured layer most local businesses never publish (C-01: the measured 83% figure is restaurant/QSR, Uberall 2026) | Free |
 | ICS / calendar feeds | READ · SYNC | Their calendar in; subscribed calendars out | Free |
 | NAP consistency layer | SYNC · drift-watch | Name–address–phone–hours identical across every surface above | Free |
 | AI assistants (ChatGPT · Gemini · Perplexity · voice) | fed indirectly | Read the surfaces and markup above | — |

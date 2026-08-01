@@ -15,7 +15,7 @@ def briefblock(c, fit, socials, n=4):
     return f"""<p><b>Documented challenges (category research)</b></p><ul>{ch}</ul><p><b>Documented goals</b></p><ul>{gr}</ul><p><b>Fit:</b> {fit}</p><p><b>Content the agent produces for this segment:</b> {socials}</p>"""
 
 css = """
-@page { size: Letter landscape; margin: 1.4cm 1.6cm; @bottom-center { content: "Marketing Research & AI Agent Model v1 · CONFIDENTIAL DRAFT · page " counter(page) " of " counter(pages); font-size: 7.5pt; color: #888; } }
+@page { size: Letter landscape; margin: 1.4cm 1.6cm; @bottom-center { content: "Marketing Research & AI Agent Model v2 · CONFIDENTIAL DRAFT · page " counter(page) " of " counter(pages); font-size: 7.5pt; color: #888; } }
 body { font-family: "DejaVu Sans", sans-serif; font-size: 9.7pt; line-height: 1.5; color: #0b0b0b; }
 h1 { font-size: 16pt; border-bottom: 3px solid #0b0b0b; padding-bottom: 6px; }
 h2 { font-size: 11.5pt; border-bottom: 1px solid #bbb; padding-bottom: 3px; margin-top: 4px; page-break-after: avoid; }
@@ -41,15 +41,16 @@ table.two td { border: 0.5pt solid #ccc; }
 
 body = f"""
 <h1>Marketing Research &amp; AI Agent Model</h1>
-<p class="sub">Structure (canon, 2026-08-01): WHAT · HOW · WHY · WHY THAT WHY MATTERS · EXPECTED OUTCOMES — then flows, mechanics, three worked examples, the full data model — and proof: the pipeline run on a real venue's real public data. Sources: the segment analysis and 23-category research. Model v1.</p>
+<p class="sub">Structure (canon, 2026-08-01): WHAT · HOW · WHY · WHY THAT WHY MATTERS · EXPECTED OUTCOMES — then flows, mechanics, three worked examples, the full data model — and proof: the pipeline run on a real venue's real public data. Sources: the segment analysis and 23-category research; every load-bearing number carries an evidence badge and a row in the claim ledger (§11). Model v2 — evidence-badged per external review, 2026-08-01.</p>
 <h2>Summary</h2>
+<div class="rail"><b>Reading the evidence — every number in this document carries one badge:</b> <b>OBSERVED</b> (live campaign, records) · <b>DEMONSTRATED</b> (the system produced the artifact in a controlled run) · <b>ESTIMATED</b> (calculated from stated assumptions) · <b>EXTERNAL BENCHMARK</b> (cited third-party research, population preserved) · <b>PILOT TARGET</b> (success criterion, not a result) · <b>HYPOTHESIS</b> (to be tested). The three worked examples are <b>ILLUSTRATIVE — pilot targets, not observed results</b>; only the Continental Club section is DEMONSTRATED, and it excludes live publishing and measurement.</div>
 <table>
 <tr><th style="width:16%"></th><th>Statement</th></tr>
 <tr><td><b>WHAT</b></td><td>A free-to-adopt agent for businesses, organizations, and artists. It does two distinct things: (1) MAINTENANCE — gets their basic presence correct everywhere and keeps it correct (one-time value, then background); (2) DEMAND GENERATION — produces and distributes marketing content (social posts, stories, carousels, events, emails, ads; structured data for search engines and AI assistants) from their own calendar, photos, and voice.</td></tr>
-<tr><td><b>HOW</b></td><td>Setup from one pasted URL (≤3 taps). The agent learns four inputs — calendar, photo library, writing voice, brand — then drafts campaigns per event. Every send requires the owner's tap; ads run on their accounts and budgets. Data flows into OneLive as a verified first-party channel that still passes the gate.</td></tr>
-<tr><td><b>WHY</b></td><td>The research shows the constraint is labor, not intent: owners have 5–15 hrs/wk of leftover attention, so only the easiest channel (social, ~$5 return per $1) gets worked while the best channels (email $36–42, local SEO ~$13) and the surfaces AI reads sit idle. 83% of local businesses are invisible in AI answers.</td></tr>
+<tr><td><b>HOW</b></td><td>Paste one link → a complete PREVIEW in minutes, with no accounts connected. Activation is progressive: the owner connects only the channels they choose (some require platform authorization or approval — see the connector registry, §11). The agent learns four inputs — calendar, photo library, writing voice, brand — then drafts campaigns per event. Every send requires the owner's tap; ads run on their accounts and budgets. Data flows into OneLive as a verified first-party channel that still passes the gate.</td></tr>
+<tr><td><b>WHY</b></td><td>The research shows the constraint is labor, not intent: owners have 5–15 hrs/wk of leftover attention, so only the easiest channel (social ads, indicative ~$5 return per $1) gets worked while the better-returning channels (email ~$36–42, local SEO ~$13 — benchmark roundups, not precise constants) and the surfaces AI reads sit idle. 83% of restaurant/QSR locations are invisible in AI recommendations (Uberall 2026) — the measured proxy for the wider local gap. <i>[EXTERNAL BENCHMARK — claim ledger C-01/C-06/C-07]</i></td></tr>
 <tr><td><b>WHY THAT WHY MATTERS</b></td><td>Discovery is shifting to search+AI surfaces fed by exactly the layers nobody maintains, and every commercial fix is priced above the tiers that need it ($300–$5,000/mo). Removing the execution cost of the high-return channels changes the outcome without new spend. For OneLive: each adopting business adds verified supply, which improves the consumer feed, which increases the value of adopting — a compounding loop.</td></tr>
-<tr><td><b>EXPECTED OUTCOMES</b></td><td>For them (worked examples below; est.): higher event attendance (bar: 38 tracked door entries from one campaign), list growth (winery: 41 signups vs 6 baseline/mo), sales (class sold out; 9 club conversions), at ~8–15 minutes/month of owner time and $0 cost during the initial free period. For OneLive: rising claimed-entity count, feed accuracy, and consumer reliance — measured via claim rate, coverage, and accuracy metrics.</td></tr>
+<tr><td><b>EXPECTED OUTCOMES</b></td><td><i>[PILOT TARGETS — illustrative, not observed]</i> For them: higher event attendance (bar: 38 tracked door entries from one campaign), list growth (winery: 41 signups vs 6 baseline/mo), sales (class sold out; 9 club conversions), at ~8–15 minutes/month of owner time and $0 cost during the initial free period. For OneLive: rising claimed-entity count, feed accuracy, and consumer reliance — measured via claim rate, coverage, and accuracy metrics. These become OBSERVED only after a live pilot with tracking and retained records.</td></tr>
 </table>
 <div class="rail"><b>Constraints (invariant unless marked):</b> every send requires the owner's tap · promotion runs on their accounts and budgets — no percentage of ad spend at setup or during the free period · the agent is a data source into OneLive's gate, never a publisher · nothing paid or free affects OneLive ranking · leaving preserves everything they built. <b>Pricing (direction, 2026-08-01):</b> Tier 1 maintenance &amp; standards is free permanently; Tier 2 ongoing demand generation is free for an initial period and may then be priced (flat monthly or percentage-based) below the documented market alternatives — model, rate, and timing are open founder decisions.</div>
 <div class="pg"></div><h2>1 · Both sides, summarized</h2><img class="flow" src="{img64('flow_glance.png')}"/>
@@ -85,104 +86,36 @@ body = f"""
 <div class="pg"></div><h2>10e · The machine-readable layer</h2><img class="flow" src="{img64('cs_machine.png')}"/>
 <div class="pg"></div><h2>10f · Day one, as the owner would see it</h2><img class="flow" src="{img64('cs_thread.png')}"/>
 
-<div class="pg"></div><h2>11 · Appendix — resources, tools &amp; surfaces, organized by type</h2>
-<p>Everything the agent reads, feeds, stages, or runs on. <b>Legend — how the agent touches it:</b> <b>READ</b> = source it extracts from · <b>SYNC</b> = kept correct automatically (Tier 1) · <b>STAGE</b> = content drafted, ships only on the owner's tap (Tier 2) · <b>MEASURE</b> = results read back · <b>PHASE-C</b> = later, behind platform review. Costs shown are the business's, not ours.</p>
-
-<h3>Search &amp; maps — where high-intent discovery happens</h3>
+<div class="pg"></div><h2>11 · Appendix — connector capability registry, resources & claim ledger</h2>
+<p><b>Capability classes replace the earlier flat READ/SYNC/STAGE legend</b> (platforms differ materially in authorization, moderation, terms, and cost — marketing copy never outruns the registry, `docs/strategy/ONE_LIVE_CONNECTOR_REGISTRY_v1.md`): <b>DIRECT PUBLISH</b> "Connected — publishes after your approval" · <b>AUTHORIZED SYNC</b> "Connected — kept current" · <b>NATIVE HANDOFF</b> "Ready — one tap to finish" · <b>ASSISTED SUBMISSION</b> "Submitted — awaiting review" · <b>READ &amp; MONITOR</b> "Monitored" · <b>PARTNER-DEPENDENT</b> "Planned — partner access required". Status today for every connector: <b>PLANNED</b> — nothing is live; a connector is presented as live only after its sandbox tests pass. Publication is a state machine (DRAFTED → APPROVED → SUBMITTED → ACCEPTED → PUBLIC → INDEXED, with REJECTED/MODERATED/EXPIRED/AUTH-LOST/RETRYING) and every write returns a receipt; "published" is never claimed from an API success alone.</p>
 <table>
-<tr><th style="width:24%">Surface</th><th style="width:14%">Agent's use</th><th>Role</th><th style="width:16%">Cost to business</th></tr>
-<tr><td>Google Business Profile (Search · Maps · 'Things to do' · posts)</td><td>READ · SYNC · STAGE</td><td>The highest-intent local surface; event posts + hours + 'Buy tickets' buttons; 76% of local searchers visit within 24h</td><td>Free</td></tr>
-<tr><td>Bing Places</td><td>SYNC</td><td>Feeds Bing/Copilot answers</td><td>Free</td></tr>
-<tr><td>Apple Maps (Apple Business Connect)</td><td>READ · SYNC</td><td>Hours/place data for the iPhone half of the audience — the winter-hours drift class</td><td>Free</td></tr>
+<tr><th>Connector</th><th style="width:22%">Capability class (target)</th><th style="width:20%">Authorization</th><th>Constraints worth knowing</th></tr>
+<tr><td>OneLive listing · hosted event pages · site widget + JSON-LD · link-in-bio</td><td>DIRECT PUBLISH (our surfaces)</td><td>claim verification; site install</td><td>unique URL per event; validated markup; visible page must match structured data; gated as ever</td></tr>
+<tr><td>Google Business Profile (posts · hours · events)</td><td>DIRECT PUBLISH</td><td>owner OAuth, registered app</td><td>supported API; account-type eligibility varies</td></tr>
+<tr><td>Bing Places + IndexNow</td><td>AUTHORIZED SYNC</td><td>site verification</td><td>IndexNow is notification — crawling/indexing not guaranteed</td></tr>
+<tr><td>Apple Business Connect</td><td>PARTNER-DEPENDENT → AUTHORIZED SYNC</td><td>Apple partner approval + delegation</td><td>NATIVE HANDOFF until partner status</td></tr>
+<tr><td>Yelp</td><td>READ &amp; MONITOR; listing mgmt PARTNER-DEPENDENT</td><td>Yelp partner program (per-location, may bill)</td><td>some updates moderated up to ~2 weeks — never "instant"</td></tr>
+<tr><td>Nextdoor</td><td>PARTNER-DEPENDENT → DIRECT PUBLISH</td><td>API approval + authenticated business profile</td><td>content attributable to the business, not OneLive</td></tr>
+<tr><td>Foursquare</td><td>READ &amp; MONITOR; contribution PARTNER-DEPENDENT</td><td>API contract</td><td>pricing beyond small free tier</td></tr>
+<tr><td>Bandsintown (artist)</td><td>AUTHORIZED SYNC</td><td>artist claims their page</td><td>artist edition</td></tr>
+<tr><td>Songkick</td><td>READ &amp; MONITOR only — HELD</td><td>—</td><td>restrictive noncommercial API terms; <b>legal review required before any product use (founder-crucial)</b>; never a write surface</td></tr>
+<tr><td>City/press calendars · aggregators</td><td>ASSISTED SUBMISSION (+READ drift-watch)</td><td>per-site forms/accounts</td><td>editorial review timing is theirs</td></tr>
+<tr><td>Instagram · Facebook Page posts</td><td>DIRECT PUBLISH</td><td>professional account/Page + Meta app review + OAuth</td><td>publishing limits, token expiry; NATIVE HANDOFF (v1 boost recipe) before review. Facebook EVENTS tracked separately: PARTNER-DEPENDENT</td></tr>
+<tr><td>YouTube / Shorts</td><td>DIRECT PUBLISH</td><td>owner OAuth</td><td>unverified API projects may be limited to private pending audit</td></tr>
+<tr><td>Meta boost (their ad account)</td><td>NATIVE HANDOFF (v1) → DIRECT (Phase-C)</td><td>none (v1) / ad-account OAuth</td><td>their budget, their cap; no % of spend</td></tr>
+<tr><td>Email (their ESP) · SMS (their tool)</td><td>DIRECT PUBLISH via their account</td><td>their credentials; consent lists</td><td>suppression/consent respected</td></tr>
+<tr><td>Ticketing (Eventbrite/Tock-class)</td><td>READ &amp; link-through</td><td>none (public links)</td><td>never brokered</td></tr>
+<tr><td>AI crawlers (robots.txt)</td><td>AUTHORIZED SYNC (config)</td><td>site control</td><td>OAI-SearchBot = ChatGPT search · GPTBot = training (managed separately) · Google-Extended governs Gemini/Vertex grounding, NOT Google Search inclusion · PerplexityBot, ClaudeBot</td></tr>
+<tr><td>Wikidata · llms.txt</td><td>ASSISTED SUBMISSION · deployed hedge</td><td>site control</td><td>Wikidata only where notability is real; llms.txt largely ignored by AI crawls (C-05) — hedge, not strategy</td></tr>
+<tr><td>Measurement (UTM · door/QR codes · platform analytics)</td><td>READ &amp; MONITOR</td><td>their analytics access</td><td>attribution is classified (tracked/attributed/assisted/modeled/incremental) — never presented as causal lift without a comparison</td></tr>
 </table>
-
-<h3>Discovery apps &amp; event databases — what AI tools actually pull from</h3>
-<table>
-<tr><th style="width:24%">Surface</th><th style="width:14%">Agent's use</th><th>Role</th><th style="width:16%">Cost to business</th></tr>
-<tr><td>Yelp</td><td>READ · SYNC</td><td>NAP + hours consistency; a major AI-recommendation source (~70% of ChatGPT local draws on Yelp/Foursquare-class data)</td><td>Free listing</td></tr>
-<tr><td>Foursquare</td><td>READ · SYNC</td><td>The location database many AI stacks license</td><td>Free</td></tr>
-<tr><td>Bandsintown · Songkick</td><td>READ · SYNC</td><td>Artist/venue event databases; concert-discovery apps and artist-follow alerts</td><td>Free</td></tr>
-<tr><td>City guides (Do512-class, per city)</td><td>READ · drift-watch</td><td>Local what's-on surfaces — the layer where the case study caught the real 'Friday' mislabel</td><td>Free</td></tr>
-</table>
-
-<h3>Their ticketing &amp; commerce — always THEIR accounts, never brokered</h3>
-<table>
-<tr><th style="width:24%">Tool</th><th style="width:14%">Agent's use</th><th>Role</th><th style="width:16%">Cost to business</th></tr>
-<tr><td>Eventbrite · Tock · Ticketmaster-class (whichever they already use)</td><td>READ · link-through</td><td>Tickets/reservations stay on their existing platform; the agent attaches the links everywhere</td><td>Their existing fees</td></tr>
-<tr><td>Their POS / door codes / QR cards</td><td>MEASURE</td><td>Redemption + attendance attribution without new hardware</td><td>$0</td></tr>
-</table>
-
-<h3>Social — staged by the agent, sent on their tap</h3>
-<table>
-<tr><th style="width:24%">Surface</th><th style="width:14%">Agent's use</th><th>Role</th><th style="width:16%">Cost to business</th></tr>
-<tr><td>Instagram (feed · story · carousel · reel · Collab posts · licensed audio)</td><td>READ · STAGE</td><td>The engagement-canon carousel/reel with their own footage and audio; Collab posts double reach with the artist</td><td>Free organic</td></tr>
-<tr><td>Facebook (events · page posts)</td><td>STAGE</td><td>Event objects with video attached; the invite graph</td><td>Free organic</td></tr>
-<tr><td>Meta boosts (their ad account, their cap)</td><td>STAGE (2-tap recipe)</td><td>v1 needs NO Meta API — recipe executed in their own app; no fees, no percentage of spend</td><td>Their optional budget ($20–60 typical)</td></tr>
-</table>
-
-<h3>Their own property — the owned layer the agent keeps alive</h3>
-<table>
-<tr><th style="width:24%">Tool</th><th style="width:14%">Agent's use</th><th>Role</th><th style="width:16%">Cost to business</th></tr>
-<tr><td>Website events widget</td><td>SYNC (deployed)</td><td>Always-current events on their site, machine-readable underneath</td><td>Free (we deploy)</td></tr>
-<tr><td>Link-in-bio page</td><td>SYNC (deployed)</td><td>The mobile front door, always pointing at the next show</td><td>Free (we deploy)</td></tr>
-<tr><td>Email — their ESP (Mailchimp/Klaviyo-class)</td><td>STAGE · MEASURE</td><td>The $36–42-per-$1 channel; drafts into the tool they already have</td><td>Their existing plan ($0–300/mo)</td></tr>
-<tr><td>SMS — their existing texting tool</td><td>STAGE</td><td>One-idea sends to the list; capture via QR at the door</td><td>Their existing plan</td></tr>
-</table>
-
-<h3>The machine-readable / AI-answer layer — what gets deployed under the hood</h3>
-<table>
-<tr><th style="width:24%">Resource</th><th style="width:14%">Agent's use</th><th>Role</th><th style="width:16%">Cost to business</th></tr>
-<tr><td>schema.org JSON-LD (MusicEvent · MusicVenue · Offer)</td><td>SYNC (deployed)</td><td>The structured layer 83% of local businesses never publish — event rich results + AI citability (Artifact 10e)</td><td>Free</td></tr>
-<tr><td>ICS / calendar feeds</td><td>READ · SYNC</td><td>Their calendar in, subscribed calendars out</td><td>Free</td></tr>
-<tr><td>NAP consistency layer</td><td>SYNC · drift-watch</td><td>Name–address–phone–hours held identical across every surface above</td><td>Free</td></tr>
-<tr><td>AI assistants (ChatGPT · Gemini · Perplexity · voice)</td><td>fed indirectly</td><td>Read the surfaces and markup above — the 45%-of-consumers answer layer</td><td>—</td></tr>
-<tr><td>OneLive gated endpoint (agent-readable)</td><td>PHASE-C</td><td>The citable, verified source for AI agents — behind the gate, never pay-to-rank</td><td>Free</td></tr>
-</table>
-
-<h3>SEO — the wider set of posting &amp; indexing surfaces (beyond the big three)</h3>
-<table>
-<tr><th style="width:24%">Surface</th><th style="width:14%">Agent's use</th><th>Role</th><th style="width:16%">Cost to business</th></tr>
-<tr><td>Nextdoor Business</td><td>SYNC · STAGE</td><td>The neighborhood layer — local events reach the streets that actually walk in</td><td>Free</td></tr>
-<tr><td>City &amp; press event calendars (Austin Chronicle-class alt-weeklies · visitor bureaus like austintexas.org · community calendars)</td><td>STAGE (submit)</td><td>Free editorial surfaces with real domain authority — both foot traffic AND backlinks; the case-study read found the venue on two of these</td><td>Free</td></tr>
-<tr><td>Event aggregators (AllEvents-class)</td><td>SYNC</td><td>Long-tail event indexing that search engines crawl</td><td>Free</td></tr>
-<tr><td>YouTube / Shorts</td><td>STAGE</td><td>The reel cut re-posted — video results in Google search; their channel, their tap</td><td>Free</td></tr>
-<tr><td>Segment surfaces: TripAdvisor (venues · wineries) · Untappd (breweries) · Vivino (wineries) · Bandcamp/Spotify/SoundCloud profiles (artists)</td><td>SYNC · drift-watch</td><td>Category-specific discovery where their buyers already search — matched to the 23-segment canon</td><td>Free</td></tr>
-<tr><td>On-site SEO mechanics: one crawlable URL per event · sitemap · IndexNow pings · review responses on GBP/Yelp</td><td>SYNC (deployed)</td><td>The hygiene layer that makes everything above indexable the hour it changes</td><td>Free</td></tr>
-</table>
-
-<h3>GEO — generative-engine optimization (the AI-answer discipline, done mechanically)</h3>
-<table>
-<tr><th style="width:24%">Resource</th><th style="width:14%">Agent's use</th><th>Role</th><th style="width:16%">Cost to business</th></tr>
-<tr><td>AI-crawler access (robots.txt allowances: GPTBot · ClaudeBot · PerplexityBot · Google-Extended)</td><td>SYNC (deployed)</td><td>Step zero of GEO — many sites silently block the crawlers whose answers they want to appear in</td><td>Free</td></tr>
-<tr><td>Bing index + IndexNow</td><td>SYNC</td><td>ChatGPT and Copilot retrieval runs largely on Bing's index — being fresh there IS ChatGPT visibility</td><td>Free</td></tr>
-<tr><td>Retrieval-source presence (Yelp · Foursquare · GBP · the databases above)</td><td>SYNC</td><td>~70% of AI local recommendations draw on these — GEO is mostly feeding the sources, done in the earlier tables</td><td>Free</td></tr>
-<tr><td>Entity data (Wikidata; Wikipedia only where notability is real)</td><td>SYNC (where eligible)</td><td>The knowledge-graph identity AI systems resolve entities against</td><td>Free</td></tr>
-<tr><td>AI-answer monitoring (what ChatGPT/Gemini/Perplexity actually say about them)</td><td>MEASURE · drift-watch</td><td>The check that caught the artist's stale band name; re-publishes correct facts when answers drift</td><td>Free (GEO tools charge $29–500/mo for this)</td></tr>
-<tr><td>llms.txt</td><td>SYNC (deployed, hedged)</td><td>Deployed because it costs nothing — flagged honestly: our research found ~97% of AI crawls ignore it and Google states no AI system uses it. A hedge, never the strategy</td><td>Free</td></tr>
-</table>
-<p><b>Why this table matters commercially:</b> agencies sell exactly this list as GEO/AEO retainers at $1,500–$25,000/month. Every row above is mechanical over data the agent already holds — it ships in the free tier, which is the arbitrage the whole document describes.</p>
-
-<h3>Measurement — read back in their units</h3>
-<table>
-<tr><th style="width:24%">Tool</th><th style="width:14%">Agent's use</th><th>Role</th><th style="width:16%">Cost to business</th></tr>
-<tr><td>UTM-tagged links · door/promo codes</td><td>MEASURE</td><td>Campaign → door attribution ('38 used MALA')</td><td>Free</td></tr>
-<tr><td>Platform analytics (IG/FB/GBP insights, their ESP reports, GA4 if present)</td><td>MEASURE</td><td>Raw numbers in; plain-language weekly note out; feeds 'what worked last time'</td><td>Free</td></tr>
-</table>
-
-<h3>OneLive-side machinery (ours, not theirs — listed for completeness)</h3>
-<table>
-<tr><th style="width:24%">Component</th><th style="width:14%">Type</th><th>Role</th><th style="width:16%">Cost to business</th></tr>
-<tr><td>Claude API extraction</td><td>AI (read-only)</td><td>Weak-signal extraction from fetched public text — reads, never publishes</td><td>$0 (our COGS)</td></tr>
-<tr><td>Evidence → gate → promote pipeline (PostgreSQL/Supabase · FastAPI/Celery)</td><td>Trust machine</td><td>4-state corroboration; disputed always shown; human-custodied promotion</td><td>$0</td></tr>
-<tr><td>/tonight PWA (Next.js) · Clerk auth · Sentry + dead-man monitoring</td><td>Platform</td><td>The consumer feed and ops rails the verified data flows into</td><td>$0</td></tr>
-</table>
-<div class="rail"><b>Standing rules across every row:</b> their accounts stay theirs · no percentage of ad spend at setup or during the free period · nothing here affects OneLive ranking, at any price · leave anytime and keep everything deployed.</div>
+<div class="rail"><b>Claim ledger:</b> every load-bearing number above and in the body has a row in `docs/strategy/CLAIM_LEDGER.md` (source, population, approved wording, badge, review date). Retired wordings (C-03, C-04): the unsourced ChatGPT source-share percentages and the Bing-share architecture assumption — replaced by documented mechanisms (OAI-SearchBot; database presence). <b>Standing rules (canon):</b> their accounts stay theirs · no percentage of ad spend at setup or during the free period · nothing paid or free affects OneLive ranking · leave anytime, keep everything deployed.</div>
 """
 
 html = f"<html><head><meta charset='utf-8'><style>{css}</style></head><body>{body}</body></html>"
-HTML(string=html).write_pdf("Marketing_Research_and_AI_Agent_Model_v1.pdf")
+HTML(string=html).write_pdf("Marketing_Research_and_AI_Agent_Model_v2.pdf")
 from pypdf import PdfReader
-r = PdfReader("Marketing_Research_and_AI_Agent_Model_v1.pdf"); t = "".join(p.extract_text() for p in r.pages)
+r = PdfReader("Marketing_Research_and_AI_Agent_Model_v2.pdf"); t = "".join(p.extract_text() for p in r.pages)
 for probe in ["MATTERS", "EXPECTED", "free permanently", "initial period", "Worked example", "data model"]:
     assert probe in t, probe
 print("pages:", len(r.pages), "- ok")

@@ -17,12 +17,16 @@ def wr(t,w): return textwrap.wrap(t,w)
 def W(t,w): return esc("\n".join(textwrap.wrap(t,w)))
 
 FW,FH=14.2,9.7
-def canvas(title, sub):
+def canvas(title, sub, badge="DEMONSTRATED", bcol=AQUA):
     fig,ax=plt.subplots(figsize=(FW,FH))
     fig.patch.set_facecolor(SURFACE); ax.set_facecolor(SURFACE)
     ax.set_position((0,0,1,1)); ax.set_xlim(0,FW); ax.set_ylim(0,FH); ax.axis("off")
     ax.text(0.2,FH-0.38,title,fontsize=19,fontweight="bold",color=INK)
     ax.text(0.2,FH-0.76,esc(sub),fontsize=11.8,color=INK2)
+    if badge:
+        bw_=0.34+0.128*len(badge)
+        ax.add_patch(FancyBboxPatch((FW-0.2-bw_,FH-0.52),bw_,0.4,boxstyle="round,pad=0.05",fc="white",ec=bcol,lw=2.0))
+        ax.text(FW-0.2-bw_/2,FH-0.32,badge,fontsize=10.6,fontweight="bold",color=bcol,ha="center",va="center")
     return fig,ax
 
 def statechip(ax,x,y,state):
@@ -153,7 +157,7 @@ print("cs_kit")
 # ============ 4 · THE MACHINE-READABLE LAYER ============
 fig,ax=canvas("Artifact 4 — the layer machines read: what search engines and AI assistants receive",
  "Generated from the same verified facts. This is the layer 83% of local businesses never publish — and the reason they are invisible in AI answers.")
-code = '''<script type="application/ld+json">
+code = """<script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "MusicEvent",
@@ -161,25 +165,28 @@ code = '''<script type="application/ld+json">
   "startDate": "2026-08-29T20:00:00-05:00",
   "endDate":   "2026-08-29T21:30:00-05:00",
   "eventStatus": "https://schema.org/EventScheduled",
+  "url": "[unique per-event page URL]",
   "location": {
     "@type": "MusicVenue",
     "name": "The Continental Club",
-    "address": "1315 S Congress Ave, Austin, TX 78704",
+    "address": { "@type": "PostalAddress",
+      "streetAddress": "1315 S Congress Ave",
+      "addressLocality": "Austin", "addressRegion": "TX",
+      "postalCode": "78704", "addressCountry": "US" },
     "telephone": "(512) 441-2444"
   },
   "performer": { "@type": "MusicGroup",
                  "name": "The Peterson Brothers" },
   "offers": { "@type": "Offer",
-              "url": "[their Eventbrite link]",
-              "availability": "https://schema.org/InStock" },
-  "genre": ["Blues", "Soul", "Funk"]
+              "url": "[their Eventbrite link]" }
 }
-</script>'''
+</script>"""
 ax.add_patch(FancyBboxPatch((0.2,0.45),7.6,7.95,boxstyle="round,pad=0.05",fc="#1c1c1a",ec=INK,lw=1.6))
-ax.text(0.5,8.16,"event JSON-LD — emitted on their site widget + OneLive listing",fontsize=10.8,color="#9ec5f4",family="monospace")
-yy=7.8
+ax.text(0.5,8.16,"event JSON-LD — emitted on a unique per-event page (site widget + OneLive)",fontsize=10.4,color="#9ec5f4",family="monospace")
+ax.text(0.5,0.62,"price & availability OMITTED — not verified from the read; the agent does not invent",fontsize=9.4,color="#eda100",family="monospace")
+yy=7.85
 for ln in code.split("\n"):
-    ax.text(0.5,yy,ln,fontsize=10.6,color="#e8e6e1",family="monospace",va="top"); yy-=0.322
+    ax.text(0.5,yy,ln,fontsize=9.9,color="#e8e6e1",family="monospace",va="top"); yy-=0.292
 who=[("Google / Bing","event rich results · 'things to do tonight' · Maps"),
      ("AI assistants","ChatGPT · Gemini · Perplexity — citable, structured, current"),
      ("OneLive","enters the gate as verified first-party data — still corroborated"),
@@ -191,7 +198,7 @@ for t,d in who:
     ax.text(8.45,y-0.42,t,fontsize=12.8,fontweight="bold",color=INK)
     ax.text(8.45,y-0.82,W(d,44),fontsize=11.2,color=INK2)
     y-=1.34
-ax.text(8.2,2.35,W("Deployed with it: NAP held identical across Google, Yelp, Bing, Apple, Foursquare, Nextdoor · AI-crawler access (GPTBot, ClaudeBot, PerplexityBot) · IndexNow pings to Bing — ChatGPT's index · an llms.txt hedge. Same drift-watch that caught the 'Friday' mislabel.",52),
+ax.text(8.2,2.35,W("Deployed with it: NAP held identical across Google, Yelp, Bing, Apple, Foursquare, Nextdoor · AI-crawler access (OAI-SearchBot for ChatGPT search · PerplexityBot · ClaudeBot; GPTBot managed separately as a training decision) · IndexNow submissions — notification, not guaranteed indexing · an llms.txt hedge. Same drift-watch that caught the 'Friday' mislabel.",52),
  fontsize=11.0,color=INK2,va="top",linespacing=1.38)
 plt.savefig("cs_machine.png",dpi=185,facecolor=SURFACE); plt.close()
 print("cs_machine")

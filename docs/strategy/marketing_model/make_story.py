@@ -27,7 +27,7 @@ def card_height(entries, wrap_w):
         h+=0.10
     return h+PAD-0.10
 
-def storyboard(fname, title, subtitle, steps, ledger=None, actor_key=None, ncols=3, figw=14.2):
+def storyboard(fname, title, subtitle, steps, ledger=None, actor_key=None, ncols=3, figw=14.2, badge=None):
     n=len(steps); nrows=(n+ncols-1)//ncols
     gut=0.22; m=0.18
     cw=(figw-2*m-(ncols-1)*gut)/ncols
@@ -45,6 +45,10 @@ def storyboard(fname, title, subtitle, steps, ledger=None, actor_key=None, ncols
     ax.set_xlim(0,figw); ax.set_ylim(0,figh); ax.axis("off")
     ax.text(m,figh-m-0.30,title,fontsize=TITLE_FS,fontweight="bold",color=INK)
     ax.text(m,figh-m-0.70,esc(subtitle),fontsize=SUB_FS,color=INK2)
+    if badge:
+        bw_=0.3+0.104*len(badge)
+        ax.add_patch(FancyBboxPatch((figw-m-bw_,figh-m-0.44),bw_,0.4,boxstyle="round,pad=0.05",fc="white",ec="#eda100",lw=2.0))
+        ax.text(figw-m-bw_/2,figh-m-0.24,badge,fontsize=9.6,fontweight="bold",color="#b87e00",ha="center",va="center")
     y_top=figh-m-top
     for r in range(nrows):
         ch=row_h[r]
@@ -135,7 +139,8 @@ storyboard("flow_bar.png",
  ledger=[("OWNER TIME THIS CYCLE","~12 minutes · 4 taps + one caption edit (est.)"),
          ("CASH COST","$0 agent — optional $40 boost on HER ad account"),
          ("THE SAME WORK TODAY","6–10 DIY hours, or $500–$2,000/mo freelancer/shop"),
-         ("SOCIAL OUTPUTS STAGED","IG post · story · carousel — FB event · post — GBP post — YouTube Short — SMS draft")])
+         ("SOCIAL OUTPUTS STAGED","IG post · story · carousel — FB event · post — GBP post — YouTube Short — SMS draft")],
+ badge="ILLUSTRATIVE — pilot targets, not observed results")
 
 # ---------------- 4 · WINERY ----------------
 storyboard("flow_winery.png",
@@ -156,7 +161,8 @@ storyboard("flow_winery.png",
  ledger=[("OWNER TIME THIS CYCLE","~15 minutes across the month · 3 taps (est.)"),
          ("CASH COST","$0 agent — optional $60 ads on THEIR account"),
          ("THE SAME WORK TODAY","agency package $1,000–$5,000/mo, or it simply doesn't happen"),
-         ("SOCIAL OUTPUTS STAGED","IG carousel · story · post — FB event · post — GBP post — YouTube Short — club email")])
+         ("SOCIAL OUTPUTS STAGED","IG carousel · story · post — FB event · post — GBP post — YouTube Short — club email")],
+ badge="ILLUSTRATIVE — pilot targets, not observed results")
 
 # ---------------- 5 · SOLO ARTIST ----------------
 storyboard("flow_artist.png",
@@ -177,7 +183,8 @@ storyboard("flow_artist.png",
  ledger=[("ROSA'S TIME PER SHOW","~8 minutes · 3 taps (est.)"),
          ("CASH COST","$0 — basics free permanently; campaign work free for the initial period"),
          ("THE SAME WORK TODAY","4–8 DIY hours per announcement cycle — unpaid artist admin"),
-         ("SOCIAL OUTPUTS STAGED","IG post · story — FB event w/ venue — YouTube Short — link-in-bio — list email")])
+         ("SOCIAL OUTPUTS STAGED","IG post · story — FB event w/ venue — YouTube Short — link-in-bio — list email")],
+ badge="ILLUSTRATIVE — pilot targets, not observed results")
 
 # ---------------- 6 · PROMOTION RIPPLE ----------------
 storyboard("flow_promo.png",
@@ -197,7 +204,8 @@ storyboard("flow_promo.png",
  ledger=[("OWNER TIME, WHOLE CAMPAIGN","~10 minutes over a month · 3 taps (est.)"),
          ("CASH COST","$0 agent — ads optional, on their account, their cap"),
          ("THE SAME CAMPAIGN TODAY","an agency project ($1–3k) plus list tooling — or never attempted"),
-         ("WHY THIS OFFER","email is the $36–42-per-$1 channel the research found sitting unused")])
+         ("WHY THIS OFFER","email is the $36–42-per-$1 channel the research found sitting unused")],
+ badge="ILLUSTRATIVE — pilot targets, not observed results")
 
 print("storyboards done")
 

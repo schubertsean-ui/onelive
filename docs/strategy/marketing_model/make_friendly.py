@@ -46,6 +46,10 @@ def thread(fname, title, sub, msgs, footer, cat_snap, ch3, gr3, fit):
     ax.set_position((0,0,1,1)); ax.set_xlim(0,FW); ax.set_ylim(0,FH); ax.axis("off")
     ax.text(M+0.05,FH-0.34,title,fontsize=17.5,fontweight="bold",color=INK)
     ax.text(M+0.05,FH-0.72,sub,fontsize=11.8,color=INK2)
+    _b="ILLUSTRATIVE — pilot targets, not observed results"
+    _bw=0.3+0.104*len(_b)
+    ax.add_patch(FancyBboxPatch((FW-M-_bw,FH-0.5),_bw,0.4,boxstyle="round,pad=0.05",fc="white",ec="#eda100",lw=2.0))
+    ax.text(FW-M-_bw/2,FH-0.3,_b,fontsize=9.6,fontweight="bold",color="#b87e00",ha="center",va="center")
 
     col_x = [M, M+COLW+0.25]
     ax.plot([col_x[1]-0.12,col_x[1]-0.12],[1.05,FH-1.0],color=LINE,lw=1)
@@ -117,7 +121,7 @@ thread("phone_bar.png",
   ("a","MONDAY","Saw you added DJ Mala for Friday 10pm. She's now on Google, Yelp, Apple Maps, Nextdoor, the city event calendars, your website, and OneLive. Nothing for you to do.",None),
   ("a","TUESDAY","Heads up: the promoter's flyer says 9pm but your calendar says 10pm. Which is right?",["9 PM","10 PM"]),
   ("o",None,"10pm",None),
-  ("a",None,"Fixed everywhere. Customers will only ever see 10pm.",None),
+  ("a",None,"Done. Website + OneLive: public. Google post, Instagram, Facebook: staged for your approval. City calendar: submitted, awaiting review. Yelp: monitored (partner update not active).",None),
   ("a","TWO WEEKS OUT","I made Friday's promo from your photos: an Instagram carousel, a story, a Facebook event, a Google post, a YouTube Short, and a text to your 214 regulars. There's also a $40 ad option — your account, only if you want it.",["SEE IT","POST AS PLANNED","SKIP"]),
   ("o",None,"Post as planned",None),
   ("a","FRIDAY 6PM","Tonight's reminder story is ready. One tap and it's up — door code MALA is on it so we can count who came from it.",["POST IT"]),

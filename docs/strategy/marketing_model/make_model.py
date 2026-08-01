@@ -64,7 +64,7 @@ ax.text(CX+CW/2,1.85,"first-party: pre-corroborated — STILL passes the gate",f
 # ---- RIGHT column ----
 card(ax,RX,6.15,RW,1.85,"/TONIGHT — THE CONSUMER FEED","night-of deciders choosing where to go; trust states visible; no pay-to-rank, no connect-to-rank — ever",VIOLET,bw=38)
 card(ax,RX,3.85,RW,1.85,"THEIR OWN SURFACES","site widget · socials + YouTube (their tap) · Nextdoor + city calendars kept current · their growing list",VIOLET,bw=38)
-card(ax,RX,1.5,RW,1.95,"THE AI-ANSWER LAYER","assistants & answer engines — fed via Bing/IndexNow, open AI-crawler access, the databases, and (Phase C) OneLive's gated endpoint",VIOLET,bw=38)
+card(ax,RX,1.5,RW,1.95,"THE AI-ANSWER LAYER","assistants & answer engines — fed by the databases, open AI-search-crawler access, IndexNow submissions, and (Phase C) OneLive's gated endpoint",VIOLET,bw=38)
 bus=9.05
 arrow(ax,(CX+CW,ys[4][1]-0.35),(bus,ys[4][1]-0.35),c=AQUA)
 ax.plot([bus,bus],[2.45,7.0],color=AQUA,lw=2.2)

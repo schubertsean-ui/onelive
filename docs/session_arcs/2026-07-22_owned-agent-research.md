@@ -273,3 +273,17 @@ artifacts). Session close: "update the repo and canon as appropriate" →
 (42b8b80) under the standing merge-on-green directive; founder notified.**
 Canon landing on the restarted branch: AGENT_SURFACES_v1, CASE_STUDY v1,
 marketing_model/ sources, R-025, Kaizen rows, Addendum 11, TODOS updates.
+
+
+## Directive set 12 (2026-08-01): external review adopted — "Go with 1–4"
+
+Founder commissioned an external review of Model v1 (PDF-only context) and
+directed items 1–4: artifact fixes (InStock removed, PostalAddress, crawler
+naming, check_artifacts.py regression), claim ledger + evidence badges
+(Model v2 reissued badged; ILLUSTRATIVE stamps on all fictional examples,
+DEMONSTRATED on the Continental artifacts), connector capability registry
+(supersedes flat SYNC/STAGE; Songkick HELD for legal), and the 12-page
+Customer Story v1 on the review's canonical six-step sequence. Reviewer's
+disputed-display weakening REJECTED (charter invariant); their 11pm JSON-LD
+contradiction claim disproven (artifact reads 21:30). Founder-crucial holds
+queued in TODOS. Kaizen: ESCAPED-to-external-review row.
