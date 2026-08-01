@@ -232,6 +232,20 @@ explanatory materials, modifiable only on founder instruction
 pointer amendment queued in TODOS — CLAUDE.md sits outside the arming
 binding's non-runtime set).
 
+## Tenth directive (2026-08-01): Tier-2 monetization direction
+
+Founder scoped the pricing posture: Tier 1 basics free permanently (the
+Mantle promise unchanged); Tier-2 ongoing demand generation free for an
+initial period, then MAY be priced (flat monthly or percentage-based)
+below documented market alternatives — grounded in the research (83%
+don't do this work; buying it costs $300–$5,000/mo). Physics unchanged:
+nothing paid or free affects OneLive ranking; owner tap = send button.
+Recorded: decision record 2026-08-01_tier2-monetization-direction.md;
+Studio doc §5-A amendment; Tier-2 pricing decision packet queued in
+TODOS (model, %-base, rate, free-period length, grandfathering — founder
+decides with Phase-B data). Deliverable PDFs carry the scoped constraint
+from v6.
+
 ## Open threads carried forward
 
 - Founder Q1–Q22 across the five strategy docs — nothing in the Owned Agent section of TODOS is

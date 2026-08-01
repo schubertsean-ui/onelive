@@ -152,6 +152,25 @@ without rework** — pricing is a Phase-B decision with data; what must be
 decided NOW (Q21) is only that the Studio direction is ratified and which
 posture the build should keep open.
 
+
+## §5-A · Pricing posture AMENDED (founder direction, 2026-08-01)
+
+Supersedes §5's "recommendation: (c) defer" and scopes §4.3's "no
+percentage" language. Founder direction (decision record
+`docs/memory/decisions/2026-08-01_tier2-monetization-direction.md`,
+verbatim anchor there): Tier 1 basics remain free permanently; **Tier-2
+ongoing demand generation is free for an initial period and MAY then be
+priced — flat monthly fee or percentage-based — below the documented
+market alternatives** ($300–$5,000/mo), because it is extra value most
+of the segment does not perform today. Unchanged physics: nothing paid
+or free affects OneLive ranking (Q22); owner tap remains the send
+button; no ad-spend percentage during setup/free period. Open items for
+the Phase-B pricing packet: model, the base any % is computed on
+(attributable revenue vs ad spend — spend-percentage was flagged as the
+misaligned agency pattern), rate, free-period length, grandfathering,
+segment variation. Q21 is now answered at the DIRECTION level; the
+numbers remain founder decisions with data.
+
 ## 6. Sequencing and dependencies
 
 - Rides Phase B+ (needs the claim flow, F1 spine, and asset capture from
