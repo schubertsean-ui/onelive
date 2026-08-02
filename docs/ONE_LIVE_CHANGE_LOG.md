@@ -1,6 +1,27 @@
 # ONE LIVE — CHANGE LOG
 
 
+## 2026-08-02 — Rule Zero: read completely before acting; founder greenlight gates the work
+
+**Founder-directed** after two same-session failures rooted in reading controlling
+documents in fragments and acting on the partial picture (a banned delay/timer per
+OPERATING_RULES §6a; a mis-stated trust invariant — the canon is "AI never publishes
+*unvalidated*", satisfied by the gate). Codified so it never recurs:
+- `docs/OPERATING_RULES.md` → **Rule Zero** (outranks every rule below it): no action of
+  any kind until the controlling rules/documents are read COMPLETELY (no skim/skip/
+  fragment/summarize; a partial read = no read), and the founder greenlight gates the
+  work (ratified contract / founder-set TODO / direct instruction = the greenlight).
+  Waiving Rule Zero is founder-crucial.
+- `docs/SESSION_START.md` Step 4 now mandates reading the controlling docs IN FULL at
+  session open, before any work.
+- Brain: `docs/memory/decisions/2026-08-02_complete-reading-gate.md` +
+  `docs/memory/gotchas/2026-08-02_skim-fragment-is-no-read.md` (retrieved at start).
+- Mechanism = harness (SESSION_START + validate) + brain (memory retrieval) + caching
+  (read stable docs once, in full, early; they cache, so completeness is cheap).
+- Queued: the CLAUDE.md charter pointer rides the next lawful root-file window (editing
+  CLAUDE.md trips the arming-evidence binding).
+
+
 ## 2026-08-02 — /tonight Phase 2 (content layer): Descriptor Foundry / Spark Line core (batch 1)
 
 **Session type:** Contract #32 (ship CAPCOG), /tonight Phase 2 build. Decision record:

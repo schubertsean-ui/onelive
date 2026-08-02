@@ -48,10 +48,17 @@ prose is the human context.
 here": decisions with reasoning + tradeoffs, bugs found, open threads. This is
 where the *why* lives that STATE.md summarizes.
 
-## Step 4 — Refresh the working rules (once, or when they change)
-- `docs/OPERATING_RULES.md` — quality bar, Loops/Kaizen, trust rules, the Harness.
-- `CLAUDE.md` — architecture invariants and PR review criteria.
+## Step 4 — Read the working rules COMPLETELY (Rule Zero — mandatory before any action)
+**Read each of these end to end, in full — no skimming, no fragments, no
+summarizing.** Per `OPERATING_RULES.md` Rule Zero, no building, fixing, scanning,
+or substantive response is permitted until this complete reading is done and
+confirmed; **a partial read counts as no read.** If a file is too large for one
+read call, read every part of it before acting on any part.
+- `docs/OPERATING_RULES.md` — Rule Zero, quality bar, Loops/Kaizen, trust rules, the Harness.
+- `CLAUDE.md` — prime directives, architecture invariants, and PR review criteria.
 - `docs/CODING_CONVENTIONS.md` — the reviewer-facing conventions checklist.
+- `STATE.md` (the current Session Contract) — read the whole contract, not the first page.
+- Any design/strategy doc the session contract points at (e.g. the `/tonight` UI canon) — in full.
 
 ## Step 5 — Know the queue (what to work on)
 `TODOS.md` is the work queue (seeded from STATE.md "What's next" + open founder
