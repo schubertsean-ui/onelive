@@ -36,19 +36,20 @@ PX=7.58                    # phone column start
 ax.text(LX,7.12,"THE PROBLEM — YOUR EVENTS EXIST. THEIR MARKETING DOESN'T.",
         fontsize=11.8,fontweight="bold",color=INK)
 probs=[
- ("chalk","Great night, invisible","People ask their phones — your\nchalkboard can't answer."),
- ("retype","Five sites, zero hours","Re-typing every event everywhere\nis a job. Nobody's."),
- ("likes","Likes, not door counts","You never learn what actually\nfilled the room."),
+ ("findme","People Want A\nGreat Night Out","Don't be hard to find —\nor worse, invisible."),
+ ("retype","Multiple Sites.\n(Almost) No Time.","Re-typing every event everywhere\nis a job. Nobody's."),
+ ("likes","Likes, not\ndoor counts","You never learn what actually\nfilled the room."),
 ]
 pw=2.23; gap=0.115; py=5.32; ph=1.62
 for i,(icon,head,why) in enumerate(probs):
     x=LX+i*(pw+gap)
     card(x,py,pw,ph,"#d8d7d3","#f6f5f2")
     cx=x+pw/2; iy=py+ph-0.42
-    if icon=="chalk":
-        ax.add_patch(Rectangle((cx-0.4,iy-0.2),0.8,0.44,fc="#2f3b33",ec="#8a6f4d",lw=2.2))
-        for k in range(3):
-            ax.plot([cx-0.28,cx+0.08+0.05*k],[iy+0.1-0.12*k]*2,color="white",lw=1.4,alpha=0.85)
+    if icon=="findme":
+        ax.add_patch(FancyBboxPatch((cx-0.17,iy-0.14),0.34,0.5,boxstyle="round,pad=0.03",fc="white",ec=INK,lw=2.0))
+        ax.add_patch(Circle((cx,iy+0.18),0.09,fc=AQUA,ec=AQUA))
+        ax.add_patch(Polygon([(cx-0.075,iy+0.14),(cx+0.075,iy+0.14),(cx,iy-0.02)],fc=AQUA))
+        ax.add_patch(Circle((cx,iy+0.18),0.035,fc="white"))
     if icon=="retype":
         for k in range(5):
             ax.add_patch(FancyBboxPatch((cx-0.5+k*0.19,iy-0.16+(k%2)*0.07),0.26,0.34,
@@ -56,11 +57,11 @@ for i,(icon,head,why) in enumerate(probs):
         ax.text(cx,iy,"✎",fontsize=15,color=ORANGE,ha="center",va="center")
     if icon=="likes":
         ax.text(cx-0.35,iy+0.04,"♥",fontsize=22,color="#cf5b74",ha="center",va="center")
-        ax.text(cx-0.35,iy-0.26,"1,400",fontsize=8.2,color=INK2,ha="center")
+        ax.text(cx-0.35,iy-0.3,"1,400",fontsize=8.2,color=INK2,ha="center")
         ax.add_patch(Rectangle((cx+0.16,iy-0.22),0.28,0.5,fc="#e9e7e2",ec=INK,lw=1.6))
         ax.text(cx+0.3,iy+0.03,"?",fontsize=13,fontweight="bold",color=ORANGE,ha="center",va="center")
-    ax.text(cx,py+0.72,head,fontsize=11.6,fontweight="bold",color=INK,ha="center",va="center")
-    ax.text(cx,py+0.34,why,fontsize=8.7,color=INK2,ha="center",va="center",linespacing=1.3)
+    ax.text(cx,py+0.76,head,fontsize=11.2,fontweight="bold",color=INK,ha="center",va="center",linespacing=1.12)
+    ax.text(cx,py+0.32,why,fontsize=8.7,color=INK2,ha="center",va="center",linespacing=1.3)
 
 # ---------- Row B: how it works ----------
 ax.text(LX,5.02,"HOW IT WORKS — YOU DECIDE. IT DOES THE WORK.",fontsize=11.8,fontweight="bold",color=INK)
@@ -150,31 +151,39 @@ msgs=[
  ("a","Saturday: 310 tapped for details, 38 used the door code. Next time I'll lead with the carousel."),
 ]
 y=6.58
+prev=None
 for kind,t in msgs:
+    sender="1Live" if kind=="a" else "You"
+    if sender!=prev:
+        if kind=="a":
+            ax.text(px2+0.04,y-0.02,sender,fontsize=7.2,fontweight="bold",color=INK2,va="top")
+        else:
+            ax.text(px2+bw*0.94,y-0.02,sender,fontsize=7.2,fontweight="bold",color=BLUE,ha="right",va="top")
+        y-=0.14
+    prev=sender
     if kind=="a":
-        lines=W(t,38); n=lines.count("\n")+1; bh=0.20*n+0.16
+        lines=W(t,38); n=lines.count("\n")+1; bh=0.19*n+0.13
         ax.add_patch(FancyBboxPatch((px2,y-bh),bw*0.95,bh,boxstyle="round,pad=0.04",fc="#efedea",ec="#efedea"))
-        ax.text(px2+0.12,y-bh/2,lines,fontsize=8.8,color=INK,va="center",linespacing=1.28)
-        y-=bh+0.14
+        ax.text(px2+0.12,y-bh/2,lines,fontsize=8.8,color=INK,va="center",linespacing=1.24)
+        y-=bh+0.10
     elif kind=="y":
         bh=0.36
         ax.add_patch(FancyBboxPatch((px2+bw*0.58,y-bh),bw*0.36,bh,boxstyle="round,pad=0.04",fc=BLUE,ec=BLUE))
         ax.text(px2+bw*0.76,y-bh/2,t,fontsize=9.4,fontweight="bold",color="white",ha="center",va="center")
-        y-=bh+0.14
+        y-=bh+0.10
     else:
         bh=0.40
         ax.add_patch(FancyBboxPatch((px2+bw*0.42,y-bh),bw*0.53,bh,boxstyle="round,pad=0.04",fc=BLUE,ec=BLUE))
         ax.text(px2+bw*0.685,y-bh/2,t,fontsize=9.6,fontweight="bold",color="white",ha="center",va="center")
-        y-=bh+0.16
-ax.text(px2,y-0.08,"Your week with the agent:\nminutes, not hours.",fontsize=9.0,style="italic",color=INK2,va="top",linespacing=1.3)
+        y-=bh+0.10
+ax.text(px2,max(y-0.06,1.86),"Your week with the agent: minutes, not hours.",fontsize=8.2,style="italic",color=INK2,va="top")
 
 # ---------- bottom band: yours forever ----------
 ax.add_patch(Rectangle((0,0),FW,1.06,fc=AQUA,ec=AQUA))
 ax.text(0.35,0.70,"YOURS. FOREVER.",fontsize=15.5,fontweight="bold",color="white")
 ax.text(0.35,0.40,"Everything the agent builds — your corrected listings, your calendar, your website widget, your customer list —",
         fontsize=9.8,color="white")
-ax.text(0.35,0.16,"belongs to you, whether or not you ever do more marketing with 1Live.",
-        fontsize=9.8,fontweight="bold",color="white")
+ax.text(0.35,0.16,"belongs to you.",fontsize=9.8,fontweight="bold",color="white")
 ax.text(FW-0.35,0.44,"You approve\nevery send.",fontsize=12.5,fontweight="bold",color="white",ha="right",va="center",linespacing=1.25)
 
 plt.savefig("onepager.png",dpi=200,facecolor=SURFACE)

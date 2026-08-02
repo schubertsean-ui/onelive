@@ -85,3 +85,21 @@ purchase; trademark check advised) fronts the site before launch. New
 canon files use the `1LIVE_` prefix; searches must cover both prefixes.
 Mechanical guard added: check_artifacts.py fails any deliverable builder
 that reintroduces the old brand spelling.
+
+
+## Addendum 3 (2026-08-02) — one-pager copy directives
+
+**Founder, verbatim:** "Remove this: whether or not you ever do more
+marketing with 1Live. / Re: NO DASHBOARD. - put 1Live as Sender and You
+as sender in appropriate mssgs / This is too simplistic and not always
+relevant: Great night, invisible ... Change it to: People Want A Great
+Night Out / don't be hard to find or worse, invisible / Change 'Five
+sites, zero hours' to Multiple Sites. (Almost) No Time."
+
+Executed in make_onepager.py: bottom band now reads "belongs to you."
+(the keep-forever FACT stands via YOURS. FOREVER.; the qualifier clause
+is removed); thread bubbles carry 1Live/You sender labels; problem card 1
+recast outside-in ("People Want A Great Night Out / Don't be hard to
+find — or worse, invisible", chalkboard icon replaced by a phone-with-pin);
+card 2 head is "Multiple Sites. (Almost) No Time." Visual QA re-run
+(thread overflow from the added labels caught and fixed before delivery).
