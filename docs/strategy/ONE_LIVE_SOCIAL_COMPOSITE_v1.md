@@ -1,4 +1,4 @@
-# ONE LIVE — Social Composite v1: progressive enrichment into a solid picture (PROPOSAL)
+# 1LIVE — Social Composite v1: progressive enrichment into a solid picture (PROPOSAL)
 
 Greppable summary: founder-directed 2026-07-22, verbatim brief: "closely
 investigate what fields we can access and think in terms of progressive
@@ -169,7 +169,7 @@ source alongside scraping-free provenance).
 1. Mint Phase-A keys (list above — all free tiers; Google requires a
    billing account with the free-tier caps noted in the inventory).
 2. Approve the Bandsintown partnership application (we apply in
-   OneLive's name — their stated partner category fits us).
+   1Live's name — their stated partner category fits us).
 3. Legal posture: Linktree-page fetching (default no), and the standing
    rule "official APIs only, opt-in for closed platforms" — say the
    word and it's the recorded posture.

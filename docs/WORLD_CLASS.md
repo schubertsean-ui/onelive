@@ -1,6 +1,6 @@
-# OneLive — The World-Class Bar (per-clause cited)
+# 1Live — The World-Class Bar (per-clause cited)
 
-> **Status:** Canonical acceptance contract for the OneLive build. Every clause is grounded in a named authority and/or institutional standard, with the exact source URL. Where a specific numeric claim could not be sourced from a fetched primary page, it is marked **n.a.** rather than invented.
+> **Status:** Canonical acceptance contract for the 1Live build. Every clause is grounded in a named authority and/or institutional standard, with the exact source URL. Where a specific numeric claim could not be sourced from a fetched primary page, it is marked **n.a.** rather than invented.
 >
 > **Grounding basis (user directive):** *Both* named practitioners AND institutional standards. Sourcing rigor (user directive): *every clause cited.*
 >
@@ -12,17 +12,17 @@
 
 ## §0 — Agent-process discipline (how the model is driven)
 
-Grounded in **Andrej Karpathy — "LOOPS.md: Field Notes on Agents That Run for Days"** (independent research notes, v060726). This governs *how* OneLive is built by long-running agents, and is the layer the user caught us drifting from.
+Grounded in **Andrej Karpathy — "LOOPS.md: Field Notes on Agents That Run for Days"** (independent research notes, v060726). This governs *how* 1Live is built by long-running agents, and is the layer the user caught us drifting from.
 
 - **0.1 Write the loop, not the prompt.** "The unit of leverage stopped being the prompt the moment models became good enough to follow a procedure without supervision; what matters now is the procedure." The build runs as a standing loop (gather → reason → act → verify → repeat), not one-off prompts. (Karpathy, LOOPS §I)
-- **0.2 Separate the roles — the generator MUST NOT grade itself.** "A generator that writes everything and is forbidden from grading its own work. An evaluator that reads diffs, launches `playwright`, plays the app… Mixing the roles is the most common failure I see; the model becomes sycophantic the moment it grades itself, and the loop quietly converges on slop." **OneLive rule:** auth, pipeline, SQL, and data-trust changes require adversarial review by a **non-Claude** model (GPT-5.5) before merge. Claude never approves its own security-critical CL. (Karpathy, LOOPS §II)
-- **0.3 Negotiate the contract first.** "Before the generator writes a single line, it proposes what done looks like and the evaluator pushes back… Twenty-seven criteria is a reasonable size for a small app; ten is usually too few and the evaluator rubber-stamps… This is the single change that moved my own runs from broken demos to working products." **OneLive rule:** this document + `OPERATING_RULES.md` are the ratified contract; the generator does not get merge credit for work that pre-dates a ratified contract. (Karpathy, LOOPS §III)
-- **0.4 Write to disk, not to context.** "Context windows lie. They compact, they rot, they hide what you said an hour ago behind a summary you did not write. A file on disk does not lie." **OneLive rule:** `STATE.md`, session arcs, append-only feedback logs, and this contract are the source of truth — not conversation memory. (Karpathy, LOOPS §IV)
+- **0.2 Separate the roles — the generator MUST NOT grade itself.** "A generator that writes everything and is forbidden from grading its own work. An evaluator that reads diffs, launches `playwright`, plays the app… Mixing the roles is the most common failure I see; the model becomes sycophantic the moment it grades itself, and the loop quietly converges on slop." **1Live rule:** auth, pipeline, SQL, and data-trust changes require adversarial review by a **non-Claude** model (GPT-5.5) before merge. Claude never approves its own security-critical CL. (Karpathy, LOOPS §II)
+- **0.3 Negotiate the contract first.** "Before the generator writes a single line, it proposes what done looks like and the evaluator pushes back… Twenty-seven criteria is a reasonable size for a small app; ten is usually too few and the evaluator rubber-stamps… This is the single change that moved my own runs from broken demos to working products." **1Live rule:** this document + `OPERATING_RULES.md` are the ratified contract; the generator does not get merge credit for work that pre-dates a ratified contract. (Karpathy, LOOPS §III)
+- **0.4 Write to disk, not to context.** "Context windows lie. They compact, they rot, they hide what you said an hour ago behind a summary you did not write. A file on disk does not lie." **1Live rule:** `STATE.md`, session arcs, append-only feedback logs, and this contract are the source of truth — not conversation memory. (Karpathy, LOOPS §IV)
 - **0.5 Let the loop restart; insert a human only when the contract is wrong.** "Do not interrupt [a clean-slate restart]. The restart is the loop working correctly. Insert a human only when the contract itself is wrong, not when the build is." (Karpathy, LOOPS §V)
-- **0.6 Score the subjective with a written rubric.** "Taste is gradable if you write it down. Four axes, weighted: design, originality, craft, functionality… The model will not invent taste; it will only converge toward the taste you described." **OneLive rule:** UX quality (§6) is graded against WCAG + Nielsen + Core Web Vitals, not "vibe." (Karpathy, LOOPS §VI)
-- **0.7 Read the traces, not the summaries.** "Every debugging insight I have about agent loops came from reading the raw transcript, not from running another experiment… Skip this step and you are tuning by vibe." **OneLive rule:** subagent output is graded from its raw diff + test logs, never from its own self-summary. (Karpathy, LOOPS §VII)
-- **0.8 Delete the harness that has stopped reading.** "The harness that grows monotonically is a harness that has stopped reading. Re-read your harness against each new release and delete anything the model now does for free." **OneLive rule:** each Kaizen pass includes a scheduled harness-pruning review, not only additions. (Karpathy, LOOPS §VIII)
-- **0.9 The bottleneck always moves.** "When coding stops being the bottleneck, planning becomes the bottleneck. When planning is solved, verification becomes the bottleneck… If everything is going smoothly, you are not looking carefully enough." **OneLive rule:** each session names the current bottleneck explicitly. (Karpathy, LOOPS §IX)
+- **0.6 Score the subjective with a written rubric.** "Taste is gradable if you write it down. Four axes, weighted: design, originality, craft, functionality… The model will not invent taste; it will only converge toward the taste you described." **1Live rule:** UX quality (§6) is graded against WCAG + Nielsen + Core Web Vitals, not "vibe." (Karpathy, LOOPS §VI)
+- **0.7 Read the traces, not the summaries.** "Every debugging insight I have about agent loops came from reading the raw transcript, not from running another experiment… Skip this step and you are tuning by vibe." **1Live rule:** subagent output is graded from its raw diff + test logs, never from its own self-summary. (Karpathy, LOOPS §VII)
+- **0.8 Delete the harness that has stopped reading.** "The harness that grows monotonically is a harness that has stopped reading. Re-read your harness against each new release and delete anything the model now does for free." **1Live rule:** each Kaizen pass includes a scheduled harness-pruning review, not only additions. (Karpathy, LOOPS §VIII)
+- **0.9 The bottleneck always moves.** "When coding stops being the bottleneck, planning becomes the bottleneck. When planning is solved, verification becomes the bottleneck… If everything is going smoothly, you are not looking carefully enough." **1Live rule:** each session names the current bottleneck explicitly. (Karpathy, LOOPS §IX)
 
 ---
 
@@ -68,7 +68,7 @@ Grounded in **Andrej Karpathy — "LOOPS.md: Field Notes on Agents That Run for 
 
 - **4.1 Verify controls against OWASP ASVS.** ASVS "provides a basis for testing web application technical security controls." *(ASVS L1/L2/L3 numeric level definitions: not on fetched pages — **n.a.**)* ([OWASP ASVS](https://owasp.org/www-project-application-security-verification-standard/))
 - **4.2 Fail closed / deny by default.** "an application should be configured to deny access by default." Failed checks must not "put the software into an unstable state that could lead to authorization bypass." ([OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html))
-- **4.3 Defense in depth.** "Do not depend on any single framework, library, technology, or control to be the sole thing enforcing proper access control." → **This is why OneLive uses TWO independent layers (Next middleware + FastAPI JWT verify).** ([OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html))
+- **4.3 Defense in depth.** "Do not depend on any single framework, library, technology, or control to be the sole thing enforcing proper access control." → **This is why 1Live uses TWO independent layers (Next middleware + FastAPI JWT verify).** ([OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html))
 - **4.4 Enforce authorization on EVERY request (least privilege).** "Validating permissions correctly on just the majority of requests is insufficient." ([OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html))
 - **4.5 JWT: always verify signature; reject `alg=none`; pin expected algorithm.** ([OWASP JWT Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html))
 - **4.6 JWT: enforce short expiration + refresh/rotation.** ([OWASP JWT Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html))
@@ -82,7 +82,7 @@ Grounded in **Andrej Karpathy — "LOOPS.md: Field Notes on Agents That Run for 
 
 ---
 
-## §5 — Data / ingestion trust & quality (OneLive's core moat)
+## §5 — Data / ingestion trust & quality (1Live's core moat)
 
 - **5.1 Provenance underpins trust.** "Provenance is information about entities, activities, and people involved in producing a piece of data… used to form assessments about its quality, reliability or trustworthiness." ([W3C PROV-Overview](https://www.w3.org/TR/prov-overview/))
 - **5.2 Accuracy** = "closeness of data values to real values." ([DAMA — DDQ](https://www.dama-nl.org/wp-content/uploads/2020/09/DDQ-Dimensions-of-Data-Quality-Research-Paper-version-1.2-d.d.-3-Sept-2020.pdf))
@@ -140,7 +140,7 @@ Grounded in **Andrej Karpathy — "LOOPS.md: Field Notes on Agents That Run for 
 
 ---
 
-## Self-audit: where OneLive stands against this bar (2026-07-12)
+## Self-audit: where 1Live stands against this bar (2026-07-12)
 
 Retro-applied to what is already built. Verdicts are **claims until independently verified** (§0.7).
 

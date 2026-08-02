@@ -1,4 +1,4 @@
-# ONE LIVE — Claim Ledger v1
+# 1LIVE — Claim Ledger v1
 
 **Created 2026-08-01 at founder direction ("Go with 1–4" on the external review
 of the Model deliverable). Purpose: every load-bearing number or capability
@@ -28,7 +28,7 @@ criterion, not a result) · HYPOTHESIS (to be tested).
 | C-11 | worked-example outcomes (38 door codes · 41 signups · 9 club conversions · 62 taps · 12 signups · "carousel beat flyer 3-to-1" · owner minutes) | ALWAYS carry the badge "ILLUSTRATIVE — pilot targets, not observed results"; the 3-to-1 line is additionally a measurement HYPOTHESIS pending controlled comparison | internal design targets | fictional composites | PILOT TARGET | at first pilot readout |
 | C-12 | Continental Club facts, states, and the Do512 "Friday" drift catch | as recorded in ONE_LIVE_CASE_STUDY_CONTINENTAL_v1.md, badge DEMONSTRATED; scope: extraction, corroboration, conflict detection, preview, drafting, structured data — NO live publishing, NO measurement | session run · 2026-08-01 | one venue, one run, search-snapshot read path (R-063) | DEMONSTRATED | R-063 trigger |
 | C-13 | "set up from one pasted URL, ≤3 taps" | "paste one link → complete PREVIEW in minutes, no accounts connected. Activation is progressive: connect only the channels you choose; some require platform authorization or approval" | product design + platform API requirements | — | PILOT TARGET (preview) / capability-dependent (activation) | at pilot |
-| C-14 | "updates everywhere within the hour" | "OneLive updates connected channels immediately, reports each platform's publication status, and monitors until the change is public — submission, acceptance, display, and indexing are distinct states" | connector reality (registry) | — | PILOT TARGET | at pilot |
+| C-14 | "updates everywhere within the hour" | "1Live updates connected channels immediately, reports each platform's publication status, and monitors until the change is public — submission, acceptance, display, and indexing are distinct states" | connector reality (registry) | — | PILOT TARGET | at pilot |
 | C-15 | Gartner 7.7% budgets · Census 30.4M nonemployers · NIVA 64% · Brewers Assoc 434/268 · $10.3B listings leak · 68% would stop · ~40% tickets unsold | as sourced inline in Part I / research companions, populations preserved | per-claim sources in those docs | per claim | EXTERNAL BENCHMARK | 2027-02 |
 
 **Standing rules:** (1) fictional examples never share visual styling with

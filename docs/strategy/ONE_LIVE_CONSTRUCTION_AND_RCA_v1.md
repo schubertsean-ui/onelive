@@ -1,4 +1,4 @@
-# OneLive Construction Loop + Root-Cause Analysis v1
+# 1Live Construction Loop + Root-Cause Analysis v1
 
 Founder directive (2026-07-25), two parts:
 1. *"Have you built in a root cause analysis — the world leading, after

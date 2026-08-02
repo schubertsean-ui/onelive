@@ -1,4 +1,4 @@
-# OneLive Agent Pipeline v1 — phased work with lossless handoffs
+# 1Live Agent Pipeline v1 — phased work with lossless handoffs
 
 Founder directive (2026-07-25): *"chunk the agent work into phases and having
 handoffs and ensuring there is zero loss from a, for example, finder identifying
@@ -75,7 +75,7 @@ swarm lossless.
 - `brain/pipeline/handoff.py` — the zero-loss handoff mechanism + `trace` +
   `origin_fields_preserved`.
 - `brain/pipeline/runner.py` — `run_pipeline`, the `Stage` phases, the loop close.
-- `brain/pipeline/default_stages.py` — the seven concrete OneLive roles.
+- `brain/pipeline/default_stages.py` — the seven concrete 1Live roles.
 - `brain/pipeline/demo.py` — `python -m brain.pipeline.demo`.
 - `tests/test_pipeline_handoff.py` — the proof (silent-drop fails closed, durable
   reload, loop closes, provenance chain connected).

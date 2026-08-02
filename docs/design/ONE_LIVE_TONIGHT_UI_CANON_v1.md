@@ -1,4 +1,4 @@
-# ONE LIVE — `/tonight` UI Canon (v1)
+# 1LIVE — `/tonight` UI Canon (v1)
 
 **Status:** RATIFIED consolidation — the single source of truth for the consumer `/tonight`
 experience. This document does not invent design; it **consolidates** design that was
@@ -31,7 +31,7 @@ world."* Every rule below serves that.
 
 ## §0 · North Star
 
-A person feels the 6–9 PM restlessness — *"what's happening tonight?"* — opens ONE LIVE,
+A person feels the 6–9 PM restlessness — *"what's happening tonight?"* — opens 1LIVE,
 and in **under ten seconds, with no account and a sub-2-second load**, has a real answer
 they trust. The product is *"about finding and engaging in experiences, helping individuals
 and the culture thrive"* (founder, round 6, `CHANGELOG:722`).

@@ -1,12 +1,12 @@
-# ONE LIVE — Alternative S v1: the standalone B2A agent (no OneLive pipes in the picture)
+# 1LIVE — Alternative S v1: the standalone B2A agent (no 1Live pipes in the picture)
 
-**Compiled 2026-07-22 · Status: PROPOSAL — research response to the founder's sixth 2026-07-22 directive: draft the alternative where our pipes are not in the picture — why is a B2A agent good for people and orgs in the ABSENCE of OneLive; run SWOT and deep competitive analysis for that standalone model; then evaluate that SWOT back to OneLive if it is truly separate and standalone. Strategic intent stated by the founder: widespread use of the agents should facilitate our ability to gather the relevant data we want. Companion to the three prior docs; questions Q18–Q20. Nothing here is license to build.**
+**Compiled 2026-07-22 · Status: PROPOSAL — research response to the founder's sixth 2026-07-22 directive: draft the alternative where our pipes are not in the picture — why is a B2A agent good for people and orgs in the ABSENCE of 1Live; run SWOT and deep competitive analysis for that standalone model; then evaluate that SWOT back to 1Live if it is truly separate and standalone. Strategic intent stated by the founder: widespread use of the agents should facilitate our ability to gather the relevant data we want. Companion to the three prior docs; questions Q18–Q20. Nothing here is license to build.**
 
 Greppable summary: Alternative S = a B2A agent whose ENTIRE output lives on
 the business's own property (their domain, their feeds, their pipe
-accounts) — valuable with zero OneLive coupling. The substrate thesis: if
+accounts) — valuable with zero 1Live coupling. The substrate thesis: if
 thousands of entities publish clean, structured, domain-hosted truth, ANY
-consumer — including OneLive — reads it; and under the RATIFIED sensor
+consumer — including 1Live — reads it; and under the RATIFIED sensor
 canon, domain provenance alone qualifies for the first-party fast lane (no
 claim/account relationship required). Standalone SWOT: neutrality and
 standard-setting power vs no distribution, no verification story, no
@@ -14,7 +14,7 @@ funding logic, and a commons that equally feeds our competitors. Deep
 competitive read: in the standalone frame the rivals become site builders
 (Squarespace AIO Scanner, Wix AI Visibility Overview, Shopify agentic
 storefronts) and the CDN layer (Cloudflare) — actors who own distribution
-we don't. Evaluation back to OneLive: the decoupled ARCHITECTURE is worth
+we don't. Evaluation back to 1Live: the decoupled ARCHITECTURE is worth
 adopting wholesale ("works without us, better with us"); the decoupled
 VENTURE is worth rejecting — it funds a commons our better-distributed
 competitors harvest, loses the claim flywheel, and hands the mantle to a
@@ -25,16 +25,16 @@ brand that isn't ours unless we steward it.
 ## 1. The ask (verbatim anchors, 2026-07-22)
 
 1. "Draft an alternative where our pipes are not even in the picture …
-   why is a B2A good for the people and orgs in the absence of OneLive."
+   why is a B2A good for the people and orgs in the absence of 1Live."
 2. "We want the widespread use of the agents to facilitate our ability to
    grab the relevant data we want."
 3. "Run SWOT and deep competitive analysis for that kind of model and
-   then evaluate the SWOT to OneLive if it is truly 'separate' and
+   then evaluate the SWOT to 1Live if it is truly 'separate' and
    stand alone."
 
 ## 2. Alternative S — the standalone agent, specified
 
-**What it is with OneLive deleted from the universe:** a free agent any
+**What it is with 1Live deleted from the universe:** a free agent any
 venue/artist/organizer points at their own web presence. It then:
 
 - **S-1 Emits domain-hosted truth:** correct schema.org/JSON-LD event and
@@ -68,7 +68,7 @@ open STANDARD + reference implementation (the Presence Standard with a
 tool attached). The strongest standalone form is (c)+(b): standards
 create the durable asset; hosting creates reach beyond the technical few.
 
-## 3. The substrate thesis — how OneLive wins with no pipes at all
+## 3. The substrate thesis — how 1Live wins with no pipes at all
 
 The founder's stated intent works mechanically: if thousands of entities
 run Alternative S, the open web's event data becomes CLEAN — structured,
@@ -162,15 +162,15 @@ adopting the Presence Standard as their implementation target. That is a
 standards play, not a product play, and it takes years and a credible
 neutral steward.
 
-## 6. The evaluation the founder asked for: that SWOT, read back to OneLive if S is TRULY separate
+## 6. The evaluation the founder asked for: that SWOT, read back to 1Live if S is TRULY separate
 
-| Dimension | If S is truly separate/standalone | Consequence for OneLive |
+| Dimension | If S is truly separate/standalone | Consequence for 1Live |
 |---|---|---|
 | Data substrate | Clean domain-hosted truth spreads | **WIN** — cheaper deterministic extraction, more corroboration, fast lane via domain provenance (§3.2), zero support burden on us |
 | Competitive symmetry | The substrate is OPEN | **LOSS (the big one)** — Google, Eventbrite, site builders, and every future rival read the SAME clean substrate with more distribution than us. A truly separate S is a commons we'd fund whose largest harvesters would be our better-distributed competitors. Our residual edge shrinks to the gate + consumer experience — real, but we'd have spent our building capacity strengthening everyone's pipeline |
-| Acquisition flywheel | No claim relationship, no magic links, no digests | **LOSS** — the CAC weapon (assessment §4) disappears; OneLive acquires supply relationships from zero, separately |
+| Acquisition flywheel | No claim relationship, no magic links, no digests | **LOSS** — the CAC weapon (assessment §4) disappears; 1Live acquires supply relationships from zero, separately |
 | Trust machinery | Self-attested consistency, no gate | **MIXED** — domain provenance still feeds OUR gate (win), but S itself can spread confident fictions (spam capture, §4 Threats), which pollutes the substrate we planned to drink from; without us, nobody disputes anything |
-| Mantle/brand | The Standard's credibility accrues to the neutral brand | **LOSS unless stewarded** — "default" status lands on S, not OneLive; the founder's mantle strategy (MANTLE_v1) transfers to an entity that, if TRULY separate, we don't control |
+| Mantle/brand | The Standard's credibility accrues to the neutral brand | **LOSS unless stewarded** — "default" status lands on S, not 1Live; the founder's mantle strategy (MANTLE_v1) transfers to an entity that, if TRULY separate, we don't control |
 | Focus/capacity | Two products, two brands, one tiny team | **LOSS** — the charter's scarcest resource is build capacity on the critical path (Steps 6–10); a separate venture forks it |
 | Openness credibility | Nobody can call it a walled garden | **WIN** — the strongest possible answer to the §7-of-MANTLE attack, IF we can claim association |
 
@@ -178,7 +178,7 @@ neutral steward.
 generous to our competitors and starves our own flywheel — the founder's
 stated goal ("widespread agents facilitate OUR data gathering") is served
 only in the same breath that it serves every rival with better
-distribution, while the things that make OneLive defensible (claim
+distribution, while the things that make 1Live defensible (claim
 relationships, dispute-aware trust, the consumer surface, the mantle) are
 all left on the table. As an ARCHITECTURE, however, S is simply correct:
 everything it prescribes (output on the owner's domain, open formats,
@@ -194,11 +194,11 @@ separate venture; keep the stewardship door open:
 1. **Build the owned agent S-compliant from day one:** every artifact the
    agent produces lives on or belongs to the business (their markup,
    their feeds, their pipe accounts, their revocable tokens). Deleting
-   OneLive leaves them whole. This is the provable version of "they
+   1Live leaves them whole. This is the provable version of "they
    control the content" — and it makes the walled-garden attack
    unanswerable.
-2. **The OneLive coupling is an UPGRADE, never a requirement:** claiming
-   inside OneLive adds the gate relationship, dispute handling, the
+2. **The 1Live coupling is an UPGRADE, never a requirement:** claiming
+   inside 1Live adds the gate relationship, dispute handling, the
    digest, the Mirror re-scans, the consumer surface, and (Phase C) the
    hosted Doorman + agent-traffic log. Free either way; the upgrade is
    where the flywheel lives.
@@ -209,7 +209,7 @@ separate venture; keep the stewardship door open:
    spreads OUR definition of the basics, and their tenants' output lands
    on the open substrate we read. We don't need to own the tool the
    whole world uses; we need the world's tools to emit the substrate,
-   and OneLive to be its best-verified consumer.
+   and 1Live to be its best-verified consumer.
 4. **Re-evaluate a spun-out steward** (Let's Encrypt-style nonprofit for
    the Standard + reference implementation) ONLY at scale signals: a
    second metro live, external platforms actually implementing the
@@ -220,7 +220,7 @@ separate venture; keep the stewardship door open:
 
 - **Q18 — S-compliance as a build constraint:** ratify §7.1 — every
   owned-agent artifact lives on/belongs to the business, verified by an
-  acceptance test in Phase A ("delete OneLive, they keep everything")?
+  acceptance test in Phase A ("delete 1Live, they keep everything")?
 - **Q19 — Separate venture: declined?** confirm Alternative S is NOT
   pursued as a separate product/brand now, per §6's evaluation (the
   commons-funds-competitors problem + flywheel loss + capacity fork) —

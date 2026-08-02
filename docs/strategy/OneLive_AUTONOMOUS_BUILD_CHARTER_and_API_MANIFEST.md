@@ -1,4 +1,4 @@
-# OneLive — Autonomous Build Charter & API/Credentials Manifest (v1)
+# 1Live — Autonomous Build Charter & API/Credentials Manifest (v1)
 
 **Compiled 2026-07-12 · Status: PROPOSAL pending founder ratification (§0.3 contract-first). Nothing below spends money or mints keys — only the founder does that, by design.**
 

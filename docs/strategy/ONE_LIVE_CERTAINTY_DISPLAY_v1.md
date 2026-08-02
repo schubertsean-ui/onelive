@@ -1,4 +1,4 @@
-# ONE LIVE — Certainty, Trust & the Fifth-State Question (v1)
+# 1LIVE — Certainty, Trust & the Fifth-State Question (v1)
 
 **Compiled 2026-07-15 · Status: RATIFIED 2026-07-15 — founder (verbatim): "Display stack accepted." The Certainty Display Stack is canon: epistemic state FROZEN at 4 (unverified · likely · confirmed · disputed — founder-confirmed same day) composing with freshness (Axis 2) and provenance (Axis 3) as attributes, and `event_status` as its own field. Any future fifth-state candidate must pass this doc's decision test AND receive an explicit founder decision — no design process or agent may add states.**
 
@@ -19,7 +19,7 @@ trust through consistency; a 5th erodes the schema for marginal precision.
    [summary](https://pmc.ncbi.nlm.nih.gov/articles/PMC7149229/)) found
    communicating uncertainty (numerically or as ranges) slightly reduces
    confidence in the specific number but does NOT erode trust in the
-   source. Implication: OneLive showing `unverified`/`likely` honestly is
+   source. Implication: 1Live showing `unverified`/`likely` honestly is
    trust-BUILDING, not trust-costing — the 4-state display is an asset,
    and the design brief's quiet markers ("Info may change") are the right
    register. Hedging everything, however, numbs users; states must stay

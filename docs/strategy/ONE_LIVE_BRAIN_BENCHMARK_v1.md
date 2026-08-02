@@ -1,7 +1,7 @@
-# ONE LIVE — Brain Benchmark v1 (measured, not asserted)
+# 1LIVE — Brain Benchmark v1 (measured, not asserted)
 
 **What this is (plain language):** a labeled test that MEASURES how good the
-OneLive "brain" (`brain/` — the persistent knowledge graph) is at the things a
+1Live "brain" (`brain/` — the persistent knowledge graph) is at the things a
 memory system has to do, and reports real numbers. Before this, "world-class
 brain" was a claim. Now it is a measurement anyone can reproduce in under a
 second, for free, with no AI and no internet.
@@ -38,7 +38,7 @@ scores strictly worse. That property is what lets the gate fail (proven below).
 
 ```
 ==============================================================================
- OneLive · brain memory eval (brain/eval/) · deterministic scorer
+ 1Live · brain memory eval (brain/eval/) · deterministic scorer
  no LLM · no network · no spend — these numbers are a measured fact
 ==============================================================================
   STATUS  CATEGORY               SCORE     ACC    BASE
@@ -102,7 +102,7 @@ gate RED — including, now, the bi-temporal competency.
 
 ## Where the brain leads, and where it trails — against SOTA
 
-**Where OneLive's brain genuinely leads** (measured 1.0 here, and structural):
+**Where 1Live's brain genuinely leads** (measured 1.0 here, and structural):
 - **Provenance is mechanical, not best-effort.** Every recalled fact carries its
   Source (citation rate 1.0). The graph's four write invariants
   (`brain/graph.py`) make an unsourced claim *unstorable* — most memory systems
@@ -137,7 +137,7 @@ gate RED — including, now, the bi-temporal competency.
 
 ## The honest caveat: this is OUR benchmark, not the public leaderboard
 
-This is a **deterministic, self-authored** benchmark of OneLive-shaped memory —
+This is a **deterministic, self-authored** benchmark of 1Live-shaped memory —
 26 labeled questions we wrote, scored by exact match. It is the right tool for a
 free, reproducible **regression gate** that runs on every `validate`. It is **not**
 the public **LongMemEval** leaderboard: that uses a large public dataset of long

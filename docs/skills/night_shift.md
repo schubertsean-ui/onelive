@@ -1,6 +1,6 @@
 # Night Shift — Autonomous Agent Loop Skill
 
-SUMMARY: how an agent runs OneLive work autonomously and safely while the founder
+SUMMARY: how an agent runs 1Live work autonomously and safely while the founder
 is away. Defines the orchestration loop (pick work → inner loop → verify →
 checkpoint), the layered exits that make it safe to walk away from, the
 open-vs-closed loop choice per task, model-cost discipline, and the hard stop

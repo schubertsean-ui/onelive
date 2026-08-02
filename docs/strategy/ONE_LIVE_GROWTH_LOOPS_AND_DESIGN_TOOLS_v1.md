@@ -1,4 +1,4 @@
-# ONE LIVE — Growth Loops & Design-Tool Stack v1
+# 1LIVE — Growth Loops & Design-Tool Stack v1
 
 **Status: PROPOSAL** — nothing here is license to build. Every loop design must
 clear the full po battery + Friction attack (charter: Thinking tools §1, Friction
@@ -23,7 +23,7 @@ The design brief (§6, "Behavioral Architecture") already encodes Nir Eyal's ful
 Hook cycle, Thaler/Sunstein choice architecture, Loewenstein's curiosity-gap
 theory, and a synthesis of the most-returned-to products ever built (Wordle's
 daily edition, Duolingo's compounding investment, the shareable artifact) — each
-constrained by the white-hat reflection test. OneLive holds a structural
+constrained by the white-hat reflection test. 1Live holds a structural
 advantage most apps fake: **tonight is a genuinely new edition every day**. The
 variable reward is real, so the Hook needs no manufacturing. What the canon
 *doesn't* yet cover is the acquisition half — how users create users. That's
@@ -43,7 +43,7 @@ growth to millions of users
 — powered by one loop: *the invite is the acquisition unit*. Every party planned
 recruits every guest.
 
-OneLive has four native loops, three already ratified in some form:
+1Live has four native loops, three already ratified in some form:
 
 1. **The plan-share loop (the Partiful analog, strongest).** The ratified Group
    Plans P0 share card: "who's in tonight?" sent to friends who aren't users

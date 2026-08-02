@@ -17,7 +17,7 @@ Thinking-tools rule 1). The ratified plan of record for sensing remains
 
 ## Part A — the po battery run
 
-Target statement: *"OneLive shares with users all the entertainment
+Target statement: *"1Live shares with users all the entertainment
 happening all the time by accessing hundreds of thousands of entertainment
 and culture websites and feeds around the globe, starting small with the
 central Texas counties."*
@@ -31,7 +31,7 @@ dead-end provocations are listed at the end for completeness).
 
 A1 coverage requires US accessing sources (pull) · A2 sources are websites
 and feeds · A3 hundreds of thousands of sources must each be handled ·
-A4 OneLive is the accessor (centralized crawl) · A5 "all the time" =
+A4 1Live is the accessor (centralized crawl) · A5 "all the time" =
 continuous polling · A6 geographic expansion is linear from Texas ·
 A7 users are recipients, not sensors · A8 sharing = a feed we assemble ·
 A9 events are announced in advance on the web · A10 more sources = more
@@ -60,7 +60,7 @@ Difference: nothing county-specific may exist in code. The Texas build IS
 the global build if every component is locale-parameterized config →
 prove it mechanically (**H4**).
 
-**P2 reversal — "Po: users share the entertainment with OneLive."**
+**P2 reversal — "Po: users share the entertainment with 1Live."**
 User-submitted factual event sightings (incl. photographed street posters)
 enter as ordinary third-party raw fetches through the same
 extract→gate flow. Trust screen: never the fast lane; injection rule

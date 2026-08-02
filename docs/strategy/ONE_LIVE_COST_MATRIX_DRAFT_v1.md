@@ -1,4 +1,4 @@
-# ONE LIVE — Cost Matrix DRAFT v1 (for founder ratification)
+# 1LIVE — Cost Matrix DRAFT v1 (for founder ratification)
 
 **Status: PROPOSAL — every number below is illustrative until founder-ratified.**
 This is the C2 deliverable of `docs/strategy/ONE_LIVE_CONVERGENCE_v1.md` §11

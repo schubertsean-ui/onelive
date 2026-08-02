@@ -320,3 +320,14 @@ input (the %-of-ad-spend ruling); everything committed on the PR #143
 branch. Pagination QA caught two orphan-page splits from the added
 description lines (width-bound images ignore max-height) — fixed by
 width-based sizing, verified page-by-page: Customer Story 13 pp, Model 26 pp.
+
+## Directive set 15 (2026-08-02): the 1Live rebrand
+
+Founder: "Change all 'OneLive' to '1Live' / Everywhere, in these last 2
+documents and in the repo and in the canon." Executed to the edge of the
+docs-arm boundary: 335 mentions across 80 living files, all figures
+re-rendered, both PDFs rebuilt with zero-residual assertions, customer
+deliverable renamed. Preserved: history/verbatim (facts of the OneLive
+era), identifiers, filenames. R-065 records the code-armed remainder
+(web BrandMark + runtime strings, CLAUDE.md, STATE.md, founder-owned
+infra names) with a before-any-deploy trigger.

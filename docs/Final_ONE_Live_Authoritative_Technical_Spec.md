@@ -1,4 +1,4 @@
-# FINAL ONE LIVE — AUTHORITATIVE TECHNICAL SPEC (v1)
+# FINAL 1LIVE — AUTHORITATIVE TECHNICAL SPEC (v1)
 
 ## 1) Handoff Memo
 
@@ -34,4 +34,4 @@ Sources -> Raw Fetch -> Candidate -> Evidence -> Gate -> Canonical Event -> /ton
 - `cd web && npm i && npm run dev`
 - `cd mobile && npm i && npx expo start`
 
-**Note:** This document is the original reference build spec (v1). The actual OneLive repo uses Supabase-managed Postgres (`supabase/migrations/`) rather than local Docker Postgres + `db/apply_schema.sh` for schema management — see `STATE.md` for the authoritative current architecture and deviations from this reference.
+**Note:** This document is the original reference build spec (v1). The actual 1Live repo uses Supabase-managed Postgres (`supabase/migrations/`) rather than local Docker Postgres + `db/apply_schema.sh` for schema management — see `STATE.md` for the authoritative current architecture and deviations from this reference.

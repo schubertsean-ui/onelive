@@ -5,7 +5,7 @@ to ANY anchor event (a lecture, a tasting, a show, an exhibition, a run club):
 "what else is nearby, before or after — more events, a bite, a drink?" The whole
 design problem is RESTRAINT: the reason people loathe the existing versions
 (Yelp/Google/social "things nearby") is that they are pushed, ranked/pay-to-play,
-FOMO-driven, cluttered, and presumptuous. OneLive's Night Out is the deliberate
+FOMO-driven, cluttered, and presumptuous. 1Live's Night Out is the deliberate
 opposite: opt-in, sparse, un-ranked, ephemeral, honest. STATUS: PROPOSAL —
 founder-gated (opening new data domains and any new surface is a founder
 decision); this doc is the standing playbook for WHEN it is greenlit. It unifies
@@ -18,7 +18,7 @@ LENS around tonight's real events, never a feed, never engagement mechanics.
 
 This is the spec, stated in the negative — each row is a hard rule.
 
-| Why the incumbents are loathed | OneLive's rule |
+| Why the incumbents are loathed | 1Live's rule |
 |---|---|
 | Pushed at you (notifications, auto-injected lists) | **Pull, never push** — a quiet, optional "Make a night of it?" affordance ON the event page; never a notification, never auto-expanded. |
 | A firehose of options | **Sparse** — 2–4 nearby things, curated by proximity + timing, never an endless list. |
@@ -63,7 +63,7 @@ Night Out "grab a drink nearby" or "confirm with the venue" needs. Nothing is
 fabricated: a field we can't resolve from a real source stays blank, with the
 phone as the always-available confirm path.
 
-## The hard boundary (what keeps this OneLive)
+## The hard boundary (what keeps this 1Live)
 
 - **Utility, not a network.** No profiles, no followers, no public feed of plans,
   no engagement mechanics. A Night Out plan is a tool that dies at sunrise.

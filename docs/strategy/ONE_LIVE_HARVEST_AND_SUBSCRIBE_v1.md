@@ -1,4 +1,4 @@
-# ONE LIVE — Web Harvest & Subscribe Ingestion — Spec v1
+# 1LIVE — Web Harvest & Subscribe Ingestion — Spec v1
 
 **Status:** PROPOSAL — the *passive* half is buildable now (free, no founder decision);
 the *active-subscription* half is **founder-crucial** (new service · a receiving domain · a
@@ -27,7 +27,7 @@ does not change that.
 
 Explicitly **out of scope** (legal/ethics — §4): creating accounts, paying for fan clubs,
 scraping Instagram/TikTok beyond the single public bio link, and scraping Discord/Patreon
-(ToS-banned, enforced). We **subscribe transparently as OneLive** and **honor every
+(ToS-banned, enforced). We **subscribe transparently as 1Live** and **honor every
 unsubscribe.**
 
 ---
@@ -133,7 +133,7 @@ list (new service / spend / legal / identity):
 1. **The inbound-email service + a receiving domain.** Recommend **Cloudflare Email Routing
    (free)** on a subdomain like **`ingest.1live.co`**. → *You point that subdomain's mail at
    Cloudflare; the agent wires the parser + candidate extractor.*
-2. **The disclosed subscribing identity** — the address/name OneLive subscribes *as* (e.g.
+2. **The disclosed subscribing identity** — the address/name 1Live subscribes *as* (e.g.
    `announcements@1live.co`), a short public **"who we are / opt your newsletter out"** page, and
    a **real inbox a human watches** for replies. A trust/legal-posture decision, not the agent's.
 3. **Confirm out-of-scope** — no automated account creation, no paid fan clubs (recommended;
@@ -165,6 +165,6 @@ robots.txt; EDPB web-scraping guidelines (EU); Cloudflare Email Routing + Email 
 PostalMime (free inbound); AWS SES inbound pricing; CAN-SPAM (binds senders, not recipients) +
 double-opt-in; RSS/Atom autodiscovery + WebSub (W3C); Discord/Patreon anti-scraping ToS;
 span-grounded provenance as the hallucination guard for prose extraction; schema.org `Event`.
-Grounds on OneLive assets: `worker/enrich/first_party.py`, the source pathway kinds
+Grounds on 1Live assets: `worker/enrich/first_party.py`, the source pathway kinds
 (`link_hub`/`social`/`email_opt_in`), the `email_opt_in` anchor class, and the 4-state
 confidence model.

@@ -1,4 +1,4 @@
-# ONE LIVE — Category Research: the 23 Supply-Side Segments v1
+# 1LIVE — Category Research: the 23 Supply-Side Segments v1
 
 **Compiled 2026-08-01 · Status: RESEARCH (conversation-validated working paper) — companion to the RATIFIED segmentation canon `ONE_LIVE_SUPPLY_SEGMENTS_v1.md`. Content added to the repo at founder direction 2026-08-01 ("let's add to the canon the 23 segments and add this content"). The segmentation is canon; these briefs are sourced-or-labeled hypotheses that update with what outreach conversations teach. Entries marked (Validate) rest on thinner public data. Sources: see §Evidence. Program design: data → hypothesis → validated conversation.**
 
@@ -134,7 +134,7 @@ $1.55T industry, cautiously optimistic, but 9-in-10 operators cite food/labor/in
 
 ### 5 · Theaters & performing arts centers  `[Theater surveys]`
 
-Audiences ~34% below 2019, subscribers down ~44%; audiences aging (and 84% white — a named diversification goal). Costs inflated, philanthropy shifting. Single-ticket, last-minute buying replaced subscriptions — exactly the discovery pattern OneLive serves.
+Audiences ~34% below 2019, subscribers down ~44%; audiences aging (and 84% white — a named diversification goal). Costs inflated, philanthropy shifting. Single-ticket, last-minute buying replaced subscriptions — exactly the discovery pattern 1Live serves.
 
 **Key operational challenges:**
 - Subscription model decay → every show must be sold individually

@@ -22,7 +22,7 @@ using it are marked ⚑mood.
 
 Honesty rules that bind every response (trust invariants, restated for
 voice): never invent a ranking ("good/best" gets what matches, soonest
-first, plus a plain statement that OneLive doesn't rate acts); never
+first, plus a plain statement that 1Live doesn't rate acts); never
 pretend a synonym is an exact match (say "closest to R&B tonight:");
 uncertain shows are included and said in plain words, never excluded;
 nothing is promoted for money in any spoken answer.
@@ -77,7 +77,7 @@ nothing is promoted for money in any spoken answer.
 | 17 | **The Surprise Seeker** | "Surprise me." | surprise=tonight | One show, picked at random from tonight (the brief's honest variable-reward: the CITY is the slot machine, we never weight the wheel). Say it again, get another. |
 | 18 | **The Artist Tracker** | "Is Sister Neon playing anywhere this week?" | artist lookup · day=This Week | Direct answer: "Yes — Saturday at Sahara Lounge, 8 PM. Want it on your calendar?" |
 | 19 | **The Skeptic** | "Is the 10:30 show at the Elephant Room still happening?" | certainty query for one listing | Trust surface, spoken in the product's plain-words register: "It's listed, and details for this one may still change — the venue's site is the sure check. Want the link?" Never "verified," never a hedge-dodge. |
-| 20 | **The Overreacher** | "Find me a comedy show." | out-of-scope (v1 = live music) | Honest boundary: "OneLive covers live music right now — comedy's not in yet. Tonight's music is here if you want it." Logged as demand signal (H5). |
+| 20 | **The Overreacher** | "Find me a comedy show." | out-of-scope (v1 = live music) | Honest boundary: "1Live covers live music right now — comedy's not in yet. Tonight's music is here if you want it." Logged as demand signal (H5). |
 
 ## What this exercise teaches the build (the requirements harvest)
 
@@ -103,7 +103,7 @@ nothing is promoted for money in any spoken answer.
 5. **Subjective terms get honesty, not fake ranking** (#7): "good/best"
    never invents an ordering — discovery is not for sale and not faked.
    Fixed response pattern: give what matches, soonest first, one plain
-   sentence that OneLive doesn't rate acts. This is a TRUST-SURFACE rule
+   sentence that 1Live doesn't rate acts. This is a TRUST-SURFACE rule
    for voice, same bar as no-badges.
 6. **Zero results name the lever** (#16): every empty answer says which
    constraint to relax and what that yields; misses feed the coverage-gap
@@ -115,7 +115,7 @@ nothing is promoted for money in any spoken answer.
 8. **Certainty queries are a spoken trust surface** (#19): the 4-state
    model must have a VOICE register — plain words, venue link offered,
    never "verified", never silent dropping of uncertain shows.
-9. **Out-of-scope honesty + demand logging** (#20): say what OneLive is,
+9. **Out-of-scope honesty + demand logging** (#20): say what 1Live is,
    log what people asked for; the ask-log is roadmap evidence.
 
 
@@ -123,7 +123,7 @@ nothing is promoted for money in any spoken answer.
 
 Three founder utterances that break the single-intent frame. These are not
 "filter the list" asks; they are "plan my evening" asks: several intents,
-ordered in time ("then… after"), reaching into data domains OneLive does
+ordered in time ("then… after"), reaching into data domains 1Live does
 not own. Each gets: honest v1 behavior (Step 9), the richer behavior it
 points at, and what it must NEVER do.
 

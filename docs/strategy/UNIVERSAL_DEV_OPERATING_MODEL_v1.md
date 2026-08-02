@@ -12,7 +12,7 @@ kernel including that amendment is now canon. Companion decisions from the
 founder's five-decision message are annotated in Part 5.
 **Date:** 2026-07-24 · **Session Contract:** #21 (STATE.md) · **Author:** Generator (Claude Code session)
 **Prompted by:** founder request to assess Boris Cherny's "Steps of AI Adoption"
-(July 2026) against the portfolio — OneLive, multibagger, the press-release
+(July 2026) against the portfolio — 1Live, multibagger, the press-release
 venture (Promise Ledger / PR-aggregator) — and to define a v1 single
 **universal** development/operating-model foundation that any project can
 inherit and then specialize with its own requirements, peculiarities, and
@@ -139,7 +139,7 @@ idea ≈ 5 min (green) → working demo ≈ 2 h (yellow) → the final 10% ≈ 6
 (red: edge cases, security, perf, a11y, migrations, observability) → abandoned
 = ∞ (blue), with the mapping that Step 1–2 teams get "incredible yellow bars
 and brutal red bars" while Step 3+ runs red-bar work continuously in the
-background. Applicability here is direct and confirming: OneLive's harness IS
+background. Applicability here is direct and confirming: 1Live's harness IS
 red-bar machinery (validate, evaluator, golden exams, sentinel), the FLOW
 prototype rounds are deliberately-labeled yellow-bar work (sample-data truth
 boundaries on every surface), and the article's mitigation list — define
@@ -151,10 +151,10 @@ binding 7's per-surface step declaration.
 
 ## Part 2 — Applicability assessment, per effort
 
-### 2.1 OneLive (this repo)
+### 2.1 1Live (this repo)
 
 **Verdict: the framework is strongly applicable — as confirmation, not as new
-direction.** OneLive's charter independently converged on Cherny's two theses
+direction.** 1Live's charter independently converged on Cherny's two theses
 before this article existed:
 
 - "Trust, not the model, separates the steps" ≈ prime directive 1 ("trust
@@ -167,7 +167,7 @@ before this article existed:
   the founder-ratified 1% bar, with the exam harness itself certified via an
   attended run. We built the verification loop first, then let the agent loose.
 
-**Where OneLive sits:** structurally at **Step 3 (supervised autonomy)** for
+**Where 1Live sits:** structurally at **Step 3 (supervised autonomy)** for
 repo operations — the agent writes, a non-Claude evaluator reviews every PR
 mechanically, trust-gate/validate verify, and (founder-ratified 2026-07-18)
 the agent merges its own PR on evaluator-APPROVE + all-green, notifying the
@@ -176,7 +176,7 @@ list). Concurrency is the honest gap between us and the "~100 agents" label:
 we run one deep session at a time by choice, not by missing guardrails — the
 gates are already agent-count-independent.
 
-**Where OneLive deliberately refuses the ladder:** the PRODUCT data path.
+**Where 1Live deliberately refuses the ladder:** the PRODUCT data path.
 "AI never publishes" means the promote step is founder/human-custodied
 regardless of adoption step. Cherny's ladder describes engineering throughput;
 our product's trust surface holds a harder invariant on purpose. The universal
@@ -207,7 +207,7 @@ assisted sessions — i.e. **Step 1**, with none of the harness: no session
 reconcile, no contract-first, no independent evaluator, no deferral scan, no
 Kaizen ledger. It is the cleanest test of the universal model's core claim:
 that the kernel is genuinely project-agnostic and a project can adopt it
-without inheriting OneLive's domain baggage. Its overlay would carry: market
+without inheriting 1Live's domain baggage. Its overlay would carry: market
 data provenance/trust rules (the analog of "AI never publishes" is "AI never
 places a trade / never asserts an unverified figure to the investor surface"),
 its own golden sets (e.g. retrodiction), and its own founder-crucial list
@@ -244,13 +244,13 @@ bind parameters.
 
 ### 3.1 Kernel invariant classes (parameterized trust physics)
 
-Each is the generalization of a OneLive invariant that has already survived
+Each is the generalization of a 1Live invariant that has already survived
 adversarial review. An overlay binds the bracketed parameters.
 
 - **I1 — Generation never self-certifies.** No AI-generated output reaches the
   [trusted surface] (users, investors, a ledger, a trade, a filing) except
   through a [custodied gate] the generator cannot import or bypass.
-  (OneLive: extraction → gate → promote; AI never publishes. multibagger: no
+  (1Live: extraction → gate → promote; AI never publishes. multibagger: no
   AI-asserted figure to the investor surface without the verification gate.
   Promise Ledger: no claim enters the ledger unverified.)
 - **I2 — Gates fail closed.** An unreadable manifest, missing env, empty
@@ -265,7 +265,7 @@ adversarial review. An overlay binds the bracketed parameters.
   surface; deletion or silent suppression is a violation.
 - **I5 — No incentive contamination of trust surfaces.** Nothing paid,
   preferred, or self-interested may alter ranking, verdicts, or verification
-  outcomes on the [trusted surface]. (OneLive: no pay-to-rank. multibagger:
+  outcomes on the [trusted surface]. (1Live: no pay-to-rank. multibagger:
   no position-motivated assertion. Promise Ledger: no issuer-paid softening.)
 - **I6 — No silent deferrals.** Every "later" is recorded with the bar it
   deviates from and an objective resolution trigger, in the same commit
@@ -320,7 +320,7 @@ adversarial review. An overlay binds the bracketed parameters.
 3. **Independent adversarial review on every PR** — non-generator family,
    APPROVE/REQUEST-CHANGES, no path filter; mandatory-deeper for auth,
    pipeline, SQL/RLS, data-trust, prompts, and gate custody.
-4. **Merge rule (Step-3 posture — ratified for OneLive specifically,
+4. **Merge rule (Step-3 posture — ratified for 1Live specifically,
    2026-07-18; every adopting project must obtain its OWN founder
    ratification via overlay binding 7 before its agent merges anything):**
    the agent merges its own PR only at evaluator-APPROVE + every required
@@ -353,7 +353,7 @@ An overlay is a single `OVERLAY.md` (plus linked docs) binding:
 
 1. **Trusted surfaces + custody** — what I1 protects, who holds the promote
    key, what "publish" means here.
-2. **Domain invariants** — additional physics (e.g. OneLive's 4-state
+2. **Domain invariants** — additional physics (e.g. 1Live's 4-state
    confidence model; Promise Ledger's never-verbatim storage; multibagger's
    no-AI-trades).
 3. **Golden sets + ratified thresholds** — the exams, their bars, their
@@ -364,7 +364,7 @@ An overlay is a single `OVERLAY.md` (plus linked docs) binding:
 6. **Tribal knowledge** — the memory dirs (decisions, gotchas, entity notes)
    and the design/tone canon; the stuff that makes the project itself.
 7. **Adoption-step declaration** — which Cherny step the project currently
-   operates at, per surface (repo ops vs product path may differ, as OneLive's
+   operates at, per surface (repo ops vs product path may differ, as 1Live's
    do), and what evidence justified the current step. Moving UP a step is a
    founder decision; the kernel's gates are the prerequisites, not the
    trigger.
@@ -416,7 +416,7 @@ first session runs the bookends natively.
 3. Stand up validate with whatever exists (even nearly-empty test suites run
    green honestly); skips → Record from day one (I6).
 4. Declare the adoption step per surface (overlay binding 7) with evidence.
-5. First feature work begins only after 1–4 — the same order OneLive proved:
+5. First feature work begins only after 1–4 — the same order 1Live proved:
    verification loop first, then the agent.
 
 **First adopters, in order:** (1) **multibagger** — cleanest test, founder
@@ -428,13 +428,13 @@ checklist instead of inventing one.
 
 1. **Ratify the kernel/overlay split** (Part 3) as the v1 universal model —
    or mark specific invariants/loops you want changed. Nothing here alters
-   OneLive's ratified charter; for OneLive this document is descriptive.
+   1Live's ratified charter; for 1Live this document is descriptive.
 2. **Approve creating the template repository AND name its owner** (new repo
-   = repo operation needing your GitHub say-so; no code moves out of OneLive
+   = repo operation needing your GitHub say-so; no code moves out of 1Live
    until then). The ownership half is not optional garnish: an unowned
    template rots silently (Part 4's stated tradeoff), so approval without a
    named owner + a standing maintenance trigger (proposed: the weekly digest
-   carries a "kernel delta" line, and any kernel-relevant OneLive gate fix
+   carries a "kernel delta" line, and any kernel-relevant 1Live gate fix
    opens a template-sync TODO in the same commit) is treated as NOT approved.
    Default if unanswered: nothing happens — this stays a paper spec.
 3. **Pick multibagger's first session** — attach that repo to a session and
@@ -472,7 +472,7 @@ identical to the proposal (decision record:
 
 ## Part 6 — Kaizen application review (founder-directed 2026-07-24: "more context-specific discreet vs. one fits all")
 
-**Question examined:** is OneLive's recent continuous-improvement practice
+**Question examined:** is 1Live's recent continuous-improvement practice
 appropriately context-specific and discrete, or drifting toward
 one-size-fits-all responses? Grounded in the Kaizen ledger's recent rows and
 its class watch — the primary artifacts, read directly.

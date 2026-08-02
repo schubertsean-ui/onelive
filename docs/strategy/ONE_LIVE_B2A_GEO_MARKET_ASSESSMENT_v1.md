@@ -1,4 +1,4 @@
-# ONE LIVE — B2A / GEO-AEO Market Assessment & Toolkit Options v1
+# 1LIVE — B2A / GEO-AEO Market Assessment & Toolkit Options v1
 
 **Compiled 2026-07-22 · Status: PROPOSAL — research response to the founder's third 2026-07-22 directive (leading B2A/GEO actors and practices; McKinsey-style market assessment; SWOT + Porter; Value Prop Design + Neumaier onliness; de Bono po + Six Hats; consumer cost/margins; best 3 toolkit options for an unrivaled, ~zero-customer-cost B2A product that makes the customer say "this is a no-brainer"). Companion to `ONE_LIVE_OWNED_AGENT_v1.md` (Parts I–II). Nothing here is license to build.**
 
@@ -6,7 +6,7 @@ Greppable summary: GEO/AEO is a $1–1.5B market growing 34–50% CAGR toward
 $7–20B, priced for enterprises ($29–$50k/mo tools, $1.5k–$25k/mo agencies)
 while 45% of consumers now ask AI where to go and 83% of local venues are
 INVISIBLE in those answers — a served-enterprise/unserved-local gap that is
-OneLive's opening. Key correction logged: llms.txt is largely UNREAD by AI
+1Live's opening. Key correction logged: llms.txt is largely UNREAD by AI
 systems (Ahrefs 137k-site study: 97% zero reads; Google: "no AI system
 currently uses llms.txt") — real B2A leverage is entity consistency across
 the pipes agents actually read (Foursquare ~70% of ChatGPT local results,
@@ -51,7 +51,7 @@ llms.txt aren't needed](https://www.searchenginejournal.com/google-says-llms-txt
 Part II's §13 has been tempered in the same commit; F6's static half is
 downgraded to a zero-cost hedge, never a promise. The correction is
 ledgered (docs/metrics/KAIZEN_LEDGER.md). What replaces it as the real
-lever is §3.4 below — and it is BETTER news for OneLive, not worse.
+lever is §3.4 below — and it is BETTER news for 1Live, not worse.
 
 ## 2. The demand shift (why this window is real)
 
@@ -59,7 +59,7 @@ lever is §3.4 below — and it is BETTER news for OneLive, not worse.
    up from 6% one year earlier; AI is already the #3 local-discovery
    channel behind Google and Facebook, past Yelp and
    TripAdvisor](https://bloomintelligence.com/blog/ai-restaurant-discovery/).
-   Adoption peaks at 64% among ages 30–44 — squarely OneLive's
+   Adoption peaks at 64% among ages 30–44 — squarely 1Live's
    going-out demographic.
 2. [83% of restaurant locations are entirely invisible in AI-generated
    recommendations](https://www.businesswire.com/news/home/20260507962493/en/83-of-Restaurants-Are-Invisible-in-AI-Search-New-Uberall-Report-Reveals-the-Discovery-Gap-Reshaping-the-Quick-Service-Restaurant-Industry)
@@ -69,7 +69,7 @@ lever is §3.4 below — and it is BETTER news for OneLive, not worse.
    stop](https://www.localfalcon.com/blog/the-ai-visibility-crisis-why-83-percent-of-restaurants-dont-exist-in-chatgpt);
    [79% of AI local prompts are conversational research questions
    ("best patio for a group of eight")](https://bloomintelligence.com/blog/ai-restaurant-discovery/)
-   — the exact "what's on tonight that feels like X" queries OneLive's
+   — the exact "what's on tonight that feels like X" queries 1Live's
    Emotion/Vibe layer is designed for.
 4. Macro: [Google's search share ~91%→~78% since 2024; zero-click results
    56%→69% after AI Overviews](https://www.omnibound.ai/blog/generative-engine-optimization-statistics).
@@ -143,7 +143,7 @@ This is the section that replaces the llms.txt myth with mechanics:
   bar; (3) serve real structured data on your own site; (4) publish
   content shaped like conversational answers; (5) monitor the answers and
   correct drift. Enterprise tools charge monthly for #5 and consult on
-  #1–#4. OneLive can DO #1–#4 and give #5 away.
+  #1–#4. 1Live can DO #1–#4 and give #5 away.
 
 ### 3.5 The rails being laid (where this goes next)
 [OpenAI+Stripe's Agentic Commerce Protocol is processing live transactions
@@ -154,7 +154,7 @@ per-surface execution](https://www.digitalapplied.com/blog/agentic-commerce-stan
 Translation for live events: within 1–2 years, consumer agents will
 routinely DISCOVER events, CHECK details, and hand off to TICKETING. The
 entity that agents trust for the discover/check steps owns the top of that
-funnel. That is the seat OneLive's gate is built to occupy.
+funnel. That is the seat 1Live's gate is built to occupy.
 
 ## 4. Market opportunity (McKinsey-style)
 
@@ -176,7 +176,7 @@ illustrative, assumption-explicit):**
   listings price analog, that is a $60–250M/yr equivalent value pool for
   presence services alone — before AI-visibility premiums that currently
   price 10× that.
-- SAM: metros where OneLive operates; entities with any digital presence
+- SAM: metros where 1Live operates; entities with any digital presence
   (calendar, page, or social) — the auto-discoverable set. Austin alone:
   our source catalog already carries 266 sources at Step-5 scale;
   full-metro coverage is plausibly 1.5–3k entities.
@@ -224,7 +224,7 @@ valuable and vice versa); $0 economics via deterministic-first pipeline;
 trust invariants as brand (no pay-to-rank is provable, not asserted).
 
 **Weaknesses:** pre-launch — no consumer traffic yet, so "we help you get
-found" initially means found via pipes + OneLive, not via a large OneLive
+found" initially means found via pipes + 1Live, not via a large 1Live
 audience; single-metro; tiny team (agent+founder) — support load is the
 scaling constraint; no direct control over third-party pipes; the
 "AI" word itself is radioactive with a big artist cohort (Part II §14).
@@ -238,7 +238,7 @@ non-rank revenue; the E1–E7 standard as a category definition we author.
 consoles for local); T2 — pipe access tightens (Foursquare/Yelp monetize
 harder); T3 — a funded GEO player goes freemium down-market; T4 — AI
 assistants strike exclusive local-data deals (e.g., ticketing giants),
-bypassing independents entirely — which would make OneLive's independent
+bypassing independents entirely — which would make 1Live's independent
 verified graph MORE valuable to the losing assistants, our hedge; T5 —
 reputational: one bad auto-sync that misstates a business hurts the whole
 trust story (mitigation: the gate + dispute mechanics, already physics).
@@ -278,10 +278,10 @@ structural fit, not marketing.
 
 ## 8. Neumaier tools (onliness, zag)
 
-**Onliness statement:** *OneLive's Owned Agent is the ONLY (what) free
+**Onliness statement:** *1Live's Owned Agent is the ONLY (what) free
 representative that makes live-culture businesses visible and accurate to
 AI agents and answer engines (how) by feeding gate-verified truth to the
-pipes AI actually reads — and to OneLive's own consumer surface (who) for
+pipes AI actually reads — and to 1Live's own consumer surface (who) for
 venues, artists, and organizers (where) starting metro-by-metro from
 Austin (why) because 45% of consumers now ask AI where to go and 83% of
 local culture is invisible or wrong in the answers (when) at the exact
@@ -298,7 +298,7 @@ consumer-side trust display rules; one brand story on both sides.
 
 ## 9. Po battery (charter-mandated at divergent moments; seed 20260722, random word "kite"; full run per docs/skills/po_provocation.md — provocations are stimuli, never facts)
 
-Target statement: "OneLive gives every venue and artist a free B2A toolkit
+Target statement: "1Live gives every venue and artist a free B2A toolkit
 that represents them to AI agents and answer engines." Assumptions listed,
 all operators run standalone + random-combos; the HARVEST (each traceable,
 ≥2 movement techniques applied; dead ends logged in the arc):
@@ -311,7 +311,7 @@ all operators run standalone + random-combos; the HARVEST (each traceable,
 | H4 | P3 exaggeration-down: 1/10000th toolkit = one byte | **The one-field product bar**: if the entire onboarding cannot be reached from "paste one URL," the design has failed (already §9 of the v1 doc; now a hard acceptance criterion for whichever option builds first). |
 | H5 | P7 "kite"/tail stabilizes | **Provenance tail on every agent-served fact**: the Doorman endpoint answers with fact + confidence state + freshness + source — the trust display rules, machine-formatted. Differentiator no GEO tool can copy (they have no gate). |
 | H6 | P1 escape: "free" is false | **Cost-honesty ledger**: publish the per-entity serving cost internally (§11) with a budget cap BEFORE launch; "free forever" survives only if marginal cost stays ~pennies — a standing FinOps gate, not a hope. |
-| H7 | P4 distortion: the pipes read US first | **Source-of-record inversion**: instead of only pushing to Foursquare/Bing/Yelp, make OneLive's open verified feed attractive enough that pipes and engines pull FROM us (the §3.5 seat). Sequenced: push first (their habit), pull as we earn citations. |
+| H7 | P4 distortion: the pipes read US first | **Source-of-record inversion**: instead of only pushing to Foursquare/Bing/Yelp, make 1Live's open verified feed attractive enough that pipes and engines pull FROM us (the §3.5 seat). Sequenced: push first (their habit), pull as we earn citations. |
 | H8 | P5 wishful: every answer engine always right about everyone | **Public accuracy scoreboard** (per metro): "X% of Austin venues are now accurately represented in AI answers." Mission-framed PR asset; also the coverage metric SOM tracks (§4). |
 
 ## 10. Six Hats pass (single-author caveat in §1; Black defers to the PR evaluator; Red is the founder's)
@@ -401,7 +401,7 @@ syndication additions.
 needs A's demonstration or a stat-led pitch to be FELT at minute zero.
 
 ### Option C — "The Doorman" (agent-interaction-first: an endpoint that answers for you)
-OneLive-hosted agent endpoint (MCP now; NLWeb-compatible if it matures)
+1Live-hosted agent endpoint (MCP now; NLWeb-compatible if it matures)
 answering any agent's questions about the entity from PROMOTED gate data
 with provenance tails (H5), plus the agent-traffic log (H1: "9 AI agents
 asked about you this week; here's what they were told"), owner-revocable
@@ -409,7 +409,7 @@ authority (H2), and ACP-readiness for the ticketing handoff when
 transactions arrive (§3.5).
 **Cost to us:** serving ~zero (cached reads); build cost is the real
 spend. **Risk:** standards flux; adoption depends on agents finding the
-endpoint — strongest AFTER OneLive earns citations (H7 sequencing).
+endpoint — strongest AFTER 1Live earns citations (H7 sequencing).
 **No-brainer force: MEDIUM today, MAXIMUM in the agentic-commerce era** —
 it is the moat, not the hook.
 
@@ -500,7 +500,7 @@ list) · **LATER** (could become ours in a later phase, founder-gated) ·
 ### 14.4 Artist-specific services
 | Service | Typical market price | Value | Our stance |
 |---|---|---|---|
-| EPK (electronic press kit) creation & maintenance | $300–$1,500 | HIGH for booking | **LATER-lite** — a verified OneLive artist page with accurate dates/venues/links IS 70% of an EPK; a "share as EPK" view is a cheap Phase-B+ candidate (queued as an idea, not a promise) |
+| EPK (electronic press kit) creation & maintenance | $300–$1,500 | HIGH for booking | **LATER-lite** — a verified 1Live artist page with accurate dates/venues/links IS 70% of an EPK; a "share as EPK" view is a cheap Phase-B+ candidate (queued as an idea, not a promise) |
 | DSP profile management (Spotify for Artists, Apple Music) & playlist pitching | $200–$1k/mo; per-pitch fees | HIGH (and scam-dense) | **REFER with a warning label** — payola-adjacent pitching is exactly the ecosystem our members need protecting from; any referral list must exclude pay-for-placement operators |
 | Sync licensing representation | 20–50% commissions | MEDIUM-HIGH | **NEVER** (already in the founder-decision backlog as its own P3 question — unchanged here) |
 | Tour routing & demand analytics | tools + consulting | MEDIUM | **LATER-lite** — aggregate, privacy-clean demand signals from our consumer side could someday inform artists ("Austin indexes high for your genre") — founder-gated, Phase 3+, never individual-user data |

@@ -1,4 +1,4 @@
-# ONE LIVE — Truth States v2 (six-state model + evidence dependency + outcome truth)
+# 1LIVE — Truth States v2 (six-state model + evidence dependency + outcome truth)
 
 **Status: FOUNDER-RATIFIED 2026-08-01** ("Adopt Truth-state additions
 (OWNER-CONFIRMED, STALE)" — decision record

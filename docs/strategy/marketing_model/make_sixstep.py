@@ -19,8 +19,8 @@ ax.text(0.2,FH-0.4,"How it works — six steps, and what you get at each one",fo
 ax.text(0.2,FH-0.78,"You can stop after any step and keep everything it gave you. Nothing posts anywhere without your approval.",fontsize=11.8,color=INK2)
 
 steps=[
- ("1 · PASTE","Paste your website, events page, or Instagram link.","You immediately see what OneLive found — your events, your facts, their sources — before connecting anything.",BLUE,LBLUE),
- ("2 · VERIFY","OneLive assembles your calendar and identity, shows every source, and asks only about what's uncertain.","Wrong dates, stale hours, and conflicts get found before your customers find them.",AQUA,LAQUA),
+ ("1 · PASTE","Paste your website, events page, or Instagram link.","You immediately see what 1Live found — your events, your facts, their sources — before connecting anything.",BLUE,LBLUE),
+ ("2 · VERIFY","1Live assembles your calendar and identity, shows every source, and asks only about what's uncertain.","Wrong dates, stale hours, and conflicts get found before your customers find them.",AQUA,LAQUA),
  ("3 · CONNECT","You claim your listing and connect only the channels you choose. Some need your authorization or the platform's approval.","No re-typing events into five sites; your existing calendar and tools stay in charge.",ORANGE,LORANGE),
  ("4 · APPROVE","For each event, a complete campaign arrives in your voice — posts, event pages, email, ads. Edit, approve, or skip.","Hours of repetitive channel work become one decision.",BLUE,LBLUE),
  ("5 · MEASURE","Results come back in your units — attendance, signups, reservations, ticket activity — separately from views and clicks.","You see what actually reached the door, not just what got likes.",AQUA,LAQUA),

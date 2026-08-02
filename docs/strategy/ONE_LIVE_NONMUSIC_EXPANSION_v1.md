@@ -1,4 +1,4 @@
-# ONE LIVE — Non-Music Expansion v1: the game plan for everything else happening tonight (PROPOSAL)
+# 1LIVE — Non-Music Expansion v1: the game plan for everything else happening tonight (PROPOSAL)
 
 Greppable summary: founder-directed 2026-07-22 ("we need a game plan to
 gather / ingest information from non-music events and venues"). How the

@@ -1,4 +1,4 @@
-# ONE LIVE — Brain IQ v1: continuously scoring how much smarter the brain gets
+# 1LIVE — Brain IQ v1: continuously scoring how much smarter the brain gets
 
 Status: BUILT 2026-07-25 (this session). Gate-custody: evaluator-reviewed on the
 PR that adds it (it wires a new one-way ratchet into `tools/validate`).

@@ -45,7 +45,7 @@ platform terms move; re-verify flagged items before building on them.
   search. Role: r/Austin chatter as soft signal.
 - **Discord** — bot sees only servers it's INVITED to (Guild Events
   incl. location). Developer Policy prohibits mining. Role: venue
-  invites the OneLive bot, opt-in only.
+  invites the 1Live bot, opt-in only.
 - **Twitch** — open Helix API; channel/category search, live status,
   music category. Thin for events.
 - **Snapchat** — allowlist-gated Public Profile API. Skip v1.

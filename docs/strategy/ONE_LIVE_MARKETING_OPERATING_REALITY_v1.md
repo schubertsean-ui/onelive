@@ -1,4 +1,4 @@
-# ONE LIVE — How Businesses Actually Run Their Marketing (operating reality by size tier) v1
+# 1LIVE — How Businesses Actually Run Their Marketing (operating reality by size tier) v1
 
 **Compiled 2026-08-01 · Status: RESEARCH (sourced; expert estimates labeled) — companion to the RATIFIED segmentation canon `ONE_LIVE_SUPPLY_SEGMENTS_v1.md`; added to the repo at founder direction 2026-08-01. Figures: `docs/strategy/assets/fig_spend.png` (cash vs attention), `fig_labor.png` (who carries the work), `fig_stack.png` (stack coverage), `fig_tactics.png` (cash by tactic). No Wikipedia or forum sources.**
 

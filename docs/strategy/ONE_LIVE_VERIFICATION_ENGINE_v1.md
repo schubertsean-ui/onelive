@@ -1,4 +1,4 @@
-# ONE LIVE — Verification Engine (v1, design of record)
+# 1LIVE — Verification Engine (v1, design of record)
 
 **Status:** Design of record, founder-directed 2026-07-31 ("Yes do it and build
 … get this in production and live"). Supersedes the corroboration-count framing

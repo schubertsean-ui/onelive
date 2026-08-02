@@ -1,4 +1,4 @@
-# ONE LIVE — Carousel Examples, Cadence & Metrics v1 (2026-07-24)
+# 1LIVE — Carousel Examples, Cadence & Metrics v1 (2026-07-24)
 
 Greppable summary: founder-directed same-day follow-up to the Meta
 carousel engine — the exact 5-or-7 listicle canon framed to
@@ -116,7 +116,7 @@ What the research consistently shows (and what the engine encodes):
 2. **Local-media accounts are the exception that fits us.** Accounts
    whose product IS fresh daily inventory (city guides, "tonight in
    <city>" media) sustain 1–3 feed posts/day because every post is a new
-   edition, not a repeat ask. OneLive is structurally this case: tonight
+   edition, not a repeat ask. 1Live is structurally this case: tonight
    is a genuinely new edition every day.
 3. **The recommendation (founder dial, spec §9.4):**
    - **Start: 1–2/day.** The Tonight flagship every day at the learned

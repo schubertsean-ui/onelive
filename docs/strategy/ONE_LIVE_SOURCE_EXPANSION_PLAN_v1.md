@@ -1,4 +1,4 @@
-# ONE LIVE — Source Expansion Plan v1 (Government · Media · Multilingual)
+# 1LIVE — Source Expansion Plan v1 (Government · Media · Multilingual)
 
 **Status:** PLAN of record (research-backed, 2026-08-01). Consolidates three deep research
 passes — government databases, local media outlets, and non-English/multilingual outlets — into
@@ -23,7 +23,7 @@ complementary. Everything still passes the corroboration gate — **AI never pub
 2026-08-01).** A place is never disqualified for "not being a cultural venue." Any premises that
 can host a gathering is a potential one-off cultural-event source — an anniversary party with a
 special guest, an author reading in a shop, a street fair in a parking lot. That **once-a-year
-moment is exactly when the place needs ONE LIVE**, and those long-tail one-offs are the moat, not
+moment is exactly when the place needs 1LIVE**, and those long-tail one-offs are the moat, not
 noise. So the registries define a **universe to WATCH, never a list to prune** to an "obviously
 cultural" subset. Consequences, binding on everything below:
 - **Report coverage as events caught vs events that happened** (per city / per category), never

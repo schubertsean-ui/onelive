@@ -1,6 +1,6 @@
-# ONE LIVE — MASTER DESIGN BRIEF for AI Design Tool Intake (v2.4)
-**Purpose:** Feed this brief to an AI design tool to generate **3 distinct visual/UX directions** for the ONE LIVE consumer product (Tonight feed → Filters → Event Detail), each deliberately differentiated from every existing competitor.
-**Compiled:** 2026-07-12 · Built from ratified ONE LIVE canon (Master Business Plan, Charter, PRD wireframe, founder trust-display rules of 2026-07-12). Copy strings are verbatim canon.
+# 1LIVE — MASTER DESIGN BRIEF for AI Design Tool Intake (v2.4)
+**Purpose:** Feed this brief to an AI design tool to generate **3 distinct visual/UX directions** for the 1LIVE consumer product (Tonight feed → Filters → Event Detail), each deliberately differentiated from every existing competitor.
+**Compiled:** 2026-07-12 · Built from ratified 1LIVE canon (Master Business Plan, Charter, PRD wireframe, founder trust-display rules of 2026-07-12). Copy strings are verbatim canon.
 **Note:** The internal Trust Equation formula stays internal per Part VII governance ("internal-only, never exposed"); its philosophy is expressed below in plain language instead.
 
 ---
@@ -28,14 +28,14 @@ Fallbacks: **Figma Make** (from ~$20/mo, Figma-native) and **v0 by Vercel** (~$2
 
 ---------------------------------------------------------------
 
-You are designing the consumer face of **ONE LIVE** — a live-music discovery platform launching in Austin, Texas. You are being asked for world-class, category-defining work. Read all of this before designing; every constraint is intentional.
+You are designing the consumer face of **1LIVE** — a live-music discovery platform launching in Austin, Texas. You are being asked for world-class, category-defining work. Read all of this before designing; every constraint is intentional.
 
 ### 1 · VISION, MISSION, OBJECTIVES
 
 **Vision:** A world where live music is easy to find, fairly represented, and culturally valued. At scale: to let culture grow without being stripped of its soul.
 **Mission:** To assemble truth about live music, protect discovery from distortion, and help real culture travel.
-**What ONE LIVE is:** a system of record for what's really happening tonight — artist-first by structure, trust-driven, calm, useful, real. Culture becomes infrastructure, not content.
-**What ONE LIVE is not:** not ticketing, not a social feed, not pay-to-play, not an algorithm chasing engagement.
+**What 1LIVE is:** a system of record for what's really happening tonight — artist-first by structure, trust-driven, calm, useful, real. Culture becomes infrastructure, not content.
+**What 1LIVE is not:** not ticketing, not a social feed, not pay-to-play, not an algorithm chasing engagement.
 **Objectives this design must serve:**
 - A fan answers "what should I do tonight?" in **under 10 seconds**, no account, no login, loads in under 2 seconds.
 - Every show that's really happening is findable; nothing is promoted because someone paid. Discovery is never for sale.
@@ -73,7 +73,7 @@ The fan locks their phone within ten seconds holding a decision they feel good a
 
 ### 6 · MAKE ME WANT TO CLICK — BEHAVIORAL ARCHITECTURE (apply deliberately, ethically)
 
-Design every surface so the next tap feels irresistible — using the following frameworks by name, and only in their white-hat form. ONE LIVE's charter forbids engagement-chasing for its own sake; every mechanism below must pass the reflection test: if the user saw exactly how the screen influenced them, they'd say "yes, that's what I wanted anyway."
+Design every surface so the next tap feels irresistible — using the following frameworks by name, and only in their white-hat form. 1LIVE's charter forbids engagement-chasing for its own sake; every mechanism below must pass the reflection test: if the user saw exactly how the screen influenced them, they'd say "yes, that's what I wanted anyway."
 
 **A. The Hook (Nir Eyal — Trigger → Action → Variable Reward → Investment).**
 - *Internal trigger to own:* the 6–9 PM feeling — restlessness, "what's happening tonight?" The design should become the automatic answer to that feeling, the way boredom summons certain apps. External triggers stay minimal and earned.
@@ -87,7 +87,7 @@ Design every surface so the next tap feels irresistible — using the following 
 
 **D. Common structure of the world's most returned-to products** (synthesized: TikTok/social feeds, Duolingo, Wordle, Spotify — the designer should echo the structure, never the skins):
 1. **Near-zero activation energy** — the first rewarding moment arrives in seconds, no login, nothing to learn.
-2. **A natural daily reset** — Wordle's one-a-day and Duolingo's daily loop create ritual; ONE LIVE gets this *for free* because tonight only happens once. Treat "Tonight" as the daily edition: dated, fresh, gone tomorrow. Anticipation over dread — celebrate showing up, never guilt absence.
+2. **A natural daily reset** — Wordle's one-a-day and Duolingo's daily loop create ritual; 1LIVE gets this *for free* because tonight only happens once. Treat "Tonight" as the daily edition: dated, fresh, gone tomorrow. Anticipation over dread — celebrate showing up, never guilt absence.
 3. **Genuinely variable rewards in an endless-but-bounded feed** — different every visit, yet finite (tonight ends), which is calmer than infinite scroll and even more precious.
 4. **Visible compounding investment** — the product demonstrably gets more *mine* with use.
 5. **A shareable artifact** — Wordle's grid taught the world: give people a beautiful, compact way to show their night (a share card for a show or a night plan) that markets the product socially without discovery ever being social-driven.
@@ -96,7 +96,7 @@ Design every surface so the next tap feels irresistible — using the following 
 
 ### 7 · DIFFERENTIATION MANDATE — 3 DISTINCT DIRECTIONS
 
-Produce **three named, fully distinct design directions**, each with: a name; a complete color system in hex (dark + light); typography pairing; one *signature element* unique to ONE LIVE (a visual device no competitor uses); all three screens; a 3-sentence rationale tying it to the emotion/mood above; and a one-line statement of what it deliberately avoids.
+Produce **three named, fully distinct design directions**, each with: a name; a complete color system in hex (dark + light); typography pairing; one *signature element* unique to 1LIVE (a visual device no competitor uses); all three screens; a 3-sentence rationale tying it to the emotion/mood above; and a one-line statement of what it deliberately avoids.
 The three directions must be genuinely different **from each other** (not one palette in three tints) and **from every competitor's visual language**. Explicitly avoid: Spotify's neutral charcoal + single green accent; DICE's stark black/white poster-type minimalism; Resident Advisor's gray editorial austerity; Bandsintown's teal + photo-grid; Ticketmaster/Eventbrite/AXS corporate blue ecommerce chrome; Songkick's utility beige; Luma's pastel gradient softness; generic AI-gradient purple. No checkmarks, no shields, no star ratings, no trust badges of any kind.
 
 ---------------------------------------------------------------
@@ -110,7 +110,7 @@ Run 3: "Direction 3 of 3 — lean editorial/monumental (quiet authority, type-le
 
 ## PART C — EVALUATION RUBRIC (how we'll judge the 3 returned options)
 
-Score each direction 1–5 on: (1) 10-second answer test on the feed screen; (2) night-sidewalk legibility (contrast, glare, one-thumb); (3) trust-by-craft — zero badges yet feels dependable; (4) distinctiveness vs the named competitors (would a screenshot be recognized as ONE LIVE?); (5) emotional fidelity to §3 (anticipation + calm certainty); (6) accessibility compliance evident in the comps; (7) survivability — will this look right in year 3, across cities, in light mode; (8) **click-pull** — does each card open a curiosity gap that makes the tap feel inevitable, and does the whole screen pass the white-hat reflection test? Highest honest total wins; ties broken by the signature element's strength.
+Score each direction 1–5 on: (1) 10-second answer test on the feed screen; (2) night-sidewalk legibility (contrast, glare, one-thumb); (3) trust-by-craft — zero badges yet feels dependable; (4) distinctiveness vs the named competitors (would a screenshot be recognized as 1LIVE?); (5) emotional fidelity to §3 (anticipation + calm certainty); (6) accessibility compliance evident in the comps; (7) survivability — will this look right in year 3, across cities, in light mode; (8) **click-pull** — does each card open a curiosity gap that makes the tap feel inevitable, and does the whole screen pass the white-hat reflection test? Highest honest total wins; ties broken by the signature element's strength.
 
 ## SOURCES (behavioral architecture research)
 - Hook Model: https://www.nirandfar.com/how-to-manufacture-desire/ · https://amplitude.com/blog/the-hook-model · https://www.productplan.com/glossary/hook-model

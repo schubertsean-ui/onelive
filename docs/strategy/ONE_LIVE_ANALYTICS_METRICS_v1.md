@@ -1,4 +1,4 @@
-# ONE LIVE — Analytics & Measurement Canon (v1)
+# 1LIVE — Analytics & Measurement Canon (v1)
 
 **Status:** PROPOSAL → intended as the measurement source of truth once founder-ratified.
 Governs how we measure the platform's **depth, breadth, accuracy, and usage** across every
@@ -11,7 +11,7 @@ founder authorizes the spend/keys.
 self-measurement is *part of the overall Heartbeat Analytics vision, pointed at us
 internally* — and the **same measurement engine**, pointed at the resolved cultural ground
 truth, becomes the **external Heartbeat insights** offered to orgs, cities, and artists
-(§12). One engine, two faces: OneLive measuring *itself*, and OneLive measuring *the culture*.
+(§12). One engine, two faces: 1Live measuring *itself*, and 1Live measuring *the culture*.
 Both inherit the same spine (four lenses · ITR rate-of-change · one semantic layer) and the
 same honesty floor. The external face is governed by the Product Vision canon's hard rules —
 **aggregate-only, consent-gated, no artist-level resale without consent** — and monetizing it
@@ -416,7 +416,7 @@ ITR Economics rates-of-change & Management Objectives (12/12·3/12, A/B/C/D phas
 data-quality dimensions; Barr Moses five pillars of data observability; Multiple Systems
 (capture–recapture) Estimation; a16z marketplace liquidity; MRR/MAP/NDCG retrieval-evaluation;
 Amplitude North Star + AARRR; Kimball dimensional modeling (facts/dimensions, three grains,
-SCD-2, periodic snapshots); dbt Semantic Layer / MetricFlow. Grounding in OneLive's real model:
+SCD-2, periodic snapshots); dbt Semantic Layer / MetricFlow. Grounding in 1Live's real model:
 the 22 categories (`worker/importers/domain_map.py`), 18 genres (`web/lib/genres.ts`), 4
 confidence states (`worker/confidence.py`), source catalog (`sources/master_sources_catalog_120.json`),
 existing KPI/Kaizen tooling (`docs/metrics/`).

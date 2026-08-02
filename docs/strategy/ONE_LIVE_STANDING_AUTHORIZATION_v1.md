@@ -1,4 +1,4 @@
-# ONE LIVE — The Standing-Authorization Boundary v1 (plain-language explainer)
+# 1LIVE — The Standing-Authorization Boundary v1 (plain-language explainer)
 
 **Status: PROPOSAL — the tier lists below need founder ratification
 (commissioned 2026-08-02, "Explain the auth boundary"; decision record
@@ -8,7 +8,7 @@ the owner's tap (`ONE_LIVE_ENGAGEMENT_HYPOTHESES_v1.md`, invariant 7).**
 
 ## The question, in one paragraph
 
-When a business owner connects OneLive, they approve things. The question
+When a business owner connects 1Live, they approve things. The question
 is what ONE approval can cover. If every tiny correction — a typo, an
 expired event coming down, a time fixed on their own website — needs its
 own tap, the agent recreates the labor burden it exists to remove, and
@@ -25,7 +25,7 @@ revocable anytime):**
 1. Factual changes the owner already made in their own calendar (the
    calendar is the source of truth; the agent is propagating THEIR edit).
 2. Removing events that have already passed.
-3. Updates to the owned website widget and the OneLive record.
+3. Updates to the owned website widget and the 1Live record.
 4. Typo and formatting corrections that change no fact.
 5. Factual changes inside explicit rules the owner wrote (e.g. "always
    correct my hours from the calendar").
@@ -40,7 +40,7 @@ The principle underneath: **standing authorization propagates facts the
 owner already authored; the tap covers everything that speaks in their
 voice, spends their money, or touches their audience.** Nothing in either
 tier changes the charter physics — the AI still never publishes to
-OneLive's consumer feed (gate-custodied), disputed stays shown, and every
+1Live's consumer feed (gate-custodied), disputed stays shown, and every
 action is logged and reversible.
 
 ## What ratifying this changes

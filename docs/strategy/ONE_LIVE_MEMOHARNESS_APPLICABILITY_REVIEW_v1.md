@@ -10,7 +10,7 @@ correctness-first/cost-tiebreaker rule ≈ the charter's Cost discipline).
 Their novel piece — test-time per-case adaptation via retrieved experience —
 is the mechanism Brain 1B should implement, and it motivates per-source
 extraction adaptation post-Step-7. Their training-time automated harness
-search is REJECTED for OneLive: it is exactly the outer-loop-over-harness
+search is REJECTED for 1Live: it is exactly the outer-loop-over-harness
 the gate-custody decision forbids (docs/memory/decisions/2026-07-14_gate-custody.md;
 TODOS "Weco-pattern INNER-loop" item, 2026-07-16), because their search space
 includes the validators (D6) and tool exposure (D2) with no independent
@@ -68,13 +68,13 @@ added atomic shell operations correlate with reward gains — `cat`, `sed`,
   confidence intervals, components not fully ablated, baselines not pure
   scaffold-only transplants, controller instantiated with heuristics.
 
-**Reading rule for OneLive:** the *architecture* is validated direction; the
+**Reading rule for 1Live:** the *architecture* is validated direction; the
 *effect sizes* are provisional. Nothing here justifies rebuilding anything on
 the strength of these numbers alone.
 
-## 2. Mapping to what OneLive already built
+## 2. Mapping to what 1Live already built
 
-| MemoHarness | OneLive counterpart | Assessment |
+| MemoHarness | 1Live counterpart | Assessment |
 |---|---|---|
 | Per-case entries with dimension-level diagnosis ("scores alone are weak supervision") | Session arcs + Kaizen ledger M2 (defect, gate, class) + the in-flight repeat-class rule ("classify before fixing; fix the CLASS") | Convergent — same argument, independently derived. |
 | Distilled global patterns, κ-scheduled, capped, dedup'd | `docs/memory/` (Brain 1A): decisions + gotchas with update/delete conventions | Convergent, including the bounded-retrieval concern (their retrieved slice ≈ our "skim, don't reload"). |
@@ -168,7 +168,7 @@ mechanism pointed at our gates is the threat model above.
 - Closest prior work the paper names: Meta-Harness (Lee et al., 2026,
   arXiv:2603.28052 — training-time harness search, no test-time adaptation);
   Natural-Language Agent Harnesses (Pan et al., 2026, arXiv:2603.25723).
-- OneLive artifacts cited: docs/memory/decisions/2026-07-14_gate-custody.md ·
+- 1Live artifacts cited: docs/memory/decisions/2026-07-14_gate-custody.md ·
   docs/KAIZEN.md · docs/MODEL_ROUTING.md · docs/memory/README.md (Brain 1A) ·
   TODOS.md (Brain 1B item; Weco-pattern inner-loop item) ·
   docs/skills/night_shift.md.

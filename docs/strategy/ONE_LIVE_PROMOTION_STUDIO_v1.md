@@ -1,6 +1,6 @@
-# ONE LIVE — The Promotion Studio v1 (proactive, event-triggered campaign kits for THEIR channels)
+# 1LIVE — The Promotion Studio v1 (proactive, event-triggered campaign kits for THEIR channels)
 
-**Compiled 2026-08-01 · Status: PROPOSAL — research response to the founder's 2026-08-01 directive: an additional service that actually promotes the venue/event/activities — ad and content creation, design, posting execution (carousels etc.), and measurement — clarified: NOT on OneLive; via their social channels ("if we know they have a wine tasting coming up we could spin up ads and a carousel for them to run in FB and IG"). Companion to the four-doc Owned Agent package (PR #48). Questions Q21–Q22. Nothing here is license to build.**
+**Compiled 2026-08-01 · Status: PROPOSAL — research response to the founder's 2026-08-01 directive: an additional service that actually promotes the venue/event/activities — ad and content creation, design, posting execution (carousels etc.), and measurement — clarified: NOT on 1Live; via their social channels ("if we know they have a wine tasting coming up we could spin up ads and a carousel for them to run in FB and IG"). Companion to the four-doc Owned Agent package (PR #48). Questions Q21–Q22. Nothing here is license to build.**
 
 Greppable summary: the Promotion Studio = event-triggered, proactively
 generated CAMPAIGN KITS (carousel + story crops + flyer + per-platform
@@ -11,8 +11,8 @@ Market basis: full-service social agencies charge $1k–$5k/mo for venue
 packages whose event-promotion core is templated work over data we already
 hold (the arbitrage table below). Hard guardrails: their channels, their
 ad accounts and budgets, their tap is ALWAYS the send button (owner
-publishes — preserved physics posture), and ZERO interplay with OneLive
-ranking or display — promoting never buys visibility on OneLive, at any
+publishes — preserved physics posture), and ZERO interplay with 1Live
+ranking or display — promoting never buys visibility on 1Live, at any
 price, for anyone. Two execution paths: v1 needs NO Meta API (kit + 2-tap
 boost recipe run in their own app); assisted execution via their
 authorized ad account is the Phase-C upgrade behind Meta review. Pricing
@@ -100,9 +100,9 @@ honest and the consultant ecosystem unthreatened where they add real value.
 
 ## 4. Hard guardrails (what makes this compatible with everything we've said)
 
-1. **Never on OneLive.** The Studio operates exclusively on the
+1. **Never on 1Live.** The Studio operates exclusively on the
    business's own channels and ad accounts. Nothing the Studio does —
-   free or paid — affects OneLive ranking, ordering, display, or trust
+   free or paid — affects 1Live ranking, ordering, display, or trust
    states in any way. "Being seen more is for sale (on your channels).
    Being ranked higher (on ours) never is, for anyone, at any price."
    This is the no-pay-to-rank invariant's Studio corollary, stated so it
@@ -114,7 +114,7 @@ honest and the consultant ecosystem unthreatened where they add real value.
    amendment this doc records (supersedes the narrower F5 wording in
    OWNED_AGENT §5 and refines B2A_ASSESSMENT §14.2's "paid media NEVER":
    what remains NEVER is fee-skimmed spend management, ad brokering,
-   commissions, and any OneLive-surface interplay; what changes is that
+   commissions, and any 1Live-surface interplay; what changes is that
    generating and staging campaigns for THEIR channels is now in scope).
 3. **Their money stays theirs.** Ads run on their ad account with their
    budget cap; we take no percentage of spend (the 10–20% skim is the
@@ -125,7 +125,7 @@ honest and the consultant ecosystem unthreatened where they add real value.
    AI making their art; their photos, their voice settings, full edit
    control; nothing publishes without them.
 5. **Data boundary:** kits are generated from the entity's own data and
-   assets plus what they explicitly connect. Consumer-side OneLive data
+   assets plus what they explicitly connect. Consumer-side 1Live data
    never feeds ad targeting (consistent with open+private Q8 posture).
 
 ## 5. Cost and pricing posture (founder decision Q21)
@@ -144,7 +144,7 @@ free tier's economics, unlike the Mirror's scan costs.
   non-rank revenue: undercuts agencies ~100×, funds the free tier,
   cleanly separated from basics ("basics free forever; the megaphone is
   optional"). Requires Stripe billing (new-service founder decision) and
-  care that the paid line NEVER creeps toward visibility on OneLive.
+  care that the paid line NEVER creeps toward visibility on 1Live.
 - **(c) Defer** — ship nothing paid; decide at Phase B with real usage.
 
 Recommendation: **(c) formally now, designed so (a) or (b) can switch on
@@ -163,7 +163,7 @@ ongoing demand generation is free for an initial period and MAY then be
 priced — flat monthly fee or percentage-based — below the documented
 market alternatives** ($300–$5,000/mo), because it is extra value most
 of the segment does not perform today. Unchanged physics: nothing paid
-or free affects OneLive ranking (Q22); owner tap remains the send
+or free affects 1Live ranking (Q22); owner tap remains the send
 button; no ad-spend percentage during setup/free period. Open items for
 the Phase-B pricing packet: model, the base any % is computed on
 (attributable revenue vs ad spend — spend-percentage was flagged as the
@@ -192,7 +192,7 @@ numbers remain founder decisions with data.
   (incl. the F5/§14.2 posture amendment recorded there), with pricing
   posture (a)/(b)/(c) chosen or explicitly deferred per §5?
 - **Q22 — The Studio corollary as standing rule:** adopt §4.1 verbatim —
-  nothing the Studio does, free or paid, ever affects any OneLive
+  nothing the Studio does, free or paid, ever affects any 1Live
   surface's ranking, ordering, display, or trust states — as a
   charter-level corollary of no-pay-to-rank (so it binds every future
   Studio feature mechanically, not rhetorically)?
