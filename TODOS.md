@@ -149,10 +149,16 @@ Value order per §13: contextual preview → Spark Line → venue enrichment →
 - [ ] (P1) **Spark Line batch 3 — worker job (real provider, budget-capped)** — a `DescriptorGenerator`/
       `DescriptorJudge` backed by the live provider abstraction behind a per-run budget ceiling + dead-man
       (Sentinel rule); writes `candidate` rows only. Model spend at scale is founder-crucial → arm caps FIRST.
-- [ ] (P1) **Spark Line batch 4 — read-path + card UI** — resolve approved spark lines by artist name
-      (batched second query, à la `resolveArtistNames` in `web/lib/promoted.ts`), render the tier-C ✳ +
-      "— first notes" dismissible sheet (Canon §4); never filters/ranks; disputed/low-confidence display
-      untouched. Approval surface (ops) is its own gated step — nothing auto-approves.
+- [x] (P1) **Spark Line batch 4 — read-path + card render** — DONE 2026-08-02: `web/lib/spark.ts`
+      (`sparkKey`/`buildSparkInList`/`attachSparkLines` pure + `fetchApprovedSparkLines`/`withSparkLines`
+      network, ADDITIVE — a read failure never blanks the feed) wired into `page.tsx`; `SparkLineView`
+      on the card with the tier-C ✳ carrying the §4 disclosure (accessible label/title) + tier-B
+      attribution; never filters/ranks; `SparkLine` type + optional field on `LicensedEvent`; flow.css
+      quiet register; 9 vitest tests + tsc clean. STILL TODO: the ✳ tap-to-dismiss SHEET (§4, currently
+      an accessible title/label), the ops approval surface, and the tier-C generation job (batch 3).
+- [ ] (P1) **Spark Line — ops approval surface + ✳ tap-sheet refinement** — a gated ops action to move a
+      candidate → approved (nothing auto-approves; human/founder-delegated), and the §4 one-tap-dismiss
+      sheet on the ✳. Zero spend; enables a live tier-A/B (human-authored) Spark Line with no model call.
 - [ ] (P2) **Contextual preview media (§3/§4)** — the `preview_media[]` typed field + provenance-gated
       sourcing (lecture video / past-year media / trailer). **Music real-tracks slice is founder-gated**
       on a music-player API (spend) — hold for founder go + key.

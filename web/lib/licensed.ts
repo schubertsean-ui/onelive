@@ -35,6 +35,16 @@ const COLUMNS = [
   "venue_lng", "venue_url", "venue_phone", "confidence",
 ].join(",");
 
+// A Spark Line resolved for this event's performer (migration 0018). Display
+// only — never a ranking or gate signal. tier: A (artist) | B (critic) | C (AI).
+// Defined here (not in spark.ts) so LicensedEvent can carry it without a
+// circular import.
+export type SparkLine = {
+  text: string;
+  tier: string;
+  attribution: string | null;
+};
+
 export type LicensedEvent = {
   licensed_event_id: string;
   source_provider: string;
@@ -62,6 +72,9 @@ export type LicensedEvent = {
   venue_url: string | null;
   venue_phone: string | null;
   confidence: string;
+  // Optional, resolved at read time by performer key (lib/spark.ts). Absent =
+  // no approved Spark Line for this act (an honest gap, never a fabricated one).
+  spark?: SparkLine | null;
 };
 
 export function supabaseConfigured(): boolean {

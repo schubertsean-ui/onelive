@@ -29,6 +29,19 @@
 - Gates green locally: lint · deferral_scan · trust_gate · workflow_env_lint ·
   blocking_failure_check · the 18 new tests. (Full `validate` pytest step runs in CI —
   22 unrelated modules need third-party deps this sandbox's test runner lacks.)
+- **Batch 2 (schema + store):** `supabase/migrations/0018_spark_line.sql` — the Spark Line
+  store as a SEPARATE trust category (never touches candidate→gate→promote), keyed on
+  lowercased artist name, RLS fail-closed (`using status='approved'`), `provenance` jsonb
+  out of the anon grant, CHECKs on tier/status/word_count, unique-approved-per-artist.
+  `worker/descriptor/store.py` — candidate-only writer + parameterized approved reader,
+  cursor-injectable, lazy psycopg2; 5 hermetic tests.
+- **Batch 3 (read path):** `web/lib/spark.ts` resolves approved Spark Lines by performer key
+  and attaches them to feed cards — ADDITIVE (a read failure never blanks the feed), never
+  filters or ranks. `SparkLineView` on the card renders the tier-C ✳ (its accessible label is
+  the §4 "drafted from the artist's own materials" disclosure) + tier-B attribution, in a quiet
+  register. `next tsc --noEmit` clean; 193 web vitest tests pass (9 new). Still queued: the ✳
+  tap-to-dismiss sheet, the ops approval action, and the tier-C generation job (real provider,
+  budget-capped — model spend at scale is founder-crucial).
 
 
 ## 2026-07-12 — Deep review of WORLD_CLASS bar + MASTER doc; v1.1 expansion proposed

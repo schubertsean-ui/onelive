@@ -123,6 +123,13 @@
 }
 .flow .z-artist .who { font-family: Georgia, serif; font-size: 19px; line-height: 1.14; padding-right: 46px; }
 .flow .z-artist .focus { color: var(--dim); font-size: 12.5px; font-style: italic; }
+/* Spark Line (§4): the card's primary curiosity gap — a vivid 3/5/7-word hook.
+   Quiet by default; AI-drafted (tier C) reads one shade quieter and italic with
+   a small ✳ marker. Never a badge, never louder than the act's name. */
+.flow .z-artist .spark { display: block; margin-top: 4px; font-size: 13.5px; line-height: 1.2; color: var(--ink, inherit); }
+.flow .z-artist .spark.ai { color: var(--dim); font-style: italic; }
+.flow .z-artist .spark .sparkmark { font-style: normal; opacity: 0.7; cursor: help; }
+.flow .z-artist .spark .sparkattr { color: var(--dim); font-size: 12px; font-style: normal; }
 /* The venue door is its own object: own border, a touch stronger fill, a breath
    of air from the artist above it (design canon §2/§7). */
 .flow .z-venue {
