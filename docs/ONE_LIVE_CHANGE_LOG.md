@@ -9,9 +9,13 @@
 - Stood up the **Descriptor Foundry** — the gated Spark Line generation pipeline (UI
   Canon §4; Master Design Brief 65, 151–163) — as a pure, offline, **zero-spend** module
   under `worker/descriptor/`: six candidates → pairwise knockout → fusion-of-N (style
-  new, facts never) → INDEPENDENT judge → provenance stamp. It emits **candidate-only**
-  output; the approval/publish step is separate and not reachable from here ("AI never
-  publishes" satisfied by construction, in the same batch as the generator).
+  new, facts never) → INDEPENDENT judge → provenance stamp. This gate IS the
+  validation that satisfies the invariant **"AI never publishes UNVALIDATED"** (UI
+  Canon §3; kickoff: satisfied by the gate, not by not building). Output is a
+  `candidate`; taking a validated line live to users is a further, **gate-custodied
+  and founder-controlled** step (the auto-publish switch). (Correcting an earlier
+  framing that called the invariant "true by construction / unreachable" — that was
+  the "satisfied by not building" fallacy; the safety is the gate.)
 - The load-bearing trust piece is the **mechanical faithfulness gate** (`gate.py`): word
   count ∈ {3,5,7}; no marketing/trust language; every proper noun and number in a line
   must be grounded in the artist's OWN materials (facts never invented); fail-closed on

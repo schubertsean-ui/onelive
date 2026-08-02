@@ -11,8 +11,16 @@
 **Goal.** Build the first, spend-free, gate-first increment of the Spark Line
 feature (UI Canon §4, §13 Phase 2 item 2; Master Design Brief lines 65, 151–163):
 the **Descriptor Foundry** generation-and-gate pipeline, as a pure Python module
-that runs entirely offline in tests and produces **candidate-only** output which
-cannot publish.
+that runs entirely offline in tests and produces **validated candidate** output.
+
+**The invariant, stated correctly (founder correction 2026-08-02).** The canon is
+"**AI never publishes UNVALIDATED**" (UI Canon §3; kickoff: *"satisfied by the
+gate, not by not building"*). The Foundry's gate — faithfulness gate + independent
+judge + golden-set regression — IS that validation. Taking a validated line live
+to users is a further, **gate-custodied and founder-controlled** step (the
+auto-publish switch, CLAUDE.md:5). The safety is the GATE, NOT that the code
+"can't reach publish" — the earlier framing was the "satisfied by not building"
+fallacy and is retracted.
 
 **Why the Spark Line before the contextual-preview media (§13's item 1).** Item 1's
 highest-value slice — upgrading music search-links to real embedded tracks — is

@@ -1,9 +1,12 @@
 """The Descriptor Foundry pipeline (UI Canon §4; BRIEF:151-163).
 
 Six candidates -> pairwise knockout vs the checklist -> fusion-of-N synthesis
-(style new, facts never) -> INDEPENDENT judge -> provenance stamp. Emits a
-CANDIDATE only; nothing here can publish. No single-shot generation ever
-reaches a fan.
+(style new, facts never) -> INDEPENDENT judge -> provenance stamp. This IS the
+validation that satisfies "AI never publishes UNVALIDATED" (UI Canon §3;
+kickoff: satisfied by the gate, not by not building) — no single-shot
+generation ever reaches a fan. The output is a `candidate`; whether a validated
+line goes live is a further, gate-custodied and founder-controlled step (the
+auto-publish switch) outside this module.
 
 Honest-gap contract: the pipeline returns None (never a fabricated stand-in)
 when it cannot produce a faithful, good-enough line — no source material, no
