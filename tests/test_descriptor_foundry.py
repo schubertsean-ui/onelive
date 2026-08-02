@@ -58,7 +58,8 @@ MERIDIAN = SourceMaterial(
 # --- gate unit tests ---------------------------------------------------------
 
 def test_gate_accepts_faithful_vibe_line():
-    assert_faithful("brass. menace. amen.", MERIDIAN)  # no raise
+    # A faithful line does not raise; assert_faithful returns None on accept.
+    assert assert_faithful("brass. menace. amen.", MERIDIAN) is None
 
 
 def test_gate_rejects_bad_word_count():
@@ -85,12 +86,12 @@ def test_gate_rejects_ungrounded_number():
 
 def test_gate_accepts_grounded_proper_noun():
     mat = SourceMaterial(artist="Mara Quinn", texts=("Mara Quinn plays desert-noir country.",))
-    assert_faithful("Mara Quinn: desert-noir dust ballads", mat)  # no raise
+    assert assert_faithful("Mara Quinn: desert-noir dust ballads", mat) is None
 
 
 def test_gate_accepts_grounded_number():
     mat = SourceMaterial(artist="Trio 44", texts=("Trio 44 plays restless free jazz.",))
-    assert_faithful("Trio 44, restless free-jazz sprawl", mat)  # no raise
+    assert assert_faithful("Trio 44, restless free-jazz sprawl", mat) is None
 
 
 def test_gate_fails_closed_on_empty_source():
