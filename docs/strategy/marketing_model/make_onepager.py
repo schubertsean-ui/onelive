@@ -63,43 +63,44 @@ for i,(icon,head,why) in enumerate(probs):
     ax.text(cx,py+0.76,head,fontsize=11.2,fontweight="bold",color=INK,ha="center",va="center",linespacing=1.12)
     ax.text(cx,py+0.32,why,fontsize=8.7,color=INK2,ha="center",va="center",linespacing=1.3)
 
-# ---------- Row B: how it works ----------
-ax.text(LX,5.02,"HOW IT WORKS — YOU DECIDE. IT DOES THE WORK.",fontsize=11.8,fontweight="bold",color=INK)
-steps=[
- ("link","PASTE","one link in",BLUE,LBLUE),
- ("check","VERIFY","every fact sourced",AQUA,LAQUA),
- ("plug","CONNECT","only what you choose",ORANGE,LORANGE),
- ("tap","APPROVE","every send is your tap",YELLOW,LYEL),
- ("bars","MEASURE","door results, not likes",AQUA,LAQUA),
- ("up","IMPROVE","next event starts smarter",BLUE,LBLUE),
+# ---------- Row B: how it works — two lanes, weight tells the story ----------
+ax.text(LX,5.06,"HOW IT WORKS — YOU: A FEW TAPS. 1LIVE: ALL THE WORK.",fontsize=11.8,fontweight="bold",color=INK)
+
+# YOU lane: thin, light, three tiny actions
+uy=4.50; uh=0.44
+ax.add_patch(FancyBboxPatch((LX,uy),LR-LX,uh,boxstyle="round,pad=0.03",fc=LBLUE,ec=BLUE,lw=1.6))
+ax.text(LX+0.14,uy+uh/2,"YOU",fontsize=11,fontweight="bold",color=BLUE,va="center")
+you=[("1 · paste one link",1.55),("2 · choose your channels",3.30),("3 · tap approve",5.28)]
+for label,x in you:
+    wch=0.28+0.066*len(label)
+    ax.add_patch(FancyBboxPatch((x,uy+0.07),wch,uh-0.14,boxstyle="round,pad=0.03",fc="white",ec=BLUE,lw=1.5))
+    ax.text(x+wch/2,uy+uh/2,label,fontsize=8.6,fontweight="bold",color=BLUE,ha="center",va="center")
+ax.text(LR-0.10,uy+uh/2,"that's all —\n≈ minutes",fontsize=7.8,fontweight="bold",color=BLUE,ha="right",va="center",linespacing=1.15)
+
+# 1LIVE lane: thick, saturated, five work cards
+ly=3.46; lh=0.92
+ax.add_patch(FancyBboxPatch((LX,ly),LR-LX,lh,boxstyle="round,pad=0.03",fc=ORANGE,ec=ORANGE))
+ax.text(LX+0.14,ly+lh/2,"1\nL\nI\nV\nE",fontsize=8.6,fontweight="bold",color="white",va="center",linespacing=0.95)
+work=[
+ ("VERIFIES","every fact,\nevery source"),
+ ("BUILDS","your campaign —\nyour photos, your voice"),
+ ("PUBLISHES","to the channels\nyou approved"),
+ ("MEASURES","the door,\nnot the likes"),
+ ("IMPROVES","the next event,\nautomatically"),
 ]
-sw=1.045; sgap=0.115; sy=3.58; sh=1.30
-for i,(icon,name,capt,ec,fc) in enumerate(steps):
-    x=LX+i*(sw+sgap)
-    card(x,sy,sw,sh,ec,fc)
-    cx=x+sw/2; iy=sy+sh-0.36
-    if icon=="link":
-        ax.add_patch(FancyBboxPatch((cx-0.26,iy-0.09),0.26,0.18,boxstyle="round,pad=0.04",fc="none",ec=ec,lw=2.4))
-        ax.add_patch(FancyBboxPatch((cx,iy-0.09),0.26,0.18,boxstyle="round,pad=0.04",fc="none",ec=ec,lw=2.4))
-    if icon=="check": ax.text(cx,iy,"✓",fontsize=21,fontweight="bold",color=ec,ha="center",va="center")
-    if icon=="plug":
-        ax.add_patch(FancyBboxPatch((cx-0.14,iy-0.12),0.28,0.26,boxstyle="round,pad=0.03",fc="white",ec=ec,lw=2.2))
-        ax.plot([cx-0.06,cx-0.06],[iy+0.14,iy+0.28],color=ec,lw=2.4)
-        ax.plot([cx+0.06,cx+0.06],[iy+0.14,iy+0.28],color=ec,lw=2.4)
-    if icon=="tap":
-        ax.add_patch(Circle((cx,iy),0.18,fc="white",ec=ec,lw=2.4))
-        ax.text(cx,iy,"TAP",fontsize=8,fontweight="bold",color="#8a5f00",ha="center",va="center")
-    if icon=="bars":
-        for k,hh in enumerate((0.12,0.22,0.34)):
-            ax.add_patch(Rectangle((cx-0.21+k*0.15,iy-0.15),0.11,hh,fc=ec,ec=ec))
-    if icon=="up":
-        ax.annotate("",xy=(cx+0.17,iy+0.15),xytext=(cx-0.17,iy-0.13),
-            arrowprops=dict(arrowstyle="-|>",color=ec,lw=2.6,mutation_scale=20))
-    ax.text(cx,sy+0.46,name,fontsize=10.6,fontweight="bold",color=ec,ha="center")
-    ax.text(cx,sy+0.21,W(capt,13),fontsize=7.6,color=INK2,ha="center",va="center",linespacing=1.15)
-    if i<5:
-        ax.annotate("",xy=(x+sw+sgap+0.02,sy+sh/2),xytext=(x+sw+0.03,sy+sh/2),
-            arrowprops=dict(arrowstyle="-|>",color=INK2,lw=1.6,mutation_scale=12))
+wx0=LX+0.42; ww=(LR-0.14-wx0-4*0.10)/5
+for i,(head,sub) in enumerate(work):
+    x=wx0+i*(ww+0.10)
+    ax.add_patch(FancyBboxPatch((x,ly+0.08),ww,lh-0.16,boxstyle="round,pad=0.03",fc="white",ec="white"))
+    ax.text(x+ww/2,ly+lh-0.28,head,fontsize=9.8,fontweight="bold",color=ORANGE,ha="center",va="center")
+    ax.text(x+ww/2,ly+0.32,sub,fontsize=7.6,color=INK2,ha="center",va="center",linespacing=1.2)
+    if i<4:
+        ax.annotate("",xy=(x+ww+0.105,ly+lh/2),xytext=(x+ww+0.015,ly+lh/2),
+            arrowprops=dict(arrowstyle="-|>",color="white",lw=2.0,mutation_scale=13))
+# taps drop into the work lane
+for xx in (2.05,4.05,5.95):
+    ax.annotate("",xy=(xx,ly+lh+0.005),xytext=(xx,uy-0.005),
+        arrowprops=dict(arrowstyle="-|>",color=BLUE,lw=1.5,mutation_scale=11,linestyle=(0,(2,2))))
 
 # ---------- Row C: what you get ----------
 ax.text(LX,3.28,"WHAT IT'S WORTH TO YOU",fontsize=11.8,fontweight="bold",color=INK)

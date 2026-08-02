@@ -103,3 +103,24 @@ recast outside-in ("People Want A Great Night Out / Don't be hard to
 find — or worse, invisible", chalkboard icon replaced by a phone-with-pin);
 card 2 head is "Multiple Sites. (Almost) No Time." Visual QA re-run
 (thread overflow from the added labels caught and fixed before delivery).
+
+
+## Addendum 4 (2026-08-02) — production domain secured; you-vs-1Live emphasis
+
+**Founder, verbatim:** "I already have the domain 1Live.co - thru GoDaddy /
+This chain and the colors don't emphasize the limited work the user does -
+make it more obvious what they do using a combo of color scheme, design
+and words and image. ... ie they hardly do anything but it's important -
+1live does the work"
+
+1. **Production domain: 1Live.co (GoDaddy, founder-held).** The R-065
+   go-live condition is now SATISFIABLE with an owned asset: wire
+   1Live.co as the production custom domain (DNS at GoDaddy → Vercel) in
+   the deploy/code-armed session — no customer ever sees a onelive URL.
+2. **One-pager HOW IT WORKS rebuilt as a two-lane weight contrast:** a
+   thin light-blue YOU lane (three tiny chips: paste one link · choose
+   your channels · tap approve — "that's all, ≈ minutes") feeding a thick
+   saturated-orange 1LIVE lane (VERIFIES · BUILDS · PUBLISHES · MEASURES ·
+   IMPROVES). Headline: "YOU: A FEW TAPS. 1LIVE: ALL THE WORK." The visual
+   weight itself carries the founder's point: the customer hardly does
+   anything, and what they do is decisive.
