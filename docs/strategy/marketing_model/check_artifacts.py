@@ -98,6 +98,13 @@ require("build_customer.py", "in build", "channel statuses must disclose build s
 if re.search(r"<td>Connected", SOURCES.get("build_customer.py", "")):
     errors.append("build_customer.py: presents a channel as 'Connected' — registry says PLANNED; use design-preview wording")
 
+# brand guard (founder decision 2026-08-02: identifiers keep "onelive" for
+# now — so the likeliest regression is old brand spelling drifting back into
+# customer-facing material from the surrounding identifiers)
+for f, s in SOURCES.items():
+    if "OneLive" in s or "ONE LIVE" in s:
+        errors.append(f"{f}: old brand spelling — the name is 1Live (rebrand 2026-08-02)")
+
 if errors:
     print("ARTIFACT CONSISTENCY: FAIL")
     for e in errors: print(" -", e)

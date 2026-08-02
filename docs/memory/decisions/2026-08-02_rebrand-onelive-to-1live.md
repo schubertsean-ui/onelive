@@ -66,3 +66,22 @@ name and brand name."
    1Live"). Honesty line included (connections in build, statuses reported
    truthfully); worked-example numbers in the vignette are the C-11
    ILLUSTRATIVE composites.
+
+
+## Addendum 2 (2026-08-02) — identifiers stay, by decision
+
+**Founder, verbatim:** "Leave as-is for now. Any long term concern if
+remain like that?"
+
+DECIDED: the R-065 infra items stay as-is — GitHub repo name, deployment
+URLs, Supabase ref, env-var names (`ONELIVE_DB_DSN`, `ONELIVE_APPROVAL_KEY`
+— these intentionally KEEP their exact names; renaming them is churn with
+custody risk and any future "consistency" rename is a defect, not a fix),
+and the `ONE_LIVE_*.md` filenames (optional sweep remains available).
+Assessment delivered in-conversation: no functional or customer-facing
+concern EXCEPT the go-live rule now bound to R-065 — a customer must never
+see a "onelive" URL, so the production custom 1Live domain (founder
+purchase; trademark check advised) fronts the site before launch. New
+canon files use the `1LIVE_` prefix; searches must cover both prefixes.
+Mechanical guard added: check_artifacts.py fails any deliverable builder
+that reintroduces the old brand spelling.
