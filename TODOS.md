@@ -141,11 +141,11 @@ Value order per §13: contextual preview → Spark Line → venue enrichment →
 - [x] (P1) **Descriptor Foundry / Spark Line core (batch 1)** — DONE 2026-08-02: `worker/descriptor/`
       pipeline + mechanical faithfulness gate + golden regression + 18 offline tests, candidate-only,
       zero-spend (fake providers), sequenced ahead of contextual-preview media (music tracks founder-gated).
-- [ ] (P1) **Spark Line batch 2 — schema** — `supabase/migrations/0018_spark_line.sql`: uuid pk,
-      keyed on lowercased artist name (only key present on BOTH licensed `performer` and promoted
-      `artist.name`), `text`/`tier`/`status` (CHECK: candidate|approved|rejected), jsonb `provenance`
-      kept OUT of the anon grant, timestamptz created/updated; RLS fail-closed with `using (status='approved')`;
-      self-applied in the Foundry import workflow step (never a manual apply). Evaluator-mandatory (SQL/RLS).
+- [x] (P1) **Spark Line batch 2 — schema + store** — DONE 2026-08-02: `supabase/migrations/0018_spark_line.sql`
+      (uuid pk; keyed on lowercased artist name; `text`/`word_count`/`tier`/`status` with CHECKs; jsonb
+      `provenance` kept OUT of the anon grant; RLS fail-closed `using (status='approved')`; unique-approved-
+      per-artist index) + `worker/descriptor/store.py` (candidate-only writer, parameterized approved reader,
+      injectable cursor, lazy psycopg2) + 5 hermetic tests. Still needs: workflow apply-step wiring at batch 3.
 - [ ] (P1) **Spark Line batch 3 — worker job (real provider, budget-capped)** — a `DescriptorGenerator`/
       `DescriptorJudge` backed by the live provider abstraction behind a per-run budget ceiling + dead-man
       (Sentinel rule); writes `candidate` rows only. Model spend at scale is founder-crucial → arm caps FIRST.
