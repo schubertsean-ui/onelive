@@ -93,13 +93,21 @@
   background: #ffffff08; display: flex; flex-direction: column;
   transition: border-color .15s ease, transform .15s ease;
 }
-.flow .room:hover { border-color: #ffffff33; }
+.flow .room:hover { border-color: #ffffff33; transform: translateY(-1px); }
 .flow .room .rph { height: 124px; background-size: cover; background-position: center; position: relative; }
 .flow .room .rph::after {
   content: ""; position: absolute; inset: 0;
   background: linear-gradient(180deg, #0b0b1000 45%, #0b0b10cc);
 }
-.flow .room .rnoph { height: 6px; }
+/* Image-less cover: a real domain-hued band with the domain name, so a card with
+   no photo still reads as a finished card and the grid stays even (was a 6px
+   sliver). Decorative; the domain also appears in the focus line. */
+.flow .room .rnoph {
+  height: 124px; position: relative; display: flex; align-items: flex-end; padding: 12px 13px;
+}
+.flow .room .rnoph .rnophlabel {
+  font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600; color: #ffffffd0;
+}
 .flow .room .rbody { padding: 12px 13px 13px; display: flex; flex-direction: column; gap: 8px; }
 
 /* Time line — start · price · on-now · quiet uncertainty mark (all a person
@@ -123,6 +131,11 @@
 }
 .flow .z-artist .who { font-family: Georgia, serif; font-size: 19px; line-height: 1.14; padding-right: 46px; }
 .flow .z-artist .focus { color: var(--dim); font-size: 12.5px; font-style: italic; }
+/* The curiosity hook — a quiet, brand-accent preview cue ("▸ Hear them"). Type
+   label comes from lib/preview.ts; tapping the door opens the lens with the
+   actual links. Only rendered when we have a preview we can stand behind. */
+.flow .z-artist .hook { color: var(--glow); font-size: 12px; display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; }
+.flow .z-artist .hook::before { content: "▸"; font-size: 9px; line-height: 1; }
 /* The venue door is its own object: own border, a touch stronger fill, a breath
    of air from the artist above it (design canon §2/§7). */
 .flow .z-venue {
