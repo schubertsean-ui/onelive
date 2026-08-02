@@ -109,7 +109,7 @@ for xx in (2.05,4.05,5.95):
 ax.text(LX,3.28,"WHAT IT'S WORTH TO YOU",fontsize=11.8,fontweight="bold",color=INK)
 vals=[
  ("clock","Hours\nback","the repetitive work\nhappens for you",BLUE),
- ("pin","Right,\neverywhere","dates & hours correct\nwhere people check —\n& what's happening",AQUA),
+ ("pin","Right,\neverywhere","dates & hours & what's\nhappening all correct\nwhere people check",AQUA),
  ("list","An audience\nyou own","your list grows with\nevery campaign",ORANGE),
  ("door","People through\nthe door","attendance & sales,\nmeasured honestly",YELLOW),
 ]
