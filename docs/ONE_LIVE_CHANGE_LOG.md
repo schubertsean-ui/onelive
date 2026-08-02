@@ -39,6 +39,13 @@
   out of the anon grant, CHECKs on tier/status/word_count, unique-approved-per-artist.
   `worker/descriptor/store.py` — candidate-only writer + parameterized approved reader,
   cursor-injectable, lazy psycopg2; 5 hermetic tests.
+- **Batch 4 (take-live, gate-custodied):** `worker/descriptor/publish.py` — `approve_candidate` /
+  `reject_candidate`: the SEPARATE, gate-custodied publish step (mirrors `worker/promote.py` + the Meta
+  carousel physics, Contract #23). Fail-closed; content-bound (the approver approves the EXACT reviewed
+  text; a changed line must be re-approved); refuses an AI/agent approver (only a human takes a line
+  live); stamps approver + time + text-sha into provenance; guarded on `status='candidate'` so a
+  concurrent change fails closed. 8 hermetic tests. Built as CODE per OPERATING_RULES §6a.3 (don't park
+  buildable work as a founder switch) — the founder/delegate is the approver, not a toggle.
 - **Batch 3 (read path):** `web/lib/spark.ts` resolves approved Spark Lines by performer key
   and attaches them to feed cards — ADDITIVE (a read failure never blanks the feed), never
   filters or ranks. `SparkLineView` on the card renders the tier-C ✳ (its accessible label is

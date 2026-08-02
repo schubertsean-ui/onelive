@@ -20,6 +20,11 @@ from .foundry import (
 )
 from .gate import assert_faithful, checklist_score, is_faithful
 from .golden import GOLDEN_PATH, run_golden
+from .publish import (
+    SparkLinePublishError,
+    approve_candidate,
+    reject_candidate,
+)
 from .types import (
     DescriptorCandidate,
     DescriptorFoundryError,
@@ -44,6 +49,9 @@ __all__ = [
     "checklist_score",
     "run_golden",
     "GOLDEN_PATH",
+    "approve_candidate",
+    "reject_candidate",
+    "SparkLinePublishError",
     "SourceMaterial",
     "DescriptorCandidate",
     "FoundryResult",

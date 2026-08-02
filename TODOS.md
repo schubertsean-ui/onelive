@@ -156,8 +156,13 @@ Value order per §13: contextual preview → Spark Line → venue enrichment →
       attribution; never filters/ranks; `SparkLine` type + optional field on `LicensedEvent`; flow.css
       quiet register; 9 vitest tests + tsc clean. STILL TODO: the ✳ tap-to-dismiss SHEET (§4, currently
       an accessible title/label), the ops approval surface, and the tier-C generation job (batch 3).
-- [ ] (P1) **Spark Line — ops approval surface + ✳ tap-sheet refinement** — a gated ops action to move a
-      candidate → approved (nothing auto-approves; human/founder-delegated), and the §4 one-tap-dismiss
+- [x] (P1) **Spark Line — gate-custodied take-live mechanism** — DONE 2026-08-02: `worker/descriptor/publish.py`
+      (`approve_candidate`/`reject_candidate`) — fail-closed, content-bound (approver approves the exact
+      reviewed text), refuses a non-human/AI approver (mirrors carousel publish physics, Contract #23),
+      stamps approver+time+text-sha into provenance, guarded on `status='candidate'` (concurrent change =
+      refuse). 8 hermetic tests. This is buildable code (§6a.3), not a "founder switch."
+- [ ] (P2) **Spark Line — ops surface + ✳ tap-sheet** — a thin ops UI calling `approve_candidate`/
+      `reject_candidate` (the mechanism exists; this is the human-facing button) + the §4 one-tap-dismiss
       sheet on the ✳. Zero spend; enables a live tier-A/B (human-authored) Spark Line with no model call.
 - [ ] (P2) **Contextual preview media (§3/§4)** — the `preview_media[]` typed field + provenance-gated
       sourcing (lecture video / past-year media / trailer). **Music real-tracks slice is founder-gated**
