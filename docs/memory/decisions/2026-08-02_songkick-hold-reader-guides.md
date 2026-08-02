@@ -38,3 +38,29 @@ new docs and decisions to the repo and canon."
    ruled out (both our research and the external reviewer flag it as the
    misaligned agency pattern). Everything else in the Tier-2 pricing packet
    waits for pilot usage data by design.
+
+
+## Addendum (2026-08-02, later the same day) — copy directive
+
+**Founder, verbatim:** "Remove this language: ' Leave anytime and keep
+everything.' ' 1Live's answer: - we do the repetitive time consuming
+maintenance work across marketing channels for you - we create the
+marketing content that helps you improve what matters - we do the work of
+getting that marketing content placed in the right marketing channel for
+you You remain in control and approve every decision with a tap'"
+
+Executed as: (1) the exit-promise formula ("leave anytime, keep
+everything") REMOVED from all copy — Customer Story rail, Model
+standing-rules rail, the data-model figure's physics strip, and the
+surfaces-inventory standing rules (which now note the removal applies to
+LANGUAGE; no data-portability behavior change was directed). (2) The
+Customer Story problem page's one-line "OneLive's answer" replaced by the
+founder's dictated three-bullet answer, closing on "You remain in control
+and approve every decision with a tap." Read as dictation of the second
+block, not deletion (it matched no existing copy). Normalizations applied
+and disclosed: "1Live's" → "OneLive's" (brand consistency),
+"time consuming" → "time-consuming". Near-identical phrases deliberately
+LEFT in place pending founder direction: the "Your exit" control tile,
+the "no lock-in by design" line, and the six-step "stop after any step"
+framing — these state progressive adoption/portability, not the removed
+exit slogan.

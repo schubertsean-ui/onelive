@@ -44,7 +44,7 @@ body = f"""
 <div class="tile"><div class="n">An audience you own</div><div class="t">every campaign grows your list — it leaves with you, always</div></div>
 <div class="tile"><div class="n">Results at the door</div><div class="t">attendance, signups, and sales — reported separately from likes</div></div>
 </div>
-<div class="rail"><b>Your accounts. Your audience. Your budget. Your approval.</b> Promotional sends require your tap. Nothing you pay for (or get free) ever changes how OneLive ranks events. Leave anytime and keep everything.</div>
+<div class="rail"><b>Your accounts. Your audience. Your budget. Your approval.</b> Promotional sends require your tap. Nothing you pay for (or get free) ever changes how OneLive ranks events.</div>
 
 
 <div class="pg"></div><h2>What you're about to see</h2>
@@ -75,7 +75,13 @@ body = f"""
 <li><b>Generic or missing promotion:</b> the best-returning channels (your email list, your search presence) sit unused because they take the most work.</li>
 <li><b>No measurement:</b> likes get counted; nobody knows what filled the room.</li>
 </ul>
-<p>The constraint isn't intent or even money — it's hours. Marketing help that fixes this is priced for companies with marketing departments. OneLive's answer: do the repetitive layer for you, and leave every decision yours.</p>
+<p>The constraint isn't intent or even money — it's hours. Marketing help that fixes this is priced for companies with marketing departments. <b>OneLive's answer:</b></p>
+<ul>
+<li>we do the repetitive, time-consuming maintenance work across marketing channels for you</li>
+<li>we create the marketing content that helps you improve what matters</li>
+<li>we do the work of getting that marketing content placed in the right marketing channel for you</li>
+</ul>
+<p><b>You remain in control and approve every decision with a tap.</b></p>
 
 <div class="pg"></div><h2>How it works</h2>
 <p class="pgdesc">The whole product in one picture: six steps, and what you walk away with at each one — you can stop after any of them.</p>

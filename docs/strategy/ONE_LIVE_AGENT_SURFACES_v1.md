@@ -105,4 +105,6 @@ Every row is mechanical over data the agent already holds — free-tier work.
 **Standing rules across every row (canon):** their accounts stay theirs · no
 percentage of ad spend at setup or during the free period (Tier-2 pricing per
 the 2026-08-01 monetization direction) · nothing here affects OneLive ranking,
-at any price · leave anytime and keep everything deployed.
+at any price. (The "leave anytime and keep everything" wording is REMOVED
+from all copy at founder direction 2026-08-02 — the directive removes the
+LANGUAGE; no change to any data-portability behavior was directed.)

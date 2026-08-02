@@ -80,7 +80,7 @@ ax.text(6.95,0.83,wrap("THE LOOP — demand returns as measured attendance, sign
 arrow(ax,(RX+RW/2,1.5),(RX+RW/2,1.26),c=YELLOW,lw=2.4,ms=16)
 arrow(ax,(LX+LW/2,1.26),(LX+LW/2,1.48),c=YELLOW,lw=2.4,ms=16)
 
-ax.text(6.95,0.16,"physics, not policy:  AI never publishes — all data passes the gate · ranking is never for sale · disputed always shown · leave anytime, keep everything",
+ax.text(6.95,0.16,"physics, not policy:  AI never publishes — all data passes the gate · ranking is never for sale · disputed always shown",
  fontsize=9.8,color=INK2,ha="center",style="italic")
 plt.savefig("flow_model.png",dpi=185,facecolor=SURFACE); plt.close()
 print("model done  aspect",round(FH/FW,2))
