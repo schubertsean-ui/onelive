@@ -2,7 +2,7 @@ import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { authProviderActive } from "../lib/auth";
 
-export const metadata = { title: "ONE LIVE — Tonight in Austin" };
+export const metadata = { title: "1LIVE — Tonight in Austin" };
 
 // The Clerk auth context is applied ONLY when a provider is actually configured
 // (see lib/auth.ts — the single source of truth). With no provider the app still

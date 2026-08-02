@@ -57,7 +57,7 @@ async function resolveEmail(
 // declared how this deployment is protected, we deny rather than open the door.
 function accessNotConfigured(): NextResponse {
   return new NextResponse(
-    "OneLive is not accepting traffic in this environment: no access gate is " +
+    "1Live is not accepting traffic in this environment: no access gate is " +
       "configured. For a preview set NEXT_PUBLIC_AUTH_DISABLED=1 (NOT marked " +
       "Sensitive), or set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY for the stealth " +
       "gate, then redeploy. Open /api/health to see exactly what the app " +

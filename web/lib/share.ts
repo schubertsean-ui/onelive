@@ -57,7 +57,7 @@ export function shareCaveat(e: LicensedEvent): string | null {
 // sheet's title stays a glanceable headline (many share targets show them
 // separately).
 export function shareTitle(e: LicensedEvent): string {
-  return e.title || "A show on ONE LIVE";
+  return e.title || "A show on 1LIVE";
 }
 
 // The multi-line factual body. No URL here — Web Share takes the url as its own
@@ -91,7 +91,7 @@ export function shareText(e: LicensedEvent): string {
   const caveat = shareCaveat(e);
   if (caveat) lines.push(`⚠ ${caveat}`);
 
-  lines.push("via ONE LIVE");
+  lines.push("via 1LIVE");
   return lines.join("\n");
 }
 

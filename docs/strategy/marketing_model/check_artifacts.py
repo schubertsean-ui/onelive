@@ -108,6 +108,11 @@ if re.search(r"<td>Connected", SOURCES.get("build_customer.py", "")):
 # the over-broad formula may not reappear in any builder
 forbid_everywhere("Everything the agent builds", "ownership-forever claims scope to the Tier-1 basics only")
 forbid_everywhere("keep everything it gave", "ownership-forever claims scope to the Tier-1 basics only")
+# broadened per evaluator nit (PR #143): synonym regressions fail too — any
+# "everything" within reach of a keep/preserve/build verb is the same class
+for f, s in SOURCES.items():
+    for m in re.finditer(r"(keep|keeps|preserve|preserves|retain|retains)[^.\n]{0,40}everything|everything[^.\n]{0,40}(built|builds|created|deployed)", s, re.I):
+        errors.append(f"{f}: over-broad ownership phrase (Tier-1 basics only): {m.group(0)[:70]!r}")
 
 # brand guard (founder decision 2026-08-02: identifiers keep "onelive" for
 # now — so the likeliest regression is old brand spelling drifting back into
