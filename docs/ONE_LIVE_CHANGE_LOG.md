@@ -1,6 +1,36 @@
 # ONE LIVE — CHANGE LOG
 
 
+## 2026-08-02 — /tonight Phase 2 (content layer): Descriptor Foundry / Spark Line core (batch 1)
+
+**Session type:** Contract #32 (ship CAPCOG), /tonight Phase 2 build. Decision record:
+`docs/memory/decisions/2026-08-02_descriptor-foundry-spark-line-core.md`.
+
+- Stood up the **Descriptor Foundry** — the gated Spark Line generation pipeline (UI
+  Canon §4; Master Design Brief 65, 151–163) — as a pure, offline, **zero-spend** module
+  under `worker/descriptor/`: six candidates → pairwise knockout → fusion-of-N (style
+  new, facts never) → INDEPENDENT judge → provenance stamp. It emits **candidate-only**
+  output; the approval/publish step is separate and not reachable from here ("AI never
+  publishes" satisfied by construction, in the same batch as the generator).
+- The load-bearing trust piece is the **mechanical faithfulness gate** (`gate.py`): word
+  count ∈ {3,5,7}; no marketing/trust language; every proper noun and number in a line
+  must be grounded in the artist's OWN materials (facts never invented); fail-closed on
+  empty source. A model-free **golden regression set** (`golden/spark_line_golden_v1.jsonl`)
+  pins accept/refuse verdicts. 18 offline tests (fake providers, no API call) cover every
+  accept and refuse branch; judge independence (different model than the generator) is
+  enforced. The pipeline fills the `foundry_descriptor{text,provenance}` contract the
+  carousel generator already references.
+- Sequenced ahead of §13's item-1 contextual-preview media because that item's top slice
+  (real music tracks) is founder-gated on a music-player API (spend) — deviation recorded
+  in the decision record, not taken silently.
+- **Not built here (queued, TODOS Phase 2):** the `spark_line` DB table + RLS/anon grant,
+  a worker job behind a budget cap with the real provider, and the read-path / card-UI
+  wiring. Nothing reaches a fan in this batch. No trust invariant changed; no gate relaxed.
+- Gates green locally: lint · deferral_scan · trust_gate · workflow_env_lint ·
+  blocking_failure_check · the 18 new tests. (Full `validate` pytest step runs in CI —
+  22 unrelated modules need third-party deps this sandbox's test runner lacks.)
+
+
 ## 2026-07-12 — Deep review of WORLD_CLASS bar + MASTER doc; v1.1 expansion proposed
 
 **Session type:** Independent deep review ("best technologists / company-spin-up" lens). Output: `OneLive_WORLD_CLASS_v1.1_DEEP_REVIEW.md`. Status: PROPOSAL — pending founder gap-by-gap ratification (per §0.3 contract-first).

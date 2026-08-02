@@ -135,6 +135,31 @@ delete completed items — they're a record of what got done).
 - [ ] (P2, founder-hands, ~2 min) Vercel preview env fix — APPROVED 2026-07-24: add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY (Preview environment checked) at https://vercel.com/sss-projects-e4775771/onelive/settings/environment-variables then redeploy; until it lands every PR preview fails on /ops prerender (steps + links: PR #60 comment). No agent path: sandbox holds no VERCEL_TOKEN/Clerk credentials (verified).
 - [ ] (P2) Brief v2.4 tagline edit (founder-directed 2026-07-22, FLOW round 6): "Less chaos. Real shows." removed from product surfaces at founder direction — the brief's PART A verbatim-copy rule still carries the old line; fold the founder's thrive framing ("finding and engaging in experiences, helping individuals and the culture thrive") into the brief's next revision (founder-visible ratified doc: propose the edit, don't unilaterally rewrite). Trigger: next brief revision or design-direction ratification, whichever first. Owner: Generator (proposal) → founder (ratification).
 
+## /tonight Phase 2 — content layer (UI Canon §13; Contract #32)
+Decision record: `docs/memory/decisions/2026-08-02_descriptor-foundry-spark-line-core.md`.
+Value order per §13: contextual preview → Spark Line → venue enrichment → Emotion Glyph.
+- [x] (P1) **Descriptor Foundry / Spark Line core (batch 1)** — DONE 2026-08-02: `worker/descriptor/`
+      pipeline + mechanical faithfulness gate + golden regression + 18 offline tests, candidate-only,
+      zero-spend (fake providers), sequenced ahead of contextual-preview media (music tracks founder-gated).
+- [ ] (P1) **Spark Line batch 2 — schema** — `supabase/migrations/0018_spark_line.sql`: uuid pk,
+      keyed on lowercased artist name (only key present on BOTH licensed `performer` and promoted
+      `artist.name`), `text`/`tier`/`status` (CHECK: candidate|approved|rejected), jsonb `provenance`
+      kept OUT of the anon grant, timestamptz created/updated; RLS fail-closed with `using (status='approved')`;
+      self-applied in the Foundry import workflow step (never a manual apply). Evaluator-mandatory (SQL/RLS).
+- [ ] (P1) **Spark Line batch 3 — worker job (real provider, budget-capped)** — a `DescriptorGenerator`/
+      `DescriptorJudge` backed by the live provider abstraction behind a per-run budget ceiling + dead-man
+      (Sentinel rule); writes `candidate` rows only. Model spend at scale is founder-crucial → arm caps FIRST.
+- [ ] (P1) **Spark Line batch 4 — read-path + card UI** — resolve approved spark lines by artist name
+      (batched second query, à la `resolveArtistNames` in `web/lib/promoted.ts`), render the tier-C ✳ +
+      "— first notes" dismissible sheet (Canon §4); never filters/ranks; disputed/low-confidence display
+      untouched. Approval surface (ops) is its own gated step — nothing auto-approves.
+- [ ] (P2) **Contextual preview media (§3/§4)** — the `preview_media[]` typed field + provenance-gated
+      sourcing (lecture video / past-year media / trailer). **Music real-tracks slice is founder-gated**
+      on a music-player API (spend) — hold for founder go + key.
+- [ ] (P2) **Emotion Glyph (§5)** — Plutchik → curated ~40–60-glyph lexicon (deterministic lookup),
+      derived ONLY from the creator's own description ("no description → no glyph"); reuses the Foundry
+      faithfulness discipline. Glyph AI-disclosure is a PROPOSAL item (founder-gated).
+
 ## Geographic boundary model (future — founder-directed 2026-07-29)
 - [ ] (P3, future) **Richer geographic-relevance model** — the shipped market boundary (`worker/region/capcog.py` + `web/lib/region.ts`, PR #107) is a deliberate v1: CAPCOG's ten counties, matched by county/city name. The founder flagged that real geographic relevance is multi-scale and context-dependent — counties are sometimes the right unit, but so are neighborhoods, streets, regions, natural features (lakes, river corridors), and administrative demarcations (police/fire/EMS/school districts, ZIP, city limits, COG boundaries). A future update should model boundaries as a **layered, typed system** (point-in-polygon against real GeoJSON per layer, not name lists), let relevance be expressed at whatever scale a query/feature needs (e.g. "near this venue," "in this neighborhood," "reachable in 20 min"), and keep the current keep-and-count-unknowns discipline so no layer silently hides coverage. Natural companion to `metro_outline.py` (public boundary GeoJSON is the shared input) and to any future distance/isochrone "what's nearby" work (Night Out spec). Owner: Generator; trigger: when a feature needs sub-county precision, or a market with a boundary the county model can't express opens. Not blocking — the county filter is correct for v1's "no San Antonio" invariant.
 
