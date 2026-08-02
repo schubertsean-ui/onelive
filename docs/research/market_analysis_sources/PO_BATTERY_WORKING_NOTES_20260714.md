@@ -48,7 +48,7 @@ A1 documents are the unit of analysis · A2 the company is the aggregation axis 
   - SPEC: standards bodies monetize reference implementations — see P7 waggle-dance schema (H13).
 - **Po A10-neg: point-in-time doesn't matter.**
   - POS (of the negation failing): the strongest confirmation in the battery — without as-of-known-when discipline the product is useless for backtesting and unsafe for verdicts. Elevates point-in-time from feature to invariant.
-  - PRIN: never let a later edit silently overwrite what was known earlier — same invariant as OneLive's disputed-shown-never-hidden.
+  - PRIN: never let a later edit silently overwrite what was known earlier — same invariant as 1Live's disputed-shown-never-hidden.
 - **Po A11-neg: we don't sell insight.**
   - DIFF: sell the *organized substrate* and let customers think (founder's stated positioning) — machine-readable feeds first, narratives second.
   - MOM: an analyst's agent calls "what changed for $TICKER since March" mid-meeting; the answer is a data payload, not an essay. API-first surface confirmed.
@@ -89,7 +89,7 @@ A1 documents are the unit of analysis · A2 the company is the aggregation axis 
   - PRIN: claims carry parseable due-dates ("by Q3", "next year") → automatic expiry; the ledger ticks like a bond maturity calendar. → **H9**.
   - MOM: Monday digest — "7 promises come due this week across your watchlist" — a recurring engagement loop that writes itself.
 - **Po: a perfect truth oracle grades every promise.**
-  - DIFF: since no oracle exists, verdicts must carry graded confidence — transplant OneLive's 4-state model (unverified/likely/confirmed/disputed) onto fulfillment status. → **H10**.
+  - DIFF: since no oracle exists, verdicts must carry graded confidence — transplant 1Live's 4-state model (unverified/likely/confirmed/disputed) onto fulfillment status. → **H10**.
   - SPEC: legally load-bearing — a graded, evidence-linked verdict is defensible where a binary "broken promise" stamp is defamation-adjacent.
 
 ## P6 ABSURD

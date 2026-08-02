@@ -4,7 +4,7 @@ Founder directive (2026-07-25): *"Make it all config-driven. That should be
 incorporated for all similar items."* And, standing: *"Ensure it's functionally
 easy and energy moderate to change these elements and their frequency."*
 
-This catalog is the single index of every operational tunable in OneLive. It
+This catalog is the single index of every operational tunable in 1Live. It
 answers two questions for each one: **where do I edit it**, and **is it a plain
 config edit or a founder-crucial decision?** The split is not cosmetic — it is
 the trust boundary.

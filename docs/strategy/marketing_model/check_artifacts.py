@@ -80,6 +80,20 @@ for f, s in SOURCES.items():
     if "CONFIRMED / LIKELY / UNVERIFIED" in s and not ("six-state" in s or "Truth States v2" in s):
         errors.append(f"{f}: enumerates confidence states without anchoring to the six-state model (Truth States v2)")
 
+# C-11: the client one-pager's thread vignette carries fictional outcome
+# numbers — the ILLUSTRATIVE badge must be present in the source
+# (evaluator catch, PR #143 r-onepager)
+require("make_onepager.py", "ILLUSTRATIVE", "one-pager worked-example numbers must carry the C-11 badge")
+
+# Songkick hold (founder 2026-08-02; evaluator catch, PR #143 r-rebrand):
+# ON HOLD, READ & MONITOR only — no builder may present it as a publish or
+# sync destination. Every mention must sit in read/monitor/hold context.
+for f, s in SOURCES.items():
+    for m in re.finditer("Songkick", s):
+        ctx = s[max(0, m.start()-160):m.end()+160].lower()
+        if not any(k in ctx for k in ("read", "monitor", "held", "hold")):
+            errors.append(f"{f}: Songkick outside read/monitor/hold context (connector ON HOLD): ...{s[max(0,m.start()-60):m.end()+60]!r}...")
+
 # connector honesty (evaluator catch, PR #142 r1): the customer document's
 # channel table must be registry-bound — it may not present PLANNED
 # connectors as live. The builder must carry the pilot-status disclosure
@@ -88,6 +102,24 @@ require("build_customer.py", "connector registry", "channel table must cite the 
 require("build_customer.py", "in build", "channel statuses must disclose build status")
 if re.search(r"<td>Connected", SOURCES.get("build_customer.py", "")):
     errors.append("build_customer.py: presents a channel as 'Connected' — registry says PLANNED; use design-preview wording")
+
+# ownership scope (founder 2026-08-02: "what is theirs forever is the
+# basics ... Not the marketing campaigns and creative or components") —
+# the over-broad formula may not reappear in any builder
+forbid_everywhere("Everything the agent builds", "ownership-forever claims scope to the Tier-1 basics only")
+forbid_everywhere("keep everything it gave", "ownership-forever claims scope to the Tier-1 basics only")
+# broadened per evaluator nit (PR #143): synonym regressions fail too — any
+# "everything" within reach of a keep/preserve/build verb is the same class
+for f, s in SOURCES.items():
+    for m in re.finditer(r"(keep|keeps|preserve|preserves|retain|retains)[^.\n]{0,40}everything|everything[^.\n]{0,40}(built|builds|created|deployed)", s, re.I):
+        errors.append(f"{f}: over-broad ownership phrase (Tier-1 basics only): {m.group(0)[:70]!r}")
+
+# brand guard (founder decision 2026-08-02: identifiers keep "onelive" for
+# now — so the likeliest regression is old brand spelling drifting back into
+# customer-facing material from the surrounding identifiers)
+for f, s in SOURCES.items():
+    if "OneLive" in s or "ONE LIVE" in s:
+        errors.append(f"{f}: old brand spelling — the name is 1Live (rebrand 2026-08-02)")
 
 if errors:
     print("ARTIFACT CONSISTENCY: FAIL")

@@ -18,7 +18,7 @@ needed a frontier model ([routing engineering guide](https://www.digitalapplied.
 proven layering is: cheap **pre-request rules** for obvious cases, then a
 **cascade** — try the small model, escalate only when a verification check
 fails ([FrugalGPT](https://arxiv.org/abs/2305.05176), [2026 survey](https://arxiv.org/html/2603.04445v2)).
-OneLive already owns the hard part of a cascade: deterministic verification
+1Live already owns the hard part of a cascade: deterministic verification
 (eval harness, trust gate, evaluator) that decides objectively whether the
 cheap tier's output was good enough.
 

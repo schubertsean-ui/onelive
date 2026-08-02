@@ -13,7 +13,7 @@ ingestion pipeline (full write-up: `docs/memory/decisions/2026-07-29_pixelrag-vi
 
 ## The one thing I need from you
 
-**Do you want OneLive to start capturing events that appear only inside an
+**Do you want 1Live to start capturing events that appear only inside an
 image** — a gig poster, a PDF flyer, an Instagram flyer, or a venue calendar
 that is really just a picture — **which we cannot read today?** Pick one:
 
@@ -28,7 +28,7 @@ Nothing has been built. This is a go/no-go on *investigating*, not on shipping.
 
 ## Plain-language background
 
-Right now OneLive reads events as **text**. When a venue lists shows as words on
+Right now 1Live reads events as **text**. When a venue lists shows as words on
 a web page, we read them fine — and if the page is built by JavaScript, we
 already open it in a real browser to get that text (`render_fetch.py`).
 

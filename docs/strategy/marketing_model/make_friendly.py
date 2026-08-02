@@ -46,10 +46,13 @@ def thread(fname, title, sub, msgs, footer, cat_snap, ch3, gr3, fit):
     ax.set_position((0,0,1,1)); ax.set_xlim(0,FW); ax.set_ylim(0,FH); ax.axis("off")
     ax.text(M+0.05,FH-0.34,title,fontsize=17.5,fontweight="bold",color=INK)
     ax.text(M+0.05,FH-0.72,sub,fontsize=11.8,color=INK2)
-    _b="ILLUSTRATIVE — pilot targets, not observed results"
-    _bw=0.3+0.104*len(_b)
-    ax.add_patch(FancyBboxPatch((FW-M-_bw,FH-0.5),_bw,0.4,boxstyle="round,pad=0.05",fc="white",ec="#eda100",lw=2.0))
-    ax.text(FW-M-_bw/2,FH-0.3,_b,fontsize=9.6,fontweight="bold",color="#b87e00",ha="center",va="center")
+    # two-line compact badge (visual QA: the one-line badge spanned ~5in and
+    # collided with long titles)
+    _b1="ILLUSTRATIVE"; _b2="pilot targets, not observed results"
+    _bw=0.3+0.082*len(_b2)
+    ax.add_patch(FancyBboxPatch((FW-M-_bw,FH-0.68),_bw,0.56,boxstyle="round,pad=0.05",fc="white",ec="#eda100",lw=2.0))
+    ax.text(FW-M-_bw/2,FH-0.31,_b1,fontsize=10.4,fontweight="bold",color="#b87e00",ha="center",va="center")
+    ax.text(FW-M-_bw/2,FH-0.55,_b2,fontsize=8.8,fontweight="bold",color="#b87e00",ha="center",va="center")
 
     col_x = [M, M+COLW+0.25]
     ax.plot([col_x[1]-0.12,col_x[1]-0.12],[1.05,FH-1.0],color=LINE,lw=1)
@@ -118,10 +121,10 @@ thread("phone_bar.png",
  "What it actually feels like — Dana, who owns The Jackrabbit",
  "No dashboard. No logins. The agent is a text thread that already did the work and just needs a yes.",
  [
-  ("a","MONDAY","Saw you added DJ Mala for Friday 10pm. She's now on Google, Yelp, Apple Maps, Nextdoor, the city event calendars, your website, and OneLive. Nothing for you to do.",None),
+  ("a","MONDAY","Saw you added DJ Mala for Friday 10pm. She's now on Google, Yelp, Apple Maps, Nextdoor, the city event calendars, your website, and 1Live. Nothing for you to do.",None),
   ("a","TUESDAY","Heads up: the promoter's flyer says 9pm but your calendar says 10pm. Which is right?",["9 PM","10 PM"]),
   ("o",None,"10pm",None),
-  ("a",None,"Done. Website + OneLive: public. Google post, Instagram, Facebook: staged for your approval. City calendar: submitted, awaiting review. Yelp: monitored (partner update not active).",None),
+  ("a",None,"Done. Website + 1Live: public. Google post, Instagram, Facebook: staged for your approval. City calendar: submitted, awaiting review. Yelp: monitored (partner update not active).",None),
   ("a","TWO WEEKS OUT","I made Friday's promo from your photos: an Instagram carousel, a story, a Facebook event, a Google post, a YouTube Short, and a text to your 214 regulars. There's also a $40 ad option — your account, only if you want it.",["SEE IT","POST AS PLANNED","SKIP"]),
   ("o",None,"Post as planned",None),
   ("a","FRIDAY 6PM","Tonight's reminder story is ready. One tap and it's up — door code MALA is on it so we can count who came from it.",["POST IT"]),
@@ -161,7 +164,7 @@ thread("phone_artist.png",
  [
   ("a","TUESDAY","The Listening Room just posted May 14 with your name on it. Playing that one?",["YES","NO"]),
   ("o",None,"Yes!",None),
-  ("a",None,"Added. Your website, link-in-bio, OneLive, and your Bandsintown + Songkick pages all show it now. One more thing: some AI answers still use your old band name — I've re-published your correct bio and pinged the indexes so they pick up the right story.",None),
+  ("a",None,"Added. Your website, link-in-bio, 1Live, and your Bandsintown page all show it now. One more thing: some AI answers still use your old band name — I've re-published your correct bio and pinged the indexes so they pick up the right story.",None),
   ("a","10 DAYS OUT","Show announcement is ready — a post and story from your photos, a YouTube Short from your own clip, a Facebook event shared with the venue, and an email draft for your list. Nothing here writes your songs. Promise.",["SEE IT","POST","SKIP"]),
   ("o",None,"Post",None),
   ("a","SHOW NIGHT","Day-of story staged. The QR on your merch table adds people to YOUR mailing list — it goes with you wherever you play.",["POST IT"]),

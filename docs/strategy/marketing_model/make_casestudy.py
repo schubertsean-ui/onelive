@@ -184,14 +184,14 @@ code = """<script type="application/ld+json">
 }
 </script>"""
 ax.add_patch(FancyBboxPatch((0.2,0.45),7.6,7.95,boxstyle="round,pad=0.05",fc="#1c1c1a",ec=INK,lw=1.6))
-ax.text(0.5,8.16,"event JSON-LD — emitted on a unique per-event page (site widget + OneLive)",fontsize=10.4,color="#9ec5f4",family="monospace")
+ax.text(0.5,8.16,"event JSON-LD — emitted on a unique per-event page (site widget + 1Live)",fontsize=10.4,color="#9ec5f4",family="monospace")
 ax.text(0.5,0.62,"price & availability OMITTED — not verified from the read; the agent does not invent",fontsize=9.4,color="#eda100",family="monospace")
 yy=7.85
 for ln in code.split("\n"):
     ax.text(0.5,yy,ln,fontsize=9.9,color="#e8e6e1",family="monospace",va="top"); yy-=0.292
 who=[("Google / Bing","event rich results · 'things to do tonight' · Maps"),
      ("AI assistants","ChatGPT · Gemini · Perplexity — citable, structured, current"),
-     ("OneLive","enters the gate as verified first-party data — still corroborated"),
+     ("1Live","enters the gate as verified first-party data — still corroborated"),
      ("Their own site","the events widget stays current with zero manual editing")]
 y=7.55
 ax.text(8.2,8.16,"WHO READS THIS",fontsize=12.6,fontweight="bold",color=INK2)

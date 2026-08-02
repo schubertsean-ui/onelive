@@ -1,6 +1,6 @@
-# OneLive — Deep Review of the World-Class Bar & Master Doc, and the v1.1 Expansion Proposal
+# 1Live — Deep Review of the World-Class Bar & Master Doc, and the v1.1 Expansion Proposal
 
-**Reviewed:** `OneLive_WORLD_CLASS_bar.md` (§0–§9, per-clause cited) and `OneLive_MASTER_the_whole_enchilada.md` (Parts 0–8, verified against repo `3247ad7` / Supabase `vqipjlvzfiwnandjumvx`).
+**Reviewed:** `1Live_WORLD_CLASS_bar.md` (§0–§9, per-clause cited) and `1Live_MASTER_the_whole_enchilada.md` (Parts 0–8, verified against repo `3247ad7` / Supabase `vqipjlvzfiwnandjumvx`).
 **Review lens:** How the strongest technologists and companies (Google/Stripe-grade engineering, SRE, AppSec, data, legal/compliance, FinOps, growth) would grade this before funding/staffing the build.
 **Compiled:** 2026-07-12. All new clauses carry ≥2 sources with URLs; anything unsourced is marked **n.a.** per your existing discipline.
 **Status:** PROPOSAL — nothing here is ratified until you review the gaps one-by-one and sign off (consistent with §0.3 contract-first).
@@ -61,30 +61,30 @@
 
 ### §4.1a (UPDATE — closes an `n.a.`): ASVS verification level = **L2**
 ASVS 5.0.0 (May 2025) defines three cumulative levels: **L1 = baseline for all apps (largely black-box verifiable); L2 = the target for applications handling sensitive data — logins, personal data, payments — and the level procurement questionnaires implicitly expect; L3 = reserved for systems where breach is catastrophic.**
-**OneLive rule:** target **ASVS L2** (Clerk-authenticated PII, venue billing later); adopt L1 as the immediate pre-launch floor and track the L2 delta as named gaps.
+**1Live rule:** target **ASVS L2** (Clerk-authenticated PII, venue billing later); adopt L1 as the immediate pre-launch floor and track the L2 delta as named gaps.
 Sources: https://www.securitycompass.com/blog/what-is-owasp-asvs/ · https://sentrixhub.com/owasp-asvs-5-0-table-of-contents/ · https://quality.arc42.org/standards/owasp-asvs · official 5.0.0 PDF: https://raw.githubusercontent.com/OWASP/ASVS/v5.0.0/5.0/OWASP_Application_Security_Verification_Standard_5.0.0_en.pdf
 
 ### §7.5a (UPDATE — closes an `n.a.`): DORA elite thresholds
 Per the 2024 DORA State of DevOps benchmarks: **elite performers deploy on demand, lead time for changes < 1 day, change failure rate ≈ 5%, failed-deployment recovery < 1 hour.** (Some sources cite <1 hour lead time for earlier "elite" definitions; use the 2024 report's <1 day as canonical, and treat metrics with AI-generated-code caveats.)
-**OneLive rule:** instrument the four keys from GitHub + Vercel deploy events; target High now, Elite by public launch.
+**1Live rule:** instrument the four keys from GitHub + Vercel deploy events; target High now, Elite by public launch.
 Sources: https://www.taskade.com/blog/dora-metrics-explained · https://www.multitudes.com/blog/dora-metrics · https://cloud.google.com/blog/products/devops-sre/using-the-four-keys-to-measure-your-devops-performance · https://dora.dev/guides/dora-metrics-four-keys/
 
 ### §10 — Legal & regulatory compliance (NEW — the biggest omission)
 - **10.1 TDPSA applies to the Texas launch.** The Texas Data Privacy and Security Act (eff. 2024-07-01) covers anyone conducting business in Texas or producing services consumed by Texans, with **no revenue threshold** — only an SBA small-business carve-out; even exempt small businesses must obtain consent before selling sensitive data, and **precise geolocation is sensitive data**. Universal opt-out signals (Global Privacy Control) must be honored since 2025-01-01. Penalties up to $7,500/violation; 30-day cure; AG-enforced.
-  **OneLive rule:** document the SBA-exemption determination now; build TDPSA-shaped anyway (privacy notice, opt-outs, GPC recognition, DSAR + appeal flow, processor contracts) because the exemption evaporates with growth and Berlin/London plans already assume GDPR-grade capability.
+  **1Live rule:** document the SBA-exemption determination now; build TDPSA-shaped anyway (privacy notice, opt-outs, GPC recognition, DSAR + appeal flow, processor contracts) because the exemption evaporates with growth and Berlin/London plans already assume GDPR-grade capability.
   Sources: https://www.texasattorneygeneral.gov/consumer-protection/file-consumer-complaint/consumer-privacy-rights/texas-data-privacy-and-security-act · https://privacylawmap.com/blog/texas-data-privacy-and-security-act-guide · https://www.dwt.com/blogs/privacy--security-law-blog/2023/07/texas-data-privacy-and-security-act-overview
-- **10.2 TRAIGA applies — OneLive is a Texas AI deployer.** The Texas Responsible AI Governance Act (HB 149, signed 2025-06-22, **effective 2026-01-01**) reaches any person who conducts business in Texas or deploys an AI system in Texas; it prohibits intent-based harmful uses, is AG-enforced with penalties from $10k–$12k (curable) to $80k–$200k (uncurable) per violation, **has no small-business exemption**, and — critically — **substantial compliance with the NIST AI RMF is an affirmative defense/safe harbor**, as is discovering issues via internal testing/red-teaming.
-  **OneLive rule:** maintain an AI-system inventory + written intent/purpose documentation for the extraction system; map governance evidence to NIST AI RMF functions (see §11) so the safe harbor is live from day one.
+- **10.2 TRAIGA applies — 1Live is a Texas AI deployer.** The Texas Responsible AI Governance Act (HB 149, signed 2025-06-22, **effective 2026-01-01**) reaches any person who conducts business in Texas or deploys an AI system in Texas; it prohibits intent-based harmful uses, is AG-enforced with penalties from $10k–$12k (curable) to $80k–$200k (uncurable) per violation, **has no small-business exemption**, and — critically — **substantial compliance with the NIST AI RMF is an affirmative defense/safe harbor**, as is discovering issues via internal testing/red-teaming.
+  **1Live rule:** maintain an AI-system inventory + written intent/purpose documentation for the extraction system; map governance evidence to NIST AI RMF functions (see §11) so the safe harbor is live from day one.
   Sources: https://www.lw.com/en/insights/texas-signs-responsible-ai-governance-act-into-law · https://www.bakerbotts.com/thought-leadership/publications/2025/july/texas-enacts-responsible-ai-governance-act-what-companies-need-to-know · https://www.nortonrosefulbright.com/en/knowledge/publications/c6c60e0c/the-texas-responsible-ai-governance-act
 - **10.3 Restricted-data / no-bypass policy elevated to a cited legal clause.** Your existing policy (no auth/paywall/bot-protection bypass; partner feeds/OAuth/claimed uploads only) is correct posture; ratify it as a legal invariant with counsel review before scale-out. *(Case-law citations: **n.a.** in this pass — flagged for counsel, not for self-research.)*
 - **10.4 Data processing contracts.** TDPSA requires controller–processor contracts with mandated elements (instructions, purpose, duration, confidentiality, deletion/return, sub-processor flow-down); inventory processors (Supabase, Vercel, Clerk, Anthropic, S3/AWS, Stripe) and confirm DPAs. Sources: https://www.akingump.com/en/insights/alerts/texas-data-privacy-act-what-businesses-need-to-know · https://secureprivacy.ai/blog/texas-data-privacy-security-act-tdpsa
 - **10.5 SOC 2 on the revenue-driven clock.** Security (Common Criteria) is the only mandatory TSC; startups typically start Security-only Type 2 and add Availability when selling an uptime SLA. Venue SaaS ($49–199/mo) and $25k–$250k city contracts will hit procurement questionnaires.
-  **OneLive rule:** SOC 2 readiness (policies, access reviews, logging evidence) begins at first paid venue contract; Type 2 Security-only before the first city/festival contract.
+  **1Live rule:** SOC 2 readiness (policies, access reviews, logging evidence) begins at first paid venue contract; Type 2 Security-only before the first city/festival contract.
   Sources: https://soc2auditors.org/insights/soc-2-trust-services-criteria/ · https://www.vanta.com/collection/soc-2/soc-2-trust-service-criteria · https://cloudsecurityalliance.org/blog/2023/10/05/the-5-soc-2-trust-services-criteria-explained
 
 ### §11 — AI governance & evaluation (NEW; doubles as the TRAIGA safe harbor)
 - **11.1 Adopt NIST AI RMF as the governance spine.** Four functions — **Govern, Map, Measure, Manage** — applied across the AI lifecycle; Govern is cross-cutting.
-  **OneLive rule:** one-page Current→Target Profile for the extraction system; Map = system card (purpose, data lineage, provider dependency); Measure = the eval harness; Manage = incident/drift response.
+  **1Live rule:** one-page Current→Target Profile for the extraction system; Map = system card (purpose, data lineage, provider dependency); Measure = the eval harness; Manage = incident/drift response.
   Sources: https://airc.nist.gov/airmf-resources/airmf/5-sec-core/ · https://www.onetrust.com/blog/navigating-the-nist-ai-risk-management-framework-with-confidence/ · GenAI Profile (NIST AI 600-1) via https://docs.modulos.ai/frameworks/nist-ai-rmf/index
 - **11.2 Eval harness thresholds ratified, not implied.** `hallucination_rate` exists in code; a world-class bar states the number. Proposal: **extraction hallucination_rate ≤ 1% on the golden set; faithfulness failures = release-blocking; every prompt_version change re-runs the harness before deploy** (extends existing §5.6–5.7 hallucination grounding: https://arxiv.org/abs/2311.05232).
 - **11.3 Model/provider change control.** Any change of provider, model, or prompt_version is a trust-critical change → non-Claude adversarial review (§0.2) + eval re-run. Provenance already records these fields; the gate must consume them.
@@ -92,7 +92,7 @@ Sources: https://www.taskade.com/blog/dora-metrics-explained · https://www.mult
 
 ### §12 — Incident response, backup & resilience (NEW; distinct from §7 observability)
 - **12.1 IR plan mapped to NIST SP 800-61r3 / CSF 2.0** (Govern, Identify, Protect, Detect, Respond, Recover — Rev 3, April 2025, supersedes the old 4-phase lifecycle).
-  **OneLive rule:** a 2-page IR runbook (roles, severity levels, comms, cure-clock awareness for AG notices) before public launch; one tabletop exercise before go-live.
+  **1Live rule:** a 2-page IR runbook (roles, severity levels, comms, cure-clock awareness for AG notices) before public launch; one tabletop exercise before go-live.
   Sources: https://csrc.nist.gov/pubs/sp/800/61/r3/final · https://www.nist.gov/news-events/news/2025/04/nist-revises-sp-800-61-incident-response-recommendations-and-considerations · https://industrialcyber.co/nist/nist-publishes-sp-800-61-rev-3-overhauling-incident-response-guidance-for-csf-2-0/
 - **12.2 Backup/DR with declared RTO/RPO and a restore test.** Supabase PITR/backups must be verified by an actual restore, not assumed (a backup never restored is §9.6 logic applied to ops). Declare RTO/RPO numbers (proposal: RTO 4h / RPO 1h pre-launch). *(Numeric industry benchmark: **n.a.** — founder decision.)* AWS Well-Architected Reliability pillar grounds the requirement: https://docs.aws.amazon.com/wellarchitected/latest/framework/the-pillars-of-the-framework.html
 
@@ -139,7 +139,7 @@ Sources: https://www.taskade.com/blog/dora-metrics-explained · https://www.mult
 
 ## 7. SELF-AUDIT OF THIS REVIEW (3 ways it could be wrong → verified → updated)
 
-1. **"TRAIGA/TDPSA apply to OneLive" could be wrong** — OneLive may qualify as an SBA small business (TDPSA carve-out), and TRAIGA liability is intent-based, so a truth-first platform is unlikely to trip its prohibitions.
+1. **"TRAIGA/TDPSA apply to 1Live" could be wrong** — 1Live may qualify as an SBA small business (TDPSA carve-out), and TRAIGA liability is intent-based, so a truth-first platform is unlikely to trip its prohibitions.
    *Verified:* Partially sustained for TDPSA (SBA carve-out is real — but sensitive-data-sale consent still binds, and the exemption is size-contingent); **not sustained for TRAIGA** (no small-business exemption in the sources; applicability reaches anyone deploying AI in Texas, and the safe-harbor value stands regardless of prohibition risk). → *Update applied:* §10.1 reframed as "document the exemption, build TDPSA-shaped anyway"; §10.2 kept as mandatory.
 2. **The DORA "elite" numbers could be wrong** — sources conflict (<1 hour vs <1 day lead time; 5% vs 0–15% CFR) because thresholds shifted across report years.
    *Verified:* Sustained as a real ambiguity. → *Update applied:* §7.5a pins the **2024 report** figures (<1 day, ~5%) as canonical and names the conflict rather than hiding it.

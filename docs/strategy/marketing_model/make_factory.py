@@ -76,7 +76,7 @@ arrow(ax,(8.6,5.2),(9.0,5.2))
 
 ax.add_patch(Circle((9.55,1.6),0.26,fc=YELLOW,ec=INK,lw=1.2))
 ax.text(9.55,1.6,"TAP",ha="center",va="center",fontsize=9,fontweight="bold",color=INK)
-card(ax,10.1,0.95,3.6,1.5,"DISTRIBUTED, THEN MEASURED","socials + YouTube · their list · maps, Yelp, Nextdoor, city calendars · OneLive — then covers · signups · sales",INK2,tfs=12.2,bfs=11.4,bw=30)
+card(ax,10.1,0.95,3.6,1.5,"DISTRIBUTED, THEN MEASURED","socials + YouTube · their list · maps, Yelp, Nextdoor, city calendars · 1Live — then covers · signups · sales",INK2,tfs=12.2,bfs=11.4,bw=30)
 arrow(ax,(10.1,2.55),(9.85,1.9),rad=0.15)
 arrow(ax,(10.4,0.95),(2.1,2.2),c=AQUA,rad=-0.25,lw=2.2)
 ax.text(5.6,0.5,"results flow back into 'what worked last time' — month three beats month one",

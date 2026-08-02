@@ -42,7 +42,7 @@ moment-to-moment used throughout; special-circumstances where noted).
   loop) + future run_once enhancement.
 - **H8 (P8.4 windmill+distortion: the miller pays the wind)** —
   ATTRIBUTION GOODWILL LOOP: every surfaced event visibly credits and
-  links its venue/artist sources; being in OneLive should feel like
+  links its venue/artist sources; being in 1Live should feel like
   free distribution, making sources WANT to feed us (newsletters,
   uploads, claims). → both specs, display posture.
 - **H9 (P2 caution)** — PER-SOURCE COMPLIANCE FIELD: each API source

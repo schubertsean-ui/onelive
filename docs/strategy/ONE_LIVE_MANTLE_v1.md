@@ -1,4 +1,4 @@
-# ONE LIVE — The Mantle v1: claiming thought leadership + execution default for AI-era basics in local culture
+# 1LIVE — The Mantle v1: claiming thought leadership + execution default for AI-era basics in local culture
 
 **Compiled 2026-07-22 · Status: PROPOSAL — research response to the founder's fifth 2026-07-22 directive: assess the opportunity to grab the thought-leadership AND execution mantle for small businesses — especially cultural businesses and people — and claim the position of the "default" and "no-brainer": if they want more, fine, there are folks who deliver more — but nobody should have to pay for the basics, the table stakes, the core (as defined in the E-standard) to engage with the fast-approaching new world. Companion to `ONE_LIVE_B2A_GEO_MARKET_ASSESSMENT_v1.md` (esp. §8 onliness, §14 beyond-core, §15 Q9–Q13) and `ONE_LIVE_OWNED_AGENT_v1.md` (E1–E7). Nothing here is license to build or publish.**
 
@@ -79,7 +79,7 @@ distribution engine. Lesson: NAME the thing, TEACH the thing free, and let
 certification/curriculum carry your worldview into every conversation
 where you're not in the room.
 
-**OneLive's position is unusually strong for claiming BOTH** because the
+**1Live's position is unusually strong for claiming BOTH** because the
 gate gives the narrative something no marketer has: mechanical proof. "We
 couldn't sell you a ranking if we wanted to — the physics forbid it" is a
 thought-leadership claim that survives hostile audit, which is exactly
@@ -180,7 +180,7 @@ Battery: seed 2026072202, random word **"telescope"**, all operators run,
 assessment §1 (independent attack = the PR evaluator; Red = founder).
 Harvest (traceable; dead ends logged in the arc):
 
-- **H-M1 (P7 telescope/observatory):** OneLive as the public OBSERVATORY
+- **H-M1 (P7 telescope/observatory):** 1Live as the public OBSERVATORY
   of the AI wave for local culture — we watch the horizon so they don't
   have to. Institutional framing for M-C/M-F (reports, briefings), warmer
   than "vendor insights."
@@ -227,7 +227,7 @@ friction gate.
   Red hat ownership)?
 - **Q16 — Open-standard publication:** publish E1–E7 under an open
   license (CC BY) so anyone — including competitors and consultants — can
-  implement and cite it, with OneLive as steward?
+  implement and cite it, with 1Live as steward?
 - **Q17 — Partner-mark policy:** may a business-facing "meets the
   Standard" mark ever exist? If yes it needs rules BEFORE it exists
   (never on consumer ranking surfaces, never implying more than the gate

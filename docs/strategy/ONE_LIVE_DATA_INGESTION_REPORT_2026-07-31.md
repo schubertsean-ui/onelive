@@ -1,4 +1,4 @@
-# ONE LIVE — Data Ingestion Report & Gap Remediation Plan
+# 1LIVE — Data Ingestion Report & Gap Remediation Plan
 **2026-07-31 · Sean Schubert (founder) ⟷ Agent (manager)**
 
 This report states readiness by **coverage**, not by whether the page loads. Every
@@ -44,7 +44,7 @@ imports; every count is bound to a run in §0.
 | **Everything else (157 sources)** | **0 on the feed** | Candidates or nothing — see §3. |
 
 **Honest headline:** the site is ~94% one ticketing vendor. The cultural/community
-sourcing — the reason OneLive exists — is essentially not flowing yet.
+sourcing — the reason 1Live exists — is essentially not flowing yet.
 
 ---
 

@@ -1,4 +1,4 @@
-# ONE LIVE — Supply-Side Segments v1 (the 23 categories × 5 size tiers)
+# 1LIVE — Supply-Side Segments v1 (the 23 categories × 5 size tiers)
 
 **Compiled 2026-08-01 · Status: RATIFIED 2026-08-01 — founder: "let's add to the canon the 23 segments and add this content" (decision record: `docs/memory/decisions/2026-08-01_supply-segments-canon.md`). This doc is the canonical segmentation vocabulary for supply-side strategy, outreach, and (when built, through normal gates) product taxonomy. The companion research content is research-grade, not canon — see status note at the end.**
 

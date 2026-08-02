@@ -1,4 +1,4 @@
-# ONE LIVE — The Shared, Learning Acquisition Toolkit (v1)
+# 1LIVE — The Shared, Learning Acquisition Toolkit (v1)
 
 Status: BUILT and proven (`brain/acquisition.py`, `brain/seed_acquisition.py`,
 `brain/acquisition_demo.py`, `tests/test_acquisition_toolkit.py`). This document
@@ -19,7 +19,7 @@ needs rendering? where is the real calendar (not the homepage)? — and then
 throwing that knowledge away when the session ended. That is wasted work and,
 worse, it means the agent never gets *better* at acquisition over time.
 
-The toolkit fixes this by giving OneLive a **durable, shared memory of how to
+The toolkit fixes this by giving 1Live a **durable, shared memory of how to
 acquire each source**, that every agent **reads before acquiring** and **writes
 back to after acquiring**, so the common know-how *enlarges and improves* with
 every run instead of resetting to zero.

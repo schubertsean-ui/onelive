@@ -1,4 +1,4 @@
-# ONE LIVE — Product Vision, Principles & Future Surfaces (v1)
+# 1LIVE — Product Vision, Principles & Future Surfaces (v1)
 
 **Status (2026-07-29):** Founder-supplied product canon, captured verbatim in
 substance for use as **content work** begins and as the reference for **future
@@ -27,7 +27,7 @@ Related canon this complements: `CLAUDE.md` (trust invariants, no-pay-to-rank),
 
 ## The vision — "the ethical heartbeat of culture"
 
-Beyond listings, ONE LIVE curates **"night out" experiences** (pre-drinks →
+Beyond listings, 1LIVE curates **"night out" experiences** (pre-drinks →
 dinner → gig → cocktails → munchies, with open tables **beyond Resy/OpenTable**),
 **matches** artists / venues / bars / restaurants for gigs, practice, and
 sessions on slow days, integrates **transportation** (Uber / Lyft / Waymo for
@@ -37,7 +37,7 @@ flows (event density, ride demand, open tables, surge alerts).
 
 **Autonomous vehicles (AVs)** opt-in for in-ride suggestions (e.g. "Music
 ideas?" pulling events / dining / exhibits / specials / chef meals / private
-dining). In 2026's indie surge and AI-ethics focus, ONE LIVE is the ethical
+dining). In 2026's indie surge and AI-ethics focus, 1LIVE is the ethical
 **heartbeat of culture**, extending to AVs for seamless mobility.
 
 ---

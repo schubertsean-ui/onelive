@@ -1,4 +1,4 @@
-# ONE LIVE — Brain SOTA + Multi-Brain research (v1, 2026-07-25)
+# 1LIVE — Brain SOTA + Multi-Brain research (v1, 2026-07-25)
 
 Founder directive (2026-07-25): "Research what is available for building the best
 brain and whether having more than 1 brain could accelerate improved performance
@@ -44,7 +44,7 @@ sessions, REM-analogy), TiMem (temporal-hierarchical consolidation), ZenBrain
 consolidation helps most when future queries are *predictable* from existing
 context; an "attractive but irrelevant dream" wastes compute.
 
-**Where OneLive's brain actually sits (honest):** we are graph-based like
+**Where 1Live's brain actually sits (honest):** we are graph-based like
 Zep/Graphiti/Cognee, and we **lead** on axes the recall benchmarks mostly don't
 score — mechanical provenance (100% citation), reversible entity resolution,
 disputed-shown, the 4 write-invariants, and now bi-temporal validity. On *raw
@@ -105,7 +105,7 @@ multiplies Goodhart.
 
 ---
 
-## Recommendation for OneLive (staged, cheapest-first)
+## Recommendation for 1Live (staged, cheapest-first)
 
 1. **Now, cheap, no new spend:** build the **held-out/blind eval** (base-owned
    hidden set) — it's the fitness function every later step needs, and it makes

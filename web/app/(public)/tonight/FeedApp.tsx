@@ -319,7 +319,7 @@ export default function FeedApp({ events, serverNowMs }: { events: LicensedEvent
     <main className="flow">
       <div className="wrap">
         <div className="mast">
-          <h1>ONE LIVE · Tonight in Austin</h1>
+          <h1>1LIVE · Tonight in Austin</h1>
           <p className="lede">Everything on in Central Texas, in one place — real events, real venues, real prices.</p>
           <div className="kpis">
             <div className="kpi"><div className="v">{total.toLocaleString()}</div><div className="l">happening & upcoming</div></div>
@@ -392,7 +392,7 @@ export default function FeedApp({ events, serverNowMs }: { events: LicensedEvent
         <footer>
           Real, licensed listings from authoritative ticketing sources — never fabricated. Times and prices can change;
           each listing links to the venue/ticket source as the last word. Long-tail domains (libraries, lectures, readings,
-          block parties) are being added from OneLive&rsquo;s own pipeline; what you see here is the ticketed spine.
+          block parties) are being added from 1Live&rsquo;s own pipeline; what you see here is the ticketed spine.
         </footer>
       </div>
 

@@ -19,15 +19,15 @@ describe("parseAllowlist", () => {
 });
 
 describe("isAllowlisted (fail-closed)", () => {
-  const list = parseAllowlist("ops@onelive.test, founder@onelive.test");
+  const list = parseAllowlist("ops@1live.test, founder@1live.test");
 
   it("passes an allowlisted email", () => {
-    expect(isAllowlisted("ops@onelive.test", list)).toBe(true);
+    expect(isAllowlisted("ops@1live.test", list)).toBe(true);
   });
 
   it("matches case-insensitively", () => {
-    expect(isAllowlisted("OPS@OneLive.TEST", list)).toBe(true);
-    expect(isAllowlisted("  Founder@onelive.test  ", list)).toBe(true);
+    expect(isAllowlisted("OPS@1Live.TEST", list)).toBe(true);
+    expect(isAllowlisted("  Founder@1live.test  ", list)).toBe(true);
   });
 
   it("fails a non-allowlisted email", () => {

@@ -1,4 +1,4 @@
-# ONE LIVE — Engagement Canon: Invariants vs. Testable Hypotheses v1
+# 1LIVE — Engagement Canon: Invariants vs. Testable Hypotheses v1
 
 **Status: FOUNDER-RATIFIED 2026-08-01** ("Adopt invariants-vs-testable-
 hypotheses split is excellent" — decision record

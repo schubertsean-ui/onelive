@@ -12,7 +12,7 @@ activities and culture."
 
 ## The shift this introduces
 
-OneLive today is **event-first**: the surface shows events; venues are a field
+1Live today is **event-first**: the surface shows events; venues are a field
 on an event. This feature adds a **venue-first** surface for a specific,
 tourism-heavy category — tasting rooms — that is worth browsing *even when no
 event is scheduled*. It does NOT change the event trust pipeline; it adds a

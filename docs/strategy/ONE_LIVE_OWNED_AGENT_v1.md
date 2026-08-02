@@ -1,4 +1,4 @@
-# ONE LIVE — The Owned Agent v1 (an AI agent artists, venues, and event organizers own and control)
+# 1LIVE — The Owned Agent v1 (an AI agent artists, venues, and event organizers own and control)
 
 **Compiled 2026-07-22 · Status: PROPOSAL — research response to the founder's 2026-07-22 question ("How might we create an AI agent that is 'owned' by and 'works for' artists and events and venues?"). Part II added same day from the founder's follow-up (agent-facing representation, the adoption-gap belief, essential needs, open + private). Nothing here is license to build; every build item is gated below. Builds directly on RATIFIED canon: `ONE_LIVE_SCALEOUT_SENSOR_ARCHITECTURE_v1.md` (first-party fast lane, watcher records, scoped authority + dispute override).**
 
@@ -72,7 +72,7 @@ voluntarily feeding the consumer platform's supply, because the free tools
 solve the artist's own problem — their stat: [~40% of concert tickets go
 unsold because fans don't know their favorite artist is in
 town](https://www.billboard.com/music/music-news/bandsintown-launches-analytics-tools-for-artists-exclusive-6458292/).
-That is OneLive's consumer thesis stated from the supply side. What
+That is 1Live's consumer thesis stated from the supply side. What
 Bandsintown does NOT do is verification-grade trust (its data is
 artist-asserted and unaudited) or local non-music culture — both are our
 differentiation, not gaps we must close to copy the mechanic.
@@ -122,7 +122,7 @@ tool-access standard ([10,000+ public servers, protocol stack maturing
 through 2026](https://www.digitalapplied.com/blog/ai-agent-protocol-ecosystem-map-2026-mcp-a2a-acp-ucp)).
 The strategic implication for us is Phase C, not Phase A: once we hold
 verified, gated event truth for a metro, exposing it as an MCP server makes
-OneLive the source consumer agents (Claude, ChatGPT, Gemini surfaces) query
+1Live the source consumer agents (Claude, ChatGPT, Gemini surfaces) query
 — "be where the agents look" is the 2027 version of "be where Google looks."
 ([standards overview](https://amdatalakehouse.substack.com/p/the-state-of-agentic-ai-standards))
 
@@ -327,7 +327,7 @@ the gate.
 1. **Ratify the concept?** The three-layer decomposition (pipe = ratified
    sensor canon, gift = F0–F4, skin = agent-framed onboarding) as the
    direction for the owned agent — yes/no/amend. Includes the working name
-   question ("your OneLive agent"? partner-facing name can come later).
+   question ("your 1Live agent"? partner-facing name can come later).
 2. **Sequencing:** agree Phase A gates on Steps 6–7 (golden-set gate, then
    watcher records with real candidate flow) and does NOT preempt the
    current critical path? (Recommended: yes — the claim flow without a live
@@ -355,7 +355,7 @@ the gate.
 
 ## 12. The follow-up ask (verbatim anchors, 2026-07-22)
 
-1. "The agent should be the venue/artist/events 'agent' to interact with the coming wave of AI agents who will be [doing] work on other people and orgs behalf, including OneLive … We can help them ensure their brand, their content, etc is represented as they choose."
+1. "The agent should be the venue/artist/events 'agent' to interact with the coming wave of AI agents who will be [doing] work on other people and orgs behalf, including 1Live … We can help them ensure their brand, their content, etc is represented as they choose."
 2. "My belief is that — research to verify or dispute or enhance understanding — most small businesses and artists have no real understanding of how to use AI or they think it may cost a lot or they may be charged a setup and ongoing monthly fee by someone to 'manage' the 'AI' capabilities."
 3. "We should be able to deliver so much value that we are seen as the 80/20 or even 90/10 of basic needs — need to define (research) basic or essential needs and then build to that standard."
 4. "We, as an open platform and not a closed or walled off platform like Facebook … and that activity can stay on device and really emphasize our privacy focus, should also be attractive to consumers."
@@ -363,7 +363,7 @@ the gate.
 ## 13. The agent-facing layer (B2A): representing the business to other agents
 
 The follow-up names something the v1 sections underweighted: the owned agent
-is not only a pipe INTO OneLive — it is the business's REPRESENTATIVE to
+is not only a pipe INTO 1Live — it is the business's REPRESENTATIVE to
 every OTHER agent now arriving on the web. The industry has a name for this:
 [Business-to-Agent (B2A)](https://www.averi.ai/blog/business-to-agent-b2a-agentic-web)
 — making a brand legible and actionable to AI agents acting on users'
@@ -393,10 +393,10 @@ business's data correctly and can select it. The standards are forming NOW:
 **Proposed function F6 · Agent-readable presence.** The owned agent
 generates and maintains the business's agent-facing artifacts from their
 verified, gated data: (a) an llms.txt-style profile + correct Event JSON-LD
-(extends F3) they host with one paste — cheap, static, Phase B; (b) OneLive's
+(extends F3) they host with one paste — cheap, static, Phase B; (b) 1Live's
 own agent endpoint (MCP and/or NLWeb-style) that answers any consumer
 agent's question about the entity with the owner-approved, gate-verified
-version — Phase C, and the strategic prize: **OneLive becomes the trust
+version — Phase C, and the strategic prize: **1Live becomes the trust
 anchor other agents cite.** A consumer agent planning someone's Friday night
 gets the venue's events as the venue chose to state them, certified by our
 gate, instead of a hallucinated summary of a stale webpage.
@@ -462,7 +462,7 @@ the essential presence needs of a venue/artist/organizer, ranked:
 | # | Essential need | Owned-agent coverage |
 |---|---|---|
 | E1 | Be findable with accurate basics — hours, location, dates consistent everywhere (inconsistency measurably drives customers away) | F1 + F2 (one source of truth, synced out) |
-| E2 | Events published once, appearing everywhere | F1 + F3 widget + OneLive surfaces |
+| E2 | Events published once, appearing everywhere | F1 + F3 widget + 1Live surfaces |
 | E3 | Look alive — recent activity signals a reliable business | F3 (widget always current) + F4 (silence alerts) |
 | E4 | Be represented correctly in search AND in AI answers | F3 (JSON-LD) + F6 (agent-readable presence) |
 | E5 | Know what's working, in plain language | F4 digest |
@@ -476,7 +476,7 @@ platform-dependent (Meta), and the one where "assist, owner publishes"
 is the only posture consistent with our physics. **"Build to that
 standard" becomes mechanical:** each E above turns into an acceptance
 criterion in the Phase A/B build contracts (e.g. E1: a venue's canonical
-hours/dates change propagates to every OneLive surface and the widget
+hours/dates change propagates to every 1Live surface and the widget
 within one sync cycle; E5: digest readable by a smart non-engineer —
 same bar as founder comms). The E-list is the rubric evaluators review
 Phase A/B PRs against, alongside the design brief's rubric.
@@ -523,7 +523,7 @@ Proposed positioning, stated with its costs:
 ## 17. Additions to the consolidated founder questions
 
 - **Q6 — F6 ratification:** adopt "agent-readable presence" (llms.txt-style
-  profile + JSON-LD in Phase B; OneLive agent endpoint serving gated truth
+  profile + JSON-LD in Phase B; 1Live agent endpoint serving gated truth
   in Phase C) into the function set, with the two trust notes in §13
   (disputes served to machines as to humans; read-only surface of promoted
   data) as binding conditions?

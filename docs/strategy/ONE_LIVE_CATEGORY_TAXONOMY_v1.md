@@ -1,4 +1,4 @@
-# ONE LIVE — Category Taxonomy & Volume Architecture v1 (PROPOSAL, 2026-07-24)
+# 1LIVE — Category Taxonomy & Volume Architecture v1 (PROPOSAL, 2026-07-24)
 
 Founder directive (2026-07-24): "we probably need a genre equivalent for the
 other 20+ categories and sub categories — research those. The categorization and

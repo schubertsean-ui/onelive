@@ -1,4 +1,4 @@
-# OneLive KPI Framework v1 — quarterly-prioritization process
+# 1Live KPI Framework v1 — quarterly-prioritization process
 
 Status: PROPOSAL for the process and per-area KPIs (agent-designed, ready to
 run); the **North Star metric is explicitly FOUNDER-RATIFY** (see below) — an
@@ -22,7 +22,7 @@ appears.
 
 ## 1. Why this exists
 
-OneLive has real areas of work happening at once — getting more shows into
+1Live has real areas of work happening at once — getting more shows into
 the feed, making sure the AI never states a fact that isn't true, keeping
 the AI bill small, making the "brain" (the pipeline's shared knowledge)
 smarter over time, making the app itself good to use, and keeping the trust
@@ -53,12 +53,12 @@ low-confidence guesses.
 
 **Why this is FOUNDER-RATIFY, not agent-decided:** the North Star is the one
 number the whole team is meant to orient around. Picking it is a strategic
-call about what OneLive IS — a strictly-verified utility vs. a broader
+call about what 1Live IS — a strictly-verified utility vs. a broader
 discovery feed vs. something else — and CLAUDE.md reserves exactly this kind
 of "what are we, and what do we optimize for" decision for the founder, the
 same way trust-invariant changes and go-live decisions are founder-crucial.
 An agent proposing a plausible candidate and then quietly treating it as
-final would be picking OneLive's strategy without being asked to. **This
+final would be picking 1Live's strategy without being asked to. **This
 proposal is not measured or reported anywhere as if it were ratified — see
 `docs/RECORD.md` R-046.**
 

@@ -9,8 +9,8 @@ import { authProviderActive } from "../../lib/auth";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "OneLive — Private preview",
-  description: "OneLive is in a private preview. Access is limited to an invited list.",
+  title: "1Live — Private preview",
+  description: "1Live is in a private preview. Access is limited to an invited list.",
 };
 
 // Shown to signed-out visitors and to authenticated-but-not-allowlisted users
@@ -33,7 +33,7 @@ export default function AccessPage() {
         <p style={styles.kicker}>Private preview</p>
         <h1 style={styles.title}>You&rsquo;re a little early.</h1>
         <p style={styles.body}>
-          OneLive is Austin&rsquo;s trust-first guide to live music, art, food, and
+          1Live is Austin&rsquo;s trust-first guide to live music, art, food, and
           culture. We&rsquo;re opening it up to a small, invited group first while we
           get the verification right. Access is limited to an allowlist during the
           preview.

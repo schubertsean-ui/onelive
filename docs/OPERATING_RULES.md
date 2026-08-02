@@ -1,4 +1,4 @@
-# OneLive — Operating Rules (Loops, Harness & Kaizen)
+# 1Live — Operating Rules (Loops, Harness & Kaizen)
 
 **Status:** Active convention. Read alongside `CLAUDE.md` (architecture) and
 `docs/session_arcs/README.md` (session continuity). `CLAUDE.md` says *what* the
@@ -10,7 +10,7 @@ system is; this doc says *how we work on it*.
 
 ## 0. Prime directive — trust is the foundation, integrated not bolted on
 
-OneLive is a truth-first live-events platform. Trust is not a feature, a badge, or
+1Live is a truth-first live-events platform. Trust is not a feature, a badge, or
 a later phase — it is the property every layer must preserve. Every rule below
 exists to protect it. When a rule and a deadline conflict, the rule wins; we cut
 scope, never trust.

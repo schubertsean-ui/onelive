@@ -1,4 +1,4 @@
-# ONE LIVE — Ingest Inbox v1: newsletters, fan clubs, and direct feeds at scale (PROPOSAL)
+# 1LIVE — Ingest Inbox v1: newsletters, fan clubs, and direct feeds at scale (PROPOSAL)
 
 Greppable summary: founder-directed 2026-07-22 ("Spec all 3… Provide the
 world class options in terms of how best to have email inbox(s) set up to
@@ -57,7 +57,7 @@ The world-class detail is **one address per subscription**
 Discarded: deliverability and ops burden are a full-time job that buys
 nothing over Option B.
 
-## Governance (the part that makes it OneLive)
+## Governance (the part that makes it 1Live)
 
 1. **Founder owns the identity surface**: the domain, the routing
    account, and the decision to stand them up (new service =

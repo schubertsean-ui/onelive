@@ -45,7 +45,7 @@ describe("shareTitle", () => {
     expect(shareTitle(ev())).toBe("Sister Neon");
   });
   it("falls back when a row somehow has no title", () => {
-    expect(shareTitle(ev({ title: "" }))).toBe("A show on ONE LIVE");
+    expect(shareTitle(ev({ title: "" }))).toBe("A show on 1LIVE");
   });
 });
 
@@ -55,7 +55,7 @@ describe("shareText", () => {
     expect(t).toContain("Sister Neon");
     expect(t).toContain("Sahara Lounge · East Austin");
     expect(t).toContain("Free");
-    expect(t).toContain("via ONE LIVE");
+    expect(t).toContain("via 1LIVE");
   });
 
   it("adds the performer only when it differs from the title", () => {

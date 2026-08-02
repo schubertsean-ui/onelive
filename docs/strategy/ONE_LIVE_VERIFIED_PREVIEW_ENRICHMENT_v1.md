@@ -1,4 +1,4 @@
-# ONE LIVE — Verified Preview & Enrichment (Option B) — Spec v1
+# 1LIVE — Verified Preview & Enrichment (Option B) — Spec v1
 
 **Status:** PROPOSAL — **founder-crucial** (new services · spend · legal posture). The founder
 directed "I'd like B" (the verified/specific media beyond Option A search links) and sharpened
@@ -14,7 +14,7 @@ legally clean, is **local-first**.
 
 **Why local-first (the moat, confirmed by research):** the big platforms (YouTube/Spotify/TMDB)
 have almost nothing for a neighborhood lecture, a local band, or a venue's recurring night —
-the long tail OneLive exists to cover. The differentiated data lives on the entity's **own**
+the long tail 1Live exists to cover. The differentiated data lives on the entity's **own**
 pages (which the pipeline already fetches via `venue_url`) and in authoritative open cross-link
 graphs. Big-platform APIs are a **targeted top-up**, never the foundation. Two of them also
 moved *against* this use in 2024–26 (see §5).
@@ -190,6 +190,6 @@ top-tracks Feb 2026, extended-access org-only) + Embed/oEmbed player; TMDB ToS (
 clauses); Google Places 2025 pricing change (per-SKU free tiers, Details $5/$17/$20 per 1k,
 Photos $7/1k, no-cache-photo-refs, attribution); og:image licensing risk; schema.org `sameAs` /
 Wikidata / MusicBrainz for authoritative entity resolution; copyright trend limiting reuse of
-press photos. Grounds on OneLive assets already held: `venue_url` (fetched pages), gov
+press photos. Grounds on 1Live assets already held: `venue_url` (fetched pages), gov
 `venue_truth` (#122), the authority cascade (`worker/authority.py`, #123), and the 4-state
 confidence model (`worker/confidence.py`).

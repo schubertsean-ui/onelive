@@ -1,4 +1,4 @@
-# ONE LIVE — THE EMOTION & VIBE LAYER (Concept Spec v1)
+# 1LIVE — THE EMOTION & VIBE LAYER (Concept Spec v1)
 **Compiled 2026-07-12 · Status: PROPOSAL — taxonomy and guardrails await founder ratification (Gap G-VT).**
 **Founder concept thread:** Spark Line → Emotion Glyph → Emotion Cloud images (multiple per artist/event) → applied to venues & locations → **"Feel" search mode** ("what do I want to feel tonight?") → per-user concierge experience → deep analytics moat.
 

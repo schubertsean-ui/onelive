@@ -1,4 +1,4 @@
-# ONE LIVE — Held-Out Brain Eval v1 (the un-game-able test split)
+# 1LIVE — Held-Out Brain Eval v1 (the un-game-able test split)
 
 **What this is (plain language):** a SECOND brain benchmark that a
 self-optimizing agent cannot cheat. The first benchmark

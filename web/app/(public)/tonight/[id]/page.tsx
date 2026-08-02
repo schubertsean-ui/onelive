@@ -41,7 +41,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const fallback = { title: "A show — ONE LIVE" };
+  const fallback = { title: "A show — 1LIVE" };
   try {
     if (!supabaseConfigured()) return fallback;
     const { id } = await params;
@@ -63,7 +63,7 @@ export async function generateMetadata(
       shareCaveat(e),
     ].filter(Boolean).join(" · ");
     const img = httpOrNull(e.image_url);
-    const title = `${e.title} — ONE LIVE`;
+    const title = `${e.title} — 1LIVE`;
 
     return {
       title,
@@ -173,7 +173,7 @@ export default async function EventDetailPage(
     return (
       <Shell>
         <div className="err">
-          This event is outside the Central Texas area ONE LIVE covers, so it
+          This event is outside the Central Texas area 1Live covers, so it
           isn&rsquo;t one of our listings.
         </div>
       </Shell>

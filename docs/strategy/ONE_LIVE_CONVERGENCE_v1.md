@@ -1,4 +1,4 @@
-# ONE LIVE — Data Convergence Model v1
+# 1LIVE — Data Convergence Model v1
 
 **Status: PROPOSAL** (pending founder ratification, gap-by-gap — see §11).
 Date: 2026-07-22. Author: generator session, at founder direction.
@@ -90,7 +90,7 @@ The framework survey compared Dempster–Shafer evidence theory, Bayesian
 networks, fuzzy/possibility theory, credal sets, and Subjective Logic
 (Jøsang) as the uncertainty representation. **Subjective Logic (SL) is the
 recommendation** — it was built for exactly this job (trust and reputation
-fusion across unreliable sources) and the alternatives each fail a OneLive
+fusion across unreliable sources) and the alternatives each fail a 1Live
 requirement (§9).
 
 **What it is.** Every field of every claim holds an *opinion*: belief `b`,
@@ -267,7 +267,7 @@ H4/H7/H8/H9):
 
 ## 7. The closure loop: reality grades everyone
 
-OneLive's structural advantage over most fusion problems: **our claims
+1Live's structural advantage over most fusion problems: **our claims
 resolve.** The event happens or it doesn't, at a known time. That makes
 every standing belief a scored forecast and gives us free, continuous
 ground truth (H6):

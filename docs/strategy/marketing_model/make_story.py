@@ -37,18 +37,22 @@ def storyboard(fname, title, subtitle, steps, ledger=None, actor_key=None, ncols
         row=steps[r*ncols:(r+1)*ncols]
         row_h.append(max(card_height(e,wrap_w) for _,e in row))
     led_h=1.18 if ledger else 0.0
-    top=1.08
+    top=1.08+0.38*(len(textwrap.wrap(title,64))-1)
     figh=m+top+sum(row_h)+(nrows-1)*gut+(0.24+led_h if ledger else 0.06)+m
     fig,ax=plt.subplots(figsize=(figw,figh))
     fig.patch.set_facecolor(SURFACE); ax.set_facecolor(SURFACE)
     ax.set_position((0,0,1,1))
     ax.set_xlim(0,figw); ax.set_ylim(0,figh); ax.axis("off")
-    ax.text(m,figh-m-0.30,title,fontsize=TITLE_FS,fontweight="bold",color=INK)
-    ax.text(m,figh-m-0.70,esc(subtitle),fontsize=SUB_FS,color=INK2)
+    tl="\n".join(textwrap.wrap(title,64))   # wrap clear of the badge (visual QA)
+    nl=tl.count("\n")+1
+    ax.text(m,figh-m-0.02,tl,fontsize=TITLE_FS,fontweight="bold",color=INK,va="top",linespacing=1.18)
+    ax.text(m,figh-m-0.70-0.38*(nl-1),esc(subtitle),fontsize=SUB_FS,color=INK2)
     if badge:
-        bw_=0.3+0.104*len(badge)
-        ax.add_patch(FancyBboxPatch((figw-m-bw_,figh-m-0.44),bw_,0.4,boxstyle="round,pad=0.05",fc="white",ec="#eda100",lw=2.0))
-        ax.text(figw-m-bw_/2,figh-m-0.24,badge,fontsize=9.6,fontweight="bold",color="#b87e00",ha="center",va="center")
+        _b1,_b2=(badge.split(" — ",1)+[""])[:2]
+        bw_=0.3+0.082*max(len(_b1),len(_b2))
+        ax.add_patch(FancyBboxPatch((figw-m-bw_,figh-m-0.62),bw_,0.56,boxstyle="round,pad=0.05",fc="white",ec="#eda100",lw=2.0))
+        ax.text(figw-m-bw_/2,figh-m-0.25,_b1,fontsize=10.4,fontweight="bold",color="#b87e00",ha="center",va="center")
+        ax.text(figw-m-bw_/2,figh-m-0.49,_b2,fontsize=8.8,fontweight="bold",color="#b87e00",ha="center",va="center")
     y_top=figh-m-top
     for r in range(nrows):
         ch=row_h[r]
@@ -98,18 +102,18 @@ storyboard("flow_onboard.png",
   ("Minute 3",[("o","Glances at the preview card: 'Your next 14 events — here's how you'll appear.'",True)]),
   ("Minute 4",[("o","Confirms identity — instant with domain email; quick fallback otherwise.",True)]),
   ("Minute 5",[("a","Switches on safe defaults: sync, watch, alerts, weekly note. All changeable later; none decided up front.",False)]),
-  ("From here on",[("w","Live: OneLive · site widget · Google, Bing, Yelp, Foursquare, Apple, Nextdoor, city calendars · machine-readable everywhere.",False)]),
+  ("From here on",[("w","Live: 1Live · site widget · Google, Bing, Yelp, Foursquare, Apple, Nextdoor, city calendars · machine-readable everywhere.",False)]),
  ])
 
 # ---------------- 2 · STANDING LOOP ----------------
 storyboard("flow_loop.png",
  "The standing loop — what 'ongoing' means",
- "Runs continuously for every claimed entity. The owner's tap is ALWAYS the send button; nothing posts itself; nothing here ever affects OneLive ranking.",
+ "Runs continuously for every claimed entity. The owner's tap is ALWAYS the send button; nothing posts itself; nothing here ever affects 1Live ranking.",
  [
   ("Continuously",[("o","Nothing. Runs the business; updates the calendar the way they already do.",False),
                    ("a","Watches their calendar, pages, and the pipes for changes and drift.",False)]),
   ("When something changes",[("a","Syncs it everywhere within ~the hour; re-emits the machine-readable data.",False),
-                   ("w","Site widget · OneLive · maps & listings pipes · their socials (only ever after a tap).",False)]),
+                   ("w","Site widget · 1Live · maps & listings pipes · their socials (only ever after a tap).",False)]),
   ("When something's wrong",[("a","Short alert: 'Yelp says Tuesday hours differ' / 'feed quiet 9 days.'",False),
                    ("o","One-tap fix, or dismiss.",True)]),
   ("~2 weeks before each event",[("a","Campaign kit arrives: carousel, story crops, captions in their voice, ad recipe, schedule.",False),
@@ -126,7 +130,7 @@ storyboard("flow_bar.png",
  [
   ("Monday",[("o","Adds 'DJ Mala — Friday 10pm' to the Google Calendar she already keeps.",True)]),
   ("Within the hour",[("a","Detects it; builds the listing; updates widget + pipes; publishes the recurring trivia night for the whole quarter.",False),
-              ("w","Google Search/Maps · Yelp · Foursquare · Apple Maps · Nextdoor · the city calendars · OneLive · her site — all in agreement.",False)]),
+              ("w","Google Search/Maps · Yelp · Foursquare · Apple Maps · Nextdoor · the city calendars · 1Live · her site — all in agreement.",False)]),
   ("Tuesday",[("a","Catches drift: the promoter's flyer says 9pm, the calendar says 10pm — asks which is true.",False),
               ("o","Taps '10pm' — every surface corrects.",True)]),
   ("12 days out",[("a","Kit arrives: 4-card carousel from her photos, captions, $40 geo-boost recipe (her ad account, her cap), SMS draft to 214 regulars.",False),
@@ -149,7 +153,7 @@ storyboard("flow_winery.png",
  [
   ("Season start",[("o","Adds Spring Release Party + monthly 'Blending 101' class ($45, tickets on their Tock page).",True)]),
   ("Same day",[("a","Publishes both; the class is BOOKABLE via their ticket link; fixes Apple Maps winter hours; club signup on every listing.",False),
-              ("w","Google + Business Profile · Apple Maps (hours right) · Yelp · TripAdvisor · Vivino · city calendars · OneLive · their site.",False)]),
+              ("w","Google + Business Profile · Apple Maps (hours right) · Yelp · TripAdvisor · Vivino · city calendars · 1Live · their site.",False)]),
   ("Two weeks out",[("a","Release kit: carousel from bottle shots, a YouTube Short, drive-time ad recipe ('wine lovers within 45 min'), club early-access email.",False),
               ("o","Approves; bumps the ad cap to $60.",True)]),
   ("Release Saturday",[("a","Day-of 'we're pouring today' story staged; tasting-room QR card links to club signup.",False),
@@ -171,7 +175,7 @@ storyboard("flow_artist.png",
  [
   ("Tuesday",[("o","Gets booked at The Listening Room, May 14. Does nothing else — the venue posts its calendar.",False)]),
   ("Within the hour",[("a","Sees her name on the venue's listing; asks: 'Playing The Listening Room May 14?' One tap: yes.",True)]),
-  ("Same week",[("a","Publishes to HER schedule: site, link-in-bio, OneLive, Bandsintown + Songkick artist pages. Fixes a stale AI fact (her old band name) with her correct bio.",False),
+  ("Same week",[("a","Publishes to HER schedule: site, link-in-bio, 1Live, her Bandsintown artist page. Fixes a stale AI fact (her old band name) with her correct bio.",False),
               ("w","Search & AI answers about ROSA: right bio, right links, right next show — her words, everywhere.",False)]),
   ("10 days out",[("a","Announcement kit in her voice, from her photos: post + story + 'add to calendar' link + mailing-list signup. Nothing generated touches her music or artwork.",False),
               ("o","Approves from the bus.",True)]),
@@ -193,7 +197,7 @@ storyboard("flow_promo.png",
  [
   ("The idea",[("o","Adds ONE line to the tasting event: 'Newsletter signup at booking → first pour free.'",True)]),
   ("Within the hour",[("a","Attaches the offer everywhere the event lives; the signup link now carries the benefit; tasting-room QR card regenerated.",False),
-              ("w","Google · Apple Maps · Yelp · Nextdoor · city calendars · OneLive · their site — ALL show the tasting WITH the offer; AI can cite it.",False)]),
+              ("w","Google · Apple Maps · Yelp · Nextdoor · city calendars · 1Live · their site — ALL show the tasting WITH the offer; AI can cite it.",False)]),
   ("The kit",[("a","Offer-forward kit: carousel + GBP post with the benefit callout, captions, boost recipe (their ad account), club email draft.",False),
               ("o","Approves over coffee.",True)]),
   ("At the tasting",[("a","QR at the bar: signup captures to THEIR list; pour redemption logged with a code — no new hardware, no POS change.",False)]),
@@ -219,10 +223,10 @@ storyboard("flow_onboardloop.png",
   ("Minutes 1–3",[("a","Reads what's public: events, calendar, posts, photos, hours, links.",False)]),
   ("Minute 3–4",[("o","Glances at the preview card; confirms identity.",True)]),
   ("Minute 5",[("a","Switches on safe defaults: sync, watch, alerts, weekly note — all changeable later.",False)]),
-  ("From here on",[("w","Live: OneLive · site widget · Google, Bing, Yelp, Foursquare, Apple, Nextdoor + city calendars — machine-readable everywhere.",False)]),
+  ("From here on",[("w","Live: 1Live · site widget · Google, Bing, Yelp, Foursquare, Apple, Nextdoor + city calendars — machine-readable everywhere.",False)]),
   ("Continuously",[("a","Watches their calendar, pages, and the pipes for changes and drift.",False)]),
   ("Something changes",[("a","Syncs it everywhere within ~the hour.",False),
-                   ("w","Widget · OneLive · pipes · socials (after a tap).",False)]),
+                   ("w","Widget · 1Live · pipes · socials (after a tap).",False)]),
   ("Something's wrong",[("a","Alert: 'Yelp says Tuesday hours differ.'",False),
                    ("o","One-tap fix, or dismiss.",True)]),
   ("~2 weeks out",[("a","Campaign kit arrives: carousel, crops, captions, ad recipe, schedule.",False),

@@ -15,7 +15,7 @@ never for sale. STATUS: PROPOSAL for ratification; P1 has no blockers.
 ## The venue-type taxonomy (the founder's "or… any entertainment venue")
 
 `place_type` becomes an extensible config vocabulary, favoritable from day
-one even where OneLive doesn't yet LIST that type's events: music venue ·
+one even where 1Live doesn't yet LIST that type's events: music venue ·
 bar · restaurant (incl. supper clubs — Broken Spoke is all three) · dance
 hall · theater · auditorium/PAC · museum · gallery · school/university
 venue · comedy club · outdoor/park stage · church/community hall · …
@@ -52,7 +52,7 @@ registration, OAuth apps, secret custody, review processes = new services
 scopes, matching happens server-side against our lineup data, library
 contents are never stored wholesale, disconnect = purge derived data.
 
-## Trust screens (the rules that make this OneLive and not an ad platform)
+## Trust screens (the rules that make this 1Live and not an ad platform)
 
 1. **Lens, never gate:** personalization re-orders and highlights; it
    never removes. The full chronological feed stays one visible tap away;

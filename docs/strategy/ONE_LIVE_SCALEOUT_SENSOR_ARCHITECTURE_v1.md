@@ -1,4 +1,4 @@
-# ONE LIVE — Scale-Out Sensor Architecture v1 (watchers, three modes, provenance-weighted gate)
+# 1LIVE — Scale-Out Sensor Architecture v1 (watchers, three modes, provenance-weighted gate)
 
 **Compiled 2026-07-14 · Status: RATIFIED 2026-07-14 — founder decisions (verbatim anchors below). Supersedes nothing; extends the pipeline architecture (CLAUDE.md) past the current critical path. Build triggers per section — RATIFIED ≠ build-now.**
 
@@ -80,7 +80,7 @@ Two validated first-party channels, equal rank:
   the entity's own canonical domain; posts from its registered official
   handles. Validation is cryptographic/mechanical code, never vibes.
 - **Authorized in-product account:** the entity (or designee) enters the
-  information in OneLive through its claimed, authenticated account (the
+  information in 1Live through its claimed, authenticated account (the
   existing venue/creator claim flow; auth checks per CODING_CONVENTIONS).
 
 **The rule (founder-ratified):** a validated first-party assertion about the

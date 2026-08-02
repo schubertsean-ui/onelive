@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# The OneLive engine — clean three-column layout, straight pipeline, outside loop.
+# The 1Live engine — clean three-column layout, straight pipeline, outside loop.
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -22,7 +22,7 @@ FW,FH=13.9,9.7
 fig,ax=plt.subplots(figsize=(FW,FH))
 fig.patch.set_facecolor(SURFACE); ax.set_facecolor(SURFACE)
 ax.set_position((0,0,1,1)); ax.set_xlim(0,FW); ax.set_ylim(0,FH); ax.axis("off")
-ax.text(0.2,FH-0.38,"The OneLive engine — ingestion, verification, distribution, and the loop",fontsize=19,fontweight="bold",color=INK)
+ax.text(0.2,FH-0.38,"The 1Live engine — ingestion, verification, distribution, and the loop",fontsize=19,fontweight="bold",color=INK)
 ax.text(0.2,FH-0.76,"Two ways culture flows in — the open web (we read it) and the Owned Agent (they bring it, verified). One trust machine in the middle; demand flows back out.",fontsize=11.8,color=INK2)
 
 # column geometry
@@ -64,7 +64,7 @@ ax.text(CX+CW/2,1.85,"first-party: pre-corroborated — STILL passes the gate",f
 # ---- RIGHT column ----
 card(ax,RX,6.15,RW,1.85,"/TONIGHT — THE CONSUMER FEED","night-of deciders choosing where to go; trust states visible; no pay-to-rank, no connect-to-rank — ever",VIOLET,bw=38)
 card(ax,RX,3.85,RW,1.85,"THEIR OWN SURFACES","site widget · socials + YouTube (their tap) · Nextdoor + city calendars kept current · their growing list",VIOLET,bw=38)
-card(ax,RX,1.5,RW,1.95,"THE AI-ANSWER LAYER","assistants & answer engines — fed by the databases, open AI-search-crawler access, IndexNow submissions, and (Phase C) OneLive's gated endpoint",VIOLET,bw=38)
+card(ax,RX,1.5,RW,1.95,"THE AI-ANSWER LAYER","assistants & answer engines — fed by the databases, open AI-search-crawler access, IndexNow submissions, and (Phase C) 1Live's gated endpoint",VIOLET,bw=38)
 bus=9.05
 arrow(ax,(CX+CW,ys[4][1]-0.35),(bus,ys[4][1]-0.35),c=AQUA)
 ax.plot([bus,bus],[2.45,7.0],color=AQUA,lw=2.2)
@@ -80,7 +80,7 @@ ax.text(6.95,0.83,wrap("THE LOOP — demand returns as measured attendance, sign
 arrow(ax,(RX+RW/2,1.5),(RX+RW/2,1.26),c=YELLOW,lw=2.4,ms=16)
 arrow(ax,(LX+LW/2,1.26),(LX+LW/2,1.48),c=YELLOW,lw=2.4,ms=16)
 
-ax.text(6.95,0.16,"physics, not policy:  AI never publishes — all data passes the gate · ranking is never for sale · disputed always shown · leave anytime, keep everything",
+ax.text(6.95,0.16,"physics, not policy:  AI never publishes — all data passes the gate · ranking is never for sale · disputed always shown",
  fontsize=9.8,color=INK2,ha="center",style="italic")
 plt.savefig("flow_model.png",dpi=185,facecolor=SURFACE); plt.close()
 print("model done  aspect",round(FH/FW,2))

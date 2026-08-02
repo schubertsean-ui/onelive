@@ -3,25 +3,25 @@
 Greppable summary: founder-directed (2026-07-15: single person, couple,
 small group, large group, huge group, and mixed collections who want to
 connect or have someone open with "hey what if we do this?" / "here are a
-few options…" — they come to OneLive for the answer). Architecture: the
+few options…" — they come to 1Live for the answer). Architecture: the
 SHORTLIST → VOTE → PLAN object — ephemeral, link-shared, no accounts
 needed to respond, dead after the night — phased P0–P3, with fan-to-fan
 CONNECT (strangers meeting strangers) explicitly split out as its own
 founder-gated future decision (safety/legal weight of its own). The
-charter line this must never cross: OneLive is NOT a social network — group
+charter line this must never cross: 1Live is NOT a social network — group
 planning is a UTILITY around tonight's real shows, never a feed, never
 profiles, never engagement mechanics. STATUS: PROPOSAL for ratification;
 P0 is already implied by the ratified design brief (§6.D5 share card).
 
 ## The party-size ladder (who is asking, and what "the answer" means)
 
-| Size | The moment | What OneLive must hand them |
+| Size | The moment | What 1Live must hand them |
 |---|---|---|
 | **1 — Solo** | "What should I do tonight?" | The current product, whole. (Solo is already served; everything below builds ON this, never replaces it.) |
 | **2 — Couple** | "What are we doing?" — two phones, one decision | A 2–3 show SHORTLIST sent as one link; the other person taps what they prefer; done in under a minute. |
 | **3–8 — Small group** | The group-chat spiral ("idk, what do you want to do?") | Same shortlist link dropped into the existing group chat; everyone taps a preference (no app, no account); the proposer sees the tally; the winner becomes the PLAN with time/venue/map/calendar for all. |
 | **9–30 — Large group** | Birthday, team night, visiting friends | Shortlist + headcount: "will you be there" counts, and shows carry GROUP-FIT facts (room size class, standing vs tables, reservable?) so a 20-person pick is realistic, not hopeful. |
-| **30+ — Huge group** | Organizer territory | Venue DISCOVERY by capacity + direct venue contact handoff. OneLive finds the room and makes the introduction; running a 200-person event is the venue's business, not ours. |
+| **30+ — Huge group** | Organizer territory | Venue DISCOVERY by capacity + direct venue contact handoff. 1Live finds the room and makes the introduction; running a 200-person event is the venue's business, not ours. |
 | **Mixed — several singles/couples/small groups** | "Who's in?" across circles | One plan, multiple sub-parties: forwardable link, each circle responds; the plan shows combined headcount. CONNECTING STRANGERS is deliberately NOT this row — see the boundary below. |
 
 ## The object: SHORTLIST → VOTE → PLAN
@@ -71,7 +71,7 @@ gets its own ratification with a safety design at its center (opt-in
 everything, no presence visibility by default, venue-level aggregates
 only, abuse reporting before launch — the floor, not the spec).
 
-## Trust screens (what keeps this OneLive)
+## Trust screens (what keeps this 1Live)
 
 1. **Utility, not network:** no profiles, no followers, no public feed of
    plans, no engagement mechanics (streaks/likes/leaderboards). A plan is
@@ -83,7 +83,7 @@ only, abuse reporting before launch — the floor, not the spec).
    pay-to-rank's free cousin. Aggregate plan data may inform COVERAGE
    (which neighborhoods/sizes we underserve, H5-style), never ranking.
 4. **Presence privacy:** headcounts live inside the plan's link audience;
-   OneLive never shows anyone "who is going" beyond what a plan's own
+   1Live never shows anyone "who is going" beyond what a plan's own
    invitees shared with each other.
 5. **The invariants ride along unchanged:** disputed-shown-never-hidden
    inside shortlists too; uncertainty sheets travel with the card; no

@@ -119,7 +119,7 @@ Condensed highlights below (the full per-provocation record is in the committed 
 - **P4 distortion** ("po: the analysis exists before the release") → **silence detection**: model each entity's expected disclosure cadence; overdue = signal. "What's unanswered" becomes an *alert*, not a footnote.
 - **P4 distortion** ("po: fulfillment recorded before the promise") → the archive is the cold start: backfill decades of promises so day-one has receipts (→ §12, converges with founder directive).
 - **P5 wishful** ("po: every claim self-reports when it dies") → parse due-dates from claim language ("by Q3") → a promise **maturity calendar** that ticks like a bond ladder; "promises coming due this week" digest.
-- **P5 wishful** ("po: perfect truth oracle") → fulfillment verdicts carry the OneLive 4-state confidence model (unverified/likely/confirmed/disputed), never binary.
+- **P5 wishful** ("po: perfect truth oracle") → fulfillment verdicts carry the 1Live 4-state confidence model (unverified/likely/confirmed/disputed), never binary.
 - **P6 absurd** ("po: press releases sue each other") → intra-sector contradiction detection (five companies claiming #1 share can't all be right) — cross-entity insight and a media hook.
 - **P7 random 'beehive'** (honey = stored value → history-depth pricing tiers; waggle dance = compressed direction-encoding → an **open claim schema** — metric, target, date, confidence — "iCal for corporate promises," standard-setting as moat; stings → never-verbatim legal posture; queen → the extraction taxonomy is versioned + golden-set like Descriptor Foundry).
 - **P8.2 random+reversal** ("po: flowers visit the bees") → issuers voluntarily register claims (verified-issuer program) — triangulates with the IR pre-flight from P2: the second side of the market keeps arriving independently, a convergence signal.
@@ -141,7 +141,7 @@ Condensed highlights below (the full per-provocation record is in the committed 
 | H7 | Materiality editorial ("3 promises that matter") | P3 | Anti-noise positioning |
 | H8 | Silence detection / expected-disclosure calendar | P4 | Novel alerting; no occupant found |
 | H9 | Promise maturity calendar (due-date parsing) | P5 | Engagement loop |
-| H10 | 4-state confidence on fulfillment verdicts | P5 | OneLive DNA reuse; legal safety |
+| H10 | 4-state confidence on fulfillment verdicts | P5 | 1Live DNA reuse; legal safety |
 | H11 | Intra-sector contradiction detection | P6 | Viral analytics; phase 2 |
 | H12 | Credibility index licensing | P6 | Long-run monetization |
 | H13 | Open claim schema ("promise markup") + MCP-native | P7 | Standard-setting moat |

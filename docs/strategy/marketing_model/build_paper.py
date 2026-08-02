@@ -39,7 +39,7 @@ CATS = [
         "M":"Group-level feed + per-location kits; measurement in covers language, not impressions."},
   angle="'Your marketing system shouldn't quit when your server does. Free, three taps, and your Thursday jazz shows up when someone asks AI where to eat tonight.'"),
  dict(g="Venues & Places", n="5 · Theaters & performing arts centers", src="Theater surveys",
-  snap="Audiences ~34% below 2019, subscribers down ~44%; audiences aging (and 84% white — a named diversification goal). Costs inflated, philanthropy shifting. Single-ticket, last-minute buying replaced subscriptions — exactly the discovery pattern OneLive serves.",
+  snap="Audiences ~34% below 2019, subscribers down ~44%; audiences aging (and 84% white — a named diversification goal). Costs inflated, philanthropy shifting. Single-ticket, last-minute buying replaced subscriptions — exactly the discovery pattern 1Live serves.",
   ch=["Subscription model decay → every show must be sold individually", "Aging core audience; younger/diverse audiences don't arrive via brochures", "Marketing staff (if any) consumed by season mechanics"],
   gr=["Reach under-45 and diverse audiences where they decide (phones, night-of)", "Convert single-ticket strangers into repeat attenders", "Digital/streaming experiments that proved out in the data"],
   val=["What share of your house is bought within 72 hours of curtain?", "What's your cost to acquire a NEW (not returning) attender?", "Where does a 30-year-old find you tonight?"],

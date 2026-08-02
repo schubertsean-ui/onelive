@@ -1,4 +1,4 @@
-# ONE LIVE — Community & Events Platform Growth Mechanics — v1
+# 1LIVE — Community & Events Platform Growth Mechanics — v1
 
 **Status:** PROPOSAL (research-backed, 2026-08-01). PROPOSAL ≠ license to build — this is the
 acquisition-side research companion to the ratified-in-part
@@ -8,7 +8,7 @@ implementation. Founder directive (verbatim, 2026-08-01): the meeting/community/
 all worth adding - and researching for what they are doing to drive growth that we believe would
 be world class in terms of helping us grow fast."
 
-**What this adds over the existing growth doc.** That doc encodes OneLive's four native loops
+**What this adds over the existing growth doc.** That doc encodes 1Live's four native loops
 (plan-share, artifact, supply-side, seeding) and the timing rules (fire at peak delight; reward
 with status/features, never cash; peak-end memory card). This survey studies **13 real
 platforms** in depth and surfaces **five loops not yet in our canon** — event-schema SEO,
@@ -16,11 +16,11 @@ follow-a-venue + waitlist demand signal, the coverage/gap map, the credible-data
 and anti-vanity positioning-as-growth — plus an explicit **trust-invariant conflict table** that
 marks the sleazy mechanics as non-starters. §5 reconciles the two docs so nothing is duplicated.
 
-**The decisive difference from every platform below.** OneLive keeps the supply-side / owned-page
+**The decisive difference from every platform below.** 1Live keeps the supply-side / owned-page
 loop that powers most event platforms — **but runs it the trust-first way.** An org, venue, or
-artist **owns its OneLive page** and publishes its *own* events through the **Owned Agent** — the
+artist **owns its 1Live page** and publishes its *own* events through the **Owned Agent** — the
 dead-simple "easy button" (stupid-simple: **≤3 clicks, no reading, no multi-field entry, zero
-friction**) that broadcasts their content **1:many to social AND feeds OneLive as a clean,
+friction**) that broadcasts their content **1:many to social AND feeds 1Live as a clean,
 first-party ingestion source at the same time.** This is *not* the "anyone types unverified hype"
 version of the loop: **a venue/artist/org posting its own event is the highest-authority
 first-party signal in our model** (`worker/authority.py`), so it enters the gate as *authoritative*,
@@ -77,7 +77,7 @@ text; guests RSVP with **no app download and no account.**
 - **Zero-friction guest onboarding** is the multiplier — no install wall means the viral
   coefficient isn't taxed.
 **Most replicable for us:** **frictionless share → view without a signup wall.** Anyone should be
-able to open a shared OneLive event/plan link, see it fully, and act, before making an account.
+able to open a shared 1Live event/plan link, see it fully, and act, before making an account.
 **Riskiest:** the **contact-book text blast** is exactly the mechanic that becomes spam if
 automated — a **non-starter** unless it's a user manually sharing a specific event (Part 3, #2/#5).
 
@@ -192,7 +192,7 @@ Facebook Groups/Slack.
   intent/commitment/engagement → better retention and word-of-mouth. $21M ARR May 2024 (+75% YoY),
   18,000+ active communities.
 - **Content-marketing loop:** Circle publishes benchmark reports that rank and pull in prospects.
-**Most replicable for us:** the **credible-data-report content engine** — OneLive is uniquely
+**Most replicable for us:** the **credible-data-report content engine** — 1Live is uniquely
 positioned to publish honest "State of Austin live events" data (real verified numbers, not hype),
 earning links, press, and SEO. A trust-native content loop.
 **Riskiest:** a **walled paid community** is philosophically opposite to open, honest discovery for
@@ -250,7 +250,7 @@ stop — a leaderboard must reward **verified quality, never referral counts**, 
 
 ---
 
-# Part 3 — Synthesis: world-class growth loops for OneLive
+# Part 3 — Synthesis: world-class growth loops for 1Live
 
 The ranking optimizes for *fast growth that compounds our trust asset instead of eroding it.*
 "New?" marks loops not in `ONE_LIVE_GROWTH_LOOPS_AND_DESIGN_TOOLS_v1.md`; the rest map to an
@@ -264,14 +264,14 @@ Luma grew by making it effortless for a host to spin up a page and reach their a
 Agent must clear that same bar **and go lower — stupid-simple: ≤3 clicks, no reading, no
 multi-field entry, zero friction** (founder directive 2026-08-01, "it has to be the epitome of
 simple and easy… no friction," "similar to Luma we need to make the AI agent trivial"). What the
-org gets: a one-tap way to broadcast an event **1:many** to its socials. What OneLive gets: the same
+org gets: a one-tap way to broadcast an event **1:many** to its socials. What 1Live gets: the same
 tap delivers a clean, **first-party authoritative** event straight into the gate. The org is the
 authority; the AI is only the easy button; the gate still holds. Design + build spec lives in the
 **Owned Agent** research (PR #48, unmerged) — **this triviality bar (Luma-trivial / ≤3 clicks / no
 friction) must be adopted as a hard acceptance criterion there when that spec is next touched.** The
 ranked table below covers the *additional* loops that compound on top of this engine.
 
-| # | Loop | Type | New? | Why it fits OneLive | Honest tradeoff / risk | Build |
+| # | Loop | Type | New? | Why it fits 1Live | Honest tradeoff / risk | Build |
 |---|---|---|---|---|---|---|
 | 1 | **Event-schema SEO: our verified pages win Google for "[event/venue] tonight in [neighborhood]"** | Content/SEO | **NEW** | Our data is *more accurate* than competitors'; structured data + honest canonical pages should out-rank hype. Compounding, cheap, on-brand (Eventbrite proves the ceiling). | Slow to compound (months); needs disciplined canonical URLs, schema, dedupe; Google-algo dependence. | Medium |
 | 2 | **Frictionless shared-link viewing (no signup wall to see an event/plan)** | Invite/viral | partial (extends plan-share) | Partiful's core unlock; trust is *shown*, not gated. Multiplies every other loop. | Protect write/claim behind auth; manage anonymous-abuse surface. | Low–Med |
@@ -310,7 +310,7 @@ pay-to-rank is a **NON-STARTER**, not a recommendation.
 | **Volume-rewarding referral leaderboards** (Skool Games) | **Conditional** | A "leaderboard of honest contribution" is fine *only* if it rewards verified quality; rewarding raw referral/invite counts is a non-starter. |
 
 **The through-line:** almost every *fast* loop in this survey has a clean version and a sleazy
-version. The sleazy version (buy rank, blast contacts, fake the crowd) is precisely what OneLive
+version. The sleazy version (buy rank, blast contacts, fake the crowd) is precisely what 1Live
 exists to *not* be — so the honest version is both our constraint and our differentiator.
 
 ---

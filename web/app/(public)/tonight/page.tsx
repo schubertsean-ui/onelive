@@ -20,7 +20,7 @@ export default async function TonightPage() {
     return (
       <main className="flow">
         <div className="wrap">
-          <div className="mast"><h1>ONE LIVE · Tonight in Austin</h1></div>
+          <div className="mast"><h1>1LIVE · Tonight in Austin</h1></div>
           <div className="err">
             Connecting to live data… set <b>SUPABASE_URL</b> and{" "}
             <b>SUPABASE_ANON_KEY</b> (the Supabase publishable key) in the
@@ -81,7 +81,7 @@ export default async function TonightPage() {
     return (
       <main className="flow">
         <div className="wrap">
-          <div className="mast"><h1>ONE LIVE · Tonight in Austin</h1></div>
+          <div className="mast"><h1>1LIVE · Tonight in Austin</h1></div>
           <div className="err">Couldn&rsquo;t load events: {error}</div>
         </div>
       </main>

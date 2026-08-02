@@ -1,4 +1,4 @@
-# ONE LIVE — "Brain" Options: Persistent Memory for the Build Agent and the Platform (v1)
+# 1LIVE — "Brain" Options: Persistent Memory for the Build Agent and the Platform (v1)
 
 **Compiled 2026-07-13 · Status: RATIFIED 2026-07-13 — founder decision (verbatim): "Brain: 1A+1B, platform at Step 7". G-BRAIN CLOSED. Researched per the charter's citation discipline; sources linked per clause.**
 
@@ -23,7 +23,7 @@
 
 ---
 
-**Founder ask:** "Add a 'brain' so you [the build agent] never forget and so OneLive platform never forgets. Research the best world-class options."
+**Founder ask:** "Add a 'brain' so you [the build agent] never forget and so 1Live platform never forgets. Research the best world-class options."
 
 These are two different brains with two different jobs, so they get separate options:
 
@@ -56,10 +56,10 @@ The open-source core of 1C ([Graphiti, Apache-2.0](https://github.com/getzep/gra
 
 ---
 
-## Brain 2 — the PLATFORM brain (OneLive never forgets)
+## Brain 2 — the PLATFORM brain (1Live never forgets)
 
 ### What exists today (mostly already built — by design)
-OneLive's trust architecture *is* a memory system: append-only `audit_log`, deterministic `replay_log` (every pipeline decision re-runnable), `_provenance` stamped on every AI extraction, disputed-events-never-deleted, source-reliability history. The platform already never forgets *what happened and why*.
+1Live's trust architecture *is* a memory system: append-only `audit_log`, deterministic `replay_log` (every pipeline decision re-runnable), `_provenance` stamped on every AI extraction, disputed-events-never-deleted, source-reliability history. The platform already never forgets *what happened and why*.
 
 ### What's missing (the options)
 - **2A — Semantic event/artist/venue memory (pgvector, same migration as 1B):** embed artist bios, venue descriptions, event text → powers dedupe ("is this the same show?"), Spark Line sourcing, and future Feel search. Build when real rows exist (after Sprint Step 7 — embedding zero events is pointless).

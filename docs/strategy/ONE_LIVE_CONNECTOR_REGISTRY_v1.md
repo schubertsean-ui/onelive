@@ -1,4 +1,4 @@
-# ONE LIVE — Connector Capability Registry v1
+# 1LIVE — Connector Capability Registry v1
 
 **Created 2026-08-01 at founder direction ("Go with 1–4"). Supersedes the flat
 READ/SYNC/STAGE legend of `ONE_LIVE_AGENT_SURFACES_v1.md` for CAPABILITY
@@ -12,8 +12,8 @@ platform-credential minting and new services remain founder-crucial.**
 **Capability classes:**
 - **DIRECT PUBLISH** — supported API, approved app, user authorization → "Connected — publishes after your approval"
 - **AUTHORIZED SYNC** — factual updates through a supported/partner connection → "Connected — kept current"
-- **NATIVE HANDOFF** — OneLive prepares everything, the platform's own app finishes → "Ready — one tap to finish"
-- **ASSISTED SUBMISSION** — OneLive fills the packet; platform review or manual step remains → "Submitted — awaiting review"
+- **NATIVE HANDOFF** — 1Live prepares everything, the platform's own app finishes → "Ready — one tap to finish"
+- **ASSISTED SUBMISSION** — 1Live fills the packet; platform review or manual step remains → "Submitted — awaiting review"
 - **READ & MONITOR** — observe and drift-watch only → "Monitored"
 - **PARTNER-DEPENDENT** — feasible only after platform/commercial approval → "Planned — partner access required"
 - **UNSUPPORTED** — no reliable compliant workflow → not claimed
@@ -28,17 +28,17 @@ intended vs. public state.
 
 | Connector | Capability class (target) | Status today | Authorization required | Notes / constraints |
 |---|---|---|---|---|
-| OneLive listing + hosted event pages | DIRECT PUBLISH | PLANNED (our surface) | claim verification | gated by the trust pipeline as ever |
+| 1Live listing + hosted event pages | DIRECT PUBLISH | PLANNED (our surface) | claim verification | gated by the trust pipeline as ever |
 | Website events widget + JSON-LD | DIRECT PUBLISH | PLANNED (we deploy) | site install (script/DNS) | unique URL per event; validated structured data; visible page must match markup |
 | Link-in-bio page | DIRECT PUBLISH | PLANNED (we host) | claim | — |
 | Google Business Profile (posts, hours, events) | DIRECT PUBLISH | PLANNED | owner OAuth; registered app | supported API; eligibility varies by account type |
 | Bing Places + IndexNow | AUTHORIZED SYNC | PLANNED | site verification | IndexNow = notification, NOT guaranteed crawling/indexing |
 | Apple (Business Connect) | PARTNER-DEPENDENT → AUTHORIZED SYNC | PLANNED | Apple partner approval + business delegation | NATIVE HANDOFF available before partner status |
 | Yelp | READ & MONITOR now; PARTNER-DEPENDENT for listing management | PLANNED | Yelp partner program (per-location, may bill) | some updates moderated up to ~2 weeks; never "instant" |
-| Nextdoor | PARTNER-DEPENDENT → DIRECT PUBLISH | PLANNED | API approval + authenticated business profile | content attributable to the business, not to OneLive |
+| Nextdoor | PARTNER-DEPENDENT → DIRECT PUBLISH | PLANNED | API approval + authenticated business profile | content attributable to the business, not to 1Live |
 | Foursquare | READ & MONITOR; contribution PARTNER-DEPENDENT | PLANNED | API contract | API pricing beyond small free tier |
 | Bandsintown | AUTHORIZED SYNC (artist-claimed) | PLANNED | artist claims their page | artist edition |
-| Songkick | READ & MONITOR only | HELD | — | API terms are retrieval-oriented, noncommercial, restrictive — **legal review required before any product use (founder-crucial: legal posture)**; never depicted as a write surface |
+| Songkick | READ & MONITOR only | ON HOLD (founder-decided 2026-08-02: "Put Songkick on hold but don't lose it") | — | RETAINED, not removed — the value case (artist/venue event database, concert-discovery + artist-follow alerts) is preserved here and in the surfaces inventory. API terms are retrieval-oriented, noncommercial, restrictive — **no product use until a founder-commissioned legal review of the API terms clears it (legal posture)**; never depicted as a write surface. Reopen trigger: that legal review |
 | City/press event calendars (Do512-class, alt-weeklies, visitor bureaus) | ASSISTED SUBMISSION | PLANNED | per-site forms/accounts | editorial review timing is theirs; also READ for drift-watch |
 | Event aggregators (AllEvents-class) | ASSISTED SUBMISSION / AUTHORIZED SYNC | PLANNED | per-platform | long-tail indexing |
 | Instagram (feed/story/carousel/reel, Collab) | DIRECT PUBLISH | PLANNED | professional account + Meta app review + OAuth | publishing limits; token expiry handling; NATIVE HANDOFF (v1 boost recipe) before review |

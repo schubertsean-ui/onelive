@@ -1,4 +1,4 @@
-# ONE LIVE — Case study: The Continental Club, Austin (proof run, 2026-08-01)
+# 1LIVE — Case study: The Continental Club, Austin (proof run, 2026-08-01)
 
 **Status: DEMONSTRATION RECORD (research-grade). Founder directive: "Prove to
 me the agent can do what we say it can do… crawl one and use the data you

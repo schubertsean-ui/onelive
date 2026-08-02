@@ -1,7 +1,7 @@
-# ONE LIVE — Meta Carousel Engine v1 (spec + shipped engine, 2026-07-24)
+# 1LIVE — Meta Carousel Engine v1 (spec + shipped engine, 2026-07-24)
 
 Greppable summary: founder-directed 2026-07-24 — a world-class Meta
-carousel program on the OneLive trust framework: perception- and
+carousel program on the 1Live trust framework: perception- and
 emotion-grounded design (bits/images, positive emotion driving action),
 Eyal/Duhigg habit architecture, maximal-learning structure toward the
 100%-interaction goal, share-friendly, tiered toward the content
@@ -129,7 +129,7 @@ Design choices below are constraints in code (`config.py`), not taste:
   sharing; low-arousal states (contentment, sadness) suppress it.
   Fredrickson's broaden-and-build: positive affect widens the
   action repertoire — exactly the "I could actually go to this"
-  activation OneLive needs. Encoded: the `emotion_register` factor
+  activation 1Live needs. Encoded: the `emotion_register` factor
   {excitement, awe, amusement, belonging, anticipation} chooses the
   creative register per carousel; negative-valence registers do not
   exist in the factor space (there is nothing for the optimizer to
@@ -205,7 +205,7 @@ of thin carousels for empty categories.
 **North star: interaction rate = unique accounts that took ANY action
 (swipe past slide 1, like, comment, save, share, profile visit, link
 click) / accounts reached.** Supporting: save rate and share rate (the
-two Meta's ranking rewards most and the two that map to OneLive's growth
+two Meta's ranking rewards most and the two that map to 1Live's growth
 loops), completion rate, follows per reach, and link CTR. 100% is an
 asymptote, not a claim — the enforced property is CONTINUOUS MEASURED
 IMPROVEMENT: the metrics ledger keeps a rolling baseline per (surface ×
@@ -241,7 +241,7 @@ factors → generate drafts → queue for human approval) and
 update). Only the approve/post step is human; everything else is the
 agent, every cycle.
 
-## 7. Share mechanics ("easy for people to share … coolly promote OneLive")
+## 7. Share mechanics ("easy for people to share … coolly promote 1Live")
 
 - Final-slide CTA rotates through learned share framings; the default
   set is designed on social currency, e.g. "Send this to the friend
@@ -274,7 +274,7 @@ structured source, for classic crawlers and answer engines alike:
 - **llms.txt block + OG tags** for the linked landing page, so the
   destination answers AI-crawler questions with gate-verified facts.
 - **The GEO flywheel is the trust model itself**: answer engines rank
-  verifiable, attributed, fresh, structured data — OneLive's provenance
+  verifiable, attributed, fresh, structured data — 1Live's provenance
   chain is precisely that. We ship attribution-rich markup everywhere
   and never cloak; being the gate-verified source IS the moat.
 - Continuous: the discovery bundle regenerates with every carousel and

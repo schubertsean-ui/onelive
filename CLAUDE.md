@@ -1,4 +1,4 @@
-# CLAUDE.md — ONE LIVE Autonomous Build Charter (place at repo root)
+# CLAUDE.md — 1LIVE Autonomous Build Charter (place at repo root)
 This file is read by Claude Code at the start of every session. It is the standing contract.
 
 ## Prime directives
@@ -63,7 +63,7 @@ Ship the live site behind the stealth gate: Steps 5→10 of the critical path �
 
 <!-- ===== REPO-LOCAL ADDITIONS PRESERVED (pre-genesis CLAUDE.md, still in force) ===== -->
 
-# OneLive — Agent Instructions
+# 1Live — Agent Instructions
 
 ## Architecture (do not deviate without a STATE.md note)
 Pipeline: Sources -> Raw Fetch -> AI Extract -> Candidate Store -> Evidence -> Gate -> Promote -> Canonical Event -> `/tonight` API.
