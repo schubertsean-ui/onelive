@@ -70,11 +70,14 @@ ax.text(LX,5.06,"HOW IT WORKS — YOU: A FEW TAPS. 1LIVE: ALL THE WORK.",fontsiz
 uy=4.50; uh=0.44
 ax.add_patch(FancyBboxPatch((LX,uy),LR-LX,uh,boxstyle="round,pad=0.03",fc=LBLUE,ec=BLUE,lw=1.6))
 ax.text(LX+0.14,uy+uh/2,"YOU",fontsize=11,fontweight="bold",color=BLUE,va="center")
+# pressable-keycap styling (founder question 2026-08-02: "stronger with an
+# Enter button?" — answer: keycap FEEL, phone-tap truth; three real decisions)
 you=[("1 · paste one link",1.55),("2 · choose your channels",3.30),("3 · tap approve",5.28)]
 for label,x in you:
-    wch=0.28+0.066*len(label)
-    ax.add_patch(FancyBboxPatch((x,uy+0.07),wch,uh-0.14,boxstyle="round,pad=0.03",fc="white",ec=BLUE,lw=1.5))
-    ax.text(x+wch/2,uy+uh/2,label,fontsize=8.6,fontweight="bold",color=BLUE,ha="center",va="center")
+    wch=0.30+0.066*len(label)
+    ax.add_patch(FancyBboxPatch((x+0.02,uy+0.045),wch,uh-0.14,boxstyle="round,pad=0.03",fc="#9dbede",ec="#9dbede"))
+    ax.add_patch(FancyBboxPatch((x,uy+0.085),wch,uh-0.14,boxstyle="round,pad=0.03",fc="white",ec=BLUE,lw=1.7))
+    ax.text(x+wch/2,uy+uh/2+0.025,label,fontsize=8.6,fontweight="bold",color=BLUE,ha="center",va="center")
 ax.text(LR-0.10,uy+uh/2,"that's all —\n≈ minutes",fontsize=7.8,fontweight="bold",color=BLUE,ha="right",va="center",linespacing=1.15)
 
 # 1LIVE lane: thick, saturated, five work cards
