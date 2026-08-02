@@ -80,6 +80,15 @@ for f, s in SOURCES.items():
     if "CONFIRMED / LIKELY / UNVERIFIED" in s and not ("six-state" in s or "Truth States v2" in s):
         errors.append(f"{f}: enumerates confidence states without anchoring to the six-state model (Truth States v2)")
 
+# Songkick hold (founder 2026-08-02; evaluator catch, PR #143 r-rebrand):
+# ON HOLD, READ & MONITOR only — no builder may present it as a publish or
+# sync destination. Every mention must sit in read/monitor/hold context.
+for f, s in SOURCES.items():
+    for m in re.finditer("Songkick", s):
+        ctx = s[max(0, m.start()-160):m.end()+160].lower()
+        if not any(k in ctx for k in ("read", "monitor", "held", "hold")):
+            errors.append(f"{f}: Songkick outside read/monitor/hold context (connector ON HOLD): ...{s[max(0,m.start()-60):m.end()+60]!r}...")
+
 # connector honesty (evaluator catch, PR #142 r1): the customer document's
 # channel table must be registry-bound — it may not present PLANNED
 # connectors as live. The builder must carry the pilot-status disclosure

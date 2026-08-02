@@ -36,3 +36,33 @@ Everywhere, in these last 2 documents and in the repo and in the canon"
    frozen by the R-023 arming classification (any STATE.md edit fails
    trust-gate until the next smoke-evidence refresh) and is listed in
    R-065 rather than edited here.
+
+
+## Addendum (2026-08-02, later the same day) — founder confirmations + one-pager
+
+**Founder, verbatim:** "All fine. The agent function remains unchanged.
+They do keep it. / And yes it needs to be 1Live everywhere - that is the
+name and brand name."
+
+1. **Exit behavior confirmed unchanged.** The earlier copy directive
+   removed the SLOGAN only; customers do keep everything the agent builds.
+   The near-identical phrases flagged at execution ("Your exit" tile,
+   "no lock-in by design", "stop after any step") STAY. The keep-it-forever
+   fact is now required client-facing content (it anchors the one-pager's
+   bottom band).
+2. **1Live everywhere ratified as the name and brand name.** The R-065
+   remainder (runtime strings, CLAUDE.md, STATE.md, filename sweep, infra
+   renames) now carries explicit founder authorization — no further
+   founder input needed except the founder-owned infra renames themselves
+   (repo name, URLs, Supabase ref, env vars), which stay on the R-065
+   one-list ask. Historical records still keep original text (facts of
+   the OneLive era; unchanged by this ratification).
+3. **Client-facing one-pager commissioned and built** ("entirely outside
+   in ... Minimal text. Max images. Use the entire page."):
+   `make_onepager.py` → `1Live_Agent_One_Pager_v1.pdf` (single full-bleed
+   Letter-landscape page: problem pictograms, six-step icon strip, value
+   tiles, the no-dashboard text-thread vignette, and the YOURS. FOREVER.
+   band — "belongs to you, whether or not you ever do more marketing with
+   1Live"). Honesty line included (connections in build, statuses reported
+   truthfully); worked-example numbers in the vignette are the C-11
+   ILLUSTRATIVE composites.

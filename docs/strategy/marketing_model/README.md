@@ -31,6 +31,7 @@ python make_friendly.py    # phone_bar/winery/artist.png (reads build_paper.py)
 python make_casestudy.py   # cs_*.png  (Continental Club case study artifacts)
 python make_kit2.py        # cs_kit.png (engagement carousel) + cs_channels.png
 python make_sixstep.py     # flow_sixstep.png (customer six-step flow)
+python make_onepager.py    # onepager.png + 1Live_Agent_One_Pager_v1.pdf (client one-pager)
 python check_artifacts.py  # consistency regression — MUST pass after any edit
 python build_model.py      # -> Marketing_Research_and_AI_Agent_Model_v2.pdf (evidence-badged)
 python build_customer.py   # -> 1Live_Customer_Story_v1.pdf (12 pp)

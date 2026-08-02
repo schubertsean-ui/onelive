@@ -175,7 +175,7 @@ storyboard("flow_artist.png",
  [
   ("Tuesday",[("o","Gets booked at The Listening Room, May 14. Does nothing else — the venue posts its calendar.",False)]),
   ("Within the hour",[("a","Sees her name on the venue's listing; asks: 'Playing The Listening Room May 14?' One tap: yes.",True)]),
-  ("Same week",[("a","Publishes to HER schedule: site, link-in-bio, 1Live, Bandsintown + Songkick artist pages. Fixes a stale AI fact (her old band name) with her correct bio.",False),
+  ("Same week",[("a","Publishes to HER schedule: site, link-in-bio, 1Live, her Bandsintown artist page. Fixes a stale AI fact (her old band name) with her correct bio.",False),
               ("w","Search & AI answers about ROSA: right bio, right links, right next show — her words, everywhere.",False)]),
   ("10 days out",[("a","Announcement kit in her voice, from her photos: post + story + 'add to calendar' link + mailing-list signup. Nothing generated touches her music or artwork.",False),
               ("o","Approves from the bus.",True)]),

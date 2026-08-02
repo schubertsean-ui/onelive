@@ -164,7 +164,7 @@ thread("phone_artist.png",
  [
   ("a","TUESDAY","The Listening Room just posted May 14 with your name on it. Playing that one?",["YES","NO"]),
   ("o",None,"Yes!",None),
-  ("a",None,"Added. Your website, link-in-bio, 1Live, and your Bandsintown + Songkick pages all show it now. One more thing: some AI answers still use your old band name — I've re-published your correct bio and pinged the indexes so they pick up the right story.",None),
+  ("a",None,"Added. Your website, link-in-bio, 1Live, and your Bandsintown page all show it now. One more thing: some AI answers still use your old band name — I've re-published your correct bio and pinged the indexes so they pick up the right story.",None),
   ("a","10 DAYS OUT","Show announcement is ready — a post and story from your photos, a YouTube Short from your own clip, a Facebook event shared with the venue, and an email draft for your list. Nothing here writes your songs. Promise.",["SEE IT","POST","SKIP"]),
   ("o",None,"Post",None),
   ("a","SHOW NIGHT","Day-of story staged. The QR on your merch table adds people to YOUR mailing list — it goes with you wherever you play.",["POST IT"]),
