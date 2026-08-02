@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable
 
-from .types import FoundryResult, STATUS_CANDIDATE
+from .types import FoundryResult, STATUS_CANDIDATE, VALID_WORD_COUNTS
 
 
 def artist_key(name: str) -> str:
@@ -58,6 +58,60 @@ def insert_candidate(result: FoundryResult, artist_name: str, *, cur) -> str:
             result.provenance.get("attribution"),
             STATUS_CANDIDATE,
             json.dumps(result.provenance),
+        ),
+    )
+    return str(cur.fetchone()[0])
+
+
+def record_human_spark_line(
+    artist_name: str,
+    text: str,
+    *,
+    tier: str,
+    attribution: str | None = None,
+    source_ref: str | None = None,
+    cur,
+) -> str:
+    """Record a HUMAN-authored Spark Line (tier A = artist's own words, tier B =
+    a named critic) as a candidate — zero model, zero spend. Tiers A/B do NOT
+    flow through the AI Foundry (types.py); their faithfulness is inherent (a
+    real person's words), and the human take-live approval is their trust gate.
+    Word count is still constrained (display consistency, UI Canon §4); a tier-B
+    line must name its source. Returns the new candidate's id."""
+    if tier not in ("A", "B"):
+        raise ValueError(f"human Spark Line tier must be 'A' or 'B', got {tier!r}")
+    words = text.split()
+    if len(words) not in VALID_WORD_COUNTS:
+        raise ValueError(
+            f"Spark Line must be {'/'.join(map(str, VALID_WORD_COUNTS))} words; "
+            f"got {len(words)}: {text!r}"
+        )
+    if tier == "B" and not (attribution or "").strip():
+        raise ValueError("a tier-B (critic) Spark Line must name its attribution")
+    provenance = {
+        "provider": "human",
+        "tier": tier,
+        "attribution": attribution,
+        "source_refs": [source_ref] if source_ref else [],
+    }
+    cur.execute(
+        """
+        insert into spark_line(
+          artist_key, artist_name, text, word_count, tier, attribution,
+          status, provenance
+        )
+        values (%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+        returning spark_line_id
+        """,
+        (
+            artist_key(artist_name),
+            artist_name,
+            text,
+            len(words),
+            tier,
+            attribution,
+            STATUS_CANDIDATE,
+            json.dumps(provenance),
         ),
     )
     return str(cur.fetchone()[0])

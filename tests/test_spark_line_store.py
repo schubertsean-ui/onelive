@@ -9,6 +9,7 @@ from worker.descriptor.store import (
     artist_key,
     fetch_approved,
     insert_candidate,
+    record_human_spark_line,
 )
 from worker.descriptor.types import FoundryResult, STATUS_CANDIDATE, TIER_AI_DRAFTED
 
@@ -82,3 +83,34 @@ def test_fetch_approved_no_names_is_no_query():
     cur = FakeCursor()
     assert fetch_approved(["", "  "], cur=cur) == {}
     assert cur.calls == []
+
+
+def test_record_human_tier_a_writes_candidate_no_model():
+    cur = FakeCursor(one=("h-1",))
+    sid = record_human_spark_line("Mara Quinn", "brass. menace. amen.", tier="A", cur=cur)
+    assert sid == "h-1"
+    _, params = cur.calls[0]
+    assert params[0] == "mara quinn"
+    assert params[3] == 3                 # word count
+    assert params[4] == "A"               # tier
+    assert params[6] == STATUS_CANDIDATE  # still gated by human take-live
+    assert json.loads(params[7])["provider"] == "human"
+
+
+def test_record_human_tier_b_requires_attribution():
+    cur = FakeCursor(one=("x",))
+    with pytest.raises(ValueError, match="attribution"):
+        record_human_spark_line("Mara Quinn", "brass menace amen", tier="B", cur=cur)
+    assert cur.calls == []
+
+
+def test_record_human_rejects_bad_word_count():
+    cur = FakeCursor(one=("x",))
+    with pytest.raises(ValueError, match="words"):
+        record_human_spark_line("Mara Quinn", "brass menace slow burn", tier="A", cur=cur)
+
+
+def test_record_human_rejects_ai_tier():
+    cur = FakeCursor(one=("x",))
+    with pytest.raises(ValueError, match="tier must be 'A' or 'B'"):
+        record_human_spark_line("Mara Quinn", "brass menace amen", tier="C", cur=cur)
