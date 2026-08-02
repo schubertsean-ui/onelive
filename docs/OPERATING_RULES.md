@@ -210,6 +210,21 @@ a deploy callback):
 
 ---
 
+### 4a. Plan-first — never build without a plan (founder-directed, 2026-08-02)
+
+No substantive build begins without a **plan** presented to (and approved by) the founder that
+states, for the work at hand:
+1. **What** — the change/build, concretely.
+2. **How** — the approach and the sequence.
+3. **Why** — the reasoning, tied to the core principles/goal.
+4. **Why it matters** — the stakes; what gets better, for whom.
+5. **Expected outcomes/results** — what success looks like, ideally measurable.
+
+The plan comes first; the build then runs the loop (§2a): plan → small-batch build → validate →
+independent evaluator → **preview for the founder** → approval → merge → measure. "World-class"
+(§5) is never unplanned or unreviewed. This applies with full force to UI/UX work, whose spine is
+the user-journey model (`docs/design/ONE_LIVE_USER_JOURNEY_LIFECYCLE_v1.md`).
+
 ## 5. Standard of "world-class"
 
 We are building toward world-class technology, code, and UX/UI — with trust
