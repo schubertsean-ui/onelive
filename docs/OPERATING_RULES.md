@@ -240,6 +240,38 @@ UI/UX work, whose spine is the user-journey model (`docs/design/ONE_LIVE_USER_JO
 which is being grounded in proven, tested strategy/methodology/tactics (a "Methodology & Evidence"
 section is being added to that doc — research in progress).
 
+### 4b. API & tool-call frugality — event-driven, never busy-poll (founder-directed, 2026-08-02)
+
+**Why this rule exists (verbatim trigger).** An avoidable incident: the agent exhausted the hourly
+GitHub API quota (5,000 req/hr — the same on every plan) by (a) making **oversized** list calls —
+`actions_list` / `list_pull_requests` returning 77k–140k characters each — and (b) **busy-polling**
+CI in tight loops, re-fetching the same status repeatedly. This blocked a go-live merge and **cost
+the founder time and money** for zero added information. Founder directive: *"Never perform this kind
+of action again … Codify to canon and repo."* Every external API call spends the founder's money and
+time; treat it that way.
+
+**The rules (checkable in review and by self-audit):**
+1. **Event-driven, not poll-driven.** This session already receives forwarded GitHub webhook events
+   (CI results, review comments, merges, mergeability transitions). **Rely on them.** Check a PR/CI
+   state **at most once per genuine need**; if a required check is *pending*, **STOP and end the
+   turn** — the event will wake you. **Never** loop-poll a status. Never use `sleep` to wait for an
+   external result.
+2. **Bound every list/search/log call.** Always pass `minimal_output: true` where available, the
+   **narrowest** filter, and `perPage ≤ 5`. **Never** call `list_workflow_runs` / `actions_list` /
+   `list_pull_requests` / `get_job_logs` unbounded — they can return 100k+ characters that burn both
+   the API quota *and* the context window.
+3. **One authoritative signal, not many.** A single `pull_request_read` **`get`** returns
+   `mergeable_state` (`clean` / `blocked` / `unstable` / `dirty`) — that alone answers "is it
+   merge-ready." Do **not** additionally fire `get_status` + `get_commit` + `actions_list` for the
+   same question.
+4. **Route unavoidable large output through a subagent** so it never enters the main context.
+5. **If a task needs more than a couple of status calls, the approach is wrong** — wait for events.
+
+**Enforcement.** Reviewer- and self-checked today; the mechanical upgrade (Kaizen, if the class ever
+recurs) is a `PreToolUse` settings hook that **denies** an unbounded `mcp__github__` list call
+(missing `minimal_output` / oversized `perPage`). Logged as an ESCAPED defect —
+`docs/metrics/KAIZEN_LEDGER.md`, class `api-busy-poll`.
+
 ## 5. Standard of "world-class"
 
 We are building toward world-class technology, code, and UX/UI — with trust
