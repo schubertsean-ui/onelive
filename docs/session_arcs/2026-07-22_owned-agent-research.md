@@ -306,3 +306,17 @@ every finding real: dead check branch (false-confidence-gate, again),
 executed; catch 4 (Songkick) remains the legal-review hold, with catch 8's
 standing-authorization half also still held (interim: everything outbound
 needs the tap).
+
+## Directive set 14 (2026-08-02): reader's guides, Songkick hold, auth boundary, pricing question
+
+Founder issued six directives (verbatim in the 2026-08-02 decision record):
+plain-language front guides + per-page descriptions in both deliverables
+(now a standing deliverable requirement); Songkick ON HOLD but RETAINED
+(registry + inventory rows updated, legal-review reopen trigger); the
+standing-authorization boundary explained in a new PROPOSAL doc
+(ONE_LIVE_STANDING_AUTHORIZATION_v1.md — two-tier split awaiting
+ratification, interim all-taps rule intact); pricing narrowed to one open
+input (the %-of-ad-spend ruling); everything committed on the PR #143
+branch. Pagination QA caught two orphan-page splits from the added
+description lines (width-bound images ignore max-height) — fixed by
+width-based sizing, verified page-by-page: Customer Story 13 pp, Model 26 pp.

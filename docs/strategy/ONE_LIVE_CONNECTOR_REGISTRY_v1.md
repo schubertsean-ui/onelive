@@ -38,7 +38,7 @@ intended vs. public state.
 | Nextdoor | PARTNER-DEPENDENT → DIRECT PUBLISH | PLANNED | API approval + authenticated business profile | content attributable to the business, not to OneLive |
 | Foursquare | READ & MONITOR; contribution PARTNER-DEPENDENT | PLANNED | API contract | API pricing beyond small free tier |
 | Bandsintown | AUTHORIZED SYNC (artist-claimed) | PLANNED | artist claims their page | artist edition |
-| Songkick | READ & MONITOR only | HELD | — | API terms are retrieval-oriented, noncommercial, restrictive — **legal review required before any product use (founder-crucial: legal posture)**; never depicted as a write surface |
+| Songkick | READ & MONITOR only | ON HOLD (founder-decided 2026-08-02: "Put Songkick on hold but don't lose it") | — | RETAINED, not removed — the value case (artist/venue event database, concert-discovery + artist-follow alerts) is preserved here and in the surfaces inventory. API terms are retrieval-oriented, noncommercial, restrictive — **no product use until a founder-commissioned legal review of the API terms clears it (legal posture)**; never depicted as a write surface. Reopen trigger: that legal review |
 | City/press event calendars (Do512-class, alt-weeklies, visitor bureaus) | ASSISTED SUBMISSION | PLANNED | per-site forms/accounts | editorial review timing is theirs; also READ for drift-watch |
 | Event aggregators (AllEvents-class) | ASSISTED SUBMISSION / AUTHORIZED SYNC | PLANNED | per-platform | long-tail indexing |
 | Instagram (feed/story/carousel/reel, Collab) | DIRECT PUBLISH | PLANNED | professional account + Meta app review + OAuth | publishing limits; token expiry handling; NATIVE HANDOFF (v1 boost recipe) before review |

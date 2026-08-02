@@ -13,7 +13,9 @@ h1 { font-size: 30pt; border-bottom: none; margin: 6px 0 6px 0; }
 h2 { font-size: 17pt; border-bottom: 1px solid #bbb; padding-bottom: 3px; margin-top: 8px; page-break-after: avoid; }
 .big { font-size: 18pt; color: #0b0b0b; }
 .sub { color: #52514e; font-size: 12.4pt; }
-img.flow { width: 100%; max-height: 16.9cm; margin: 4px 0 2px 0; page-break-inside: avoid; display: block; }
+img.flow { width: 90%; margin: 2px auto; page-break-inside: avoid; display: block; }
+.pgdesc { color: #52514e; font-size: 11.6pt; font-style: italic; margin: 0 0 8px 0; }
+.guide li { margin: 5px 0; }
 .pg { page-break-before: always; }
 table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 11.2pt; }
 table.compact { font-size: 10.4pt; }
@@ -44,7 +46,26 @@ body = f"""
 </div>
 <div class="rail"><b>Your accounts. Your audience. Your budget. Your approval.</b> Promotional sends require your tap. Nothing you pay for (or get free) ever changes how OneLive ranks events. Leave anytime and keep everything.</div>
 
+
+<div class="pg"></div><h2>What you're about to see</h2>
+<p>This document walks through OneLive's agent the way a customer would meet it: the promise, the problem it removes, how it works, what a week with it feels like, the rules that protect you, what's proven so far, and what a pilot costs (nothing). Everything invented for illustration is stamped ILLUSTRATIVE; everything demonstrated on real data says so.</p>
+<ol class="guide">
+<li><b>The promise</b> — what OneLive does for you, in one page.</li>
+<li><b>This guide.</b></li>
+<li><b>The problem</b> — why event marketing mostly doesn't happen today.</li>
+<li><b>How it works</b> — six steps, and what you get at each one.</li>
+<li><b>Before and after</b> — the same week's work, without and with OneLive.</li>
+<li><b>A week with OneLive</b> — a realistic week shown as the text thread you'd actually see (fictional owner, badged).</li>
+<li><b>The same week, step by step</b> — each move, whose move it was, the time and the cost.</li>
+<li><b>Who does what</b> — your part and OneLive's part, honestly divided.</li>
+<li><b>Control and trust</b> — the rules that never bend.</li>
+<li><b>Proven vs. still to validate</b> — what we've demonstrated on a real venue, and what the pilot must show.</li>
+<li><b>Where your events can go</b> — every channel we're building toward, labeled by how it will really behave.</li>
+<li><b>Why this stays good for you</b> — why your accuracy is our business model, not a favor.</li>
+<li><b>The pilot and the price</b> — what we measure together; the basics are free.</li>
+</ol>
 <div class="pg"></div><h2>The problem — your events already exist; their marketing doesn't</h2>
+<p class="pgdesc">One page on why good events go unseen: the work is repetitive, and nobody in the building has hours for it.</p>
 <p class="big">You keep one calendar. The world checks a dozen places.</p>
 <p>Every event you run has to be re-entered on your website, Google, the map apps, the event sites, your socials, and your email tool — or more often, it isn't. What actually happens in most rooms:</p>
 <ul>
@@ -57,9 +78,11 @@ body = f"""
 <p>The constraint isn't intent or even money — it's hours. Marketing help that fixes this is priced for companies with marketing departments. OneLive's answer: do the repetitive layer for you, and leave every decision yours.</p>
 
 <div class="pg"></div><h2>How it works</h2>
+<p class="pgdesc">The whole product in one picture: six steps, and what you walk away with at each one — you can stop after any of them.</p>
 <img class="flow" src="{img64('flow_sixstep.png')}"/>
 
 <div class="pg"></div><h2>Before and after</h2>
+<p class="pgdesc">The same tasks side by side: what changes, and what you simply stop doing.</p>
 <table>
 <tr><th style="width:50%">Before OneLive</th><th>With OneLive</th></tr>
 <tr><td>Re-enter every event on every site — or skip it</td><td>Maintain one calendar, the one you already keep</td></tr>
@@ -72,12 +95,15 @@ body = f"""
 <div class="rail">You can stop at any step and keep what it gave you: the preview, the corrected listings, the widget, the list. There is no lock-in by design.</div>
 
 <div class="pg"></div><h2>A week with OneLive — Dana's bar</h2>
+<p class="pgdesc">A realistic (fictional, badged) week shown as the message thread you'd actually see — no dashboard, just questions worth answering.</p>
 <img class="flow" src="{img64('phone_bar.png')}"/>
 
 <div class="pg"></div><h2>The same week, step by step</h2>
+<p class="pgdesc">The week above as a process: each move, whose move it was, where it showed up, and what it cost.</p>
 <img class="flow" src="{img64('flow_bar.png')}"/>
 
 <div class="pg"></div><h2>Who does what</h2>
+<p class="pgdesc">The honest division of labor: you make the decisions, OneLive does the repetition.</p>
 <table>
 <tr><th style="width:50%">You</th><th>OneLive</th></tr>
 <tr><td>Add events to your calendar — the way you already do</td><td>Sees the change, assembles the event record, checks it against every public source</td></tr>
@@ -91,6 +117,7 @@ body = f"""
 </div>
 
 <div class="pg"></div><h2>Control and trust — the rules that don't bend</h2>
+<p class="pgdesc">The rules that hold no matter what: your accounts, your budget, your approval, your exit.</p>
 <div class="tiles">
 <div class="tile"><div class="n">Your accounts</div><div class="t">every channel is connected under your login, removable by you at any time</div></div>
 <div class="tile"><div class="n">Your budget</div><div class="t">ads run on your ad account with your cap — OneLive takes no percentage of your ad spend at setup or during the free period</div></div>
@@ -104,6 +131,7 @@ body = f"""
 </ul>
 
 <div class="pg"></div><h2>What has actually been proven — and what hasn't yet</h2>
+<p class="pgdesc">What we've already shown using a real venue's public data — and what we still have to prove with pilot partners.</p>
 <div class="duo">
 <div><h2 style="border:none">Demonstrated today</h2>
 <ul>
@@ -124,7 +152,8 @@ body = f"""
 <div class="warn"><b>Honesty rule:</b> the worked examples in this document are illustrative pilot targets, not observed customer results. We publish observed numbers only from live campaigns with tracking and retained records.</div>
 
 <div class="pg"></div><h2>Where your events can go</h2>
-<div class="warn" style="font-size:11pt"><b>Where this stands today:</b> these channel connections are in build (each one's status is tracked in OneLive's connector registry) and are being validated with pilot partners — nothing publishes anywhere today. The table shows how each channel is <i>designed</i> to work once you connect it. Some integrations require your authorization, platform approval, or a final step in the platform's own app; search and AI visibility are eligibility outcomes, not guarantees. Reporting status honestly, channel by channel, is the product.</div>
+<p class="pgdesc">Every channel we're building toward, labeled honestly by how it will really behave once connected.</p>
+<div class="warn" style="font-size:11pt"><b>Where this stands today:</b> these channel connections are in build (each one's status is tracked in OneLive's connector registry) and are being validated with pilot partners — nothing publishes anywhere today. The table shows how each channel is <i>designed</i> to work once you connect it. Some integrations require your authorization, platform approval, or a final step in the platform's own app; search and AI visibility are eligibility outcomes, not guarantees.</div>
 <table class="compact">
 <tr><th>Channel</th><th style="width:40%">How it's designed to work once you connect it</th></tr>
 <tr><td>Your website event pages + OneLive listing + link-in-bio</td><td>Kept current automatically — the first channels a pilot turns on</td></tr>
@@ -139,6 +168,7 @@ body = f"""
 
 
 <div class="pg"></div><h2>Why this stays good for you — the OneLive loop</h2>
+<p class="pgdesc">Why keeping your facts right is our business model, not a favor.</p>
 <p class="big">OneLive is a live-culture guide. Your agent is how your events become part of it — verified.</p>
 <p>Every business and artist using the agent adds verified, first-hand event data to OneLive's consumer guide. A more complete, more accurate guide brings more people deciding what to do tonight. That demand flows back to the rooms and artists supplying the events — which is why the basics are free: your accuracy IS our product.</p>
 <ul>
@@ -148,6 +178,7 @@ body = f"""
 </ul>
 
 <div class="pg"></div><h2>The pilot — and what we'll measure</h2>
+<p class="pgdesc">What we'll measure together — in your units — and what it costs.</p>
 <p>We are recruiting a small group of recurring-event venues in one city for an eight-week pilot. Success is defined in advance, in your units:</p>
 <table>
 <tr><th>For you</th><th>For the product</th></tr>

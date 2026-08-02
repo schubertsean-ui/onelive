@@ -34,7 +34,7 @@ business's, not ours.
 |---|---|---|---|
 | Yelp | READ · SYNC | NAP/hours consistency; a major source AI assistants draw on for local answers (C-03: share percentages retired) | Free listing |
 | Foursquare | READ · SYNC | The location database many AI stacks license | Free |
-| Bandsintown · Songkick | READ · SYNC | Artist/venue event databases; concert-discovery + artist-follow alerts | Free |
+| Bandsintown · Songkick (Songkick ON HOLD — founder 2026-08-02, retained pending legal review of its API terms; registry row governs) | READ · SYNC | Artist/venue event databases; concert-discovery + artist-follow alerts | Free |
 | City guides & press calendars (Do512-class per city; alt-weeklies; visitor bureaus) | READ · STAGE (submit) · drift-watch | Free editorial surfaces with real domain authority — foot traffic AND backlinks; where the case study caught a real day-of-week mislabel | Free |
 | Event aggregators (AllEvents-class) | SYNC | Long-tail event indexing that search engines crawl | Free |
 | Segment surfaces: TripAdvisor (venues/wineries) · Untappd (breweries) · Vivino (wineries) · Bandcamp/Spotify/SoundCloud profiles (artists) | SYNC · drift-watch | Category-specific discovery mapped to the 23-segment canon | Free |
