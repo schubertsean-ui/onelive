@@ -80,6 +80,30 @@ re-add, deepen, or spin out in any order, and the app keeps their place. This is
 model is *forward-expanding lenses over one river* (never separate tabs or page loads that lose
 context, UI Canon §6/§9).
 
+### §2.1 · Defining the `<10s` North Star precisely (what "it" is, and where)
+
+The "under 10 seconds" promise is an **activation metric** — a Time-to-Value event, not a page-speed
+number. It is named and bounded so it can be measured and defended, never hand-waved:
+
+- **The metric: Time-To-First-trusted-Relevant-result (TTFR).**
+- **What "it" is:** the moment a **real, relevant, trusted answer** to "what's happening?" is *in view
+  and comprehensible* — at least one trustworthy card the person can act on or judge. Not "the page
+  painted" (that's a CWV budget, LCP ≤2.5s, a *precondition* not the goal); not "they clicked out."
+- **Where in the process it is measured:** from **ARRIVE (cold open)** to **SEE RESULTS (§2 step 3)** —
+  the span from step 1 to step 3 of the exploration loop. INITIATE (step 2) is *inside* the window
+  when it happens, which is exactly why the app pre-composes a sensible default so **no query assembly
+  is required** to reach a first result (choice-architecture).
+- **Start / stop, unambiguously:** start = first paint request on a cold arrival; stop = first trusted,
+  relevant result rendered *and* legible (content, not skeleton). Sub-events (TTF-paint, TTF-card,
+  TTF-*trusted*-card) are all logged so a regression tells us *which* stage slipped.
+- **Why 10s and not "instant":** it is a **ceiling, not a target** — the felt experience should be far
+  under it; 10s is the outer bound past which the "wow" is lost and the promise is broken. It is an
+  activation threshold (time-to-value / first-value), the single number the North Star (UI Canon §0)
+  is held to.
+
+This makes the North Star testable: the **Discovery Exam** (persona×query gate) and Heartbeat both
+record TTFR and its sub-events, so "it works" is proven, not asserted (honest gaps beat filler).
+
 ---
 
 ## §3 · Entry modes (how a visit begins)
@@ -151,7 +175,8 @@ Heartbeat signal, never a label sold or exposed.
 | This model's element | Where it already lives |
 |---|---|
 | Arrive / results / evaluate → success-states (decide/act/share/satisfied-browse) | `ONE_LIVE_EFFORTLESS_UX_METRICS_v1.md` §4 |
-| Initiate without assembling a query; prepackaged starters; calm top | Effortless-UX choice-architecture §1; UI Canon §1/§9 |
+| Calm top / initiate without assembling a query | Effortless-UX choice-architecture §1; UI Canon §1 |
+| **Prepackaged starters / "packages" as a first-class entry mode** | **NEW here** — grounded in the choice-architecture principle, but **not yet in UI Canon §9's feed structure**; must be added there (honest correction, independent review 2026-08-02: this was previously overclaimed as already-integrated) |
 | Keep / save / packages / alerts; verified-only notify; on-device + SMS-consent | `ONE_LIVE_SAVED_ALERTS_AND_PROACTIVE_SURFACING_v1.md` |
 | Card evaluate (glanceable → lens → detail) | `ONE_LIVE_CARD_DESIGN_v1.md`; UI Canon §2/§6 |
 | On-device personal layer; aggregate-only analysis | Effortless-UX §7 guardrails; member-preferences (lens-not-gate, never sold) |
@@ -163,7 +188,37 @@ loop's steps map onto arrival, cards, lenses, filters, save/plan, and alerts.
 
 ---
 
-## §7 · Process canon (founder directive, 2026-08-02): ALWAYS start with a plan
+## §7 · Methodology & evidence — the journey is grounded, not invented
+
+Founder directive (2026-08-02): *"Make sure the user journey is based on rock-solid, world-class,
+tested and proven strategy, methodology and tactics."* This section names the established frameworks
+each part of the journey rests on — so the model is defensible, and so a reviewer can check the design
+against a known bar rather than taste. **These are grounds, not gates:** they justify design choices;
+they never relax a trust invariant or a validation threshold.
+
+| # | Framework (plain-language) | What it proves / prescribes | Where it binds this journey |
+|---|---|---|---|
+| 1 | **Jobs-To-Be-Done** (Christensen) | People "hire" a product for a job in a context; design to the job, not the feature | The whole loop is framed as a job — "help me find something worth my night" — not a feature tour (§2). Personas (§5) are job-contexts, not demographics |
+| 2 | **Information Foraging / information scent** (Pirolli & Card) | People follow "scent" — cues that predict value — and leave a patch when scent drops | The card must carry enough *scent* to predict value at a glance (§2 step 3; UI Canon §2 two-door). Weak scent = the person leaves; this is why cards show genre+specifics, not just "Live Music" |
+| 3 | **Shneiderman's mantra** — overview → zoom/filter → details-on-demand | The canonical proven shape for exploring a large set | The river (overview) → lens/filter (zoom) → card detail (on demand), §2/§9. Never dump detail up front |
+| 4 | **Consideration-set / Adaptive Decision Maker** (Payne, Bettman, Johnson) | People don't evaluate everything; they build a small set and switch strategy to fit effort | KEEP/ELIMINATE (§2 steps 5–6) *is* consideration-set construction; the shortlist is first-class, and effort-to-decision is measured |
+| 5 | **Satisficing** (Simon) | People pick "good enough," not optimal; more options past a point *reduces* satisfaction | Curiosity-over-completeness (UI Canon §1); a *satisfied browse with no click-out is success* (§2 "Enough"). We don't drown them in the long tail |
+| 6 | **Dual-process / Peak–End rule** (Kahneman) | Experience is judged by its peak and its end, not its average; fast "System-1" first impressions dominate | ARRIVE's "wow" is the deliberate **peak**; the DECIDE exits (§2 step 6) are designed **ends** (a clean, confident close, even on "just browsed") |
+| 7 | **Hook model** (Eyal) — trigger → action → variable reward → investment — **white-hat only** | Habits form from a loop; ethically, the reward must be *real value*, and investment must serve the user | The return relationship (§1) uses only **honest** hooks: the trigger is an opt-in verified alert (real value), the "investment" is *their* on-device saved/packages that make *their* app better — never engagement-for-its-own-sake, never dark patterns |
+| 8 | **Fogg Behavior Model** — B = MAP (Motivation, Ability, Prompt) | A behavior happens only when motivation, ability, and a prompt coincide; the cheapest lever is usually *ability* (reduce friction) | Every step maximizes **ability**: no login, pre-composed default query, ≤3-click save, one input (the Owned-Agent Luma-trivial bar). Prompts (alerts, starters) are gentle and opt-in |
+| 9 | **Time-to-Value / Activation** (growth/PLG canon) | The first-value moment predicts retention; measure and minimize time-to-first-value | The `<10s` TTFR (§2.1) *is* the activation metric; the lifecycle (§1) is an activation-then-habituation curve |
+| 10 | **HEART + Goals-Signals-Metrics** (Google) | Measure Happiness, Engagement, Adoption, Retention, Task-success — with an explicit anti-goal guard | Heartbeat (§4) tracks task-success (effort-to-decision, TTFR) and retention — **time-in-app is an anti-goal, not a success metric** (a fast satisfied exit is a win, per §5 Satisficing) |
+| 11 | **McKinsey Consumer Decision Journey / loyalty loop** | Modern journeys are looping, not funnels; the post-decision loop builds the returning relationship | §1's first-time → next-first-times → saved *is* the loyalty loop; the "spin out and start again" move (§2) is the CDJ's active-evaluation loop |
+| 12 | **Privacy-by-Design / on-device personalization** (Cavoukian; Apple/Signal pattern) | Personalization and privacy are not a trade-off; keep the profile on the device, share only aggregates | §4's on-device personal layer + aggregate-only Heartbeat is exactly this; consent, minimality, TDPSA bind it |
+
+**How this is proven, not asserted:** the **Discovery Exam** (persona×query golden-set) tests that the
+loop actually delivers a trusted relevant result per persona; **Heartbeat** (§4) measures TTFR,
+effort-to-decision, curiosity depth, and retention in aggregate. A design claim that can't be measured
+this way is a gap to record (docs/RECORD.md), not a feature to ship.
+
+---
+
+## §8 · Process canon (founder directive, 2026-08-02): ALWAYS start with a plan
 
 Codified rule (to be mirrored into `docs/OPERATING_RULES.md` and the Construction Loop): **no
 substantive build begins without a plan that states — for the work — WHAT, HOW, WHY, WHY IT
@@ -174,7 +229,7 @@ unreviewed.
 
 ---
 
-## §8 · Status
+## §9 · Status
 
 Captured 2026-08-02 as the design spine. It does not itself build anything — it **directs** the
 world-class UI/UX build (the plan) so the journey, personas, on-device learning, and Heartbeat
