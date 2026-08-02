@@ -8,23 +8,25 @@ def img64(p): return "data:image/png;base64," + base64.b64encode(pathlib.Path(p)
 css = """
 @page { size: Letter landscape; margin: 1.2cm 1.6cm;
   @bottom-center { content: "OneLive — customer story v1 · CONFIDENTIAL DRAFT · page " counter(page) " of " counter(pages); font-size: 7.5pt; color: #888; } }
-body { font-family: "DejaVu Sans", sans-serif; font-size: 10.4pt; line-height: 1.55; color: #0b0b0b; }
-h1 { font-size: 26pt; border-bottom: none; margin: 40px 0 6px 0; }
-h2 { font-size: 13pt; border-bottom: 1px solid #bbb; padding-bottom: 3px; margin-top: 8px; page-break-after: avoid; }
-.big { font-size: 15pt; color: #0b0b0b; }
-.sub { color: #52514e; font-size: 11pt; }
+body { font-family: "DejaVu Sans", sans-serif; font-size: 12.4pt; line-height: 1.6; color: #0b0b0b; }
+h1 { font-size: 30pt; border-bottom: none; margin: 6px 0 6px 0; }
+h2 { font-size: 17pt; border-bottom: 1px solid #bbb; padding-bottom: 3px; margin-top: 8px; page-break-after: avoid; }
+.big { font-size: 18pt; color: #0b0b0b; }
+.sub { color: #52514e; font-size: 12.4pt; }
 img.flow { width: 100%; max-height: 16.9cm; margin: 4px 0 2px 0; page-break-inside: avoid; display: block; }
 .pg { page-break-before: always; }
-table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 10pt; }
-th { background: #0b0b0b; color: #fff; padding: 6px 9px; text-align: left; }
-td { border: 0.5pt solid #aaa; padding: 6px 9px; vertical-align: top; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 11.2pt; }
+table.compact { font-size: 10.4pt; }
+table.compact td, table.compact th { padding: 4px 8px; }
+th { background: #0b0b0b; color: #fff; padding: 5px 9px; text-align: left; }
+td { border: 0.5pt solid #aaa; padding: 5px 9px; vertical-align: top; }
 tr:nth-child(even) td { background: #f4f4f2; }
-.rail { background: #f4f4f2; border-left: 4px solid #2a78d6; padding: 9px 13px; font-size: 10.2pt; margin: 9px 0; }
-.warn { background: #fdeecb; border-left: 4px solid #eda100; padding: 9px 13px; font-size: 10.2pt; margin: 9px 0; }
-.tiles { display: flex; gap: 12px; margin: 14px 0; }
-.tile { flex: 1; border: 1px solid #ddd; border-top: 5px solid #2a78d6; padding: 12px; background: #f9f9f7; }
-.tile .n { font-size: 13.5pt; font-weight: bold; }
-.tile .t { font-size: 9.6pt; color: #52514e; margin-top: 4px; }
+.rail { background: #f4f4f2; border-left: 4px solid #2a78d6; padding: 10px 14px; font-size: 11.6pt; margin: 8px 0; }
+.warn { background: #fdeecb; border-left: 4px solid #eda100; padding: 12px 16px; font-size: 12pt; margin: 12px 0; }
+.tiles { display: flex; gap: 12px; margin: 10px 0; }
+.tile { flex: 1; border: 1px solid #ddd; border-top: 5px solid #2a78d6; padding: 10px 12px; background: #f9f9f7; }
+.tile .n { font-size: 16pt; font-weight: bold; }
+.tile .t { font-size: 11.8pt; color: #52514e; margin-top: 4px; }
 ul { margin: 5px 0 5px 17px; } li { margin-bottom: 4px; }
 .duo { display: flex; gap: 16px; } .duo > div { flex: 1; }
 """
@@ -122,8 +124,8 @@ body = f"""
 <div class="warn"><b>Honesty rule:</b> the worked examples in this document are illustrative pilot targets, not observed customer results. We publish observed numbers only from live campaigns with tracking and retained records.</div>
 
 <div class="pg"></div><h2>Where your events can go</h2>
-<div class="warn"><b>Where this stands today:</b> these channel connections are in build (each one's status is tracked in OneLive's connector registry) and are being validated with pilot partners — nothing publishes anywhere today. The table shows how each channel is <i>designed</i> to work once you connect it. Reporting status honestly, channel by channel, is the product.</div>
-<table>
+<div class="warn" style="font-size:11pt"><b>Where this stands today:</b> these channel connections are in build (each one's status is tracked in OneLive's connector registry) and are being validated with pilot partners — nothing publishes anywhere today. The table shows how each channel is <i>designed</i> to work once you connect it. Some integrations require your authorization, platform approval, or a final step in the platform's own app; search and AI visibility are eligibility outcomes, not guarantees. Reporting status honestly, channel by channel, is the product.</div>
+<table class="compact">
 <tr><th>Channel</th><th style="width:40%">How it's designed to work once you connect it</th></tr>
 <tr><td>Your website event pages + OneLive listing + link-in-bio</td><td>Kept current automatically — the first channels a pilot turns on</td></tr>
 <tr><td>Google Business Profile (posts, hours, events)</td><td>Publishes after your approval — needs you to authorize access to your profile</td></tr>
@@ -134,7 +136,7 @@ body = f"""
 <tr><td>City event calendars &amp; local press listings</td><td>Submitted on your behalf — then awaiting each editor's review</td></tr>
 <tr><td>Apple Maps · Yelp · Nextdoor · Foursquare</td><td>Monitored for accuracy from day one — direct updates depend on platform partner programs</td></tr>
 </table>
-<p class="sub">Channel availability varies. Some integrations require your authorization, platform approval, or a final step in the platform's own app. Search and AI visibility are eligibility outcomes, not guarantees — OneLive maximizes eligibility and reports status honestly.</p>
+
 
 <div class="pg"></div><h2>Why this stays good for you — the OneLive loop</h2>
 <p class="big">OneLive is a live-culture guide. Your agent is how your events become part of it — verified.</p>

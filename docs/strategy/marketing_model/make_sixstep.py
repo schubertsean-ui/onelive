@@ -38,7 +38,6 @@ for i,(t,how,val,ec,fc) in enumerate(steps):
     ax.text(x+0.3,y+0.78,W(val,44),fontsize=10.8,color=INK,va="top",linespacing=1.3)
     if c<2:
         ax.add_patch(FancyArrowPatch((x+cw,y+ch/2),(x+cw+gap,y+ch/2),arrowstyle="-|>",mutation_scale=18,color=INK2,lw=2.2))
-ax.add_patch(FancyArrowPatch((0.2+2*(cw+gap)+cw*0.5,4.55),(0.2+cw*0.5,4.55-0.35),arrowstyle="-|>",mutation_scale=18,color=INK2,lw=2.2,connectionstyle="arc3,rad=0.25"))
 ax.text(FW/2,0.42,"Save hours  ·  Prevent wrong dates  ·  Reach customers where they look  ·  Grow an audience you own  ·  Measure what reaches the door",
  fontsize=12.2,fontweight="bold",color=INK,ha="center")
 plt.savefig("flow_sixstep.png",dpi=185,facecolor=SURFACE); plt.close()

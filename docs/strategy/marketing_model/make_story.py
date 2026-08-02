@@ -37,18 +37,22 @@ def storyboard(fname, title, subtitle, steps, ledger=None, actor_key=None, ncols
         row=steps[r*ncols:(r+1)*ncols]
         row_h.append(max(card_height(e,wrap_w) for _,e in row))
     led_h=1.18 if ledger else 0.0
-    top=1.08
+    top=1.08+0.38*(len(textwrap.wrap(title,64))-1)
     figh=m+top+sum(row_h)+(nrows-1)*gut+(0.24+led_h if ledger else 0.06)+m
     fig,ax=plt.subplots(figsize=(figw,figh))
     fig.patch.set_facecolor(SURFACE); ax.set_facecolor(SURFACE)
     ax.set_position((0,0,1,1))
     ax.set_xlim(0,figw); ax.set_ylim(0,figh); ax.axis("off")
-    ax.text(m,figh-m-0.30,title,fontsize=TITLE_FS,fontweight="bold",color=INK)
-    ax.text(m,figh-m-0.70,esc(subtitle),fontsize=SUB_FS,color=INK2)
+    tl="\n".join(textwrap.wrap(title,64))   # wrap clear of the badge (visual QA)
+    nl=tl.count("\n")+1
+    ax.text(m,figh-m-0.02,tl,fontsize=TITLE_FS,fontweight="bold",color=INK,va="top",linespacing=1.18)
+    ax.text(m,figh-m-0.70-0.38*(nl-1),esc(subtitle),fontsize=SUB_FS,color=INK2)
     if badge:
-        bw_=0.3+0.104*len(badge)
-        ax.add_patch(FancyBboxPatch((figw-m-bw_,figh-m-0.44),bw_,0.4,boxstyle="round,pad=0.05",fc="white",ec="#eda100",lw=2.0))
-        ax.text(figw-m-bw_/2,figh-m-0.24,badge,fontsize=9.6,fontweight="bold",color="#b87e00",ha="center",va="center")
+        _b1,_b2=(badge.split(" — ",1)+[""])[:2]
+        bw_=0.3+0.082*max(len(_b1),len(_b2))
+        ax.add_patch(FancyBboxPatch((figw-m-bw_,figh-m-0.62),bw_,0.56,boxstyle="round,pad=0.05",fc="white",ec="#eda100",lw=2.0))
+        ax.text(figw-m-bw_/2,figh-m-0.25,_b1,fontsize=10.4,fontweight="bold",color="#b87e00",ha="center",va="center")
+        ax.text(figw-m-bw_/2,figh-m-0.49,_b2,fontsize=8.8,fontweight="bold",color="#b87e00",ha="center",va="center")
     y_top=figh-m-top
     for r in range(nrows):
         ch=row_h[r]

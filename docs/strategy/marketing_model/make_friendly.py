@@ -46,10 +46,13 @@ def thread(fname, title, sub, msgs, footer, cat_snap, ch3, gr3, fit):
     ax.set_position((0,0,1,1)); ax.set_xlim(0,FW); ax.set_ylim(0,FH); ax.axis("off")
     ax.text(M+0.05,FH-0.34,title,fontsize=17.5,fontweight="bold",color=INK)
     ax.text(M+0.05,FH-0.72,sub,fontsize=11.8,color=INK2)
-    _b="ILLUSTRATIVE — pilot targets, not observed results"
-    _bw=0.3+0.104*len(_b)
-    ax.add_patch(FancyBboxPatch((FW-M-_bw,FH-0.5),_bw,0.4,boxstyle="round,pad=0.05",fc="white",ec="#eda100",lw=2.0))
-    ax.text(FW-M-_bw/2,FH-0.3,_b,fontsize=9.6,fontweight="bold",color="#b87e00",ha="center",va="center")
+    # two-line compact badge (visual QA: the one-line badge spanned ~5in and
+    # collided with long titles)
+    _b1="ILLUSTRATIVE"; _b2="pilot targets, not observed results"
+    _bw=0.3+0.082*len(_b2)
+    ax.add_patch(FancyBboxPatch((FW-M-_bw,FH-0.68),_bw,0.56,boxstyle="round,pad=0.05",fc="white",ec="#eda100",lw=2.0))
+    ax.text(FW-M-_bw/2,FH-0.31,_b1,fontsize=10.4,fontweight="bold",color="#b87e00",ha="center",va="center")
+    ax.text(FW-M-_bw/2,FH-0.55,_b2,fontsize=8.8,fontweight="bold",color="#b87e00",ha="center",va="center")
 
     col_x = [M, M+COLW+0.25]
     ax.plot([col_x[1]-0.12,col_x[1]-0.12],[1.05,FH-1.0],color=LINE,lw=1)
