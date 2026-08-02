@@ -146,6 +146,10 @@ card(PX,1.42,FW-PX-0.28,7.30-1.42,INK,lw=2.2)
 px2=PX+0.17; bw=FW-PX-0.28-0.34
 ax.text(px2,7.02,"NO DASHBOARD.",fontsize=12,fontweight="bold",color=INK)
 ax.text(px2,6.80,"A text thread that already did the work.",fontsize=9.0,color=INK2)
+# C-11: the thread's example numbers are fictional — badge INSIDE the vignette
+ax.add_patch(FancyBboxPatch((px2,6.52),bw*0.95,0.22,boxstyle="round,pad=0.03",fc="#fdeecb",ec="#eda100",lw=1.4))
+ax.text(px2+bw*0.475,6.63,"ILLUSTRATIVE — pilot targets, not observed results",
+        fontsize=6.7,fontweight="bold",color="#8a5f00",ha="center",va="center")
 msgs=[
  ("a","Saw you added Friday's show. It's now on Google, the map apps, the event sites, your website — done."),
  ("a","The promoter's flyer says 9pm; your calendar says 10pm. Which is right?"),
@@ -154,7 +158,7 @@ msgs=[
  ("b","Post as planned"),
  ("a","Saturday: 310 tapped for details, 38 used the door code. Next time I'll lead with the carousel."),
 ]
-y=6.58
+y=6.36
 prev=None
 for kind,t in msgs:
     sender="1Live" if kind=="a" else "You"
@@ -180,7 +184,7 @@ for kind,t in msgs:
         ax.add_patch(FancyBboxPatch((px2+bw*0.42,y-bh),bw*0.53,bh,boxstyle="round,pad=0.04",fc=BLUE,ec=BLUE))
         ax.text(px2+bw*0.685,y-bh/2,t,fontsize=9.6,fontweight="bold",color="white",ha="center",va="center")
         y-=bh+0.10
-ax.text(px2,max(y-0.06,1.86),"Your week with the agent: minutes, not hours.",fontsize=8.2,style="italic",color=INK2,va="top")
+ax.text(px2,max(y-0.10,1.56),"Your week with the agent: minutes, not hours.",fontsize=8.2,style="italic",color=INK2,va="top")
 
 # ---------- bottom band: yours forever ----------
 ax.add_patch(Rectangle((0,0),FW,1.06,fc=AQUA,ec=AQUA))

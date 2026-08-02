@@ -80,6 +80,11 @@ for f, s in SOURCES.items():
     if "CONFIRMED / LIKELY / UNVERIFIED" in s and not ("six-state" in s or "Truth States v2" in s):
         errors.append(f"{f}: enumerates confidence states without anchoring to the six-state model (Truth States v2)")
 
+# C-11: the client one-pager's thread vignette carries fictional outcome
+# numbers — the ILLUSTRATIVE badge must be present in the source
+# (evaluator catch, PR #143 r-onepager)
+require("make_onepager.py", "ILLUSTRATIVE", "one-pager worked-example numbers must carry the C-11 badge")
+
 # Songkick hold (founder 2026-08-02; evaluator catch, PR #143 r-rebrand):
 # ON HOLD, READ & MONITOR only — no builder may present it as a publish or
 # sync destination. Every mention must sit in read/monitor/hold context.
