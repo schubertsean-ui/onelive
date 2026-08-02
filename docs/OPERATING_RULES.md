@@ -220,10 +220,25 @@ states, for the work at hand:
 4. **Why it matters** — the stakes; what gets better, for whom.
 5. **Expected outcomes/results** — what success looks like, ideally measurable.
 
-The plan comes first; the build then runs the loop (§2a): plan → small-batch build → validate →
-independent evaluator → **preview for the founder** → approval → merge → measure. "World-class"
-(§5) is never unplanned or unreviewed. This applies with full force to UI/UX work, whose spine is
-the user-journey model (`docs/design/ONE_LIVE_USER_JOURNEY_LIFECYCLE_v1.md`).
+**The full process (canon, founder-directed 2026-08-02) — every substantive build runs it, in order:**
+1. **PLAN** — what · how · why · why-it-matters · expected-outcomes; presented to and **approved by
+   the founder before building** (never skip the approval).
+2. **BUILD** in small batches.
+3. **VALIDATE** — lint, tests, trust-gate.
+4. **INDEPENDENT EVALUATOR** (code) — the non-Claude adversarial review on the PR.
+5. **PREVIEW for the founder** — a real URL/artifact to react to.
+6. **FOUNDER APPROVAL** → **MERGE** → **MEASURE** (Heartbeat / the effortless-UX metrics).
+7. **INDEPENDENT REVIEW OF THE WORK** — a reviewer who is **not the builder** critically assesses
+   how well the work did at (a) **designing** the plan, (b) **building** it, (c) **executing** it,
+   and (d) **confirming it was built as designed**. It is adversarial by intent — cites specifics,
+   finds gaps/overreach/drift, never rubber-stamps; its findings are **fixed or RECORDED**, not
+   ignored. This is distinct from step 4 (which reviews the code diff): step 7 reviews *how well the
+   whole plan→build→execute→confirm cycle was performed*.
+
+"World-class" (§5) is never unplanned, unreviewed, or unconfirmed. This applies with full force to
+UI/UX work, whose spine is the user-journey model (`docs/design/ONE_LIVE_USER_JOURNEY_LIFECYCLE_v1.md`),
+which is being grounded in proven, tested strategy/methodology/tactics (a "Methodology & Evidence"
+section is being added to that doc — research in progress).
 
 ## 5. Standard of "world-class"
 
