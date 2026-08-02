@@ -1,3 +1,8 @@
+// Build-trigger marker (2026-08-02): forces a fresh PRODUCTION build so the
+// operator-set NEXT_PUBLIC_AUTH_DISABLED=1 (non-Sensitive) is build-inlined into
+// the edge middleware and the open feed serves publicly. Vercel skips production
+// builds for pushes that don't touch web/ (rootDirectory=web), so a web/ change
+// is required to rebuild. No behavior change — see lib/auth.ts / docs/DEPLOY.md.
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { authProviderActive } from "../lib/auth";
