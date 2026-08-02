@@ -43,4 +43,9 @@ treatment assignment ship as HYPOTHESIS (founder-ratified 2026-08-01);
 (6) a claim's approved wording keeps its population scope verbatim —
 restating a scoped benchmark as a universal fact is a defect
 (the C-01 "83% of local businesses" escape, caught by the evaluator on
-PR #142 r1, now mechanically guarded in `check_artifacts.py`).
+PR #142 r1, now mechanically guarded in `check_artifacts.py`);
+(7) ownership-forever claims scope to the TIER-1 BASICS only (corrected
+listings, live calendar, website widget, customer list, exportable
+record) — campaigns/creative/components are service outputs, never a
+perpetual-asset promise (founder 2026-08-02; mechanically guarded in
+`check_artifacts.py`).

@@ -16,7 +16,7 @@ fig,ax=plt.subplots(figsize=(FW,FH))
 fig.patch.set_facecolor(SURFACE); ax.set_facecolor(SURFACE)
 ax.set_position((0,0,1,1)); ax.set_xlim(0,FW); ax.set_ylim(0,FH); ax.axis("off")
 ax.text(0.2,FH-0.4,"How it works — six steps, and what you get at each one",fontsize=19,fontweight="bold",color=INK)
-ax.text(0.2,FH-0.78,"You can stop after any step and keep everything it gave you. Nothing posts anywhere without your approval.",fontsize=11.8,color=INK2)
+ax.text(0.2,FH-0.78,"You can stop after any step and keep the basics it built — listings, calendar, widget, list. Nothing posts anywhere without your approval.",fontsize=11.8,color=INK2)
 
 steps=[
  ("1 · PASTE","Paste your website, events page, or Instagram link.","You immediately see what 1Live found — your events, your facts, their sources — before connecting anything.",BLUE,LBLUE),

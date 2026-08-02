@@ -103,6 +103,12 @@ require("build_customer.py", "in build", "channel statuses must disclose build s
 if re.search(r"<td>Connected", SOURCES.get("build_customer.py", "")):
     errors.append("build_customer.py: presents a channel as 'Connected' — registry says PLANNED; use design-preview wording")
 
+# ownership scope (founder 2026-08-02: "what is theirs forever is the
+# basics ... Not the marketing campaigns and creative or components") —
+# the over-broad formula may not reappear in any builder
+forbid_everywhere("Everything the agent builds", "ownership-forever claims scope to the Tier-1 basics only")
+forbid_everywhere("keep everything it gave", "ownership-forever claims scope to the Tier-1 basics only")
+
 # brand guard (founder decision 2026-08-02: identifiers keep "onelive" for
 # now — so the likeliest regression is old brand spelling drifting back into
 # customer-facing material from the surrounding identifiers)

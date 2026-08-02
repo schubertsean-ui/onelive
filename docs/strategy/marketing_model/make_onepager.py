@@ -189,9 +189,9 @@ ax.text(px2,max(y-0.10,1.56),"Your week with the agent: minutes, not hours.",fon
 # ---------- bottom band: yours forever ----------
 ax.add_patch(Rectangle((0,0),FW,1.06,fc=AQUA,ec=AQUA))
 ax.text(0.35,0.70,"YOURS. FOREVER.",fontsize=15.5,fontweight="bold",color="white")
-ax.text(0.35,0.40,"Everything the agent builds — your corrected listings, your calendar, your website widget, your customer list —",
-        fontsize=9.8,color="white")
-ax.text(0.35,0.16,"belongs to you.",fontsize=9.8,fontweight="bold",color="white")
+ax.text(0.35,0.40,"The basics — your corrected listings, your live calendar, your website widget, your customer list — are yours, forever.",
+        fontsize=9.8,fontweight="bold",color="white")
+ax.text(0.35,0.16,"Marketing campaigns and their creative are part of the 1Live service.",fontsize=9.2,color="white")
 ax.text(FW-0.35,0.44,"You approve\nevery send.",fontsize=12.5,fontweight="bold",color="white",ha="right",va="center",linespacing=1.25)
 
 plt.savefig("onepager.png",dpi=200,facecolor=SURFACE)

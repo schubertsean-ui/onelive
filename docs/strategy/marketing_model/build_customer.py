@@ -98,7 +98,7 @@ body = f"""
 <tr><td>Followers on platforms you don't control</td><td>A growing email/text list you own and keep</td></tr>
 <tr><td>Reach and likes</td><td>Attendance, signups, reservations, and sales — measured</td></tr>
 </table>
-<div class="rail">You can stop at any step and keep what it gave you: the preview, the corrected listings, the widget, the list. There is no lock-in by design.</div>
+<div class="rail">You can stop at any step and keep the basics it built: the preview, the corrected listings, the widget, the list. There is no lock-in by design. (Marketing campaigns and their creative are part of the ongoing 1Live service.)</div>
 
 <div class="pg"></div><h2>A week with 1Live — Dana's bar</h2>
 <p class="pgdesc">A realistic (fictional, badged) week shown as the message thread you'd actually see — no dashboard, just questions worth answering.</p>

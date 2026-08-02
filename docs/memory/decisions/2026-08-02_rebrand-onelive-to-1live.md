@@ -124,3 +124,24 @@ and words and image. ... ie they hardly do anything but it's important -
    IMPROVES). Headline: "YOU: A FEW TAPS. 1LIVE: ALL THE WORK." The visual
    weight itself carries the founder's point: the customer hardly does
    anything, and what they do is decisive.
+
+
+## Addendum 5 (2026-08-02) — ownership-forever scoped to the basics
+
+**Founder, verbatim:** "We need to be clear that what is their's forever
+is the basics of the agent doing 1:many from the website/calendar to
+places etc. Not the marketing campaigns and creative or components."
+
+RATIFIED SCOPE: the forever-ownership promise covers the TIER-1 BASICS —
+the agent's one-to-many propagation outputs from their website/calendar:
+corrected listings, the live calendar, the website widget, the customer
+list, the exportable record. Marketing campaigns, creative, and their
+components are OUTPUTS OF THE ONGOING 1LIVE SERVICE, not a perpetual
+asset grant (what a customer has already posted to their own channels
+naturally stays on their channels — that is platform reality, not a 1Live
+promise). Executed: one-pager band, six-step subtitle, and Customer Story
+rail all now state the scoped promise plus the service clarifier;
+check_artifacts.py forbids the over-broad formulas ("Everything the agent
+builds", "keep everything it gave") in every builder; claim-ledger
+standing rule (7) added. Aligns with the Tier-2 monetization scoping
+(basics free permanently; campaign generation is the priceable tier).
