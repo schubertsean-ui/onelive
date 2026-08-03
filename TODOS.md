@@ -13,6 +13,14 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #35 (2026-08-03 — UI/UX quality gates; PR #152)
+- [x] (P1) **R-002 (fired trigger)** — visual regression is a real, firing gate: QA fixture mode (`web/qa/fixtures.ts`) + `tools/visual_check.sh` + 4 committed baselines + `.github/workflows/visual-regression.yml` on every web PR + validate runs it where a browser exists. RESOLVED in docs/RECORD.md (successor rows: R-068 browserless skip, R-071 dark-only). DONE this session.
+- [x] (P1) **WCAG 2.2 AA + CWV mechanical** — `web/qa/audit.mjs` (axe full A/AA tag set, self-falsifying, lens-open state; lab LCP under pinned throttle) as leg 2 of the same gate; 0 violations, LCP 228–372ms vs the 2000ms bar. Residuals recorded: R-069 (human keyboard/SR pass before DNS cutover), R-070 (field CWV ← monitoring decision). DONE this session.
+- [x] (P1) **PR #145 merged** (`c992a99`) per agent-merges-on-green — user-journey canon + OPERATING_RULES §4a/§4b on master.
+- [ ] (P1, founder) **Ratify PR #112** (frictionless-nav spec + mantra) — then the Generator implements it on /tonight (URL-addressable lens, Back-closes-sheet, scroll restoration, labeled handoffs, skeletons). In the session-close ask list.
+- [ ] (P2, next design session) **Light theme for the live /tonight** (R-071) — brief §4 requires light+dark; live app is dark-only; extend visual baselines to light in the same PR.
+- [ ] (P1, deploy session) **R-069** — human keyboard + screen-reader pass over feed/lens/detail before the 1Live.co DNS cutover.
+
 ## Session Contract #33 (2026-08-03 — reconciliation + staleness guard)
 - [x] (P0) Reconcile the disk-truth docs (STATE/TODOS/changelog/arcs/memory) against verified ground truth after ~50 merged PRs of drift — DONE this session.
 - [x] (P0) Ship the anti-staleness guard — `tools/staleness_check.py` (git-only STATE.md drift detector) + `tests/test_staleness_check.py` (8 cases) + blocking wiring in `tools/validate`. DONE.

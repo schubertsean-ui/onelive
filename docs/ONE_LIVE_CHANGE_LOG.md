@@ -4,6 +4,49 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-03 — /tonight quality gates: visual regression real (R-002), WCAG/CWV mechanical, #145 merged (Session Contract #35, UI/UX lane)
+
+**Session type:** kickoff-directed UI/UX quality work (mission priority order:
+R-002 fired trigger → WCAG 2.2 AA + CWV → open-PR lane).
+
+**Shipped (PR #152, draft → drives to green):**
+- **R-002 RESOLVED** — visual regression is a real, firing gate. SYNTHETIC QA
+  fixture mode (`web/qa/fixtures.ts`: fail-closed off unless
+  `ONELIVE_QA_FIXTURES=1`, fully fictional events, frozen clock, visible
+  banner) renders deterministically; `tools/visual_check.sh` boots the
+  production build in that mode and pixel-diffs 4 pages against committed
+  baselines (`tests/visual_baselines/`); determinism proven at 0/329160 pixels
+  across independent boots; `.github/workflows/visual-regression.yml` fires on
+  every web-touching PR with Chromium pinned to the baselines' build
+  (1194 = Playwright 1.56.0); `tools/validate` runs it for real where a
+  browser + web deps exist (browserless skip = new row R-068).
+- **WCAG 2.2 AA + lab CWV mechanical** — `web/qa/audit.mjs` (axe-core, full
+  A/AA tag set 2.0→2.2, self-falsifying against a planted-broken page, incl.
+  the lens-OPEN dialog state) + lab LCP under pinned throttling, as leg 2 of
+  the same check. Result at this head: 0 violations on all four pages +
+  lens-open; LCP 228–372ms vs the brief's 2000ms bar. Honest scope: R-069
+  (human keyboard/screen-reader pass owed before DNS cutover), R-070 (field
+  CWV waits on the founder monitoring decision).
+- **Detail-page fix** caught by the first baseline review: "Kind" rendered the
+  raw category slug ("live-music") — now `domainLabel`, matching the card.
+- **Two CI reds on the PR's own first head driven to fixes:** ubuntu-24
+  runners abort Chromium's sandbox (AppArmor) → capture runs
+  `--no-sandbox --disable-dev-shm-usage` (proven pixel-identical); a newly
+  published high advisory (brace-expansion GHSA-rgw5-rvv9-x895) → fixed at
+  the root via the existing overrides pattern (^5.0.9), SCA gate PASS.
+- **PR #145 MERGED** (`c992a99`, squash) under the ratified
+  agent-merges-on-green protocol: evaluator APPROVE + trust-gate green on
+  final head `2f46514`, mergeable clean — the user-journey lifecycle canon +
+  OPERATING_RULES §4a (plan-first) / §4b (API frugality) are now on master.
+  Founder notified at merge (session close report).
+- **Spark Line empty-state VERIFIED** (mission item 4a): cards without a line
+  read as finished (no gap, no filler), tier-B/C registers render per canon
+  §4 — pinned by the committed baselines; no change was needed.
+
+**Founder asks queued (ONE list, session close):** ratify PR #112
+(frictionless-nav spec + mantra) · G-EG (Emotion Glyph disclosure) ·
+monitoring-stack timing (unlocks field CWV proof of the sub-2s promise).
+
 ## 2026-08-03 — Full reconciliation + anti-staleness guard (Session Contract #33)
 
 **Session type:** founder-directed reconciliation ("search all prior sessions and
