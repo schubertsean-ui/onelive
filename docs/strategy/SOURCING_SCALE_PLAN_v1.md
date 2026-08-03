@@ -330,3 +330,56 @@ absolutely); a claimed source that goes stale or adversarial is downgraded
 by the same reliability loop as any source. Agent adoption metrics
 (adopted count, % of high-churn sources, extraction-spend displacement)
 join the coverage snapshot.
+
+---
+
+## v1.1 AMENDMENTS — post external red team (2026-08-03)
+
+Three external reviews (ChatGPT 3-role, ChatGPT deep-Adversary, Gemini
+Architect) adjudicated finding-by-finding against the actual code in
+`docs/strategy/redteam/SOURCING_PLAN_REDTEAM_ADJUDICATION_v1.md`.
+Adjudicated verdict: **PROCEED WITH FIXES.** These amendments are binding
+on the plan; where they conflict with the sections above, the amendment wins.
+
+1. **Anchor tiers (BLOCKING for §3d):** `claimed_upload` loses uniform
+   solo-promote. Tier 0 institutional APIs solo-promote; Tier 1
+   DNS/domain-verified claims solo-promote only within verified identity
+   scope + 24h background corroboration; Tier 2 unverified claims never
+   solo-promote. Claim defense: verification-before-privilege, divergence
+   alerts, challenge window, rate limits, 72h first-events shadow. §3d
+   economics modeled at 0% adoption for P1-P5; carrot re-based on tangible
+   utility (free widget, ICS feed, concierge corrections, venue analytics).
+2. **Source probation:** auto-enrolled sources enter PROBATION (no anchor
+   status, capped corroboration weight) until 2 temporally-separated clean
+   extractions + family classification. Sentinels + syndication-family
+   weight caps ship IN P3 with enrollment, not after.
+3. **Publish safety:** DRY_RUN report mode + curated-only canary before any
+   flag flip; DB trigger requiring a gate-audit row for every promotion;
+   CAS/idempotency hardening in the promoter; provenance-based bulk
+   retract built before P3.
+4. **P4 split:** P4a claims fusion in SHADOW beside the live gate (cutover
+   at ≥95% agreement; legacy events get `legacy_gate_pass` rows); P4b
+   resolver + recurrence. Field-level authority matrix + event lifecycle
+   states (cancellation from an authoritative class beats stale copies).
+5. **Efficiency honesty:** §3b figures are TARGETS until the ledger
+   measures them (P90 budgeting, ±2× multi-metro bands, ops/fixed/human
+   categories added). Semantic hashing (normalized-DOM/event-fragment)
+   replaces byte-hash as the skip decision; 2-week unchanged-rate
+   measurement precedes any P2 savings claim. Canonical scheduler figure:
+   7% slot delivery; funnel metrics (scheduled→triggered→started→
+   completed→successful) instrumented.
+6. **Scheduler:** minimal metronome (hourly, no catch-up) lands in P1 so
+   P2 is measured at representative cadence; durable job-queue architecture
+   is a P5-entry criterion.
+7. **Ground truth:** hand-census primary; capture-recapture demoted to
+   sensitivity analysis; coverage reported as intervals; staged targets are
+   lower-confidence bounds, re-fitted from the measured yield curve of the
+   first 500 enrolled sources before M2/M3 ratification.
+8. **Templates:** two-layer (platform base + per-source overlay), activated
+   only after multi-page validation, versioned with rollback.
+9. **Model-drift sentinel (new founder ask):** weekly shadow mini-exam on
+   the golden subset with alert + auto-pause on drift — detection only,
+   never certification.
+10. **Probe pilot before national claims:** the first P5 replay (a second
+    Texas metro) reports the adapter-exception rate; >10% falsifies
+    "zero forked code" and triggers redesign before further metros.
