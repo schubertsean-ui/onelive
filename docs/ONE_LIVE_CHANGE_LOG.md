@@ -6,14 +6,14 @@
 
 ## 2026-08-03 — Code-armed sweep: gate-custodied wording into code comments (founder: "not wait for the tripwire")
 
-Dedicated code-armed PR (stacked on the records PR) executing R-070's remainder early at
+Dedicated code-armed PR (stacked on the records PR) executing R-075's remainder (renumbered from R-070 at the PR #152 merge) early at
 founder direction: 14 files' comments/docstrings now state the gate-custodied-publication
 invariant (vision provider/extract, enrich first_party/youtube, the five descriptor modules,
 trust_gate3, social `__init__`/meta_publisher, source_pathways, the descriptor-foundry test
 docstring) — comments only, zero behavior change; affected suites green (167 tests).
 Deliberately untouched: `publish_gate.py`'s two runtime refusal strings + their test matchers
 (behavior text, literally true for the human-custodied carousel surface) and the
-`make_model.py` figure line (next deliverable rebuild) — R-070 narrowed to exactly those.
+`make_model.py` figure line (next deliverable rebuild) — R-075 narrowed to exactly those.
 
 ## 2026-08-03 — Integrity plugin + Operating Charter (founder-approved Contract #36)
 
@@ -166,7 +166,7 @@ reads as current law — CLAUDE.md ×3, OPERATING_RULES §3.2 + narrative canon-
 domain-truth-and-trust review persona, UI canon §3, FRICTIONLESS_NAV, CONFIG_CATALOG, STATE
 rollup — and CLAUDE.md's parenthetical maps old shorthand → new wording as the standing
 decoder for any historical text. Code-side comment/docstring occurrences (already mostly
-nuance-correct) are R-070: swept at each file's next code-armed touch, trust-path under
+nuance-correct) are R-075 (renumbered from R-070 at the PR #152 merge): swept at each file's next code-armed touch, trust-path under
 evaluator review. Historical records keep the original phrase, append-only.
 
 **Charter invariant reworded at founder direction ("Relive = remove").** The stale shorthand
@@ -202,7 +202,7 @@ earlier to inform the gate decision. Scope fences: draw-to-search itself stays
 PROPOSAL/founder-gated; no dependency, no spend; bench findings are design inputs, never gate
 evidence. Canon §7/§12 updated; decision record
 `docs/memory/decisions/2026-08-03_geolibre-draw-to-search-prototype-bench.md`; TODOS bench item
-queued. **R-068 recorded:** the canon's `ONE_LIVE_GEO_IDENTITY_v1.md §5` citation (draw-to-
+queued. **R-073 recorded (renumbered from R-068 at the PR #152 merge):** the canon's `ONE_LIVE_GEO_IDENTITY_v1.md §5` citation (draw-to-
 search spec) resolves to no committed file — land the spec or fix the citations before the
 gate decision / first bench run.
 ## 2026-08-03 — Spark Lines auto-publish on validation (founder-caught catch-22); guard v2 branch escape
@@ -252,6 +252,57 @@ DOES modify STATE.md, so it counts with no lag). 10 hermetic tests over real tem
 repos with an `origin` remote. Marker bumped to `9da667f`; the "20 commits" language
 scrubbed from STATE.md, the handoff standard, and the kickoff prompt. A tolerance
 knob exists as an operational escape hatch only; raising it is a disk-truth relaxation.
+## 2026-08-03 — /tonight quality gates: visual regression real (R-002), WCAG/CWV mechanical, #145 merged (Session Contract #39, UI/UX lane; renumbered from #35 at the master merge)
+
+**Session type:** kickoff-directed UI/UX quality work (mission priority order:
+R-002 fired trigger → WCAG 2.2 AA + CWV → open-PR lane).
+
+**Shipped (PR #152, draft → drives to green):**
+- **R-002 RESOLVED** — visual regression is a real, firing gate. SYNTHETIC QA
+  fixture mode (`web/qa/fixtures.ts`: fail-closed off unless
+  `ONELIVE_QA_FIXTURES=1`, fully fictional events, frozen clock, visible
+  banner) renders deterministically; `tools/visual_check.sh` boots the
+  production build in that mode and pixel-diffs 4 pages against committed
+  baselines (`tests/visual_baselines/`); determinism proven at 0/329160 pixels
+  across independent boots; `.github/workflows/visual-regression.yml` fires on
+  every web-touching PR with Chromium pinned to the baselines' build
+  (1194 = Playwright 1.56.0); `tools/validate` runs it for real where a
+  browser + web deps exist (browserless skip = new row R-068).
+- **WCAG 2.2 AA + lab CWV mechanical** — `web/qa/audit.mjs` (axe-core, full
+  A/AA tag set 2.0→2.2, self-falsifying against a planted-broken page, incl.
+  the lens-OPEN dialog state) + lab LCP under pinned throttling, as leg 2 of
+  the same check. Result at this head: 0 violations on all four pages +
+  lens-open; LCP 228–372ms vs the brief's 2000ms bar. Honest scope: R-069
+  (human keyboard/screen-reader pass owed before DNS cutover), R-070 (field
+  CWV waits on the founder monitoring decision).
+- **Detail-page fix** caught by the first baseline review: "Kind" rendered the
+  raw category slug ("live-music") — now `domainLabel`, matching the card.
+- **Two CI reds on the PR's own first head driven to fixes:** ubuntu-24
+  runners abort Chromium's sandbox (AppArmor) → capture runs
+  `--no-sandbox --disable-dev-shm-usage` (proven pixel-identical); a newly
+  published high advisory (brace-expansion GHSA-rgw5-rvv9-x895) → fixed at
+  the root via the existing overrides pattern (^5.0.9), SCA gate PASS.
+- **PR #145 MERGED** (`c992a99`, squash) under the ratified
+  agent-merges-on-green protocol: evaluator APPROVE + trust-gate green on
+  final head `2f46514`, mergeable clean — the user-journey lifecycle canon +
+  OPERATING_RULES §4a (plan-first) / §4b (API frugality) are now on master.
+  Founder notified at merge (session close report).
+- **Spark Line empty-state VERIFIED** (mission item 4a): cards without a line
+  read as finished (no gap, no filler), tier-B/C registers render per canon
+  §4 — pinned by the committed baselines; no change was needed.
+
+**Founder RATIFIED all three same-day ("Yes and move forward on each") — and each moved:**
+- **#112 merged** (`4ab8e48`) + the /tonight implementation landed on PR #152:
+  history-modeled URL-addressable lens (Back closes the sheet first),
+  filters-in-URL, same-tab labeled ticket handoffs + aria-labeled external
+  links (the new §13.1 link-policy gate caught the unlabeled detail map link
+  on its first run), skeleton loading. Spec status flipped RATIFIED.
+- **G-EG ratified → Emotion Glyph engine built** (`worker/glyph/`,
+  deterministic Plutchik→lexicon, banned rating-family refusal-tested,
+  creator override wins, 12 tests) — display honestly gated on R-072
+  (SVG art set · founder-capped real mapper · creator descriptions).
+- **Monitoring GO** — Speed Insights + Analytics wired (no-op until the
+  founder's Vercel toggles); field CWV then flows (R-070 trigger in motion).
 
 ## 2026-08-03 — Full reconciliation + anti-staleness guard (Session Contract #33)
 

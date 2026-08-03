@@ -19,6 +19,14 @@ import { contextualPreview } from "../../../lib/preview";
 import Link from "next/link";
 import type { LicensedEvent, SparkLine } from "../../../lib/licensed";
 import {
+  filtersToQuery,
+  isLensHistoryState,
+  lensHistoryState,
+  queryToFilters,
+  externalAriaLabel,
+  handoffCaption,
+} from "../../../lib/nav";
+import {
   DESIRES,
   DESIRE_BY_KEY,
   applyDesire,
@@ -243,13 +251,25 @@ function Lens({ e, side, onNow, onSide, onClose }: {
                 {status ? <p className="lstatus">{status}</p> : null}
                 <div className="lact">
                   <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
-                  {tix ? <a className="lbtn" href={tix} target="_blank" rel="noopener noreferrer">Get tickets ↗</a> : null}
+                  {/* TERMINAL handoff (nav canon §8): tickets finish on the
+                      partner's site — same-tab (never a gratuitous new tab on
+                      mobile; Back returns here), honestly labeled with where
+                      it finishes, announced to screen readers. */}
+                  {tix ? (
+                    <a className="lbtn" href={tix} aria-label={externalAriaLabel("Get tickets", tix)}>
+                      Get tickets ↗{handoffCaption(tix) ? <span className="lhand"> · {handoffCaption(tix)}</span> : null}
+                    </a>
+                  ) : null}
                 </div>
                 {preview ? (
                   <div className="llisten">
                     <span className="llbl">{preview.label}</span>
+                    {/* REFERENCE links (§8): a listen search is something a
+                        person keeps open while deciding — the sanctioned
+                        new-tab case, labeled for screen readers. */}
                     {preview.links.map((l) => (
-                      <a key={l.service} className="lchip" href={l.url} target="_blank" rel="noopener noreferrer">{l.service} ↗</a>
+                      <a key={l.service} className="lchip" href={l.url} target="_blank" rel="noopener noreferrer"
+                        aria-label={externalAriaLabel(`${preview.label} on ${l.service}`, l.url)}>{l.service} ↗</a>
                     ))}
                   </div>
                 ) : null}
@@ -261,11 +281,15 @@ function Lens({ e, side, onNow, onSide, onClose }: {
                   <p className="lsub2">{[e.venue_area, e.venue_city].filter(Boolean).join(" · ")}</p>
                 ) : null}
                 {map ? (
-                  <a className="laddr" href={map} target="_blank" rel="noopener noreferrer">{e.venue_address ? `${e.venue_address} ↗` : "Open in maps ↗"}</a>
+                  <a className="laddr" href={map} target="_blank" rel="noopener noreferrer"
+                    aria-label={externalAriaLabel("Open the address in maps", map)}>{e.venue_address ? `${e.venue_address} ↗` : "Open in maps ↗"}</a>
                 ) : null}
                 <div className="lact">
                   {tel ? <a className="lbtn" href={tel}>Call the venue</a> : null}
-                  {site ? <a className="lbtn" href={site} target="_blank" rel="noopener noreferrer">Venue website ↗</a> : null}
+                  {site ? (
+                    <a className="lbtn" href={site} target="_blank" rel="noopener noreferrer"
+                      aria-label={externalAriaLabel("Venue website", site)}>Venue website ↗</a>
+                  ) : null}
                 </div>
                 {!e.venue_address && !tel && !site ? (
                   <p className="lgap">We only have this venue&rsquo;s name and area so far — more venue detail is on the way.</p>
@@ -325,7 +349,13 @@ function toggle(set: Set<string>, v: string): Set<string> {
   return n;
 }
 
-export default function FeedApp({ events, serverNowMs }: { events: LicensedEvent[]; serverNowMs: number }) {
+export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
+  events: LicensedEvent[]; serverNowMs: number;
+  // QA fixture mode only (web/qa/fixtures.ts): keep the server's frozen clock
+  // after mount so screenshots are deterministic. Never set in production —
+  // the real feed must always re-read the phone's real clock (canon §9).
+  qaFrozenClock?: boolean;
+}) {
   const [nowMs, setNowMs] = useState(serverNowMs);
   const [mounted, setMounted] = useState(false);
   const [tabKey, setTabKey] = useState("all");
@@ -339,7 +369,49 @@ export default function FeedApp({ events, serverNowMs }: { events: LicensedEvent
   // The open lens: which event, and which door (artist/venue). null = closed.
   const [lens, setLens] = useState<{ id: string; side: LensSide } | null>(null);
 
-  useEffect(() => { setNowMs(Date.now()); setMounted(true); }, []);
+  useEffect(() => {
+    if (!qaFrozenClock) setNowMs(Date.now());
+    // Filters live in the URL (nav canon §6): a shared/refreshed
+    // ?when=…&domain=…&genre=… link reproduces the filtered feed. Applied
+    // after mount (same pattern as the clock) so SSR stays deterministic.
+    const f = queryToFilters(window.location.search);
+    if (f.tabKey !== "all") setTabKey(f.tabKey);
+    if (f.domains.size) setDomains(f.domains);
+    if (f.areas.size) setAreas(f.areas);
+    if (f.genres.size) setGenres(f.genres);
+    if (f.freeOnly) setFreeOnly(true);
+    setMounted(true);
+  }, [qaFrozenClock]);
+
+  // Keep the URL in step with the filters — replaceState, not pushState, so
+  // Back stays a step UP (close lens / leave page), never an undo-tour of
+  // every chip tap (nav canon §7: Back is a strict "undo my last step").
+  useEffect(() => {
+    if (!mounted) return;
+    // Never rewrite the URL while the lens owns it (its entry carries the
+    // event's own /tonight/<id> address).
+    if (isLensHistoryState(window.history.state)) return;
+    const q = filtersToQuery({ tabKey, domains, areas, genres, freeOnly });
+    const next = `${window.location.pathname}${q}`;
+    if (`${window.location.pathname}${window.location.search}` !== next) {
+      window.history.replaceState(window.history.state, "", next);
+    }
+  }, [mounted, tabKey, domains, areas, genres, freeOnly]);
+
+  // History-modeled lens (nav canon §6/§7): opening pushes a history entry AT
+  // THE EVENT'S OWN URL, so (a) hardware/gesture Back closes the sheet before
+  // it ever leaves the feed — the feed behind it is untouched, nothing to
+  // restore — and (b) the address bar shows a shareable /tonight/<id> that
+  // hard-loads as the full standalone page. popstate is the single source of
+  // truth for closing; the UI's own close calls history.back() so the stack
+  // never desyncs.
+  useEffect(() => {
+    function onPop() {
+      if (!isLensHistoryState(window.history.state)) setLens(null);
+    }
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   // Base = the honest set minus only what has ENDED (a time filter, never a
   // confidence filter). Before mount we keep everything (deterministic SSR).
@@ -361,7 +433,24 @@ export default function FeedApp({ events, serverNowMs }: { events: LicensedEvent
   const freeCount = base.filter((e) => e.is_free || e.price_min === 0).length;
 
   const isOnNow = (e: LicensedEvent) => mounted && eventOnNow(e, nowMs);
-  const openLens = (e: LicensedEvent, side: LensSide) => setLens({ id: e.licensed_event_id, side });
+  const openLens = (e: LicensedEvent, side: LensSide) => {
+    const id = e.licensed_event_id;
+    if (isLensHistoryState(window.history.state)) {
+      // Already inside a lens entry (switching events would be unusual, but
+      // the stack must stay one-deep): replace, never push a second layer.
+      window.history.replaceState(lensHistoryState(id, side), "", eventHref(e));
+    } else {
+      window.history.pushState(lensHistoryState(id, side), "", eventHref(e));
+    }
+    setLens({ id, side });
+  };
+  const closeLens = () => {
+    // Back out through history when the lens owns the top entry, so UI-close
+    // and hardware Back leave an identical stack (§13.4); otherwise (e.g. a
+    // stale state after an external return) just close.
+    if (isLensHistoryState(window.history.state)) window.history.back();
+    else setLens(null);
+  };
   const lensEvent = lens ? base.find((e) => e.licensed_event_id === lens.id) ?? events.find((e) => e.licensed_event_id === lens.id) ?? null : null;
 
   return (
@@ -450,8 +539,13 @@ export default function FeedApp({ events, serverNowMs }: { events: LicensedEvent
           e={lensEvent}
           side={lens.side}
           onNow={isOnNow(lensEvent)}
-          onSide={(s) => setLens({ id: lens.id, side: s })}
-          onClose={() => setLens(null)}
+          onSide={(s) => {
+            // The artist↔venue switch stays within the same history entry —
+            // it is a view flip inside one layer, not a new place.
+            window.history.replaceState(lensHistoryState(lens.id, s), "", window.location.href);
+            setLens({ id: lens.id, side: s });
+          }}
+          onClose={closeLens}
         />
       ) : null}
     </main>

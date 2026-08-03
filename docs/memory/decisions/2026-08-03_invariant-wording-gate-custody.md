@@ -66,7 +66,7 @@ keep the original phrase — they are append-only records of what was said when.
   from the older shorthand 'AI never publishes')" — so a future session that
   meets the old phrase in ANY historical or not-yet-swept text resolves it to
   the current invariant from the charter alone.
-- **Remainder (R-070, objective trigger):** code-side comments/docstrings and
+- **Remainder (R-075 — renumbered from R-070 at the PR #152 merge; objective trigger):** code-side comments/docstrings and
   the carousel's runtime strings — most already state the correct nuance
   ("UNVALIDATED", "directly", "by construction"); they update at the next
   code-armed touch of each file, trust-path ones under evaluator review.

@@ -1,8 +1,11 @@
 # ONE LIVE — Frictionless & Automagical Navigation (Design Spec v1)
 
-**Status: PROPOSAL.** Two things need founder ratification: (1) the **mantra** as
-an addition to the design canon (§1), and (2) this spec as the navigation/interaction
-standard for `/tonight` and every surface built after it. Nothing here relaxes a
+**Status: RATIFIED** (founder, 2026-08-03 — "Yes and move forward on each";
+decision record `docs/memory/decisions/2026-08-03_frictionless-nav-geg-monitoring-ratified.md`;
+merged as PR #112, `4ab8e48`). The mantra (§1) is design canon and this spec is the
+navigation/interaction standard for `/tonight` and every surface built after it.
+The §15 sub-questions (in-app ticketing partnership, native-wrapper trigger,
+Anticipatory-Greeting go-live) remain SEPARATE, still-open founder decisions. Nothing here relaxes a
 trust invariant or a gate; where a pattern brushes a trust rule (optimistic UI,
 personalization, anticipation), the guardrail is written in as a hard constraint
 and, where mechanizable, as an acceptance test (§13).

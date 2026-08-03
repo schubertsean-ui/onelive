@@ -1,10 +1,14 @@
 # UI/UX Design Session — Kickoff Prompt (paste into a fresh session)
 
-Written 2026-08-03 per founder request, following `docs/ops/HANDOFF_STANDARD.md`.
-Scope: the /tonight experience layer ONLY. A parallel session owns the
-sourcing/ingestion engine (branch `claude/1live-session-kickoff-uvviqi`,
-PR #150) — do NOT touch `worker/`, `tools/import_sources.py`, or
-`sources/markets/` in this session; UI work lives in `web/` + `docs/design/`.
+Rewritten 2026-08-03 at the close of Contract #39 (UI/UX quality-gates +
+ratification session), per `docs/ops/HANDOFF_STANDARD.md`. The previous
+version of this file was that session's own kickoff — fully executed, all
+mission items DONE (see STATE.md Contract #39). Scope: the /tonight
+experience layer ONLY. A parallel session owns the sourcing/ingestion engine —
+do NOT touch `worker/orchestrator.py`, `worker/sourcing/`,
+`worker/autopromote.py`, `tools/import_sources.py`, or `sources/markets/`;
+this lane lives in `web/` + `docs/design/` (+ `worker/glyph/` and the
+display side of `worker/descriptor/`).
 
 ---
 
@@ -13,78 +17,117 @@ PR #150) — do NOT touch `worker/`, `tools/import_sources.py`, or
 You are continuing the 1Live UI/UX design effort. STOP — before any work:
 
 1. **Open ritual.** Run `python tools/session_reconcile.py`, then read
-   `docs/SESSION_START.md`, `STATE.md` (trust it only after reconcile is
-   clean), `docs/OPERATING_RULES.md` IN FULL — especially §4a (never build
-   without a presented plan: what/how/why/why-it-matters/expected-outcomes)
-   and §6a (NO timers/send_later ever — webhooks and real triggers only;
-   non-user-facing content does not circle through review loops).
-2. **Read the design canon IN FULL** (complete files, no skimming — Rule
-   Zero): `docs/design/ONE_LIVE_TONIGHT_UI_CANON_v1.md` (RATIFIED, the
-   single source of truth), `docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md`
-   (ratified canon: trust display rules, Spark Line waterfall, Emotion Glyph,
-   Descriptor Foundry, behavioral architecture), and skim
-   `docs/memory/` decisions dated 2026-07-25 onward for design rulings.
-3. **Know what is BUILT vs NOT** (verified 2026-08-03, do not re-litigate):
-   - BUILT and live: two-door card (artist+venue), slide-out lens,
-     progressive disclosure, three-tier date buckets, contextual preview
-     ("Hear them"/"Watch a talk"/… — honest name-searches, null for
-     unpreviewable types), trust display (no badges, disputed always shown),
-     image-less domain-hued cover band, venue contact/map links. PRs #127,
-     #130, #131, #147; ~1,400 real events render from licensed_event ∪ event.
-   - RENDER-READY but EMPTY: Spark Line (content layer #148 merged; shows
-     nothing until generation + identity enrichment land — owned by the
-     OTHER session; do not build generation here, but DO design/refine the
-     empty-state so cards without a Spark Line read as finished).
-   - NOT BUILT: Emotion Glyph, real venue photos/character, nearby
-     street-map, voice navigation, Anticipatory Greeting.
-   - NOT VERIFIED (standing quality gaps): WCAG 2.2 AA audit, CWV budgets
-     (brief demands < 2.0s load — stricter than LCP 2.5s), visual-regression
-     baselines (R-002 in docs/RECORD.md: trigger FIRED, a deployed URL
-     exists — this is queued work, not optional).
-4. **Open PRs in your lane** (review, then drive or close honestly):
-   #145 (user-journey lifecycle canon — the design spine, likely
-   merge-worthy), #112 (frictionless/automagical nav spec v1, PROPOSAL —
-   the founder's "no friction, smooth as smooth can be" mantra; needs
-   founder ratification via ONE consolidated question set, then
-   implementation on /tonight).
+   `docs/SESSION_START.md`, `STATE.md` (trust only after reconcile is clean),
+   `docs/OPERATING_RULES.md` IN FULL. Two things changed 2026-08-03 you must
+   not miss: (a) **plan-first is now MECHANICAL** — `.claude/settings.json`
+   hooks print a [plan-first] banner at session start and a PreToolUse gate
+   DENIES product-file edits unless STATE.md carries an OPEN Session Contract
+   with the five plan fields (WHAT · HOW · WHY · WHY-IT-MATTERS · EXPECTED
+   OUTCOMES) — write your contract FIRST (proven live: the gate fired in the
+   #39 session); (b) CLAUDE.md is now **charter v3** (~70 rules, §0
+   precedence) — read it fresh, do not assume older text.
+2. **Read the design canon IN FULL (Rule Zero):**
+   `docs/design/ONE_LIVE_TONIGHT_UI_CANON_v1.md` (RATIFIED, single source of
+   truth) · `docs/design/ONE_LIVE_FRICTIONLESS_NAV_v1.md` (**RATIFIED
+   2026-08-03**, the navigation standard — first wave implemented, see below)
+   · `docs/design/ONE_LIVE_MASTER_DESIGN_BRIEF_v2.4.md` · skim
+   `docs/memory/decisions/` 2026-08-02 onward.
+3. **Contract numbering:** #34–#39 are taken (parallel lanes collided once;
+   the fix is renumber-on-merge). Check STATE.md for the highest number.
 
-## Mission (priority order, founder-adjustable)
+## What is BUILT and PROVEN (2026-08-03 close — verify, don't re-litigate)
 
-1. **Visual-regression baselines (R-002)** — the fired trigger. Wire
-   `tools/visual_regression` against the deployed preview; commit baselines;
-   turn the standing validate SKIP green.
-2. **WCAG 2.2 AA + CWV verification** — audit the live /tonight against the
-   brief's bars; fix violations; make both mechanically checked (CI or a
-   documented repeatable run), not asserted.
-3. **Frictionless-nav implementation** (after founder ratifies #112):
-   URL-addressable lens/modal over preserved feed state, Back closes the
-   sheet before leaving, scroll restoration, external-link-by-intent with
-   labeled handoff, skeletons-not-spinners.
-4. **The content-slot designs** for what the sourcing engine will fill:
-   Spark Line placement polish, Emotion Glyph spec→build (needs founder
-   gap ratification G-EG first — ask, don't assume), venue
-   photo/character slot with honest empty states.
-5. Every design-derived PR gets the evaluator pass against the brief's
-   8-criterion rubric; deltas from the brief are logged, never silent.
+Carried by PR #152. **FIRST TASK: verify #152's state** —
+`git log --oneline origin/master | head -5`. If it is MERGED, confirm the
+production deploy serves the new nav (open a card → the URL becomes
+`/tonight/<id>` → Back closes the sheet) and that Speed Insights (founder
+purchased + enabled 2026-08-03) shows field data — then annotate R-070 that
+field CWV is live. If it is still OPEN, drive it to green + merge per the
+agent-merges-on-green protocol (its last state: all checks green on the
+pre-merge head; a master-merge conflict resolution pushed after, CI
+re-running on that final head).
 
-## Hard rules (violations have burned trust before — do not repeat)
+- **Visual regression is a REAL gate (R-002 RESOLVED):** synthetic fixture
+  mode (`web/qa/fixtures.ts`, `ONELIVE_QA_FIXTURES=1`, fail-closed, frozen
+  clock, visible banner) · `tools/visual_check.sh` (pixels + a11y/LCP, one
+  boot) · 4 baselines in `tests/visual_baselines/` (its README = the
+  determinism contract: TZ America/Chicago on server AND browser; Chromium
+  build 1194 = Playwright 1.56.0; external hosts resolver-blocked) ·
+  `.github/workflows/visual-regression.yml` fires on every web PR · validate
+  runs it for real where a browser exists (R-068 = the browserless skip).
+  **An intended visual change = recapture with `--update` in the SAME PR.**
+- **WCAG 2.2 AA machine subset + lab LCP:** `web/qa/audit.mjs` (axe, full
+  A/AA tag set, self-falsifying against a planted-broken page, audits the
+  lens-OPEN dialog; throttled lab LCP vs the 2000ms bar — last measured
+  228–372ms). Residuals: R-069 (human keyboard/screen-reader pass owed
+  BEFORE DNS cutover), R-070 (field CWV — see task 1).
+- **Frictionless nav, first wave (spec §12):** history-modeled
+  URL-addressable lens — Back closes the sheet before leaving the feed
+  (`web/lib/nav.ts` + FeedApp) · filters-in-URL · same-tab labeled ticket
+  handoffs ("· finishes on <host>") · aria-labeled external links (the
+  mechanical gate `web/qa/link-policy.test.ts` enforces §13.1) · skeleton
+  `loading.tsx` (zero-CLS, anti-blink).
+- **Emotion Glyph ENGINE (G-EG ratified):** `worker/glyph/` — deterministic
+  Plutchik→lexicon (24 + 5 sanctioned dyads), banned rating-family tested,
+  creator override wins, provenance stamped. Display gated on R-072.
+- Merged this lane same day: **#145** (user-journey canon + OPERATING_RULES
+  §4a/§4b), **#112** (nav spec, status flipped RATIFIED).
 
-- Disk is truth. Update STATE.md + TODOS.md + docs/ONE_LIVE_CHANGE_LOG.md
-  at session close; `python tools/staleness_check.py` must pass.
-- `bash tools/validate` green before any PR. Trust display rules are
-  physics: NO badges, NO "confirmed" text, disputed shown-never-hidden,
-  low-confidence = quiet icon → dismissible sheet + venue link.
-- Never claim something is "done/live/in canon" without proof (a link, a
-  run id, a commit SHA on origin). Canon = merged to master, nothing less.
-- Work on YOUR designated branch only. Do not modify `worker/`,
-  `sources/markets/`, `tools/import_sources.py`, or anything the sourcing
-  session owns (its PR is #150). Shared docs (STATE.md, TODOS.md,
-  changelog): append, never rewrite others' entries; merge conflicts are
-  yours to resolve cleanly.
-- Founder communication: plain language, why-this-not-that, honest
-  tradeoffs, direct links, ONE consolidated question list.
+## The remaining work queue (priority order; greenlit unless marked FOUNDER)
 
-Begin with the open ritual, then present your plan per OPERATING_RULES §4a
-before building anything.
+1. **Verify/drive #152** (above), then the production nav + field-CWV checks.
+2. **Spark Line ✳ tap-to-dismiss sheet** (zero-spend, this lane; TODOS
+   Contract-#33 remainder (a)): the §4 disclosure sheet for tier-C lines —
+   SparkLineView's ✳ currently carries title/aria only, not the one-tap
+   sheet the canon specifies.
+3. **Frictionless-nav second wave** (spec §9.1 remainder): prefetch-on-intent
+   for in-viewport cards; feature-detected View Transitions
+   (reduced-motion-guarded); a documented §13.2/§13.3 scroll-restoration +
+   bfcache QA pass against the live deploy.
+4. **R-069** — human keyboard + screen-reader pass over feed/lens/detail
+   (attended), BEFORE the 1Live.co DNS cutover; fix or record findings.
+5. **R-071 light theme** — the live app is dark-only; brief §4 requires
+   light+dark. Ship light mode + light baselines in the same PR.
+6. **R-072 Emotion Glyph display half** — needs: the ~29-glyph SVG art set
+   (FOUNDER design agenda) · the real description→Plutchik mapper (FOUNDER:
+   model spend, cap first) · creator descriptions (claim-flow build).
+7. **Contextual preview upgrade** (UI Canon §13 Phase 2 item 1): music
+   search-links → real embedded tracks — FOUNDER-GATED (music API key).
+8. **Venue enrichment slots** (photo / character / specials) — data-gated
+   (R-049); design honest empty states only as data lands.
 
-## PASTE ENDS HERE
+## Founder-owned decisions (do NOT pick up)
+
+Nav spec §15 (in-app ticketing partnership · native-wrapper trigger ·
+Anticipatory-Greeting go-live) · music API key · glyph art-set commissioning
++ mapper spend · SENTRY_DSN minting (R-001) · DNS cutover timing (R-065).
+
+## Failure memory (do not relearn)
+
+- **Chromium on CI/root:** always `--no-sandbox --disable-dev-shm-usage`
+  (ubuntu-24 AppArmor aborts the sandbox; proven pixel-identical). Gotcha:
+  `docs/memory/gotchas/2026-08-03_chromium-ci-apparmor-and-npm-cwd.md`.
+- **npm in the wrong cwd silently creates a root package.json** — the harness
+  resets shell cwd between calls; verify `node_modules/<pkg>` at the intended
+  path after any install.
+- **Sandbox env heals (recurring):** `pip install pytest pydantic fastapi
+  cffi cryptography PyJWT anthropic psycopg2-binary requests PyYAML` +
+  `git fetch --unshallow`, else the python suite cannot run.
+- **Baselines:** intended pixel change → `bash tools/visual_check.sh
+  --update` + commit PNGs in the same PR; never widen the threshold.
+- **Tag pushes are refused by this environment's git proxy** — arc tags stay
+  local; don't burn time on it.
+- **Parallel-lane merges:** KAIZEN_LEDGER / changelog / TODOS / STATE
+  conflict at the tails — resolve chronologically keeping BOTH lanes'
+  entries; contract numbers renumber-on-merge.
+
+## Interaction contract (enforced)
+
+Five-part comms (WHAT·HOW·WHY·WHY-IT-MATTERS·OUTCOMES) · ONE consolidated
+founder ask list · NO timers/`send_later` (webhooks are the trigger) ·
+non-user-facing failures never circle · proof over assertion (validate
+evidence blocks, run ids, SHAs on origin; UNVERIFIED stated when unprovable) ·
+disk is truth (STATE/TODOS/changelog/arc at close; `python
+tools/staleness_check.py` must pass) · trust display is physics (no badges,
+no "confirmed" text, disputed shown-never-hidden, feed never filters on
+confidence).
