@@ -72,7 +72,14 @@ export type LicensedEvent = {
   venue_url: string | null;
   venue_phone: string | null;
   confidence: string;
-  // Optional, resolved at read time by performer key (lib/spark.ts). Absent =
+  // The act's STABLE IDENTITY (e.g. a MusicBrainz id / Wikidata QID), resolved by
+  // the ratified identity-resolution enrichment (gated, founder-crucial). A
+  // performer NAME is not an identity — two acts can share a name — so a Spark
+  // Line is attached by this ref, never by name (lib/spark.ts). Absent until
+  // enrichment populates it (and adds it to COLUMNS); while absent, no Spark Line
+  // ever attaches — fail closed by construction.
+  artist_ref?: string | null;
+  // Optional, resolved at read time by identity ref (lib/spark.ts). Absent =
   // no approved Spark Line for this act (an honest gap, never a fabricated one).
   spark?: SparkLine | null;
 };

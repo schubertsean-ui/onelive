@@ -129,7 +129,15 @@ def store_candidate(result: FoundryResult, artist_name: str) -> str:
 def fetch_approved(artist_names: Iterable[str], *, cur) -> dict[str, dict[str, Any]]:
     """Return {artist_key: {text, tier, attribution}} for the APPROVED Spark
     Lines of the given artists, in ONE parameterized query. Names are normalized
-    to keys; the unique-approved index guarantees at most one row per artist."""
+    to keys; the unique-approved index guarantees at most one row per artist.
+
+    NOTE — this is a WORKER-INTERNAL helper (admin/ops tooling), NOT the
+    user-facing feed path. User-facing display is identity-gated: the feed
+    (web/lib/spark.ts) attaches a Spark Line ONLY by the stable act identity
+    `artist_ref` (migration 0019), never by name, so a same-name act cannot
+    inherit another act's line. A name key is acceptable here only because no
+    result of this helper is rendered to a user without passing through that
+    identity-gated read."""
     keys = sorted({artist_key(n) for n in artist_names if artist_key(n)})
     if not keys:
         return {}

@@ -1,6 +1,33 @@
 # ONE LIVE — CHANGE LOG
 
 
+## 2026-08-03 — Spark Line: attach by ACT IDENTITY, never by name (adversarial-review #148 fix)
+
+PR #148's adversarial review (panel) returned REQUEST-CHANGES on one lens
+(openai/attacker-smuggle): the Spark Line read path joined descriptors to feed cards
+by `lower(trim(performer))` only, so two different acts sharing a normalized name
+could receive each other's approved line — a card could show the tier-C "drafted from
+the artist's own materials" attribution for the WRONG act. Real misattribution vector;
+in-scope (it's the integrity of the feature this PR builds), so fixed rather than argued.
+- **Identity-gated read path.** A Spark Line now attaches ONLY by a stable act identity
+  `artist_ref` (e.g. a MusicBrainz id / Wikidata QID), never by display name — a name is
+  not an identity. `web/lib/spark.ts` matches `licensed_event.artist_ref` →
+  `spark_line.artist_ref`; `web/lib/licensed.ts` carries the optional `artist_ref`.
+  Migration `0019_spark_line_identity.sql` adds the nullable column + its column-level
+  SELECT grant (per 0017/0018's lesson) + a partial index.
+- **Fail closed by construction.** Until the ratified identity-resolution enrichment
+  (MusicBrainz/Wikidata; gated, founder-crucial) populates `artist_ref` on both sides,
+  events carry no ref and NOTHING attaches — a stronger guarantee than the prior
+  "no rows yet." New regression tests prove a same-name act with a different ref, and a
+  ref-less event, never inherit a line (web suite 197/197; descriptor 35/35; tsc clean).
+- **`worker/descriptor/store.py`** `fetch_approved` is documented as worker-internal
+  (not the user-facing feed path); display trust lives in the identity-gated web read.
+- **Recorded (no silent deferral):** the review's two non-blocking ARMING nits →
+  `docs/RECORD.md` R-066 (provenance-origin check in `approve_candidate`) and R-067
+  (deterministic gate coverage for lower-case invented facts), each triggered before the
+  ops-approval / tier-C-generation path is armed.
+
+
 ## 2026-08-03 — Rule Zero strengthened: conflation is its own violation
 
 **Founder-directed.** Rule Zero's completeness clause fixes the INPUT (read the
