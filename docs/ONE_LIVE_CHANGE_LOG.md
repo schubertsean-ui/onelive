@@ -32,6 +32,23 @@ mechanization candidate; the deliverable-visual-QA render-and-measure script sti
 owed). Paste-in extended to 14 behavioral rules (complete-reading, primary-source
 stop, no-timers, one-of-three message types).
 
+## 2026-08-03 — Charter v3 (founder-directed audit): self-violations fixed, precedence added, ~70 rules
+
+Founder directed a full audit of the Operating Integrity Charter (duplicates,
+conflicts, fallacies, order, weaknesses). Confirmed defects, all fixed in v3:
+two [M]-tag mechanism overclaims (the charter violating its own 4.9), an
+impossible-absolute phrasing (violating its own 1.3), a garbled plan-field name
+that mismatched the plan_first_gate's required spelling, trust invariants
+ordered last, no precedence hierarchy, and the plan-first↔proceed-on-ratified
+tension unreconciled. v3 adds §0 (meta-rule · precedence order · change
+protocol · "substantive" defined · four recorded reconciliations), puts trust
+invariants first, consolidates ~90 rules to ~70 with zero citation loss, and
+flags ONE open founder item: CLAUDE.md PD1 still carries the superseded
+2026-07-18 "notify at merge" wording vs the 2026-07-25 silent-merge directive —
+charter edits to CLAUDE.md are founder-only, so it is flagged, not changed.
+Kaizen row logged (marker: copy-outruns-registry, in the charter's own tags).
+Paste-in unchanged — the audit found no defect in it.
+
 ## 2026-08-03 — Plan-first made mechanical (founder-approved Contract #35); Heartbeat §5b; M6 disposition snapshot
 
 **Plan-first enforcement hooks (founder: "Approve … it happens because it's

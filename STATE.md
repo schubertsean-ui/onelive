@@ -78,6 +78,19 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #37 (2026-08-03, founder-directed — "Run an analysis of the charter and identify duplicates, redundancies, conflicts, potential conflicts, logical fallacies or order problems or weaknesses… make sure it is maximally efficient and effective")
+
+PLAN (the directive commissions both the audit and the fix; recorded here per §4a):
+- WHAT: audit OPERATING_INTEGRITY_CHARTER.md + paste-in on the founder's seven dimensions; ship charter v3 fixing every confirmed defect: dedupe/merge overlapping rules, correct the two self-violations ([M]-tag mechanism overclaims vs rule 4.9; the "zero is absolute" impossible-absolute phrasing vs rule 1.3), fix the garbled 2.6 field name that mismatches the gate's required spelling, put trust invariants and the precedence order FIRST, add the missing plan-first↔proceed-on-ratified reconciliation and the plan-presentation↔three-message-types clarification, mark the 3.4-notify vs 3.5-silent-merge supersession and flag the CLAUDE.md text mismatch to the founder, scope the over-broad 6.7 and 1.18, define "substantive", add the charter change-protocol.
+- HOW: single rewrite of the charter (v3) preserving every source citation and founder anchor verbatim; paste-in untouched except where a confirmed defect requires it; tests re-run; committed on PR #155; re-send both files to the founder since they saved copies.
+- WHY: the founder asked for maximal efficiency/effectiveness; the audit found duplication (~90 rules → ~70 with zero information loss), two self-violations, one mechanically-consequential typo, and missing conflict-resolution structure.
+- WHY-IT-MATTERS: the charter is the single source every lane inherits — its defects propagate; its self-violations undermine its authority to enforce the same rules on sessions.
+- EXPECTED OUTCOMES: v3 with precedence order, reconciliations, corrected tags; all guard tests green; one open founder flag (CLAUDE.md merge-notify clause vs the later silent-merge directive) in the consolidated ask.
+
+SCOPE: charter + paste-in + bookends on PR #155. No hook/gate code changes.
+
+STATUS: DELIVERED (v3 committed; paste-in unchanged — audit found no defect in it; one open founder flag: CLAUDE.md PD1 merge-notify wording vs the 2026-07-25 silent-merge directive, listed in the charter §0.4).
+
 ## Session Contract #36 (2026-08-03, founder-APPROVED — "Approve - create the plugin repo and build it - and do a thorough review and evaluation of any other rules and operating instructions I have harped on … Make this happen")
 
 PLAN (approved verbatim above; five fields):
