@@ -54,6 +54,6 @@ eventual native implementation — findings are directional UX learning
 
 From this session's critical evaluation of GeoLibre (with the po battery per
 `docs/skills/po_provocation.md`); the bench was the evaluation's "where it
-genuinely fits" item. Related: R-068 (the canon's `ONE_LIVE_GEO_IDENTITY_v1.md`
+genuinely fits" item. Related: R-073 (renumbered from R-068; the canon's `ONE_LIVE_GEO_IDENTITY_v1.md`
 §5 citation resolves to no committed file — land the spec or fix the citation
 before the first bench run / gate decision).

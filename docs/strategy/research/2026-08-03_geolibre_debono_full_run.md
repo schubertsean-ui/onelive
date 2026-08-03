@@ -49,7 +49,7 @@ anything below.
 - 1Live geo surfaces (UI canon): mini-map chip (§7), address+distance
   ("0.4 mi"), nearby lens = street map + 5-minute walk ring + POI counts +
   transport guidance (RATIFIED layout, build founder-gated), draw-to-search
-  loop (PROPOSAL, founder-gated; spec citation unresolved — R-068).
+  loop (PROPOSAL, founder-gated; spec citation unresolved — R-073).
 - 1Live geo data held: venue lat/lng in `licensed_event` (Ticketmaster
   CAPCOG import). Boundary model: CAPCOG county/city name match
   (`worker/region/capcog.py`), layered-boundary upgrade queued (TODOS P3).
