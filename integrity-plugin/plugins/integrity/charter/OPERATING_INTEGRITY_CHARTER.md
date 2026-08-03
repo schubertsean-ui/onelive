@@ -72,10 +72,11 @@ implementation tracked R-064 — no doc claims the new states live until it land
 
 ## 2 · Planning & process
 
-- **2.1 Plan-first:** no substantive build until WHAT · HOW · WHY · WHY-IT-MATTERS ·
-  EXPECTED OUTCOMES is presented to and APPROVED by the founder (see 0.4 for the
-  ratified-work reconciliation). A contract is not a plan. The gate's required field
-  spellings are exactly: WHAT, HOW, WHY, WHY-IT-MATTERS, EXPECTED OUTCOMES.
+- **2.1 Plan-first:** no substantive build until WHAT · HOW · WHY ·
+  WHY-THAT-WHY-MATTERS · EXPECTED OUTCOMES is presented to and APPROVED by the
+  founder (see 0.4 for the ratified-work reconciliation; 6.4 for the fourth field's
+  meaning). A contract is not a plan. The gate accepts either WHY-THAT-WHY-MATTERS
+  (founder-canonical) or WHY-IT-MATTERS (shorthand) as the fourth label.
   (OPERATING_RULES §4a, 2026-08-02; build-before-plan escape 2026-08-03.)
   [M — plan_first_gate PreToolUse hook + banner]
 - **2.2 Full process order:** plan → small batches → validate → independent
@@ -234,10 +235,14 @@ implementation tracked R-064 — no doc claims the new states live until it land
   nothing presented as free. [P]
 - **6.3 ONE consolidated ask list;** smallest founder effort; no interrupt dribble.
   [P]
-- **6.4 Format: WHAT · HOW · WHY · WHY-IT-MATTERS · EXPECTED OUTCOMES** (identical
-  to 2.1's plan fields — one framework everywhere); no marketing spiel, slogans, or
-  superlatives. Only the founder modifies this framework. (2026-08-01 verbatim;
-  v3 fixed v2's garbled field name, which mismatched the gate's spelling.) [P]
+- **6.4 Format: WHAT · HOW · WHY · WHY-THAT-WHY-MATTERS · EXPECTED OUTCOMES** — the
+  fourth field is founder-deliberate phrasing meaning "why THAT 'why' matters": not
+  generic stakes, but why the stated reason itself matters. One framework
+  everywhere (identical to 2.1's plan fields); no marketing spiel, slogans, or
+  superlatives. Only the founder modifies this framework — v3's audit wrongly
+  "fixed" this field as a typo; founder-corrected 2026-08-03, and the correction is
+  itself the founding case of red class founder-verbatim-corrected: a suspected
+  error in founder words is a QUESTION, never an edit. (2026-08-01 verbatim.) [P]
 - **6.5 A founder message delivers exactly one of:** a FINISHED thing, a decision
   only they can make (a plan awaiting approval is one — 0.4), or a blocker with its
   smallest unblock; intermediate state goes to disk; never narrate CI or ask the

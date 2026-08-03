@@ -89,7 +89,10 @@ PLAN (the directive commissions both the audit and the fix; recorded here per §
 
 SCOPE: charter + paste-in + bookends on PR #155. No hook/gate code changes.
 
-STATUS: DELIVERED (v3 committed; paste-in unchanged — audit found no defect in it; one open founder flag: CLAUDE.md PD1 merge-notify wording vs the 2026-07-25 silent-merge directive, listed in the charter §0.4).
+ADDENDUM (2026-08-03, founder-caught ESCAPE — scope amended per 2.3, original quoted): v3's audit claimed 2.6 carried "a garbled five-field name ('WHY-THAT-WHY-MATTERS')… fixed to WHY-IT-MATTERS." WRONG — the founder: that phrasing "was to read 'why THAT why matters'" — a deliberate, deeper field (why the stated reason matters), and the framework is founder-verbatim canon the agent had no authority to "fix." Correction scope: restore WHY-THAT-WHY-MATTERS as the canonical field name in charter 6.4 (meaning stated) and the paste-in; widen both plan-first gates + banners to ACCEPT either label (accepting the founder's own phrasing is a correction, not a relaxation — the field is still required); tests for both spellings + lockstep; ESCAPED Kaizen row + new red class.
+- [S3:founder-verbatim-corrected] This addendum is the class's founding fix: founder-verbatim text is never "corrected" on agent judgment — a suspected error in founder words is a QUESTION to the founder, not an edit; the restore + gate widening ship in this same push.
+
+STATUS: DELIVERED (v3 + the founder-caught correction pushed; the CLAUDE.md PD1 merge-notify flag remains the one open founder item).
 
 ## Session Contract #36 (2026-08-03, founder-APPROVED — "Approve - create the plugin repo and build it - and do a thorough review and evaluation of any other rules and operating instructions I have harped on … Make this happen")
 

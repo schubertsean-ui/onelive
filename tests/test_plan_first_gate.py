@@ -125,3 +125,14 @@ def test_hooks_stay_wired_in_project_settings():
     gate_cmds = [h["command"] for m in pre_tool for h in m["hooks"]
                  if h.get("type") == "command"]
     assert any("plan_first_gate.py" in c for c in gate_cmds)
+
+
+def test_founder_canonical_fourth_field_satisfies_gate():
+    # Founder-corrected 2026-08-03: WHY-THAT-WHY-MATTERS ("why THAT 'why'
+    # matters") is the canonical phrasing; the gate accepts it and the
+    # WHY-IT-MATTERS shorthand equally.
+    state = FULL_PLAN_OPEN.replace("- WHY-IT-MATTERS: it ships value.",
+                                   "- WHY-THAT-WHY-MATTERS: it ships value.")
+    decision, _ = pfg.decide(_edit(os.path.join(REPO, "api", "main.py")),
+                             state_text=state)
+    assert decision == "allow"

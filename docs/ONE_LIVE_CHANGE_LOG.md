@@ -32,6 +32,20 @@ mechanization candidate; the deliverable-visual-QA render-and-measure script sti
 owed). Paste-in extended to 14 behavioral rules (complete-reading, primary-source
 stop, no-timers, one-of-three message types).
 
+## 2026-08-03 — CORRECTION to the charter-v3 entry below (founder-caught): WHY-THAT-WHY-MATTERS was never a typo
+
+The v3 audit's "typo with mechanical teeth" finding was itself the defect: the
+founder's WHY-THAT-WHY-MATTERS field is deliberate phrasing — "why THAT 'why'
+matters," why the stated reason itself matters — in a framework only the
+founder modifies. Restored as canonical in charter 6.4/2.1, the paste-in, and
+both banners; BOTH plan-first gates widened to accept either label
+(mechanisms bend to founder phrasing, never the reverse; the field is still
+required, so nothing relaxes); regression tests pin both spellings in both
+gates. New red class `founder-verbatim-corrected`: a suspected error in
+founder words is a QUESTION, never an edit. ESCAPED Kaizen row logged. The
+entry below is preserved unedited per append-only convention; this entry is
+its correction.
+
 ## 2026-08-03 — Charter v3 (founder-directed audit): self-violations fixed, precedence added, ~70 rules
 
 Founder directed a full audit of the Operating Integrity Charter (duplicates,

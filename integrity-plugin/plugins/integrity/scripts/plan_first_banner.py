@@ -13,7 +13,7 @@ BANNER = """\
 [integrity] Operating rules (mechanical reminder — full charter with sources:
 integrity plugin charter/OPERATING_INTEGRITY_CHARTER.md):
 1. PLAN-FIRST: no substantive build until a plan (WHAT / HOW / WHY /
-   WHY-IT-MATTERS / EXPECTED OUTCOMES) is presented to and APPROVED by the
+   WHY-THAT-WHY-MATTERS (or WHY-IT-MATTERS) / EXPECTED OUTCOMES) is presented to and APPROVED by the
    founder. The PreToolUse gate blocks product-file edits until the repo's
    STATE file carries an OPEN Session Contract with those five fields.
 2. Contract-first: write the Session Contract to the STATE file before work;
@@ -27,7 +27,7 @@ integrity plugin charter/OPERATING_INTEGRITY_CHARTER.md):
    list/log call; one signal per question.
 6. Honesty floor: never a guessed number; deferrals recorded same-commit;
    copy never outruns the status registry; counts cited by command, not typed.
-7. Communicate in the founder's format: WHAT · HOW · WHY · WHY-IT-MATTERS ·
+7. Communicate in the founder's format: WHAT · HOW · WHY · WHY-THAT-WHY-MATTERS (or WHY-IT-MATTERS) ·
    EXPECTED OUTCOMES; plain language; alternatives named; tradeoffs stated;
    direct links; ONE consolidated ask list.
 8. When two rules collide, SURFACE the tension to the founder — never resolve

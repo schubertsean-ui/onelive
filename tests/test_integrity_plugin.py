@@ -141,3 +141,15 @@ def test_charter_and_pastein_exist_and_are_nonempty():
         assert os.path.isfile(path), f"missing {rel}"
         with open(path, encoding="utf-8") as f:
             assert len(f.read()) > 500, f"{rel} suspiciously empty"
+
+
+def test_both_gates_accept_founder_canonical_fourth_field(tmp_path):
+    state = FULL_PLAN_OPEN.replace("- WHY-IT-MATTERS: ships value.",
+                                   "- WHY-THAT-WHY-MATTERS: ships value.")
+    assert state != FULL_PLAN_OPEN
+    product = str(tmp_path / "api" / "main.py")
+    for gate, kw in ((plugin_gate, "root"), (local_gate, "repo_root")):
+        decision, _ = gate.decide(
+            {"tool_name": "Edit", "tool_input": {"file_path": product}},
+            **{kw: str(tmp_path)}, state_text=state)
+        assert decision == "allow", gate.__name__

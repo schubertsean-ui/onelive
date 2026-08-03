@@ -12,7 +12,7 @@ BANNER = """\
 1. Run `python tools/session_reconcile.py` FIRST; do not trust STATE.md before it.
 2. Contract-first: write the Session Contract to STATE.md before any work.
 3. PLAN-FIRST (§4a): no substantive build until a plan with WHAT / HOW / WHY /
-   WHY-IT-MATTERS / EXPECTED OUTCOMES is presented to and APPROVED by the founder.
+   WHY-THAT-WHY-MATTERS (or WHY-IT-MATTERS) / EXPECTED OUTCOMES is presented to and APPROVED by the founder.
    The PreToolUse gate blocks product-file edits until an OPEN contract carries
    those five fields. STATUS: OPEN while building; close it at session end.
 4. Construction Loop order (charter item 4): contract -> premortem -> MEMORY

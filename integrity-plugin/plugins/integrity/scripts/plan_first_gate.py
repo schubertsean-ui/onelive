@@ -47,7 +47,10 @@ FIELD_PATTERNS = (
     r"\bWHAT\b",
     r"\bHOW\b",
     r"\bWHY\b",
-    r"\bWHY[- ]IT[- ]MATTERS\b",
+    # Founder-canonical phrasing is WHY-THAT-WHY-MATTERS ("why THAT 'why'
+    # matters" — why the stated reason matters; founder-corrected 2026-08-03);
+    # WHY-IT-MATTERS is accepted as the common shorthand. Either satisfies.
+    r"\bWHY[- ]THAT[- ]WHY[- ]MATTERS\b|\bWHY[- ]IT[- ]MATTERS\b",
     r"\bEXPECTED[- ]OUTCOMES?\b",
 )
 OPEN_MARKER = re.compile(r"^STATUS:\s*OPEN\b", re.MULTILINE)
