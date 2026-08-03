@@ -116,11 +116,28 @@ function RichCard({ e, onNow, onOpen }: {
 }) {
   const price = fmtPrice(e);
   const img = httpUrl(e.image_url);
+  const focus = focusLine(e);
+  // The card's curiosity hook — a type-aware preview affordance ("Hear them",
+  // "Watch a talk", "See a set"). It is honest-by-construction (lib/preview.ts:
+  // a name search on a service the user already uses, never a claim a result
+  // "is" them) and returns null for a type we can't preview — an honest gap, no
+  // filler. Tapping the artist door opens the lens where the actual links live,
+  // so the card stays spare (design canon §2/§6) while gaining a real hook.
+  const preview = contextualPreview(e);
   return (
     <article className="room">
       {img
         ? <div className="rph" style={{ backgroundImage: `url(${img})` }} aria-hidden />
-        : <div className="rnoph" style={{ background: `linear-gradient(90deg, hsl(${domainHue(e.category)} 60% 45%), hsl(${(domainHue(e.category) + 40) % 360} 55% 38%))` }} aria-hidden />}
+        : (
+          // No image: give the card a real labeled cover (domain-hued) rather
+          // than a 6px sliver, so image-less events read as finished cards and
+          // the grid stays visually even. Decorative — the domain also shows in
+          // the focus line below — so it is aria-hidden.
+          <div className="rnoph" aria-hidden
+            style={{ background: `linear-gradient(125deg, hsl(${domainHue(e.category)} 55% 24%), hsl(${(domainHue(e.category) + 40) % 360} 48% 15%))` }}>
+            <span className="rnophlabel">{domainLabel(e.category)}</span>
+          </div>
+        )}
       <div className="rbody">
         <div className="rtime">
           <span className="when">{fmtWhen(e.start_time)}</span>
@@ -129,10 +146,15 @@ function RichCard({ e, onNow, onOpen }: {
           <TrustMark e={e} />
         </div>
         <button type="button" className="zone z-artist" onClick={() => onOpen(e, "artist")}
-          aria-label={`${headline(e)}${e.spark ? ` — ${e.spark.text}` : ""} — open artist details`}>
+          aria-label={`${headline(e)}${e.spark ? ` — ${e.spark.text}` : ""} — open artist details${preview ? ` and ${preview.label.toLowerCase()}` : ""}`}>
           <span className="who">{headline(e)}</span>
-          {focusLine(e) ? <span className="focus">{focusLine(e)}</span> : null}
+          {focus ? <span className="focus">{focus}</span> : null}
+          {/* Canon §2 artist-zone order: Spark Line (the primary curiosity gap,
+              §4) sits above the smaller contextual-preview cue (§3). Both are
+              canonical card elements; the preview stays a spare affordance
+              ("▸ Hear them"), not a second summary, so §1 calm-over-clutter holds. */}
           <SparkLineView spark={e.spark} />
+          {preview ? <span className="hook">{preview.label}</span> : null}
           <span className="go" aria-hidden="true">artist ›</span>
         </button>
         <button type="button" className="zone z-venue" onClick={() => onOpen(e, "venue")}
