@@ -16,10 +16,20 @@ way) from a 180-source hand-curated catalog.
 
 ## What this ratifies
 
-1. **The coverage north-star KPI: long-tail dominance ratio** — distinct
-   local (non-licensed-API) venues and events vs Ticketmaster's, per market,
-   per week. Target ≥50:1. A market is not "complete" until it holds. Reported
-   in the committed coverage snapshot (see the sourcing scale plan).
+1. **The coverage north-star KPI: long-tail dominance ratio, measured in
+   BOUNDED TIME WINDOWS** (founder correction 2026-08-03: *"You need to put
+   this into a timeframe... Daily, 2 days, 3 days, Weekly, Weekend, Month"*).
+   Definition: distinct local (non-licensed-API) events vs distinct
+   Ticketmaster events, per market, computed for EACH standard window —
+   **today · next 2 days · next 3 days · this week · this weekend · this
+   month** — never over unbounded catalog totals (catalog-total comparisons
+   are apples-to-oranges and are the recorded anti-pattern). The windows
+   match the product's own date buckets, so the KPI measures exactly what a
+   user opening the feed experiences. Provisional target ≥50:1 per window,
+   pending the empirical calibration research; a market is not "complete"
+   until it holds in the DAILY window (the hardest one — long-tail events
+   skew near-term while ticketed events post months ahead). Reported per
+   window in the committed coverage snapshot.
 2. **The universe model: segment × market matrix.** Each segment has its own
    taxonomy of source TYPES and its own seed registries (e.g. literary:
    bookstores, presses, library systems, reading series, MFA programs;
