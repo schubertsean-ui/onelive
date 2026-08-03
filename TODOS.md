@@ -52,6 +52,7 @@ Check items off in the same commit that completes them; don't batch-remove.
 - [x] (P2, gate custody) STATE.md's classification in the arming-evidence binding — **RESOLVED BY VERIFICATION 2026-08-03 (Contract #33).** The premise was already obsolete: the coarse denylist ("non-runtime = `docs/`/`tests/`/`TODOS.md`") was replaced on 2026-07-24 (Contract #20) by `tools/arming_runtime.py`, a precise import-closure classifier. STATE.md is markdown, never imported by the ingest cron, so it is NOT in the runtime set — confirmed empirically (`python tools/arming_runtime.py` lists no `.md` file; a STATE.md edit does not enter the binding's diff). **STATE.md has been freely editable since 2026-07-24;** R-023/R-065's "any STATE.md edit fails trust-gate" was a stale belief, now corrected in `docs/RECORD.md`. No `_NON_RUNTIME_FILES` change is needed. (R-024's working-tree-vs-committed local-validate blind spot remains its own OPEN row — separate concern.)
 
 - [ ] (P2, queued — CLAUDE.md is outside the arming binding's non-runtime set) Add the ratified five-part communication framework (WHAT · HOW · WHY · WHY THAT WHY MATTERS · EXPECTED OUTCOMES; decision record docs/memory/decisions/2026-08-01_comms-framework-canon.md) as a pointer line in CLAUDE.md's "Communicating with the founder" section — rides the next PR that lawfully touches root files (next smoke-evidence refresh or the gate-custody PR).
+- [ ] (P1, founder-directed 2026-08-02, queued — CLAUDE.md is a root file that trips the arming binding) Add a **Rule Zero** pointer line to CLAUDE.md prime directives: "read the controlling rules COMPLETELY before any action (no skim/fragment/summarize); founder greenlight gates the work — see OPERATING_RULES Rule Zero + docs/memory/decisions/2026-08-02_complete-reading-gate.md." Codified now in OPERATING_RULES Rule Zero, SESSION_START Step 4, and the brain; this item only adds the charter-level pointer at the next lawful root-file window.
 
 ## Owned Agent (PROPOSAL 2026-07-22 — docs/strategy/ONE_LIVE_OWNED_AGENT_v1.md; PROPOSAL ≠ license to build)
 - [ ] (P1, blocked on founder Q1–Q22 across the five docs) Founder ratification pass on the Owned Agent proposal (Parts I–II) AND the B2A/GEO market assessment (`ONE_LIVE_B2A_GEO_MARKET_ASSESSMENT_v1.md`) — owner: founder — concept (pipe/gift/skin), Phase A sequencing, corroboration-hold rule, free-forever/no-connect-to-rank promise, F6, E1–E7 standard, open+private canon (Q1–Q8); toolkit sequencing B→A→C, Mirror preconditions (legal read of engine-querying TOS + scan budget cap — both founder-crucial), pipe-consistency scope into F2, public accuracy scoreboard, beyond-core NEVER/REFER/LATER/EDGE stances (Q9–Q13); mantle strategy, Standard naming/open license, partner-mark policy (Q14–Q17 in ONE_LIVE_MANTLE_v1.md); S-compliance constraint, standalone-venture decline, standards-into-builders motion (Q18–Q20 in ONE_LIVE_B2A_STANDALONE_v1.md); Promotion Studio direction + pricing posture + the no-1Live-interplay corollary (Q21–Q22 in ONE_LIVE_PROMOTION_STUDIO_v1.md). Until answered, nothing in this section is buildable.
@@ -143,6 +144,42 @@ delete completed items — they're a record of what got done).
 - [ ] (P2, unblocked by ask-2 approval, gated on repo CREATION) Template-repo extraction of the kernel (parameterized CLAUDE.md/OPERATING_RULES/hats/SESSION_START + portable tools + OVERLAY.md template) — owner: Generator, evaluator-mandatory (gate custody: the portable validate/trust-gate skeletons ARE examiner code). Constraints (founder 2026-07-24, verbatim in the decision record): the named owner; visibility PRIVATE. Trigger: the private repo exists and is attached to a session (founder ~1 min, or a session with creation scope).
 - [ ] (P2, founder-hands, ~2 min) Vercel preview env fix — APPROVED 2026-07-24: add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY (Preview environment checked) at https://vercel.com/sss-projects-e4775771/onelive/settings/environment-variables then redeploy; until it lands every PR preview fails on /ops prerender (steps + links: PR #60 comment). No agent path: sandbox holds no VERCEL_TOKEN/Clerk credentials (verified).
 - [ ] (P2) Brief v2.4 tagline edit (founder-directed 2026-07-22, FLOW round 6): "Less chaos. Real shows." removed from product surfaces at founder direction — the brief's PART A verbatim-copy rule still carries the old line; fold the founder's thrive framing ("finding and engaging in experiences, helping individuals and the culture thrive") into the brief's next revision (founder-visible ratified doc: propose the edit, don't unilaterally rewrite). Trigger: next brief revision or design-direction ratification, whichever first. Owner: Generator (proposal) → founder (ratification).
+
+## /tonight Phase 2 — content layer (UI Canon §13; Contract #32)
+Decision record: `docs/memory/decisions/2026-08-02_descriptor-foundry-spark-line-core.md`.
+Value order per §13: contextual preview → Spark Line → venue enrichment → Emotion Glyph.
+- [x] (P1) **Descriptor Foundry / Spark Line core (batch 1)** — DONE 2026-08-02: `worker/descriptor/`
+      pipeline + mechanical faithfulness gate + golden regression + 18 offline tests, candidate-only,
+      zero-spend (fake providers), sequenced ahead of contextual-preview media (music tracks founder-gated).
+- [x] (P1) **Spark Line batch 2 — schema + store** — DONE 2026-08-02: `supabase/migrations/0018_spark_line.sql`
+      (uuid pk; keyed on lowercased artist name; `text`/`word_count`/`tier`/`status` with CHECKs; jsonb
+      `provenance` kept OUT of the anon grant; RLS fail-closed `using (status='approved')`; unique-approved-
+      per-artist index) + `worker/descriptor/store.py` (candidate-only writer, parameterized approved reader,
+      injectable cursor, lazy psycopg2) + 5 hermetic tests. Still needs: workflow apply-step wiring at batch 3.
+- [ ] (P1) **Spark Line batch 3 — worker job (real provider, budget-capped)** — a `DescriptorGenerator`/
+      `DescriptorJudge` backed by the live provider abstraction behind a per-run budget ceiling + dead-man
+      (Sentinel rule); writes `candidate` rows only. Model spend at scale is founder-crucial → arm caps FIRST.
+- [x] (P1) **Spark Line batch 4 — read-path + card render** — DONE 2026-08-02: `web/lib/spark.ts`
+      (`sparkKey`/`buildSparkInList`/`attachSparkLines` pure + `fetchApprovedSparkLines`/`withSparkLines`
+      network, ADDITIVE — a read failure never blanks the feed) wired into `page.tsx`; `SparkLineView`
+      on the card with the tier-C ✳ carrying the §4 disclosure (accessible label/title) + tier-B
+      attribution; never filters/ranks; `SparkLine` type + optional field on `LicensedEvent`; flow.css
+      quiet register; 9 vitest tests + tsc clean. STILL TODO: the ✳ tap-to-dismiss SHEET (§4, currently
+      an accessible title/label), the ops approval surface, and the tier-C generation job (batch 3).
+- [x] (P1) **Spark Line — gate-custodied take-live mechanism** — DONE 2026-08-02: `worker/descriptor/publish.py`
+      (`approve_candidate`/`reject_candidate`) — fail-closed, content-bound (approver approves the exact
+      reviewed text), refuses a non-human/AI approver (mirrors carousel publish physics, Contract #23),
+      stamps approver+time+text-sha into provenance, guarded on `status='candidate'` (concurrent change =
+      refuse). 8 hermetic tests. This is buildable code (§6a.3), not a "founder switch."
+- [ ] (P2) **Spark Line — ops surface + ✳ tap-sheet** — a thin ops UI calling `approve_candidate`/
+      `reject_candidate` (the mechanism exists; this is the human-facing button) + the §4 one-tap-dismiss
+      sheet on the ✳. Zero spend; enables a live tier-A/B (human-authored) Spark Line with no model call.
+- [ ] (P2) **Contextual preview media (§3/§4)** — the `preview_media[]` typed field + provenance-gated
+      sourcing (lecture video / past-year media / trailer). **Music real-tracks slice is founder-gated**
+      on a music-player API (spend) — hold for founder go + key.
+- [ ] (P2) **Emotion Glyph (§5)** — Plutchik → curated ~40–60-glyph lexicon (deterministic lookup),
+      derived ONLY from the creator's own description ("no description → no glyph"); reuses the Foundry
+      faithfulness discipline. Glyph AI-disclosure is a PROPOSAL item (founder-gated).
 
 ## Geographic boundary model (future — founder-directed 2026-07-29)
 - [ ] (P3, future) **Richer geographic-relevance model** — the shipped market boundary (`worker/region/capcog.py` + `web/lib/region.ts`, PR #107) is a deliberate v1: CAPCOG's ten counties, matched by county/city name. The founder flagged that real geographic relevance is multi-scale and context-dependent — counties are sometimes the right unit, but so are neighborhoods, streets, regions, natural features (lakes, river corridors), and administrative demarcations (police/fire/EMS/school districts, ZIP, city limits, COG boundaries). A future update should model boundaries as a **layered, typed system** (point-in-polygon against real GeoJSON per layer, not name lists), let relevance be expressed at whatever scale a query/feature needs (e.g. "near this venue," "in this neighborhood," "reachable in 20 min"), and keep the current keep-and-count-unknowns discipline so no layer silently hides coverage. Natural companion to `metro_outline.py` (public boundary GeoJSON is the shared input) and to any future distance/isochrone "what's nearby" work (Night Out spec). Owner: Generator; trigger: when a feature needs sub-county precision, or a market with a boundary the county model can't express opens. Not blocking — the county filter is correct for v1's "no San Antonio" invariant.

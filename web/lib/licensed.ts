@@ -35,6 +35,16 @@ const COLUMNS = [
   "venue_lng", "venue_url", "venue_phone", "confidence",
 ].join(",");
 
+// A Spark Line resolved for this event's performer (migration 0018). Display
+// only — never a ranking or gate signal. tier: A (artist) | B (critic) | C (AI).
+// Defined here (not in spark.ts) so LicensedEvent can carry it without a
+// circular import.
+export type SparkLine = {
+  text: string;
+  tier: string;
+  attribution: string | null;
+};
+
 export type LicensedEvent = {
   licensed_event_id: string;
   source_provider: string;
@@ -62,6 +72,16 @@ export type LicensedEvent = {
   venue_url: string | null;
   venue_phone: string | null;
   confidence: string;
+  // The act's STABLE IDENTITY (e.g. a MusicBrainz id / Wikidata QID), resolved by
+  // the ratified identity-resolution enrichment (gated, founder-crucial). A
+  // performer NAME is not an identity — two acts can share a name — so a Spark
+  // Line is attached by this ref, never by name (lib/spark.ts). Absent until
+  // enrichment populates it (and adds it to COLUMNS); while absent, no Spark Line
+  // ever attaches — fail closed by construction.
+  artist_ref?: string | null;
+  // Optional, resolved at read time by identity ref (lib/spark.ts). Absent =
+  // no approved Spark Line for this act (an honest gap, never a fabricated one).
+  spark?: SparkLine | null;
 };
 
 export function supabaseConfigured(): boolean {

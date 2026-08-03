@@ -1,35 +1,28 @@
-# Gotcha — a skim or a fragment is NO read; and cite the canon, don't paraphrase invariants from memory
+# A fragment read is NO read — never act on a document you have only partially read
 
-One-line: two linked failures from the prior session — (a) reading fragments then acting on the partial picture, and (b) mis-stating an invariant from memory. Read in full first; QUOTE the canon for any invariant.
+Retrieval tokens: `skim`, `fragment`, `offset-limit`, `truncated-output`,
+`partial-read`, `read-in-full`. Governing rule: `docs/OPERATING_RULES.md` → Rule Zero
+(founder-directed 2026-08-02). Decision: `decisions/2026-08-02_complete-reading-gate.md`.
 
-Retrieve this before acting on any doc you have only partially read, and before
-you state a trust invariant in your own words.
+## The lesson
 
-## What happened
+Reading a controlling document in fragments — an offset/limit slice, a truncated tool
+result, the first page of many — and then acting on that fragment produces
+confident-but-wrong actions. It happened twice in one session (a banned delay/timer;
+a mis-stated trust invariant), both from acting on a partial read of the same docs.
 
-- **Fragment-acting.** Enough of a doc was read to form a plan, and the plan was
-  acted on — but the binding detail lived in the unread remainder. In this repo,
-  where STATE.md is ~800 lines and RECORD.md carries 50+ open deferrals, the
-  unread part routinely contains the constraint that changes the plan.
-- **Invariant-from-memory.** A trust invariant was paraphrased and got it subtly
-  wrong. The charter's rule is **"AI never publishes UNVALIDATED"** — satisfied by
-  the gate (extraction → candidate → gate → promote), NOT "AI output is safe by
-  construction" and NOT "AI never publishes anything." The gate IS the validation;
-  building the gate is how the invariant is honored, not by refusing to build.
+## The rule of thumb (do this, every time)
 
-## Why each is a real defect, not a style nit
+- Before building/fixing/scanning/answering: read the controlling docs for the task
+  IN FULL. If a file exceeds one read call, page through ALL of it first; do not act
+  on the part you have seen.
+- STATE.md is large — read the whole current Session Contract, not the first page.
+- Prefer reading the full stable docs early: they cache, so completeness is cheap.
+- "I got the gist" / "it looked like a one-liner" / "to save context" are the exact
+  rationalizations that precede the failure. They are not permitted.
 
-- A paraphrased invariant drifts. "AI never publishes" (dropping "unvalidated")
-  would forbid the earned-confidence auto-publish the founder ratified
-  (2026-07-31: "the gate means validation, not a human click"). The exact words
-  encode exactly what is and isn't allowed; approximating them changes the policy.
-- A fragment read produces confident wrong action, which is worse than a known gap.
+## How you know you skimmed
 
-## The rule
-
-1. If you have not read the whole doc, you have not read it — say "partially read"
-   and finish before acting.
-2. For ANY invariant (AI-never-publishes-unvalidated, disputed-shown-never-hidden,
-   RLS-fail-closed, no-pay-to-rank), QUOTE the canon (`CLAUDE.md` / `OPERATING_RULES.md`)
-   at the point of use. Do not reconstruct it from memory. If you can't cite it,
-   go read it.
+You cited a rule's effect without having read the rule's own text; you framed an
+invariant from memory instead of from the doc; you acted before a full read was
+confirmed. Any of these = STOP, read completely, then re-decide.

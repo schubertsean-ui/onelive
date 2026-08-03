@@ -1,41 +1,68 @@
-# Gotcha — conflation is a violation: keep distinct concepts distinct, and cite each
+# Conflation is a violation — reading completely is not enough; state it precisely
 
-One-line: collapsing two different things into one loses the constraint that lived in the distinction — keep these pairs apart and reason about each on its own terms.
+Retrieval tokens: `conflation`, `conflate`, `imprecise-invariant`,
+`paraphrase-from-memory`, `quote-the-canon`, `keep-distinct-concepts-distinct`,
+`precision-clause`. Governing rule: `docs/OPERATING_RULES.md` → Rule Zero
+("State it precisely — CONFLATION is its own violation", founder-directed
+2026-08-03). Companion: `gotchas/2026-08-02_skim-fragment-is-no-read.md`.
 
-Retrieve this before reasoning about trust, media/rights, identity, or authority —
-any place two nearby ideas are easy to merge.
+## The lesson
 
-## The distinctions that must not be merged
+Rule Zero's first half fixes the INPUT (read the controlling docs in full, no
+fragments). This gotcha fixes the OUTPUT. You can read every word and still fail
+by MERGING two distinct things into one claim, or by paraphrasing an invariant
+more narrowly (or more broadly) than the doc actually states it. A conflation
+asserted as fact misleads exactly like a fragment read — and it is harder to
+catch, because the reading was complete.
 
-1. **Trust-in-a-fact ≠ right-to-reproduce-an-image.** Believing an event's
-   date/venue is true (a corroboration question) says nothing about whether we may
-   display someone's photo (a rights/licensing question). Verifying the fact does
-   not grant the image.
-2. **Grounding-text ≠ displayed-media.** Text an extractor reads to GROUND a claim
-   (the source we cite for a fact) is not the same as media we SHOW a user. A
-   descriptor may be grounded in the artist's own words without us publishing those
-   words or any image verbatim.
-3. **Resolve-identity ≠ crawl-a-site.** Matching an entity to a canonical id
-   (MusicBrainz/Wikidata lookup, a `sameAs` link) is a cheap, bounded identity
-   operation — it is NOT permission or intent to crawl that entity's whole website.
-   The two have different cost, legal, and quota profiles.
-4. **"Own domain" includes the venue/organizer as host.** "First-party / their own
-   domain" is not only the artist — the venue or organizer hosting an event is a
-   first-party source for that event. Treating only the performer as first-party
-   drops legitimate authoritative sources.
+## How it showed up (2026-08-03, the Spark Line sourcing thread)
 
-## Why this is a §1-class defect
+1. **Invariant stated too narrowly.** Said "only the entity's OWN image from its
+   own domain" — but canon (`ONE_LIVE_VERIFIED_PREVIEW_ENRICHMENT_v1` §2, "past-
+   year event photos") also allows **the venue/organizer's own-site imagery**. The
+   venue is an entity/host too. Narrowing an invariant from memory is a violation.
+2. **Distinct concepts merged.** Blurred **grounding text** (feeds the tier-C
+   Spark Line; governed by the Descriptor-Foundry faithfulness gate) with
+   **displayed preview media** (governed by media provenance/license). Different
+   gates, different rules — never one claim.
+3. **Mechanism conflated with mechanism.** Treated "crawl the entity's website"
+   as if it were the ratified plan, when the plan is **resolve identity first**
+   (MusicBrainz/Wikidata), THEN attach — skipping resolution risks same-name
+   mismatch.
 
-Each merge silently deletes a constraint: the rights question, the licensing
-boundary, the crawl-authorization line, the source-authority scope. The plan then
-proceeds as if the deleted constraint were satisfied, when it was never even
-considered. Conflation reads as efficiency and behaves as a missed requirement.
+## The rule of thumb (do this, every time)
 
-## The rule
+- When you ASSERT an invariant/guardrail: **quote the controlling text**, don't
+  paraphrase from memory; state it neither narrower nor broader than the doc.
+- Keep load-bearing separations apart by name, and cite each side to its source:
+  - **trust in a fact ≠ right to reproduce an image** (credibility vs copyright).
+  - **grounding text ≠ displayed media** (Foundry gate vs media/license gate).
+  - **resolve identity ≠ crawl a site** (identity-first cascade vs raw fetch).
+  - **"own domain" includes the venue/organizer as host,** not only the artist.
+- When you feel two ideas collapsing into one sentence: STOP, split them, cite
+  each, then write the claim.
 
-When two ideas sit close together, name them separately and answer each: what does
-THIS one require, independent of the other? If a sentence would still be true after
-swapping one concept for the other, you have probably conflated them — split it.
-Also avoid the mirror-image error: don't frame a choice against an impossible
-absolute ("risk-free", "perfect", "true by construction"). State the trade-off and
-the live procedure that manages it.
+## The cousin defect: framing against an impossible absolute
+
+Retrieval tokens: `risk-free`, `zero-risk`, `perfect`, `true-by-construction`,
+`impossible-absolute`, `false-baseline`, `trade-off-not-absolute`.
+
+Twice now the agent invoked an absolute that does not exist as if it were the
+baseline: "AI never publishes — **true by construction**" (2026-08-02) and "even
+the allowed path **isn't risk-free**" (2026-08-03). Both manufacture a false
+measure — one a false assurance, one a false shortfall. There is no risk-free, no
+perfect, no guaranteed, no true-by-construction. **Everything is a trade-off.** The
+correct move, every time: state the trade-off plainly, then name the LIVE procedure
+that manages it as far as is humanly and technologically possible — the gate, the
+evaluator on every PR, `tools/validate`, provenance, license_class enforcement,
+takedown-honoring, founder-crucial escalation for anything that widens risk. The
+standard is the best-managed trade-off, never the absolute. (This is the positive
+mirror of the comms-canon rule "never present a choice as free.") Enforced in
+`OPERATING_RULES.md` Rule Zero → "Never frame against an impossible absolute."
+
+## How you know you conflated
+
+You stated a rule's scope from memory instead of its words; two distinct
+gate-governed categories appear in one sentence with one verb; a specific
+mechanism got described with a general one. Any of these = STOP, separate, quote,
+re-state.
