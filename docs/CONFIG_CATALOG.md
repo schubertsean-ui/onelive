@@ -67,7 +67,7 @@ why config-driving it would defeat its purpose.
 | **Trust-gate thresholds** — hallucination ≤1%, recall ≥80% | evaluator gate / `trust_gate` | These ARE the quality bar. CLAUDE.md: identical at every cost tier; relaxing = founder-crucial. |
 | **Surface-exam recall floor** (`DEFAULT_RECALL_FLOOR`) | `tools/surface_regression_exam.py` | Gates the surface regression exam. A ratchet with an editable floor proves nothing. |
 | **Brain blind-eval floors** | `brain/eval/baselines.json`, `brain/eval/held_out.py` (base-owned, `pull_request_target`) | The held-out floor is base-owned precisely so a PR can't lower its own passing bar. Config-driving it would re-open the gaming hole the base-owned pattern closes. |
-| **Publish reliability threshold** (`DEFAULT_RELIABILITY_THRESHOLD` = 0.35) | `worker/publish_policy.py` | Routes often-unreliable sources to human review — a direct guard on "AI never publishes." Lowering it lets more through unreviewed; that's a trust-invariant decision, not a knob. |
+| **Publish reliability threshold** (`DEFAULT_RELIABILITY_THRESHOLD` = 0.35) | `worker/publish_policy.py` | Routes often-unreliable sources to human review — a direct guard on gate-custodied publication. Lowering it lets more through unreviewed; that's a trust-invariant decision, not a knob. |
 | **Gate custody set** | `tools/validate`, `trust_gate.py`, `deferral_scan.py`, `lint.py`, `adversarial_review.py`, eval-harness, CI gate workflows | Any change here is mandatorily evaluator-reviewed (CLAUDE.md Agent org). Config-driving a gate's own enforcement is the thing the custody rule exists to prevent. |
 
 **If a future change wants to make any Part-B item config-editable:** that is a

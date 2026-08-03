@@ -355,7 +355,7 @@ give *some* acknowledgment (press state / skeleton / optimistic update) within
   likes; Linear). **Trust guardrail (hard):** optimistic UI must **never** imply an
   event is `confirmed`/verified or that a *claim* is approved — those reflect true
   server/gate state only. Optimism is confined to the user's own reversible actions
-  (consistent with "AI never publishes" and the 4-state model).
+  (consistent with gate-custodied publication and the 4-state model).
 - **Prefetch on intent:** Next.js `<Link>` prefetch for in-viewport cards; prefetch
   detail data on hover (desktop) / viewport (mobile); Speculation Rules API as
   progressive enhancement. Respect `Save-Data`/`prefers-reduced-data`.

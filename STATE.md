@@ -1,6 +1,6 @@
 # OneLive — STATE
 
-Last updated: 2026-08-03 by Claude Code (Session Contract #33 — FULL RECONCILIATION). The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)" immediately below; the older "Where we are" and contract sections are HISTORY, preserved append-only.
+Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)" immediately below; the older "Where we are" and contract sections are HISTORY, preserved append-only.
 
 Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground truth (repo, PRs, Supabase migrations, DB row counts). **This session: PR #8 (agentic-harness buildout) reviewed cross-model, its findings fixed, and MERGED to master (HEAD a0b3724).** The `validate` gate no longer treats SKIP/ADVISORY as PASS (the founding anti-pattern is now impossible in the gate itself). **Corrected stale status: RLS migrations 0006/0007 ARE applied to the live DB, and 9 migrations total are live (incl. `source_geo_coverage`); `source` = 230 rows, but `event`/`event_candidate`/`candidate_evidence` are still 0.** Established the session-arc system — see `docs/session_arcs/`.
 
@@ -14,20 +14,19 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 ```json
 {
   "git": {
-    "branch": "claude/heartbeat-analytics-evaluation-vm9g0c",
+    "branch": "claude/geolibrary-1live-evaluation-cac5vl",
     "head": "944e4a2"
   },
-  "reconciled_through_commit": "944e4a2029236dae8c310fbde72b27b54d3953e2",
+  "reconciled_through_commit": "752aa55e9305a566ffa955bb9aaeee6c8c6a56da",
   "reconciled_at": "2026-08-03T19:34:44.280831+00:00",
-  "reconciled_by": "session 2026-08-03 (Contract #34); git verified locally; PR state and DB row counts UNVERIFIED in this sandbox (no gh binary, no ONELIVE_DB_DSN) — the PR map below is carried forward from the Contract #33 reconciliation, not re-verified. Marker advanced to 944e4a2 with the rollup addendum covering master 85cf2f7 (PR #150) and 944e4a2 (PR #153). NOTE: this session also caught+fixed session_reconcile --heal destroying this block's marker/narrative fields (see tests/test_session_reconcile.py).",
+  "reconciled_by": "session 2026-08-03 (Contract #41, UI/UX successor — merge-resolution on PR #156); marker advanced to 752aa55 (PR #152 merge) verified locally + via the GitHub API; PR states re-verified via API this session: #112 MERGED 4ab8e48, #145 MERGED c992a99, #152 MERGED 752aa55, #156/#157 OPEN (this branch = #156). Prior note preserved: session 2026-08-03 (Contract #34); git verified locally; PR state and DB row counts UNVERIFIED in this sandbox (no gh binary, no ONELIVE_DB_DSN) — the PR map below is carried forward from the Contract #33 reconciliation, not re-verified. Marker advanced to 944e4a2 with the rollup addendum covering master 85cf2f7 (PR #150) and 944e4a2 (PR #153). NOTE: this session also caught+fixed session_reconcile --heal destroying this block's marker/narrative fields (see tests/test_session_reconcile.py).",
   "prs_note": "merged history runs through PR #153 (re-certification sitting, master 944e4a2) and #150 (sourcing engine P0, master 85cf2f7); earlier #147 card design = c9bee60, #149 reconciliation+guard, #148 Spark Line, #146 go-live. Open per the 2026-07/08-03 verification (NOT re-verified this session): #145 (user-journey canon); older/likely-superseded #34,#47,#50,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112 (founder close-or-revive; #32 is the reviewer-evidence feature = revive, not bookkeeping).",
   "prs": {
     "34": "open", "47": "open", "50": "open", "56": "open", "75": "open",
     "76": "open", "81": "open", "83": "open", "84": "open", "85": "open",
-    "86": "open", "108": "open", "109": "open", "110": "open", "112": "open",
-    "145": "open"
-  }
-}
+    "86": "open", "108": "open", "109": "open", "110": "open",
+    "145": "merged (c992a99)", "112": "merged (4ab8e48)", "152": "merged (752aa55)", "156": "open (this branch)", "157": "open (draft, stacked on 156)"
+  }}
 ```
 <!-- GROUND_TRUTH:END -->
 
@@ -39,7 +38,7 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 
 **The product is LIVE.** Master `d22e9ce` (PR #146) is a public go-live: the consumer `/tonight` site serves REAL CAPCOG (Austin ten-county) events behind the resolved auth gate (`NEXT_PUBLIC_AUTH_DISABLED` public mode; `/ops` still gated; Clerk stealth path intact for allowlist). Production is intended to front the founder-held **1Live.co** domain (GoDaddy) before customers see it — DNS→Vercel wiring is the remaining go-live step (R-065).
 
-**Pipeline (verified from code this session):** `fetch → extract → gate` runs automatically (`worker/orchestrator.py`); **promote stays human-custodied** (the orchestrator deliberately does not import `worker/promote.py` — AI never publishes). **Extraction is UNLOCKED and certified** — `EXTRACTION_THRESHOLD_RATIFIED = True` (`tools/routing_data.py`), R-013 RESOLVED; the golden-exam gate (`ai/golden_exam.py`, hallucination ≤1% / recall ≥0.80 / zero-injection) enforces it. Routed model `extraction: claude-opus-4-8`.
+**Pipeline (verified from code this session):** `fetch → extract → gate` runs automatically (`worker/orchestrator.py`); **promote stays human-custodied** (the orchestrator deliberately does not import `worker/promote.py` — publication is gate-custodied; invariant wording updated 2026-08-03). **Extraction is UNLOCKED and certified** — `EXTRACTION_THRESHOLD_RATIFIED = True` (`tools/routing_data.py`), R-013 RESOLVED; the golden-exam gate (`ai/golden_exam.py`, hallucination ≤1% / recall ≥0.80 / zero-injection) enforces it. Routed model `extraction: claude-opus-4-8`. **UPDATE 2026-08-03 (PR #153, master `944e4a2`): extraction is CLOSED again** — the re-certification sitting (prompt caching + usage capture) modified the harness surface, so the same PR set `EXTRACTION_THRESHOLD_RATIFIED = False` per the charter's compensated-exception mechanics; it re-opens only through the standing three-step (founder's attended exam on the new harness → authenticated record PR → head-bound flag-flip PR).
 
 **Ingestion sources live:** the deterministic licensed spine (Ticketmaster live; SeatGeek/Eventbrite BUILT, dormant on missing founder-crucial creds — R-029) writes `licensed_event` (no AI); the structured importer (`worker/importers/structured_feed.py`) reads ICS/VEVENT + schema.org JSON-LD, incl. the Localist provider; gov open-data (Socrata) writes `venue_truth`; the AI crawl pipeline covers the unstructured long tail. (Migration ceiling stated once in the Consumer surface paragraph below.)
 
@@ -78,6 +77,74 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #41 (2026-08-03, UI/UX lane successor session — kickoff-queued shepherding; branch claude/ui-ux-kickoff-rb9804; this merge-resolution commit on PR #156's branch is executed under this contract)
+
+PLAN (per §4a; the shepherding half is greenlit by the founder-commissioned kickoff/handoff queue — "Verify #152 merged", "Shepherd #156 → #157 to merge … verify CI on current heads first"; NEW build work is presented separately and waits for founder approval):
+- WHAT: (1) Verify and complete the queued merges: PR #152 (UI quality gates + ratified frictionless nav + glyph engine), then #156 (GeoLibre bench records), then #157 (wording sweep, stacked on #156) — each ONLY at evaluator APPROVE + every check green on its final head. (2) Resolve the RECORD.md id collision the two parallel sessions created (both allocated R-068/R-069/R-070): #152 merged first with its ids intact (earliest allocation, code-bound tags); #156/#157's rows renumber to R-073/R-074/R-075 with every cross-reference updated. (3) Session bookends.
+- HOW: mechanical merge protocol — re-verify mergeable_state + check runs on each head immediately before each merge; after #152 landed, merge master into #156's branch, renumber its rows and contract number across every touched file, push, wait for the evaluator + checks to go green on the new head, then merge; #157 flips draft→ready only after #156 is in and its own head is green.
+- WHY: the prior sessions ended with green, APPROVE-carrying PRs unmerged; the kickoff queue makes finishing them this session's first job, and the duplicate RECORD ids would corrupt the deferral register (deferral_scan tags point at ids) if merged blindly.
+- WHY-THAT-WHY-MATTERS: the RECORD register is the no-silent-deferrals mechanism itself — two rows sharing an id breaks the [R-###] tag → row binding that makes deferrals auditable, so resolving the collision protects the integrity of the very system that keeps deferrals honest.
+- EXPECTED OUTCOMES: #152, #156, #157 merged with evidence (run ids on final heads); RECORD.md has unique ids with all tags resolving; STATE/TODOS/changelog/arc updated; no merge messages sent (2026-07-25 silent-merge directive — the recorded evidence is the notification).
+
+SCOPE: merges of the three queued PRs + collision renumbering on their branches + bookkeeping files. NEW UI build work (Spark Line ✳ sheet, frictionless-nav wave 2, light theme R-071, human a11y pass R-069) is NOT in this contract — plan presented to the founder for approval first.
+
+STATUS: OPEN
+
+## Session Contract #40 (2026-08-03, founder ratification — GeoLibre = the draw-to-search UX prototype bench; renumbered from this branch's #39 at the merge with master, which had independently assigned #39 to the UI/UX lane (PR #152); its R-068/R-069/R-070 rows likewise renumbered to R-073/R-074/R-075 — the UI/UX session allocated R-068–R-072 first and merged first)
+
+GOAL: formalize the founder's ratification (verbatim *"This should be ratified - if not I ratify it - make it part of the UI/UX design formality"*) of GeoLibre (opengeos, MIT) as the standing UX prototype bench for the draw-to-search surface — a step of the UI/UX design formality: feel the loop-draw → point-in-polygon UX on exported real event points ($0, off-product, data local) before any native build, and optionally earlier to inform the gate decision itself. Origin: this session's founder-requested critical evaluation of GeoLibre (po battery run per `docs/skills/po_provocation.md`; verdict — not a product dependency: scope/CWV/canon/churn; fits — MapLibre+PMTiles pattern donor for the gated tile decision, ops density-analysis instrument, and this bench).
+
+SCOPE: records only — decision record `docs/memory/decisions/2026-08-03_geolibre-draw-to-search-prototype-bench.md` + UI canon §7/§12 + changelog + TODOS bench item + R-073 (the canon's `ONE_LIVE_GEO_IDENTITY_v1.md §5` citation resolves to no committed file). NO product code, NO dependency added, NO spend; draw-to-search itself remains PROPOSAL/founder-gated; bench findings are design inputs, never gate evidence (arguing a gate down with them = gate-threshold relaxation, founder-crucial).
+
+DONE-CRITERIA: `tools/validate` green · draft PR opened on `claude/geolibrary-1live-evaluation-cac5vl` through the mandatory adversarial review.
+
+ADDENDUM (2026-08-03, same session, two founder corrections — both records-only, same scope bound): (a) **Condensed debono run rejected** (founder verbatim: *"I expect when I say debono for the entire Po model to be run with all the reverse and random and invert etc - and all the hats!"*) — redone in full at `docs/strategy/research/2026-08-03_geolibre_debono_full_run.md` (every operator P1–P8.6 written out, ≥2 movement each, 12-idea traceable harvest, full sequential hat run with conflict-preserving merge); standing Delivery rule added to `docs/skills/po_provocation.md`; decision record `2026-08-03_debono-means-full-model.md`; Kaizen ESCAPED row (new class `condensed-thinking-run`) + M6 harvest row. (b) **Charter invariant reworded at founder direction** ("Relive = remove"): CLAUDE.md's stale shorthand "AI never publishes" replaced (three occurrences) with the ratified nuanced formulation — **gate-custodied publication**: AI output reaches users only through the validation gates, promotion human-custodied or earned-confidence AUTO behind founder-flipped fail-closed flags; custody, never absence. MECHANICS UNCHANGED — no gate, flag, threshold, or import-boundary moves; decision record `2026-08-03_invariant-wording-gate-custody.md`. The CLAUDE.md edit is a founder-directed trust-invariant WORDING change (the STOP-and-escalate rule is satisfied: the founder directed it in writing, quoted verbatim in the record); the PR's non-Claude adversarial review is its mandatory check. ADDENDUM 2 (same session, founder: "Is this codified everywhere?"): the rewording swept into every LIVING surface — OPERATING_RULES §3.2 + narrative, domain-truth-and-trust persona, UI canon §3, FRICTIONLESS_NAV, CONFIG_CATALOG, STATE rollup — with CLAUDE.md's parenthetical as the standing old-phrase → new-wording decoder; code-side comment occurrences recorded as R-075 (next code-armed touch per file, trust-path under evaluator review); historical records keep the original phrase, append-only.
+
+Stage 3 for this records-only diff (per R-057's honest split: the file list is derived — `git diff --name-only origin/master...HEAD` — everything under docs/ plus TODOS.md and STATE.md, nothing under web/, worker/, api/, tools/, ai/, or .github/; most classes below match because the changelog/decision record NARRATE gates, models, and PR history by name, not because the class is live; the count is derived via `python tools/construction_gate.py | grep 'matched red classes' | tr ',' '\n' | wc -l`, never typed):
+- [S3:caller-suppliable-custody-inputs] No custody surface is touched; the bench is off-product and the record states its findings cannot enter any gate.
+- [S3:contract-scope-violation] Scope is the derived list above, bound to records files only; no code path can change because none is edited.
+- [S3:copy-outruns-registry] No live-surface capability claim is added — draw-to-search stays PROPOSAL in the same §12 row; the bench is recorded as process, not product status.
+- [S3:deferred-trust-work] Nothing trust-path is deferred; both noticed defects became R-073/R-074 with objective triggers in the same commit.
+- [S3:false-confidence-gate] Bears directly: R-074 records that `session_reconcile --heal` strips the marker the BLOCKING staleness guard requires (a heal that silently breaks its own guard), found and diagnosed live this session; fix bound to the next reconcile/staleness change, evaluator-mandatory.
+- [S3:featurability-dimension-missed] The record names what the bench cannot deliver (gestures/styling ≠ native) so no dimension is silently over-claimed.
+- [S3:final-gate-trusts-generator] No gate reads anything this diff writes; bench findings are explicitly non-evidence.
+- [S3:governance-ambiguity] The boundary is drawn in the record: bench = design input; arguing any gate down with it = gate-threshold relaxation, founder-crucial.
+- [S3:grant-not-content-bound] The ratification is content-bound to the founder's verbatim sentence, quoted in the decision record and the canon row.
+- [S3:mutable-model-alias] No model binding changes; GeoLibre is named as a tool, never routed.
+- [S3:nonfinite-numeric-accepted] N/A — no numeric parsing added; matched on prose (LCP budgets, version numbers) only.
+- [S3:pagination-integrity-gap] N/A — no fetch/list code; matched by narration of importer facts.
+- [S3:permission-for-ratified-work] Honored in the direct sense: the founder ratified in-message and this session executed without asking for a fresh go-ahead.
+- [S3:pushed-on-red] validate ran to blocking-green BEFORE push; the two ADVISORY rows are reviewed in this section; the SKIP is the standing R-002 visual-baseline gap.
+- [S3:release-path-weaker-than-generation] Nothing releases; no publish path touched.
+- [S3:retyped-evidence] The validate evidence block is pasted verbatim into the PR, never retyped.
+- [S3:rule-stronger-than-mechanism] Stated, not implied: the bench rule's enforcement venue is the design-review formality (canon §7/§12), and the decision record says exactly that — there is no mechanical gate claiming to enforce it.
+- [S3:self-weakenable-gate] No gate code touched; the hand-restored STATE marker ADVANCES what staleness_check asserts (tip 944e4a2), a tightening.
+- [S3:self-weakenable-review-model] Reviewer configuration untouched.
+- [S3:stale-base-widens-range] Base verified fresh — this branch contains the remote tip 944e4a2 (construction_gate's own ls-remote comparison this run).
+- [S3:stale-redclass-count] Count never typed — derived by the command in the intro line above.
+- [S3:stalled-state-needs-active-diagnosis] The staleness INDETERMINATE was diagnosed to root cause (heal schema gap) rather than retried; that diagnosis IS R-074.
+- [S3:status-narration-not-progress] The deliverables are on disk (canon, decision record, R-rows, this contract); chat carried the finished result only.
+- [S3:untested-gate-branch] No gate branch added; the restored marker was exercised live (staleness_check re-run to OK on the committed tree).
+- [S3:unusable-credential-tier] No credentials involved; the bench needs none by design ($0, local, no account).
+- [S3:volatile-safety-store] Every record lands in git-tracked files; nothing lives only in chat or ephemeral state.
+- [S3:weak-key-accepted-at-custody] No key custody touched.
+- [S3:workflow-tool-version-skew] No workflow/tool versions changed; GeoLibre's own release churn is precisely why it is fenced OFF the product path.
+- [S3:deliverable-visual-qa] No rendered deliverable (PDF/figure) ships in this diff; matched by narration only.
+- [S3:fabricated-qualitative-copy] Every GeoLibre fact in the records (stack, versions, dates, license, embed API) was read from its repo/README/roadmap on 2026-08-03; the one summarizer-derived figure (star count) was deliberately kept OUT of the records.
+- [S3:fail-open-on-custody-misconfig] Verified live in the adjacent direction: staleness_check on the marker-less block goes INDETERMINATE exit 2 (blocks, fail-closed) rather than passing; nothing here weakens that behavior.
+- [S3:false-price-claim] The $0 claim is scoped: GeoLibre is MIT and the bench runs locally with no account or service; the tile/POI decisions stay flagged founder-crucial money decisions, unchanged.
+- [S3:semantic-claim-not-rederived] The extraction-CLOSED sentence added to the rollup was re-derived from the tree this session (`EXTRACTION_THRESHOLD_RATIFIED = False` read from `tools/routing_data.py`), not copied from a PR title.
+- [S3:nonfinite-decimal-accepted] N/A — no decimal/price parsing exists in a records-only diff; matched by the pricing prose in the answer above.
+- [S3:malformed-ledger-row] The two new Kaizen rows (ESCAPED `condensed-thinking-run`, M6 harvest) follow their tables' existing column shapes and were appended/positioned to keep each table chronological and pipe-balanced.
+- [S3:missing-cardinality-check] N/A — no query or joined dataset is added; matched by narration of counts (operators, harvest ideas) in the run doc.
+- [S3:missing-record-read-as-state] Bears directly, in the corrected direction: the stale charter shorthand persisted BECAUSE newer ratifications (2026-07-25, 2026-08-02, 2026-08-03) weren't folded back into CLAUDE.md — this change does the fold-in, with the ratification trail cited in the decision record.
+- [S3:swallowed-corrupt-data] The one corrupt byte found (a stray non-ASCII character in the run doc) was fixed in place before commit, not swallowed; no parser consumes these files.
+- [S3:condensed-thinking-run] This change IS the class's origin and counter-measure: the condensed run escaped to the founder, and the same change lands the full write-out, the Delivery rule, the ledger row, and the index row — the run doc is the artifact, not a claim about one.
+- [S3:env-dependent-hermetic-test] N/A — no test is added or edited in the codification sweep; matched by the R-075 row narrating trust-path test files (the carousel tests' "AI never approves" match strings) by name.
+- [S3:build-before-plan] This branch is records-only executing an in-message founder ratification — the contract (this section) was written to STATE before the records landed; no product build occurred.
+- [S3:excluded-surface-widening] No exclusion set, allowlist, or .claude surface is touched by this branch; the class arrived via the merged master content narrating it.
+- [S3:founder-verbatim-corrected] Every founder quote in this branch's records was pasted from the founder's message verbatim, typos preserved ("Relive = remove", "crao work") — none paraphrased.
+- [S3:heal-drops-guard-marker] Bears directly and is CLOSED both ways in this merge: this branch's R-074 documented the heal stripping the marker; master's parallel fix (02e0865, preserve-what-you-don't-own + regression tests) landed, and this merge marks R-074 RESOLVED pointing at it.
 ## Session Contract #39 (2026-08-03, UI/UX lane — renumbered from #35 at the merge with master, which had independently assigned #34–#38 — kickoff-directed: R-002 fired trigger → WCAG/CWV → drive lane PRs)
 
 GOAL: (1) R-002 — make visual regression a real, firing gate (the trigger FIRED; queued work). (2) WCAG 2.2 AA + CWV — mechanical, repeatable verification of /tonight, not assertion. (3) Drive lane PRs: #145 (merge-worthy) per protocol; #112 stays PROPOSAL → founder ask list. (4) Spark Line empty-state check.
@@ -99,7 +166,7 @@ CLOSE-OUT PLAN (five fields per §4a; presented in-session — the founder's "Pr
 - WHY-IT-MATTERS: a weak handoff silently loses the ratifications, the gate mechanics, and the failure lessons this session bought — the next session would re-derive or, worse, contradict them.
 - EXPECTED OUTCOMES: the next UI/UX session opens from the pasted prompt, verifies #152's state as its first task, and picks up the queue with zero re-discovery; staleness_check and validate stay green.
 
-STATUS: OPEN — PR #152 awaiting final CI on the merge-resolution head; merge per protocol on evaluator APPROVE + all checks green, then this contract closes.
+STATUS: CLOSED (2026-08-03 — PR #152 MERGED as master `752aa55` at evaluator APPROVE, adversarial-review run 30858484764 + trust-gate 30858485142 + visual-regression 30858484763 all green on final head `4df82a3`, mergeable_state clean; merged by the successor UI/UX session (Contract #41) under the agent-merges-on-green protocol; no merge message per the 2026-07-25 silent-merge directive — this record is the notification).
 ## Session Contract #38 (2026-08-03, founder-ruled — "Update it / It's a sequence / semantic reading")
 
 PLAN (the ruling commissions the edit; recorded per §4a):
@@ -216,7 +283,6 @@ Stage-3 retrieval (docs/memory/RED_CLASSES.md read against this build; matched c
 - [S3:volatile-safety-store] The marker lives in git-tracked STATE.md (durable), and the fix exists precisely to stop a tool making that store lossy.
 - [S3:weak-key-accepted-at-custody] N/A — no custody/key surface touched.
 - [S3:workflow-tool-version-skew] No workflow files touched; the reconciler fix is self-contained with its tests in the same commit, so no cross-version window opens.
-
 ## Session Contract #33 (2026-08-03, founder-directed — "search all prior sessions and memory and bring everything up to date; prevent stale or lack of updates from ever happening again")
 
 GOAL: (1) Reconcile every disk-truth doc against VERIFIED ground truth after ~50 merged PRs of drift — STATE.md (this rollup), TODOS.md (mark resolved items), the change log (catch-up entries), session arcs (write the missing arc), and memory (the three kickoff-named lessons + the stale-record-belief gotcha). (2) Make staleness mechanically impossible to recur.

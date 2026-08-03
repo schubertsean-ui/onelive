@@ -83,6 +83,19 @@ gates stay convergent); into docs/memory/ or any factual record (facts never
 — a provocation recorded as a fact is a poisoning bug); on trivial mechanical
 tasks (cost discipline — ritual is not insight).
 
+## Delivery rule (founder-directed 2026-08-03 — decision record
+`docs/memory/decisions/2026-08-03_debono-means-full-model.md`)
+
+When the founder invokes de Bono / po by name, the deliverable IS the full
+run, written out: Step 0 assumptions · every operator P1–P8.6 with its
+provocations ON THE PAGE · ≥2 movement techniques per provocation · a
+harvest table traceable by provocation ID · plus the full hat sequence
+(Blue frame → White facts → Green battery → Yellow + Black → devil's
+advocate on consensus → conflict-preserving Blue merge; Red = founder).
+Presenting a condensed digest while claiming "every operator was run" is a
+defect (Kaizen class `condensed-thinking-run`), not a summary. First
+compliant run: `docs/strategy/research/2026-08-03_geolibre_debono_full_run.md`.
+
 ## Session integration
 
 - Generate the battery: `python tools/po_battery.py "<statement S>"` (prints

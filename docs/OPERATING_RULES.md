@@ -58,7 +58,8 @@ or summarizing, and that complete reading has been explicitly confirmed.**
 read the controlling documents (STATE.md, this file, the `/tonight` UI canon) in
 fragments and acted on the partial picture — it proposed a delay/timer that §6a
 explicitly bans, and it mis-stated a trust invariant ("AI never publishes" — the
-canon is "AI never publishes *unvalidated*", satisfied by the gate). Both errors
+canon, now worded gate-custodied publication (2026-08-03), is "AI never
+publishes *unvalidated*", satisfied by the gate). Both errors
 trace to the same root: reading fragments instead of whole documents. **Extended
 2026-08-03 (founder-directed):** the same work then produced CONFLATION errors of
 the second kind — stating an invariant more narrowly than the canon ("only the
@@ -220,8 +221,13 @@ An improvement must be *measurable* or *structural*, not vibes. Prefer:
    everywhere. The AI provider (`ai/claude_provider.py`) applies it: raise
    `ExtractionConfigError` on no-key/unknown-model/bad-schema; retry+degrade on
    429/5xx; **audit** every degrade so it is never invisible.
-2. **The AI step never publishes.** Extraction only proposes candidates;
-   promotion always passes the multi-confirm gate (`worker/gating.py`).
+2. **Publication is gate-custodied** (reworded 2026-08-03 from the shorthand
+   "the AI step never publishes" — decision record
+   `docs/memory/decisions/2026-08-03_invariant-wording-gate-custody.md`;
+   mechanics unchanged). Extraction only proposes candidates; everything
+   passes the multi-confirm gate (`worker/gating.py`); promotion is
+   human-custodied or earned-confidence AUTO behind founder-flipped,
+   fail-closed flags. Custody, never absence.
 3. **Everything auditable.** Every stage leaves a trail. AI extractions carry
    `_provenance` (provider, model, prompt_version, timestamp). Degradations and
    fuzzy merges write to `audit_log`.

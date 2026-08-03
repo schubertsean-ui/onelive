@@ -59,7 +59,8 @@ founder-ratified 2026-08-01) and the confidence/gating sections of
   drift; STATE.md prose itself is reconciled by the parent/session-close
   flow, not hand-edited here).
 - The trust-rules numbered list in `docs/OPERATING_RULES.md` §3, items 2
-  (AI never publishes), 4 (never fabricate), 5 (disputed never deleted), 6
+  (gate-custodied publication — reworded 2026-08-03 from "AI never
+  publishes"), 4 (never fabricate), 5 (disputed never deleted), 6
   (Tastemaker isolation).
 - `tests/test_gates.py` — the reference suite for confidence/gating
   behavior; flag any gap between what this persona checks and what's

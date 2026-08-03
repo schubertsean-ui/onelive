@@ -133,7 +133,67 @@ facts on unverified legs (live data still wins when verified). Regression tests 
 (`tests/test_session_reconcile.py`, 2 new). STATE.md marker restored and advanced to
 master `944e4a2` with a rollup addendum for PR #150 (sourcing engine P0) and PR #153
 (re-certification sitting — extraction CLOSED, flag False, pending attended exam).
+## 2026-08-03 — Founder corrections: debono means the FULL model; charter invariant reworded to gate-custodied publication
 
+**Condensed debono run rejected (founder: "This is terrible, worse than nothing … I expect
+when I say debono for the entire Po model to be run with all the reverse and random and
+invert etc - and all the hats!").** The GeoLibre evaluation's battery had been generated and
+worked but DELIVERED condensed, with a completeness claim standing in for the write-out, and
+no hat sequence. Redone in full: `docs/strategy/research/2026-08-03_geolibre_debono_full_run.md`
+— Step 0 assumptions, every operator P1–P8.6 with provocations written out, ≥2 movement
+techniques per provocation, a 12-idea harvest table traceable by provocation ID, and the full
+sequential hat run (Blue frame → White facts → Green battery → Yellow → generator-side Black
+[no adversarial authority — the real Black seat is the PR's non-Claude review] → devil's
+advocate → conflict-preserving Blue merge; Red = founder). New standing rule codified in
+`docs/skills/po_provocation.md` (Delivery rule) + decision record
+`docs/memory/decisions/2026-08-03_debono-means-full-model.md`; Kaizen: ESCAPED row, new class
+`condensed-thinking-run`, + an M6 harvest row.
+
+**Codification sweep (same session, founder: "Is this codified everywhere so every subsequent
+session or chat knows this?"):** the rewording now lives in every LIVING surface a session
+reads as current law — CLAUDE.md ×3, OPERATING_RULES §3.2 + narrative canon-claim, the
+domain-truth-and-trust review persona, UI canon §3, FRICTIONLESS_NAV, CONFIG_CATALOG, STATE
+rollup — and CLAUDE.md's parenthetical maps old shorthand → new wording as the standing
+decoder for any historical text. Code-side comment/docstring occurrences (already mostly
+nuance-correct) are R-075 (renumbered from R-070 at the PR #152 merge): swept at each file's next code-armed touch, trust-path under
+evaluator review. Historical records keep the original phrase, append-only.
+
+**Charter invariant reworded at founder direction ("Relive = remove").** The stale shorthand
+"AI never publishes" in CLAUDE.md (prime directive 1, pipeline note, Claude-API stack line) is
+replaced by the ratified nuanced formulation: **gate-custodied publication** — AI output
+reaches users ONLY through the validation gates, promotion human-custodied or
+earned-confidence AUTO behind founder-flipped fail-closed flags; AI is structurally everywhere
+and the invariant is CUSTODY, never absence. MECHANICS UNCHANGED (orchestrator still cannot
+import promote; all flags stay fail-closed and founder-flipped; no threshold moves). Decision
+record `docs/memory/decisions/2026-08-03_invariant-wording-gate-custody.md`. Historical
+records keep the original phrase, append-only.
+
+## 2026-08-03 — GeoLibre evaluated; draw-to-search UX prototype bench RATIFIED into the design formality
+
+**GeoLibre critical evaluation (founder-requested, po battery per `docs/skills/po_provocation.md`).**
+Verdict: NOT a product dependency — scope mismatch (full GIS workbench vs a dot + walk-ring),
+CWV budget (DuckDB-WASM/deck.gl weight vs LCP ≤ 2.5s), canon control of the venue-block UI
+(iframe embed can't honor the ratified anatomy), release churn (v2.0→v2.4 in 18 days, no
+semver policy). Genuine fits: (a) **pattern donor** — MapLibre GL JS + self-hosted PMTiles
+makes the founder-gated "any map tiles" money decision a ~$0/no-new-vendor option when that
+gate opens; (b) **ops/analysis instrument** — POI/venue density work (bars, restaurants,
+hotels, schools, sports venues) on exported points + free POI data (Overture Places / TABC via
+the existing generic Socrata importer), zero product coupling; (c) **draw-to-search UX bench**
+— see below. Mid-session correction accepted: the evaluation first overstated the trust
+invariant as "no AI on product surfaces"; the invariant is **AI never publishes** on the
+product data path — AI is structurally everywhere (extraction, Foundry), gated.
+
+**Founder ratification (verbatim "This should be ratified - if not I ratify it - make it part
+of the UI/UX design formality"):** GeoLibre is the standing **UX prototype bench for
+draw-to-search** — a design-formality step (feel the loop-draw → point-in-polygon UX on real
+exported event points, $0, off-product, data local) before any native build, and available
+earlier to inform the gate decision. Scope fences: draw-to-search itself stays
+PROPOSAL/founder-gated; no dependency, no spend; bench findings are design inputs, never gate
+evidence. Canon §7/§12 updated; decision record
+`docs/memory/decisions/2026-08-03_geolibre-draw-to-search-prototype-bench.md`; TODOS bench item
+queued. **R-073 recorded (renumbered from R-068 at the PR #152 merge):** the canon's `ONE_LIVE_GEO_IDENTITY_v1.md §5` citation (draw-to-
+search spec) resolves to no committed file — land the spec or fix the citations before the
+gate decision / first bench run.
 ## 2026-08-03 — Spark Lines auto-publish on validation (founder-caught catch-22); guard v2 branch escape
 
 **Spark Line auto-publish fix (founder-directed).** The founder caught that #148's
