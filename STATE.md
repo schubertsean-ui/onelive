@@ -96,6 +96,13 @@ PLAN (per §4a; the shepherding half is greenlit by the founder-commissioned kic
 
 SCOPE: merges of the three queued PRs + collision renumbering on their branches + bookkeeping files. NEW UI build work (Spark Line ✳ sheet, frictionless-nav wave 2, light theme R-071, human a11y pass R-069) is NOT in this contract — plan presented to the founder for approval first.
 
+AMENDMENT (2026-08-03, same session — scope moves per charter 2.3, original quoted above): the founder delivered the OPERATING INTEGRITY CHARTER v3 into the session; per its 0.4/3.1 reading ("a queued TODO the founder set IS the greenlight; the plan is RECORDED, not re-asked"), the approval-ask for the two QUEUED zero-spend items was unnecessary — they enter this contract's scope now, plan recorded per §4a:
+- WHAT (build leg): (a) the Spark Line ✳ tap-to-dismiss disclosure SHEET (UI canon §4 verbatim copy: "Drafted from [artist]'s own materials. [Artist] can make it theirs anytime."; TODOS Contract-#33 item 40(a), P1, owner Generator) replacing the current title/label-only treatment; (b) frictionless-nav wave 2 (prefetch-on-intent + feature-detected View Transitions + scroll-restoration QA per the RATIFIED spec's queue, handoff item 3).
+- HOW: small batches on this branch against master post-#152; the sheet reuses the one-tap-in/one-tap-gone uncertainty-sheet pattern (≥44px, aria, reduced-motion); acceptance per FRICTIONLESS_NAV §13; web vitest + tsc + link-policy + axe; baselines recaptured only for intended diffs.
+- WHY: the two top zero-spend queue items — the ✳ sheet is required canon before any tier-C line renders; wave 2 completes the ratified no-friction implementation.
+- WHY-THAT-WHY-MATTERS: trust display is physics — the machine-drafted disclosure must exist BEFORE Spark Lines light up, because retrofitting disclosure after content ships would mean users met AI text without its honest mark, the exact breach the canon forbids.
+- EXPECTED OUTCOMES: sheet pixel-pinned + axe-clean; wave-2 acceptance tests green; no trust rule or threshold touched. NOT entering scope (still founder-gated): light theme R-071 (held for the design agenda per the delivered recommendation), human a11y pass R-069 (needs a human/attended run), everything on the standing founder-crucial list.
+
 STATUS: OPEN
 
 ## Session Contract #40 (2026-08-03, founder ratification — GeoLibre = the draw-to-search UX prototype bench; renumbered from this branch's #39 at the merge with master, which had independently assigned #39 to the UI/UX lane (PR #152); its R-068/R-069/R-070 rows likewise renumbered to R-073/R-074/R-075 — the UI/UX session allocated R-068–R-072 first and merged first)
