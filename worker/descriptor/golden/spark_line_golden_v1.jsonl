@@ -1,0 +1,16 @@
+# Spark Line faithfulness-gate golden set v1 (JSONL; # lines are comments).
+# Each row: {id, artist, texts[], text, expect: "pass"|"reject", why}.
+# The harness (worker/descriptor/golden.py) asserts assert_faithful() gives
+# `expect` for each — a deterministic, model-free regression of the gate.
+# PASS cases: faithful, well-shaped tier-C lines.
+{"id": "pass-vibe-3", "artist": "The Meridian", "texts": ["A dark, brass-heavy soul band from Austin."], "text": "brass. menace. amen.", "expect": "pass", "why": "3 words, no proper nouns or numbers, pure vibe"}
+{"id": "pass-5", "artist": "Copper Veins", "texts": ["Slow-burning guitar and whispered vocals."], "text": "slow-burning guitar, whispered, aching restraint", "expect": "pass", "why": "5 words, all lowercase descriptive"}
+{"id": "pass-grounded-proper-5", "artist": "Mara Quinn", "texts": ["Mara Quinn plays desert-noir country."], "text": "Mara Quinn: desert-noir dust ballads", "expect": "pass", "why": "proper nouns Mara/Quinn are grounded in the materials"}
+{"id": "pass-7", "artist": "Volt Collective", "texts": ["Volt Collective builds hypnotic techno with live modular synths."], "text": "hypnotic techno, live modular synths, endless pulse", "expect": "pass", "why": "7 words, grounded, no fabricated fact"}
+{"id": "pass-grounded-number-5", "artist": "Trio 44", "texts": ["Trio 44 plays restless free jazz."], "text": "Trio 44, restless free-jazz sprawl", "expect": "pass", "why": "the number 44 is grounded (part of the act's name)"}
+# REJECT cases: each fails one mechanical rule.
+{"id": "reject-wordcount-4", "artist": "The Meridian", "texts": ["Brass-heavy slow burn."], "text": "brass menace slow burn", "expect": "reject", "why": "4 words is not 3/5/7"}
+{"id": "reject-banned-superlative", "artist": "The Meridian", "texts": ["Brass-heavy soul, pure menace."], "text": "legendary brass, menace, pure amen", "expect": "reject", "why": "'legendary' is banned marketing language"}
+{"id": "reject-invented-place", "artist": "Copper Veins", "texts": ["Slow guitar and whispered vocals."], "text": "Copper Veins with Berlin, aching", "expect": "reject", "why": "'Berlin' is an ungrounded proper noun (invented place)"}
+{"id": "reject-invented-year", "artist": "Mara Quinn", "texts": ["Desert-noir country songwriter."], "text": "desert-noir dust since 1998, wandering", "expect": "reject", "why": "'1998' is an ungrounded number (invented year)"}
+{"id": "reject-no-source", "artist": "", "texts": [], "text": "brass menace amen", "expect": "reject", "why": "empty source corpus — nothing to ground a line"}
