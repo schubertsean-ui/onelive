@@ -94,7 +94,7 @@ Stage-3 retrieval (new class matched on this build; Contracts #34/#35 answers co
 
 DEVIATION LOGGED (decide-log-proceed, not founder-crucial): the GitHub integration cannot create repositories (403 — app is scoped to onelive), so the plugin lives at `integrity-plugin/` INSIDE onelive instead of a standalone repo — strictly better custody (every onelive gate reviews it; single source of truth intact; other lanes reference it via a github marketplace source with sparsePaths). If the founder still wants a standalone repo: create it empty, say so, and it migrates in one commit.
 
-STATUS: OPEN.
+STATUS: DELIVERED this session (plugin + charter v2 from the full record sweep + paste-in + lockstep guards, all on PR #155; the one founder step remaining is pasting CLAUDE_PROJECT_PASTEIN.md into claude.ai Projects — chat has no hooks).
 
 ## Session Contract #35 (2026-08-03, founder-APPROVED plan — "Approve - confirm these kind of issues will never ever happen again")
 
