@@ -1,0 +1,38 @@
+{
+  "id": "austin",
+  "name": "Austin / Central Texas (CAPCOG + Hill Country)",
+  "country": "US",
+  "timezone": "America/Chicago",
+  "locales": ["en-US"],
+  "boundary": {
+    "kind": "county_allowlist",
+    "module": "worker.region.capcog",
+    "counties_symbol": "CAPCOG_COUNTIES",
+    "row_verdict_symbol": "row_verdict",
+    "note": "The SET in the module is the source of truth (10 CAPCOG counties + founder-directed Hill Country expansion 2026-07-29). This file REFERENCES it and never mirrors the list — mechanical identity, no hand-copied drift."
+  },
+  "catalog": "sources/master_sources_catalog_120.json",
+  "specials": [
+    {
+      "id": "sxsw_chaos_mode",
+      "kind": "corroboration_override",
+      "description": "During SXSW the city floods with pop-up/unofficial listings; the multi-confirm gate requires 3 corroborating sources instead of 2.",
+      "impl": "worker/gating.py (multi_confirm_gate sxsw_mode)",
+      "status": "built"
+    },
+    {
+      "id": "hill_country_expansion",
+      "kind": "boundary_extension",
+      "description": "Gillespie, Comal, Kendall, Kerr counties added to the launch market beyond CAPCOG's official ten (founder-directed 2026-07-29). Bexar/Guadalupe/Bell remain OUT.",
+      "impl": "worker/region/capcog.py (CAPCOG_COUNTIES)",
+      "status": "built"
+    },
+    {
+      "id": "utc_offset_seasonality",
+      "kind": "operational_note",
+      "description": "Scheduled-import crons are written in UTC; America/Chicago DST shifts local fire times by an hour seasonally. Accepted; the dead-man alarms watch cadence, not wall-clock.",
+      "impl": ".github/workflows/import_structured.yml",
+      "status": "accepted"
+    }
+  ]
+}
