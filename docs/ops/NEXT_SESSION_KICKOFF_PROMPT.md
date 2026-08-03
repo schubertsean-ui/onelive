@@ -1,97 +1,109 @@
-# 1LIVE — Next-Session Kickoff / Handoff Prompt (paste the block below to start the next session)
+# Next Session Kickoff — Sourcing Engine (rewritten 2026-08-03, post-plan)
 
-Rebuilt 2026-08-03 at the close of the reconciliation + Spark-Line-merge session
-(Session Contract #33). It is deliberately self-contained and it points the next
-session at DISK, not at anyone's memory of "where we left off." Two parts: the
-standing open ritual (unchanged discipline) and a verified CURRENT-STATE +
-REMAINING-WORK snapshot (rebuild this snapshot from the reconcile before trusting it).
-
----------------------------------------------------------------
-
-**1LIVE — session kickoff.**
-
-**STOP. Before ANY action — building, fixing, scanning, answering, editing, merging —
-do the open ritual in order. Rule Zero forbids acting before it is done and confirmed
-in writing. A partial read counts as no read.**
-
-**Step 0 — Reconcile (mechanical).** Run `python tools/session_reconcile.py`. Interpret
-the exit code (0 = proceed; 2 MATERIAL CONTRADICTION = fix STATE.md prose to match
-reality, re-run; 2 UNVERIFIED = the sandbox lacks `gh`/DB — verify PR state via the
-GitHub MCP tools and DB facts via the Supabase connector if present, else record them
-UNVERIFIED, never guessed). Then run `python tools/staleness_check.py` — it fails if
-`origin/master` has advanced at all since STATE.md was last updated (zero-tolerance —
-no "N commits" fudge factor); if it fails, RECONCILE STATE.md first (that is this session's first job). Do NOT trust STATE.md
-until both are clean.
-
-**Step 1 — Read these COMPLETELY, end to end, no skimming / no fragments / no
-summarizing (Rule Zero). If a file exceeds one read call, page through ALL of it before
-acting on any part. Confirm in writing that you have read each in full:**
-- `docs/OPERATING_RULES.md` — **Rule Zero** and BOTH precision clauses (no conflation; no
-  framing against an impossible absolute); the quality bar (§1); **§6a — no delays/timers,
-  and non-user-facing content does not circle**; Loops (§2).
-- `CLAUDE.md` — prime directives, trust invariants, architecture, PR review criteria.
-- `docs/CODING_CONVENTIONS.md` — the reviewer-facing checklist.
-- `STATE.md` — the WHOLE current "Where we are" rollup + the current Session Contract, not
-  the first page (the file is long and mostly append-only history).
-- `TODOS.md` — the work queue and open founder decisions.
-- `docs/RECORD.md` — the OPEN deferral rows (there are ~50; they are the real backlog).
-- Any design/strategy doc the current contract points at (e.g. `docs/design/ONE_LIVE_TONIGHT_UI_CANON_v1.md`), in full.
-
-**Step 2 — Retrieve the brain lessons (read them; they are the anti-failure memory):**
-- `docs/memory/decisions/2026-08-02_complete-reading-gate.md` (Rule Zero: read completely).
-- `docs/memory/gotchas/2026-08-02_skim-fragment-is-no-read.md` (a fragment read is no read).
-- `docs/memory/gotchas/2026-08-03_conflation-is-a-violation.md` (state it precisely; never an impossible absolute).
-- `docs/memory/gotchas/2026-08-03_stale-record-belief.md` (a RECORD row can itself be stale — verify a claimed block before obeying it).
-- `docs/memory/decisions/2026-08-03_no-delays-and-non-user-facing-does-not-circle.md` (no timers; non-user-facing content does not circle).
-
-**The exact failures you must NOT repeat (each already has a rule; this list is so you
-recognize the moment):**
-1. **Reading fragments, then acting on the partial picture.** Read the controlling docs IN FULL first.
-2. **Mis-stating an invariant from memory.** QUOTE the canon. The trust invariant is **"AI never publishes UNVALIDATED"** — satisfied by the validation GATE; publishing is gate-custodied and founder-controlled.
-3. **Proposing a delay/timer/`send_later`/self-check-in.** §6a.2: continuation is completion-triggered — the PR-activity webhook IS the trigger. NO timers, not even a "shortest-possible fallback." The ONLY exception is an actual external trigger that emits no webhook; even then, prefer to END THE TURN with a status. Never `sleep`.
-4. **Circling on non-user-facing content.** §6a.3: gates/reviews/tests protect USER-FACING trust; process/harness/docs ceremony must never block a merge or trigger a re-review cycle. Fix a non-user-facing failure once or route around it — do not enter a review circle.
-5. **Parking buildable work as a "founder switch."** §6a.4: build the code (e.g. the take-live path is real gate-custodied code, not a toggle excuse).
-6. **Conflation.** Keep apart, cite each: trust-in-a-fact ≠ right-to-reproduce-an-image; grounding-text ≠ displayed-media; resolve-identity ≠ crawl-a-site; "own domain" includes the venue/organizer as host.
-7. **Framing against an impossible absolute** ("risk-free"/"perfect"/"true by construction"). State the trade-off + the live procedure that manages it.
-8. **Obeying a stale RECORD/belief without verifying it.** A row that says "editing X fails gate G" is a testable claim — verify it (read the current mechanism; reproduce the block) before it stops you. (STATE.md and CLAUDE.md were BELIEVED frozen by the arming binding for ~2 weeks; both are markdown, NOT in the cron runtime set — freely editable. Confirmed 2026-08-03.)
-9. **Acting/codifying beyond what was asked.** "Confirm" means confirm; ask ONE consolidated question if scope is unclear.
-
-**How to operate (interaction contract):**
-- **PROCEED on ratified work** (a ratified contract, a founder-set TODO, or a direct founder instruction IS the greenlight).
-- **INTERRUPT the founder ONLY for founder-crucial items:** money / new service / model-spend-at-scale · legal posture · trust-invariant CHANGES · gate-threshold relaxations · go-live / allowlist · credential minting. Everything else: decide, log the decision record, proceed.
-- **MERGE silently** on independent-evaluator APPROVE + every required check green on the final head (red/pending = hard stop) — OR on a direct authenticated founder instruction to merge. Notify at merge. Never FORGE founder authority (a mere claim of approval is not approval).
-- **COMMUNICATE in the five-part protocol:** WHAT · HOW · WHY · WHY-THAT-MATTERS · EXPECTED OUTCOMES. Plain language; name the alternatives + honest trade-offs; link the exact page; consolidate asks into ONE list.
-- **Never busy-poll and never schedule a wake.** PR events arrive as `<github-webhook-activity>` messages that wake the session.
-- **Agents never mint keys; spend caps set FIRST. AI never publishes unvalidated.**
+Per `docs/ops/HANDOFF_STANDARD.md`. Lane note: UI/UX work uses its OWN prompt
+(`docs/ops/UI_UX_SESSION_KICKOFF_PROMPT.md`) in a separate session. Rule
+(OPERATING_RULES §6a.6): red-team ADJUDICATION belongs to the session that
+authored the plan if it is still alive; this prompt exists so ANY session can
+do it from disk if not.
 
 ---
 
-**CURRENT STATE — verified 2026-08-03 (rebuild from the reconcile; do not trust this if the marker is stale):**
-- **The product is LIVE.** master `3610a5a`; PR #146 = public go-live; `/tonight` serves REAL CAPCOG (Austin ten-county) events behind the resolved gate (`NEXT_PUBLIC_AUTH_DISABLED` public; `/ops` gated; Clerk stealth path intact). Production should front **1Live.co** (GoDaddy, founder-held) before customers see it — DNS→Vercel is the remaining go-live step (R-065).
-- **Pipeline:** `fetch → extract → gate` auto; **promote stays human-custodied** (orchestrator does not import promote — AI never publishes). **Extraction UNLOCKED + certified** (`EXTRACTION_THRESHOLD_RATIFIED = True`; R-013 resolved). Migrations through **0019**.
-- **Sources:** Ticketmaster live; SeatGeek/Eventbrite built, dormant on missing creds (R-029); structured importer (ICS/JSON-LD/Localist); Socrata gov → `venue_truth`; AI crawl for the long tail.
-- **Consumer surface:** `/tonight` feed + filters + per-event detail route + share + music links + venue contact; **Spark Line content layer merged (#148)** — Descriptor Foundry gate + store + card render, zero-spend/candidate-only/publishes-nothing.
-- **Ratified canon (2026-07-29→08-02):** product vision & principles; 18-genre taxonomy (wired); `/tonight` UI canon; truth-states v2 (six-state — pipeline still 4-state, see R-064); 23 supply segments; engagement invariants-vs-hypotheses; 1Live rebrand (user-facing web done; infra names kept). Process posture: ship product, reviewer scoped to user-facing harm, construction_gate/kaizen_trends advisory.
-- **Disk-truth guard is live:** `tools/staleness_check.py` (blocking in validate) fails the moment `origin/master` advances past the last STATE.md update (zero-tolerance).
+## PASTE FROM HERE
 
-**REMAINING WORK (highest-priority first; all UNBLOCKED unless marked). Take the top item, tell the founder the ONE next step, then take it:**
-1. **PR #147** (card design) — shepherd to merge per protocol.
-2. **Spark Line take-live path** (queued, zero-spend) — the founder-controlled publish step that lights up a human-authored tier-A/B line (no model call) + the ✳ tap-to-dismiss sheet. (The tier-C generation job at scale is FOUNDER-CRUCIAL: model spend — cap first.)
-3. **R-064** — implement truth-states v2 (six states + issue flags) in the running pipeline: `worker/confidence.py`, `worker/gating.py`, `tests/test_gates.py`, public display, and the CLAUDE.md confidence-states paragraph. Trust-adjacent → evaluator. (CLAUDE.md IS editable — the freeze belief was obsolete.)
-4. **R-065 remainder** — wire 1Live.co DNS (GoDaddy) → Vercel at the deploy session; optional STATE.md/CLAUDE.md brand-string cleanup.
-5. **Wineries/breweries/distilleries ingestion source** (founder-directed) — needs verified event-calendar URLs (founder-supplied or an open-network session; NEVER fabricate a URL). Then per-event category mapping.
-6. **Open-PR hygiene** — ~13 older open PRs (#33,#34,#47,#50,#55,#56,#75,#76,#81,#83–#86,#108–#110,#112) likely superseded — a founder close-or-revive pass (agents don't close PRs unilaterally).
-7. **RECORD.md OPEN rows** — ~50; many are "wired but dormant on founder-crucial creds" (R-026/R-029/R-061) or measurement gaps (R-046/R-042). Work the ones your contract touches.
+You are continuing the 1Live SOURCING ENGINE effort. STOP — open ritual first:
+`python tools/session_reconcile.py`, then `docs/SESSION_START.md`, `STATE.md`
+(trust only after reconcile), `docs/OPERATING_RULES.md` IN FULL — §6a
+especially: NO timers/send_later ever; non-user-facing failures never circle;
+handoffs meet HANDOFF_STANDARD; proof over assertion; adjudication-stays-
+with-evidence (§6a.6).
 
-**Open founder decisions carried forward (HOLD; do not build past them):**
-- **Spark Line free-lane grounding** — resolve identity via MusicBrainz + Wikidata (free, no key) and use the act's OWN resolved materials as grounding for the tier-C line. Awaiting: **go / hold / amend.**
-- **"Trusted third-party photos" widening** — reproducing a trusted third party's photos of an act beyond the venue's own-domain image RELAXES a §6 hard rule → legal-posture, founder-crucial, needs a legal read. Safe subset (venue own-domain image, attributed, takedown-honoring; link-don't-lift otherwise) is fine now.
-- **Rule Zero greenlight clause** — keep as encoded (ratified = greenlit) or tighten to explicit per-task greenlight.
-- **Tier-C AI generation at scale = model spend** — spend cap set FIRST, in console.
-- **CLAUDE.md Rule Zero pointer** — now UNBLOCKED (CLAUDE.md is editable; the arming-binding freeze was obsolete). Add the pointer in the next root-file touch if the founder wants it.
+## Where things stand (2026-08-03 end-state, all PROVEN on origin)
 
-**This prompt is itself governed by `docs/ops/HANDOFF_STANDARD.md` (canon):** every handoff must meet its eight-property world-class bar, and every currency/completeness claim must be PROVEN with re-runnable evidence, never asserted. Rewrite this prompt to that bar at session close.
+Branch `claude/1live-session-kickoff-uvviqi` = PR #150 (draft). On it, verify
+with `git log --oneline origin/claude/1live-session-kickoff-uvviqi | head -15`:
+- **Sourcing model v1** (3 layers: protocol pathways / markets-as-data /
+  declared specials): `docs/strategy/SOURCING_MODEL_v1.md`,
+  `worker/sourcing/markets.py`, `sources/markets/austin.json`, registry-routed
+  `tools/import_sources.py --market`. 21 tests.
+- **Auto-promote engine** `worker/autopromote.py` + CLI, behind
+  `AUTO_PUBLISH_RATIFIED` (default OFF): re-runs gate fresh, PASS-only,
+  audits actor_type=system, orchestrator still cannot promote (test-asserted).
+  19 tests. One pre-authorized allowlist line in `tools/trust_gate.py`.
+- **JS-render fallback** wired in `worker/orchestrator.py` (capped
+  `ONELIVE_MAX_RENDERS_PER_RUN`=5, fail-open availability / fail-closed
+  trust). NOTE: renders NO-OP on CI until a browser-install step lands in
+  `ingest.yml` (separate arming PR).
+- **THE PLAN**: `docs/strategy/SOURCING_SCALE_PLAN_v1.md` — five subsystems
+  (FIND/READ/VERIFY/PUBLISH/PROVE), phases P0-P5 with proof gates, §3b total
+  cost per timeframe, §3c geographic compute doctrine, §3d entity-agent
+  adoption flywheel, §5 KPI calibration (Coverage@Window recommended).
+  Status: PROPOSAL awaiting founder ratification + external red team.
+- **Evidence base** (committed verbatim): `docs/strategy/research/` — five
+  reports (benchmark, truth-discovery mechanisms, efficiency design,
+  discovery-engine design, KPI calibration). The plan cites them.
+- **Red-team package** for manual paste into ChatGPT/Grok/Gemini:
+  `docs/strategy/redteam/SOURCING_PLAN_REDTEAM_PACKAGE_v1.md` (+ its §3d
+  ADDENDUM at the bottom — include it with Section C when pasting).
+- **Decision records** (all 2026-08-03): sourcing-model-three-layer ·
+  source-universe-per-segment (windowed 50:1 → provisional) ·
+  spark-line-auto-publish-fix · spark-line-grounding-sources.
 
-**Session close (finalize — do not skip):** update STATE.md prose + advance its `reconciled_through_commit` marker to the session's head + TODOS.md + the change log; **prove currency** (`python tools/staleness_check.py`; marker == `git rev-parse origin/master`; `bash tools/validate` RESULT with no gate FAILED — a SKIP is not a pass, cite its `docs/RECORD.md` row); write + tag the session arc; mirror key decisions to `docs/memory/`; append `docs/AGENT_FEEDBACK.md`; review `docs/RECORD.md` OPEN rows; rewrite THIS handoff to the standard.
+## CI state on PR #150 (do not re-diagnose — known and compensated)
 
----------------------------------------------------------------
+Three reds re-fire on EVERY push, ONE root cause pair:
+1. `trust-gate` + `adversarial-review` red via
+   `tests/test_arming_smoke_binding.py`: the render build changed armed-cron
+   runtime files (`worker/orchestrator.py`, `worker/fetch/render_fetch.py`)
+   so `docs/evidence/ARMING_SMOKE_RUN.json` no longer covers the head.
+   FIX (needs founder spend-yes, ~$0.50): dispatch `ingest.yml` on this
+   branch with `max_sources=1`, confirm green, update ARMING_SMOKE_RUN.json
+   with the new run id in a docs-only commit.
+2. `golden-exam` red: refusal because `tools/trust_gate.py` changed; the
+   classifier prints NOT manifest-bound → merge-ELIGIBLE under the charter's
+   ratified exception once adversarial-review APPROVEs. No spend needed.
+Merge condition: evaluator APPROVE + all other checks green + the eligible
+golden-exam refusal per charter. Notify founder at merge.
+
+## Founder decisions PENDING (do not proceed on these without answers)
+
+1. Smoke-run spend (~$0.50) to clear CI → merge path for #150.
+2. KPI retarget ratification: Coverage@Daily north star (ratio → context
+   stat) per plan §5.
+3. Plan phase ratification P1→P5.
+4. Cost switches: scheduler metronome (AFTER P2), attended re-cert sitting
+   (caching+token capture), search API ~$30-80/metro, buy-vs-build stance.
+Founder rulings ALREADY given (hold them): engine first, UI/UX best-in-class
+fast-follow · windowed KPI (daily/2d/3d/week/weekend/month), never catalog
+totals · discovery is an engine per segment · adoption flywheel matters ·
+total-cost-per-timeframe is mandatory in all cost talk.
+
+## The work queue (priority order, after decisions land)
+
+1. **Adjudicate red-team feedback** when the founder pastes the three
+   external reviews: aggregate, 3-option protocol on conflicts, file
+   surviving findings, amend the plan, THEN seek plan ratification.
+2. **P1 publish-readiness**: smoke autopromote on real candidates (flag
+   still OFF, --real dry inspection), coverage snapshot job v1 (per-window
+   dominance + funnel metrics, dead-man watched), render browser-step
+   arming PR.
+3. **P2 efficiency** (order matters — BEFORE any scheduler fix):
+   unchanged-skip + conditional GET (one PR), interim cost ledger,
+   change-frequency ledger + due-time rotation. The bundled re-cert sitting
+   (caching + usage capture) waits for the founder's calendar.
+4. **P3 discovery build** per `docs/strategy/research/2026-08-03_source_
+   discovery_engine_design.md` stages D0-D6 (needs decision 4's search API).
+5. Standing: shepherd #150 to merge; close-or-drive PRs #145/#112/#108/#109
+   per founder word; UI/UX session runs in parallel on its own prompt.
+
+## Hard rules (violations have burned trust — zero tolerance)
+
+Disk is truth (`python tools/staleness_check.py` green at close; update
+STATE.md/TODOS.md/changelog). `bash tools/validate` before any PR. Never
+claim done/current/canon without re-runnable proof (canon = merged master
+ONLY). No timers. One consolidated founder ask-list, plain language,
+why-this-not-that, honest tradeoffs, direct links. Never push to a branch
+other than your designated one. Trust invariants are physics: AI never
+publishes UNVALIDATED (the GATE satisfies this); no pay-to-rank; disputed
+shown-never-hidden; every gate fail-closed; gate relaxation = founder-crucial.
+
+## PASTE ENDS HERE

@@ -383,6 +383,17 @@ keeping the founder informed is the agent's job, never the founder's to chase.
    `bash tools/validate` RESULT with no gate FAILED; PR/DB facts via the GitHub/Supabase
    connectors, recorded UNVERIFIED when absent, never guessed). If you cannot produce
    the evidence, you do not yet know the claim is true — state what is unverified.
+6. **Adjudication stays with the evidence; fresh missions get fresh sessions
+   (founder-directed 2026-08-03).** Work that consists of judging feedback,
+   verifying claims, or following through on in-flight artifacts belongs to the
+   session that HOLDS the evidence (its context, its research, its authorship
+   memory) — transferring it discards fidelity a summary cannot restore. Work
+   that is a NEW mission (a different surface, a different deliverable) starts
+   in a FRESH session with a HANDOFF_STANDARD prompt, so no session becomes a
+   bottleneck holding unrelated threads. Corollary: before any session's
+   evidence becomes load-bearing for future work, COMMIT it to the repo
+   (disk-is-truth applies to research and reasoning artifacts, not just code —
+   the 2026-08-03 research reports in docs/strategy/research/ are the model).
 
 ---
 
