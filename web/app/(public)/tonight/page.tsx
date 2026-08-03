@@ -5,6 +5,7 @@ import {
   type LicensedEvent,
 } from "../../../lib/licensed";
 import { fetchPromotedEvents } from "../../../lib/promoted";
+import { withSparkLines } from "../../../lib/spark";
 import { filterToCapcog } from "../../../lib/region";
 import FeedApp from "./FeedApp";
 
@@ -72,7 +73,9 @@ export default async function TonightPage() {
         [...new Set(region.unknown.map((e) => e.venue_city))].join(", "),
       );
     }
-    events = region.kept;
+    // Attach approved Spark Lines by performer (additive; never throws, never
+    // reorders/filters — display only). A read failure leaves the feed unchanged.
+    events = await withSparkLines(region.kept);
   } catch (e) {
     error = e instanceof Error ? e.message : "Could not load events";
   }

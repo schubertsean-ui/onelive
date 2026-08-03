@@ -1,6 +1,132 @@
 # ONE LIVE — CHANGE LOG
 
 
+## 2026-08-03 — Spark Line: attach by ACT IDENTITY, never by name (adversarial-review #148 fix)
+
+PR #148's adversarial review (panel) returned REQUEST-CHANGES on one lens
+(openai/attacker-smuggle): the Spark Line read path joined descriptors to feed cards
+by `lower(trim(performer))` only, so two different acts sharing a normalized name
+could receive each other's approved line — a card could show the tier-C "drafted from
+the artist's own materials" attribution for the WRONG act. Real misattribution vector;
+in-scope (it's the integrity of the feature this PR builds), so fixed rather than argued.
+- **Identity-gated read path.** A Spark Line now attaches ONLY by a stable act identity
+  `artist_ref` (e.g. a MusicBrainz id / Wikidata QID), never by display name — a name is
+  not an identity. `web/lib/spark.ts` matches `licensed_event.artist_ref` →
+  `spark_line.artist_ref`; `web/lib/licensed.ts` carries the optional `artist_ref`.
+  Migration `0019_spark_line_identity.sql` adds the nullable column + its column-level
+  SELECT grant (per 0017/0018's lesson) + a partial index.
+- **Fail closed by construction.** Until the ratified identity-resolution enrichment
+  (MusicBrainz/Wikidata; gated, founder-crucial) populates `artist_ref` on both sides,
+  events carry no ref and NOTHING attaches — a stronger guarantee than the prior
+  "no rows yet." New regression tests prove a same-name act with a different ref, and a
+  ref-less event, never inherit a line (web suite 197/197; descriptor 35/35; tsc clean).
+- **`worker/descriptor/store.py`** `fetch_approved` is documented as worker-internal
+  (not the user-facing feed path); display trust lives in the identity-gated web read.
+- **Recorded (no silent deferral):** the review's two non-blocking ARMING nits →
+  `docs/RECORD.md` R-066 (provenance-origin check in `approve_candidate`) and R-067
+  (deterministic gate coverage for lower-case invented facts), each triggered before the
+  ops-approval / tier-C-generation path is armed.
+
+
+## 2026-08-03 — Rule Zero strengthened: conflation is its own violation
+
+**Founder-directed.** Rule Zero's completeness clause fixes the INPUT (read the
+controlling docs in full); it did not cover the OUTPUT failure the founder flagged —
+CONFLATION: after a complete read, stating an invariant more narrowly/broadly than the
+canon, or merging two distinct concepts into one claim. Confirmed the gap honestly (no
+prior rule covered it) and closed it:
+- `docs/OPERATING_RULES.md` → Rule Zero: added **"State it precisely — CONFLATION is its
+  own violation"** — quote the controlling text (never paraphrase an invariant from
+  memory), keep load-bearing separations apart by name (trust-in-a-fact ≠ right-to-
+  reproduce-an-image; grounding text ≠ displayed media; resolve-identity ≠ crawl-a-site;
+  "own domain" includes the venue/organizer as host, not only the artist), and split two
+  ideas before asserting either. "Why this rule exists" extended with the 2026-08-03
+  conflation failures. Waiving Rule Zero remains founder-crucial.
+- Brain: `docs/memory/gotchas/2026-08-03_conflation-is-a-violation.md` (retrieval-tokened,
+  referenced from Rule Zero's enforcement list) so the class is retrieved at session start.
+- **Same-day addition (founder-directed):** Rule Zero's precision clause also now forbids
+  **framing against an impossible absolute** — "risk-free", "perfect", "zero risk", "true by
+  construction", "guaranteed" don't exist; invoking one as a baseline manufactures a false
+  shortfall or false assurance. State the trade-off and name the live procedure that manages
+  it as far as is humanly/technologically possible. Second instance of the class ("true by
+  construction" 2026-08-02, "risk-free" 2026-08-03); logged in the same conflation gotcha.
+
+
+## 2026-08-02 — Rule Zero: read completely before acting; founder greenlight gates the work
+
+**Founder-directed** after two same-session failures rooted in reading controlling
+documents in fragments and acting on the partial picture (a banned delay/timer per
+OPERATING_RULES §6a; a mis-stated trust invariant — the canon is "AI never publishes
+*unvalidated*", satisfied by the gate). Codified so it never recurs:
+- `docs/OPERATING_RULES.md` → **Rule Zero** (outranks every rule below it): no action of
+  any kind until the controlling rules/documents are read COMPLETELY (no skim/skip/
+  fragment/summarize; a partial read = no read), and the founder greenlight gates the
+  work (ratified contract / founder-set TODO / direct instruction = the greenlight).
+  Waiving Rule Zero is founder-crucial.
+- `docs/SESSION_START.md` Step 4 now mandates reading the controlling docs IN FULL at
+  session open, before any work.
+- Brain: `docs/memory/decisions/2026-08-02_complete-reading-gate.md` +
+  `docs/memory/gotchas/2026-08-02_skim-fragment-is-no-read.md` (retrieved at start).
+- Mechanism = harness (SESSION_START + validate) + brain (memory retrieval) + caching
+  (read stable docs once, in full, early; they cache, so completeness is cheap).
+- Queued: the CLAUDE.md charter pointer rides the next lawful root-file window (editing
+  CLAUDE.md trips the arming-evidence binding).
+
+
+## 2026-08-02 — /tonight Phase 2 (content layer): Descriptor Foundry / Spark Line core (batch 1)
+
+**Session type:** Contract #32 (ship CAPCOG), /tonight Phase 2 build. Decision record:
+`docs/memory/decisions/2026-08-02_descriptor-foundry-spark-line-core.md`.
+
+- Stood up the **Descriptor Foundry** — the gated Spark Line generation pipeline (UI
+  Canon §4; Master Design Brief 65, 151–163) — as a pure, offline, **zero-spend** module
+  under `worker/descriptor/`: six candidates → pairwise knockout → fusion-of-N (style
+  new, facts never) → INDEPENDENT judge → provenance stamp. This gate IS the
+  validation that satisfies the invariant **"AI never publishes UNVALIDATED"** (UI
+  Canon §3; kickoff: satisfied by the gate, not by not building). Output is a
+  `candidate`; taking a validated line live to users is a further, **gate-custodied
+  and founder-controlled** step (the auto-publish switch). (Correcting an earlier
+  framing that called the invariant "true by construction / unreachable" — that was
+  the "satisfied by not building" fallacy; the safety is the gate.)
+- The load-bearing trust piece is the **mechanical faithfulness gate** (`gate.py`): word
+  count ∈ {3,5,7}; no marketing/trust language; every proper noun and number in a line
+  must be grounded in the artist's OWN materials (facts never invented); fail-closed on
+  empty source. A model-free **golden regression set** (`golden/spark_line_golden_v1.jsonl`)
+  pins accept/refuse verdicts. 18 offline tests (fake providers, no API call) cover every
+  accept and refuse branch; judge independence (different model than the generator) is
+  enforced. The pipeline fills the `foundry_descriptor{text,provenance}` contract the
+  carousel generator already references.
+- Sequenced ahead of §13's item-1 contextual-preview media because that item's top slice
+  (real music tracks) is founder-gated on a music-player API (spend) — deviation recorded
+  in the decision record, not taken silently.
+- **Not built here (queued, TODOS Phase 2):** the `spark_line` DB table + RLS/anon grant,
+  a worker job behind a budget cap with the real provider, and the read-path / card-UI
+  wiring. Nothing reaches a fan in this batch. No trust invariant changed; no gate relaxed.
+- Gates green locally: lint · deferral_scan · trust_gate · workflow_env_lint ·
+  blocking_failure_check · the 18 new tests. (Full `validate` pytest step runs in CI —
+  22 unrelated modules need third-party deps this sandbox's test runner lacks.)
+- **Batch 2 (schema + store):** `supabase/migrations/0018_spark_line.sql` — the Spark Line
+  store as a SEPARATE trust category (never touches candidate→gate→promote), keyed on
+  lowercased artist name, RLS fail-closed (`using status='approved'`), `provenance` jsonb
+  out of the anon grant, CHECKs on tier/status/word_count, unique-approved-per-artist.
+  `worker/descriptor/store.py` — candidate-only writer + parameterized approved reader,
+  cursor-injectable, lazy psycopg2; 5 hermetic tests.
+- **Batch 4 (take-live, gate-custodied):** `worker/descriptor/publish.py` — `approve_candidate` /
+  `reject_candidate`: the SEPARATE, gate-custodied publish step (mirrors `worker/promote.py` + the Meta
+  carousel physics, Contract #23). Fail-closed; content-bound (the approver approves the EXACT reviewed
+  text; a changed line must be re-approved); refuses an AI/agent approver (only a human takes a line
+  live); stamps approver + time + text-sha into provenance; guarded on `status='candidate'` so a
+  concurrent change fails closed. 8 hermetic tests. Built as CODE per OPERATING_RULES §6a.3 (don't park
+  buildable work as a founder switch) — the founder/delegate is the approver, not a toggle.
+- **Batch 3 (read path):** `web/lib/spark.ts` resolves approved Spark Lines by performer key
+  and attaches them to feed cards — ADDITIVE (a read failure never blanks the feed), never
+  filters or ranks. `SparkLineView` on the card renders the tier-C ✳ (its accessible label is
+  the §4 "drafted from the artist's own materials" disclosure) + tier-B attribution, in a quiet
+  register. `next tsc --noEmit` clean; 193 web vitest tests pass (9 new). Still queued: the ✳
+  tap-to-dismiss sheet, the ops approval action, and the tier-C generation job (real provider,
+  budget-capped — model spend at scale is founder-crucial).
+
+
 ## 2026-07-12 — Deep review of WORLD_CLASS bar + MASTER doc; v1.1 expansion proposed
 
 **Session type:** Independent deep review ("best technologists / company-spin-up" lens). Output: `OneLive_WORLD_CLASS_v1.1_DEEP_REVIEW.md`. Status: PROPOSAL — pending founder gap-by-gap ratification (per §0.3 contract-first).

@@ -8,6 +8,84 @@ system is; this doc says *how we work on it*.
 
 ---
 
+## Rule Zero — read completely before acting; the founder greenlight gates the work (founder-directed 2026-08-02, from repeated skim/fragment failures — this rule outranks every rule below it)
+
+**No action of any kind — building, fixing, scanning, code or doc changes, merges,
+migrations, or any substantive response that commits to or performs work — is
+permitted until the controlling rules and documents for that task have been read
+COMPLETELY: in full, end to end, with NO skimming, skipping, reading in fragments,
+or summarizing, and that complete reading has been explicitly confirmed.**
+
+- **A partial read is treated as NO read.** Reading a document in fragments —
+  offset/limit slices, truncated tool output, one page of many — and then acting
+  on the fragment is the exact failure this rule exists to prevent. If a document
+  is too large to read in one call, read every part of it before acting; never act
+  on the part you have seen.
+- **Skimming, skipping, fragmenting, or summarizing the controlling rules in place
+  of reading them is FORBIDDEN.** It is a violation, not a shortcut. Cost or
+  context pressure is never an excuse — Rule Zero's enforcement (below) removes the
+  excuse.
+- **The founder greenlight gates the work.** The enumerated actions are not
+  permitted on the founder's product or repository unless the founder has
+  explicitly greenlit that work. A **ratified contract, a queued TODO the founder
+  set, or a direct founder instruction IS the greenlight** (this preserves the
+  charter's "proceed on ratified work" — ratified means greenlit). When it is not
+  clear that the work is greenlit, **STOP and ask** — never proceed on an
+  assumption of authorization.
+- **State it precisely — CONFLATION is its own violation (added 2026-08-03,
+  founder-directed).** Reading completely is necessary but not sufficient. Once
+  read, anything you then ASSERT about a rule, invariant, or guardrail must be
+  stated in the canon's own terms: **quote the controlling text; never paraphrase
+  an invariant from memory**, and never state it narrower or broader than the doc
+  does. And distinct concepts must be kept distinct — collapsing two separate
+  things into one claim is a CONFLATION, and a conflation asserted as fact is a
+  violation exactly as a fragment read is. Load-bearing separations that have
+  already bitten us, kept apart by name: **trust in a fact ≠ the right to
+  reproduce an image** (credibility vs copyright/license); **grounding text ≠
+  displayed media** (Descriptor-Foundry faithfulness gate vs media
+  provenance/license gate); **resolving an entity's identity ≠ crawling its
+  website** (identity-first cascade vs raw fetch); **"the entity's own domain"
+  includes the venue/organizer as host, not only the artist.** When you feel two
+  ideas collapsing into one sentence, STOP, separate them, and cite each to its
+  source before you assert it. **Never frame against an impossible absolute.**
+  "Risk-free", "perfect", "zero risk", "true by construction", "guaranteed" — these
+  do not exist; invoking one as a baseline manufactures a false shortfall (or a
+  false assurance) and is a violation of this rule. Everything is a trade-off:
+  state the trade-off and name the live procedure that manages it as far as is
+  humanly and technologically possible — that IS the standard, not the absolute.
+
+**Why this rule exists (the failures it fixes):** on 2026-08-02 the agent twice
+read the controlling documents (STATE.md, this file, the `/tonight` UI canon) in
+fragments and acted on the partial picture — it proposed a delay/timer that §6a
+explicitly bans, and it mis-stated a trust invariant ("AI never publishes" — the
+canon is "AI never publishes *unvalidated*", satisfied by the gate). Both errors
+trace to the same root: reading fragments instead of whole documents. **Extended
+2026-08-03 (founder-directed):** the same work then produced CONFLATION errors of
+the second kind — stating an invariant more narrowly than the canon ("only the
+entity's own image" when canon also allows the venue/organizer's own-domain
+image), and merging distinct concepts (identity-resolution vs website-crawl;
+grounding vs display). Complete reading fixes the input; precise, un-conflated
+statement fixes the output — **both are now required.** These cost the founder
+time and trust. They do not recur.
+
+**Enforcement — harness + brain + caching (so the rule is mechanical, not
+remembered):**
+1. **Harness** — `docs/SESSION_START.md` Step 4 mandates reading the controlling
+   docs IN FULL at session open, before any work; `tools/validate` remains the
+   end-of-shift gate.
+2. **Brain** — this rule and its failure-lessons live in `docs/memory/`
+   (`decisions/2026-08-02_complete-reading-gate.md`,
+   `gotchas/2026-08-02_skim-fragment-is-no-read.md`, and the conflation lesson
+   `gotchas/2026-08-03_conflation-is-a-violation.md`) so a future session RETRIEVES
+   them at start rather than relying on memory.
+3. **Caching** — the controlling docs are read once, in full, early in the session;
+   being stable, they sit in the cached prompt prefix, so complete re-reading is
+   cheap and there is no cost excuse to skim.
+
+Changing, narrowing, or waiving Rule Zero is founder-crucial — agents may not relax it.
+
+---
+
 ## 0. Prime directive — trust is the foundation, integrated not bolted on
 
 1Live is a truth-first live-events platform. Trust is not a feature, a badge, or

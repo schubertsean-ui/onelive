@@ -17,7 +17,7 @@ import {
 } from "../../../lib/detail";
 import { contextualPreview } from "../../../lib/preview";
 import Link from "next/link";
-import type { LicensedEvent } from "../../../lib/licensed";
+import type { LicensedEvent, SparkLine } from "../../../lib/licensed";
 import {
   DESIRES,
   DESIRE_BY_KEY,
@@ -63,6 +63,32 @@ function headline(e: LicensedEvent): string {
   return e.performer && e.performer.length <= 80 ? e.performer : e.title;
 }
 
+// The Spark Line — the card's primary curiosity gap (UI Canon §4). tier C is
+// AI-drafted and carries a quiet ✳ whose accessible label IS the §4 disclosure
+// (drafted from the artist's own materials; the creator's words replace ours the
+// moment they claim). tier B credits its critic. Display only — never ranks or
+// filters, and absent when there is no approved line (an honest gap).
+function SparkLineView({ spark }: { spark?: SparkLine | null }) {
+  if (!spark || !spark.text) return null;
+  const aiDrafted = spark.tier === "C";
+  return (
+    <span className={`spark${aiDrafted ? " ai" : ""}`}>
+      <span className="sparktext">{spark.text}</span>
+      {aiDrafted ? (
+        <span
+          className="sparkmark"
+          role="img"
+          aria-label="Drafted from the artist's own materials; they can make it theirs anytime"
+          title="Drafted from the artist's own materials — they can make it theirs anytime"
+        >
+          {" ✳"}
+        </span>
+      ) : null}
+      {spark.attribution ? <span className="sparkattr"> — {spark.attribution}</span> : null}
+    </span>
+  );
+}
+
 // Provenance-accurate trust display. Licensed rows are stated by an
 // authoritative ticketing source; a "promoted" row was gated and published from
 // a venue/organizer listing — so it gets honest "listing" wording. Provider
@@ -103,9 +129,10 @@ function RichCard({ e, onNow, onOpen }: {
           <TrustMark e={e} />
         </div>
         <button type="button" className="zone z-artist" onClick={() => onOpen(e, "artist")}
-          aria-label={`${headline(e)} — open artist details`}>
+          aria-label={`${headline(e)}${e.spark ? ` — ${e.spark.text}` : ""} — open artist details`}>
           <span className="who">{headline(e)}</span>
           {focusLine(e) ? <span className="focus">{focusLine(e)}</span> : null}
+          <SparkLineView spark={e.spark} />
           <span className="go" aria-hidden="true">artist ›</span>
         </button>
         <button type="button" className="zone z-venue" onClick={() => onOpen(e, "venue")}
