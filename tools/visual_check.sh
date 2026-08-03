@@ -100,11 +100,13 @@ for spec in "${PAGES[@]}"; do
   shot="$TMP/$name.png"
   # --host-resolver-rules: any non-localhost request resolves to a dead local
   # address, so a stray external fetch fails identically online and offline.
-  # --no-sandbox only under root (Chromium refuses the sandbox as root); CI
-  # runners are non-root and keep the sandbox on.
-  SANDBOX_FLAG=""
-  [ "$(id -u)" = "0" ] && SANDBOX_FLAG="--no-sandbox"
-  TZ=America/Chicago "$CHROMIUM" $SANDBOX_FLAG \
+  # --no-sandbox everywhere this runs: required as root (this sandbox) AND on
+  # ubuntu-24 GitHub runners, where AppArmor blocks Chromium's unprivileged
+  # userns sandbox and the process ABORTS (proven: run 30840138414). Safe for
+  # THIS use: a single-use CI/sandbox machine rendering only our own localhost
+  # fixture pages with every external host resolver-blocked above.
+  # --disable-dev-shm-usage: runners' small /dev/shm crashes the renderer.
+  TZ=America/Chicago "$CHROMIUM" --no-sandbox --disable-dev-shm-usage \
     --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
     --host-resolver-rules="MAP * 127.0.0.1, EXCLUDE localhost" \
     --window-size="$viewport" --screenshot="$shot" \
@@ -131,5 +133,20 @@ for spec in "${PAGES[@]}"; do
     fi
   fi
 done
+
+# ── Leg 2: mechanical WCAG 2.2 AA (axe, machine-checkable subset) + lab LCP
+# budget, against the SAME deterministic boot (web/qa/audit.mjs). Fail-closed:
+# if the audit runner is missing, that's a hard failure, never a silent skip.
+if [ ! -f "$WEB/node_modules/playwright-core/package.json" ]; then
+  echo "[visual_check] HARD FAIL: playwright-core not installed (npm ci in web/) — the a11y/LCP audit cannot run" >&2
+  exit 2
+fi
+echo "[visual_check] running a11y + lab-LCP audit…"
+if (cd "$WEB" && ONELIVE_CHROMIUM="$CHROMIUM" node qa/audit.mjs --base "http://localhost:$PORT"); then
+  :
+else
+  echo "[visual_check] FAIL: a11y/LCP audit reported violations (see above)" >&2
+  FAIL=1
+fi
 
 exit "$FAIL"
