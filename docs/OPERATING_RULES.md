@@ -288,6 +288,68 @@ a deploy callback):
 
 ---
 
+### 4a. Plan-first — never build without a plan (founder-directed, 2026-08-02)
+
+No substantive build begins without a **plan** presented to (and approved by) the founder that
+states, for the work at hand:
+1. **What** — the change/build, concretely.
+2. **How** — the approach and the sequence.
+3. **Why** — the reasoning, tied to the core principles/goal.
+4. **Why it matters** — the stakes; what gets better, for whom.
+5. **Expected outcomes/results** — what success looks like, ideally measurable.
+
+**The full process (canon, founder-directed 2026-08-02) — every substantive build runs it, in order:**
+1. **PLAN** — what · how · why · why-it-matters · expected-outcomes; presented to and **approved by
+   the founder before building** (never skip the approval).
+2. **BUILD** in small batches.
+3. **VALIDATE** — lint, tests, trust-gate.
+4. **INDEPENDENT EVALUATOR** (code) — the non-Claude adversarial review on the PR.
+5. **PREVIEW for the founder** — a real URL/artifact to react to.
+6. **FOUNDER APPROVAL** → **MERGE** → **MEASURE** (Heartbeat / the effortless-UX metrics).
+7. **INDEPENDENT REVIEW OF THE WORK** — a reviewer who is **not the builder** critically assesses
+   how well the work did at (a) **designing** the plan, (b) **building** it, (c) **executing** it,
+   and (d) **confirming it was built as designed**. It is adversarial by intent — cites specifics,
+   finds gaps/overreach/drift, never rubber-stamps; its findings are **fixed or RECORDED**, not
+   ignored. This is distinct from step 4 (which reviews the code diff): step 7 reviews *how well the
+   whole plan→build→execute→confirm cycle was performed*.
+
+"World-class" (§5) is never unplanned, unreviewed, or unconfirmed. This applies with full force to
+UI/UX work, whose spine is the user-journey model (`docs/design/ONE_LIVE_USER_JOURNEY_LIFECYCLE_v1.md`),
+which is being grounded in proven, tested strategy/methodology/tactics (a "Methodology & Evidence"
+section is being added to that doc — research in progress).
+
+### 4b. API & tool-call frugality — event-driven, never busy-poll (founder-directed, 2026-08-02)
+
+**Why this rule exists (verbatim trigger).** An avoidable incident: the agent exhausted the hourly
+GitHub API quota (5,000 req/hr — the same on every plan) by (a) making **oversized** list calls —
+`actions_list` / `list_pull_requests` returning 77k–140k characters each — and (b) **busy-polling**
+CI in tight loops, re-fetching the same status repeatedly. This blocked a go-live merge and **cost
+the founder time and money** for zero added information. Founder directive: *"Never perform this kind
+of action again … Codify to canon and repo."* Every external API call spends the founder's money and
+time; treat it that way.
+
+**The rules (checkable in review and by self-audit):**
+1. **Event-driven, not poll-driven.** This session already receives forwarded GitHub webhook events
+   (CI results, review comments, merges, mergeability transitions). **Rely on them.** Check a PR/CI
+   state **at most once per genuine need**; if a required check is *pending*, **STOP and end the
+   turn** — the event will wake you. **Never** loop-poll a status. Never use `sleep` to wait for an
+   external result.
+2. **Bound every list/search/log call.** Always pass `minimal_output: true` where available, the
+   **narrowest** filter, and `perPage ≤ 5`. **Never** call `list_workflow_runs` / `actions_list` /
+   `list_pull_requests` / `get_job_logs` unbounded — they can return 100k+ characters that burn both
+   the API quota *and* the context window.
+3. **One authoritative signal, not many.** A single `pull_request_read` **`get`** returns
+   `mergeable_state` (`clean` / `blocked` / `unstable` / `dirty`) — that alone answers "is it
+   merge-ready." Do **not** additionally fire `get_status` + `get_commit` + `actions_list` for the
+   same question.
+4. **Route unavoidable large output through a subagent** so it never enters the main context.
+5. **If a task needs more than a couple of status calls, the approach is wrong** — wait for events.
+
+**Enforcement.** Reviewer- and self-checked today; the mechanical upgrade (Kaizen, if the class ever
+recurs) is a `PreToolUse` settings hook that **denies** an unbounded `mcp__github__` list call
+(missing `minimal_output` / oversized `perPage`). Logged as an ESCAPED defect —
+`docs/metrics/KAIZEN_LEDGER.md`, class `api-busy-poll`.
+
 ## 5. Standard of "world-class"
 
 We are building toward world-class technology, code, and UX/UI — with trust
