@@ -289,3 +289,44 @@ efficiency design & cost model · discovery-engine design & Austin universe ·
 KPI calibration (in flight). Decision records:
 `2026-08-03_sourcing-model-three-layer.md`,
 `2026-08-03_source-universe-per-segment.md`.
+
+### 3d. The adoption flywheel — the 1Live entity agent as the terminal
+cost-bender (founder-directed 2026-08-03)
+
+Every venue/artist/org that ADOPTS its 1Live presence (claims its page and
+lets its 1Live AI agent — or even a plain claimed feed/upload — maintain
+its own truth) converts from our COSTLIEST acquisition class to our
+CHEAPEST, in one move:
+
+| | Crawled (ai_extract) | Adopted (agent/claimed) |
+|---|---|---|
+| Acquisition cost | LLM extraction per change | **≈ $0** (push at change time) |
+| Freshness | bounded by crawl wave | instant (beats every wave) |
+| Evidence class | needs corroboration | **anchor** (`claimed_upload` is ALREADY in gating.py ANCHOR_CLASSES — the gate was built for this) |
+| Verification load | full fusion | first-party claim, gate still applies |
+
+**Cost model:** extraction spend scales with the UNADOPTED share of
+high-churn sources — at adoption rate a, extraction cost ≈ ×(1−a), and
+adoption concentrates naturally among the highest-churn venues (they have
+the most to gain from correct listings). Staged effect on §3b: 20%
+adoption ≈ −20% extraction spend; 50% adoption of the high-churn tier
+roughly HALVES the 50-metro monthly extraction bill (≈ $5-11k vs $11-23k
+pre-Haiku) and shifts the residual cost toward cheap probe/verify.
+
+**Why they adopt (the precedent-proven carrot, never payment):**
+Bandsintown gets 700k artists to maintain their own data because listings
+propagate everywhere within 48h; Google gets the web to mark up events
+for traffic. Ours: correct presence in a trusted feed + GEO/answer-engine
+citation (1Live pages as the highest-cited source for "what's on") +
+their corrections propagating instantly. Sequencing rule from the
+Bandsintown history: **discovery-first, claim-second** — coverage makes
+the platform worth claiming; the claim flow then cleans and cheapens what
+the crawl seeded.
+
+**Trust invariants unchanged:** an adopted entity's data is first-party
+EVIDENCE into the same gate (anchor class), never a bypass; adoption buys
+data quality and cost relief, never ranking (no pay-to-rank holds
+absolutely); a claimed source that goes stale or adversarial is downgraded
+by the same reliability loop as any source. Agent adoption metrics
+(adopted count, % of high-churn sources, extraction-spend displacement)
+join the coverage snapshot.

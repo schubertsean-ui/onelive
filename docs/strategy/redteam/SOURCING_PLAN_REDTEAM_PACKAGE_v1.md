@@ -441,3 +441,20 @@ extension path for non-US geographies; observability (what alerts exist
 per subsystem, what's mean-time-to-detection when a source family
 silently degrades?). End with per-dimension paragraphs + overall verdict:
 PROCEED / PROCEED WITH FIXES / HALT AND REDESIGN.
+
+---
+
+## ADDENDUM (2026-08-03, add to Section C when pasting) — §3d Adoption flywheel
+
+The plan now includes §3d: venue/artist adoption of the 1Live entity agent
+(claimed, self-maintained presences) as the terminal cost-bender —
+adopted entities become push-based, ≈$0-acquisition, anchor-class evidence
+sources (the gate's `claimed_upload` anchor class already exists);
+extraction spend scales with the UNADOPTED share (~×(1−a)); adoption
+carrot is propagation/citation (Bandsintown/Google precedent), never
+payment; discovery-first-claim-second sequencing; no-pay-to-rank and
+gate custody unchanged. REVIEWERS: attack this too — adoption-rate realism
+for small venues, spoofed/hijacked claims as a poisoning vector, the
+incentive's honesty (is "citation" a real carrot pre-scale?), and whether
+agent-maintained data quietly becomes an unaudited side door around
+corroboration.
