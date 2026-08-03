@@ -4,6 +4,33 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-03 — GeoLibre evaluated; draw-to-search UX prototype bench RATIFIED into the design formality
+
+**GeoLibre critical evaluation (founder-requested, po battery per `docs/skills/po_provocation.md`).**
+Verdict: NOT a product dependency — scope mismatch (full GIS workbench vs a dot + walk-ring),
+CWV budget (DuckDB-WASM/deck.gl weight vs LCP ≤ 2.5s), canon control of the venue-block UI
+(iframe embed can't honor the ratified anatomy), release churn (v2.0→v2.4 in 18 days, no
+semver policy). Genuine fits: (a) **pattern donor** — MapLibre GL JS + self-hosted PMTiles
+makes the founder-gated "any map tiles" money decision a ~$0/no-new-vendor option when that
+gate opens; (b) **ops/analysis instrument** — POI/venue density work (bars, restaurants,
+hotels, schools, sports venues) on exported points + free POI data (Overture Places / TABC via
+the existing generic Socrata importer), zero product coupling; (c) **draw-to-search UX bench**
+— see below. Mid-session correction accepted: the evaluation first overstated the trust
+invariant as "no AI on product surfaces"; the invariant is **AI never publishes** on the
+product data path — AI is structurally everywhere (extraction, Foundry), gated.
+
+**Founder ratification (verbatim "This should be ratified - if not I ratify it - make it part
+of the UI/UX design formality"):** GeoLibre is the standing **UX prototype bench for
+draw-to-search** — a design-formality step (feel the loop-draw → point-in-polygon UX on real
+exported event points, $0, off-product, data local) before any native build, and available
+earlier to inform the gate decision. Scope fences: draw-to-search itself stays
+PROPOSAL/founder-gated; no dependency, no spend; bench findings are design inputs, never gate
+evidence. Canon §7/§12 updated; decision record
+`docs/memory/decisions/2026-08-03_geolibre-draw-to-search-prototype-bench.md`; TODOS bench item
+queued. **R-068 recorded:** the canon's `ONE_LIVE_GEO_IDENTITY_v1.md §5` citation (draw-to-
+search spec) resolves to no committed file — land the spec or fix the citations before the
+gate decision / first bench run.
+
 ## 2026-08-03 — Spark Lines auto-publish on validation (founder-caught catch-22); guard v2 branch escape
 
 **Spark Line auto-publish fix (founder-directed).** The founder caught that #148's

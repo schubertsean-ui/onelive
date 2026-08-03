@@ -242,6 +242,14 @@ finger** — any size, block to region — and get the events inside it; the loo
 by the layer its size implies ("East Austin" / "Hill Country") and is shareable. *Proposal,
 founder-gated* (§12).
 
+**Draw-to-search prototype bench (RATIFIED 2026-08-03, part of the UI/UX design formality):**
+before any native build — and available earlier, to inform the gate decision itself — the
+draw-to-search UX is prototyped in **GeoLibre** (open-source MIT GIS; in-browser draw tools +
+DuckDB-WASM spatial) against exported real event points: $0, off-product, data stays local.
+Bench findings are design inputs logged to the canon, never gate evidence; the feature build
+itself stays founder-gated. Decision record:
+`docs/memory/decisions/2026-08-03_geolibre-draw-to-search-prototype-bench.md`.
+
 ---
 
 ## §8 · Trust display rules (verbatim canon)
@@ -329,7 +337,7 @@ its data field doesn't exist yet. This table is the spec for the ingestion work 
 | Contextual preview (polymorphic) | **NEW founder directive (2026-07-31)** — now canon, unbuilt | §3, §4 |
 | Calm / cognitive-load governing law | **NEW founder directive (2026-07-31)** — now canon | §1 |
 | Emotion/Vibe "Feel" search mode | **PROPOSAL** (Gap G-VT) | `ONE_LIVE_EMOTION_VIBE_LAYER_SPEC_v1.md` |
-| Draw-to-search map | **PROPOSAL, founder-gated** | `ONE_LIVE_GEO_IDENTITY_v1.md §5` |
+| Draw-to-search map | **PROPOSAL, founder-gated** — UX prototype bench **RATIFIED 2026-08-03** (GeoLibre: $0, off-product, pre-build formality step) | `ONE_LIVE_GEO_IDENTITY_v1.md §5` (citation unresolved — R-068); `docs/memory/decisions/2026-08-03_geolibre-draw-to-search-prototype-bench.md` |
 | Tasting Trail section UI | **RATIFIED intent, unbuilt** (read path merged) | `TASTING_TRAIL_SECTION_v1.md` |
 
 **Founder-gated / spend-or-service decisions before build:** an embedded music player (music
