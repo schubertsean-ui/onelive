@@ -13,6 +13,12 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #35 (2026-08-03 — plan-first made mechanical, founder-approved)
+- [x] (P0) Plan-first hooks — SessionStart banner + PreToolUse gate in `.claude/settings.json`, `tools/plan_first_gate.py`/`plan_first_banner.py`, 10 tests incl. the unwiring guard. DONE this session.
+- [x] (P1) Heartbeat paper §5b supplementary-data-sources addendum (consent > license > scrape). DONE.
+- [x] (P1) M6 disposition snapshot appended to the Kaizen ledger (1Live lane: 74/34/37/3/2). DONE.
+- [ ] (P2, next session in a fresh container) VERIFY the hooks fire live: session start must print the [plan-first] banner, and an Edit to a product file with no OPEN five-field contract must be denied by the gate. (This session created settings.json mid-run; the settings watcher only loads it at session start, so live firing is provable only from the next session.) If either leg fails, that is an ESCAPED defect — ledger row + fix before any other work.
+
 ## Session Contract #34 (2026-08-03 — Heartbeat productization strategy)
 - [x] (P1) Heartbeat productization & market strategy PROPOSAL — `docs/strategy/ONE_LIVE_HEARTBEAT_PRODUCTIZATION_v1.md` (canon/repo evaluation · world-class benchmarks · staged journey · cost/revenue specs · the per-verified-event-record KPI spine · ONE founder ask list §10). DONE this session.
 - [x] (P1) Fix `session_reconcile.py --heal` destroying `reconciled_through_commit` + unverified-leg facts — preserve-what-you-don't-own + 2 regression tests. DONE this session.

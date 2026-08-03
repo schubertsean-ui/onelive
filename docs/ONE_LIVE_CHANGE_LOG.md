@@ -4,6 +4,36 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-03 — Plan-first made mechanical (founder-approved Contract #35); Heartbeat §5b; M6 disposition snapshot
+
+**Plan-first enforcement hooks (founder: "Approve … it happens because it's
+programmatically made to happen").** Born from the same-day build-before-plan escape
+(founder-caught): the §4a rule lived only in docs and its one mechanism
+(construction_gate) fires at validate — the END of a build. Now: `.claude/settings.json`
+wires (a) a SessionStart hook (`tools/plan_first_banner.py`) that prints the §4a
+checklist + Construction Loop stage order into every session's opening context, and
+(b) a PreToolUse hook (`tools/plan_first_gate.py`) that DENIES Write/Edit on any
+non-bookkeeping repo file unless STATE.md carries an OPEN Session Contract with the five
+plan fields (WHAT/HOW/WHY/WHY-IT-MATTERS/EXPECTED OUTCOMES, uppercase labels — lowercase
+prose does not satisfy). Bookkeeping surfaces (STATE/TODOS/ledgers/memory/arcs/.claude)
+stay writable so the contract itself can always be written; STATE.md unreadable = fail
+closed; paths outside the repo (scratchpad) unaffected. 10 hermetic tests including the
+"never have to check" guard: unwiring either hook from settings.json fails the suite
+(and validate, and CI). Honest limit, stated: this binds Claude Code sessions in THIS
+repo; other repos/products need their own deliberately-installed copy. Pure tightening —
+blocks more, relaxes nothing.
+
+**Heartbeat paper §5b (founder-prompted):** supplementary-data-source assessment added —
+POS/reservations/TV-subscriptions pursued via the consent lane (venue connects its own
+account; k-floored aggregates), card networks deferred (⚑ license + optics), foot-traffic
+panels refused beyond popular-times-class soft signals, rideshare parked. Consent beats
+license beats scrape.
+
+**M6 disposition snapshot (append-only, dated):** the po-battery record now answers
+"what survived?" from one table — 1Live lane: 74 surfaced / 34 adopted / 37 carried /
+3 parked / 2 rejected (98 across all lanes incl. promise-ledger). Caveat printed in the
+table: "carried" measures pipeline position, not gate survival.
+
 ## 2026-08-03 — Heartbeat Analytics productization strategy (PROPOSAL); reconciler-heal marker fix (Contract #34)
 
 **Heartbeat productization & market strategy (docs-only, PROPOSAL).** Founder-directed

@@ -266,6 +266,32 @@ coverage, trust, and default status.
 
 ---
 
+## §5b · Supplementary data sources (founder-prompted addendum, 2026-08-03)
+
+The founder asked what third-party feeds could supplement 1Live-generated data — payments,
+reservations, POS, seating, TV subscriptions. The canon today covers event-truth surfaces
+(licensed ticketing APIs, structured feeds, gov open data, calendars, social platforms,
+and Google Places popular-times as a soft corroboration signal); it covers **none** of the
+categories below. Assessment, filtered by the decisive rule — **consent beats license
+beats scrape** — and by cost discipline:
+
+| Category | Value | Path & cost | Verdict |
+|---|---|---|---|
+| **POS systems** (Toast, Square) | Ground-truth event-night revenue lift — proves "1Live sent people through your door"; makes venue vitality measured, not inferred | The venue connects its OWN account via OAuth in the free self-dashboard (the Verisk contributory move); no purchase, no scraping; ~zero cost | **Pursue at Stage 2** — consent-gated own-data; k-floored aggregates later feed the civic product |
+| **Reservation platforms** (OpenTable, Resy, SevenRooms) | "Open tables" is in the Product Vision verbatim; aggregate availability = demand corroboration + show-plus-table planning | Partner-gated APIs; scraping is ToS-risky and off-brand; the venue-connects-its-own-account route works identically | **Pursue as consent integrations**, venue-initiated first; platform partnership later |
+| **Card networks** (Mastercard/Visa location insights — what Zartico licenses) | Economic-impact numbers for city sales; weak for event truth | Five-figure licenses ⚑ + a real optics tradeoff for a privacy-first brand | **Defer to Stage 3+**; prefer partnering with data the city/DMO already licenses |
+| **TV/sports subscriptions** (DirecTV for Business, PPV/UFC) | "Which bar shows the fight" is a real, badly-covered discovery category; venue-attribute data, zero personal data | Venue self-declaration via the B2A agent + public league/broadcast schedules; ~zero cost | **Pursue early** — it is supply-side truth, not third-party data at all |
+| **Foot-traffic panels** (Placer, SafeGraph) | Corroboration/vitality | Precise geolocation is TDPSA-sensitive; we never collect it; licensed aggregates carry the card-data optics | **Soft signals only** (popular-times class, already canon); no panel purchases |
+| **Rideshare/surge** (the vision's own example) | Real-time pulse output | No public surge API; partnership-only | **Park** until a partner conversation exists |
+
+The pattern: every high-value supplement has a consent-shaped acquisition path — the venue
+connects its own POS/reservation/TV account to its free dashboard and 1Live receives
+k-floored aggregates — which turns "data purchases" into the §3.1 contributory flywheel
+and strengthens the trust story instead of taxing it. ⚑ Any paid data license and any
+platform partnership are founder-crucial (money / new service / legal posture).
+
+---
+
 ## §6 · The productization journey — positioning, marketing, delivery, service, monetization at each stage
 
 **Stage 0 — Measure ourselves (now; prerequisite; $0 revenue).**
