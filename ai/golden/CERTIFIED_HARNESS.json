@@ -1,12 +1,12 @@
 {
-  "harness_sha256": "390c9fba1e6e473fa1b1c88a43ca902be0703e973ab981275d294bbee0861aea",
-  "run_id": "29659010747",
-  "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/29659010747",
-  "artifact_id": "8433778947",
-  "artifact_zip_sha256": "8e7383037891e6790cf3eb3ac97059d507d04af11d7fa41dcf565712b70ca51e",
-  "subject_sha": "083c4306e71494baa6348084cffbdd09b8682f62",
+  "harness_sha256": "72f87781c309fd0a82929b7097c8accfdae26408f308343ee581dd64319873e6",
+  "run_id": "30846117185",
+  "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/30846117185",
+  "artifact_id": "8868837866",
+  "artifact_zip_sha256": "9021ab8e6ce2f270649adf30cb5d0d62b6cf7e418dc35b66de92103f0b268953",
+  "subject_sha": "944e4a2029236dae8c310fbde72b27b54d3953e2",
   "model": "claude-opus-4-8",
-  "verified_at": "2026-07-18T20:08:51Z",
+  "verified_at": "2026-08-03T19:34:55Z",
   "verdict": "PASSED",
   "metrics": {
     "examples": 77,
@@ -20,5 +20,5 @@
     "events_with_hallucination_rate": 0.026,
     "events_with_any_error_rate": 0.0909
   },
-  "note": "Attended exam on master's harness (founder-directed dispatch, 2026-07-18). This file is deliberately OUTSIDE the harness manifest: recording certification cannot alter what it certifies. It can enter or change in the tree only through the base-owned authentication steps in .github/workflows/extraction-eval.yml — a real successful default-branch attended run bound to subject_sha, the artifact zip digest, the uploaded report cross-checked field by field, and tools/verify_exam_evidence.py re-deriving the verdict from raw metrics — with that co-gate log attached to the adversarial review by the base-owned evidence channel."
+  "note": "Attended exam on master's harness (founder-directed dispatch, 2026-08-03 \u2014 the re-certification sitting after #153 landed prompt caching + usage capture with extraction CLOSED). This file is deliberately OUTSIDE the harness manifest: recording certification cannot alter what it certifies. It can enter or change in the tree only through the base-owned authentication steps in .github/workflows/extraction-eval.yml \u2014 a real successful default-branch attended run bound to subject_sha, the artifact zip digest, the uploaded report cross-checked field by field, and tools/verify_exam_evidence.py re-deriving the verdict from raw metrics \u2014 with that co-gate log attached to the adversarial review by the base-owned evidence channel."
 }
