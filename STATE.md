@@ -90,7 +90,7 @@ SCOPE: merges of the three queued PRs + collision renumbering on their branches 
 
 STATUS: OPEN
 
-## Session Contract #40 (2026-08-03, founder ratification — GeoLibre = the draw-to-search UX prototype bench; renumbered from this branch's #39 at the merge with master, which had independently assigned #39 to the UI/UX lane (PR #152); its R-073/R-074/R-075 rows likewise renumbered to R-073/R-074/R-075 — the UI/UX session allocated R-073–R-072 first and merged first)
+## Session Contract #40 (2026-08-03, founder ratification — GeoLibre = the draw-to-search UX prototype bench; renumbered from this branch's #39 at the merge with master, which had independently assigned #39 to the UI/UX lane (PR #152); its R-068/R-069/R-070 rows likewise renumbered to R-073/R-074/R-075 — the UI/UX session allocated R-068–R-072 first and merged first)
 
 GOAL: formalize the founder's ratification (verbatim *"This should be ratified - if not I ratify it - make it part of the UI/UX design formality"*) of GeoLibre (opengeos, MIT) as the standing UX prototype bench for the draw-to-search surface — a step of the UI/UX design formality: feel the loop-draw → point-in-polygon UX on exported real event points ($0, off-product, data local) before any native build, and optionally earlier to inform the gate decision itself. Origin: this session's founder-requested critical evaluation of GeoLibre (po battery run per `docs/skills/po_provocation.md`; verdict — not a product dependency: scope/CWV/canon/churn; fits — MapLibre+PMTiles pattern donor for the gated tile decision, ops density-analysis instrument, and this bench).
 
