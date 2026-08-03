@@ -1,0 +1,5 @@
+{
+  "name": "integrity",
+  "version": "1.0.0",
+  "description": "Plan-first enforcement + operating charter for 1Live-family repos: a SessionStart banner injects the working rules into every session, and a PreToolUse gate blocks product-file edits until the session's contract carries the five plan fields (WHAT / HOW / WHY / WHY-IT-MATTERS / EXPECTED OUTCOMES) with STATUS: OPEN."
+}

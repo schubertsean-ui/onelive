@@ -4,6 +4,135 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-03 — Integrity plugin + Operating Charter (founder-approved Contract #36)
+
+**The operational-integrity harness is now portable (founder: "create the plugin repo
+and build it… so I don't have to do any of that stuff again").** `integrity-plugin/`
+carries a Claude Code plugin (marketplace + plugin manifests, hooks.json) whose
+generalized plan-first gate/banner (`${CLAUDE_PLUGIN_ROOT}` scripts, repo root from
+`CLAUDE_PROJECT_DIR`, optional per-repo `.plan-first.json` that FAILS CLOSED when
+malformed) let any lane's repo inherit onelive's enforcement in one settings block
+(README carries the checklist). The **OPERATING INTEGRITY CHARTER** compiles every
+founder-directed rule on the record — 36 rules across planning/process, autonomy &
+permission posture, founder communication, honesty & records, frugality, deliverable
+quality, trust invariants, and meta-rules — each with source citation and its
+enforcement class (mechanical vs procedural). A claude.ai paste-in mirrors it for the
+chat ring where hooks cannot run. 7 guard tests keep the plugin truthful and in
+LOCKSTEP with the repo-local hooks (drift fails the suite). Deviation logged in
+Contract #36: the GitHub app cannot create repos (403), so the plugin lives in-repo —
+better custody, same single source; standalone extraction available on founder demand.
+
+**Charter v2 (same session, full record sweep):** the exhaustive sweep of all 48
+decision records + every founder-caught ledger row + OPERATING_RULES/CLAUDE.md/
+RED_CLASSES replaced the interim v1 — now ~90 rules across 7 sections, each with
+source + enforcement class ([M]/[M-adv]/[P]), the live §5 timer-vs-watch tension kept
+visible with its ratified reconciliation, and §8 coverage notes naming where founder
+repeats are highest and mechanization thinnest (no-timers ~10 repeats = top
+mechanization candidate; the deliverable-visual-QA render-and-measure script still
+owed). Paste-in extended to 14 behavioral rules (complete-reading, primary-source
+stop, no-timers, one-of-three message types).
+
+## 2026-08-03 — Merge-notify ruled (founder: "sequence / semantic reading"); CLAUDE.md PD1 updated
+
+The charter audit's last open flag is closed by founder ruling ("Update it /
+It's a sequence / semantic reading"): the 2026-07-18 "notify me" and the
+2026-07-25 "I don't want to know about merge" were never in conflict —
+"notify" is satisfied by the recorded merge evidence in the merge sequence
+(disk + PR record), not by a message; no merge messages, ever. CLAUDE.md PD1
+updated with the 2026-07-18 verbatim quote preserved; charter §0.4 and 3.3
+updated; decision record
+`docs/memory/decisions/2026-08-03_merge-notify-semantic-reading.md`. No open
+canon conflicts remain on the record.
+
+## 2026-08-03 — CORRECTION to the charter-v3 entry below (founder-caught): WHY-THAT-WHY-MATTERS was never a typo
+
+The v3 audit's "typo with mechanical teeth" finding was itself the defect: the
+founder's WHY-THAT-WHY-MATTERS field is deliberate phrasing — "why THAT 'why'
+matters," why the stated reason itself matters — in a framework only the
+founder modifies. Restored as canonical in charter 6.4/2.1, the paste-in, and
+both banners; BOTH plan-first gates widened to accept either label
+(mechanisms bend to founder phrasing, never the reverse; the field is still
+required, so nothing relaxes); regression tests pin both spellings in both
+gates. New red class `founder-verbatim-corrected`: a suspected error in
+founder words is a QUESTION, never an edit. ESCAPED Kaizen row logged. The
+entry below is preserved unedited per append-only convention; this entry is
+its correction.
+
+## 2026-08-03 — Charter v3 (founder-directed audit): self-violations fixed, precedence added, ~70 rules
+
+Founder directed a full audit of the Operating Integrity Charter (duplicates,
+conflicts, fallacies, order, weaknesses). Confirmed defects, all fixed in v3:
+two [M]-tag mechanism overclaims (the charter violating its own 4.9), an
+impossible-absolute phrasing (violating its own 1.3), a garbled plan-field name
+that mismatched the plan_first_gate's required spelling, trust invariants
+ordered last, no precedence hierarchy, and the plan-first↔proceed-on-ratified
+tension unreconciled. v3 adds §0 (meta-rule · precedence order · change
+protocol · "substantive" defined · four recorded reconciliations), puts trust
+invariants first, consolidates ~90 rules to ~70 with zero citation loss, and
+flags ONE open founder item: CLAUDE.md PD1 still carries the superseded
+2026-07-18 "notify at merge" wording vs the 2026-07-25 silent-merge directive —
+charter edits to CLAUDE.md are founder-only, so it is flagged, not changed.
+Kaizen row logged (marker: copy-outruns-registry, in the charter's own tags).
+Paste-in unchanged — the audit found no defect in it.
+
+## 2026-08-03 — Plan-first made mechanical (founder-approved Contract #35); Heartbeat §5b; M6 disposition snapshot
+
+**Plan-first enforcement hooks (founder: "Approve … it happens because it's
+programmatically made to happen").** Born from the same-day build-before-plan escape
+(founder-caught): the §4a rule lived only in docs and its one mechanism
+(construction_gate) fires at validate — the END of a build. Now: `.claude/settings.json`
+wires (a) a SessionStart hook (`tools/plan_first_banner.py`) that prints the §4a
+checklist + Construction Loop stage order into every session's opening context, and
+(b) a PreToolUse hook (`tools/plan_first_gate.py`) that DENIES Write/Edit on any
+non-bookkeeping repo file unless STATE.md carries an OPEN Session Contract with the five
+plan fields (WHAT/HOW/WHY/WHY-IT-MATTERS/EXPECTED OUTCOMES, uppercase labels — lowercase
+prose does not satisfy). Bookkeeping surfaces (STATE/TODOS/ledgers/memory/arcs/.claude)
+stay writable so the contract itself can always be written; STATE.md unreadable = fail
+closed; paths outside the repo (scratchpad) unaffected. 10 hermetic tests including the
+"never have to check" guard: unwiring either hook from settings.json fails the suite
+(and validate, and CI). Honest limit, stated: this binds Claude Code sessions in THIS
+repo; other repos/products need their own deliberately-installed copy. Pure tightening —
+blocks more, relaxes nothing.
+
+**Heartbeat paper §5b (founder-prompted):** supplementary-data-source assessment added —
+POS/reservations/TV-subscriptions pursued via the consent lane (venue connects its own
+account; k-floored aggregates), card networks deferred (⚑ license + optics), foot-traffic
+panels refused beyond popular-times-class soft signals, rideshare parked. Consent beats
+license beats scrape.
+
+**M6 disposition snapshot (append-only, dated):** the po-battery record now answers
+"what survived?" from one table — 1Live lane: 74 surfaced / 34 adopted / 37 carried /
+3 parked / 2 rejected (98 across all lanes incl. promise-ledger). Caveat printed in the
+table: "carried" measures pipeline position, not gate survival.
+
+## 2026-08-03 — Heartbeat Analytics productization strategy (PROPOSAL); reconciler-heal marker fix (Contract #34)
+
+**Heartbeat productization & market strategy (docs-only, PROPOSAL).** Founder-directed
+research session: `docs/strategy/ONE_LIVE_HEARTBEAT_PRODUCTIZATION_v1.md` — evaluates
+the Heartbeat canon vs the repo (finding: 100% spec, 0% implementation; the reusable
+seeds are the KPI registry, golden exam, source pathways, entity resolution, and the
+shadow convergence engine), benchmarks six world-class data-is-the-business archetypes
+(Verisk, Placer.ai, Luminate/Billboard, Pollstar, Zartico, Spotify-for-Artists) with
+sourced economics, lays out a five-stage productization journey (measure ourselves →
+free public reports → free consent-gated self-dashboards → paid civic contracts + org
+tier → multi-metro benchmark network + API licensing), specs costs/revenues as planning
+ranges, and proposes the "per …" KPI spine: cost per verified event-record × verified
+event-records per market-night × Heartbeat net revenue per verified event-record, with
+calibration as the sellability gate. All §12 invariants restated as binding (aggregate-
+only, consent-gated artist data, no PII, insights never touch ranking, resolved strata
+with disputed carried as a dimension). One consolidated founder ask list (§10). Nothing
+monetized, keyed, or built — monetization remains founder-crucial.
+
+**session_reconcile `--heal` was destroying the staleness guard's marker (caught, fixed).**
+`build_snapshot()` rebuilt the GROUND_TRUTH block from live data only, silently dropping
+`reconciled_through_commit` (which `tools/staleness_check.py` fails closed on) and
+discarding the last verified PR/DB facts whenever those legs were UNVERIFIED (no `gh`,
+no DSN — i.e., every sandbox session). A heal run in this session bricked the guard;
+fixed so the heal preserves fields it does not own and carries forward last-verified
+facts on unverified legs (live data still wins when verified). Regression tests added
+(`tests/test_session_reconcile.py`, 2 new). STATE.md marker restored and advanced to
+master `944e4a2` with a rollup addendum for PR #150 (sourcing engine P0) and PR #153
+(re-certification sitting — extraction CLOSED, flag False, pending attended exam).
 ## 2026-08-03 — Founder corrections: debono means the FULL model; charter invariant reworded to gate-custodied publication
 
 **Condensed debono run rejected (founder: "This is terrible, worse than nothing … I expect
@@ -65,7 +194,6 @@ evidence. Canon §7/§12 updated; decision record
 queued. **R-068 recorded:** the canon's `ONE_LIVE_GEO_IDENTITY_v1.md §5` citation (draw-to-
 search spec) resolves to no committed file — land the spec or fix the citations before the
 gate decision / first bench run.
-
 ## 2026-08-03 — Spark Lines auto-publish on validation (founder-caught catch-22); guard v2 branch escape
 
 **Spark Line auto-publish fix (founder-directed).** The founder caught that #148's

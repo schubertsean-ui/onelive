@@ -1,0 +1,13 @@
+{
+  "name": "onelive-integrity",
+  "owner": {
+    "name": "1Live"
+  },
+  "plugins": [
+    {
+      "name": "integrity",
+      "source": "./plugins/integrity",
+      "description": "1Live operational-integrity harness: plan-first enforcement hooks (SessionStart rules banner + PreToolUse gate) and the founder's operating charter. Install in any lane's repo to inherit the same physics."
+    }
+  ]
+}
