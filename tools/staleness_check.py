@@ -42,9 +42,17 @@ origin master` first; `tools/validate` also refreshes it before running gates, s
 CI and local runs compare against the true tip. Fail-closed (exit 2) if the ref
 cannot be resolved, or the marker is missing/malformed/absent/off-history.
 
+BRANCH ESCAPE (chicken-and-egg): the PR that RECONCILES STATE.md must pass even
+while master is still behind — its own merge is what clears the drift. So a branch
+that MODIFIES STATE.md (since it diverged from the integration ref) is treated as
+reconciling and passes; a branch that ignores a drifted master fails until it
+updates STATE.md too. On the integration branch itself (HEAD == origin/master, no
+branch diff) there is no escape — master's tip must be a STATE-touching commit.
+
 Exit codes (house convention — see tools/README.md):
-  0  STATE.md is current (master tip is a STATE-touching commit, within tolerance)
-  1  STALE — master advanced past the last STATE.md update; reconcile STATE.md
+  0  STATE.md is current, OR this branch updates STATE.md (reconciling at merge)
+  1  STALE — master advanced past the last STATE.md update and this branch does
+     not update STATE.md; reconcile STATE.md
   2  INDETERMINATE — cannot resolve origin/master, or bad/absent marker (fail closed)
 
 Usage:
@@ -157,13 +165,29 @@ def check(state_path: pathlib.Path, ref: str, max_drift: int) -> int:
     n = int(drift.stdout.strip() or "0")
 
     if n > max_drift:
+        # Chicken-and-egg escape: the PR that RECONCILES STATE.md must be able to
+        # pass even while master is still behind — its own merge is what clears the
+        # drift. So if THIS branch modifies STATE.md (since it diverged from the
+        # integration ref), it is reconciling and passes; a branch that IGNORES a
+        # drifted master fails until it updates STATE.md too.
+        mb = _git("merge-base", tip, "HEAD").stdout.strip()
+        branch_touches_state = ""
+        if mb:
+            branch_touches_state = _git(
+                "diff", "--name-only", mb, "HEAD", "--", "STATE.md").stdout.strip()
+        if branch_touches_state:
+            print(f"[staleness_check] OK — {ref} drifted {n} commit(s) since the "
+                  f"last STATE.md update ({last_touch[:12]}), and THIS branch "
+                  "updates STATE.md — reconciling at merge.")
+            return 0
         print(
             f"[staleness_check] STALE — {ref} has advanced {n} commit(s) since "
             f"STATE.md was last updated there (last STATE.md change: "
-            f"{last_touch[:12]}; tip: {tip[:12]}; tolerance: {max_drift}). "
-            "Reconcile STATE.md — update the 'Where we are' rollup and set "
-            "reconciled_through_commit to the current tip — before merging. "
-            "Disk is truth (OPERATING_RULES §4).", file=sys.stderr)
+            f"{last_touch[:12]}; tip: {tip[:12]}; tolerance: {max_drift}), and "
+            "this branch does not update STATE.md. Reconcile STATE.md — update the "
+            "'Where we are' rollup and set reconciled_through_commit to the current "
+            "tip — before merging. Disk is truth (OPERATING_RULES §4).",
+            file=sys.stderr)
         return 1
 
     print(f"[staleness_check] OK — {ref} tip {tip[:12]} is within {max_drift} of "

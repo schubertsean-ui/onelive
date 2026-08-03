@@ -98,6 +98,29 @@ def test_master_advanced_without_state_is_stale(tmp_path):
     assert "STALE" in r.stderr and "advanced 1" in r.stderr
 
 
+def test_branch_updating_state_passes_when_master_drifted(tmp_path):
+    # Chicken-and-egg: the reconciling branch must pass even though master is behind.
+    work, first = _setup(tmp_path)
+    _advance(work, touch_state=False)          # origin/master drift 1; HEAD == that commit
+    _write_state(work, first, rev="reconcile")  # this branch updates STATE.md (unpushed)
+    _git(work, "add", "STATE.md")
+    _git(work, "commit", "-q", "-m", "reconcile STATE")
+    r = _run(work)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "reconciling at merge" in r.stdout
+
+
+def test_branch_not_updating_state_fails_when_master_drifted(tmp_path):
+    work, _ = _setup(tmp_path)
+    _advance(work, touch_state=False)          # origin/master drift 1; HEAD == that commit
+    (work / "z.txt").write_text("z")           # a non-STATE commit on the branch
+    _git(work, "add", ".")
+    _git(work, "commit", "-q", "-m", "z")
+    r = _run(work)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "does not update STATE.md" in r.stderr
+
+
 def test_two_non_state_commits_report_drift_two(tmp_path):
     work, _ = _setup(tmp_path)
     _advance(work, touch_state=False)

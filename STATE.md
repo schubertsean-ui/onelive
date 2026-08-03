@@ -15,17 +15,17 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 {
   "git": {
     "branch": "master",
-    "head": "9da667f"
+    "head": "c9bee60"
   },
-  "reconciled_through_commit": "9da667f8b713effba205e6f7fc09be38704d3140",
-  "reconciled_at": "2026-08-03T03:00:00+00:00",
-  "reconciled_by": "full reconciliation session 2026-08-03 (Contract #33); git verified locally, PR state verified via GitHub API (no gh/DB connector in this sandbox — DB row counts remain UNVERIFIED here). Marker advanced to 9da667f after PR #149 (reconciliation + staleness guard + codifications) merged; PR #148 (Spark Line) merged earlier this session.",
-  "prs_note": "merged history runs through PR #149 (reconciliation + staleness guard + no-delays/no-circle + handoff-standard codification, merged 2026-08-03 = master 9da667f; #148 Spark Line and #146 public go-live earlier). Open PRs verified via GitHub 2026-08-03: active frontier #147 (card design) + #145 (user-journey canon); the rest (#33,#34,#47,#50,#55,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112) are older/likely-superseded and flagged for a founder close-or-revive pass in TODOS.",
+  "reconciled_through_commit": "c9bee60bc33cdc910a0358d340c1e83ce25eb373",
+  "reconciled_at": "2026-08-03T04:00:00+00:00",
+  "reconciled_by": "session 2026-08-03; git verified locally, PR state verified via GitHub API (no gh/DB connector — DB row counts remain UNVERIFIED). Marker advanced to c9bee60 after PR #147 (card design) merged; the open PR #150 carries the staleness-guard v2 + the Spark Line auto-publish fix. Bookkeeping PRs #30/#33/#55 closed this session.",
+  "prs_note": "merged history runs through PR #147 (/tonight card design Phase 1, merged 2026-08-03 = master c9bee60; #149 reconciliation+guard, #148 Spark Line, #146 go-live earlier). Open (verified via GitHub 2026-08-03): #150 (guard v2 + Spark Line auto-publish, this branch), #145 (user-journey canon); older/likely-superseded #34,#47,#50,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112 (founder close-or-revive; #32 is the reviewer-evidence feature = revive, not bookkeeping).",
   "prs": {
-    "33": "open", "34": "open", "47": "open", "50": "open", "55": "open",
-    "56": "open", "75": "open", "76": "open", "81": "open", "83": "open",
-    "84": "open", "85": "open", "86": "open", "108": "open", "109": "open",
-    "110": "open", "112": "open", "145": "open", "147": "open"
+    "34": "open", "47": "open", "50": "open", "56": "open", "75": "open",
+    "76": "open", "81": "open", "83": "open", "84": "open", "85": "open",
+    "86": "open", "108": "open", "109": "open", "110": "open", "112": "open",
+    "145": "open"
   }
 }
 ```
@@ -41,7 +41,7 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 
 **Ingestion sources live:** the deterministic licensed spine (Ticketmaster live; SeatGeek/Eventbrite BUILT, dormant on missing founder-crucial creds — R-029) writes `licensed_event` (no AI); the structured importer (`worker/importers/structured_feed.py`) reads ICS/VEVENT + schema.org JSON-LD, incl. the Localist provider; gov open-data (Socrata) writes `venue_truth`; the AI crawl pipeline covers the unstructured long tail. (Migration ceiling stated once in the Consumer surface paragraph below.)
 
-**Consumer surface:** `/tonight` feed (licensed ∪ promoted, CAPCOG-boundary filtered, never confidence-filtered), lensing/filters (`web/lib/feed.ts`), a per-event **detail route** (`/tonight/[id]`), share card, "Hear them" music links, venue contact, three-tier date buckets. Card design rebuild (#130) live; further card work is in-flight PR #147. **Spark Line content layer MERGED (#148, founder-directed, 2026-08-03)** — the Descriptor Foundry validation gate (`worker/descriptor/`), the store (migrations 0018/0019), and the card render (`web/lib/spark.ts`, `SparkLineView`) are live; zero-spend, candidate-only, publishes nothing. Migrations now applied through **0019** (0010 licensed feed + domains; 0012 anon-SELECT event∪licensed read; 0013 ics/jsonld; 0014/0017 venue_url/phone; 0015 localist; 0016 venue_truth; 0018/0019 Spark Line descriptor store + identity).
+**Consumer surface:** `/tonight` feed (licensed ∪ promoted, CAPCOG-boundary filtered, never confidence-filtered), lensing/filters (`web/lib/feed.ts`), a per-event **detail route** (`/tonight/[id]`), share card, "Hear them" music links, venue contact, three-tier date buckets. Card design rebuild (#130) live; card design Phase 1 also MERGED (#147, 2026-08-03). **Spark Line content layer MERGED (#148, founder-directed, 2026-08-03)** — the Descriptor Foundry validation gate (`worker/descriptor/`), the store (migrations 0018/0019), and the card render (`web/lib/spark.ts`, `SparkLineView`) are live; zero-spend. **DESIGN FIX (PR #150, founder-directed 2026-08-03):** #148 wrongly required a HUMAN to approve every Spark Line (the per-item-approval catch-22 the founder killed for events on 2026-07-25). Fixed: `worker/descriptor/publish_policy.py` + `store.insert_with_policy` give Spark Lines the SAME earned-confidence auto-publish as events — a Foundry-VALIDATED line (independent judge ≥ bar) AUTO-approves behind one fail-closed flag `AUTO_PUBLISH_SPARK` (default OFF), NO per-item human click. The flag flips ON when the founder is ready — the grounding-source question is now RESOLVED (grounding = any trusted source, no fabrication; 2026-08-03), so the remaining gate is the tier-C generation spend decision; until the flag flips, nothing auto-publishes. Migrations now applied through **0019** (0010 licensed feed + domains; 0012 anon-SELECT event∪licensed read; 0013 ics/jsonld; 0014/0017 venue_url/phone; 0015 localist; 0016 venue_truth; 0018/0019 Spark Line descriptor store + identity).
 
 **Canon ratified since the last STATE update** (2026-07-29 → 08-02): product vision & governance principles (#97); the 18-genre taxonomy wired (#99); `/tonight` UI canon consolidated (#127); **truth-states v2** — six states `confirmed | owner-confirmed | likely | unverified | disputed | stale` (2026-08-01) is ratified CANON, but the RUNNING pipeline is still 4-state (implementation = **R-064**, honestly flagged); the 23 supply segments (2026-08-01); engagement invariants-vs-hypotheses split (2026-08-01); the **1Live rebrand** (2026-08-02) — user-facing web strings DONE (#143), infra identifiers deliberately kept (`ONELIVE_*` env names, repo/Supabase ref), STATE.md + DNS wiring the remainder (R-065). The five-part founder-comms framework (WHAT · HOW · WHY · WHY-THAT-MATTERS · EXPECTED OUTCOMES) is canon.
 
@@ -54,7 +54,7 @@ NEXT (2026-08-03 — unblocked, non-founder-crucial, verified against git; the q
 4. Wineries/breweries/distilleries ingestion source seeding (founder-directed) — needs verified calendar URLs (founder or an open-network session).
 5. **Open-PR hygiene:** ~13 older open PRs (#33–#112) never merged and are likely superseded — founder close-or-revive pass (agents don't close PRs unilaterally).
 
-**Founder HOLDS carried forward (do NOT act):** Spark Line free-lane grounding (MusicBrainz+Wikidata, zero-spend) go/hold/amend · "trusted third-party photos" widening (legal) · Rule Zero greenlight clause keep-vs-tighten · tier-C descriptor generation at scale (= model spend) · CLAUDE.md Rule Zero pointer (next lawful root-file window).
+**Founder HOLDS carried forward (do NOT act):** ~~Spark Line free-lane grounding~~ — **RESOLVED/AMENDED 2026-08-03** (`docs/memory/decisions/2026-08-03_spark-line-grounding-sources.md`): grounding = ANY trusted source (venue/org site · artist/person's own site · licensed API · a blurb/interview/blog/periodical about the artist), never fabricated (Foundry gate enforces); MB/Wikidata was one path, not the rule · "trusted third-party photos" widening (legal — SEPARATE, still held: grounding-text ≠ displayed-media) · Rule Zero greenlight clause keep-vs-tighten · tier-C descriptor generation at scale (= model spend, still held) · CLAUDE.md Rule Zero pointer (now editable — the freeze belief was obsolete).
 
 **Founder-crucial queue (unchanged, do not silently pick):** Meta/Graph API + `ONELIVE_APPROVAL_KEY` credential minting (R-026/R-061); SeatGeek/Eventbrite service creds (R-029); convergence auto-publish ruling (R-030); Owned Agent Q1–Q22 ratification; monitoring-stack timing; payments; native-mobile timing.
 
