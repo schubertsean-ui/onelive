@@ -139,8 +139,8 @@ actually is.**
 2. **Contextually accurate** — the *real* speaker's real lecture, the *real* event's real
    past media. Sourced and provenance-checked. **Never fabricated, never a generic
    stand-in.** Same faithfulness discipline as the Spark Line: preview only what's real, and
-   it passes validation before it shows (the "AI never publishes unvalidated" invariant
-   governs previews too).
+   it passes validation before it shows (the gate-custodied-publication invariant —
+   "AI never publishes unvalidated" — governs previews too).
 3. **Curiosity-inducing** — the point is to make a person *lean in*, not to summarize. It is
    the slightly-open door.
 

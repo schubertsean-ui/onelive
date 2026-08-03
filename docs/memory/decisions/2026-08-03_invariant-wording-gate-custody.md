@@ -53,3 +53,20 @@ invariant is CUSTODY, never absence.
 
 Historical records (changelog, arcs, old decision records, STATE history)
 keep the original phrase — they are append-only records of what was said when.
+
+## Codification map (founder asked "is this codified everywhere?" — same session)
+
+- **Living surfaces updated in this change:** CLAUDE.md (prime directive 1,
+  pipeline note, Claude-API line), OPERATING_RULES §3 rule 2 + the §"complete
+  reading" narrative's canon-claim, review persona
+  `domain-truth-and-trust.md` (the enforcement surface every review reads),
+  UI canon §3 preview clause, FRICTIONLESS_NAV optimistic-UI clause,
+  CONFIG_CATALOG reliability-threshold row, STATE.md current rollup.
+- **The decoder:** CLAUDE.md's wording now carries the mapping "(reworded …
+  from the older shorthand 'AI never publishes')" — so a future session that
+  meets the old phrase in ANY historical or not-yet-swept text resolves it to
+  the current invariant from the charter alone.
+- **Remainder (R-070, objective trigger):** code-side comments/docstrings and
+  the carousel's runtime strings — most already state the correct nuance
+  ("UNVALIDATED", "directly", "by construction"); they update at the next
+  code-armed touch of each file, trust-path ones under evaluator review.

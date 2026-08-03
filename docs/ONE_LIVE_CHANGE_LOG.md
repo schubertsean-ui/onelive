@@ -20,6 +20,15 @@ advocate → conflict-preserving Blue merge; Red = founder). New standing rule c
 `docs/memory/decisions/2026-08-03_debono-means-full-model.md`; Kaizen: ESCAPED row, new class
 `condensed-thinking-run`, + an M6 harvest row.
 
+**Codification sweep (same session, founder: "Is this codified everywhere so every subsequent
+session or chat knows this?"):** the rewording now lives in every LIVING surface a session
+reads as current law — CLAUDE.md ×3, OPERATING_RULES §3.2 + narrative canon-claim, the
+domain-truth-and-trust review persona, UI canon §3, FRICTIONLESS_NAV, CONFIG_CATALOG, STATE
+rollup — and CLAUDE.md's parenthetical maps old shorthand → new wording as the standing
+decoder for any historical text. Code-side comment/docstring occurrences (already mostly
+nuance-correct) are R-070: swept at each file's next code-armed touch, trust-path under
+evaluator review. Historical records keep the original phrase, append-only.
+
 **Charter invariant reworded at founder direction ("Relive = remove").** The stale shorthand
 "AI never publishes" in CLAUDE.md (prime directive 1, pipeline note, Claude-API stack line) is
 replaced by the ratified nuanced formulation: **gate-custodied publication** — AI output
