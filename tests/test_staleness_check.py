@@ -1,10 +1,11 @@
-"""Tests for tools/staleness_check.py — the STATE.md disk-truth guard.
+"""Tests for tools/staleness_check.py — the STATE.md disk-truth guard (v2).
 
-Every case runs the REAL tool against a REAL temporary git repo (no mocks of
-git), so the gate is proven to fail on a stale marker and pass on a fresh one —
-§9.6 "a gate that cannot fail proves nothing". The tool derives its repo root
-from its own location, so each test copies it into <tmp>/tools/ and runs it
-there against a <tmp> git history.
+v2 measures the real invariant with ZERO tolerance and no magic number: drift =
+commits on origin/master since STATE.md was last modified there. The build fails
+the moment master advances past the last STATE.md update. Every case runs the REAL
+tool against REAL temporary git repos with a real `origin` remote — the gate is
+proven to fail on stale master and pass when the tip is a STATE-touching commit
+(§9.6 "a gate that cannot fail proves nothing").
 """
 import json
 import pathlib
@@ -21,130 +22,164 @@ _STATE_TEMPLATE = """# STATE (test fixture)
 {json_block}
 ```
 <!-- GROUND_TRUTH:END -->
+
+rev {rev}
 """
 
 
-def _git(repo: pathlib.Path, *args: str) -> str:
+def _git(repo: pathlib.Path, *args: str, check=True) -> str:
     r = subprocess.run(["git", "-C", str(repo), *args],
-                       capture_output=True, text=True, check=True)
+                       capture_output=True, text=True, check=check)
     return r.stdout.strip()
 
 
-def _init_repo(repo: pathlib.Path, n_commits: int) -> list[str]:
-    """Create a git repo with n_commits linear commits; return their shas
-    (oldest first)."""
-    repo.mkdir(parents=True, exist_ok=True)
-    _git(repo, "init", "-q")
-    _git(repo, "config", "user.email", "t@t.test")
-    _git(repo, "config", "user.name", "t")
-    shas = []
-    for i in range(n_commits):
-        (repo / f"f{i}.txt").write_text(str(i))
-        _git(repo, "add", ".")
-        _git(repo, "commit", "-q", "-m", f"c{i}")
-        shas.append(_git(repo, "rev-parse", "HEAD"))
-    return shas
+def _write_state(work: pathlib.Path, marker: str, rev: str = "x") -> None:
+    (work / "STATE.md").write_text(_STATE_TEMPLATE.format(
+        json_block=json.dumps({"reconciled_through_commit": marker}, indent=2),
+        rev=rev))
 
 
-def _install_tool(repo: pathlib.Path) -> pathlib.Path:
-    (repo / "tools").mkdir(exist_ok=True)
-    dest = repo / "tools" / "staleness_check.py"
-    shutil.copy2(_REAL_TOOL, dest)
-    return dest
+def _setup(tmp_path):
+    """Bare origin + working clone with the tool installed and an initial
+    STATE.md pushed to origin/master. Returns (work, first_sha)."""
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "--bare", "-q", str(origin)], check=True)
+    work = tmp_path / "work"
+    subprocess.run(["git", "clone", "-q", str(origin), str(work)], check=True)
+    _git(work, "config", "user.email", "t@t.test")
+    _git(work, "config", "user.name", "t")
+    _git(work, "checkout", "-q", "-b", "master")
+    (work / "tools").mkdir()
+    shutil.copy2(_REAL_TOOL, work / "tools" / "staleness_check.py")
+    (work / "seed.txt").write_text("0")
+    _git(work, "add", ".")
+    _git(work, "commit", "-q", "-m", "c0")
+    first = _git(work, "rev-parse", "HEAD")
+    # C1 touches STATE.md; marker points at C0 (a real ancestor).
+    _write_state(work, first, rev="1")
+    _git(work, "add", "STATE.md")
+    _git(work, "commit", "-q", "-m", "state update")
+    _git(work, "push", "-q", "origin", "master")
+    return work, first
 
 
-def _write_state(repo: pathlib.Path, block: dict) -> None:
-    (repo / "STATE.md").write_text(
-        _STATE_TEMPLATE.format(json_block=json.dumps(block, indent=2)))
+def _advance(work: pathlib.Path, touch_state: bool, marker: str | None = None):
+    if touch_state:
+        _write_state(work, marker or _git(work, "rev-parse", "HEAD"),
+                     rev=_git(work, "rev-list", "--count", "HEAD"))
+        _git(work, "add", "STATE.md")
+        _git(work, "commit", "-q", "-m", "state update")
+    else:
+        p = work / f"f{_git(work, 'rev-list', '--count', 'HEAD')}.txt"
+        p.write_text("x")
+        _git(work, "add", ".")
+        _git(work, "commit", "-q", "-m", "non-state change")
+    _git(work, "push", "-q", "origin", "master")
 
 
-def _run(repo: pathlib.Path, *extra: str) -> subprocess.CompletedProcess:
-    tool = repo / "tools" / "staleness_check.py"
-    return subprocess.run([sys.executable, str(tool), *extra],
-                          capture_output=True, text=True, check=False)
+def _run(work: pathlib.Path, *extra: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(work / "tools" / "staleness_check.py"), *extra],
+        capture_output=True, text=True, check=False)
 
 
-def test_fresh_marker_at_head_passes(tmp_path):
-    repo = tmp_path / "r"
-    shas = _init_repo(repo, 3)
-    _install_tool(repo)
-    _write_state(repo, {"reconciled_through_commit": shas[-1]})
-    r = _run(repo)
-    assert r.returncode == 0, r.stderr
+def test_tip_touches_state_passes(tmp_path):
+    work, _ = _setup(tmp_path)
+    r = _run(work)
+    assert r.returncode == 0, r.stdout + r.stderr
     assert "OK" in r.stdout
 
 
-def test_marker_within_threshold_passes(tmp_path):
-    repo = tmp_path / "r"
-    shas = _init_repo(repo, 6)
-    _install_tool(repo)
-    # marker is 3 commits behind HEAD, threshold 5 → OK
-    _write_state(repo, {"reconciled_through_commit": shas[2]})
-    r = _run(repo, "--max-commits", "5")
-    assert r.returncode == 0, r.stderr
-
-
-def test_marker_too_far_behind_is_stale(tmp_path):
-    repo = tmp_path / "r"
-    shas = _init_repo(repo, 8)
-    _install_tool(repo)
-    # marker is 7 commits behind HEAD, threshold 3 → STALE (exit 1)
-    _write_state(repo, {"reconciled_through_commit": shas[0]})
-    r = _run(repo, "--max-commits", "3")
+def test_master_advanced_without_state_is_stale(tmp_path):
+    work, _ = _setup(tmp_path)
+    _advance(work, touch_state=False)  # one merge that does NOT touch STATE.md
+    r = _run(work)
     assert r.returncode == 1, r.stdout + r.stderr
-    assert "STALE" in r.stderr
+    assert "STALE" in r.stderr and "advanced 1" in r.stderr
 
 
-def test_marker_not_ancestor_is_stale(tmp_path):
-    repo = tmp_path / "r"
-    _init_repo(repo, 2)
-    base = _git(repo, "rev-parse", "--abbrev-ref", "HEAD")  # default branch name
-    # Create a diverged branch, get its tip, then return to the base branch.
-    _git(repo, "checkout", "-q", "-b", "side")
-    (repo / "side.txt").write_text("x")
-    _git(repo, "add", ".")
-    _git(repo, "commit", "-q", "-m", "side")
-    side_sha = _git(repo, "rev-parse", "HEAD")
-    _git(repo, "checkout", "-q", base)
-    _install_tool(repo)  # install last so it's present on the checked-out branch
-    _write_state(repo, {"reconciled_through_commit": side_sha})
-    r = _run(repo)
+def test_branch_updating_state_passes_when_master_drifted(tmp_path):
+    # Chicken-and-egg: the reconciling branch must pass even though master is behind.
+    work, first = _setup(tmp_path)
+    _advance(work, touch_state=False)          # origin/master drift 1; HEAD == that commit
+    _write_state(work, first, rev="reconcile")  # this branch updates STATE.md (unpushed)
+    _git(work, "add", "STATE.md")
+    _git(work, "commit", "-q", "-m", "reconcile STATE")
+    r = _run(work)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "reconciling at merge" in r.stdout
+
+
+def test_branch_not_updating_state_fails_when_master_drifted(tmp_path):
+    work, _ = _setup(tmp_path)
+    _advance(work, touch_state=False)          # origin/master drift 1; HEAD == that commit
+    (work / "z.txt").write_text("z")           # a non-STATE commit on the branch
+    _git(work, "add", ".")
+    _git(work, "commit", "-q", "-m", "z")
+    r = _run(work)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "does not update STATE.md" in r.stderr
+
+
+def test_two_non_state_commits_report_drift_two(tmp_path):
+    work, _ = _setup(tmp_path)
+    _advance(work, touch_state=False)
+    _advance(work, touch_state=False)
+    r = _run(work)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "advanced 2" in r.stderr
+
+
+def test_state_update_after_drift_restores_current(tmp_path):
+    work, _ = _setup(tmp_path)
+    _advance(work, touch_state=False)      # drift 1
+    _advance(work, touch_state=True)       # STATE updated again → drift 0
+    r = _run(work)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_tolerance_override_allows_drift(tmp_path):
+    work, _ = _setup(tmp_path)
+    _advance(work, touch_state=False)      # drift 1
+    assert _run(work).returncode == 1
+    assert _run(work, "--max-drift", "1").returncode == 0
+
+
+def test_marker_not_ancestor_of_master_is_stale(tmp_path):
+    work, _ = _setup(tmp_path)
+    # A commit on a diverged branch, never pushed to origin/master.
+    _git(work, "checkout", "-q", "-b", "side")
+    (work / "side.txt").write_text("x")
+    _git(work, "add", ".")
+    _git(work, "commit", "-q", "-m", "side")
+    side = _git(work, "rev-parse", "HEAD")
+    _git(work, "checkout", "-q", "master")
+    _write_state(work, side)  # marker off master's history (not committed/pushed)
+    r = _run(work)
     assert r.returncode == 1, r.stdout + r.stderr
     assert "not an ancestor" in r.stderr
 
 
 def test_missing_marker_field_is_indeterminate(tmp_path):
-    repo = tmp_path / "r"
-    _init_repo(repo, 2)
-    _install_tool(repo)
-    _write_state(repo, {"git": {"head": "x"}})  # no reconciled_through_commit
-    r = _run(repo)
-    assert r.returncode == 2, r.stdout + r.stderr
+    work, _ = _setup(tmp_path)
+    (work / "STATE.md").write_text(
+        "# STATE\n<!-- GROUND_TRUTH:BEGIN -->\n```json\n{}\n```\n<!-- GROUND_TRUTH:END -->\n")
+    assert _run(work).returncode == 2
 
 
 def test_malformed_marker_is_indeterminate(tmp_path):
-    repo = tmp_path / "r"
-    _init_repo(repo, 2)
-    _install_tool(repo)
-    _write_state(repo, {"reconciled_through_commit": "not-a-sha"})
-    r = _run(repo)
-    assert r.returncode == 2, r.stdout + r.stderr
+    work, _ = _setup(tmp_path)
+    _write_state(work, "not-a-sha")
+    assert _run(work).returncode == 2
 
 
 def test_marker_absent_from_clone_is_indeterminate(tmp_path):
-    repo = tmp_path / "r"
-    _init_repo(repo, 2)
-    _install_tool(repo)
-    # A syntactically valid sha that does not exist in this repo → fail closed.
-    _write_state(repo, {"reconciled_through_commit": "0" * 40})
-    r = _run(repo)
-    assert r.returncode == 2, r.stdout + r.stderr
+    work, _ = _setup(tmp_path)
+    _write_state(work, "0" * 40)
+    assert _run(work).returncode == 2
 
 
 def test_no_ground_truth_block_is_indeterminate(tmp_path):
-    repo = tmp_path / "r"
-    _init_repo(repo, 2)
-    _install_tool(repo)
-    (repo / "STATE.md").write_text("# STATE with no ground truth block\n")
-    r = _run(repo)
-    assert r.returncode == 2, r.stdout + r.stderr
+    work, _ = _setup(tmp_path)
+    (work / "STATE.md").write_text("# STATE with no ground truth block\n")
+    assert _run(work).returncode == 2

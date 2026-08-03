@@ -1,18 +1,25 @@
 """DB access for the spark_line store (migration 0018).
 
-Writes AI-drafted Spark Lines as `candidate` rows ONLY — approval is a
-separate, gated step this module cannot perform. Reads only `approved` rows for
-the feed, joined by artist key (lower(trim(name))). Every query is
-parameterized; the core functions take an injectable cursor so they are testable
-with no live DB, and psycopg2 is imported lazily so importing this module never
-requires the driver.
+Two write paths: `insert_candidate`/`record_human_spark_line` land a `candidate`
+(the human review/override path), and `insert_with_policy` applies the
+earned-confidence auto-publish policy (worker/descriptor/publish_policy.py) — a
+Foundry-VALIDATED line AUTO-APPROVES behind the `AUTO_PUBLISH_SPARK` flag (default
+OFF, fail-closed), so users are enriched without a human approving every line
+(founder-directed 2026-08-03; mirrors the ratified events auto-publish). Reads
+only `approved` rows for the feed, joined by artist key (lower(trim(name))). Every
+query is parameterized; the core functions take an injectable cursor so they are
+testable with no live DB, and psycopg2 is imported lazily so importing this module
+never requires the driver.
 """
 from __future__ import annotations
 
 import json
 from typing import Any, Iterable
 
+from .publish_policy import decide_spark_publish
 from .types import FoundryResult, STATUS_CANDIDATE, VALID_WORD_COUNTS
+
+STATUS_APPROVED = "approved"
 
 
 def artist_key(name: str) -> str:
@@ -61,6 +68,65 @@ def insert_candidate(result: FoundryResult, artist_name: str, *, cur) -> str:
         ),
     )
     return str(cur.fetchone()[0])
+
+
+def insert_with_policy(
+    result: FoundryResult, artist_name: str, *, cur, ratified: bool | None = None
+) -> tuple[str, str]:
+    """Insert a Foundry-VALIDATED Spark Line, AUTO-APPROVING it when the earned-
+    confidence policy allows — the fix for the per-item-human-approval catch-22
+    (founder-directed 2026-08-03; mirrors the ratified events auto-publish,
+    worker/publish_policy.py). Returns (spark_line_id, status).
+
+    Custody: the promotion is driven by the INDEPENDENT judge's score + the
+    `AUTO_PUBLISH_SPARK` flag (worker/descriptor/publish_policy.py), never by the
+    generator. The judge score is read from the FRESH result's provenance (this
+    just-produced object, NOT a re-read of a mutable DB row), so a later tamper
+    cannot manufacture an approval. Fail-closed: with the flag OFF (the default,
+    and until the founder rules on grounding + tier-C spend) EVERY line lands as
+    `candidate` exactly as before, and nothing reaches a user. The manual
+    approve_candidate/reject_candidate path (publish.py) remains for spot-checks.
+    """
+    if result.status != STATUS_CANDIDATE:
+        raise ValueError(
+            f"insert_with_policy expects a Foundry candidate, got status "
+            f"{result.status!r}"
+        )
+    judge_score = result.provenance.get("judge_score")
+    decision = decide_spark_publish(judge_score=judge_score, ratified=ratified)
+    prov = dict(result.provenance)
+    if decision.auto_approves:
+        status = STATUS_APPROVED
+        prov["approval"] = {
+            "approver": "descriptor_foundry:auto",
+            "auto": True,
+            "judge_score": judge_score,
+            "policy_reason": decision.reason,
+        }
+    else:
+        status = STATUS_CANDIDATE
+        prov["publish_decision"] = {"action": decision.action, "reason": decision.reason}
+    cur.execute(
+        """
+        insert into spark_line(
+          artist_key, artist_name, text, word_count, tier, attribution,
+          status, provenance
+        )
+        values (%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+        returning spark_line_id
+        """,
+        (
+            artist_key(artist_name),
+            artist_name,
+            result.text,
+            len(result.text.split()),
+            result.tier,
+            result.provenance.get("attribution"),
+            status,
+            json.dumps(prov),
+        ),
+    )
+    return str(cur.fetchone()[0]), status
 
 
 def record_human_spark_line(

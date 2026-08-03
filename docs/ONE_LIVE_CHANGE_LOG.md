@@ -4,6 +4,54 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-03 — Spark Lines auto-publish on validation (founder-caught catch-22); guard v2 branch escape
+
+**Spark Line auto-publish fix (founder-directed).** The founder caught that #148's
+Spark Line take-live required a HUMAN to approve every line — the per-item-approval
+model already rejected for events (2026-07-25: "I can't approve every one of
+thousands"). A feature meant to enrich the feed, gated behind thousands of manual
+clicks, publishes nothing — worthless. Fixed by mirroring the ratified events
+auto-publish: `worker/descriptor/publish_policy.py` (pure) + `store.insert_with_policy`
+give Spark Lines earned-confidence auto-publish — a Foundry-VALIDATED line
+(independent judge ≥ bar) AUTO-approves behind one fail-closed flag
+`AUTO_PUBLISH_SPARK` (default OFF), no per-item human click. Custody: the promotion
+is driven by the INDEPENDENT judge + the founder flag (not the generator), and the
+judge score is read from the FRESH result (no tamperable re-read). The flag flips ON
+only when the founder rules on the held free-lane grounding source + tier-C spend;
+until then nothing auto-publishes. 12 tests. Decision:
+`docs/memory/decisions/2026-08-03_spark-line-auto-publish-fix.md`.
+
+**Staleness guard v2 — branch escape (live-caught).** The v2 guard immediately caught
+a real drift: #147 (card design) merged without updating STATE.md (drift 1), which the
+old "20" tolerance would have hidden. The catch also exposed a chicken-and-egg: a
+branch RECONCILING STATE.md was itself blocked (it measures `origin/master`, still
+behind until the fix merges). Fixed: a branch that modifies STATE.md passes (it clears
+the drift at merge); a branch that ignores a drifted master still fails. +2 tests.
+
+**PR bookkeeping (founder-directed close-or-revive pass):** closed superseded
+bookkeeping PRs #30, #33, #55; #147 merged (card design). #32 identified as the
+reviewer-evidence feature (open TODOS P1) — kept open for revive, not closed.
+
+## 2026-08-03 — Staleness guard v2: zero-tolerance, no magic number (founder-caught)
+
+Founder-caught design flaw in the v1 staleness guard: *"20? What would a senior
+world class engineer do?"* — a "fails if STATE.md is >20 commits behind" tolerance
+is a fudge factor: arbitrary, and it LICENSES staleness up to the bound. Live proof
+it was wrong: right after PR #149 merged (master `9da667f`), STATE's marker was
+already 1 behind master and v1 passed it happily.
+
+**v2** (`tools/staleness_check.py`) ties to the invariant, not a number. It measures
+`drift` = commits on `origin/master` since the last commit that MODIFIED STATE.md,
+and fails at **any** drift (default tolerance 0). Because every session ends by
+updating STATE.md, the steady state is drift 0; the instant a change merges to master
+without touching STATE.md, the build fails until STATE is reconciled. Measuring
+against STATE.md's last modification (not a stored SHA) removes the squash-merge
+chicken-and-egg (a merge that lands a STATE update can't cite its own future SHA but
+DOES modify STATE.md, so it counts with no lag). 10 hermetic tests over real temp
+repos with an `origin` remote. Marker bumped to `9da667f`; the "20 commits" language
+scrubbed from STATE.md, the handoff standard, and the kickoff prompt. A tolerance
+knob exists as an operational escape hatch only; raising it is a disk-truth relaxation.
+
 ## 2026-08-03 — Full reconciliation + anti-staleness guard (Session Contract #33)
 
 **Session type:** founder-directed reconciliation ("search all prior sessions and

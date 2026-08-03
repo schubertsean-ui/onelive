@@ -53,11 +53,14 @@ check — that a reader could re-run to confirm it. If you cannot produce the ev
 you do not yet know the claim is true; say what is unverified instead.
 
 **The standing proofs (mechanical, re-runnable — this is the "proof piece", saved):**
-- **STATE.md is not stale:** `python tools/staleness_check.py` — fails if STATE.md's
-  `reconciled_through_commit` marker is missing, off-history, or >20 commits behind
-  HEAD. Blocking in `tools/validate`.
-- **STATE reflects the true tip:** the marker equals the current integration tip —
-  `git rev-parse origin/master` == the block's `reconciled_through_commit`.
+- **STATE.md is not stale:** `python tools/staleness_check.py` — fails the build the
+  moment `origin/master` advances past the last commit that updated STATE.md
+  (zero-tolerance; measures "merges since STATE last changed", not a fudge-factor
+  commit count). Also fails on a missing/malformed/off-history marker. Blocking in
+  `tools/validate`.
+- **STATE reflects the true tip:** at session close the block's
+  `reconciled_through_commit` is set to the current `git rev-parse origin/master`, so
+  master's tip is a STATE-touching commit and the guard reads drift 0.
 - **STATE's live handoff matches the record:** `tests/test_live_state_consistency.py`
   (in the pytest suite) — STATE's live NEXT block may not direct work at a RESOLVED
   RECORD row.
