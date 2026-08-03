@@ -4,6 +4,24 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-03 — Integrity plugin + Operating Charter (founder-approved Contract #36)
+
+**The operational-integrity harness is now portable (founder: "create the plugin repo
+and build it… so I don't have to do any of that stuff again").** `integrity-plugin/`
+carries a Claude Code plugin (marketplace + plugin manifests, hooks.json) whose
+generalized plan-first gate/banner (`${CLAUDE_PLUGIN_ROOT}` scripts, repo root from
+`CLAUDE_PROJECT_DIR`, optional per-repo `.plan-first.json` that FAILS CLOSED when
+malformed) let any lane's repo inherit onelive's enforcement in one settings block
+(README carries the checklist). The **OPERATING INTEGRITY CHARTER** compiles every
+founder-directed rule on the record — 36 rules across planning/process, autonomy &
+permission posture, founder communication, honesty & records, frugality, deliverable
+quality, trust invariants, and meta-rules — each with source citation and its
+enforcement class (mechanical vs procedural). A claude.ai paste-in mirrors it for the
+chat ring where hooks cannot run. 7 guard tests keep the plugin truthful and in
+LOCKSTEP with the repo-local hooks (drift fails the suite). Deviation logged in
+Contract #36: the GitHub app cannot create repos (403), so the plugin lives in-repo —
+better custody, same single source; standalone extraction available on founder demand.
+
 ## 2026-08-03 — Plan-first made mechanical (founder-approved Contract #35); Heartbeat §5b; M6 disposition snapshot
 
 **Plan-first enforcement hooks (founder: "Approve … it happens because it's

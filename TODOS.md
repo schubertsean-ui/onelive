@@ -13,6 +13,12 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #36 (2026-08-03 — integrity plugin + charter, founder-approved)
+- [x] (P0) `integrity-plugin/` — marketplace + plugin manifests, generalized plan-first hooks, OPERATING INTEGRITY CHARTER (36 rules with sources + enforcement class), claude.ai paste-in, new-lane README checklist, 7 lockstep guard tests. DONE this session.
+- [ ] (P1, founder, one-time per surface) Roll the behavioral ring out: paste `integrity-plugin/plugins/integrity/charter/CLAUDE_PROJECT_PASTEIN.md` into each claude.ai Project's custom instructions (chat has no hooks — this is the instructions ring, stated honestly).
+- [ ] (P2, next fresh session) After the charter-sweep agent's findings land (or if the session ended first): diff the sweep output against the charter and add any missed rule — the charter is complete only against the repo record it was mined from.
+- [ ] (P2, when a second lane exists) First real consumer of the marketplace reference (README block) — verify the plugin resolves, the banner prints, and the gate fires in that repo's first session; failure = escaped defect, ledger row.
+
 ## Session Contract #35 (2026-08-03 — plan-first made mechanical, founder-approved)
 - [x] (P0) Plan-first hooks — SessionStart banner + PreToolUse gate in `.claude/settings.json`, `tools/plan_first_gate.py`/`plan_first_banner.py`, 10 tests incl. the unwiring guard. DONE this session.
 - [x] (P1) Heartbeat paper §5b supplementary-data-sources addendum (consent > license > scrape). DONE.

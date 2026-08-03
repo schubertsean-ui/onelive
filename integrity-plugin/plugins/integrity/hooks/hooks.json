@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/plan_first_banner.py",
+            "timeout": 15,
+            "statusMessage": "Loading operating-integrity rules"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}\"/scripts/plan_first_gate.py",
+            "timeout": 15,
+            "statusMessage": "plan-first gate (§4a)"
+          }
+        ]
+      }
+    ]
+  }
+}

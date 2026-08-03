@@ -78,6 +78,24 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #36 (2026-08-03, founder-APPROVED — "Approve - create the plugin repo and build it - and do a thorough review and evaluation of any other rules and operating instructions I have harped on … Make this happen")
+
+PLAN (approved verbatim above; five fields):
+- WHAT: (1) Create the `onelive-integrity` plugin repo (founder-approved repo creation) carrying: the generalized plan-first hooks (gate + banner, path-independent via CLAUDE_PROJECT_DIR), the distilled OPERATING INTEGRITY CHARTER mined from every founder correction on the record (decision records, Kaizen ESCAPED/founder-caught rows, OPERATING_RULES, CLAUDE.md), the Ring-4 claude.ai paste-in, guard-test templates, and the new-lane checklist. (2) Wire onelive to the plugin (extraKnownMarketplaces + enabledPlugins) while keeping local hooks until a fresh session proves the plugin fires; the settings.json content-guard is widened ONLY with pinned-value compensation.
+- HOW: GitHub repo under the founder's account; plugin per the Claude Code plugin spec (marketplace.json + plugin hooks.json + ${CLAUDE_PLUGIN_ROOT} scripts); charter compiled from an exhaustive sweep of docs/memory/decisions + the Kaizen ledger's founder-caught rows; onelive wiring rides PR #155 with compensating tests.
+- WHY: copies drift — a single versioned rules source is the only way every new lane inherits enforcement without founder checking; the charter converts scattered corrections into one canonical, enforceable document.
+- WHY-IT-MATTERS: the founder never has to remind/check/chastise again for any rule already on the record — new repos get physics in one line, chats get the charter in one paste.
+- EXPECTED OUTCOMES: plugin repo live with hooks + charter + checklist; onelive wired with guards green; honest limit recorded (chat ring = instructions, not physics; corrections never recorded on disk here are not in the charter until added).
+
+SCOPE: onelive repo (settings wiring + bookends) + the new onelive-integrity repo. Repo creation is the explicitly-approved action; no other new surfaces.
+
+Stage-3 retrieval (new class matched on this build; Contracts #34/#35 answers cover the rest):
+- [S3:api-busy-poll] No polling added anywhere — the charter RESTATES the event-driven rule as canon text; the one GitHub API call this build made (create_repository) was a single bounded attempt whose 403 was handled by falling back, not retried in a loop.
+
+DEVIATION LOGGED (decide-log-proceed, not founder-crucial): the GitHub integration cannot create repositories (403 — app is scoped to onelive), so the plugin lives at `integrity-plugin/` INSIDE onelive instead of a standalone repo — strictly better custody (every onelive gate reviews it; single source of truth intact; other lanes reference it via a github marketplace source with sparsePaths). If the founder still wants a standalone repo: create it empty, say so, and it migrates in one commit.
+
+STATUS: OPEN.
+
 ## Session Contract #35 (2026-08-03, founder-APPROVED plan — "Approve - confirm these kind of issues will never ever happen again")
 
 PLAN (the five fields, presented 2026-08-03 and approved verbatim "Approve"):
