@@ -1,6 +1,6 @@
 # OneLive — STATE
 
-Last updated: 2026-08-03 by Claude Code (Session Contract #34 — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-068 recorded). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)" immediately below; the older "Where we are" and contract sections are HISTORY, preserved append-only.
+Last updated: 2026-08-03 by Claude Code (Session Contract #39 — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-068 recorded; merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)" immediately below; the older "Where we are" and contract sections are HISTORY, preserved append-only.
 
 Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground truth (repo, PRs, Supabase migrations, DB row counts). **This session: PR #8 (agentic-harness buildout) reviewed cross-model, its findings fixed, and MERGED to master (HEAD a0b3724).** The `validate` gate no longer treats SKIP/ADVISORY as PASS (the founding anti-pattern is now impossible in the gate itself). **Corrected stale status: RLS migrations 0006/0007 ARE applied to the live DB, and 9 migrations total are live (incl. `source_geo_coverage`); `source` = 230 rows, but `event`/`event_candidate`/`candidate_evidence` are still 0.** Established the session-arc system — see `docs/session_arcs/`.
 
@@ -17,16 +17,24 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
     "branch": "claude/geolibrary-1live-evaluation-cac5vl",
     "head": "944e4a2"
   },
-  "reconciled_at": "2026-08-03T20:55:26.403311+00:00",
   "reconciled_through_commit": "944e4a2029236dae8c310fbde72b27b54d3953e2",
-  "reconciled_by": "session 2026-08-03 (Contract #34, records-only): git verified locally; marker advanced to 944e4a2 after PR #153 (re-certification sitting — extraction CLOSED, flag False, pending attended exam) merged and the rollup prose below was updated to say so. PR list/DB rows NOT re-verified this session (no gh/DSN in this sandbox — see Contract #33's block note for the last verified PR sweep). NOTE: `session_reconcile.py --heal` rewrote this block WITHOUT the reconciled_through_commit field the blocking staleness guard requires (gh-less path) — field restored by hand; script gap recorded as R-069."
-}
+  "reconciled_at": "2026-08-03T19:34:44.280831+00:00",
+  "reconciled_by": "session 2026-08-03 (Contract #34); git verified locally; PR state and DB row counts UNVERIFIED in this sandbox (no gh binary, no ONELIVE_DB_DSN) — the PR map below is carried forward from the Contract #33 reconciliation, not re-verified. Marker advanced to 944e4a2 with the rollup addendum covering master 85cf2f7 (PR #150) and 944e4a2 (PR #153). NOTE: this session also caught+fixed session_reconcile --heal destroying this block's marker/narrative fields (see tests/test_session_reconcile.py).",
+  "prs_note": "merged history runs through PR #153 (re-certification sitting, master 944e4a2) and #150 (sourcing engine P0, master 85cf2f7); earlier #147 card design = c9bee60, #149 reconciliation+guard, #148 Spark Line, #146 go-live. Open per the 2026-07/08-03 verification (NOT re-verified this session): #145 (user-journey canon); older/likely-superseded #34,#47,#50,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112 (founder close-or-revive; #32 is the reviewer-evidence feature = revive, not bookkeeping).",
+  "prs": {
+    "34": "open", "47": "open", "50": "open", "56": "open", "75": "open",
+    "76": "open", "81": "open", "83": "open", "84": "open", "85": "open",
+    "86": "open", "108": "open", "109": "open", "110": "open", "112": "open",
+    "145": "open"
+  }}
 ```
 <!-- GROUND_TRUTH:END -->
 
 > **Ground-truth block (2026-08-03):** refreshed this session. `git.head`/`reconciled_through_commit` = `d22e9ce` (master, PR #146 public go-live), verified locally. PR state verified via the GitHub API (no `gh` binary in this sandbox; `session_reconcile.py` still reports UNVERIFIED for the gh/DB legs — that is an environment limitation, not a contradiction). DB row counts (`event`/`event_candidate`/…) remain UNVERIFIED — no Supabase connector in this session; do not treat any row count as re-confirmed. The `reconciled_through_commit` marker is read by `tools/staleness_check.py` (blocking in `tools/validate`), which fails the build the moment `origin/master` advances past the last commit that updated STATE.md — **zero tolerance, no "N commits" fudge factor** (founder-caught 2026-08-03: "20?" is arbitrary; a world-class guard ties to the invariant, not a number). So this block cannot silently rot again: every change-set that lands on master must update STATE.md.
 
 ## Where we are (2026-08-03 — RECONCILED)
+
+> **ADDENDUM (2026-08-03, Contract #34 session — supersedes the extraction sentence below):** master has advanced two commits past the Contract #33 reconciliation: `85cf2f7` (PR #150 — sourcing engine P0: model, autopromote OFF, render fallback, scale plan v1.1, red-team adjudication) and `944e4a2` (PR #153 — re-certification sitting: prompt caching + usage capture; **extraction is CLOSED — `EXTRACTION_THRESHOLD_RATIFIED = False` — pending the founder's attended exam on the new harness**, per the standing three-step re-open). The "Extraction is UNLOCKED and certified" sentence below is HISTORY of the pre-#153 state. This addendum also carries the session's tooling catch: `session_reconcile.py --heal` was destroying the GROUND_TRUTH block's `reconciled_through_commit` marker (staleness guard input) and the last-verified PR/DB facts on UNVERIFIED legs — fixed with regression tests this session.
 
 **The product is LIVE.** Master `d22e9ce` (PR #146) is a public go-live: the consumer `/tonight` site serves REAL CAPCOG (Austin ten-county) events behind the resolved auth gate (`NEXT_PUBLIC_AUTH_DISABLED` public mode; `/ops` still gated; Clerk stealth path intact for allowlist). Production is intended to front the founder-held **1Live.co** domain (GoDaddy) before customers see it — DNS→Vercel wiring is the remaining go-live step (R-065).
 
@@ -69,7 +77,7 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
-## Session Contract #35 (2026-08-03, founder-directed — code-armed wording sweep, "not wait for the tripwire, deploy the dedicated code-armed PR that sweeps just those comments under evaluator review")
+## Session Contract #40 (2026-08-03, founder-directed — code-armed wording sweep, "not wait for the tripwire, deploy the dedicated code-armed PR that sweeps just those comments under evaluator review")
 
 GOAL: execute R-070's remainder now instead of at each file's next touch — sweep the gate-custodied-publication wording into code COMMENTS/DOCSTRINGS only, in a dedicated PR stacked on the records PR so R-070's row updates in the same change.
 
@@ -77,7 +85,7 @@ SCOPE (the diff vs the records branch is the bound): comment/docstring lines in 
 
 DONE-CRITERIA: affected suites + full `tools/validate` green · draft PR opened on `claude/gate-custody-wording-code-sweep` · R-070 narrowed to the runtime strings + figure line.
 
-## Session Contract #34 (2026-08-03, founder ratification — GeoLibre = the draw-to-search UX prototype bench)
+## Session Contract #39 (2026-08-03, founder ratification — GeoLibre = the draw-to-search UX prototype bench)
 
 GOAL: formalize the founder's ratification (verbatim *"This should be ratified - if not I ratify it - make it part of the UI/UX design formality"*) of GeoLibre (opengeos, MIT) as the standing UX prototype bench for the draw-to-search surface — a step of the UI/UX design formality: feel the loop-draw → point-in-polygon UX on exported real event points ($0, off-product, data local) before any native build, and optionally earlier to inform the gate decision itself. Origin: this session's founder-requested critical evaluation of GeoLibre (po battery run per `docs/skills/po_provocation.md`; verdict — not a product dependency: scope/CWV/canon/churn; fits — MapLibre+PMTiles pattern donor for the gated tile decision, ops density-analysis instrument, and this bench).
 
@@ -128,7 +136,126 @@ Stage 3 for this records-only diff (per R-057's honest split: the file list is d
 - [S3:swallowed-corrupt-data] The one corrupt byte found (a stray non-ASCII character in the run doc) was fixed in place before commit, not swallowed; no parser consumes these files.
 - [S3:condensed-thinking-run] This change IS the class's origin and counter-measure: the condensed run escaped to the founder, and the same change lands the full write-out, the Delivery rule, the ledger row, and the index row — the run doc is the artifact, not a claim about one.
 - [S3:env-dependent-hermetic-test] N/A — no test is added or edited in the codification sweep; matched by the R-070 row narrating trust-path test files (the carousel tests' "AI never approves" match strings) by name.
+- [S3:build-before-plan] This branch is records-only executing an in-message founder ratification — the contract (this section) was written to STATE before the records landed; no product build occurred.
+- [S3:excluded-surface-widening] No exclusion set, allowlist, or .claude surface is touched by this branch; the class arrived via the merged master content narrating it.
+- [S3:founder-verbatim-corrected] Every founder quote in this branch's records was pasted from the founder's message verbatim, typos preserved ("Relive = remove", "crao work") — none paraphrased.
+- [S3:heal-drops-guard-marker] Bears directly and is CLOSED both ways in this merge: this branch's R-069 documented the heal stripping the marker; master's parallel fix (02e0865, preserve-what-you-don't-own + regression tests) landed, and this merge marks R-069 RESOLVED pointing at it.
+## Session Contract #38 (2026-08-03, founder-ruled — "Update it / It's a sequence / semantic reading")
 
+PLAN (the ruling commissions the edit; recorded per §4a):
+- WHAT: amend CLAUDE.md prime directive 1's "notifying the founder at merge" clause per the founder's ruling; close the charter §0.4 open flag; decision record with the founder's exact words.
+- HOW: the 2026-07-18 verbatim quote ("You do the merge and notify me") is preserved untouched; only the operative clause is updated to state the reconciled reading — "notify" is satisfied by the merge record itself (sequence/semantic reading: the notification is the recorded merge evidence in the sequence, not a message), and the 2026-07-25 "I don't want to know about merge" directive governs messaging: merges are silent, evidence to disk.
+- WHY: the charter audit surfaced the wording mismatch; charter edits are founder-only; the founder has now ruled.
+- WHY-THAT-WHY-MATTERS: the reason (founder-only charter custody) matters because it is the difference between canon that means what the founder said and canon that drifts by agent interpretation — this ruling closes the last known internal contradiction in the operating canon.
+- EXPECTED OUTCOMES: CLAUDE.md, charter §0.4, and the decision record agree; no open canon conflicts remain; validate green.
+
+SCOPE: CLAUDE.md PD1 clause + charter §0.4 + decision record + bookends. Nothing else.
+
+STATUS: DELIVERED (PD1 updated with the verbatim quote preserved; charter §0.4 + 3.3 closed; decision record written; no open canon conflicts remain).
+
+## Session Contract #37 (2026-08-03, founder-directed — "Run an analysis of the charter and identify duplicates, redundancies, conflicts, potential conflicts, logical fallacies or order problems or weaknesses… make sure it is maximally efficient and effective")
+
+PLAN (the directive commissions both the audit and the fix; recorded here per §4a):
+- WHAT: audit OPERATING_INTEGRITY_CHARTER.md + paste-in on the founder's seven dimensions; ship charter v3 fixing every confirmed defect: dedupe/merge overlapping rules, correct the two self-violations ([M]-tag mechanism overclaims vs rule 4.9; the "zero is absolute" impossible-absolute phrasing vs rule 1.3), fix the garbled 2.6 field name that mismatches the gate's required spelling, put trust invariants and the precedence order FIRST, add the missing plan-first↔proceed-on-ratified reconciliation and the plan-presentation↔three-message-types clarification, mark the 3.4-notify vs 3.5-silent-merge supersession and flag the CLAUDE.md text mismatch to the founder, scope the over-broad 6.7 and 1.18, define "substantive", add the charter change-protocol.
+- HOW: single rewrite of the charter (v3) preserving every source citation and founder anchor verbatim; paste-in untouched except where a confirmed defect requires it; tests re-run; committed on PR #155; re-send both files to the founder since they saved copies.
+- WHY: the founder asked for maximal efficiency/effectiveness; the audit found duplication (~90 rules → ~70 with zero information loss), two self-violations, one mechanically-consequential typo, and missing conflict-resolution structure.
+- WHY-IT-MATTERS: the charter is the single source every lane inherits — its defects propagate; its self-violations undermine its authority to enforce the same rules on sessions.
+- EXPECTED OUTCOMES: v3 with precedence order, reconciliations, corrected tags; all guard tests green; one open founder flag (CLAUDE.md merge-notify clause vs the later silent-merge directive) in the consolidated ask.
+
+SCOPE: charter + paste-in + bookends on PR #155. No hook/gate code changes.
+
+ADDENDUM (2026-08-03, founder-caught ESCAPE — scope amended per 2.3, original quoted): v3's audit claimed 2.6 carried "a garbled five-field name ('WHY-THAT-WHY-MATTERS')… fixed to WHY-IT-MATTERS." WRONG — the founder: that phrasing "was to read 'why THAT why matters'" — a deliberate, deeper field (why the stated reason matters), and the framework is founder-verbatim canon the agent had no authority to "fix." Correction scope: restore WHY-THAT-WHY-MATTERS as the canonical field name in charter 6.4 (meaning stated) and the paste-in; widen both plan-first gates + banners to ACCEPT either label (accepting the founder's own phrasing is a correction, not a relaxation — the field is still required); tests for both spellings + lockstep; ESCAPED Kaizen row + new red class.
+- [S3:founder-verbatim-corrected] This addendum is the class's founding fix: founder-verbatim text is never "corrected" on agent judgment — a suspected error in founder words is a QUESTION to the founder, not an edit; the restore + gate widening ship in this same push.
+
+STATUS: DELIVERED (v3 + the founder-caught correction pushed; the CLAUDE.md PD1 merge-notify flag remains the one open founder item).
+
+## Session Contract #36 (2026-08-03, founder-APPROVED — "Approve - create the plugin repo and build it - and do a thorough review and evaluation of any other rules and operating instructions I have harped on … Make this happen")
+
+PLAN (approved verbatim above; five fields):
+- WHAT: (1) Create the `onelive-integrity` plugin repo (founder-approved repo creation) carrying: the generalized plan-first hooks (gate + banner, path-independent via CLAUDE_PROJECT_DIR), the distilled OPERATING INTEGRITY CHARTER mined from every founder correction on the record (decision records, Kaizen ESCAPED/founder-caught rows, OPERATING_RULES, CLAUDE.md), the Ring-4 claude.ai paste-in, guard-test templates, and the new-lane checklist. (2) Wire onelive to the plugin (extraKnownMarketplaces + enabledPlugins) while keeping local hooks until a fresh session proves the plugin fires; the settings.json content-guard is widened ONLY with pinned-value compensation.
+- HOW: GitHub repo under the founder's account; plugin per the Claude Code plugin spec (marketplace.json + plugin hooks.json + ${CLAUDE_PLUGIN_ROOT} scripts); charter compiled from an exhaustive sweep of docs/memory/decisions + the Kaizen ledger's founder-caught rows; onelive wiring rides PR #155 with compensating tests.
+- WHY: copies drift — a single versioned rules source is the only way every new lane inherits enforcement without founder checking; the charter converts scattered corrections into one canonical, enforceable document.
+- WHY-IT-MATTERS: the founder never has to remind/check/chastise again for any rule already on the record — new repos get physics in one line, chats get the charter in one paste.
+- EXPECTED OUTCOMES: plugin repo live with hooks + charter + checklist; onelive wired with guards green; honest limit recorded (chat ring = instructions, not physics; corrections never recorded on disk here are not in the charter until added).
+
+SCOPE: onelive repo (settings wiring + bookends) + the new onelive-integrity repo. Repo creation is the explicitly-approved action; no other new surfaces.
+
+Stage-3 retrieval (new class matched on this build; Contracts #34/#35 answers cover the rest):
+- [S3:api-busy-poll] No polling added anywhere — the charter RESTATES the event-driven rule as canon text; the one GitHub API call this build made (create_repository) was a single bounded attempt whose 403 was handled by falling back, not retried in a loop.
+
+DEVIATION LOGGED (decide-log-proceed, not founder-crucial): the GitHub integration cannot create repositories (403 — app is scoped to onelive), so the plugin lives at `integrity-plugin/` INSIDE onelive instead of a standalone repo — strictly better custody (every onelive gate reviews it; single source of truth intact; other lanes reference it via a github marketplace source with sparsePaths). If the founder still wants a standalone repo: create it empty, say so, and it migrates in one commit.
+
+STATUS: DELIVERED this session (plugin + charter v2 from the full record sweep + paste-in + lockstep guards, all on PR #155; the one founder step remaining is pasting CLAUDE_PROJECT_PASTEIN.md into claude.ai Projects — chat has no hooks).
+
+## Session Contract #35 (2026-08-03, founder-APPROVED plan — "Approve - confirm these kind of issues will never ever happen again")
+
+PLAN (the five fields, presented 2026-08-03 and approved verbatim "Approve"):
+- WHAT: (1) `.claude/settings.json` hooks — SessionStart prints the §4a plan-first checklist + loop-stage order; PreToolUse on Write/Edit blocks edits to non-bookkeeping repo files unless STATE.md carries an OPEN session contract containing the five plan fields. (2) Gate script `tools/plan_first_gate.py` + banner `tools/plan_first_banner.py` + hermetic tests. (3) Close the two open offers: §5b supplementary-data-sources section in the Heartbeat paper; dated M6 disposition snapshot appended to the Kaizen ledger.
+- HOW: hook scripts as small tested Python tools (staleness_check pattern), wired via project settings; records-only files (STATE/TODOS/memory/metrics/changelog/RECORD/FRICTION_LOG/session_arcs/.claude) exempt per the approved recommendation; docs additions ride PR #155; evaluator reviews the PR as always.
+- WHY: the plan-first rule failed because it lived only in docs and its one mechanism (construction_gate) fires at validate — the END of a build; rules that depend on agent recall have now failed twice in this shape. Hooks execute regardless of what the agent reads or remembers.
+- WHY-IT-MATTERS: converts §4a from trust into physics — the same move ratified for staleness; a future session in this repo cannot write product files before a five-field plan exists on the record.
+- EXPECTED OUTCOMES: gate blocks a planless edit with a clear message naming the fix; pipe-tests + hermetic tests green; validate green; the M6/§5b record complete. Honest limit stated to the founder: this binds sessions in THIS repo; it cannot bind other repos or other Claude products.
+
+SCOPE: this repo only. The gate is a pure TIGHTENING (blocks more, relaxes nothing); no trust invariant, threshold, or product path is touched.
+
+Stage-3 retrieval (new classes matched on this build; Contract #34's answers cover the rest):
+- [S3:build-before-plan] This build is the counter-measure to that class, and it ran the corrected order: plan presented → founder "Approve" → contract with the five fields written OPEN → build. The gate makes the wrong order mechanically impossible for future sessions.
+- [S3:fail-open-on-custody-misconfig] The gate fails CLOSED on every misconfiguration path: unreadable STATE.md denies, malformed hook stdin denies, and a missing plan denies — no error branch falls through to allow (pinned by test_unreadable_state_fails_closed).
+- [S3:swallowed-corrupt-data] No error suppression anywhere in the gate: exceptions surface in the deny reason verbatim rather than being caught-and-continued; the banner has no failure path that hides output (it prints a constant).
+- [S3:excluded-surface-widening] The tracked-.claude allowlist widening for settings.json ships WITH its content bound in the same commit: hooks-key-only, command-type-only, commands restricted to git-tracked tools/*.py the scanners sweep (test_settings_json_hooks_only_invoke_scanned_tools) — the exclusion is never widened for free.
+
+STATUS: DELIVERED this session (hooks + guards + §5b + M6 disposition committed on PR #155; live-firing verification is the P2 item in TODOS for the next fresh-container session, since a settings file created mid-session loads only at session start). Note for the next session: the PreToolUse gate is now LIVE from your first edit — your contract must carry the five §4a plan fields with STATUS: OPEN before product files will accept writes. That is by founder direction, not an obstacle to route around.
+
+## Session Contract #34 (2026-08-03, founder-directed — "Evaluate the canon and repo for the Heartbeat analytics engine… assess world-class analytics models… market analysis of productizing the data… everything required to build and grow into one of those world-class platforms including expected cost and revenue specs, finding the core 'per …' analytics")
+
+GOAL: A founder-facing strategy PROPOSAL for Heartbeat Analytics as a data product: (1) evaluate the existing canon + code (what Heartbeat is, what exists vs what is spec'd); (2) benchmark world-class data-is-the-business models (how they position, deliver, engage, monetize); (3) a stage-by-stage productization market analysis (initial → matured) with positioning/marketing/delivery/service/monetization at each stage; (4) build requirements + cost/revenue specs; (5) the core "per …" unit-economics KPI(s) that drive growth.
+
+SCOPE: docs-only — one new PROPOSAL doc in `docs/strategy/` + session bookend updates (STATE/TODOS/changelog/arc/memory as warranted). NO product code, NO vendor keying, NO monetization action — Heartbeat external monetization is founder-crucial (ANALYTICS_METRICS_v1 §12); this session produces the decision material, not the decision. No trust invariant is touched; all recommendations are bound by the §12 hard rules (aggregate-only, consent-gated artist data, no PII, insights never touch ranking, resolved strata only).
+
+DONE-CRITERIA: PROPOSAL doc committed on `claude/heartbeat-analytics-evaluation-vm9g0c` · `tools/validate` green (docs-only) · draft PR opened · founder-crucial asks consolidated into ONE list in the doc.
+
+STATUS: DELIVERED this session — `docs/strategy/ONE_LIVE_HEARTBEAT_PRODUCTIZATION_v1.md` committed; draft PR opened for founder review. Scope grew by one caught-and-fixed harness defect (session_reconcile `--heal` destroying the staleness marker — see the Where-we-are addendum and the Kaizen row); no other code touched.
+
+Stage-3 retrieval (docs/memory/RED_CLASSES.md read against this build; matched classes answered):
+- [S3:caller-suppliable-custody-inputs] N/A — no custody surface touched; no caller-supplied key/path/clock/identity enters any gate in this diff (the reconciler fix copies fields between two dicts it fully owns).
+- [S3:contract-scope-violation] Scope is the contract's: one strategy doc + bookends + the one caught reconciler defect, recorded in the contract's STATUS the moment it entered.
+- [S3:copy-outruns-registry] The strategy doc claims no live capability — it states Heartbeat is 100% spec / 0% implementation and marks every stage PROPOSAL; no example outruns a status table.
+- [S3:deferred-trust-work] Nothing trust-path is deferred; the paper's future work is founder-gated by design, and the reconciler fix shipped complete with tests in this same change.
+- [S3:deliverable-visual-qa] The deliverable is an in-repo markdown PROPOSAL, not a rendered founder artifact; no figures/PDF produced, so no render-and-measure pass applies.
+- [S3:env-dependent-hermetic-test] The two new reconciler tests are hermetic — pure build_snapshot() calls on literal dicts, no git/gh/DB/network.
+- [S3:fabricated-qualitative-copy] Every external figure in the paper carries source + retrieval date; internal claims carry file cites; ranges are labeled ranges, and unknowns are stated as unknowns.
+- [S3:false-confidence-gate] The class's shape (a check reporting its mechanism, not the property) is exactly what the reconciler fix closes: heal now preserves the marker the guard measures, and the tests compare preserved values, not that a heal ran.
+- [S3:false-price-claim] All prices in the paper are comparables or planning ranges explicitly marked non-committal; no user-facing price copy is created.
+- [S3:featurability-dimension-missed] The paper's KPI spine is defined per entity (verified event-record) and sliceable per the canon's dimensions; no new surface ships, so no feature flag matrix applies.
+- [S3:final-gate-trusts-generator] No publish/promote path touched; the reconciler writes a bookkeeping block, and the guard that judges it (staleness_check) is untouched and still re-derives from git itself.
+- [S3:governance-ambiguity] The paper restates the §12 hard rules verbatim as binding and routes every monetization decision through the founder-crucial list — no rule is reinterpreted.
+- [S3:grant-not-content-bound] N/A — no grant/entitlement surface is created; the consent-gating discussed is future spec, flagged founder-crucial.
+- [S3:heal-drops-guard-marker] This build IS the fix: build_snapshot() preserves fields it does not own, carries last-verified facts on UNVERIFIED legs, and both behaviors are red-tested.
+- [S3:malformed-ledger-row] The new Kaizen row was appended in the ledger's 6-column schema and the ledger-marker test suite passed on it (construction_gate suite green after the RED_CLASSES row landed).
+- [S3:missing-cardinality-check] N/A — no query/join code added; the paper's k-anonymity floor is proposed exactly to make external cardinality a ratified physics, not an afterthought.
+- [S3:missing-record-read-as-state] The session read RECORD/STATE first (Contract #33, R-046, the v1-differentiator decision) and the paper cites them rather than re-deciding them.
+- [S3:mutable-model-alias] No model identifiers or routing touched.
+- [S3:nonfinite-decimal-accepted] N/A — no numeric parsing added anywhere in this change.
+- [S3:nonfinite-numeric-accepted] N/A — same as above; the reconciler fix moves dict fields verbatim, it parses nothing.
+- [S3:pagination-integrity-gap] N/A — no paginated API consumed in code; the research session's GitHub/API use stayed within the §4b bounded-call rule.
+- [S3:permission-for-ratified-work] Inverted risk here: this work is research the founder directed, and the paper is careful NOT to treat unratified stages as buildable — §10 separates direction-blessing from founder-crucial packets.
+- [S3:pushed-on-red] validate ran to EXECUTED-GATES-ACKNOWLEDGED (no FAIL; SKIP = R-002-bound) before push; the two earlier local reds (env deps, marker) were fixed, not pushed around.
+- [S3:release-path-weaker-than-generation] N/A — no release/render path touched.
+- [S3:retyped-evidence] The validate evidence block is pasted verbatim in the PR from .validate-evidence.txt, and web figures are cited to their sources rather than retyped as facts.
+- [S3:rule-stronger-than-mechanism] The paper adds no rule that claims mechanical enforcement; where it proposes rules (k-floor, walled-off surface) it explicitly names them as future mechanisms to build.
+- [S3:self-weakenable-gate] The reconciler fix only makes the staleness guard HARDER to brick; no gate can be weakened by this diff (trust_gate/lint/pytest paths untouched).
+- [S3:self-weakenable-review-model] No reviewer tooling touched.
+- [S3:semantic-claim-not-rederived] The "nothing implemented" claim was re-derived this session by direct repo verification (migrations, web, api sweeps), not repeated from the canon's own §8.
+- [S3:stale-base-widens-range] construction_gate confirmed origin/master == remote tip via ls-remote in this run; the branch is cut from that tip.
+- [S3:stale-live-incident-state] No open incident is narrated as current; the extraction-CLOSED addendum updates the one stale status found (pre-#153 "UNLOCKED" sentence marked HISTORY).
+- [S3:stale-redclass-count] No counts of classes/tests/files are typed into prose here — the gate's own output is the derivation.
+- [S3:stalled-state-needs-active-diagnosis] The baseline validate reds were actively diagnosed to root cause (missing deps, shallow clone, heal defect) rather than recorded as mystery flakes.
+- [S3:status-narration-not-progress] The session produced the deliverable + a fix, not a proposal to produce them; the founder ask list is decisions only, not permission-seeking for directed work.
+- [S3:untested-gate-branch] Both new build_snapshot branches (verified-leg wins / unverified-leg preserves) are pinned by the two new tests.
+- [S3:unusable-credential-tier] No credentials minted or consumed; the paper routes all future keys/vendors through the founder-crucial list.
+- [S3:volatile-safety-store] The marker lives in git-tracked STATE.md (durable), and the fix exists precisely to stop a tool making that store lossy.
+- [S3:weak-key-accepted-at-custody] N/A — no custody/key surface touched.
+- [S3:workflow-tool-version-skew] No workflow files touched; the reconciler fix is self-contained with its tests in the same commit, so no cross-version window opens.
 ## Session Contract #33 (2026-08-03, founder-directed — "search all prior sessions and memory and bring everything up to date; prevent stale or lack of updates from ever happening again")
 
 GOAL: (1) Reconcile every disk-truth doc against VERIFIED ground truth after ~50 merged PRs of drift — STATE.md (this rollup), TODOS.md (mark resolved items), the change log (catch-up entries), session arcs (write the missing arc), and memory (the three kickoff-named lessons + the stale-record-belief gotcha). (2) Make staleness mechanically impossible to recur.
