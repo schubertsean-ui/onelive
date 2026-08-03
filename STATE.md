@@ -14,13 +14,13 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 ```json
 {
   "git": {
-    "branch": "master",
-    "head": "c9bee60"
+    "branch": "claude/heartbeat-analytics-evaluation-vm9g0c",
+    "head": "944e4a2"
   },
-  "reconciled_through_commit": "c9bee60bc33cdc910a0358d340c1e83ce25eb373",
-  "reconciled_at": "2026-08-03T04:00:00+00:00",
-  "reconciled_by": "session 2026-08-03; git verified locally, PR state verified via GitHub API (no gh/DB connector — DB row counts remain UNVERIFIED). Marker advanced to c9bee60 after PR #147 (card design) merged; the open PR #150 carries the staleness-guard v2 + the Spark Line auto-publish fix. Bookkeeping PRs #30/#33/#55 closed this session.",
-  "prs_note": "merged history runs through PR #147 (/tonight card design Phase 1, merged 2026-08-03 = master c9bee60; #149 reconciliation+guard, #148 Spark Line, #146 go-live earlier). Open (verified via GitHub 2026-08-03): #150 (guard v2 + Spark Line auto-publish, this branch), #145 (user-journey canon); older/likely-superseded #34,#47,#50,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112 (founder close-or-revive; #32 is the reviewer-evidence feature = revive, not bookkeeping).",
+  "reconciled_through_commit": "944e4a2029236dae8c310fbde72b27b54d3953e2",
+  "reconciled_at": "2026-08-03T19:34:44.280831+00:00",
+  "reconciled_by": "session 2026-08-03 (Contract #34); git verified locally; PR state and DB row counts UNVERIFIED in this sandbox (no gh binary, no ONELIVE_DB_DSN) — the PR map below is carried forward from the Contract #33 reconciliation, not re-verified. Marker advanced to 944e4a2 with the rollup addendum covering master 85cf2f7 (PR #150) and 944e4a2 (PR #153). NOTE: this session also caught+fixed session_reconcile --heal destroying this block's marker/narrative fields (see tests/test_session_reconcile.py).",
+  "prs_note": "merged history runs through PR #153 (re-certification sitting, master 944e4a2) and #150 (sourcing engine P0, master 85cf2f7); earlier #147 card design = c9bee60, #149 reconciliation+guard, #148 Spark Line, #146 go-live. Open per the 2026-07/08-03 verification (NOT re-verified this session): #145 (user-journey canon); older/likely-superseded #34,#47,#50,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112 (founder close-or-revive; #32 is the reviewer-evidence feature = revive, not bookkeeping).",
   "prs": {
     "34": "open", "47": "open", "50": "open", "56": "open", "75": "open",
     "76": "open", "81": "open", "83": "open", "84": "open", "85": "open",
@@ -34,6 +34,8 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 > **Ground-truth block (2026-08-03):** refreshed this session. `git.head`/`reconciled_through_commit` = `d22e9ce` (master, PR #146 public go-live), verified locally. PR state verified via the GitHub API (no `gh` binary in this sandbox; `session_reconcile.py` still reports UNVERIFIED for the gh/DB legs — that is an environment limitation, not a contradiction). DB row counts (`event`/`event_candidate`/…) remain UNVERIFIED — no Supabase connector in this session; do not treat any row count as re-confirmed. The `reconciled_through_commit` marker is read by `tools/staleness_check.py` (blocking in `tools/validate`), which fails the build the moment `origin/master` advances past the last commit that updated STATE.md — **zero tolerance, no "N commits" fudge factor** (founder-caught 2026-08-03: "20?" is arbitrary; a world-class guard ties to the invariant, not a number). So this block cannot silently rot again: every change-set that lands on master must update STATE.md.
 
 ## Where we are (2026-08-03 — RECONCILED)
+
+> **ADDENDUM (2026-08-03, Contract #34 session — supersedes the extraction sentence below):** master has advanced two commits past the Contract #33 reconciliation: `85cf2f7` (PR #150 — sourcing engine P0: model, autopromote OFF, render fallback, scale plan v1.1, red-team adjudication) and `944e4a2` (PR #153 — re-certification sitting: prompt caching + usage capture; **extraction is CLOSED — `EXTRACTION_THRESHOLD_RATIFIED = False` — pending the founder's attended exam on the new harness**, per the standing three-step re-open). The "Extraction is UNLOCKED and certified" sentence below is HISTORY of the pre-#153 state. This addendum also carries the session's tooling catch: `session_reconcile.py --heal` was destroying the GROUND_TRUTH block's `reconciled_through_commit` marker (staleness guard input) and the last-verified PR/DB facts on UNVERIFIED legs — fixed with regression tests this session.
 
 **The product is LIVE.** Master `d22e9ce` (PR #146) is a public go-live: the consumer `/tonight` site serves REAL CAPCOG (Austin ten-county) events behind the resolved auth gate (`NEXT_PUBLIC_AUTH_DISABLED` public mode; `/ops` still gated; Clerk stealth path intact for allowlist). Production is intended to front the founder-held **1Live.co** domain (GoDaddy) before customers see it — DNS→Vercel wiring is the remaining go-live step (R-065).
 
@@ -75,6 +77,57 @@ DONE this arc: PRs #14–#22 merged through the armed gate (M1 trend 5→1). All
 NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set gate** — ≥40-example golden set (~320 facts, incl. injection cases), live-exam runner over the REAL provider path (design the documented exam channel past the R-013 gate carefully), blocking CI job; flag flips with a PASSING result → extraction unlocks → first real candidates → Step 7. Then: R-008 cron arming (po battery + friction attack first).
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
+
+## Session Contract #34 (2026-08-03, founder-directed — "Evaluate the canon and repo for the Heartbeat analytics engine… assess world-class analytics models… market analysis of productizing the data… everything required to build and grow into one of those world-class platforms including expected cost and revenue specs, finding the core 'per …' analytics")
+
+GOAL: A founder-facing strategy PROPOSAL for Heartbeat Analytics as a data product: (1) evaluate the existing canon + code (what Heartbeat is, what exists vs what is spec'd); (2) benchmark world-class data-is-the-business models (how they position, deliver, engage, monetize); (3) a stage-by-stage productization market analysis (initial → matured) with positioning/marketing/delivery/service/monetization at each stage; (4) build requirements + cost/revenue specs; (5) the core "per …" unit-economics KPI(s) that drive growth.
+
+SCOPE: docs-only — one new PROPOSAL doc in `docs/strategy/` + session bookend updates (STATE/TODOS/changelog/arc/memory as warranted). NO product code, NO vendor keying, NO monetization action — Heartbeat external monetization is founder-crucial (ANALYTICS_METRICS_v1 §12); this session produces the decision material, not the decision. No trust invariant is touched; all recommendations are bound by the §12 hard rules (aggregate-only, consent-gated artist data, no PII, insights never touch ranking, resolved strata only).
+
+DONE-CRITERIA: PROPOSAL doc committed on `claude/heartbeat-analytics-evaluation-vm9g0c` · `tools/validate` green (docs-only) · draft PR opened · founder-crucial asks consolidated into ONE list in the doc.
+
+STATUS: DELIVERED this session — `docs/strategy/ONE_LIVE_HEARTBEAT_PRODUCTIZATION_v1.md` committed; draft PR opened for founder review. Scope grew by one caught-and-fixed harness defect (session_reconcile `--heal` destroying the staleness marker — see the Where-we-are addendum and the Kaizen row); no other code touched.
+
+Stage-3 retrieval (docs/memory/RED_CLASSES.md read against this build; matched classes answered):
+- [S3:caller-suppliable-custody-inputs] N/A — no custody surface touched; no caller-supplied key/path/clock/identity enters any gate in this diff (the reconciler fix copies fields between two dicts it fully owns).
+- [S3:contract-scope-violation] Scope is the contract's: one strategy doc + bookends + the one caught reconciler defect, recorded in the contract's STATUS the moment it entered.
+- [S3:copy-outruns-registry] The strategy doc claims no live capability — it states Heartbeat is 100% spec / 0% implementation and marks every stage PROPOSAL; no example outruns a status table.
+- [S3:deferred-trust-work] Nothing trust-path is deferred; the paper's future work is founder-gated by design, and the reconciler fix shipped complete with tests in this same change.
+- [S3:deliverable-visual-qa] The deliverable is an in-repo markdown PROPOSAL, not a rendered founder artifact; no figures/PDF produced, so no render-and-measure pass applies.
+- [S3:env-dependent-hermetic-test] The two new reconciler tests are hermetic — pure build_snapshot() calls on literal dicts, no git/gh/DB/network.
+- [S3:fabricated-qualitative-copy] Every external figure in the paper carries source + retrieval date; internal claims carry file cites; ranges are labeled ranges, and unknowns are stated as unknowns.
+- [S3:false-confidence-gate] The class's shape (a check reporting its mechanism, not the property) is exactly what the reconciler fix closes: heal now preserves the marker the guard measures, and the tests compare preserved values, not that a heal ran.
+- [S3:false-price-claim] All prices in the paper are comparables or planning ranges explicitly marked non-committal; no user-facing price copy is created.
+- [S3:featurability-dimension-missed] The paper's KPI spine is defined per entity (verified event-record) and sliceable per the canon's dimensions; no new surface ships, so no feature flag matrix applies.
+- [S3:final-gate-trusts-generator] No publish/promote path touched; the reconciler writes a bookkeeping block, and the guard that judges it (staleness_check) is untouched and still re-derives from git itself.
+- [S3:governance-ambiguity] The paper restates the §12 hard rules verbatim as binding and routes every monetization decision through the founder-crucial list — no rule is reinterpreted.
+- [S3:grant-not-content-bound] N/A — no grant/entitlement surface is created; the consent-gating discussed is future spec, flagged founder-crucial.
+- [S3:heal-drops-guard-marker] This build IS the fix: build_snapshot() preserves fields it does not own, carries last-verified facts on UNVERIFIED legs, and both behaviors are red-tested.
+- [S3:malformed-ledger-row] The new Kaizen row was appended in the ledger's 6-column schema and the ledger-marker test suite passed on it (construction_gate suite green after the RED_CLASSES row landed).
+- [S3:missing-cardinality-check] N/A — no query/join code added; the paper's k-anonymity floor is proposed exactly to make external cardinality a ratified physics, not an afterthought.
+- [S3:missing-record-read-as-state] The session read RECORD/STATE first (Contract #33, R-046, the v1-differentiator decision) and the paper cites them rather than re-deciding them.
+- [S3:mutable-model-alias] No model identifiers or routing touched.
+- [S3:nonfinite-decimal-accepted] N/A — no numeric parsing added anywhere in this change.
+- [S3:nonfinite-numeric-accepted] N/A — same as above; the reconciler fix moves dict fields verbatim, it parses nothing.
+- [S3:pagination-integrity-gap] N/A — no paginated API consumed in code; the research session's GitHub/API use stayed within the §4b bounded-call rule.
+- [S3:permission-for-ratified-work] Inverted risk here: this work is research the founder directed, and the paper is careful NOT to treat unratified stages as buildable — §10 separates direction-blessing from founder-crucial packets.
+- [S3:pushed-on-red] validate ran to EXECUTED-GATES-ACKNOWLEDGED (no FAIL; SKIP = R-002-bound) before push; the two earlier local reds (env deps, marker) were fixed, not pushed around.
+- [S3:release-path-weaker-than-generation] N/A — no release/render path touched.
+- [S3:retyped-evidence] The validate evidence block is pasted verbatim in the PR from .validate-evidence.txt, and web figures are cited to their sources rather than retyped as facts.
+- [S3:rule-stronger-than-mechanism] The paper adds no rule that claims mechanical enforcement; where it proposes rules (k-floor, walled-off surface) it explicitly names them as future mechanisms to build.
+- [S3:self-weakenable-gate] The reconciler fix only makes the staleness guard HARDER to brick; no gate can be weakened by this diff (trust_gate/lint/pytest paths untouched).
+- [S3:self-weakenable-review-model] No reviewer tooling touched.
+- [S3:semantic-claim-not-rederived] The "nothing implemented" claim was re-derived this session by direct repo verification (migrations, web, api sweeps), not repeated from the canon's own §8.
+- [S3:stale-base-widens-range] construction_gate confirmed origin/master == remote tip via ls-remote in this run; the branch is cut from that tip.
+- [S3:stale-live-incident-state] No open incident is narrated as current; the extraction-CLOSED addendum updates the one stale status found (pre-#153 "UNLOCKED" sentence marked HISTORY).
+- [S3:stale-redclass-count] No counts of classes/tests/files are typed into prose here — the gate's own output is the derivation.
+- [S3:stalled-state-needs-active-diagnosis] The baseline validate reds were actively diagnosed to root cause (missing deps, shallow clone, heal defect) rather than recorded as mystery flakes.
+- [S3:status-narration-not-progress] The session produced the deliverable + a fix, not a proposal to produce them; the founder ask list is decisions only, not permission-seeking for directed work.
+- [S3:untested-gate-branch] Both new build_snapshot branches (verified-leg wins / unverified-leg preserves) are pinned by the two new tests.
+- [S3:unusable-credential-tier] No credentials minted or consumed; the paper routes all future keys/vendors through the founder-crucial list.
+- [S3:volatile-safety-store] The marker lives in git-tracked STATE.md (durable), and the fix exists precisely to stop a tool making that store lossy.
+- [S3:weak-key-accepted-at-custody] N/A — no custody/key surface touched.
+- [S3:workflow-tool-version-skew] No workflow files touched; the reconciler fix is self-contained with its tests in the same commit, so no cross-version window opens.
 
 ## Session Contract #33 (2026-08-03, founder-directed — "search all prior sessions and memory and bring everything up to date; prevent stale or lack of updates from ever happening again")
 

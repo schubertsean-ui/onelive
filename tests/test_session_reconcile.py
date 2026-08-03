@@ -67,6 +67,40 @@ def test_unverified_db_is_flagged_loud():
     assert any("DB" in u for u in unverified)
 
 
+def test_heal_preserves_staleness_marker_and_unverified_facts():
+    # Regression (caught 2026-08-03): --heal rebuilt the block from live data
+    # only, dropping reconciled_through_commit — which staleness_check fails
+    # closed on — and discarding the last verified PR/DB facts whenever those
+    # legs were UNVERIFIED (no gh / no DSN). The heal must never destroy what
+    # it cannot re-derive.
+    prev = {
+        "reconciled_through_commit": "c" * 40,
+        "reconciled_by": "session X",
+        "prs_note": "narrative",
+        "prs": {"4": "merged"},
+        "applied_migrations": ["0001"],
+        "row_counts": {"source": 43},
+    }
+    snap = sr.build_snapshot(_live(prs_ok=False, db_ok=False), prev)
+    assert snap["reconciled_through_commit"] == "c" * 40
+    assert snap["reconciled_by"] == "session X"
+    assert snap["prs_note"] == "narrative"
+    assert snap["prs"] == {"4": "merged"}
+    assert snap["applied_migrations"] == ["0001"]
+    assert snap["row_counts"] == {"source": 43}
+
+
+def test_heal_verified_legs_overwrite_preserved_facts():
+    prev = {"reconciled_through_commit": "c" * 40,
+            "prs": {"4": "open"}, "row_counts": {"source": 1}}
+    live = _live(prs=[{"number": 4, "state": "MERGED", "title": "x"}],
+                 migs=["0001"], counts={"source": 43})
+    snap = sr.build_snapshot(live, prev)
+    assert snap["prs"] == {"4": "merged"}          # live wins when verified
+    assert snap["row_counts"] == {"source": 43}
+    assert snap["reconciled_through_commit"] == "c" * 40  # marker still carried
+
+
 def test_state_block_roundtrip():
     text = "# STATE\n\nsome prose\n"
     snap = {"prs": {"1": "merged"}, "row_counts": {"source": 43}}

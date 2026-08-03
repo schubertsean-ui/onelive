@@ -4,6 +4,35 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-03 — Heartbeat Analytics productization strategy (PROPOSAL); reconciler-heal marker fix (Contract #34)
+
+**Heartbeat productization & market strategy (docs-only, PROPOSAL).** Founder-directed
+research session: `docs/strategy/ONE_LIVE_HEARTBEAT_PRODUCTIZATION_v1.md` — evaluates
+the Heartbeat canon vs the repo (finding: 100% spec, 0% implementation; the reusable
+seeds are the KPI registry, golden exam, source pathways, entity resolution, and the
+shadow convergence engine), benchmarks six world-class data-is-the-business archetypes
+(Verisk, Placer.ai, Luminate/Billboard, Pollstar, Zartico, Spotify-for-Artists) with
+sourced economics, lays out a five-stage productization journey (measure ourselves →
+free public reports → free consent-gated self-dashboards → paid civic contracts + org
+tier → multi-metro benchmark network + API licensing), specs costs/revenues as planning
+ranges, and proposes the "per …" KPI spine: cost per verified event-record × verified
+event-records per market-night × Heartbeat net revenue per verified event-record, with
+calibration as the sellability gate. All §12 invariants restated as binding (aggregate-
+only, consent-gated artist data, no PII, insights never touch ranking, resolved strata
+with disputed carried as a dimension). One consolidated founder ask list (§10). Nothing
+monetized, keyed, or built — monetization remains founder-crucial.
+
+**session_reconcile `--heal` was destroying the staleness guard's marker (caught, fixed).**
+`build_snapshot()` rebuilt the GROUND_TRUTH block from live data only, silently dropping
+`reconciled_through_commit` (which `tools/staleness_check.py` fails closed on) and
+discarding the last verified PR/DB facts whenever those legs were UNVERIFIED (no `gh`,
+no DSN — i.e., every sandbox session). A heal run in this session bricked the guard;
+fixed so the heal preserves fields it does not own and carries forward last-verified
+facts on unverified legs (live data still wins when verified). Regression tests added
+(`tests/test_session_reconcile.py`, 2 new). STATE.md marker restored and advanced to
+master `944e4a2` with a rollup addendum for PR #150 (sourcing engine P0) and PR #153
+(re-certification sitting — extraction CLOSED, flag False, pending attended exam).
+
 ## 2026-08-03 — Spark Lines auto-publish on validation (founder-caught catch-22); guard v2 branch escape
 
 **Spark Line auto-publish fix (founder-directed).** The founder caught that #148's
