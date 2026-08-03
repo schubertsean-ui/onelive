@@ -19,9 +19,14 @@ gate. Rendering is headless, blocks images/fonts/media to stay fast, and runs
 under a bounded timeout so it can never hang a run.
 
 Failure policy (OPERATING_RULES SS1, project precedent): loud, never swallowed.
-A render that times out or errors raises `RenderError` with context; the
-orchestrator's per-source isolation turns that into that one source's visible
-failure, exactly as a plain fetch error would be.
+A render that times out or errors raises `RenderError` with context — this
+module never returns a partial/blank page as success. What the caller does
+with that loud signal is the caller's policy: the ingestion loop
+(worker/orchestrator.py) treats rendering as an OPTIONAL enhancement — it
+logs the RenderError, records it on the replay fetch entry, and proceeds
+with the un-rendered plain result (fail-open on availability, fail-closed on
+trust: the plain text still faces the sensors). The loop also budgets
+renders per run via ONELIVE_MAX_RENDERS_PER_RUN — see orchestrator.py.
 
 This module deliberately does NOT import worker.promote or worker.gating: it
 only fetches bytes, it has no opinion on corroboration or publishing.
