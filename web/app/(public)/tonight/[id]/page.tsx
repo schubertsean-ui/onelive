@@ -28,6 +28,7 @@ import { shareCaveat } from "../../../../lib/share";
 import { contextualPreview } from "../../../../lib/preview";
 import { qaFixtureEventById, qaFixturesEnabled } from "../../../../qa/fixtures";
 import { domainLabel } from "../../../../lib/domains";
+import { externalAriaLabel, handoffCaption } from "../../../../lib/nav";
 
 // Server component — reads ONE event at request time. Deliberately NOT cached:
 // the same freshness rule the feed uses, for the same reason (an event that
@@ -257,7 +258,8 @@ export default async function EventDetailPage(
             {map ? (
               <>
                 <br />
-                <a href={map} target="_blank" rel="noopener noreferrer">
+                <a href={map} target="_blank" rel="noopener noreferrer"
+                  aria-label={externalAriaLabel("Open the address in maps", map)}>
                   {event_.venue_address ?? "Open in maps"} ↗
                 </a>
               </>
@@ -290,7 +292,8 @@ export default async function EventDetailPage(
                   <a className="dcall" href={call}>📞 Want to call and confirm?</a>
                 ) : null}
                 {website ? (
-                  <a href={website} target="_blank" rel="noopener noreferrer">
+                  <a href={website} target="_blank" rel="noopener noreferrer"
+                    aria-label={externalAriaLabel("Venue website", website)}>
                     Venue website ↗
                   </a>
                 ) : null}
@@ -302,9 +305,11 @@ export default async function EventDetailPage(
         {/* Tickets + Share. Share is always offered (it needs nothing but a
             link); Tickets appears only when the row carries a real ticket URL. */}
         <div className="dactions">
+          {/* TERMINAL handoff (nav canon §8): same-tab, honestly labeled with
+              where it finishes — Back returns here, never a stranded tab. */}
           {tix ? (
-            <a className="dtix" href={tix} target="_blank" rel="noopener noreferrer">
-              Tickets ↗
+            <a className="dtix" href={tix} aria-label={externalAriaLabel("Tickets", tix)}>
+              Tickets ↗{handoffCaption(tix) ? <span className="dhand"> · {handoffCaption(tix)}</span> : null}
             </a>
           ) : null}
           <ShareButton event={event_} />
@@ -317,7 +322,8 @@ export default async function EventDetailPage(
           <div className="dlisten">
             <span className="dlisten-l">{preview.label}:</span>
             {preview.links.map((l) => (
-              <a key={l.service} href={l.url} target="_blank" rel="noopener noreferrer">
+              <a key={l.service} href={l.url} target="_blank" rel="noopener noreferrer"
+                aria-label={externalAriaLabel(`${preview.label} on ${l.service}`, l.url)}>
                 {l.service} ↗
               </a>
             ))}
