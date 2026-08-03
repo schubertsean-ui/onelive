@@ -156,6 +156,58 @@ accidentally our spend cap (~$21/day actual vs $300+/day if fixed naively).
 6. Batch API and cheaper-tier re-exams last (the 80% Haiku cut stays a
    scheduled golden-exam experiment; certification never relaxes for cost).
 
+### 3b. TOTAL cost per timeframe (founder-directed 2026-08-03: "not only
+'per x' cost... but 'total cost per x' per timeframe")
+
+All figures are estimates until the P2 cost ledger converts them to
+measurements; basis stated per row. "Weekend" = Fri-Sun (3 days).
+
+| State | Per DAY | Per WEEKEND | Per MONTH | Basis |
+|---|---|---|---|---|
+| Austin today (broken cadence) | ~$21 | ~$63 | ~$630 | measured R-023 rate × $4.20/run |
+| Austin naive full cadence (DON'T) | $300-750 | $900-2,250 | $9-22k | 72 runs/day un-optimized — the trap §3 sequencing avoids |
+| **Austin optimized (P2)** | **$25-40** | **$75-120** | **$0.8-1.2k** | $0.55/run ceiling × 72; change-skip makes most runs near-zero |
+| Austin optimized + Batch (−50%) | $13-20 | $40-60 | $0.4-0.6k | batch-eligible because nothing user-facing waits on extraction |
+| + Haiku IF it passes re-exam (−80% tier) | $3-8 | $9-24 | $0.1-0.25k | contingent on the 1% golden bar — never assumed |
+| 10 metros optimized | $150-300 | $450-900 | $4.5-9k | marginal metro ≈ $15-30/day (below) |
+| 10 metros + Batch | $75-150 | $225-450 | $2.3-4.5k | |
+| **50 metros (national) + Batch** | **$375-750** | **$1.1-2.3k** | **$11-23k** | + one-time discovery ~$200/metro |
+| 50 metros + Batch + Haiku-passed | $90-250 | $270-750 | $2.7-7.5k | the designed end-state IF certification allows |
+
+One-time (non-recurring): discovery probe ~$50-130/metro + review hours;
+spine ingest ≈ $0 (public Parquet); re-cert sitting = founder time.
+Deterministic imports (TM/structured): ≈$0 marginal (runner minutes only).
+
+### 3c. Geographic-scale compute doctrine (the "absolute most efficient way
+to execute per timeframe" — founder-directed)
+
+Marginal cost per added metro is driven to the floor by SHARING everything
+shareable and paying only for CHANGE:
+1. **One spine job, all markets** — a single DuckDB pass over Overture/FSQ
+   Parquet filters every active market's boundary in one read; adding a
+   metro adds a WHERE clause, not a job.
+2. **Templates learned once, globally** — a platform's calendar template
+   (Squarespace, The Events Calendar, Localist...) is learned per PLATFORM,
+   not per venue or metro; metro #50's Squarespace venues cost $0 new
+   learning. LLM extraction remains the last-resort path everywhere.
+3. **Pay only for change** — content-hash skip + conditional GET + λ̂
+   due-time scheduling mean steady-state extraction cost scales with
+   EVENT CHURN, not source count or metro count. A metro's quiet Tuesday
+   costs cents.
+4. **Timeframe-shaped crawl waves** (matches the KPI windows): T-0 morning
+   local-time sweep for the daily window (the flagship); Thu-Fri surge for
+   the weekend window; nightly Batch-API deep sweeps (24h-tolerant, −50%)
+   for week/month windows; T-48/24/6h recheck ONLY for events already in
+   the near window (cancellations cluster there). Per-timezone waves also
+   spread load so 50 metros never spike one hour.
+5. **Host-sharded politeness** — frontier grouped by host, so 50 metros of
+   Squarespace sites share one polite queue; no per-metro crawler fleets.
+6. **Cheapest-capable tier per stage** (charter cost rule 1): deterministic
+   parse → template → Haiku-class utility calls (classification, website
+   disambiguation) → certified frontier model ONLY for last-resort
+   extraction. The certified-model constraint is the one honest ceiling:
+   lowering it is a golden-exam event, never a config flip.
+
 ## 4. Phases, each with a proof gate (no phase "done" without its number)
 
 | Phase | Content | Proof gate |
