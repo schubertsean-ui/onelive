@@ -4,7 +4,8 @@ Public API. See docs/design/ONE_LIVE_TONIGHT_UI_CANON_v1.md §4 and the Master
 Design Brief lines 65, 151-163. This package generates AI-drafted (tier C)
 Spark Lines from an artist's OWN materials and VALIDATES them through the
 Foundry gate (faithfulness + independent judge + golden-set regression) — that
-validation is what satisfies "AI never publishes UNVALIDATED". Output is a
+validation is what satisfies the gate-custodied-publication invariant
+("AI never publishes unvalidated", reworded 2026-08-03). Output is a
 `candidate`; taking a validated line live is gate-custodied and
 founder-controlled (the auto-publish switch), outside this module.
 """

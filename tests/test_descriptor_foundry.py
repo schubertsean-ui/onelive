@@ -2,7 +2,7 @@
 
 Every case runs with scripted fake providers; no model is ever called. Proves
 the gate refuses fabrication and the pipeline emits candidate-only output that
-cannot publish ("AI never publishes" by construction).
+cannot publish (gate-custodied publication holds by construction).
 """
 from __future__ import annotations
 

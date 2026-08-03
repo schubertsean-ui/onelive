@@ -2,7 +2,8 @@
 
 Six candidates -> pairwise knockout vs the checklist -> fusion-of-N synthesis
 (style new, facts never) -> INDEPENDENT judge -> provenance stamp. This IS the
-validation that satisfies "AI never publishes UNVALIDATED" (UI Canon §3;
+validation that satisfies the gate-custodied-publication invariant
+("AI never publishes unvalidated" — UI Canon §3;
 kickoff: satisfied by the gate, not by not building) — no single-shot
 generation ever reaches a fan. The output is a `candidate`; whether a validated
 line goes live is a further, gate-custodied and founder-controlled step (the

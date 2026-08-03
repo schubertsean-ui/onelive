@@ -4,6 +4,17 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-03 — Code-armed sweep: gate-custodied wording into code comments (founder: "not wait for the tripwire")
+
+Dedicated code-armed PR (stacked on the records PR) executing R-070's remainder early at
+founder direction: 14 files' comments/docstrings now state the gate-custodied-publication
+invariant (vision provider/extract, enrich first_party/youtube, the five descriptor modules,
+trust_gate3, social `__init__`/meta_publisher, source_pathways, the descriptor-foundry test
+docstring) — comments only, zero behavior change; affected suites green (167 tests).
+Deliberately untouched: `publish_gate.py`'s two runtime refusal strings + their test matchers
+(behavior text, literally true for the human-custodied carousel surface) and the
+`make_model.py` figure line (next deliverable rebuild) — R-070 narrowed to exactly those.
+
 ## 2026-08-03 — Founder corrections: debono means the FULL model; charter invariant reworded to gate-custodied publication
 
 **Condensed debono run rejected (founder: "This is terrible, worse than nothing … I expect

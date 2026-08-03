@@ -13,7 +13,8 @@ reach a user via thousands of manual clicks, is a catch-22. This module fixes it
 by mirroring the ratified events policy (`worker/publish_policy.py`) for Spark
 Lines.
 
-THE MODEL. "AI never publishes UNVALIDATED" is satisfied by the VALIDATION GATE,
+THE MODEL. The gate-custodied-publication invariant ("AI never publishes
+unvalidated") is satisfied by the VALIDATION GATE,
 not by a human click (2026-07-31 canon: reviewer-gate-means-validation). A Spark
 Line's validation is the Descriptor Foundry: the mechanical faithfulness gate
 (every proper noun/number grounded in the artist's OWN materials — facts never

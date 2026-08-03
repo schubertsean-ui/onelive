@@ -11,7 +11,8 @@ Trust posture (mirrors social/carousel/generator.py): a trust or format
 violation raises DescriptorFoundryError and MUST propagate loud; an honest
 "we cannot make one" (no source material, no candidate survives) is None,
 never a fabricated stand-in (calm/honest-gaps law, UI Canon §1.7). The
-invariant this pipeline upholds is "AI never publishes UNVALIDATED": its
+invariant this pipeline upholds is gate-custodied publication ("AI never
+publishes unvalidated"): its
 output is gated by the Foundry (faithfulness + independent judge + golden-set
 regression) BEFORE it can be shown; going live remains gate-custodied and
 founder-controlled.
@@ -26,7 +27,8 @@ VALID_WORD_COUNTS = (3, 5, 7)
 
 # The Spark Line is VALIDATED here by the Foundry gate (faithfulness gate +
 # independent judge + golden-set regression). That validation is what satisfies
-# the invariant "AI never publishes UNVALIDATED" (UI Canon §3; kickoff: satisfied
+# the gate-custodied-publication invariant ("AI never publishes unvalidated" —
+# UI Canon §3; kickoff: satisfied
 # by the gate, NOT by not building). Whether a validated line actually goes live
 # to users is a further, gate-custodied and FOUNDER-CONTROLLED step (the
 # auto-publish switch) outside this module — so status starts at `candidate`.
