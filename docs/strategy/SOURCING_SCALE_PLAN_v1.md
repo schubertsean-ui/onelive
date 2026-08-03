@@ -383,3 +383,13 @@ on the plan; where they conflict with the sections above, the amendment wins.
 10. **Probe pilot before national claims:** the first P5 replay (a second
     Texas metro) reports the adapter-exception rate; >10% falsifies
     "zero forked code" and triggers redesign before further metros.
+11. **Website-resolution waterfall (founder-directed 2026-08-03: solve the
+    weak-search-index tradeoff, don't accept it; derived via the po battery
+    + how Foursquare/Yelp/Google actually resolve):** spine website
+    attributes → already-ingested venue URLs (TM `backfill_venue_contact`,
+    aggregator outlinks — every extracted event is a free resolution) →
+    domain-guess + fetch-verify (name+address match) → Wikidata official
+    website → search API (Brave) ONLY for the residual (<~10-15% of POIs;
+    per-metro search cost drops toward <$10) → concierge email as the
+    resolver of last resort. Search demoted from primary to rung 5: the
+    index-quality tradeoff now applies to a sliver, not the universe.
