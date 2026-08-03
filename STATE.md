@@ -118,6 +118,7 @@ Stage 3 for this records-only diff (per R-057's honest split: the file list is d
 - [S3:missing-cardinality-check] N/A — no query or joined dataset is added; matched by narration of counts (operators, harvest ideas) in the run doc.
 - [S3:missing-record-read-as-state] Bears directly, in the corrected direction: the stale charter shorthand persisted BECAUSE newer ratifications (2026-07-25, 2026-08-02, 2026-08-03) weren't folded back into CLAUDE.md — this change does the fold-in, with the ratification trail cited in the decision record.
 - [S3:swallowed-corrupt-data] The one corrupt byte found (a stray non-ASCII character in the run doc) was fixed in place before commit, not swallowed; no parser consumes these files.
+- [S3:condensed-thinking-run] This change IS the class's origin and counter-measure: the condensed run escaped to the founder, and the same change lands the full write-out, the Delivery rule, the ledger row, and the index row — the run doc is the artifact, not a claim about one.
 
 ## Session Contract #33 (2026-08-03, founder-directed — "search all prior sessions and memory and bring everything up to date; prevent stale or lack of updates from ever happening again")
 
