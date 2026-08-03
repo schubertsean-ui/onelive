@@ -4,6 +4,31 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-03 — PR #147 merged: /tonight card design Phase 1 (Session Contract #34)
+
+**Session type:** kickoff-directed — remaining-work item 1 (shepherd #147 per protocol).
+
+**Merged:** PR #147 "/tonight design Phase 1: on-card preview hook + real
+image-less cover" → master `c9bee60` (squash). Presentation-only card refresh on
+existing data: the type-aware contextual-preview cue ("Hear them" / "Watch a
+talk" / …, null = honest gap) on every card face, composed with the Spark Line
+slot per UI Canon §2 artist-zone order (who → focus → Spark Line → preview cue);
+image-less events get a real domain-hued labeled cover instead of a 6px sliver.
+`lib/trust.ts` untouched; no new fields; no AI-generated content.
+
+**Merge authority (proven, not asserted):** evaluator APPROVE — adversarial-review
+run 30777435394 on final head `af65656`, log line `adversarial_review: APPROVE
+(model=gpt-5.5)`, all four panel seats APPROVE; r1 head `3eab507` also green (run
+30769752807) → M1=1, zero REQUEST-CHANGES rounds. trust-gate green on the final
+head; `mergeable_state: clean`. Founder notified at merge. Evaluator nits: the
+standing R-002 visual-regression skip (Record-bound), re-surfaced at close.
+
+**Also this session:** full open ritual run and confirmed (reconcile exit 2
+UNVERIFIED — PR state verified via GitHub MCP instead; DB facts recorded
+UNVERIFIED, no Supabase connector; staleness_check PASS); disk-truth close-out
+(STATE marker → `c9bee60`, TODOS, Kaizen row, arc, handoff rewrite per
+`docs/ops/HANDOFF_STANDARD.md`).
+
 ## 2026-08-03 — Full reconciliation + anti-staleness guard (Session Contract #33)
 
 **Session type:** founder-directed reconciliation ("search all prior sessions and

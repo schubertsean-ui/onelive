@@ -1,7 +1,7 @@
 # 1LIVE — Next-Session Kickoff / Handoff Prompt (paste the block below to start the next session)
 
-Rebuilt 2026-08-03 at the close of the reconciliation + Spark-Line-merge session
-(Session Contract #33). It is deliberately self-contained and it points the next
+Rebuilt 2026-08-03 at the close of the PR #147 merge session (Session Contract
+#34). It is deliberately self-contained and it points the next
 session at DISK, not at anyone's memory of "where we left off." Two parts: the
 standing open ritual (unchanged discipline) and a verified CURRENT-STATE +
 REMAINING-WORK snapshot (rebuild this snapshot from the reconcile before trusting it).
@@ -43,6 +43,7 @@ acting on any part. Confirm in writing that you have read each in full:**
 - `docs/memory/gotchas/2026-08-03_conflation-is-a-violation.md` (state it precisely; never an impossible absolute).
 - `docs/memory/gotchas/2026-08-03_stale-record-belief.md` (a RECORD row can itself be stale — verify a claimed block before obeying it).
 - `docs/memory/decisions/2026-08-03_no-delays-and-non-user-facing-does-not-circle.md` (no timers; non-user-facing content does not circle).
+- `docs/memory/decisions/2026-08-03_handoff-standard-and-proof-discipline.md` (world-class handoffs; currency is proven, not asserted).
 
 **The exact failures you must NOT repeat (each already has a rule; this list is so you
 recognize the moment):**
@@ -66,22 +67,23 @@ recognize the moment):**
 
 ---
 
-**CURRENT STATE — verified 2026-08-03 (rebuild from the reconcile; do not trust this if the marker is stale):**
-- **The product is LIVE.** master `3610a5a`; PR #146 = public go-live; `/tonight` serves REAL CAPCOG (Austin ten-county) events behind the resolved gate (`NEXT_PUBLIC_AUTH_DISABLED` public; `/ops` gated; Clerk stealth path intact). Production should front **1Live.co** (GoDaddy, founder-held) before customers see it — DNS→Vercel is the remaining go-live step (R-065).
+**CURRENT STATE — verified 2026-08-03 at Contract #34 close (rebuild from the reconcile; do not trust this if the marker is stale). Proofs at write time: `staleness_check` PASS; marker == `git rev-parse origin/master` == `c9bee60`; PR state via GitHub MCP; DB facts UNVERIFIED (no Supabase connector — do not assert row counts):**
+- **The product is LIVE.** master `c9bee60`; PR #146 = public go-live; `/tonight` serves REAL CAPCOG (Austin ten-county) events behind the resolved gate (`NEXT_PUBLIC_AUTH_DISABLED` public; `/ops` gated; Clerk stealth path intact). Production should front **1Live.co** (GoDaddy, founder-held) before customers see it — DNS→Vercel is the remaining go-live step (R-065).
 - **Pipeline:** `fetch → extract → gate` auto; **promote stays human-custodied** (orchestrator does not import promote — AI never publishes). **Extraction UNLOCKED + certified** (`EXTRACTION_THRESHOLD_RATIFIED = True`; R-013 resolved). Migrations through **0019**.
 - **Sources:** Ticketmaster live; SeatGeek/Eventbrite built, dormant on missing creds (R-029); structured importer (ICS/JSON-LD/Localist); Socrata gov → `venue_truth`; AI crawl for the long tail.
-- **Consumer surface:** `/tonight` feed + filters + per-event detail route + share + music links + venue contact; **Spark Line content layer merged (#148)** — Descriptor Foundry gate + store + card render, zero-spend/candidate-only/publishes-nothing.
+- **Consumer surface:** `/tonight` feed + filters + per-event detail route + share + music links + venue contact; **Spark Line content layer merged (#148)** — Descriptor Foundry gate + store + card render, zero-spend/candidate-only/publishes-nothing; **card design Phase 1 merged (#147, 2026-08-03)** — on-card contextual-preview hook + real image-less domain-hued cover, composed with the Spark Line slot (UI Canon §2 order).
 - **Ratified canon (2026-07-29→08-02):** product vision & principles; 18-genre taxonomy (wired); `/tonight` UI canon; truth-states v2 (six-state — pipeline still 4-state, see R-064); 23 supply segments; engagement invariants-vs-hypotheses; 1Live rebrand (user-facing web done; infra names kept). Process posture: ship product, reviewer scoped to user-facing harm, construction_gate/kaizen_trends advisory.
 - **Disk-truth guard is live:** `tools/staleness_check.py` (blocking in validate) fails if STATE.md drifts >20 commits behind HEAD.
 
 **REMAINING WORK (highest-priority first; all UNBLOCKED unless marked). Take the top item, tell the founder the ONE next step, then take it:**
-1. **PR #147** (card design) — shepherd to merge per protocol.
-2. **Spark Line take-live path** (queued, zero-spend) — the founder-controlled publish step that lights up a human-authored tier-A/B line (no model call) + the ✳ tap-to-dismiss sheet. (The tier-C generation job at scale is FOUNDER-CRUCIAL: model spend — cap first.)
-3. **R-064** — implement truth-states v2 (six states + issue flags) in the running pipeline: `worker/confidence.py`, `worker/gating.py`, `tests/test_gates.py`, public display, and the CLAUDE.md confidence-states paragraph. Trust-adjacent → evaluator. (CLAUDE.md IS editable — the freeze belief was obsolete.)
-4. **R-065 remainder** — wire 1Live.co DNS (GoDaddy) → Vercel at the deploy session; optional STATE.md/CLAUDE.md brand-string cleanup.
-5. **Wineries/breweries/distilleries ingestion source** (founder-directed) — needs verified event-calendar URLs (founder-supplied or an open-network session; NEVER fabricate a URL). Then per-event category mapping.
-6. **Open-PR hygiene** — ~13 older open PRs (#33,#34,#47,#50,#55,#56,#75,#76,#81,#83–#86,#108–#110,#112) likely superseded — a founder close-or-revive pass (agents don't close PRs unilaterally).
+1. **Spark Line take-live path** (queued, zero-spend) — the ops surface calling the already-built gate-custodied `worker/descriptor/publish.py` (`approve_candidate`/`reject_candidate`) + the ✳ tap-to-dismiss sheet (§4). Before ARMING the approval surface, R-066's trigger fires: add the Foundry-gate provenance assertion to `approve_candidate`. (The tier-C generation job at scale is FOUNDER-CRUCIAL: model spend — cap first; R-067 also gates that arming.)
+2. **R-064** — implement truth-states v2 (six states + issue flags) in the running pipeline: `worker/confidence.py`, `worker/gating.py`, `tests/test_gates.py`, public display, and the CLAUDE.md confidence-states paragraph. Trust-adjacent → evaluator. (CLAUDE.md IS editable — the freeze belief was obsolete.)
+3. **R-065 remainder** — wire 1Live.co DNS (GoDaddy) → Vercel at the deploy session; optional STATE.md/CLAUDE.md brand-string cleanup.
+4. **Wineries/breweries/distilleries ingestion source** (founder-directed) — needs verified event-calendar URLs (founder-supplied or an open-network session; NEVER fabricate a URL). Then per-event category mapping.
+5. **Open-PR hygiene** — ~13 older open PRs (#33,#34,#47,#50,#55,#56,#75,#76,#81,#83–#86,#108–#110,#112) likely superseded — a founder close-or-revive pass (agents don't close PRs unilaterally). #145 (user-journey canon, draft) is the one other active-frontier PR.
+6. **R-002 visual-regression baselines** — the trigger HAS fired (deployed URL exists; the gate still SKIPs; #147's evaluator nits flagged it on a visual change). Capture light+dark baselines per the Step-9 design-acceptance TODOS item so the gate can actually fire.
 7. **RECORD.md OPEN rows** — ~50; many are "wired but dormant on founder-crucial creds" (R-026/R-029/R-061) or measurement gaps (R-046/R-042). Work the ones your contract touches.
+(DONE since the last rewrite: **#147 card design MERGED 2026-08-03** at evaluator APPROVE run 30777435394 + trust-gate green on final head af65656 → master c9bee60, Contract #34.)
 
 **Open founder decisions carried forward (HOLD; do not build past them):**
 - **Spark Line free-lane grounding** — resolve identity via MusicBrainz + Wikidata (free, no key) and use the act's OWN resolved materials as grounding for the tier-C line. Awaiting: **go / hold / amend.**
