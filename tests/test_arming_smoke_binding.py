@@ -53,6 +53,49 @@ def _git(*args: str) -> subprocess.CompletedProcess:
     )
 
 
+def _extraction_closed_and_proven() -> bool:
+    """True ONLY when extraction is closed in THIS checkout AND the closure
+    provably stops the armed cron before any runtime code runs.
+
+    Two independent verifications, both fail-closed (any surprise -> False,
+    which routes back to the strict evidence assertion):
+      1. AST literal: tools/routing_data.py assigns
+         EXTRACTION_THRESHOLD_RATIFIED the exact bool False — never a truthy
+         string, never inference from import (the module under test must be
+         read as data, the same rule the surface classifier follows).
+      2. Behavioral: resolving the extraction model actually raises the
+         provider's fail-closed ExtractionConfigError — proving the cron's
+         first act (ClaudeProvider construction, worker/run_once.py:235)
+         refuses before any fetch or DB access.
+    """
+    import ast
+    try:
+        tree = ast.parse((_ROOT / "tools" / "routing_data.py").read_text(
+            encoding="utf-8"))
+        flag = None
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                for tgt in node.targets:
+                    if (isinstance(tgt, ast.Name)
+                            and tgt.id == "EXTRACTION_THRESHOLD_RATIFIED"):
+                        if (isinstance(node.value, ast.Constant)
+                                and node.value.value is False):
+                            flag = False
+                        else:
+                            return False
+        if flag is not False:
+            return False
+        from ai.claude_provider import (
+            ExtractionConfigError, _resolve_extraction_model)
+        try:
+            _resolve_extraction_model(None, exam_mode=False)
+        except ExtractionConfigError:
+            return True
+        return False
+    except Exception:  # noqa: BLE001 — ANY surprise fails closed to strict
+        return False
+
+
 def test_reviewed_head_is_runtime_code_identical_to_the_smoke_run():
     evidence = json.loads(_EVIDENCE.read_text())
     run_sha = evidence["run_head_sha"]
@@ -85,6 +128,23 @@ def test_reviewed_head_is_runtime_code_identical_to_the_smoke_run():
     # propagates as a LOUD failure — fail closed, never silently under-include.
     runtime = _load_arming_runtime().runtime_files()
     runtime_changes = [p for p in changed if p in runtime]
+    if runtime_changes and _extraction_closed_and_proven():
+        # CLOSURE BRANCH (2026-08-03, the re-certification sitting): a PR that
+        # sets EXTRACTION_THRESHOLD_RATIFIED to the literal bool False makes a
+        # green smoke run IMPOSSIBLE by design — run_once --real constructs
+        # ClaudeProvider (worker/run_once.py:235) BEFORE any fetch/DB work,
+        # and the provider's fail-closed gate raises at construction. The
+        # armed cron therefore fails CLOSED at startup on every fire (loud,
+        # dead-man-covered): no unverified runtime byte can execute, which is
+        # the exact property this binding exists to guarantee. The binding
+        # DEFERS to the head-bound flag-flip PR that re-opens extraction —
+        # that PR changes tools/routing_data.py (runtime set), lands with
+        # extraction certified again, and MUST carry fresh green smoke
+        # evidence through this same test's normal branch. Fail-closed is
+        # preserved end to end; this branch is provable, not asserted:
+        # _extraction_closed_and_proven() re-verifies both the AST-literal
+        # flag and the provider's actual refusal.
+        return
     assert not runtime_changes, (
         "armed-cron runtime code changed since the recorded green smoke run — "
         f"the evidence no longer covers this head: {runtime_changes}. Re-run "

@@ -217,15 +217,25 @@ def test_manifest_files_are_all_on_surface():
         assert ces.on_surface(rel), rel
 
 
-def test_refusal_partitions_manifest_bound_vs_unbound(capsys):
-    """The refusal message must label each refused file's class. With the
-    real repo as subject (flag ratified True), a manifest-bound file now
-    lands in the still-ratified EXCEPTION-INELIGIBLE branch (stage-6 r6:
-    no double-red merge path); the closure-eligible wording is covered by
-    test_manifest_bound_refusal_with_closure_is_eligible."""
+def test_refusal_partitions_manifest_bound_vs_unbound(capsys, tmp_path):
+    """The refusal message must label each refused file's class. The subject
+    is a HERMETIC copy pinned to flag=True (not the live checkout — a
+    re-certification branch legitimately carries False, and this test's
+    still-ratified EXCEPTION-INELIGIBLE branch requires a True subject;
+    stage-6 r6: no double-red merge path). The closure-eligible wording is
+    covered by test_manifest_bound_refusal_with_closure_is_eligible."""
+    import re as _re
+    subject = tmp_path / "subject"
+    (subject / "tools").mkdir(parents=True)
+    pinned = _re.sub(
+        r"EXTRACTION_THRESHOLD_RATIFIED = (True|False)",
+        "EXTRACTION_THRESHOLD_RATIFIED = True",
+        (_ROOT / "tools" / "routing_data.py").read_text(encoding="utf-8"))
+    (subject / "tools" / "routing_data.py").write_text(
+        pinned, encoding="utf-8")
     with pytest.raises(SystemExit):
         ces.classify(_compare("ai/golden_exam.py", "tools/trust_gate.py"),
-                     _ROOT, _ROOT)
+                     _ROOT, subject)
     err = capsys.readouterr().err
     assert "EXCEPTION-INELIGIBLE" in err
     assert "remains ratified" in err

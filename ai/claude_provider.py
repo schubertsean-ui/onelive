@@ -242,19 +242,32 @@ class ClaudeProvider(AIProvider):
             "input_schema": schema_json,
         }
 
+        # The system prompt stays a plain STRING internally (provenance hashing
+        # in _stamp encodes it); only the API call wraps it in a content block
+        # so the stable ~2,950-token prefix carries a cache breakpoint. Cache
+        # reads bill ~0.1x input, writes 1.25x with a 5-minute TTL — the
+        # multi-event fan-out makes consecutive same-prefix calls the norm, so
+        # this is the textbook caching workload (efficiency design 2026-08-03,
+        # docs/strategy/research/2026-08-03_efficiency_layer_design.md #3).
+        sys_text = system_prompt or EXTRACTION_SYSTEM_PROMPT
         last_exc = None
         for attempt in range(1, self.max_retries + 1):
             try:
                 resp = client.messages.create(
                     model=self.model,
                     max_tokens=self.max_tokens,
-                    system=system_prompt or EXTRACTION_SYSTEM_PROMPT,
+                    system=[{
+                        "type": "text",
+                        "text": sys_text,
+                        "cache_control": {"type": "ephemeral"},
+                    }],
                     tools=[tool],
                     tool_choice={"type": "tool", "name": "record_event_extraction"},
                     messages=[{"role": "user", "content": text}],
                 )
                 return self._stamp(self._extract_tool_input(resp),
-                                   used_prompt=system_prompt or EXTRACTION_SYSTEM_PROMPT)
+                                   used_prompt=sys_text,
+                                   usage=getattr(resp, "usage", None))
             except Exception as exc:  # noqa: BLE001 — classified below
                 if self._is_config_error(exc):
                     # Structural failure (e.g. unknown model, malformed schema):
@@ -371,13 +384,20 @@ class ClaudeProvider(AIProvider):
             data["title"] = None
         return data
 
-    def _stamp(self, data: Optional[dict], used_prompt: Optional[str] = None) -> Optional[dict]:
+    def _stamp(self, data: Optional[dict], used_prompt: Optional[str] = None,
+               usage=None) -> Optional[dict]:
         """Attach extraction provenance so the candidate is re-verifiable.
 
         `used_prompt` is the system prompt that actually produced this
         output (r15 nit: exam runs can inject a subject prompt via
         --prompt-file, and provenance must hash what RAN, not what this
-        checkout's ai/prompts.py happens to contain)."""
+        checkout's ai/prompts.py happens to contain).
+
+        `usage` is the SDK response's usage object (or None). Token counts are
+        TELEMETRY: they feed the cost ledger (charter §14.2) and the
+        cache-hit assertion, and a missing/odd-shaped usage object must never
+        fail an otherwise-good extraction — every field is getattr-defaulted,
+        never required."""
         if data is None:
             return None
         data = self._decode_entities(data)
@@ -393,6 +413,15 @@ class ClaudeProvider(AIProvider):
                 (used_prompt or EXTRACTION_SYSTEM_PROMPT).encode("utf-8")).hexdigest(),
             "extracted_at": datetime.now(timezone.utc).isoformat(),
         }
+        if usage is not None:
+            data["_usage"] = {
+                "input_tokens": getattr(usage, "input_tokens", None),
+                "output_tokens": getattr(usage, "output_tokens", None),
+                "cache_read_input_tokens": getattr(
+                    usage, "cache_read_input_tokens", None),
+                "cache_creation_input_tokens": getattr(
+                    usage, "cache_creation_input_tokens", None),
+            }
         if self.exam_mode:
             # Exam output must be unmistakable as exam output — if a row with
             # this marker ever appears in the candidate store, something has
