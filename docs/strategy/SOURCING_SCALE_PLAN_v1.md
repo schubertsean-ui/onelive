@@ -171,9 +171,47 @@ National = P5 × 50 metros ≈ a year of background compute (~$10k) once P1-P4
 hold in Austin. Global adds boundary-resolver kinds + locale fields per the
 market registry — data, not architecture.
 
-## 5. KPI calibration — [PENDING: empirical per-window denominator research
-lands here; provisional ≥50:1 per window stands as the founder directive
-until replaced by measured targets.]
+## 5. KPI calibration — empirical results (FOUNDER-RATIFY the retarget)
+
+The calibration research (full report in session records, sources cited)
+measured the real Austin universe per window and stress-tested the ratio
+itself. Findings:
+
+- **TM per window, Austin (from our own 1,317-row import + Songkick decay
+  shape):** today ~8-20 · weekend ~35-75 · week ~70-130 · month ~300-450.
+- **Total real events, deduped:** week ~2,500-6,000 (central ~3,500-4,500);
+  today ~250-600 weekday / 500-1,000 Fri-Sat; month ~11,000-22,000.
+- **The honest ratio range: ~20:1-60:1 near-term.** 50:1 sits at the
+  optimistic edge (≈ what near-total coverage produces). **100:1 is NOT
+  supported** — reachable only via banned counting (uncollapsed recurrence,
+  add-ons, no dedup) — canonizing it would incentivize exactly the inflation
+  that ruins event datasets (PredictHQ deletes ~45% of raw aggregate).
+- **The ratio fails four metric-design tests:** noisy uncontrolled
+  denominator; Goodhart-gameable numerator; doesn't measure user value;
+  no ground truth. The search-engine literature (Lawrence & Giles coverage
+  studies) gives the right template: measure RECALL AGAINST REALITY.
+
+**Recommended KPI stack (replaces ratio-as-target; ratio becomes a reported
+"coverage multiple" context stat):**
+- **North star: Verified Coverage@Window** — trust-weighted share of all
+  real public events in (market, window) present with correct venue+time,
+  measured at window start (T-0). Flagship cut: **Coverage@Daily** (tonight
+  is the product). Ground truth: monthly hand-census of one random
+  neighborhood-window + continuous capture-recapture across independent
+  source families.
+- **Guardrails:** unique-supply share (% found nowhere else — the moat
+  metric); false-event rate (precision twin, zero-escape bar); discovery
+  lead time (% live by T-24h); per-segment coverage floors (no
+  cross-segment averaging).
+- **Honest-count canon:** occurrence-counted recurrence (weekly trivia = 1
+  per day-window, ~4 per month-window, never 52×); add-ons/parking/VIP
+  never counted; series-collapsed twin always published; all counts at T-0.
+- **Staged targets:** now ≈2-5% Coverage@Daily → M1 (catalog flowing)
+  25-40% → M2 (~1,000 sources) 50-70% → M3 (~5,000 sources) **≥80%
+  trust-weighted, ≥40% unique supply, ≥90% live by T-24h, no segment <50%.**
+  The TM multiple that falls out at M3 is ~30-60:1 — the founder's 50:1
+  instinct is what near-total coverage LOOKS like; it becomes the
+  consequence, not the target.
 
 ## 6. Founder-crucial asks (consolidated; nothing proceeds on these without you)
 
