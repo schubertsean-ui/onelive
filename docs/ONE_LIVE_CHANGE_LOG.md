@@ -4,6 +4,32 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-03 — Founder corrections: debono means the FULL model; charter invariant reworded to gate-custodied publication
+
+**Condensed debono run rejected (founder: "This is terrible, worse than nothing … I expect
+when I say debono for the entire Po model to be run with all the reverse and random and
+invert etc - and all the hats!").** The GeoLibre evaluation's battery had been generated and
+worked but DELIVERED condensed, with a completeness claim standing in for the write-out, and
+no hat sequence. Redone in full: `docs/strategy/research/2026-08-03_geolibre_debono_full_run.md`
+— Step 0 assumptions, every operator P1–P8.6 with provocations written out, ≥2 movement
+techniques per provocation, a 12-idea harvest table traceable by provocation ID, and the full
+sequential hat run (Blue frame → White facts → Green battery → Yellow → generator-side Black
+[no adversarial authority — the real Black seat is the PR's non-Claude review] → devil's
+advocate → conflict-preserving Blue merge; Red = founder). New standing rule codified in
+`docs/skills/po_provocation.md` (Delivery rule) + decision record
+`docs/memory/decisions/2026-08-03_debono-means-full-model.md`; Kaizen: ESCAPED row, new class
+`condensed-thinking-run`, + an M6 harvest row.
+
+**Charter invariant reworded at founder direction ("Relive = remove").** The stale shorthand
+"AI never publishes" in CLAUDE.md (prime directive 1, pipeline note, Claude-API stack line) is
+replaced by the ratified nuanced formulation: **gate-custodied publication** — AI output
+reaches users ONLY through the validation gates, promotion human-custodied or
+earned-confidence AUTO behind founder-flipped fail-closed flags; AI is structurally everywhere
+and the invariant is CUSTODY, never absence. MECHANICS UNCHANGED (orchestrator still cannot
+import promote; all flags stay fail-closed and founder-flipped; no threshold moves). Decision
+record `docs/memory/decisions/2026-08-03_invariant-wording-gate-custody.md`. Historical
+records keep the original phrase, append-only.
+
 ## 2026-08-03 — GeoLibre evaluated; draw-to-search UX prototype bench RATIFIED into the design formality
 
 **GeoLibre critical evaluation (founder-requested, po battery per `docs/skills/po_provocation.md`).**
