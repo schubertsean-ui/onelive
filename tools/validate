@@ -292,27 +292,30 @@ run_advisory "kaizen_trends" bash -c '"$0" tools/kaizen_trends.py || exit 3' "$P
 # The `|| exit 3` adapts the tool's exit-1 to run_advisory's findings contract.
 run_advisory "construction_gate" bash -c '"$0" tools/construction_gate.py || exit 3' "$PY"
 
-# 8. Visual regression — needs a booted app + baselines; cannot run headless
-#    here. Detect and SKIP-LOUD (never a silent pass), per the item-15 harness.
+# 8. Visual regression — REAL when this environment can run it (R-002 resolved
+#    2026-08-03: baselines are committed and tools/visual_check.sh boots
+#    /tonight in SYNTHETIC QA fixture mode — deterministic data + frozen clock —
+#    captures with headless Chromium, and pixel-diffs against the baselines;
+#    the authoritative venue is .github/workflows/visual-regression.yml on
+#    every web-touching PR). Environments lacking a Chromium or an installed
+#    web/node_modules SKIP LOUD, bound to the OPEN record row (R-068) —
+#    never a silent pass.
 echo "── visual_regression ──"
-VR_NOTE="app not running / baselines absent"
-# Surface the Record binding at FIRST emission (evaluator r3 nit) — computed,
-# never hardcoded, so this message can't drift from the register.
-VR_RID="$("$PY" tools/skip_record_binding.py visual_regression 2>/dev/null || echo 'NO OPEN RECORD ROW — this skip will FAIL below')"
-if [ -n "${ONELIVE_APP_URL:-}" ]; then
-  echo "[INFO] ONELIVE_APP_URL set (${ONELIVE_APP_URL}). Run visual_regression.py capture-and-compare manually per docs/../tests/visual_baselines/README.md."
-  echo "[SKIP-loud] validate does not auto-boot the app; visual regression must be run against a live URL with committed baselines. (Record: ${VR_RID})" >&2
-  record SKIP "visual_regression" "run manually vs live URL"
+VR_CHROMIUM="${ONELIVE_CHROMIUM:-/opt/pw-browsers/chromium}"
+if { [ -x "$VR_CHROMIUM" ] || command -v chromium >/dev/null 2>&1 || command -v chromium-browser >/dev/null 2>&1; } \
+    && [ -d "$REPO_ROOT/web/node_modules" ] \
+    && ls "$REPO_ROOT"/tests/visual_baselines/*.png >/dev/null 2>&1; then
+  run_check "visual_regression" bash tools/visual_check.sh
 else
-  echo "[SKIP-loud] visual_regression: ONELIVE_APP_URL not set and no booted app — SKIPPED, NOT passed. (Record: ${VR_RID})" >&2
-  echo "            To run: start the web app, set ONELIVE_APP_URL, then (name is positional," >&2
-  echo "            --capture-cmd is required and needs {url}/{out} placeholders):" >&2
-  echo "            python tools/visual_regression.py capture-and-compare ops_inbox \\" >&2
-  echo "                --url \$ONELIVE_APP_URL/ops \\" >&2
-  echo "                --capture-cmd 'playwright screenshot {url} {out} --viewport-size=1280,800'" >&2
-  record SKIP "visual_regression" "$VR_NOTE"
+  # Surface the Record binding at FIRST emission (evaluator r3 nit) — computed,
+  # never hardcoded, so this message can't drift from the register.
+  VR_RID="$("$PY" tools/skip_record_binding.py visual_regression 2>/dev/null || echo 'NO OPEN RECORD ROW — this skip will FAIL below')"
+  echo "[SKIP-loud] visual_regression: no Chromium and/or web/node_modules/baselines in this environment — SKIPPED, NOT passed. (Record: ${VR_RID})" >&2
+  echo "            To run: install web deps (cd web && npm ci), ensure a Chromium binary" >&2
+  echo "            (ONELIVE_CHROMIUM=/path/to/chromium), then: bash tools/visual_check.sh" >&2
+  record SKIP "visual_regression" "no browser / web deps in this env"
+  echo
 fi
-echo
 
 # ---- Skip→Record binding (mechanical, added 2026-07-18) ----------------------
 # Class fixes: skip-report-missing-record-citation (founder-caught) and the

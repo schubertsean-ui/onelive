@@ -10,3 +10,4 @@ node_modules/
 var/
 .validate-evidence.txt
 .claude/worktrees/
+.vr-server.log

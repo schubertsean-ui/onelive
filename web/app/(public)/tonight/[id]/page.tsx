@@ -26,6 +26,9 @@ import {
 import ShareButton from "./ShareButton";
 import { shareCaveat } from "../../../../lib/share";
 import { contextualPreview } from "../../../../lib/preview";
+import { qaFixtureEventById, qaFixturesEnabled } from "../../../../qa/fixtures";
+import { domainLabel } from "../../../../lib/domains";
+import { externalAriaLabel, handoffCaption } from "../../../../lib/nav";
 
 // Server component — reads ONE event at request time. Deliberately NOT cached:
 // the same freshness rule the feed uses, for the same reason (an event that
@@ -43,6 +46,9 @@ export async function generateMetadata(
 ) {
   const fallback = { title: "A show — 1LIVE" };
   try {
+    // QA fixture mode makes no network reads anywhere — the generic title is
+    // the honest metadata for a synthetic page (never shared/unfurled anyway).
+    if (qaFixturesEnabled()) return fallback;
     if (!supabaseConfigured()) return fallback;
     const { id } = await params;
     const route = routeForEventId(id);
@@ -89,6 +95,11 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="flow">
       <div className="wrap">
+        {qaFixturesEnabled() ? (
+          <div className="qanote" role="note">
+            SYNTHETIC QA FIXTURES — fictional events for rendering checks, not real listings
+          </div>
+        ) : null}
         <div className="mast">
           <h1>
             <Link className="back" href="/tonight">
@@ -112,19 +123,27 @@ export default async function EventDetailPage(
   // rejects the empty and prefix-only cases.
   const { id } = await params;
 
-  const configured = supabaseConfigured();
+  // QA fixture mode (web/qa/fixtures.ts): serve the synthetic row, no network.
+  // The same resolveDetailView branch logic runs on it, so the fixture page
+  // exercises the real render path, not a parallel one.
+  const qa = qaFixturesEnabled();
+  const configured = qa || supabaseConfigured();
   const route = configured ? routeForEventId(id) : null;
 
   let event: LicensedEvent | null = null;
   let error: string | null = null;
   if (route) {
-    try {
-      event = route.kind === "promoted"
-        ? await fetchPromotedEventById(route.id)
-        : await fetchLicensedEventById(route.id);
-    } catch (e) {
-      // Loud, never an empty page dressed as "no such event".
-      error = e instanceof Error ? e.message : "Could not load this event";
+    if (qa) {
+      event = route.kind === "licensed" ? qaFixtureEventById(route.id) : null;
+    } else {
+      try {
+        event = route.kind === "promoted"
+          ? await fetchPromotedEventById(route.id)
+          : await fetchLicensedEventById(route.id);
+      } catch (e) {
+        // Loud, never an empty page dressed as "no such event".
+        error = e instanceof Error ? e.message : "Could not load this event";
+      }
     }
   }
 
@@ -239,7 +258,8 @@ export default async function EventDetailPage(
             {map ? (
               <>
                 <br />
-                <a href={map} target="_blank" rel="noopener noreferrer">
+                <a href={map} target="_blank" rel="noopener noreferrer"
+                  aria-label={externalAriaLabel("Open the address in maps", map)}>
                   {event_.venue_address ?? "Open in maps"} ↗
                 </a>
               </>
@@ -253,7 +273,10 @@ export default async function EventDetailPage(
             <>
               <dt>Kind</dt>
               <dd>
-                {event_.category}
+                {/* The human label, not the raw slug — the card already renders
+                    domainLabel; the detail page must not drift ("live-music"
+                    was reaching readers here). */}
+                {domainLabel(event_.category)}
                 {event_.subsegment ? <span className="dsub"> · {event_.subsegment}</span> : null}
               </dd>
             </>
@@ -269,7 +292,8 @@ export default async function EventDetailPage(
                   <a className="dcall" href={call}>📞 Want to call and confirm?</a>
                 ) : null}
                 {website ? (
-                  <a href={website} target="_blank" rel="noopener noreferrer">
+                  <a href={website} target="_blank" rel="noopener noreferrer"
+                    aria-label={externalAriaLabel("Venue website", website)}>
                     Venue website ↗
                   </a>
                 ) : null}
@@ -281,9 +305,11 @@ export default async function EventDetailPage(
         {/* Tickets + Share. Share is always offered (it needs nothing but a
             link); Tickets appears only when the row carries a real ticket URL. */}
         <div className="dactions">
+          {/* TERMINAL handoff (nav canon §8): same-tab, honestly labeled with
+              where it finishes — Back returns here, never a stranded tab. */}
           {tix ? (
-            <a className="dtix" href={tix} target="_blank" rel="noopener noreferrer">
-              Tickets ↗
+            <a className="dtix" href={tix} aria-label={externalAriaLabel("Tickets", tix)}>
+              Tickets ↗{handoffCaption(tix) ? <span className="dhand"> · {handoffCaption(tix)}</span> : null}
             </a>
           ) : null}
           <ShareButton event={event_} />
@@ -296,7 +322,8 @@ export default async function EventDetailPage(
           <div className="dlisten">
             <span className="dlisten-l">{preview.label}:</span>
             {preview.links.map((l) => (
-              <a key={l.service} href={l.url} target="_blank" rel="noopener noreferrer">
+              <a key={l.service} href={l.url} target="_blank" rel="noopener noreferrer"
+                aria-label={externalAriaLabel(`${preview.label} on ${l.service}`, l.url)}>
                 {l.service} ↗
               </a>
             ))}

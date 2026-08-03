@@ -6,6 +6,14 @@
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { authProviderActive } from "../lib/auth";
+// Monitoring GO (founder-ratified 2026-08-03, decision record
+// 2026-08-03_frictionless-nav-geg-monitoring-ratified.md): field CWV
+// (SpeedInsights → real-user LCP/INP/CLS, the R-070 trigger) + aggregate
+// page analytics. Both are NO-OPs until the founder enables them in the
+// Vercel dashboard; neither identifies users (aggregate, cookieless) —
+// consistent with the surveillance-free measurement stance (nav canon §2A).
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata = {
   // Honest by construction (evaluator #144): no completeness claim ("everything")
@@ -24,7 +32,11 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const shell = (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <SpeedInsights />
+        <Analytics />
+      </body>
     </html>
   );
   return authProviderActive() ? <ClerkProvider>{shell}</ClerkProvider> : shell;

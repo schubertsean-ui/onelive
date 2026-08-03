@@ -148,7 +148,10 @@ def _run_bind_loop(*result_rows: str) -> tuple[str, str]:
 def test_loop_binds_recorded_environmental_skip():
     out, _ = _run_bind_loop("SKIP\tvisual_regression\tapp not running")
     assert "ANY_FAIL=0" in out
-    assert "ROW:SKIP|visual_regression|app not running — R-002" in out
+    # R-002 resolved 2026-08-03 (baselines + CI gate live); the browserless-env
+    # skip now binds to the narrower OPEN row R-068 — proving the binding
+    # follows the register, not a hardcoded id.
+    assert "ROW:SKIP|visual_regression|app not running — R-068" in out
 
 
 def test_loop_fails_unrecorded_environmental_skip():
