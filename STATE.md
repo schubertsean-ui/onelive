@@ -15,9 +15,9 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 {
   "git": {
     "branch": "master",
-    "head": "c9bee60"
+    "head": "944e4a2"
   },
-  "reconciled_through_commit": "c9bee60bc33cdc910a0358d340c1e83ce25eb373",
+  "reconciled_through_commit": "944e4a2029236dae8c310fbde72b27b54d3953e2",
   "reconciled_at": "2026-08-03T04:00:00+00:00",
   "reconciled_by": "session 2026-08-03; git verified locally, PR state verified via GitHub API (no gh/DB connector — DB row counts remain UNVERIFIED). Marker advanced to c9bee60 after PR #147 (card design) merged; the open PR #150 carries the staleness-guard v2 + the Spark Line auto-publish fix. Bookkeeping PRs #30/#33/#55 closed this session.",
   "prs_note": "merged history runs through PR #147 (/tonight card design Phase 1, merged 2026-08-03 = master c9bee60; #149 reconciliation+guard, #148 Spark Line, #146 go-live earlier). Open (verified via GitHub 2026-08-03): #150 (guard v2 + Spark Line auto-publish, this branch), #145 (user-journey canon); older/likely-superseded #34,#47,#50,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112 (founder close-or-revive; #32 is the reviewer-evidence feature = revive, not bookkeeping).",
@@ -34,6 +34,20 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 > **Ground-truth block (2026-08-03):** refreshed this session. `git.head`/`reconciled_through_commit` = `d22e9ce` (master, PR #146 public go-live), verified locally. PR state verified via the GitHub API (no `gh` binary in this sandbox; `session_reconcile.py` still reports UNVERIFIED for the gh/DB legs — that is an environment limitation, not a contradiction). DB row counts (`event`/`event_candidate`/…) remain UNVERIFIED — no Supabase connector in this session; do not treat any row count as re-confirmed. The `reconciled_through_commit` marker is read by `tools/staleness_check.py` (blocking in `tools/validate`), which fails the build the moment `origin/master` advances past the last commit that updated STATE.md — **zero tolerance, no "N commits" fudge factor** (founder-caught 2026-08-03: "20?" is arbitrary; a world-class guard ties to the invariant, not a number). So this block cannot silently rot again: every change-set that lands on master must update STATE.md.
 
 ## Where we are (2026-08-03 — RECONCILED)
+
+**2026-08-03 evening addendum (recert-record PR):** three merges landed today
+after the morning reconcile — #147 (card design P1, `c9bee60`), then the
+sourcing-engine session's **#150** (`85cf2f7`: three-layer sourcing model;
+auto-promote engine behind `AUTO_PUBLISH_RATIFIED` OFF; JS-render fallback;
+scale plan v1+v1.1 with external red-team adjudication; five research
+reports; §6a.6) and **#153** (`944e4a2`: prompt caching + usage capture in
+the certified provider; **extraction CLOSED** — `EXTRACTION_THRESHOLD_
+RATIFIED = False` pending the three-step re-open). The founder's attended
+exam PASSED on `944e4a2` (run 30846117185: hallucination 0.0063, recall
+0.9782) — the certification record + this marker update land together in
+the recert-record PR; the head-bound flag-flip PR (step 3) follows. Note:
+the pipeline lines below describing extraction as UNLOCKED describe the
+morning state; extraction is CLOSED until the flip merges.
 
 **The product is LIVE.** Master `d22e9ce` (PR #146) is a public go-live: the consumer `/tonight` site serves REAL CAPCOG (Austin ten-county) events behind the resolved auth gate (`NEXT_PUBLIC_AUTH_DISABLED` public mode; `/ops` still gated; Clerk stealth path intact for allowlist). Production is intended to front the founder-held **1Live.co** domain (GoDaddy) before customers see it — DNS→Vercel wiring is the remaining go-live step (R-065).
 
