@@ -1,5 +1,102 @@
 # ONE LIVE — CHANGE LOG
 
+> Brand note: the product is now **1Live** (rebrand 2026-08-02). Historical
+> entries below keep their original "OneLive"/"ONE LIVE" text — they are
+> append-only records of what was done when the brand was OneLive.
+
+## 2026-08-03 — Full reconciliation + anti-staleness guard (Session Contract #33)
+
+**Session type:** founder-directed reconciliation ("search all prior sessions and
+memory and bring everything up to date; prevent stale or lack of updates from
+ever happening again; confirm you have read the entire repo and canon").
+
+**Why it was needed.** The disk-truth docs had drifted badly from git: STATE.md's
+narrative was frozen at 2026-07-22, this change log's newest dated section was
+2026-07-12, and no session arc had been written since 2026-07-25 — while ~50 PRs
+merged and the product shipped to **public go-live (PR #146)**. TODOS still listed
+already-resolved items ("P0 TOP OF QUEUE: Step 6 golden-set gate" — resolved
+2026-07-18) as pending.
+
+**Root cause (verified, not assumed).** STATE.md was believed frozen by the
+armed-cron smoke binding (R-023/R-065). That belief was stale: the 2026-07-24
+`arming_runtime.py` refactor (Contract #20) replaced the coarse denylist with a
+precise import-closure classifier, and STATE.md (markdown, never imported by the
+cron) is not in the runtime set. Confirmed empirically this session
+(`python tools/arming_runtime.py` lists no `.md` file). STATE.md has been freely
+editable since 2026-07-24; sessions parked updates on a freeze that no longer
+existed, and nothing mechanically noticed the growing gap.
+
+**Shipped.**
+- `tools/staleness_check.py` — a git-only guard (needs no `gh`/DB): reads a new
+  `reconciled_through_commit` marker in STATE.md's GROUND_TRUTH block and FAILS if
+  STATE.md lags HEAD by more than 20 commits, or the marker is missing / off the
+  current history (fail closed). Blocking in `tools/validate`. A tightening — it
+  can only reject a stale tree. `tests/test_staleness_check.py`: 8 hermetic cases
+  (planted-stale reds, fresh greens) over real temp git repos.
+- STATE.md GROUND_TRUTH block refreshed to `d22e9ce` (PR #146) with the marker;
+  a current "Where we are (2026-08-03 — RECONCILED)" rollup added above the
+  preserved history; Session Contract #33 recorded.
+- TODOS.md: resolved items marked (Step 6/R-013, the STATE.md-classification
+  gate-custody item); current queue + open-PR-hygiene flag added.
+- `docs/RECORD.md`: R-023 and R-065 corrected (STATE.md is editable; the freeze
+  was obsolete).
+- Memory: the three kickoff-named lessons written
+  (`decisions/2026-08-02_complete-reading-gate.md`,
+  `gotchas/2026-08-02_skim-fragment-is-no-read.md`,
+  `gotchas/2026-08-03_conflation-is-a-violation.md`) plus a
+  `stale-record-belief` gotcha.
+- Session arc: `docs/session_arcs/2026-08-03_reconciliation-and-staleness-guard.md`.
+
+**Addendum (same session, founder directives):** (a) **PR #148 (Spark Line content layer) MERGED** at founder direction ("Merge 148") — trust-gate green, `mergeable_state` clean; master → `3610a5a`; this branch synced via merge (the three brain-lesson files turned out to already exist on #148 with fuller content — merge conflicts resolved in favor of #148's canonical versions; my duplicates yielded). (b) **Two repeated founder directions codified** in `docs/OPERATING_RULES.md` §6a — 6a.2 hardened to ban `send_later`/timers/self-check-ins outright (the agent had scheduled a banned "~1h fallback"; webhooks are the only trigger), and new 6a.3 promotes "non-user-facing content does not circle" from a decision record to a first-class rule. Decision record: `docs/memory/decisions/2026-08-03_no-delays-and-non-user-facing-does-not-circle.md`. (c) `docs/ops/NEXT_SESSION_KICKOFF_PROMPT.md` refreshed into a remaining-work handoff. The staleness marker was advanced to `3610a5a` so STATE.md reflects #148.
+
+**Verified ground truth this session** (git locally + PR state via GitHub API — no
+`gh` binary or Supabase connector in the sandbox, so DB row counts remain
+UNVERIFIED and are not asserted): master = `d22e9ce` (public go-live); extraction
+UNLOCKED and certified (R-013 resolved); pipeline `fetch→extract→gate` auto with
+promote human-custodied; migrations through 0017; `/tonight` live with detail
+route; 20 open PRs (frontier: #148 Spark Line, #147 card design, #145 canon; ~13
+older likely-superseded). Reader-verified code + strategy inventories folded in.
+
+## 2026-07-26 → 2026-08-02 — Catch-up (sessions not previously arced/logged)
+
+Reconstructed from merged squash commits + decision records (authoritative). Not a
+per-round history — the decision records and PRs are the detail.
+
+- **Public go-live (#144, #146):** fresh production builds so `NEXT_PUBLIC_AUTH_DISABLED`
+  inlines; the consumer site is public behind the resolved gate. Production to front
+  founder-held **1Live.co** (DNS→Vercel pending, R-065).
+- **1Live rebrand (#143, decision 2026-08-02):** user-facing web strings + CLAUDE.md
+  titles → 1Live; infra identifiers (`ONELIVE_*` env names, repo/Supabase ref)
+  deliberately kept; historical records keep original text; brand-regression guard added.
+- **Truth-states v2 + agent-surfaces + claim ledger + connector registry (#142, decision
+  2026-08-01):** six-state model ratified as canon (`confirmed | owner-confirmed | likely
+  | unverified | disputed | stale`); pipeline implementation deferred as R-064; automated
+  cross-artifact consistency test wired into pytest.
+- **Canon ratified (2026-07-29 → 08-01):** product vision & governance principles (#97);
+  18-genre taxonomy wired (#99); `/tonight` UI canon consolidated (#127); analytics/
+  measurement canon (#128); the 23 supply segments + five-part comms framework +
+  Tier-2 monetization direction (2026-08-01); engagement invariants-vs-hypotheses split.
+- **Owned Agent strategy canon (#48):** research + ratifications + companions (proposal
+  package; Q1–Q22 remain founder-gated).
+- **Ingestion engine + sources:** reusable source-kind pathways (#116); Localist JSON
+  adapter (#117); ICS feed discovery (#115); Socrata/SODA gov client + venue_truth store
+  + import runner (#120/#122); CAPCOG ten-county enforcement on the read path (#107);
+  Kerrville/western Hill Country (#113); source expansion plan (#135); web harvest &
+  subscribe spec (#134); local-first structured-data enrichment (#133); YouTube channel
+  resolver (#136); "Hear them" music player (#103); TABC authoritative venue kinds (#104).
+- **/tonight surface:** card rebuild — spare two-door "room" + slide-out lens (#130);
+  contextual preview generalized to every event type (#131); three-tier date buckets
+  (#100); venue contact + "want to call and confirm?" (#101); share-a-show card (#98);
+  feed banner removed (#125); anon-SELECT grants fixing live 401s (#124).
+- **Verification/trust:** verification engine design-of-record + authority cascade (#123);
+  triangulation/corroboration that earns confidence (#119); heartbeat-insights "resolved
+  ≠ confirmed-only" preserving disputed-shown (#129); reviewer "gate = validation, not a
+  human click" (#121, decision 2026-07-31); "gates advise, founder decides" +
+  process scale-back to ship CAPCOG (decisions 2026-07-29).
+- **Carousel go-live scaffolding (#106):** Meta posting client + Insights importer built
+  DORMANT, fail-closed off (R-061); no credentials, nothing posts.
+- **SCA hardening (#126):** postcss/sharp advisories fixed at the root via `overrides`
+  (R-003/R-048/R-049 resolved).
 
 ## 2026-08-03 — Spark Line: attach by ACT IDENTITY, never by name (adversarial-review #148 fix)
 
