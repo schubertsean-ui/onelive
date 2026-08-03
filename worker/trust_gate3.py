@@ -8,8 +8,8 @@ requires a human's judgement, we must not silently promote on the strength of
 the count-based gate alone. This module wraps (never replaces)
 `multi_confirm_gate` and adds that third outcome.
 
-This is the literal enforcement of the project's "AI never publishes
-directly" rule at the decision layer: this module never promotes anything by
+This is the literal enforcement of the project's gate-custodied-publication
+rule ("AI never publishes directly") at the decision layer: this module never promotes anything by
 itself (see worker/promote.py, which re-checks the 2-way gate independently —
 defense in depth). It only classifies a candidate into PASS / HOLD / ESCALATE
 so the orchestrator (worker/orchestrator.py) knows what to do next.

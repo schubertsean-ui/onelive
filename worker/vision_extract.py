@@ -6,8 +6,8 @@ image counterpart of worker/ai_extract.py: it runs the vision provider
 screenshot) and creates a candidate + evidence row through the SAME gate path
 the text extractor uses. It imports worker.candidate_store ONLY — never
 worker.promote / worker.gating — so the trust invariant holds by construction:
-AI never publishes; a vision-extracted event still passes the human promotion
-gate exactly like a text-extracted one.
+publication is gate-custodied; a vision-extracted event still passes the
+promotion gate exactly like a text-extracted one.
 
 Non-fabrication discipline is copied verbatim from ai_extract._shape_and_store_one
 (the project convention against silent degradation): a schema-invalid extraction

@@ -33,8 +33,9 @@ Kinds (each = one adapter, reusable across US markets):
                           which PUBLISHES ONLY after the triangulation/confidence
                           process corroborates it against independent sources
                           (other aggregators' feeds, the venue's own social posts,
-                          gov records). AI never publishes DIRECTLY — it publishes
-                          THROUGH validation (founder correction 2026-07-31).
+                          gov records). Publication is gate-custodied — AI output
+                          publishes THROUGH validation, never directly
+                          (founder corrections 2026-07-31 / 2026-08-03).
   partner_agreement       Needs a partnership / paid plan / signed export.
   social                  Social platforms needing OAuth or an app review.
   manual_upload           Venue/creator self-serve upload or opt-in email parse.

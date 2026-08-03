@@ -22,7 +22,7 @@ DISCIPLINE (mirrors worker/importers/socrata.py):
 
 This module WRITES nothing and makes no trust decision. Everything it surfaces is
 a candidate signal that still flows through resolution + the corroboration gate
-(AI never publishes directly).
+(publication is gate-custodied — AI output publishes only through the gate).
 """
 from __future__ import annotations
 

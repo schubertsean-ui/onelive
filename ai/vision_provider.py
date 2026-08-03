@@ -11,7 +11,7 @@ docs/memory/decisions/2026-07-29_pixelrag-visual-ingestion-assessment.md.)
 
 ## Trust posture — read this before changing anything
 
-1. **AI never publishes.** Vision output is turned into an event_candidate and
+1. **Publication is gate-custodied.** Vision output is turned into an event_candidate and
    goes through the SAME human promotion gate as text (worker/vision_extract.py
    calls worker.candidate_store, never worker.promote / worker.gating). A vision
    hallucination can at worst create a candidate a human then rejects — exactly

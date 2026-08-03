@@ -1,6 +1,7 @@
 """Gate-custodied take-live for Spark Lines — the publish step, as code.
 
-"AI never publishes UNVALIDATED": the Foundry gate validates (candidate); this
+Gate-custodied publication ("AI never publishes unvalidated"): the Foundry
+gate validates (candidate); this
 module is the SEPARATE, gate-custodied step that takes a validated candidate
 live, mirroring worker/promote.py and the Meta carousel publish physics
 (Contract #23: structurally unable to self-publish; human approval bound to

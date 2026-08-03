@@ -8,8 +8,8 @@ outward-facing twin of worker/promote.py: the last mechanical step from an
 approved draft to a live post, and it REFUSES unless handed a PublishRelease
 whose signature the human-approval gate (publish_gate.release_for_publish)
 already produced AND whose draft_hash binds this exact draft. So this client
-cannot post anything the gate did not release — "AI never publishes" holds by
-construction, not by policy.
+cannot post anything the gate did not release — gate-custodied publication
+holds by construction, not by policy.
 
 Trust bindings enforced here, every one fail-closed:
   1. Credentials come from the deployment environment ONLY (never a parameter,

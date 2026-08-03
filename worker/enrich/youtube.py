@@ -23,7 +23,8 @@ DISCIPLINE:
     None. Never a low-confidence guess auto-attached (spec §3, "honest gaps beat
     filler").
   * WRITES NOTHING, PUBLISHES NOTHING — the result is a candidate enrichment with
-    provenance that still flows through the gate. AI never publishes directly.
+    provenance that still flows through the gate. Publication is gate-custodied —
+    nothing publishes except through the gate.
 """
 from __future__ import annotations
 
