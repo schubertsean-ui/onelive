@@ -1,6 +1,24 @@
 # ONE LIVE — CHANGE LOG
 
 
+## 2026-08-03 — Rule Zero strengthened: conflation is its own violation
+
+**Founder-directed.** Rule Zero's completeness clause fixes the INPUT (read the
+controlling docs in full); it did not cover the OUTPUT failure the founder flagged —
+CONFLATION: after a complete read, stating an invariant more narrowly/broadly than the
+canon, or merging two distinct concepts into one claim. Confirmed the gap honestly (no
+prior rule covered it) and closed it:
+- `docs/OPERATING_RULES.md` → Rule Zero: added **"State it precisely — CONFLATION is its
+  own violation"** — quote the controlling text (never paraphrase an invariant from
+  memory), keep load-bearing separations apart by name (trust-in-a-fact ≠ right-to-
+  reproduce-an-image; grounding text ≠ displayed media; resolve-identity ≠ crawl-a-site;
+  "own domain" includes the venue/organizer as host, not only the artist), and split two
+  ideas before asserting either. "Why this rule exists" extended with the 2026-08-03
+  conflation failures. Waiving Rule Zero remains founder-crucial.
+- Brain: `docs/memory/gotchas/2026-08-03_conflation-is-a-violation.md` (retrieval-tokened,
+  referenced from Rule Zero's enforcement list) so the class is retrieved at session start.
+
+
 ## 2026-08-02 — Rule Zero: read completely before acting; founder greenlight gates the work
 
 **Founder-directed** after two same-session failures rooted in reading controlling
