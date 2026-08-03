@@ -22,6 +22,16 @@ LOCKSTEP with the repo-local hooks (drift fails the suite). Deviation logged in
 Contract #36: the GitHub app cannot create repos (403), so the plugin lives in-repo —
 better custody, same single source; standalone extraction available on founder demand.
 
+**Charter v2 (same session, full record sweep):** the exhaustive sweep of all 48
+decision records + every founder-caught ledger row + OPERATING_RULES/CLAUDE.md/
+RED_CLASSES replaced the interim v1 — now ~90 rules across 7 sections, each with
+source + enforcement class ([M]/[M-adv]/[P]), the live §5 timer-vs-watch tension kept
+visible with its ratified reconciliation, and §8 coverage notes naming where founder
+repeats are highest and mechanization thinnest (no-timers ~10 repeats = top
+mechanization candidate; the deliverable-visual-QA render-and-measure script still
+owed). Paste-in extended to 14 behavioral rules (complete-reading, primary-source
+stop, no-timers, one-of-three message types).
+
 ## 2026-08-03 — Plan-first made mechanical (founder-approved Contract #35); Heartbeat §5b; M6 disposition snapshot
 
 **Plan-first enforcement hooks (founder: "Approve … it happens because it's
