@@ -78,6 +78,19 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #38 (2026-08-03, founder-ruled — "Update it / It's a sequence / semantic reading")
+
+PLAN (the ruling commissions the edit; recorded per §4a):
+- WHAT: amend CLAUDE.md prime directive 1's "notifying the founder at merge" clause per the founder's ruling; close the charter §0.4 open flag; decision record with the founder's exact words.
+- HOW: the 2026-07-18 verbatim quote ("You do the merge and notify me") is preserved untouched; only the operative clause is updated to state the reconciled reading — "notify" is satisfied by the merge record itself (sequence/semantic reading: the notification is the recorded merge evidence in the sequence, not a message), and the 2026-07-25 "I don't want to know about merge" directive governs messaging: merges are silent, evidence to disk.
+- WHY: the charter audit surfaced the wording mismatch; charter edits are founder-only; the founder has now ruled.
+- WHY-THAT-WHY-MATTERS: the reason (founder-only charter custody) matters because it is the difference between canon that means what the founder said and canon that drifts by agent interpretation — this ruling closes the last known internal contradiction in the operating canon.
+- EXPECTED OUTCOMES: CLAUDE.md, charter §0.4, and the decision record agree; no open canon conflicts remain; validate green.
+
+SCOPE: CLAUDE.md PD1 clause + charter §0.4 + decision record + bookends. Nothing else.
+
+STATUS: DELIVERED (PD1 updated with the verbatim quote preserved; charter §0.4 + 3.3 closed; decision record written; no open canon conflicts remain).
+
 ## Session Contract #37 (2026-08-03, founder-directed — "Run an analysis of the charter and identify duplicates, redundancies, conflicts, potential conflicts, logical fallacies or order problems or weaknesses… make sure it is maximally efficient and effective")
 
 PLAN (the directive commissions both the audit and the fix; recorded here per §4a):

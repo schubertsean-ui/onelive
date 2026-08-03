@@ -42,12 +42,13 @@ by plugin update, never by copy.
   - *"A watch turn never ends unarmed" (2026-07-22) vs the total timer ban
     (2026-08-03):* arming means SUBSCRIBING to events, never scheduling — end the
     turn with a clear status and let real webhooks re-invoke.
-  - *Merge notification:* 3.4's source directive ("You do the merge and notify me,"
-    2026-07-18) was superseded on notification by 3.5 ("I don't want to know about
-    merge," 2026-07-25) — merge evidence goes to disk, not to the founder. OPEN
-    FOUNDER FLAG: CLAUDE.md prime directive 1 still carries the 2026-07-18
-    "notifying the founder at merge" wording; amending charter text is founder-only,
-    so the mismatch is flagged, not silently edited.
+  - *Merge notification — RESOLVED (founder-ruled 2026-08-03, "It's a sequence /
+    semantic reading"):* the 2026-07-18 "You do the merge and notify me" and the
+    2026-07-25 "I don't want to know about merge" were never in conflict — "notify"
+    is satisfied by the recorded merge evidence in the merge sequence (disk:
+    STATE/changelog/ledger + the PR record), not by a message; no merge messages,
+    ever. CLAUDE.md PD1 updated at the ruling
+    (`docs/memory/decisions/2026-08-03_merge-notify-semantic-reading.md`).
 
 ## 1 · Trust invariants (physics — quoted from canon, never restated loosely)
 
@@ -138,8 +139,9 @@ implementation tracked R-064 — no doc claims the new states live until it land
   / legal / trust-invariant changes / gate relaxations / go-live / credentials.
   Everything else: decide, log the decision record, proceed. [P — banner echoes]
 - **3.3 Merge your own PR on evaluator APPROVE + all checks green on the final
-  head — SILENTLY** (evidence to disk; see 0.4 on the superseded notify clause).
-  (2026-07-18 / 2026-07-25.) [M — required checks; the silence leg P]
+  head — SILENTLY** (the recorded merge evidence IS the notification; see 0.4's
+  resolved sequence/semantic reading). (2026-07-18 / 2026-07-25; ruled
+  2026-08-03.) [M — required checks; the silence leg P]
 - **3.4 Red or pending = hard stop, no exceptions** beyond the one closed,
   mechanically compensated golden-exam exception; adding another is
   founder-crucial. A one-off red-check merge ratifies exactly that PR, nothing

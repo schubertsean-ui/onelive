@@ -32,6 +32,18 @@ mechanization candidate; the deliverable-visual-QA render-and-measure script sti
 owed). Paste-in extended to 14 behavioral rules (complete-reading, primary-source
 stop, no-timers, one-of-three message types).
 
+## 2026-08-03 — Merge-notify ruled (founder: "sequence / semantic reading"); CLAUDE.md PD1 updated
+
+The charter audit's last open flag is closed by founder ruling ("Update it /
+It's a sequence / semantic reading"): the 2026-07-18 "notify me" and the
+2026-07-25 "I don't want to know about merge" were never in conflict —
+"notify" is satisfied by the recorded merge evidence in the merge sequence
+(disk + PR record), not by a message; no merge messages, ever. CLAUDE.md PD1
+updated with the 2026-07-18 verbatim quote preserved; charter §0.4 and 3.3
+updated; decision record
+`docs/memory/decisions/2026-08-03_merge-notify-semantic-reading.md`. No open
+canon conflicts remain on the record.
+
 ## 2026-08-03 — CORRECTION to the charter-v3 entry below (founder-caught): WHY-THAT-WHY-MATTERS was never a typo
 
 The v3 audit's "typo with mechanical teeth" finding was itself the defect: the
