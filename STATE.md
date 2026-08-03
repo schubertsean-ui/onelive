@@ -92,7 +92,14 @@ FOUNDER ASKS (ONE consolidated list, delivered in the close report): (1) ratify 
 
 ADDENDUM (same day — founder ratified all three asks: "Yes and move forward on each"; decision record docs/memory/decisions/2026-08-03_frictionless-nav-geg-monitoring-ratified.md): (1) **PR #112 MERGED** `4ab8e48` per protocol; spec status flipped RATIFIED; the /tonight implementation LANDED on PR #152 — history-modeled URL-addressable lens (Back closes the sheet before leaving; §13.4 stack discipline), filters-in-URL (shareable/back-restorable), same-tab labeled ticket handoffs ("· finishes on <host>") + aria-labeled external links (the new mechanical link-policy gate caught the unlabeled detail map link on its first run), skeleton loading (zero-CLS, 200ms anti-blink). Baselines recaptured for the intended handoff-caption change; determinism re-proven 0-pixel; axe 0 violations incl. lens-open. NOT in this batch (tracked): §9.2 auth flows ← Clerk claim work; §10 greeting ← Member-Preferences consent; §15 sub-decisions stay founder calls. (2) **G-EG ratified → Emotion Glyph ENGINE BUILT** (`worker/glyph/`, 12 tests) — display honestly gated on R-072 (SVG art set · real capped mapper · creator descriptions). (3) **Monitoring GO** — @vercel/speed-insights@1.2.0 + @vercel/analytics@1.5.0 (NEW RUNTIME dependencies, pinned exact — review rule 3) mounted, no-op until the founder's dashboard toggles; Sentry awaits the founder-minted DSN (R-001).
 
-STATUS: PR #152 (draft) carries the work; merge per protocol on evaluator APPROVE + all checks green on the final head.
+CLOSE-OUT PLAN (five fields per §4a; presented in-session — the founder's "Provide a status… I want to begin a new session" IS the request and approval for exactly this):
+- WHAT: rewrite `docs/ops/UI_UX_SESSION_KICKOFF_PROMPT.md` (this lane's handoff artifact — the prior version was THIS session's own kickoff, fully executed) to the HANDOFF_STANDARD eight-property bar, and annotate R-070 with the founder's monitoring purchase + the agreed in-house switch trigger.
+- HOW: one docs-only commit on PR #152's branch (rides the already-running CI); content drawn from this contract's proven state, the remaining-queue items, and the session's failure memory.
+- WHY: handoffs are how work survives ephemeral sessions (HANDOFF_STANDARD); the founder is starting a fresh session and must be able to act from disk alone.
+- WHY-IT-MATTERS: a weak handoff silently loses the ratifications, the gate mechanics, and the failure lessons this session bought — the next session would re-derive or, worse, contradict them.
+- EXPECTED OUTCOMES: the next UI/UX session opens from the pasted prompt, verifies #152's state as its first task, and picks up the queue with zero re-discovery; staleness_check and validate stay green.
+
+STATUS: OPEN — PR #152 awaiting final CI on the merge-resolution head; merge per protocol on evaluator APPROVE + all checks green, then this contract closes.
 ## Session Contract #38 (2026-08-03, founder-ruled — "Update it / It's a sequence / semantic reading")
 
 PLAN (the ruling commissions the edit; recorded per §4a):
