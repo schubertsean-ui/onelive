@@ -40,8 +40,12 @@ Rule Zero removes.
   at session start.
 - Caching: read the stable controlling docs once, in full, early — they cache, so
   complete re-reading is cheap and there is no cost excuse to skim.
-- Charter pointer to CLAUDE.md is queued (TODOS) for the next lawful root-file window
-  (editing CLAUDE.md trips the arming-evidence binding, R-023/R-065).
+- Charter pointer to CLAUDE.md is queued (TODOS). NOTE (corrected 2026-08-03): CLAUDE.md
+  is freely editable — the earlier belief that editing it "trips the arming-evidence
+  binding (R-023/R-065)" was STALE. CLAUDE.md (like STATE.md) is markdown, not in the
+  ingest cron's import closure, so it is not in `tools/arming_runtime.py`'s runtime set;
+  editing it does not red trust-gate. Verified 2026-08-03; R-023/R-065 corrected in
+  `docs/RECORD.md`. The pointer can land in any root-file touch.
 
 ## Open point for the founder to confirm
 

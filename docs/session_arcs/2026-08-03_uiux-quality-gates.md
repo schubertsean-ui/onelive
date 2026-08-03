@@ -1,4 +1,4 @@
-# Session arc — 2026-08-03 — /tonight quality gates: R-002 real, WCAG/CWV mechanical (Contract #35)
+# Session arc — 2026-08-03 — /tonight quality gates: R-002 real, WCAG/CWV mechanical (Contract #39 — renumbered from #35 at the master merge; #34–#38 were independently assigned)
 
 ## Contract
 Kickoff-directed UI/UX lane (branch `claude/1live-ui-ux-design-xkk986`), mission

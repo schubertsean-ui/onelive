@@ -65,16 +65,37 @@ def _require_source_class(s: dict) -> str:
     return value
 
 
+def resolve_catalog_path(json_arg, market_arg):
+    """The catalog to import: an explicit --json path, or the MARKET's declared
+    catalog resolved through the sourcing registry (sourcing model Layer 2 —
+    the market file is the routing authority, never a hand-typed path).
+    Exactly one of the two must be given; both or neither is a loud refusal,
+    because a --json that disagreed with the market's declared catalog would
+    silently seed the wrong source list."""
+    if bool(json_arg) == bool(market_arg):
+        raise SystemExit(
+            "pass exactly one of --json PATH or --market ID "
+            "(docs/strategy/SOURCING_MODEL_v1.md Layer 2)")
+    if json_arg:
+        return json_arg
+    from worker.sourcing.markets import get_market  # fail-closed registry
+    return get_market(market_arg).catalog_path()
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--json", required=True, help="Path to sources JSON")
+    ap.add_argument("--json", help="Path to sources JSON (explicit override)")
+    ap.add_argument("--market", help=(
+        "Market id (sources/markets/<id>.json); imports that market's "
+        "declared catalog via worker/sourcing/markets.py"))
     # No hardcoded DSN default: use --dsn, else resolve from env
     # (ONELIVE_DB_DSN, or the explicit ONELIVE_DEV_DB=1 dev opt-in).
     ap.add_argument("--dsn", default=None)
     args = ap.parse_args()
     dsn = args.dsn or resolve_dsn()
+    catalog_path = resolve_catalog_path(args.json, args.market)
 
-    with open(args.json, "r", encoding="utf-8") as f:
+    with open(catalog_path, "r", encoding="utf-8") as f:
         sources = json.load(f)
 
     with psycopg2.connect(dsn) as conn:
@@ -102,7 +123,7 @@ def main():
                     json.dumps(s),
                 ))
         conn.commit()
-    print(f"Imported {len(sources)} sources from {args.json}")
+    print(f"Imported {len(sources)} sources from {catalog_path}")
 
 
 if __name__ == "__main__":

@@ -200,14 +200,27 @@ def classify(prev, live):
     return material, benign, unverified
 
 
-def build_snapshot(live):
+def build_snapshot(live, prev=None):
+    prev = prev or {}
     snap = {"reconciled_at": datetime.now(timezone.utc).isoformat(),
             "git": {"branch": live["git"]["branch"], "head": live["git"]["head"]}}
+    # Fields this script does not own are preserved verbatim: staleness_check
+    # fails closed without `reconciled_through_commit`, so a heal that drops it
+    # would turn a benign refresh into a broken guard.
+    for carried in ("reconciled_through_commit", "reconciled_by", "prs_note"):
+        if carried in prev:
+            snap[carried] = prev[carried]
     if live["prs"]["verified"]:
         snap["prs"] = {str(p["number"]): p["state"].lower() for p in live["prs"]["prs"]}
+    elif "prs" in prev:
+        snap["prs"] = prev["prs"]  # unverified leg: keep the last verified facts
     if live["db"]["verified"]:
         snap["applied_migrations"] = live["db"]["migrations"]
         snap["row_counts"] = live["db"]["row_counts"]
+    else:
+        for k in ("applied_migrations", "row_counts"):
+            if k in prev:
+                snap[k] = prev[k]
     return snap
 
 
@@ -256,7 +269,7 @@ def main():
 
     # Heal benign drift (and create a missing block) when asked and safe to do so.
     if args.heal and not material:
-        new_text = write_state_block(text, build_snapshot(live))
+        new_text = write_state_block(text, build_snapshot(live, prev))
         if new_text != text:
             with open(args.state, "w", encoding="utf-8") as f:
                 f.write(new_text)

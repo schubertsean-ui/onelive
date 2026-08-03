@@ -52,4 +52,10 @@ STAGE_MODELS = {
     "evaluator": "gpt-5.5",
 }
 
-EXTRACTION_THRESHOLD_RATIFIED = True
+# False as of the 2026-08-03 re-certification sitting (founder-directed:
+# prompt caching + usage capture entered ai/claude_provider.py, a
+# manifest-bound file, so per the charter's compensated exception this PR
+# CLOSES extraction fail-closed at merge; the standing three-step re-opens
+# it: founder's attended exam on the new harness -> authenticated record PR
+# -> head-bound flag-flip PR back to True).
+EXTRACTION_THRESHOLD_RATIFIED = False

@@ -76,6 +76,12 @@ ADS_TASTEMAKER_MARKERS = ("ads", "tastemaker", "advertiser", "ad_campaign", "cur
 # by a runtime flag.
 PROMOTE_IMPORT_ALLOWLIST = {
     "api/ops_candidates.py",  # operator action: human-reviewed promote endpoint
+    # Ratified earned-confidence auto-promoter (docs/memory/decisions/
+    # 2026-07-25_auto-publish-earned-confidence-ratification.md, which names
+    # this exact allowlist addition as the deliberate, reviewed pattern).
+    # Fail-closed behind AUTO_PUBLISH_RATIFIED (default OFF) and re-gated by
+    # promote_candidate itself; the orchestrator remains deliberately absent.
+    "worker/autopromote.py",
 }
 
 

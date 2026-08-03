@@ -27,6 +27,27 @@ loop CONTINUES: one bad source must never take down the run, and the failure
 is always visible in the RunReport/replay log — never silently absorbed as
 "nothing to do".
 
+JS-shell render fallback (worker/fetch/render_fetch.py): the fetch step runs
+`fetch_with_render` — plain fetch first, always; when the input-quality sensor
+flags the plain result as a boilerplate-only JS shell ("enable javascript"
+chrome with no content — the signature of Squarespace/Wix-style calendars),
+the page is re-fetched once through headless Chromium and the RENDERED HTML
+feeds the sensor/extract path instead of the shell. Two bounds keep this safe
+and cheap:
+- Budget: renders per run are capped by ONELIVE_MAX_RENDERS_PER_RUN
+  (default 5; 0 disables rendering entirely). The value is validated
+  fail-closed at run start: unset/empty uses the default, anything else must
+  parse as a base-10 integer >= 0 or run_loop aborts loudly before touching
+  any source — a typo must never silently mean "uncapped".
+- Availability fail-open, trust fail-closed: a render failure (missing
+  playwright package or browser binary, timeout, budget exhausted) NEVER
+  kills the source or the run and NEVER fabricates content — it is logged
+  loudly, recorded on the replay fetch entry (render_error), and the
+  un-rendered plain result proceeds exactly as it did before the fallback
+  existed. Rendered HTML earns no trust shortcut: it re-enters the same
+  sensor gate as any other fetched text, and everything downstream (extract,
+  gate3, never-promote) is unchanged.
+
 Ratchet note (dev-time only, per red-team review): the iterate-on-green /
 revert-on-regression ratchet governs how WE build and evolve this file across
 commits. It must never leak into the runtime behaviour of the loop itself:
@@ -40,6 +61,8 @@ table through. Promotion lives behind the authenticated ops endpoint only.
 """
 from __future__ import annotations
 
+import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -48,9 +71,18 @@ from ai.provider import AIProvider
 from worker.ai_extract import extract_candidate
 from worker.candidate_store import list_candidate_source_classes, load_candidate_gate_signals
 from worker.fetch.http_fetch import fetch_url
+from worker.fetch.render_fetch import RenderError, fetch_with_render, render_html
 from worker.replay_log import ReplayRecord, canonical_digest, log_step, new_run_id
 from worker.sensors import assess_input
 from worker.trust_gate3 import GateDecision, evaluate_gate
+
+logger = logging.getLogger(__name__)
+
+# Renders are expensive (a full headless-Chromium process per page), so each
+# run carries a hard budget. Env knob + default documented in the module
+# docstring above; validation is fail-closed in _resolve_render_cap().
+RENDER_CAP_ENV = "ONELIVE_MAX_RENDERS_PER_RUN"
+DEFAULT_MAX_RENDERS_PER_RUN = 5
 
 # Keys tracked in RunReport.counts. Declared up front so every run reports the
 # full shape even when a count is zero (never omit a key because it's 0 —
@@ -110,12 +142,145 @@ def _read_fetched_text(fetch_result: Dict[str, Any]) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
+def _resolve_render_cap() -> int:
+    """Read + validate ONELIVE_MAX_RENDERS_PER_RUN, fail-closed.
+
+    Unset (or set to the empty string, which is how an absent CI variable
+    arrives) means the default. Anything else MUST parse as a base-10 integer
+    >= 0; a malformed value raises ValueError so run_loop aborts loudly at
+    start — a budget knob that cannot be read is a structural/config failure
+    (same policy as an unwritable replay dir), and silently substituting the
+    default would turn a typo into an unnoticed spend change. 0 disables
+    rendering entirely.
+    """
+    raw = os.getenv(RENDER_CAP_ENV)
+    if raw is None or raw.strip() == "":
+        return DEFAULT_MAX_RENDERS_PER_RUN
+    try:
+        cap = int(raw.strip())
+    except ValueError as exc:
+        raise ValueError(
+            f"{RENDER_CAP_ENV} must be a base-10 integer >= 0 (got {raw!r}); "
+            "refusing to run with an unvalidated render budget — fail closed"
+        ) from exc
+    if cap < 0:
+        raise ValueError(
+            f"{RENDER_CAP_ENV} must be >= 0 (got {cap}); a negative render "
+            "budget is meaningless — fail closed (use 0 to disable rendering)"
+        )
+    return cap
+
+
+class _RenderBudgetStop(RenderError):
+    """Render refused by the per-run budget (cap reached, or cap=0 disabled).
+
+    A RenderError subclass so the fetch step's single fail-open path handles
+    it, but distinguishable so the log line says "budget" (expected, by
+    design) rather than "failure" (a browser/timeout problem worth alerting
+    on).
+    """
+
+
+def _make_budgeted_render(render_state: Dict[str, int]):
+    """Wrap render_html with the per-run budget. `render_state` is the run's
+    mutable {"cap": N, "remaining": N} counter — decremented ONLY when a real
+    render is attempted, so refused renders never consume budget.
+    """
+
+    def _render(**kwargs: Any) -> str:
+        if render_state["cap"] == 0:
+            raise _RenderBudgetStop(
+                f"JS-shell rendering is disabled ({RENDER_CAP_ENV}=0); "
+                "proceeding with the un-rendered plain fetch"
+            )
+        if render_state["remaining"] <= 0:
+            raise _RenderBudgetStop(
+                f"render budget exhausted ({RENDER_CAP_ENV}={render_state['cap']} "
+                "renders this run); proceeding with the un-rendered plain fetch"
+            )
+        render_state["remaining"] -= 1
+        # Module-global lookup on purpose: tests monkeypatch
+        # orchestrator.render_html exactly like orchestrator.fetch_url.
+        return render_html(**kwargs)
+
+    return _render
+
+
+def _fetch_with_render_fallback(
+    *,
+    source_id: Optional[str],
+    url: str,
+    render_state: Dict[str, int],
+) -> Dict[str, Any]:
+    """The orchestrator's fetch step: plain fetch + budgeted JS-shell render.
+
+    Delegates to worker.fetch.render_fetch.fetch_with_render (which is plain-
+    first and only renders on the sensor's boilerplate-shell trigger), with
+    one policy added HERE, at the loop level: render problems are fail-open.
+    render_fetch's own contract stays loud (RenderError raises), but a
+    scheduled ingestion run must not lose a source it already fetched just
+    because the OPTIONAL enhancement path (extra package + browser binary)
+    is absent or broke — so any RenderError is logged, stamped onto the
+    returned result as `render_error` (the replay fetch entry records it),
+    and the un-rendered plain result proceeds exactly as it did before the
+    fallback existed. Nothing is fabricated: the fallback text is the real
+    fetched bytes, and the sensor still judges them.
+
+    All plain-fetch audit behavior (raw_fetch rows, attempt rows, replay
+    semantics) is untouched — fetch_url runs unmodified either way, and
+    plain-fetch exceptions propagate to run_loop's per-source isolation
+    exactly as before.
+    """
+    plain_capture: Dict[str, Any] = {}
+
+    def _remember_plain_text(fetch_result: Dict[str, Any]) -> str:
+        # Capture the decoded plain text as fetch_with_render reads it, so a
+        # later RenderError can fall back without re-fetching (a second fetch
+        # would burn time and write a duplicate raw_fetch audit row).
+        text = _read_fetched_text(fetch_result)
+        plain_capture["result"] = fetch_result
+        plain_capture["text"] = text
+        return text
+
+    try:
+        return fetch_with_render(
+            source_id=source_id,
+            url=url,
+            # Late-bound module globals on purpose: tests monkeypatch
+            # orchestrator.fetch_url / orchestrator.render_html.
+            _fetch_fn=fetch_url,
+            _render_fn=_make_budgeted_render(render_state),
+            _read_text=_remember_plain_text,
+        )
+    except RenderError as exc:
+        if "result" not in plain_capture:
+            # Structurally unreachable today (fetch_with_render only renders
+            # after reading the plain text) — if render_fetch's flow ever
+            # changes, stay loud rather than invent an empty result.
+            raise
+        if isinstance(exc, _RenderBudgetStop):
+            logger.warning("render skipped for %s: %s", url, exc)
+        else:
+            logger.error(
+                "render FAILED for %s — falling back to the un-rendered plain "
+                "fetch (source may be sensor-rejected as a JS shell): %s",
+                url, exc,
+            )
+        return {
+            **plain_capture["result"],
+            "text": plain_capture["text"],
+            "rendered": False,
+            "render_error": f"{type(exc).__name__}: {exc}",
+        }
+
+
 def _run_one_source(
     *,
     run_id: str,
     ai: AIProvider,
     source: Dict[str, Any],
     sxsw_mode: bool,
+    render_state: Dict[str, int],
 ) -> tuple[SourceResult, List[str]]:
     """Drive a single source through fetch -> sensor -> extract -> gate3.
     Returns (SourceResult, count_keys) where count_keys is the ordered list of
@@ -136,12 +301,37 @@ def _run_one_source(
     url = source["url"]
     source_class = source["source_class"]
 
-    fetch_result = fetch_url(source_id=source_id, url=url)
+    fetch_result = _fetch_with_render_fallback(
+        source_id=source_id, url=url, render_state=render_state,
+    )
+    # Replay fetch entry: the original fields are all preserved; the render
+    # outcome EXTENDS the payload so the audit trail records whether the text
+    # handed onward is the plain fetch or a headless re-render (and, on a
+    # failed/refused render, why the plain text proceeded anyway).
+    fetch_outputs: Dict[str, Any] = {
+        "status": fetch_result.get("status"),
+        "rendered": bool(fetch_result.get("rendered")),
+    }
+    if fetch_result.get("rendered"):
+        fetch_outputs["plain_shell_reason"] = fetch_result.get("plain_shell_reason")
+    if fetch_result.get("render_error"):
+        fetch_outputs["render_error"] = fetch_result.get("render_error")
+    fetch_detail = str(fetch_result.get("status"))
+    if fetch_result.get("rendered"):
+        fetch_detail += (
+            " (js-shell rendered via headless browser; plain fetch was: "
+            f"{fetch_result.get('plain_shell_reason')})"
+        )
+    elif fetch_result.get("render_error"):
+        fetch_detail += (
+            " (render fallback unavailable, proceeding un-rendered: "
+            f"{fetch_result.get('render_error')})"
+        )
     log_step(ReplayRecord(
         run_id=run_id, ts=_now_iso(), source_id=str(source_id), source_name=source_name,
         stage="fetch", inputs_digest=canonical_digest({"url": url}),
-        outputs_digest=canonical_digest({"status": fetch_result.get("status")}),
-        decision=fetch_result.get("status", "unknown"), detail=str(fetch_result.get("status")),
+        outputs_digest=canonical_digest(fetch_outputs),
+        decision=fetch_result.get("status", "unknown"), detail=fetch_detail,
     ))
 
     if fetch_result.get("status") == "not_modified":
@@ -150,7 +340,10 @@ def _run_one_source(
             ["not_modified"],
         )
 
-    text = _read_fetched_text(fetch_result)
+    # fetch_with_render already decoded (or rendered) the text; on any 'ok'
+    # result the key is always present. Rendered or not, it faces the same
+    # sensor below — a render buys readability, never trust.
+    text = fetch_result["text"]
     content_type = fetch_result.get("content_type")
     reading = assess_input(text=text, content_type=content_type)
     log_step(ReplayRecord(
@@ -260,6 +453,12 @@ def run_loop(
     parameter would be dead code; we keep it in the signature (matching the
     spec) and document the constraint here instead of pretending it works.
     """
+    # Resolve the per-run render budget BEFORE touching any source: a
+    # malformed value is a config/structural failure and aborts the run
+    # loudly (fail closed), per this module's failure semantics.
+    render_cap = _resolve_render_cap()
+    render_state = {"cap": render_cap, "remaining": render_cap}
+
     run_id = new_run_id()
     started = _now_iso()
     report = RunReport(run_id=run_id, started=started, finished="")
@@ -270,6 +469,7 @@ def run_loop(
         try:
             result, count_keys = _run_one_source(
                 run_id=run_id, ai=ai, source=source, sxsw_mode=sxsw_mode,
+                render_state=render_state,
             )
         except Exception as exc:  # noqa: BLE001 - deliberate, audited, isolated per spec
             # Per-source transient failure: caught, logged, and isolated so

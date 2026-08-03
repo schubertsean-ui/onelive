@@ -15,8 +15,9 @@ finding, PR #51: the first version checked only the root .claude/ while
 the scanners skip the component at any depth — a guard narrower than
 the surface it compensates is a false-confidence gate): every tracked
 path in the repository containing a ".claude" component must match the
-enumerated prose-only allowlist (root agent definitions,
-.claude/agents/*.md — no executable or scannable code shape). And the
+enumerated allowlist (prose agent definitions .claude/agents/*.md, plus
+the content-bound hooks config .claude/settings.json — see the
+compensating shape (b) guard below). And the
 pairing is literal, not prose: this suite asserts ".claude" is present
 in BOTH scanners' SKIP_PARTS, so dropping either side of the
 exclusion/guard pair fails here.
@@ -30,12 +31,25 @@ import subprocess
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
-# The ONLY tracked shape permitted to carry a .claude component: root
-# prose agent definitions. They hold no executable/scannable code
-# (trust_gate sweeps .py; deferral_scan's jurisdiction is code
-# comments), and any change to them still reaches the adversarial
-# review via the raw PR diff, which has no path filter.
-_TRACKED_ALLOWLIST = re.compile(r"^\.claude/agents/[^/]+\.md$")
+# The ONLY tracked shapes permitted to carry a .claude component:
+# (a) root prose agent definitions — no executable/scannable code
+#     (trust_gate sweeps .py; deferral_scan's jurisdiction is code
+#     comments); any change still reaches the adversarial review via the
+#     raw PR diff, which has no path filter.
+# (b) the single project hooks config .claude/settings.json (plan-first
+#     enforcement, founder-approved 2026-08-03). It COMMANDS execution,
+#     so this widening is COMPENSATED, not free:
+#     test_settings_json_hooks_only_invoke_scanned_tools below binds its
+#     content — every hook must be a plain command invoking python3 on a
+#     $CLAUDE_PROJECT_DIR/tools/*.py script, and those scripts live where
+#     every scanner sweeps. Code cannot be smuggled through the excluded
+#     file because the file may only POINT at scanned code.
+_TRACKED_ALLOWLIST = re.compile(r"^\.claude/(agents/[^/]+\.md|settings\.json)$")
+
+# The compensating content bound for allowlist shape (b): python3 on one
+# repo tools/ script, nothing else — no flags, no chaining, no shell tricks.
+_HOOK_COMMAND_SHAPE = re.compile(
+    r'^python3 "\$CLAUDE_PROJECT_DIR"/tools/[a-z0-9_]+\.py$')
 
 
 def tracked_offenders(ls_files_lines: list[str]) -> list[str]:
@@ -150,3 +164,41 @@ def test_gitignore_keeps_worktrees_untracked():
         "would land in git status and pressure a commit that the tracked-"
         "path guard forbids"
     )
+
+def test_settings_json_hooks_only_invoke_scanned_tools():
+    """The compensating guard for allowlisting .claude/settings.json: the
+    scanners skip the file, so the file must be UNABLE to carry code — every
+    hook entry is a plain command matching _HOOK_COMMAND_SHAPE (python3 on a
+    tools/*.py script that trust_gate/lint/deferral_scan DO sweep), the
+    referenced script must exist and be tracked, and no other hook type
+    (prompt/agent/http/mcp_tool) is permitted. Any violation fails the suite,
+    validate, and CI."""
+    import json
+
+    path = REPO / ".claude" / "settings.json"
+    settings = json.loads(path.read_text(encoding="utf-8"))
+
+    # Nothing but hooks may live in the tracked settings file — any other
+    # key (env, permissions, model, …) changes session behavior from inside
+    # the scanner-excluded surface and needs its own reviewed widening.
+    assert set(settings.keys()) == {"hooks"}, sorted(settings.keys())
+
+    commands = []
+    for event, matchers in settings["hooks"].items():
+        for matcher in matchers:
+            for hook in matcher["hooks"]:
+                assert hook.get("type") == "command", (event, hook)
+                commands.append(hook["command"])
+
+    assert commands, "settings.json tracked but wires no hooks — remove it instead"
+    for cmd in commands:
+        assert _HOOK_COMMAND_SHAPE.match(cmd), (
+            f"hook command {cmd!r} violates the scanned-tools-only shape "
+            f"(python3 \"$CLAUDE_PROJECT_DIR\"/tools/<name>.py, nothing else)")
+        script = cmd.split("/tools/", 1)[1]
+        script_path = REPO / "tools" / script
+        assert script_path.is_file(), f"hook points at missing tools/{script}"
+        tracked = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", f"tools/{script}"],
+            cwd=REPO, capture_output=True, text=True)
+        assert tracked.returncode == 0, f"tools/{script} is not tracked"
