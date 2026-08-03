@@ -1,6 +1,6 @@
 # OneLive — STATE
 
-Last updated: 2026-07-13 by Claude Code (Session Contract #1) — GENESIS package installed; PR state re-verified via GitHub API (PRs #9 + #10 MERGED — see the 2026-07-13 reality check); DB facts NOT re-verified this session (no DSN/connector in this sandbox).
+Last updated: 2026-08-03 by Claude Code (Session Contract #33 — FULL RECONCILIATION). The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)" immediately below; the older "Where we are" and contract sections are HISTORY, preserved append-only.
 
 Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground truth (repo, PRs, Supabase migrations, DB row counts). **This session: PR #8 (agentic-harness buildout) reviewed cross-model, its findings fixed, and MERGED to master (HEAD a0b3724).** The `validate` gate no longer treats SKIP/ADVISORY as PASS (the founding anti-pattern is now impossible in the gate itself). **Corrected stale status: RLS migrations 0006/0007 ARE applied to the live DB, and 9 migrations total are live (incl. `source_geo_coverage`); `source` = 230 rows, but `event`/`event_candidate`/`candidate_evidence` are still 0.** Established the session-arc system — see `docs/session_arcs/`.
 
@@ -15,26 +15,52 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 {
   "git": {
     "branch": "master",
-    "head": "a0b3724"
+    "head": "d22e9ce"
   },
+  "reconciled_through_commit": "d22e9ce85613d846e1d4dcefe580a3809f322bef",
+  "reconciled_at": "2026-08-03T01:00:00+00:00",
+  "reconciled_by": "full reconciliation session 2026-08-03 (Contract #33); git verified locally, PR state verified via GitHub API (no gh/DB connector in this sandbox — DB row counts remain UNVERIFIED here)",
+  "prs_note": "merged history runs through PR #146 (public go-live). Open PRs verified via GitHub 2026-08-03 (20): the active product frontier is #148 (Spark Line content) + #147 (card design) + #145 (user-journey canon); the rest (#33,#34,#47,#50,#55,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112) are older/likely-superseded and flagged for a founder close-or-revive pass in TODOS.",
   "prs": {
-    "1": "merged",
-    "2": "merged",
-    "3": "merged",
-    "4": "open",
-    "5": "merged",
-    "6": "merged",
-    "7": "open",
-    "8": "merged"
-  },
-  "reconciled_at": "2026-07-12T05:51:07.747368+00:00"
+    "33": "open", "34": "open", "47": "open", "50": "open", "55": "open",
+    "56": "open", "75": "open", "76": "open", "81": "open", "83": "open",
+    "84": "open", "85": "open", "86": "open", "108": "open", "109": "open",
+    "110": "open", "112": "open", "145": "open", "147": "open", "148": "open"
+  }
 }
 ```
 <!-- GROUND_TRUTH:END -->
 
-> **Ground-truth block staleness (2026-07-13):** the JSON block above is machine-maintained and could NOT be refreshed this session — the reconciler needs `gh` (absent in this sandbox) and a DB DSN (not provided). It shows pre-PR#9 state. The 2026-07-13 reality check below records what WAS independently verified (via the GitHub API). Refresh the block with `session_reconcile.py --heal` from an env with `gh` + `ONELIVE_DB_DSN`.
+> **Ground-truth block (2026-08-03):** refreshed this session. `git.head`/`reconciled_through_commit` = `d22e9ce` (master, PR #146 public go-live), verified locally. PR state verified via the GitHub API (no `gh` binary in this sandbox; `session_reconcile.py` still reports UNVERIFIED for the gh/DB legs — that is an environment limitation, not a contradiction). DB row counts (`event`/`event_candidate`/…) remain UNVERIFIED — no Supabase connector in this session; do not treat any row count as re-confirmed. The `reconciled_through_commit` marker is now read by `tools/staleness_check.py` (blocking in `tools/validate`), which fails if STATE.md falls more than 20 commits behind HEAD — so this block cannot silently rot again.
 
-## Where we are (updated 2026-07-22, session close: STEP 5 ARMED — the 20-minute ingestion cron is live on master; prior update 2026-07-18, certification bootstrap)
+## Where we are (2026-08-03 — RECONCILED)
+
+**The product is LIVE.** Master `d22e9ce` (PR #146) is a public go-live: the consumer `/tonight` site serves REAL CAPCOG (Austin ten-county) events behind the resolved auth gate (`NEXT_PUBLIC_AUTH_DISABLED` public mode; `/ops` still gated; Clerk stealth path intact for allowlist). Production is intended to front the founder-held **1Live.co** domain (GoDaddy) before customers see it — DNS→Vercel wiring is the remaining go-live step (R-065).
+
+**Pipeline (verified from code this session):** `fetch → extract → gate` runs automatically (`worker/orchestrator.py`); **promote stays human-custodied** (the orchestrator deliberately does not import `worker/promote.py` — AI never publishes). **Extraction is UNLOCKED and certified** — `EXTRACTION_THRESHOLD_RATIFIED = True` (`tools/routing_data.py`), R-013 RESOLVED; the golden-exam gate (`ai/golden_exam.py`, hallucination ≤1% / recall ≥0.80 / zero-injection) enforces it. Routed model `extraction: claude-opus-4-8`.
+
+**Ingestion sources live:** the deterministic licensed spine (Ticketmaster live; SeatGeek/Eventbrite BUILT, dormant on missing founder-crucial creds — R-029) writes `licensed_event` (no AI); the structured importer (`worker/importers/structured_feed.py`) reads ICS/VEVENT + schema.org JSON-LD, incl. the Localist provider; gov open-data (Socrata) writes `venue_truth`; the AI crawl pipeline covers the unstructured long tail. Migrations applied through **0017** (0010 licensed feed + domains; 0012 anon-SELECT completing event∪licensed read; 0013 ics/jsonld providers; 0014/0017 venue_url/phone; 0015 localist; 0016 venue_truth).
+
+**Consumer surface:** `/tonight` feed (licensed ∪ promoted, CAPCOG-boundary filtered, never confidence-filtered), lensing/filters (`web/lib/feed.ts`), a per-event **detail route** (`/tonight/[id]`), share card, "Hear them" music links, venue contact, three-tier date buckets. Card design rebuild (#130) live; further card work is in-flight PR #147. **Spark Line content layer is PR #148** (open, in review — the current product frontier; zero-spend, candidate-only, publishes nothing).
+
+**Canon ratified since the last STATE update** (2026-07-29 → 08-02): product vision & governance principles (#97); the 18-genre taxonomy wired (#99); `/tonight` UI canon consolidated (#127); **truth-states v2** — six states `confirmed | owner-confirmed | likely | unverified | disputed | stale` (2026-08-01) is ratified CANON, but the RUNNING pipeline is still 4-state (implementation = **R-064**, honestly flagged); the 23 supply segments (2026-08-01); engagement invariants-vs-hypotheses split (2026-08-01); the **1Live rebrand** (2026-08-02) — user-facing web strings DONE (#143), infra identifiers deliberately kept (`ONELIVE_*` env names, repo/Supabase ref), STATE.md + DNS wiring the remainder (R-065). The five-part founder-comms framework (WHAT · HOW · WHY · WHY-THAT-MATTERS · EXPECTED OUTCOMES) is canon.
+
+**Process posture (ratified 2026-07-29):** ship product, not ceremony. The adversarial reviewer is scoped to USER/PUBLIC-FACING harm; `construction_gate` + `kaizen_trends` are ADVISORY (still run); `trust_gate`/`lint`/`deferral_scan`/full pytest stay BLOCKING. Gates ADVISE, the founder DECIDES; the AI never forges founder authority. "The gate" = validation, not a human click (enables earned-confidence auto-publish behind an OFF-by-default flag — promoter not yet built).
+
+NEXT (2026-08-03 — unblocked, non-founder-crucial, verified against git; the queue's old "P0 Step 6" is DONE):
+1. Shepherd **PR #148** (Spark Line content) to merge per protocol — it sits against the founder-HELD "Spark Line free-lane grounding go/hold/amend" decision, so the founder confirms proceed-vs-hold (asked separately). #147 (card design) likewise in review.
+2. **R-064** — implement truth-states v2 in the running pipeline (`worker/confidence.py`/`gating.py`, `tests/test_gates.py`, public display, CLAUDE.md text). Code-armed, trust-adjacent → evaluator.
+3. **R-065 remainder** — 1Live.co DNS→Vercel at the deploy session; STATE.md rebrand strings (this file still says "OneLive" in the title/history — deliberately, as append-only history; new prose uses 1Live).
+4. Wineries/breweries/distilleries ingestion source seeding (founder-directed) — needs verified calendar URLs (founder or an open-network session).
+5. **Open-PR hygiene:** ~13 older open PRs (#33–#112) never merged and are likely superseded — founder close-or-revive pass (agents don't close PRs unilaterally).
+
+**Founder HOLDS carried forward (do NOT act):** Spark Line free-lane grounding (MusicBrainz+Wikidata, zero-spend) go/hold/amend · "trusted third-party photos" widening (legal) · Rule Zero greenlight clause keep-vs-tighten · tier-C descriptor generation at scale (= model spend) · CLAUDE.md Rule Zero pointer (next lawful root-file window).
+
+**Founder-crucial queue (unchanged, do not silently pick):** Meta/Graph API + `ONELIVE_APPROVAL_KEY` credential minting (R-026/R-061); SeatGeek/Eventbrite service creds (R-029); convergence auto-publish ruling (R-030); Owned Agent Q1–Q22 ratification; monitoring-stack timing; payments; native-mobile timing.
+
+---
+
+## Where we are (updated 2026-07-22, session close: STEP 5 ARMED — the 20-minute ingestion cron is live on master; prior update 2026-07-18, certification bootstrap) — SUPERSEDED; HISTORY, see the 2026-08-03 reconciliation above
 
 DONE 2026-07-21/22 (the arming arc — PRs #43 + #44 merged, plus the #45 session-close PR): **Step 5 is ARMED.** `ingest.yml` carries `cron: "7,27,47 * * * *"` on master (founder-directed 20-minute cadence) with: schedule-only 10-source ceiling structurally pinned in both workflow steps; least-recently-ATTEMPTED rotation (failed/304 fetches write attempt rows so dead sources cannot monopolize the capped window); a BLOCKING dead-man precondition (tools/assert_deadman_period.py — live healthchecks period/grace via the founder's read-only key + an every-run /log probe that must move the verified check's n_pings); and the two-half arming-evidence binding (git: reviewed head runtime-identical to the recorded green run's commit; API: the recorded run authenticated against the live Actions API — REQUIRED in trust-gate). PR #44 landed FIRST (R-021 datetime truth boundary: timestamps stored only with full-date evidence, refusals reason-tagged and preserved in provenance — proven live repeatedly, incl. 3 more sources on run 29885464970 with zero errors). #44 merged at APPROVE run 29880533719 under the ratified per-class exception (classifier-printed NOT-manifest-bound partition); #43 merged FULLY GREEN at APPROVE run 29881030319 (no exception consumed) after 21 adversarial rounds — the full attack record is FRICTION_LOG entry #3; Kaizen rows for #42/#43/#44 are in the ledger (M1=22 the honest high-water mark; the count re-fired the stale-cross-reference repeat-class alarm, answered with a new mechanical cadence-claim gate in tests/test_ingest_workflow_contract.py). R-005 RESOLVED, R-020 RESOLVED; R-008 OPEN on ONE remaining citation — the first schedule-event run: GitHub's scheduler had fired zero scheduled runs through 02:17Z (four slots; known new-cron pickup lag; workflow active, cron verified on master); a manual capped dispatch on master (run 29885464970 @ ab6819a: 10/10 sources, 0 errors, 3 ready_to_promote, dead-man + ping-binding proven) quiets the alarm, advances rotation, and is the current binding evidence. Design track (parallel, founder-led): direction-4 FLOW prototype iterated through 8 founder rounds to v3.1 — fully STATIC HTML/CSS generated by design/proposals/generate_flow.py from a single dataset (root cause of the render-failure rounds: the founder's viewer executes no JavaScript; two founder-caught render defects queue for the #45 Kaizen row), 18-show time-ordered river, city start screen, genre/area/nearby lenses, SnipTunes, venue specials (display-only, never ranking — no-pay-to-rank). Founder canon edit: "Less chaos. Real shows." removed (brief-update proposal queued in TODOS). Growth/design-tools research committed as PROPOSAL (docs/strategy/ONE_LIVE_GROWTH_LOOPS_AND_DESIGN_TOOLS_v1.md).
 
@@ -49,6 +75,18 @@ DONE this arc: PRs #14–#22 merged through the armed gate (M1 trend 5→1). All
 NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set gate** — ≥40-example golden set (~320 facts, incl. injection cases), live-exam runner over the REAL provider path (design the documented exam channel past the R-013 gate carefully), blocking CI job; flag flips with a PASSING result → extraction unlocks → first real candidates → Step 7. Then: R-008 cron arming (po battery + friction attack first).
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
+
+## Session Contract #33 (2026-08-03, founder-directed — "search all prior sessions and memory and bring everything up to date; prevent stale or lack of updates from ever happening again")
+
+GOAL: (1) Reconcile every disk-truth doc against VERIFIED ground truth after ~50 merged PRs of drift — STATE.md (this rollup), TODOS.md (mark resolved items), the change log (catch-up entries), session arcs (write the missing arc), and memory (the three kickoff-named lessons + the stale-record-belief gotcha). (2) Make staleness mechanically impossible to recur.
+
+ROOT CAUSE (verified, not assumed): STATE.md was believed FROZEN by the arming-smoke binding (R-023/R-065). That belief was STALE — the 2026-07-24 `arming_runtime.py` refactor (Contract #20) replaced the coarse denylist with a precise import-closure classifier, and STATE.md (markdown, never imported by the cron) is NOT in the runtime set. Confirmed empirically this session (`python tools/arming_runtime.py` lists no `.md` file; a STATE.md edit does not appear in the binding's diff set). So STATE.md has been editable since 2026-07-24; sessions parked updates on a freeze that no longer existed, and nothing mechanically noticed the growing git↔STATE gap because `session_reconcile.py` goes UNVERIFIED (not FAIL) without `gh`/DB.
+
+SCOPE: docs + tooling — `tools/staleness_check.py` (git-only STATE.md drift guard) + `tests/test_staleness_check.py` (8 cases, planted-stale reds) + `tools/validate` wiring (blocking); STATE.md/TODOS/changelog/arc/memory reconciliation; `docs/RECORD.md` R-023/R-065 corrections. NO runtime/product code, no trust-invariant change, no threshold relaxation (the guard is a TIGHTENING).
+
+DONE-CRITERIA: `tools/validate` green (staleness_check passes on the refreshed marker) · the new guard's tests green · the disk-truth docs reflect PR #146 reality · R-023/R-065 corrected · draft PR through the (advisory) evaluator.
+
+STATUS: IN PROGRESS (this session). The staleness guard is BLOCKING in validate by design — the founder's "prevent this ever again" is the ratification (gate custody: gates ADVISE, founder DECIDES; this is a founder-directed tightening, reversible in one commit). GATE-CUSTODY NOTE for the reviewer: this adds a check that can only REJECT a stale tree; it relaxes nothing.
 
 ## Session Contract #32 (2026-07-29, founder-ratified process scale-back → ship CAPCOG)
 
