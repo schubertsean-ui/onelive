@@ -101,6 +101,7 @@ and mirror key facts to memory.
 
 | Date | Arc | Focus |
 |---|---|---|
+| 2026-08-03 | [PR #147 card design merge](2026-08-03_pr147-card-design-merge.md) | Contract #34: kickoff item 1 — PR #147 (/tonight card design Phase 1) merged at proven evaluator APPROVE (run 30777435394, gpt-5.5, all four seats; M1=1) + trust-gate green on final head af65656; master → c9bee60. Close-out: marker advanced, Kaizen rows incl. honest #148/#149 backfill, R-002's fired trigger re-surfaced. |
 | 2026-08-03 | [Reconciliation + anti-staleness guard](2026-08-03_reconciliation-and-staleness-guard.md) | Contract #33: brought STATE/TODOS/changelog/arcs/memory current after ~50 PRs of drift (product had shipped to public go-live, PR #146). Root cause: STATE.md was believed frozen by the arming binding, but the 2026-07-24 import-closure refactor had already unfrozen it. Shipped `tools/staleness_check.py` (git-only STATE.md drift guard, blocking in validate) + 8 tests; corrected R-023/R-065; wrote the three kickoff-named brain lessons. |
 | 2026-07-25 | [Meta carousel + construction loop](2026-07-25_meta-carousel-and-construction-loop.md) | (Index row added 2026-08-03 — arc existed on disk, unindexed.) Meta carousel engine build + the construction-loop method canon arc. |
 | 2026-07-25 | [Carousel loop review v2 (handoff)](2026-07-25_HANDOFF_carousel-loop-review-v2.md) | (Index row added 2026-08-03 — arc existed on disk, unindexed.) Handoff notes for the carousel/adversarial-review-v2 arc. |
