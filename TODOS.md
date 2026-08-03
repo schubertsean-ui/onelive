@@ -13,6 +13,24 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #36 (2026-08-03 — integrity plugin + charter, founder-approved)
+- [x] (P0) `integrity-plugin/` — marketplace + plugin manifests, generalized plan-first hooks, OPERATING INTEGRITY CHARTER (36 rules with sources + enforcement class), claude.ai paste-in, new-lane README checklist, 7 lockstep guard tests. DONE this session.
+- [ ] (P1, founder, one-time per surface) Roll the behavioral ring out: paste `integrity-plugin/plugins/integrity/charter/CLAUDE_PROJECT_PASTEIN.md` into each claude.ai Project's custom instructions (chat has no hooks — this is the instructions ring, stated honestly).
+- [x] (P2) Charter v2 DONE same session — the full sweep (48 decision records + every founder-caught ledger row) replaced interim v1; ~90 rules with enforcement classes; §8 names the thin-mechanization hotspots (no-timers guard + visual-QA render-and-measure script = the owed mechanizations).
+- [ ] (P2, when a second lane exists) First real consumer of the marketplace reference (README block) — verify the plugin resolves, the banner prints, and the gate fires in that repo's first session; failure = escaped defect, ledger row.
+
+## Session Contract #35 (2026-08-03 — plan-first made mechanical, founder-approved)
+- [x] (P0) Plan-first hooks — SessionStart banner + PreToolUse gate in `.claude/settings.json`, `tools/plan_first_gate.py`/`plan_first_banner.py`, 10 tests incl. the unwiring guard. DONE this session.
+- [x] (P1) Heartbeat paper §5b supplementary-data-sources addendum (consent > license > scrape). DONE.
+- [x] (P1) M6 disposition snapshot appended to the Kaizen ledger (1Live lane: 74/34/37/3/2). DONE.
+- [ ] (P2, next session in a fresh container) VERIFY the hooks fire live: session start must print the [plan-first] banner, and an Edit to a product file with no OPEN five-field contract must be denied by the gate. (This session created settings.json mid-run; the settings watcher only loads it at session start, so live firing is provable only from the next session.) If either leg fails, that is an ESCAPED defect — ledger row + fix before any other work.
+
+## Session Contract #34 (2026-08-03 — Heartbeat productization strategy)
+- [x] (P1) Heartbeat productization & market strategy PROPOSAL — `docs/strategy/ONE_LIVE_HEARTBEAT_PRODUCTIZATION_v1.md` (canon/repo evaluation · world-class benchmarks · staged journey · cost/revenue specs · the per-verified-event-record KPI spine · ONE founder ask list §10). DONE this session.
+- [x] (P1) Fix `session_reconcile.py --heal` destroying `reconciled_through_commit` + unverified-leg facts — preserve-what-you-don't-own + 2 regression tests. DONE this session.
+- [ ] (P1, founder) Decide the §10 ask list of the Heartbeat paper — items 1–2 (ratify the analytics canon + North Star; ratify the analytics privacy policy) unblock Stage 0 of the internal engine; item 3 blesses the free non-monetized stages in principle. Owner: founder.
+- [ ] (P2, agent, after §10 item 1–2) Build internal engine Phase 1 (tracking plan + per-event cost logging + source-overlap logging to Supabase — no vendor, no PII) per `ONE_LIVE_ANALYTICS_METRICS_v1.md` §11. Blocked on the privacy-policy ratification for the user-behavior leg; the pipeline-side legs (cost, overlap) are unblocked once the canon is ratified.
+
 ## Session Contract #33 (2026-08-03 — reconciliation + staleness guard)
 - [x] (P0) Reconcile the disk-truth docs (STATE/TODOS/changelog/arcs/memory) against verified ground truth after ~50 merged PRs of drift — DONE this session.
 - [x] (P0) Ship the anti-staleness guard — `tools/staleness_check.py` (git-only STATE.md drift detector) + `tests/test_staleness_check.py` (8 cases) + blocking wiring in `tools/validate`. DONE.
