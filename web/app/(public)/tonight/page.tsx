@@ -7,6 +7,11 @@ import {
 import { fetchPromotedEvents } from "../../../lib/promoted";
 import { withSparkLines } from "../../../lib/spark";
 import { filterToCapcog } from "../../../lib/region";
+import {
+  QA_FROZEN_NOW_MS,
+  qaFixtureEvents,
+  qaFixturesEnabled,
+} from "../../../qa/fixtures";
 import FeedApp from "./FeedApp";
 
 // Server component — reads the REAL licensed events from Supabase at request
@@ -17,6 +22,25 @@ import FeedApp from "./FeedApp";
 export const dynamic = "force-dynamic";
 
 export default async function TonightPage() {
+  // SYNTHETIC QA fixture mode (visual regression R-002 / a11y audits) — fully
+  // fictional events, frozen clock, visible banner; fail-closed off unless the
+  // server env carries ONELIVE_QA_FIXTURES=1 (never set in any deployment).
+  // The status filter mirrors the ONLY filter the real query applies
+  // (scheduled+moved — a time/status filter, never a confidence one).
+  if (qaFixturesEnabled()) {
+    const fixture = qaFixtureEvents().filter(
+      (e) => e.status === "scheduled" || e.status === "moved",
+    );
+    return (
+      <>
+        <div className="qanote" role="note">
+          SYNTHETIC QA FIXTURES — fictional events for rendering checks, not real listings
+        </div>
+        <FeedApp events={fixture} serverNowMs={QA_FROZEN_NOW_MS} qaFrozenClock />
+      </>
+    );
+  }
+
   if (!supabaseConfigured()) {
     return (
       <main className="flow">

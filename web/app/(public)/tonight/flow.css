@@ -306,3 +306,12 @@ body.lens-open { overflow: hidden; }
   .flow .room, .flow .zone { transition: none; }
   .lensroot .sheet { animation: none; }
 }
+
+/* QA fixture banner (web/qa/fixtures.ts) — renders ONLY when the synthetic
+   fixture mode is on, so a fixture screenshot can never pass as the real
+   product. High-contrast on the dark ground (AA). */
+.qanote {
+  background: #3a2c00; color: #ffd66e; border: 1px solid #8a6d1a;
+  border-radius: 8px; padding: 6px 10px; margin: 10px 0 0;
+  font-size: 12.5px; letter-spacing: 0.02em;
+}

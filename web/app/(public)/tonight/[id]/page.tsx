@@ -26,6 +26,8 @@ import {
 import ShareButton from "./ShareButton";
 import { shareCaveat } from "../../../../lib/share";
 import { contextualPreview } from "../../../../lib/preview";
+import { qaFixtureEventById, qaFixturesEnabled } from "../../../../qa/fixtures";
+import { domainLabel } from "../../../../lib/domains";
 
 // Server component — reads ONE event at request time. Deliberately NOT cached:
 // the same freshness rule the feed uses, for the same reason (an event that
@@ -43,6 +45,9 @@ export async function generateMetadata(
 ) {
   const fallback = { title: "A show — 1LIVE" };
   try {
+    // QA fixture mode makes no network reads anywhere — the generic title is
+    // the honest metadata for a synthetic page (never shared/unfurled anyway).
+    if (qaFixturesEnabled()) return fallback;
     if (!supabaseConfigured()) return fallback;
     const { id } = await params;
     const route = routeForEventId(id);
@@ -89,6 +94,11 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="flow">
       <div className="wrap">
+        {qaFixturesEnabled() ? (
+          <div className="qanote" role="note">
+            SYNTHETIC QA FIXTURES — fictional events for rendering checks, not real listings
+          </div>
+        ) : null}
         <div className="mast">
           <h1>
             <Link className="back" href="/tonight">
@@ -112,19 +122,27 @@ export default async function EventDetailPage(
   // rejects the empty and prefix-only cases.
   const { id } = await params;
 
-  const configured = supabaseConfigured();
+  // QA fixture mode (web/qa/fixtures.ts): serve the synthetic row, no network.
+  // The same resolveDetailView branch logic runs on it, so the fixture page
+  // exercises the real render path, not a parallel one.
+  const qa = qaFixturesEnabled();
+  const configured = qa || supabaseConfigured();
   const route = configured ? routeForEventId(id) : null;
 
   let event: LicensedEvent | null = null;
   let error: string | null = null;
   if (route) {
-    try {
-      event = route.kind === "promoted"
-        ? await fetchPromotedEventById(route.id)
-        : await fetchLicensedEventById(route.id);
-    } catch (e) {
-      // Loud, never an empty page dressed as "no such event".
-      error = e instanceof Error ? e.message : "Could not load this event";
+    if (qa) {
+      event = route.kind === "licensed" ? qaFixtureEventById(route.id) : null;
+    } else {
+      try {
+        event = route.kind === "promoted"
+          ? await fetchPromotedEventById(route.id)
+          : await fetchLicensedEventById(route.id);
+      } catch (e) {
+        // Loud, never an empty page dressed as "no such event".
+        error = e instanceof Error ? e.message : "Could not load this event";
+      }
     }
   }
 
@@ -253,7 +271,10 @@ export default async function EventDetailPage(
             <>
               <dt>Kind</dt>
               <dd>
-                {event_.category}
+                {/* The human label, not the raw slug — the card already renders
+                    domainLabel; the detail page must not drift ("live-music"
+                    was reaching readers here). */}
+                {domainLabel(event_.category)}
                 {event_.subsegment ? <span className="dsub"> · {event_.subsegment}</span> : null}
               </dd>
             </>

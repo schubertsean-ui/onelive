@@ -1,0 +1,71 @@
+name: Visual Regression
+
+# The /tonight pixel gate (R-002). Boots the app in SYNTHETIC QA fixture mode
+# (web/qa/fixtures.ts — fictional data, frozen clock, visible banner; the mode
+# is fail-closed off everywhere else) and pixel-diffs the rendered pages
+# against the committed baselines in tests/visual_baselines/ via
+# tools/visual_check.sh. Deterministic by construction: fixture data + frozen
+# clock + TZ pinned to America/Chicago + Chromium pinned to the SAME build the
+# baselines were captured with (Playwright 1.56.0 = Chromium 1194) + external
+# hosts resolver-blocked in the browser. A diff means the UI changed — either
+# fix it, or recapture baselines IN THE SAME PR (bash tools/visual_check.sh
+# --update) so the visual change is reviewed as part of the diff.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "web/**"
+      - "tests/visual_baselines/**"
+      - "tools/visual_check.sh"
+      - "tools/visual_regression.py"
+      - ".github/workflows/visual-regression.yml"
+
+concurrency:
+  group: visual-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4 # SHA-pin queued (repo-wide P3): pins must be VERIFIED upstream SHAs; tag stays until a networked session / the founder confirms them
+
+      - uses: actions/setup-node@v4 # SHA-pin queued (repo-wide P3) — same constraint as above
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - uses: actions/setup-python@v5 # SHA-pin queued (repo-wide P3) — same constraint as above
+        with:
+          python-version: "3.12"
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      # Chromium pinned to the exact build the committed baselines were
+      # captured with (Playwright 1.56.0 ships Chromium build 1194). A
+      # different build may rasterize differently and turn the gate into
+      # noise; bump this pin ONLY together with recaptured baselines.
+      - name: Install pinned Chromium (Playwright 1.56.0 = build 1194)
+        run: npx --yes playwright@1.56.0 install --with-deps chromium
+
+      - name: Capture and compare against baselines
+        env:
+          ONELIVE_CHROMIUM: /home/runner/.cache/ms-playwright/chromium-1194/chrome-linux/chrome
+        run: bash tools/visual_check.sh
+
+      # On divergence the script writes NAME.CANDIDATE.png next to each failed
+      # baseline — attach them so the reviewer can SEE the change, not guess.
+      - name: Upload diverged candidates
+        if: failure()
+        uses: actions/upload-artifact@v4 # SHA-pin queued (repo-wide P3) — same constraint as above
+        with:
+          name: visual-regression-candidates
+          path: tests/visual_baselines/*.CANDIDATE.png
+          if-no-files-found: ignore

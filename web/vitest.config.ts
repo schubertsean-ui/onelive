@@ -2,7 +2,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    include: ["lib/**/*.test.ts", "app/**/*.test.{ts,tsx}"],
+    include: ["lib/**/*.test.ts", "app/**/*.test.{ts,tsx}", "qa/**/*.test.ts"],
     environment: "node",
   },
   // The app's tsconfig sets jsx:"preserve" for Next, which leaves JSX in the

@@ -325,7 +325,13 @@ function toggle(set: Set<string>, v: string): Set<string> {
   return n;
 }
 
-export default function FeedApp({ events, serverNowMs }: { events: LicensedEvent[]; serverNowMs: number }) {
+export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
+  events: LicensedEvent[]; serverNowMs: number;
+  // QA fixture mode only (web/qa/fixtures.ts): keep the server's frozen clock
+  // after mount so screenshots are deterministic. Never set in production —
+  // the real feed must always re-read the phone's real clock (canon §9).
+  qaFrozenClock?: boolean;
+}) {
   const [nowMs, setNowMs] = useState(serverNowMs);
   const [mounted, setMounted] = useState(false);
   const [tabKey, setTabKey] = useState("all");
@@ -339,7 +345,10 @@ export default function FeedApp({ events, serverNowMs }: { events: LicensedEvent
   // The open lens: which event, and which door (artist/venue). null = closed.
   const [lens, setLens] = useState<{ id: string; side: LensSide } | null>(null);
 
-  useEffect(() => { setNowMs(Date.now()); setMounted(true); }, []);
+  useEffect(() => {
+    if (!qaFrozenClock) setNowMs(Date.now());
+    setMounted(true);
+  }, [qaFrozenClock]);
 
   // Base = the honest set minus only what has ENDED (a time filter, never a
   // confidence filter). Before mount we keep everything (deterministic SSR).
