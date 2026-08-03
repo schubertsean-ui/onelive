@@ -42,9 +42,63 @@ dining). In 2026's indie surge and AI-ethics focus, 1LIVE is the ethical
 
 ---
 
+## Market position — Pillar: the anti–attention-economy (time given back)
+
+**Founder, verbatim (2026-08-02):** *"We want to execute on our claim that we
+are the opposite of the attention-economy mindset: we get you in/out with what
+you want, fast. We give you time back in your life and help you find the
+activities that will enrich your life and help you thrive and flourish. That's
+part of, not all of, our market position."*
+
+**The claim, stated plainly.** The attention economy measures success in
+*time-on-platform* and engineers for it (infinite scroll, autoplay, variable-
+reward loops, notification bait). **1Live is the opposite.** Our product exists
+to get a person **in and out, fast, with the thing they came for** — and then
+**out into their actual life**, at an activity that helps them *thrive and
+flourish*. The screen is a means; the night out is the end.
+
+**This is a positioning PILLAR, not the whole position** (founder's own scoping).
+It sits alongside the other pillars (trust-by-construction / no pay-to-rank;
+artist & venue sovereignty; the neutral demand mirror). It is recorded here so it
+governs product decisions, not just copy.
+
+**What it MEANS operationally (the teeth — these bind builds, not just marketing):**
+- **Time-given-back is the success metric; time-in-app is an ANTI-GOAL.** Already
+  encoded: `ONE_LIVE_USER_JOURNEY_LIFECYCLE_v1.md` §7 (HEART) — *"time-in-app is
+  an anti-goal, not a success metric; a fast satisfied exit is a win."* The North
+  Star is **TTFR** (time-to-first-trusted-relevant-result, journey §2.1) — get to
+  the answer fast — never session length or return-frequency-for-its-own-sake.
+- **A satisfied exit is a WIN.** A person who arrives, finds it, and leaves
+  (even without clicking out) succeeded. We never treat that as a re-engagement
+  failure or try to claw them back.
+- **No attention-economy dark patterns — ever.** No infinite scroll designed to
+  trap, no autoplay-to-retain, no artificial scarcity/urgency, no notification
+  bait. Proactive surfacing exists ONLY as **opt-in, verified-match alerts**
+  (`ONE_LIVE_SAVED_ALERTS_AND_PROACTIVE_SURFACING_v1.md`) — value delivered, not
+  attention extracted.
+- **White-hat Hook only.** The habit loop we build is honest (journey §7, Hook
+  row): the trigger is real value (a verified thing they asked for), the
+  investment is *their own* on-device saved/packages that make *their* app
+  better — never engagement for its own sake.
+- **"Enrich / thrive / flourish" is a content-quality bar, not a vibe.** The job
+  is to surface activities worth someone's finite time — which is why coverage is
+  event-level and honest gaps beat filler: padding the feed to inflate choice is
+  an attention-economy move and is forbidden.
+
+**Why this matters / the tradeoff, honestly.** This pillar deliberately forgoes
+the easiest growth lever in consumer software (engagement maximization). We are
+betting that *trust + time-respect* compounds into loyalty (the McKinsey loyalty
+loop, journey §7) more durably than engagement tricks — and that this is what
+lets a person, an artist, and the culture actually thrive. It is a slower,
+higher-integrity growth path by design.
+
+---
+
 ## Core Principles (governance canon)
 
 - **No pay-to-rank.**
+- **Time given back, not taken** — anti–attention-economy pillar (above): fast
+  in/out, satisfied-exit is success, time-in-app is an anti-goal.
 - **Artist sovereignty** — free data, instant corrections, **70% splits**.
 - **Social validates, never defines.**
 - **Amplification / livestreaming opt-in and separate.**
@@ -76,6 +130,9 @@ dining). In 2026's indie surge and AI-ethics focus, 1LIVE is the ethical
 - **No hidden boosts.**
 - **No algorithmic suppression.**
 - **No social-only listings.**
+- **No attention-economy dark patterns** — no engagement-trap infinite scroll,
+  autoplay-to-retain, false urgency, or notification bait (anti–attention-economy
+  pillar). Proactive surfacing is opt-in, verified-match only.
 - **AV prompts opt-in.**
 
 ## Red Lines (dissolution triggers)
