@@ -15,17 +15,17 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 {
   "git": {
     "branch": "master",
-    "head": "d22e9ce"
+    "head": "3610a5a"
   },
-  "reconciled_through_commit": "d22e9ce85613d846e1d4dcefe580a3809f322bef",
-  "reconciled_at": "2026-08-03T01:00:00+00:00",
-  "reconciled_by": "full reconciliation session 2026-08-03 (Contract #33); git verified locally, PR state verified via GitHub API (no gh/DB connector in this sandbox — DB row counts remain UNVERIFIED here)",
-  "prs_note": "merged history runs through PR #146 (public go-live). Open PRs verified via GitHub 2026-08-03 (20): the active product frontier is #148 (Spark Line content) + #147 (card design) + #145 (user-journey canon); the rest (#33,#34,#47,#50,#55,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112) are older/likely-superseded and flagged for a founder close-or-revive pass in TODOS.",
+  "reconciled_through_commit": "3610a5ab3bef2b379310181be8451ca45044c47d",
+  "reconciled_at": "2026-08-03T02:00:00+00:00",
+  "reconciled_by": "full reconciliation session 2026-08-03 (Contract #33); git verified locally, PR state verified via GitHub API (no gh/DB connector in this sandbox — DB row counts remain UNVERIFIED here). Marker advanced to 3610a5a after PR #148 (Spark Line content) was founder-directed-merged this session.",
+  "prs_note": "merged history runs through PR #148 (Spark Line content layer, merged 2026-08-03 = master 3610a5a; public go-live was #146). Open PRs verified via GitHub 2026-08-03: active frontier #147 (card design) + #145 (user-journey canon); the rest (#33,#34,#47,#50,#55,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112) are older/likely-superseded and flagged for a founder close-or-revive pass in TODOS.",
   "prs": {
     "33": "open", "34": "open", "47": "open", "50": "open", "55": "open",
     "56": "open", "75": "open", "76": "open", "81": "open", "83": "open",
     "84": "open", "85": "open", "86": "open", "108": "open", "109": "open",
-    "110": "open", "112": "open", "145": "open", "147": "open", "148": "open"
+    "110": "open", "112": "open", "145": "open", "147": "open"
   }
 }
 ```
@@ -39,16 +39,16 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 
 **Pipeline (verified from code this session):** `fetch → extract → gate` runs automatically (`worker/orchestrator.py`); **promote stays human-custodied** (the orchestrator deliberately does not import `worker/promote.py` — AI never publishes). **Extraction is UNLOCKED and certified** — `EXTRACTION_THRESHOLD_RATIFIED = True` (`tools/routing_data.py`), R-013 RESOLVED; the golden-exam gate (`ai/golden_exam.py`, hallucination ≤1% / recall ≥0.80 / zero-injection) enforces it. Routed model `extraction: claude-opus-4-8`.
 
-**Ingestion sources live:** the deterministic licensed spine (Ticketmaster live; SeatGeek/Eventbrite BUILT, dormant on missing founder-crucial creds — R-029) writes `licensed_event` (no AI); the structured importer (`worker/importers/structured_feed.py`) reads ICS/VEVENT + schema.org JSON-LD, incl. the Localist provider; gov open-data (Socrata) writes `venue_truth`; the AI crawl pipeline covers the unstructured long tail. Migrations applied through **0017** (0010 licensed feed + domains; 0012 anon-SELECT completing event∪licensed read; 0013 ics/jsonld providers; 0014/0017 venue_url/phone; 0015 localist; 0016 venue_truth).
+**Ingestion sources live:** the deterministic licensed spine (Ticketmaster live; SeatGeek/Eventbrite BUILT, dormant on missing founder-crucial creds — R-029) writes `licensed_event` (no AI); the structured importer (`worker/importers/structured_feed.py`) reads ICS/VEVENT + schema.org JSON-LD, incl. the Localist provider; gov open-data (Socrata) writes `venue_truth`; the AI crawl pipeline covers the unstructured long tail. (Migration ceiling stated once in the Consumer surface paragraph below.)
 
-**Consumer surface:** `/tonight` feed (licensed ∪ promoted, CAPCOG-boundary filtered, never confidence-filtered), lensing/filters (`web/lib/feed.ts`), a per-event **detail route** (`/tonight/[id]`), share card, "Hear them" music links, venue contact, three-tier date buckets. Card design rebuild (#130) live; further card work is in-flight PR #147. **Spark Line content layer is PR #148** (open, in review — the current product frontier; zero-spend, candidate-only, publishes nothing).
+**Consumer surface:** `/tonight` feed (licensed ∪ promoted, CAPCOG-boundary filtered, never confidence-filtered), lensing/filters (`web/lib/feed.ts`), a per-event **detail route** (`/tonight/[id]`), share card, "Hear them" music links, venue contact, three-tier date buckets. Card design rebuild (#130) live; further card work is in-flight PR #147. **Spark Line content layer MERGED (#148, founder-directed, 2026-08-03)** — the Descriptor Foundry validation gate (`worker/descriptor/`), the store (migrations 0018/0019), and the card render (`web/lib/spark.ts`, `SparkLineView`) are live; zero-spend, candidate-only, publishes nothing. Migrations now applied through **0019** (0010 licensed feed + domains; 0012 anon-SELECT event∪licensed read; 0013 ics/jsonld; 0014/0017 venue_url/phone; 0015 localist; 0016 venue_truth; 0018/0019 Spark Line descriptor store + identity).
 
 **Canon ratified since the last STATE update** (2026-07-29 → 08-02): product vision & governance principles (#97); the 18-genre taxonomy wired (#99); `/tonight` UI canon consolidated (#127); **truth-states v2** — six states `confirmed | owner-confirmed | likely | unverified | disputed | stale` (2026-08-01) is ratified CANON, but the RUNNING pipeline is still 4-state (implementation = **R-064**, honestly flagged); the 23 supply segments (2026-08-01); engagement invariants-vs-hypotheses split (2026-08-01); the **1Live rebrand** (2026-08-02) — user-facing web strings DONE (#143), infra identifiers deliberately kept (`ONELIVE_*` env names, repo/Supabase ref), STATE.md + DNS wiring the remainder (R-065). The five-part founder-comms framework (WHAT · HOW · WHY · WHY-THAT-MATTERS · EXPECTED OUTCOMES) is canon.
 
 **Process posture (ratified 2026-07-29):** ship product, not ceremony. The adversarial reviewer is scoped to USER/PUBLIC-FACING harm; `construction_gate` + `kaizen_trends` are ADVISORY (still run); `trust_gate`/`lint`/`deferral_scan`/full pytest stay BLOCKING. Gates ADVISE, the founder DECIDES; the AI never forges founder authority. "The gate" = validation, not a human click (enables earned-confidence auto-publish behind an OFF-by-default flag — promoter not yet built).
 
 NEXT (2026-08-03 — unblocked, non-founder-crucial, verified against git; the queue's old "P0 Step 6" is DONE):
-1. Shepherd **PR #148** (Spark Line content) to merge per protocol — it sits against the founder-HELD "Spark Line free-lane grounding go/hold/amend" decision, so the founder confirms proceed-vs-hold (asked separately). #147 (card design) likewise in review.
+1. **DONE (#148 merged 2026-08-03, founder-directed).** Next Spark Line steps, queued: the founder-controlled take-live/publish path (zero-spend — lights up a human-authored tier-A/B line, no model call) + the ✳ tap-to-dismiss sheet; then the tier-C generation job (FOUNDER-CRUCIAL: model spend, cap first). #147 (card design) still in review — shepherd it next.
 2. **R-064** — implement truth-states v2 in the running pipeline (`worker/confidence.py`/`gating.py`, `tests/test_gates.py`, public display, CLAUDE.md text). Code-armed, trust-adjacent → evaluator.
 3. **R-065 remainder** — 1Live.co DNS→Vercel at the deploy session; STATE.md rebrand strings (this file still says "OneLive" in the title/history — deliberately, as append-only history; new prose uses 1Live).
 4. Wineries/breweries/distilleries ingestion source seeding (founder-directed) — needs verified calendar URLs (founder or an open-network session).
@@ -85,6 +85,8 @@ ROOT CAUSE (verified, not assumed): STATE.md was believed FROZEN by the arming-s
 SCOPE: docs + tooling — `tools/staleness_check.py` (git-only STATE.md drift guard) + `tests/test_staleness_check.py` (8 cases, planted-stale reds) + `tools/validate` wiring (blocking); STATE.md/TODOS/changelog/arc/memory reconciliation; `docs/RECORD.md` R-023/R-065 corrections. NO runtime/product code, no trust-invariant change, no threshold relaxation (the guard is a TIGHTENING).
 
 DONE-CRITERIA: `tools/validate` green (staleness_check passes on the refreshed marker) · the new guard's tests green · the disk-truth docs reflect PR #146 reality · R-023/R-065 corrected · draft PR through the (advisory) evaluator.
+
+ADDENDUM (2026-08-03, same session, founder directives): (a) **Merged PR #148** (Spark Line content layer) at founder direction ("Merge 148") — trust-gate green on head d4ea6a08, mergeable_state clean; master → 3610a5a; branch synced via merge. (b) **Codified two repeated founder directions** into `docs/OPERATING_RULES.md` §6a: 6a.2 hardened to ban `send_later`/timers/self-check-ins outright (webhooks are the only trigger; the agent had scheduled a banned "~1h fallback" this session), and new 6a.3 promotes the 2026-07-29 "non-user-facing content does not circle" direction from a decision record to a first-class rule. Decision record: `docs/memory/decisions/2026-08-03_no-delays-and-non-user-facing-does-not-circle.md`. (c) **Refreshed `docs/ops/NEXT_SESSION_KICKOFF_PROMPT.md`** into a world-class handoff for the remaining work.
 
 STATUS: IN PROGRESS (this session). The staleness guard is BLOCKING in validate by design — the founder's "prevent this ever again" is the ratification (gate custody: gates ADVISE, founder DECIDES; this is a founder-directed tightening, reversible in one commit). GATE-CUSTODY NOTE for the reviewer: this adds a check that can only REJECT a stale tree; it relaxes nothing.
 

@@ -47,6 +47,8 @@ existed, and nothing mechanically noticed the growing gap.
   `stale-record-belief` gotcha.
 - Session arc: `docs/session_arcs/2026-08-03_reconciliation-and-staleness-guard.md`.
 
+**Addendum (same session, founder directives):** (a) **PR #148 (Spark Line content layer) MERGED** at founder direction ("Merge 148") — trust-gate green, `mergeable_state` clean; master → `3610a5a`; this branch synced via merge (the three brain-lesson files turned out to already exist on #148 with fuller content — merge conflicts resolved in favor of #148's canonical versions; my duplicates yielded). (b) **Two repeated founder directions codified** in `docs/OPERATING_RULES.md` §6a — 6a.2 hardened to ban `send_later`/timers/self-check-ins outright (the agent had scheduled a banned "~1h fallback"; webhooks are the only trigger), and new 6a.3 promotes "non-user-facing content does not circle" from a decision record to a first-class rule. Decision record: `docs/memory/decisions/2026-08-03_no-delays-and-non-user-facing-does-not-circle.md`. (c) `docs/ops/NEXT_SESSION_KICKOFF_PROMPT.md` refreshed into a remaining-work handoff. The staleness marker was advanced to `3610a5a` so STATE.md reflects #148.
+
 **Verified ground truth this session** (git locally + PR state via GitHub API — no
 `gh` binary or Supabase connector in the sandbox, so DB row counts remain
 UNVERIFIED and are not asserted): master = `d22e9ce` (public go-live); extraction

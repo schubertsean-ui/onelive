@@ -55,7 +55,10 @@ go-live).
 | Guard tests | `tests/test_staleness_check.py` | 8 hermetic cases over real temp git repos |
 | Reconciled rollup | `STATE.md` | GROUND_TRUTH marker + "Where we are (2026-08-03)" + Contract #33 |
 | Catch-up log | `docs/ONE_LIVE_CHANGE_LOG.md` | 2026-07-26→08-03 entries prepended |
-| Brain lessons | `docs/memory/decisions/2026-08-02_complete-reading-gate.md`, `docs/memory/gotchas/2026-08-02_skim-fragment-is-no-read.md`, `docs/memory/gotchas/2026-08-03_conflation-is-a-violation.md`, `docs/memory/gotchas/2026-08-03_stale-record-belief.md` | the three kickoff-named lessons + the verified stale-record lesson |
+| Brain lessons | `docs/memory/decisions/2026-08-02_complete-reading-gate.md`, `docs/memory/gotchas/2026-08-02_skim-fragment-is-no-read.md`, `docs/memory/gotchas/2026-08-03_conflation-is-a-violation.md`, `docs/memory/gotchas/2026-08-03_stale-record-belief.md` | the three kickoff-named lessons (canonical versions came in via #148) + the verified stale-record lesson |
+| Handoff standard + proof discipline | `docs/ops/HANDOFF_STANDARD.md`, `docs/OPERATING_RULES.md` §6a.5, `docs/memory/decisions/2026-08-03_handoff-standard-and-proof-discipline.md` | founder-directed: all handoffs world-class (eight defined properties); currency/completeness PROVEN not asserted |
+| Delay/circle codification | `docs/OPERATING_RULES.md` §6a.2/§6a.3, `docs/memory/decisions/2026-08-03_no-delays-and-non-user-facing-does-not-circle.md` | no timers/`send_later` (webhooks only); non-user-facing content does not circle |
+| PR #148 merged | master `3610a5a` | Spark Line content layer, founder-directed merge |
 
 ## Drift corrected this session
 - STATE.md narrative (frozen 2026-07-22) → current 2026-08-03 rollup; GROUND_TRUTH block a0b3724→d22e9ce with a `reconciled_through_commit` marker.

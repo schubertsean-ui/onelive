@@ -333,16 +333,56 @@ keeping the founder informed is the agent's job, never the founder's to chase.
    step, start the next, in the same run. Do NOT stop to schedule a far-out
    check-in and do NOT sit on a timer. Long delays are banned (founder-directed
    2026-07-31: *"Stop with the long delays and check-ins!"*).
-2. **Completion-triggered, not clock-triggered.** Continuation is driven by an
-   event finishing — a build step done, a PR going green, a CI/review webhook —
-   not by an arbitrary interval. Use the **activity wake** (PR-webhook
-   subscriptions) as the signal. Only if genuinely blocked on external state with
-   no event to wake on, use the **shortest** possible timer, never a long one.
-3. **Own it; report, don't ask.** Decisions the agent can make and reversibly
+2. **Completion-triggered, not clock-triggered — NO timers, NO `send_later`, NO
+   self-check-ins (founder-directed, repeated ~10×; hardened 2026-08-03 after the
+   agent scheduled a "~1h fallback" anyway).** Continuation is driven by an EVENT
+   finishing — a build step done, a PR going green, a CI/review/merge webhook. The
+   PR-activity subscription (`<github-webhook-activity>` messages) IS the trigger;
+   it wakes the session. **Do NOT call `send_later`, `create_trigger`, `sleep`, or
+   any scheduling/delay tool to wake yourself** — a clock-based self-check-in "just
+   in case" is the exact banned anti-pattern, and a "shortest-possible fallback
+   timer" is still a timer. The ONLY thing that ever justifies a scheduled wake is
+   an **actual external trigger that emits no webhook at all** (e.g. polling a
+   third-party job the harness genuinely cannot be notified about) — and even then,
+   prefer to **END THE TURN with a clear status** and let the harness re-invoke you
+   on real events; a subscription's "success is silent" gap is covered by re-checking
+   when the NEXT real event arrives, not by a timer. Requesting a delay for anything
+   other than an actual external trigger is a Rule-Zero-level violation.
+3. **Non-user-facing content does not circle (founder-directed 2026-07-29, canon;
+   restated here 2026-08-03 because the review/re-review cluster kept recurring).**
+   Gates, reviews, and tests exist to protect USER-FACING trust — fabricated/
+   unverified data on a user surface, AI publishing unvalidated, disputed hidden,
+   auth/RLS fail-open, non-parameterized SQL, unvalidated input, broken trust
+   display, pay-to-rank. Process/harness/docs ceremony (red-class recitation,
+   Kaizen rows, construction contracts, doc formatting, session-doc structure) is
+   EXPLICITLY out of review scope and must NEVER block a merge or trigger a
+   re-review cycle. Mechanisms already live (do not re-derive them): the adversarial
+   reviewer is scoped to user-facing harm; `construction_gate` and `kaizen_trends`
+   are ADVISORY; `trust_gate`/`lint`/`deferral_scan`/full pytest stay blocking. On
+   a NON-user-facing gate/test failure: fix it ONCE or route around it and land the
+   change — do not enter a review circle over it. Relaxing any USER-FACING trust
+   gate is a different thing entirely: still founder-crucial, never done to escape a
+   circle. When unsure whether a failure is user-facing, that judgment is the
+   founder's, asked ONCE — not litigated across rounds.
+4. **Own it; report, don't ask.** Decisions the agent can make and reversibly
    verify, the agent makes — then reports the outcome. Do not park buildable work
    as a founder "switch/decision" when the honest blocker is unbuilt code. Naming
    an unbuilt engine as a founder toggle is the 2026-07-31 anti-pattern this rule
    exists to prevent.
+5. **Every handoff is WORLD-CLASS, and currency is PROVEN, not asserted
+   (founder-directed 2026-08-03).** Any prompt/doc/message that transfers work to a
+   next session, another agent, or a future self MUST meet the eight-property bar in
+   `docs/ops/HANDOFF_STANDARD.md` (self-contained · disk-is-truth · current-AND-proven
+   · prioritized actionable work · failure memory · interaction contract · decisions
+   separated by ownership · plain/honest/linked). The canonical handoff artifact is
+   `docs/ops/NEXT_SESSION_KICKOFF_PROMPT.md`, rewritten to that bar at every session
+   close. **Proof discipline (generalizes §1 to every currency/completeness claim):**
+   never write "everything is current / all reconciled / done / green" as an
+   assertion — SHOW the evidence a reader can re-run (`python tools/staleness_check.py`;
+   marker == `git rev-parse origin/master`; `tests/test_live_state_consistency.py`;
+   `bash tools/validate` RESULT with no gate FAILED; PR/DB facts via the GitHub/Supabase
+   connectors, recorded UNVERIFIED when absent, never guessed). If you cannot produce
+   the evidence, you do not yet know the claim is true — state what is unverified.
 
 ---
 
