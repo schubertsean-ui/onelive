@@ -19,8 +19,8 @@ the exit code (0 = proceed; 2 MATERIAL CONTRADICTION = fix STATE.md prose to mat
 reality, re-run; 2 UNVERIFIED = the sandbox lacks `gh`/DB — verify PR state via the
 GitHub MCP tools and DB facts via the Supabase connector if present, else record them
 UNVERIFIED, never guessed). Then run `python tools/staleness_check.py` — it fails if
-STATE.md's `reconciled_through_commit` marker has fallen >20 commits behind HEAD; if it
-fails, RECONCILE STATE.md first (that is this session's first job). Do NOT trust STATE.md
+`origin/master` has advanced at all since STATE.md was last updated (zero-tolerance —
+no "N commits" fudge factor); if it fails, RECONCILE STATE.md first (that is this session's first job). Do NOT trust STATE.md
 until both are clean.
 
 **Step 1 — Read these COMPLETELY, end to end, no skimming / no fragments / no
@@ -72,7 +72,7 @@ recognize the moment):**
 - **Sources:** Ticketmaster live; SeatGeek/Eventbrite built, dormant on missing creds (R-029); structured importer (ICS/JSON-LD/Localist); Socrata gov → `venue_truth`; AI crawl for the long tail.
 - **Consumer surface:** `/tonight` feed + filters + per-event detail route + share + music links + venue contact; **Spark Line content layer merged (#148)** — Descriptor Foundry gate + store + card render, zero-spend/candidate-only/publishes-nothing.
 - **Ratified canon (2026-07-29→08-02):** product vision & principles; 18-genre taxonomy (wired); `/tonight` UI canon; truth-states v2 (six-state — pipeline still 4-state, see R-064); 23 supply segments; engagement invariants-vs-hypotheses; 1Live rebrand (user-facing web done; infra names kept). Process posture: ship product, reviewer scoped to user-facing harm, construction_gate/kaizen_trends advisory.
-- **Disk-truth guard is live:** `tools/staleness_check.py` (blocking in validate) fails if STATE.md drifts >20 commits behind HEAD.
+- **Disk-truth guard is live:** `tools/staleness_check.py` (blocking in validate) fails the moment `origin/master` advances past the last STATE.md update (zero-tolerance).
 
 **REMAINING WORK (highest-priority first; all UNBLOCKED unless marked). Take the top item, tell the founder the ONE next step, then take it:**
 1. **PR #147** (card design) — shepherd to merge per protocol.

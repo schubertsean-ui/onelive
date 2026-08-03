@@ -15,12 +15,12 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 {
   "git": {
     "branch": "master",
-    "head": "3610a5a"
+    "head": "9da667f"
   },
-  "reconciled_through_commit": "3610a5ab3bef2b379310181be8451ca45044c47d",
-  "reconciled_at": "2026-08-03T02:00:00+00:00",
-  "reconciled_by": "full reconciliation session 2026-08-03 (Contract #33); git verified locally, PR state verified via GitHub API (no gh/DB connector in this sandbox — DB row counts remain UNVERIFIED here). Marker advanced to 3610a5a after PR #148 (Spark Line content) was founder-directed-merged this session.",
-  "prs_note": "merged history runs through PR #148 (Spark Line content layer, merged 2026-08-03 = master 3610a5a; public go-live was #146). Open PRs verified via GitHub 2026-08-03: active frontier #147 (card design) + #145 (user-journey canon); the rest (#33,#34,#47,#50,#55,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112) are older/likely-superseded and flagged for a founder close-or-revive pass in TODOS.",
+  "reconciled_through_commit": "9da667f8b713effba205e6f7fc09be38704d3140",
+  "reconciled_at": "2026-08-03T03:00:00+00:00",
+  "reconciled_by": "full reconciliation session 2026-08-03 (Contract #33); git verified locally, PR state verified via GitHub API (no gh/DB connector in this sandbox — DB row counts remain UNVERIFIED here). Marker advanced to 9da667f after PR #149 (reconciliation + staleness guard + codifications) merged; PR #148 (Spark Line) merged earlier this session.",
+  "prs_note": "merged history runs through PR #149 (reconciliation + staleness guard + no-delays/no-circle + handoff-standard codification, merged 2026-08-03 = master 9da667f; #148 Spark Line and #146 public go-live earlier). Open PRs verified via GitHub 2026-08-03: active frontier #147 (card design) + #145 (user-journey canon); the rest (#33,#34,#47,#50,#55,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112) are older/likely-superseded and flagged for a founder close-or-revive pass in TODOS.",
   "prs": {
     "33": "open", "34": "open", "47": "open", "50": "open", "55": "open",
     "56": "open", "75": "open", "76": "open", "81": "open", "83": "open",
@@ -31,7 +31,7 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
 ```
 <!-- GROUND_TRUTH:END -->
 
-> **Ground-truth block (2026-08-03):** refreshed this session. `git.head`/`reconciled_through_commit` = `d22e9ce` (master, PR #146 public go-live), verified locally. PR state verified via the GitHub API (no `gh` binary in this sandbox; `session_reconcile.py` still reports UNVERIFIED for the gh/DB legs — that is an environment limitation, not a contradiction). DB row counts (`event`/`event_candidate`/…) remain UNVERIFIED — no Supabase connector in this session; do not treat any row count as re-confirmed. The `reconciled_through_commit` marker is now read by `tools/staleness_check.py` (blocking in `tools/validate`), which fails if STATE.md falls more than 20 commits behind HEAD — so this block cannot silently rot again.
+> **Ground-truth block (2026-08-03):** refreshed this session. `git.head`/`reconciled_through_commit` = `d22e9ce` (master, PR #146 public go-live), verified locally. PR state verified via the GitHub API (no `gh` binary in this sandbox; `session_reconcile.py` still reports UNVERIFIED for the gh/DB legs — that is an environment limitation, not a contradiction). DB row counts (`event`/`event_candidate`/…) remain UNVERIFIED — no Supabase connector in this session; do not treat any row count as re-confirmed. The `reconciled_through_commit` marker is read by `tools/staleness_check.py` (blocking in `tools/validate`), which fails the build the moment `origin/master` advances past the last commit that updated STATE.md — **zero tolerance, no "N commits" fudge factor** (founder-caught 2026-08-03: "20?" is arbitrary; a world-class guard ties to the invariant, not a number). So this block cannot silently rot again: every change-set that lands on master must update STATE.md.
 
 ## Where we are (2026-08-03 — RECONCILED)
 
@@ -88,7 +88,9 @@ DONE-CRITERIA: `tools/validate` green (staleness_check passes on the refreshed m
 
 ADDENDUM (2026-08-03, same session, founder directives): (a) **Merged PR #148** (Spark Line content layer) at founder direction ("Merge 148") — trust-gate green on head d4ea6a08, mergeable_state clean; master → 3610a5a; branch synced via merge. (b) **Codified two repeated founder directions** into `docs/OPERATING_RULES.md` §6a: 6a.2 hardened to ban `send_later`/timers/self-check-ins outright (webhooks are the only trigger; the agent had scheduled a banned "~1h fallback" this session), and new 6a.3 promotes the 2026-07-29 "non-user-facing content does not circle" direction from a decision record to a first-class rule. Decision record: `docs/memory/decisions/2026-08-03_no-delays-and-non-user-facing-does-not-circle.md`. (c) **Refreshed `docs/ops/NEXT_SESSION_KICKOFF_PROMPT.md`** into a world-class handoff for the remaining work.
 
-STATUS: IN PROGRESS (this session). The staleness guard is BLOCKING in validate by design — the founder's "prevent this ever again" is the ratification (gate custody: gates ADVISE, founder DECIDES; this is a founder-directed tightening, reversible in one commit). GATE-CUSTODY NOTE for the reviewer: this adds a check that can only REJECT a stale tree; it relaxes nothing.
+ADDENDUM 2 (2026-08-03, founder-caught design fix): the v1 staleness guard used an arbitrary "20 commits behind HEAD" tolerance; the founder rejected the fudge factor ("20? What would a senior world class engineer do?"). **v2** measures the invariant — commits on `origin/master` since STATE.md was last updated there — and fails at ANY drift (default 0), with no magic number. This rides a follow-up PR after #149 (the guard v1 + reconciliation) merged as master `9da667f`.
+
+STATUS: Contract #33 SHIPPED (PR #149 merged 2026-08-03 = master 9da667f: reconciliation + staleness guard v1 + no-delays/no-circle + handoff-standard codification). This follow-up hardens the guard to v2 (zero-tolerance). The staleness guard is BLOCKING in validate by design — the founder's "prevent this ever again" is the ratification (gates ADVISE, founder DECIDES; a founder-directed tightening that can only REJECT a stale tree — it relaxes nothing).
 
 ## Session Contract #32 (2026-07-29, founder-ratified process scale-back → ship CAPCOG)
 

@@ -4,6 +4,26 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-03 — Staleness guard v2: zero-tolerance, no magic number (founder-caught)
+
+Founder-caught design flaw in the v1 staleness guard: *"20? What would a senior
+world class engineer do?"* — a "fails if STATE.md is >20 commits behind" tolerance
+is a fudge factor: arbitrary, and it LICENSES staleness up to the bound. Live proof
+it was wrong: right after PR #149 merged (master `9da667f`), STATE's marker was
+already 1 behind master and v1 passed it happily.
+
+**v2** (`tools/staleness_check.py`) ties to the invariant, not a number. It measures
+`drift` = commits on `origin/master` since the last commit that MODIFIED STATE.md,
+and fails at **any** drift (default tolerance 0). Because every session ends by
+updating STATE.md, the steady state is drift 0; the instant a change merges to master
+without touching STATE.md, the build fails until STATE is reconciled. Measuring
+against STATE.md's last modification (not a stored SHA) removes the squash-merge
+chicken-and-egg (a merge that lands a STATE update can't cite its own future SHA but
+DOES modify STATE.md, so it counts with no lag). 10 hermetic tests over real temp
+repos with an `origin` remote. Marker bumped to `9da667f`; the "20 commits" language
+scrubbed from STATE.md, the handoff standard, and the kickoff prompt. A tolerance
+knob exists as an operational escape hatch only; raising it is a disk-truth relaxation.
+
 ## 2026-08-03 — Full reconciliation + anti-staleness guard (Session Contract #33)
 
 **Session type:** founder-directed reconciliation ("search all prior sessions and

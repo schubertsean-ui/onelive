@@ -1,46 +1,54 @@
 #!/usr/bin/env python3
-"""Fail LOUD when STATE.md has fallen behind the merged git history.
+"""Fail the build the moment STATE.md falls behind the integration branch.
 
-SUMMARY: the disk-truth guard. STATE.md is the "always-current rollup" (charter
-Prime Directive 2 / OPERATING_RULES §4). It went ~50 merged PRs stale over two
-weeks because (a) a since-obsolete belief held STATE.md un-editable (R-023/R-065,
-corrected 2026-08-03 — STATE.md is NOT in the armed-cron runtime set, so editing
-it never reds trust-gate) and (b) nothing mechanically noticed the drift: the
-existing session_reconcile goes UNVERIFIED without `gh`/DB, so a growing gap
-between STATE.md and reality made no noise.
+SUMMARY: the disk-truth guard. STATE.md is the "always-current rollup"
+(OPERATING_RULES §4). It once fell ~50 merged PRs stale. This check makes that
+impossible: it fails if `origin/master` has advanced AT ALL since STATE.md was
+last updated there.
 
-This check needs neither `gh` nor a DB. It reads a machine-maintained marker in
-STATE.md's GROUND_TRUTH block — `reconciled_through_commit`, the newest commit
-STATE.md's prose reflects — and compares it to `HEAD` using git alone:
+WHY NOT "N commits behind" (the v1 mistake, founder-caught 2026-08-03): a
+tolerance of "20 commits" is a fudge factor — it is arbitrary, and it still
+LICENSES staleness up to the bound. A world-class check ties to the invariant
+("STATE reflects reality"), not to a number, and tolerates ZERO un-reconciled
+drift. The commit-count-behind-HEAD framing was the smell.
 
-  * the marker must be a 40-hex sha that EXISTS in this clone and is an ANCESTOR
-    of HEAD (STATE cannot claim to reflect a commit that isn't in the history
-    leading to HEAD);
-  * the number of commits merged since the marker (`git rev-list --count
-    <marker>..HEAD`) must not exceed STALENESS_MAX_COMMITS.
+THE MEASURE (no magic number, immune to the squash-merge chicken-and-egg):
+`drift` = the number of commits on `origin/master` strictly after the most recent
+`origin/master` commit that MODIFIED `STATE.md`. In steady state every session
+ends by updating STATE.md (the close ritual), so the tip of master is itself a
+STATE-touching commit and drift is 0. The instant a change merges to master
+WITHOUT updating STATE.md, the tip is no longer a STATE-touching commit, drift
+becomes ≥1, and this check fails until STATE.md is reconciled. That is the
+forcing function: "every change-set that lands on master updates STATE.md."
 
-Past the threshold the check FAILS (exit 1) and tells you to reconcile STATE.md
-and advance the marker — the forcing function that makes silent staleness
-impossible to merge past. It is a TIGHTENING (a new gate that can only reject a
-stale tree), not a threshold relaxation.
+Measuring against STATE.md's last MODIFICATION (not a stored SHA) is what removes
+the fudge factor: the squash-merge that lands a STATE update cannot name its own
+not-yet-existing SHA, but it DOES modify STATE.md, so it counts as the current
+point with no lag. The `reconciled_through_commit` marker is retained as the
+human-readable assertion ("STATE reflects commit X") and is sanity-checked
+(present, valid, a real ancestor of `origin/master`), but drift no longer depends
+on the marker's exact value.
 
-Fail-closed, mirroring tests/test_arming_smoke_binding.py's proven pattern: a
-missing/malformed marker, or a marker commit absent from the clone (e.g. a
-shallow checkout), exits 2 (INDETERMINATE = hard fail), never a silent pass. CI
-checks out full history (fetch-depth 0), so the marker resolves there.
+DEFAULT tolerance is 0. A tolerance is exposed (`--max-drift` / STALENESS_MAX_DRIFT)
+ONLY as an operational escape hatch for a genuine parallel-merge race; RAISING it
+is a disk-truth relaxation and should be justified, not a habit. Honest limit,
+stated so the gate never overclaims: it detects that master moved without a STATE
+update — it does not judge whether the STATE update was substantive (a whitespace
+edit resets drift). Intent stays with the reviewer + the honesty rule; this gate
+only makes SILENT drift impossible.
 
-Threshold: default 20 (env override STALENESS_MAX_COMMITS). Generous enough for a
-normal sprint's worth of feature PRs between reconciles, small enough to catch
-the multi-week drift this guard exists to prevent. Raising it far past a sprint
-is a disk-truth relaxation — a founder call.
+Integration ref: `origin/master`. The check attempts a best-effort `git fetch
+origin master` first; `tools/validate` also refreshes it before running gates, so
+CI and local runs compare against the true tip. Fail-closed (exit 2) if the ref
+cannot be resolved, or the marker is missing/malformed/absent/off-history.
 
 Exit codes (house convention — see tools/README.md):
-  0  STATE.md is current (marker present, ancestor of HEAD, within threshold)
-  1  STATE.md is STALE (too many commits since the marker) — reconcile it
-  2  INDETERMINATE (no/%malformed marker, or marker not in this clone) — fail closed
+  0  STATE.md is current (master tip is a STATE-touching commit, within tolerance)
+  1  STALE — master advanced past the last STATE.md update; reconcile STATE.md
+  2  INDETERMINATE — cannot resolve origin/master, or bad/absent marker (fail closed)
 
 Usage:
-    python tools/staleness_check.py [--max-commits N] [--state PATH]
+    python tools/staleness_check.py [--max-drift 0] [--ref origin/master] [--state PATH]
 """
 from __future__ import annotations
 
@@ -54,7 +62,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT_STATE = ROOT / "STATE.md"
-DEFAULT_MAX_COMMITS = 20
+DEFAULT_REF = "origin/master"
 
 _BLOCK_RE = re.compile(
     r"<!--\s*GROUND_TRUTH:BEGIN\s*-->\s*```json\s*(?P<json>\{.*?\})\s*```",
@@ -71,12 +79,10 @@ def _git(*args: str) -> subprocess.CompletedProcess:
 
 
 def _read_marker(state_path: pathlib.Path) -> str:
-    """Return the reconciled_through_commit sha from STATE.md's GROUND_TRUTH
-    block, or raise ValueError with a specific reason (fail closed)."""
+    """Return reconciled_through_commit from STATE.md, or raise ValueError."""
     if not state_path.exists():
         raise ValueError(f"{state_path} does not exist")
-    text = state_path.read_text(encoding="utf-8")
-    m = _BLOCK_RE.search(text)
+    m = _BLOCK_RE.search(state_path.read_text(encoding="utf-8"))
     if not m:
         raise ValueError(
             "no GROUND_TRUTH JSON block found in STATE.md "
@@ -89,9 +95,8 @@ def _read_marker(state_path: pathlib.Path) -> str:
     marker = block.get("reconciled_through_commit")
     if not marker:
         raise ValueError(
-            "GROUND_TRUTH block has no 'reconciled_through_commit' field — add "
-            "it (the newest commit STATE.md's prose reflects) so staleness can "
-            "be measured from git alone"
+            "GROUND_TRUTH block has no 'reconciled_through_commit' field — add it "
+            "(the master commit STATE.md's prose reflects)"
         )
     if not isinstance(marker, str) or not _SHA_RE.match(marker):
         raise ValueError(
@@ -100,94 +105,90 @@ def _read_marker(state_path: pathlib.Path) -> str:
     return marker
 
 
-def check(state_path: pathlib.Path, max_commits: int) -> int:
+def _resolve_ref(ref: str) -> str | None:
+    # Best-effort refresh (CI and validate also fetch); ignore failure, then
+    # require the ref to resolve locally.
+    if "/" in ref:
+        remote, branch = ref.split("/", 1)
+        _git("fetch", "--quiet", remote, branch)
+    r = _git("rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}")
+    return r.stdout.strip() or None
+
+
+def check(state_path: pathlib.Path, ref: str, max_drift: int) -> int:
     try:
         marker = _read_marker(state_path)
     except ValueError as e:
         print(f"[staleness_check] INDETERMINATE — {e}", file=sys.stderr)
         return 2
 
-    # HEAD must resolve.
-    head = _git("rev-parse", "HEAD")
-    if head.returncode != 0:
-        print(f"[staleness_check] INDETERMINATE — cannot resolve HEAD: "
-              f"{head.stderr.strip()}", file=sys.stderr)
-        return 2
-    head_sha = head.stdout.strip()
-
-    # The marker commit must exist in THIS clone (fail closed on a shallow clone
-    # that lacks it — never a silent pass, per the arming-binding precedent).
-    exists = _git("cat-file", "-e", f"{marker}^{{commit}}")
-    if exists.returncode != 0:
-        print(
-            f"[staleness_check] INDETERMINATE — reconciled_through_commit "
-            f"{marker[:12]} is not in this clone. Unshallow "
-            "(`git fetch --unshallow`) so staleness can be verified; CI checks "
-            "out full history.",
-            file=sys.stderr,
-        )
+    tip = _resolve_ref(ref)
+    if not tip:
+        print(f"[staleness_check] INDETERMINATE — cannot resolve {ref} "
+              "(no such ref in this clone; CI/validate fetch it — run "
+              "`git fetch origin master`).", file=sys.stderr)
         return 2
 
-    # The marker must be an ancestor of HEAD (STATE cannot reflect a commit off
-    # the current history).
-    anc = _git("merge-base", "--is-ancestor", marker, "HEAD")
-    if anc.returncode != 0:
+    # The marker must be a REAL commit on the integration branch's history.
+    if _git("cat-file", "-e", f"{marker}^{{commit}}").returncode != 0:
+        print(f"[staleness_check] INDETERMINATE — reconciled_through_commit "
+              f"{marker[:12]} is not in this clone (shallow?). "
+              "`git fetch --unshallow`.", file=sys.stderr)
+        return 2
+    if _git("merge-base", "--is-ancestor", marker, tip).returncode != 0:
         print(
             f"[staleness_check] STALE — reconciled_through_commit {marker[:12]} "
-            f"is not an ancestor of HEAD ({head_sha[:12]}). STATE.md points at a "
-            "commit off the current branch's history; reconcile STATE.md against "
-            "the real HEAD and set the marker to a current commit.",
-            file=sys.stderr,
-        )
+            f"is not an ancestor of {ref} ({tip[:12]}); STATE.md names a commit "
+            "off master's history. Reconcile STATE.md and set the marker to a "
+            "current master commit.", file=sys.stderr)
         return 1
 
-    behind = _git("rev-list", "--count", f"{marker}..HEAD")
-    if behind.returncode != 0:
-        print(f"[staleness_check] INDETERMINATE — cannot count commits since "
-              f"the marker: {behind.stderr.strip()}", file=sys.stderr)
+    # The real measure: has master advanced since STATE.md was last updated there?
+    last_touch = _git("rev-list", "-1", tip, "--", "STATE.md").stdout.strip()
+    if not last_touch:
+        print(f"[staleness_check] INDETERMINATE — no commit on {ref} has ever "
+              "modified STATE.md.", file=sys.stderr)
         return 2
-    n_behind = int(behind.stdout.strip() or "0")
+    drift = _git("rev-list", "--count", f"{last_touch}..{tip}")
+    if drift.returncode != 0:
+        print(f"[staleness_check] INDETERMINATE — cannot count drift: "
+              f"{drift.stderr.strip()}", file=sys.stderr)
+        return 2
+    n = int(drift.stdout.strip() or "0")
 
-    if n_behind > max_commits:
+    if n > max_drift:
         print(
-            f"[staleness_check] STALE — {n_behind} commits have merged since "
-            f"STATE.md was last reconciled (marker {marker[:12]}, threshold "
-            f"{max_commits}). Reconcile STATE.md against the current HEAD "
-            f"({head_sha[:12]}) — update the 'Where we are' rollup and set "
-            "reconciled_through_commit to a current commit. "
-            "Disk is truth; a stale STATE.md is a charter violation "
-            "(OPERATING_RULES §4).",
-            file=sys.stderr,
-        )
+            f"[staleness_check] STALE — {ref} has advanced {n} commit(s) since "
+            f"STATE.md was last updated there (last STATE.md change: "
+            f"{last_touch[:12]}; tip: {tip[:12]}; tolerance: {max_drift}). "
+            "Reconcile STATE.md — update the 'Where we are' rollup and set "
+            "reconciled_through_commit to the current tip — before merging. "
+            "Disk is truth (OPERATING_RULES §4).", file=sys.stderr)
         return 1
 
-    print(
-        f"[staleness_check] OK — STATE.md reflects {marker[:12]}; "
-        f"{n_behind}/{max_commits} commits since last reconcile."
-    )
+    print(f"[staleness_check] OK — {ref} tip {tip[:12]} is within {max_drift} of "
+          f"the last STATE.md update ({last_touch[:12]}); drift={n}.")
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Fail when STATE.md has fallen behind merged git history "
-                    "(git-only; needs no gh/DB).",
-    )
-    parser.add_argument(
-        "--max-commits", type=int,
-        default=int(os.environ.get("STALENESS_MAX_COMMITS", DEFAULT_MAX_COMMITS)),
-        help=f"max commits STATE.md may lag HEAD (default "
-             f"{DEFAULT_MAX_COMMITS}, env STALENESS_MAX_COMMITS).",
-    )
-    parser.add_argument(
-        "--state", type=pathlib.Path, default=DEFAULT_STATE,
-        help="path to STATE.md (default: repo-root STATE.md).",
-    )
-    args = parser.parse_args(argv)
-    if args.max_commits < 1:
-        print("[staleness_check] --max-commits must be >= 1", file=sys.stderr)
+    p = argparse.ArgumentParser(
+        description="Fail when STATE.md has fallen behind the integration branch "
+                    "(zero-tolerance; measured as commits since STATE.md last changed).")
+    p.add_argument("--max-drift", type=int,
+                   default=int(os.environ.get("STALENESS_MAX_DRIFT", "0")),
+                   help="commits master may advance past the last STATE.md update "
+                        "before failing (default 0; raising it is a disk-truth "
+                        "relaxation).")
+    p.add_argument("--ref", default=DEFAULT_REF,
+                   help="integration ref to measure against (default origin/master).")
+    p.add_argument("--state", type=pathlib.Path, default=DEFAULT_STATE,
+                   help="path to STATE.md (default: repo-root STATE.md).")
+    args = p.parse_args(argv)
+    if args.max_drift < 0:
+        print("[staleness_check] --max-drift must be >= 0", file=sys.stderr)
         return 2
-    return check(args.state, args.max_commits)
+    return check(args.state, args.ref, args.max_drift)
 
 
 if __name__ == "__main__":
