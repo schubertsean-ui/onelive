@@ -47,7 +47,12 @@ or summarizing, and that complete reading has been explicitly confirmed.**
   website** (identity-first cascade vs raw fetch); **"the entity's own domain"
   includes the venue/organizer as host, not only the artist.** When you feel two
   ideas collapsing into one sentence, STOP, separate them, and cite each to its
-  source before you assert it.
+  source before you assert it. **Never frame against an impossible absolute.**
+  "Risk-free", "perfect", "zero risk", "true by construction", "guaranteed" — these
+  do not exist; invoking one as a baseline manufactures a false shortfall (or a
+  false assurance) and is a violation of this rule. Everything is a trade-off:
+  state the trade-off and name the live procedure that manages it as far as is
+  humanly and technologically possible — that IS the standard, not the absolute.
 
 **Why this rule exists (the failures it fixes):** on 2026-08-02 the agent twice
 read the controlling documents (STATE.md, this file, the `/tonight` UI canon) in

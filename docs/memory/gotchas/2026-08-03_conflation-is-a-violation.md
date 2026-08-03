@@ -42,6 +42,24 @@ catch, because the reading was complete.
 - When you feel two ideas collapsing into one sentence: STOP, split them, cite
   each, then write the claim.
 
+## The cousin defect: framing against an impossible absolute
+
+Retrieval tokens: `risk-free`, `zero-risk`, `perfect`, `true-by-construction`,
+`impossible-absolute`, `false-baseline`, `trade-off-not-absolute`.
+
+Twice now the agent invoked an absolute that does not exist as if it were the
+baseline: "AI never publishes — **true by construction**" (2026-08-02) and "even
+the allowed path **isn't risk-free**" (2026-08-03). Both manufacture a false
+measure — one a false assurance, one a false shortfall. There is no risk-free, no
+perfect, no guaranteed, no true-by-construction. **Everything is a trade-off.** The
+correct move, every time: state the trade-off plainly, then name the LIVE procedure
+that manages it as far as is humanly and technologically possible — the gate, the
+evaluator on every PR, `tools/validate`, provenance, license_class enforcement,
+takedown-honoring, founder-crucial escalation for anything that widens risk. The
+standard is the best-managed trade-off, never the absolute. (This is the positive
+mirror of the comms-canon rule "never present a choice as free.") Enforced in
+`OPERATING_RULES.md` Rule Zero → "Never frame against an impossible absolute."
+
 ## How you know you conflated
 
 You stated a rule's scope from memory instead of its words; two distinct

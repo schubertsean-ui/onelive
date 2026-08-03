@@ -17,6 +17,12 @@ prior rule covered it) and closed it:
   conflation failures. Waiving Rule Zero remains founder-crucial.
 - Brain: `docs/memory/gotchas/2026-08-03_conflation-is-a-violation.md` (retrieval-tokened,
   referenced from Rule Zero's enforcement list) so the class is retrieved at session start.
+- **Same-day addition (founder-directed):** Rule Zero's precision clause also now forbids
+  **framing against an impossible absolute** — "risk-free", "perfect", "zero risk", "true by
+  construction", "guaranteed" don't exist; invoking one as a baseline manufactures a false
+  shortfall or false assurance. State the trade-off and name the live procedure that manages
+  it as far as is humanly/technologically possible. Second instance of the class ("true by
+  construction" 2026-08-02, "risk-free" 2026-08-03); logged in the same conflation gotcha.
 
 
 ## 2026-08-02 — Rule Zero: read completely before acting; founder greenlight gates the work
