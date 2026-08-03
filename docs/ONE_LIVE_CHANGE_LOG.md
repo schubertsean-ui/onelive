@@ -43,9 +43,18 @@ R-002 fired trigger → WCAG 2.2 AA + CWV → open-PR lane).
   read as finished (no gap, no filler), tier-B/C registers render per canon
   §4 — pinned by the committed baselines; no change was needed.
 
-**Founder asks queued (ONE list, session close):** ratify PR #112
-(frictionless-nav spec + mantra) · G-EG (Emotion Glyph disclosure) ·
-monitoring-stack timing (unlocks field CWV proof of the sub-2s promise).
+**Founder RATIFIED all three same-day ("Yes and move forward on each") — and each moved:**
+- **#112 merged** (`4ab8e48`) + the /tonight implementation landed on PR #152:
+  history-modeled URL-addressable lens (Back closes the sheet first),
+  filters-in-URL, same-tab labeled ticket handoffs + aria-labeled external
+  links (the new §13.1 link-policy gate caught the unlabeled detail map link
+  on its first run), skeleton loading. Spec status flipped RATIFIED.
+- **G-EG ratified → Emotion Glyph engine built** (`worker/glyph/`,
+  deterministic Plutchik→lexicon, banned rating-family refusal-tested,
+  creator override wins, 12 tests) — display honestly gated on R-072
+  (SVG art set · founder-capped real mapper · creator descriptions).
+- **Monitoring GO** — Speed Insights + Analytics wired (no-op until the
+  founder's Vercel toggles); field CWV then flows (R-070 trigger in motion).
 
 ## 2026-08-03 — Full reconciliation + anti-staleness guard (Session Contract #33)
 

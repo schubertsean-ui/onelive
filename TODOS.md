@@ -200,7 +200,10 @@ Value order per §13: contextual preview → Spark Line → venue enrichment →
       derived ONLY from the creator's own description ("no description → no glyph"); reuses the Foundry
       faithfulness discipline. **G-EG RATIFIED 2026-08-03** (disclosure per brief appendix: provenance-stamped,
       creator override wins, quiet ✳-sheet register) — engine build greenlit; display stays empty until real
-      creator descriptions exist.
+      creator descriptions exist. **ENGINE BUILT 2026-08-03 (PR #152, `worker/glyph/`: 24 coordinate
+      glyphs + 5 sanctioned dyads, deterministic, banned rating-family refusal-tested, creator override,
+      provenance; 12 tests). Display gated on R-072's three triggers: SVG art set (design agenda) ·
+      real model mapper (founder-capped spend) · creator descriptions (claim flow).**
 
 ## Geographic boundary model (future — founder-directed 2026-07-29)
 - [ ] (P3, future) **Richer geographic-relevance model** — the shipped market boundary (`worker/region/capcog.py` + `web/lib/region.ts`, PR #107) is a deliberate v1: CAPCOG's ten counties, matched by county/city name. The founder flagged that real geographic relevance is multi-scale and context-dependent — counties are sometimes the right unit, but so are neighborhoods, streets, regions, natural features (lakes, river corridors), and administrative demarcations (police/fire/EMS/school districts, ZIP, city limits, COG boundaries). A future update should model boundaries as a **layered, typed system** (point-in-polygon against real GeoJSON per layer, not name lists), let relevance be expressed at whatever scale a query/feature needs (e.g. "near this venue," "in this neighborhood," "reachable in 20 min"), and keep the current keep-and-count-unknowns discipline so no layer silently hides coverage. Natural companion to `metro_outline.py` (public boundary GeoJSON is the shared input) and to any future distance/isochrone "what's nearby" work (Night Out spec). Owner: Generator; trigger: when a feature needs sub-county precision, or a market with a boundary the county model can't express opens. Not blocking — the county filter is correct for v1's "no San Antonio" invariant.
