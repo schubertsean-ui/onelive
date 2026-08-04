@@ -119,11 +119,12 @@ describe("eventTiming / liveEvents — only still-relevant events show", () => {
 });
 
 describe("dayTabs + applyFilters — lenses that narrow the view, not the trust", () => {
-  it("builds All + Today + next 7 days", () => {
+  it("builds Today + next 7 days, with All upcoming LAST (founder-directed order 2026-08-04)", () => {
     const tabs = dayTabs(NOW, 7);
-    expect(tabs[0].key).toBe("all");
-    expect(tabs[1].label).toBe("Today");
-    expect(tabs[2].label).toBe("Tomorrow");
+    expect(tabs[0].key).toBe("today");
+    expect(tabs[0].label).toBe("Today");
+    expect(tabs[1].label).toBe("Tomorrow");
+    expect(tabs[tabs.length - 1].key).toBe("all");
     expect(tabs).toHaveLength(9); // all + today + 7 more
   });
 

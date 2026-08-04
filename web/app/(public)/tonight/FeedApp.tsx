@@ -348,7 +348,7 @@ function Lens({ e, side, onNow, onSide, onClose }: {
   );
 }
 
-function CondensedRow({ e, onNow, onOpen }: { e: LicensedEvent; onNow: boolean; onOpen: (e: LicensedEvent, side: LensSide) => void }) {
+export function CondensedRow({ e, onNow, onOpen }: { e: LicensedEvent; onNow: boolean; onOpen: (e: LicensedEvent, side: LensSide) => void }) {
   const price = fmtPrice(e);
   return (
     <div className="row">
@@ -365,7 +365,7 @@ function CondensedRow({ e, onNow, onOpen }: { e: LicensedEvent; onNow: boolean; 
 
 // The tersest tier — one scannable line for far-out events: date · act · venue ·
 // price. Trust marker still rides along (never dropped, even here).
-function LineRow({ e, onOpen }: { e: LicensedEvent; onOpen: (e: LicensedEvent, side: LensSide) => void }) {
+export function LineRow({ e, onOpen }: { e: LicensedEvent; onOpen: (e: LicensedEvent, side: LensSide) => void }) {
   const price = fmtPrice(e);
   return (
     <div className="lrow">
@@ -397,7 +397,7 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
 }) {
   const [nowMs, setNowMs] = useState(serverNowMs);
   const [mounted, setMounted] = useState(false);
-  const [tabKey, setTabKey] = useState("all");
+  const [tabKey, setTabKey] = useState("today"); // founder-directed default: start with today
   const [domains, setDomains] = useState<Set<string>>(new Set());
   const [areas, setAreas] = useState<Set<string>>(new Set());
   const [genres, setGenres] = useState<Set<string>>(new Set());
@@ -418,7 +418,7 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
     // ?when=…&domain=…&genre=… link reproduces the filtered feed. Applied
     // after mount (same pattern as the clock) so SSR stays deterministic.
     const f = queryToFilters(window.location.search);
-    if (f.tabKey !== "all") setTabKey(f.tabKey);
+    if (f.tabKey !== "today") setTabKey(f.tabKey);
     if (f.domains.size) setDomains(f.domains);
     if (f.areas.size) setAreas(f.areas);
     if (f.genres.size) setGenres(f.genres);
@@ -532,8 +532,8 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
                 onClick={() => setFiltersOpen(!filtersOpen)}>
                 Filters{activeFilters ? <span className="n">{activeFilters}</span> : null}
               </button>
-              {(activeFilters || tabKey !== "all") ? (
-                <button className="chip clear" onClick={() => { setDomains(new Set()); setAreas(new Set()); setGenres(new Set()); setFreeOnly(false); setTabKey("all"); }}>Clear</button>
+              {(activeFilters || tabKey !== "today") ? (
+                <button className="chip clear" onClick={() => { setDomains(new Set()); setAreas(new Set()); setGenres(new Set()); setFreeOnly(false); setTabKey("today"); }}>Clear</button>
               ) : null}
             </div>
             {filtersOpen ? (
@@ -569,7 +569,7 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
 
             <div className="count">{filtered.length.toLocaleString()} shown · by start time · no pay-to-rank</div>
 
-            <EventList events={filtered} nowMs={nowMs} isOnNow={isOnNow} onOpen={openLens} />
+            <EventList events={filtered} nowMs={nowMs} isOnNow={isOnNow} onOpen={openLens} singleDay={tab.key !== "all"} />
           </>
         )}
 
@@ -628,11 +628,17 @@ function RichBucket({ items, isOnNow, onOpen }: {
 // (rich two-door cards, domain-grouped) · Later this month (compact rows) ·
 // Beyond (terse lines) — so longer-dated events are scannable instead of a wall
 // of tall cards. bucketByDate is sum-preserving, so nothing is dropped.
-function EventList({ events, nowMs, isOnNow, onOpen }: {
-  events: LicensedEvent[]; nowMs: number; isOnNow: (e: LicensedEvent) => boolean; onOpen: (e: LicensedEvent, side: LensSide) => void;
+function EventList({ events, nowMs, isOnNow, onOpen, singleDay }: {
+  events: LicensedEvent[]; nowMs: number; isOnNow: (e: LicensedEvent) => boolean; onOpen: (e: LicensedEvent, side: LensSide) => void; singleDay?: boolean;
 }) {
   const buckets = useMemo(() => bucketByDate(events, nowMs), [events, nowMs]);
   if (events.length === 0) return <div className="err">No events match — clear a filter or pick another day.</div>;
+  // A single-day tab is ONE night: rich cards, domain-grouped, no date-bucket
+  // chrome ("This week/Later/Beyond" headers only make sense across time —
+  // founder 2026-08-04: the undifferentiated stack read as clutter).
+  if (singleDay) {
+    return <RichBucket items={events} isOnNow={isOnNow} onOpen={onOpen} />;
+  }
   return (
     <>
       {buckets.map((b) => (
@@ -717,8 +723,11 @@ function PlanPanel({ base, nowMs, plan, setPlan, onOpen }: {
                 <div className="row">
                   <span className="when">{fmtTime(s.event.start_time)}</span>
                   <span className="bd2">
+                    {/* Trust rides EVERY surface an event appears on — a planned
+                        recommendation must carry the same disputed/uncertain cue as
+                        the feed (adversarial-review catch, 2026-08-04). */}
                     <span className="ti"><button type="button" className="tilink" onClick={() => onOpen(s.event, "artist")}
-                      aria-label={`${headline(s.event)} — open details`}>{headline(s.event)}</button></span><br />
+                      aria-label={`${headline(s.event)} — open details`}>{headline(s.event)}</button><TrustMark e={s.event} /></span><br />
                     <span className="mt">{s.event.venue_name}{s.event.venue_area ? ` · ${s.event.venue_area}` : ""}</span><br />
                     <span className="why">why: {s.why}</span>
                   </span>

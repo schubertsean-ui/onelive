@@ -183,6 +183,7 @@ delete completed items — they're a record of what got done).
 - [ ] (P2) Brief v2.4 tagline edit (founder-directed 2026-07-22, FLOW round 6): "Less chaos. Real shows." removed from product surfaces at founder direction — the brief's PART A verbatim-copy rule still carries the old line; fold the founder's thrive framing ("finding and engaging in experiences, helping individuals and the culture thrive") into the brief's next revision (founder-visible ratified doc: propose the edit, don't unilaterally rewrite). Trigger: next brief revision or design-direction ratification, whichever first. Owner: Generator (proposal) → founder (ratification).
 
 ## /tonight Phase 2 — content layer (UI Canon §13; Contract #32)
+- [ ] (P1, founder-directed 2026-08-04 — "Specials don't need to be venue claimed … if it's in their website we can show it") **Venue specials from the venue's own website**: crawl venue sites for published specials (happy hour, cover, kitchen hours), extract under the same gates as other crawl content, attribute to the venue, display-only/never ranking. Decision record 2026-08-04_feed-ordering-and-specials-sourcing.md. Acquisition = sourcing lane; display slot = UI lane (exists in canon card). Owner: Generator (both lanes).
 Decision record: `docs/memory/decisions/2026-08-02_descriptor-foundry-spark-line-core.md`.
 Value order per §13: contextual preview → Spark Line → venue enrichment → Emotion Glyph.
 - [x] (P1) **Descriptor Foundry / Spark Line core (batch 1)** — DONE 2026-08-02: `worker/descriptor/`

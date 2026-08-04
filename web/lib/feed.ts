@@ -35,16 +35,36 @@ export function liveEvents(events: LicensedEvent[], nowMs: number): LicensedEven
 // ── Date tabs (Today → next N days, in the viewer's own local time) ───────────
 export type DayTab = { key: string; label: string; startMs: number; endMs: number };
 
+// Day boundaries are the MARKET's days (America/Chicago), not the runtime's.
+// The old setHours(0,0,0,0) used the process/browser timezone — on a UTC
+// server (production SSR) "today" ended at 7 PM Austin time, so every show
+// tonight after 7 PM was bucketed "Tomorrow" in the server-rendered HTML
+// (caught 2026-08-04 while chasing the founder's "1 event today"). The
+// viewer's real clock still decides NOW (what has ended); Austin's calendar
+// decides what "Today" means — deterministic on server and client alike.
+const MARKET_TZ = "America/Chicago";
 function startOfLocalDay(ms: number): number {
-  const d = new Date(ms);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  const [mo, day, y] = new Intl.DateTimeFormat("en-US", {
+    timeZone: MARKET_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date(ms)).split("/").map(Number);
+  // Midnight in the market TZ is 05:00 or 06:00 UTC depending on DST — probe.
+  for (const off of [5, 6]) {
+    const cand = Date.UTC(y, mo - 1, day, off);
+    const h = new Intl.DateTimeFormat("en-US", { timeZone: MARKET_TZ, hour: "2-digit", hour12: false })
+      .format(new Date(cand));
+    if (h === "00" || h === "24") return cand;
+  }
+  return Date.UTC(y, mo - 1, day, 6);
 }
 
 // "All" + Today + the next `days` local days. Each tab is a [start,end) window
 // over start_time; "Today" begins at `nowMs` (nothing earlier today is upcoming).
 export function dayTabs(nowMs: number, days = 7): DayTab[] {
-  const tabs: DayTab[] = [{ key: "all", label: "All upcoming", startMs: 0, endMs: Infinity }];
+  // Founder-directed order (2026-08-04): "Start with today … move All
+  // upcoming to be last." Today leads and is the DEFAULT (the brief's own
+  // choice architecture: "default view is tonight"); the catch-all closes
+  // the row instead of opening it.
+  const tabs: DayTab[] = [];
   const day = 86_400_000;
   const today0 = startOfLocalDay(nowMs);
   for (let i = 0; i <= days; i++) {
@@ -54,6 +74,7 @@ export function dayTabs(nowMs: number, days = 7): DayTab[] {
       i === 0 ? "Today" : i === 1 ? "Tomorrow" : new Date(s).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" });
     tabs.push({ key: i === 0 ? "today" : `d${i}`, label, startMs: i === 0 ? nowMs : s, endMs: e });
   }
+  tabs.push({ key: "all", label: "All upcoming", startMs: 0, endMs: Infinity });
   return tabs;
 }
 

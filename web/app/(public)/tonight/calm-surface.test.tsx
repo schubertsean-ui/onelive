@@ -18,7 +18,7 @@ import { renderToStaticMarkup } from "react-dom/server";
  */
 vi.mock("./flow.css", () => ({}));
 
-import FeedApp from "./FeedApp";
+import FeedApp, { CondensedRow, LineRow } from "./FeedApp";
 import type { LicensedEvent } from "../../../lib/licensed";
 
 function ev(over: Partial<LicensedEvent>): LicensedEvent {
@@ -34,12 +34,12 @@ function ev(over: Partial<LicensedEvent>): LicensedEvent {
   } as LicensedEvent;
 }
 
-const NOW = new Date("2026-08-04T20:00:00-05:00").getTime();
-// One event per density tier: rich (2 days out), compact (12 days), line (45 days).
+const NOW = new Date("2026-08-04T18:00:00-05:00").getTime();
+// The default view is TODAY (founder-directed 2026-08-04) — a tonight event
+// renders as a rich card; later events exist but sit behind other tabs.
 const events = [
-  ev({ licensed_event_id: "r1", start_time: new Date("2026-08-06T21:00:00-05:00").toISOString() }),
+  ev({ licensed_event_id: "t1", start_time: new Date("2026-08-04T21:00:00-05:00").toISOString(), performer: "Tonight Act" }),
   ev({ licensed_event_id: "c1", start_time: new Date("2026-08-16T21:00:00-05:00").toISOString(), title: "MidShow", performer: "Mid Act" }),
-  ev({ licensed_event_id: "l1", start_time: new Date("2026-09-18T21:00:00-05:00").toISOString(), title: "FarShow", performer: "Far Act" }),
 ];
 
 const html = renderToStaticMarkup(<FeedApp events={events} serverNowMs={NOW} />);
@@ -58,9 +58,24 @@ describe("the calm opening surface (canon §6.5/§9)", () => {
 });
 
 describe("no page-load taps (canon §6.1)", () => {
-  it("the resting feed markup contains NO anchor to /tonight/<id> — rows are lens-opening buttons", () => {
+  it("the resting feed markup contains NO anchor to /tonight/<id>", () => {
     expect(html).not.toMatch(/<a[^>]+href="\/tonight\//);
-    expect(html).toMatch(/<button[^>]*class="tilink"[^>]*aria-label="Mid Act — open details"/);
-    expect(html).toMatch(/<button[^>]*class="tilink"[^>]*aria-label="Far Act — open details"/);
+    expect(html).toContain("Tonight Act"); // today's card rendered (default tab = Today)
+  });
+  it("Today is the default and leads the tab row; All upcoming closes it", () => {
+    const tabs = [...html.matchAll(/<nav class="datetabs">([\s\S]*?)<\/nav>/g)][0][1];
+    expect(tabs.indexOf(">Today<")).toBeGreaterThan(-1);
+    expect(tabs).toMatch(/class="on"[^>]*>Today</);
+    expect(tabs.lastIndexOf("All upcoming")).toBeGreaterThan(tabs.indexOf("Sat"));
+  });
+  it("compact and line rows are lens-opening BUTTONS, never links", () => {
+    const e = events[1];
+    for (const row of [
+      renderToStaticMarkup(<CondensedRow e={e} onNow={false} onOpen={() => {}} />),
+      renderToStaticMarkup(<LineRow e={e} onOpen={() => {}} />),
+    ]) {
+      expect(row).not.toContain("<a ");
+      expect(row).toMatch(/<button[^>]*class="tilink"[^>]*aria-label="Mid Act — open details"/);
+    }
   });
 });

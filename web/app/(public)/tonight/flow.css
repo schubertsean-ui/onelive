@@ -56,7 +56,9 @@
 .flow .modes button.on { background: var(--ember); border-color: var(--ember); color: #1a0d07; font-weight: 700; }
 
 /* Date tabs */
-.flow .datetabs { display: flex; gap: 7px; overflow-x: auto; padding: 6px 0; margin: 6px 0; -webkit-overflow-scrolling: touch; }
+/* Date tabs WRAP — nothing flows off-screen (founder 2026-08-04: "Thursday
+   is flowing out of the screen"); every day is visible without sliding. */
+.flow .datetabs { display: flex; flex-wrap: wrap; gap: 7px; padding: 6px 0; margin: 6px 0; }
 .flow .datetabs button {
   flex: 0 0 auto; border: 1px solid var(--line); background: var(--wash-2); color: var(--ink);
   border-radius: 10px; padding: 8px 12px; font: inherit; font-size: 12.5px; white-space: nowrap; cursor: pointer;

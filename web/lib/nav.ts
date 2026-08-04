@@ -22,7 +22,7 @@ export type FeedFilterState = {
 };
 
 export const DEFAULT_FILTERS: FeedFilterState = {
-  tabKey: "all",
+  tabKey: "today", // founder-directed default 2026-08-04: start with today
   domains: new Set(),
   areas: new Set(),
   genres: new Set(),
@@ -34,7 +34,7 @@ export const DEFAULT_FILTERS: FeedFilterState = {
 // bare /tonight URL stays canonical and clean.
 export function filtersToQuery(f: FeedFilterState): string {
   const p = new URLSearchParams();
-  if (f.tabKey !== "all") p.set("when", f.tabKey);
+  if (f.tabKey !== "today") p.set("when", f.tabKey); // "today" is the default (founder-directed 2026-08-04); "All upcoming" now travels as when=all
   if (f.domains.size) p.set("domain", [...f.domains].sort().join(","));
   if (f.areas.size) p.set("area", [...f.areas].sort().join(","));
   if (f.genres.size) p.set("genre", [...f.genres].sort().join(","));
@@ -57,7 +57,7 @@ export function queryToFilters(search: string): FeedFilterState {
     return { ...DEFAULT_FILTERS, domains: new Set(), areas: new Set(), genres: new Set() };
   }
   return {
-    tabKey: p.get("when") || "all",
+    tabKey: p.get("when") || "today",
     domains: csv(p.get("domain")),
     areas: csv(p.get("area")),
     genres: csv(p.get("genre")),
@@ -67,7 +67,7 @@ export function queryToFilters(search: string): FeedFilterState {
 
 export function isDefaultFilters(f: FeedFilterState): boolean {
   return (
-    f.tabKey === "all" && !f.domains.size && !f.areas.size && !f.genres.size && !f.freeOnly
+    f.tabKey === "today" && !f.domains.size && !f.areas.size && !f.genres.size && !f.freeOnly
   );
 }
 
