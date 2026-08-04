@@ -72,28 +72,35 @@ function headline(e: LicensedEvent): string {
 }
 
 // The Spark Line — the card's primary curiosity gap (UI Canon §4). tier C is
-// AI-drafted and carries a quiet ✳ whose accessible label IS the §4 disclosure
-// (drafted from the artist's own materials; the creator's words replace ours the
-// moment they claim). tier B credits its critic. Display only — never ranks or
+// AI-drafted and carries a quiet ✳; tapping the line opens the canon's
+// one-tap-dismiss disclosure sheet ("Drafted from [artist]'s own materials." —
+// founder-shortened 2026-08-04) — the same native <details> pattern as
+// the detail page's uncertainty disclosure: one tap in, one tap gone, no modal,
+// no history entry. tier B credits its critic. Display only — never ranks or
 // filters, and absent when there is no approved line (an honest gap).
-function SparkLineView({ spark }: { spark?: SparkLine | null }) {
+// Exported for tests.
+export function SparkLineView({ spark, artist }: { spark?: SparkLine | null; artist: string }) {
   if (!spark || !spark.text) return null;
   const aiDrafted = spark.tier === "C";
+  if (!aiDrafted) {
+    return (
+      <span className="spark">
+        <span className="sparktext">{spark.text}</span>
+        {spark.attribution ? <span className="sparkattr"> — {spark.attribution}</span> : null}
+      </span>
+    );
+  }
   return (
-    <span className={`spark${aiDrafted ? " ai" : ""}`}>
-      <span className="sparktext">{spark.text}</span>
-      {aiDrafted ? (
-        <span
-          className="sparkmark"
-          role="img"
-          aria-label="Drafted from the artist's own materials; they can make it theirs anytime"
-          title="Drafted from the artist's own materials — they can make it theirs anytime"
-        >
-          {" ✳"}
-        </span>
-      ) : null}
-      {spark.attribution ? <span className="sparkattr"> — {spark.attribution}</span> : null}
-    </span>
+    <details className="spark ai sparkdisc">
+      <summary aria-label={`${spark.text} — AI-drafted line, tap for what that means`}>
+        <span className="sparktext">{spark.text}</span>
+        <span className="sparkmark" aria-hidden="true">{" ✳"}</span>
+        {spark.attribution ? <span className="sparkattr"> — {spark.attribution}</span> : null}
+      </summary>
+      <span className="sparksheet" role="note">
+        Drafted from {artist}&rsquo;s own materials.
+      </span>
+    </details>
   );
 }
 
@@ -153,18 +160,25 @@ function RichCard({ e, onNow, onOpen }: {
           <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
           <TrustMark e={e} />
         </div>
-        <button type="button" className="zone z-artist" onClick={() => onOpen(e, "artist")}
-          aria-label={`${headline(e)}${e.spark ? ` — ${e.spark.text}` : ""} — open artist details${preview ? ` and ${preview.label.toLowerCase()}` : ""}`}>
+        {/* The artist door is an invisible full-zone overlay button rather than
+            a wrapping <button>, because the tier-C Spark Line inside the zone is
+            itself interactive (the §4 ✳ tap-to-dismiss disclosure) and
+            interactive elements must never nest (axe: nested-interactive). The
+            overlay keeps the whole zone tappable exactly as before; the
+            disclosure sits above it (z-index) and wins only on its own row. */}
+        <div className="zone z-artist">
+          <button type="button" className="zdoor" onClick={() => onOpen(e, "artist")}
+            aria-label={`${headline(e)}${e.spark ? ` — ${e.spark.text}` : ""} — open artist details${preview ? ` and ${preview.label.toLowerCase()}` : ""}`} />
           <span className="who">{headline(e)}</span>
           {focus ? <span className="focus">{focus}</span> : null}
           {/* Canon §2 artist-zone order: Spark Line (the primary curiosity gap,
               §4) sits above the smaller contextual-preview cue (§3). Both are
               canonical card elements; the preview stays a spare affordance
               ("▸ Hear them"), not a second summary, so §1 calm-over-clutter holds. */}
-          <SparkLineView spark={e.spark} />
+          <SparkLineView spark={e.spark} artist={headline(e)} />
           {preview ? <span className="hook">{preview.label}</span> : null}
           <span className="go" aria-hidden="true">artist ›</span>
-        </button>
+        </div>
         <button type="button" className="zone z-venue" onClick={() => onOpen(e, "venue")}
           aria-label={`${e.venue_name ?? "Venue"} — open venue details`}>
           <span className="vname">{e.venue_name}{e.venue_area ? <span className="varea"> · {e.venue_area}</span> : null}</span>
@@ -248,6 +262,11 @@ function Lens({ e, side, onNow, onSide, onClose }: {
                 <h3 className="lti2">{headline(e)}</h3>
                 {secondary ? <p className="lsub2">{secondary}</p> : null}
                 {focusLine(e) ? <p className="lfocus">{focusLine(e)}</p> : null}
+                {/* The Spark Line rides into the lens (canon §2 order: after the
+                    act, before logistics) with the same §4 ✳ disclosure — the
+                    lens is the artist's expanded room, and the line's honest
+                    mark travels with it wherever it renders. */}
+                <SparkLineView spark={e.spark} artist={headline(e)} />
                 {status ? <p className="lstatus">{status}</p> : null}
                 <div className="lact">
                   <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>

@@ -83,10 +83,17 @@ try {
     console.log(`[audit] self-check OK — axe flags the planted-broken page (${bad.violations.length} violation(s))`);
   }
 
+  // Both color schemes are product surfaces (R-071, founder-directed
+  // 2026-08-04): axe runs per scheme so daylight-mode AA contrast is PROVEN,
+  // never assumed. The LCP leg runs once per page (dark) — paint cost is
+  // scheme-independent, and doubling it would only slow the gate.
   for (const p of PAGES) {
+   for (const scheme of ["dark", "light"]) {
+    const label = `${p.name}@${scheme}`;
     const context = await browser.newContext({
       viewport: p.viewport,
       timezoneId: "America/Chicago",
+      colorScheme: scheme,
     });
     const page = await context.newPage();
     const url = `${BASE}${p.path}`;
@@ -100,7 +107,7 @@ try {
     );
     if (axeResult.violations.length) {
       failed = true;
-      console.error(`\n[audit] A11Y FAIL ${p.name} (${url}) — ${axeResult.violations.length} violation(s):`);
+      console.error(`\n[audit] A11Y FAIL ${label} (${url}) — ${axeResult.violations.length} violation(s):`);
       for (const v of axeResult.violations) {
         console.error(`  · ${v.id} [${v.impact}] ${v.help} — ${v.helpUrl}`);
         for (const n of v.nodes.slice(0, 5)) {
@@ -109,7 +116,7 @@ try {
         if (v.nodes.length > 5) console.error(`      … and ${v.nodes.length - 5} more node(s)`);
       }
     } else {
-      console.log(`[audit] a11y PASS ${p.name} — 0 violations (tags: ${AXE_TAGS.join(",")}; ${axeResult.passes.length} rules passed)`);
+      console.log(`[audit] a11y PASS ${label} — 0 violations (tags: ${AXE_TAGS.join(",")}; ${axeResult.passes.length} rules passed)`);
     }
 
     // The slide-out lens (role=dialog) is the richest a11y surface — audit it
@@ -123,18 +130,19 @@ try {
       );
       if (lensAxe.violations.length) {
         failed = true;
-        console.error(`\n[audit] A11Y FAIL ${p.name}+lens-open — ${lensAxe.violations.length} violation(s):`);
+        console.error(`\n[audit] A11Y FAIL ${label}+lens-open — ${lensAxe.violations.length} violation(s):`);
         for (const v of lensAxe.violations) {
           console.error(`  · ${v.id} [${v.impact}] ${v.help} — ${v.helpUrl}`);
           for (const n of v.nodes.slice(0, 5)) console.error(`      ${n.target.join(" ")}`);
         }
       } else {
-        console.log(`[audit] a11y PASS ${p.name}+lens-open — 0 violations`);
+        console.log(`[audit] a11y PASS ${label}+lens-open — 0 violations`);
       }
       await page.keyboard.press("Escape");
     }
 
-    // ── Leg 2: lab LCP under pinned throttling ────────────────────────────
+    // ── Leg 2: lab LCP under pinned throttling (dark pass only) ──────────
+    if (scheme === "light") { await context.close(); continue; }
     const cdp = await context.newCDPSession(page);
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
     await cdp.send("Network.enable");
@@ -158,14 +166,15 @@ try {
     );
     if (!lcpMs) {
       failed = true;
-      console.error(`[audit] LCP FAIL ${p.name} — no largest-contentful-paint entry recorded`);
+      console.error(`[audit] LCP FAIL ${label} — no largest-contentful-paint entry recorded`);
     } else if (lcpMs > LCP_BUDGET_MS) {
       failed = true;
-      console.error(`[audit] LCP FAIL ${p.name} — ${lcpMs}ms > ${LCP_BUDGET_MS}ms lab budget (4× CPU, 1.6Mbps/150ms)`);
+      console.error(`[audit] LCP FAIL ${label} — ${lcpMs}ms > ${LCP_BUDGET_MS}ms lab budget (4× CPU, 1.6Mbps/150ms)`);
     } else {
-      console.log(`[audit] LCP PASS ${p.name} — ${lcpMs}ms ≤ ${LCP_BUDGET_MS}ms lab budget (4× CPU, 1.6Mbps/150ms)`);
+      console.log(`[audit] LCP PASS ${label} — ${lcpMs}ms ≤ ${LCP_BUDGET_MS}ms lab budget (4× CPU, 1.6Mbps/150ms)`);
     }
     await context.close();
+   }
   }
 } finally {
   await browser.close();

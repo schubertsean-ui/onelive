@@ -4,6 +4,55 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-04 — Daylight mode shipped (R-071 RESOLVED, founder-directed)
+
+Founder: "build the light theme as long as it was created according to our most recent
+world class design Ui/UX work." Shipped as a pure variable swap in `flow.css`: surface
+literals tokenized (dark rendering proven 0-diff against every committed baseline), then
+one `prefers-color-scheme: light` block derived from the ratified FLOW palette by the
+R-015 translation the founder already reviewed — warm paper grounds, darkened AA-capable
+ambers, media (photo scrims, domain covers, QA banner) keeping its own light. System-
+preference driven, zero new chrome. The gates grew with it: `visual_check.sh` pins the
+scheme per capture (dark via --force-dark-mode, proven pixel-neutral) and carries 4 new
+light baselines; `audit.mjs` runs axe in BOTH schemes. The light gate's FIRST run caught
+two real contrast defects (dim text at 4.4:1 on compounded washes; the detail disclosure's
+opacity washing the disputed marker below 4.5:1) — fixed before commit, every pair
+computed against the deepest compounded ground. detail.css needed nothing (currentColor/
+opacity by design). Consumer surface only; the ops console is out of scope.
+
+## 2026-08-04 — ✳ disclosure copy shortened (founder: "Remove this: [Artist] can make it theirs anytime.")
+
+The tier-C disclosure sheet now reads "Drafted from [artist]'s own materials." — the
+second sentence removed from every living surface (product copy card+lens, pinning test
+now asserting its absence, UI canon §4, brief §4) at the founder's written direction;
+decision record `docs/memory/decisions/2026-08-04_spark-disclosure-copy-founder-edit.md`.
+Mechanism unchanged (native details, one-tap-gone); historical records keep the original
+text, append-only.
+
+## 2026-08-04 — UI/UX lane: queue shepherded to merge; Spark Line ✳ disclosure sheet; RECORD id-collision resolved + guarded
+
+**Three queued PRs merged per the agent-merges-on-green protocol** (evaluator APPROVE +
+every check green on each final head, verified head-bound by run id): **#152**
+(master `752aa55` — visual regression a real firing gate/R-002 RESOLVED, WCAG/CWV
+mechanical audit, ratified frictionless nav implementation, Emotion Glyph engine,
+monitoring mounts), **#156** (`1460cb4` — GeoLibre draw-to-search bench records), **#157**
+(`843fb20` — gate-custodied wording comment sweep). **RECORD id collision resolved:** the
+two parallel sessions had double-allocated R-068/R-069/R-070 with different meanings;
+#152's ids won (allocated first, code-bound tags), the GeoLibre session's rows renumbered
+R-073/R-074/R-075 with every cross-reference updated in the collision-resolution merges.
+**The class is now mechanically impossible to merge silently:** `tests/test_record_ids_unique.py`
+(hermetic, full-suite) fails any tree whose register carries a duplicate id — and its first
+run caught THREE pre-existing duplicates from the 2026-07-25 merge era (R-023/R-024/R-029
+each naming two rows), renumbered to R-076/R-077/R-078 with decoder notes and living-doc
+pointers updated. **Spark Line ✳ tap-to-dismiss sheet SHIPPED (canon §4):** the AI-drafted
+tier-C line is now itself the tap target opening the one-tap-gone disclosure ("Drafted from
+[artist]’s own materials. [Artist] can make it theirs anytime.") as a native <details> —
+same pattern as the detail page’s uncertainty sheet; the artist door became an invisible
+full-zone overlay button so the disclosure never nests inside it (axe nested-interactive);
+the lens artist tab carries the same line + disclosure. Proof: web vitest 230 green (6 new),
+tsc + build clean, visual regression 0/329,160 px vs committed baselines (closed state
+pixel-identical — no recapture), axe 0 violations incl. lens-open, lab LCP 248–332ms.
+
 ## 2026-08-03 — Code-armed sweep: gate-custodied wording into code comments (founder: "not wait for the tripwire")
 
 Dedicated code-armed PR (stacked on the records PR) executing R-075's remainder (renumbered from R-070 at the PR #152 merge) early at

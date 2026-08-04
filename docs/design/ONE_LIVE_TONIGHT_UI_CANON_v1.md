@@ -162,8 +162,10 @@ primary curiosity gap. *Not* a sentence; may be fragments, punctuation, typograp
 - **Tier C — AI-drafted last resort**, composed *only* from the artist's own public
   materials, faithfulness-gated by the eval harness, rendered in a slightly distinct register
   (italic, one shade quieter) with a small **"✳"** and *"— first notes"*. Tapping opens a
-  one-tap-dismiss sheet: *"Drafted from [artist]'s own materials. [Artist] can make it theirs
-  anytime."* The moment a creator claims, their words replace ours (`BRIEF:65`).
+  one-tap-dismiss sheet: *"Drafted from [artist]'s own materials."* (second sentence removed at
+  founder direction 2026-08-04 — decision record
+  `docs/memory/decisions/2026-08-04_spark-disclosure-copy-founder-edit.md`). The moment a
+  creator claims, their words replace ours (`BRIEF:65`).
 
 Every AI Spark Line goes through the **Descriptor Foundry** (6 candidates → pairwise knockout
 → fusion-of-N synthesis with *style new, facts never* → independent judge → provenance +

@@ -57,7 +57,7 @@ printed result, never silence. GREEN-EXAMPLE retrieval (reuse
 candidates from docs/memory + session arcs) is the stage's second half:
 today it is a PRACTICED obligation evidenced in the contract (a
 `[S3-green]` line naming the reused precedents, or the explicit "no
-green matches"), and its mechanization is RECORDED as R-029 with an
+green matches"), and its mechanization is RECORDED as R-078 (renumbered from R-029, 2026-08-04) with an
 objective trigger — the Brain 1B recall tool (whose spec already
 returns success neighbors) becomes the green matcher and joins
 construction_gate in that build (r7: the canon claims exactly the
@@ -114,7 +114,7 @@ gate-gap fix. The loop measures the loop.
    a hard gate in validate: it refuses any diff whose matched red classes
    are uncited in the session contract, and fails closed on a missing
    index). The mechanical gate covers the RED half; the green half is a
-   practiced, contract-evidenced obligation until R-029's trigger
+   practiced, contract-evidenced obligation until R-078's trigger
    (Brain 1B) mechanizes it.
 2. **The premortem is seeded from the ledger's red classes and runs
    before design acceptance** — every past evaluator finding becomes a
