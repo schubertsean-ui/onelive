@@ -1,12 +1,12 @@
 {
-  "harness_sha256": "72f87781c309fd0a82929b7097c8accfdae26408f308343ee581dd64319873e6",
-  "run_id": "30923197163",
-  "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/30923197163",
-  "artifact_id": "8898100148",
-  "artifact_zip_sha256": "40982e568164aa192f39fcb88e5bbca628527510929c3f0fdeacbcbaa3ccaa23",
-  "subject_sha": "b3dfaacbd967068cc17db7c986bd25fa60cc4026",
+  "harness_sha256": "6d023c0dbcb748d3af9d3818a9bfaa585c1e736c17c8ca6076324f952783655b",
+  "run_id": "30935638738",
+  "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/30935638738",
+  "artifact_id": "8903083532",
+  "artifact_zip_sha256": "9a411e6a9bfbcf66b7859184379c2eed0dceb9f6a9dabbe641db5270870d5d3f",
+  "subject_sha": "2e7be46613621565c2052f80b0c187233d086877",
   "model": "claude-opus-4-8",
-  "verified_at": "2026-08-04T15:19:44Z",
+  "verified_at": "2026-08-04T17:52:28Z",
   "verdict": "PASSED",
   "metrics": {
     "examples": 77,
@@ -20,5 +20,5 @@
     "events_with_hallucination_rate": 0.026,
     "events_with_any_error_rate": 0.1039
   },
-  "note": "Attended exam on master's harness (maintainer-dispatched 2026-08-04; the dispatching actor and default-branch provenance are authenticated from the run record itself, which is the only authority this note claims). This file is deliberately OUTSIDE the harness manifest: recording certification cannot alter what it certifies. It can enter or change in the tree only through the base-owned authentication steps in .github/workflows/extraction-eval.yml — a real successful default-branch attended run bound to subject_sha, the artifact zip digest, the uploaded report cross-checked field by field, and tools/verify_exam_evidence.py re-deriving the verdict from raw metrics — with that co-gate log attached to the adversarial review by the base-owned evidence channel."
+  "note": "Attended exam on master's harness under the flag-normalized certification hash (maintainer-dispatched 2026-08-04; the dispatching actor and default-branch provenance are authenticated from the run record itself, which is the only authority this note claims). This file is deliberately OUTSIDE the harness manifest: recording certification cannot alter what it certifies. It can enter or change in the tree only through the base-owned authentication steps in .github/workflows/extraction-eval.yml — a real successful default-branch attended run bound to subject_sha, the artifact zip digest, the uploaded report cross-checked field by field, and tools/verify_exam_evidence.py re-deriving the verdict from raw metrics — with that co-gate log attached to the adversarial review by the base-owned evidence channel."
 }
