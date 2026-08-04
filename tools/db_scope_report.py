@@ -136,8 +136,10 @@ def ratio_50_to_1(cur) -> dict:
       with market as (
         select (now() at time zone 'America/Chicago')::date as today
       ), bounds as (
+        -- days until Friday: isodow Fri=5, so (5 - isodow) mod 7 (Mon->4 ... Thu->1);
+        -- the Fri/Sat/Sun case never reads this column (handled in the branch below).
         select today,
-               today + ((4 - extract(isodow from today)::int + 7) %% 7) as fri
+               today + ((5 - extract(isodow from today)::int + 7) %% 7) as fri
         from market
       ), w as (
         select 'today'::text as win,
