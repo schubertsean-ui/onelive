@@ -96,3 +96,27 @@ export function authMode(): AuthMode {
 export function authProviderActive(): boolean {
   return authMode() === "clerk";
 }
+
+// ── The ops door on a public deploy ──────────────────────────────────────────
+// Founder-blocked 2026-08-04: production went public via the declared-disable
+// posture, and in that mode middleware.ts hides /ops behind a 404 (no provider
+// exists to gate the admin console — correct, but it silently removed the
+// founder's own door at go-live). This declaration is the missing posture:
+// with a REAL provider configured, the operator may declare the CONSUMER
+// surface public while /ops keeps the full Clerk + allowlist stealth gate.
+//
+// Fail-closed by construction:
+//   - honored ONLY in 'clerk' mode: without a provider the flag changes
+//     NOTHING (a declaration cannot open a door no provider can guard;
+//     'disabled' keeps its /ops 404, 'unconfigured' keeps denying everything);
+//   - it only ever EXEMPTS consumer routes from the sign-in wall — middleware
+//     never consults it on /ops, so it cannot widen the admin surface;
+//   - absent the flag, clerk mode gates every route exactly as before, so a
+//     Clerk key added without this declaration reproduces today's behavior.
+export function consumerSurfacePublic(): boolean {
+  return (
+    authMode() === "clerk" &&
+    (_isTruthy(process.env.ONELIVE_CONSUMER_PUBLIC) ||
+      _isTruthy(process.env.NEXT_PUBLIC_ONELIVE_CONSUMER_PUBLIC))
+  );
+}
