@@ -4,6 +4,30 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-04 — UI/UX lane: queue shepherded to merge; Spark Line ✳ disclosure sheet; RECORD id-collision resolved + guarded
+
+**Three queued PRs merged per the agent-merges-on-green protocol** (evaluator APPROVE +
+every check green on each final head, verified head-bound by run id): **#152**
+(master `752aa55` — visual regression a real firing gate/R-002 RESOLVED, WCAG/CWV
+mechanical audit, ratified frictionless nav implementation, Emotion Glyph engine,
+monitoring mounts), **#156** (`1460cb4` — GeoLibre draw-to-search bench records), **#157**
+(`843fb20` — gate-custodied wording comment sweep). **RECORD id collision resolved:** the
+two parallel sessions had double-allocated R-068/R-069/R-070 with different meanings;
+#152's ids won (allocated first, code-bound tags), the GeoLibre session's rows renumbered
+R-073/R-074/R-075 with every cross-reference updated in the collision-resolution merges.
+**The class is now mechanically impossible to merge silently:** `tests/test_record_ids_unique.py`
+(hermetic, full-suite) fails any tree whose register carries a duplicate id — and its first
+run caught THREE pre-existing duplicates from the 2026-07-25 merge era (R-023/R-024/R-029
+each naming two rows), renumbered to R-076/R-077/R-078 with decoder notes and living-doc
+pointers updated. **Spark Line ✳ tap-to-dismiss sheet SHIPPED (canon §4):** the AI-drafted
+tier-C line is now itself the tap target opening the one-tap-gone disclosure ("Drafted from
+[artist]’s own materials. [Artist] can make it theirs anytime.") as a native <details> —
+same pattern as the detail page’s uncertainty sheet; the artist door became an invisible
+full-zone overlay button so the disclosure never nests inside it (axe nested-interactive);
+the lens artist tab carries the same line + disclosure. Proof: web vitest 230 green (6 new),
+tsc + build clean, visual regression 0/329,160 px vs committed baselines (closed state
+pixel-identical — no recapture), axe 0 violations incl. lens-open, lab LCP 248–332ms.
+
 ## 2026-08-03 — Code-armed sweep: gate-custodied wording into code comments (founder: "not wait for the tripwire")
 
 Dedicated code-armed PR (stacked on the records PR) executing R-075's remainder (renumbered from R-070 at the PR #152 merge) early at

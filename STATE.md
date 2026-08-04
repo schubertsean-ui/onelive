@@ -103,6 +103,12 @@ AMENDMENT (2026-08-03, same session — scope moves per charter 2.3, original qu
 - WHY-THAT-WHY-MATTERS: trust display is physics — the machine-drafted disclosure must exist BEFORE Spark Lines light up, because retrofitting disclosure after content ships would mean users met AI text without its honest mark, the exact breach the canon forbids.
 - EXPECTED OUTCOMES: sheet pixel-pinned + axe-clean; wave-2 acceptance tests green; no trust rule or threshold touched. NOT entering scope (still founder-gated): light theme R-071 (held for the design agenda per the delivered recommendation), human a11y pass R-069 (needs a human/attended run), everything on the standing founder-crucial list.
 
+PROGRESS (2026-08-04, recorded at the first close-PR push — the contract stays OPEN for frictionless-nav wave 2):
+- Merges DONE with evidence: #152 → master `752aa55` (APPROVE run 30858484764), #156 → `1460cb4` (run 30863237446, head-bound c4dd8d5), #157 → `843fb20` (run 30863359046, head-bound 1208199) — all silent per the 2026-07-25 directive.
+- Collision resolution DONE (R-073/R-074/R-075 + contract renumbers) and MECHANIZED: `tests/test_record_ids_unique.py` fails any duplicate-id register; its first run caught 3 pre-existing duplicates (renumbered R-076/R-077/R-078 with decoder notes; every [R-023] code tag means the sparse-delivery row, which keeps its id).
+- ✳ sheet DONE (this PR): tier-C line = tap target → native <details> disclosure with the §4 verbatim copy, card (door-overlay restructure, no nested-interactive) + lens; 230 web tests green (6 new), 0/329,160 px vs committed baselines, axe 0 violations incl. lens-open, lab LCP 248–332ms.
+- REMAINING in scope: frictionless-nav wave 2 (prefetch-on-intent · View Transitions · scroll-restoration QA vs the live deploy); then close-out.
+
 STATUS: OPEN
 
 ## Session Contract #40 (2026-08-03, founder ratification — GeoLibre = the draw-to-search UX prototype bench; renumbered from this branch's #39 at the merge with master, which had independently assigned #39 to the UI/UX lane (PR #152); its R-068/R-069/R-070 rows likewise renumbered to R-073/R-074/R-075 — the UI/UX session allocated R-068–R-072 first and merged first)
