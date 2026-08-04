@@ -43,7 +43,17 @@ _NAME_RE = re.compile(r'"organizer"\s*:\s*{[^{}]*?"name"\s*:\s*"([^"]{2,80})"[^{
 
 
 def fetch(url: str, timeout: int = 30) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    # Full standard request headers, HONEST identified UA kept. Run 1's six
+    # instant "405 Not Allowed" responses (nginx wording) can be header-shape
+    # filtering rather than an IP block — a bare-UA urllib request carries no
+    # Accept headers at all, which no real client omits. This is protocol
+    # correctness, not evasion: the UA still names us and links a contact.
+    req = urllib.request.Request(url, headers={
+        "User-Agent": UA,
+        "Accept": ("text/html,application/xhtml+xml,application/xml;q=0.9,"
+                   "*/*;q=0.8"),
+        "Accept-Language": "en-US,en;q=0.9",
+    })
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.read().decode("utf-8", errors="replace")
 

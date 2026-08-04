@@ -67,6 +67,11 @@ jobs:
         env:
           MAX_PAGES: ${{ github.event.inputs.max_pages || '2' }}
         run: |
+          # pipefail is load-bearing: without it, `| tee` masks the script's
+          # fail-loud exit 3 and a ZERO-RESULT discovery goes green — exactly
+          # the "empty green" the tool's contract forbids (caught on run 1:
+          # six 405s, 0 ids, step green; Kaizen 2026-08-04).
+          set -o pipefail
           : "${MAX_PAGES:?max_pages missing — the crawl bound is required}"
           python3 tools/discover_eventbrite_orgs.py --max-pages "$MAX_PAGES" | tee eventbrite-org-candidates.json
       - name: Upload discovery candidates (human review before anything is committed)
