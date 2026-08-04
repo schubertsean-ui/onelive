@@ -55,6 +55,12 @@ describe("the calm opening surface (canon §6.5/§9)", () => {
     expect(html).not.toContain("cultural domains");
     expect(html).toContain("no pay-to-rank");
   });
+  it("the ordering disclosure describes the rendered structure, never a false chronology (evaluator r4)", () => {
+    // Default Today river is domain-grouped with each group start-time sorted —
+    // claiming a flat "by start time" order was a misleading trust display.
+    expect(html).toContain("by category, soonest first");
+    expect(html).not.toContain("shown · by start time");
+  });
 });
 
 describe("on-now stays in the default view (trust: disputed-on-now must never hide)", () => {

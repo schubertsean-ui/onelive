@@ -567,7 +567,13 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
             </div>
             ) : null}
 
-            <div className="count">{filtered.length.toLocaleString()} shown · by start time · no pay-to-rank</div>
+            {/* The ordering disclosure must describe what is actually rendered
+                (adversarial-review r4: a domain-grouped river labeled "by
+                start time" is a misleading trust display). Single-day rivers
+                group by category with each group start-time sorted; the All
+                view sections by date range first. "no pay-to-rank" is the
+                invariant carrier and never varies. */}
+            <div className="count">{filtered.length.toLocaleString()} shown · {tab.key === "all" ? "soonest first within each section" : "by category, soonest first"} · no pay-to-rank</div>
 
             <EventList events={filtered} nowMs={nowMs} isOnNow={isOnNow} onOpen={openLens} singleDay={tab.key !== "all"} />
           </>
