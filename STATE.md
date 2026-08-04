@@ -107,6 +107,7 @@ PROGRESS (2026-08-04, recorded at the first close-PR push — the contract stays
 - Merges DONE with evidence: #152 → master `752aa55` (APPROVE run 30858484764), #156 → `1460cb4` (run 30863237446, head-bound c4dd8d5), #157 → `843fb20` (run 30863359046, head-bound 1208199) — all silent per the 2026-07-25 directive.
 - Collision resolution DONE (R-073/R-074/R-075 + contract renumbers) and MECHANIZED: `tests/test_record_ids_unique.py` fails any duplicate-id register; its first run caught 3 pre-existing duplicates (renumbered R-076/R-077/R-078 with decoder notes; every [R-023] code tag means the sparse-delivery row, which keeps its id).
 - ✳ sheet DONE (this PR): tier-C line = tap target → native <details> disclosure with the §4 verbatim copy, card (door-overlay restructure, no nested-interactive) + lens; 230 web tests green (6 new), 0/329,160 px vs committed baselines, axe 0 violations incl. lens-open, lab LCP 248–332ms.
+- FOUNDER EDIT applied (2026-08-04, verbatim "Remove this: [Artist] can make it theirs anytime.""): the disclosure sheet copy shortened to "Drafted from [artist]'s own materials." across product + test + UI canon §4 + brief §4; decision record 2026-08-04_spark-disclosure-copy-founder-edit.md; history append-only.
 - REMAINING in scope: frictionless-nav wave 2 (prefetch-on-intent · View Transitions · scroll-restoration QA vs the live deploy); then close-out.
 
 STATUS: OPEN

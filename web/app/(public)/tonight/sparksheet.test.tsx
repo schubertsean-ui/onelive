@@ -6,8 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
  *
  * What must hold, verbatim from canon: an AI-drafted (tier C) Spark Line
  * "renders in a slightly distinct register … with a small ✳"; "Tapping opens a
- * one-tap-dismiss sheet: 'Drafted from [artist]'s own materials. [Artist] can
- * make it theirs anytime.'" — and trust display is physics, so this suite pins
+ * one-tap-dismiss sheet: 'Drafted from [artist]'s own materials.'" (the second
+ * sentence founder-removed 2026-08-04) — and trust display is physics, so this suite pins
  * the sheet's existence, its copy, and the structural constraint that makes it
  * legal on the card: the disclosure is interactive, therefore it must never
  * nest inside the artist-door <button> (axe: nested-interactive).
@@ -56,7 +56,9 @@ describe("SparkLineView — the §4 disclosure", () => {
     expect(html).toContain("<summary");
     expect(html).toContain("✳");
     // The canon sentence, personalized — the sheet is real content, not a title tooltip.
-    expect(html).toContain("Drafted from Quiet Hollow’s own materials. Quiet Hollow can make it theirs anytime.");
+    expect(html).toContain("Drafted from Quiet Hollow’s own materials.");
+    // Founder-removed 2026-08-04 ("Remove this: [Artist] can make it theirs anytime.").
+    expect(html).not.toContain("can make it theirs");
     // One tap in, one tap gone: a <details> needs no JS, no modal, no history entry.
     expect(html).not.toContain("dialog");
   });

@@ -4,6 +4,15 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-04 — ✳ disclosure copy shortened (founder: "Remove this: [Artist] can make it theirs anytime.")
+
+The tier-C disclosure sheet now reads "Drafted from [artist]'s own materials." — the
+second sentence removed from every living surface (product copy card+lens, pinning test
+now asserting its absence, UI canon §4, brief §4) at the founder's written direction;
+decision record `docs/memory/decisions/2026-08-04_spark-disclosure-copy-founder-edit.md`.
+Mechanism unchanged (native details, one-tap-gone); historical records keep the original
+text, append-only.
+
 ## 2026-08-04 — UI/UX lane: queue shepherded to merge; Spark Line ✳ disclosure sheet; RECORD id-collision resolved + guarded
 
 **Three queued PRs merged per the agent-merges-on-green protocol** (evaluator APPROVE +

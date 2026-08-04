@@ -73,8 +73,8 @@ function headline(e: LicensedEvent): string {
 
 // The Spark Line — the card's primary curiosity gap (UI Canon §4). tier C is
 // AI-drafted and carries a quiet ✳; tapping the line opens the canon's
-// one-tap-dismiss disclosure sheet ("Drafted from [artist]'s own materials.
-// [Artist] can make it theirs anytime.") — the same native <details> pattern as
+// one-tap-dismiss disclosure sheet ("Drafted from [artist]'s own materials." —
+// founder-shortened 2026-08-04) — the same native <details> pattern as
 // the detail page's uncertainty disclosure: one tap in, one tap gone, no modal,
 // no history entry. tier B credits its critic. Display only — never ranks or
 // filters, and absent when there is no approved line (an honest gap).
@@ -98,7 +98,7 @@ export function SparkLineView({ spark, artist }: { spark?: SparkLine | null; art
         {spark.attribution ? <span className="sparkattr"> — {spark.attribution}</span> : null}
       </summary>
       <span className="sparksheet" role="note">
-        Drafted from {artist}&rsquo;s own materials. {artist} can make it theirs anytime.
+        Drafted from {artist}&rsquo;s own materials.
       </span>
     </details>
   );
