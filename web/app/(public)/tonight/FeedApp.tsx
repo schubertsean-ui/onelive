@@ -571,18 +571,24 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
                 (adversarial-review r4: a domain-grouped river labeled "by
                 start time" is a misleading trust display). Single-day rivers
                 group by category with each group start-time sorted; the All
-                view sections by date range first. "no pay-to-rank" is the
-                invariant carrier and never varies. */}
-            <div className="count">{filtered.length.toLocaleString()} shown · {tab.key === "all" ? "soonest first within each section" : "by category, soonest first"} · no pay-to-rank</div>
+                view sections by date range first. The "no pay-to-rank" TEXT
+                was founder-removed from this line 2026-08-04 (copy edit only —
+                the invariant is BEHAVIOR, ranking stays money-blind, and the
+                promise remains in the site description). */}
+            <div className="count">{filtered.length.toLocaleString()} shown · {tab.key === "all" ? "soonest first within each section" : "by category, soonest first"}</div>
 
             <EventList events={filtered} nowMs={nowMs} isOnNow={isOnNow} onOpen={openLens} singleDay={tab.key !== "all"} />
           </>
         )}
 
+        {/* Founder edits 2026-08-04 (four, in sequence during live review):
+            removed the "ticketed spine / long-tail being added" sentence and
+            " — never fabricated"; then "Real, licensed listings from
+            authoritative ticketing sources" was founder-reworded to "Real
+            listings from validated sources" ("too specific to 'ticketing'"). */}
         <footer>
-          Real, licensed listings from authoritative ticketing sources — never fabricated. Times and prices can change;
-          each listing links to the venue/ticket source as the last word. Long-tail domains (libraries, lectures, readings,
-          block parties) are being added from 1Live&rsquo;s own pipeline; what you see here is the ticketed spine.
+          Real listings from validated sources. Times and prices can change;
+          each listing links to the venue/ticket source as the last word.
         </footer>
       </div>
 
