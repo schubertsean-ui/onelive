@@ -88,12 +88,44 @@ HARNESS_MANIFEST = (
 )
 
 
+# The ratification flag is normalized OUT of the certification hash
+# (founder-approved 2026-08-04, Option A): EXTRACTION_THRESHOLD_RATIFIED
+# gates PRODUCTION publishing, not the exam — the attended exam never
+# executes it — yet hashing its literal value created a structural
+# deadlock: the re-lock requires the record's hash to equal the current
+# tree's, while a record can only ever enter carrying the pre-flip hash,
+# so no flag-flip PR could ever satisfy it. Normalizing the single flag
+# line to a canonical form certifies identical exam behavior across a
+# flip while EVERY OTHER BYTE of tools/routing_data.py (and every other
+# manifest file) keeps drifting the hash exactly as before. Exactly one
+# flag line is REQUIRED — zero or multiple is a malformed surface and
+# fails closed (ValueError), never a silently-unnormalized hash.
+_RATIFICATION_FLAG_RE = re.compile(
+    rb"^EXTRACTION_THRESHOLD_RATIFIED\s*=\s*(True|False)\s*$", re.M)
+_RATIFICATION_FLAG_CANONICAL = b"EXTRACTION_THRESHOLD_RATIFIED = False"
+
+
+def _normalize_ratification_flag(data: bytes) -> bytes:
+    """Canonicalize the ratification-flag line so True and False trees
+    hash identically; require EXACTLY ONE flag line, else fail closed."""
+    if len(_RATIFICATION_FLAG_RE.findall(data)) != 1:
+        raise ValueError(
+            "ratification flag line missing or ambiguous in "
+            "tools/routing_data.py — cannot normalize, failing closed")
+    return _RATIFICATION_FLAG_RE.sub(_RATIFICATION_FLAG_CANONICAL, data)
+
+
 def compute_harness_sha() -> str:
     root = pathlib.Path(__file__).resolve().parent.parent
     h = hashlib.sha256()
     for rel in HARNESS_MANIFEST:
         h.update(rel.encode("utf-8") + b"\x00")
-        h.update((root / rel).read_bytes() + b"\x00")
+        data = (root / rel).read_bytes()
+        if rel == "tools/routing_data.py":
+            # Only this one entry is normalized (flag line only); every
+            # other manifest entry hashes raw bytes, unchanged.
+            data = _normalize_ratification_flag(data)
+        h.update(data + b"\x00")
     return h.hexdigest()
 
 
