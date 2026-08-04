@@ -198,6 +198,17 @@ function Lens({ e, side, onNow, onSide, onClose }: {
   onSide: (s: LensSide) => void; onClose: () => void;
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
+  // Swipe-down-to-close (ratified nav spec §7: sheets dismiss on Esc, scrim
+  // tap, DOWNWARD SWIPE, and Back). The gesture is read only from the grab
+  // zone (grip + header) so it never fights the sheet's inner scroll; no
+  // drag-follow animation, so reduced-motion needs no special case.
+  const touchStartY = useRef<number | null>(null);
+  const onGripTouchStart = (ev: React.TouchEvent) => { touchStartY.current = ev.touches[0]?.clientY ?? null; };
+  const onGripTouchEnd = (ev: React.TouchEvent) => {
+    const start = touchStartY.current; touchStartY.current = null;
+    const end = ev.changedTouches[0]?.clientY;
+    if (start != null && end != null && end - start > 70) onClose();
+  };
   useEffect(() => {
     sheetRef.current?.focus();
     // Escape closes; Tab is trapped inside the sheet so keyboard focus can never
@@ -242,6 +253,12 @@ function Lens({ e, side, onNow, onSide, onClose }: {
       <div className="lenswrap">
         <div className="sheet" role="dialog" aria-modal="true" aria-label={`${headline(e)} at ${e.venue_name ?? "venue"}`}
           tabIndex={-1} ref={sheetRef}>
+          {/* The grab zone: grip + header. A visible handle is what makes the
+              sheet READ as a slide-over you can dismiss, not a new page
+              (founder re-flag 2026-08-04); the lighter scrim leaves the feed
+              visible behind for the same reason. */}
+          <div className="lgrab" onTouchStart={onGripTouchStart} onTouchEnd={onGripTouchEnd}>
+          <div className="lgrip" aria-hidden="true" />
           <div className="lhead">
             <div className="lswitch" role="tablist" aria-label="Artist or venue">
               <button type="button" role="tab" aria-selected={side === "artist"} className={side === "artist" ? "on" : ""} onClick={() => onSide("artist")}>Artist</button>
@@ -253,6 +270,7 @@ function Lens({ e, side, onNow, onSide, onClose }: {
                 (evaluator #130, absence-only lens: disputed shown-never-hidden). */}
             <span className="lhtrust"><TrustMark e={e} /></span>
             <button type="button" className="lclose" onClick={onClose} aria-label="Close">×</button>
+          </div>
           </div>
 
           <div className="lbody">
@@ -330,13 +348,14 @@ function Lens({ e, side, onNow, onSide, onClose }: {
   );
 }
 
-function CondensedRow({ e, onNow }: { e: LicensedEvent; onNow: boolean }) {
+function CondensedRow({ e, onNow, onOpen }: { e: LicensedEvent; onNow: boolean; onOpen: (e: LicensedEvent, side: LensSide) => void }) {
   const price = fmtPrice(e);
   return (
     <div className="row">
       <span className="when">{fmtWhen(e.start_time)}{onNow ? <span className="onnow">on now</span> : null}</span>
       <span className="bd2">
-        <span className="ti"><Link className="tilink" href={eventHref(e)}>{headline(e)}</Link><TrustMark e={e} /></span><br />
+        <span className="ti"><button type="button" className="tilink" onClick={() => onOpen(e, "artist")}
+          aria-label={`${headline(e)} — open details`}>{headline(e)}</button><TrustMark e={e} /></span><br />
         <span className="mt">{focusLine(e)} · {e.venue_name}{e.venue_area ? ` · ${e.venue_area}` : ""}</span>
       </span>
       <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
@@ -346,13 +365,14 @@ function CondensedRow({ e, onNow }: { e: LicensedEvent; onNow: boolean }) {
 
 // The tersest tier — one scannable line for far-out events: date · act · venue ·
 // price. Trust marker still rides along (never dropped, even here).
-function LineRow({ e }: { e: LicensedEvent }) {
+function LineRow({ e, onOpen }: { e: LicensedEvent; onOpen: (e: LicensedEvent, side: LensSide) => void }) {
   const price = fmtPrice(e);
   return (
     <div className="lrow">
       <span className="lwhen">{fmtDate(e.start_time)}</span>
       <span className="lti">
-        <Link className="tilink" href={eventHref(e)}>{headline(e)}</Link>
+        <button type="button" className="tilink" onClick={() => onOpen(e, "artist")}
+          aria-label={`${headline(e)} — open details`}>{headline(e)}</button>
         <TrustMark e={e} />
       </span>
       <span className="lven">{e.venue_name}{e.venue_area ? ` · ${e.venue_area}` : ""}</span>
@@ -385,6 +405,10 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
   const [desire, setDesire] = useState<string | null>(null);
   const [plan, setPlan] = useState<PlanScope | null>(null);
   const [mode, setMode] = useState<"browse" | "ask" | "plan">("browse");
+  // Canon §6.5/§9: filters are a SLIDE-IN behind one quiet entry — closed on
+  // open, so the surface carries masthead · modes · date tabs · river and
+  // nothing else (founder re-flag 2026-08-04; §1 calm over clutter).
+  const [filtersOpen, setFiltersOpen] = useState(false);
   // The open lens: which event, and which door (artist/venue). null = closed.
   const [lens, setLens] = useState<{ id: string; side: LensSide } | null>(null);
 
@@ -448,10 +472,8 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
     [base, tab, domains, areas, genres, freeOnly],
   );
 
-  const total = base.length;
-  const freeCount = base.filter((e) => e.is_free || e.price_min === 0).length;
-
   const isOnNow = (e: LicensedEvent) => mounted && eventOnNow(e, nowMs);
+  const activeFilters = domains.size + areas.size + genres.size + (freeOnly ? 1 : 0);
   const openLens = (e: LicensedEvent, side: LensSide) => {
     const id = e.licensed_event_id;
     if (isLensHistoryState(window.history.state)) {
@@ -478,11 +500,6 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
         <div className="mast">
           <h1>1LIVE · Tonight in Austin</h1>
           <p className="lede">Everything on in Central Texas, in one place — real events, real venues, real prices.</p>
-          <div className="kpis">
-            <div className="kpi"><div className="v">{total.toLocaleString()}</div><div className="l">happening & upcoming</div></div>
-            <div className="kpi"><div className="v">{domainGroupsAll.length}</div><div className="l">cultural domains</div></div>
-            {freeCount > 0 ? <div className="kpi"><div className="v">{freeCount}</div><div className="l">free to attend</div></div> : null}
-          </div>
         </div>
 
         {/* mode switch */}
@@ -493,9 +510,9 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
         </div>
 
         {mode === "ask" ? (
-          <AskPanel base={base} nowMs={nowMs} desire={desire} setDesire={setDesire} isOnNow={isOnNow} />
+          <AskPanel base={base} nowMs={nowMs} desire={desire} setDesire={setDesire} isOnNow={isOnNow} onOpen={openLens} />
         ) : mode === "plan" ? (
-          <PlanPanel base={base} nowMs={nowMs} plan={plan} setPlan={setPlan} />
+          <PlanPanel base={base} nowMs={nowMs} plan={plan} setPlan={setPlan} onOpen={openLens} />
         ) : (
           <>
             {/* date tabs */}
@@ -505,8 +522,22 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
               ))}
             </nav>
 
-            {/* filters */}
-            <div className="filters">
+            {/* Filters — the canon slide-in (§6.5/§9): ONE quiet entry; the
+                chip rows render only inside the opened panel. Inline expander
+                (not a modal): the feed stays touchable, Back is untouched,
+                apply is instant, clear is obvious. */}
+            <div className="fbar">
+              <button type="button" className={`chip big fentry${filtersOpen || activeFilters ? " on" : ""}`}
+                aria-expanded={filtersOpen} aria-controls="filterpanel"
+                onClick={() => setFiltersOpen(!filtersOpen)}>
+                Filters{activeFilters ? <span className="n">{activeFilters}</span> : null}
+              </button>
+              {(activeFilters || tabKey !== "all") ? (
+                <button className="chip clear" onClick={() => { setDomains(new Set()); setAreas(new Set()); setGenres(new Set()); setFreeOnly(false); setTabKey("all"); }}>Clear</button>
+              ) : null}
+            </div>
+            {filtersOpen ? (
+            <div className="filters fpanel" id="filterpanel">
               <div className="frow">
                 {domainGroupsAll.map((g) => (
                   <button key={g.domain.id} className={`chip${domains.has(g.domain.id) ? " on" : ""}`} onClick={() => setDomains(toggle(domains, g.domain.id))}>
@@ -525,20 +556,16 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
                   ))}
                 </div>
               ) : null}
-              {areaFacet.length > 1 || genres.size || domains.size ? (
-                <div className="frow">
-                  {areaFacet.map((a) => (
-                    <button key={a.value} className={`chip area${areas.has(a.value) ? " on" : ""}`} onClick={() => setAreas(toggle(areas, a.value))}>
-                      {a.value}<span className="n">{a.n}</span>
-                    </button>
-                  ))}
-                  <button className={`chip${freeOnly ? " on" : ""}`} onClick={() => setFreeOnly(!freeOnly)}>Free only</button>
-                  {(domains.size || areas.size || genres.size || freeOnly || tabKey !== "all") ? (
-                    <button className="chip clear" onClick={() => { setDomains(new Set()); setAreas(new Set()); setGenres(new Set()); setFreeOnly(false); setTabKey("all"); }}>Clear</button>
-                  ) : null}
-                </div>
-              ) : null}
+              <div className="frow">
+                {areaFacet.map((a) => (
+                  <button key={a.value} className={`chip area${areas.has(a.value) ? " on" : ""}`} onClick={() => setAreas(toggle(areas, a.value))}>
+                    {a.value}<span className="n">{a.n}</span>
+                  </button>
+                ))}
+                <button className={`chip${freeOnly ? " on" : ""}`} onClick={() => setFreeOnly(!freeOnly)}>Free only</button>
+              </div>
             </div>
+            ) : null}
 
             <div className="count">{filtered.length.toLocaleString()} shown · by start time · no pay-to-rank</div>
 
@@ -618,9 +645,9 @@ function EventList({ events, nowMs, isOnNow, onOpen }: {
           {b.key === "rich" ? (
             <RichBucket items={b.items} isOnNow={isOnNow} onOpen={onOpen} />
           ) : b.key === "compact" ? (
-            <div className="clist">{b.items.map((e) => <CondensedRow key={e.licensed_event_id} e={e} onNow={isOnNow(e)} />)}</div>
+            <div className="clist">{b.items.map((e) => <CondensedRow key={e.licensed_event_id} e={e} onNow={isOnNow(e)} onOpen={onOpen} />)}</div>
           ) : (
-            <div className="llist">{b.items.map((e) => <LineRow key={e.licensed_event_id} e={e} />)}</div>
+            <div className="llist">{b.items.map((e) => <LineRow key={e.licensed_event_id} e={e} onOpen={onOpen} />)}</div>
           )}
         </section>
       ))}
@@ -628,8 +655,8 @@ function EventList({ events, nowMs, isOnNow, onOpen }: {
   );
 }
 
-function AskPanel({ base, nowMs, desire, setDesire, isOnNow }: {
-  base: LicensedEvent[]; nowMs: number; desire: string | null; setDesire: (k: string | null) => void; isOnNow: (e: LicensedEvent) => boolean;
+function AskPanel({ base, nowMs, desire, setDesire, isOnNow, onOpen }: {
+  base: LicensedEvent[]; nowMs: number; desire: string | null; setDesire: (k: string | null) => void; isOnNow: (e: LicensedEvent) => boolean; onOpen: (e: LicensedEvent, side: LensSide) => void;
 }) {
   const results = desire ? applyDesire(base, desire, nowMs) : [];
   const d = desire ? DESIRE_BY_KEY.get(desire) : null;
@@ -650,7 +677,8 @@ function AskPanel({ base, nowMs, desire, setDesire, isOnNow }: {
               <div key={e.licensed_event_id} className="row">
                 <span className="when">{fmtWhen(e.start_time)}{isOnNow(e) ? <span className="onnow">on now</span> : null}</span>
                 <span className="bd2">
-                  <span className="ti"><Link className="tilink" href={eventHref(e)}>{headline(e)}</Link><TrustMark e={e} /></span><br />
+                  <span className="ti"><button type="button" className="tilink" onClick={() => onOpen(e, "artist")}
+                    aria-label={`${headline(e)} — open details`}>{headline(e)}</button><TrustMark e={e} /></span><br />
                   <span className="mt">{e.venue_name}{e.venue_area ? ` · ${e.venue_area}` : ""}</span><br />
                   <span className="why">why: {d.why(e)}</span>
                 </span>
@@ -667,8 +695,8 @@ function AskPanel({ base, nowMs, desire, setDesire, isOnNow }: {
   );
 }
 
-function PlanPanel({ base, nowMs, plan, setPlan }: {
-  base: LicensedEvent[]; nowMs: number; plan: PlanScope | null; setPlan: (s: PlanScope | null) => void;
+function PlanPanel({ base, nowMs, plan, setPlan, onOpen }: {
+  base: LicensedEvent[]; nowMs: number; plan: PlanScope | null; setPlan: (s: PlanScope | null) => void; onOpen: (e: LicensedEvent, side: LensSide) => void;
 }) {
   const slots = plan ? buildPlan(base, plan, nowMs) : [];
   return (
@@ -689,7 +717,8 @@ function PlanPanel({ base, nowMs, plan, setPlan }: {
                 <div className="row">
                   <span className="when">{fmtTime(s.event.start_time)}</span>
                   <span className="bd2">
-                    <span className="ti"><Link className="tilink" href={eventHref(s.event)}>{headline(s.event)}</Link></span><br />
+                    <span className="ti"><button type="button" className="tilink" onClick={() => onOpen(s.event, "artist")}
+                      aria-label={`${headline(s.event)} — open details`}>{headline(s.event)}</button></span><br />
                     <span className="mt">{s.event.venue_name}{s.event.venue_area ? ` · ${s.event.venue_area}` : ""}</span><br />
                     <span className="why">why: {s.why}</span>
                   </span>

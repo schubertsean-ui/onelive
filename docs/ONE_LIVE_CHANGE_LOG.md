@@ -4,6 +4,29 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-04 — The calm surface: filters slide in, every tap is the lens (founder re-flag)
+
+Founder, on the live site: "still super cluttered upon opening with all the individual
+segments and genres with numbers shown … the card doesn't slide it's a new window."
+Diagnosis against canon: three real conformance gaps, all fixed. (1) The always-visible
+domain/genre/area chip rows deviated from canon §6.5/§9 ("Filters slide in … a quiet
+entry point") — they now live behind ONE quiet Filters entry (active-count badge, obvious
+Clear, instant apply, reduced-motion honored). (2) DELTA LOGGED per the brief rule: the
+KPI trio (happening/domains/free) was an implementation embellishment never in canon §9's
+masthead spec — folded; the honest count line ("N shown · by start time · no pay-to-rank")
+is the canon carrier. (3) Compact rows, far-out line rows, and Ask/Plan result rows were
+<Link> page-navigations to the detail route — the founder's "new window"; every event tap
+now opens the SAME in-place slide-over lens as rich cards (canon §6.1 "not a page load"),
+with the detail page still reachable from inside the lens and by direct/shared URL.
+Lens overlay feel: softened scrim (the feed stays visible behind), a visible grip handle,
+and swipe-down-to-close (the ratified nav spec §7's fourth dismissal — Esc/scrim/Back
+already existed). Venue-content half of the founder's flag: every venue fact we HOLD
+already renders in the venue lens; photo/character/specials remain data-starved honest
+gaps (R-049) and the mini-map/nearby surface is newly unblocked by the PMTiles/OSM
+decisions (queued). Proof: 233 web tests green (3 new conformance pins incl. the
+no-anchor-to-detail invariant), tsc + build clean, all 8 baselines recaptured (INTENDED
+diff, founder-flagged), axe 0 violations both schemes, lab LCP within budget.
+
 ## 2026-08-04 — Daylight mode shipped (R-071 RESOLVED, founder-directed)
 
 Founder: "build the light theme as long as it was created according to our most recent

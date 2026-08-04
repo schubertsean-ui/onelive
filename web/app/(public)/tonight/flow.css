@@ -26,7 +26,7 @@
   --wash-4: #ffffff1a;   /* active chip / hover-strong */
   --line-strong: #ffffff33;
   --shadow: #00000080;
-  --scrim: #05050ac2;
+  --scrim: #05050a8f;  /* softened 2026-08-04: the feed stays visible behind the sheet so the lens reads as a slide-over, never a new page (founder re-flag) */
   --disp-line: #ffc77d66; --disp-bg: #ffc77d14;
   --err-line: #ff7a4577;  --err-bg: #ff7a4514;
   --free-line: #7be0ad55;
@@ -47,10 +47,6 @@
   font-size: 14px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600;
 }
 .flow .mast .lede { color: var(--dim); font-size: 13px; margin-top: 4px; max-width: 60ch; }
-.flow .kpis { display: flex; gap: 20px; flex-wrap: wrap; margin: 14px 0 8px; }
-.flow .kpi .v { font-family: Georgia, serif; font-size: 26px; color: var(--glow); }
-.flow .kpi .l { color: var(--dim); font-size: 11.5px; }
-
 /* Mode switch (Browse / Ask / Plan) */
 .flow .modes { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 6px; }
 .flow .modes button {
@@ -66,6 +62,13 @@
   border-radius: 10px; padding: 8px 12px; font: inherit; font-size: 12.5px; white-space: nowrap; cursor: pointer;
 }
 .flow .datetabs button.on { background: var(--glow); border-color: var(--glow); color: var(--on-glow); font-weight: 700; }
+
+/* Filters — canon §6.5/§9: ONE quiet entry on the surface; the chip rows live
+   inside the slide-down panel. Slide honors reduced motion. */
+.flow .fbar { display: flex; gap: 7px; margin: 4px 0 8px; }
+.flow .fentry::before { content: "⚲"; font-size: 12px; opacity: 0.8; transform: rotate(-45deg); }
+.flow .fpanel { animation: fdrop .18s ease; }
+@keyframes fdrop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
 /* Filter chips */
 .flow .filters { display: flex; flex-direction: column; gap: 7px; margin: 4px 0 8px; }
@@ -271,6 +274,12 @@
 .flow footer { color: var(--dim); font-size: 11.5px; border-top: 1px solid var(--line); margin-top: 28px; padding: 18px 0; line-height: 1.6; }
 
 .tilink { color: inherit; text-decoration: none; }
+/* Rows open the lens now (canon §6.1: not a page load) — the same text link
+   look, delivered by a button. */
+.flow button.tilink {
+  appearance: none; -webkit-appearance: none; background: transparent; border: 0;
+  padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; text-align: left;
+}
 .tilink:hover, .tilink:focus-visible { text-decoration: underline; }
 
 /* ── The lens: a slide-out sheet revealing depth without leaving the feed.
@@ -281,6 +290,10 @@ body.lens-open { overflow: hidden; }
   display: flex; align-items: flex-end; justify-content: center;
 }
 .lensbg { position: absolute; inset: 0; background: var(--scrim); }
+.lensroot .lgrip {
+  width: 38px; height: 4px; border-radius: 999px; background: var(--line-strong);
+  margin: 8px auto 0;
+}
 .lenswrap { position: relative; width: 100%; max-width: 560px; }
 .lensroot .sheet {
   background: var(--night2); color: var(--ink);
@@ -353,6 +366,7 @@ body.lens-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .flow .room, .flow .zone { transition: none; }
   .lensroot .sheet { animation: none; }
+  .flow .fpanel { animation: none; }
 }
 
 /* QA fixture banner (web/qa/fixtures.ts) — renders ONLY when the synthetic
