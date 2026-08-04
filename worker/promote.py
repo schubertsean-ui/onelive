@@ -103,7 +103,8 @@ def promote_candidate(candidate_id: str) -> str:
             )
 
             # Derive the initial 4-state confidence from the evidence that
-            # cleared the gate (anchor -> confirmed, corroborated -> likely).
+            # cleared the gate (anchor OR corroborated -> confirmed; founder
+            # ruling 2026-08-04, "Just 'confirmed' - remove 'likely'").
             confidence = derive_confidence(classes, sxsw_mode=sxsw_mode)
 
             cur.execute("""

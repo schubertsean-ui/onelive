@@ -88,17 +88,29 @@ def test_derive_anchor_is_confirmed():
     assert derive_confidence(["ticketing"]) == "confirmed"
 
 
-def test_derive_corroborated_is_likely():
-    assert derive_confidence(["social", "local_media"]) == "likely"
+def test_derive_corroborated_is_confirmed():
+    # Founder ruling 2026-08-04, verbatim: "Just 'confirmed' - remove 'likely'"
+    # — 2+ independent sources earn the anchor's label. 'likely' is reserved
+    # for the publish policy's single-trusted-source path.
+    assert derive_confidence(["social", "local_media"]) == "confirmed"
 
 
 def test_derive_single_weak_source_is_unverified():
     assert derive_confidence(["social"]) == "unverified"
 
 
-def test_derive_sxsw_needs_three_for_likely():
+def test_derive_never_returns_likely():
+    # 'likely' = one credible source (publish-policy path), never a
+    # corroboration count (founder ruling 2026-08-04).
+    for classes in ([], ["social"], ["social", "local_media"],
+                    ["social", "local_media", "blog"], ["ticketing"]):
+        assert derive_confidence(classes) != "likely"
+        assert derive_confidence(classes, sxsw_mode=True) != "likely"
+
+
+def test_derive_sxsw_needs_three_for_confirmed():
     assert derive_confidence(["social", "local_media"], sxsw_mode=True) == "unverified"
-    assert derive_confidence(["social", "local_media", "blog"], sxsw_mode=True) == "likely"
+    assert derive_confidence(["social", "local_media", "blog"], sxsw_mode=True) == "confirmed"
 
 
 def test_derive_never_returns_disputed():
