@@ -111,7 +111,24 @@ Stage-3 retrieval (docs/memory/RED_CLASSES.md read against this build; matched c
 - [S3:founder-verbatim-corrected] The founder's directive is quoted verbatim in this contract's title and the decision record — nothing in it was "fixed" or paraphrased into canon; where interpretation was needed (which agent, which contact) it is flagged as interpretation, not asserted as the founder's words.
 - [S3:governance-ambiguity] No governance rule is reinterpreted: the ledger is bookkeeping (docs/metrics/), publishes nothing, touches no product path; the send channel routes to the founder-crucial list per the charter's own categories (new services / external comms).
 - [S3:missing-record-read-as-state] Existing measures were read first (KAIZEN_LEDGER, KPI_LEDGER/kpi_registry, kpi_report.py) and the ledger EXTENDS the metrics family rather than duplicating any of them — hours-saved/$ is measured nowhere today.
-- [S3:pushed-on-red] validate runs to green (or Record-bound acknowledged skips) locally before push; any red is fixed, not pushed around.
+- [S3:pushed-on-red] validate runs to green (or Record-bound acknowledged skips) locally before push; any red is fixed, not pushed around — the two local baseline reds this session (missing env deps; shallow clone hiding the smoke-run commit) were diagnosed and fixed (deps installed per the CI recipe; commit fetched), not waived.
+- [S3:caller-suppliable-custody-inputs] No custody surface consumes the ledger; `--path` selects which workbook to WRITE (a bookkeeping record), never an input any gate or release decision reads.
+- [S3:final-gate-trusts-generator] No gate reads the ledger, and the ledger itself re-derives rather than trusts: `verify` and `read_entries` recompute value = hours × rate and the derived sheets from raw rows on every read.
+- [S3:release-path-weaker-than-generation] Nothing releases or publishes; the tool's only outputs are the workbook, its mirror, and stdout.
+- [S3:semantic-claim-not-rederived] The report's claims are re-derived at print time from validated Ledger rows (weekly_rollup over read_entries) — never read from the stored Weekly sheet, which is itself checked against the re-derivation.
+- [S3:rule-stronger-than-mechanism] The one procedural rule this build adds (log tasks at session close) is stated as a STANDING TODOS item, explicitly procedural — no text claims mechanical enforcement that doesn't exist.
+- [S3:self-weakenable-gate] No gate code, threshold, or index is touched; the two workflow pip-line edits only ADD an installed package to the existing gates' environment.
+- [S3:self-weakenable-review-model] Reviewer configuration and model bindings untouched.
+- [S3:mutable-model-alias] No model identifiers or routing touched; matched on merged-master prose only.
+- [S3:pagination-integrity-gap] N/A — no paginated API is consumed anywhere in this diff; iteration is over local workbook rows.
+- [S3:stale-base-widens-range] origin/master was fetched and MERGED into this branch this session (tip 843fb20, confirmed by construction_gate's ls-remote comparison), resolving the two-commit drift before push.
+- [S3:stalled-state-needs-active-diagnosis] The two stalled-looking local reds got one diagnostic probe each and a root-cause fix (pip's debian-owned PyJWT → targeted reinstall; shallow clone → fetch the exact commit), not repeated retries.
+- [S3:weak-key-accepted-at-custody] No keys, signing, or secrets involved anywhere in this diff.
+- [S3:permission-for-ratified-work] The founder's directive commissions this build; it was executed without asking for a fresh go-ahead, and only the genuinely founder-crucial remainder (send channel, group chat, rate) is asked.
+- [S3:excluded-surface-widening] No scanner exclusion, allowlist, or .claude surface is widened; tools/requirements.txt is a NEW ordinary tracked file swept by the same scanners as everything else.
+- [S3:deliverable-visual-qa] The deliverable is a workbook + CLI text, not a rendered visual package; the workbook's own layout was proven by openpyxl round-trip in tests (headers, sheets, values), the closest applicable measure.
+- [S3:stale-live-incident-state] No live incident is narrated as current anywhere in this diff; the environment reds fixed this session are described in past tense with their fixes, and no open-incident doc is touched.
+- [S3:unusable-credential-tier] No credentials are minted, consumed, or required — the ledger tool runs entirely on local files, and the one new dependency installs from the public package index with no key.
 
 STATUS: OPEN — building on branch `claude/agent-value-ledger-roi-3sn9rs`.
 
