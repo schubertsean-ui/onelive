@@ -618,12 +618,21 @@ def test_ratification_flag_flip_does_not_change_the_harness_hash(monkeypatch):
     production publishing, not the exam, so flipping it must NOT drift the
     certification hash — otherwise no flag-flip PR can ever satisfy the
     re-lock (records can only enter carrying the pre-flip hash)."""
-    from ai.golden_exam import _normalize_ratification_flag, compute_harness_sha
+    from ai.golden_exam import (_RATIFICATION_FLAG_RE,
+                                _normalize_ratification_flag,
+                                compute_harness_sha)
     root = pathlib.Path(__file__).resolve().parent.parent
     real = (root / "tools" / "routing_data.py").read_bytes()
-    assert b"EXTRACTION_THRESHOLD_RATIFIED = False" in real
-    flipped = real.replace(b"EXTRACTION_THRESHOLD_RATIFIED = False",
-                           b"EXTRACTION_THRESHOLD_RATIFIED = True")
+    # FLAG-STATE-AGNOSTIC (fixed 2026-08-04 — the original hardcoded
+    # "= False" and broke on the very flip it protects): find whichever
+    # literal the tree carries via the normalizer's own regex, flip to the
+    # OTHER literal, and require invariance in that direction.
+    m = _RATIFICATION_FLAG_RE.search(real)
+    assert m, "flag line missing from the real routing_data.py"
+    current = m.group(0)
+    other = (current.replace(b"True", b"False") if b"True" in current
+             else current.replace(b"False", b"True"))
+    flipped = _RATIFICATION_FLAG_RE.sub(other, real)
     assert flipped != real
     # Normalizer level: both variants canonicalize identically.
     assert _normalize_ratification_flag(real) == _normalize_ratification_flag(flipped)
@@ -634,8 +643,7 @@ def test_ratification_flag_flip_does_not_change_the_harness_hash(monkeypatch):
     def flipped_read(self):
         data = real_read(self)
         if self.name == "routing_data.py" and self.parent.name == "tools":
-            data = data.replace(b"EXTRACTION_THRESHOLD_RATIFIED = False",
-                                b"EXTRACTION_THRESHOLD_RATIFIED = True")
+            data = _RATIFICATION_FLAG_RE.sub(other, data)
         return data
     monkeypatch.setattr(pathlib.Path, "read_bytes", flipped_read)
     assert compute_harness_sha() == baseline

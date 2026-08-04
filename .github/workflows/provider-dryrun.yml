@@ -18,6 +18,7 @@ on:
         options:
           - seatgeek
           - eventbrite
+          - eventbrite-discover
       max_pages:
         description: "Pages per window/id (bounded fetch)"
         required: false
@@ -51,11 +52,30 @@ jobs:
         if: ${{ github.event.inputs.provider == 'seatgeek' }}
         env:
           SEATGEEK_CLIENT_ID: ${{ secrets.SEATGEEK_CLIENT_ID }}
+          # Optional companion credential (consumed by worker/importers/seatgeek.py
+          # from the environment, never expanded in shell text — R4's implicit-
+          # inheritance boundary; the importer treats absence as client_id-only
+          # auth by design). New SeatGeek registrations 403 without it.
+          SEATGEEK_CLIENT_SECRET: ${{ secrets.SEATGEEK_CLIENT_SECRET }}
           MAX_PAGES: ${{ github.event.inputs.max_pages || '2' }}
         run: |
           : "${SEATGEEK_CLIENT_ID:?SEATGEEK_CLIENT_ID secret missing — add it in repo Settings → Secrets → Actions}"
           : "${MAX_PAGES:?max_pages missing — the fetch bound is required}"
           python -m worker.importers.run_seatgeek_import --max-pages "$MAX_PAGES" --dry-run
+      - name: Eventbrite ORGANIZER DISCOVERY (public pages only, catalog-allowed; no API, no DB)
+        if: ${{ github.event.inputs.provider == 'eventbrite-discover' }}
+        env:
+          MAX_PAGES: ${{ github.event.inputs.max_pages || '2' }}
+        run: |
+          : "${MAX_PAGES:?max_pages missing — the crawl bound is required}"
+          python3 tools/discover_eventbrite_orgs.py --max-pages "$MAX_PAGES" | tee eventbrite-org-candidates.json
+      - name: Upload discovery candidates (human review before anything is committed)
+        if: ${{ github.event.inputs.provider == 'eventbrite-discover' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: eventbrite-org-candidates
+          path: eventbrite-org-candidates.json
+          if-no-files-found: error
       - name: Eventbrite dry-run (fetch + normalize + summarize, NO DB write)
         if: ${{ github.event.inputs.provider == 'eventbrite' }}
         env:

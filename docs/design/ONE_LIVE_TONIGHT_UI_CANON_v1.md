@@ -282,7 +282,12 @@ itself stays founder-gated. Decision record:
 ## §9 · Feed structure
 
 - **Title:** "Tonight in Austin." Masthead carries the honest count line (*"N shown · by
-  start time · no pay-to-rank"*).
+  category, soonest first"* on day tabs; *"soonest first within each section"* on All).
+  FOUNDER EDITS 2026-08-04: the ordering fragment must describe the rendered structure
+  (evaluator r4 — a domain-grouped river must not claim flat chronology), and the
+  "no pay-to-rank" TEXT is removed from the line (founder-directed, verbatim "remove:
+  · no pay-to-rank" — copy only; the §1 invariant is BEHAVIOR and is untouched: money
+  never decides visibility or order, and the ranking code stays guarded by tests).
 - **Order:** chronological by start time from the phone's real clock; over shows leave the
   river (dimmed "ended" in lists); a started-but-live show stays, tagged "on now"
   (`CHANGELOG:720`).

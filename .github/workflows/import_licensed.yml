@@ -73,6 +73,11 @@ jobs:
         continue-on-error: true
         env:
           SEATGEEK_CLIENT_ID: ${{ secrets.SEATGEEK_CLIENT_ID }}
+          # Optional companion credential (consumed by worker/importers/seatgeek.py
+          # from the environment, never expanded in shell text — R4's implicit-
+          # inheritance boundary; the importer treats absence as client_id-only
+          # auth by design). New SeatGeek registrations 403 without it.
+          SEATGEEK_CLIENT_SECRET: ${{ secrets.SEATGEEK_CLIENT_SECRET }}
           ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
           ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
           MAX_PAGES: ${{ github.event.inputs.max_pages || '8' }}

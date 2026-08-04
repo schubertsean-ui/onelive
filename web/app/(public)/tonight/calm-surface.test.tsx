@@ -53,7 +53,11 @@ describe("the calm opening surface (canon §6.5/§9)", () => {
   it("carries counts in the canon masthead line, not a KPI trio", () => {
     expect(html).not.toContain("happening &amp; upcoming");
     expect(html).not.toContain("cultural domains");
-    expect(html).toContain("no pay-to-rank");
+    // Founder edit 2026-08-04: the "no pay-to-rank" TEXT is removed from the
+    // count line (the INVARIANT is behavior — ranking stays money-blind, and
+    // trust.test.ts still guards the ranking code; only the copy is gone).
+    expect(html).not.toContain("no pay-to-rank");
+    expect(html).toContain("shown ·");
   });
   it("the ordering disclosure describes the rendered structure, never a false chronology (evaluator r4)", () => {
     // Default Today river is domain-grouped with each group start-time sorted —
