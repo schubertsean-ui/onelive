@@ -46,10 +46,12 @@ def test_pass_anchor_publishes_confirmed():
     assert d.publishes and d.confidence == "confirmed"
 
 
-def test_pass_two_non_anchor_publishes_likely():
+def test_pass_two_non_anchor_publishes_confirmed():
+    # Founder ruling 2026-08-04, verbatim: "Just 'confirmed' - remove 'likely'"
+    # — the corroborated tier (2+ independent sources) earns the anchor's label.
     d = decide_publish(gate_decision="pass", source_classes=["local_media", "social"],
                        ratified=True)
-    assert d.publishes and d.confidence == "likely"
+    assert d.publishes and d.confidence == "confirmed"
 
 
 def test_single_trusted_source_is_USED_at_likely_displayed_clean():

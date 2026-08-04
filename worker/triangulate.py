@@ -220,8 +220,9 @@ def triangulated_confidence(target: dict, pool: Iterable[dict], *,
 
     Assembles the corroborating source classes (this module's job) and hands them
     to the EXISTING derive_confidence (no new confidence logic): an anchor among
-    the corroborators → 'confirmed'; enough independent agreement → 'likely'; a
-    single uncorroborated source → 'unverified'. Never returns 'disputed' —
+    the corroborators → 'confirmed'; enough independent agreement → 'confirmed'
+    (founder ruling 2026-08-04: the corroborated tier earns the anchor's label);
+    a single uncorroborated source → 'unverified'. Never returns 'disputed' —
     triangulation only corroborates; disputes are an explicit moderation state.
     """
     corr = corroborate(target, pool)
