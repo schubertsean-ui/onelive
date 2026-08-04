@@ -97,7 +97,7 @@ jobs:
           # would have silently substituted 10 for any empty dispatch input,
           # weakening the fail-closed budget contract (evaluator finding,
           # PR #43 round 1).
-          MAX_SOURCES: ${{ github.event_name == 'schedule' && '10' || github.event.inputs.max_sources }}
+          MAX_SOURCES: ${{ github.event_name == 'schedule' && '30' || github.event.inputs.max_sources }}
         run: |
           : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
           # [[ =~ ]] validates the WHOLE string (POSIX ERE, not line-oriented
@@ -192,7 +192,7 @@ jobs:
           # IDENTICAL expression to the validation step (schedule-only fixed
           # ceiling; dispatch stays fail-loud) — both steps must agree or the
           # validated value wouldn't be the executed value.
-          MAX_SOURCES: ${{ github.event_name == 'schedule' && '10' || github.event.inputs.max_sources }}
+          MAX_SOURCES: ${{ github.event_name == 'schedule' && '30' || github.event.inputs.max_sources }}
         run: |
           : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
