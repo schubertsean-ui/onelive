@@ -499,7 +499,7 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
       <div className="wrap">
         <div className="mast">
           <h1>1LIVE · Tonight in Austin</h1>
-          <p className="lede">Everything on in Central Texas, in one place — real events, real venues, real prices.</p>
+          <p className="lede">Everything on in Central Texas, in one place.</p>
         </div>
 
         {/* mode switch */}

@@ -118,7 +118,14 @@ for spec in "${PAGES[@]}"; do
   # THIS use: a single-use CI/sandbox machine rendering only our own localhost
   # fixture pages with every external host resolver-blocked above.
   # --disable-dev-shm-usage: runners' small /dev/shm crashes the renderer.
+  # --font-render-hinting=none + no subpixel positioning: collapse the one
+  # cross-machine nondeterminism the Chromium-build pin does not cover — font
+  # hinting config. Diagnosed 2026-08-04 (run 30920739324): identical build,
+  # identical fonts, but CI's antialiasing diverged up to 1.83% on the light
+  # desktop feed (dark-on-paper shows AA deltas > tolerance where dark-on-night
+  # hides them). Hinting off renders text geometry identically everywhere.
   TZ=America/Chicago "$CHROMIUM" --no-sandbox --disable-dev-shm-usage \
+    --font-render-hinting=none --disable-font-subpixel-positioning \
     --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
     --host-resolver-rules="MAP * 127.0.0.1, EXCLUDE localhost" \
     --window-size="$viewport" --screenshot="$shot" $SCHEME_FLAG \

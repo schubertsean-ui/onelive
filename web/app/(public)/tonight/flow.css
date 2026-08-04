@@ -252,8 +252,13 @@
 .flow .lrow .lti { font-family: Georgia, serif; font-size: 15px; min-width: 0; flex: 1; }
 .flow .lrow .lven { color: var(--dim); font-size: 12.5px; text-align: right; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .flow .lrow .pr { margin-left: 4px; }
+/* Canon's line tier is "date · act · venue · price" — the venue is part of the
+   spec, so on small screens it WRAPS to its own line instead of vanishing
+   (founder re-flag 2026-08-04: "The Further out doesn't provide much about
+   the venue" — it was hidden on phones). */
+.flow .lrow { flex-wrap: wrap; }
 @media (max-width: 560px) {
-  .flow .lrow .lven { display: none; } /* keep the far-out line to date · act · price on small screens */
+  .flow .lrow .lven { flex-basis: 100%; order: 4; text-align: left; max-width: 100%; padding-left: 102px; }
 }
 
 /* Confidence caution marker — quiet by design (no badge, no "confirmed" text).
