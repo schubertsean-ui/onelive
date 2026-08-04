@@ -262,12 +262,20 @@ itself stays founder-gated. Decision record:
   instantly dismissible sheet in calm plain language: details for this show may change, here's
   the venue's own site to be sure. One tap in, one tap gone. *A courtesy, never a warning*
   (`BRIEF:50`).
+  FOUNDER RULING 2026-08-04 (verbatim "Trustworthy is trustworthy … If it is, publish
+  without the uncertainty marker" — decision record
+  2026-08-04_single-trusted-source-clean-display.md): **`likely` — one credible,
+  reliability-cleared source — displays CLEAN like confirmed** (no marker, no caveat in
+  shares); the quiet icon now belongs to `unverified` (unknown/degraded states) and the
+  stronger marker to `disputed` only. Sources below the reliability threshold never
+  publish at all (human review), which is what makes the clean display honest.
 - **Disputed is shown, never hidden** — a slightly stronger marker ("sources disagree"); on
   the detail page its disclosure opens by default (`BRIEF:51`; `web/lib/trust.ts`).
 - **The feed never filters on confidence.** Ended events leave by a *time* filter, never a
   confidence filter; a disputed on-now show still appears (`CHANGELOG:749`).
 - **Trust rides into every artifact** — a shared/texted show carries its cancellation status
-  and any non-confirmed confidence into the shared text (`web/lib/share.ts`).
+  and any surfaced-uncertainty state (unverified/disputed) into the shared text; `likely`
+  shares clean per the 2026-08-04 ruling (`web/lib/share.ts`).
 
 ---
 
