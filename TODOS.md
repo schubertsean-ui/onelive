@@ -13,6 +13,13 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #43 (2026-08-04 — Agent Value Ledger, founder-directed)
+- [x] (P1) `tools/value_ledger.py` + shared Excel workbook `docs/metrics/AGENT_VALUE_LEDGER.xlsx` (+ CSV audit mirror) + 22 hermetic tests + openpyxl pinned in new `tools/requirements.txt` + both pytest workflows install it. DONE this session; seeded with this build as entry 1.
+- [ ] (P2, STANDING — do not check off) **Log agent tasks to the value ledger at session close** — every session that ships work appends its task(s) via `python tools/value_ledger.py log …` (estimate basis required) in the session-close commit, and runs `report --as-of <date>` so the weekly figure is current. An unlogged shipped task is a ledger gap.
+- [ ] (P1, founder) **Weekly ROI delivery channel** — the report GENERATION is mechanical (`report --as-of`); SENDING it (email to the founder / posting to a group chat) is a new service + external comms, and any weekly scheduled runner needs the Sentinel dead-man + caps first — founder picks the channel; agent wires it after.
+- [ ] (P2, founder) **Set the real hourly rate** in `AGENT_VALUE_LEDGER.xlsx` Config!B1 (shipped as a labeled $150/h placeholder); $ values are estimates either way.
+- [ ] (P2, founder) **"Put the agent in the group chat"** — names a new outward-facing surface + credentials (founder-crucial); scope which chat and which agent identity before any build.
+
 ## Session Contract #36 (2026-08-03 — integrity plugin + charter, founder-approved)
 - [x] (P0) `integrity-plugin/` — marketplace + plugin manifests, generalized plan-first hooks, OPERATING INTEGRITY CHARTER (36 rules with sources + enforcement class), claude.ai paste-in, new-lane README checklist, 7 lockstep guard tests. DONE this session.
 - [ ] (P1, founder, one-time per surface) Roll the behavioral ring out: paste `integrity-plugin/plugins/integrity/charter/CLAUDE_PROJECT_PASTEIN.md` into each claude.ai Project's custom instructions (chat has no hooks — this is the instructions ring, stated honestly).

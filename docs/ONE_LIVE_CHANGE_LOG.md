@@ -4,6 +4,31 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-04 — Agent Value Ledger: weekly ROI in shared Excel (founder-directed Contract #43)
+
+**The agent now measures its own value where the founder can see it.** Per the
+founder's directive ("Give the agent a value ledger… hours saved, $ value…
+Make the agent write to Excel, not its own markdown… A weekly 'you saved $'
+report"), `tools/value_ledger.py` logs every completed agent task — date,
+session, task, category, hours saved, a REQUIRED estimate basis, the rate it
+was logged under, and $ value (Decimal, cents) — into the shared workbook
+`docs/metrics/AGENT_VALUE_LEDGER.xlsx`, regenerates its "Weekly ROI" sheet
+(per-ISO-week tasks/hours/$ + cumulative) and a deterministic CSV audit mirror
+(the binary xlsx stays canonical; the mirror keeps it reviewable in git and by
+the evaluator), and `report --as-of` prints the plain-language weekly summary,
+always labeled estimates. The hourly rate is founder-editable IN the workbook
+(Config sheet; shipped $150/h placeholder, labeled as such); each row freezes
+its own rate so Config edits never rewrite history. Fails closed on
+non-finite/negative numbers, malformed dates, empty basis, tampered schemas,
+and stale derived surfaces; 22 hermetic tests; openpyxl pinned exact in a NEW
+`tools/requirements.txt` (deliberately NOT worker/requirements.txt, which is
+exam-manifest-bound) and installed by both pytest workflows in the same
+commit. No historical backfill — retro-estimated hours would be numbers with
+no recorded basis. Founder-crucial remainder (asked, not actioned): the weekly
+SEND channel (email/group chat + any scheduled runner), group-chat presence,
+and the real rate. Decision record:
+`docs/memory/decisions/2026-08-04_agent-value-ledger-directive.md`.
+
 ## 2026-08-03 — Code-armed sweep: gate-custodied wording into code comments (founder: "not wait for the tripwire")
 
 Dedicated code-armed PR (stacked on the records PR) executing R-075's remainder (renumbered from R-070 at the PR #152 merge) early at

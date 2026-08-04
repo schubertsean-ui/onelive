@@ -1,0 +1,6 @@
+# Dev/tooling dependencies for tools/ scripts — installed by the two pytest
+# workflows (adversarial-review.yml, trust-gate.yml) alongside worker+api deps.
+# DELIBERATELY separate from worker/requirements.txt, whose bytes are inside
+# the golden-exam harness manifest hash: a tooling dep must never force a
+# harness re-certification. Pins are exact (review rule 3).
+openpyxl==3.1.5  # Agent Value Ledger xlsx read/append (tools/value_ledger.py)

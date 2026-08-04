@@ -1,0 +1,2 @@
+date,iso_week,session,task,category,hours_saved,estimate_basis,rate_usd_per_hour,value_usd
+2026-08-04,2026-W32,Contract #40,Build the Agent Value Ledger (tool + tests + shared Excel workbook + weekly ROI report),tooling,6.00,"estimate: comparable senior-engineer time to design/build/test this tool, workbook and report by hand",150.00,900.00
