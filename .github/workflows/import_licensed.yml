@@ -33,6 +33,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Sentinel (charter: no scheduled loop without Sentry + a dedicated
+      # dead-man). This loop feeds the ENTIRE licensed feed and shipped
+      # without an alarm — a silent stop (incl. GitHub auto-disabling crons
+      # on repo inactivity) would stale the live site with nobody told.
+      # Same two-layer pattern as import_structured.yml: fail-closed period
+      # assertion on scheduled runs + start/success/fail pings.
+      - name: Dead-man period assertion (scheduled runs only)
+        if: github.event_name == 'schedule'
+        env:
+          ORCHESTRATOR_PING_URL: ${{ secrets.LICENSED_IMPORT_PING_URL }}
+          HEALTHCHECKS_API_KEY_RO: ${{ secrets.HEALTHCHECKS_API_KEY_RO }}
+          DEADMAN_CHECK_SLUG: "onelive-licensed-import"
+          EXPECTED_PERIOD_SECONDS: "43200"
+          MAX_GRACE_SECONDS: "7200"
+        run: |
+          python3 tools/assert_deadman_period.py
+      - name: Dead-man START ping (scheduled runs only)
+        if: github.event_name == 'schedule'
+        env:
+          PING_URL: ${{ secrets.LICENSED_IMPORT_PING_URL }}
+        run: |
+          [ -n "$PING_URL" ] || exit 0
+          curl -fsS -m 10 --retry 3 "$PING_URL/start" || true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -93,3 +116,19 @@ jobs:
           # Migration 0010 (licensed_event + domains) was applied idempotently by
           # the Ticketmaster step above; SeatGeek upserts into the same table.
           python -m worker.importers.run_seatgeek_import --max-pages "$MAX_PAGES"
+
+      - name: Dead-man SUCCESS ping (scheduled runs only)
+        # The load-bearing ping: its ABSENCE within period+grace is the alarm.
+        if: ${{ github.event_name == 'schedule' && success() }}
+        env:
+          PING_URL: ${{ secrets.LICENSED_IMPORT_PING_URL }}
+        run: |
+          [ -n "$PING_URL" ] || exit 0
+          curl -fsS -m 10 --retry 3 "$PING_URL" || true
+      - name: Dead-man FAIL ping (scheduled runs only)
+        if: ${{ github.event_name == 'schedule' && failure() }}
+        env:
+          PING_URL: ${{ secrets.LICENSED_IMPORT_PING_URL }}
+        run: |
+          [ -n "$PING_URL" ] || exit 0
+          curl -fsS -m 10 --retry 3 "$PING_URL/fail" || true

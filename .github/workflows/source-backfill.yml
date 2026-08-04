@@ -18,6 +18,26 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+      # Sentinel (charter: no scheduled loop without a dedicated dead-man).
+      # Weekly cron — the dead-man also catches GitHub auto-disabling crons
+      # after repo inactivity, which no failure email ever reports.
+      - name: Dead-man period assertion (scheduled runs only)
+        if: github.event_name == 'schedule'
+        env:
+          ORCHESTRATOR_PING_URL: ${{ secrets.SOURCE_BACKFILL_PING_URL }}
+          HEALTHCHECKS_API_KEY_RO: ${{ secrets.HEALTHCHECKS_API_KEY_RO }}
+          DEADMAN_CHECK_SLUG: "onelive-source-backfill"
+          EXPECTED_PERIOD_SECONDS: "604800"
+          MAX_GRACE_SECONDS: "86400"
+        run: |
+          python3 tools/assert_deadman_period.py
+      - name: Dead-man START ping (scheduled runs only)
+        if: github.event_name == 'schedule'
+        env:
+          PING_URL: ${{ secrets.SOURCE_BACKFILL_PING_URL }}
+        run: |
+          [ -n "$PING_URL" ] || exit 0
+          curl -fsS -m 10 --retry 3 "$PING_URL/start" || true
       # Model resolved via the cost-routing policy (docs/MODEL_ROUTING.md),
       # never hardcoded — catalog research is a Standard-tier task. The
       # substitution runs in its own assignment (not inside echo) so a router
@@ -41,3 +61,18 @@ jobs:
             city/municipal event listings) that aren't already in the catalog.
             Fill in real names, URLs, and a reasonable priority_score using the existing formula.
             Open a PR with your additions. Do not merge — this always needs founder review.
+
+      - name: Dead-man SUCCESS ping (scheduled runs only)
+        if: ${{ github.event_name == 'schedule' && success() }}
+        env:
+          PING_URL: ${{ secrets.SOURCE_BACKFILL_PING_URL }}
+        run: |
+          [ -n "$PING_URL" ] || exit 0
+          curl -fsS -m 10 --retry 3 "$PING_URL" || true
+      - name: Dead-man FAIL ping (scheduled runs only)
+        if: ${{ github.event_name == 'schedule' && failure() }}
+        env:
+          PING_URL: ${{ secrets.SOURCE_BACKFILL_PING_URL }}
+        run: |
+          [ -n "$PING_URL" ] || exit 0
+          curl -fsS -m 10 --retry 3 "$PING_URL/fail" || true
