@@ -19,6 +19,14 @@ concurrency:
 
 jobs:
   report:
+    # MASTER-ONLY (evaluator finding, PR #174): a workflow_dispatch runs the
+    # DISPATCHED ref's code, so without this guard a branch could pair edited
+    # scripts with the production DB secrets below. On any non-master ref the
+    # job skips before any secret-bearing step exists. Residual (an actor with
+    # push editing this guard away on a branch) is the repo-wide property of
+    # repo-level Actions secrets, recorded as R-079 with the environment-
+    # scoping trigger — not silently accepted.
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
