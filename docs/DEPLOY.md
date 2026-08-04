@@ -20,6 +20,7 @@ a value from the **build**. This is the asymmetry that caused the mistakes.
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Only for the real stealth gate | Middleware + client | `NEXT_PUBLIC_` | No (it's a public client id anyway) | Turns on the Clerk allowlist gate instead of the open-preview mode. |
 | `CLERK_SECRET_KEY` | With the stealth gate | Middleware (server) | plain | Yes — Sensitive is fine | Clerk's server secret (`sk_…`); the SDK reads this name by default. Verifies the session server-side. |
 | `ONELIVE_ALLOWLIST` | With the stealth gate | Edge **middleware** (build-inlined) | plain | **NO — must be non-Sensitive** | Comma-separated tester emails (lowercased/trimmed, case-insensitive; empty ⇒ denies everyone, fail-closed — `web/lib/allowlist.ts`). Read by the edge gate, so like row 1 it must be build-visible; **redeploy to apply a change**. |
+| `ONELIVE_CONSUMER_PUBLIC` | For deployment 3 below | Edge **middleware** (build-inlined) | plain (or `NEXT_PUBLIC_` form) | **NO — must be non-Sensitive** | Declares the CONSUMER surface public while `/ops` keeps the full Clerk + allowlist gate. Honored **only** when the Clerk key is also set — without a provider the flag changes nothing (`web/lib/auth.ts` `consumerSurfacePublic`). |
 
 Fallbacks the code accepts (so old setups keep working): auth also reads plain
 `AUTH_DISABLED`; Supabase also reads `NEXT_PUBLIC_SUPABASE_URL` /
@@ -31,7 +32,7 @@ compatibility only.
 - **Reaches the edge gate (middleware) → `NEXT_PUBLIC_`, never Sensitive.**
 - **Read server-side at request time (the feed) → plain name, Sensitive is fine.**
 
-## Two supported deployments
+## Three supported deployments
 
 1. **Private preview (today) — ZERO CONFIG.** A Vercel preview/development
    deployment needs **no environment variables at all**: the auth gate
@@ -43,6 +44,18 @@ compatibility only.
    + Clerk secret + `ONELIVE_ALLOWLIST` (+ optionally override the Supabase vars
    for a different project). PRODUCTION never auto-opens — with no provider and
    no explicit disable it FAILS CLOSED (denies), so a real gate is required.
+3. **Public site + gated ops (the live posture, 2026-08-04):** everything from
+   deployment 2 **plus** `ONELIVE_CONSUMER_PUBLIC=1`. The consumer surface
+   (feed, detail, API) is public with no sign-in; `/ops` runs the full Clerk
+   sign-in → allowlist gate. Why this exists: the go-live "declared public"
+   posture (plain `NEXT_PUBLIC_AUTH_DISABLED`, no provider) hides `/ops` behind
+   a 404 by design — no provider exists to gate it — which locked the founder
+   out of the promote console on the live site (founder-caught 2026-08-04).
+   Set ALL FOUR variables in the same change, then redeploy ONCE: adding the
+   Clerk key without the declaration flips the whole site behind sign-in
+   (deployment 2's behavior), and the declaration without the key is inert.
+   `NEXT_PUBLIC_AUTH_DISABLED` becomes irrelevant once the Clerk key is present
+   (a provider always beats the disable flag) — remove it to avoid confusion.
 
 Note: the two Supabase values are committed as PUBLIC defaults (publishable key
 + URL — safe by design, RLS is the boundary), so data works with no config;

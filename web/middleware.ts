@@ -1,7 +1,7 @@
 import { clerkMiddleware, createRouteMatcher, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { allowlistFromEnv, isAllowlisted } from "./lib/allowlist";
-import { authMode } from "./lib/auth";
+import { authMode, consumerSurfacePublic } from "./lib/auth";
 
 // Stealth gate layer 1 (Next.js). The whole app is private during the preview:
 // EVERY route requires an authenticated AND allowlisted user, EXCEPT the
@@ -77,6 +77,14 @@ function opsDenied(): NextResponse {
 const gate = clerkMiddleware(async (auth, req) => {
   if (isPublicRoute(req)) return NextResponse.next();
 
+  // Declared "public consumer + gated ops" posture (lib/auth.ts,
+  // consumerSurfacePublic — founder-blocked 2026-08-04): the consumer surface
+  // passes through; EVERYTHING else, /ops above all, still runs the full
+  // sign-in -> allowlist gate below. The declaration is consulted only to
+  // EXEMPT non-ops routes — it can never widen the admin surface, and it is
+  // truthy only in clerk mode, so it cannot open anything without a provider.
+  if (_consumerPublic && !isOpsRoute(req)) return NextResponse.next();
+
   const { userId, sessionClaims, redirectToSignIn } = await auth();
 
   // Not signed in -> Clerk sign-in, returning here afterward. If the freshly
@@ -104,6 +112,7 @@ const gate = clerkMiddleware(async (auth, req) => {
 //   disabled     -> DECLARED public/no-app-gate: passthrough (intentional).
 //   unconfigured -> misconfiguration: FAIL CLOSED (deny every route).
 const _mode = authMode();
+const _consumerPublic = consumerSurfacePublic();
 
 export default _mode === "clerk"
   ? gate
