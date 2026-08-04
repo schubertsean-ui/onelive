@@ -1,0 +1,69 @@
+name: provider-dryrun
+
+# R-029's verification harness: a NEW licensed provider's FIRST live call is a
+# --dry-run — fetch + normalize + summarize, NO DB write — so the payload-shape
+# assumptions recorded on each importer are verified against reality before the
+# feed ever seeds licensed_event. Manual dispatch only; runs on GitHub's
+# runners because the dev sandbox's egress policy blocks provider APIs. This
+# workflow holds NO database credentials at all — a dry-run that cannot write
+# is enforced by omission, not just by flag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: "Which provider to dry-run"
+        required: true
+        type: choice
+        options:
+          - seatgeek
+          - eventbrite
+      max_pages:
+        description: "Pages per window/id (bounded fetch)"
+        required: false
+        default: "2"
+      eventbrite_ids:
+        description: "Eventbrite ORGANIZATION ids, comma-separated (required for eventbrite: public search was removed in 2020, the trusted id list IS the query)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-dryrun
+  cancel-in-progress: false
+
+jobs:
+  dryrun:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install worker deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r worker/requirements.txt
+      - name: SeatGeek dry-run (fetch + normalize + summarize, NO DB write)
+        if: ${{ github.event.inputs.provider == 'seatgeek' }}
+        env:
+          SEATGEEK_CLIENT_ID: ${{ secrets.SEATGEEK_CLIENT_ID }}
+          MAX_PAGES: ${{ github.event.inputs.max_pages || '2' }}
+        run: |
+          : "${SEATGEEK_CLIENT_ID:?SEATGEEK_CLIENT_ID secret missing — add it in repo Settings → Secrets → Actions}"
+          : "${MAX_PAGES:?max_pages missing — the fetch bound is required}"
+          python -m worker.importers.run_seatgeek_import --max-pages "$MAX_PAGES" --dry-run
+      - name: Eventbrite dry-run (fetch + normalize + summarize, NO DB write)
+        if: ${{ github.event.inputs.provider == 'eventbrite' }}
+        env:
+          EVENTBRITE_TOKEN: ${{ secrets.EVENTBRITE_TOKEN }}
+          EB_IDS: ${{ github.event.inputs.eventbrite_ids }}
+          MAX_PAGES: ${{ github.event.inputs.max_pages || '2' }}
+        run: |
+          : "${EVENTBRITE_TOKEN:?EVENTBRITE_TOKEN secret missing — add it in repo Settings → Secrets → Actions}"
+          : "${EB_IDS:?eventbrite_ids input missing — Eventbrite has no public search; supply curated organization ids}"
+          : "${MAX_PAGES:?max_pages missing — the fetch bound is required}"
+          python -m worker.importers.run_eventbrite_import --org-ids "$EB_IDS" --max-pages "$MAX_PAGES" --dry-run
