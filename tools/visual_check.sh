@@ -33,11 +33,21 @@ UPDATE=0
 # viewport) + one desktop feed + the disputed detail (its disclosure opens by
 # default — that behavior is part of the pinned pixels) + the cancelled detail
 # (the status note surface).
+# 4th field = color scheme (R-071: light is a product surface too). Dark is
+# PINNED with --force-dark-mode (proven pixel-neutral on the pre-light CSS:
+# 0/329160 vs the committed baselines, 2026-08-04); light relies on headless
+# Chromium's default prefers-color-scheme: light — verified by the light
+# captures actually rendering the paper palette (a dark-rendering light
+# capture would diverge from its committed light baseline and fail loud).
 PAGES=(
-  "tonight-feed-mobile|/tonight|390,844"
-  "tonight-feed-desktop|/tonight|1280,900"
-  "tonight-detail-disputed|/tonight/qa-4|390,844"
-  "tonight-detail-cancelled|/tonight/qa-9|390,844"
+  "tonight-feed-mobile|/tonight|390,844|dark"
+  "tonight-feed-desktop|/tonight|1280,900|dark"
+  "tonight-detail-disputed|/tonight/qa-4|390,844|dark"
+  "tonight-detail-cancelled|/tonight/qa-9|390,844|dark"
+  "tonight-feed-mobile-light|/tonight|390,844|light"
+  "tonight-feed-desktop-light|/tonight|1280,900|light"
+  "tonight-detail-disputed-light|/tonight/qa-4|390,844|light"
+  "tonight-detail-cancelled-light|/tonight/qa-9|390,844|light"
 )
 
 CHROMIUM="${ONELIVE_CHROMIUM:-}"
@@ -96,8 +106,10 @@ FAIL=0
 mkdir -p "$BASELINES"
 
 for spec in "${PAGES[@]}"; do
-  IFS='|' read -r name path viewport <<<"$spec"
+  IFS='|' read -r name path viewport scheme <<<"$spec"
   shot="$TMP/$name.png"
+  SCHEME_FLAG=""
+  [ "$scheme" = "dark" ] && SCHEME_FLAG="--force-dark-mode"
   # --host-resolver-rules: any non-localhost request resolves to a dead local
   # address, so a stray external fetch fails identically online and offline.
   # --no-sandbox everywhere this runs: required as root (this sandbox) AND on
@@ -109,7 +121,7 @@ for spec in "${PAGES[@]}"; do
   TZ=America/Chicago "$CHROMIUM" --no-sandbox --disable-dev-shm-usage \
     --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
     --host-resolver-rules="MAP * 127.0.0.1, EXCLUDE localhost" \
-    --window-size="$viewport" --screenshot="$shot" \
+    --window-size="$viewport" --screenshot="$shot" $SCHEME_FLAG \
     "http://localhost:$PORT$path" >/dev/null 2>&1 || {
       echo "[visual_check] HARD FAIL: capture failed for $name" >&2; exit 2; }
   [ -s "$shot" ] || { echo "[visual_check] HARD FAIL: empty screenshot for $name" >&2; exit 2; }

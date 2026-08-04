@@ -4,6 +4,22 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-04 — Daylight mode shipped (R-071 RESOLVED, founder-directed)
+
+Founder: "build the light theme as long as it was created according to our most recent
+world class design Ui/UX work." Shipped as a pure variable swap in `flow.css`: surface
+literals tokenized (dark rendering proven 0-diff against every committed baseline), then
+one `prefers-color-scheme: light` block derived from the ratified FLOW palette by the
+R-015 translation the founder already reviewed — warm paper grounds, darkened AA-capable
+ambers, media (photo scrims, domain covers, QA banner) keeping its own light. System-
+preference driven, zero new chrome. The gates grew with it: `visual_check.sh` pins the
+scheme per capture (dark via --force-dark-mode, proven pixel-neutral) and carries 4 new
+light baselines; `audit.mjs` runs axe in BOTH schemes. The light gate's FIRST run caught
+two real contrast defects (dim text at 4.4:1 on compounded washes; the detail disclosure's
+opacity washing the disputed marker below 4.5:1) — fixed before commit, every pair
+computed against the deepest compounded ground. detail.css needed nothing (currentColor/
+opacity by design). Consumer surface only; the ops console is out of scope.
+
 ## 2026-08-04 — ✳ disclosure copy shortened (founder: "Remove this: [Artist] can make it theirs anytime.")
 
 The tier-C disclosure sheet now reads "Drafted from [artist]'s own materials." — the
