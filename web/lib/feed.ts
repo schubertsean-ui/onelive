@@ -57,8 +57,13 @@ function startOfLocalDay(ms: number): number {
   return Date.UTC(y, mo - 1, day, 6);
 }
 
-// "All" + Today + the next `days` local days. Each tab is a [start,end) window
-// over start_time; "Today" begins at `nowMs` (nothing earlier today is upcoming).
+// Today + the next `days` market days, then "All upcoming". Each tab is a
+// [start,end) window over start_time. Today spans the WHOLE market day, not
+// [now, midnight): the feed's base is liveEvents (ended shows are already
+// gone), so a started-but-ON-NOW show must stay in the default Today view —
+// with Today as the default (founder-directed), a [nowMs,…) start boundary
+// hid on-now events from the opening feed, and a disputed on-now show being
+// hidden is a trust-invariant break (adversarial-review catch, 2026-08-04).
 export function dayTabs(nowMs: number, days = 7): DayTab[] {
   // Founder-directed order (2026-08-04): "Start with today … move All
   // upcoming to be last." Today leads and is the DEFAULT (the brief's own
@@ -72,7 +77,7 @@ export function dayTabs(nowMs: number, days = 7): DayTab[] {
     const e = s + day;
     const label =
       i === 0 ? "Today" : i === 1 ? "Tomorrow" : new Date(s).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" });
-    tabs.push({ key: i === 0 ? "today" : `d${i}`, label, startMs: i === 0 ? nowMs : s, endMs: e });
+    tabs.push({ key: i === 0 ? "today" : `d${i}`, label, startMs: s, endMs: e });
   }
   tabs.push({ key: "all", label: "All upcoming", startMs: 0, endMs: Infinity });
   return tabs;

@@ -23,7 +23,12 @@ and swipe-down-to-close (the ratified nav spec §7's fourth dismissal — Esc/sc
 already existed). Venue-content half of the founder's flag: every venue fact we HOLD
 already renders in the venue lens; photo/character/specials remain data-starved honest
 gaps (R-049) and the mini-map/nearby surface is newly unblocked by the PMTiles/OSM
-decisions (queued). Proof: 233 web tests green (3 new conformance pins incl. the
+decisions (queued). Follow-up same day (adversarial-review r2 catch, real): with Today as the default,
+the tab's [nowMs, midnight) start boundary HID started-but-on-now shows from the
+opening feed — a disputed on-now show being hidden is a trust-invariant break. Today
+now spans the whole market day over the live set (ended shows already drop out);
+regression test pins an on-now disputed event rendering under the default tab.
+Proof: 236 web tests green (4 new conformance pins incl. the
 no-anchor-to-detail invariant), tsc + build clean, all 8 baselines recaptured (INTENDED
 diff, founder-flagged), axe 0 violations both schemes, lab LCP within budget.
 

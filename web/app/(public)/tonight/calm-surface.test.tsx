@@ -57,6 +57,17 @@ describe("the calm opening surface (canon §6.5/§9)", () => {
   });
 });
 
+describe("on-now stays in the default view (trust: disputed-on-now must never hide)", () => {
+  it("a show that already started but has not ended renders under the default Today tab", () => {
+    const onNow = ev({
+      licensed_event_id: "n1", performer: "On Stage Now", confidence: "disputed",
+      start_time: new Date("2026-08-04T17:00:00-05:00").toISOString(), // started 1h before NOW
+    });
+    const h = renderToStaticMarkup(<FeedApp events={[onNow]} serverNowMs={NOW} />);
+    expect(h).toContain("On Stage Now");
+  });
+});
+
 describe("no page-load taps (canon §6.1)", () => {
   it("the resting feed markup contains NO anchor to /tonight/<id>", () => {
     expect(html).not.toMatch(/<a[^>]+href="\/tonight\//);
