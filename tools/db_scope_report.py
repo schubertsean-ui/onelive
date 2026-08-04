@@ -121,6 +121,61 @@ def intake_funnel(cur) -> dict:
     }
 
 
+def ratio_50_to_1(cur) -> dict:
+    """The founder's 50:1 KPI, measured per window (2026-08-04, verbatim: "The
+    50:1 is non-API ticketed events to API events on any given day weekend or
+    weekly period.").
+
+    Interpretation, stated so it can be corrected rather than assumed: non-API
+    = pipeline-published canonical events (extraction → gate → promote — the
+    long tail we discover ourselves); API = licensed_event rows (ticketing
+    APIs anyone can license). Windows are Austin days (America/Chicago):
+    today, the containing-or-upcoming Fri→Sun weekend, and the next 7 days.
+    """
+    windows = q(cur, """
+      with market as (
+        select (now() at time zone 'America/Chicago')::date as today
+      ), bounds as (
+        select today,
+               today + ((4 - extract(isodow from today)::int + 7) %% 7) as fri
+        from market
+      ), w as (
+        select 'today'::text as win,
+               today::timestamp as lo, (today + 1)::timestamp as hi from bounds
+        union all
+        select 'weekend',
+               (case when extract(isodow from today) in (5,6,7)
+                     then today - (extract(isodow from today)::int - 5)
+                     else fri end)::timestamp,
+               (case when extract(isodow from today) in (5,6,7)
+                     then today - (extract(isodow from today)::int - 5)
+                     else fri end + 3)::timestamp
+        from bounds
+        union all
+        select 'next_7_days', today::timestamp, (today + 7)::timestamp from bounds
+      )
+      select w.win,
+             (select count(*) from licensed_event l
+               where (l.start_time at time zone 'America/Chicago') >= w.lo
+                 and (l.start_time at time zone 'America/Chicago') <  w.hi),
+             (select count(*) from event e
+               where (e.start_time at time zone 'America/Chicago') >= w.lo
+                 and (e.start_time at time zone 'America/Chicago') <  w.hi)
+      from w
+    """)
+    out = {}
+    for win, api_n, non_api_n in windows:
+        out[win] = {
+            "api_events": api_n,
+            "non_api_events": non_api_n,
+            "ratio_non_api_to_api": (round(non_api_n / api_n, 2)
+                                     if api_n else None),
+            "target": 50.0,
+            "target_met": (api_n > 0 and non_api_n / api_n >= 50.0),
+        }
+    return out
+
+
 def main() -> int:
     """Connect read-only, assemble the full scope report, emit JSON."""
     dsn = os.environ.get("ONELIVE_DB_DSN", "").strip()
@@ -134,6 +189,7 @@ def main() -> int:
             licensed = licensed_lane(cur)
             pipeline = pipeline_lane(cur)
             funnel = intake_funnel(cur)
+            ratio = ratio_50_to_1(cur)
     finally:
         conn.close()
 
@@ -146,6 +202,7 @@ def main() -> int:
         "licensed_lane": licensed,
         "pipeline_lane": pipeline,
         "intake_funnel": funnel,
+        "ratio_50_to_1": ratio,
         "totals": {
             "published_events_total": published_total,
             "published_upcoming": (
