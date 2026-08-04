@@ -336,7 +336,11 @@ def test_malformed_flag_line_fails_certification_closed(monkeypatch, tmp_path):
     def stripped_read(self):
         data = real_read(self)
         if self.name == "routing_data.py" and self.parent.name == "tools":
-            data = data.replace(b"EXTRACTION_THRESHOLD_RATIFIED = False", b"")
+            # FLAG-STATE-AGNOSTIC (fixed 2026-08-04): strip whichever
+            # literal is present via the re-lock's own regex — the original
+            # hardcoded "= False" and silently no-opped after a flip.
+            from tools.trust_gate import _RELOCK_RATIFICATION_FLAG_RE
+            data = _RELOCK_RATIFICATION_FLAG_RE.sub(b"", data)
         return data
     monkeypatch.setattr(pathlib.Path, "read_bytes", stripped_read)
     findings = _run_record(monkeypatch, tmp_path, rec)
