@@ -11,6 +11,11 @@
 #   3. RENDERER   — Chromium build 1194 (= Playwright 1.56.0) on Linux; CI
 #                   installs exactly that. A different build may antialias
 #                   differently — recapture baselines only with this build.
+#   4. FONTS      — repo-owned fontconfig (tests/visual_baselines/fonts.conf)
+#                   pins every CSS-reachable family to Liberation, exported as
+#                   FONTCONFIG_FILE below; without it, uninstalled families
+#                   (Georgia, Space Grotesk) resolve to machine-dependent
+#                   physical fonts and feed pages diverge across venues.
 #   Plus: fixtures carry no external URLs the renderer would fetch, and
 #   --host-resolver-rules forces any accidental external request to fail fast,
 #   so online and offline environments render identically.
@@ -28,6 +33,36 @@ WEB="$REPO/web"
 BASELINES="$REPO/tests/visual_baselines"
 UPDATE=0
 [ "${1:-}" = "--update" ] && UPDATE=1
+
+# RENDERER pin, part 2 — FONTS (diagnosed 2026-08-04, run 30931…/artifact
+# 8898154676): the Chromium build is byte-identical across machines, but the
+# app's CSS families (Georgia, Space Grotesk, system-ui…) are installed
+# nowhere we run, so fontconfig substitutes a MACHINE-DEPENDENT physical font
+# and the two desktop feed pages (the only serif-bearing pages) diverged
+# 1.39%/3.28% between this venue and CI while serif-free detail pages matched
+# 0.000%. Hinting flags alone could not fix different glyph OUTLINES. The
+# repo-owned fontconfig below pins every reachable family to the Liberation
+# set, present in both venues (ships with playwright install --with-deps).
+export FONTCONFIG_FILE="$BASELINES/fonts.conf"
+if [ ! -f "$FONTCONFIG_FILE" ]; then
+  echo "[visual_check] HARD FAIL: $FONTCONFIG_FILE missing — font pin is part of the determinism contract" >&2
+  exit 2
+fi
+# Verify the pin actually RESOLVES (not merely exists): a malformed fonts.conf
+# makes fontconfig print an error and silently fall back to system defaults —
+# the exact nondeterminism the pin removes. fc-match under the pin must land
+# Georgia on Liberation Serif, or nothing here is deterministic. (Proven the
+# hard way, 2026-08-04: an XML double-hyphen-in-comment error produced clean
+# exit codes and machine-dependent captures.)
+if ! command -v fc-match >/dev/null 2>&1; then
+  echo "[visual_check] HARD FAIL: fc-match not available — cannot prove the font pin resolves (install fontconfig)" >&2
+  exit 2
+fi
+GEORGIA_RESOLVED="$(fc-match Georgia 2>/dev/null || true)"
+if ! printf '%s' "$GEORGIA_RESOLVED" | grep -q "Liberation Serif"; then
+  echo "[visual_check] HARD FAIL: font pin not effective — Georgia resolved to '$GEORGIA_RESOLVED' (want Liberation Serif). Check $FONTCONFIG_FILE for XML errors and that fonts-liberation is installed." >&2
+  exit 2
+fi
 
 # Page manifest: name | path | viewport WxH. Mobile-first (the product's home
 # viewport) + one desktop feed + the disputed detail (its disclosure opens by
@@ -118,7 +153,14 @@ for spec in "${PAGES[@]}"; do
   # THIS use: a single-use CI/sandbox machine rendering only our own localhost
   # fixture pages with every external host resolver-blocked above.
   # --disable-dev-shm-usage: runners' small /dev/shm crashes the renderer.
+  # --font-render-hinting=none + no subpixel positioning: collapse the one
+  # cross-machine nondeterminism the Chromium-build pin does not cover — font
+  # hinting config. Diagnosed 2026-08-04 (run 30920739324): identical build,
+  # identical fonts, but CI's antialiasing diverged up to 1.83% on the light
+  # desktop feed (dark-on-paper shows AA deltas > tolerance where dark-on-night
+  # hides them). Hinting off renders text geometry identically everywhere.
   TZ=America/Chicago "$CHROMIUM" --no-sandbox --disable-dev-shm-usage \
+    --font-render-hinting=none --disable-font-subpixel-positioning \
     --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 \
     --host-resolver-rules="MAP * 127.0.0.1, EXCLUDE localhost" \
     --window-size="$viewport" --screenshot="$shot" $SCHEME_FLAG \

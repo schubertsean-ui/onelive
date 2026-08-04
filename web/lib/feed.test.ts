@@ -119,12 +119,70 @@ describe("eventTiming / liveEvents — only still-relevant events show", () => {
 });
 
 describe("dayTabs + applyFilters — lenses that narrow the view, not the trust", () => {
-  it("builds All + Today + next 7 days", () => {
+  it("builds Today + next 7 days, with All upcoming LAST (founder-directed order 2026-08-04)", () => {
     const tabs = dayTabs(NOW, 7);
-    expect(tabs[0].key).toBe("all");
-    expect(tabs[1].label).toBe("Today");
-    expect(tabs[2].label).toBe("Tomorrow");
+    expect(tabs[0].key).toBe("today");
+    expect(tabs[0].label).toBe("Today");
+    expect(tabs[1].label).toBe("Tomorrow");
+    expect(tabs[tabs.length - 1].key).toBe("all");
     expect(tabs).toHaveLength(9); // all + today + 7 more
+  });
+
+  // ── Market-day boundary physics (adversarial-review r3, 2026-08-04) ────────
+  // Chicago's fall-back day (Sun 2026-11-01) is 25 hours; spring-forward
+  // (Sun 2027-03-14) is 23. Day windows must be derived per-day from the
+  // market calendar, never advanced by a fixed 24h — a fixed width drifts
+  // every boundary after the transition by an hour and mis-buckets late shows.
+  it("day windows stay on market midnights across the fall-back DST transition", () => {
+    // Fri 2026-10-30 18:00 CDT = 23:00Z. Sunday Nov 1 is the 25-hour day.
+    const tabs = dayTabs(Date.UTC(2026, 9, 30, 23), 7);
+    for (let i = 0; i + 1 < tabs.length - 1; i++) {
+      // Contiguous: each day ends exactly where the next begins (nothing can
+      // fall between two tabs), and every boundary is a true market midnight.
+      expect(tabs[i].endMs).toBe(tabs[i + 1].startMs);
+      const h = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "2-digit", hour12: false }).format(new Date(tabs[i].startMs));
+      expect(["00", "24"]).toContain(h);
+    }
+    // The transition day itself is 25 hours; its neighbors are 24.
+    const widths = tabs.slice(0, -1).map((t) => t.endMs - t.startMs);
+    expect(widths).toContain(25 * 3_600_000);
+    expect(widths.filter((w) => w === 24 * 3_600_000).length).toBeGreaterThan(0);
+  });
+
+  it("day windows stay on market midnights across the spring-forward transition (23h day)", () => {
+    // Fri 2027-03-12 18:00 CST = 2027-03-13T00:00Z; Sun Mar 14 is 23 hours.
+    const tabs = dayTabs(Date.UTC(2027, 2, 13, 0), 7);
+    const widths = tabs.slice(0, -1).map((t) => t.endMs - t.startMs);
+    expect(widths).toContain(23 * 3_600_000);
+    for (let i = 0; i + 1 < tabs.length - 1; i++) expect(tabs[i].endMs).toBe(tabs[i + 1].startMs);
+  });
+
+  // After local midnight a show that started before midnight and is still
+  // running must remain in the DEFAULT Today view — liveEvents still carries
+  // it, and start-time-only bucketing left it visible nowhere but "All
+  // upcoming". If it's disputed, that's a hidden disputed event: trust break
+  // (adversarial-review r3, 2026-08-04).
+  it("an on-now show that started before midnight stays in Today after midnight (disputed included)", () => {
+    // Sat 2026-07-25 01:30 CT = 06:30Z — half past one in the morning.
+    const lateNow = Date.UTC(2026, 6, 25, 6, 30);
+    const tabs = dayTabs(lateNow, 7);
+    const today = tabs[0];
+    const disputedStillOn = ev({
+      start_time: "2026-07-25T04:00:00Z", // Fri 11pm CT, before Sat midnight
+      end_time: "2026-07-25T07:00:00Z", //   Sat 2am CT, still running at 1:30am
+      confidence: "disputed",
+    });
+    expect(liveEvents([disputedStillOn], lateNow)).toContain(disputedStillOn);
+    expect(applyFilters([disputedStillOn], { tab: today })).toContain(disputedStillOn);
+    // …and an actually-ended show from last night does NOT ride along.
+    const endedLastNight = ev({ start_time: "2026-07-25T01:00:00Z", end_time: "2026-07-25T03:00:00Z" });
+    expect(liveEvents([endedLastNight], lateNow)).not.toContain(endedLastNight);
+    // A tomorrow-night show stays under Tomorrow, not Today (future tabs keep
+    // pure start-time semantics).
+    const tomorrowShow = ev({ start_time: "2026-07-26T02:00:00Z" }); // Sat 9pm CT
+    expect(applyFilters([tomorrowShow], { tab: today })).toContain(tomorrowShow); // Sat 9pm IS today (now = Sat 1:30am)
+    const sundayShow = ev({ start_time: "2026-07-27T01:00:00Z" }); // Sun 8pm CT
+    expect(applyFilters([sundayShow], { tab: today })).not.toContain(sundayShow);
   });
 
   it("a disputed event still passes a domain lens it matches", () => {

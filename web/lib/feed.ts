@@ -35,25 +35,56 @@ export function liveEvents(events: LicensedEvent[], nowMs: number): LicensedEven
 // ── Date tabs (Today → next N days, in the viewer's own local time) ───────────
 export type DayTab = { key: string; label: string; startMs: number; endMs: number };
 
+// Day boundaries are the MARKET's days (America/Chicago), not the runtime's.
+// The old setHours(0,0,0,0) used the process/browser timezone — on a UTC
+// server (production SSR) "today" ended at 7 PM Austin time, so every show
+// tonight after 7 PM was bucketed "Tomorrow" in the server-rendered HTML
+// (caught 2026-08-04 while chasing the founder's "1 event today"). The
+// viewer's real clock still decides NOW (what has ended); Austin's calendar
+// decides what "Today" means — deterministic on server and client alike.
+const MARKET_TZ = "America/Chicago";
 function startOfLocalDay(ms: number): number {
-  const d = new Date(ms);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  const [mo, day, y] = new Intl.DateTimeFormat("en-US", {
+    timeZone: MARKET_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date(ms)).split("/").map(Number);
+  // Midnight in the market TZ is 05:00 or 06:00 UTC depending on DST — probe.
+  for (const off of [5, 6]) {
+    const cand = Date.UTC(y, mo - 1, day, off);
+    const h = new Intl.DateTimeFormat("en-US", { timeZone: MARKET_TZ, hour: "2-digit", hour12: false })
+      .format(new Date(cand));
+    if (h === "00" || h === "24") return cand;
+  }
+  return Date.UTC(y, mo - 1, day, 6);
 }
 
-// "All" + Today + the next `days` local days. Each tab is a [start,end) window
-// over start_time; "Today" begins at `nowMs` (nothing earlier today is upcoming).
+// Today + the next `days` market days, then "All upcoming". Each tab is a
+// [start,end) window over start_time. Today spans the WHOLE market day, not
+// [now, midnight): the feed's base is liveEvents (ended shows are already
+// gone), so a started-but-ON-NOW show must stay in the default Today view —
+// with Today as the default (founder-directed), a [nowMs,…) start boundary
+// hid on-now events from the opening feed, and a disputed on-now show being
+// hidden is a trust-invariant break (adversarial-review catch, 2026-08-04).
 export function dayTabs(nowMs: number, days = 7): DayTab[] {
-  const tabs: DayTab[] = [{ key: "all", label: "All upcoming", startMs: 0, endMs: Infinity }];
-  const day = 86_400_000;
-  const today0 = startOfLocalDay(nowMs);
+  // Founder-directed order (2026-08-04): "Start with today … move All
+  // upcoming to be last." Today leads and is the DEFAULT (the brief's own
+  // choice architecture: "default view is tonight"); the catch-all closes
+  // the row instead of opening it.
+  const tabs: DayTab[] = [];
+  let s = startOfLocalDay(nowMs);
   for (let i = 0; i <= days; i++) {
-    const s = today0 + i * day;
-    const e = s + day;
+    // Each day's END is the NEXT market midnight, derived per-day — never
+    // start + 24h. Chicago days are 23 or 25 hours across DST transitions
+    // (adversarial-review r3, 2026-08-04): a fixed-width day drifts every
+    // boundary after the transition by an hour, mis-bucketing late shows.
+    // 30h past this midnight lands safely inside the next market day whether
+    // this one is 23, 24, or 25 hours long; startOfLocalDay snaps it back.
+    const e = startOfLocalDay(s + 30 * 3_600_000);
     const label =
       i === 0 ? "Today" : i === 1 ? "Tomorrow" : new Date(s).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" });
-    tabs.push({ key: i === 0 ? "today" : `d${i}`, label, startMs: i === 0 ? nowMs : s, endMs: e });
+    tabs.push({ key: i === 0 ? "today" : `d${i}`, label, startMs: s, endMs: e });
+    s = e;
   }
+  tabs.push({ key: "all", label: "All upcoming", startMs: 0, endMs: Infinity });
   return tabs;
 }
 
@@ -62,7 +93,21 @@ export function inDayTab(e: LicensedEvent, tab: DayTab): boolean {
   if (!e.start_time) return false; // date-TBA only shows under "All"
   const t = Date.parse(e.start_time);
   if (Number.isNaN(t)) return false;
-  return t >= tab.startMs && t < tab.endMs;
+  if (t >= tab.startMs && t < tab.endMs) return true;
+  // Today only: a show that STARTED before the market midnight but whose
+  // running window reaches into today still belongs to the default view.
+  // After midnight, liveEvents still carries it (it hasn't ended), but pure
+  // start-time bucketing pushed it to no day tab at all — leaving "All
+  // upcoming" the only place an on-now, possibly DISPUTED, show appeared:
+  // a trust-invariant break (adversarial-review r3, 2026-08-04). Future
+  // tabs keep pure start-time semantics — a Friday-night show lists under
+  // Friday, not Friday and Saturday.
+  if (tab.key === "today" && t < tab.startMs) {
+    const end = e.end_time ? Date.parse(e.end_time) : NaN;
+    const endMs = Number.isNaN(end) ? t + ASSUMED_MS : end;
+    return endMs > tab.startMs;
+  }
+  return false;
 }
 
 // ── Filters (lenses — they narrow the user's view, never touch confidence) ────
