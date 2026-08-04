@@ -15,6 +15,8 @@ import json
 import pathlib
 import sys
 
+import pytest
+
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _PATH = _ROOT / "tools" / "trust_gate.py"
 _spec = importlib.util.spec_from_file_location("trust_gate", _PATH)
@@ -250,3 +252,93 @@ def test_independent_hasher_detects_a_byte_change(tmp_path):
     (tmp_path / "a.py").write_bytes(b"original-a.pX")  # same length, one byte
     after = trust_gate._compute_harness_sha_independent(tmp_path, manifest)
     assert before != after
+
+
+def test_relock_hasher_flag_flip_invariance_and_other_drift(tmp_path):
+    """Option A (founder-approved 2026-08-04): flipping ONLY the
+    ratification flag must not change the re-lock's hash (the flag gates
+    production publishing, not the exam), while any OTHER routing_data
+    byte keeps drifting it exactly as before. Synthetic tree, so the
+    property is proven without touching the real checkout."""
+    rd = tmp_path / "tools" / "routing_data.py"
+    rd.parent.mkdir(parents=True)
+    other = tmp_path / "a.py"
+    other.write_bytes(b"a = 1\n")
+    manifest = ("a.py", "tools/routing_data.py")
+    body = b'STAGE_MODELS = {"extraction": "claude-opus-4-8"}\n'
+    rd.write_bytes(body + b"EXTRACTION_THRESHOLD_RATIFIED = False\n")
+    hash_false = trust_gate._compute_harness_sha_independent(tmp_path, manifest)
+    rd.write_bytes(body + b"EXTRACTION_THRESHOLD_RATIFIED = True\n")
+    hash_true = trust_gate._compute_harness_sha_independent(tmp_path, manifest)
+    assert hash_true == hash_false  # the flip is normalized out
+    rd.write_bytes(b'STAGE_MODELS = {"extraction": "claude-haiku-4-5"}\n'
+                   b"EXTRACTION_THRESHOLD_RATIFIED = True\n")
+    assert trust_gate._compute_harness_sha_independent(
+        tmp_path, manifest) != hash_false  # non-flag edits still bind
+    # A tree whose routing_data LOST its flag line cannot be hashed at
+    # all — fail closed, never a silently-unnormalized fingerprint.
+    rd.write_bytes(body)
+    with pytest.raises(ValueError, match="missing or ambiguous"):
+        trust_gate._compute_harness_sha_independent(tmp_path, manifest)
+
+
+def test_relock_normalizer_fails_closed_on_zero_or_two_flag_lines():
+    ok = b"x = 1\nEXTRACTION_THRESHOLD_RATIFIED = True\n"
+    out = trust_gate._normalize_ratification_flag_relock(ok)
+    assert b"EXTRACTION_THRESHOLD_RATIFIED = False" in out
+    with pytest.raises(ValueError, match="missing or ambiguous"):
+        trust_gate._normalize_ratification_flag_relock(b"x = 1\n")
+    with pytest.raises(ValueError, match="missing or ambiguous"):
+        trust_gate._normalize_ratification_flag_relock(
+            ok + b"EXTRACTION_THRESHOLD_RATIFIED = False\n")
+
+
+def test_flag_normalizers_are_in_lockstep():
+    """Same discipline as the manifest-copy sync test above: the runner's
+    normalizer and the re-lock's own copy must produce identical output
+    for identical input (and agree on what is malformed). Single-sided
+    drift fails HERE in the same PR; changing both copies touches
+    tools/trust_gate.py — trust-path class, mandatory adversarial review."""
+    real = (_ROOT / "tools" / "routing_data.py").read_bytes()
+    variants = [
+        real,
+        real.replace(b"EXTRACTION_THRESHOLD_RATIFIED = False",
+                     b"EXTRACTION_THRESHOLD_RATIFIED = True"),
+        b"EXTRACTION_THRESHOLD_RATIFIED   =   True\n",
+        b"pre = 0\nEXTRACTION_THRESHOLD_RATIFIED = False\npost = 1\n",
+    ]
+    for v in variants:
+        assert (trust_gate._normalize_ratification_flag_relock(v)
+                == golden_exam._normalize_ratification_flag(v))
+    for bad in (b"", b"EXTRACTION_THRESHOLD_RATIFIED = False\n"
+                     b"EXTRACTION_THRESHOLD_RATIFIED = True\n"):
+        for fn in (trust_gate._normalize_ratification_flag_relock,
+                   golden_exam._normalize_ratification_flag):
+            with pytest.raises(ValueError):
+                fn(bad)
+
+
+def test_both_hashers_agree_on_the_current_tree():
+    """The runner's hash and the re-lock's independent recomputation must
+    be identical on the real checkout — the record one mints is the
+    record the other verifies."""
+    assert (golden_exam.compute_harness_sha()
+            == trust_gate._compute_harness_sha_independent(_ROOT))
+
+
+def test_malformed_flag_line_fails_certification_closed(monkeypatch, tmp_path):
+    """A routing_data.py whose flag line went missing makes the harness
+    unhashable: check_extraction_certification must emit the existing
+    'cannot hash the harness manifest' finding (ValueError joins OSError
+    in the fail-closed catch), never crash or pass."""
+    rec = _valid_record()  # computed BEFORE the read patch below
+    real_read = pathlib.Path.read_bytes
+    def stripped_read(self):
+        data = real_read(self)
+        if self.name == "routing_data.py" and self.parent.name == "tools":
+            data = data.replace(b"EXTRACTION_THRESHOLD_RATIFIED = False", b"")
+        return data
+    monkeypatch.setattr(pathlib.Path, "read_bytes", stripped_read)
+    findings = _run_record(monkeypatch, tmp_path, rec)
+    assert any("cannot hash the harness manifest" in v
+               for v in findings.violations)

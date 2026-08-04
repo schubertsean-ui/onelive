@@ -328,6 +328,33 @@ _RELOCK_HARNESS_MANIFEST = (
 )
 
 
+# Ratification-flag normalization, re-lock's OWN copy (founder-approved
+# 2026-08-04, Option A): the flag gates production publishing, not the
+# exam — the attended exam never executes it — and hashing its literal
+# value created a structural deadlock in which no flag-flip PR could ever
+# satisfy the re-lock (records can only enter carrying the pre-flip
+# hash). Normalizing the one flag line out certifies identical exam
+# behavior across a flip while every other byte of the surface stays
+# binding. This is an INDEPENDENT implementation — never imported from
+# ai/golden_exam.py (circular-trust firewall, stage-6 r3) — kept in
+# lockstep with the runner's normalizer by tests the same way the two
+# manifest copies are (tests/test_trust_gate_certification.py).
+_RELOCK_RATIFICATION_FLAG_RE = re.compile(
+    rb"^EXTRACTION_THRESHOLD_RATIFIED\s*=\s*(True|False)\s*$", re.M)
+_RELOCK_RATIFICATION_FLAG_CANONICAL = b"EXTRACTION_THRESHOLD_RATIFIED = False"
+
+
+def _normalize_ratification_flag_relock(data: bytes) -> bytes:
+    """Canonicalize the ratification-flag line so True and False trees
+    hash identically; require EXACTLY ONE flag line, else fail closed."""
+    if len(_RELOCK_RATIFICATION_FLAG_RE.findall(data)) != 1:
+        raise ValueError(
+            "ratification flag line missing or ambiguous in "
+            "tools/routing_data.py — cannot normalize, failing closed")
+    return _RELOCK_RATIFICATION_FLAG_RE.sub(
+        _RELOCK_RATIFICATION_FLAG_CANONICAL, data)
+
+
 def _compute_harness_sha_independent(root: pathlib.Path,
                                      manifest: tuple = _RELOCK_HARNESS_MANIFEST) -> str:
     """Same algorithm as the runner's compute_harness_sha, implemented
@@ -335,7 +362,12 @@ def _compute_harness_sha_independent(root: pathlib.Path,
     h = hashlib.sha256()
     for rel in manifest:
         h.update(rel.encode("utf-8") + b"\x00")
-        h.update((root / rel).read_bytes() + b"\x00")
+        data = (root / rel).read_bytes()
+        if rel == "tools/routing_data.py":
+            # Only this entry is flag-normalized; every other manifest
+            # entry hashes raw bytes, unchanged.
+            data = _normalize_ratification_flag_relock(data)
+        h.update(data + b"\x00")
     return h.hexdigest()
 
 
@@ -419,10 +451,15 @@ def check_extraction_certification(findings: Findings, record_path: "pathlib.Pat
         record_path = root / "ai/golden/CERTIFIED_HARNESS.json"
     try:
         current = _compute_harness_sha_independent(root)
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
+        # ValueError = the ratification-flag line is missing/ambiguous in
+        # tools/routing_data.py, so the normalizing hasher cannot produce
+        # a trustworthy fingerprint — same fail-closed posture as a
+        # missing manifest file.
         findings.add(
             f"extraction-certification: cannot hash the harness manifest "
-            f"({exc}) — a missing manifest file is drift, fail closed."
+            f"({exc}) — a missing manifest file or malformed flag line is "
+            f"drift, fail closed."
         )
         return
     if not record_path.exists():

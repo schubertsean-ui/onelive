@@ -613,6 +613,72 @@ def test_harness_manifest_covers_the_execution_closure():
     assert len(compute_harness_sha()) == 64
 
 
+def test_ratification_flag_flip_does_not_change_the_harness_hash(monkeypatch):
+    """Option A (founder-approved 2026-08-04): the ratification flag gates
+    production publishing, not the exam, so flipping it must NOT drift the
+    certification hash — otherwise no flag-flip PR can ever satisfy the
+    re-lock (records can only enter carrying the pre-flip hash)."""
+    from ai.golden_exam import _normalize_ratification_flag, compute_harness_sha
+    root = pathlib.Path(__file__).resolve().parent.parent
+    real = (root / "tools" / "routing_data.py").read_bytes()
+    assert b"EXTRACTION_THRESHOLD_RATIFIED = False" in real
+    flipped = real.replace(b"EXTRACTION_THRESHOLD_RATIFIED = False",
+                           b"EXTRACTION_THRESHOLD_RATIFIED = True")
+    assert flipped != real
+    # Normalizer level: both variants canonicalize identically.
+    assert _normalize_ratification_flag(real) == _normalize_ratification_flag(flipped)
+    # Hasher level, over the REAL manifest: the tree with the flag flipped
+    # hashes to the same fingerprint as the current tree.
+    baseline = compute_harness_sha()
+    real_read = pathlib.Path.read_bytes
+    def flipped_read(self):
+        data = real_read(self)
+        if self.name == "routing_data.py" and self.parent.name == "tools":
+            data = data.replace(b"EXTRACTION_THRESHOLD_RATIFIED = False",
+                                b"EXTRACTION_THRESHOLD_RATIFIED = True")
+        return data
+    monkeypatch.setattr(pathlib.Path, "read_bytes", flipped_read)
+    assert compute_harness_sha() == baseline
+
+
+def test_non_flag_routing_data_change_still_drifts_the_hash(monkeypatch):
+    """Every OTHER byte of routing_data stays binding: a STAGE_MODELS
+    value edit must change the certification hash exactly as before."""
+    from ai.golden_exam import compute_harness_sha
+    root = pathlib.Path(__file__).resolve().parent.parent
+    real = (root / "tools" / "routing_data.py").read_bytes()
+    assert b'"extraction": "claude-opus-4-8"' in real
+    baseline = compute_harness_sha()
+    real_read = pathlib.Path.read_bytes
+    def edited_read(self):
+        data = real_read(self)
+        if self.name == "routing_data.py" and self.parent.name == "tools":
+            data = data.replace(b'"extraction": "claude-opus-4-8"',
+                                b'"extraction": "claude-haiku-4-5"')
+        return data
+    monkeypatch.setattr(pathlib.Path, "read_bytes", edited_read)
+    assert compute_harness_sha() != baseline
+
+
+def test_flag_normalizer_requires_exactly_one_flag_line():
+    """Zero or multiple flag lines = malformed surface, fail closed —
+    never a silently-unnormalized (and therefore deadlocked) hash."""
+    from ai.golden_exam import _normalize_ratification_flag
+    ok = b"x = 1\nEXTRACTION_THRESHOLD_RATIFIED = True\n"
+    assert b"EXTRACTION_THRESHOLD_RATIFIED = False" in _normalize_ratification_flag(ok)
+    with pytest.raises(ValueError, match="missing or ambiguous"):
+        _normalize_ratification_flag(b"x = 1\n")  # zero flag lines
+    with pytest.raises(ValueError, match="missing or ambiguous"):
+        _normalize_ratification_flag(
+            ok + b"EXTRACTION_THRESHOLD_RATIFIED = False\n")  # two flag lines
+    # Commented/indented look-alikes are not flag lines (^-anchored, re.M):
+    # they neither satisfy the exactly-one requirement nor get rewritten.
+    with pytest.raises(ValueError, match="missing or ambiguous"):
+        _normalize_ratification_flag(
+            b"# EXTRACTION_THRESHOLD_RATIFIED = True\n"
+            b"    EXTRACTION_THRESHOLD_RATIFIED = True\n")
+
+
 def test_harness_manifest_is_a_superset_of_the_real_import_closure():
     """Kaizen class closure (r22–r24 repeat class: 'evidence doesn't bind
     to everything that matters'). Three rounds each hand-audited one more
