@@ -51,6 +51,11 @@ jobs:
         if: ${{ github.event.inputs.provider == 'seatgeek' }}
         env:
           SEATGEEK_CLIENT_ID: ${{ secrets.SEATGEEK_CLIENT_ID }}
+          # Optional companion credential (consumed by worker/importers/seatgeek.py
+          # from the environment, never expanded in shell text — R4's implicit-
+          # inheritance boundary; the importer treats absence as client_id-only
+          # auth by design). New SeatGeek registrations 403 without it.
+          SEATGEEK_CLIENT_SECRET: ${{ secrets.SEATGEEK_CLIENT_SECRET }}
           MAX_PAGES: ${{ github.event.inputs.max_pages || '2' }}
         run: |
           : "${SEATGEEK_CLIENT_ID:?SEATGEEK_CLIENT_ID secret missing — add it in repo Settings → Secrets → Actions}"
