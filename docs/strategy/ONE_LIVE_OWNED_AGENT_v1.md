@@ -555,3 +555,52 @@ Part II additions:
 - [Xposure Music — Independent Music Industry Report 2025 (artist AI sentiment)](https://info.xposuremusic.com/article/music-industry-report-2025) · [Hypebot — how 87% of artists really use AI](https://www.hypebot.com/new-survey-reveals-how-87-of-artists-really-use-ai/) · [Ditto Music — 60% of musicians using AI](https://press.dittomusic.com/60-of-musicians-are-already-using-ai-to-make-music)
 - [LocaliQ — small-business marketing trends report 2026 (channel usage)](https://localiq.com/blog/small-business-marketing-trends-report-2026/) · [Hookle — Google Business Profile + social consistency effects](https://www.hookle.net/post/grow-your-small-business-by-combining-google-business-profile-with-social-media)
 - [SQ Magazine — consumer trust in technology statistics 2026](https://sqmagazine.co.uk/consumer-trust-in-technology-statistics/) · [State of Consumer Data 2026 (smart-device tracking, switching behavior)](https://www.einpresswire.com/article/917170714/state-of-consumer-data-2026-americans-want-big-tech-to-come-clean-on-smart-device-tracking) · [Usercentrics — State of Digital Trust 2026](https://usercentrics.com/press/usercentrics-state-of-digital-trust-2026-report/)
+
+---
+
+## Addendum 2026-08-04 — founder directive: the client value ledger, weekly ROI, and where the agent lives
+
+**Founder-directed 2026-08-04, verbatim (message "Re: AI Agent…."; decision
+record `docs/memory/decisions/2026-08-04_agent-value-ledger-directive.md`):**
+
+> *"Give the agent a value ledger. It logs every task and sends a weekly ROI report to the contact: hours saved, $ value*
+> *Put the agent in the group chat.*
+> *Uptime is a selling point.*
+> *Free work is the referral engine.*
+> *Make the agent write to Excel, not its own markdown. A shared source of truth is the difference between a demo and a system.*
+> *Visible ROI is the retention strategy. A weekly "you saved $" report."*
+
+Subject clarified by the founder same day: these apply to THIS agent product —
+the agent's clients — not to the repo's internal agent org. Mapping into the
+existing three-layer model, with build status stated honestly:
+
+1. **Client value ledger + weekly "you saved $" report → the GIFT layer's
+   retention spine.** The agent logs every task it performs for a business
+   (hours saved, $ value, estimate basis required) into that client's ledger
+   and reports weekly to the client's contact. **ENGINE BUILT** (PR #159:
+   `tools/value_ledger.py` — client-generic xlsx writer + Weekly ROI sheet +
+   plain-language report + audit mirror; committed demo:
+   `docs/strategy/examples/AGENT_CLIENT_VALUE_LEDGER_DEMO.xlsx`). Honesty
+   physics baked in: $ figures are estimates (hours x the client's own rate,
+   set by them in their workbook), every row carries its basis, rates freeze
+   per row. E-needs fit: E5 (proof it's working) and E7 (not getting ripped
+   off) — the report IS the retention surface.
+2. **"Write to Excel, not its own markdown" → the client's shared spreadsheet
+   is the source of truth.** Registered in `ONE_LIVE_CONNECTOR_REGISTRY_v1.md`
+   as a PLANNED AUTHORIZED-SYNC connector (their file, their share grant).
+   Until that connector is founder-greenlit, the engine produces the workbook
+   locally; nothing claims a live sync.
+3. **"Put the agent in the group chat" → a SKIN-layer presence surface.**
+   Registered as a PLANNED connector (their invite, their platform). Scope,
+   identity, and platform are onboarding decisions; credentials founder-crucial.
+4. **"Uptime is a selling point" → an ops bar for the agent product**: the
+   Sentinel rule (dead-man + monitoring on every scheduled loop) is what makes
+   an uptime claim honest; any external uptime CLAIM enters the claim ledger
+   with evidence before it ships in copy.
+5. **"Free work is the referral engine" → growth posture**, consistent with
+   free-forever (Q4) and no-connect-to-rank: the free tier is the referral
+   motion, never a ranking lever.
+
+Gating unchanged: this addendum adds ZERO license to build connectors, mint
+credentials, or open the client pilot — Phase A/B/C gates and the Q1–Q22
+ratification list stand exactly as written above.

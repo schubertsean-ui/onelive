@@ -27,8 +27,8 @@ def book(tmp_path):
 
 
 def _log(path, **over):
-    args = {"date": "2026-08-04", "session": "Contract #43", "task": "build the ledger",
-            "category": "tooling", "hours": "6", "basis": "comparable senior-eng build time"}
+    args = {"date": "2026-08-04", "session": "sync-run-001", "task": "sync client calendar",
+            "category": "sync", "hours": "6", "basis": "time a comparable manual sync takes"}
     args.update(over)
     return vl.main(["--path", str(path), "log"] + [
         item for k, v in args.items() for item in (f"--{k}", v)])
@@ -148,20 +148,24 @@ def test_report_prints_weekly_and_cumulative(book, capsys):
     assert "estimates" in out  # the report never claims actual/invoiced dollars
 
 
-def test_committed_repo_ledger_is_consistent():
-    """The pair committed in docs/metrics/ must always verify."""
-    assert vl.main(["--path", str(REPO / "docs" / "metrics" / "AGENT_VALUE_LEDGER.xlsx"),
-                    "verify"]) == 0
+def test_committed_demo_ledger_is_consistent():
+    """The demo client workbook committed in docs/strategy/examples/ must
+    always verify (workbook, weekly sheet, and CSV mirror agree)."""
+    assert vl.main(["--path", str(vl.DEFAULT_XLSX), "verify"]) == 0
 
 
-def test_committed_seed_row_provenance_is_pinned():
-    """Evaluator catch on PR #159 r1: the seeded row shipped saying 'Contract
-    #40' after a merge renumbered the session contract to #43 — stale
-    provenance in the founder-facing ledger. Pin the seed row's identity so a
-    future renumbering cannot silently leave committed ledger rows pointing at
-    the wrong contract: whoever renumbers must re-sweep this artifact (and this
-    pin) deliberately, in the same change."""
-    wb = vl._load_workbook(REPO / "docs" / "metrics" / "AGENT_VALUE_LEDGER.xlsx")
-    first = vl.read_entries(wb)[0]
-    assert first["session"] == "Contract #43"
-    assert first["date"] == "2026-08-04"
+def test_committed_demo_row_is_unmistakably_demo():
+    """Two lessons pinned at once. Evaluator catch on PR #159 r1: a committed
+    ledger row silently carried a stale identifier after a renumbering — so
+    the committed artifact's row identity is PINNED (whoever changes it must
+    re-sweep this pin deliberately, in the same change). Founder catch on the
+    same PR: this ledger belongs to the Owned Agent's CLIENTS, not the repo's
+    agent org — so the only committed row must be unmistakably illustrative
+    (claim-ledger discipline: examples never read as live client work)."""
+    wb = vl._load_workbook(vl.DEFAULT_XLSX)
+    entries = vl.read_entries(wb)
+    assert len(entries) == 1
+    first = entries[0]
+    assert first["session"] == "demo-seed"
+    assert first["task"].startswith("DEMO (illustrative):")
+    assert "DEMO row" in first["estimate_basis"]

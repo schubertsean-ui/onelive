@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
-"""value_ledger — the Agent Value Ledger (founder-directed 2026-08-04).
+"""value_ledger — the Owned Agent's client value ledger engine (founder-directed 2026-08-04).
 
-SUMMARY: logs every completed agent task — hours saved and $ value — into a
-shared EXCEL workbook (`docs/metrics/AGENT_VALUE_LEDGER.xlsx`), maintains a
-"Weekly ROI" sheet, and prints the founder-facing weekly "you saved $" report.
-The workbook is the founder-directed shared source of truth ("Make the agent
-write to Excel, not its own markdown"): the founder opens and edits it in
-Excel (the hourly rate lives in its Config sheet); the agent appends rows with
-this tool. Because a binary xlsx is opaque to git diffs and to the non-Claude
+SUMMARY: the ledger engine for the 1Live Owned Agent (the AI agent artists,
+venues, and organizers own — docs/strategy/ONE_LIVE_OWNED_AGENT_v1.md): it
+logs every task the agent performs FOR A BUSINESS — hours saved and $ value —
+into that client's shared EXCEL workbook, maintains a "Weekly ROI" sheet, and
+prints the weekly "you saved $" report addressed to the client's contact.
+Founder directive verbatim: "Give the agent a value ledger. It logs every
+task and sends a weekly ROI report to the contact: hours saved, $ value …
+Make the agent write to Excel, not its own markdown. A shared source of truth
+is the difference between a demo and a system. Visible ROI is the retention
+strategy." The workbook is the CLIENT's shared source of truth: the business
+owner opens and edits it in Excel (their blended hourly rate lives in its
+Config sheet); the agent appends rows with this tool (`--path` selects the
+client's workbook; the committed demo workbook under docs/strategy/examples/
+is illustrative collateral, never live client data). Because a binary xlsx is opaque to git diffs and to the non-Claude
 evaluator, every write regenerates a deterministic CSV mirror
 (`AGENT_VALUE_LEDGER.csv`) of the Ledger sheet — the xlsx stays canonical, the
 CSV is the audit mirror, and `verify` (plus tests) refuses when they disagree.
@@ -26,11 +33,13 @@ Honesty physics, not policy:
   - Deterministic: dates are caller-supplied (`--date`/`--as-of`); this
     module never reads the wall clock (kpi_report convention).
 
-This ledger is bookkeeping (docs/metrics/): no gate reads it, it publishes
-nothing, and it touches no product data path. Sending the weekly report
-anywhere (email, group chat, scheduled runner) is a delivery CHANNEL —
-new-service territory, founder-crucial by charter — and is deliberately not
-in this tool; `report` only prints.
+This engine touches no product data path: no gate reads it, it publishes
+nothing, and client workbooks are runtime artifacts (only the labeled demo
+workbook is committed). Sending the weekly report
+anywhere (email, the client's group chat, a scheduled runner) is a delivery
+CHANNEL — a product connector per ONE_LIVE_CONNECTOR_REGISTRY_v1.md, every
+one PLANNED and founder-gated — and is deliberately not in this tool;
+`report` only prints.
 
 Usage:
   python tools/value_ledger.py init [--path P]
@@ -54,7 +63,10 @@ import sys
 from decimal import Decimal, InvalidOperation
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
-DEFAULT_XLSX = REPO / "docs" / "metrics" / "AGENT_VALUE_LEDGER.xlsx"
+# Default = the committed DEMO client workbook (illustrative collateral). A
+# real client's workbook is always selected explicitly via --path.
+DEFAULT_XLSX = (REPO / "docs" / "strategy" / "examples"
+                / "AGENT_CLIENT_VALUE_LEDGER_DEMO.xlsx")
 
 LEDGER_SHEET = "Ledger"
 WEEKLY_SHEET = "Weekly ROI"
@@ -70,12 +82,14 @@ WEEKLY_HEADERS = [
 ]
 
 # Shipped default rate — a labeled PLACEHOLDER, not a measured fact. The
-# founder sets the real blended rate directly in the workbook's Config sheet
-# (that is the shared-source-of-truth flow the directive asked for).
+# business owner sets their real blended rate directly in the workbook's
+# Config sheet (that is the shared-source-of-truth flow the directive asked
+# for: their file, their rate, their numbers).
 DEFAULT_RATE = Decimal("150")
 RATE_NOTE = (
-    "PLACEHOLDER default - founder: set your real blended hourly rate in the "
-    "cell above. $ values everywhere in this workbook are ESTIMATES "
+    "PLACEHOLDER default - business owner: set your real blended hourly rate "
+    "in the cell above (what an hour of this work costs you). $ values "
+    "everywhere in this workbook are ESTIMATES "
     "(hours_saved x rate), never invoiced/actual dollars. Each Ledger row "
     "freezes the rate it was logged under, so changing this cell only "
     "affects future rows."
@@ -301,7 +315,7 @@ def cmd_report(path: pathlib.Path, as_of: str) -> int:
     print(f"All time: {len(entries)} task(s), ~{total_hours.quantize(CENTS)} hours saved "
           f"≈ ${total_value.quantize(CENTS)}")
     print("All figures are estimates (hours saved x the hourly rate each entry was "
-          f"logged under; source of truth: {path.name}, founder-editable rate in Config).")
+          f"logged under; source of truth: {path.name}, owner-editable rate in Config).")
     return 0
 
 

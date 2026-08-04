@@ -1,6 +1,6 @@
-# Decision — Agent Value Ledger: log every task, weekly ROI in shared Excel (founder-directed)
+# Decision — Owned Agent clients get a value ledger + weekly ROI in THEIR shared Excel (founder-directed)
 
-One-line: founder-directed — the agent keeps a value ledger of every task (hours saved, $ value) in a SHARED Excel workbook (never agent-private markdown) and produces a weekly "you saved $" ROI report; visible ROI is the retention strategy.
+One-line: founder-directed — the 1Live Owned Agent (the client-facing agent product) keeps a per-client value ledger of every task it performs for a business (hours saved, $ value) in the CLIENT's shared Excel workbook and sends a weekly "you saved $" ROI report to the client's contact; visible ROI is the retention strategy, free work the referral engine.
 
 **Date:** 2026-08-04. **Authority:** founder-directed, verbatim (message titled "Re: AI Agent…."):
 
@@ -11,22 +11,18 @@ One-line: founder-directed — the agent keeps a value ledger of every task (hou
 > *Make the agent write to Excel, not its own markdown. A shared source of truth is the difference between a demo and a system.*
 > *Visible ROI is the retention strategy. A weekly "you saved $" report."*
 
-## What was built (Contract #43, same day)
+**Subject clarified by the founder same day (verbatim):** *"This was to be applied to the AI Agent we've built not to this org or to me. Good gosh, review the canon and repo."* — the subject is the **Owned Agent product** (`docs/strategy/ONE_LIVE_OWNED_AGENT_v1.md` + AGENT_SURFACES + CONNECTOR_REGISTRY + `brain/pipeline/`); "the contact" is the client business's contact person. The first build of this directive aimed it at the repo's agent org reporting to the founder — a founder-caught ESCAPE (Kaizen row + red class `directive-subject-assumed`, 2026-08-04): an ambiguous directive subject is a QUESTION before building, never an interpretation note shipped with the wrong build.
 
-- `tools/value_ledger.py` + `docs/metrics/AGENT_VALUE_LEDGER.xlsx` (canonical, founder-editable — the hourly rate lives in its Config sheet, shipped as a LABELED $150/h placeholder for the founder to set) + `AGENT_VALUE_LEDGER.csv` (deterministic audit mirror so the binary xlsx stays reviewable in git and by the evaluator) + hermetic tests.
-- Every entry: date · session · task · category · hours_saved · **estimate_basis (required — an estimate with no stated basis is refused)** · the rate it was logged under (frozen per row) · value_usd = hours x rate in Decimal cents. Non-finite/negative numbers, malformed dates, and tampered schemas refuse loudly.
-- `report --as-of` prints the weekly + cumulative "you saved $" summary in plain language, always labeled as estimates.
-- **No historical backfill**: retro-estimating hours for past merged PRs would manufacture numbers with no recorded basis. The ledger measures honestly from its first entry forward.
+## What was built (Contract #43, PR #159, corrected same day)
 
-## Interpretation on the record (correctable, not asserted as founder words)
+- **The client value ledger ENGINE** — `tools/value_ledger.py`: logs every task the agent performs for a business into that client's Excel workbook (`--path` per client; owner-editable blended hourly rate in the workbook's Config sheet), maintains the "Weekly ROI" sheet (per-week tasks/hours/$ + cumulative), prints the weekly "you saved $" report for the contact, and regenerates a deterministic CSV audit mirror. Every $ figure is an estimate (hours x rate) and says so; every row requires its estimate basis; rates freeze per row; non-finite/negative numbers, malformed dates, and tampered schemas refuse loudly. Hermetic tests.
+- **Committed demo** — `docs/strategy/examples/AGENT_CLIENT_VALUE_LEDGER_DEMO.xlsx` (+ mirror): one unmistakably-illustrative row ("DEMO (illustrative): …", session `demo-seed`), pinned by test so it can never read as live client work (claim-ledger discipline). No real client data exists or is claimed.
+- **Canon integration** — dated addendum in `ONE_LIVE_OWNED_AGENT_v1.md` (the directive verbatim + the three-layer mapping); two new PLANNED connector rows in `ONE_LIVE_CONNECTOR_REGISTRY_v1.md` (client shared spreadsheet — AUTHORIZED SYNC; client team group chat — DIRECT PUBLISH via their invite).
 
-The directive's "the agent" is read as THIS repo's agent org and "the contact" as the founder. If the founder meant a different venture/deployment (e.g. a client-facing agent product), the tool is deliberately generic — `--path` points it at any workbook — and the reading should be corrected, not defended.
+## Still gated (no license added)
 
-## Actioned vs founder-crucial (the send half stays a decision)
+Owned Agent Phase A/B/C gates and Q1–Q22 stand unchanged. The spreadsheet-sync and group-chat connectors are PLANNED like every other connector: platform credentials, OAuth apps, and any sending/scheduled delivery are founder-crucial (new services; Sentinel dead-man + caps before any scheduled loop). An external "uptime" claim enters the claim ledger with evidence before appearing in copy.
 
-- **Actioned:** logging + weekly report GENERATION + shared-Excel source of truth (this build).
-- **Founder-crucial, NOT actioned** (new services / external comms / scheduled loops per charter — consolidated in the PR ask list): (1) the weekly SEND channel (email or group chat delivery, and any scheduled runner — Sentinel rule: dead-man ping + caps before any cron); (2) "put the agent in the group chat" (a new outward-facing surface + credentials); (3) the real hourly rate (founder edits Config!B1).
+## Posture captured (business canon, no code)
 
-## Posture notes captured (business canon, no code)
-
-"Uptime is a selling point" and "free work is the referral engine" are recorded here as founder go-to-market posture for agent work — inputs to future venture/Owned-Agent decisions, not build orders.
+"Uptime is a selling point" and "free work is the referral engine" are recorded as go-to-market posture for the Owned Agent — consistent with free-forever (Q4) and no-connect-to-rank; inputs to the pilot design, not build orders.

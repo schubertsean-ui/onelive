@@ -1,0 +1,2 @@
+date,iso_week,session,task,category,hours_saved,estimate_basis,rate_usd_per_hour,value_usd
+2026-08-04,2026-W32,demo-seed,DEMO (illustrative): weekly calendar sync + event listings kept current across connected surfaces,demo,2.00,DEMO row - illustrative numbers showing what a client's ledger looks like; not a measurement of any real client work,150.00,300.00

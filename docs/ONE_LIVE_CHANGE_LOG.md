@@ -4,29 +4,35 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
-## 2026-08-04 — Agent Value Ledger: weekly ROI in shared Excel (founder-directed Contract #43)
+## 2026-08-04 — Owned Agent: client value ledger + weekly ROI engine (founder-directed Contract #43; subject founder-corrected same day)
 
-**The agent now measures its own value where the founder can see it.** Per the
-founder's directive ("Give the agent a value ledger… hours saved, $ value…
-Make the agent write to Excel, not its own markdown… A weekly 'you saved $'
-report"), `tools/value_ledger.py` logs every completed agent task — date,
-session, task, category, hours saved, a REQUIRED estimate basis, the rate it
-was logged under, and $ value (Decimal, cents) — into the shared workbook
-`docs/metrics/AGENT_VALUE_LEDGER.xlsx`, regenerates its "Weekly ROI" sheet
-(per-ISO-week tasks/hours/$ + cumulative) and a deterministic CSV audit mirror
-(the binary xlsx stays canonical; the mirror keeps it reviewable in git and by
-the evaluator), and `report --as-of` prints the plain-language weekly summary,
-always labeled estimates. The hourly rate is founder-editable IN the workbook
-(Config sheet; shipped $150/h placeholder, labeled as such); each row freezes
-its own rate so Config edits never rewrite history. Fails closed on
-non-finite/negative numbers, malformed dates, empty basis, tampered schemas,
-and stale derived surfaces; 22 hermetic tests; openpyxl pinned exact in a NEW
-`tools/requirements.txt` (deliberately NOT worker/requirements.txt, which is
-exam-manifest-bound) and installed by both pytest workflows in the same
-commit. No historical backfill — retro-estimated hours would be numbers with
-no recorded basis. Founder-crucial remainder (asked, not actioned): the weekly
-SEND channel (email/group chat + any scheduled runner), group-chat presence,
-and the real rate. Decision record:
+**The agent product's clients get visible ROI.** The founder's directive ("Give
+the agent a value ledger… sends a weekly ROI report to the contact: hours
+saved, $ value… Make the agent write to Excel, not its own markdown… Visible
+ROI is the retention strategy") applies to the **1Live Owned Agent's clients**
+— founder-corrected same day after the first build wrongly aimed it at this
+repo's agent org (ESCAPED Kaizen row; new red class `directive-subject-assumed`:
+an ambiguous directive subject is a question before building, never an
+interpretation note shipped with the wrong build). Shipped, correctly aimed:
+`tools/value_ledger.py` — the client-generic ledger ENGINE that logs every
+task the agent performs for a business into that CLIENT's shared Excel
+workbook (owner-editable blended rate in its Config sheet; estimate basis
+required on every row; rates freeze per row; Decimal cents; fail-closed on
+non-finite numbers, malformed dates, tampered schemas), maintains the
+"Weekly ROI" sheet, prints the weekly "you saved $" report for the client
+contact, and regenerates a deterministic CSV audit mirror. Committed demo
+(pin-tested as unmistakably illustrative):
+`docs/strategy/examples/AGENT_CLIENT_VALUE_LEDGER_DEMO.xlsx`. Canon: dated
+addendum in `ONE_LIVE_OWNED_AGENT_v1.md` (directive verbatim + three-layer
+mapping); connector registry gains two PLANNED rows (client shared
+spreadsheet — AUTHORIZED SYNC; client team group chat — DIRECT PUBLISH via
+their invite). Hermetic tests; openpyxl pinned exact in NEW
+`tools/requirements.txt` (worker/requirements.txt is exam-manifest-bound —
+untouched), installed by both pytest workflows in the same change. Gating
+unchanged: Phase A/B/C + Q1–Q22 stand; connectors/credentials/scheduled
+sends stay founder-crucial. Also this arc: evaluator r1 correctly caught a
+stale contract id in the first seeded row (class `renumber-partial-sweep`,
+indexed). Decision record:
 `docs/memory/decisions/2026-08-04_agent-value-ledger-directive.md`.
 
 ## 2026-08-03 — Code-armed sweep: gate-custodied wording into code comments (founder: "not wait for the tripwire")

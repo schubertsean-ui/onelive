@@ -52,6 +52,8 @@ intended vs. public state.
 | Wikidata (entity) | ASSISTED SUBMISSION | PLANNED | community norms | only where notability is real |
 | llms.txt | AUTHORIZED SYNC (deployed file) | PLANNED | site control | zero-cost hedge; ~97% of AI crawls ignore it (C-05) |
 | UTM/door codes/QR + platform analytics | READ & MONITOR (measurement) | PLANNED | their analytics access | attribution classified per claim ledger, never presented as causal lift without a comparison |
+| Client shared spreadsheet (Google Sheets / Excel 365 file the business owns) | AUTHORIZED SYNC (their file, their share) | PLANNED | their file-share grant (OAuth or shared-drive invite) | founder-directed 2026-08-04 ("write to Excel, not its own markdown — a shared source of truth"): the agent's value ledger + weekly ROI report live in the CLIENT's spreadsheet; engine built (`tools/value_ledger.py`, xlsx + audit mirror); the write path into their hosted file is this connector and is gated like every other |
+| Client team group chat (Slack / WhatsApp / SMS group — whichever the business uses) | DIRECT PUBLISH (their invite, their channel) | PLANNED | their workspace/channel invite + per-platform app credentials | founder-directed 2026-08-04 ("put the agent in the group chat"): the agent is reachable where the team already coordinates; scope, identity, and platform choice are onboarding decisions; credential minting founder-crucial as ever |
 
 **Registry rules:** (1) a platform is presented at a class only when this
 registry supports it, and at LIVE only after sandbox tests (authorization,
