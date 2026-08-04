@@ -133,6 +133,9 @@ Stage-3 retrieval (docs/memory/RED_CLASSES.md read against this build; matched c
 - [S3:grant-not-content-bound] N/A — no entitlement or approval surface is created; matched on the Kaizen row's mention of another lane's founder-approved records.
 - [S3:heal-drops-guard-marker] The machine-maintained STATE block and its marker were left untouched by hand; the drift guard fired on the behind-master branch and was answered by merging master and updating STATE in the committed change, never by editing the marker.
 
+ADDENDUM (2026-08-04, evaluator r1 catch — fixed same push): the adversarial review's first round REQUEST-CHANGES was correct — the seeded workbook row still said `Contract #40` (written before the master merge renumbered this contract to #43): stale provenance in the founder-facing ledger. Fix: workbook+mirror REGENERATED through the tool (never hand-edited), test fixture updated, and the committed seed row pinned by its own regression test; the class is machine-indexed as `renumber-partial-sweep` with its Kaizen row in the same commit.
+- [S3:renumber-partial-sweep] This build is the class's founding fix: the renumber's missed surface (the generated xlsx/csv) was re-swept by regeneration, and the pin test makes the next partial sweep fail red instead of shipping.
+
 STATUS: OPEN — build DELIVERED; draft PR #159 through the mandatory evaluator; merge per agent-merges-on-green protocol (evaluator APPROVE + every check green on the final head), then this contract closes.
 
 ## Session Contract #42 (2026-08-03, founder-directed — renumbered from this branch's #40 at the collision-resolution merge (#40 = GeoLibre ratification, #41 = the successor UI/UX shepherding session) — code-armed wording sweep, "not wait for the tripwire, deploy the dedicated code-armed PR that sweeps just those comments under evaluator review")
