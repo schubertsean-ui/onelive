@@ -21,13 +21,23 @@ describe("trustDisplay — the trust invariant, rendered", () => {
     expect(t.sheet.toLowerCase()).toContain("verify");
   });
 
-  it("unverified and likely are surfaced with a quiet caveat", () => {
-    for (const k of ["unverified", "likely"] as const) {
-      const t = trustDisplay(k, SRC);
-      expect(t.surface).toBe(true);
-      expect(t.marker).toBeTruthy();
-      expect(t.disputed).toBe(false);
-    }
+  it("unverified is surfaced with a quiet caveat", () => {
+    const t = trustDisplay("unverified", SRC);
+    expect(t.surface).toBe(true);
+    expect(t.marker).toBeTruthy();
+    expect(t.disputed).toBe(false);
+  });
+
+  // Founder ruling 2026-08-04 ("Trustworthy is trustworthy … publish without
+  // the uncertainty marker"): 'likely' — one CREDIBLE source — displays clean
+  // like confirmed; its sheet keeps honest provenance without doubt language.
+  it("likely displays CLEAN — no marker, no caveat surface (founder ruling 2026-08-04)", () => {
+    const t = trustDisplay("likely", SRC);
+    expect(t.surface).toBe(false);
+    expect(t.marker).toBeNull();
+    expect(t.disputed).toBe(false);
+    expect(t.sheet.toLowerCase()).not.toContain("not yet");
+    expect(t.sheet).toContain("last word");
   });
 
   it("unknown / missing degrades to the MOST cautious state, never confident", () => {

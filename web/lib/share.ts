@@ -31,7 +31,9 @@ import { trustDisplay } from "./trust";
 // unverified), so a shared row can never claim more certainty than the card.
 const CONFIDENCE_CAVEAT: Record<string, string> = {
   disputed: "Sources disagree on the details — check the venue before you go.",
-  likely: "Listed by a single source, not yet confirmed — check the venue.",
+  // 'likely' has no entry: it displays CLEAN (surface=false in lib/trust.ts,
+  // founder ruling 2026-08-04 — a trustworthy single source carries no
+  // uncertainty language), so shareCaveat never reaches this map for it.
   unverified: "Not yet verified — check the venue before you go.",
 };
 

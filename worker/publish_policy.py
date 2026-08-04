@@ -16,11 +16,14 @@ two founder-named exceptions plus the one line that never moves:
     HUMAN REVIEW. The "never invent an event that isn't real" invariant is
     preserved — auto-publish only ever publishes real extracted candidates.
 Everything else publishes at earned confidence:
-  * PASS (anchor, or corroborated by ≥2 independent sources) → confirmed/likely.
+  * PASS (anchor, or corroborated by ≥2 independent sources) → confirmed.
+    (Founder ruling 2026-08-04, verbatim: "Just 'confirmed' - remove 'likely'"
+    — the corroborated tier earns the anchor's label.)
   * HOLD (a single trustworthy non-anchor source — radio/TV/press/one venue) →
-    PUBLISHED at 'unverified' WITH the quiet uncertainty marker, NOT held. This
-    is the change the founder demanded: a single good source is USED, shown
-    honestly, and a second source agreeing raises it to 'likely'.
+    PUBLISHED at 'likely', displayed CLEAN (founder ruling 2026-08-04:
+    "Trustworthy is trustworthy … publish without the uncertainty marker").
+    A single good source is USED; corroboration or an anchor raises it to
+    confirmed via the PASS path.
 `disputed` is a separate moderation state and is ALWAYS shown as disputed.
 
 This module is PURE (no DB, no network) so the policy is unit-tested exhaustively.
@@ -108,13 +111,19 @@ def decide_publish(
 
     # 5. Publish at EARNED confidence.
     if gd == "pass":
-        conf = derive_confidence(source_classes, sxsw_mode=sxsw_mode)  # confirmed | likely
+        conf = derive_confidence(source_classes, sxsw_mode=sxsw_mode)  # confirmed (anchor OR corroborated — founder ruling 2026-08-04)
         return PublishDecision("publish", conf, f"PASS → auto-published as {conf}")
     if gd == "hold":
-        # A single trustworthy non-anchor source: USED, shown at 'unverified' with
-        # the honest uncertainty marker — not buried in a hold queue.
-        return PublishDecision("publish", "unverified",
-                               "single trustworthy source → auto-published as unverified (uncertainty shown)")
+        # A single TRUSTWORTHY non-anchor source publishes at 'likely' — founder
+        # ruling 2026-08-04, verbatim: "Trustworthy is trustworthy … If it is,
+        # publish without the uncertainty marker." (The earlier 'unverified'+
+        # marker treatment was a mis-carry from the social-media discussion.)
+        # Reliability is enforced ABOVE (step 4): an often-unreliable source
+        # never reaches this line. 'likely' fits its own definition — one
+        # credible source, not yet corroborated — and displays clean
+        # (web/lib/trust.ts, same founder ruling).
+        return PublishDecision("publish", "likely",
+                               "single trustworthy source → auto-published as likely (founder ruling 2026-08-04)")
 
     # Unknown decision → fail closed.
     return PublishDecision("human_review", None,

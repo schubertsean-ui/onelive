@@ -86,13 +86,17 @@ describe("shareText", () => {
     expect(t.toLowerCase()).toContain("sources disagree");
   });
 
-  it("carries an uncertainty caveat for likely AND unverified — not just disputed", () => {
-    // adversarial-review #98: an unverified/likely row must not ride into a
-    // forwardable artifact wearing confirmed-fact authority.
-    expect(shareText(ev({ confidence: "likely" }))).toContain("⚠");
+  it("carries an uncertainty caveat for unverified and disputed; likely shares CLEAN (founder ruling 2026-08-04)", () => {
+    // adversarial-review #98 still holds for genuinely uncertain rows: an
+    // unverified row must not ride into a forwardable artifact wearing
+    // confirmed-fact authority. 'likely' — one CREDIBLE source — shares clean
+    // per the founder's 2026-08-04 ruling ("Trustworthy is trustworthy …
+    // publish without the uncertainty marker"); decision record
+    // 2026-08-04_single-trusted-source-clean-display.md.
     expect(shareText(ev({ confidence: "unverified" }))).toContain("⚠");
-    expect(shareText(ev({ confidence: "likely" })).toLowerCase()).toContain("not yet confirmed");
     expect(shareText(ev({ confidence: "unverified" })).toLowerCase()).toContain("not yet verified");
+    expect(shareText(ev({ confidence: "likely" }))).not.toContain("⚠");
+    expect(shareText(ev({ confidence: "disputed" }))).toContain("⚠");
   });
 
   it("carries a cancellation/status warning into the artifact", () => {
