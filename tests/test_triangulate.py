@@ -142,12 +142,14 @@ def test_confidence_anchor_corroboration_is_confirmed():
     assert triangulated_confidence(TARGET, [TM_ROW]) == "confirmed"
 
 
-def test_confidence_two_nonanchor_sources_is_likely():
+def test_confidence_two_nonanchor_sources_is_confirmed():
     blog = {"source_id": "chron", "source_class": "blog",
             "venue_name": "Mohawk", "start_time": "2026-08-01T20:15:00Z",
             "title": "Spoon at Mohawk"}
-    # local_media + blog = two distinct non-anchor classes → likely (not confirmed).
-    assert triangulated_confidence(TARGET, [blog]) == "likely"
+    # local_media + blog = two distinct non-anchor classes → confirmed (founder
+    # ruling 2026-08-04, verbatim "Just 'confirmed' - remove 'likely'": the
+    # corroborated tier earns the anchor's label).
+    assert triangulated_confidence(TARGET, [blog]) == "confirmed"
 
 
 def test_confidence_never_disputed_from_triangulation():

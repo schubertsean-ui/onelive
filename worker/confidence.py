@@ -5,9 +5,14 @@ Do NOT revert to a 3-state model (see CLAUDE.md / STATE.md — locked decision).
 
 States:
 - unverified : proposed/promoted with no corroboration yet.
-- likely     : corroborated by multiple independent non-anchor sources.
-- confirmed  : backed by an anchor source (ticketing, venue calendar, etc.)
-               or an authoritative venue/artist claim.
+- likely     : one CREDIBLE source, not yet corroborated (assigned by the
+               publish policy's single-trusted-source path — founder rulings
+               2026-08-04: "Trustworthy is trustworthy" + "Just 'confirmed' -
+               remove 'likely'" for the corroborated tier; derive_confidence
+               no longer returns it).
+- confirmed  : backed by an anchor source (ticketing, venue calendar, etc.),
+               an authoritative venue/artist claim, OR corroborated by 2+
+               independent sources (3 in sxsw_mode).
 - disputed   : contradicted by evidence or flagged by moderation. A disputed
                event is ALWAYS still shown (marked disputed) and NEVER deleted
                or silently filtered from the public API.
@@ -46,9 +51,15 @@ def derive_confidence(source_classes: List[str], sxsw_mode: bool = False) -> str
     """Map corroborating evidence to a 4-state confidence value at promotion time.
 
     - >=1 anchor source            -> 'confirmed'
-    - enough non-anchor corroboration (2, or 3 in sxsw_mode) -> 'likely'
+    - enough non-anchor corroboration (2, or 3 in sxsw_mode) -> 'confirmed'
+      (founder ruling 2026-08-04, verbatim: "Just 'confirmed' - remove 'likely'"
+      on the corroborated tier — 2+ independent sources earn the same label an
+      anchor does; decision record
+      2026-08-04_corroborated-tier-publishes-confirmed.md)
     - otherwise                    -> 'unverified'
 
+    Never returns 'likely': that state is reserved for the publish policy's
+    single-trusted-source path (one credible source, not yet corroborated).
     Never returns 'disputed': disputed is a moderation decision applied
     explicitly via mark_disputed / ops action, not inferred from source counts.
     """
@@ -57,5 +68,5 @@ def derive_confidence(source_classes: List[str], sxsw_mode: bool = False) -> str
         return "confirmed"
     min_sources = 3 if sxsw_mode else 2
     if len(unique) >= min_sources:
-        return "likely"
+        return "confirmed"
     return "unverified"

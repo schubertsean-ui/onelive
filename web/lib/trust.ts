@@ -75,14 +75,20 @@ export function trustDisplay(
               `last word.`,
       };
     case "likely":
+      // FOUNDER RULING 2026-08-04, verbatim: "Trustworthy is trustworthy …
+      // If it is, publish without the uncertainty marker." A 'likely' row is
+      // one CREDIBLE source (below-threshold sources never publish at all) —
+      // it displays clean, exactly like confirmed; the sheet keeps the honest
+      // provenance sentence for anyone who opens details. Decision record:
+      // docs/memory/decisions/2026-08-04_single-trusted-source-clean-display.md
       return {
         key: "likely",
-        surface: true,
+        surface: false,
         disputed: false,
-        marker: "single source",
+        marker: null,
         sheet:
-          `Reported by ${src} but not yet corroborated — shown as likely, not ` +
-          `confirmed. Check the venue or ticket link before you rely on it.`,
+          `Reported by ${src}. Times and prices can change; the venue's own ` +
+          `page and the ticket link are the last word.`,
       };
     case "disputed":
       return {
