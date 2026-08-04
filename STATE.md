@@ -129,6 +129,9 @@ Stage-3 retrieval (docs/memory/RED_CLASSES.md read against this build; matched c
 - [S3:deliverable-visual-qa] The deliverable is a workbook + CLI text, not a rendered visual package; the workbook's own layout was proven by openpyxl round-trip in tests (headers, sheets, values), the closest applicable measure.
 - [S3:stale-live-incident-state] No live incident is narrated as current anywhere in this diff; the environment reds fixed this session are described in past tense with their fixes, and no open-incident doc is touched.
 - [S3:unusable-credential-tier] No credentials are minted, consumed, or required — the ledger tool runs entirely on local files, and the one new dependency installs from the public package index with no key.
+- [S3:featurability-dimension-missed] N/A — no public emitter or user-facing surface is added; matched on merged upstream prose and the Kaizen row naming another lane's bench.
+- [S3:grant-not-content-bound] N/A — no entitlement or approval surface is created; matched on the Kaizen row's mention of another lane's founder-approved records.
+- [S3:heal-drops-guard-marker] The machine-maintained STATE block and its marker were left untouched by hand; the drift guard fired on the behind-master branch and was answered by merging master and updating STATE in the committed change, never by editing the marker.
 
 STATUS: OPEN — building on branch `claude/agent-value-ledger-roi-3sn9rs`.
 
