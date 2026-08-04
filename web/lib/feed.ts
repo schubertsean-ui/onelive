@@ -70,14 +70,19 @@ export function dayTabs(nowMs: number, days = 7): DayTab[] {
   // choice architecture: "default view is tonight"); the catch-all closes
   // the row instead of opening it.
   const tabs: DayTab[] = [];
-  const day = 86_400_000;
-  const today0 = startOfLocalDay(nowMs);
+  let s = startOfLocalDay(nowMs);
   for (let i = 0; i <= days; i++) {
-    const s = today0 + i * day;
-    const e = s + day;
+    // Each day's END is the NEXT market midnight, derived per-day — never
+    // start + 24h. Chicago days are 23 or 25 hours across DST transitions
+    // (adversarial-review r3, 2026-08-04): a fixed-width day drifts every
+    // boundary after the transition by an hour, mis-bucketing late shows.
+    // 30h past this midnight lands safely inside the next market day whether
+    // this one is 23, 24, or 25 hours long; startOfLocalDay snaps it back.
+    const e = startOfLocalDay(s + 30 * 3_600_000);
     const label =
       i === 0 ? "Today" : i === 1 ? "Tomorrow" : new Date(s).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" });
     tabs.push({ key: i === 0 ? "today" : `d${i}`, label, startMs: s, endMs: e });
+    s = e;
   }
   tabs.push({ key: "all", label: "All upcoming", startMs: 0, endMs: Infinity });
   return tabs;
@@ -88,7 +93,21 @@ export function inDayTab(e: LicensedEvent, tab: DayTab): boolean {
   if (!e.start_time) return false; // date-TBA only shows under "All"
   const t = Date.parse(e.start_time);
   if (Number.isNaN(t)) return false;
-  return t >= tab.startMs && t < tab.endMs;
+  if (t >= tab.startMs && t < tab.endMs) return true;
+  // Today only: a show that STARTED before the market midnight but whose
+  // running window reaches into today still belongs to the default view.
+  // After midnight, liveEvents still carries it (it hasn't ended), but pure
+  // start-time bucketing pushed it to no day tab at all — leaving "All
+  // upcoming" the only place an on-now, possibly DISPUTED, show appeared:
+  // a trust-invariant break (adversarial-review r3, 2026-08-04). Future
+  // tabs keep pure start-time semantics — a Friday-night show lists under
+  // Friday, not Friday and Saturday.
+  if (tab.key === "today" && t < tab.startMs) {
+    const end = e.end_time ? Date.parse(e.end_time) : NaN;
+    const endMs = Number.isNaN(end) ? t + ASSUMED_MS : end;
+    return endMs > tab.startMs;
+  }
+  return false;
 }
 
 // ── Filters (lenses — they narrow the user's view, never touch confidence) ────
