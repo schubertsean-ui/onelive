@@ -25,7 +25,7 @@ def card_fields(title, ticket_link, *, schema_type=None, venue_domain_hint=None,
     """Derive the user-facing card columns on `event` (title, category,
     subsegment, ticket_url) from the candidate's OWN real data — the fields
     migration 0010 added and documented promote.py as the writer of, but which
-    were never populated (so promoted long-tail events rendered titleless and in
+    were never populated (so promoted discovered events rendered titleless and in
     'Other'). Pure function so the mapping is unit-testable without a database.
 
     Category is resolved by the Router classifier (worker.classify) from the

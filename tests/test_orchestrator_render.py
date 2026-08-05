@@ -108,6 +108,8 @@ def _install_fakes(monkeypatch, tmp_path, *, plain_text_by_source, extracted_tex
     monkeypatch.setattr(orchestrator, "extract_candidate", fake_extract_candidate)
     monkeypatch.setattr(orchestrator, "list_candidate_source_classes", fake_list_candidate_source_classes)
     monkeypatch.setattr(orchestrator, "load_candidate_gate_signals", fake_load_candidate_gate_signals)
+    monkeypatch.setattr(orchestrator, "stamp_gate_verdict",
+                        lambda candidate_id, **kw: True)
 
 
 def _install_render(monkeypatch, render_calls, html=None, error=None):

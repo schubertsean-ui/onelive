@@ -213,3 +213,59 @@ def test_fetch_known_fails_loud_without_token(monkeypatch):
         assert "EVENTBRITE_TOKEN" in str(e)
     else:
         raise AssertionError("expected RuntimeError on missing token")
+
+
+# ---------------------------------------------------------------------------
+# Event-id lane trust boundary (evaluator finding, PR #178): only ids from the
+# founder-reviewed provenance registry may enter the import path.
+# ---------------------------------------------------------------------------
+
+import pytest
+
+
+def _run_event_cli(monkeypatch, ids):
+    import worker.importers.run_eventbrite_import as cli
+    monkeypatch.setenv("EVENTBRITE_TOKEN", "test-token")
+    calls = []
+
+    def fake_fetch_known(token, id_list, *, kind, max_pages):
+        calls.append(list(id_list))
+        return [{"id": i, "name": {"text": "t"}} for i in id_list]
+
+    monkeypatch.setattr(cli, "fetch_known", fake_fetch_known)
+    monkeypatch.setattr(cli, "normalize_eventbrite",
+                        lambda e: {"category": "music", "venue_lat": None,
+                                   "venue_lng": None, "venue_address": None,
+                                   "venue_city": None, "raw": {}})
+    rc = cli.main(["--kind", "event", "--event-ids", ids, "--dry-run"])
+    return rc, calls
+
+
+def test_event_id_not_in_provenance_registry_is_rejected(monkeypatch):
+    rc, calls = _run_event_cli(monkeypatch, "999999999999")
+    assert rc == 2
+    assert calls == []  # rejected BEFORE any fetch/import work
+
+
+def test_event_id_from_provenance_registry_is_accepted(monkeypatch):
+    import worker.importers.run_eventbrite_import as cli
+    listed = sorted(cli._provenance_event_ids())[0]
+    rc, calls = _run_event_cli(monkeypatch, listed)
+    assert rc == 0
+    assert len(calls) == 1
+
+
+def test_non_numeric_event_id_is_rejected_before_registry(monkeypatch):
+    rc, calls = _run_event_cli(monkeypatch, "abc/../../etc")
+    assert rc == 2
+    assert calls == []
+
+
+def test_missing_provenance_registry_fails_closed(monkeypatch, tmp_path):
+    import worker.importers.run_eventbrite_import as cli
+    monkeypatch.setattr(cli, "_PROVENANCE_PATH", tmp_path / "absent.json")
+    monkeypatch.setenv("EVENTBRITE_TOKEN", "test-token")
+    monkeypatch.setattr(cli, "fetch_known", lambda *a, **kw: (_ for _ in ()).throw(
+        AssertionError("must not reach the importer")))
+    with pytest.raises(RuntimeError, match="provenance registry"):
+        cli.main(["--kind", "event", "--event-ids", "1264437579839", "--dry-run"])

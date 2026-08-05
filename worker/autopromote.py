@@ -49,7 +49,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from worker.candidate_store import load_candidate_gate_signals
+from worker.candidate_store import _load_gate_signals, load_candidate_gate_signals
 from worker.promote import promote_candidate
 from worker.publish_policy import auto_publish_ratified, decide_publish
 # The fabrication predicate is imported from the gate module itself —
@@ -214,6 +214,130 @@ def _process_one(conn, *, candidate_id: str, source_id, sxsw_mode: bool) -> Cand
     })
     logger.info("autopromote: left candidate %s for human review (%s)", candidate_id, detail)
     return CandidateOutcome(candidate_id, "human_review", detail)
+
+
+
+@dataclass
+class StampReport:
+    """Auditable summary of one backlog gate-stamping pass. Stamping
+    CLASSIFIES candidates (persists the trust-gate verdict onto the row);
+    it never publishes — 'stamped_ready' rows merely become visible to the
+    two custody-holding publish paths, both of which re-gate before acting."""
+
+    counts: Dict[str, int] = field(default_factory=lambda: {
+        "examined": 0, "stamped_ready": 0, "stamped_hold": 0,
+        "escalated": 0, "skipped_stale": 0, "errors": 0,
+    })
+
+
+def stamp_backlog(conn, *, limit: int) -> StampReport:
+    """Sweep up to `limit` NEVER-STAMPED candidates (status='needs_review'
+    with gate_reason still NULL — the population the 2026-08-05 diagnosis
+    found stranded: verdicts lived only in the replay log) through the SAME
+    evaluate_gate the orchestrator runs, and persist each verdict with the
+    same column contract the human ops action uses. ESCALATE keeps
+    'needs_review' but records the reason, so an escalated candidate leaves
+    the sweep population after one examination instead of being re-examined
+    forever. Honest residual: a candidate stamped 'needs_more_confirmation'
+    re-enters the gate only when new evidence arrives through a re-gating
+    path (ops add_evidence, or a future orchestrator merge) — this sweep is
+    for the never-examined backlog, not a standing re-adjudicator.
+    Bounded, DB-only (no AI calls), per-candidate isolation like the
+    promote pass.
+    """
+    if limit <= 0:
+        raise ValueError(
+            f"stamp_backlog limit must be positive, got {limit} — 0 never "
+            "means uncapped; skip the call to skip the phase."
+        )
+    report = StampReport()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            select candidate_id, sxsw_mode
+            from event_candidate
+            where status='needs_review' and gate_reason is null
+            order by created_at asc
+            limit %s
+            """,
+            (limit,),
+        )
+        rows = cur.fetchall()
+
+    for candidate_id, sxsw_mode in rows:
+        candidate_id = str(candidate_id)
+        report.counts["examined"] += 1
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select source_class from candidate_evidence where candidate_id=%s",
+                    (candidate_id,),
+                )
+                source_classes = [r[0] for r in cur.fetchall()]
+                extracted, evidence_signals = _load_gate_signals(cur, candidate_id)
+                verdict = evaluate_gate(
+                    source_classes=source_classes,
+                    sxsw_mode=bool(sxsw_mode),
+                    extracted=extracted,
+                    evidence_signals=evidence_signals,
+                )
+                if verdict.decision is GateDecision.ESCALATE:
+                    status = "needs_review"
+                    gate_reason = verdict.reason
+                    required_next = "human review — escalated by trust gate"
+                    bucket = "escalated"
+                else:
+                    status = verdict.base.status
+                    gate_reason = verdict.base.reason
+                    required_next = verdict.base.required_next
+                    bucket = ("stamped_ready" if status == "ready_to_promote"
+                              else "stamped_hold")
+                # Compare-and-swap (evaluator finding, PR #182 r2): re-assert
+                # the SELECTION predicate in the write so a row that ops or a
+                # dispute moved between the sweep's read and this update is
+                # never overwritten — 0 rows matched = newer trust state wins.
+                cur.execute(
+                    """
+                    update event_candidate
+                    set status=%s, gate_reason=%s, required_next=%s, updated_at=now()
+                    where candidate_id=%s
+                      and status='needs_review' and gate_reason is null
+                    """,
+                    (status, gate_reason, required_next, candidate_id),
+                )
+                stamped = cur.rowcount == 1
+            if not stamped:
+                conn.rollback()
+                logger.warning(
+                    "gate-stamp sweep: candidate %s left the never-stamped "
+                    "population mid-sweep — skipped, newer state kept",
+                    candidate_id,
+                )
+                report.counts["skipped_stale"] += 1
+                continue
+            _audit(conn, candidate_id, "gate_stamp", {
+                "decision": verdict.decision.value,
+                "status": status,
+                "reason": gate_reason,
+            })
+            conn.commit()
+            report.counts[bucket] += 1
+        except Exception:  # noqa: BLE001 — per-candidate isolation; logged, sweep continues
+            logger.exception("stamp_backlog: candidate %s raised — skipped, sweep continues", candidate_id)
+            try:
+                conn.rollback()
+            except Exception:  # noqa: BLE001 — rollback is best-effort; the log line above carries the failure
+                logger.exception("stamp_backlog: rollback failed for candidate %s", candidate_id)
+            report.counts["errors"] += 1
+
+    logger.info(
+        "gate-stamp sweep complete: examined=%d ready=%d hold=%d escalated=%d "
+        "stale-skipped=%d errors=%d",
+        report.counts["examined"], report.counts["stamped_ready"],
+        report.counts["stamped_hold"], report.counts["escalated"],
+        report.counts["skipped_stale"], report.counts["errors"],
+    )
+    return report
 
 
 def run_autopromote(conn, *, limit: int) -> AutopromoteReport:

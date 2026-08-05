@@ -582,7 +582,7 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
         )}
 
         {/* Founder edits 2026-08-04 (four, in sequence during live review):
-            removed the "ticketed spine / long-tail being added" sentence and
+            removed the "ticketed spine / discovered-events being added" sentence and
             " — never fabricated"; then "Real, licensed listings from
             authoritative ticketing sources" was founder-reworded to "Real
             listings from validated sources" ("too specific to 'ticketing'"). */}

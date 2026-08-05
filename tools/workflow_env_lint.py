@@ -26,6 +26,11 @@ R4 EXPRESSION-GUARD: an env var whose value is ANY GitHub expression that
    expanded in shell text) are the consuming program's fail-loud
    responsibility — the ONLY remaining out-of-scope channel after r13/r14
    closed env-value and direct-run expressions.
+R5 SENTINEL-DEADMAN: a workflow that fires on `schedule:` must bind at least
+   one secrets-backed env var named *PING_URL (the dead-man ping channel) —
+   a scheduled loop with no alarm channel dies silently (Sentinel rule,
+   mechanized 2026-08-05 per the kickoff's Kaizen class rule). R4 makes the
+   binding fail-loud at consumption; R5 proves the channel exists at all.
 R2 VARS-CONTEXT-BAN: `${{ vars.* }}` is forbidden outright — GitHub renders
    an unset repo variable and a set-but-empty one identically, so a workflow
    can never fail closed on the difference (evaluator finding, PR #14 r4;
@@ -435,6 +440,38 @@ def lint_workflow_text(text: str, name: str) -> list[str]:
             f"render identically, so nothing downstream can fail closed on the "
             f"difference; ship config as reviewed file content instead)"
         )
+
+    # R5 SENTINEL-DEADMAN (2026-08-05, Kaizen class rule from the 2026-08-04
+    # arc, mechanized per the kickoff: "a `schedule:` workflow without an
+    # alarm cannot merge"): any workflow that fires on `schedule:` must bind
+    # at least one env var whose NAME ends in PING_URL from the secrets
+    # context somewhere in the file — the dead-man channel worker/sentinel.py
+    # (or an assert step) consumes. R4 independently forces that binding to
+    # be guarded fail-loud at consumption, so R5 only has to prove the
+    # channel EXISTS. A scheduled loop with no ping binding runs unwatched:
+    # its silent death would be invisible, the exact class the Sentinel rule
+    # (CLAUDE.md agent org) forbids. NOTE: pyyaml parses the bare `on:` key
+    # as boolean True (YAML 1.1), so both spellings are read.
+    _triggers = doc.get("on", doc.get(True))
+    if isinstance(_triggers, dict) and "schedule" in _triggers:
+        def _envs_of(mapping) -> list[tuple[str, str]]:
+            env = mapping.get("env") if isinstance(mapping, dict) else None
+            return [(k, v) for k, v in (env or {}).items()
+                    if isinstance(v, str)] if isinstance(env, dict) else []
+
+        _bindings = _envs_of(doc)
+        for _job in (doc.get("jobs") or {}).values():
+            _bindings += _envs_of(_job)
+            for _step in (_job.get("steps") or []) if isinstance(_job, dict) else []:
+                _bindings += _envs_of(_step)
+        if not any(k.endswith("PING_URL") and "secrets." in v
+                   for k, v in _bindings):
+            findings.append(
+                f"{name}: fires on `schedule:` but binds no secrets-backed "
+                f"*PING_URL env var anywhere — a scheduled loop without a "
+                f"dead-man ping channel dies silently; bind its healthchecks "
+                f"ping URL (Sentinel rule: no scheduled loop ships unwatched)"
+            )
 
     workflow_env_map = doc.get("env") if isinstance(doc.get("env"), dict) else {}
     workflow_env = set(workflow_env_map.keys())

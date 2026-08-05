@@ -92,6 +92,10 @@ def main(argv=None) -> int:
                 page = search_page(key, cx, q, start)
             except Exception as exc:  # noqa: BLE001 — per-call report; zero-total fails below
                 failures += 1
+                body = getattr(exc, "read", lambda: b"")()
+                if body:
+                    print(f"  error body: {body[:300].decode('utf-8', 'replace')}",
+                          file=sys.stderr)
                 print(f"query {q!r} start={start}: failed ({exc})", file=sys.stderr)
                 break
             orgs.update({k: v for k, v in extract_orgs(page).items()
