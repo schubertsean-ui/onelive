@@ -72,3 +72,17 @@ def test_promote_candidate_uses_the_guard():
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
     }
     assert "assert_promotable" in calls
+
+
+def test_event_insert_casts_artist_ids_to_uuid_array():
+    # Regression (autopromote run 30979536905, first live promote pass):
+    # psycopg2 adapts a Python list of id strings to text[], which Postgres
+    # refuses to put into the uuid[] artist_ids column — every candidate WITH
+    # artists errored (64 of the first 200) while artist-less ones published.
+    # Hermetic tests use fake cursors and can never hit the server-side type
+    # check, so the explicit ::uuid[] cast on the insert is pinned here.
+    import worker.promote as promote
+
+    src = open(promote.__file__).read()
+    insert = src.split("insert into event(")[1].split("returning event_id")[0]
+    assert "%s::uuid[]" in insert
