@@ -40,8 +40,7 @@ _MICRODATA = """
 
 def test_single_jsonld_event_dates_recovered(monkeypatch):
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: _ONE_EVENT)
-    out = recover_dates_from_url("https://venue.example/e/1",
-                                 candidate_title="Night Owls Live")
+    out = recover_dates_from_url("https://venue.example/e/1")
     assert out["start_time"] == "2026-08-08T19:00:00-05:00"
     assert out["end_time"] == "2026-08-08T22:00:00-05:00"
 
@@ -49,14 +48,12 @@ def test_single_jsonld_event_dates_recovered(monkeypatch):
 def test_multi_event_page_yields_nothing(monkeypatch):
     # >1 Event declared: attributing one to the candidate would be a guess.
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: _TWO_EVENTS)
-    assert recover_dates_from_url("https://venue.example/cal",
-                                  candidate_title="A") == {}
+    assert recover_dates_from_url("https://venue.example/cal") == {}
 
 
 def test_microdata_content_attr_recovered(monkeypatch):
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: _MICRODATA)
-    out = recover_dates_from_url("https://venue.example/e/2",
-                                 candidate_title="Night Owls Live")
+    out = recover_dates_from_url("https://venue.example/e/2")
     assert out == {"start_time": "2026-08-10T18:00:00"}
 
 
@@ -219,17 +216,6 @@ def test_year_rule_fails_closed_without_fetch_time(monkeypatch):
     assert stored["extracted"]["start_time"] is None  # no fetched_at: refused
 
 
-def test_jsonld_identity_guard_refuses_unrelated_event(monkeypatch):
-    # Evaluator nit (PR #189 r2): a source-quoted but generic link whose one
-    # declared Event is a DIFFERENT show must not donate its date.
-    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: _ONE_EVENT)
-    out = recover_dates_from_url("https://venue.example/e/1",
-                                 candidate_title="Completely Different Gala")
-    assert out == {}
-    aligned = recover_dates_from_url("https://venue.example/e/1",
-                                     candidate_title="Night Owls Live")
-    assert aligned["start_time"] == "2026-08-08T19:00:00-05:00"
-
 
 def test_stale_date_context_cleared_by_section_boundary():
     # Evaluator finding (PR #189 r2): a later, unrelated section must not
@@ -345,24 +331,6 @@ def test_microdata_two_event_scopes_yield_nothing(monkeypatch):
     assert recover_dates_from_url("https://venue.example/cal") == {}
 
 
-def test_microdata_identity_guard(monkeypatch):
-    # Evaluator blocker (PR #189 r3): the microdata path gets the SAME
-    # identity guard as JSON-LD — a single unrelated Event must not donate
-    # its date to the candidate.
-    html = """
-    <html><body>
-    <div itemscope itemtype="https://schema.org/Event">
-      <meta itemprop="name" content="Night Owls Live"/>
-      <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
-    </div>
-    </body></html>"""
-    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: html)
-    assert recover_dates_from_url("https://venue.example/e/2",
-                                  candidate_title="Completely Different Gala") == {}
-    aligned = recover_dates_from_url("https://venue.example/e/2",
-                                     candidate_title="Night Owls Live")
-    assert aligned == {"start_time": "2026-08-10T18:00:00"}
-
 
 def test_year_rule_weekday_consistency():
     # Evaluator blocker (PR #189 r3): a claim that NAMES a weekday must only
@@ -385,25 +353,6 @@ def test_year_rule_weekday_consistency():
     iso, note = resolve_yearless_claim("August 8 7:00 PM", ref_2026)
     assert iso is not None and "weekday_verified" not in note
 
-
-def test_microdata_visible_text_name_feeds_identity_guard(monkeypatch):
-    # Evaluator blocker (PR #189 r4): common microdata puts the Event name
-    # in element TEXT (<span itemprop="name">…</span>), not a content attr.
-    # A text-named unrelated Event must be caught by the identity guard,
-    # not slip through as "nameless".
-    html = """
-    <html><body>
-    <div itemscope itemtype="https://schema.org/Event">
-      <span itemprop="name">Wrong Show</span>
-      <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
-    </div>
-    </body></html>"""
-    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: html)
-    assert recover_dates_from_url("https://venue.example/e/2",
-                                  candidate_title="Night Owls Live") == {}
-    aligned = recover_dates_from_url("https://venue.example/e/2",
-                                     candidate_title="Wrong Show")
-    assert aligned == {"start_time": "2026-08-10T18:00:00"}
 
 
 def test_microdata_dated_plus_undated_events_yield_nothing(monkeypatch):
@@ -457,39 +406,6 @@ def test_fetch_refuses_pages_larger_than_the_cap(monkeypatch):
     assert _fetch("https://venue.example/ok") is not None
 
 
-def test_nameless_event_is_refused_not_allowed(monkeypatch):
-    # Evaluator blocker (PR #189 r6): the old missing-name-allows doctrine
-    # let a source-quoted generic link with one NAMELESS Event donate its
-    # date. Absence of identity evidence is not identity — refuse.
-    nameless = """
-    <html><body itemscope itemtype="https://schema.org/Event">
-    <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
-    </body></html>"""
-    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: nameless)
-    assert recover_dates_from_url("https://venue.example/page",
-                                  candidate_title="Night Owls Live") == {}
-
-    jl_nameless = """
-    <html><script type="application/ld+json">
-    {"@type": "Event", "startDate": "2026-08-08T19:00:00"}
-    </script></html>"""
-    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: jl_nameless)
-    assert recover_dates_from_url("https://venue.example/page",
-                                  candidate_title="Night Owls Live") == {}
-
-
-def test_generic_word_overlap_is_not_identity():
-    # Evaluator blocker (PR #189 r6): "Jazz Night" vs "Trivia Night" share
-    # one generic word — never identity. Containment and substantial
-    # multi-word overlap still pass.
-    from worker.date_callback import _identity_aligned
-
-    assert not _identity_aligned("Jazz Night", "Trivia Night")
-    assert not _identity_aligned("Open Mic", "Trivia Night")
-    assert not _identity_aligned("Night Owls Live", None)
-    assert not _identity_aligned(None, "Night Owls Live")
-    assert _identity_aligned("Night Owls Live", "Night Owls Live at The Cellar")
-    assert _identity_aligned("The Night Owls Live Tour", "Night Owls Live")
 
 
 def test_mixed_format_multi_event_page_refused(monkeypatch):
@@ -510,25 +426,32 @@ def test_mixed_format_multi_event_page_refused(monkeypatch):
     </div>
     </body></html>"""
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: mixed)
-    assert recover_dates_from_url("https://venue.example/cal",
-                                  candidate_title="Night Owls Live") == {}
+    assert recover_dates_from_url("https://venue.example/cal") == {}
 
 
-def test_containment_is_word_bounded():
-    # Evaluator blocker (PR #189 r7): raw substring containment aligned
-    # "Art" with "P-art-y Night". Containment must run on word boundaries.
-    from worker.date_callback import _identity_aligned
-
-    assert not _identity_aligned("Art", "Party Night")
-    assert not _identity_aligned("Owls", "Night Owls Live")  # single generic word
-    assert _identity_aligned("Night Owls", "Night Owls Live at The Cellar")
 
 
-def test_cross_format_contradiction_refused(monkeypatch):
-    # Evaluator blocker (PR #189 r7): one Event in EACH format is allowed
-    # only because both should describe the same event — when their values
-    # disagree, the page's own evidence is disputed and nothing is chosen.
-    contradiction = """
+
+def test_source_page_declarations_are_authoritative(monkeypatch):
+    # Founder ruling 2026-08-05 (decision record
+    # 2026-08-05_source-site-authoritative.md): once the link is proven to
+    # be the source's own, the page's declarations are AUTHORITATIVE — a
+    # nameless Event or a name differing from the extracted title recovers
+    # its date all the same; there is no identity cross-examination.
+    nameless = """
+    <html><body itemscope itemtype="https://schema.org/Event">
+    <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: nameless)
+    assert recover_dates_from_url("https://venue.example/page") == \
+        {"start_time": "2026-08-10T18:00:00"}
+
+
+def test_jsonld_precedence_when_formats_disagree(monkeypatch):
+    # One Event in each format with differing values: the source is
+    # authoritative and JSON-LD (the richer declaration) simply wins —
+    # never a refusal (founder ruling 2026-08-05).
+    page = """
     <html><script type="application/ld+json">
     {"@type": "Event", "name": "Night Owls Live",
      "startDate": "2026-08-08T19:00:00"}
@@ -536,29 +459,6 @@ def test_cross_format_contradiction_refused(monkeypatch):
     <body><div itemscope itemtype="https://schema.org/Event">
       <meta itemprop="startDate" content="2026-08-09T19:00:00"/>
     </div></body></html>"""
-    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: contradiction)
-    assert recover_dates_from_url("https://venue.example/e/1",
-                                  candidate_title="Night Owls Live") == {}
-
-    agreement = contradiction.replace("2026-08-09T19:00:00", "2026-08-08T19:00:00")
-    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: agreement)
-    out = recover_dates_from_url("https://venue.example/e/1",
-                                 candidate_title="Night Owls Live")
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+    out = recover_dates_from_url("https://venue.example/e/1")
     assert out["start_time"] == "2026-08-08T19:00:00"
-
-
-def test_cross_format_identity_dispute_refused(monkeypatch):
-    # Both formats name their Event and exactly one aligns with the
-    # candidate: the page disputes its own identity — refuse everything.
-    dispute = """
-    <html><script type="application/ld+json">
-    {"@type": "Event", "name": "Night Owls Live",
-     "startDate": "2026-08-08T19:00:00"}
-    </script>
-    <body><div itemscope itemtype="https://schema.org/Event">
-      <meta itemprop="name" content="Completely Different Gala"/>
-      <meta itemprop="startDate" content="2026-08-08T19:00:00"/>
-    </div></body></html>"""
-    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: dispute)
-    assert recover_dates_from_url("https://venue.example/e/1",
-                                  candidate_title="Night Owls Live") == {}

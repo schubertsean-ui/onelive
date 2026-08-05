@@ -12,10 +12,17 @@ What it reads, in order of explicitness, from the linked page:
      page declares exactly ONE Event object. A multi-event page cannot be
      attributed to one candidate without guessing, so it returns nothing.
   2. Microdata ``itemprop="startDate"``/``"endDate"`` content attributes —
-     but ONLY inside a schema.org Event ``itemscope``, only when the page
-     declares exactly ONE such Event scope, and subject to the same identity
-     guard as JSON-LD (evaluator blocker, PR #189 r3: an out-of-scope or
-     unrelated microdata date must never donate itself to the candidate).
+     but ONLY inside a schema.org Event ``itemscope``, and only when the
+     page declares exactly ONE such Event scope (a multi-event page offers
+     no way to attribute one declaration to the candidate).
+
+Trust doctrine (founder ruling 2026-08-05, decision record
+2026-08-05_source-site-authoritative.md): the link is PROVEN to be the
+source's own before any fetch (the caller's verbatim URL-token check), and
+from there the page's declarations are AUTHORITATIVE — no identity
+cross-examination, no contradiction refusals. The remaining bounds are
+security (SSRF/size) and attribution (single Event per format), never
+distrust of the source.
 
 Bounds and honesty:
   - One bounded HTTP fetch per call (timeout, 1.5 MB cap, http/https only),
@@ -136,15 +143,12 @@ def _jsonld_events(html: str) -> List[dict]:
 
 
 def _jsonld_event_dates(event: dict) -> Dict[str, str]:
-    """{start_time, end_time, _name} from ONE JSON-LD Event object."""
+    """{start_time, end_time} from ONE JSON-LD Event object."""
     out = {}
     for field, key in (("start_time", "startDate"), ("end_time", "endDate")):
         v = event.get(key)
         if isinstance(v, str) and v.strip():
             out[field] = v.strip()
-    name = event.get("name")
-    if out and isinstance(name, str) and name.strip():
-        out["_name"] = name.strip()  # for the caller's identity guard only
     return out
 
 
@@ -154,14 +158,14 @@ _VOID_TAGS = frozenset({
 
 
 class _MicrodataEventScopes(HTMLParser):
-    """Collect startDate/endDate/name itemprops PER schema.org Event scope.
+    """Collect startDate/endDate itemprops PER schema.org Event scope.
 
     Evaluator blocker (PR #189 r3): the previous regex pass read itemprop
     content attributes from ANYWHERE on the page — a generic page with one
     unrelated microdata startDate could donate its date to the candidate.
     This parser attributes each itemprop to its nearest enclosing
     ``itemscope`` whose ``itemtype`` is a schema.org Event; itemprops outside
-    any Event scope are ignored entirely.
+    any Event scope are ignored entirely (attribution, not distrust).
     """
 
     def __init__(self) -> None:
@@ -169,14 +173,6 @@ class _MicrodataEventScopes(HTMLParser):
         self._tag_stack: List[str] = []
         self._scope_depths: List[int] = []   # tag-stack depth of each open Event scope
         self._scope_events: List[dict] = []  # parallel: the dict being filled
-        # Visible-text itemprop="name" capture (evaluator blocker, PR #189
-        # r4: common microdata puts the name in element TEXT, not a content
-        # attribute — dropping it let an unrelated Event slip past the
-        # identity guard as "nameless"). Parallel stacks: capture depth,
-        # buffer, and the Event dict the finished name belongs to.
-        self._name_depths: List[int] = []
-        self._name_bufs: List[List[str]] = []
-        self._name_scopes: List[dict] = []
         self.events: List[dict] = []
 
     def _handle_tag(self, tag: str, attrs, closes_itself: bool) -> None:
@@ -188,15 +184,9 @@ class _MicrodataEventScopes(HTMLParser):
             or t.strip().lower() == "event"
             for t in a.get("itemtype", "").split()))
         prop = a.get("itemprop", "").strip()
-        if prop in ("startDate", "endDate", "name") and self._scope_events \
+        if prop in ("startDate", "endDate") and self._scope_events \
                 and not opens_scope and a.get("content", "").strip():
             self._scope_events[-1].setdefault(prop, set()).add(a["content"].strip())
-        elif prop == "name" and self._scope_events and not opens_scope \
-                and not closes_itself and tag not in _VOID_TAGS:
-            # No content attr: the name is the element's visible text.
-            self._name_depths.append(len(self._tag_stack))
-            self._name_bufs.append([])
-            self._name_scopes.append(self._scope_events[-1])
         if opens_scope and not closes_itself:
             ev: dict = {}
             self.events.append(ev)
@@ -211,23 +201,9 @@ class _MicrodataEventScopes(HTMLParser):
     def handle_startendtag(self, tag, attrs):
         self._handle_tag(tag, attrs, closes_itself=True)
 
-    def handle_data(self, data):
-        for buf in self._name_bufs:
-            buf.append(data)
-
-    def _finish_names_at(self, depth: int) -> None:
-        """Finalize any text-name captures whose element sits at >= depth."""
-        while self._name_depths and self._name_depths[-1] >= depth:
-            self._name_depths.pop()
-            text = "".join(self._name_bufs.pop()).strip()
-            scope = self._name_scopes.pop()
-            if text:
-                scope.setdefault("name", set()).add(text)
-
     def handle_endtag(self, tag):
         # Lenient close (real-world HTML): pop to the matching open tag if
-        # one exists, closing any Event scopes and finishing any text-name
-        # captures opened at or below that depth.
+        # one exists, closing any Event scopes opened at or below that depth.
         if tag in _VOID_TAGS or tag not in self._tag_stack:
             return
         while self._tag_stack:
@@ -236,13 +212,8 @@ class _MicrodataEventScopes(HTMLParser):
             while self._scope_depths and self._scope_depths[-1] >= depth_after_pop:
                 self._scope_depths.pop()
                 self._scope_events.pop()
-            self._finish_names_at(depth_after_pop)
             if popped == tag:
                 break
-
-    def close(self):
-        super().close()
-        self._finish_names_at(0)  # unclosed name elements still finalize
 
 
 def _microdata_events(html: str) -> List[dict]:
@@ -257,8 +228,8 @@ def _microdata_events(html: str) -> List[dict]:
 
 
 def _microdata_event_dates(ev: dict) -> Dict[str, str]:
-    """{start_time, end_time, _name} from ONE microdata Event scope,
-    single occurrence per itemprop."""
+    """{start_time, end_time} from ONE microdata Event scope, single
+    occurrence per itemprop."""
     if not (ev.get("startDate") or ev.get("endDate")):
         return {}
     out: Dict[str, str] = {}
@@ -266,55 +237,19 @@ def _microdata_event_dates(ev: dict) -> Dict[str, str]:
         values = ev.get(prop) or set()
         if len(values) == 1:
             out[field] = next(iter(values))
-    names = ev.get("name") or set()
-    if out and len(names) == 1:
-        out["_name"] = next(iter(names))  # for the caller's identity guard only
     return out
 
 
-def _identity_aligned(candidate_title: Optional[str], event_name: Optional[str]) -> bool:
-    """The linked page's single Event must PROVABLY be the candidate.
-
-    Fail-closed rules (evaluator blockers, PR #189 r6/r7 — the earlier
-    missing-name-allows doctrine let a nameless Event donate a date; plain
-    substring containment let "Art" align with "P-art-y Night"):
-      - No Event name, or no candidate title, or no comparable words on
-        either side: REFUSE — absence of identity evidence is not identity.
-      - Containment is WORD-BOUNDED and MULTI-WORD: one name's word
-        sequence must appear as a contiguous run of the other's words
-        ("Night Owls Live" in "Night Owls Live at The Cellar") — never a
-        raw substring match, and a single contained word is not identity
-        unless the two names are exactly equal.
-      - Otherwise the names must share at least TWO meaningful words AND
-        two-thirds of the candidate-title's words — one shared generic word
-        is never enough.
-    A refused alignment just leaves the claim honestly dateless."""
-    if not candidate_title or not event_name:
-        return False
-    a = {w for w in candidate_title.casefold().split() if len(w) > 2}
-    b = {w for w in event_name.casefold().split() if len(w) > 2}
-    if not a or not b:
-        return False
-    ta = candidate_title.casefold().split()
-    tb = event_name.casefold().split()
-
-    def _word_run(needle: List[str], hay: List[str]) -> bool:
-        if needle == hay:
-            return True
-        if len(needle) < 2:
-            return False  # one contained word is not identity
-        return any(hay[i:i + len(needle)] == needle
-                   for i in range(len(hay) - len(needle) + 1))
-
-    if _word_run(ta, tb) or _word_run(tb, ta):
-        return True
-    shared = a & b
-    return len(shared) >= 2 and len(shared) / len(a) >= 2 / 3
-
-
-def recover_dates_from_url(url: str, timeout: int = 15,
-                           candidate_title: Optional[str] = None) -> Dict[str, str]:
+def recover_dates_from_url(url: str, timeout: int = 15) -> Dict[str, str]:
     """Read explicit machine-declared dates off the event's own page.
+
+    The caller has already PROVEN the URL is the source's own (verbatim
+    URL-token check), and from there the page's declarations are
+    AUTHORITATIVE (founder ruling 2026-08-05, decision record
+    2026-08-05_source-site-authoritative.md) — no identity
+    cross-examination, no contradiction refusals. The only remaining skip
+    is attribution: a page declaring MORE than one Event in a format
+    offers no way to know which one is the candidate's.
 
     Returns raw claim strings keyed start_time/end_time (subset, possibly
     empty). The caller MUST re-run the strict normalizer on them — this
@@ -325,49 +260,15 @@ def recover_dates_from_url(url: str, timeout: int = 15,
         return {}
     jl_events = _jsonld_events(html)
     md_events = _microdata_events(html)
-    # Cross-format cardinality (evaluator blocker, PR #189 r6): a page with
-    # one JSON-LD Event but several microdata Events — or vice versa — is
-    # still a multi-event page; attributing any one declaration to the
-    # candidate would be a guess. More than one Event in EITHER format
-    # refuses the whole page. (One in each is allowed: a page commonly
-    # declares the same single event in both formats, and each surviving
-    # declaration still faces the identity guard below.)
     if len(jl_events) > 1 or len(md_events) > 1:
-        logger.info("date callback: page declares multiple Events across "
-                    "formats (%d JSON-LD, %d microdata) — recovery refused",
+        logger.info("date callback: page declares multiple Events "
+                    "(%d JSON-LD, %d microdata) — cannot attribute one to "
+                    "the candidate, skipping",
                     len(jl_events), len(md_events))
         return {}
     dates = _jsonld_event_dates(jl_events[0]) if jl_events else {}
-    micro = _microdata_event_dates(md_events[0]) if md_events else {}
-    jl_name = dates.pop("_name", None)
-    md_name = micro.pop("_name", None)
-    # Cross-format CONTRADICTION check, BEFORE any format is chosen
-    # (evaluator blocker, PR #189 r7): one Event in each format is allowed
-    # on the premise both describe the same event — so if their declared
-    # values disagree, or both carry names and exactly one aligns with the
-    # candidate, the page's own evidence is in dispute and NOTHING is
-    # recovered; a disputed date must be refused, never chosen.
-    if dates and micro:
-        for f in ("start_time", "end_time"):
-            if f in dates and f in micro and dates[f] != micro[f]:
-                logger.info("date callback: JSON-LD and microdata disagree "
-                            "on %s — recovery refused (contradiction)", f)
-                return {}
-        if jl_name and md_name and (
-                _identity_aligned(candidate_title, jl_name)
-                != _identity_aligned(candidate_title, md_name)):
-            logger.info("date callback: JSON-LD and microdata Event names "
-                        "disagree on identity — recovery refused")
-            return {}
-    if dates and not _identity_aligned(candidate_title, jl_name):
-        logger.info("date callback: JSON-LD Event name does not align with "
-                    "candidate title — recovery refused (identity guard)")
-        dates = {}
     if "start_time" in dates:
         return dates
-    if micro and not _identity_aligned(candidate_title, md_name):
-        logger.info("date callback: microdata Event name does not align with "
-                    "candidate title — recovery refused (identity guard)")
-        micro = {}
+    micro = _microdata_event_dates(md_events[0]) if md_events else {}
     micro.update(dates)  # JSON-LD end_time (if any) outranks microdata's
     return micro
