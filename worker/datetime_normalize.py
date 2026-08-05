@@ -110,6 +110,68 @@ def normalize_datetime_claim(
     return a.isoformat(), None
 
 
+def resolve_yearless_claim(
+    raw: Any,
+    reference: Optional[datetime] = None,
+) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
+    """LAST-RESORT year resolution for a claim that is a full date except the
+    year ("August 9", "Sat Aug 9 7pm"). Founder-ratified 2026-08-05 ("Yes on
+    the year rule"), explicitly SUBORDINATE to callback evidence: callers try
+    worker/date_callback.py first and reach here only when the source offered
+    no machine-readable date to read back.
+
+    Rule (a calendar reader's, made deterministic and auditable): resolve to
+    the year that places the date within [-30, +300) days of ``reference``
+    (default: now). That window is narrower than a year, so at most one
+    candidate year fits — no tie to guess. Outside the window (a year-less
+    date >10 months out) we still refuse.
+
+    Returns (iso, note) on resolution — note is the provenance record
+    {"raw", "resolved", "reference"} — else (None, None). Claims that are
+    NOT merely year-less (time-only, unparseable, ambiguous-numeric) return
+    (None, None): this function widens nothing else.
+    """
+    if raw is None:
+        return None, None
+    s = str(raw).strip()
+    if not s:
+        return None, None
+    m = _NUMERIC_DATE.match(s)
+    if m:
+        first, second = int(m.group(1)), int(m.group(2))
+        if first <= 12 and second <= 12 and first != second:
+            return None, None  # ambiguous day/month order stays refused
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        try:
+            a = _duparser.parse(s, default=_PROBE_A)
+            b = _duparser.parse(s, default=_PROBE_B)
+        except (ValueError, OverflowError, TypeError):
+            return None, None
+    if any(issubclass(w.category, _UnknownTz) for w in caught):
+        return None, None
+    if a.date() == b.date():
+        return None, None  # fully dated — the strict path already stored it
+    if (a.month, a.day, a.timetz()) != (b.month, b.day, b.timetz()):
+        return None, None  # more than the year is unevidenced — stays refused
+    ref = reference or datetime.now()
+    resolved = None
+    for year in (ref.year - 1, ref.year, ref.year + 1):
+        try:
+            cand = a.replace(year=year)
+        except ValueError:  # Feb 29 in a non-leap candidate year
+            continue
+        delta = (cand.date() - ref.date()).days
+        if -30 <= delta < 300:
+            resolved = cand
+            break
+    if resolved is None:
+        return None, None
+    note = {"raw": s, "resolved": "year-from-fetch-date",
+            "reference": ref.date().isoformat()}
+    return resolved.isoformat(), note
+
+
 def normalize_extracted_datetimes(
     shaped: Dict[str, Any],
 ) -> Dict[str, Dict[str, str]]:

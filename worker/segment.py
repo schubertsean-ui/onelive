@@ -79,6 +79,40 @@ _ANCHOR_LINE_RE = re.compile(
 # case-insensitive — matches "event-card", "eventItem", "show", "listing", etc.
 _CARDISH_CLASS_RE = re.compile(r"event|card|listing|show|gig|happening", re.I)
 
+# A FULL date (as opposed to the broad date-or-time anchor above): a month name
+# with a day number (either order), an ISO date, or a numeric date WITH a year.
+# This is the bar a block must itself meet to need no carried context — a bare
+# time or weekday does not clear it. Year-less month+day forms DO clear it:
+# the year is resolved downstream against the fetch date (founder-ratified
+# 2026-08-05 "Yes on the year rule"), preferring callback evidence first.
+_MONTHS_SRC = r"""(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may
+    |jun[e]?|jul[y]?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?
+    |nov(?:ember)?|dec(?:ember)?)"""
+_FULL_DATE_RE = re.compile(
+    r"""(?: \b""" + _MONTHS_SRC + r"""\.?\s+\d{1,2}(?:st|nd|rd|th)?\b
+      | \b\d{1,2}(?:st|nd|rd|th)?\s+""" + _MONTHS_SRC + r"""\b
+      | \b\d{4}-\d{1,2}-\d{1,2}\b
+      | \b\d{1,2}/\d{1,2}/\d{2,4}\b
+    )""",
+    re.I | re.X,
+)
+
+
+def _has_full_date(s: str) -> bool:
+    return _FULL_DATE_RE.search(s) is not None
+
+
+def _prepend_context(block: str, ctx: Optional[str]) -> str:
+    """Re-attach a page-published date line to a block that lacks its own full
+    date. The context is VERBATIM page text (a section header like "Tuesday,
+    August 5") — re-attachment of what the source itself published above the
+    block, never synthesis (founder 2026-08-05: "No one will post or announce
+    [an] event with just a time" — the date is on the page; segmentation must
+    not orphan it)."""
+    if ctx and not _has_full_date(block):
+        return f"{ctx}\n{block}"
+    return block
+
 # Block-level tags: stripping HTML to text, we insert a newline at each so that
 # date anchors that begin a listing land at the start of a line for the
 # anchor-split fallback.
@@ -121,9 +155,21 @@ class _ElementTextCollector(HTMLParser):
         super().__init__(convert_charrefs=True)
         self._should_start = should_start
         self.blocks: List[str] = []
+        # Per-block governing date context: the most recent full-date line the
+        # page published BETWEEN captures (a calendar's day header). Aligned
+        # with ``blocks`` by index; None when no such header preceded the block.
+        self.contexts: List[Optional[str]] = []
+        self._date_ctx: Optional[str] = None
+        self._ctx_buf: List[str] = []
         self._cap_tag: Optional[str] = None
         self._depth = 0
         self._buf: List[str] = []
+
+    def _flush_ctx(self) -> None:
+        line = _ws(" ".join(self._ctx_buf))
+        self._ctx_buf = []
+        if line and _has_full_date(line) and len(line) <= 120:
+            self._date_ctx = line
 
     def handle_starttag(self, tag, attrs):
         t = tag.lower()
@@ -131,6 +177,8 @@ class _ElementTextCollector(HTMLParser):
             if t == self._cap_tag:
                 self._depth += 1
             return
+        if t in _BLOCK_LEVEL_TAGS:
+            self._flush_ctx()
         if self._should_start(t, {k.lower(): (v or "") for k, v in attrs}):
             self._cap_tag = t
             self._depth = 1
@@ -147,12 +195,17 @@ class _ElementTextCollector(HTMLParser):
             self._depth -= 1
             if self._depth == 0:
                 self.blocks.append(_ws(" ".join(self._buf)))
+                self.contexts.append(self._date_ctx)
                 self._cap_tag = None
                 self._buf = []
+        elif self._cap_tag is None and tag.lower() in _BLOCK_LEVEL_TAGS:
+            self._flush_ctx()
 
     def handle_data(self, data):
         if self._cap_tag is not None:
             self._buf.append(data)
+        else:
+            self._ctx_buf.append(data)
 
 
 class _TextStripper(HTMLParser):
@@ -206,7 +259,10 @@ def _collect(html: str, should_start: Callable[[str, Dict[str, str]], bool]) -> 
     except Exception:  # noqa: BLE001 — malformed markup must never crash the pipeline
         logger.warning("HTML element collection failed", exc_info=True)
         return []
-    return [b for b in c.blocks if len(b.strip()) >= _MIN_BLOCK_CHARS]
+    contexts = c.contexts + [None] * (len(c.blocks) - len(c.contexts))
+    return [_prepend_context(b, ctx)
+            for b, ctx in zip(c.blocks, contexts)
+            if len(b.strip()) >= _MIN_BLOCK_CHARS]
 
 
 def _jsonld_event_blocks(html: str) -> List[str]:
@@ -343,8 +399,19 @@ def _segment_by_date_anchors(text: str) -> List[str]:
     blocks: List[str] = []
     for s, e in zip(starts, ends):
         chunk = text[s:e].strip()
-        if len(chunk) >= _MIN_BLOCK_CHARS:
-            blocks.append(chunk)
+        if len(chunk) < _MIN_BLOCK_CHARS:
+            continue
+        if not _has_full_date(chunk):
+            # Nearest full-date line the page published ABOVE this block —
+            # a calendar day-header governs the listings under it.
+            ctx = None
+            for line in reversed(text[:s].splitlines()):
+                line = line.strip()
+                if line and _has_full_date(line) and len(line) <= 120:
+                    ctx = line
+                    break
+            chunk = _prepend_context(chunk, ctx)
+        blocks.append(chunk)
     return blocks if len(blocks) >= 2 else [text]
 
 

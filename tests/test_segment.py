@@ -130,3 +130,39 @@ def test_no_fabrication_block_text_is_substring_of_source():
     for b in segment_events(text):
         for token in b.split():
             assert token in text
+
+
+def test_html_blocks_carry_governing_date_header():
+    # Founder 2026-08-05: "No one will post or announce [an] event with just a
+    # time" — a calendar's day-header governs the listings under it, and
+    # segmentation must not orphan it.
+    html = """
+    <html><body>
+    <h2>Tuesday, August 5</h2>
+    <ul>
+    <li class="event-card">Discovery Day, 10:00 AM - 4:00 PM</li>
+    <li class="event-card">Homeschool Day, 9:00 AM - 1:30 PM</li>
+    </ul>
+    <h2>Wednesday, August 6</h2>
+    <ul>
+    <li class="event-card">Star Party, 7:30 PM - 9:00 PM</li>
+    <li class="event-card">Maker Night on August 6, 6:00 PM</li>
+    </ul>
+    </body></html>"""
+    blocks = segment_events(html, content_type="text/html")
+    assert blocks[0].startswith("Tuesday, August 5\n")
+    assert blocks[1].startswith("Tuesday, August 5\n")
+    assert blocks[2].startswith("Wednesday, August 6\n")
+    # A block that already carries its own full date stays verbatim.
+    assert blocks[3] == "Maker Night on August 6, 6:00 PM"
+
+
+def test_text_blocks_carry_preceding_date_line():
+    text = (
+        "Saturday, August 8\n"
+        "7:00 PM Doors - Night Owls on the patio\n"
+        "9:30 PM Late set with the trio\n"
+    )
+    blocks = segment_events(text)
+    dated = [b for b in blocks if "Night Owls" in b or "Late set" in b]
+    assert all(b.startswith("Saturday, August 8\n") for b in dated)
