@@ -75,6 +75,7 @@ from worker.candidate_store import (
     stamp_gate_verdict,
 )
 from worker.fetch.http_fetch import fetch_url
+from worker.fetch.paginate import discover_next_page
 from worker.fetch.render_fetch import RenderError, fetch_with_render, render_html
 from worker.replay_log import ReplayRecord, canonical_digest, log_step, new_run_id
 from worker.sensors import assess_input
@@ -210,6 +211,164 @@ def _make_budgeted_render(render_state: Dict[str, int]):
     return _render
 
 
+# Founder-directed 2026-08-05 ("build multi-page ingestion next. It's the
+# single biggest lever left"): a paginated calendar is read for up to this
+# many pages per run. The proving case is the Austin Chronicle: 2,362 events
+# across 60 pages, of which a single-page fetch reads ~40.
+#
+# Why a small number is the RIGHT number, not a timid one: calendar pages are
+# date-ordered, so page 1 carries the soonest events — exactly what a tonight
+# product needs — and deeper events rise toward page 1 as their date
+# approaches. Front-following therefore reaches the whole calendar over time
+# without ever pulling sixty pages in one run. The existing per-page AI-call
+# cap (ai_extract._max_events_per_page) still bounds extraction cost: extra
+# pages add fetch bytes, never an unbounded number of model calls.
+_DEFAULT_MAX_PAGES_PER_SOURCE = 5
+
+
+def _max_pages_per_source() -> int:
+    raw = os.environ.get("INGEST_MAX_PAGES_PER_SOURCE", "").strip()
+    if not raw:
+        return _DEFAULT_MAX_PAGES_PER_SOURCE
+    try:
+        n = int(raw)
+    except ValueError:
+        logger.warning("INGEST_MAX_PAGES_PER_SOURCE=%r is not an int — using "
+                       "default %d", raw, _DEFAULT_MAX_PAGES_PER_SOURCE)
+        return _DEFAULT_MAX_PAGES_PER_SOURCE
+    return n if n >= 1 else _DEFAULT_MAX_PAGES_PER_SOURCE
+
+
+def _extraction_block_budget() -> Optional[int]:
+    """How many candidate blocks one run will actually extract, or None.
+
+    Read from ai_extract so there is ONE cap, not a second copy that could
+    drift from the one doing the truncating. None means the cap is unreadable,
+    and the walk then behaves exactly as it did before this check existed —
+    an unknown budget must not silently stop paging.
+    """
+    try:
+        from worker.ai_extract import _max_events_per_page
+        return _max_events_per_page()
+    except Exception as exc:  # noqa: BLE001 — a budget probe must never break ingestion
+        logger.info("extraction block budget unreadable (%s) — paging without "
+                    "the budget stop", type(exc).__name__)
+        return None
+
+
+def _approx_blocks(text: str) -> int:
+    """Candidate blocks the accumulated text would segment into.
+
+    Uses the REAL segmenter rather than an estimate, so the walk's stop point
+    and extraction's truncation point are computed the same way.
+    """
+    try:
+        from worker.segment import segment_events
+        return len(segment_events(text))
+    except Exception as exc:  # noqa: BLE001 — never break ingestion on a probe
+        logger.info("block count unreadable (%s) — paging without the budget "
+                    "stop", type(exc).__name__)
+        return 0
+
+
+def _fetch_paginated(
+    *,
+    source_id: Optional[str],
+    url: str,
+    render_state: Dict[str, int],
+) -> Dict[str, Any]:
+    """Fetch page 1, then follow the SOURCE'S OWN next-page links (bounded).
+
+    Page 1 keeps the full existing behavior — render fallback, 304 handling,
+    audit rows — untouched, and its result is what this returns. Additional
+    pages are PLAIN fetches (a render per page would multiply browser cost
+    for pages that are the same template) whose text is appended, so the
+    sensor, extractor, and gate see one longer document and every downstream
+    contract is unchanged.
+
+    Fail-soft by construction: any problem on page N>1 stops the walk and
+    keeps everything already read. A calendar that publishes no next link is
+    simply a one-page fetch, exactly as before.
+    """
+    first = _fetch_with_render_fallback(
+        source_id=source_id, url=url, render_state=render_state,
+    )
+    if first.get("status") != "ok" or not first.get("text"):
+        return first  # 304 / error: nothing to page through
+
+    max_pages = _max_pages_per_source()
+    if max_pages <= 1:
+        return first
+
+    texts = [first["text"]]
+    seen = {url}
+    current_url = url
+    current_html = first["text"]
+    pages = 1
+    # The extraction budget is per RUN, and the pages are concatenated into one
+    # document before extraction — so once the accumulated text already carries
+    # more candidate blocks than a run can extract, every further page is
+    # fetched and then truncated away. Following them is pure cost (requests,
+    # rate-limit exposure, wall clock) for zero events, so the walk stops.
+    block_budget = _extraction_block_budget()
+
+    while pages < max_pages:
+        if block_budget is not None and _approx_blocks("\n".join(texts)) >= block_budget:
+            logger.info(
+                "paginated fetch: %s stopping at %d page(s) — the extraction "
+                "budget (%d blocks) is already full, so a further page would "
+                "be fetched and then truncated away",
+                url, pages, block_budget)
+            break
+        try:
+            next_url = discover_next_page(current_html, current_url, seen)
+        except Exception as exc:  # noqa: BLE001 — discovery must never break ingestion
+            logger.warning("next-page discovery failed for %s (%s) — keeping "
+                           "%d page(s)", current_url, type(exc).__name__, pages)
+            break
+        if not next_url:
+            break
+        try:
+            page_result = fetch_url(source_id=source_id, url=next_url)
+            if page_result.get("status") != "ok":
+                logger.info("page %d of %s returned %s — keeping %d page(s)",
+                            pages + 1, url, page_result.get("status"), pages)
+                break
+            page_text = _read_fetched_text(page_result)
+        except Exception as exc:  # noqa: BLE001 — a later page must never lose page 1
+            logger.warning("page %d fetch failed for %s (%s) — keeping %d "
+                           "page(s)", pages + 1, next_url, type(exc).__name__, pages)
+            break
+        if not page_text:
+            break
+        # SENSE THE PAGE BEFORE IT JOINS THE DOCUMENT. Adversarial pre-review
+        # catch (2026-08-05): the joined text is handed to assess_input as ONE
+        # string, and its checks scan the whole thing — so a later page that
+        # returns HTTP 200 with an interstitial ("Just a moment…"), an
+        # injection marker, or a truncated tail rejected pages 1..N-1 along
+        # with itself, dropping a source that reliably yields ~40 events to
+        # ZERO. Rate-limit interstitials are the realistic trigger, since the
+        # walk makes up to max_pages requests to a single host. The transport
+        # fail-soft above only ever covered non-ok status and exceptions; bad
+        # content behind a 200 slipped past it.
+        page_reading = assess_input(text=page_text,
+                                    content_type=page_result.get("content_type"))
+        if not page_reading.ok:
+            logger.info(
+                "page %d of %s did not pass the input sensor (%s) — keeping "
+                "%d good page(s) rather than losing them to it",
+                pages + 1, url, page_reading.reason, pages)
+            break
+        seen.add(next_url)
+        texts.append(page_text)
+        current_url, current_html = next_url, page_text
+        pages += 1
+
+    if pages > 1:
+        logger.info("paginated fetch: %s read %d pages", url, pages)
+    return {**first, "text": "\n".join(texts), "pages_fetched": pages}
+
+
 def _fetch_with_render_fallback(
     *,
     source_id: Optional[str],
@@ -305,7 +464,7 @@ def _run_one_source(
     url = source["url"]
     source_class = source["source_class"]
 
-    fetch_result = _fetch_with_render_fallback(
+    fetch_result = _fetch_paginated(
         source_id=source_id, url=url, render_state=render_state,
     )
     # Replay fetch entry: the original fields are all preserved; the render
@@ -315,6 +474,7 @@ def _run_one_source(
     fetch_outputs: Dict[str, Any] = {
         "status": fetch_result.get("status"),
         "rendered": bool(fetch_result.get("rendered")),
+        "pages_fetched": fetch_result.get("pages_fetched", 1),
     }
     if fetch_result.get("rendered"):
         fetch_outputs["plain_shell_reason"] = fetch_result.get("plain_shell_reason")
