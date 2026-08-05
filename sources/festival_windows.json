@@ -1,0 +1,24 @@
+{
+  "_comment": "Festival windows as DATA — reviewed and committed, never scraped or inferred (docs/design/FESTIVAL_SPECIAL_SITUATIONS_v1.md piece 1; founder-ratified mode 2026-08-05: 'automatic daily inside festival windows'). A window being ACTIVE (starts <= today <= ends, America/Chicago) turns on the daily source-scan sweep; everything else festival-mode consumes this file later (cadence boost, keyword lanes, pop-up expiry). Dates are inclusive.",
+  "windows": [
+    {
+      "slug": "acl-2026",
+      "name": "Austin City Limits 2026",
+      "starts": "2026-10-02",
+      "ends": "2026-10-11",
+      "geo": "austin",
+      "sxsw_mode": true,
+      "keyword_pack": ["ACL", "Austin City Limits", "day party", "after party",
+                       "unofficial showcase", "pop-up", "free show Zilker"]
+    },
+    {
+      "slug": "f1-usgp-2026",
+      "name": "Formula 1 United States Grand Prix 2026",
+      "starts": "2026-10-23",
+      "ends": "2026-10-25",
+      "geo": "austin",
+      "sxsw_mode": true,
+      "keyword_pack": ["F1", "Grand Prix", "race week party", "COTA", "after party", "pop-up"]
+    }
+  ]
+}

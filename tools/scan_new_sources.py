@@ -33,32 +33,56 @@ import sys
 import urllib.parse
 
 from tools.search_api import MissingKey, SearchError, api_key, search, web_results
+from worker.importers.domain_map import DOMAINS
 
 CATALOG_DEFAULT = "sources/master_sources_catalog_120.json"
 
-# The founder's query shapes, per catalog category family. Deliberately plain
-# phrases a person would type — the point is breadth, not cleverness.
-QUERY_PACK = [
-    "live music venues",
-    "bars with live music",
-    "music venue calendar",
-    "comedy club",
-    "theater performances calendar",
-    "art gallery openings",
-    "museum events calendar",
-    "dance hall",
-    "brewery live music events",
-    "winery events",
-    "coffee shop open mic",
-    "bookstore author events",
-    "farmers market events",
-    "community center events calendar",
-    "church concert series",
-    "university events calendar",
-    "poetry reading open mic",
-    "trivia night bars",
-    "festival calendar",
-    "record store in-store performance",
+# v2 (founder-directed 2026-08-05, verbatim "do what I tell you - I want all
+# the data in the initial launch to prove value and depth and breadth"): the
+# query pack is DERIVED from the canonical cultural-domain taxonomy
+# (worker/importers/domain_map.DOMAINS) — two plain phrases a person would
+# type per domain. tests/test_scan_new_sources.py pins pack-keys == DOMAINS,
+# so adding a canonical domain FAILS the suite until the scanner covers it:
+# under-coverage can never recur silently (the v1 pack was an ad-hoc list of
+# 20 phrases that had zero queries for film, sports, family, wellness,
+# heritage, fashion-design, seasonal, and ideas).
+DOMAIN_QUERY_PACK = {
+    "comedy": ["comedy club", "stand up comedy shows"],
+    "community": ["community center events calendar", "chamber of commerce events"],
+    "dance": ["dance performances", "dance hall"],
+    "fairs-expos": ["fairgrounds events", "expo center event schedule"],
+    "family": ["things to do with kids", "family events calendar"],
+    "fashion-design": ["fashion show events", "designer market pop up"],
+    "festivals": ["festival calendar", "annual festivals"],
+    "film": ["independent movie theater showtimes", "film festival screenings"],
+    "food-drink": ["brewery live music events", "food and wine events"],
+    "heritage": ["historic site events", "heritage festival"],
+    "ideas": ["lecture series", "author talks speaker series"],
+    "library": ["library events calendar", "library programs"],
+    "literary": ["bookstore author events", "poetry reading open mic"],
+    "live-music": ["live music venues", "live music calendar"],
+    "nightlife": ["bars with live music", "nightclub events"],
+    "performing-arts": ["performing arts center schedule", "symphony opera ballet season"],
+    "place-based": ["botanical garden events", "state park events calendar"],
+    "seasonal": ["holiday market events", "seasonal events calendar"],
+    "sports": ["minor league game schedule", "race run signup events"],
+    "theater": ["theater performances calendar", "community theater season"],
+    "visual-arts": ["art gallery openings", "museum events calendar"],
+    "wellness": ["yoga in the park", "wellness workshop events"],
+}
+
+# Backwards-compatible flat pack (single-city callers / tests).
+QUERY_PACK = [q for qs in DOMAIN_QUERY_PACK.values() for q in qs]
+
+# The CAPCOG region (founder 2026-08-05: the launch must prove depth and
+# breadth across the whole Capital Area, not Austin alone). Every named town
+# has its own venues/calendars; several already produce candidates in the
+# live ingest (Marble Falls, Elgin, Hutto, Liberty Hill, Blanco).
+CAPCOG_CITIES = [
+    "Austin", "Round Rock", "Georgetown", "Cedar Park", "Leander",
+    "Pflugerville", "Hutto", "Taylor", "San Marcos", "Kyle", "Buda",
+    "Dripping Springs", "Wimberley", "Bastrop", "Elgin", "Smithville",
+    "Lockhart", "Luling", "Burnet", "Marble Falls", "Llano", "Blanco",
 ]
 
 # Domains that can never be a first-party event source: platforms, socials,
@@ -101,10 +125,14 @@ def is_platform(domain: str) -> bool:
 def main(argv=None) -> int:
     """Run the query pack, diff result domains against the catalog, emit JSON."""
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--city", default="Austin",
-                    help='market prefix for every query (default "Austin")')
-    ap.add_argument("--max-queries", type=int, default=20,
-                    help="API calls this run (Brave free plan: 2,000/month)")
+    ap.add_argument("--city", default=None,
+                    help="single market prefix (overrides --cities)")
+    ap.add_argument("--cities", default=None,
+                    help="comma-separated market prefixes; default = the "
+                         "full CAPCOG list")
+    ap.add_argument("--max-queries", type=int, default=1000,
+                    help="API-call ceiling this run (fail-loud bound; a full "
+                         "CAPCOG sweep is len(cities) x len(pack) queries)")
     ap.add_argument("--catalog", default=CATALOG_DEFAULT)
     args = ap.parse_args(argv)
 
@@ -117,12 +145,26 @@ def main(argv=None) -> int:
     with open(args.catalog, encoding="utf-8") as fh:
         known = catalog_domains(json.load(fh))
 
+    if args.city:
+        cities = [args.city]
+    elif args.cities:
+        cities = [c.strip() for c in args.cities.split(",") if c.strip()]
+    else:
+        cities = CAPCOG_CITIES
+
+    sweep = [f"{city} {term}" for city in cities for term in QUERY_PACK]
+    if len(sweep) > args.max_queries:
+        print(f"sweep of {len(sweep)} queries exceeds --max-queries="
+              f"{args.max_queries}; running the first {args.max_queries} "
+              "(raise the bound deliberately for a full sweep)",
+              file=sys.stderr)
+        sweep = sweep[: args.max_queries]
+
     found: dict[str, dict] = {}
     calls = 0
     failures = 0
     total_results = 0
-    for term in QUERY_PACK[: args.max_queries]:
-        q = f"{args.city} {term}"
+    for q in sweep:
         calls += 1
         try:
             page = search(q, count=20)
@@ -154,7 +196,7 @@ def main(argv=None) -> int:
         return 3
 
     out = {
-        "city": args.city,
+        "cities": cities,
         "api_calls": calls,
         "calls_failed": failures,
         "results_seen": total_results,
