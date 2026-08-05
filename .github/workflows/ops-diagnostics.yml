@@ -6,8 +6,10 @@ name: ops-diagnostics
 # certificate status for the accounts.1live.co SSL saga), VERCEL_TOKEN (env
 # hygiene — including deleting the stray AUTH_DISABLED var — and redeploys so
 # env changes take effect), HEALTHCHECKS_API_KEY (create/tune dead-man checks
-# programmatically). Plus a Google CSE probe (plain query, no site: operator)
-# to verify the search lane after the GOOGLE_CSE_CX re-entry.
+# programmatically). Plus a Brave Search probe (plain query) to verify the
+# search lane's credential (provider switch 2026-08-05: Google's Custom
+# Search refuses the account at the account level — decision records
+# 2026-08-05_founder-delegated-google-fix.md + _search-lane-brave-switch.md).
 #
 # Manual dispatch ONLY — no schedule, so no dead-man check is owed (a
 # scheduled loop would require one from birth). Read modes print summaries;
@@ -15,8 +17,8 @@ name: ops-diagnostics
 # healthchecks-create, each founder-delegated verbatim in the 2026-08-05
 # kickoff and each requiring its argument explicitly (no defaults that act).
 # No secret value is ever printed: Vercel env listing prints names/targets
-# only; the CSE probe prints the cx SHAPE (length + charset class), never the
-# value. This workflow holds no database credentials.
+# only; the Brave probe prints the key SHAPE (length + whitespace class),
+# never the value. This workflow holds no database credentials.
 
 on:
   workflow_dispatch:
@@ -32,7 +34,7 @@ on:
           - vercel-redeploy
           - healthchecks-list
           - healthchecks-create
-          - cse-probe
+          - brave-probe
           - site-probe
       project:
         description: "Vercel project name/id (vercel-* modes; fail-loud required there)"
@@ -194,37 +196,26 @@ jobs:
               echo "TLS handshake or connect FAILED for $host — certificate not issued/valid yet"
             fi
           done
-      - name: "Google CSE probe (plain query, no site-operator) + cx SHAPE report"
-        if: ${{ github.event.inputs.mode == 'cse-probe' }}
+      - name: "Brave Search probe (plain query) + key SHAPE report"
+        if: ${{ github.event.inputs.mode == 'brave-probe' }}
         env:
-          GOOGLE_CSE_KEY: ${{ secrets.GOOGLE_CSE_KEY }}
-          GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
         run: |
-          : "${GOOGLE_CSE_KEY:?GOOGLE_CSE_KEY secret missing}"
-          : "${GOOGLE_CSE_CX:?GOOGLE_CSE_CX secret missing}"
-          # Shape only — never the value: length + whether it matches the
-          # PSE engine-id charset (lowercase hex, no whitespace). A CX pasted
-          # with an embedded newline/space or a non-engine-id string shows up
-          # here without leaking anything.
-          printf 'cx shape: length=%s matches[0-9a-f]{10,20}=%s has_whitespace=%s\n' \
-            "${#GOOGLE_CSE_CX}" \
-            "$([[ "$GOOGLE_CSE_CX" =~ ^[0-9a-f]{10,20}$ ]] && echo yes || echo no)" \
-            "$([[ "$GOOGLE_CSE_CX" =~ [[:space:]] ]] && echo yes || echo no)"
-          # Key SHAPE too (same never-the-value discipline): a Google Cloud
-          # API key is 39 chars starting 'AIza'. This distinguishes "the
-          # secret never changed" from "the key is fine but its project
-          # rejects the API" when a 403 persists across re-pastes.
-          printf 'key shape: length=%s starts_AIza=%s has_whitespace=%s\n' \
-            "${#GOOGLE_CSE_KEY}" \
-            "$([[ "$GOOGLE_CSE_KEY" == AIza* ]] && echo yes || echo no)" \
-            "$([[ "$GOOGLE_CSE_KEY" =~ [[:space:]] ]] && echo yes || echo no)"
+          : "${BRAVE_SEARCH_API_KEY:?BRAVE_SEARCH_API_KEY secret missing — Free plan key: https://api-dashboard.search.brave.com/}"
+          # Shape only — never the value (the discipline that pinned every
+          # mis-paste in the Google saga without exposing anything).
+          printf 'key shape: length=%s has_whitespace=%s\n' \
+            "${#BRAVE_SEARCH_API_KEY}" \
+            "$([[ "$BRAVE_SEARCH_API_KEY" =~ [[:space:]] ]] && echo yes || echo no)"
           http_code=$(curl -sS -o probe.json -w '%{http_code}' \
-            "https://www.googleapis.com/customsearch/v1?key=$GOOGLE_CSE_KEY&cx=$GOOGLE_CSE_CX&q=austin+live+music")
+            -H "X-Subscription-Token: $BRAVE_SEARCH_API_KEY" \
+            -H "Accept: application/json" \
+            "https://api.search.brave.com/res/v1/web/search?q=austin+live+music&count=5")
           echo "HTTP $http_code"
-          # Success prints result COUNT only; failure prints Google's error
+          # Success prints result COUNT only; failure prints the API's error
           # body verbatim (it contains no secrets).
           if [ "$http_code" = "200" ]; then
-            jq '{totalResults: .searchInformation.totalResults, items: (.items | length)}' probe.json
+            jq '{results: (.web.results | length), first_host: (.web.results[0].url // "" | sub("https?://";"") | split("/")[0])}' probe.json
           else
             cat probe.json
             exit 1

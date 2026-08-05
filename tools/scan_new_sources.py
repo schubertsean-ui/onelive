@@ -9,16 +9,17 @@ case (2026-08-05): "have you just done a web search of 'city' live music
 venues and 'city' bars … Saxon Pub is an Austin institution" — which was NOT
 in the catalog until the Eventbrite harvest stumbled onto it.
 
-Method: run a category × term query pack through Google's Programmable Search
-JSON API (licensed programmatic use of the search index — the same lane as
-search_discover_eventbrite.py), collect result domains, and DIFF them against
+Method: run a category × term query pack through the Brave Search API
+(licensed programmatic use of a search index — the same lane as
+search_discover_eventbrite.py; founder-ratified provider switch 2026-08-05,
+Google refused the account), collect result domains, and DIFF them against
 the committed source catalog. Output: NEW domains only, each with the queries
 that surfaced it and example page titles — CANDIDATES for human curation into
 the catalog. Nothing is fetched from the found sites here and nothing enters
 the pipeline until a curated catalog row exists (custody unchanged).
 
-Requires GOOGLE_CSE_KEY + GOOGLE_CSE_CX. Bounded by --max-queries (free tier:
-100/day). Fail-loud: missing keys exit 2; zero results across all queries
+Requires BRAVE_SEARCH_API_KEY. Bounded by --max-queries (Brave free plan:
+2,000/month at 1 req/s). Fail-loud: a missing key exits 2; zero results across all queries
 exit 3 (quota/config — never an empty green). Zero NEW domains with results
 present exits 0 honestly (catalog already covers what search surfaced).
 
@@ -28,13 +29,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
-import time
 import urllib.parse
-import urllib.request
 
-API = "https://www.googleapis.com/customsearch/v1"
+from tools.search_api import MissingKey, SearchError, api_key, search, web_results
+
 CATALOG_DEFAULT = "sources/master_sources_catalog_120.json"
 
 # The founder's query shapes, per catalog category family. Deliberately plain
@@ -99,29 +98,20 @@ def is_platform(domain: str) -> bool:
     return any(domain == p or domain.endswith("." + p) for p in PLATFORM_DOMAINS)
 
 
-def search_page(key: str, cx: str, query: str, timeout: int = 20) -> dict:
-    """One Custom Search API call (documented endpoint, keyed access)."""
-    qs = urllib.parse.urlencode({"key": key, "cx": cx, "q": query, "num": 10})
-    req = urllib.request.Request(f"{API}?{qs}",
-                                 headers={"User-Agent": "1LiveSourceDiscovery/1.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8", errors="replace"))
-
-
 def main(argv=None) -> int:
     """Run the query pack, diff result domains against the catalog, emit JSON."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--city", default="Austin",
                     help='market prefix for every query (default "Austin")')
     ap.add_argument("--max-queries", type=int, default=20,
-                    help="API calls this run (free tier: 100/day)")
+                    help="API calls this run (Brave free plan: 2,000/month)")
     ap.add_argument("--catalog", default=CATALOG_DEFAULT)
     args = ap.parse_args(argv)
 
-    key = os.environ.get("GOOGLE_CSE_KEY", "").strip()
-    cx = os.environ.get("GOOGLE_CSE_CX", "").strip()
-    if not key or not cx:
-        print("GOOGLE_CSE_KEY / GOOGLE_CSE_CX missing", file=sys.stderr)
+    try:
+        api_key()
+    except MissingKey as exc:
+        print(str(exc), file=sys.stderr)
         return 2
 
     with open(args.catalog, encoding="utf-8") as fh:
@@ -135,14 +125,18 @@ def main(argv=None) -> int:
         q = f"{args.city} {term}"
         calls += 1
         try:
-            page = search_page(key, cx, q)
+            page = search(q, count=20)
+        except SearchError as exc:
+            failures += 1
+            print(f"query {q!r}: failed ({exc})", file=sys.stderr)
+            continue
         except Exception as exc:  # noqa: BLE001 — per-call report; zero-total fails below
             failures += 1
             print(f"query {q!r}: failed ({exc})", file=sys.stderr)
             continue
-        for item in page.get("items", []):
+        for item in web_results(page):
             total_results += 1
-            d = norm_domain(item.get("link", ""))
+            d = norm_domain(item["url"])
             if not d or d in known or is_platform(d):
                 continue
             entry = found.setdefault(d, {"domain": d, "queries": [],
@@ -150,9 +144,8 @@ def main(argv=None) -> int:
             if q not in entry["queries"]:
                 entry["queries"].append(q)
             if len(entry["example_titles"]) < 3:
-                entry["example_titles"].append(item.get("title", "")[:120])
-                entry["example_urls"].append(item.get("link", ""))
-        time.sleep(1)
+                entry["example_titles"].append(item["title"][:120])
+                entry["example_urls"].append(item["url"])
 
     if total_results == 0:
         print(f"0 search results across {calls} call(s) ({failures} failed) — "
