@@ -70,13 +70,22 @@ THIRD_PARTY_CLASSES = frozenset({
 })
 
 
+# Unknown classes already warned about. The warning must reach an operator
+# ONCE per class per process, not once per call: this predicate sits in the
+# gate's hot path, and logging it on every call both floods the log (the
+# name is the whole signal — the ten-thousandth copy adds nothing) and
+# costs real time. The perf gate caught exactly that: emitting the warning
+# per call blew multi_confirm_gate's 50us budget over 5,000 reps.
+_WARNED_UNCLASSIFIED: set = set()
+
+
 def is_first_party(source_class: str) -> bool:
     """True when the class is the horse's mouth.
 
     An UNKNOWN class is not assumed either way: it returns False (needs
-    corroboration — the safe direction) and is LOGGED LOUDLY. The silent
-    forever-hold is what stranded the DB-seeded institutional classes for
-    weeks; an unclassified source is a config defect to fix in days, not a
+    corroboration — the safe direction) and is LOGGED LOUDLY, once per class.
+    The silent forever-hold is what stranded the DB-seeded institutional
+    classes; an unclassified source is a config defect to fix in days, not a
     mystery to discover later from missing listings.
     """
     if not source_class:
@@ -84,12 +93,15 @@ def is_first_party(source_class: str) -> bool:
     if source_class in ANCHOR_CLASSES:
         return True
     if source_class not in THIRD_PARTY_CLASSES:
-        logger.warning(
-            "UNCLASSIFIED SOURCE CLASS %r — treated as third-party (needs "
-            "corroboration) because authority was never decided for it. Its "
-            "events will HOLD until it is added to ANCHOR_CLASSES (if the "
-            "source hosts or publishes its own events) or THIRD_PARTY_CLASSES "
-            "(if it reports on others) in worker/gating.py.", source_class)
+        if source_class not in _WARNED_UNCLASSIFIED:
+            _WARNED_UNCLASSIFIED.add(source_class)
+            logger.warning(
+                "UNCLASSIFIED SOURCE CLASS %r — treated as third-party (needs "
+                "corroboration) because authority was never decided for it. Its "
+                "events will HOLD until it is added to ANCHOR_CLASSES (if the "
+                "source hosts or publishes its own events) or "
+                "THIRD_PARTY_CLASSES (if it reports on others) in "
+                "worker/gating.py.", source_class)
     return False
 
 
