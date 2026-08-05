@@ -312,6 +312,25 @@ Never trap, never overshoot.**
 
 ## 8. Pillar A · External-link handling (the tabs problem, solved by intent)
 
+> **AMENDED 2026-08-05 by founder ruling — terminal handoffs open in a NEW TAB.**
+> This section's same-tab recommendation (row 2 of the table below, and the
+> bullet under it) is superseded. The founder, verbatim:
+>
+> > "And speaking of external links - they should never take up the entire
+> > screen on a mobile device. They should operate according similar to the
+> > slide out so a user can always know where they are and easily get back to
+> > 1live and whatever they were looking at prior to the click on the link to
+> > go external"
+>
+> Same-tab navigation *is* the full-screen takeover that ruling forbids: 1live's
+> page is gone and Back is the only way home. The section's own goal — the user
+> never loses their place — is better served by the new tab, which is why the
+> ruling wins on this spec's own terms rather than against them. Everything
+> else in §8 stands: the intent table's in-app rows, the `↗` affordance, the
+> screen-reader "external link, opens <host>" announcement, and the honest
+> "finishes on <host>" caption. Implemented in `web/lib/nav.ts` and pinned by
+> `web/qa/link-policy.test.ts`.
+
 **Match the pattern to the user's intent. Most "leaves" should not be leaves.**
 
 | Intent | Examples | Pattern | Rationale |
