@@ -260,3 +260,123 @@ def test_stale_date_context_cleared_by_section_boundary():
     tblocks = segment_events(text)
     lab = [b for b in tblocks if "Night Lab" in b]
     assert lab and not lab[0].startswith("Saturday, August 8")
+
+
+def test_link_token_guard_refuses_prefix_of_longer_url():
+    # Evaluator blocker (PR #189 r3): substring matching accepted an
+    # extracted ".../e/1" when the source only published ".../e/123" —
+    # a hallucinated prefix-link could fetch an unrelated page. The link
+    # must occur as a COMPLETE URL token.
+    from worker.ai_extract import _link_source_quoted
+
+    text = "Night Owls Live 7pm tickets: https://venue.example/e/123 tonight"
+    assert not _link_source_quoted("https://venue.example/e/1", text)
+    assert not _link_source_quoted("https://venue.example/e/12", text)
+    assert _link_source_quoted("https://venue.example/e/123", text)
+    # End-of-text and quoted forms are complete tokens.
+    assert _link_source_quoted("https://v.example/x", "buy: https://v.example/x")
+    assert _link_source_quoted("https://v.example/x", 'href="https://v.example/x"')
+    # A URL-character neighbour on either side means a DIFFERENT URL:
+    # fail closed (sentence punctuation like a trailing "." included —
+    # "." legitimately continues URLs, e.g. ".html").
+    assert not _link_source_quoted("https://v.example/x", "https://v.example/x.html")
+    assert not _link_source_quoted("v.example/x", "https://v.example/x ")
+
+
+def test_shaping_refuses_prefix_substring_link(monkeypatch):
+    # The r3 laundering shape end-to-end: extracted link is a prefix of the
+    # source's real URL — no callback fires, the claim stays refused.
+    stored = {}
+    monkeypatch.setattr(ai_extract, "create_candidate",
+                        lambda **kw: stored.update(kw) or "cand-1")
+    monkeypatch.setattr(ai_extract, "add_evidence", lambda **kw: None)
+    calls = []
+    monkeypatch.setattr(ai_extract, "recover_dates_from_url",
+                        lambda url, timeout=15, candidate_title=None:
+                        calls.append(url) or
+                        {"start_time": "2026-08-08T19:00:00"})
+    from datetime import datetime, timezone
+    ai_extract._shape_and_store_one(
+        {"title": "Night Owls", "start_time": "7:00 PM",
+         "ticket_link": "https://venue.example/e/1"},
+        {"_provenance": {"model": "test"}},
+        source_id=None, source_name="Test Source",
+        source_url="https://src.example", source_class="venue_calendar",
+        text="Night Owls 7:00 PM tickets: https://venue.example/e/123",
+        sxsw_mode=False, fetched_at=datetime.now(timezone.utc))
+    assert calls == []
+    assert stored["extracted"]["start_time"] is None
+
+
+def test_microdata_outside_event_scope_yields_nothing(monkeypatch):
+    # Evaluator blocker (PR #189 r3): a microdata startDate that is NOT
+    # inside a schema.org Event itemscope (e.g. a WebPage's dateModified-ish
+    # markup) must never donate a date.
+    html = """
+    <html><body itemscope itemtype="https://schema.org/WebPage">
+    <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: html)
+    assert recover_dates_from_url("https://venue.example/page") == {}
+
+    bare = """
+    <html><body>
+    <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: bare)
+    assert recover_dates_from_url("https://venue.example/page") == {}
+
+
+def test_microdata_two_event_scopes_yield_nothing(monkeypatch):
+    html = """
+    <html><body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
+    </div>
+    <div itemscope itemtype="https://schema.org/Event">
+      <meta itemprop="startDate" content="2026-08-11T20:00:00"/>
+    </div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: html)
+    assert recover_dates_from_url("https://venue.example/cal") == {}
+
+
+def test_microdata_identity_guard(monkeypatch):
+    # Evaluator blocker (PR #189 r3): the microdata path gets the SAME
+    # identity guard as JSON-LD — a single unrelated Event must not donate
+    # its date to the candidate.
+    html = """
+    <html><body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <meta itemprop="name" content="Night Owls Live"/>
+      <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
+    </div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: html)
+    assert recover_dates_from_url("https://venue.example/e/2",
+                                  candidate_title="Completely Different Gala") == {}
+    aligned = recover_dates_from_url("https://venue.example/e/2",
+                                     candidate_title="Night Owls Live")
+    assert aligned == {"start_time": "2026-08-10T18:00:00"}
+
+
+def test_year_rule_weekday_consistency():
+    # Evaluator blocker (PR #189 r3): a claim that NAMES a weekday must only
+    # resolve to a year where the month/day IS that weekday. Aug 8 was a
+    # Friday in 2025 and a Saturday in 2026.
+    from datetime import datetime, timezone
+    from worker.datetime_normalize import resolve_yearless_claim
+
+    ref_2025 = datetime(2025, 7, 1, tzinfo=timezone.utc)
+    iso, note = resolve_yearless_claim("Friday, August 8 7:00 PM", ref_2025)
+    assert iso is not None and iso.startswith("2025-08-08")
+    assert note["weekday_verified"].lower() == "friday"
+
+    ref_2026 = datetime(2026, 7, 1, tzinfo=timezone.utc)
+    assert resolve_yearless_claim("Friday, August 8 7:00 PM", ref_2026) == (None, None)
+    iso, note = resolve_yearless_claim("Saturday, August 8 7:00 PM", ref_2026)
+    assert iso is not None and iso.startswith("2026-08-08")
+
+    # No weekday named: unchanged behavior, no weekday key in the note.
+    iso, note = resolve_yearless_claim("August 8 7:00 PM", ref_2026)
+    assert iso is not None and "weekday_verified" not in note

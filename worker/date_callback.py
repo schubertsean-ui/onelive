@@ -11,8 +11,11 @@ What it reads, in order of explicitness, from the linked page:
   1. JSON-LD schema.org Event ``startDate``/``endDate`` — but ONLY when the
      page declares exactly ONE Event object. A multi-event page cannot be
      attributed to one candidate without guessing, so it returns nothing.
-  2. Microdata ``itemprop="startDate"``/``"endDate"`` content attributes,
-     same single-occurrence rule per field.
+  2. Microdata ``itemprop="startDate"``/``"endDate"`` content attributes —
+     but ONLY inside a schema.org Event ``itemscope``, only when the page
+     declares exactly ONE such Event scope, and subject to the same identity
+     guard as JSON-LD (evaluator blocker, PR #189 r3: an out-of-scope or
+     unrelated microdata date must never donate itself to the candidate).
 
 Bounds and honesty:
   - One bounded HTTP fetch per call (timeout, 1.5 MB cap, http/https only),
@@ -30,7 +33,8 @@ import ipaddress
 import json
 import logging
 import re
-from typing import Dict, Optional
+from html.parser import HTMLParser
+from typing import Dict, List, Optional
 from urllib.error import HTTPError
 from urllib.parse import urljoin, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -45,9 +49,6 @@ _UA = "1LiveBot/1.0 (+https://1live.co)"
 _JSONLD_RE = re.compile(
     r'<script[^>]+type\s*=\s*["\']application/ld\+json["\'][^>]*>(.*?)</script>',
     re.I | re.S)
-_ITEMPROP_RE_TMPL = (
-    r'itemprop\s*=\s*["\']{field}["\'][^>]*\scontent\s*=\s*["\']([^"\']+)["\']'
-    r'|content\s*=\s*["\']([^"\']+)["\'][^>]*\sitemprop\s*=\s*["\']{field}["\']')
 
 
 def _url_admissible(url: str) -> bool:
@@ -131,14 +132,92 @@ def _jsonld_event_dates(html: str) -> Dict[str, str]:
     return out
 
 
+_VOID_TAGS = frozenset({
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+    "meta", "param", "source", "track", "wbr"})
+
+
+class _MicrodataEventScopes(HTMLParser):
+    """Collect startDate/endDate/name itemprops PER schema.org Event scope.
+
+    Evaluator blocker (PR #189 r3): the previous regex pass read itemprop
+    content attributes from ANYWHERE on the page — a generic page with one
+    unrelated microdata startDate could donate its date to the candidate.
+    This parser attributes each itemprop to its nearest enclosing
+    ``itemscope`` whose ``itemtype`` is a schema.org Event; itemprops outside
+    any Event scope are ignored entirely.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._tag_stack: List[str] = []
+        self._scope_depths: List[int] = []   # tag-stack depth of each open Event scope
+        self._scope_events: List[dict] = []  # parallel: the dict being filled
+        self.events: List[dict] = []
+
+    def _handle_tag(self, tag: str, attrs, closes_itself: bool) -> None:
+        a = {k.lower(): (v or "") for k, v in attrs}
+        opens_scope = ("itemscope" in a and any(
+            t.strip().lower().endswith(("schema.org/event", "schema.org/musicevent",
+                                        "schema.org/theaterevent", "schema.org/comedyevent",
+                                        "schema.org/danceevent", "schema.org/festival"))
+            or t.strip().lower() == "event"
+            for t in a.get("itemtype", "").split()))
+        prop = a.get("itemprop", "").strip()
+        if prop in ("startDate", "endDate", "name") and self._scope_events \
+                and not opens_scope and a.get("content", "").strip():
+            self._scope_events[-1].setdefault(prop, set()).add(a["content"].strip())
+        if opens_scope and not closes_itself:
+            ev: dict = {}
+            self.events.append(ev)
+            self._scope_events.append(ev)
+            self._scope_depths.append(len(self._tag_stack))
+        if not closes_itself and tag not in _VOID_TAGS:
+            self._tag_stack.append(tag)
+
+    def handle_starttag(self, tag, attrs):
+        self._handle_tag(tag, attrs, closes_itself=False)
+
+    def handle_startendtag(self, tag, attrs):
+        self._handle_tag(tag, attrs, closes_itself=True)
+
+    def handle_endtag(self, tag):
+        # Lenient close (real-world HTML): pop to the matching open tag if
+        # one exists, closing any Event scopes opened at or below that depth.
+        if tag in _VOID_TAGS or tag not in self._tag_stack:
+            return
+        while self._tag_stack:
+            depth_after_pop = len(self._tag_stack) - 1
+            popped = self._tag_stack.pop()
+            while self._scope_depths and self._scope_depths[-1] >= depth_after_pop:
+                self._scope_depths.pop()
+                self._scope_events.pop()
+            if popped == tag:
+                break
+
+
 def _microdata_dates(html: str) -> Dict[str, str]:
-    """{start_time, end_time} from itemprop content attrs, one occurrence each."""
-    out = {}
+    """{start_time, end_time} from microdata, iff exactly ONE Event scope
+    on the page declares dates — same attribution rule as JSON-LD, plus
+    ``_name`` for the caller's identity guard."""
+    parser = _MicrodataEventScopes()
+    try:
+        parser.feed(html)
+        parser.close()
+    except Exception:  # noqa: BLE001 — malformed HTML: no recovery, claim stays refused
+        return {}
+    dated = [ev for ev in parser.events if ev.get("startDate") or ev.get("endDate")]
+    if len(dated) != 1:
+        return {}  # zero: nothing to read; >1: attribution would be a guess
+    ev = dated[0]
+    out: Dict[str, str] = {}
     for field, prop in (("start_time", "startDate"), ("end_time", "endDate")):
-        pat = re.compile(_ITEMPROP_RE_TMPL.format(field=prop), re.I)
-        values = {a or b for a, b in pat.findall(html) if (a or b).strip()}
+        values = ev.get(prop) or set()
         if len(values) == 1:
-            out[field] = values.pop().strip()
+            out[field] = next(iter(values))
+    names = ev.get("name") or set()
+    if out and len(names) == 1:
+        out["_name"] = next(iter(names))  # for the caller's identity guard only
     return out
 
 
@@ -181,5 +260,10 @@ def recover_dates_from_url(url: str, timeout: int = 15,
     if "start_time" in dates:
         return dates
     micro = _microdata_dates(html)
+    if micro and not _identity_aligned(candidate_title, micro.pop("_name", None)):
+        logger.info("date callback: microdata Event name does not align with "
+                    "candidate title — recovery refused (identity guard)")
+        micro = {}
+    micro.pop("_name", None)
     micro.update(dates)  # JSON-LD end_time (if any) outranks microdata's
     return micro

@@ -69,6 +69,34 @@ def _max_events_per_page() -> int:
 # audit trail — which model/prompt/when produced this candidate — persists.
 _META_PREFIX = "_"
 
+# Characters that can CONTINUE a URL token. Used by the source-quoted-link
+# guard: an extracted link only counts as quoted from the source when its
+# occurrence in the block text is a COMPLETE token — not a prefix of a longer
+# URL (evaluator blocker, PR #189 r3: `l in text` accepted ".../e/1" when the
+# source only published ".../e/123", letting a hallucinated prefix-link fetch
+# an unrelated page). "." and ")" etc. are technically valid URL characters,
+# so a link followed by sentence punctuation is REFUSED too — fail-closed:
+# the claim just stays honestly refused, dateless beats wrongly dated.
+_URL_CONTINUATION = set(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    "-._~%/?#&=+@:!$'()*,;")
+
+
+def _link_source_quoted(link: str, text: str) -> bool:
+    """True iff ``link`` appears in ``text`` as a complete URL token —
+    both neighbours (where present) outside the URL character set."""
+    start = 0
+    while True:
+        i = text.find(link, start)
+        if i == -1:
+            return False
+        before_ok = i == 0 or text[i - 1] not in _URL_CONTINUATION
+        j = i + len(link)
+        after_ok = j >= len(text) or text[j] not in _URL_CONTINUATION
+        if before_ok and after_ok:
+            return True
+        start = i + 1
+
 # Greppable, structured marker logged when a page that HAD real text yields zero
 # events across all its blocks. Ops/monitoring grep for this to find sources
 # whose calendar may have moved or changed layout. Do NOT rename without
@@ -180,12 +208,14 @@ def _shape_and_store_one(
         # was extracted from (evaluator finding, PR #189 r1: an AI-shaped
         # link the source never published — hallucinated or prompt-injected —
         # could point at an unrelated single-Event page and launder an
-        # attacker-chosen date into "recovered evidence"). A faithful
-        # extraction quotes the source's own link; anything else gets no
-        # callback and the claim honestly stays refused.
+        # attacker-chosen date into "recovered evidence"), and as a COMPLETE
+        # URL token (r3 blocker: substring matching accepted a prefix of a
+        # longer source URL). A faithful extraction quotes the source's own
+        # link exactly; anything else gets no callback and the claim
+        # honestly stays refused.
         link = next((l for l in (shaped.get("ticket_link"),
                                  shaped.get("rsvp_link"))
-                     if l and l in text), None)
+                     if l and _link_source_quoted(l, text)), None)
         if link:
             recovered_raw = recover_dates_from_url(
                 link, candidate_title=shaped.get("title"))
