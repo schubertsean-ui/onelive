@@ -9,9 +9,9 @@ Three mechanical couplings that must never drift apart silently:
    suite in the same PR (r9/r11 — alarm config must be mechanical).
 
 2. BUDGET EXPRESSION: the schedule-only ceiling fallback
-   (`github.event_name == 'schedule' && '10' || ...max_sources`) appears
+   (`github.event_name == 'schedule' && '30' || ...max_sources`) appears
    EXACTLY twice — the validation step and the run step — and the bare
-   fail-open form (`inputs.max_sources || '10'`) appears nowhere. Pins
+   fail-open form (`inputs.max_sources || '30'`) appears nowhere. Pins
    the r1 finding (empty manual dispatch must fail loud) structurally.
 
 3. DEAD-MAN ASSERTION PRESENT: the assert_deadman_period.py step exists
@@ -33,7 +33,9 @@ import re
 _WF = (pathlib.Path(__file__).resolve().parent.parent
        / ".github" / "workflows" / "ingest.yml").read_text()
 
-_SCHEDULE_EXPR = ("${{ github.event_name == 'schedule' && '10' || "
+# '30' since 2026-08-04: founder-directed freshness escalation (decision
+# record 2026-08-04_ingest-cap-raise-30.md) — every source ~every 3h.
+_SCHEDULE_EXPR = ("${{ github.event_name == 'schedule' && '30' || "
                   "github.event.inputs.max_sources }}")
 
 
@@ -82,9 +84,9 @@ def test_schedule_only_ceiling_expression_in_both_steps_and_no_fail_open_form():
     assert _WF.count(_SCHEDULE_EXPR) == 2, (
         "the schedule-only MAX_SOURCES expression must appear exactly twice "
         "(validation step and run step) — validated value == executed value")
-    assert "inputs.max_sources || '10'" not in _WF.replace(
-        "== 'schedule' && '10' || github.event.inputs.max_sources", ""), (
-        "bare `|| '10'` fallback found — empty manual dispatch input would "
+    assert "inputs.max_sources || '30'" not in _WF.replace(
+        "== 'schedule' && '30' || github.event.inputs.max_sources", ""), (
+        "bare `|| '30'` fallback found — empty manual dispatch input would "
         "silently get a default instead of failing loud (PR #43 r1)")
 
 
