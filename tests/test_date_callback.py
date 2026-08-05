@@ -659,3 +659,35 @@ def test_unnamed_repeat_of_the_same_event_still_merges(monkeypatch):
     assert recover_dates_from_url("https://venue.example/n2") == {
         "start_time": "2026-08-11T21:00:00",
         "end_time": "2026-08-12T02:00:00"}
+
+
+def test_several_named_events_plus_a_stray_unnamed_one(monkeypatch):
+    """The named-wins rule must not quietly re-open the multi-event hole.
+
+    With MORE than one named declaration the page is genuinely multi-event,
+    so the single-named merge does not apply at all and the title has to
+    select — while the stray unnamed event (here a far-future one that would
+    be obvious in production) contributes to nothing.
+    """
+    page = """
+    <html><head><script type="application/ld+json">
+    [{"@type":"Event","name":"Blues Night","startDate":"2026-08-20T20:00:00"},
+     {"@type":"Event","startDate":"2029-01-01T00:00:00",
+      "endDate":"2029-01-02T00:00:00"}]
+    </script></head><body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Comedy Showcase</span>
+      <meta itemprop="startDate" content="2026-08-21T19:00:00"/></div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+
+    assert recover_dates_from_url("https://v.example/c",
+                                  candidate_title="Blues Night") == {
+        "start_time": "2026-08-20T20:00:00"}
+    assert recover_dates_from_url("https://v.example/c",
+                                  candidate_title="Comedy Showcase") == {
+        "start_time": "2026-08-21T19:00:00"}
+    # No match, and no title at all, both refuse rather than pick.
+    assert recover_dates_from_url("https://v.example/c",
+                                  candidate_title="Karaoke") == {}
+    assert recover_dates_from_url("https://v.example/c") == {}
