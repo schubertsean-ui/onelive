@@ -1,4 +1,4 @@
-# Brave Search API — 2,000-queries/month budget (v2, 2026-08-05)
+# Brave Search API — launch-breadth budget (v3, 2026-08-05)
 
 **What you're about to see:** how the one shared search-API quota is split
 between every lane that queries the licensed search index, so no lane can
@@ -15,18 +15,30 @@ the repo secret BRAVE_SEARCH_API_KEY via `tools/search_api.py`, which also
 enforces the 1 rps throttle in code. Paid tiers (Base $3/1,000 queries) are a
 MONEY decision: founder-crucial, not an agent knob.
 
-v1 of this file budgeted Google's 100/day; superseded whole. Monthly math
-below assumes 30-day months and states the worst case honestly.
+v3 implements the founder's launch-breadth directive, verbatim ("do what I
+tell you - I want all the data in the initial launch to prove value and depth
+and breadth" and "do this: all the data at launch: full CAPCOG sweep
+immediately at launch (the depth-and-breadth proof), weekly full sweeps as
+the standing cadence, automatic daily inside festival windows") — decision
+record docs/memory/decisions/2026-08-05_launch-breadth-directive.md. That
+directive IS the money authorization for the overage math below; a
+materially different bill (>$40/month) returns to the founder first.
+
+A full CAPCOG sweep = the canonical 22-domain query pack (44 phrases) × 22
+region cities = **968 queries**, each returning up to 20 results.
 
 ## Standing allocation (per calendar month)
 
-| Lane | Consumer | Budget/run | Cadence | Monthly worst case |
+| Lane | Consumer | Budget/run | Cadence | Monthly cost math |
 | --- | --- | --- | --- | --- |
-| Source scanner | `tools/scan_new_sources.py` (provider-dryrun: source-scan) | 20 | manual now; proposed 3×/week after first curation round | 260 |
-| Eventbrite search discovery | `tools/search_discover_eventbrite.py` (provider-dryrun: eventbrite-search) | 8 | manual, on demand (~4 runs/month) | 32 |
-| Festival adjacent-event sweeps | WS8 machinery (unbuilt — keyword-pack sweeps) | 30 | daily, only inside an ACTIVE festival window | 930 (a full festival month) |
-| Diagnostics | ops-diagnostics `brave-probe` | 1 | on demand | ~10 |
-| Unallocated headroom | — | — | — | ≥768 even in a festival month |
+| Source scanner — full CAPCOG sweep | `source-scan.yml` → `tools/scan_new_sources.py` | 968 | weekly (Mon 14:30 UTC cron) + the one-time launch dispatch | ~4,200/mo → free 2,000 + ~2,200 paid ≈ **$7/mo** |
+| Festival-window daily sweeps | same workflow, daily cron gated by `sources/festival_windows.json` | 968 | daily, ONLY inside an active window | ACL window (10 days) adds ~9,700 ≈ **+$29 that month** |
+| Eventbrite search discovery | `tools/search_discover_eventbrite.py` (provider-dryrun: eventbrite-search) | 8 | manual, on demand (~4 runs/month) | 32 (in the free tier) |
+| Diagnostics | ops-diagnostics `brave-probe` | 1 | on demand | ~10 (in the free tier) |
+
+Ordinary month ≈ $7; a festival month ≈ $36 — both inside the founder's
+authorized envelope. Rate limit (1 req/s, enforced in tools/search_api.py)
+makes a full sweep take ~17 minutes of wall clock.
 
 Rules:
 1. **A new consumer or cadence gets a row here in the same PR that ships
