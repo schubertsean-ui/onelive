@@ -19,6 +19,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import pathlib
@@ -42,6 +43,29 @@ def _parse_ids(raw: str | None) -> list[str]:
         if tok and not tok.startswith("#"):
             out.append(tok)
     return out
+
+
+_PROVENANCE_PATH = (pathlib.Path(__file__).resolve().parent.parent.parent
+                    / "sources" / "eventbrite_provenance.json")
+
+
+def _provenance_event_ids(path: pathlib.Path = None) -> set[str]:
+    """The founder-reviewed event-id allow-list (sources/eventbrite_provenance.json).
+
+    The event-id lane's trust boundary (evaluator finding, PR #178 r1): the
+    ids ARE the query, so an id that never went through the harvest ->
+    founder-review -> commit path must not reach the importer at all —
+    otherwise arbitrary third-party events could enter licensed_event as
+    trusted provider data. Missing/unreadable registry fails CLOSED (an
+    absent allow-list is an empty allow-list, never a bypass).
+    """
+    path = path or _PROVENANCE_PATH
+    if not path.exists():
+        raise RuntimeError(
+            f"provenance registry {path} does not exist — the event-id lane "
+            "has no allow-list without it; failing closed.")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {e["event_id"] for e in data.get("event_ids", [])}
 
 
 def _collect_ids(args) -> list[str]:
@@ -91,6 +115,24 @@ def main(argv=None) -> int:
         return 2
 
     ids = _collect_ids(args)
+    if args.kind == "event":
+        # Digits-only shape check first (Eventbrite event ids are numeric;
+        # anything else can't be a harvested id and must not touch the URL
+        # path), then the provenance allow-list — both fail closed.
+        malformed = [i for i in ids if not i.isdigit()]
+        if malformed:
+            log.error("non-numeric event id(s) rejected: %s — failing closed.",
+                      ", ".join(malformed))
+            return 2
+        allowed = _provenance_event_ids()
+        rogue = [i for i in ids if i not in allowed]
+        if rogue:
+            log.error(
+                "event id(s) not in the founder-reviewed provenance registry "
+                "(sources/eventbrite_provenance.json): %s — the event-id lane "
+                "imports ONLY harvested, reviewed ids. Failing closed.",
+                ", ".join(rogue))
+            return 2
     if not ids:
         log.error("no Eventbrite %s ids supplied (--org-ids/--venue-ids/--ids-file) — "
                   "there is no public search fallback, so an empty id list is a no-op. "
