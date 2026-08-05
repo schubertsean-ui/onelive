@@ -75,6 +75,7 @@ from worker.candidate_store import (
     stamp_gate_verdict,
 )
 from worker.fetch.http_fetch import fetch_url
+from worker.fetch.paginate import discover_next_page
 from worker.fetch.render_fetch import RenderError, fetch_with_render, render_html
 from worker.replay_log import ReplayRecord, canonical_digest, log_step, new_run_id
 from worker.sensors import assess_input
@@ -210,6 +211,101 @@ def _make_budgeted_render(render_state: Dict[str, int]):
     return _render
 
 
+# Founder-directed 2026-08-05 ("build multi-page ingestion next. It's the
+# single biggest lever left"): a paginated calendar is read for up to this
+# many pages per run. The proving case is the Austin Chronicle: 2,362 events
+# across 60 pages, of which a single-page fetch reads ~40.
+#
+# Why a small number is the RIGHT number, not a timid one: calendar pages are
+# date-ordered, so page 1 carries the soonest events — exactly what a tonight
+# product needs — and deeper events rise toward page 1 as their date
+# approaches. Front-following therefore reaches the whole calendar over time
+# without ever pulling sixty pages in one run. The existing per-page AI-call
+# cap (ai_extract._max_events_per_page) still bounds extraction cost: extra
+# pages add fetch bytes, never an unbounded number of model calls.
+_DEFAULT_MAX_PAGES_PER_SOURCE = 5
+
+
+def _max_pages_per_source() -> int:
+    raw = os.environ.get("INGEST_MAX_PAGES_PER_SOURCE", "").strip()
+    if not raw:
+        return _DEFAULT_MAX_PAGES_PER_SOURCE
+    try:
+        n = int(raw)
+    except ValueError:
+        logger.warning("INGEST_MAX_PAGES_PER_SOURCE=%r is not an int — using "
+                       "default %d", raw, _DEFAULT_MAX_PAGES_PER_SOURCE)
+        return _DEFAULT_MAX_PAGES_PER_SOURCE
+    return n if n >= 1 else _DEFAULT_MAX_PAGES_PER_SOURCE
+
+
+def _fetch_paginated(
+    *,
+    source_id: Optional[str],
+    url: str,
+    render_state: Dict[str, int],
+) -> Dict[str, Any]:
+    """Fetch page 1, then follow the SOURCE'S OWN next-page links (bounded).
+
+    Page 1 keeps the full existing behavior — render fallback, 304 handling,
+    audit rows — untouched, and its result is what this returns. Additional
+    pages are PLAIN fetches (a render per page would multiply browser cost
+    for pages that are the same template) whose text is appended, so the
+    sensor, extractor, and gate see one longer document and every downstream
+    contract is unchanged.
+
+    Fail-soft by construction: any problem on page N>1 stops the walk and
+    keeps everything already read. A calendar that publishes no next link is
+    simply a one-page fetch, exactly as before.
+    """
+    first = _fetch_with_render_fallback(
+        source_id=source_id, url=url, render_state=render_state,
+    )
+    if first.get("status") != "ok" or not first.get("text"):
+        return first  # 304 / error: nothing to page through
+
+    max_pages = _max_pages_per_source()
+    if max_pages <= 1:
+        return first
+
+    texts = [first["text"]]
+    seen = {url}
+    current_url = url
+    current_html = first["text"]
+    pages = 1
+
+    while pages < max_pages:
+        try:
+            next_url = discover_next_page(current_html, current_url, seen)
+        except Exception as exc:  # noqa: BLE001 — discovery must never break ingestion
+            logger.warning("next-page discovery failed for %s (%s) — keeping "
+                           "%d page(s)", current_url, type(exc).__name__, pages)
+            break
+        if not next_url:
+            break
+        try:
+            page_result = fetch_url(source_id=source_id, url=next_url)
+            if page_result.get("status") != "ok":
+                logger.info("page %d of %s returned %s — keeping %d page(s)",
+                            pages + 1, url, page_result.get("status"), pages)
+                break
+            page_text = _read_fetched_text(page_result)
+        except Exception as exc:  # noqa: BLE001 — a later page must never lose page 1
+            logger.warning("page %d fetch failed for %s (%s) — keeping %d "
+                           "page(s)", pages + 1, next_url, type(exc).__name__, pages)
+            break
+        if not page_text:
+            break
+        seen.add(next_url)
+        texts.append(page_text)
+        current_url, current_html = next_url, page_text
+        pages += 1
+
+    if pages > 1:
+        logger.info("paginated fetch: %s read %d pages", url, pages)
+    return {**first, "text": "\n".join(texts), "pages_fetched": pages}
+
+
 def _fetch_with_render_fallback(
     *,
     source_id: Optional[str],
@@ -305,7 +401,7 @@ def _run_one_source(
     url = source["url"]
     source_class = source["source_class"]
 
-    fetch_result = _fetch_with_render_fallback(
+    fetch_result = _fetch_paginated(
         source_id=source_id, url=url, render_state=render_state,
     )
     # Replay fetch entry: the original fields are all preserved; the render
@@ -315,6 +411,7 @@ def _run_one_source(
     fetch_outputs: Dict[str, Any] = {
         "status": fetch_result.get("status"),
         "rendered": bool(fetch_result.get("rendered")),
+        "pages_fetched": fetch_result.get("pages_fetched", 1),
     }
     if fetch_result.get("rendered"):
         fetch_outputs["plain_shell_reason"] = fetch_result.get("plain_shell_reason")
@@ -362,9 +459,6 @@ def _run_one_source(
             ["fetched", "sensor_rejected"],
         )
 
-    # fetched_at binds the yearless-date rule to SOURCE FETCH time (the text
-    # was fetched moments above in this same call), so replay/backfill can
-    # never re-date a claim off a later worker clock (PR #189 r2).
     candidate_id = extract_candidate(
         ai=ai,
         text=text,
@@ -373,7 +467,6 @@ def _run_one_source(
         source_url=url,
         sxsw_mode=sxsw_mode,
         source_id=source_id,
-        fetched_at=datetime.now(timezone.utc),
     )
     log_step(ReplayRecord(
         run_id=run_id, ts=_now_iso(), source_id=str(source_id), source_name=source_name,
