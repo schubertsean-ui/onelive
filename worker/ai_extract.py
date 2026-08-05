@@ -29,9 +29,12 @@ from ai.prompts import EXTRACTION_SYSTEM_PROMPT
 from ai.provider import AIProvider
 from worker.ai_models import AIEventExtraction
 from worker.candidate_store import create_candidate, add_evidence, record_ai_degradation
+from worker.date_callback import recover_dates_from_url
 from worker.datetime_normalize import (
+    normalize_datetime_claim,
     normalize_extracted_datetimes,
     preserve_discarded_claims,
+    resolve_yearless_claim,
 )
 from worker.segment import segment_events
 
@@ -162,6 +165,43 @@ def _shape_and_store_one(
     # fact is asserted and no event is lost to a formatting detail. Applied
     # PER EVENT so each show's date claim is judged on its own text.
     discarded_times = normalize_extracted_datetimes(shaped)
+    if discarded_times:
+        # Date recovery, founder-directed 2026-08-05 ("more of a call back
+        # position than a logic process"): (1) CALLBACK — read the explicit
+        # machine-declared date off the event's own linked page; (2) only
+        # then the year rule, for claims that are full dates minus the year.
+        # Both re-enter the STRICT normalizer / the narrow year resolver, so
+        # neither path can bypass the full-date bar; every recovery is
+        # recorded in provenance with its method and basis.
+        recovery: Dict[str, Dict[str, str]] = {}
+        link = shaped.get("ticket_link") or shaped.get("rsvp_link")
+        if link:
+            recovered_raw = recover_dates_from_url(link)
+            for field, claim in recovered_raw.items():
+                if field not in discarded_times:
+                    continue
+                normalized, refusal = normalize_datetime_claim(claim)
+                if normalized and not refusal:
+                    shaped[field] = normalized
+                    recovery[field] = {"method": "detail-page-callback",
+                                       "source": link, "raw": claim}
+                    discarded_times.pop(field)
+        for field in list(discarded_times):
+            if discarded_times[field].get("reason") != "no-full-date-evidence":
+                continue
+            normalized, note = resolve_yearless_claim(
+                discarded_times[field].get("raw"))
+            if normalized and note:
+                shaped[field] = normalized
+                recovery[field] = {"method": "year-from-fetch-date", **note}
+                discarded_times.pop(field)
+        if recovery:
+            prov = meta.get("_provenance")
+            meta["_provenance"] = dict(prov) if isinstance(prov, dict) else {}
+            meta["_provenance"]["datetime_recovery"] = recovery
+            logger.info("source %r: datetime claim(s) RECOVERED by %s",
+                        source_name,
+                        {f: r["method"] for f, r in recovery.items()})
     if discarded_times:
         logger.warning(
             "source %r: datetime claim(s) refused (stored as NULL, raw + "
