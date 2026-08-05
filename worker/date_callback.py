@@ -414,8 +414,15 @@ def _dedupe_declarations(declared: List[dict]) -> List[dict]:
     A page that marks its single event in JSON-LD *and* microdata declares
     one event, not two — counting it twice would demand title matching where
     the page should recover freely. Two declarations are the same event when
-    they agree on start_time, or (absent a start) share a name. JSON-LD wins
-    the merge (the richer notation), taking any field the other supplies.
+    they share a name, or when they agree on start_time AND their names do not
+    contradict. JSON-LD wins the merge (the richer notation), taking any field
+    the other supplies.
+
+    Adversarial-review catch (2026-08-05): start_time alone was treated as
+    identity, so two DIFFERENT named events at the same hour — a 7pm early show
+    and a 7pm screening in the other room, which is ordinary programming, not a
+    corner case — collapsed into one, and the survivor inherited the other's
+    end_time. Names are the identity signal; a shared start is only corroborating.
     """
     kept: List[dict] = []
     for d in declared:
@@ -424,7 +431,11 @@ def _dedupe_declarations(declared: List[dict]) -> List[dict]:
             same_start = (d["dates"].get("start_time")
                           and d["dates"]["start_time"] == k["dates"].get("start_time"))
             same_name = bool(set(d["names"]) & set(k["names"]))
-            if same_start or same_name:
+            # Both named, sharing no name = provably different events. A shared
+            # start cannot override that.
+            names_contradict = (bool(d["names"]) and bool(k["names"])
+                                and not same_name)
+            if same_name or (same_start and not names_contradict):
                 match = k
                 break
         if match is None:
@@ -462,13 +473,21 @@ def _dedupe_declarations(declared: List[dict]) -> List[dict]:
 
 
 def _dates_agree(a: Dict[str, str], b: Dict[str, str]) -> bool:
-    """True when two declarations state nothing contradictory.
+    """True when two declarations OVERLAP and agree everywhere they overlap.
 
-    Only fields BOTH supply are compared: a bare microdata repeat giving a
-    start and no end does not contradict a JSON-LD entry giving both. Any
-    shared field where the two disagree means these are different events.
+    The overlap must be non-empty. Adversarial-review catch (2026-08-05):
+    `all()` over an empty set is True, so a named declaration carrying only a
+    start_time and an unrelated nameless one carrying only an end_time were
+    read as agreeing — and the merge then spliced a different event's end onto
+    the candidate. Two declarations sharing no field agree about nothing;
+    that is not evidence they are the same event, it is the absence of it.
+
+    Where they do overlap, every shared field must match: a bare microdata
+    repeat giving a start and no end does not contradict a JSON-LD entry
+    giving both, because their one shared field agrees.
     """
-    return all(a[k] == b[k] for k in a.keys() & b.keys())
+    shared = a.keys() & b.keys()
+    return bool(shared) and all(a[k] == b[k] for k in shared)
 
 
 def _merge_under(named: dict, other: dict) -> dict:
