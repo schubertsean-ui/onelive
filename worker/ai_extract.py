@@ -174,7 +174,16 @@ def _shape_and_store_one(
         # neither path can bypass the full-date bar; every recovery is
         # recorded in provenance with its method and basis.
         recovery: Dict[str, Dict[str, str]] = {}
-        link = shaped.get("ticket_link") or shaped.get("rsvp_link")
+        # The callback link must appear VERBATIM in the block text the event
+        # was extracted from (evaluator finding, PR #189 r1: an AI-shaped
+        # link the source never published — hallucinated or prompt-injected —
+        # could point at an unrelated single-Event page and launder an
+        # attacker-chosen date into "recovered evidence"). A faithful
+        # extraction quotes the source's own link; anything else gets no
+        # callback and the claim honestly stays refused.
+        link = next((l for l in (shaped.get("ticket_link"),
+                                 shaped.get("rsvp_link"))
+                     if l and l in text), None)
         if link:
             recovered_raw = recover_dates_from_url(link)
             for field, claim in recovered_raw.items():
