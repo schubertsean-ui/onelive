@@ -239,6 +239,38 @@ def _max_pages_per_source() -> int:
     return n if n >= 1 else _DEFAULT_MAX_PAGES_PER_SOURCE
 
 
+def _extraction_block_budget() -> Optional[int]:
+    """How many candidate blocks one run will actually extract, or None.
+
+    Read from ai_extract so there is ONE cap, not a second copy that could
+    drift from the one doing the truncating. None means the cap is unreadable,
+    and the walk then behaves exactly as it did before this check existed —
+    an unknown budget must not silently stop paging.
+    """
+    try:
+        from worker.ai_extract import _max_events_per_page
+        return _max_events_per_page()
+    except Exception as exc:  # noqa: BLE001 — a budget probe must never break ingestion
+        logger.info("extraction block budget unreadable (%s) — paging without "
+                    "the budget stop", type(exc).__name__)
+        return None
+
+
+def _approx_blocks(text: str) -> int:
+    """Candidate blocks the accumulated text would segment into.
+
+    Uses the REAL segmenter rather than an estimate, so the walk's stop point
+    and extraction's truncation point are computed the same way.
+    """
+    try:
+        from worker.segment import segment_events
+        return len(segment_events(text))
+    except Exception as exc:  # noqa: BLE001 — never break ingestion on a probe
+        logger.info("block count unreadable (%s) — paging without the budget "
+                    "stop", type(exc).__name__)
+        return 0
+
+
 def _fetch_paginated(
     *,
     source_id: Optional[str],
@@ -273,8 +305,21 @@ def _fetch_paginated(
     current_url = url
     current_html = first["text"]
     pages = 1
+    # The extraction budget is per RUN, and the pages are concatenated into one
+    # document before extraction — so once the accumulated text already carries
+    # more candidate blocks than a run can extract, every further page is
+    # fetched and then truncated away. Following them is pure cost (requests,
+    # rate-limit exposure, wall clock) for zero events, so the walk stops.
+    block_budget = _extraction_block_budget()
 
     while pages < max_pages:
+        if block_budget is not None and _approx_blocks("\n".join(texts)) >= block_budget:
+            logger.info(
+                "paginated fetch: %s stopping at %d page(s) — the extraction "
+                "budget (%d blocks) is already full, so a further page would "
+                "be fetched and then truncated away",
+                url, pages, block_budget)
+            break
         try:
             next_url = discover_next_page(current_html, current_url, seen)
         except Exception as exc:  # noqa: BLE001 — discovery must never break ingestion
@@ -295,6 +340,24 @@ def _fetch_paginated(
                            "page(s)", pages + 1, next_url, type(exc).__name__, pages)
             break
         if not page_text:
+            break
+        # SENSE THE PAGE BEFORE IT JOINS THE DOCUMENT. Adversarial pre-review
+        # catch (2026-08-05): the joined text is handed to assess_input as ONE
+        # string, and its checks scan the whole thing — so a later page that
+        # returns HTTP 200 with an interstitial ("Just a moment…"), an
+        # injection marker, or a truncated tail rejected pages 1..N-1 along
+        # with itself, dropping a source that reliably yields ~40 events to
+        # ZERO. Rate-limit interstitials are the realistic trigger, since the
+        # walk makes up to max_pages requests to a single host. The transport
+        # fail-soft above only ever covered non-ok status and exceptions; bad
+        # content behind a 200 slipped past it.
+        page_reading = assess_input(text=page_text,
+                                    content_type=page_result.get("content_type"))
+        if not page_reading.ok:
+            logger.info(
+                "page %d of %s did not pass the input sensor (%s) — keeping "
+                "%d good page(s) rather than losing them to it",
+                pages + 1, url, page_reading.reason, pages)
             break
         seen.add(next_url)
         texts.append(page_text)

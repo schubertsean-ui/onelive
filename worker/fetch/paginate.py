@@ -59,8 +59,48 @@ def _same_origin(a: str, b: str) -> bool:
     return (pa.scheme, pa.hostname, pa.port) == (pb.scheme, pb.hostname, pb.port)
 
 
+def canonical(url: str) -> str:
+    """The comparison key for "have we already read this page?".
+
+    Adversarial pre-review catch (2026-08-05): the visited check compared raw
+    strings, so two spellings of ONE page counted as two pages and the walk
+    ping-ponged between them. Two spellings occur constantly in the wild:
+
+      - `<a href="#page-2">Next</a>` — an ordinary client-side pagination
+        control. urljoin turns it into "<current page>#page-2", which is not
+        string-equal to the current URL, so page 1 was fetched a second time.
+        (A bare `href="#"` was already refused, because urljoin drops an empty
+        fragment — a near-miss, which is why this went unnoticed.)
+      - A next-link written with a different host case, which passes the
+        origin check (urlparse lowercases .hostname) and then re-enters.
+
+    The cost was not cosmetic: the duplicated page text segments into
+    duplicate blocks, which consume the per-run extraction budget (pushing
+    real events out of the run) and land as duplicate candidates, which the
+    gate reads as a same-venue/same-time conflict and ESCALATEs — events that
+    would have published instead stall in review.
+
+    The fragment is dropped because it never identifies a different DOCUMENT,
+    only a position within one. Host and scheme are lowercased because they
+    are case-insensitive by RFC 3986. Everything else — path, query, port — is
+    left exactly as published, since those DO distinguish pages.
+    """
+    try:
+        p = urlparse(url)
+    except ValueError:
+        return url
+    netloc = p.netloc.lower()
+    path = p.path or "/"
+    q = f"?{p.query}" if p.query else ""
+    return f"{p.scheme.lower()}://{netloc}{path}{q}"
+
+
 def _admissible(candidate: str, current_url: str, seen: Set[str]) -> bool:
-    """A usable next page: http(s), same origin, not already visited."""
+    """A usable next page: http(s), same origin, not already visited.
+
+    `seen` is compared on canonical() keys, so an alternate spelling of a page
+    we have already read is refused. The caller fetches the URL as published.
+    """
     if not candidate:
         return False
     try:
@@ -71,7 +111,8 @@ def _admissible(candidate: str, current_url: str, seen: Set[str]) -> bool:
         return False
     if not _same_origin(candidate, current_url):
         return False
-    return candidate not in seen and candidate != current_url
+    key = canonical(candidate)
+    return key not in {canonical(s) for s in seen} and key != canonical(current_url)
 
 
 def discover_next_page(html: str, current_url: str,

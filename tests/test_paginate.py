@@ -152,3 +152,152 @@ def test_malformed_cap_falls_back_to_the_default(monkeypatch):
     assert orch._max_pages_per_source() == orch._DEFAULT_MAX_PAGES_PER_SOURCE
     monkeypatch.setenv("INGEST_MAX_PAGES_PER_SOURCE", "0")
     assert orch._max_pages_per_source() == orch._DEFAULT_MAX_PAGES_PER_SOURCE
+
+
+# ── Adversarial pre-review blockers (2026-08-05) ────────────────────────────
+
+def test_a_fragment_next_link_is_not_a_new_page():
+    """BLOCKER: `<a href="#page-2">Next</a>` — an ordinary client-side
+    pagination control — urljoin'd to "<current>#page-2", which was neither in
+    `seen` nor string-equal to the current URL, so page 1 was fetched again and
+    its events counted twice. (`href="#"` was already refused because urljoin
+    drops an empty fragment, which is why this near-miss went unnoticed.)"""
+    from worker.fetch.paginate import discover_next_page
+    html = '<a href="#page-2">Next</a>'
+    assert discover_next_page(html, "https://cal.example/events") is None
+    assert discover_next_page('<link rel="next" href="#page-2">',
+                              "https://cal.example/events") is None
+
+
+def test_an_alternate_spelling_of_a_visited_page_is_refused():
+    """BLOCKER: `seen` compared raw strings, so a next-link written with a
+    different host case passed the origin check (urlparse lowercases .hostname)
+    and re-entered the walk."""
+    from worker.fetch.paginate import discover_next_page, canonical
+    seen = {"https://cal.example/cal", "https://cal.example/cal?page=2"}
+    for spelling in ('<link rel="next" href="https://CAL.EXAMPLE/cal">',
+                     '<link rel="next" href="https://cal.example/cal#top">',
+                     '<link rel="next" href="HTTPS://Cal.Example/cal?page=2">'):
+        assert discover_next_page(spelling, "https://cal.example/cal?page=2",
+                                  seen) is None, spelling
+    # A genuinely new page is still followed.
+    assert discover_next_page('<link rel="next" href="/cal?page=3">',
+                              "https://cal.example/cal?page=2", seen) == \
+        "https://cal.example/cal?page=3"
+    # canonical() keeps what actually distinguishes pages.
+    assert canonical("https://a.example/x?page=2") != canonical("https://a.example/x?page=3")
+    assert canonical("https://a.example") == canonical("https://A.EXAMPLE/")
+
+
+def test_a_bad_later_page_does_not_sink_the_good_ones(monkeypatch):
+    """BLOCKER: the joined text goes to assess_input as ONE document, so an
+    interstitial or truncated tail on page 3 rejected pages 1-2 with it and
+    dropped the whole source to ZERO events. Rate-limit interstitials are the
+    realistic trigger — the walk makes several requests to one host."""
+    from worker import orchestrator
+
+    good = ("<html><body>" + "".join(
+        f"<div class='ev'><h3>Show {i}</h3><p>Aug {i}, 2026 at 8pm</p></div>"
+        for i in range(1, 12)) + "</body></html>")
+    interstitial = "<html><body><h1>Just a moment...</h1></body></html>"
+
+    pages = {
+        "https://cal.example/c": good,
+        "https://cal.example/c?page=2": good.replace("Show", "Later"),
+        "https://cal.example/c?page=3": interstitial,
+    }
+    order = ["https://cal.example/c?page=2", "https://cal.example/c?page=3", None]
+    calls = {"n": 0}
+
+    def fake_next(html, current_url, seen=None):
+        i = calls["n"]
+        calls["n"] += 1
+        return order[i] if i < len(order) else None
+
+    monkeypatch.setattr(orchestrator, "discover_next_page", fake_next)
+    monkeypatch.setattr(orchestrator, "_fetch_with_render_fallback",
+                        lambda **kw: {"status": "ok", "text": pages[kw["url"]]})
+    monkeypatch.setattr(orchestrator, "fetch_url",
+                        lambda **kw: {"status": "ok", "text": pages[kw["url"]]})
+    monkeypatch.setattr(orchestrator, "_read_fetched_text",
+                        lambda r: r.get("text", ""))
+    monkeypatch.setenv("INGEST_MAX_PAGES_PER_SOURCE", "5")
+
+    out = orchestrator._fetch_paginated(
+        source_id="s1", url="https://cal.example/c", render_state={})
+
+    # Pages 1 and 2 survive; the interstitial never joins the document.
+    assert out["pages_fetched"] == 2
+    assert "Just a moment" not in out["text"]
+    assert "Show 1" in out["text"] and "Later 1" in out["text"]
+    # And what survives still passes the sensor — the whole point.
+    from worker.sensors import assess_input
+    assert assess_input(text=out["text"], content_type=None).ok
+
+
+def test_pages_beyond_the_extraction_budget_are_not_fetched(monkeypatch):
+    """BLOCKER: the extraction cap applies to the CONCATENATION, so once page 1
+    already fills the run's block budget, pages 2..N were fetched and then
+    truncated away — requests, rate-limit exposure and wall clock spent for
+    zero events. The walk now stops when the budget is already full."""
+    from worker import orchestrator
+
+    big = ("<html><body>" + "".join(
+        f"<div class='ev'><h3>Show {i}</h3><p>Aug 1, 2026 at 8pm</p></div>"
+        for i in range(1, 40)) + "</body></html>")
+    fetched = []
+
+    monkeypatch.setattr(orchestrator, "discover_next_page",
+                        lambda html, url, seen=None: "https://cal.example/c?page=2")
+
+    def _first(**kw):
+        fetched.append(kw["url"])
+        return {"status": "ok", "text": big}
+
+    def _later(**kw):
+        fetched.append(kw["url"])
+        return {"status": "ok", "text": big}
+
+    monkeypatch.setattr(orchestrator, "_fetch_with_render_fallback", _first)
+    monkeypatch.setattr(orchestrator, "fetch_url", _later)
+    monkeypatch.setattr(orchestrator, "_read_fetched_text", lambda r: r.get("text", ""))
+    monkeypatch.setenv("INGEST_MAX_PAGES_PER_SOURCE", "5")
+    # A budget page 1 alone already exceeds.
+    monkeypatch.setenv("EXTRACT_MAX_EVENTS_PER_PAGE", "5")
+
+    out = orchestrator._fetch_paginated(
+        source_id="s1", url="https://cal.example/c", render_state={})
+
+    assert out["pages_fetched"] == 1
+    assert fetched == ["https://cal.example/c"], (
+        f"no page should be fetched once the budget is full; fetched {fetched}")
+
+
+def test_a_generous_budget_still_pages_normally(monkeypatch):
+    """The budget stop must not become a new way to lose pages: with room left,
+    the walk proceeds exactly as before."""
+    from worker import orchestrator
+
+    small = ("<html><body>"
+             "<div class='ev'><h3>One Show</h3><p>Aug 1, 2026 at 8pm</p></div>"
+             "</body></html>")
+    order = ["https://cal.example/c?page=2", None]
+    calls = {"n": 0}
+
+    def fake_next(html, url, seen=None):
+        i = calls["n"]
+        calls["n"] += 1
+        return order[i] if i < len(order) else None
+
+    monkeypatch.setattr(orchestrator, "discover_next_page", fake_next)
+    monkeypatch.setattr(orchestrator, "_fetch_with_render_fallback",
+                        lambda **kw: {"status": "ok", "text": small})
+    monkeypatch.setattr(orchestrator, "fetch_url",
+                        lambda **kw: {"status": "ok", "text": small.replace("One", "Two")})
+    monkeypatch.setattr(orchestrator, "_read_fetched_text", lambda r: r.get("text", ""))
+    monkeypatch.setenv("INGEST_MAX_PAGES_PER_SOURCE", "5")
+    monkeypatch.setenv("EXTRACT_MAX_EVENTS_PER_PAGE", "50")
+
+    out = orchestrator._fetch_paginated(
+        source_id="s1", url="https://cal.example/c", render_state={})
+    assert out["pages_fetched"] == 2
