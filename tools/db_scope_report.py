@@ -103,6 +103,92 @@ def pipeline_lane(cur) -> dict:
     }
 
 
+def date_distribution(cur) -> dict:
+    """WHERE the events are in time — the founder's 'Today shows 11 events'
+    diagnosis instrument (decision record 2026-08-05_today-density-and-
+    duplicates.md). Buckets pipeline-published events AND the candidate pool
+    by start_time so the supply bottleneck is read off evidence: NULL dates
+    (extraction refused a datetime), past dates (stale backlog), or held
+    future events (corroboration). Austin days (America/Chicago)."""
+    events = {b: n for b, n in q(cur, """
+      with b as (
+        select case
+          when start_time is null then 'null'
+          when start_time < now() then 'past'
+          when (start_time at time zone 'America/Chicago')::date =
+               (now() at time zone 'America/Chicago')::date then 'today'
+          when start_time < now() + interval '7 day' then 'next_7_days'
+          else 'beyond_7_days'
+        end as bucket
+        from event
+      )
+      select bucket, count(*) from b group by 1 order by 1
+    """)}
+    cands = q(cur, """
+      with b as (
+        select status, case
+          when start_time is null then 'null'
+          when start_time < now() then 'past'
+          when (start_time at time zone 'America/Chicago')::date =
+               (now() at time zone 'America/Chicago')::date then 'today'
+          when start_time < now() + interval '7 day' then 'next_7_days'
+          else 'beyond_7_days'
+        end as bucket
+        from event_candidate
+      )
+      select status, bucket, count(*) from b group by 1, 2 order by 1, 2
+    """)
+    cand_by_status: dict = {}
+    for status, bucket, n in cands:
+        cand_by_status.setdefault(status, {})[bucket] = n
+    return {
+        "pipeline_events_by_start_time": events,
+        "candidates_by_status_and_start_time": cand_by_status,
+    }
+
+
+def duplicate_report(cur) -> dict:
+    """Cross-source duplicate detection (founder-caught 2026-08-05: the same
+    show via two providers rendered twice). Groups upcoming rows by
+    (normalized venue, start_time, normalized title) across BOTH publication
+    lanes and reports groups with >1 member — the display layer collapses
+    these; this section measures how much duplication the imports produce so
+    the import-lane fix is sized from data."""
+    rows = q(cur, """
+      with all_rows as (
+        select 'licensed:' || source_provider as src,
+               lower(regexp_replace(regexp_replace(coalesce(venue_name,''), '[.'']', '', 'g'), '[^a-zA-Z0-9]+', ' ', 'g')) as v,
+               start_time,
+               lower(regexp_replace(regexp_replace(coalesce(performer, title, ''), '[.'']', '', 'g'), '[^a-zA-Z0-9]+', ' ', 'g')) as t
+        from licensed_event where start_time >= now()
+        union all
+        select 'pipeline' as src,
+               lower(regexp_replace(regexp_replace(coalesce(vn.name,''), '[.'']', '', 'g'), '[^a-zA-Z0-9]+', ' ', 'g')),
+               e.start_time,
+               lower(regexp_replace(regexp_replace(coalesce(e.title,''), '[.'']', '', 'g'), '[^a-zA-Z0-9]+', ' ', 'g'))
+        from event e left join venue vn on vn.venue_id = e.venue_id
+        where e.start_time >= now()
+      )
+      select v, start_time, t, count(*), array_agg(distinct src)
+      from all_rows
+      where v <> '' and t <> ''
+      group by 1, 2, 3
+      having count(*) > 1
+      order by count(*) desc
+    """)
+    # Totals over EVERY group — the worst_groups listing below is a sample,
+    # and a sampled listing must never stand in for the total (no silent
+    # caps: a truncated count would read as "covered everything").
+    return {
+        "upcoming_duplicate_groups": len(rows),
+        "upcoming_duplicate_rows_beyond_first": sum(r[3] - 1 for r in rows),
+        "worst_groups": [
+            {"venue": v, "start_time": str(st), "title": t, "count": n,
+             "sources": srcs}
+            for v, st, t, n, srcs in rows[:15]],
+    }
+
+
 def intake_funnel(cur) -> dict:
     """Cataloged sources and raw intake — breadth that hasn't reached the feed yet."""
     src = q(cur, """
@@ -192,6 +278,8 @@ def main() -> int:
             pipeline = pipeline_lane(cur)
             funnel = intake_funnel(cur)
             ratio = ratio_50_to_1(cur)
+            dates = date_distribution(cur)
+            dupes = duplicate_report(cur)
     finally:
         conn.close()
 
@@ -205,6 +293,8 @@ def main() -> int:
         "pipeline_lane": pipeline,
         "intake_funnel": funnel,
         "ratio_50_to_1": ratio,
+        "date_distribution": dates,
+        "duplicate_report": dupes,
         "totals": {
             "published_events_total": published_total,
             "published_upcoming": (

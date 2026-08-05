@@ -204,6 +204,33 @@ package (docs/design/V0_PROMPT_PACKAGE_v1.md).
 [S3:db-type-mismatch-invisible-to-hermetic-tests] The class's own mechanism is this build: the real-Postgres leg replays the escaped uuid[] insert (two distinct artists) against the server's type check plus registry-bound provenance and the 0020 backfill — proven 3/3 locally twice before commit.
 [S3:excluded-surface-widening] No scanner-excluded surface widens: the new workflow/tests are ordinary tracked files under the scanners' sweep; .claude and SKIP_PARTS untouched.
 
+AMENDMENT 2 (2026-08-05 evening, founder-directed live: "THe number of
+events showing on the live site for today is worse than paltry - 11 items.
+What gives? Fix this. I want every event loaded asap" + "worse there are
+apparent duplicates" — decision record 2026-08-05_today-density-and-
+duplicates.md): ADDED SCOPE — cross-source duplicate collapse on the feed
+read (web/lib/dedupe_display.ts + page.tsx wiring, 8 tests), db_scope_report
+date-distribution + duplicate-report sections (the supply-lever diagnosis
+instrument), RECORD row R-080 (non-event rows from structured feeds — import
+-lane fix deferred with trigger), fresh import dispatches.
+[S3:swallowed-corrupt-data] The collapse returns every absorbed row and the caller logs the count; the SQL report totals over ALL duplicate groups before sampling 15 (the gate's own review caught my first LIMIT-50-then-count shape and it was fixed pre-push).
+[S3:final-gate-trusts-generator] [S3:release-path-weaker-than-generation] [S3:self-weakenable-gate] Display-only change: nothing publishes, no gate or threshold moves; disputed rows are structurally excluded from collapse (shown-never-hidden outranks tidiness, pinned by test both directions).
+[S3:false-confidence-gate] [S3:untested-gate-branch] Dedupe behavior pinned per branch: collapse case, both never-collapse cases (venue differs, time differs), disputed both directions, richness/authority/id tie-break chain, order preservation, and null-identity passthrough.
+[S3:db-type-mismatch-invisible-to-hermetic-tests] db_scope_report's new SQL is read-only reporting (no publish-path write); its correctness is proven on the live dispatch it exists for — stated honestly rather than faked hermetically.
+[S3:deferred-trust-work] The structured-feed non-event gap is NOT parked as prose: R-080 carries the bar citation and an objective trigger (next import-lane PR, evaluator-mandatory).
+[S3:stalled-state-needs-active-diagnosis] The thin-Today state gets a diagnostic probe (date-distribution + duplicate sections, dispatched) — not more waiting.
+[S3:scripted-transform-order] The scripted SQL-normalization replacement ran before any prose describing it was written; the edit was re-read after transform.
+[S3:stale-base-widens-range] Branch reset onto the fresh post-#188 master tip before this build; gate freshness check green.
+[S3:stale-redclass-count] [S3:status-narration-not-progress] [S3:unusable-credential-tier] Matched by record prose riding this diff (counts cited by command, the founder report delivers finished things, no credential logic touched) — dispositioned, not silently dropped.
+[S3:pagination-integrity-gap] The duplicate report exhausts every group before totaling; only the human-facing listing samples (15), labeled as a sample.
+[S3:parallel-record-id-collision] R-080 allocated after grepping the live register's highest id on the fresh master tip; test_record_ids_unique green.
+[S3:retyped-evidence] [S3:pushed-on-red] Run ids and counts in these records are pasted from tool output; validate runs unchained with its exit read before any push.
+[S3:founder-path-unprobed] This change alters the /tonight render — post-merge, site-probe re-runs before any founder-facing claim about the page.
+[S3:contract-scope-violation] This amendment IS the same-push contract move for the founder's new directive, quoting it verbatim.
+[S3:env-dependent-hermetic-test] [S3:rule-stronger-than-mechanism] [S3:mutable-model-alias] [S3:nonfinite-numeric-accepted] [S3:self-weakenable-review-model] [S3:volatile-safety-store] [S3:weak-key-accepted-at-custody] Matched by amendment prose keywords, not the build surface (no test env claims, no rule text, no model pins, no numeric config, no reviewer inputs, no stores or keys touched) — reviewed and dispositioned.
+[S3:caller-suppliable-custody-inputs] [S3:fail-open-on-custody-misconfig] [S3:missing-cardinality-check] [S3:semantic-claim-not-rederived] [S3:copy-outruns-registry] [S3:founder-verbatim-corrected] [S3:workflow-tool-version-skew] [S3:fabricated-qualitative-copy] [S3:false-price-claim] Same disposition — these tokens match this block's own wording, not anything the diff mechanizes; the build remains a display collapse + a read-only report, the founder quote above is carried exactly as typed, and no user-facing wording or pricing output changes anywhere in it.
+[S3:nonfinite-decimal-accepted] Likewise prose-matched only: the collapse compares field presence, not numeric values, and every number it touches was already normalized upstream.
+
 Stage-3 retrieval (construction loop; matched classes answered; the diff
 carries the whole kickoff work order's prose, so the trigger net matched far
 beyond the build surface — every match is answered or dispositioned, none
