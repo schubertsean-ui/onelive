@@ -32,19 +32,17 @@ from worker.db_config import resolve_dsn
 # which is the gate's whole reason to exist. Classification comes from the
 # catalog or not at all.
 KNOWN_SOURCE_CLASSES = frozenset({
-    # FIRST-PARTY anchors — one is enough to promote (worker/gating.py
-    # ANCHOR_CLASSES is the authority; this set must contain it, pinned by
-    # tests/test_import_sources_class_guard.py). theater_arts /
-    # gallery_museum / food_culinary / university were live in the DB but
-    # unknown to this importer, which is how they became silent forever-holds
-    # (2026-08-05).
+    # first-party — one is enough to promote (worker/gating.py ANCHOR_CLASSES)
     "festival_feed", "ticketing", "venue_calendar", "claimed_upload",
-    "email_opt_in", "city_calendar", "university_calendar", "university",
-    "library_calendar", "calendar_feed", "theater_arts", "gallery_museum",
-    "food_culinary",
-    # THIRD-PARTY — real classes that report on others' events and need
-    # corroboration (worker/gating.py THIRD_PARTY_CLASSES)
-    "local_media", "social", "blog", "artist_aggregator", "music_platform",
+    "email_opt_in", "calendar_feed", "local_media", "city_calendar",
+    "university_calendar", "university", "library_calendar",
+    # institutions publishing their own programs. These four already exist in
+    # the LIVE database, seeded outside this repo — the committed catalog
+    # holds 180 sources while the ingest run reports 266 enabled. They are
+    # named here so the importer and the gate share one vocabulary.
+    "theater_arts", "gallery_museum", "food_culinary",
+    # third-party — real classes, but they report on others and need corroboration
+    "social", "blog", "artist_aggregator", "music_platform",
     "search_benchmark", "link_hub", "community", "directory",
     "artist_directory",
 })

@@ -13,7 +13,7 @@ from worker.triangulate import (
 
 # An AI-extracted candidate from a NON-anchor source (local media / radio blurb).
 TARGET = {
-    "source_class": "local_media",
+    "source_class": "social",
     "source_id": "kutx",
     "venue_name": "Mohawk Austin",
     "start_time": "2026-08-01T20:00:00Z",
@@ -99,13 +99,13 @@ def test_same_event_non_string_field_does_not_raise():
 
 def test_corroborate_single_source_no_pool():
     corr = corroborate(TARGET, [])
-    assert corr == Corroboration(source_classes=("local_media",), matches=0)
+    assert corr == Corroboration(source_classes=("social",), matches=0)
 
 
 def test_corroborate_counts_independent_anchor():
     corr = corroborate(TARGET, [TM_ROW])
     assert corr.matches == 1
-    assert set(corr.source_classes) == {"local_media", "ticketing"}
+    assert set(corr.source_classes) == {"social", "ticketing"}
 
 
 def test_corroborate_target_does_not_corroborate_itself():
@@ -113,14 +113,14 @@ def test_corroborate_target_does_not_corroborate_itself():
     echo = dict(TM_ROW, source_id="kutx", source_provider=None)
     corr = corroborate(TARGET, [echo])
     assert corr.matches == 0
-    assert corr.source_classes == ("local_media",)
+    assert corr.source_classes == ("social",)
 
 
 def test_corroborate_duplicate_source_counts_once():
     # Two Ticketmaster rows for the same show (same source id) count once.
     corr = corroborate(TARGET, [TM_ROW, dict(TM_ROW, title="Spoon (Standing)")])
     assert corr.matches == 1
-    assert set(corr.source_classes) == {"local_media", "ticketing"}
+    assert set(corr.source_classes) == {"social", "ticketing"}
 
 
 def test_corroborate_ignores_non_matching_pool_events():
@@ -128,7 +128,7 @@ def test_corroborate_ignores_non_matching_pool_events():
              "venue_name": "Emo's", "start_time": "2026-08-01T20:00:00Z", "title": "Turnstile"}
     corr = corroborate(TARGET, [noise])
     assert corr.matches == 0
-    assert corr.source_classes == ("local_media",)
+    assert corr.source_classes == ("social",)
 
 
 # ---- triangulated_confidence (reuses derive_confidence) ---------------------
@@ -138,7 +138,7 @@ def test_confidence_single_source_is_unverified():
 
 
 def test_confidence_anchor_corroboration_is_confirmed():
-    # local_media + ticketing (anchor) → confirmed.
+    # social + ticketing (anchor) → confirmed.
     assert triangulated_confidence(TARGET, [TM_ROW]) == "confirmed"
 
 
@@ -146,7 +146,7 @@ def test_confidence_two_nonanchor_sources_is_confirmed():
     blog = {"source_id": "chron", "source_class": "blog",
             "venue_name": "Mohawk", "start_time": "2026-08-01T20:15:00Z",
             "title": "Spoon at Mohawk"}
-    # local_media + blog = two distinct non-anchor classes → confirmed (founder
+    # social + blog = two distinct third-party classes → confirmed (founder
     # ruling 2026-08-04, verbatim "Just 'confirmed' - remove 'likely'": the
     # corroborated tier earns the anchor's label).
     assert triangulated_confidence(TARGET, [blog]) == "confirmed"

@@ -200,40 +200,6 @@ def _shape_and_store_one(
     # fact is asserted and no event is lost to a formatting detail. Applied
     # PER EVENT so each show's date claim is judged on its own text.
     discarded_times = normalize_extracted_datetimes(shaped)
-    # Page-context date resolution (Contract #44, founder-directed
-    # 2026-08-05): a month+day-evidenced claim whose YEAR the strict rule
-    # refused ("Aug 8 7:30 PM" on a live calendar) resolves against the
-    # fetch moment under worker/datetime_resolve's stated deterministic
-    # rule — context evidence, not fabrication, recorded in provenance.
-    # Anything the resolver refuses stays exactly as R-021 left it: NULL
-    # with the raw claim preserved.
-    if discarded_times:
-        resolved_records: Dict[str, Any] = {}
-        now_ctx = _dt.datetime.now(_dt.timezone.utc)
-        for fld, refusal in list(discarded_times.items()):
-            if refusal.get("reason") != "no-full-date-evidence":
-                continue
-            # Two evidence sources, in order of directness: the claim's own
-            # month+day (year from context), then — for a BARE TIME, which is
-            # what venue calendars actually produce — the single date stated
-            # in this event's OWN block text. Both refuse rather than guess.
-            iso, rec = resolve_partial_date_claim(refusal.get("raw"), now_ctx)
-            if iso is None:
-                iso, rec = resolve_time_only_from_block(
-                    refusal.get("raw"), text, now_ctx)
-            if iso is not None:
-                shaped[fld] = iso
-                resolved_records[fld] = rec
-                del discarded_times[fld]
-        if resolved_records:
-            prov = meta.get("_provenance")
-            meta["_provenance"] = dict(prov) if isinstance(prov, dict) else {}
-            meta["_provenance"]["datetime_resolution"] = resolved_records
-            logger.info(
-                "source %r: %d partial date claim(s) resolved from page "
-                "context (rule + context recorded in provenance): %s",
-                source_name, len(resolved_records), resolved_records,
-            )
     if discarded_times:
         # Date recovery, founder-directed 2026-08-05 ("more of a call back
         # position than a logic process"): (1) CALLBACK — read the explicit
@@ -272,6 +238,50 @@ def _shape_and_store_one(
                     recovery[field] = {"method": "detail-page-callback",
                                        "source": link, "raw": claim}
                     discarded_times.pop(field)
+        # ORDER IS DOCTRINE (founder 2026-08-05, "more of a call back
+        # position than a logic process"): the callback above has already
+        # had first refusal, because a date the SOURCE'S OWN page declares
+        # outranks anything we infer. Only what it could not recover reaches
+        # the page-context reader below, and the year INFERENCE inside it is
+        # the weakest evidence of all. A naive git merge stacked this block
+        # ABOVE the callback, where its `del discarded_times[fld]` consumed
+        # the claim and the source page was never fetched — inverting the
+        # ruling with no conflict marker and a green suite.
+        # Page-context read for a BARE TIME claim ("8:00 pm"), which is what
+        # venue calendars actually produce: take the single date stated in
+        # this event's OWN block text. That is the source's own words, so it
+        # ranks above inference and below the callback.
+        #
+        # ONE YEAR RULE, NOT TWO (consolidation 2026-08-06): the merge brought
+        # in two independent year-from-context resolvers — this module's
+        # resolve_partial_date_claim and datetime_normalize.resolve_yearless_
+        # claim. Only the latter survives in the live path, and deliberately:
+        # PR #189's r2 evaluator round BANNED resolving against this worker's
+        # wall clock and required the threaded SOURCE FETCH time, failing
+        # closed when it is absent. resolve_partial_date_claim took
+        # datetime.now(), so keeping it here would have re-introduced the
+        # exact defect that review removed. It stays in the module for the
+        # backfill worker, which carries each candidate's own created_at.
+        if discarded_times and fetched_at is not None:
+            resolved_records: Dict[str, Any] = {}
+            for fld, refusal in list(discarded_times.items()):
+                if refusal.get("reason") != "no-full-date-evidence":
+                    continue
+                iso, rec = resolve_time_only_from_block(
+                    refusal.get("raw"), text, fetched_at)
+                if iso is not None:
+                    shaped[fld] = iso
+                    resolved_records[fld] = rec
+                    del discarded_times[fld]
+            if resolved_records:
+                prov = meta.get("_provenance")
+                meta["_provenance"] = dict(prov) if isinstance(prov, dict) else {}
+                meta["_provenance"]["datetime_resolution"] = resolved_records
+                logger.info(
+                    "source %r: %d partial date claim(s) resolved from page "
+                    "context (rule + context recorded in provenance): %s",
+                    source_name, len(resolved_records), resolved_records,
+                )
         # Year rule LAST, and ONLY against the SOURCE FETCH time threaded from
         # the fetch site (evaluator finding, PR #189 r2): no fetched_at means
         # no resolution — replay/backfill must never re-date a claim off this
