@@ -148,6 +148,9 @@ jobs:
           PERIOD_S: ${{ github.event.inputs.arg2 }}
           GRACE_S: ${{ github.event.inputs.arg3 }}
         run: |
+          # pipefail is load-bearing (Kaizen pipe-masked-exit rule): the
+          # jq → curl → jq pipeline below must fail this step on ANY stage.
+          set -o pipefail
           : "${HEALTHCHECKS_API_KEY:?HEALTHCHECKS_API_KEY secret missing — founder delegation 2026-08-05}"
           : "${CHECK_NAME:?arg1 (check name) required — failing closed}"
           : "${PERIOD_S:?arg2 (period seconds) required — failing closed}"
@@ -159,10 +162,11 @@ jobs:
           # every configured alert channel (the founder's email integration).
           # The response's ping_url (a write credential) is masked to its
           # uuid tail length only.
-          curl -sS --fail-with-body -X POST -H "X-Api-Key: $HEALTHCHECKS_API_KEY" \
-            -H "Content-Type: application/json" \
-            https://healthchecks.io/api/v3/checks/ \
-            -d "{\"name\": \"$CHECK_NAME\", \"timeout\": $PERIOD_S, \"grace\": $GRACE_S, \"channels\": \"*\", \"unique\": [\"name\"]}" \
+          jq -n --arg name "$CHECK_NAME" --argjson timeout "$PERIOD_S" --argjson grace "$GRACE_S" \
+            '{name: $name, timeout: $timeout, grace: $grace, channels: "*", unique: ["name"]}' \
+            | curl -sS --fail-with-body -X POST -H "X-Api-Key: $HEALTHCHECKS_API_KEY" \
+                -H "Content-Type: application/json" \
+                https://healthchecks.io/api/v3/checks/ -d @- \
             | jq '{name, slug, status, timeout, grace, created: (.n_pings == 0)}'
           echo "check '$CHECK_NAME' upserted (period ${PERIOD_S}s, grace ${GRACE_S}s). Fetch its ping URL from the healthchecks dashboard or wire it as a repo secret."
       - name: Live-site probe (public pages, no secrets)
@@ -175,6 +179,20 @@ jobs:
             code=$(curl -sS -o body.out -w '%{http_code}' -m 30 "$url" || echo "curl-failed")
             echo "== $url -> HTTP $code; first 400 bytes:"
             head -c 400 body.out; echo
+          done
+          # Clerk-hosted subdomains: the SSL-certificate saga's ground truth
+          # is the TLS handshake itself (the Clerk domain object exposes no
+          # cert-status field). Verification on, so an unissued/invalid cert
+          # fails the handshake and prints loud; on success the cert's
+          # subject/issuer/expiry lines are public certificate metadata.
+          for host in accounts.1live.co clerk.1live.co; do
+            echo "== TLS handshake: $host"
+            if curl -sS -o /dev/null -m 30 -w "HTTP %{http_code}; ssl_verify_result %{ssl_verify_result}\n" "https://$host/"; then
+              curl -sSv -o /dev/null -m 30 "https://$host/" 2>&1 \
+                | grep -E "subject:|issuer:|expire date:" || true
+            else
+              echo "TLS handshake or connect FAILED for $host — certificate not issued/valid yet"
+            fi
           done
       - name: "Google CSE probe (plain query, no site-operator) + cx SHAPE report"
         if: ${{ github.event.inputs.mode == 'cse-probe' }}
@@ -192,6 +210,14 @@ jobs:
             "${#GOOGLE_CSE_CX}" \
             "$([[ "$GOOGLE_CSE_CX" =~ ^[0-9a-f]{10,20}$ ]] && echo yes || echo no)" \
             "$([[ "$GOOGLE_CSE_CX" =~ [[:space:]] ]] && echo yes || echo no)"
+          # Key SHAPE too (same never-the-value discipline): a Google Cloud
+          # API key is 39 chars starting 'AIza'. This distinguishes "the
+          # secret never changed" from "the key is fine but its project
+          # rejects the API" when a 403 persists across re-pastes.
+          printf 'key shape: length=%s starts_AIza=%s has_whitespace=%s\n' \
+            "${#GOOGLE_CSE_KEY}" \
+            "$([[ "$GOOGLE_CSE_KEY" == AIza* ]] && echo yes || echo no)" \
+            "$([[ "$GOOGLE_CSE_KEY" =~ [[:space:]] ]] && echo yes || echo no)"
           http_code=$(curl -sS -o probe.json -w '%{http_code}' \
             "https://www.googleapis.com/customsearch/v1?key=$GOOGLE_CSE_KEY&cx=$GOOGLE_CSE_CX&q=austin+live+music")
           echo "HTTP $http_code"
