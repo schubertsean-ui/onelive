@@ -67,6 +67,7 @@ def _install_fakes(
     evidence_signals_by_candidate = evidence_signals_by_candidate or {}
 
     written_files = {}
+    stamped = []  # (candidate_id, status, gate_reason, required_next) records
 
     def fake_fetch_url(*, source_id, url, **kwargs):
         # Find the source name embedded in the url (our _source() helper
@@ -95,10 +96,15 @@ def _install_fakes(
         )
         return extracted, evidence_signals
 
+    def fake_stamp_gate_verdict(candidate_id, *, status, gate_reason, required_next, cur=None):
+        stamped.append((candidate_id, status, gate_reason, required_next))
+
+    monkeypatch.setattr(orchestrator, "stamp_gate_verdict", fake_stamp_gate_verdict)
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
     monkeypatch.setattr(orchestrator, "extract_candidate", fake_extract_candidate)
     monkeypatch.setattr(orchestrator, "list_candidate_source_classes", fake_list_candidate_source_classes)
     monkeypatch.setattr(orchestrator, "load_candidate_gate_signals", fake_load_candidate_gate_signals)
+    return stamped
 
 
 def pytest_tmp_file(name, text):
@@ -243,6 +249,8 @@ def test_transient_error_in_one_source_does_not_abort_others(monkeypatch):
     monkeypatch.setattr(orchestrator, "extract_candidate", fake_extract_candidate)
     monkeypatch.setattr(orchestrator, "list_candidate_source_classes", fake_list_candidate_source_classes)
     monkeypatch.setattr(orchestrator, "load_candidate_gate_signals", fake_load_candidate_gate_signals)
+    monkeypatch.setattr(orchestrator, "stamp_gate_verdict",
+                        lambda candidate_id, **kw: None)
 
     report = run_loop(ai=FakeAIProvider(), sources=sources)
 
@@ -367,3 +375,52 @@ def test_run_report_shape_has_all_declared_count_keys():
 # GateDecision re-exported for callers/tests that want the enum from here.
 def test_gate_decision_enum_is_exported():
     assert GateDecision.PASS.value == "pass"
+
+
+# --------------------------------------------------------------------------
+# Gate-verdict persistence (2026-08-05): the verdict must land on the ROW,
+# not only in the replay log — the stranded-backlog diagnosis.
+# --------------------------------------------------------------------------
+def test_pass_candidate_row_is_stamped_ready_to_promote(monkeypatch):
+    sources = [_source("anchor_src", source_class="ticketing")]
+    stamped = _install_fakes(
+        monkeypatch,
+        fetch_by_source={"anchor_src": {"status": "ok", "content_type": "text/plain"}},
+        text_by_source={"anchor_src": "A real listing blurb with plenty of descriptive text content here."},
+        candidate_classes_by_candidate={"candidate-anchor_src": ["ticketing"]},
+    )
+    run_loop(ai=FakeAIProvider(), sources=sources)
+    assert [(cid, status) for cid, status, _, _ in stamped] == [
+        ("candidate-anchor_src", "ready_to_promote")
+    ]
+
+
+def test_hold_candidate_row_is_stamped_needs_more_confirmation(monkeypatch):
+    sources = [_source("weak_src", source_class="blog")]
+    stamped = _install_fakes(
+        monkeypatch,
+        fetch_by_source={"weak_src": {"status": "ok", "content_type": "text/plain"}},
+        text_by_source={"weak_src": "Another real listing blurb with plenty of descriptive text content."},
+        candidate_classes_by_candidate={"candidate-weak_src": ["blog"]},
+    )
+    run_loop(ai=FakeAIProvider(), sources=sources)
+    (cid, status, reason, required_next) = stamped[0]
+    assert status == "needs_more_confirmation"
+    assert "Insufficient corroboration" in reason
+    assert required_next  # the human-actionable next step travels with the row
+
+
+def test_escalate_candidate_row_stays_needs_review_with_reason(monkeypatch):
+    sources = [_source("private_src", source_class="ticketing")]
+    stamped = _install_fakes(
+        monkeypatch,
+        fetch_by_source={"private_src": {"status": "ok", "content_type": "text/plain"}},
+        text_by_source={"private_src": "A private RSVP listing blurb with plenty of descriptive text content."},
+        candidate_classes_by_candidate={"candidate-private_src": ["ticketing"]},
+        extracted_by_candidate={"candidate-private_src": {"is_private_rsvp": True}},
+    )
+    run_loop(ai=FakeAIProvider(), sources=sources)
+    (cid, status, reason, required_next) = stamped[0]
+    assert status == "needs_review"
+    assert reason  # escalation reason recorded so the sweep can skip it
+    assert "escalated" in required_next

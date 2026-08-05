@@ -69,7 +69,11 @@ from typing import Any, Dict, List, Optional
 
 from ai.provider import AIProvider
 from worker.ai_extract import extract_candidate
-from worker.candidate_store import list_candidate_source_classes, load_candidate_gate_signals
+from worker.candidate_store import (
+    list_candidate_source_classes,
+    load_candidate_gate_signals,
+    stamp_gate_verdict,
+)
 from worker.fetch.http_fetch import fetch_url
 from worker.fetch.render_fetch import RenderError, fetch_with_render, render_html
 from worker.replay_log import ReplayRecord, canonical_digest, log_step, new_run_id
@@ -391,6 +395,30 @@ def _run_one_source(
         outputs_digest=canonical_digest({"decision": verdict.decision.value}),
         decision=verdict.decision.value, detail=verdict.reason,
     ))
+
+    # Persist the verdict onto the candidate ROW (2026-08-05): before this,
+    # the verdict lived only in the replay log — every candidate stayed at its
+    # insert status 'needs_review', the autopromote pass selected an
+    # eternally-empty 'ready_to_promote' population, and the only stamping
+    # path was the per-item human ops action (the REJECTED approval loop in
+    # disguise). Stamping classifies; it never publishes — the publish paths
+    # re-gate independently. ESCALATE keeps 'needs_review' (the human queue)
+    # with the reason recorded so the backlog sweep can tell "escalated by the
+    # gate" from "never examined".
+    if verdict.decision is GateDecision.ESCALATE:
+        stamp_gate_verdict(
+            candidate_id,
+            status="needs_review",
+            gate_reason=verdict.reason,
+            required_next="human review — escalated by trust gate",
+        )
+    else:
+        stamp_gate_verdict(
+            candidate_id,
+            status=verdict.base.status,
+            gate_reason=verdict.base.reason,
+            required_next=verdict.base.required_next,
+        )
 
     if verdict.decision is GateDecision.HOLD:
         return (

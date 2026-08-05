@@ -37,9 +37,24 @@ logger = logging.getLogger(__name__)
 # identical fix for the identical reason. A no-op under `-m` or pytest.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from worker.autopromote import run_autopromote
+from worker.autopromote import run_autopromote, stamp_backlog
 from worker.db_config import resolve_dsn
 from worker.sentinel import deadman, init_sentry
+
+
+def _nonnegative_int(raw: str) -> int:
+    """argparse type for --stamp-limit: 0 means SKIP the stamp sweep (a
+    bounded, explicit choice); negative is rejected; there is no uncapped
+    spelling."""
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"{raw!r} is not an integer") from exc
+    if value < 0:
+        raise argparse.ArgumentTypeError(
+            f"{value} is not a valid sweep ceiling — must be >= 0 (0 skips the sweep)."
+        )
+    return value
 
 
 def _positive_int(raw: str) -> int:
@@ -58,11 +73,23 @@ def _positive_int(raw: str) -> int:
     return value
 
 
-def _run_real(limit: int) -> int:
+def _run_real(limit: int, stamp_limit: int) -> int:
     """Open the real DB (resolve_dsn fails loud when unconfigured) and run one
-    bounded pass. The connection is closed even when the pass raises."""
+    bounded pass. The connection is closed even when the pass raises.
+
+    Phase order is load-bearing: the gate-stamp sweep runs FIRST so verdicts
+    the orchestrator computed but the row never carried (the 2026-08-05
+    stranded-backlog diagnosis) become visible to this very pass's promote
+    phase. Stamping runs regardless of AUTO_PUBLISH_RATIFIED — it classifies,
+    it never publishes — so the /ops queues stay truthful even when the
+    publish switch is off. stamp_limit=0 skips the sweep (a bounded choice,
+    not an uncapped one)."""
     conn = psycopg2.connect(resolve_dsn())
     try:
+        if stamp_limit > 0:
+            stamp = stamp_backlog(conn, limit=stamp_limit)
+            print("StampReport:")
+            print(f"  counts:   {stamp.counts}")
         report = run_autopromote(conn, limit=limit)
     finally:
         conn.close()
@@ -95,6 +122,14 @@ def main() -> int:
         help="Batch ceiling: examine at most N ready_to_promote candidates "
              "this pass (required positive integer; there is no uncapped mode).",
     )
+    parser.add_argument(
+        "--stamp-limit",
+        type=_nonnegative_int,
+        required=True,
+        help="Gate-stamp sweep ceiling: examine at most N never-stamped "
+             "backlog candidates before the promote phase (required; 0 skips "
+             "the sweep — a bounded choice, never uncapped).",
+    )
     args = parser.parse_args()
     if not args.real:
         logger.error(
@@ -107,7 +142,7 @@ def main() -> int:
     # matching worker/run_once.py — no scheduled loop without both signals.
     init_sentry("worker")
     with deadman():
-        return _run_real(args.limit)
+        return _run_real(args.limit, args.stamp_limit)
 
 
 if __name__ == "__main__":

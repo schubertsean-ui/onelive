@@ -31,6 +31,10 @@ on:
         description: "Batch ceiling for this pass (positive integer)"
         required: false
         default: "200"
+      stamp_limit:
+        description: "Gate-stamp sweep ceiling before the promote phase (0 skips the sweep)"
+        required: false
+        default: "1000"
 
 permissions:
   contents: read
@@ -67,12 +71,17 @@ jobs:
           # or vars.* — visible in diff/blame, reversible in one line.
           AUTO_PUBLISH_RATIFIED: "1"
           LIMIT: ${{ github.event.inputs.limit || '200' }}
+          # Gate-stamp sweep ceiling (DB-only classification of the
+          # never-stamped backlog; runs before the promote phase). Same
+          # schedule-vs-dispatch shape as LIMIT.
+          STAMP_LIMIT: ${{ github.event.inputs.stamp_limit || '1000' }}
         run: |
           : "${ONELIVE_DB_DSN_RAW:?ONELIVE_DB_DSN secret missing — add it in repo Settings → Secrets → Actions}"
           : "${ONELIVE_DB_PASSWORD:?ONELIVE_DB_PASSWORD secret missing — add it in repo Settings → Secrets → Actions}"
           : "${SENTRY_DSN:?SENTRY_DSN secret missing — Sentinel rule: no scheduled loop without error monitoring}"
           : "${ORCHESTRATOR_PING_URL:?AUTOPROMOTE_PING_URL secret missing — Sentinel rule: no scheduled loop without a dead-man ping (create a healthchecks.io check named onelive-autopromote and add its ping URL as the AUTOPROMOTE_PING_URL secret)}"
           : "${LIMIT:?limit missing — the batch ceiling is required}"
+          : "${STAMP_LIMIT:?stamp_limit missing — the sweep ceiling is required}"
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
           export ONELIVE_DB_DSN
-          python worker/run_autopromote.py --real --limit "$LIMIT"
+          python worker/run_autopromote.py --real --limit "$LIMIT" --stamp-limit "$STAMP_LIMIT"

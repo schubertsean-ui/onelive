@@ -62,6 +62,43 @@ def create_candidate(
     return str(cid)
 
 
+def stamp_gate_verdict(
+    candidate_id: str,
+    *,
+    status: str,
+    gate_reason: str,
+    required_next: str,
+    cur=None,
+) -> None:
+    """Persist a gate verdict onto the candidate ROW (status + reason +
+    required_next), exactly the columns the human ops action stamps
+    (api/ops_candidates.py add_evidence). Stamping is CLASSIFICATION, never
+    publication: the only status this writes toward publishing is
+    'ready_to_promote', which merely makes the candidate VISIBLE to the two
+    custody-holding publish paths (the ratified autopromote pass and the
+    authenticated ops promote) — both re-run their own gates before acting
+    (defense in depth). Without this write the gate verdict lived only in the
+    replay log, so the DB population autopromote selects was structurally
+    empty (2026-08-05 diagnosis: examined=0 forever, and /ops per-item
+    stamping was the rejected per-item-approval loop in disguise).
+    Pass `cur` to reuse an open transaction; otherwise a short-lived
+    connection is opened and committed.
+    """
+    sql = """
+      update event_candidate
+      set status=%s, gate_reason=%s, required_next=%s, updated_at=now()
+      where candidate_id=%s
+    """
+    params = (status, gate_reason, required_next, candidate_id)
+    if cur is not None:
+        cur.execute(sql, params)
+        return
+    with db() as conn:
+        with conn.cursor() as own:
+            own.execute(sql, params)
+        conn.commit()
+
+
 def add_evidence(candidate_id: str, source_class: str, source_name: str, source_url: str, quote: str = "") -> str:
     with db() as conn:
         with conn.cursor() as cur:
