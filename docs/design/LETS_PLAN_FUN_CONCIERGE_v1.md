@@ -52,13 +52,28 @@ rather than a new subsystem:
   filtering, gap computation, and the tight-connection flag; a component test
   covers the empty-preference path returning today's behavior unchanged.
 
-**The sequencing honesty rule.** We show the *time* gap between stops because
-we have both timestamps. We do **not** show travel time, distance, or "12 min
-away" — we do not have venue coordinates, so any such number would be invented.
-The panel says the gap and, when two stops share a `venue_area`, says they're
-in the same area, which is a fact we hold. When we later ingest coordinates,
-travel time replaces the gap; until then the copy stays honest, matching the
-existing note on the Ask panel ("we won't guess it").
+**The sequencing honesty rule.** We show the *time* gap between stops, because
+we have both timestamps, and the straight-line *distance*, because we have
+coordinates. We do **not** show travel time, "12 min away", or a mode word
+like "walkable" — those need routing data we do not have, and 0.4 miles across
+I-35 is not a walk.
+
+> **Correction, same day.** An earlier draft of this plan said we have no
+> venue coordinates and proposed leaning on `venue_area` instead. That is
+> backwards. `worker/importers/normalize.py` writes real `venue_lat`/`venue_lng`
+> for Ticketmaster (L168–169), SeatGeek (L221–222) and Eventbrite (L312–313),
+> and writes `"venue_area": None` for all three (L166, L219, L310) — as does
+> `structured_feed.py:573`. Only promoted rows carry an area, from the venue
+> catalog. So coordinates are the live signal and `venue_area` is the dead one,
+> which also means `buildPlan`'s existing same-neighborhood bias is inert on
+> imported events today. The build uses coordinates; the honesty rule now
+> constrains the *mode word*, not the number.
+
+The distance type carries miles and never minutes, so there is no field from
+which a travel duration could be rendered — the no-fabrication rule is a
+property of the type, not a discipline someone has to remember. Where a venue
+has no coordinates we say so by name and give no distance at all, rather than
+quietly omitting the leg.
 
 **Where preferences filter, and where they only rank.** A checked "free"
 filters — the user asked for free, showing a $40 show is a wrong answer. A
@@ -95,9 +110,12 @@ founder described.
 
 The honesty constraint matters just as hard: a concierge that invents travel
 times is worse than no concierge, because the first missed connection teaches
-the user the whole plan is guesswork. Shipping gaps-we-know instead of
-distances-we-don't is what keeps the feature trustworthy while the coordinate
-data catches up.
+the user the whole plan is guesswork. Shipping the two numbers we actually
+hold — the time gap and the straight-line distance — and refusing the one we
+don't is what keeps the feature trustworthy. The correction above is the
+argument in miniature: the first draft of this plan got the data inventory
+backwards in both directions, and only reading the importers settled it.
+Whatever the panel renders has to trace to a field, not to a recollection.
 
 ## Alternatives considered
 
@@ -118,21 +136,25 @@ data catches up.
 When this is done:
 
 1. Selecting any combination of chips and a scope returns between one and three
-   labeled packages, each a sequence of real upcoming events with the gap
-   between stops shown.
+   labeled packages, each a sequence of real upcoming events showing both the
+   time gap and the straight-line distance between stops.
 2. Selecting nothing and picking a scope returns exactly what the panel returns
    today — the change is additive, proven by a regression test.
-3. No package ever claims a distance, travel time, or "walkable" without
-   coordinate data behind it; a test asserts the absence of those strings.
-4. Every headline in every package carries the same trust mark as the feed, and
+3. No package ever renders a travel duration or a mode word ("walk", "drive",
+   "walkable"); a test asserts the absence of those strings, and the distance
+   type carries no minutes field for one to be computed from.
+4. A leg whose venue lacks coordinates says so by name and shows no distance,
+   rather than silently dropping the leg.
+5. Every headline in every package carries the same trust mark as the feed, and
    any ticket link opens in a new tab rather than taking over the screen.
-5. A tight connection (gap below the threshold) is visibly flagged rather than
+6. A tight connection (gap below the threshold) is visibly flagged rather than
    quietly presented as feasible.
 
 ## Not in v1 (named, not forgotten)
 
-Reservations and bookings placed *through* 1Live; travel time and mapped
-routing; saving or sharing a package; a package that spans multiple days beyond
+Reservations and bookings placed *through* 1Live; routed travel time (needs a
+routing service, which is spend); saving or sharing a package; a package that
+spans multiple days beyond
 the existing weekend scope; personalization that remembers past choices. Each
 needs either data or a service we do not have yet; none is blocked by this
 design.
