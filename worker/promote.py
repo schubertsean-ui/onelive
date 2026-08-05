@@ -157,7 +157,7 @@ def promote_candidate(candidate_id: str) -> str:
                 is_private_rsvp, private_access, notes,
                 title, category, subsegment, ticket_url
               )
-              values (%s,%s,%s,%s,'scheduled',%s,false,%s,%s::jsonb,%s,%s,%s,%s,%s)
+              values (%s,%s::uuid[],%s,%s,'scheduled',%s,false,%s,%s::jsonb,%s,%s,%s,%s,%s)
               returning event_id
             """, (
                 venue_id,
