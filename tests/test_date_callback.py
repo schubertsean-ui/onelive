@@ -777,3 +777,29 @@ def test_real_partial_matches_still_attribute(monkeypatch):
         got = recover_dates_from_url("https://venue.example/cal",
                                      candidate_title=title)
         assert got == {"start_time": want}, f"{title} -> {got}"
+
+
+def test_a_nameless_event_at_the_same_hour_lends_no_end_time(monkeypatch):
+    """Adversarial-review BLOCKER (2026-08-05, r4): a nameless declaration
+    sharing only start_time was treated as the same event and allowed to fill
+    the named candidate's missing endDate — so the candidate wore an unrelated
+    event's end time. _dates_agree could never have caught it: end_time was
+    not a field they BOTH carried, so it was never compared. A shared hour is
+    a coincidence a busy venue produces nightly, not an identification.
+    """
+    page = """
+    <html><head><script type="application/ld+json">
+    {"@type":"Event","startDate":"2026-08-28T20:00:00",
+     "endDate":"2026-08-29T02:00:00"}
+    </script></head><body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Songwriter Round</span>
+      <meta itemprop="startDate" content="2026-08-28T20:00:00"/></div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+
+    got = recover_dates_from_url("https://venue.example/e/round",
+                                 candidate_title="Songwriter Round")
+    assert got == {"start_time": "2026-08-28T20:00:00"}, (
+        f"the 2am end belongs to whatever else started at 8; got {got}")
+    assert "end_time" not in got
