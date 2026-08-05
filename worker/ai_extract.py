@@ -17,6 +17,7 @@ drop: it fires the AI_EXTRACT_ZERO_EVENTS_SOURCE_MAY_HAVE_MOVED marker and still
 records one flagged empty candidate for ops.
 """
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 import copy
 import inspect
@@ -127,6 +128,7 @@ def _shape_and_store_one(
     source_class: str,
     text: str,
     sxsw_mode: bool,
+    fetched_at: Optional[datetime] = None,
 ) -> str:
     """Validate, R-021-normalize, and persist ONE event as candidate + evidence.
 
@@ -185,7 +187,8 @@ def _shape_and_store_one(
                                  shaped.get("rsvp_link"))
                      if l and l in text), None)
         if link:
-            recovered_raw = recover_dates_from_url(link)
+            recovered_raw = recover_dates_from_url(
+                link, candidate_title=shaped.get("title"))
             for field, claim in recovered_raw.items():
                 if field not in discarded_times:
                     continue
@@ -195,11 +198,17 @@ def _shape_and_store_one(
                     recovery[field] = {"method": "detail-page-callback",
                                        "source": link, "raw": claim}
                     discarded_times.pop(field)
+        # Year rule LAST, and ONLY against the SOURCE FETCH time threaded from
+        # the fetch site (evaluator finding, PR #189 r2): no fetched_at means
+        # no resolution — replay/backfill must never re-date a claim off this
+        # worker's clock; the claim honestly stays refused instead.
         for field in list(discarded_times):
+            if fetched_at is None:
+                break
             if discarded_times[field].get("reason") != "no-full-date-evidence":
                 continue
             normalized, note = resolve_yearless_claim(
-                discarded_times[field].get("raw"))
+                discarded_times[field].get("raw"), fetched_at)
             if normalized and note:
                 shaped[field] = normalized
                 recovery[field] = {"method": "year-from-fetch-date", **note}
@@ -260,6 +269,7 @@ def extract_candidates(
     source_url: str,
     sxsw_mode: bool = False,
     source_id: Optional[str] = None,
+    fetched_at: Optional[datetime] = None,
 ) -> ExtractionOutcome:
     """Extract EVERY event on a page and fan out one candidate per event.
 
@@ -294,6 +304,7 @@ def extract_candidates(
         source_url=source_url,
         source_class=source_class,
         sxsw_mode=sxsw_mode,
+        fetched_at=fetched_at,
     )
     outcome = ExtractionOutcome()
 
@@ -348,6 +359,7 @@ def extract_candidate(
     source_url: str,
     sxsw_mode: bool = False,
     source_id: Optional[str] = None,
+    fetched_at: Optional[datetime] = None,
 ) -> str:
     """Backward-compatible single-id entrypoint (used by worker/orchestrator.py).
 
@@ -365,6 +377,7 @@ def extract_candidate(
         source_url=source_url,
         sxsw_mode=sxsw_mode,
         source_id=source_id,
+        fetched_at=fetched_at,
     )
     # extract_candidates always records at least one candidate (a flagged empty
     # one on the zero-event path), so there is always an id to return.

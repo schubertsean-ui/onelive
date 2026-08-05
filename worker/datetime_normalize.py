@@ -112,7 +112,7 @@ def normalize_datetime_claim(
 
 def resolve_yearless_claim(
     raw: Any,
-    reference: Optional[datetime] = None,
+    reference: Optional[datetime],
 ) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
     """LAST-RESORT year resolution for a claim that is a full date except the
     year ("August 9", "Sat Aug 9 7pm"). Founder-ratified 2026-08-05 ("Yes on
@@ -121,10 +121,12 @@ def resolve_yearless_claim(
     no machine-readable date to read back.
 
     Rule (a calendar reader's, made deterministic and auditable): resolve to
-    the year that places the date within [-30, +300) days of ``reference``
-    (default: now). That window is narrower than a year, so at most one
-    candidate year fits — no tie to guess. Outside the window (a year-less
-    date >10 months out) we still refuse.
+    the year that places the date within [-30, +300) days of ``reference`` —
+    the SOURCE FETCH time, threaded from the fetch site, never this worker's
+    clock (evaluator finding, PR #189 r2: a now() fallback makes the same
+    claim resolve differently on replay/backfill; no reference -> fail
+    closed, the claim stays refused). The window is narrower than a year,
+    so at most one candidate year fits — no tie to guess.
 
     Returns (iso, note) on resolution — note is the provenance record
     {"raw", "resolved", "reference"} — else (None, None). Claims that are
@@ -154,7 +156,9 @@ def resolve_yearless_claim(
         return None, None  # fully dated — the strict path already stored it
     if (a.month, a.day, a.timetz()) != (b.month, b.day, b.timetz()):
         return None, None  # more than the year is unevidenced — stays refused
-    ref = reference or datetime.now()
+    if reference is None:
+        return None, None  # no fetch-time reference: fail closed, stay refused
+    ref = reference
     resolved = None
     for year in (ref.year - 1, ref.year, ref.year + 1):
         try:

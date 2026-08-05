@@ -362,6 +362,9 @@ def _run_one_source(
             ["fetched", "sensor_rejected"],
         )
 
+    # fetched_at binds the yearless-date rule to SOURCE FETCH time (the text
+    # was fetched moments above in this same call), so replay/backfill can
+    # never re-date a claim off a later worker clock (PR #189 r2).
     candidate_id = extract_candidate(
         ai=ai,
         text=text,
@@ -370,6 +373,7 @@ def _run_one_source(
         source_url=url,
         sxsw_mode=sxsw_mode,
         source_id=source_id,
+        fetched_at=datetime.now(timezone.utc),
     )
     log_step(ReplayRecord(
         run_id=run_id, ts=_now_iso(), source_id=str(source_id), source_name=source_name,

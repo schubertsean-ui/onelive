@@ -83,7 +83,7 @@ def _install_fakes(
             result["storage_ref"] = path
         return result
 
-    def fake_extract_candidate(*, ai, text, source_class, source_name, source_url, sxsw_mode=False, source_id=None):
+    def fake_extract_candidate(*, ai, text, source_class, source_name, source_url, sxsw_mode=False, source_id=None, fetched_at=None):
         return f"candidate-{source_name}"
 
     def fake_list_candidate_source_classes(candidate_id):
@@ -239,7 +239,7 @@ def test_transient_error_in_one_source_does_not_abort_others(monkeypatch):
             "good_src", "A perfectly fine real listing blurb with enough text content."
         )}
 
-    def fake_extract_candidate(*, ai, text, source_class, source_name, source_url, sxsw_mode=False, source_id=None):
+    def fake_extract_candidate(*, ai, text, source_class, source_name, source_url, sxsw_mode=False, source_id=None, fetched_at=None):
         return f"candidate-{source_name}"
 
     def fake_list_candidate_source_classes(candidate_id):
