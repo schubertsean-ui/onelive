@@ -29,7 +29,10 @@ import logging
 import psycopg2
 
 from worker.db_config import resolve_dsn
-from worker.datetime_resolve import resolve_partial_date_claim
+from worker.datetime_resolve import (
+    resolve_partial_date_claim,
+    resolve_time_only_from_block,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +49,8 @@ def run(limit: int, real: bool) -> dict:
                 cur.execute(
                     """
                     select candidate_id, created_at,
-                           extracted->'_provenance'->'unstored_datetime_claims' as claims
+                           extracted->'_provenance'->'unstored_datetime_claims' as claims,
+                           raw_text
                     from event_candidate
                     where start_time is null
                       and extracted->'_provenance'->'unstored_datetime_claims'
@@ -55,11 +59,19 @@ def run(limit: int, real: bool) -> dict:
                     limit %s
                     """, (limit,))
                 rows = cur.fetchall()
-                for cid, created_at, claims in rows:
+                for cid, created_at, claims, raw_text in rows:
                     counts["examined"] += 1
                     try:
                         start_claim = (claims or {}).get("start_time", {}).get("raw")
+                        # Same two evidence sources as live extraction: the
+                        # claim's own month+day first, then the single date
+                        # stated in the candidate's OWN stored block text —
+                        # which is what a bare "8:00 pm" needs and what the
+                        # whole backlog is made of.
                         iso, rec = resolve_partial_date_claim(start_claim, created_at)
+                        if iso is None:
+                            iso, rec = resolve_time_only_from_block(
+                                start_claim, raw_text, created_at)
                         if iso is None:
                             counts["unresolvable"] += 1
                             continue
@@ -69,6 +81,9 @@ def run(limit: int, real: bool) -> dict:
                         if end_claim:
                             end_iso, end_rec = resolve_partial_date_claim(
                                 end_claim, created_at)
+                            if end_iso is None:
+                                end_iso, end_rec = resolve_time_only_from_block(
+                                    end_claim, raw_text, created_at)
                             if end_iso is not None:
                                 resolution["end_time"] = end_rec
                                 counts["resolved_end"] += 1

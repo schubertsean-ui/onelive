@@ -34,7 +34,10 @@ from worker.datetime_normalize import (
     normalize_extracted_datetimes,
     preserve_discarded_claims,
 )
-from worker.datetime_resolve import resolve_partial_date_claim
+from worker.datetime_resolve import (
+    resolve_partial_date_claim,
+    resolve_time_only_from_block,
+)
 from worker.segment import segment_events
 
 logger = logging.getLogger(__name__)
@@ -177,7 +180,14 @@ def _shape_and_store_one(
         for fld, refusal in list(discarded_times.items()):
             if refusal.get("reason") != "no-full-date-evidence":
                 continue
+            # Two evidence sources, in order of directness: the claim's own
+            # month+day (year from context), then — for a BARE TIME, which is
+            # what venue calendars actually produce — the single date stated
+            # in this event's OWN block text. Both refuse rather than guess.
             iso, rec = resolve_partial_date_claim(refusal.get("raw"), now_ctx)
+            if iso is None:
+                iso, rec = resolve_time_only_from_block(
+                    refusal.get("raw"), text, now_ctx)
             if iso is not None:
                 shaped[fld] = iso
                 resolved_records[fld] = rec

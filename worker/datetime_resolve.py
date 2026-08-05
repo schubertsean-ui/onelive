@@ -145,3 +145,110 @@ def resolve_partial_date_claim(
         "rule": f"year-from-context(grace_past_days={GRACE_PAST_DAYS})",
         "context": context.isoformat(),
     }
+
+
+# ── Date-from-the-event's-own-text (the live gap the smoke run exposed) ──────
+# Run 31045743483's refusals were ALL bare times — "8:00 pm", "19:30" — because
+# venue calendars print the date once in the block ("AUG 8 · Spoon · 8:00 pm")
+# and the extractor returned only the time. resolve_partial_date_claim
+# correctly refuses those: a time alone evidences no date. But the date IS
+# right there in the event's own text, so reading it from the block is
+# EVIDENCE, not fabrication — the same standard as everything else here.
+#
+# The rule, deliberately strict: the block must evidence EXACTLY ONE distinct
+# calendar date. Zero → refuse (nothing to read). Two or more → refuse
+# (ambiguous: a block listing several dates cannot say which is this event's).
+
+_MONTHS = ("january|february|march|april|may|june|july|august|september|"
+           "october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|"
+           "oct|nov|dec")
+_WD = r"(?:mon|tue|tues|wed|weds|thu|thur|thurs|fri|sat|sun)[a-z]*"
+# "August 8", "Aug 8, 2026", "8 August", optionally led by the weekday the
+# page itself prints ("Sat, Aug 8"). The weekday is CAPTURED because a page
+# that names it is stating a checkable fact: if the resolved calendar date
+# lands on a different weekday, our year is wrong and we refuse rather than
+# publish a date the page's own text contradicts.
+_TEXT_DATE_RE = re.compile(
+    rf"\b(?:(?P<wd1>{_WD})\.?,?\s+)?(?:{_MONTHS})\.?\s+\d{{1,2}}(?:st|nd|rd|th)?(?:,?\s+\d{{4}})?\b"
+    rf"|\b(?:(?P<wd2>{_WD})\.?,?\s+)?\d{{1,2}}(?:st|nd|rd|th)?\s+(?:{_MONTHS})\.?(?:,?\s+\d{{4}})?\b",
+    re.I)
+# ISO dates, which need no month-name.
+_ISO_DATE_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+
+# A time-only claim: parses, but evidences neither month nor day.
+def _is_time_only(raw: str) -> bool:
+    try:
+        a = _duparser.parse(raw, default=_PROBE_A)
+        b = _duparser.parse(raw, default=_PROBE_B)
+    except (ValueError, OverflowError, TypeError):
+        return False
+    return a.month != b.month or a.day != b.day
+
+
+def resolve_time_only_from_block(
+    raw: Any, block_text: Optional[str], context: datetime,
+) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
+    """Give a bare-time claim the date its OWN block text states.
+
+    Returns (naive_iso | None, resolution_record | None). Refuses unless the
+    claim is time-only AND the block evidences exactly one distinct date.
+    Numeric-ambiguous forms ("03/04/2026") are deliberately not read from
+    text at all — datetime_normalize already refuses those as unknowable, and
+    reading them here would smuggle the guess back in.
+    """
+    if raw is None or not block_text:
+        return None, None
+    s = str(raw).strip()
+    if not s or not _is_time_only(s):
+        return None, None
+
+    found = []  # (date_text, claimed_weekday_or_None)
+    for m in _TEXT_DATE_RE.finditer(block_text):
+        wd = m.group("wd1") or m.group("wd2")
+        found.append((m.group(0), _WEEKDAY_PREFIX[wd[:3].lower()] if wd else None))
+    for m in _ISO_DATE_RE.finditer(block_text):
+        found.append((m.group(0), None))
+    if not found:
+        return None, None
+
+    # Normalize every hit to a concrete date; a hit without a year takes the
+    # year from context under the SAME unique-365-day-window rule above. A hit
+    # whose printed weekday contradicts the resolved date is DROPPED — the
+    # page contradicts itself (or our year is wrong), and neither is something
+    # to publish through.
+    dates = set()
+    for hit, claimed_wd in found:
+        resolved_date = None
+        iso, _ = resolve_partial_date_claim(hit, context)
+        if iso:
+            resolved_date = datetime.fromisoformat(iso).date()
+        else:
+            try:
+                p_a = _duparser.parse(hit, default=_PROBE_A)
+                p_b = _duparser.parse(hit, default=_PROBE_B)
+            except (ValueError, OverflowError, TypeError):
+                continue
+            if p_a.date() == p_b.date():  # fully evidenced, year included
+                resolved_date = p_a.date()
+        if resolved_date is None:
+            continue
+        if claimed_wd is not None and resolved_date.weekday() != claimed_wd:
+            continue
+        dates.add(resolved_date)
+    if len(dates) != 1:
+        # 0 = nothing readable; >1 = the block names several dates and cannot
+        # say which is this event's. Both refuse; the claim stays NULL.
+        return None, None
+
+    the_date = dates.pop()
+    try:
+        t = _duparser.parse(s, default=_PROBE_A).time()
+    except (ValueError, OverflowError, TypeError):
+        return None, None
+    resolved = datetime.combine(the_date, t)
+    return resolved.isoformat(), {
+        "raw": s,
+        "resolved": resolved.isoformat(),
+        "rule": "date-from-event-block-text(exactly-one-date-evidenced)",
+        "context": context.isoformat(),
+    }
