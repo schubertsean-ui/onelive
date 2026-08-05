@@ -114,18 +114,17 @@ jobs:
             eventbrite-harvest.json
             eventbrite-resolved-orgs.json
           if-no-files-found: error
-      - name: Eventbrite SEARCH discovery (path 2 — Google Programmable Search API)
+      - name: Eventbrite SEARCH discovery (path 2 — Brave Search API, licensed)
         if: ${{ github.event.inputs.provider == 'eventbrite-search' }}
         env:
-          GOOGLE_CSE_KEY: ${{ secrets.GOOGLE_CSE_KEY }}
-          GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
           MAX_QUERIES: ${{ github.event.inputs.max_pages || '8' }}
         run: |
           set -o pipefail
-          : "${GOOGLE_CSE_KEY:?GOOGLE_CSE_KEY secret missing — free key: https://developers.google.com/custom-search/v1/introduction}"
-          : "${GOOGLE_CSE_CX:?GOOGLE_CSE_CX secret missing — engine id: https://programmablesearchengine.google.com/}"
+          : "${BRAVE_SEARCH_API_KEY:?BRAVE_SEARCH_API_KEY secret missing — Free plan key: https://api-dashboard.search.brave.com/}"
           : "${MAX_QUERIES:?max_pages input missing — the API-call bound is required}"
-          python3 tools/search_discover_eventbrite.py --max-queries "$MAX_QUERIES" | tee eventbrite-search-candidates.json
+          # -m so tools/ resolves as a package (the tools now share tools/search_api.py)
+          python3 -m tools.search_discover_eventbrite --max-queries "$MAX_QUERIES" | tee eventbrite-search-candidates.json
       - name: Upload search candidates (human review before anything is committed)
         if: ${{ github.event.inputs.provider == 'eventbrite-search' }}
         uses: actions/upload-artifact@v4
@@ -136,15 +135,14 @@ jobs:
       - name: SOURCE SCAN (founder scanner v1 — search-API discovery of new source domains)
         if: ${{ github.event.inputs.provider == 'source-scan' }}
         env:
-          GOOGLE_CSE_KEY: ${{ secrets.GOOGLE_CSE_KEY }}
-          GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
           MAX_QUERIES: ${{ github.event.inputs.max_pages || '20' }}
         run: |
           set -o pipefail
-          : "${GOOGLE_CSE_KEY:?GOOGLE_CSE_KEY secret missing}"
-          : "${GOOGLE_CSE_CX:?GOOGLE_CSE_CX secret missing}"
+          : "${BRAVE_SEARCH_API_KEY:?BRAVE_SEARCH_API_KEY secret missing — Free plan key: https://api-dashboard.search.brave.com/}"
           : "${MAX_QUERIES:?max_pages input missing — the API-call bound is required}"
-          python3 tools/scan_new_sources.py --max-queries "$MAX_QUERIES" | tee source-scan-candidates.json
+          # -m so tools/ resolves as a package (the tools now share tools/search_api.py)
+          python3 -m tools.scan_new_sources --max-queries "$MAX_QUERIES" | tee source-scan-candidates.json
       - name: Upload source-scan candidates (human curation before anything is committed)
         if: ${{ github.event.inputs.provider == 'source-scan' }}
         uses: actions/upload-artifact@v4

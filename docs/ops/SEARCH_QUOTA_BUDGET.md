@@ -1,36 +1,44 @@
-# Google Programmable Search — 100-queries/day budget (v1, 2026-08-05)
+# Brave Search API — 2,000-queries/month budget (v2, 2026-08-05)
 
-**What you're about to see:** how the one shared free search-API quota is
-split between every lane that queries Google, so no lane can silently starve
-another and no recurring schedule ships without a line here.
+**What you're about to see:** how the one shared search-API quota is split
+between every lane that queries the licensed search index, so no lane can
+silently starve another and no recurring schedule ships without a line here.
 
-The Custom Search JSON API free tier is **100 queries/day per project**
-(source: https://developers.google.com/custom-search/v1/overview, read
-2026-08-05). Every consumer goes through a repo secret pair
-(GOOGLE_CSE_KEY/GOOGLE_CSE_CX), so this file is the single budget ledger for
-that key. Paid overage ($5/1000) is a MONEY decision: founder-crucial, not an
-agent knob.
+Provider: **Brave Search API** (founder-ratified switch 2026-08-05, verbatim
+"Switch to Brave - do all the work" — decision record
+docs/memory/decisions/2026-08-05_search-lane-brave-switch.md; Google's Custom
+Search JSON API refuses this account at the account level, proven in
+2026-08-05_founder-delegated-google-fix.md). Free plan: **2,000
+queries/month at 1 request/second** (source:
+https://brave.com/search/api/, read 2026-08-05). Every consumer goes through
+the repo secret BRAVE_SEARCH_API_KEY via `tools/search_api.py`, which also
+enforces the 1 rps throttle in code. Paid tiers (Base $3/1,000 queries) are a
+MONEY decision: founder-crucial, not an agent knob.
 
-## Standing allocation (per UTC day)
+v1 of this file budgeted Google's 100/day; superseded whole. Monthly math
+below assumes 30-day months and states the worst case honestly.
 
-| Lane | Consumer | Budget | Cadence | Notes |
+## Standing allocation (per calendar month)
+
+| Lane | Consumer | Budget/run | Cadence | Monthly worst case |
 | --- | --- | --- | --- | --- |
-| Source scanner | `tools/scan_new_sources.py` (source-scan dispatch; PR #177) | 20 | manual now; proposed 3×/week after first curation round | category query pack → new-domain candidates for human curation |
-| Eventbrite search discovery | `tools/search_discover_eventbrite.py` (provider-dryrun: eventbrite-search) | 10 | manual, on demand | organizer-page discovery; complements the harvest lane (which costs zero quota) |
-| Festival adjacent-event sweeps | WS8 machinery (unbuilt — keyword-pack sweeps) | 30 | only inside an ACTIVE festival window | reserved; outside windows this tranche is idle headroom |
-| Diagnostics | ops-diagnostics `cse-probe` | 2 | on demand | plain-query health probe |
-| Unallocated headroom | — | 38 | — | absorbs retries and manual founder-requested searches; NOT a lane's to claim silently |
+| Source scanner | `tools/scan_new_sources.py` (provider-dryrun: source-scan) | 20 | manual now; proposed 3×/week after first curation round | 260 |
+| Eventbrite search discovery | `tools/search_discover_eventbrite.py` (provider-dryrun: eventbrite-search) | 8 | manual, on demand (~4 runs/month) | 32 |
+| Festival adjacent-event sweeps | WS8 machinery (unbuilt — keyword-pack sweeps) | 30 | daily, only inside an ACTIVE festival window | 930 (a full festival month) |
+| Diagnostics | ops-diagnostics `brave-probe` | 1 | on demand | ~10 |
+| Unallocated headroom | — | — | — | ≥768 even in a festival month |
 
 Rules:
-1. **A new consumer or cadence gets a row here in the same PR that ships it** —
-   the sentinel rule's quota twin. A `schedule:`d scan additionally carries a
-   dead-man check from birth (workflow_env_lint R5 enforces the alarm; this
-   file governs the budget).
+1. **A new consumer or cadence gets a row here in the same PR that ships
+   it** — the sentinel rule's quota twin. A `schedule:`d scan additionally
+   carries a dead-man check from birth (workflow_env_lint R5 enforces the
+   alarm; this file governs the budget).
 2. **Every consumer is bounded by an explicit `--max-queries`/MAX_QUERIES
-   fail-loud input** — no unbounded loops against the quota (already true for
-   both existing tools).
-3. **429/dailyLimitExceeded is a STOP for the day for that lane**, never a
-   retry loop; the tools already fail loud on zero results.
+   fail-loud input** — no unbounded loops against the quota (true for both
+   tools; `tools/search_api.py` additionally throttles to 1 rps in code so
+   no caller can burst).
+3. **HTTP 429 is a STOP for the day for that lane**, never a retry loop; the
+   tools already fail loud on zero results.
 4. Raising the total (paid tier) is founder-crucial (money): the trigger
-   would be sustained >80% utilization across a week, measured from run
-   logs, not guessed.
+   would be sustained >80% utilization across a month, measured from the
+   Brave dashboard / run logs, not guessed.
