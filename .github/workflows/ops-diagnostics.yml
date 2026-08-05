@@ -33,6 +33,7 @@ on:
           - healthchecks-list
           - healthchecks-create
           - cse-probe
+          - site-probe
       project:
         description: "Vercel project name/id (vercel-* modes; fail-loud required there)"
         required: false
@@ -164,6 +165,17 @@ jobs:
             -d "{\"name\": \"$CHECK_NAME\", \"timeout\": $PERIOD_S, \"grace\": $GRACE_S, \"channels\": \"*\", \"unique\": [\"name\"]}" \
             | jq '{name, slug, status, timeout, grace, created: (.n_pings == 0)}'
           echo "check '$CHECK_NAME' upserted (period ${PERIOD_S}s, grace ${GRACE_S}s). Fetch its ping URL from the healthchecks dashboard or wire it as a repo secret."
+      - name: Live-site probe (public pages, no secrets)
+        if: ${{ github.event.inputs.mode == 'site-probe' }}
+        run: |
+          # The dev sandbox's egress proxy cannot reach 1live.co, so site
+          # verification runs from CI instead of asking the founder for
+          # screenshots. Public endpoints only; failures print loud.
+          for url in "https://1live.co/api/health" "https://1live.co/tonight"; do
+            code=$(curl -sS -o body.out -w '%{http_code}' -m 30 "$url" || echo "curl-failed")
+            echo "== $url -> HTTP $code; first 400 bytes:"
+            head -c 400 body.out; echo
+          done
       - name: "Google CSE probe (plain query, no site-operator) + cx SHAPE report"
         if: ${{ github.event.inputs.mode == 'cse-probe' }}
         env:
