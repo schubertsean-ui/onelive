@@ -392,6 +392,30 @@ considered position, not a shrug.
 
 ---
 
+## 6b. Founder-path preflight (canon, founder-ratified 2026-08-05 — decision record docs/memory/decisions/2026-08-05_founder-path-preflight-and-real-db-leg.md)
+
+Nothing that asks the founder to touch the product — a walkthrough, a runbook
+step, a "go try X" — is sent until the exact path has been exercised against
+the LIVE deployment by a mechanical probe (ops-diagnostics), with the probe
+run linked in the message. A step that cannot be probed is labeled UNPROBED
+in the message itself. The founder discovering a broken path the agent
+described is an ESCAPED defect, ledger row mandatory. (Mechanism shipped in
+the ratification commit: ops-diagnostics mode `auth-probe` walks the hosted
+sign-in page and every enabled OAuth button to its authorization redirect,
+failing loud on a missing client_id — the exact 2026-08-05 founder-caught
+break. New probes are added per surface as walkthroughs need them; a surface
+with no probe yet is what UNPROBED is for.)
+
+## 6c. Real-database leg for publish-path changes (canon, founder-ratified 2026-08-05 — same decision record)
+
+Any change to code that writes the canonical public tables (promote,
+importers, migrations) must pass a CI test against a real PostgreSQL with the
+repo's migrations applied — hermetic fake-cursor tests cannot see server-side
+types/constraints and never satisfy this rule alone. (Mechanism shipped in
+the ratification commit: `.github/workflows/db-integration.yml`, every PR, no
+path filter, PostgreSQL 15 service container + `tests/integration/` running
+the actual promote path over the committed migrations.)
+
 ## 6a. Follow-ups & keeping the founder informed (canon, founder-directed 2026-07-31)
 
 The agent is the **manager** and reports to the founder; driving work to done and

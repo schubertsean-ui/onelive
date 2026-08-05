@@ -677,3 +677,38 @@ both binding halves verifiable on this head.
 **Verdict:** r1–r21 attacks recorded and answered above; the arming merges
 only at the evaluator's APPROVE on the final head with the smoke evidence
 in this entry — REQUEST-CHANGES rounds keep appending here until then.
+
+---
+
+## 2026-08-05 — Migration 0020 (event provenance columns) — Contract #44, cards-reflect-updated-content
+
+**Plan (pre-work for the irreversible step — a live-DB migration):** add
+`event.source_name` + `event.source_url` (idempotent `add column if not
+exists`), backfill promoted rows from `event_candidate.promoted_event_id`
+(the promotion's own same-transaction back-reference) and the unique-keyed
+`source` table, column-grant the pair to anon per the 0012
+revoke-then-column-grant precedent, and have `worker/promote.py` write them
+forward at every future promotion. Applied idempotently by autopromote.yml
+before its pass (the import workflows' 0010/0013 precedent).
+
+**Attack surface considered (evaluator attack rides this PR's mandatory
+non-Claude adversarial review — no OPENAI_API_KEY in this sandbox for a
+pre-work call; recorded honestly per the R-### no-silent-deferral rule):**
+- What breaks: a reader deployed before the migration applies selects
+  missing columns → PostgREST 400 → page.tsx's additive-union catch shows
+  the licensed feed only for ≤1 autopromote cycle; closed operationally by
+  dispatching autopromote at merge (migration applies in ~60s, before the
+  Vercel build finishes). Rollback = the columns are additive and nullable;
+  readers treat absent as null.
+- Who is harmed: nobody's privacy — both columns are catalog/source-level
+  facts (the venue's own public listing identity), no personal data; the
+  privacy fence (0012 revoke) is untouched and new columns are closed until
+  explicitly granted.
+- Cheaper path: none honest — joining candidates at read time would expose
+  the candidate table to anon (rejected: RLS fence) or add a per-request
+  join; two nullable columns written at the custody boundary is the minimal
+  shape, and it matches the 0010 card_fields green precedent exactly.
+- Founder-crucial? No: no money, no new service, no trust-invariant change —
+  it STRENGTHENS trust display (canon: sheet + source link). Custody
+  unchanged: written by the gated promote path only, from the candidate's
+  own data, no fabrication.

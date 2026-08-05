@@ -4,6 +4,33 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-05/06 — Engine at scale: the promotion backlog drained to zero, and provenance reaches the cards
+
+The first full at-scale publish cycle of discovered events, end to end. #186
+(artist_ids `::uuid[]` cast) fixed the single cause of every promote error;
+the sweeps that followed ran clean — 300/300, 400/400, 340/340 promoted with
+zero errors — until the final pass reported examined 0 / promoted 0: the
+promotion backlog (4,202 candidates at its peak) is DRAINED. The pipeline
+lane now holds 1,363-order discovered events, all `confirmed`, from 74+
+venues (db-report artifacts are the authority; this entry cites, never
+retypes). The honest other half: `canonical_events_upcoming = 0` at the
+16:14Z report — the drained backlog was HISTORICAL, so the 50:1 windows
+still read 0 and no discovered event renders on /tonight yet; date-verified
+upcoming inventory is the named next engine bottleneck. Also this cycle:
+#177 (source scanner v1) and #185 (Clerk TLS handshakes in site-probe)
+merged; the Clerk cert saga CLOSED on handshake proof (both subdomains
+verify, Google Trust Services, expiry Nov 3); the Google CSE 403 was proven
+ACCOUNT-level by founder-delegated API intervention (resolution
+founder-owned). Cards workstream (founder directive, verbatim record
+2026-08-05_cards-reflect-updated-content.md): the field-by-field audit
+(docs/design/CARDS_CONTENT_AUDIT_2026-08-05.md) found one real content gap —
+source provenance died at the promote boundary — and one surface drift (the
+detail page hid "How we know" for confirmed events while the lens shows it
+on every tab). PR #188 closes both: migration 0020 carries
+source_name/source_url onto the public row (with backfill), promote writes
+them at the custody boundary, and "How we know" names + links the real
+listing. Session Contract #44; records-only STATE reconciliation c03f40f.
+
 ## 2026-08-04 — The calm surface: filters slide in, every tap is the lens (founder re-flag)
 
 Founder, on the live site: "still super cluttered upon opening with all the individual

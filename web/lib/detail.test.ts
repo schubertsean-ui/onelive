@@ -11,6 +11,7 @@ import {
   detailWhen,
   eventHref,
   httpOrNull,
+  originLink,
   telHref,
   venueWebsite,
   resolveDetailView,
@@ -194,6 +195,28 @@ describe("provenance wording is shared, not re-derived", () => {
   it("falls back to the raw provider rather than inventing a name", () => {
     expect(detailProviderLabel(ev({ source_provider: "somethingnew" })))
       .toBe("somethingnew");
+  });
+
+  it("names a promoted row by its REAL source when provenance is present (0020)", () => {
+    const p = ev({ source_provider: "promoted", origin_name: "Mohawk Austin" });
+    expect(detailProviderLabel(p)).toBe("Mohawk Austin");
+    // The trust KIND stays 'listing' — honest wording, never ticketing.
+    expect(detailTrustKind(p)).toBe("listing");
+  });
+
+  it("never lets origin_name rename a LICENSED provider (their provenance IS the provider)", () => {
+    const l = ev({ source_provider: "seatgeek", origin_name: "Should Not Show" });
+    expect(detailProviderLabel(l)).toBe("SeatGeek");
+    expect(originLink(ev({ source_provider: "seatgeek", origin_url: "https://x.example" }))).toBeNull();
+  });
+
+  it("originLink is http(s)-only and honest about absence", () => {
+    expect(originLink(ev({ source_provider: "promoted", origin_url: "https://mohawkaustin.com" })))
+      .toBe("https://mohawkaustin.com");
+    // A stored javascript: URL must never reach an href.
+    expect(originLink(ev({ source_provider: "promoted", origin_url: "javascript:alert(1)" })))
+      .toBeNull();
+    expect(originLink(ev({ source_provider: "promoted" }))).toBeNull();
   });
 });
 

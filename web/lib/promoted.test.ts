@@ -41,6 +41,12 @@ describe("buildPromotedQuery", () => {
     expect(select).not.toContain("notes");
   });
 
+  it("selects the source provenance columns (0020) so 'How we know' can name the listing", () => {
+    const select = params(buildPromotedQuery()).get("select") ?? "";
+    expect(select).toContain("source_name");
+    expect(select).toContain("source_url");
+  });
+
   it("applies category + date-window filters when given", () => {
     const p = params(
       buildPromotedQuery({ category: "comedy", fromISO: "A", toISO: "B" }),
@@ -67,6 +73,8 @@ function row(over: Partial<PromotedRow> = {}): PromotedRow {
     ticket_url: "https://tix.example/e1",
     image_url: null,
     artist_ids: [],
+    source_name: null,
+    source_url: null,
     venue: { name: "The Hideout", city: "Austin", area: "Downtown", address: "617 Congress", lat: 30.27, lng: -97.74 },
     ...over,
   };
@@ -97,6 +105,21 @@ describe("reshapePromoted", () => {
   it("leaves performer null when there are no artists (never invents one)", () => {
     const [e] = reshapePromoted([row({ artist_ids: [] })], new Map());
     expect(e.performer).toBeNull();
+  });
+
+  it("carries source provenance through as data (origin_name/origin_url)", () => {
+    const [e] = reshapePromoted(
+      [row({ source_name: "Mohawk Austin", source_url: "https://mohawkaustin.com" })],
+      new Map(),
+    );
+    expect(e.origin_name).toBe("Mohawk Austin");
+    expect(e.origin_url).toBe("https://mohawkaustin.com");
+  });
+
+  it("leaves absent provenance null — the UI's generic wording, never a guess", () => {
+    const [e] = reshapePromoted([row()], new Map());
+    expect(e.origin_name).toBeNull();
+    expect(e.origin_url).toBeNull();
   });
 
   it("maps venue + card fields through faithfully", () => {

@@ -23,7 +23,23 @@ const PROVIDER_LABEL: Record<string, string> = {
 };
 
 export function detailProviderLabel(e: LicensedEvent): string {
+  // A promoted row that carries its real source (0020) is named honestly by
+  // it — "Reviewed and published from Mohawk Austin" beats the generic
+  // "a local venue or organizer listing". Absent provenance (older rows, an
+  // unregistered source) keeps the generic wording: never a guessed name.
+  // Licensed rows NEVER take this branch — their provenance is the provider.
+  if (e.source_provider === "promoted" && e.origin_name) return e.origin_name;
   return PROVIDER_LABEL[e.source_provider] ?? e.source_provider;
+}
+
+// The source's own page for a promoted row — the tappable "last word" link the
+// trust sheet's wording promises (canon trust display: dismissible sheet +
+// source link). http(s) only via httpOrNull (a stored javascript:/data: URL
+// never reaches an href); null for licensed rows, whose provenance link is the
+// ticket/provider link the surfaces already carry.
+export function originLink(e: LicensedEvent): string | null {
+  if (e.source_provider !== "promoted") return null;
+  return httpOrNull(e.origin_url ?? null);
 }
 
 export function detailTrustKind(e: LicensedEvent): "ticketing" | "listing" {

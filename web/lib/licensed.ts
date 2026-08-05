@@ -82,6 +82,13 @@ export type LicensedEvent = {
   // Optional, resolved at read time by identity ref (lib/spark.ts). Absent =
   // no approved Spark Line for this act (an honest gap, never a fabricated one).
   spark?: SparkLine | null;
+  // Source provenance for PROMOTED (pipeline-gated) rows: the real-world
+  // listing the event was published from (migration 0020 — event.source_name/
+  // source_url, written at promotion from the candidate's own data). Licensed
+  // rows leave both unset: their provenance IS the ticketing provider, already
+  // named by detailProviderLabel. Absent/null = the honest generic wording.
+  origin_name?: string | null;
+  origin_url?: string | null;
 };
 
 export function supabaseConfigured(): boolean {

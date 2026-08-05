@@ -34,6 +34,7 @@ on:
           - healthchecks-create
           - cse-probe
           - site-probe
+          - auth-probe
       project:
         description: "Vercel project name/id (vercel-* modes; fail-loud required there)"
         required: false
@@ -194,6 +195,76 @@ jobs:
               echo "TLS handshake or connect FAILED for $host — certificate not issued/valid yet"
             fi
           done
+      - name: "Auth-surface probe (founder-path preflight — sign-in page + every enabled OAuth button)"
+        if: ${{ github.event.inputs.mode == 'auth-probe' }}
+        run: |
+          # OPERATING_RULES 'Founder-path preflight' (founder-ratified
+          # 2026-08-05): nothing asks the founder to touch a path CI has not
+          # exercised. This probe walks the LIVE sign-in surface the way a
+          # person does: the hosted page must serve, and every OAuth button
+          # Clerk says is enabled must resolve to an authorization redirect
+          # carrying a real client_id — the exact break the founder hit
+          # 2026-08-05 ("Missing required parameter: client_id"). Public
+          # endpoints only, no secrets, fail-loud on any leg.
+          set -o pipefail
+          fail=0
+          # Clerk's hosted pages 403 non-browser clients (proven on this
+          # probe's first firing: curl got 403 while the founder's phone got
+          # 200), so a bare status check cannot prove the page serves for a
+          # PERSON. Honest split: 200 = proven serving; 403 = edge-filtered,
+          # covered by the TLS handshake + the environment endpoint below;
+          # anything else (5xx, connect failure) is a real outage = FAIL.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -m 30 \
+            -H "Accept: text/html" -A "1live-auth-probe" \
+            "https://accounts.1live.co/sign-in" || echo curl-failed)
+          echo "== accounts.1live.co/sign-in -> HTTP $code"
+          case "$code" in
+            200) echo "   OK: hosted page serves" ;;
+            403) echo "   NOTE: 403 to this probe's client — Clerk edge-filters non-browsers; page-serve is proven by TLS + environment legs, not this one" ;;
+            *)   echo "FAIL: hosted sign-in page unreachable (HTTP $code)"; fail=1 ;;
+          esac
+          env_json=$(curl -sS -m 30 "https://clerk.1live.co/v1/environment?_clerk_js_version=5")
+          echo "== enabled social providers (from Clerk's public environment):"
+          echo "$env_json" | jq -r '.user_settings.social // {} | to_entries[] | select(.value.enabled==true) | "\(.key) strategy=\(.value.strategy)"' || { echo "FAIL: environment endpoint unreadable"; fail=1; }
+          jar=$(mktemp)
+          curl -sS -c "$jar" -m 30 -X POST "https://clerk.1live.co/v1/client?_clerk_js_version=5" -o /dev/null || true
+          for strat in $(echo "$env_json" | jq -r '.user_settings.social // {} | to_entries[] | select(.value.enabled==true) | .value.strategy'); do
+            echo "== probing $strat"
+            resp=$(curl -sS -b "$jar" -c "$jar" -m 30 -X POST \
+              "https://clerk.1live.co/v1/client/sign_ins?_clerk_js_version=5" \
+              --data-urlencode "strategy=$strat" \
+              --data-urlencode "redirect_url=https://accounts.1live.co/sign-in/sso-callback")
+            authz=$(echo "$resp" | jq -r '(.response.first_factor_verification.external_verification_redirect_url // .first_factor_verification.external_verification_redirect_url) // empty')
+            if [ -z "$authz" ]; then
+              echo "FAIL: $strat produced no authorization URL. Clerk's answer (truncated):"
+              echo "$resp" | head -c 600; echo
+              fail=1
+              continue
+            fi
+            # Follow Clerk's authorize hop to the provider and read the final
+            # redirect target; the provider URL must carry a non-empty
+            # client_id or the button is a dead end for a real person.
+            final=$(curl -sS -b "$jar" -o /dev/null -m 30 -w '%{redirect_url}' "$authz" || true)
+            target="${final:-$authz}"
+            echo "   authorization target: $(echo "$target" | cut -c1-120)..."
+            # An OAuth ERROR page can itself carry a client_id parameter
+            # (first firing: Google's invalid_client error URL matched the
+            # naive check and printed OK) — so the error check comes FIRST
+            # and wins. authError is base64; decode it so the run log names
+            # the provider's actual reason.
+            reason=""
+            if echo "$target" | grep -qE '/signin/oauth/error|[?&](authError|error)='; then
+              reason=$(echo "$target" | sed -n 's/.*authError=\([^&]*\).*/\1/p' | base64 -d 2>/dev/null | tr -c '[:print:]' ' ' || true)
+              echo "FAIL: $strat authorization ended on the provider's ERROR page${reason:+ — provider says: $reason}"
+              fail=1
+            elif echo "$target" | grep -qE 'client_id=[^&]{8,}'; then
+              echo "   OK: client_id present"
+            else
+              echo "FAIL: $strat authorization URL has NO usable client_id — this sign-in button is BROKEN for users"
+              fail=1
+            fi
+          done
+          exit $fail
       - name: "Google CSE probe (plain query, no site-operator) + cx SHAPE report"
         if: ${{ github.event.inputs.mode == 'cse-probe' }}
         env:

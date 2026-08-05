@@ -18,6 +18,7 @@ import {
   detailWhen,
   detailMapUrl,
   httpOrNull,
+  originLink,
   telHref,
   venueWebsite,
   resolveDetailView,
@@ -332,16 +333,35 @@ export default async function EventDetailPage(
 
         {/* Trust display: the SAME trustDisplay the card uses, so the two
             surfaces cannot drift into different claims about one row. Quiet
-            marker plus a dismissible sheet — no badges, no "confirmed". */}
-        {trust.surface && trust.marker ? (
-          <details className="dunc" open={trust.disputed}>
-            <summary>
-              <span className={`cau${trust.disputed ? " disp" : ""}`}>{trust.marker}</span>{" "}
-              How we know
-            </summary>
-            <div className="sheet">{trust.sheet}</div>
-          </details>
-        ) : null}
+            marker plus a dismissible sheet — no badges, no "confirmed".
+            The disclosure renders for EVERY state (the lens already shows
+            provenance on every tab — a confirmed event's full page saying
+            nothing about how we know it was the drift this comment claims
+            impossible); cautious states additionally carry their marker, and
+            disputed opens the sheet by default, exactly as before. */}
+        <details className="dunc" open={trust.disputed}>
+          <summary>
+            {trust.surface && trust.marker ? (
+              <><span className={`cau${trust.disputed ? " disp" : ""}`}>{trust.marker}</span>{" "}</>
+            ) : null}
+            How we know
+          </summary>
+          <div className="sheet">
+            {trust.sheet}
+            {originLink(event_) ? (
+              <>
+                {" "}
+                {/* origin_url is the source's registered base_url, not a
+                    per-event page — the copy claims exactly that (evaluator
+                    #188 r1). */}
+                <a href={originLink(event_)!} target="_blank" rel="noopener noreferrer"
+                  aria-label={externalAriaLabel("See the source's site", originLink(event_)!)}>
+                  See the source&rsquo;s site ↗
+                </a>
+              </>
+            ) : null}
+          </div>
+        </details>
       </article>
     </Shell>
   );

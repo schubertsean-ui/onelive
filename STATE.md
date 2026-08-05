@@ -143,6 +143,90 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #44 (2026-08-05/06, founder-commissioned work order docs/ops/SESSION_KICKOFF_2026-08-06.md — kickoff execution session, branch claude/1live-kickoff-2026-587s4f)
+
+The plan below IS the founder's commissioned work order (kickoff committed at
+80adf16, landed on master via this branch); founder approval is the work
+order itself — presented, ratified, and scoped there. §4a fields:
+
+WHAT: (Bucket 1) land/verify #186/#185/#177 [VERIFIED MERGED at session
+open], drain the promotion backlog with repeated bounded autopromote sweeps,
+produce the AFTER db-report, deliver the ONE before/after 50:1 founder
+report, close the Clerk cert saga on TLS-handshake evidence, first source
+scan the moment the CSE 403 clears; (Bucket 2, TOP) cards-reflect-updated-
+content: audit every field the promote path writes vs what /tonight renders,
+then close the gap in small evaluator-reviewed PRs under the ratified design
+canon; then v0 prompt package; Eventbrite scheduled import; festival mode
+piece 1; 2026-08-05 session hygiene (Contract #43 close, changelog, arc,
+TODOS, Kaizen + KPI rows).
+
+HOW: workflow dispatches (autopromote.yml limit 400 / stamp_limit 1000 until
+promoted < limit and examined < stamp_limit; db-report.yml; ops-diagnostics
+site-probe) with evidence quoted from run logs; cards audit = enumerate
+promote.py's event insert columns → trace /tonight FeedApp.tsx + [id] +
+web/lib rendering → gap table committed as a docs audit → smallest align PR
+first; all product PRs through validate + non-Claude evaluator; merges
+silent on APPROVE + all-green; records-only STATE commits per precedent.
+
+WHY: the engine now publishes discovered events end-to-end (400/400 promoted,
+0 errors post-#186) but the consumer surface still renders the pre-engine
+card model — the founder's verbatim directive ("I want the UI/UX to reflect
+all the updated content on the cards now") names the gap; and the 50:1
+report is the founder's visibility into what the engine just did.
+
+WHY-THAT-WHY-MATTERS: discovered events are the product's entire
+differentiation (the 50:1 thesis); publishing them without surfacing their
+content honestly on cards wastes the trust machinery the whole charter
+exists to protect — and an unreported drained backlog leaves the founder
+blind to the first real payoff of months of gate-custody work.
+
+EXPECTED OUTCOMES: backlog drained to promoted < limit with zero errors;
+AFTER table showing discovered > 0 today/weekend/next-7; WS5 closed with
+handshake evidence; cards audit doc + first align PR merged; ONE founder
+report with the 50:1 table and a live /tonight link; hygiene debts cleared;
+CSE/source-scan either executed or still blocked-on-founder with the exact
+ask restated.
+
+AMENDMENT (2026-08-05, in-session — contract-scope-violation discipline:
+scope moved, so the contract moves in the same push, quoting why): the
+founder ratified two new operating rules mid-session (verbatim "Ratified";
+proposal followed their "Are these codified in the canon and repo? Should
+anything be added/modified to the operating rules?"). ADDED SCOPE: OPERATING
+_RULES §6b founder-path preflight + §6c real-database leg, their decision
+record, RED_CLASSES rows (founder-path-unprobed, db-type-mismatch-invisible-
+to-hermetic-tests), the ESCAPED ledger row for the unprobed /ops walkthrough,
+ops-diagnostics auth-probe mode, db-integration.yml + tests/integration/
+(real-Postgres promote leg, proven locally 3/3 twice), and the A2 v0 prompt
+package (docs/design/V0_PROMPT_PACKAGE_v1.md).
+[S3:founder-path-unprobed] This amendment's own build ships the probe that class demands; the walkthrough that escaped is the ledger row's subject.
+[S3:pipe-masked-exit] The auth-probe step sets pipefail and accumulates failures explicitly (fail=1), exiting non-zero — no pipe can mask a leg.
+[S3:sentinel-rule-unenforced-mechanically] db-integration.yml is dispatch/PR-triggered, not scheduled — no dead-man owed; sentinel lint R5 unaffected.
+[S3:db-type-mismatch-invisible-to-hermetic-tests] The class's own mechanism is this build: the real-Postgres leg replays the escaped uuid[] insert (two distinct artists) against the server's type check plus registry-bound provenance and the 0020 backfill — proven 3/3 locally twice before commit.
+[S3:excluded-surface-widening] No scanner-excluded surface widens: the new workflow/tests are ordinary tracked files under the scanners' sweep; .claude and SKIP_PARTS untouched.
+
+Stage-3 retrieval (construction loop; matched classes answered; the diff
+carries the whole kickoff work order's prose, so the trigger net matched far
+beyond the build surface — every match is answered or dispositioned, none
+silently dropped):
+[S3:featurability-dimension-missed] The build's target IS this class live: origin (source provenance) was absent from the public event emitter; 0020 + promote write + reader + "How we know" close it at every promoted surface (card lens, detail page).
+[S3:final-gate-trusts-generator] [S3:release-path-weaker-than-generation] Provenance is written at the promote custody boundary from the candidate's OWN row + the unique-keyed source registry on the same cursor/transaction — the release path derives it itself, never trusts an upstream annotation.
+[S3:missing-cardinality-check] The source_url lookup joins the 0009-unique lower(name) key — at most one row by constraint; pinned by test_source_url_lookup_is_by_unique_lowered_name.
+[S3:swallowed-corrupt-data] A stored non-http(s) origin_url is refused at render (originLink → httpOrNull, tested), loudly absent rather than silently linkified; absent provenance renders the generic wording, never a guess.
+[S3:fabricated-qualitative-copy] [S3:false-price-claim] [S3:semantic-claim-not-rederived] No new prose claims: the sheet names exactly the stored source_name; price/image/notes dispositions in the audit doc keep NULL-honest fallbacks.
+[S3:env-dependent-hermetic-test] The new promote tests are string/AST pins (no DB, no network) and were run in this deprived sandbox; server-side column presence is deliberately left to the SQL text contract + live apply, stated in the test docstring.
+[S3:untested-gate-branch] [S3:workflow-tool-version-skew] The autopromote.yml change adds only an idempotent apply step of a committed migration before the pass (0010/0013 precedent); no trust decision moves into YAML.
+[S3:green-on-stale-base] [S3:stale-base-widens-range] Base re-fetched this session (construction_gate's own ls-remote freshness check green); master moved twice mid-session (c03f40f, 3db6c03) and the branch re-merges master before push.
+[S3:pushed-on-red] validate ran unchained with explicit exit reading; the pytest red was an environment defect (missing _cffi_backend/fastapi + shallow-clone smoke commit), fixed and re-run to green before push.
+[S3:deferred-trust-work] [S3:retyped-evidence] [S3:stale-redclass-count] No trust gap parked (venue-contact and notes gaps carry recorded dispositions in the audit doc, not TODOs); run numbers cited from run logs verbatim; no self-describing counts typed into records.
+[S3:status-narration-not-progress] The founder gets ONE report with the before/after table and the live link; site-moving diff = the 0020+promote+web change itself.
+[S3:build-before-plan] [S3:contract-scope-violation] [S3:permission-for-ratified-work] This contract carries the five §4a fields with the founder-commissioned work order as the presented-and-approved plan; scope matches Bucket 1 + Workstream A exactly.
+[S3:caller-suppliable-custody-inputs] [S3:self-weakenable-gate] [S3:self-weakenable-review-model] [S3:grant-not-content-bound] [S3:weak-key-accepted-at-custody] [S3:fail-open-on-custody-misconfig] [S3:false-confidence-gate] [S3:governance-ambiguity] [S3:rule-stronger-than-mechanism] Custody/gate machinery untouched by this change (no gate, threshold, reviewer, key, or grant semantics move; the 0012 privacy fence is unmodified — new columns granted explicitly, nothing widened).
+[S3:nonfinite-decimal-accepted] No numeric input enters this change (provenance is two text columns); price handling untouched and already normalizer-guarded.
+[S3:stale-live-incident-state] Live claims in this session's records (Clerk certs, promote counts, backlog) were re-verified against fresh run logs/probes this session, never carried from earlier prose.
+[S3:condensed-thinking-run] [S3:founder-verbatim-corrected] [S3:deliverable-visual-qa] [S3:copy-outruns-registry] [S3:malformed-ledger-row] [S3:missing-record-read-as-state] [S3:nonfinite-numeric-accepted] [S3:pagination-integrity-gap] [S3:parallel-record-id-collision] [S3:scripted-transform-order] [S3:heal-drops-guard-marker] [S3:mutable-model-alias] [S3:unusable-credential-tier] [S3:volatile-safety-store] [S3:stalled-state-needs-active-diagnosis] [S3:api-busy-poll] Matched by the kickoff work-order/decision-record PROSE riding this branch (their trigger words appear in the docs, not the build surface); reviewed each against the actual diff — none binds a mechanism this change touches; recorded here rather than silently dropped.
+
+STATUS: OPEN
+
 ## Session Contract #42 (2026-08-03, founder-directed — renumbered from this branch's #40 at the collision-resolution merge (#40 = GeoLibre ratification, #41 = the successor UI/UX shepherding session) — code-armed wording sweep, "not wait for the tripwire, deploy the dedicated code-armed PR that sweeps just those comments under evaluator review")
 
 GOAL: execute R-075's remainder now instead of at each file's next touch — sweep the gate-custodied-publication wording into code COMMENTS/DOCSTRINGS only, in a dedicated PR stacked on the records PR so R-075's row updates in the same change.
