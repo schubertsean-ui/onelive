@@ -524,3 +524,23 @@ def test_stamp_update_reasserts_selection_predicate_in_sql(monkeypatch):
     ((sql, _params),) = _stamp_updates(conn)
     flat = " ".join(sql.split()).lower()
     assert "status='needs_review'" in flat and "gate_reason is null" in flat
+
+
+def test_stamp_gate_verdict_cas_requires_unstamped_row():
+    # r3 (evaluator): the shared helper must re-assert BOTH halves of the
+    # unstamped predicate — an escalated row keeps status='needs_review'
+    # WITH its reason recorded, and a fresh verdict must never overwrite it.
+    from worker.candidate_store import stamp_gate_verdict
+
+    class _Cur:
+        rowcount = 0
+        def execute(self, sql, params):
+            self.sql = " ".join(sql.split()).lower()
+            self.params = params
+    cur = _Cur()
+    ok = stamp_gate_verdict("c9", status="ready_to_promote",
+                            gate_reason="Anchor evidence present: ticketing",
+                            required_next="", expected_status="needs_review",
+                            cur=cur)
+    assert "status=%s and gate_reason is null" in cur.sql
+    assert ok is False  # rowcount 0 = row moved/already adjudicated -> skip

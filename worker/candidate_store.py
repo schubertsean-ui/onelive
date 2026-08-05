@@ -82,10 +82,14 @@ def stamp_gate_verdict(
     replay log, so the DB population autopromote selects was structurally
     empty (2026-08-05 diagnosis: examined=0 forever, and /ops per-item
     stamping was the rejected per-item-approval loop in disguise).
-    COMPARE-AND-SWAP (evaluator finding, PR #182 r2): the update fires ONLY
-    while the row still holds `expected_status` — if ops, a dispute, or any
-    adjudication moved the row between the caller's read and this write, the
-    update matches 0 rows and returns False, and the NEWER trust state wins
+    COMPARE-AND-SWAP (evaluator findings, PR #182 r2+r3): the update fires
+    ONLY while the row still holds `expected_status` AND is still UNSTAMPED
+    (`gate_reason IS NULL`) — status alone is not enough, because an
+    ESCALATED row deliberately keeps status='needs_review' while carrying
+    its recorded reason, and a fresh verdict must never overwrite a recorded
+    escalation/adjudication. If anything moved the row between the caller's
+    read and this write, the update matches 0 rows and returns False, and
+    the NEWER trust state wins
     (a gate verdict computed against a stale snapshot must never erase an
     adjudicated one). Callers must treat False as "skip loudly", never retry
     blindly. Pass `cur` to reuse an open transaction; otherwise a
@@ -94,7 +98,7 @@ def stamp_gate_verdict(
     sql = """
       update event_candidate
       set status=%s, gate_reason=%s, required_next=%s, updated_at=now()
-      where candidate_id=%s and status=%s
+      where candidate_id=%s and status=%s and gate_reason is null
     """
     params = (status, gate_reason, required_next, candidate_id, expected_status)
     if cur is not None:
