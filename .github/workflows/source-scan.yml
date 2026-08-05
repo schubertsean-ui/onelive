@@ -1,0 +1,156 @@
+name: source-scan
+
+# The founder's discovery cadence, ratified verbatim 2026-08-05 ("do this:
+# all the data at launch: full CAPCOG sweep immediately at launch (the
+# depth-and-breadth proof), weekly full sweeps as the standing cadence,
+# automatic daily inside festival windows") — decision record
+# docs/memory/decisions/2026-08-05_launch-breadth-directive.md.
+#
+# Three ways this fires, one job:
+#   - workflow_dispatch: the launch sweep (and any manual re-run).
+#   - weekly cron (Mon 14:30 UTC): the standing full CAPCOG sweep, dead-man
+#     alarmed (check onelive-source-scan, period 7d) — the sentinel rule: no
+#     scheduled loop without an alarm from birth.
+#   - daily cron (15:30 UTC): fires only when a festival window is in an
+#     ACTIVE PHASE (tools/festival_phase.py over sources/festival_windows.json
+#     — the founder's "define this" answer, decision record
+#     docs/memory/decisions/2026-08-05_festival-window-phases.md):
+#       rampup (starts-28d..starts-1d)  -> daily festival-KEYWORD sweep only
+#       live   (starts..ends)           -> daily FULL sweep + keyword sweep
+#       winddown (ends+1d)              -> one more keyword sweep
+#     Outside every phase it prints exactly why it is not owed and exits
+#     green — honest no-op, never silent. The announce phase months out is
+#     covered by the standing weekly full sweep, at zero extra cost.
+#
+# Output is CANDIDATES for human curation (new first-party domains diffed
+# against the committed catalog); nothing enters the pipeline until a curated
+# catalog row exists — custody unchanged. Budget ledger:
+# docs/ops/SEARCH_QUOTA_BUDGET.md. This workflow holds no DB credentials.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_queries:
+        description: "API-call ceiling (a full CAPCOG sweep is ~968)"
+        required: false
+        default: "1000"
+      cities:
+        description: "Comma-separated market prefixes (empty = full CAPCOG list)"
+        required: false
+        default: ""
+      festival:
+        description: "Festival slug — run ONLY that window's keyword sweep (empty = full sweep)"
+        required: false
+        default: ""
+  schedule:
+    - cron: '30 14 * * 1'   # weekly full sweep — Mondays 9:30am Austin (summer)
+    - cron: '30 15 * * *'   # daily — festival-window-gated below
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Festival-phase gate (daily cron only — sets SWEEP_MODE/FESTIVAL_SLUGS)
+        if: ${{ github.event.schedule == '30 15 * * *' }}
+        run: |
+          python3 -m tools.festival_phase
+      - name: Dead-man period assertion (weekly cron only)
+        if: ${{ github.event.schedule == '30 14 * * 1' }}
+        env:
+          ORCHESTRATOR_PING_URL: ${{ secrets.SOURCE_SCAN_PING_URL }}
+          HEALTHCHECKS_API_KEY_RO: ${{ secrets.HEALTHCHECKS_API_KEY_RO }}
+          DEADMAN_CHECK_SLUG: "onelive-source-scan"
+          EXPECTED_PERIOD_SECONDS: "604800"
+          MAX_GRACE_SECONDS: "172800"
+        run: |
+          python3 tools/assert_deadman_period.py
+      - name: Dead-man START ping (weekly cron only)
+        if: ${{ github.event.schedule == '30 14 * * 1' }}
+        env:
+          PING_URL: ${{ secrets.SOURCE_SCAN_PING_URL }}
+        run: |
+          [ -n "$PING_URL" ] || exit 0
+          curl -fsS -m 10 --retry 3 "$PING_URL/start" || true
+      - name: Install worker deps
+        if: ${{ github.event.schedule != '30 15 * * *' || env.SWEEP_MODE != 'no' }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r worker/requirements.txt
+      - name: Full CAPCOG sweep (canonical 22-domain pack x region cities)
+        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.festival == '') || github.event.schedule == '30 14 * * 1' || env.SWEEP_MODE == 'full' }}
+        env:
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+          MAX_QUERIES: ${{ github.event.inputs.max_queries || '1000' }}
+          CITIES: ${{ github.event.inputs.cities }}
+        run: |
+          # pipefail is load-bearing (Kaizen pipe-masked-exit rule): the
+          # scanner's fail-loud exits must fail this step through tee.
+          set -o pipefail
+          : "${BRAVE_SEARCH_API_KEY:?BRAVE_SEARCH_API_KEY secret missing — Free plan key: https://api-dashboard.search.brave.com/}"
+          : "${MAX_QUERIES:?max_queries missing — the API-call bound is required}"
+          # Empty cities = the full CAPCOG default, terminating on the same
+          # line (R4): run the full sweep and stop.
+          [ -n "$CITIES" ] || { python3 -m tools.scan_new_sources --max-queries "$MAX_QUERIES" | tee source-scan-candidates.json; exit 0; }
+          python3 -m tools.scan_new_sources --max-queries "$MAX_QUERIES" --cities "$CITIES" | tee source-scan-candidates.json
+      - name: Festival keyword sweep(s) (scheduled rampup/live/winddown phases)
+        if: ${{ env.SWEEP_MODE == 'full' || env.SWEEP_MODE == 'keyword' }}
+        env:
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+          # From the phase gate's GITHUB_ENV write — declared here so the
+          # source is visible (workflow_env_lint R4).
+          FESTIVAL_SLUGS: ${{ env.FESTIVAL_SLUGS }}
+        run: |
+          # pipefail is load-bearing (Kaizen pipe-masked-exit rule), same as
+          # the full-sweep step above.
+          set -o pipefail
+          : "${BRAVE_SEARCH_API_KEY:?BRAVE_SEARCH_API_KEY secret missing — Free plan key: https://api-dashboard.search.brave.com/}"
+          : "${FESTIVAL_SLUGS:?phase gate said a sweep is owed but supplied no slugs — failing closed}"
+          for slug in $(printf '%s' "$FESTIVAL_SLUGS" | tr ',' ' '); do
+            python3 -m tools.scan_new_sources --festival "$slug" --max-queries 40 | tee "source-scan-keyword-${slug}.json"
+          done
+      - name: Festival keyword sweep (manual dispatch)
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.festival != '' }}
+        env:
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+          FESTIVAL_INPUT: ${{ github.event.inputs.festival }}
+        run: |
+          # pipefail is load-bearing (Kaizen pipe-masked-exit rule).
+          set -o pipefail
+          : "${BRAVE_SEARCH_API_KEY:?BRAVE_SEARCH_API_KEY secret missing — Free plan key: https://api-dashboard.search.brave.com/}"
+          : "${FESTIVAL_INPUT:?festival input missing — this step only runs when a slug was supplied}"
+          for slug in $(printf '%s' "$FESTIVAL_INPUT" | tr ',' ' '); do
+            python3 -m tools.scan_new_sources --festival "$slug" --max-queries 40 | tee "source-scan-keyword-${slug}.json"
+          done
+      - name: Upload scan candidates (human curation before anything is committed)
+        if: ${{ github.event.schedule != '30 15 * * *' || env.SWEEP_MODE != 'no' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-scan-candidates-${{ github.run_id }}
+          path: source-scan*.json
+          if-no-files-found: error
+      - name: Dead-man SUCCESS ping (weekly cron only)
+        if: ${{ github.event.schedule == '30 14 * * 1' && success() }}
+        env:
+          PING_URL: ${{ secrets.SOURCE_SCAN_PING_URL }}
+        run: |
+          [ -n "$PING_URL" ] || exit 0
+          curl -fsS -m 10 --retry 3 "$PING_URL" || true
+      - name: Dead-man FAIL ping (weekly cron only)
+        if: ${{ github.event.schedule == '30 14 * * 1' && failure() }}
+        env:
+          PING_URL: ${{ secrets.SOURCE_SCAN_PING_URL }}
+        run: |
+          [ -n "$PING_URL" ] || exit 0
+          curl -fsS -m 10 --retry 3 "$PING_URL/fail" || true
