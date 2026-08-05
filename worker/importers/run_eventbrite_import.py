@@ -46,7 +46,9 @@ def _parse_ids(raw: str | None) -> list[str]:
 
 def _collect_ids(args) -> list[str]:
     ids: list[str] = []
-    ids += _parse_ids(args.org_ids if args.kind == "organization" else args.venue_ids)
+    by_kind = {"organization": args.org_ids, "venue": args.venue_ids,
+               "event": getattr(args, "event_ids", "")}
+    ids += _parse_ids(by_kind[args.kind])
     if args.ids_file:
         p = pathlib.Path(args.ids_file)
         if not p.exists():
@@ -64,9 +66,13 @@ def main(argv=None) -> int:
                     help="comma/space-separated known Eventbrite organization ids to poll")
     ap.add_argument("--venue-ids", default="",
                     help="comma/space-separated known Eventbrite venue ids (with --kind venue)")
+    ap.add_argument("--event-ids", default="",
+                    help="comma/space-separated Eventbrite EVENT ids (with --kind event — "
+                         "the harvest lanes produce these; the only id space the API "
+                         "serves for third parties)")
     ap.add_argument("--ids-file", default=None,
                     help="path to a file of ids (newline/comma separated, '#' comments ok)")
-    ap.add_argument("--kind", choices=("organization", "venue"), default="organization",
+    ap.add_argument("--kind", choices=("organization", "venue", "event"), default="organization",
                     help="which endpoint the ids address (default: organization)")
     ap.add_argument("--max-pages", type=int, default=20,
                     help="max continuation pages per polled id")
