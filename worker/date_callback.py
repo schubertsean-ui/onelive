@@ -152,6 +152,22 @@ def _jsonld_event_dates(event: dict) -> Dict[str, str]:
     return out
 
 
+def _is_event_itemtype(itemtype: str) -> bool:
+    """True for any schema.org Event TYPE — including every subtype.
+
+    Adversarial pre-review catch (2026-08-05): a hardcoded list of six
+    subtypes made a cinema's ScreeningEvent calendar look like a ONE-event
+    page, which handed an unrelated event's date to the candidate. It also
+    silently suppressed legitimate recovery on SportsEvent /
+    ExhibitionEvent / ChildrensEvent / FoodEvent / SocialEvent /
+    LiteraryEvent / EducationEvent / BusinessEvent pages. The rule now
+    mirrors the JSON-LD path's: any type whose name ends in "event", plus
+    Festival (a schema.org Event subtype whose name does not).
+    """
+    name = itemtype.strip().lower().rstrip("/").rsplit("/", 1)[-1]
+    return name.endswith("event") or name == "festival"
+
+
 _VOID_TAGS = frozenset({
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
     "meta", "param", "source", "track", "wbr"})
@@ -184,11 +200,7 @@ class _MicrodataEventScopes(HTMLParser):
     def _handle_tag(self, tag: str, attrs, closes_itself: bool) -> None:
         a = {k.lower(): (v or "") for k, v in attrs}
         opens_scope = ("itemscope" in a and any(
-            t.strip().lower().endswith(("schema.org/event", "schema.org/musicevent",
-                                        "schema.org/theaterevent", "schema.org/comedyevent",
-                                        "schema.org/danceevent", "schema.org/festival"))
-            or t.strip().lower() == "event"
-            for t in a.get("itemtype", "").split()))
+            _is_event_itemtype(t) for t in a.get("itemtype", "").split()))
         prop = a.get("itemprop", "").strip()
         if prop in ("startDate", "endDate", "name") and self._scope_events \
                 and not opens_scope and a.get("content", "").strip():
@@ -367,11 +379,73 @@ def recover_dates_from_url(url: str, timeout: int = 15,
     html = _fetch(url, timeout=timeout)
     if not html:
         return {}
-    jl = _select_event(_jsonld_events(html), candidate_title, _jsonld_names)
-    dates = _jsonld_event_dates(jl) if jl else {}
-    if "start_time" in dates:
-        return dates
-    md = _select_event(_microdata_events(html), candidate_title, _microdata_names)
-    micro = _microdata_event_dates(md) if md else {}
-    micro.update(dates)  # JSON-LD end_time (if any) outranks microdata's
-    return micro
+    # ONE declared-Event set for the whole page, across both formats
+    # (adversarial pre-review blocker, 2026-08-05, reproduced end-to-end):
+    # counting per format let a page with two JSON-LD Events plus one
+    # microdata Event refuse the JSON-LD pass and then hand over the lone
+    # microdata Event's date UNMATCHED — an August 6 PM show stored as
+    # Dec 31, 9 PM. Cardinality must be measured over what the PAGE
+    # declares, not over one notation at a time.
+    declared = [
+        {"dates": _jsonld_event_dates(e), "names": _jsonld_names(e), "jsonld": True}
+        for e in _jsonld_events(html)
+    ] + [
+        {"dates": _microdata_event_dates(e), "names": _microdata_names(e), "jsonld": False}
+        for e in _microdata_events(html)
+    ]
+    declared = [d for d in declared if d["dates"]]
+    declared = _dedupe_declarations(declared)
+    chosen = _select_event(declared, candidate_title, lambda d: d["names"])
+    return dict(chosen["dates"]) if chosen else {}
+
+
+def _dedupe_declarations(declared: List[dict]) -> List[dict]:
+    """Collapse the SAME event declared in both notations into one entry.
+
+    A page that marks its single event in JSON-LD *and* microdata declares
+    one event, not two — counting it twice would demand title matching where
+    the page should recover freely. Two declarations are the same event when
+    they agree on start_time, or (absent a start) share a name. JSON-LD wins
+    the merge (the richer notation), taking any field the other supplies.
+    """
+    kept: List[dict] = []
+    for d in declared:
+        match = None
+        for k in kept:
+            same_start = (d["dates"].get("start_time")
+                          and d["dates"]["start_time"] == k["dates"].get("start_time"))
+            same_name = bool(set(d["names"]) & set(k["names"]))
+            if same_start or same_name:
+                match = k
+                break
+        if match is None:
+            kept.append(dict(d))
+            continue
+        kept[kept.index(match)] = _merge(match, d)
+
+    # An UNNAMED declaration cannot be shown to be a DIFFERENT event from the
+    # page's single named one — a venue that marks its event in JSON-LD and
+    # repeats the dates in bare microdata has declared one event. Counting
+    # them separately would refuse a page that should recover freely
+    # (founder ruling: the source is authoritative, JSON-LD wins). This only
+    # applies when exactly one named declaration exists; a page with several
+    # named events plus stray unnamed ones is genuinely multi-event and the
+    # title still has to select.
+    named = [d for d in kept if d["names"]]
+    unnamed = [d for d in kept if not d["names"]]
+    if len(named) == 1 and unnamed:
+        merged = named[0]
+        for u in unnamed:
+            merged = _merge(merged, u)
+        return [merged]
+    return kept
+
+
+def _merge(a: dict, b: dict) -> dict:
+    """Combine two declarations of the same event; JSON-LD's values win."""
+    primary, other = (a, b) if a["jsonld"] else (b, a)
+    return {
+        "dates": {**other["dates"], **primary["dates"]},
+        "names": list(dict.fromkeys(primary["names"] + other["names"])),
+        "jsonld": primary["jsonld"] or other["jsonld"],
+    }

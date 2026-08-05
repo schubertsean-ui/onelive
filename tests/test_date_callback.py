@@ -481,3 +481,100 @@ def test_generic_words_are_stripped_of_punctuation(monkeypatch):
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: cal)
     assert recover_dates_from_url("https://venue.example/cal",
                                   candidate_title="Kids Night") == {}
+
+def test_cross_format_cardinality_blocks_the_wrong_event(monkeypatch):
+    # Adversarial pre-review BLOCKER (2026-08-05), reproduced end-to-end:
+    # counting Events per FORMAT let a page with two JSON-LD Events plus one
+    # microdata Event refuse the JSON-LD pass, then hand over the lone
+    # microdata Event's date UNMATCHED — an August 6 PM show stored as
+    # Dec 31, 9 PM. Cardinality is now measured over the whole page.
+    page = """
+    <html><script type="application/ld+json">
+    [{"@type": "Event", "name": "Trivia Night", "startDate": "2026-08-08T19:00"},
+     {"@type": "Event", "name": "Karaoke Night", "startDate": "2026-08-09T20:00"}]
+    </script>
+    <body><div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">New Year's Eve Bash</span>
+      <meta itemprop="startDate" content="2026-12-31T21:00:00"/>
+    </div></body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="Kids Night") == {}
+    # The mirror: one JSON-LD "featured" Event beside a microdata calendar.
+    mirror = """
+    <html><script type="application/ld+json">
+    {"@type": "Event", "name": "Featured Show", "startDate": "2027-03-01T20:00"}
+    </script>
+    <body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Bluegrass Junction</span>
+      <meta itemprop="startDate" content="2026-08-08T19:00:00"/></div>
+    <div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Sinatra Tribute</span>
+      <meta itemprop="startDate" content="2026-08-09T19:00:00"/></div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: mirror)
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="Kids Night") == {}
+    # …and the right event is still selectable on that same page.
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="Bluegrass Junction") == \
+        {"start_time": "2026-08-08T19:00:00"}
+
+
+def test_no_impossible_start_end_splice(monkeypatch):
+    # The same per-format bug could splice one event's start onto another's
+    # end — an end_time four months BEFORE the start. One event set means
+    # start and end always come from the same declaration.
+    page = """
+    <html><script type="application/ld+json">
+    {"@type": "Event", "name": "Night Owls Live", "endDate": "2026-12-31T23:00"}
+    </script>
+    <body><div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Totally Different Gala</span>
+      <meta itemprop="startDate" content="2026-08-09T19:00:00"/></div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+    out = recover_dates_from_url("https://venue.example/cal",
+                                 candidate_title="Night Owls Live")
+    assert "start_time" not in out  # never another event's start
+
+
+def test_every_schema_event_subtype_is_recognized(monkeypatch):
+    # Adversarial pre-review BLOCKER: a hardcoded six-subtype list made a
+    # cinema's ScreeningEvent calendar look like a ONE-event page (wrong
+    # date handed over) AND suppressed legitimate recovery on
+    # SportsEvent/ExhibitionEvent/ChildrensEvent/FoodEvent/LiteraryEvent…
+    from worker.date_callback import _is_event_itemtype
+
+    for t in ("https://schema.org/ScreeningEvent", "https://schema.org/SportsEvent",
+              "https://schema.org/ExhibitionEvent", "https://schema.org/ChildrensEvent",
+              "https://schema.org/FoodEvent", "https://schema.org/SocialEvent",
+              "https://schema.org/LiteraryEvent", "https://schema.org/EducationEvent",
+              "https://schema.org/BusinessEvent", "http://schema.org/MusicEvent",
+              "https://schema.org/Festival", "Event"):
+        assert _is_event_itemtype(t), t
+    for t in ("https://schema.org/Place", "https://schema.org/Organization",
+              "https://schema.org/Movie", ""):
+        assert not _is_event_itemtype(t), t
+
+    cinema = """
+    <html><body>
+    <div itemscope itemtype="https://schema.org/ScreeningEvent">
+      <span itemprop="name">Dune Part Three</span>
+      <meta itemprop="startDate" content="2026-08-08T19:00:00"/></div>
+    <div itemscope itemtype="https://schema.org/ScreeningEvent">
+      <span itemprop="name">The Long Goodbye 35mm</span>
+      <meta itemprop="startDate" content="2026-08-10T21:00:00"/></div>
+    <div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Members Preview Party</span>
+      <meta itemprop="startDate" content="2026-09-01T18:00:00"/></div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: cinema)
+    # The screenings are now VISIBLE, so the page is correctly multi-event…
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="Kids Night") == {}
+    # …and a real screening is recoverable, which the old whitelist blocked.
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="Dune Part Three") == \
+        {"start_time": "2026-08-08T19:00:00"}
