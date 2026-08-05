@@ -19,6 +19,15 @@ Standing conduct rules for this session, non-negotiable:
 6. The founder is exhausted by redo-loops. Batch founder asks into ONE list,
    only when truly blocked, with exact values to paste.
 
+DELEGATIONS LIVE (founder, 2026-08-05 — repo Actions secrets; usable ONLY via
+workflows on master, the sandbox cannot read them): VERCEL_TOKEN (env vars,
+redeploys — includes deleting the stray AUTH_DISABLED var), HEALTHCHECKS_API_KEY
+(create/tune alarm checks programmatically — no more founder copy-trick),
+CLERK_SECRET_KEY_ADMIN (Backend API: GET /v1/domains for certificate status —
+Workstream 5's verification path). Founder ALSO sent the Clerk support email.
+Build a small dispatch-only ops-diagnostics workflow early: it unlocks all
+three delegations (Clerk cert status, Vercel env cleanup, healthchecks CRUD).
+
 State at handoff (verify, don't trust): extraction ON (master 9f844ac);
 auto-publish live hourly at :15 (AUTOPROMOTE_PING_URL set); ingest cron every
 20 min; 4 healthchecks live + 3 more created by founder for #175's workflows;
