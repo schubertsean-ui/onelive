@@ -118,8 +118,8 @@ def _fetch(url: str, timeout: int = 15) -> Optional[str]:
     return data.decode("utf-8", errors="replace")
 
 
-def _jsonld_event_dates(html: str) -> Dict[str, str]:
-    """{start_time, end_time} from JSON-LD iff exactly ONE Event is declared."""
+def _jsonld_events(html: str) -> List[dict]:
+    """Every schema.org Event object declared in the page's JSON-LD blocks."""
     events = []
     for m in _JSONLD_RE.finditer(html):
         try:
@@ -132,14 +132,17 @@ def _jsonld_event_dates(html: str) -> Dict[str, str]:
             if any(isinstance(x, str) and x.lower().endswith("event")
                    for x in types):
                 events.append(obj)
-    if len(events) != 1:
-        return {}  # zero: nothing to read; >1: attribution would be a guess
+    return events
+
+
+def _jsonld_event_dates(event: dict) -> Dict[str, str]:
+    """{start_time, end_time, _name} from ONE JSON-LD Event object."""
     out = {}
     for field, key in (("start_time", "startDate"), ("end_time", "endDate")):
-        v = events[0].get(key)
+        v = event.get(key)
         if isinstance(v, str) and v.strip():
             out[field] = v.strip()
-    name = events[0].get("name")
+    name = event.get("name")
     if out and isinstance(name, str) and name.strip():
         out["_name"] = name.strip()  # for the caller's identity guard only
     return out
@@ -242,23 +245,20 @@ class _MicrodataEventScopes(HTMLParser):
         self._finish_names_at(0)  # unclosed name elements still finalize
 
 
-def _microdata_dates(html: str) -> Dict[str, str]:
-    """{start_time, end_time} from microdata, iff exactly ONE Event scope
-    on the page declares dates — same attribution rule as JSON-LD, plus
-    ``_name`` for the caller's identity guard."""
+def _microdata_events(html: str) -> List[dict]:
+    """Every schema.org Event itemscope on the page (parser above)."""
     parser = _MicrodataEventScopes()
     try:
         parser.feed(html)
         parser.close()
     except Exception:  # noqa: BLE001 — malformed HTML: no recovery, claim stays refused
-        return {}
-    # Cardinality over ALL Event scopes, dated or not (evaluator blocker,
-    # PR #189 r4): a page with one dated Event and one undated Event is
-    # still a multi-event page — attributing the dated one to the candidate
-    # would be a guess. Same total-count rule as the JSON-LD path.
-    if len(parser.events) != 1:
-        return {}  # zero: nothing to read; >1: attribution would be a guess
-    ev = parser.events[0]
+        return []
+    return parser.events
+
+
+def _microdata_event_dates(ev: dict) -> Dict[str, str]:
+    """{start_time, end_time, _name} from ONE microdata Event scope,
+    single occurrence per itemprop."""
     if not (ev.get("startDate") or ev.get("endDate")):
         return {}
     out: Dict[str, str] = {}
@@ -273,22 +273,30 @@ def _microdata_dates(html: str) -> Dict[str, str]:
 
 
 def _identity_aligned(candidate_title: Optional[str], event_name: Optional[str]) -> bool:
-    """The linked page's single Event must plausibly BE the candidate
-    (evaluator nit, PR #189 r2): a source-quoted but generic link (a venue
-    homepage declaring one unrelated Event) must not donate its date. Rule:
-    when both names exist, require containment either way or a majority of
-    the candidate-title's words appearing in the Event name. A missing name
-    on either side allows recovery (nothing to compare) — the date still
-    faces the strict normalizer and gate3 either way."""
+    """The linked page's single Event must PROVABLY be the candidate.
+
+    Fail-closed rules (evaluator blockers, PR #189 r6 — the earlier
+    missing-name-allows doctrine let a nameless Event, or a generic-word
+    overlap like "Jazz Night" vs "Trivia Night", donate a date):
+      - No Event name, or no candidate title, or no comparable words on
+        either side: REFUSE — absence of identity evidence is not identity.
+      - Containment either way passes ("Night Owls Live" in "Night Owls
+        Live at The Cellar").
+      - Otherwise the names must share at least TWO meaningful words AND
+        two-thirds of the candidate-title's words — one shared generic word
+        is never enough.
+    A refused alignment just leaves the claim honestly dateless."""
     if not candidate_title or not event_name:
-        return True
+        return False
     a = {w for w in candidate_title.casefold().split() if len(w) > 2}
     b = {w for w in event_name.casefold().split() if len(w) > 2}
     if not a or not b:
+        return False
+    if candidate_title.casefold() in event_name.casefold() \
+            or event_name.casefold() in candidate_title.casefold():
         return True
-    if candidate_title.casefold() in event_name.casefold()             or event_name.casefold() in candidate_title.casefold():
-        return True
-    return len(a & b) / len(a) >= 0.5
+    shared = a & b
+    return len(shared) >= 2 and len(shared) / len(a) >= 2 / 3
 
 
 def recover_dates_from_url(url: str, timeout: int = 15,
@@ -302,7 +310,21 @@ def recover_dates_from_url(url: str, timeout: int = 15,
     html = _fetch(url, timeout=timeout)
     if not html:
         return {}
-    dates = _jsonld_event_dates(html)
+    jl_events = _jsonld_events(html)
+    md_events = _microdata_events(html)
+    # Cross-format cardinality (evaluator blocker, PR #189 r6): a page with
+    # one JSON-LD Event but several microdata Events — or vice versa — is
+    # still a multi-event page; attributing any one declaration to the
+    # candidate would be a guess. More than one Event in EITHER format
+    # refuses the whole page. (One in each is allowed: a page commonly
+    # declares the same single event in both formats, and each surviving
+    # declaration still faces the identity guard below.)
+    if len(jl_events) > 1 or len(md_events) > 1:
+        logger.info("date callback: page declares multiple Events across "
+                    "formats (%d JSON-LD, %d microdata) — recovery refused",
+                    len(jl_events), len(md_events))
+        return {}
+    dates = _jsonld_event_dates(jl_events[0]) if jl_events else {}
     if dates and not _identity_aligned(candidate_title, dates.pop("_name", None)):
         logger.info("date callback: JSON-LD Event name does not align with "
                     "candidate title — recovery refused (identity guard)")
@@ -310,7 +332,7 @@ def recover_dates_from_url(url: str, timeout: int = 15,
     dates.pop("_name", None)
     if "start_time" in dates:
         return dates
-    micro = _microdata_dates(html)
+    micro = _microdata_event_dates(md_events[0]) if md_events else {}
     if micro and not _identity_aligned(candidate_title, micro.pop("_name", None)):
         logger.info("date callback: microdata Event name does not align with "
                     "candidate title — recovery refused (identity guard)")

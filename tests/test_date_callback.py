@@ -31,6 +31,7 @@ _TWO_EVENTS = """
 
 _MICRODATA = """
 <html><body itemscope itemtype="https://schema.org/Event">
+<meta itemprop="name" content="Night Owls Live"/>
 <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
 <span>Doors 6pm</span>
 </body></html>
@@ -39,7 +40,8 @@ _MICRODATA = """
 
 def test_single_jsonld_event_dates_recovered(monkeypatch):
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: _ONE_EVENT)
-    out = recover_dates_from_url("https://venue.example/e/1")
+    out = recover_dates_from_url("https://venue.example/e/1",
+                                 candidate_title="Night Owls Live")
     assert out["start_time"] == "2026-08-08T19:00:00-05:00"
     assert out["end_time"] == "2026-08-08T22:00:00-05:00"
 
@@ -47,12 +49,14 @@ def test_single_jsonld_event_dates_recovered(monkeypatch):
 def test_multi_event_page_yields_nothing(monkeypatch):
     # >1 Event declared: attributing one to the candidate would be a guess.
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: _TWO_EVENTS)
-    assert recover_dates_from_url("https://venue.example/cal") == {}
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="A") == {}
 
 
 def test_microdata_content_attr_recovered(monkeypatch):
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: _MICRODATA)
-    out = recover_dates_from_url("https://venue.example/e/2")
+    out = recover_dates_from_url("https://venue.example/e/2",
+                                 candidate_title="Night Owls Live")
     assert out == {"start_time": "2026-08-10T18:00:00"}
 
 
@@ -451,3 +455,60 @@ def test_fetch_refuses_pages_larger_than_the_cap(monkeypatch):
     monkeypatch.setattr(date_callback, "build_opener",
                         opener_for(_MAX_BYTES - 10))
     assert _fetch("https://venue.example/ok") is not None
+
+
+def test_nameless_event_is_refused_not_allowed(monkeypatch):
+    # Evaluator blocker (PR #189 r6): the old missing-name-allows doctrine
+    # let a source-quoted generic link with one NAMELESS Event donate its
+    # date. Absence of identity evidence is not identity — refuse.
+    nameless = """
+    <html><body itemscope itemtype="https://schema.org/Event">
+    <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: nameless)
+    assert recover_dates_from_url("https://venue.example/page",
+                                  candidate_title="Night Owls Live") == {}
+
+    jl_nameless = """
+    <html><script type="application/ld+json">
+    {"@type": "Event", "startDate": "2026-08-08T19:00:00"}
+    </script></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: jl_nameless)
+    assert recover_dates_from_url("https://venue.example/page",
+                                  candidate_title="Night Owls Live") == {}
+
+
+def test_generic_word_overlap_is_not_identity():
+    # Evaluator blocker (PR #189 r6): "Jazz Night" vs "Trivia Night" share
+    # one generic word — never identity. Containment and substantial
+    # multi-word overlap still pass.
+    from worker.date_callback import _identity_aligned
+
+    assert not _identity_aligned("Jazz Night", "Trivia Night")
+    assert not _identity_aligned("Open Mic", "Trivia Night")
+    assert not _identity_aligned("Night Owls Live", None)
+    assert not _identity_aligned(None, "Night Owls Live")
+    assert _identity_aligned("Night Owls Live", "Night Owls Live at The Cellar")
+    assert _identity_aligned("The Night Owls Live Tour", "Night Owls Live")
+
+
+def test_mixed_format_multi_event_page_refused(monkeypatch):
+    # Evaluator blocker (PR #189 r6): one JSON-LD Event plus MULTIPLE
+    # microdata Events is still a multi-event page — cardinality holds
+    # across formats, and nothing is attributed.
+    mixed = """
+    <html><script type="application/ld+json">
+    {"@type": "Event", "name": "Night Owls Live",
+     "startDate": "2026-08-08T19:00:00"}
+    </script>
+    <body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <meta itemprop="startDate" content="2026-08-09T20:00:00"/>
+    </div>
+    <div itemscope itemtype="https://schema.org/Event">
+      <meta itemprop="startDate" content="2026-08-10T21:00:00"/>
+    </div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: mixed)
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="Night Owls Live") == {}
