@@ -252,6 +252,7 @@ jobs:
             # naive check and printed OK) — so the error check comes FIRST
             # and wins. authError is base64; decode it so the run log names
             # the provider's actual reason.
+            reason=""
             if echo "$target" | grep -qE '/signin/oauth/error|[?&](authError|error)='; then
               reason=$(echo "$target" | sed -n 's/.*authError=\([^&]*\).*/\1/p' | base64 -d 2>/dev/null | tr -c '[:print:]' ' ' || true)
               echo "FAIL: $strat authorization ended on the provider's ERROR page${reason:+ — provider says: $reason}"
