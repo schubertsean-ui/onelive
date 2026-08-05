@@ -137,9 +137,14 @@ VERIFIED = "verified"
 VALIDATED = "validated"
 HOLD = "hold"
 
-# How many INDEPENDENT second signals make a non-authority claim 'likely' rather
-# than merely shown-with-uncertainty. Tunable; documented single source.
-LIKELY_SECOND_SIGNALS = 2
+# How many INDEPENDENT second signals make a non-authority claim CONFIRMED
+# rather than merely shown-with-uncertainty. Founder ruling 2026-08-04
+# ("Just 'confirmed' - remove 'likely'", decision record
+# 2026-08-04_corroborated-tier-publishes-confirmed.md): the corroborated
+# tier publishes confirmed; 'likely' belongs EXCLUSIVELY to the publish
+# policy's single-trusted-source tier and is never derived from
+# corroboration counts. Tunable; documented single source.
+CONFIRMED_SECOND_SIGNALS = 2
 
 
 @dataclass(frozen=True)
@@ -163,8 +168,9 @@ def decide_verification(provenance: Provenance,
     1. spoof suspected → HOLD (odd/spoof is the only thing that stops an authority).
     2. authoritative source → VERIFIED (confirmed).
     3. weak + resolved to an authority page → VERIFIED (confirmed).
-    4. weak + >=1 independent second signal → VALIDATED (likely if >= threshold,
-       else unverified-with-marker — used and shown honestly).
+    4. weak + >=1 independent second signal → VALIDATED (confirmed if >=
+       threshold per the 2026-08-04 corroborated-tier ruling, else
+       unverified-with-marker — used and shown honestly).
     5. else → HOLD, with a machine-readable reason for the held-and-learn loop.
     """
     if provenance.spoof_suspected:
@@ -185,7 +191,8 @@ def decide_verification(provenance: Provenance,
                                     "weak signal resolved to a first-party authority — verified")
 
     if res.second_signals >= 1:
-        conf = "likely" if res.second_signals >= LIKELY_SECOND_SIGNALS else "unverified"
+        conf = ("confirmed" if res.second_signals >= CONFIRMED_SECOND_SIGNALS
+                else "unverified")
         return VerificationDecision(VALIDATED, conf, None, BASIS_SECOND_SIGNAL,
                                     f"validated by {res.second_signals} independent "
                                     f"second signal(s), authority unreachable")

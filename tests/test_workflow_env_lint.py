@@ -1094,3 +1094,58 @@ def test_no_expression_regex_uses_the_fragile_no_brace_class():
             assert "[^}]" not in pattern, (
                 f"expression matcher uses fragile [^}}] class: {pattern[:60]}"
             )
+
+
+# ── R5: schedule ⇒ dead-man ping binding (2026-08-05, kickoff WS10 class rule) ──
+
+
+def test_scheduled_workflow_without_ping_url_is_a_finding():
+    # The Kaizen class rule mechanized: a `schedule:` workflow that binds no
+    # secrets-backed *PING_URL env var anywhere runs unwatched and must FAIL.
+    text = _wf("""
+      - name: cron work
+        run: |
+          echo tick
+""", extra="")
+    text = text.replace("on: push", "on:\n  schedule:\n    - cron: '0 * * * *'")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("dead-man" in f and "schedule" in f for f in findings)
+
+
+def test_scheduled_workflow_with_guarded_ping_url_is_clean():
+    text = _wf("""
+      - name: cron work
+        env:
+          ORCHESTRATOR_PING_URL: ${{ secrets.ORCHESTRATOR_PING_URL }}
+        run: |
+          : "${ORCHESTRATOR_PING_URL:?dead-man ping missing — failing closed}"
+          curl -fsS "$ORCHESTRATOR_PING_URL" >/dev/null
+""")
+    text = text.replace("on: push", "on:\n  schedule:\n    - cron: '0 * * * *'")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_dispatch_only_workflow_needs_no_ping_url():
+    # Manual dispatch is not a loop — no dead-man owed (ops-diagnostics
+    # pattern); the rule keys on `schedule:` presence only.
+    text = _wf("""
+      - name: chore
+        run: |
+          echo once
+""")
+    assert lint_workflow_text(text, "f.yml") == []
+
+
+def test_scheduled_workflow_ping_url_not_secret_backed_is_a_finding():
+    # A literal/plain PING_URL is not the armed channel — the binding must
+    # come from the secrets context (the founder-minted check URL).
+    text = _wf("""
+      - name: cron work
+        env:
+          ORCHESTRATOR_PING_URL: "https://example.com/ping"
+        run: |
+          curl -fsS "$ORCHESTRATOR_PING_URL" >/dev/null
+""")
+    text = text.replace("on: push", "on:\n  schedule:\n    - cron: '0 * * * *'")
+    findings = lint_workflow_text(text, "f.yml")
+    assert any("dead-man" in f for f in findings)

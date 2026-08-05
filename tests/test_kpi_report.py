@@ -119,7 +119,11 @@ def test_real_registry_reproduces_the_15_prior_hardcoded_kpis():
     # Python tuple defined, with the same values — this is the "the refactor
     # changed nothing observable" proof.
     slots = kpi_report.KPI_SLOTS
-    assert len(slots) == 15
+    # 15 migrated + coverage-discovered-to-licensed-ratio (registered
+    # 2026-08-05, kickoff WS10 — the founder's 50:1 KPI). The 15 originals
+    # below must remain byte-identical; growth is legitimate, silent
+    # mutation of the migrated rows is not.
+    assert len(slots) == 16
     by_metric = {s.metric: s for s in slots}
     assert by_metric["Recall @ last certification (anti-gaming pair)"].target == ">= 80%"
     assert by_metric["Field-level hallucination rate @ last certification"].target == \
