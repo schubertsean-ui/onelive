@@ -96,8 +96,11 @@ def _install_fakes(
         )
         return extracted, evidence_signals
 
-    def fake_stamp_gate_verdict(candidate_id, *, status, gate_reason, required_next, cur=None):
+    def fake_stamp_gate_verdict(candidate_id, *, status, gate_reason,
+                                required_next, expected_status, cur=None):
+        assert expected_status == "needs_review"  # gate3 stamps only fresh rows
         stamped.append((candidate_id, status, gate_reason, required_next))
+        return True
 
     monkeypatch.setattr(orchestrator, "stamp_gate_verdict", fake_stamp_gate_verdict)
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
@@ -250,7 +253,7 @@ def test_transient_error_in_one_source_does_not_abort_others(monkeypatch):
     monkeypatch.setattr(orchestrator, "list_candidate_source_classes", fake_list_candidate_source_classes)
     monkeypatch.setattr(orchestrator, "load_candidate_gate_signals", fake_load_candidate_gate_signals)
     monkeypatch.setattr(orchestrator, "stamp_gate_verdict",
-                        lambda candidate_id, **kw: None)
+                        lambda candidate_id, **kw: True)
 
     report = run_loop(ai=FakeAIProvider(), sources=sources)
 

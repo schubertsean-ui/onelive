@@ -41,6 +41,7 @@ class _FakeCursor:
     def __init__(self, conn):
         self._conn = conn
         self._result = []
+        self.rowcount = 0
 
     def __enter__(self):
         return self
@@ -57,6 +58,10 @@ class _FakeCursor:
             self._result = self._conn.stamp_rows[: params[0]]
         elif "update event_candidate" in flat:
             self._result = []
+            # CAS semantics: params[3] is candidate_id; the fake honors a
+            # per-candidate stale set so tests can simulate a row that moved
+            # between the sweep's select and the guarded update.
+            self.rowcount = 0 if params[3] in self._conn.stale_candidates else 1
         elif "from candidate_evidence" in flat:
             self._result = [(c,) for c in self._conn.classes_by_candidate.get(params[0], [])]
         elif "from source_reliability" in flat:
@@ -82,6 +87,7 @@ class _FakeConn:
                  reliability_by_source=None, stamp_rows=None):
         self.candidate_rows = candidate_rows or []
         self.stamp_rows = stamp_rows or []  # (candidate_id, sxsw_mode) for the sweep
+        self.stale_candidates = set()  # ids whose guarded update matches 0 rows
         self.classes_by_candidate = classes_by_candidate or {}
         self.reliability_by_source = reliability_by_source or {}
         self.calls = []
@@ -439,7 +445,8 @@ def test_stamp_anchor_candidate_becomes_ready_to_promote(monkeypatch):
     _fake_load_gate_signals(monkeypatch, {})
     report = stamp_backlog(conn, limit=10)
     assert report.counts == {"examined": 1, "stamped_ready": 1,
-                             "stamped_hold": 0, "escalated": 0, "errors": 0}
+                             "stamped_hold": 0, "escalated": 0,
+                             "skipped_stale": 0, "errors": 0}
     ((sql, params),) = _stamp_updates(conn)
     assert params[0] == "ready_to_promote" and params[3] == "c1"
     assert any("gate_stamp" in str(params) for _sql, params in _audit_actions(conn))
@@ -489,3 +496,31 @@ def test_stamp_failure_is_isolated_and_counted(monkeypatch):
     assert report.counts["errors"] == 1
     assert report.counts["stamped_ready"] == 1
     assert conn.rollbacks == 1
+
+
+def test_stamp_skips_row_that_moved_mid_sweep_and_keeps_newer_state(monkeypatch):
+    # Compare-and-swap (evaluator finding r2): a candidate that ops/dispute
+    # moved between the sweep's select and the guarded update must be SKIPPED
+    # (0 rows matched), counted, and never audited as stamped.
+    conn = _FakeConn(stamp_rows=[("moved", False), ("fresh", False)],
+                     classes_by_candidate={"moved": ["ticketing"],
+                                           "fresh": ["ticketing"]})
+    conn.stale_candidates = {"moved"}
+    _fake_load_gate_signals(monkeypatch, {})
+    report = stamp_backlog(conn, limit=10)
+    assert report.counts["skipped_stale"] == 1
+    assert report.counts["stamped_ready"] == 1
+    assert conn.rollbacks == 1  # the missed CAS rolls back, sweep continues
+    audited = [p for _s, p in _audit_actions(conn)]
+    assert not any("moved" in str(p) for p in audited)
+    assert any("fresh" in str(p) for p in audited)
+
+
+def test_stamp_update_reasserts_selection_predicate_in_sql(monkeypatch):
+    conn = _FakeConn(stamp_rows=[("c1", False)],
+                     classes_by_candidate={"c1": ["ticketing"]})
+    _fake_load_gate_signals(monkeypatch, {})
+    stamp_backlog(conn, limit=10)
+    ((sql, _params),) = _stamp_updates(conn)
+    flat = " ".join(sql.split()).lower()
+    assert "status='needs_review'" in flat and "gate_reason is null" in flat

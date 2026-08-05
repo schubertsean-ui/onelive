@@ -226,7 +226,7 @@ class StampReport:
 
     counts: Dict[str, int] = field(default_factory=lambda: {
         "examined": 0, "stamped_ready": 0, "stamped_hold": 0,
-        "escalated": 0, "errors": 0,
+        "escalated": 0, "skipped_stale": 0, "errors": 0,
     })
 
 
@@ -292,14 +292,29 @@ def stamp_backlog(conn, *, limit: int) -> StampReport:
                     required_next = verdict.base.required_next
                     bucket = ("stamped_ready" if status == "ready_to_promote"
                               else "stamped_hold")
+                # Compare-and-swap (evaluator finding, PR #182 r2): re-assert
+                # the SELECTION predicate in the write so a row that ops or a
+                # dispute moved between the sweep's read and this update is
+                # never overwritten — 0 rows matched = newer trust state wins.
                 cur.execute(
                     """
                     update event_candidate
                     set status=%s, gate_reason=%s, required_next=%s, updated_at=now()
                     where candidate_id=%s
+                      and status='needs_review' and gate_reason is null
                     """,
                     (status, gate_reason, required_next, candidate_id),
                 )
+                stamped = cur.rowcount == 1
+            if not stamped:
+                conn.rollback()
+                logger.warning(
+                    "gate-stamp sweep: candidate %s left the never-stamped "
+                    "population mid-sweep — skipped, newer state kept",
+                    candidate_id,
+                )
+                report.counts["skipped_stale"] += 1
+                continue
             _audit(conn, candidate_id, "gate_stamp", {
                 "decision": verdict.decision.value,
                 "status": status,
@@ -316,10 +331,11 @@ def stamp_backlog(conn, *, limit: int) -> StampReport:
             report.counts["errors"] += 1
 
     logger.info(
-        "gate-stamp sweep complete: examined=%d ready=%d hold=%d escalated=%d errors=%d",
+        "gate-stamp sweep complete: examined=%d ready=%d hold=%d escalated=%d "
+        "stale-skipped=%d errors=%d",
         report.counts["examined"], report.counts["stamped_ready"],
         report.counts["stamped_hold"], report.counts["escalated"],
-        report.counts["errors"],
+        report.counts["skipped_stale"], report.counts["errors"],
     )
     return report
 

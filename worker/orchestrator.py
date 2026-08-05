@@ -406,18 +406,30 @@ def _run_one_source(
     # with the reason recorded so the backlog sweep can tell "escalated by the
     # gate" from "never examined".
     if verdict.decision is GateDecision.ESCALATE:
-        stamp_gate_verdict(
+        stamped = stamp_gate_verdict(
             candidate_id,
             status="needs_review",
             gate_reason=verdict.reason,
             required_next="human review — escalated by trust gate",
+            expected_status="needs_review",
         )
     else:
-        stamp_gate_verdict(
+        stamped = stamp_gate_verdict(
             candidate_id,
             status=verdict.base.status,
             gate_reason=verdict.base.reason,
             required_next=verdict.base.required_next,
+            expected_status="needs_review",
+        )
+    if not stamped:
+        # Compare-and-swap missed: something (ops action, dispute) moved this
+        # row off 'needs_review' between creation and gate3 — the newer trust
+        # state WINS and this run's verdict is recorded in the replay log
+        # only. Loud, never silent, never an overwrite.
+        logger.warning(
+            "gate3 verdict for candidate %s NOT stamped — row left "
+            "'needs_review' during the run; newer adjudicated state kept",
+            candidate_id,
         )
 
     if verdict.decision is GateDecision.HOLD:

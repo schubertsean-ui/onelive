@@ -68,8 +68,9 @@ def stamp_gate_verdict(
     status: str,
     gate_reason: str,
     required_next: str,
+    expected_status: str,
     cur=None,
-) -> None:
+) -> bool:
     """Persist a gate verdict onto the candidate ROW (status + reason +
     required_next), exactly the columns the human ops action stamps
     (api/ops_candidates.py add_evidence). Stamping is CLASSIFICATION, never
@@ -81,22 +82,30 @@ def stamp_gate_verdict(
     replay log, so the DB population autopromote selects was structurally
     empty (2026-08-05 diagnosis: examined=0 forever, and /ops per-item
     stamping was the rejected per-item-approval loop in disguise).
-    Pass `cur` to reuse an open transaction; otherwise a short-lived
-    connection is opened and committed.
+    COMPARE-AND-SWAP (evaluator finding, PR #182 r2): the update fires ONLY
+    while the row still holds `expected_status` — if ops, a dispute, or any
+    adjudication moved the row between the caller's read and this write, the
+    update matches 0 rows and returns False, and the NEWER trust state wins
+    (a gate verdict computed against a stale snapshot must never erase an
+    adjudicated one). Callers must treat False as "skip loudly", never retry
+    blindly. Pass `cur` to reuse an open transaction; otherwise a
+    short-lived connection is opened and committed.
     """
     sql = """
       update event_candidate
       set status=%s, gate_reason=%s, required_next=%s, updated_at=now()
-      where candidate_id=%s
+      where candidate_id=%s and status=%s
     """
-    params = (status, gate_reason, required_next, candidate_id)
+    params = (status, gate_reason, required_next, candidate_id, expected_status)
     if cur is not None:
         cur.execute(sql, params)
-        return
+        return cur.rowcount == 1
     with db() as conn:
         with conn.cursor() as own:
             own.execute(sql, params)
+            stamped = own.rowcount == 1
         conn.commit()
+    return stamped
 
 
 def add_evidence(candidate_id: str, source_class: str, source_name: str, source_url: str, quote: str = "") -> str:
