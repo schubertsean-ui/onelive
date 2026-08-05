@@ -75,6 +75,21 @@ describe("dedupeEvents", () => {
     expect(dedupeEvents([a, b]).kept).toHaveLength(2);
   });
 
+  it("rows disagreeing on STATUS never collapse — a cancellation must not hide behind a live card (evaluator #191)", () => {
+    const live = ev({ licensed_event_id: "a", status: "scheduled" });
+    const cancelled = ev({ licensed_event_id: "b", status: "cancelled", source_provider: "jsonld" });
+    expect(dedupeEvents([live, cancelled]).kept).toHaveLength(2);
+    const postponed = ev({ licensed_event_id: "c", status: "postponed", source_provider: "jsonld" });
+    expect(dedupeEvents([live, postponed]).kept).toHaveLength(2);
+  });
+
+  it("spelling variants of the SAME status still collapse (canceled == cancelled)", () => {
+    const us = ev({ licensed_event_id: "a", status: "canceled" });
+    const uk = ev({ licensed_event_id: "b", status: "cancelled", source_provider: "jsonld", image_url: null });
+    const { kept } = dedupeEvents([us, uk]);
+    expect(kept).toHaveLength(1);
+  });
+
   it("a disputed row NEVER collapses, in either direction (shown-never-hidden)", () => {
     const clean = ev({ licensed_event_id: "a" });
     const disputed = ev({ licensed_event_id: "b", confidence: "disputed" });

@@ -35,6 +35,16 @@ export function normalizeForDedupe(s: string | null | undefined): string {
     .trim();
 }
 
+// User-facing event STATE is part of identity (evaluator #191 r1, absence-only
+// blocker): a cancelled/postponed row must never be absorbed behind a
+// scheduled-looking card. Spelling variants of the same state normalize
+// together ("canceled"/"cancelled") so a trivial variant can't split a true
+// duplicate; different STATES always keep both rows visible.
+function normalizeStatus(s: string | null | undefined): string {
+  const v = (s ?? "scheduled").trim().toLowerCase();
+  return v === "canceled" ? "cancelled" : v;
+}
+
 /** Identity key for "the same real-world listing", or null when the row lacks
  *  enough identity to dedupe safely (no venue or no start time → never
  *  collapse; absence of identity must not become accidental identity). */
@@ -44,7 +54,7 @@ export function dedupeKey(e: LicensedEvent): string | null {
   if (!venue || !title || !e.start_time) return null;
   const t = Date.parse(e.start_time);
   if (Number.isNaN(t)) return null;
-  return `${venue}|${t}|${title}`;
+  return `${venue}|${t}|${title}|${normalizeStatus(e.status)}`;
 }
 
 // Provider authority for tie-breaks only (never for ranking): authoritative
