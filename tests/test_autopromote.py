@@ -271,7 +271,7 @@ def test_gate_drift_to_hold_is_not_force_published(monkeypatch, ratified):
     # only PASS — a drifted candidate goes to a human, never past the guard.
     conn = _FakeConn(
         candidate_rows=[("cand-drift", "src-1", False)],
-        classes_by_candidate={"cand-drift": ["local_media"]},  # single non-anchor → HOLD
+        classes_by_candidate={"cand-drift": ["social"]},  # single third-party → HOLD
         reliability_by_source={"src-1": 0.9},
     )
     _fake_signals(monkeypatch, {})
