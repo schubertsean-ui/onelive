@@ -50,14 +50,19 @@ _PROVENANCE_PATH = (pathlib.Path(__file__).resolve().parent.parent.parent
 
 
 def _provenance_event_ids(path: pathlib.Path = None) -> set[str]:
-    """The founder-reviewed event-id allow-list (sources/eventbrite_provenance.json).
+    """The harvest-bound event-id allow-list (sources/eventbrite_provenance.json).
 
-    The event-id lane's trust boundary (evaluator finding, PR #178 r1): the
-    ids ARE the query, so an id that never went through the harvest ->
-    founder-review -> commit path must not reach the importer at all —
-    otherwise arbitrary third-party events could enter licensed_event as
-    trusted provider data. Missing/unreadable registry fails CLOSED (an
-    absent allow-list is an empty allow-list, never a bypass).
+    The event-id lane's trust boundary (evaluator findings, PR #178 r1+r2):
+    the ids ARE the query, so an id that never came out of a REAL harvest of
+    our own catalog pages must not reach the importer at all — otherwise
+    arbitrary third-party events could enter licensed_event as trusted
+    provider data. The registry's binding to real harvest evidence is
+    AUTHENTICATED mechanically (tests/test_eventbrite_provenance_authentic.py
+    re-verifies every listed id against the digest-pinned harvest artifact
+    via the Actions API in trust-gate); founder curation is recorded in the
+    file as honest provenance, deliberately not the load-bearing gate.
+    Missing/unreadable registry fails CLOSED (an absent allow-list is an
+    empty allow-list, never a bypass).
     """
     path = path or _PROVENANCE_PATH
     if not path.exists():
