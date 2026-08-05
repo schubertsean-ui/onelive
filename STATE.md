@@ -204,6 +204,24 @@ package (docs/design/V0_PROMPT_PACKAGE_v1.md).
 [S3:db-type-mismatch-invisible-to-hermetic-tests] The class's own mechanism is this build: the real-Postgres leg replays the escaped uuid[] insert (two distinct artists) against the server's type check plus registry-bound provenance and the 0020 backfill — proven 3/3 locally twice before commit.
 [S3:excluded-surface-widening] No scanner-excluded surface widens: the new workflow/tests are ordinary tracked files under the scanners' sweep; .claude and SKIP_PARTS untouched.
 
+AMENDMENT 4 (2026-08-05 night, founder-ratified gate change — verbatim
+record docs/memory/decisions/2026-08-05_first-party-is-authoritative.md):
+THE SECOND STRANGLER FOUND. worker/gating.py promoted on ONE source only for
+five anchor classes; the live DB's 268 sources carry theater_arts (24),
+gallery_museum (20), city_calendar (40), university (9), food_culinary (5) —
+first-party venue/institution sites, four of those classes defined NOWHERE
+in this repo — so 195 of 268 sources could never publish alone. ANCHOR_CLASSES
+now covers every live first-party class; THIRD_PARTY_CLASSES names the
+hearsay side explicitly; an UNKNOWN class holds AND logs loudly (never again
+a silent forever-hold); import_sources knows the live classes; 3 regression
+tests pin all three behaviors; R-081 records the unaudited `community` 55.
+[S3:silent-yield-collapse] Second instance found and closed the same night: the yield measurement this class demands is exactly what would have surfaced 195 dead sources months ago.
+[S3:fail-open-on-custody-misconfig] The change does NOT fail open: an unclassified class still HOLDS (safe direction) and shouts; only explicitly-named first-party classes promote alone.
+[S3:governance-ambiguity2] Gate loosening is founder-crucial by charter and the founder ratified it verbatim, repeatedly; the record states precisely what changed and what did not (trust_gate3 escalations, disputed display, full-gate promotion all unchanged).
+[S3:permission-for-ratified-work] The directive was a BUILD instruction, not a question — implemented immediately, recorded verbatim, no permission round-trip.
+[S3:stale-live-incident-state] Every class count here is read from db-report run 31026850025's own output, not from earlier prose.
+[S3:excluded-surface-widening] [S3:heal-drops-guard-marker] No scanner-excluded surface widens and no reconcile/heal path is touched — matched by amendment prose only.
+
 AMENDMENT 3 (2026-08-05 night, founder-directed at maximum urgency —
 verbatim record docs/memory/decisions/2026-08-05_ingestion-learns-or-it-
 fails.md): THE ROOT CAUSE OF ZERO UPCOMING DISCOVERED EVENTS FOUND AND

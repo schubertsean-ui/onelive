@@ -194,3 +194,43 @@ def test_promote_sets_confirmed_for_anchor_then_dispute_persists(db_conn):
     # Row still exists — disputed is never deleted.
     cur.execute("select count(*) from event where event_id=%s", (event_id,))
     assert cur.fetchone()[0] == 1
+
+
+# ── First-party authority (founder-ratified 2026-08-05) ──────────────────────
+# "if something comes from the source site it's authoritative - no additional
+# gating or checking needed." The live DB carried theater_arts (24 sources),
+# gallery_museum (20), city_calendar (40), university (9), food_culinary (5)
+# — first-party venue/institution sites that the five-class allowlist held
+# forever on corroboration that never comes. These pin the fix.
+
+def test_every_live_first_party_class_promotes_on_its_own():
+    from worker.gating import multi_confirm_gate
+    for cls in ("venue_calendar", "theater_arts", "gallery_museum",
+                "city_calendar", "university", "university_calendar",
+                "library_calendar", "food_culinary", "calendar_feed",
+                "festival_feed", "ticketing", "claimed_upload",
+                "email_opt_in"):
+        r = multi_confirm_gate([cls])
+        assert r.ok_to_promote, f"{cls} is first-party and must not be held"
+        assert r.status == "ready_to_promote"
+
+
+def test_third_party_classes_still_need_corroboration():
+    from worker.gating import multi_confirm_gate
+    for cls in ("local_media", "social", "blog", "artist_aggregator",
+                "directory", "link_hub", "community"):
+        r = multi_confirm_gate([cls])
+        assert not r.ok_to_promote, f"{cls} reports on others — must corroborate"
+    # two independent third-party sources still corroborate, as before
+    assert multi_confirm_gate(["local_media", "social"]).ok_to_promote
+
+
+def test_unknown_class_holds_and_warns_rather_than_dying_silently(caplog):
+    import logging
+    from worker.gating import multi_confirm_gate
+    with caplog.at_level(logging.WARNING):
+        r = multi_confirm_gate(["some_class_nobody_classified"])
+    assert not r.ok_to_promote  # safe direction
+    assert any("UNCLASSIFIED SOURCE CLASS" in m for m in caplog.messages), (
+        "an unclassified class must be LOUD — the silent forever-hold is the "
+        "defect this test exists to prevent")
