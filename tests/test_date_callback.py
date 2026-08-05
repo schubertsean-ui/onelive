@@ -24,8 +24,8 @@ _ONE_EVENT = """
 
 _TWO_EVENTS = """
 <html><script type="application/ld+json">
-[{"@type": "Event", "name": "A", "startDate": "2026-08-08T19:00"},
- {"@type": "Event", "name": "B", "startDate": "2026-08-09T20:00"}]
+[{"@type": "Event", "name": "Night Owls Live", "startDate": "2026-08-08T19:00"},
+ {"@type": "Event", "name": "Trivia Showdown", "startDate": "2026-08-09T20:00"}]
 </script></html>
 """
 
@@ -44,11 +44,6 @@ def test_single_jsonld_event_dates_recovered(monkeypatch):
     assert out["start_time"] == "2026-08-08T19:00:00-05:00"
     assert out["end_time"] == "2026-08-08T22:00:00-05:00"
 
-
-def test_multi_event_page_yields_nothing(monkeypatch):
-    # >1 Event declared: attributing one to the candidate would be a guess.
-    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: _TWO_EVENTS)
-    assert recover_dates_from_url("https://venue.example/cal") == {}
 
 
 def test_microdata_content_attr_recovered(monkeypatch):
@@ -317,20 +312,6 @@ def test_microdata_outside_event_scope_yields_nothing(monkeypatch):
     assert recover_dates_from_url("https://venue.example/page") == {}
 
 
-def test_microdata_two_event_scopes_yield_nothing(monkeypatch):
-    html = """
-    <html><body>
-    <div itemscope itemtype="https://schema.org/Event">
-      <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
-    </div>
-    <div itemscope itemtype="https://schema.org/Event">
-      <meta itemprop="startDate" content="2026-08-11T20:00:00"/>
-    </div>
-    </body></html>"""
-    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: html)
-    assert recover_dates_from_url("https://venue.example/cal") == {}
-
-
 
 def test_year_rule_weekday_consistency():
     # Evaluator blocker (PR #189 r3): a claim that NAMES a weekday must only
@@ -354,22 +335,6 @@ def test_year_rule_weekday_consistency():
     assert iso is not None and "weekday_verified" not in note
 
 
-
-def test_microdata_dated_plus_undated_events_yield_nothing(monkeypatch):
-    # Evaluator blocker (PR #189 r4): cardinality is over ALL Event scopes.
-    # One dated + one undated Event is still a multi-event page —
-    # attributing the dated one to the candidate would be a guess.
-    html = """
-    <html><body>
-    <div itemscope itemtype="https://schema.org/Event">
-      <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
-    </div>
-    <div itemscope itemtype="https://schema.org/Event">
-      <span itemprop="name">Another Show, date TBA</span>
-    </div>
-    </body></html>"""
-    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: html)
-    assert recover_dates_from_url("https://venue.example/cal") == {}
 
 
 def test_fetch_refuses_pages_larger_than_the_cap(monkeypatch):
@@ -408,29 +373,6 @@ def test_fetch_refuses_pages_larger_than_the_cap(monkeypatch):
 
 
 
-def test_mixed_format_multi_event_page_refused(monkeypatch):
-    # Evaluator blocker (PR #189 r6): one JSON-LD Event plus MULTIPLE
-    # microdata Events is still a multi-event page — cardinality holds
-    # across formats, and nothing is attributed.
-    mixed = """
-    <html><script type="application/ld+json">
-    {"@type": "Event", "name": "Night Owls Live",
-     "startDate": "2026-08-08T19:00:00"}
-    </script>
-    <body>
-    <div itemscope itemtype="https://schema.org/Event">
-      <meta itemprop="startDate" content="2026-08-09T20:00:00"/>
-    </div>
-    <div itemscope itemtype="https://schema.org/Event">
-      <meta itemprop="startDate" content="2026-08-10T21:00:00"/>
-    </div>
-    </body></html>"""
-    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: mixed)
-    assert recover_dates_from_url("https://venue.example/cal") == {}
-
-
-
-
 
 def test_source_page_declarations_are_authoritative(monkeypatch):
     # Founder ruling 2026-08-05 (decision record
@@ -462,3 +404,43 @@ def test_jsonld_precedence_when_formats_disagree(monkeypatch):
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
     out = recover_dates_from_url("https://venue.example/e/1")
     assert out["start_time"] == "2026-08-08T19:00:00"
+
+def test_multi_event_page_title_selects_the_match(monkeypatch):
+    # Founder ruling 2026-08-05 (follow-up, verbatim in the decision
+    # record): a page listing multiple events — a venue calendar — must
+    # not be skipped. The candidate's title selects its match and takes
+    # THAT event's date.
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: _TWO_EVENTS)
+    out = recover_dates_from_url("https://venue.example/cal",
+                                 candidate_title="Night Owls Live")
+    assert out == {"start_time": "2026-08-08T19:00"}
+    out = recover_dates_from_url("https://venue.example/cal",
+                                 candidate_title="Trivia Showdown")
+    assert out == {"start_time": "2026-08-09T20:00"}
+
+
+def test_multi_event_page_without_a_unique_match_contributes_nothing(monkeypatch):
+    # No title, no shared words, or a tie: the page stays unattributable
+    # and the claim just stays as-is — never a wrong event's date.
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: _TWO_EVENTS)
+    assert recover_dates_from_url("https://venue.example/cal") == {}
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="Completely Unrelated") == {}
+
+
+def test_multi_event_microdata_calendar_selects_by_name(monkeypatch):
+    cal = """
+    <html><body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Night Owls Live</span>
+      <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
+    </div>
+    <div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Trivia Showdown</span>
+      <meta itemprop="startDate" content="2026-08-11T19:00:00"/>
+    </div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: cal)
+    out = recover_dates_from_url("https://venue.example/cal",
+                                 candidate_title="Trivia Showdown")
+    assert out == {"start_time": "2026-08-11T19:00:00"}

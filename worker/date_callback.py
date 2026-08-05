@@ -11,18 +11,18 @@ What it reads, in order of explicitness, from the linked page:
   1. JSON-LD schema.org Event ``startDate``/``endDate`` — but ONLY when the
      page declares exactly ONE Event object. A multi-event page cannot be
      attributed to one candidate without guessing, so it returns nothing.
-  2. Microdata ``itemprop="startDate"``/``"endDate"`` content attributes —
-     but ONLY inside a schema.org Event ``itemscope``, and only when the
-     page declares exactly ONE such Event scope (a multi-event page offers
-     no way to attribute one declaration to the candidate).
+  2. Microdata ``itemprop="startDate"``/``"endDate"`` content attributes,
+     scoped to their enclosing schema.org Event ``itemscope``.
 
-Trust doctrine (founder ruling 2026-08-05, decision record
+Trust doctrine (founder rulings 2026-08-05, decision record
 2026-08-05_source-site-authoritative.md): the link is PROVEN to be the
 source's own before any fetch (the caller's verbatim URL-token check), and
 from there the page's declarations are AUTHORITATIVE — no identity
-cross-examination, no contradiction refusals. The remaining bounds are
-security (SSRF/size) and attribution (single Event per format), never
-distrust of the source.
+cross-examination, no contradiction refusals. A single declared Event is
+the candidate's, full stop; on a MULTI-event page (a venue calendar), the
+candidate's title SELECTS its match — selection adds recovery, it never
+gates. The only remaining bounds are security (SSRF/size), never distrust
+of the source.
 
 Bounds and honesty:
   - One bounded HTTP fetch per call (timeout, 1.5 MB cap, http/https only),
@@ -158,7 +158,7 @@ _VOID_TAGS = frozenset({
 
 
 class _MicrodataEventScopes(HTMLParser):
-    """Collect startDate/endDate itemprops PER schema.org Event scope.
+    """Collect startDate/endDate/name itemprops PER schema.org Event scope.
 
     Evaluator blocker (PR #189 r3): the previous regex pass read itemprop
     content attributes from ANYWHERE on the page — a generic page with one
@@ -166,6 +166,9 @@ class _MicrodataEventScopes(HTMLParser):
     This parser attributes each itemprop to its nearest enclosing
     ``itemscope`` whose ``itemtype`` is a schema.org Event; itemprops outside
     any Event scope are ignored entirely (attribution, not distrust).
+    Names are captured (content attr or visible text) ONLY so multi-event
+    pages can be attributed by title match — founder ruling 2026-08-05:
+    matching selects, it never refuses.
     """
 
     def __init__(self) -> None:
@@ -173,6 +176,9 @@ class _MicrodataEventScopes(HTMLParser):
         self._tag_stack: List[str] = []
         self._scope_depths: List[int] = []   # tag-stack depth of each open Event scope
         self._scope_events: List[dict] = []  # parallel: the dict being filled
+        self._name_depths: List[int] = []    # visible-text name captures
+        self._name_bufs: List[List[str]] = []
+        self._name_scopes: List[dict] = []
         self.events: List[dict] = []
 
     def _handle_tag(self, tag: str, attrs, closes_itself: bool) -> None:
@@ -184,9 +190,15 @@ class _MicrodataEventScopes(HTMLParser):
             or t.strip().lower() == "event"
             for t in a.get("itemtype", "").split()))
         prop = a.get("itemprop", "").strip()
-        if prop in ("startDate", "endDate") and self._scope_events \
+        if prop in ("startDate", "endDate", "name") and self._scope_events \
                 and not opens_scope and a.get("content", "").strip():
             self._scope_events[-1].setdefault(prop, set()).add(a["content"].strip())
+        elif prop == "name" and self._scope_events and not opens_scope \
+                and not closes_itself and tag not in _VOID_TAGS:
+            # No content attr: the name is the element's visible text.
+            self._name_depths.append(len(self._tag_stack))
+            self._name_bufs.append([])
+            self._name_scopes.append(self._scope_events[-1])
         if opens_scope and not closes_itself:
             ev: dict = {}
             self.events.append(ev)
@@ -201,9 +213,22 @@ class _MicrodataEventScopes(HTMLParser):
     def handle_startendtag(self, tag, attrs):
         self._handle_tag(tag, attrs, closes_itself=True)
 
+    def handle_data(self, data):
+        for buf in self._name_bufs:
+            buf.append(data)
+
+    def _finish_names_at(self, depth: int) -> None:
+        while self._name_depths and self._name_depths[-1] >= depth:
+            self._name_depths.pop()
+            text = "".join(self._name_bufs.pop()).strip()
+            scope = self._name_scopes.pop()
+            if text:
+                scope.setdefault("name", set()).add(text)
+
     def handle_endtag(self, tag):
         # Lenient close (real-world HTML): pop to the matching open tag if
-        # one exists, closing any Event scopes opened at or below that depth.
+        # one exists, closing any Event scopes and name captures opened at
+        # or below that depth.
         if tag in _VOID_TAGS or tag not in self._tag_stack:
             return
         while self._tag_stack:
@@ -212,8 +237,13 @@ class _MicrodataEventScopes(HTMLParser):
             while self._scope_depths and self._scope_depths[-1] >= depth_after_pop:
                 self._scope_depths.pop()
                 self._scope_events.pop()
+            self._finish_names_at(depth_after_pop)
             if popped == tag:
                 break
+
+    def close(self):
+        super().close()
+        self._finish_names_at(0)  # unclosed name elements still finalize
 
 
 def _microdata_events(html: str) -> List[dict]:
@@ -240,16 +270,64 @@ def _microdata_event_dates(ev: dict) -> Dict[str, str]:
     return out
 
 
-def recover_dates_from_url(url: str, timeout: int = 15) -> Dict[str, str]:
+def _jsonld_names(ev: dict) -> List[str]:
+    name = ev.get("name")
+    return [name.strip()] if isinstance(name, str) and name.strip() else []
+
+
+def _microdata_names(ev: dict) -> List[str]:
+    return sorted(ev.get("name") or set())
+
+
+def _select_event(events: List[dict], candidate_title: Optional[str],
+                  names_of) -> Optional[dict]:
+    """Which of the page's declared Events is the candidate's?
+
+    - Exactly one Event: it IS the candidate's (the source linked this page
+      from the candidate's own listing — authoritative, no matching).
+    - Several Events (founder ruling 2026-08-05: a venue calendar page must
+      not be skipped): the candidate's TITLE selects the best name-token
+      match. Matching here only ADDS recovery — it picks among the source's
+      own declarations, it never refuses a single-event page. A page where
+      no name shares a word with the title, or where two tie, stays
+      unattributable and contributes nothing (the claim just stays as-is).
+    """
+    if len(events) == 1:
+        return events[0]
+    if not events or not candidate_title:
+        return None
+    ct = {w for w in candidate_title.casefold().split() if len(w) > 2}
+    if not ct:
+        return None
+    best: Optional[dict] = None
+    best_score = 0
+    tied = False
+    for ev in events:
+        score = max((len(ct & {w for w in n.casefold().split() if len(w) > 2})
+                     for n in names_of(ev)), default=0)
+        if score > best_score:
+            best, best_score, tied = ev, score, False
+        elif score == best_score and best is not None and ev is not best:
+            tied = True
+    if best is None or best_score == 0 or tied:
+        logger.info("date callback: %d declared Events but none uniquely "
+                    "matches the candidate title — cannot attribute",
+                    len(events))
+        return None
+    return best
+
+
+def recover_dates_from_url(url: str, timeout: int = 15,
+                           candidate_title: Optional[str] = None) -> Dict[str, str]:
     """Read explicit machine-declared dates off the event's own page.
 
     The caller has already PROVEN the URL is the source's own (verbatim
     URL-token check), and from there the page's declarations are
-    AUTHORITATIVE (founder ruling 2026-08-05, decision record
+    AUTHORITATIVE (founder rulings 2026-08-05, decision record
     2026-08-05_source-site-authoritative.md) — no identity
-    cross-examination, no contradiction refusals. The only remaining skip
-    is attribution: a page declaring MORE than one Event in a format
-    offers no way to know which one is the candidate's.
+    cross-examination, no contradiction refusals. On a MULTI-event page
+    (a venue calendar), the candidate's title selects the matching Event;
+    selection adds recovery, it never gates.
 
     Returns raw claim strings keyed start_time/end_time (subset, possibly
     empty). The caller MUST re-run the strict normalizer on them — this
@@ -258,17 +336,11 @@ def recover_dates_from_url(url: str, timeout: int = 15) -> Dict[str, str]:
     html = _fetch(url, timeout=timeout)
     if not html:
         return {}
-    jl_events = _jsonld_events(html)
-    md_events = _microdata_events(html)
-    if len(jl_events) > 1 or len(md_events) > 1:
-        logger.info("date callback: page declares multiple Events "
-                    "(%d JSON-LD, %d microdata) — cannot attribute one to "
-                    "the candidate, skipping",
-                    len(jl_events), len(md_events))
-        return {}
-    dates = _jsonld_event_dates(jl_events[0]) if jl_events else {}
+    jl = _select_event(_jsonld_events(html), candidate_title, _jsonld_names)
+    dates = _jsonld_event_dates(jl) if jl else {}
     if "start_time" in dates:
         return dates
-    micro = _microdata_event_dates(md_events[0]) if md_events else {}
+    md = _select_event(_microdata_events(html), candidate_title, _microdata_names)
+    micro = _microdata_event_dates(md) if md else {}
     micro.update(dates)  # JSON-LD end_time (if any) outranks microdata's
     return micro
