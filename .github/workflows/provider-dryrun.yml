@@ -21,12 +21,13 @@ on:
           - eventbrite-discover
           - eventbrite-harvest
           - eventbrite-search
+          - eventbrite-events
       max_pages:
         description: "Pages per window/id (bounded fetch)"
         required: false
         default: "2"
       eventbrite_ids:
-        description: "Eventbrite ORGANIZATION ids, comma-separated (required for eventbrite: public search was removed in 2020, the trusted id list IS the query)"
+        description: "Eventbrite ids, comma-separated — ORGANIZATION ids for 'eventbrite' (public search was removed in 2020, the trusted id list IS the query); EVENT ids for 'eventbrite-events' (the harvest lanes produce these)"
         required: false
         default: ""
 
@@ -131,6 +132,16 @@ jobs:
           name: eventbrite-search-candidates
           path: eventbrite-search-candidates.json
           if-no-files-found: error
+      - name: Eventbrite EVENT-ID dry-run (the third-party-viable id space; NO DB write)
+        if: ${{ github.event.inputs.provider == 'eventbrite-events' }}
+        env:
+          EVENTBRITE_TOKEN: ${{ secrets.EVENTBRITE_TOKEN }}
+          EB_IDS: ${{ github.event.inputs.eventbrite_ids }}
+        run: |
+          set -o pipefail
+          : "${EVENTBRITE_TOKEN:?EVENTBRITE_TOKEN secret missing}"
+          : "${EB_IDS:?eventbrite_ids input missing — supply harvested EVENT ids}"
+          python -m worker.importers.run_eventbrite_import --event-ids "$EB_IDS" --kind event --dry-run
       - name: Eventbrite dry-run (fetch + normalize + summarize, NO DB write)
         if: ${{ github.event.inputs.provider == 'eventbrite' }}
         env:

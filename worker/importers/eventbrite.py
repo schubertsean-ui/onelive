@@ -18,11 +18,15 @@ pagination.has_more_items + pagination.continuation (?continuation=...).
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Iterator, Optional
+
+logger = logging.getLogger("eventbrite")
 
 BASE_URL = "https://www.eventbriteapi.com/v3"
 
@@ -109,6 +113,42 @@ def fetch_organizer_events(
     )
 
 
+def fetch_events_by_ids(
+    token: Optional[str],
+    event_ids: list[str],
+    *,
+    expand: str = DEFAULT_EXPAND,
+    live_only: bool = True,
+    sleep: float = 0.2,
+) -> Iterator[dict]:
+    """Yield raw event dicts fetched INDIVIDUALLY by event id.
+
+    This is the id-space that actually works for third parties: Eventbrite's
+    /organizations/{id}/events endpoint only serves organizations the TOKEN
+    belongs to (public "organizer" ids are a different id space entirely — the
+    2026-08-05 dry-run 404 proved it), while GET /events/{id} serves any public
+    event. Our harvest lanes produce exactly these event ids from venue pages,
+    so the curated event-id list becomes the query. A missing/deleted id is
+    reported and skipped (one dead link must not kill the batch); live_only
+    drops completed/canceled listings at the fetch layer.
+    """
+    token = _require_token(token)
+    for eid in event_ids:
+        url = f"{BASE_URL}/events/{eid}/?" + urllib.parse.urlencode({"expand": expand})
+        try:
+            ev = _get(url, token)
+        except urllib.error.HTTPError as exc:
+            logger.warning("event %s: HTTP %s — skipped (deleted/private/bad id)",
+                           eid, exc.code)
+            continue
+        if live_only and ev.get("status") not in ("live", "started"):
+            logger.info("event %s: status=%s — skipped (live_only)",
+                        eid, ev.get("status"))
+            continue
+        yield ev
+        time.sleep(sleep)
+
+
 def fetch_venue_events(
     token: Optional[str],
     venue_id: str,
@@ -151,9 +191,15 @@ def fetch_known(
     a silent API guess.
     """
     token = _require_token(token)
-    if kind not in ("organization", "venue"):
-        raise ValueError(f"kind must be 'organization' or 'venue', got {kind!r}")
-    fetch_one = fetch_organizer_events if kind == "organization" else fetch_venue_events
+    if kind == "event":
+        # Individual public-event lookups (the third-party-viable id space);
+        # de-dup below still applies.
+        def fetch_one(token, _id, **_kw):
+            return fetch_events_by_ids(token, [_id])
+    elif kind not in ("organization", "venue"):
+        raise ValueError(f"kind must be 'organization', 'venue' or 'event', got {kind!r}")
+    else:
+        fetch_one = fetch_organizer_events if kind == "organization" else fetch_venue_events
     seen: set[str] = set()
     for _id in ids:
         for ev in fetch_one(
