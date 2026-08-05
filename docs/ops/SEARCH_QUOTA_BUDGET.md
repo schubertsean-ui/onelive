@@ -1,4 +1,4 @@
-# Brave Search API — launch-breadth budget (v3, 2026-08-05)
+# Brave Search API — launch-breadth budget (v4, 2026-08-05)
 
 **What you're about to see:** how the one shared search-API quota is split
 between every lane that queries the licensed search index, so no lane can
@@ -32,13 +32,20 @@ region cities = **968 queries**, each returning up to 20 results.
 | Lane | Consumer | Budget/run | Cadence | Monthly cost math |
 | --- | --- | --- | --- | --- |
 | Source scanner — full CAPCOG sweep | `source-scan.yml` → `tools/scan_new_sources.py` | 968 | weekly (Mon 14:30 UTC cron) + the one-time launch dispatch | ~4,200/mo → free 2,000 + ~2,200 paid ≈ **$7/mo** |
-| Festival-window daily sweeps | same workflow, daily cron gated by `sources/festival_windows.json` | 968 | daily, ONLY inside an active window | ACL window (10 days) adds ~9,700 ≈ **+$29 that month** |
+| Festival LIVE-phase daily FULL sweeps | same workflow, daily cron gated by `tools/festival_phase.py` (live phase = starts..ends) | 968 | daily, ONLY in a live phase | ACL live phase (10 days) adds ~9,700 ≈ **+$29 that month** |
+| Festival rampup/live/winddown KEYWORD sweeps | same workflow → `tools/scan_new_sources.py --festival <slug>` | ≤40 (a window's `keyword_pack` is ~6–7 queries) | daily, starts−28d..ends+1d | ~280/window-month — inside the free tier |
 | Eventbrite search discovery | `tools/search_discover_eventbrite.py` (provider-dryrun: eventbrite-search) | 8 | manual, on demand (~4 runs/month) | 32 (in the free tier) |
 | Diagnostics | ops-diagnostics `brave-probe` | 1 | on demand | ~10 (in the free tier) |
 
-Ordinary month ≈ $7; a festival month ≈ $36 — both inside the founder's
-authorized envelope. Rate limit (1 req/s, enforced in tools/search_api.py)
-makes a full sweep take ~17 minutes of wall clock.
+Ordinary month ≈ $7; a festival month ≈ $36–40 (October 2026 carries BOTH the
+ACL and F1 live phases: ~12,600 full-sweep + ~4,200 weekly + ~600 keyword
+queries ≈ 17,400 − 2,000 free ≈ $46 → **over the $40 tripwire, so October
+specifically needs a founder word before its crons run both windows**; a
+single-festival month stays ≈ $36). The phased definition itself
+(docs/memory/decisions/2026-08-05_festival-window-phases.md) keeps the
+expensive FULL band exactly the ratified starts..ends; the shoulders use the
+near-free keyword lane. Rate limit (1 req/s, enforced in
+tools/search_api.py) makes a full sweep take ~17 minutes of wall clock.
 
 Rules:
 1. **A new consumer or cadence gets a row here in the same PR that ships

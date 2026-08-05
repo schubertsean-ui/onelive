@@ -23,7 +23,15 @@ Requires BRAVE_SEARCH_API_KEY. Bounded by --max-queries (Brave free plan:
 exit 3 (quota/config — never an empty green). Zero NEW domains with results
 present exits 0 honestly (catalog already covers what search surfaced).
 
+Festival mode (--festival <slug>): instead of the domain pack, run the named
+window's keyword_pack (sources/festival_windows.json) against its geo — the
+rampup/live/winddown daily lane of the phased festival definition
+(tools/festival_phase.py; decision record
+docs/memory/decisions/2026-08-05_festival-window-phases.md). Same diff, same
+custody, same fail-loud rules; a handful of queries instead of hundreds.
+
 Usage: python tools/scan_new_sources.py [--city "Austin"] [--max-queries 20]
+       python tools/scan_new_sources.py --festival acl-2026
 """
 from __future__ import annotations
 
@@ -36,6 +44,7 @@ from tools.search_api import MissingKey, SearchError, api_key, search, web_resul
 from worker.importers.domain_map import DOMAINS
 
 CATALOG_DEFAULT = "sources/master_sources_catalog_120.json"
+WINDOWS_DEFAULT = "sources/festival_windows.json"
 
 # v2 (founder-directed 2026-08-05, verbatim "do what I tell you - I want all
 # the data in the initial launch to prove value and depth and breadth"): the
@@ -134,6 +143,12 @@ def main(argv=None) -> int:
                     help="API-call ceiling this run (fail-loud bound; a full "
                          "CAPCOG sweep is len(cities) x len(pack) queries)")
     ap.add_argument("--catalog", default=CATALOG_DEFAULT)
+    ap.add_argument("--festival", default=None, metavar="SLUG",
+                    help="run the named festival window's keyword_pack "
+                         "against its geo instead of the domain pack "
+                         "(the phased daily lane)")
+    ap.add_argument("--windows", default=WINDOWS_DEFAULT,
+                    help="festival windows file (used with --festival)")
     args = ap.parse_args(argv)
 
     try:
@@ -145,14 +160,30 @@ def main(argv=None) -> int:
     with open(args.catalog, encoding="utf-8") as fh:
         known = catalog_domains(json.load(fh))
 
-    if args.city:
+    festival = None
+    if args.festival:
+        with open(args.windows, encoding="utf-8") as fh:
+            windows = {w["slug"]: w for w in json.load(fh)["windows"]}
+        if args.festival not in windows:
+            print(f"unknown festival slug {args.festival!r} — known: "
+                  f"{sorted(windows)}", file=sys.stderr)
+            return 2
+        festival = windows[args.festival]
+        # geo is a lowercase market key ("austin"); the query prefix is the
+        # plain city name a person would type.
+        cities = [festival["geo"].replace("-", " ").title()]
+        pack = festival["keyword_pack"]
+    elif args.city:
         cities = [args.city]
+        pack = QUERY_PACK
     elif args.cities:
         cities = [c.strip() for c in args.cities.split(",") if c.strip()]
+        pack = QUERY_PACK
     else:
         cities = CAPCOG_CITIES
+        pack = QUERY_PACK
 
-    sweep = [f"{city} {term}" for city in cities for term in QUERY_PACK]
+    sweep = [f"{city} {term}" for city in cities for term in pack]
     if len(sweep) > args.max_queries:
         print(f"sweep of {len(sweep)} queries exceeds --max-queries="
               f"{args.max_queries}; running the first {args.max_queries} "
@@ -196,6 +227,7 @@ def main(argv=None) -> int:
         return 3
 
     out = {
+        "festival": args.festival,
         "cities": cities,
         "api_calls": calls,
         "calls_failed": failures,
