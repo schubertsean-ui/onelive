@@ -1,0 +1,59 @@
+{
+  "_comment": "Eventbrite event-id lane provenance (kickoff WS4c). Every organizer and event id here was HARVESTED from our own catalog sources' public pages (path 1 — eventbrite.com itself never fetched) by tools/harvest_eventbrite_links.py, then resolved via the documented Eventbrite API (GET /events/{id}) by tools/resolve_eventbrite_event_orgs.py. Founder approved all 13 organizers 2026-08-04, verbatim: 'all good'. found_on values are our catalog source slugs (sources/markets/austin.json) — the venue/organization page that published the Eventbrite link. This file is CURATED DATA for the import lane, not code; additions go through the same harvest → founder-review → commit path.",
+  "harvest_run": {
+    "run_id": "30944506990",
+    "run_url": "https://github.com/schubertsean-ui/onelive/actions/runs/30944506990",
+    "artifact_id": "8906607181",
+    "artifact_zip_sha256": "62900546c8d04f4e04d4c983e112f4946bd6928112d237006b22a3b2a60bf0d2",
+    "harvested_at": "2026-08-04T19:46:15Z",
+    "sources_eligible": 166,
+    "sources_fetched": 135,
+    "sources_failed": 31,
+    "events_resolved": "23 of 23, 0 failures"
+  },
+  "founder_approval": {
+    "date": "2026-08-04",
+    "verbatim": "all good",
+    "scope": "all 13 harvested organizers below"
+  },
+  "organizers": [
+    {"org_id": "30485247338", "name": "Elisabet Ney Museum", "via_events": ["1264437579839", "1660981082129", "1264430849709", "1661237689649", "1325159801639", "1264434049279", "1661214199389"]},
+    {"org_id": "12068986637", "name": "Asian American Resource Center", "via_events": ["1993063943908", "1918826374339", "1993946994135", "1918826163709", "1661449854239"]},
+    {"org_id": "37859734913", "name": "LIVVIE STAR COMPANY™", "via_events": ["1988109572249"]},
+    {"org_id": "17675610187", "name": "BookPeople", "via_events": ["1990995476065"]},
+    {"org_id": "14856256902", "name": "Golden Hornet Composer Laboratory", "via_events": ["858435994167"]},
+    {"org_id": "108305753181", "name": "Golden Hornet", "via_events": ["1492808322879"]},
+    {"org_id": "29335496025", "name": "Captain Quack's Soundspace", "via_events": ["1993714210874"]},
+    {"org_id": "17845361184", "name": "Saxon Pub", "via_events": ["1982047970836"]},
+    {"org_id": "31664431247", "name": "Hotel Van Zandt", "via_events": ["1990398760272"]},
+    {"org_id": "12130565694", "name": "Vista Brewing", "via_events": ["1996180541736"]},
+    {"org_id": "76000524533", "name": "Nacogdoches Main Street", "via_events": ["1980557094585"]},
+    {"org_id": "28776548591", "name": "Texas Wine Growers", "via_events": ["1975613931451"]},
+    {"org_id": "93607637573", "name": "Laura Avery", "via_events": ["1696086804289"]}
+  ],
+  "event_ids": [
+    {"event_id": "1988109572249", "found_on": ["antones"]},
+    {"event_id": "1990995476065", "found_on": ["bookpeople"]},
+    {"event_id": "858435994167", "found_on": ["golden_hornet"]},
+    {"event_id": "1492808322879", "found_on": ["golden_hornet"]},
+    {"event_id": "1993063943908", "found_on": ["asian_american_resource_center"]},
+    {"event_id": "1918826374339", "found_on": ["asian_american_resource_center"]},
+    {"event_id": "1993946994135", "found_on": ["asian_american_resource_center"]},
+    {"event_id": "1918826163709", "found_on": ["asian_american_resource_center"]},
+    {"event_id": "1661449854239", "found_on": ["asian_american_resource_center"]},
+    {"event_id": "1264437579839", "found_on": ["elisabet_ney_museum"]},
+    {"event_id": "1660981082129", "found_on": ["elisabet_ney_museum"]},
+    {"event_id": "1264430849709", "found_on": ["elisabet_ney_museum"]},
+    {"event_id": "1661237689649", "found_on": ["elisabet_ney_museum"]},
+    {"event_id": "1325159801639", "found_on": ["elisabet_ney_museum"]},
+    {"event_id": "1264434049279", "found_on": ["elisabet_ney_museum"]},
+    {"event_id": "1661214199389", "found_on": ["elisabet_ney_museum"]},
+    {"event_id": "1993714210874", "found_on": ["haam"]},
+    {"event_id": "1982047970836", "found_on": ["haam"]},
+    {"event_id": "1990398760272", "found_on": ["haam"]},
+    {"event_id": "1996180541736", "found_on": ["vista_brewing"]},
+    {"event_id": "1980557094585", "found_on": ["wedding_oak_winery"]},
+    {"event_id": "1975613931451", "found_on": ["sandy_road_vineyards"]},
+    {"event_id": "1696086804289", "found_on": ["esperanza_winery"]}
+  ]
+}
