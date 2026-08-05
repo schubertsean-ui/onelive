@@ -11,3 +11,4 @@ var/
 .validate-evidence.txt
 .claude/worktrees/
 .vr-server.log
+web/lib/__claimcheck*.ts

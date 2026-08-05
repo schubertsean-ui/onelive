@@ -140,3 +140,21 @@ describe("dedupeEvents", () => {
     expect(collapsed.map((e) => e.licensed_event_id)).toEqual(["c"]);
   });
 });
+
+describe("dedupeEvents — location-less bridge (found by adversarial probe)", () => {
+  const base = () => ev({ venue_area: null, venue_address: null, venue_lat: null, venue_lng: null });
+
+  it("a location-LESS row must not bridge two genuinely different venues", () => {
+    const noLoc = { ...base(), licensed_event_id: "a", source_provider: "ticketmaster" };
+    const main = { ...base(), licensed_event_id: "b", source_provider: "jsonld", venue_address: "100 Main St", venue_lat: 30.26, venue_lng: -97.75 };
+    const far = { ...base(), licensed_event_id: "c", source_provider: "jsonld", venue_address: "900 Far Rd", venue_lat: 30.45, venue_lng: -97.60 };
+    // Two real events at two real places must BOTH survive, whatever the order.
+    for (const order of [[noLoc, main, far], [main, noLoc, far], [far, main, noLoc]]) {
+      const kept = dedupeEvents(order as never).kept;
+      expect(kept.length).toBeGreaterThanOrEqual(2);
+      const addrs = new Set(kept.map((k) => k.venue_address).filter(Boolean));
+      expect(addrs).toContain("100 Main St");
+      expect(addrs).toContain("900 Far Rd");
+    }
+  });
+});

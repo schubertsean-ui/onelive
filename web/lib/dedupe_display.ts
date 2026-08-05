@@ -117,8 +117,21 @@ export type DedupeResult = {
 
 /** Collapse cross-source duplicates. Order-preserving: each keeper stays at
  *  the position its group first appeared. */
+function hasLocationSignal(e: LicensedEvent): boolean {
+  return !!(normalizeForDedupe(e.venue_area) || normalizeForDedupe(e.venue_address) ||
+    (e.venue_lat != null && e.venue_lng != null));
+}
+
 export function dedupeEvents(events: LicensedEvent[]): DedupeResult {
   const byKey = new Map<string, LicensedEvent>();
+  // The group's location WITNESS: the first member that carried any location
+  // signal. New members are checked against the witness, not against whichever
+  // row currently wins keeper — otherwise a location-LESS row bridges two
+  // genuinely different venues into one card (row A has no address, B is on
+  // Main St, C is on Far Rd: A absorbs B, then C sees only A and absorbs too,
+  // and one of two real events vanishes). Checking the witness also makes the
+  // result independent of feed order.
+  const witnessByKey = new Map<string, LicensedEvent>();
   const order: Array<{ kind: "keyed"; key: string } | { kind: "solo"; e: LicensedEvent }> = [];
   const collapsed: LicensedEvent[] = [];
 
@@ -132,15 +145,18 @@ export function dedupeEvents(events: LicensedEvent[]): DedupeResult {
     const existing = byKey.get(key);
     if (!existing) {
       byKey.set(key, e);
+      if (hasLocationSignal(e)) witnessByKey.set(key, e);
       order.push({ kind: "keyed", key });
       continue;
     }
-    if (locationsConflict(existing, e)) {
+    const witness = witnessByKey.get(key);
+    if (witness && locationsConflict(witness, e)) {
       // Same name/time/title but the location signals disagree — these are
       // (or may be) two real places. Show both; never guess.
       order.push({ kind: "solo", e });
       continue;
     }
+    if (!witness && hasLocationSignal(e)) witnessByKey.set(key, e);
     const keeper = keeperOf(existing, e);
     const loser = keeper === existing ? e : existing;
     byKey.set(key, keeper);
