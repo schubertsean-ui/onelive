@@ -361,7 +361,14 @@ def _select_event(events: List[dict], candidate_title: Optional[str],
     ct = _title_tokens(candidate_title)
     if not ct:
         return None
-    needed = (len(ct) + 1) // 2  # half the candidate's tokens, rounded up
+    # How much of the candidate's title the winner must account for. A SHORT
+    # title has to match in FULL: adversarial-review catch (2026-08-05, r6),
+    # half of two tokens is one, so "Patti Smith" could select "John Smith
+    # Band" off a shared surname — the same class as the r3 "John Smith Trio"
+    # / "John Doe Band" catch, which the half-rule only closed for titles of
+    # three tokens or more. Longer titles keep the half rule, because that is
+    # what lets "An Evening with Patti Smith" match "Patti Smith".
+    needed = len(ct) if len(ct) <= 2 else (len(ct) + 1) // 2
     best: Optional[dict] = None
     best_score = 0
     tied = False
@@ -441,9 +448,19 @@ def _dedupe_declarations(declared: List[dict]) -> List[dict]:
         match = None
         for k in kept:
             same_name = bool(set(d["names"]) & set(k["names"]))
-            if same_name:
+            # A shared name is not enough on its own: RECURRING events are the
+            # normal case on a venue calendar, and "Trivia Night" every Tuesday
+            # is many events with one name. Adversarial-review catch
+            # (2026-08-05, r6): collapsing them made a genuinely multi-event
+            # page look single-event, and the single-event shortcut then
+            # published one occurrence's date for another. Same name AND
+            # nothing contradictory is the same event; same name and different
+            # dates is next week's.
+            if same_name and _dates_agree(d["dates"], k["dates"]):
                 match = k
                 break
+            if same_name:
+                continue  # a different occurrence of the same recurring event
             same_start = (d["dates"].get("start_time")
                           and d["dates"]["start_time"] == k["dates"].get("start_time"))
             if not same_start:
