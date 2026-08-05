@@ -217,8 +217,10 @@ def _shape_and_store_one(
                                  shaped.get("rsvp_link"))
                      if l and _link_source_quoted(l, text)), None)
         if link:
-            recovered_raw = recover_dates_from_url(
-                link, candidate_title=shaped.get("title"))
+            # From here the page is the SOURCE'S OWN and its declarations
+            # are authoritative (founder ruling 2026-08-05, decision record
+            # 2026-08-05_source-site-authoritative.md) — no further gating.
+            recovered_raw = recover_dates_from_url(link)
             for field, claim in recovered_raw.items():
                 if field not in discarded_times:
                     continue
