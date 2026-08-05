@@ -22,6 +22,7 @@ on:
           - eventbrite-harvest
           - eventbrite-search
           - eventbrite-events
+          - source-scan
       max_pages:
         description: "Pages per window/id (bounded fetch)"
         required: false
@@ -131,6 +132,25 @@ jobs:
         with:
           name: eventbrite-search-candidates
           path: eventbrite-search-candidates.json
+          if-no-files-found: error
+      - name: SOURCE SCAN (founder scanner v1 — search-API discovery of new source domains)
+        if: ${{ github.event.inputs.provider == 'source-scan' }}
+        env:
+          GOOGLE_CSE_KEY: ${{ secrets.GOOGLE_CSE_KEY }}
+          GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
+          MAX_QUERIES: ${{ github.event.inputs.max_pages || '20' }}
+        run: |
+          set -o pipefail
+          : "${GOOGLE_CSE_KEY:?GOOGLE_CSE_KEY secret missing}"
+          : "${GOOGLE_CSE_CX:?GOOGLE_CSE_CX secret missing}"
+          : "${MAX_QUERIES:?max_pages input missing — the API-call bound is required}"
+          python3 tools/scan_new_sources.py --max-queries "$MAX_QUERIES" | tee source-scan-candidates.json
+      - name: Upload source-scan candidates (human curation before anything is committed)
+        if: ${{ github.event.inputs.provider == 'source-scan' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-scan-candidates
+          path: source-scan-candidates.json
           if-no-files-found: error
       - name: Eventbrite EVENT-ID dry-run (the third-party-viable id space; NO DB write)
         if: ${{ github.event.inputs.provider == 'eventbrite-events' }}
