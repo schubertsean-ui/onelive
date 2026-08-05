@@ -53,6 +53,23 @@ _PROBE_B = datetime(2002, 2, 2)
 
 _DATETIME_FIELDS = ("start_time", "end_time")
 
+# Weekday tokens for the year resolver's consistency check (evaluator
+# blocker, PR #189 r3): a claim that NAMES a weekday ("Friday, August 8")
+# must only resolve to a year where that month/day IS that weekday —
+# otherwise the resolution would contradict the source's own words.
+_WEEKDAY_INDEX = {
+    "mon": 0, "monday": 0,
+    "tue": 1, "tues": 1, "tuesday": 1,
+    "wed": 2, "weds": 2, "wednesday": 2,
+    "thu": 3, "thur": 3, "thurs": 3, "thursday": 3,
+    "fri": 4, "friday": 4,
+    "sat": 5, "saturday": 5,
+    "sun": 6, "sunday": 6,
+}
+_WEEKDAY_RE = re.compile(
+    r"\b(" + "|".join(sorted(_WEEKDAY_INDEX, key=len, reverse=True)) + r")\b",
+    re.IGNORECASE)
+
 # Pure-numeric day/month/year (or month/day/year) forms: when BOTH leading
 # fields could be a month, the order is a locale guess — "03/04/2026" is
 # March 4 in Austin and April 3 in London. We refuse to guess (PR #44 r1
@@ -108,6 +125,82 @@ def normalize_datetime_claim(
     if a.date() != b.date():
         return _refuse("no-full-date-evidence")
     return a.isoformat(), None
+
+
+def resolve_yearless_claim(
+    raw: Any,
+    reference: Optional[datetime],
+) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
+    """LAST-RESORT year resolution for a claim that is a full date except the
+    year ("August 9", "Sat Aug 9 7pm"). Founder-ratified 2026-08-05 ("Yes on
+    the year rule"), explicitly SUBORDINATE to callback evidence: callers try
+    worker/date_callback.py first and reach here only when the source offered
+    no machine-readable date to read back.
+
+    Rule (a calendar reader's, made deterministic and auditable): resolve to
+    the year that places the date within [-30, +300) days of ``reference`` —
+    the SOURCE FETCH time, threaded from the fetch site, never this worker's
+    clock (evaluator finding, PR #189 r2: a now() fallback makes the same
+    claim resolve differently on replay/backfill; no reference -> fail
+    closed, the claim stays refused). The window is narrower than a year,
+    so at most one candidate year fits — no tie to guess.
+
+    Returns (iso, note) on resolution — note is the provenance record
+    {"raw", "resolved", "reference"} — else (None, None). Claims that are
+    NOT merely year-less (time-only, unparseable, ambiguous-numeric) return
+    (None, None): this function widens nothing else.
+    """
+    if raw is None:
+        return None, None
+    s = str(raw).strip()
+    if not s:
+        return None, None
+    m = _NUMERIC_DATE.match(s)
+    if m:
+        first, second = int(m.group(1)), int(m.group(2))
+        if first <= 12 and second <= 12 and first != second:
+            return None, None  # ambiguous day/month order stays refused
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        try:
+            a = _duparser.parse(s, default=_PROBE_A)
+            b = _duparser.parse(s, default=_PROBE_B)
+        except (ValueError, OverflowError, TypeError):
+            return None, None
+    if any(issubclass(w.category, _UnknownTz) for w in caught):
+        return None, None
+    if a.date() == b.date():
+        return None, None  # fully dated — the strict path already stored it
+    if (a.month, a.day, a.timetz()) != (b.month, b.day, b.timetz()):
+        return None, None  # more than the year is unevidenced — stays refused
+    if reference is None:
+        return None, None  # no fetch-time reference: fail closed, stay refused
+    # Weekday consistency (r3 blocker): a claimed weekday must match the
+    # resolved date's weekday, or the claim stays refused — resolving
+    # "Friday, August 8" into a year where Aug 8 is a Saturday would assert
+    # a date the source's own words contradict.
+    wd_match = _WEEKDAY_RE.search(s)
+    claimed_weekday = _WEEKDAY_INDEX[wd_match.group(1).lower()] if wd_match else None
+    ref = reference
+    resolved = None
+    for year in (ref.year - 1, ref.year, ref.year + 1):
+        try:
+            cand = a.replace(year=year)
+        except ValueError:  # Feb 29 in a non-leap candidate year
+            continue
+        if claimed_weekday is not None and cand.weekday() != claimed_weekday:
+            continue
+        delta = (cand.date() - ref.date()).days
+        if -30 <= delta < 300:
+            resolved = cand
+            break
+    if resolved is None:
+        return None, None
+    note = {"raw": s, "resolved": "year-from-fetch-date",
+            "reference": ref.date().isoformat()}
+    if claimed_weekday is not None:
+        note["weekday_verified"] = wd_match.group(1)
+    return resolved.isoformat(), note
 
 
 def normalize_extracted_datetimes(

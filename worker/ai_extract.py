@@ -17,6 +17,7 @@ drop: it fires the AI_EXTRACT_ZERO_EVENTS_SOURCE_MAY_HAVE_MOVED marker and still
 records one flagged empty candidate for ops.
 """
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 import copy
 import datetime as _dt
@@ -30,9 +31,12 @@ from ai.prompts import EXTRACTION_SYSTEM_PROMPT
 from ai.provider import AIProvider
 from worker.ai_models import AIEventExtraction
 from worker.candidate_store import create_candidate, add_evidence, record_ai_degradation
+from worker.date_callback import recover_dates_from_url
 from worker.datetime_normalize import (
+    normalize_datetime_claim,
     normalize_extracted_datetimes,
     preserve_discarded_claims,
+    resolve_yearless_claim,
 )
 from worker.datetime_resolve import (
     resolve_partial_date_claim,
@@ -69,6 +73,34 @@ def _max_events_per_page() -> int:
 # them) and merged back into the stored `extracted` jsonb afterwards, so the
 # audit trail — which model/prompt/when produced this candidate — persists.
 _META_PREFIX = "_"
+
+# Characters that can CONTINUE a URL token. Used by the source-quoted-link
+# guard: an extracted link only counts as quoted from the source when its
+# occurrence in the block text is a COMPLETE token — not a prefix of a longer
+# URL (evaluator blocker, PR #189 r3: `l in text` accepted ".../e/1" when the
+# source only published ".../e/123", letting a hallucinated prefix-link fetch
+# an unrelated page). "." and ")" etc. are technically valid URL characters,
+# so a link followed by sentence punctuation is REFUSED too — fail-closed:
+# the claim just stays honestly refused, dateless beats wrongly dated.
+_URL_CONTINUATION = set(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    "-._~%/?#&=+@:!$'()*,;")
+
+
+def _link_source_quoted(link: str, text: str) -> bool:
+    """True iff ``link`` appears in ``text`` as a complete URL token —
+    both neighbours (where present) outside the URL character set."""
+    start = 0
+    while True:
+        i = text.find(link, start)
+        if i == -1:
+            return False
+        before_ok = i == 0 or text[i - 1] not in _URL_CONTINUATION
+        j = i + len(link)
+        after_ok = j >= len(text) or text[j] not in _URL_CONTINUATION
+        if before_ok and after_ok:
+            return True
+        start = i + 1
 
 # Greppable, structured marker logged when a page that HAD real text yields zero
 # events across all its blocks. Ops/monitoring grep for this to find sources
@@ -129,6 +161,7 @@ def _shape_and_store_one(
     source_class: str,
     text: str,
     sxsw_mode: bool,
+    fetched_at: Optional[datetime] = None,
 ) -> str:
     """Validate, R-021-normalize, and persist ONE event as candidate + evidence.
 
@@ -202,6 +235,66 @@ def _shape_and_store_one(
                 source_name, len(resolved_records), resolved_records,
             )
     if discarded_times:
+        # Date recovery, founder-directed 2026-08-05 ("more of a call back
+        # position than a logic process"): (1) CALLBACK — read the explicit
+        # machine-declared date off the event's own linked page; (2) only
+        # then the year rule, for claims that are full dates minus the year.
+        # Both re-enter the STRICT normalizer / the narrow year resolver, so
+        # neither path can bypass the full-date bar; every recovery is
+        # recorded in provenance with its method and basis.
+        recovery: Dict[str, Dict[str, str]] = {}
+        # The callback link must appear VERBATIM in the block text the event
+        # was extracted from (evaluator finding, PR #189 r1: an AI-shaped
+        # link the source never published — hallucinated or prompt-injected —
+        # could point at an unrelated single-Event page and launder an
+        # attacker-chosen date into "recovered evidence"), and as a COMPLETE
+        # URL token (r3 blocker: substring matching accepted a prefix of a
+        # longer source URL). A faithful extraction quotes the source's own
+        # link exactly; anything else gets no callback and the claim
+        # honestly stays refused.
+        link = next((l for l in (shaped.get("ticket_link"),
+                                 shaped.get("rsvp_link"))
+                     if l and _link_source_quoted(l, text)), None)
+        if link:
+            # From here the page is the SOURCE'S OWN and its declarations
+            # are authoritative (founder rulings 2026-08-05, decision record
+            # 2026-08-05_source-site-authoritative.md) — no further gating.
+            # The title is passed as a SELECTOR for multi-event pages (a
+            # venue calendar names many events; ours picks its match).
+            recovered_raw = recover_dates_from_url(
+                link, candidate_title=shaped.get("title"))
+            for field, claim in recovered_raw.items():
+                if field not in discarded_times:
+                    continue
+                normalized, refusal = normalize_datetime_claim(claim)
+                if normalized and not refusal:
+                    shaped[field] = normalized
+                    recovery[field] = {"method": "detail-page-callback",
+                                       "source": link, "raw": claim}
+                    discarded_times.pop(field)
+        # Year rule LAST, and ONLY against the SOURCE FETCH time threaded from
+        # the fetch site (evaluator finding, PR #189 r2): no fetched_at means
+        # no resolution — replay/backfill must never re-date a claim off this
+        # worker's clock; the claim honestly stays refused instead.
+        for field in list(discarded_times):
+            if fetched_at is None:
+                break
+            if discarded_times[field].get("reason") != "no-full-date-evidence":
+                continue
+            normalized, note = resolve_yearless_claim(
+                discarded_times[field].get("raw"), fetched_at)
+            if normalized and note:
+                shaped[field] = normalized
+                recovery[field] = {"method": "year-from-fetch-date", **note}
+                discarded_times.pop(field)
+        if recovery:
+            prov = meta.get("_provenance")
+            meta["_provenance"] = dict(prov) if isinstance(prov, dict) else {}
+            meta["_provenance"]["datetime_recovery"] = recovery
+            logger.info("source %r: datetime claim(s) RECOVERED by %s",
+                        source_name,
+                        {f: r["method"] for f, r in recovery.items()})
+    if discarded_times:
         logger.warning(
             "source %r: datetime claim(s) refused (stored as NULL, raw + "
             "reason preserved in provenance): %s",
@@ -250,6 +343,7 @@ def extract_candidates(
     source_url: str,
     sxsw_mode: bool = False,
     source_id: Optional[str] = None,
+    fetched_at: Optional[datetime] = None,
 ) -> ExtractionOutcome:
     """Extract EVERY event on a page and fan out one candidate per event.
 
@@ -284,6 +378,7 @@ def extract_candidates(
         source_url=source_url,
         source_class=source_class,
         sxsw_mode=sxsw_mode,
+        fetched_at=fetched_at,
     )
     outcome = ExtractionOutcome()
 
@@ -338,6 +433,7 @@ def extract_candidate(
     source_url: str,
     sxsw_mode: bool = False,
     source_id: Optional[str] = None,
+    fetched_at: Optional[datetime] = None,
 ) -> str:
     """Backward-compatible single-id entrypoint (used by worker/orchestrator.py).
 
@@ -355,6 +451,7 @@ def extract_candidate(
         source_url=source_url,
         sxsw_mode=sxsw_mode,
         source_id=source_id,
+        fetched_at=fetched_at,
     )
     # extract_candidates always records at least one candidate (a flagged empty
     # one on the zero-event path), so there is always an id to return.

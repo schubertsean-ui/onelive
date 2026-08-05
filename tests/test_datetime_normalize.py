@@ -160,3 +160,34 @@ def test_malformed_unserializable_provenance_kept_as_full_repr():
     meta = {"_provenance": bad}
     assert preserve_discarded_claims(meta, _CLAIM) is True
     assert meta["_provenance_malformed_original"] == repr(bad)  # complete
+
+
+def test_yearless_claim_resolves_against_reference():
+    # Founder-ratified year rule (2026-08-05): a full date minus the year
+    # resolves to the unique year within [-30, +300) days of the reference.
+    from datetime import datetime
+    from worker.datetime_normalize import resolve_yearless_claim
+
+    ref = datetime(2026, 8, 5, 12, 0)
+    iso, note = resolve_yearless_claim("Saturday, August 8 7:00 PM", ref)
+    assert iso == "2026-08-08T19:00:00"
+    assert note == {"raw": "Saturday, August 8 7:00 PM",
+                    "resolved": "year-from-fetch-date", "reference": "2026-08-05",
+                    "weekday_verified": "Saturday"}  # r3: claimed weekday checked
+    # Year boundary, both directions.
+    assert resolve_yearless_claim("Jan 2", datetime(2026, 12, 30))[0] == \
+        "2027-01-02T00:00:00"
+    assert resolve_yearless_claim("Dec 30", datetime(2027, 1, 2))[0] == \
+        "2026-12-30T00:00:00"
+
+
+def test_year_rule_widens_nothing_else():
+    from datetime import datetime
+    from worker.datetime_normalize import resolve_yearless_claim
+
+    ref = datetime(2026, 8, 5)
+    assert resolve_yearless_claim("10:00 AM", ref) == (None, None)  # time-only
+    assert resolve_yearless_claim("3/4/2026", ref) == (None, None)  # ambiguous order
+    assert resolve_yearless_claim("August 9, 2026", ref) == (None, None)  # strict path owns it
+    assert resolve_yearless_claim("gibberish", ref) == (None, None)
+    assert resolve_yearless_claim(None, ref) == (None, None)
