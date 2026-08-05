@@ -377,3 +377,113 @@ def test_the_run_records_which_page_each_fetch_came_from(monkeypatch):
                                 "https://cal.example/c?page=2",
                                 "https://cal.example/c?page=3"]
     assert len(out["page_urls"]) == out["pages_fetched"]
+
+
+def test_the_pages_read_reach_the_replay_record(monkeypatch, tmp_path):
+    """Adversarial-review BLOCKER (2026-08-05, r5): _fetch_paginated returned
+    page_urls and NOTHING consumed it. Dead data shaped like provenance is
+    worse than absent — it reads as a binding while binding to nothing, and
+    the previous test only proved the producer.
+
+    Note on scope, verified rather than assumed: the panel's stated harm was
+    that a user could be shown a page-1 link for a page-3 event. That path
+    does not exist. The orchestrator extracts under the SOURCE's configured
+    url (worker/orchestrator.py passes `source_url=url`), and the public
+    origin_url comes from `s.base_url` (supabase/migrations/0020, "that
+    source's own base URL") — so the displayed link is the source's home for
+    every page alike, never page 1 specifically. The real defect was the
+    unconsumed field, and the run's audit trail is where "which page" belongs.
+    """
+    import json
+    from worker import orchestrator
+    from worker.replay_log import ReplayRecord
+
+    written = []
+    monkeypatch.setattr(orchestrator, "log_step",
+                        lambda rec: written.append(rec))
+
+    html = "<html><body><div class='ev'>A Show 8pm</div></body></html>"
+    order = ["https://cal.example/c?page=2", None]
+    calls = {"n": 0}
+
+    def fake_next(h, u, seen=None):
+        i = calls["n"]
+        calls["n"] += 1
+        return order[i] if i < len(order) else None
+
+    monkeypatch.setattr(orchestrator, "discover_next_page", fake_next)
+    monkeypatch.setattr(orchestrator, "_fetch_with_render_fallback",
+                        lambda **kw: {"status": "ok", "text": html})
+    monkeypatch.setattr(orchestrator, "fetch_url",
+                        lambda **kw: {"status": "ok", "text": html})
+    monkeypatch.setattr(orchestrator, "_read_fetched_text", lambda r: r.get("text", ""))
+    # Pages must PASS the sensor — that is how the walk follows them. The run
+    # is stopped at extraction instead, which is after the fetch step is
+    # logged, so the audit record under test is fully written.
+    monkeypatch.setattr(orchestrator, "assess_input",
+                        lambda **kw: type("R", (), {"ok": True, "reason": "",
+                                                    "signals": {}})())
+    def _stop(**kw):
+        raise TimeoutError("stop after fetch")
+    monkeypatch.setattr(orchestrator, "extract_candidate", _stop)
+    monkeypatch.setenv("INGEST_MAX_PAGES_PER_SOURCE", "5")
+    monkeypatch.setenv("EXTRACT_MAX_EVENTS_PER_PAGE", "50")
+
+    # Per-source error isolation lives in run_loop, so calling _run_one_source
+    # directly lets the deliberate stop propagate — swallow it here; the fetch
+    # step under test is already logged by then.
+    try:
+        orchestrator._run_one_source(
+            ai=None, run_id="r1", source={"source_id": "s1", "name": "Cal",
+                                          "url": "https://cal.example/c",
+                                          "source_class": "venue_calendar"},
+            render_state={}, sxsw_mode=False)
+    except TimeoutError:
+        pass
+
+    fetch_steps = [r for r in written if getattr(r, "stage", None) == "fetch"]
+    assert fetch_steps, "no fetch step reached the replay log"
+    detail = fetch_steps[0].detail
+    # READABLE, not merely hashed: outputs_digest binds page_urls, but a hash
+    # cannot answer "which page did this come from".
+    assert "https://cal.example/c?page=2" in detail, (
+        f"the pages read must be legible in the audit trail; got {detail!r}")
+    assert "pages read:" in detail
+
+
+def test_a_single_page_fetch_adds_no_page_urls_noise(monkeypatch):
+    """The record gains the field only when the walk actually followed a page;
+    an ordinary one-page source logs exactly what it always did."""
+    from worker import orchestrator
+
+    written = []
+    monkeypatch.setattr(orchestrator, "log_step", lambda rec: written.append(rec))
+    html = "<html><body><div class='ev'>A Show 8pm</div></body></html>"
+    monkeypatch.setattr(orchestrator, "discover_next_page",
+                        lambda h, u, seen=None: None)
+    monkeypatch.setattr(orchestrator, "_fetch_with_render_fallback",
+                        lambda **kw: {"status": "ok", "text": html})
+    monkeypatch.setattr(orchestrator, "_read_fetched_text", lambda r: r.get("text", ""))
+    monkeypatch.setattr(orchestrator, "assess_input",
+                        lambda **kw: type("R", (), {"ok": True, "reason": "",
+                                                    "signals": {}})())
+    def _stop2(**kw):
+        raise TimeoutError("stop after fetch")
+    monkeypatch.setattr(orchestrator, "extract_candidate", _stop2)
+    monkeypatch.setenv("INGEST_MAX_PAGES_PER_SOURCE", "5")
+
+    # Per-source error isolation lives in run_loop, so calling _run_one_source
+    # directly lets the deliberate stop propagate — swallow it here; the fetch
+    # step under test is already logged by then.
+    try:
+        orchestrator._run_one_source(
+            ai=None, run_id="r1", source={"source_id": "s1", "name": "Cal",
+                                          "url": "https://cal.example/c",
+                                          "source_class": "venue_calendar"},
+            render_state={}, sxsw_mode=False)
+    except TimeoutError:
+        pass
+
+    fetch_steps = [r for r in written if getattr(r, "stage", None) == "fetch"]
+    assert fetch_steps
+    assert "pages read:" not in fetch_steps[0].detail

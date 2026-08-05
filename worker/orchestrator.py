@@ -507,6 +507,16 @@ def _run_one_source(
         "rendered": bool(fetch_result.get("rendered")),
         "pages_fetched": fetch_result.get("pages_fetched", 1),
     }
+    # The pages this run actually read, in order, on the REPLAY record — the
+    # run's audit trail, which is what "which page did this come from" is a
+    # question about. Adversarial-review finding (2026-08-05): page_urls was
+    # returned by _fetch_paginated and consumed by nothing, which is worse
+    # than absent — it reads like provenance while binding to none. Only
+    # recorded when the walk actually followed a page, so a single-page fetch
+    # carries no new noise.
+    page_urls = fetch_result.get("page_urls") or []
+    if len(page_urls) > 1:
+        fetch_outputs["page_urls"] = list(page_urls)
     if fetch_result.get("rendered"):
         fetch_outputs["plain_shell_reason"] = fetch_result.get("plain_shell_reason")
     if fetch_result.get("render_error"):
@@ -522,6 +532,12 @@ def _run_one_source(
             " (render fallback unavailable, proceeding un-rendered: "
             f"{fetch_result.get('render_error')})"
         )
+    if len(page_urls) > 1:
+        # In the READABLE field, not only the digest. outputs_digest binds
+        # page_urls cryptographically — a changed page list changes the hash —
+        # but a hash cannot answer "which page did this event come from",
+        # which is the whole question. The detail line can.
+        fetch_detail += f" (pages read: {', '.join(page_urls)})"
     log_step(ReplayRecord(
         run_id=run_id, ts=_now_iso(), source_id=str(source_id), source_name=source_name,
         stage="fetch", inputs_digest=canonical_digest({"url": url}),
