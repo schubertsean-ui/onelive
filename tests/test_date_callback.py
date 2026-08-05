@@ -803,3 +803,67 @@ def test_a_nameless_event_at_the_same_hour_lends_no_end_time(monkeypatch):
     assert got == {"start_time": "2026-08-28T20:00:00"}, (
         f"the 2am end belongs to whatever else started at 8; got {got}")
     assert "end_time" not in got
+
+
+def test_a_recurring_event_does_not_collapse_into_one(monkeypatch):
+    """Adversarial-review BLOCKER (2026-08-05, r6): a shared NAME merged two
+    declarations unconditionally, but recurring events are the normal case on
+    a venue calendar — "Trivia Night" every Tuesday is many events with one
+    name. Collapsing them made a genuinely multi-event page look single-event,
+    and the single-event shortcut then published one occurrence's date for
+    another.
+    """
+    page = """
+    <html><head><script type="application/ld+json">
+    [{"@type":"Event","name":"Open Mic","startDate":"2026-09-04T19:00:00"},
+     {"@type":"Event","name":"Open Mic","startDate":"2026-09-11T19:00:00"}]
+    </script></head><body></body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+
+    # Two occurrences, one name: which one is the candidate's is unknowable
+    # from the title alone, so nothing is recovered rather than a coin flip.
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="Open Mic") == {}
+    assert recover_dates_from_url("https://venue.example/cal") == {}
+
+
+def test_the_same_event_in_two_notations_still_collapses(monkeypatch):
+    """The recurrence check must not break the case it guards: one event
+    declared twice, agreeing on dates, is still ONE event and still recovers
+    without needing a title."""
+    page = """
+    <html><head><script type="application/ld+json">
+    {"@type":"Event","name":"Open Mic","startDate":"2026-09-04T19:00:00",
+     "endDate":"2026-09-04T22:00:00"}
+    </script></head><body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Open Mic</span>
+      <meta itemprop="startDate" content="2026-09-04T19:00:00"/></div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+    assert recover_dates_from_url("https://venue.example/e/mic") == {
+        "start_time": "2026-09-04T19:00:00",
+        "end_time": "2026-09-04T22:00:00"}
+
+
+def test_a_two_word_title_must_match_in_full(monkeypatch):
+    """Adversarial-review BLOCKER (2026-08-05, r6): half of two tokens is one,
+    so "Patti Smith" could select "John Smith Band" off a shared surname — the
+    same class as the r3 catch, which the half-rule only closed for titles of
+    three tokens or more."""
+    page = """
+    <html><head><script type="application/ld+json">
+    [{"@type":"MusicEvent","name":"John Smith Band","startDate":"2026-09-04T21:00:00"},
+     {"@type":"MusicEvent","name":"Marfa Tapes","startDate":"2026-09-05T20:00:00"}]
+    </script></head><body></body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="Patti Smith") == {}, (
+        "a shared surname must not carry a two-word title")
+
+    # …and the full match still attributes.
+    page2 = page.replace("John Smith Band", "Patti Smith Live")
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page2)
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="Patti Smith") == {
+        "start_time": "2026-09-04T21:00:00"}
