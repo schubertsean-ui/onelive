@@ -204,6 +204,26 @@ package (docs/design/V0_PROMPT_PACKAGE_v1.md).
 [S3:db-type-mismatch-invisible-to-hermetic-tests] The class's own mechanism is this build: the real-Postgres leg replays the escaped uuid[] insert (two distinct artists) against the server's type check plus registry-bound provenance and the 0020 backfill — proven 3/3 locally twice before commit.
 [S3:excluded-surface-widening] No scanner-excluded surface widens: the new workflow/tests are ordinary tracked files under the scanners' sweep; .claude and SKIP_PARTS untouched.
 
+AMENDMENT 3 (2026-08-05 night, founder-directed at maximum urgency —
+verbatim record docs/memory/decisions/2026-08-05_ingestion-learns-or-it-
+fails.md): THE ROOT CAUSE OF ZERO UPCOMING DISCOVERED EVENTS FOUND AND
+FIXED. R-021's fail-closed datetime rule refused month+day claims whose
+year lives in page context — every venue-calendar event stored dateless.
+ADDED SCOPE, built this amendment: worker/datetime_resolve.py (page-context
+year resolution, deterministic stated rule, 10 tests incl. the
+double-occurrence window and leap-probe defects its own tests caught),
+live wiring in ai_extract (provenance-recorded), worker/
+backfill_datetime_resolution.py + backfill-dates.yml (master-only, bounded,
+dry-run first — resolves the preserved claims with zero re-crawl/AI spend
+and dates already-published events via promoted_event_id), red class
+silent-yield-collapse indexed, the yield-ledger/refusal-ledger systemic
+build committed as the next workstream.
+[S3:silent-yield-collapse] This build IS the instance and its first counter-measure; the class row + ledger mechanism land in the same push.
+[S3:release-path-weaker-than-generation2] n/a-guard: the resolver runs BEFORE the gate; every resolved candidate still passes the full unchanged gate to publish; backfilled events were already published and gain only their source-evidenced date.
+[S3:green-on-stale-base2] Branch is the current PR #191 head lineage on the post-#188 master.
+[S3:featurability-dimension-missed] The DATE dimension now reaches every public emitter for the discovered lane — resolved at extraction, backfilled for the published rows, visible in the windows.
+[S3:governance-ambiguity] [S3:missing-record-read-as-state] [S3:malformed-ledger-row] [S3:deliverable-visual-qa] Matched by the new decision-record/class-row prose riding this diff; the records state their scope precisely, cite live runs, and pipe-safe ledger formatting was kept — nothing in the build surface binds these.
+
 AMENDMENT 2 (2026-08-05 evening, founder-directed live: "THe number of
 events showing on the live site for today is worse than paltry - 11 items.
 What gives? Fix this. I want every event loaded asap" + "worse there are

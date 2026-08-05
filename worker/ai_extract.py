@@ -19,6 +19,7 @@ records one flagged empty candidate for ops.
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 import copy
+import datetime as _dt
 import inspect
 import logging
 import os
@@ -33,6 +34,7 @@ from worker.datetime_normalize import (
     normalize_extracted_datetimes,
     preserve_discarded_claims,
 )
+from worker.datetime_resolve import resolve_partial_date_claim
 from worker.segment import segment_events
 
 logger = logging.getLogger(__name__)
@@ -162,6 +164,33 @@ def _shape_and_store_one(
     # fact is asserted and no event is lost to a formatting detail. Applied
     # PER EVENT so each show's date claim is judged on its own text.
     discarded_times = normalize_extracted_datetimes(shaped)
+    # Page-context date resolution (Contract #44, founder-directed
+    # 2026-08-05): a month+day-evidenced claim whose YEAR the strict rule
+    # refused ("Aug 8 7:30 PM" on a live calendar) resolves against the
+    # fetch moment under worker/datetime_resolve's stated deterministic
+    # rule — context evidence, not fabrication, recorded in provenance.
+    # Anything the resolver refuses stays exactly as R-021 left it: NULL
+    # with the raw claim preserved.
+    if discarded_times:
+        resolved_records: Dict[str, Any] = {}
+        now_ctx = _dt.datetime.now(_dt.timezone.utc)
+        for fld, refusal in list(discarded_times.items()):
+            if refusal.get("reason") != "no-full-date-evidence":
+                continue
+            iso, rec = resolve_partial_date_claim(refusal.get("raw"), now_ctx)
+            if iso is not None:
+                shaped[fld] = iso
+                resolved_records[fld] = rec
+                del discarded_times[fld]
+        if resolved_records:
+            prov = meta.get("_provenance")
+            meta["_provenance"] = dict(prov) if isinstance(prov, dict) else {}
+            meta["_provenance"]["datetime_resolution"] = resolved_records
+            logger.info(
+                "source %r: %d partial date claim(s) resolved from page "
+                "context (rule + context recorded in provenance): %s",
+                source_name, len(resolved_records), resolved_records,
+            )
     if discarded_times:
         logger.warning(
             "source %r: datetime claim(s) refused (stored as NULL, raw + "

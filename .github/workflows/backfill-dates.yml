@@ -1,0 +1,65 @@
+name: backfill-dates
+
+# One-shot, founder-visible date backfill for the discovered lane (Contract
+# #44, founder directive 2026-08-05: dates NOW). Resolves each candidate's
+# OWN preserved partial-date claim against its own fetch context
+# (worker/backfill_datetime_resolution.py) and lets already-published
+# dateless events inherit the result. Publishes nothing new; no gate moves.
+#
+# Dispatch-only — no schedule, so no dead-man owed (sentinel R5). Dry-run by
+# default: pass real=true to write.
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Candidate ceiling for this pass"
+        required: false
+        default: "6000"
+      real:
+        description: "true = write; anything else = report only"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backfill-dates
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    # MASTER-ONLY (the PR #174 evaluator finding, same guard as db-report):
+    # a workflow_dispatch runs the DISPATCHED ref's code, so without this a
+    # branch could pair edited scripts with the production DB secrets below.
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install worker deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r worker/requirements.txt
+      - name: Resolve preserved date claims (bounded pass)
+        env:
+          ONELIVE_DB_DSN_RAW: ${{ secrets.ONELIVE_DB_DSN }}
+          ONELIVE_DB_PASSWORD: ${{ secrets.ONELIVE_DB_PASSWORD }}
+          LIMIT: ${{ github.event.inputs.limit }}
+          REAL: ${{ github.event.inputs.real }}
+        run: |
+          : "${ONELIVE_DB_DSN_RAW:?ONELIVE_DB_DSN secret missing}"
+          : "${ONELIVE_DB_PASSWORD:?ONELIVE_DB_PASSWORD secret missing}"
+          : "${LIMIT:?limit input missing — the pass is bounded, always}"
+          : "${REAL:?real input missing — dry-run vs write must be explicit}"
+          ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
+          export ONELIVE_DB_DSN
+          if [ "$REAL" = "true" ]; then
+            python -m worker.backfill_datetime_resolution --limit "$LIMIT" --real
+          else
+            python -m worker.backfill_datetime_resolution --limit "$LIMIT"
+          fi

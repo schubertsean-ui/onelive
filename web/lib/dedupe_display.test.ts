@@ -109,6 +109,28 @@ describe("dedupeEvents", () => {
     expect(dedupeEvents([ebSameRich, tmSameRich]).kept[0].licensed_event_id).toBe("t2");
   });
 
+  it("same venue NAME at conflicting LOCATIONS never collapses (evaluator #191 r2)", () => {
+    const east = ev({ licensed_event_id: "a", venue_area: "East Austin" });
+    const south = ev({ licensed_event_id: "b", venue_area: "South Congress", source_provider: "jsonld" });
+    expect(dedupeEvents([east, south]).kept).toHaveLength(2);
+
+    const addr1 = ev({ licensed_event_id: "c", venue_area: null, venue_address: "100 Main St" });
+    const addr2 = ev({ licensed_event_id: "d", venue_area: null, venue_address: "900 Far Rd", source_provider: "jsonld" });
+    expect(dedupeEvents([addr1, addr2]).kept).toHaveLength(2);
+
+    const near = ev({ licensed_event_id: "e", venue_area: null, venue_address: null, venue_lat: 30.26, venue_lng: -97.75 });
+    const far = ev({ licensed_event_id: "f", venue_area: null, venue_address: null, venue_lat: 30.40, venue_lng: -97.75, source_provider: "jsonld" });
+    expect(dedupeEvents([near, far]).kept).toHaveLength(2);
+  });
+
+  it("an ABSENT location signal stays compatible — one provider omitting the address must not split a true duplicate", () => {
+    const withAddr = ev({ licensed_event_id: "a" });
+    const noAddr = ev({ licensed_event_id: "b", source_provider: "jsonld", venue_address: null, venue_area: null, venue_lat: null, venue_lng: null, image_url: null });
+    const { kept } = dedupeEvents([withAddr, noAddr]);
+    expect(kept).toHaveLength(1);
+    expect(kept[0].licensed_event_id).toBe("a");
+  });
+
   it("preserves feed order and keeps every non-duplicate", () => {
     const a = ev({ licensed_event_id: "a", title: "Show One", performer: "Show One", venue_name: "Mohawk" });
     const b = ev({ licensed_event_id: "b", title: "Show Two", performer: "Show Two", venue_name: "Continental Club" });

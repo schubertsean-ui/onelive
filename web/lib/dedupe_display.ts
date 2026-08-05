@@ -76,6 +76,27 @@ function richness(e: LicensedEvent): number {
   return fields.filter((v) => v !== null && v !== undefined).length;
 }
 
+// Same venue NAME is not the same PLACE (evaluator #191 r2, absence-only
+// blocker): two distinct in-region venues can share a name. Location signals
+// VETO a collapse when both rows carry one and they disagree; an absent
+// signal is compatible (one provider omitting the address must not split a
+// true duplicate). Over-splitting is the safe direction — both cards show.
+const COORD_CONFLICT_DEG = 0.005; // ~500m; venue pins for one place sit closer
+function locationsConflict(a: LicensedEvent, b: LicensedEvent): boolean {
+  const areaA = normalizeForDedupe(a.venue_area);
+  const areaB = normalizeForDedupe(b.venue_area);
+  if (areaA && areaB && areaA !== areaB) return true;
+  const addrA = normalizeForDedupe(a.venue_address);
+  const addrB = normalizeForDedupe(b.venue_address);
+  if (addrA && addrB && addrA !== addrB) return true;
+  if (a.venue_lat != null && a.venue_lng != null &&
+      b.venue_lat != null && b.venue_lng != null) {
+    if (Math.abs(a.venue_lat - b.venue_lat) > COORD_CONFLICT_DEG ||
+        Math.abs(a.venue_lng - b.venue_lng) > COORD_CONFLICT_DEG) return true;
+  }
+  return false;
+}
+
 function keeperOf(a: LicensedEvent, b: LicensedEvent): LicensedEvent {
   const ra = richness(a);
   const rb = richness(b);
@@ -112,6 +133,12 @@ export function dedupeEvents(events: LicensedEvent[]): DedupeResult {
     if (!existing) {
       byKey.set(key, e);
       order.push({ kind: "keyed", key });
+      continue;
+    }
+    if (locationsConflict(existing, e)) {
+      // Same name/time/title but the location signals disagree — these are
+      // (or may be) two real places. Show both; never guess.
+      order.push({ kind: "solo", e });
       continue;
     }
     const keeper = keeperOf(existing, e);
