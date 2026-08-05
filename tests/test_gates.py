@@ -208,7 +208,12 @@ import pytest as _pytest
 
 @_pytest.mark.parametrize("cls", [
     "venue_calendar", "ticketing", "festival_feed", "calendar_feed",
-    "city_calendar", "university_calendar", "library_calendar", "community",
+    "city_calendar", "university_calendar", "university", "library_calendar",
+    # institutions publishing their own programs. These four are LIVE-DB
+    # classes with no definition anywhere in this repo (found via PR #191):
+    # before this ruling every one of them fell through to the corroboration
+    # branch and waited forever for a second museum to confirm the first.
+    "theater_arts", "gallery_museum", "food_culinary",
     "local_media",  # newspapers, periodicals, radio, TV — founder-ruled first party
     "claimed_upload", "email_opt_in",
 ])
@@ -221,13 +226,46 @@ def test_first_party_source_promotes_on_one(cls):
 @_pytest.mark.parametrize("cls", [
     "social",             # third-party chatter — the ruled exception
     "artist_aggregator",  # republishes others' claims
-    "artist_directory", "link_hub", "directory",
+    "artist_directory", "link_hub", "directory", "blog", "music_platform",
+    # a community PLATFORM is not the host of what it lists, so it is not the
+    # horse's mouth under the founder's "comes from the source site" test
+    "community",
 ])
 def test_third_party_republisher_still_needs_corroboration(cls):
     result = multi_confirm_gate([cls])
     assert result.ok_to_promote is False
     assert "need 2" in result.reason
     assert derive_confidence([cls]) == "unverified"
+
+
+def test_unclassified_class_holds_but_says_so_out_loud(caplog):
+    """A class nobody has ruled on holds — and MUST warn while doing it.
+
+    The silent forever-hold is the defect that stranded the DB-seeded
+    institutional classes: their events simply never appeared, with nothing
+    in any log to say why. Holding is the right safe direction; holding
+    quietly is not.
+    """
+    import logging
+    with caplog.at_level(logging.WARNING):
+        result = multi_confirm_gate(["some_class_nobody_classified"])
+    assert result.ok_to_promote is False
+    assert any("UNCLASSIFIED SOURCE CLASS" in m for m in caplog.messages)
+
+
+def test_gate_and_confidence_never_disagree_about_first_party():
+    """One authority, both paths. If these two ever diverge, a source can
+    pass the gate while being labelled unverified to users (or worse, the
+    reverse) — so the agreement is pinned, not assumed."""
+    from worker.gating import ANCHOR_CLASSES, THIRD_PARTY_CLASSES
+    for cls in sorted(ANCHOR_CLASSES):
+        assert multi_confirm_gate([cls]).ok_to_promote is True
+        assert derive_confidence([cls]) == "confirmed"
+    for cls in sorted(THIRD_PARTY_CLASSES):
+        assert multi_confirm_gate([cls]).ok_to_promote is False
+        assert derive_confidence([cls]) == "unverified"
+    assert not (ANCHOR_CLASSES & THIRD_PARTY_CLASSES), (
+        "a class cannot be both the horse's mouth and hearsay")
 
 
 def test_third_party_social_promotes_once_any_second_source_arrives():
