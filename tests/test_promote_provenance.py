@@ -38,17 +38,35 @@ def test_insert_placeholder_count_matches_column_count():
     assert n_cols == n_placeholders + 2
 
 
-def test_source_url_lookup_is_by_unique_lowered_name():
+def test_source_lookup_is_by_unique_lowered_name_and_returns_canonical_name():
     # The source registry keys name uniquely on lower(name) (0009), so the
     # lookup must match that key — a case-sensitive match would silently drop
     # provenance for a case-variant source_name (swallowed-corrupt-data).
+    # It selects the registry's canonical NAME alongside base_url because the
+    # public row publishes the REGISTRY's spelling, never the candidate's.
     assert re.search(
-        r"select base_url from source where lower\(name\)=lower\(%s\)", SRC)
+        r"select name, base_url from source where lower\(name\)=lower\(%s\)", SRC)
+
+
+def test_provenance_is_registry_bound_fail_closed():
+    # Evaluator #188 r1 (absence-only): a candidate source_name with NO
+    # matching registry row must publish NULLs — the generic UI wording —
+    # never the candidate's own label. Pinned structurally: both public
+    # values start None, are assigned ONLY inside the fetched-row branch,
+    # and the insert passes the registry-derived name, not the raw one.
+    assert "source_name_pub = None" in SRC
+    assert "source_url = None" in SRC
+    assert re.search(
+        r"if src_row:\s*\n\s+source_name_pub, source_url = src_row\[0\], src_row\[1\]",
+        SRC)
+    values_args = SRC.split("returning event_id")[1]
+    assert "source_name_pub," in values_args
+    # The raw candidate label must not appear as an insert parameter.
+    assert not re.search(r"card\[\"ticket_url\"\],\s*\n\s*source_name\b", SRC)
 
 
 def test_missing_source_stays_null_never_fabricated():
     # An unnamed source must short-circuit to NULL (the UI's generic wording),
     # never query with NULL or invent a value. Pinned structurally: the lookup
-    # is guarded by `if source_name:` and source_url starts as None.
-    assert "source_url = None" in SRC
+    # is guarded by `if source_name:`.
     assert re.search(r"if source_name:\s*\n\s+cur\.execute", SRC)

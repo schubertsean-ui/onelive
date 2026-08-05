@@ -351,9 +351,12 @@ export default async function EventDetailPage(
             {originLink(event_) ? (
               <>
                 {" "}
+                {/* origin_url is the source's registered base_url, not a
+                    per-event page — the copy claims exactly that (evaluator
+                    #188 r1). */}
                 <a href={originLink(event_)!} target="_blank" rel="noopener noreferrer"
-                  aria-label={externalAriaLabel("See the source listing", originLink(event_)!)}>
-                  See the source listing ↗
+                  aria-label={externalAriaLabel("See the source's site", originLink(event_)!)}>
+                  See the source&rsquo;s site ↗
                 </a>
               </>
             ) : null}

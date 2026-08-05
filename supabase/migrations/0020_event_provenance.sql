@@ -20,27 +20,22 @@ alter table event
   add column if not exists source_name text,  -- e.g. 'Mohawk Austin'
   add column if not exists source_url  text;  -- that source's own base URL
 
--- Backfill rows promoted before this migration from the candidate's OWN row —
--- the same no-fabrication shape as 0010's card fields (promote-derived public
--- columns come from the candidate's data, never invented). promoted_event_id
--- is written by worker/promote.py in the same transaction as the event
--- insert, so this join reproduces exactly what promote would have written.
+-- Backfill rows promoted before this migration, REGISTRY-BOUND (evaluator
+-- #188 r1): the public row carries the source REGISTRY's canonical name +
+-- base_url or nothing — a candidate whose source_name matches no registry
+-- row stays NULL (the UI's generic wording), so an unverified/mistyped
+-- label never reaches the public trust surface. promoted_event_id is
+-- written by worker/promote.py in the same transaction as the event insert,
+-- and the registry keys name uniquely (0009), so this join is at most one
+-- row per event. Same no-fabrication shape as 0010's card fields.
 update event e
-   set source_name = c.source_name
+   set source_name = s.name,
+       source_url  = s.base_url
   from event_candidate c
+  join source s on lower(s.name) = lower(c.source_name)
  where c.promoted_event_id = e.event_id
    and e.source_name is null
    and c.source_name is not null;
-
--- The source's own URL, from the unique-keyed source registry (0009 makes
--- name unique, so this join is at most one row per event).
-update event e
-   set source_url = s.base_url
-  from source s
- where lower(s.name) = lower(e.source_name)
-   and e.source_url is null
-   and e.source_name is not null
-   and s.base_url is not null;
 
 -- Public read: provenance is part of the honest listing surface. 0012 already
 -- revoked the broad anon grant and granted listing columns explicitly; new
