@@ -245,12 +245,28 @@ def test_unclassified_class_holds_but_says_so_out_loud(caplog):
     institutional classes: their events simply never appeared, with nothing
     in any log to say why. Holding is the right safe direction; holding
     quietly is not.
+
+    The warning is ONCE PER CLASS, not once per call: is_first_party sits in
+    the gate's hot path, and the perf budget is 50us over 5,000 reps. Both
+    halves are asserted here — the operator learns the class name, and the
+    hot path does not pay for it twice.
     """
     import logging
+    from worker.gating import _WARNED_UNCLASSIFIED
+    _WARNED_UNCLASSIFIED.discard("some_class_nobody_classified")
+
     with caplog.at_level(logging.WARNING):
         result = multi_confirm_gate(["some_class_nobody_classified"])
     assert result.ok_to_promote is False
-    assert any("UNCLASSIFIED SOURCE CLASS" in m for m in caplog.messages)
+    assert sum("UNCLASSIFIED SOURCE CLASS" in m for m in caplog.messages) == 1
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        again = multi_confirm_gate(["some_class_nobody_classified"])
+    assert again.ok_to_promote is False  # still held — behavior is unchanged
+    assert not any("UNCLASSIFIED SOURCE CLASS" in m for m in caplog.messages), (
+        "the same class must not re-warn on every call — that is the flood "
+        "the perf gate caught")
 
 
 def test_gate_and_confidence_never_disagree_about_first_party():
