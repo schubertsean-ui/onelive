@@ -294,6 +294,22 @@ _GENERIC_TITLE_WORDS = frozenset({
 })
 
 
+def _title_tokens(name: str) -> set:
+    """Comparable words of a title: punctuation stripped, generics dropped.
+
+    Stripping punctuation is load-bearing (adversarial pre-review): a bare
+    split leaves "Night:" as its own token, which is NOT in the generic set
+    and would score as if it were a distinctive word — the exact
+    generic-word match the filter exists to prevent.
+    """
+    out = set()
+    for raw in name.casefold().split():
+        w = raw.strip(".,:;!?()[]{}\"'`—–-…&/\\|")
+        if len(w) > 2 and w not in _GENERIC_TITLE_WORDS:
+            out.add(w)
+    return out
+
+
 def _select_event(events: List[dict], candidate_title: Optional[str],
                   names_of) -> Optional[dict]:
     """Which of the page's declared Events is the candidate's?
@@ -311,17 +327,15 @@ def _select_event(events: List[dict], candidate_title: Optional[str],
         return events[0]
     if not events or not candidate_title:
         return None
-    ct = {w for w in candidate_title.casefold().split()
-          if len(w) > 2 and w not in _GENERIC_TITLE_WORDS}
+    ct = _title_tokens(candidate_title)
     if not ct:
         return None
     best: Optional[dict] = None
     best_score = 0
     tied = False
     for ev in events:
-        score = max((len(ct & {w for w in n.casefold().split()
-                               if len(w) > 2 and w not in _GENERIC_TITLE_WORDS})
-                     for n in names_of(ev)), default=0)
+        score = max((len(ct & _title_tokens(n)) for n in names_of(ev)),
+                    default=0)
         if score > best_score:
             best, best_score, tied = ev, score, False
         elif score == best_score and best is not None and ev is not best:
