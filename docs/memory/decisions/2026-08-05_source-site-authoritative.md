@@ -51,3 +51,16 @@ verification run. That is a promotion-gate change (founder-crucial), asked
 as one consolidated question in the session report; the 2026-08-04
 single-trusted-source ruling and the earned-confidence machinery already
 govern what publishes today.
+
+## Follow-up ruling (verbatim, 2026-08-05, same session)
+
+> This is not acceptable. "A page listing multiple events still gets
+> skipped - not from distrust, but because there's no way to know which
+> event's date belongs to our candidate."
+
+Applied: multi-event pages are no longer skipped. The candidate's title
+SELECTS the matching declared Event on the page (best name-token match,
+ties unattributable), and that Event's dates are taken. Matching is used
+ONLY as attribution — to ADD recovery on multi-event pages — never as a
+refusal gate on single-event pages, which remain authoritative as ruled
+above.
