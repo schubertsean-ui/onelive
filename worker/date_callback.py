@@ -440,20 +440,24 @@ def _dedupe_declarations(declared: List[dict]) -> List[dict]:
     for d in declared:
         match = None
         for k in kept:
-            same_start = (d["dates"].get("start_time")
-                          and d["dates"]["start_time"] == k["dates"].get("start_time"))
             same_name = bool(set(d["names"]) & set(k["names"]))
-            # Both named, sharing no name = provably different events. A shared
-            # start cannot override that.
-            names_contradict = (bool(d["names"]) and bool(k["names"])
-                                and not same_name)
-            if same_name or (same_start and not names_contradict):
+            if same_name:
                 match = k
                 break
+            same_start = (d["dates"].get("start_time")
+                          and d["dates"]["start_time"] == k["dates"].get("start_time"))
+            if not same_start:
+                continue
+            # Both named, sharing no name = provably different events. A shared
+            # start cannot override that.
+            if d["names"] and k["names"]:
+                continue
+            match = k
+            break
         if match is None:
             kept.append(dict(d))
             continue
-        kept[kept.index(match)] = _merge(match, d)
+        kept[kept.index(match)] = _combine(match, d)
 
     # An unnamed declaration alongside the page's single named one is the same
     # event written twice — a venue that marks its event in JSON-LD and repeats
@@ -502,15 +506,45 @@ def _dates_agree(a: Dict[str, str], b: Dict[str, str]) -> bool:
     return bool(shared) and all(a[k] == b[k] for k in shared)
 
 
-def _merge_under(named: dict, other: dict) -> dict:
-    """Absorb a non-contradicting declaration UNDER a named one.
+def _combine(a: dict, b: dict) -> dict:
+    """Combine two declarations already established to be the same event.
 
-    The named declaration's values always win; `other` may only fill fields
-    the named one left empty. Used for named+unnamed, where identity comes
-    from the name rather than the notation.
+    Which one wins depends on what identifies them, not on which notation is
+    richer:
+      - BOTH named (they share a name): the name ties them together, so the
+        richer notation may fill gaps — ordinary JSON-LD precedence.
+      - ONE named: the named one is the declaration we can tie to this
+        candidate, and it wins OUTRIGHT — see _merge_under for why the
+        nameless one may not contribute even a missing field.
+      - NEITHER named: nothing distinguishes them; JSON-LD precedence.
+    """
+    if bool(a["names"]) != bool(b["names"]):
+        named, other = (a, b) if a["names"] else (b, a)
+        return _merge_under(named, other)
+    return _merge(a, b)
+
+
+def _merge_under(named: dict, other: dict) -> dict:
+    """Absorb a NAMELESS declaration under a named one — dates untouched.
+
+    The nameless declaration establishes only that the page did not declare a
+    second event; it contributes NO date field, not even one the named
+    declaration lacks.
+
+    Adversarial-review catch (2026-08-05, r4): letting it fill a gap was still
+    a splice. A named candidate with a start and no end, plus an unrelated
+    NAMELESS event starting at the same hour with its own endDate, produced a
+    candidate wearing the other event's end time — and the shared start made
+    _dates_agree return True, because end_time was not a field they both
+    carried, so an agreement check could never have caught it. Nothing about a
+    nameless declaration identifies it as this event; a shared hour is a
+    coincidence a busy venue produces nightly.
+
+    Losing an end time we cannot attribute is the correct trade. Ends are
+    rarely displayed, and a missing one is a gap; a wrong one is a false claim.
     """
     return {
-        "dates": {**other["dates"], **named["dates"]},
+        "dates": dict(named["dates"]),
         "names": list(named["names"]),
         "jsonld": named["jsonld"] or other["jsonld"],
     }
