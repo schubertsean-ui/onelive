@@ -524,21 +524,50 @@ def _dates_agree(a: Dict[str, str], b: Dict[str, str]) -> bool:
 
 
 def _combine(a: dict, b: dict) -> dict:
-    """Combine two declarations already established to be the same event.
+    """Combine two declarations the dedupe pass has matched.
 
-    Which one wins depends on what identifies them, not on which notation is
-    richer:
-      - BOTH named (they share a name): the name ties them together, so the
-        richer notation may fill gaps — ordinary JSON-LD precedence.
-      - ONE named: the named one is the declaration we can tie to this
-        candidate, and it wins OUTRIGHT — see _merge_under for why the
-        nameless one may not contribute even a missing field.
-      - NEITHER named: nothing distinguishes them; JSON-LD precedence.
+    ONE RULE, stated once, covering all three cases — because four separate
+    adversarial-review rounds each found a different instance of the same
+    mistake, and patching instances is what let the fourth one exist:
+
+        A declaration may contribute a date field only when its IDENTITY is
+        established. Identity comes from a name. A shared hour is not
+        identity — a busy venue produces one nightly.
+
+    Which gives:
+      - BOTH named (they share a name): both identified. The richer notation
+        may fill gaps — ordinary JSON-LD precedence.
+      - ONE named: only the named one is identified. It wins outright and the
+        nameless one contributes NOTHING, not even a field the named one
+        lacks (r4: that was still a splice).
+      - NEITHER named: neither is identified, so neither may lend the other
+        anything. Only what they AGREE on survives (r7: two nameless events at
+        the same hour were merging, and one lent the other its end time).
     """
     if bool(a["names"]) != bool(b["names"]):
         named, other = (a, b) if a["names"] else (b, a)
         return _merge_under(named, other)
+    if not a["names"] and not b["names"]:
+        return _agreed_only(a, b)
     return _merge(a, b)
+
+
+def _agreed_only(a: dict, b: dict) -> dict:
+    """Keep only what two UNIDENTIFIED declarations both state.
+
+    Neither carries a name, so neither can be tied to the candidate and
+    neither can vouch for the other. They may be one event written twice or
+    two events at the same hour, and nothing on the page distinguishes those
+    cases — so a field only ONE of them carries is dropped rather than
+    guessed at. Losing an end time we cannot attribute is a gap; publishing
+    one that belongs to the other event is a false claim.
+    """
+    shared = a["dates"].keys() & b["dates"].keys()
+    return {
+        "dates": {k: a["dates"][k] for k in shared if a["dates"][k] == b["dates"][k]},
+        "names": [],
+        "jsonld": a["jsonld"] or b["jsonld"],
+    }
 
 
 def _merge_under(named: dict, other: dict) -> dict:

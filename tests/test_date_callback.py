@@ -867,3 +867,39 @@ def test_a_two_word_title_must_match_in_full(monkeypatch):
     assert recover_dates_from_url("https://venue.example/cal",
                                   candidate_title="Patti Smith") == {
         "start_time": "2026-09-04T21:00:00"}
+
+
+def test_two_nameless_events_at_the_same_hour_lend_nothing(monkeypatch):
+    """Adversarial-review BLOCKER (2026-08-05, r7) — the fourth and last
+    variant of one mistake. Two NAMELESS declarations sharing a start_time
+    still merged, and the merge let one lend the other its end time. Neither
+    carries a name, so neither can be tied to the candidate and neither can
+    vouch for the other; a field only one of them has is dropped.
+    """
+    page = """
+    <html><head><script type="application/ld+json">
+    [{"@type":"Event","startDate":"2026-09-18T20:00:00",
+      "endDate":"2026-09-19T02:00:00"},
+     {"@type":"Event","startDate":"2026-09-18T20:00:00"}]
+    </script></head><body></body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+
+    got = recover_dates_from_url("https://venue.example/e/x")
+    assert got == {"start_time": "2026-09-18T20:00:00"}, (
+        f"the 2am end belongs to only one of these two; got {got}")
+    assert "end_time" not in got
+
+
+def test_one_nameless_event_still_recovers_everything_it_states(monkeypatch):
+    """The r7 rule must not punish the ordinary case: a page declaring ONE
+    nameless event is still authoritative for everything it says, because
+    there is nothing to confuse it with."""
+    page = """
+    <html><head><script type="application/ld+json">
+    {"@type":"Event","startDate":"2026-09-18T20:00:00",
+     "endDate":"2026-09-19T02:00:00"}
+    </script></head><body></body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+    assert recover_dates_from_url("https://venue.example/e/x") == {
+        "start_time": "2026-09-18T20:00:00",
+        "end_time": "2026-09-19T02:00:00"}
