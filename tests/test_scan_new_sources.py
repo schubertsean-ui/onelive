@@ -62,3 +62,98 @@ def test_festival_windows_file_parses_and_is_dated():
         assert w["starts"] <= w["ends"]
         for key in ("slug", "name", "geo", "keyword_pack"):
             assert w.get(key)
+
+
+def test_festival_phase_boundaries():
+    # The founder's "define this" answer (decision record
+    # 2026-08-05_festival-window-phases.md): every boundary day pinned so a
+    # band cannot drift silently. rampup = starts-28..starts-1, live =
+    # starts..ends, winddown = ends+1, else off.
+    import datetime
+
+    from tools.festival_phase import phase_for
+
+    w = {"slug": "t", "starts": "2026-10-02", "ends": "2026-10-11"}
+    d = datetime.date.fromisoformat
+    assert phase_for(w, d("2026-09-03")) == "off"      # rampup-1
+    assert phase_for(w, d("2026-09-04")) == "rampup"   # starts-28
+    assert phase_for(w, d("2026-10-01")) == "rampup"   # starts-1
+    assert phase_for(w, d("2026-10-02")) == "live"     # starts
+    assert phase_for(w, d("2026-10-11")) == "live"     # ends
+    assert phase_for(w, d("2026-10-12")) == "winddown" # ends+1
+    assert phase_for(w, d("2026-10-13")) == "off"      # winddown+1
+
+
+def test_festival_phase_overrides_are_data():
+    import datetime
+
+    from tools.festival_phase import phase_for
+
+    w = {"slug": "t", "starts": "2026-10-02", "ends": "2026-10-11",
+         "rampup_days": 7, "winddown_days": 2}
+    d = datetime.date.fromisoformat
+    assert phase_for(w, d("2026-09-24")) == "off"
+    assert phase_for(w, d("2026-09-25")) == "rampup"
+    assert phase_for(w, d("2026-10-13")) == "winddown"
+    assert phase_for(w, d("2026-10-14")) == "off"
+
+
+def test_festival_phase_resolve_modes():
+    # full supersedes but keyword sweeps STILL run for live windows (the
+    # domain pack never queries festival terms); shoulders are keyword-only;
+    # nothing active = honest 'no'.
+    import datetime
+
+    from tools.festival_phase import resolve
+
+    live_w = {"slug": "live-fest", "starts": "2026-10-02", "ends": "2026-10-11"}
+    ramp_w = {"slug": "ramp-fest", "starts": "2026-10-23", "ends": "2026-10-25"}
+    today = datetime.date.fromisoformat("2026-10-05")
+    plan = resolve([live_w, ramp_w], today)
+    assert plan["mode"] == "full"
+    assert plan["full"] == ["live-fest"]
+    assert set(plan["keyword"]) == {"live-fest", "ramp-fest"}
+
+    plan = resolve([ramp_w], today)  # only a rampup window
+    assert plan["mode"] == "keyword"
+    assert plan["full"] == []
+    assert plan["keyword"] == ["ramp-fest"]
+
+    plan = resolve([live_w], datetime.date.fromisoformat("2026-12-01"))
+    assert plan["mode"] == "no"
+
+
+def test_festival_keyword_sweep_composition(monkeypatch, capsys):
+    # --festival runs the window's keyword_pack against its geo — a handful
+    # of targeted queries, never the 968-query full sweep.
+    import json
+
+    import tools.scan_new_sources as scan
+
+    seen = []
+
+    def fake_search(q, count=20):
+        seen.append(q)
+        return {"web": {"results": [
+            {"url": "https://aclpopups.com/party", "title": "ACL pop up",
+             "description": ""}]}}
+
+    monkeypatch.setattr(scan, "api_key", lambda: "k")
+    monkeypatch.setattr(scan, "search", fake_search)
+    rc = scan.main(["--festival", "acl-2026"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["festival"] == "acl-2026"
+    assert out["cities"] == ["Austin"]
+    windows = json.load(open("sources/festival_windows.json"))["windows"]
+    pack = next(w for w in windows if w["slug"] == "acl-2026")["keyword_pack"]
+    assert len(seen) == len(pack)
+    assert all(q.startswith("Austin ") for q in seen)
+    assert [c["domain"] for c in out["new_domain_candidates"]] == ["aclpopups.com"]
+
+
+def test_festival_unknown_slug_fails_loud(monkeypatch):
+    import tools.scan_new_sources as scan
+
+    monkeypatch.setattr(scan, "api_key", lambda: "k")
+    assert scan.main(["--festival", "not-a-window"]) == 2
