@@ -24,19 +24,73 @@ the sources internally so we can learn which may wind up having issues").
 
 Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/gating.py)
 """
+import logging
 from dataclasses import dataclass
 from typing import List
 
+logger = logging.getLogger(__name__)
+
 # Anchors = first-party / published sources: promote on ONE.
-ANCHOR_CLASSES = {
+#
+# The institutional classes below (theater_arts, gallery_museum, food_culinary,
+# university) were found by PR #191 in the LIVE database, seeded outside this
+# repo: the committed catalog holds 180 sources while the ingest run reports
+# 266 enabled, so classes this gate had never heard of were reaching it. Under
+# the pre-ruling code every one of them fell through to the corroboration
+# branch and waited forever — a museum's own calendar is never going to be
+# corroborated by a second museum. That is the founder's "strangling my display
+# of valid events" in its purest form, so they are named here explicitly.
+ANCHOR_CLASSES = frozenset({
     # principals publishing their own events
     "festival_feed", "ticketing", "venue_calendar", "claimed_upload",
     "email_opt_in", "calendar_feed",
     # public institutions publishing their own calendars
-    "city_calendar", "university_calendar", "library_calendar", "community",
+    "city_calendar", "university_calendar", "university", "library_calendar",
+    # venue-type institutions publishing their own programs (live-DB classes)
+    "theater_arts", "gallery_museum", "food_culinary",
     # published media under their own masthead (founder ruling 2026-08-05)
     "local_media",
-}
+})
+
+# Explicitly THIRD-PARTY: they report on, index, or host OTHER people's events,
+# so one of them alone is hearsay. Named so each exclusion is a decision on the
+# record rather than an oversight.
+#
+# "community" sits here rather than in the anchor tier — a reversal of this
+# branch's first pass, adopted from PR #191's better reading. A community
+# PLATFORM (Meetup-style) is not the host of what it lists, so it is not the
+# horse's mouth under the founder's own "comes from the source site" test. The
+# live rows are also unaudited. Being wrong in this direction costs one
+# corroborating source; being wrong the other way asserts an authority we
+# cannot back.
+THIRD_PARTY_CLASSES = frozenset({
+    "social", "blog", "artist_aggregator", "artist_directory",
+    "music_platform", "directory", "link_hub", "search_benchmark",
+    "community",
+})
+
+
+def is_first_party(source_class: str) -> bool:
+    """True when the class is the horse's mouth.
+
+    An UNKNOWN class is not assumed either way: it returns False (needs
+    corroboration — the safe direction) and is LOGGED LOUDLY. The silent
+    forever-hold is what stranded the DB-seeded institutional classes for
+    weeks; an unclassified source is a config defect to fix in days, not a
+    mystery to discover later from missing listings.
+    """
+    if not source_class:
+        return False
+    if source_class in ANCHOR_CLASSES:
+        return True
+    if source_class not in THIRD_PARTY_CLASSES:
+        logger.warning(
+            "UNCLASSIFIED SOURCE CLASS %r — treated as third-party (needs "
+            "corroboration) because authority was never decided for it. Its "
+            "events will HOLD until it is added to ANCHOR_CLASSES (if the "
+            "source hosts or publishes its own events) or THIRD_PARTY_CLASSES "
+            "(if it reports on others) in worker/gating.py.", source_class)
+    return False
 
 
 @dataclass
@@ -50,7 +104,7 @@ class GateResult:
 def multi_confirm_gate(source_classes: List[str], sxsw_mode: bool = False) -> GateResult:
     classes = [c for c in source_classes if c]
     unique = set(classes)
-    anchors = sorted(list(unique.intersection(ANCHOR_CLASSES)))
+    anchors = sorted(c for c in unique if is_first_party(c))
     if anchors:
         return GateResult(
             ok_to_promote=True,
