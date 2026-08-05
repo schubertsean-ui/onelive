@@ -58,4 +58,4 @@ STAGE_MODELS = {
 # CLOSES extraction fail-closed at merge; the standing three-step re-opens
 # it: founder's attended exam on the new harness -> authenticated record PR
 # -> head-bound flag-flip PR back to True).
-EXTRACTION_THRESHOLD_RATIFIED = False
+EXTRACTION_THRESHOLD_RATIFIED = True
