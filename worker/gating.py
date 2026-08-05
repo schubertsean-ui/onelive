@@ -62,6 +62,10 @@ THIRD_PARTY_CLASSES = frozenset({
 })
 
 
+# Distinct unknown classes already reported (see is_first_party).
+_WARNED: set = set()
+
+
 def is_first_party(source_class: str) -> bool:
     """True when the class is the horse's mouth. An UNKNOWN class is not
     assumed either way: it returns False (needs corroboration, the safe
@@ -72,7 +76,12 @@ def is_first_party(source_class: str) -> bool:
         return False
     if source_class in ANCHOR_CLASSES:
         return True
-    if source_class not in THIRD_PARTY_CLASSES:
+    if source_class not in THIRD_PARTY_CLASSES and source_class not in _WARNED:
+        # ONCE PER DISTINCT CLASS, not per call: the gate runs per candidate,
+        # so a per-call warning would emit thousands of identical lines for one
+        # misconfigured source — burying the very signal it exists to raise
+        # (and measurably slowing the gate; caught by the perf benchmark).
+        _WARNED.add(source_class)
         logger.warning(
             "UNCLASSIFIED SOURCE CLASS %r — treated as third-party (needs "
             "corroboration) because authority was never decided for it. Its "

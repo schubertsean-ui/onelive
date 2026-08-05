@@ -227,7 +227,12 @@ def test_third_party_classes_still_need_corroboration():
 
 def test_unknown_class_holds_and_warns_rather_than_dying_silently(caplog):
     import logging
+    from worker import gating
     from worker.gating import multi_confirm_gate
+    # The warning is emitted once per distinct class per process (log-spam
+    # guard); clear the cache so this test asserts the behaviour, not the
+    # order it happened to run in.
+    gating._WARNED.discard("some_class_nobody_classified")
     with caplog.at_level(logging.WARNING):
         r = multi_confirm_gate(["some_class_nobody_classified"])
     assert not r.ok_to_promote  # safe direction
