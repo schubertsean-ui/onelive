@@ -8,9 +8,20 @@
 //     event's own /tonight/<id> URL, Back closes the sheet BEFORE leaving the
 //     feed, and a hard load of the same URL renders the standalone page (§6/§7).
 //   · External links are labeled by intent: a terminal handoff (tickets) says
-//     where it finishes and goes SAME-TAB (never a gratuitous new tab on
-//     mobile); reference links keep a new tab but always carry rel=noopener +
-//     a screen-reader "external" label (§8).
+//     where it finishes, and reference links carry rel=noopener + a
+//     screen-reader "external" label (§8).
+//
+// SUPERSEDED 2026-08-05 — terminal handoffs open in a NEW TAB, not same-tab.
+// The spec's same-tab rule (§8 table row 2) was written to avoid disorienting
+// mobile users, and it was overtaken by the founder ruling that same day:
+// "external links - they should never take up the entire screen on a mobile
+// device. They should operate according similar to the slide out so a user can
+// always know where they are and easily get back to 1live and whatever they
+// were looking at prior to the click on the link to go external." Same-tab
+// navigation is precisely the full-screen takeover that ruling forbids —
+// 1live's own page is gone, and Back is the only way home. A new tab keeps
+// 1live's place exactly as the slide-out does. The "finishes on <host>"
+// caption stays: it was always the honest part.
 
 // ── Filters ⇄ URL (§6) ────────────────────────────────────────────────────────
 export type FeedFilterState = {
@@ -108,7 +119,8 @@ export function externalAriaLabel(action: string, url: string | null | undefined
 }
 
 // Visible caption for the TERMINAL (transactional) handoff — the honest
-// "you'll finish over there" wording, same-tab (§8 table, row 2).
+// "you'll finish over there" wording. The handoff itself opens in a new tab
+// (founder ruling 2026-08-05; see the superseding note at the top of this file).
 export function handoffCaption(url: string | null | undefined): string | null {
   const host = externalHost(url);
   return host ? `finishes on ${host}` : null;
