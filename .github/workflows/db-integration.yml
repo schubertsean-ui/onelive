@@ -1,0 +1,62 @@
+name: db-integration
+
+# The REAL-DATABASE leg for publish-path changes (OPERATING_RULES, founder-
+# ratified 2026-08-05 — decision record docs/memory/decisions/
+# 2026-08-05_founder-path-preflight-and-real-db-leg.md). Hermetic fake-cursor
+# tests structurally cannot see server-side types/constraints (the artist_ids
+# uuid[] refusal shipped through 2,000+ green tests: red class
+# db-type-mismatch-invisible-to-hermetic-tests), so the actual promote path
+# runs here against a real PostgreSQL with the repo's committed migrations
+# applied. Every PR, no path filter — the same no-filter principle as
+# adversarial-review.yml: a gate that pattern-matches its own relevance is a
+# gate a rename can walk around.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [master]
+
+concurrency:
+  group: db-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  db-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        # Matches production (PostgreSQL 15 via Supabase).
+        image: postgres:15
+        env:
+          POSTGRES_USER: onelive_it
+          POSTGRES_PASSWORD: onelive_it
+          POSTGRES_DB: onelive_it
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U onelive_it"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install worker deps + pytest
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r worker/requirements.txt pytest
+      - name: Run the publish path against a real PostgreSQL (migrations applied)
+        env:
+          # A disposable in-job container — never a real DSN. The test module
+          # drops and recreates the schema, which is exactly why this value
+          # must never point anywhere that matters.
+          ONELIVE_TEST_PG_DSN: postgresql://onelive_it:onelive_it@127.0.0.1:5432/onelive_it
+        run: |
+          python -m pytest tests/integration/ -v

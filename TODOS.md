@@ -13,6 +13,16 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #44 (2026-08-05/06 — kickoff execution; work order docs/ops/SESSION_KICKOFF_2026-08-06.md)
+- [x] (P0) Bucket 1a — #186/#185/#177 verified MERGED (evaluator-APPROVED, green heads); records-only STATE reconciliation c03f40f. DONE.
+- [x] (P0) Bucket 1b engine half — promotion backlog DRAINED to examined 0 / promoted 0 (runs 31022426849, 31023273235, 31024392369, 31024529659; zero promote errors post-#186). DONE; founder report carries the honest windows story.
+- [x] (P1) Bucket 1c — Clerk cert saga CLOSED on TLS handshake evidence (run 31023053306). Remaining: founder /ops sign-in walkthrough (in the session report).
+- [ ] (P1, BLOCKED on founder/Google) Bucket 1d — first source scan: CSE 403 proven ACCOUNT-level (decision record 2026-08-05_founder-delegated-google-fix.md); resolution founder-owned (support ticket or provider switch = founder-crucial). Scan fires the day the probe goes green.
+- [x] (P1) Workstream A audit — docs/design/CARDS_CONTENT_AUDIT_2026-08-05.md committed. DONE.
+- [ ] (P1, in flight) Workstream A align PR #188 (0020 provenance → "How we know") — drive to evaluator APPROVE + green, silent merge, then dispatch autopromote so 0020 applies before the Vercel build lands.
+- [ ] (P1, next engine bottleneck — named, unowned) Upcoming/date-verified discovered inventory: pipeline lane 1,023+ published but canonical_events_upcoming=0 (db-report 31024343862). First mechanical step: add a start_time distribution (null/past/upcoming) to db_scope_report's pipeline lane so the null-vs-stale diagnosis is evidence, not inference.
+- [ ] (P2) Bucket 2 remainder — A2 v0 prompt package; B Eventbrite scheduled import (dry-run 23 registry ids first); C festival mode piece 1 (windows-as-data). Bucket 3 (newsletter lane, adaptive cadence, curation loop) still to scope.
+
 ## Session Contract #36 (2026-08-03 — integrity plugin + charter, founder-approved)
 - [x] (P0) `integrity-plugin/` — marketplace + plugin manifests, generalized plan-first hooks, OPERATING INTEGRITY CHARTER (36 rules with sources + enforcement class), claude.ai paste-in, new-lane README checklist, 7 lockstep guard tests. DONE this session.
 - [ ] (P1, founder, one-time per surface) Roll the behavioral ring out: paste `integrity-plugin/plugins/integrity/charter/CLAUDE_PROJECT_PASTEIN.md` into each claude.ai Project's custom instructions (chat has no hooks — this is the instructions ring, stated honestly).

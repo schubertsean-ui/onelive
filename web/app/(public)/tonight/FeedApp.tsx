@@ -11,6 +11,7 @@ import {
   detailWhen,
   eventHref,
   httpOrNull as httpUrl,
+  originLink,
   statusNote,
   telHref,
   venueWebsite,
@@ -335,10 +336,19 @@ function Lens({ e, side, onNow, onSide, onClose }: {
             )}
 
             {/* Provenance shown on EVERY tab — trust display is a property of the
-                event, not of the door you came through. */}
+                event, not of the door you came through. A promoted row that
+                carries its source (0020) links that source's SITE — the
+                copy says exactly that (evaluator #188 r1: origin_url is the
+                registry base_url, not a per-event listing page, and the
+                link must not claim more). REFERENCE link (§8): kept open to
+                verify, so new-tab, labeled for screen readers. */}
             <div className="lknow">
               <span className="llbl">How we know</span>
               <p>{sub.sheet}</p>
+              {originLink(e) ? (
+                <a className="lchip" href={originLink(e)!} target="_blank" rel="noopener noreferrer"
+                  aria-label={externalAriaLabel("See the source's site", originLink(e)!)}>See the source&rsquo;s site ↗</a>
+              ) : null}
             </div>
             <Link className="lfull" href={eventHref(e)}>Open full page ↗</Link>
           </div>

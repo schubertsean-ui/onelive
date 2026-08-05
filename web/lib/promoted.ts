@@ -37,6 +37,8 @@ const EVENT_SELECT = [
   "ticket_url",
   "image_url",
   "artist_ids",
+  "source_name",
+  "source_url",
   "venue:venue_id(name,city,area,address,lat,lng)",
 ].join(",");
 
@@ -57,6 +59,8 @@ export type PromotedRow = {
   ticket_url: string | null;
   image_url: string | null;
   artist_ids: string[] | null;
+  source_name: string | null;
+  source_url: string | null;
   venue: {
     name: string | null;
     city: string | null;
@@ -168,6 +172,10 @@ export function reshapePromoted(
       venue_url: null,
       venue_phone: null,
       confidence: r.confidence,
+      // The real listing this row was published from (0020). Passed through
+      // as data; href-safety (http(s) only) is enforced where it renders.
+      origin_name: r.source_name,
+      origin_url: r.source_url,
     };
   });
 }

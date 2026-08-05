@@ -84,4 +84,8 @@ jobs:
           : "${STAMP_LIMIT:?stamp_limit missing — the sweep ceiling is required}"
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
           export ONELIVE_DB_DSN
+          # 0020 adds the event provenance columns promote writes (idempotent;
+          # the 0010/0013 import-workflow precedent: the workflow whose write
+          # depends on a migration applies it before its own pass).
+          python3 tools/apply_migration.py supabase/migrations/0020_event_provenance.sql
           python worker/run_autopromote.py --real --limit "$LIMIT" --stamp-limit "$STAMP_LIMIT"
