@@ -279,6 +279,21 @@ def _microdata_names(ev: dict) -> List[str]:
     return sorted(ev.get("name") or set())
 
 
+# Words that appear in countless event titles and therefore carry no
+# identifying signal when matching one calendar entry to another (evaluator
+# blocker, PR #189: "Kids Night" and "Trivia Night" share only "night", and
+# selecting on that alone assigns the wrong event's date). Dropped from BOTH
+# sides before scoring; this refines ATTRIBUTION on multi-event pages only
+# and never gates a single-event page.
+_GENERIC_TITLE_WORDS = frozenset({
+    "night", "nights", "day", "days", "live", "show", "shows", "event",
+    "events", "party", "music", "the", "and", "with", "featuring", "feat",
+    "presents", "presented", "series", "free", "open", "special", "annual",
+    "weekly", "monthly", "tour", "concert", "performance", "session",
+    "sessions", "class", "workshop", "austin", "texas",
+})
+
+
 def _select_event(events: List[dict], candidate_title: Optional[str],
                   names_of) -> Optional[dict]:
     """Which of the page's declared Events is the candidate's?
@@ -296,14 +311,16 @@ def _select_event(events: List[dict], candidate_title: Optional[str],
         return events[0]
     if not events or not candidate_title:
         return None
-    ct = {w for w in candidate_title.casefold().split() if len(w) > 2}
+    ct = {w for w in candidate_title.casefold().split()
+          if len(w) > 2 and w not in _GENERIC_TITLE_WORDS}
     if not ct:
         return None
     best: Optional[dict] = None
     best_score = 0
     tied = False
     for ev in events:
-        score = max((len(ct & {w for w in n.casefold().split() if len(w) > 2})
+        score = max((len(ct & {w for w in n.casefold().split()
+                               if len(w) > 2 and w not in _GENERIC_TITLE_WORDS})
                      for n in names_of(ev)), default=0)
         if score > best_score:
             best, best_score, tied = ev, score, False
