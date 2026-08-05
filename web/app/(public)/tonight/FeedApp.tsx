@@ -194,7 +194,7 @@ function RichCard({ e, onNow, onOpen }: {
 // (design canon §6). A switch flips artist↔venue in either order; Escape and the
 // backdrop close it; the sheet takes focus on open. Everything it shows is data
 // we already hold — no fabrication, honest gaps where a field is absent. ───────
-function Lens({ e, side, onNow, onSide, onClose }: {
+export function Lens({ e, side, onNow, onSide, onClose }: {
   e: LicensedEvent; side: LensSide; onNow: boolean;
   onSide: (s: LensSide) => void; onClose: () => void;
 }) {
@@ -288,13 +288,21 @@ function Lens({ e, side, onNow, onSide, onClose }: {
                 <SparkLineView spark={e.spark} artist={headline(e)} />
                 {status ? <p className="lstatus">{status}</p> : null}
                 <div className="lact">
-                  <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
-                  {/* TERMINAL handoff (nav canon §8): tickets finish on the
-                      partner's site — same-tab (never a gratuitous new tab on
-                      mobile; Back returns here), honestly labeled with where
-                      it finishes, announced to screen readers. */}
+                  {/* Price renders ONLY when we actually know it (founder
+                      ruling 2026-08-05: the unknown-price "See tickets" text
+                      beside a real Get-tickets button was a dead control —
+                      decision record 2026-08-05_trust-display-quiet.md). */}
+                  {price.known ? (
+                    <span className={`pr${price.free ? " free" : ""}`}>{price.text}</span>
+                  ) : null}
+                  {/* External handoff keeps 1live where the user left it
+                      (founder ruling 2026-08-05, superseding nav canon §8's
+                      same-tab terminal rule): a new tab, honestly labeled
+                      with where it finishes — the user returns by closing
+                      it, never by losing their place. */}
                   {tix ? (
-                    <a className="lbtn" href={tix} aria-label={externalAriaLabel("Get tickets", tix)}>
+                    <a className="lbtn" href={tix} target="_blank" rel="noopener noreferrer"
+                      aria-label={externalAriaLabel("Get tickets", tix)}>
                       Get tickets ↗{handoffCaption(tix) ? <span className="lhand"> · {handoffCaption(tix)}</span> : null}
                     </a>
                   ) : null}
@@ -335,21 +343,24 @@ function Lens({ e, side, onNow, onSide, onClose }: {
               </>
             )}
 
-            {/* Provenance shown on EVERY tab — trust display is a property of the
-                event, not of the door you came through. A promoted row that
-                carries its source (0020) links that source's SITE — the
-                copy says exactly that (evaluator #188 r1: origin_url is the
-                registry base_url, not a per-event listing page, and the
-                link must not claim more). REFERENCE link (§8): kept open to
-                verify, so new-tab, labeled for screen readers. */}
-            <div className="lknow">
-              <span className="llbl">How we know</span>
-              <p>{sub.sheet}</p>
-              {originLink(e) ? (
-                <a className="lchip" href={originLink(e)!} target="_blank" rel="noopener noreferrer"
-                  aria-label={externalAriaLabel("See the source's site", originLink(e)!)}>See the source&rsquo;s site ↗</a>
-              ) : null}
-            </div>
+            {/* Trust display per canon (founder ruling 2026-08-05, decision
+                record 2026-08-05_trust-display-quiet.md): a solid listing is
+                simply CLEAN — no "How we know" block, no real estate spent.
+                Only cautious states (surface: true — unverified/disputed)
+                carry a small note, with the honest sentence and the source's
+                SITE link (origin_url is the registry base_url, not a
+                per-event page — evaluator #188 r1; the copy claims exactly
+                that). Provenance stays fully tracked internally either way. */}
+            {sub.surface ? (
+              <div className="lknow">
+                <span className={`cau${sub.disputed ? " disp" : ""}`}>{sub.marker}</span>
+                <p>{sub.sheet}</p>
+                {originLink(e) ? (
+                  <a className="lchip" href={originLink(e)!} target="_blank" rel="noopener noreferrer"
+                    aria-label={externalAriaLabel("See the source's site", originLink(e)!)}>See the source&rsquo;s site ↗</a>
+                ) : null}
+              </div>
+            ) : null}
             <Link className="lfull" href={eventHref(e)}>Open full page ↗</Link>
           </div>
         </div>

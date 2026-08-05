@@ -267,8 +267,16 @@ export default async function EventDetailPage(
             ) : null}
           </dd>
 
-          <dt>Price</dt>
-          <dd className={price.free ? "dfree" : undefined}>{price.text}</dd>
+          {/* Price renders ONLY when known (founder ruling 2026-08-05): an
+              unknown price says nothing here — the Tickets button below is
+              the honest answer, and "See tickets" as a price was a dead
+              control wearing button copy. */}
+          {price.known ? (
+            <>
+              <dt>Price</dt>
+              <dd className={price.free ? "dfree" : undefined}>{price.text}</dd>
+            </>
+          ) : null}
 
           {event_.category ? (
             <>
@@ -306,10 +314,12 @@ export default async function EventDetailPage(
         {/* Tickets + Share. Share is always offered (it needs nothing but a
             link); Tickets appears only when the row carries a real ticket URL. */}
         <div className="dactions">
-          {/* TERMINAL handoff (nav canon §8): same-tab, honestly labeled with
-              where it finishes — Back returns here, never a stranded tab. */}
+          {/* External handoff keeps 1live where the user left it (founder
+              ruling 2026-08-05, superseding nav canon §8's same-tab terminal
+              rule): a new tab, honestly labeled with where it finishes. */}
           {tix ? (
-            <a className="dtix" href={tix} aria-label={externalAriaLabel("Tickets", tix)}>
+            <a className="dtix" href={tix} target="_blank" rel="noopener noreferrer"
+              aria-label={externalAriaLabel("Tickets", tix)}>
               Tickets ↗{handoffCaption(tix) ? <span className="dhand"> · {handoffCaption(tix)}</span> : null}
             </a>
           ) : null}
@@ -332,36 +342,36 @@ export default async function EventDetailPage(
         ) : null}
 
         {/* Trust display: the SAME trustDisplay the card uses, so the two
-            surfaces cannot drift into different claims about one row. Quiet
-            marker plus a dismissible sheet — no badges, no "confirmed".
-            The disclosure renders for EVERY state (the lens already shows
-            provenance on every tab — a confirmed event's full page saying
-            nothing about how we know it was the drift this comment claims
-            impossible); cautious states additionally carry their marker, and
-            disputed opens the sheet by default, exactly as before. */}
-        <details className="dunc" open={trust.disputed}>
-          <summary>
-            {trust.surface && trust.marker ? (
-              <><span className={`cau${trust.disputed ? " disp" : ""}`}>{trust.marker}</span>{" "}</>
-            ) : null}
-            How we know
-          </summary>
-          <div className="sheet">
-            {trust.sheet}
-            {originLink(event_) ? (
-              <>
-                {" "}
-                {/* origin_url is the source's registered base_url, not a
-                    per-event page — the copy claims exactly that (evaluator
-                    #188 r1). */}
-                <a href={originLink(event_)!} target="_blank" rel="noopener noreferrer"
-                  aria-label={externalAriaLabel("See the source's site", originLink(event_)!)}>
-                  See the source&rsquo;s site ↗
-                </a>
-              </>
-            ) : null}
-          </div>
-        </details>
+            surfaces cannot drift into different claims about one row.
+            Founder ruling 2026-08-05 (decision record
+            2026-08-05_trust-display-quiet.md), restoring the canon rule: a
+            solid listing is simply CLEAN — no badge, no "confirmed", and no
+            standing "How we know" element taking real estate. ONLY cautious
+            states (surface: true) render the small note: quiet marker plus
+            a dismissible disclosure, disputed open by default and never
+            hidden. Provenance stays fully tracked internally for every row. */}
+        {trust.surface ? (
+          <details className="dunc" open={trust.disputed}>
+            <summary>
+              <span className={`cau${trust.disputed ? " disp" : ""}`}>{trust.marker}</span>
+            </summary>
+            <div className="sheet">
+              {trust.sheet}
+              {originLink(event_) ? (
+                <>
+                  {" "}
+                  {/* origin_url is the source's registered base_url, not a
+                      per-event page — the copy claims exactly that (evaluator
+                      #188 r1). */}
+                  <a href={originLink(event_)!} target="_blank" rel="noopener noreferrer"
+                    aria-label={externalAriaLabel("See the source's site", originLink(event_)!)}>
+                    See the source&rsquo;s site ↗
+                  </a>
+                </>
+              ) : null}
+            </div>
+          </details>
+        ) : null}
       </article>
     </Shell>
   );
