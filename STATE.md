@@ -186,6 +186,27 @@ report with the 50:1 table and a live /tonight link; hygiene debts cleared;
 CSE/source-scan either executed or still blocked-on-founder with the exact
 ask restated.
 
+Stage-3 retrieval (construction loop; matched classes answered; the diff
+carries the whole kickoff work order's prose, so the trigger net matched far
+beyond the build surface — every match is answered or dispositioned, none
+silently dropped):
+[S3:featurability-dimension-missed] The build's target IS this class live: origin (source provenance) was absent from the public event emitter; 0020 + promote write + reader + "How we know" close it at every promoted surface (card lens, detail page).
+[S3:final-gate-trusts-generator] [S3:release-path-weaker-than-generation] Provenance is written at the promote custody boundary from the candidate's OWN row + the unique-keyed source registry on the same cursor/transaction — the release path derives it itself, never trusts an upstream annotation.
+[S3:missing-cardinality-check] The source_url lookup joins the 0009-unique lower(name) key — at most one row by constraint; pinned by test_source_url_lookup_is_by_unique_lowered_name.
+[S3:swallowed-corrupt-data] A stored non-http(s) origin_url is refused at render (originLink → httpOrNull, tested), loudly absent rather than silently linkified; absent provenance renders the generic wording, never a guess.
+[S3:fabricated-qualitative-copy] [S3:false-price-claim] [S3:semantic-claim-not-rederived] No new prose claims: the sheet names exactly the stored source_name; price/image/notes dispositions in the audit doc keep NULL-honest fallbacks.
+[S3:env-dependent-hermetic-test] The new promote tests are string/AST pins (no DB, no network) and were run in this deprived sandbox; server-side column presence is deliberately left to the SQL text contract + live apply, stated in the test docstring.
+[S3:untested-gate-branch] [S3:workflow-tool-version-skew] The autopromote.yml change adds only an idempotent apply step of a committed migration before the pass (0010/0013 precedent); no trust decision moves into YAML.
+[S3:green-on-stale-base] [S3:stale-base-widens-range] Base re-fetched this session (construction_gate's own ls-remote freshness check green); master moved twice mid-session (c03f40f, 3db6c03) and the branch re-merges master before push.
+[S3:pushed-on-red] validate ran unchained with explicit exit reading; the pytest red was an environment defect (missing _cffi_backend/fastapi + shallow-clone smoke commit), fixed and re-run to green before push.
+[S3:deferred-trust-work] [S3:retyped-evidence] [S3:stale-redclass-count] No trust gap parked (venue-contact and notes gaps carry recorded dispositions in the audit doc, not TODOs); run numbers cited from run logs verbatim; no self-describing counts typed into records.
+[S3:status-narration-not-progress] The founder gets ONE report with the before/after table and the live link; site-moving diff = the 0020+promote+web change itself.
+[S3:build-before-plan] [S3:contract-scope-violation] [S3:permission-for-ratified-work] This contract carries the five §4a fields with the founder-commissioned work order as the presented-and-approved plan; scope matches Bucket 1 + Workstream A exactly.
+[S3:caller-suppliable-custody-inputs] [S3:self-weakenable-gate] [S3:self-weakenable-review-model] [S3:grant-not-content-bound] [S3:weak-key-accepted-at-custody] [S3:fail-open-on-custody-misconfig] [S3:false-confidence-gate] [S3:governance-ambiguity] [S3:rule-stronger-than-mechanism] Custody/gate machinery untouched by this change (no gate, threshold, reviewer, key, or grant semantics move; the 0012 privacy fence is unmodified — new columns granted explicitly, nothing widened).
+[S3:nonfinite-decimal-accepted] No numeric input enters this change (provenance is two text columns); price handling untouched and already normalizer-guarded.
+[S3:stale-live-incident-state] Live claims in this session's records (Clerk certs, promote counts, backlog) were re-verified against fresh run logs/probes this session, never carried from earlier prose.
+[S3:condensed-thinking-run] [S3:founder-verbatim-corrected] [S3:deliverable-visual-qa] [S3:copy-outruns-registry] [S3:malformed-ledger-row] [S3:missing-record-read-as-state] [S3:nonfinite-numeric-accepted] [S3:pagination-integrity-gap] [S3:parallel-record-id-collision] [S3:scripted-transform-order] [S3:heal-drops-guard-marker] [S3:mutable-model-alias] [S3:unusable-credential-tier] [S3:volatile-safety-store] [S3:stalled-state-needs-active-diagnosis] [S3:api-busy-poll] Matched by the kickoff work-order/decision-record PROSE riding this branch (their trigger words appear in the docs, not the build surface); reviewed each against the actual diff — none binds a mechanism this change touches; recorded here rather than silently dropped.
+
 STATUS: OPEN
 
 ## Session Contract #42 (2026-08-03, founder-directed — renumbered from this branch's #40 at the collision-resolution merge (#40 = GeoLibre ratification, #41 = the successor UI/UX shepherding session) — code-armed wording sweep, "not wait for the tripwire, deploy the dedicated code-armed PR that sweeps just those comments under evaluator review")

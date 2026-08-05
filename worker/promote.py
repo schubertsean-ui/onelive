@@ -150,14 +150,30 @@ def promote_candidate(candidate_id: str) -> str:
             venue_domain_hint = cultural_domain_for_source(source_name)
             card = card_fields(title, ticket_link, venue_domain_hint=venue_domain_hint)
 
+            # Source provenance rides onto the public row (migration 0020) so
+            # the consumer "How we know" sheet can name and link the real
+            # listing this event was published from — the candidate's OWN
+            # source_name plus that source's registered base_url. The source
+            # registry keys name uniquely (0009), so the lookup is at most one
+            # row; an unregistered/unnamed source honestly stays NULL and the
+            # UI keeps its generic listing wording. No fabrication.
+            source_url = None
+            if source_name:
+                cur.execute(
+                    "select base_url from source where lower(name)=lower(%s)",
+                    (source_name,))
+                src_row = cur.fetchone()
+                source_url = src_row[0] if src_row else None
+
             cur.execute("""
               insert into event(
                 venue_id, artist_ids, start_time, end_time,
                 status, confidence, override_lock,
                 is_private_rsvp, private_access, notes,
-                title, category, subsegment, ticket_url
+                title, category, subsegment, ticket_url,
+                source_name, source_url
               )
-              values (%s,%s::uuid[],%s,%s,'scheduled',%s,false,%s,%s::jsonb,%s,%s,%s,%s,%s)
+              values (%s,%s::uuid[],%s,%s,'scheduled',%s,false,%s,%s::jsonb,%s,%s,%s,%s,%s,%s,%s)
               returning event_id
             """, (
                 venue_id,
@@ -172,6 +188,8 @@ def promote_candidate(candidate_id: str) -> str:
                 card["category"],
                 card["subsegment"],
                 card["ticket_url"],
+                source_name or None,
+                source_url,
             ))
             event_id = cur.fetchone()[0]
 
