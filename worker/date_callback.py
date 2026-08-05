@@ -136,8 +136,9 @@ def _jsonld_events(html: str) -> List[dict]:
         for obj in _iter_jsonld_objects(data):
             t = obj.get("@type")
             types = t if isinstance(t, list) else [t]
-            if any(isinstance(x, str) and x.lower().endswith("event")
-                   for x in types):
+            # Same predicate as the microdata path — see _is_event_itemtype for
+            # why the two must never drift apart.
+            if any(isinstance(x, str) and _is_event_itemtype(x) for x in types):
                 events.append(obj)
     return events
 
@@ -155,17 +156,25 @@ def _jsonld_event_dates(event: dict) -> Dict[str, str]:
 def _is_event_itemtype(itemtype: str) -> bool:
     """True for any schema.org Event TYPE — including every subtype.
 
-    Adversarial pre-review catch (2026-08-05): a hardcoded list of six
-    subtypes made a cinema's ScreeningEvent calendar look like a ONE-event
-    page, which handed an unrelated event's date to the candidate. It also
-    silently suppressed legitimate recovery on SportsEvent /
-    ExhibitionEvent / ChildrensEvent / FoodEvent / SocialEvent /
-    LiteraryEvent / EducationEvent / BusinessEvent pages. The rule now
-    mirrors the JSON-LD path's: any type whose name ends in "event", plus
-    Festival (a schema.org Event subtype whose name does not).
+    THE ONE predicate, used by both notations. Two adversarial-review rounds
+    landed here for the same reason: whenever the JSON-LD path and the
+    microdata path each carried their own idea of "is this an Event", a type
+    one of them recognized and the other did not made a multi-event page look
+    single-event, and a single-event page's authoritative shortcut then handed
+    an unrelated event's date to the candidate.
+
+      - r1: a hardcoded list of six subtypes hid ScreeningEvent, SportsEvent,
+        ExhibitionEvent, ChildrensEvent, FoodEvent, SocialEvent,
+        LiteraryEvent and EducationEvent from the microdata path.
+      - r2: the JSON-LD path accepted only names ending in "event", so a
+        schema.org Festival was invisible to it while microdata saw it.
+
+    Festival is the one Event subtype whose name does not end in "event", so
+    it is matched explicitly — as a suffix, since sites also write
+    MusicFestival and FoodFestival, and every festival is an event.
     """
     name = itemtype.strip().lower().rstrip("/").rsplit("/", 1)[-1]
-    return name.endswith("event") or name == "festival"
+    return name.endswith("event") or name.endswith("festival")
 
 
 _VOID_TAGS = frozenset({
@@ -423,22 +432,57 @@ def _dedupe_declarations(declared: List[dict]) -> List[dict]:
             continue
         kept[kept.index(match)] = _merge(match, d)
 
-    # An UNNAMED declaration cannot be shown to be a DIFFERENT event from the
-    # page's single named one — a venue that marks its event in JSON-LD and
-    # repeats the dates in bare microdata has declared one event. Counting
-    # them separately would refuse a page that should recover freely
-    # (founder ruling: the source is authoritative, JSON-LD wins). This only
-    # applies when exactly one named declaration exists; a page with several
-    # named events plus stray unnamed ones is genuinely multi-event and the
-    # title still has to select.
+    # An unnamed declaration alongside the page's single named one is the same
+    # event written twice — a venue that marks its event in JSON-LD and repeats
+    # the dates in bare microdata has declared one event, and counting it twice
+    # would refuse a page that should recover freely (founder ruling: the
+    # source is authoritative).
+    #
+    # THE NAMED DECLARATION WINS, not the richer notation. Adversarial-review
+    # catch (2026-08-05): the merge preferred JSON-LD unconditionally, so a
+    # page carrying a NAMED microdata candidate plus an unrelated NAMELESS
+    # JSON-LD event published the nameless event's date as the candidate's.
+    # Notation was never an identity signal — a name is. The named declaration
+    # is the one we can tie to this candidate, so its dates are authoritative
+    # over any nameless one.
+    #
+    # A nameless declaration that CONTRADICTS the named one is a different
+    # event and contributes nothing at all — not even a field the named one
+    # lacks, which is how an unrelated event's endDate once spliced itself
+    # onto a candidate whose start was four months earlier.
     named = [d for d in kept if d["names"]]
     unnamed = [d for d in kept if not d["names"]]
     if len(named) == 1 and unnamed:
         merged = named[0]
         for u in unnamed:
-            merged = _merge(merged, u)
+            if _dates_agree(merged["dates"], u["dates"]):
+                merged = _merge_under(merged, u)
         return [merged]
     return kept
+
+
+def _dates_agree(a: Dict[str, str], b: Dict[str, str]) -> bool:
+    """True when two declarations state nothing contradictory.
+
+    Only fields BOTH supply are compared: a bare microdata repeat giving a
+    start and no end does not contradict a JSON-LD entry giving both. Any
+    shared field where the two disagree means these are different events.
+    """
+    return all(a[k] == b[k] for k in a.keys() & b.keys())
+
+
+def _merge_under(named: dict, other: dict) -> dict:
+    """Absorb a non-contradicting declaration UNDER a named one.
+
+    The named declaration's values always win; `other` may only fill fields
+    the named one left empty. Used for named+unnamed, where identity comes
+    from the name rather than the notation.
+    """
+    return {
+        "dates": {**other["dates"], **named["dates"]},
+        "names": list(named["names"]),
+        "jsonld": named["jsonld"] or other["jsonld"],
+    }
 
 
 def _merge(a: dict, b: dict) -> dict:
