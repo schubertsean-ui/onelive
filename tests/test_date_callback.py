@@ -578,3 +578,84 @@ def test_every_schema_event_subtype_is_recognized(monkeypatch):
     assert recover_dates_from_url("https://venue.example/cal",
                                   candidate_title="Dune Part Three") == \
         {"start_time": "2026-08-08T19:00:00"}
+
+
+def test_jsonld_festival_is_not_invisible_to_the_jsonld_path(monkeypatch):
+    """Adversarial-review BLOCKER (2026-08-05, seats openai/attacker-smuggle +
+    openai/absence-only): the JSON-LD reader accepted only @type names ending
+    in "event", so a schema.org Festival was invisible to it while the
+    microdata reader saw Festival fine. A page declaring the candidate as a
+    JSON-LD Festival plus an unrelated microdata Event therefore looked
+    SINGLE-event — and the single-event shortcut is authoritative, so the
+    unrelated event's date was recovered and published for the festival.
+    """
+    page = """
+    <html><head><script type="application/ld+json">
+    {"@type": "Festival", "name": "Blanton Block Party",
+     "startDate": "2026-08-15T18:00:00"}
+    </script></head><body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Curator Talk: Impressionism</span>
+      <meta itemprop="startDate" content="2026-11-02T14:00:00"/></div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+
+    # The festival is visible, so this is a TWO-event page: the unrelated
+    # curator talk can no longer be handed over as the only declaration.
+    assert recover_dates_from_url(
+        "https://museum.example/whats-on",
+        candidate_title="Blanton Block Party") == {
+            "start_time": "2026-08-15T18:00:00"}
+    # And an unmatchable title recovers nothing rather than guessing.
+    assert recover_dates_from_url("https://museum.example/whats-on",
+                                  candidate_title="Members Mixer") == {}
+
+    from worker.date_callback import _is_event_itemtype
+    for t in ("Festival", "https://schema.org/Festival", "MusicFestival",
+              "https://schema.org/FoodFestival"):
+        assert _is_event_itemtype(t), t
+
+
+def test_unnamed_declaration_never_overrides_a_named_one_it_contradicts(
+        monkeypatch):
+    """Adversarial-review BLOCKER (2026-08-05): _dedupe_declarations merged
+    EVERY unnamed declaration into the page's single named one regardless of
+    dates, and _merge lets JSON-LD win — so a named microdata candidate plus
+    an unrelated NAMELESS JSON-LD event published the nameless event's date as
+    the candidate's own source-authoritative date.
+    """
+    page = """
+    <html><head><script type="application/ld+json">
+    {"@type": "Event", "startDate": "2027-03-14T09:00:00",
+     "endDate": "2027-03-14T17:00:00"}
+    </script></head><body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Cactus Cafe: Slaid Cleaves</span>
+      <meta itemprop="startDate" content="2026-08-09T20:00:00"/></div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+
+    got = recover_dates_from_url("https://venue.example/e/slaid",
+                                 candidate_title="Cactus Cafe: Slaid Cleaves")
+    assert got == {"start_time": "2026-08-09T20:00:00"}, (
+        "the nameless JSON-LD event's 2027 date must not become this "
+        f"candidate's date; got {got}")
+    assert "2027" not in str(got)
+
+
+def test_unnamed_repeat_of_the_same_event_still_merges(monkeypatch):
+    """The case the contradiction check must NOT break: one event marked in
+    JSON-LD and repeated in bare microdata is ONE event, and the page still
+    recovers freely without needing a title match."""
+    page = """
+    <html><head><script type="application/ld+json">
+    {"@type": "MusicEvent", "name": "Hotel Vegas: Night Two",
+     "startDate": "2026-08-11T21:00:00", "endDate": "2026-08-12T02:00:00"}
+    </script></head><body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <meta itemprop="startDate" content="2026-08-11T21:00:00"/></div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+    assert recover_dates_from_url("https://venue.example/n2") == {
+        "start_time": "2026-08-11T21:00:00",
+        "end_time": "2026-08-12T02:00:00"}
