@@ -275,13 +275,16 @@ def _microdata_event_dates(ev: dict) -> Dict[str, str]:
 def _identity_aligned(candidate_title: Optional[str], event_name: Optional[str]) -> bool:
     """The linked page's single Event must PROVABLY be the candidate.
 
-    Fail-closed rules (evaluator blockers, PR #189 r6 — the earlier
-    missing-name-allows doctrine let a nameless Event, or a generic-word
-    overlap like "Jazz Night" vs "Trivia Night", donate a date):
+    Fail-closed rules (evaluator blockers, PR #189 r6/r7 — the earlier
+    missing-name-allows doctrine let a nameless Event donate a date; plain
+    substring containment let "Art" align with "P-art-y Night"):
       - No Event name, or no candidate title, or no comparable words on
         either side: REFUSE — absence of identity evidence is not identity.
-      - Containment either way passes ("Night Owls Live" in "Night Owls
-        Live at The Cellar").
+      - Containment is WORD-BOUNDED and MULTI-WORD: one name's word
+        sequence must appear as a contiguous run of the other's words
+        ("Night Owls Live" in "Night Owls Live at The Cellar") — never a
+        raw substring match, and a single contained word is not identity
+        unless the two names are exactly equal.
       - Otherwise the names must share at least TWO meaningful words AND
         two-thirds of the candidate-title's words — one shared generic word
         is never enough.
@@ -292,8 +295,18 @@ def _identity_aligned(candidate_title: Optional[str], event_name: Optional[str])
     b = {w for w in event_name.casefold().split() if len(w) > 2}
     if not a or not b:
         return False
-    if candidate_title.casefold() in event_name.casefold() \
-            or event_name.casefold() in candidate_title.casefold():
+    ta = candidate_title.casefold().split()
+    tb = event_name.casefold().split()
+
+    def _word_run(needle: List[str], hay: List[str]) -> bool:
+        if needle == hay:
+            return True
+        if len(needle) < 2:
+            return False  # one contained word is not identity
+        return any(hay[i:i + len(needle)] == needle
+                   for i in range(len(hay) - len(needle) + 1))
+
+    if _word_run(ta, tb) or _word_run(tb, ta):
         return True
     shared = a & b
     return len(shared) >= 2 and len(shared) / len(a) >= 2 / 3
@@ -325,18 +338,36 @@ def recover_dates_from_url(url: str, timeout: int = 15,
                     len(jl_events), len(md_events))
         return {}
     dates = _jsonld_event_dates(jl_events[0]) if jl_events else {}
-    if dates and not _identity_aligned(candidate_title, dates.pop("_name", None)):
+    micro = _microdata_event_dates(md_events[0]) if md_events else {}
+    jl_name = dates.pop("_name", None)
+    md_name = micro.pop("_name", None)
+    # Cross-format CONTRADICTION check, BEFORE any format is chosen
+    # (evaluator blocker, PR #189 r7): one Event in each format is allowed
+    # on the premise both describe the same event — so if their declared
+    # values disagree, or both carry names and exactly one aligns with the
+    # candidate, the page's own evidence is in dispute and NOTHING is
+    # recovered; a disputed date must be refused, never chosen.
+    if dates and micro:
+        for f in ("start_time", "end_time"):
+            if f in dates and f in micro and dates[f] != micro[f]:
+                logger.info("date callback: JSON-LD and microdata disagree "
+                            "on %s — recovery refused (contradiction)", f)
+                return {}
+        if jl_name and md_name and (
+                _identity_aligned(candidate_title, jl_name)
+                != _identity_aligned(candidate_title, md_name)):
+            logger.info("date callback: JSON-LD and microdata Event names "
+                        "disagree on identity — recovery refused")
+            return {}
+    if dates and not _identity_aligned(candidate_title, jl_name):
         logger.info("date callback: JSON-LD Event name does not align with "
                     "candidate title — recovery refused (identity guard)")
         dates = {}
-    dates.pop("_name", None)
     if "start_time" in dates:
         return dates
-    micro = _microdata_event_dates(md_events[0]) if md_events else {}
-    if micro and not _identity_aligned(candidate_title, micro.pop("_name", None)):
+    if micro and not _identity_aligned(candidate_title, md_name):
         logger.info("date callback: microdata Event name does not align with "
                     "candidate title — recovery refused (identity guard)")
         micro = {}
-    micro.pop("_name", None)
     micro.update(dates)  # JSON-LD end_time (if any) outranks microdata's
     return micro

@@ -512,3 +512,53 @@ def test_mixed_format_multi_event_page_refused(monkeypatch):
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: mixed)
     assert recover_dates_from_url("https://venue.example/cal",
                                   candidate_title="Night Owls Live") == {}
+
+
+def test_containment_is_word_bounded():
+    # Evaluator blocker (PR #189 r7): raw substring containment aligned
+    # "Art" with "P-art-y Night". Containment must run on word boundaries.
+    from worker.date_callback import _identity_aligned
+
+    assert not _identity_aligned("Art", "Party Night")
+    assert not _identity_aligned("Owls", "Night Owls Live")  # single generic word
+    assert _identity_aligned("Night Owls", "Night Owls Live at The Cellar")
+
+
+def test_cross_format_contradiction_refused(monkeypatch):
+    # Evaluator blocker (PR #189 r7): one Event in EACH format is allowed
+    # only because both should describe the same event — when their values
+    # disagree, the page's own evidence is disputed and nothing is chosen.
+    contradiction = """
+    <html><script type="application/ld+json">
+    {"@type": "Event", "name": "Night Owls Live",
+     "startDate": "2026-08-08T19:00:00"}
+    </script>
+    <body><div itemscope itemtype="https://schema.org/Event">
+      <meta itemprop="startDate" content="2026-08-09T19:00:00"/>
+    </div></body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: contradiction)
+    assert recover_dates_from_url("https://venue.example/e/1",
+                                  candidate_title="Night Owls Live") == {}
+
+    agreement = contradiction.replace("2026-08-09T19:00:00", "2026-08-08T19:00:00")
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: agreement)
+    out = recover_dates_from_url("https://venue.example/e/1",
+                                 candidate_title="Night Owls Live")
+    assert out["start_time"] == "2026-08-08T19:00:00"
+
+
+def test_cross_format_identity_dispute_refused(monkeypatch):
+    # Both formats name their Event and exactly one aligns with the
+    # candidate: the page disputes its own identity — refuse everything.
+    dispute = """
+    <html><script type="application/ld+json">
+    {"@type": "Event", "name": "Night Owls Live",
+     "startDate": "2026-08-08T19:00:00"}
+    </script>
+    <body><div itemscope itemtype="https://schema.org/Event">
+      <meta itemprop="name" content="Completely Different Gala"/>
+      <meta itemprop="startDate" content="2026-08-08T19:00:00"/>
+    </div></body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: dispute)
+    assert recover_dates_from_url("https://venue.example/e/1",
+                                  candidate_title="Night Owls Live") == {}
