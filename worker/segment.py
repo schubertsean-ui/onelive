@@ -102,6 +102,32 @@ def _has_full_date(s: str) -> bool:
     return _FULL_DATE_RE.search(s) is not None
 
 
+# Words that legitimately accompany a calendar day-header. Anything else
+# ("Updated", "Tickets on sale", "Posted") marks a line that merely MENTIONS
+# a date rather than governing the listings under it (evaluator finding,
+# PR #189 r1: a mention adopted as context stamps wrong dates onto
+# time-only blocks — worse than leaving them dateless).
+_HEADER_NOISE_RE = re.compile(
+    r"""(?:\b(?:mon|tues?|wed(?:nes)?|thu(?:rs?)?|fri|sat(?:ur)?|sun)(?:day)?\b
+      | \b""" + _MONTHS_SRC + r"""\.?\b
+      | \b\d{1,4}\b | (?:st|nd|rd|th)\b
+      | [\d:/\-.,'\u2013\u2014|\u00b7\u2022]+ | \s+
+    )""",
+    re.I | re.X,
+)
+
+
+def _is_date_header(line: str) -> bool:
+    """True only for a date-DOMINANT line — a real day header like
+    "Tuesday, August 5" — not a sentence that mentions a date. Mechanical
+    rule: after removing date vocabulary (weekday/month names, numbers,
+    ordinals, separators), almost nothing may remain."""
+    if not _has_full_date(line):
+        return False
+    residue = _HEADER_NOISE_RE.sub("", line)
+    return len(residue.strip()) <= 2
+
+
 def _prepend_context(block: str, ctx: Optional[str]) -> str:
     """Re-attach a page-published date line to a block that lacks its own full
     date. The context is VERBATIM page text (a section header like "Tuesday,
@@ -168,7 +194,7 @@ class _ElementTextCollector(HTMLParser):
     def _flush_ctx(self) -> None:
         line = _ws(" ".join(self._ctx_buf))
         self._ctx_buf = []
-        if line and _has_full_date(line) and len(line) <= 120:
+        if line and len(line) <= 120 and _is_date_header(line):
             self._date_ctx = line
 
     def handle_starttag(self, tag, attrs):
@@ -407,7 +433,7 @@ def _segment_by_date_anchors(text: str) -> List[str]:
             ctx = None
             for line in reversed(text[:s].splitlines()):
                 line = line.strip()
-                if line and _has_full_date(line) and len(line) <= 120:
+                if line and len(line) <= 120 and _is_date_header(line):
                     ctx = line
                     break
             chunk = _prepend_context(chunk, ctx)

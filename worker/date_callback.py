@@ -26,6 +26,7 @@ Bounds and honesty:
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import re
@@ -56,6 +57,19 @@ def _fetch(url: str, timeout: int = 15) -> Optional[str]:
         return None
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
         return None
+    # No callbacks into private/loopback/link-local space (evaluator nit,
+    # PR #189 r1): a listing-published "link" of http://169.254.169.254/…
+    # must never turn this worker into an internal-network probe. Literal-IP
+    # hosts are checked here; the worker environment holds no internal
+    # network today, so DNS-level rebinding is out of scope by architecture.
+    host = parsed.hostname
+    if host.lower() == "localhost":
+        return None
+    try:
+        if not ipaddress.ip_address(host).is_global:
+            return None
+    except ValueError:
+        pass  # a DNS name, not a literal IP
     req = Request(url, headers={"User-Agent": _UA,
                                 "Accept": "text/html,application/xhtml+xml"})
     try:
