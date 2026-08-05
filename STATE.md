@@ -187,6 +187,23 @@ report with the 50:1 table and a live /tonight link; hygiene debts cleared;
 CSE/source-scan either executed or still blocked-on-founder with the exact
 ask restated.
 
+AMENDMENT (2026-08-05, in-session — contract-scope-violation discipline:
+scope moved, so the contract moves in the same push, quoting why): the
+founder ratified two new operating rules mid-session (verbatim "Ratified";
+proposal followed their "Are these codified in the canon and repo? Should
+anything be added/modified to the operating rules?"). ADDED SCOPE: OPERATING
+_RULES §6b founder-path preflight + §6c real-database leg, their decision
+record, RED_CLASSES rows (founder-path-unprobed, db-type-mismatch-invisible-
+to-hermetic-tests), the ESCAPED ledger row for the unprobed /ops walkthrough,
+ops-diagnostics auth-probe mode, db-integration.yml + tests/integration/
+(real-Postgres promote leg, proven locally 3/3 twice), and the A2 v0 prompt
+package (docs/design/V0_PROMPT_PACKAGE_v1.md).
+[S3:founder-path-unprobed] This amendment's own build ships the probe that class demands; the walkthrough that escaped is the ledger row's subject.
+[S3:pipe-masked-exit] The auth-probe step sets pipefail and accumulates failures explicitly (fail=1), exiting non-zero — no pipe can mask a leg.
+[S3:sentinel-rule-unenforced-mechanically] db-integration.yml is dispatch/PR-triggered, not scheduled — no dead-man owed; sentinel lint R5 unaffected.
+[S3:db-type-mismatch-invisible-to-hermetic-tests] The class's own mechanism is this build: the real-Postgres leg replays the escaped uuid[] insert (two distinct artists) against the server's type check plus registry-bound provenance and the 0020 backfill — proven 3/3 locally twice before commit.
+[S3:excluded-surface-widening] No scanner-excluded surface widens: the new workflow/tests are ordinary tracked files under the scanners' sweep; .claude and SKIP_PARTS untouched.
+
 Stage-3 retrieval (construction loop; matched classes answered; the diff
 carries the whole kickoff work order's prose, so the trigger net matched far
 beyond the build surface — every match is answered or dispositioned, none
