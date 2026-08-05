@@ -10,7 +10,12 @@ import { renderToStaticMarkup } from "react-dom/server";
  *     know" block, no trust prose, no real estate spent. Provenance stays
  *     tracked internally; nothing renders.
  *   - ONLY cautious states (unverified / disputed) carry the small note:
- *     the quiet marker plus the honest sentence and source-site link.
+ *     the quiet marker plus the honest sentence.
+ *   - The SOURCE LINK is not part of that note. Quieting the trust display
+ *     must not remove the way to check: a venue/library/university-calendar
+ *     row often has no ticket URL and no venue website, and the source chip
+ *     was its only path back. It is an ordinary action now, present on every
+ *     row (adversarial pre-review blocker, 2026-08-05).
  *   - The unknown-price "See tickets" text never renders beside the real
  *     Get-tickets control — price shows only when actually known.
  *   - Ticket handoffs open a NEW TAB (superseding nav canon §8 same-tab):
@@ -113,5 +118,32 @@ describe("dead controls and handoffs (founder ruling 2026-08-05)", () => {
     expect(tix).not.toBeNull();
     expect(tix![0]).toContain('target="_blank"');
     expect(tix![0]).toContain("noopener");
+  });
+});
+
+
+describe("the source link survives the quieting (pre-review blocker)", () => {
+  it("a SOLID row with no tickets and no venue site still links to the source", () => {
+    // source_provider "promoted" IS the affected population: originLink only
+    // resolves for promoted rows, i.e. exactly the venue/library/university
+    // calendars that carry no ticket URL.
+    const h = lensHtml(
+      ev({ source_provider: "promoted", origin_url: "https://thevenue.example/",
+           ticket_url: null, venue_url: null, venue_phone: null }), "venue");
+    // Still clean — the ruling holds.
+    expect(h).not.toContain("lknow");
+    expect(h).not.toContain("How we know");
+    // But reachable — the whole point.
+    expect(h).toContain("See the source");
+  });
+
+  it("the source link is an action, not a trust element", () => {
+    const h = lensHtml(
+      ev({ source_provider: "promoted", origin_url: "https://thevenue.example/" }),
+      "venue");
+    const i = h.indexOf("See the source");
+    expect(i).toBeGreaterThan(-1);
+    // It sits in the actions row (.lact), never inside a trust note.
+    expect(h.slice(0, i)).toContain("lact");
   });
 });

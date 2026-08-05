@@ -72,6 +72,19 @@
 }
 .detail .dtix:hover { text-decoration: underline; }
 
+/* The source link is a quiet peer of Tickets and Share — lighter than both,
+   because it is a way to check rather than something to do. Same pill shape so
+   the actions row stays one visual family; no fill, no bold. */
+.detail .dsrc {
+  display: inline-block;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  text-decoration: none;
+  opacity: 0.75;
+}
+.detail .dsrc:hover { text-decoration: underline; opacity: 1; }
+
 /* Share is a peer of Tickets but visually secondary (no fill), so the ticket
    link stays the primary call to action. It is a real <button>, keyboard-
    operable and focus-visible like any control. */

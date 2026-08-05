@@ -336,8 +336,17 @@ export function Lens({ e, side, onNow, onSide, onClose }: {
                     <a className="lbtn" href={site} target="_blank" rel="noopener noreferrer"
                       aria-label={externalAriaLabel("Venue website", site)}>Venue website ↗</a>
                   ) : null}
+                  {/* An ORDINARY action, not a trust element — see the detail
+                      page's .dactions for why. Quieting the trust note must
+                      not also remove the way to check the source, and a
+                      calendar row with no phone and no venue site has nothing
+                      else to offer. */}
+                  {originLink(e) ? (
+                    <a className="lbtn" href={originLink(e)!} target="_blank" rel="noopener noreferrer"
+                      aria-label={externalAriaLabel("See the source's site", originLink(e)!)}>See the source&rsquo;s site ↗</a>
+                  ) : null}
                 </div>
-                {!e.venue_address && !tel && !site ? (
+                {!e.venue_address && !tel && !site && !originLink(e) ? (
                   <p className="lgap">We only have this venue&rsquo;s name and area so far — more venue detail is on the way.</p>
                 ) : null}
               </>
@@ -355,10 +364,8 @@ export function Lens({ e, side, onNow, onSide, onClose }: {
               <div className="lknow">
                 <span className={`cau${sub.disputed ? " disp" : ""}`}>{sub.marker}</span>
                 <p>{sub.sheet}</p>
-                {originLink(e) ? (
-                  <a className="lchip" href={originLink(e)!} target="_blank" rel="noopener noreferrer"
-                    aria-label={externalAriaLabel("See the source's site", originLink(e)!)}>See the source&rsquo;s site ↗</a>
-                ) : null}
+                {/* No source link repeated here — it now sits in .lact on
+                    every row, not only the cautious ones. */}
               </div>
             ) : null}
             <Link className="lfull" href={eventHref(e)}>Open full page ↗</Link>

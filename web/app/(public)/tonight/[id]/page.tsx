@@ -323,6 +323,20 @@ export default async function EventDetailPage(
               Tickets ↗{handoffCaption(tix) ? <span className="dhand"> · {handoffCaption(tix)}</span> : null}
             </a>
           ) : null}
+          {/* The source link is an ORDINARY action, not a trust element.
+              Quieting the trust display (founder ruling 2026-08-05) hid the
+              note — it must not also hide the way to check. A venue-, library-
+              or university-calendar row often carries no ticket URL and no
+              venue website, and this chip was its only path back to the
+              source; inside the trust <details> it disappeared with the note.
+              No badge, no prose, no claim — one link, sitting with Tickets and
+              Share where a link belongs. */}
+          {originLink(event_) ? (
+            <a className="dsrc" href={originLink(event_)!} target="_blank" rel="noopener noreferrer"
+              aria-label={externalAriaLabel("See the source's site", originLink(event_)!)}>
+              See the source&rsquo;s site ↗
+            </a>
+          ) : null}
           <ShareButton event={event_} />
         </div>
 
@@ -355,21 +369,9 @@ export default async function EventDetailPage(
             <summary>
               <span className={`cau${trust.disputed ? " disp" : ""}`}>{trust.marker}</span>
             </summary>
-            <div className="sheet">
-              {trust.sheet}
-              {originLink(event_) ? (
-                <>
-                  {" "}
-                  {/* origin_url is the source's registered base_url, not a
-                      per-event page — the copy claims exactly that (evaluator
-                      #188 r1). */}
-                  <a href={originLink(event_)!} target="_blank" rel="noopener noreferrer"
-                    aria-label={externalAriaLabel("See the source's site", originLink(event_)!)}>
-                    See the source&rsquo;s site ↗
-                  </a>
-                </>
-              ) : null}
-            </div>
+            {/* The source link is NOT repeated here — it lives in .dactions
+                above, on every row rather than only the cautious ones. */}
+            <div className="sheet">{trust.sheet}</div>
           </details>
         ) : null}
       </article>
