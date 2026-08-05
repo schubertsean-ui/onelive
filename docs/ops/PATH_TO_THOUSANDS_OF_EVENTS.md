@@ -130,8 +130,12 @@ verify each unlisted row, and either commit it to the catalog or disable it.
 
 **Status: machinery built, never run at scale.**
 
-`source-scan.yml` plus the Brave search lane (PR #187) can discover new
-sources. The launch sweep (max_queries 1000) has never been dispatched.
+The discovery machinery — `source-scan.yml` plus the Brave search lane — is
+NOT in the tree yet; it lands with PR #187, which is still open. The launch
+sweep (max_queries 1000) has therefore never been dispatched, and cannot be
+until #187 merges. (Verified rather than assumed: `source-scan.yml` exists
+only on `claude/search-lane-brave`. `tools/db_scope_report.py` and
+`prove_feed.yml`, cited in item 8, DO exist on master.)
 
 **Work required:** dispatch it, review what it finds, import the survivors
 through `tools/import_sources.py` — which will now refuse any row whose class

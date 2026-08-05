@@ -7,9 +7,14 @@
 ## What was asked
 
 October 2026 puts two festival windows live in the same month (ACL and F1),
-and the phased festival-window sweeps (`tools/festival_phase.py`, PR #187)
-were projected at roughly **$46** for that month against a standing **$40**
-tripwire. The agent escalated it as a money decision rather than absorbing it.
+and the phased festival-window sweeps were projected at roughly **$46** for
+that month against a standing **$40** tripwire. The agent escalated it as a
+money decision rather than absorbing it.
+
+The sweep mechanism itself (`tools/festival_phase.py`) is NOT in the tree yet
+— it lands with PR #187, which is still open. This ruling therefore sets the
+ceiling ahead of the spend, which is the right order: the budget question was
+answered before anything could spend against it.
 
 ## The ruling
 
