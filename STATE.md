@@ -290,7 +290,43 @@ silently dropped):
 [S3:stale-live-incident-state] Live claims in this session's records (Clerk certs, promote counts, backlog) were re-verified against fresh run logs/probes this session, never carried from earlier prose.
 [S3:condensed-thinking-run] [S3:founder-verbatim-corrected] [S3:deliverable-visual-qa] [S3:copy-outruns-registry] [S3:malformed-ledger-row] [S3:missing-record-read-as-state] [S3:nonfinite-numeric-accepted] [S3:pagination-integrity-gap] [S3:parallel-record-id-collision] [S3:scripted-transform-order] [S3:heal-drops-guard-marker] [S3:mutable-model-alias] [S3:unusable-credential-tier] [S3:volatile-safety-store] [S3:stalled-state-needs-active-diagnosis] [S3:api-busy-poll] Matched by the kickoff work-order/decision-record PROSE riding this branch (their trigger words appear in the docs, not the build surface); reviewed each against the actual diff — none binds a mechanism this change touches; recorded here rather than silently dropped.
 
-STATUS: OPEN
+STATUS: PAUSED AT FOUNDER DIRECTION (2026-08-06, verbatim: "Find a place to
+pause. Create a detailed list of what remains to have thousands of events
+listed on the live site. Codify to the record. Create a prompt for a new
+session." — decision record
+`docs/memory/decisions/2026-08-06_path-to-thousands-and-the-gate-conflict-bug.md`).
+
+PAUSE STATE, so the successor session does not re-derive it:
+- Branch `claude/1live-kickoff-2026-587s4f` pushed at `cb6916f`. **PR #191 is
+  OPEN and NOT MERGED**, correctly: the founder's standing merge-freeze applies
+  while exam-bound #189 is open, and #193 rewrites the same `worker/gating.py`
+  region differently.
+- #191 carries fixes for all five evaluator r3 findings (fabricated midnight on
+  weekday-only claims; unchecked raw-claim weekday; stale year-roll; end before
+  start; unguarded write to public rows), each with a test. Local gates green:
+  trust_gate OK, lint OK, pytest 2119, perf 4/4. `golden-exam` red is the
+  charter's eligible compensated class, verified from the classifier's own
+  partition each round.
+- ONE mechanical step outstanding: the arming smoke re-bind
+  (`worker/datetime_resolve.py` is in the armed runtime closure). Two dispatches
+  were CANCELLED while queued, contending with a parallel session's branches for
+  the single `ingest` concurrency group.
+
+WHAT THE PAUSE FOUND (the reason it was worth pausing): the session's work was
+treating a symptom. Hand-verified root cause — `worker/candidate_store.py:174-181`
+feeds the gate both the timezone-AWARE `start_time` column and its NAIVE twin
+from `extracted`, so the gate ESCALATEs every dated candidate as
+self-contradictory; and `web/lib/promoted.ts:94`'s `gte.` filter drops every
+dateless promoted event because SQL NULL never compares true. Dated events
+cannot publish; published events cannot display. That pair explains "1,363
+published discovered events, ZERO upcoming". Recorded R-083 through R-088;
+ordered plan in `docs/ops/PATH_TO_THOUSANDS.md`; successor work order in
+`docs/ops/SESSION_KICKOFF_2026-08-07.md`.
+
+HARD STOP carried forward (R-083): `backfill-dates.yml` must NOT run with
+`real=true` until the canonical-instant gate fix AND the timezone contract are
+on master — running it early converts thousands of recoverable rows into
+permanently unpublishable ones.
 
 ## Session Contract #42 (2026-08-03, founder-directed — renumbered from this branch's #40 at the collision-resolution merge (#40 = GeoLibre ratification, #41 = the successor UI/UX shepherding session) — code-armed wording sweep, "not wait for the tripwire, deploy the dedicated code-armed PR that sweeps just those comments under evaluator review")
 
