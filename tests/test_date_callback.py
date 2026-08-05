@@ -380,3 +380,74 @@ def test_year_rule_weekday_consistency():
     # No weekday named: unchanged behavior, no weekday key in the note.
     iso, note = resolve_yearless_claim("August 8 7:00 PM", ref_2026)
     assert iso is not None and "weekday_verified" not in note
+
+
+def test_microdata_visible_text_name_feeds_identity_guard(monkeypatch):
+    # Evaluator blocker (PR #189 r4): common microdata puts the Event name
+    # in element TEXT (<span itemprop="name">…</span>), not a content attr.
+    # A text-named unrelated Event must be caught by the identity guard,
+    # not slip through as "nameless".
+    html = """
+    <html><body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Wrong Show</span>
+      <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
+    </div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: html)
+    assert recover_dates_from_url("https://venue.example/e/2",
+                                  candidate_title="Night Owls Live") == {}
+    aligned = recover_dates_from_url("https://venue.example/e/2",
+                                     candidate_title="Wrong Show")
+    assert aligned == {"start_time": "2026-08-10T18:00:00"}
+
+
+def test_microdata_dated_plus_undated_events_yield_nothing(monkeypatch):
+    # Evaluator blocker (PR #189 r4): cardinality is over ALL Event scopes.
+    # One dated + one undated Event is still a multi-event page —
+    # attributing the dated one to the candidate would be a guess.
+    html = """
+    <html><body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
+    </div>
+    <div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Another Show, date TBA</span>
+    </div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: html)
+    assert recover_dates_from_url("https://venue.example/cal") == {}
+
+
+def test_fetch_refuses_pages_larger_than_the_cap(monkeypatch):
+    # Evaluator blocker (PR #189 r4): a page larger than the byte cap must
+    # be REFUSED, never parsed as a truncated prefix — the prefix could
+    # declare exactly one Event while the real document declares more.
+    from worker.date_callback import _MAX_BYTES, _fetch
+
+    class _FakeResp:
+        def __init__(self, size):
+            self._data = b"x" * size
+
+        def read(self, n):
+            return self._data[:n]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def opener_for(size):
+        class _Opener:
+            def open(self, req, timeout=15):
+                return _FakeResp(size)
+        return lambda *handlers: _Opener()
+
+    monkeypatch.setattr(date_callback, "build_opener",
+                        opener_for(_MAX_BYTES + 10))
+    assert _fetch("https://venue.example/huge") is None
+
+    monkeypatch.setattr(date_callback, "build_opener",
+                        opener_for(_MAX_BYTES - 10))
+    assert _fetch("https://venue.example/ok") is not None

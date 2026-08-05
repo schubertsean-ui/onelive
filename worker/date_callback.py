@@ -91,18 +91,31 @@ class _AdmissibleRedirects(HTTPRedirectHandler):
 
 
 def _fetch(url: str, timeout: int = 15) -> Optional[str]:
-    """Bounded fetch of the event's own page; None on any failure (logged)."""
+    """Bounded fetch of the event's own page; None on any failure (logged).
+
+    A page LARGER than the cap is refused outright rather than truncated
+    (evaluator blocker, PR #189 r4): parsing a truncated prefix as if it
+    were the whole document would let a prefix containing exactly one Event
+    pass the single-Event attribution check while the real page declares
+    more — the claim honestly stays refused instead.
+    """
     if not _url_admissible(url):
         return None
     req = Request(url, headers={"User-Agent": _UA,
                                 "Accept": "text/html,application/xhtml+xml"})
     try:
         with build_opener(_AdmissibleRedirects()).open(req, timeout=timeout) as resp:
-            return resp.read(_MAX_BYTES).decode("utf-8", errors="replace")
+            data = resp.read(_MAX_BYTES + 1)
     except Exception as exc:  # noqa: BLE001 — callback failure must never break extraction
         logger.info("date callback: fetch of %s failed (%s) — claim stays refused",
                     url, type(exc).__name__)
         return None
+    if len(data) > _MAX_BYTES:
+        logger.info("date callback: %s exceeds the %d-byte cap — refusing to "
+                    "parse a truncated document; claim stays refused",
+                    url, _MAX_BYTES)
+        return None
+    return data.decode("utf-8", errors="replace")
 
 
 def _jsonld_event_dates(html: str) -> Dict[str, str]:
@@ -153,6 +166,14 @@ class _MicrodataEventScopes(HTMLParser):
         self._tag_stack: List[str] = []
         self._scope_depths: List[int] = []   # tag-stack depth of each open Event scope
         self._scope_events: List[dict] = []  # parallel: the dict being filled
+        # Visible-text itemprop="name" capture (evaluator blocker, PR #189
+        # r4: common microdata puts the name in element TEXT, not a content
+        # attribute — dropping it let an unrelated Event slip past the
+        # identity guard as "nameless"). Parallel stacks: capture depth,
+        # buffer, and the Event dict the finished name belongs to.
+        self._name_depths: List[int] = []
+        self._name_bufs: List[List[str]] = []
+        self._name_scopes: List[dict] = []
         self.events: List[dict] = []
 
     def _handle_tag(self, tag: str, attrs, closes_itself: bool) -> None:
@@ -167,6 +188,12 @@ class _MicrodataEventScopes(HTMLParser):
         if prop in ("startDate", "endDate", "name") and self._scope_events \
                 and not opens_scope and a.get("content", "").strip():
             self._scope_events[-1].setdefault(prop, set()).add(a["content"].strip())
+        elif prop == "name" and self._scope_events and not opens_scope \
+                and not closes_itself and tag not in _VOID_TAGS:
+            # No content attr: the name is the element's visible text.
+            self._name_depths.append(len(self._tag_stack))
+            self._name_bufs.append([])
+            self._name_scopes.append(self._scope_events[-1])
         if opens_scope and not closes_itself:
             ev: dict = {}
             self.events.append(ev)
@@ -181,9 +208,23 @@ class _MicrodataEventScopes(HTMLParser):
     def handle_startendtag(self, tag, attrs):
         self._handle_tag(tag, attrs, closes_itself=True)
 
+    def handle_data(self, data):
+        for buf in self._name_bufs:
+            buf.append(data)
+
+    def _finish_names_at(self, depth: int) -> None:
+        """Finalize any text-name captures whose element sits at >= depth."""
+        while self._name_depths and self._name_depths[-1] >= depth:
+            self._name_depths.pop()
+            text = "".join(self._name_bufs.pop()).strip()
+            scope = self._name_scopes.pop()
+            if text:
+                scope.setdefault("name", set()).add(text)
+
     def handle_endtag(self, tag):
         # Lenient close (real-world HTML): pop to the matching open tag if
-        # one exists, closing any Event scopes opened at or below that depth.
+        # one exists, closing any Event scopes and finishing any text-name
+        # captures opened at or below that depth.
         if tag in _VOID_TAGS or tag not in self._tag_stack:
             return
         while self._tag_stack:
@@ -192,8 +233,13 @@ class _MicrodataEventScopes(HTMLParser):
             while self._scope_depths and self._scope_depths[-1] >= depth_after_pop:
                 self._scope_depths.pop()
                 self._scope_events.pop()
+            self._finish_names_at(depth_after_pop)
             if popped == tag:
                 break
+
+    def close(self):
+        super().close()
+        self._finish_names_at(0)  # unclosed name elements still finalize
 
 
 def _microdata_dates(html: str) -> Dict[str, str]:
@@ -206,10 +252,15 @@ def _microdata_dates(html: str) -> Dict[str, str]:
         parser.close()
     except Exception:  # noqa: BLE001 — malformed HTML: no recovery, claim stays refused
         return {}
-    dated = [ev for ev in parser.events if ev.get("startDate") or ev.get("endDate")]
-    if len(dated) != 1:
+    # Cardinality over ALL Event scopes, dated or not (evaluator blocker,
+    # PR #189 r4): a page with one dated Event and one undated Event is
+    # still a multi-event page — attributing the dated one to the candidate
+    # would be a guess. Same total-count rule as the JSON-LD path.
+    if len(parser.events) != 1:
         return {}  # zero: nothing to read; >1: attribution would be a guess
-    ev = dated[0]
+    ev = parser.events[0]
+    if not (ev.get("startDate") or ev.get("endDate")):
+        return {}
     out: Dict[str, str] = {}
     for field, prop in (("start_time", "startDate"), ("end_time", "endDate")):
         values = ev.get(prop) or set()
