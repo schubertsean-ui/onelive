@@ -68,14 +68,33 @@ def test_registry_ids_exist_in_the_authenticated_harvest_artifact():
                     "trust-gate required check (ARMING_SMOKE_VERIFY=required).")
     repo = os.environ.get("GITHUB_REPOSITORY", "schubertsean-ui/onelive")
 
+    class _Redirected(Exception):
+        def __init__(self, url):
+            self.url = url
+
+    class _StopRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            raise _Redirected(newurl)
+
     def _get(url, raw=False):
         req = urllib.request.Request(url, headers={
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
         })
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            body = resp.read()
-        return body if raw else json.loads(body.decode("utf-8"))
+        if not raw:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        # Artifact downloads 302-redirect to a signed blob-storage URL that
+        # REJECTS a forwarded GitHub Authorization header (401 on run
+        # 30971391913) — catch the redirect and fetch the signed URL bare.
+        opener = urllib.request.build_opener(_StopRedirect())
+        try:
+            with opener.open(req, timeout=60) as resp:
+                return resp.read()
+        except _Redirected as red:
+            bare = urllib.request.Request(red.url)
+            with urllib.request.urlopen(bare, timeout=60) as resp:
+                return resp.read()
 
     try:
         run = _get(f"https://api.github.com/repos/{repo}/actions/runs/"
