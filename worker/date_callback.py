@@ -31,8 +31,9 @@ import json
 import logging
 import re
 from typing import Dict, Optional
-from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+from urllib.parse import urljoin, urlparse
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from worker.segment import _iter_jsonld_objects
 
@@ -49,31 +50,53 @@ _ITEMPROP_RE_TMPL = (
     r'|content\s*=\s*["\']([^"\']+)["\'][^>]*\sitemprop\s*=\s*["\']{field}["\']')
 
 
-def _fetch(url: str, timeout: int = 15) -> Optional[str]:
-    """Bounded fetch of the event's own page; None on any failure (logged)."""
+def _url_admissible(url: str) -> bool:
+    """http/https, real hostname, and no private/loopback/link-local literal
+    IPs or localhost (evaluator, PR #189 r1/r2): a listing-published "link"
+    of http://169.254.169.254/… must never turn this worker into an
+    internal-network probe. Applied to the ORIGINAL url and, via the
+    redirect handler below, to EVERY redirect hop. Literal-IP hosts are
+    checked here; the worker environment holds no internal network today,
+    so DNS-level rebinding is out of scope by architecture (recorded)."""
     try:
         parsed = urlparse(url)
     except ValueError:
-        return None
+        return False
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
-        return None
-    # No callbacks into private/loopback/link-local space (evaluator nit,
-    # PR #189 r1): a listing-published "link" of http://169.254.169.254/…
-    # must never turn this worker into an internal-network probe. Literal-IP
-    # hosts are checked here; the worker environment holds no internal
-    # network today, so DNS-level rebinding is out of scope by architecture.
+        return False
     host = parsed.hostname
     if host.lower() == "localhost":
-        return None
+        return False
     try:
         if not ipaddress.ip_address(host).is_global:
-            return None
+            return False
     except ValueError:
         pass  # a DNS name, not a literal IP
+    return True
+
+
+class _AdmissibleRedirects(HTTPRedirectHandler):
+    """Follow redirects only to admissible destinations (evaluator nit,
+    PR #189 r2): the same refusal policy applies to every hop, so a public
+    URL cannot bounce the callback into private address space."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        target = urljoin(req.full_url, newurl)
+        if not _url_admissible(target):
+            raise HTTPError(target, code,
+                            "redirect target refused by admissibility policy",
+                            headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, target)
+
+
+def _fetch(url: str, timeout: int = 15) -> Optional[str]:
+    """Bounded fetch of the event's own page; None on any failure (logged)."""
+    if not _url_admissible(url):
+        return None
     req = Request(url, headers={"User-Agent": _UA,
                                 "Accept": "text/html,application/xhtml+xml"})
     try:
-        with urlopen(req, timeout=timeout) as resp:
+        with build_opener(_AdmissibleRedirects()).open(req, timeout=timeout) as resp:
             return resp.read(_MAX_BYTES).decode("utf-8", errors="replace")
     except Exception as exc:  # noqa: BLE001 — callback failure must never break extraction
         logger.info("date callback: fetch of %s failed (%s) — claim stays refused",
@@ -102,6 +125,9 @@ def _jsonld_event_dates(html: str) -> Dict[str, str]:
         v = events[0].get(key)
         if isinstance(v, str) and v.strip():
             out[field] = v.strip()
+    name = events[0].get("name")
+    if out and isinstance(name, str) and name.strip():
+        out["_name"] = name.strip()  # for the caller's identity guard only
     return out
 
 
@@ -116,7 +142,27 @@ def _microdata_dates(html: str) -> Dict[str, str]:
     return out
 
 
-def recover_dates_from_url(url: str, timeout: int = 15) -> Dict[str, str]:
+def _identity_aligned(candidate_title: Optional[str], event_name: Optional[str]) -> bool:
+    """The linked page's single Event must plausibly BE the candidate
+    (evaluator nit, PR #189 r2): a source-quoted but generic link (a venue
+    homepage declaring one unrelated Event) must not donate its date. Rule:
+    when both names exist, require containment either way or a majority of
+    the candidate-title's words appearing in the Event name. A missing name
+    on either side allows recovery (nothing to compare) — the date still
+    faces the strict normalizer and gate3 either way."""
+    if not candidate_title or not event_name:
+        return True
+    a = {w for w in candidate_title.casefold().split() if len(w) > 2}
+    b = {w for w in event_name.casefold().split() if len(w) > 2}
+    if not a or not b:
+        return True
+    if candidate_title.casefold() in event_name.casefold()             or event_name.casefold() in candidate_title.casefold():
+        return True
+    return len(a & b) / len(a) >= 0.5
+
+
+def recover_dates_from_url(url: str, timeout: int = 15,
+                           candidate_title: Optional[str] = None) -> Dict[str, str]:
     """Read explicit machine-declared dates off the event's own page.
 
     Returns raw claim strings keyed start_time/end_time (subset, possibly
@@ -127,6 +173,11 @@ def recover_dates_from_url(url: str, timeout: int = 15) -> Dict[str, str]:
     if not html:
         return {}
     dates = _jsonld_event_dates(html)
+    if dates and not _identity_aligned(candidate_title, dates.pop("_name", None)):
+        logger.info("date callback: JSON-LD Event name does not align with "
+                    "candidate title — recovery refused (identity guard)")
+        dates = {}
+    dates.pop("_name", None)
     if "start_time" in dates:
         return dates
     micro = _microdata_dates(html)

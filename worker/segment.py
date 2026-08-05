@@ -194,8 +194,16 @@ class _ElementTextCollector(HTMLParser):
     def _flush_ctx(self) -> None:
         line = _ws(" ".join(self._ctx_buf))
         self._ctx_buf = []
-        if line and len(line) <= 120 and _is_date_header(line):
+        if not line:
+            return  # a pure structural boundary changes nothing
+        # SET on a real day header; CLEAR on any other page text (evaluator
+        # finding, PR #189 r2: a later, unrelated section must not inherit a
+        # stale prior day header — wrongly-dated is worse than dateless, so
+        # intervening non-date text always drops the context).
+        if len(line) <= 120 and _is_date_header(line):
             self._date_ctx = line
+        else:
+            self._date_ctx = None
 
     def handle_starttag(self, tag, attrs):
         t = tag.lower()
@@ -428,14 +436,23 @@ def _segment_by_date_anchors(text: str) -> List[str]:
         if len(chunk) < _MIN_BLOCK_CHARS:
             continue
         if not _has_full_date(chunk):
-            # Nearest full-date line the page published ABOVE this block —
-            # a calendar day-header governs the listings under it.
+            # Nearest full-date line ABOVE this block, but ONLY across the
+            # contiguous listing region: sibling event lines (they open with
+            # a date/time anchor) are skipped; any OTHER non-empty line is a
+            # section boundary that TERMINATES the search (evaluator finding,
+            # PR #189 r2: an old day header must not leak past an unrelated
+            # section — dateless beats wrongly dated).
             ctx = None
             for line in reversed(text[:s].splitlines()):
                 line = line.strip()
-                if line and len(line) <= 120 and _is_date_header(line):
+                if not line:
+                    continue
+                if len(line) <= 120 and _is_date_header(line):
                     ctx = line
                     break
+                if _ANCHOR_LINE_RE.match(line):
+                    continue  # a sibling listing under the same header
+                break  # non-listing text: a different section governs here
             chunk = _prepend_context(chunk, ctx)
         blocks.append(chunk)
     return blocks if len(blocks) >= 2 else [text]

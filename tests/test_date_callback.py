@@ -77,14 +77,16 @@ def _shape(monkeypatch, fields, recovered):
     monkeypatch.setattr(ai_extract, "create_candidate", fake_create)
     monkeypatch.setattr(ai_extract, "add_evidence", lambda **kw: None)
     monkeypatch.setattr(ai_extract, "recover_dates_from_url",
-                        lambda url, timeout=15: recovered)
+                        lambda url, timeout=15, candidate_title=None: recovered)
+    from datetime import datetime, timezone
     block_text = "Night Owls Live 7:00 PM tickets: " + (
         fields.get("ticket_link") or "")
     ai_extract._shape_and_store_one(
         fields, {"_provenance": {"model": "test"}},
         source_id=None, source_name="Test Source",
         source_url="https://src.example", source_class="venue_calendar",
-        text=block_text, sxsw_mode=False)
+        text=block_text, sxsw_mode=False,
+        fetched_at=datetime.now(timezone.utc))
     return stored
 
 
@@ -115,8 +117,10 @@ def test_shaping_falls_back_to_year_rule(monkeypatch):
     # Pin the WHOLE value, year included, at this integration seam
     # (evaluator nit, PR #189 r1) — computed through the same resolver so
     # the test is honest across real clock dates including year boundaries.
+    from datetime import datetime, timezone
     from worker.datetime_normalize import resolve_yearless_claim
-    expected, _ = resolve_yearless_claim("August 9 6:00 PM")
+    expected, _ = resolve_yearless_claim("August 9 6:00 PM",
+                                         datetime.now(timezone.utc))
     assert ex["start_time"] == expected and expected.endswith("T18:00:00")
     rec = ex["_provenance"]["datetime_recovery"]["start_time"]
     assert rec["method"] == "year-from-fetch-date"
@@ -147,7 +151,8 @@ def test_callback_refused_when_link_absent_from_source_text(monkeypatch):
     monkeypatch.setattr(ai_extract, "add_evidence", lambda **kw: None)
     calls = []
     monkeypatch.setattr(ai_extract, "recover_dates_from_url",
-                        lambda url, timeout=15: calls.append(url) or
+                        lambda url, timeout=15, candidate_title=None:
+                        calls.append(url) or
                         {"start_time": "2026-08-08T19:00:00"})
     ai_extract._shape_and_store_one(
         {"title": "Night Owls", "start_time": "7:00 PM",
@@ -184,3 +189,74 @@ def test_date_mention_lines_are_not_adopted_as_context():
     </body></html>"""
     blocks = segment_events(html, content_type="text/html")
     assert all(not b.startswith("Updated August 5") for b in blocks)
+
+
+
+def test_year_rule_fails_closed_without_fetch_time(monkeypatch):
+    # Evaluator finding (PR #189 r2): without a source-fetch reference the
+    # resolver must refuse — replay/backfill must never re-date a claim off
+    # this worker's clock.
+    from worker.datetime_normalize import resolve_yearless_claim
+
+    assert resolve_yearless_claim("August 9 6:00 PM", None) == (None, None)
+
+    stored = {}
+    monkeypatch.setattr(ai_extract, "create_candidate",
+                        lambda **kw: stored.update(kw) or "cand-1")
+    monkeypatch.setattr(ai_extract, "add_evidence", lambda **kw: None)
+    monkeypatch.setattr(ai_extract, "recover_dates_from_url",
+                        lambda url, timeout=15, candidate_title=None: {})
+    ai_extract._shape_and_store_one(
+        {"title": "Songwriter Round", "start_time": "August 9 6:00 PM"},
+        {"_provenance": {"model": "test"}},
+        source_id=None, source_name="Test Source",
+        source_url="https://src.example", source_class="venue_calendar",
+        text="Songwriter Round August 9 6:00 PM", sxsw_mode=False)
+    assert stored["extracted"]["start_time"] is None  # no fetched_at: refused
+
+
+def test_jsonld_identity_guard_refuses_unrelated_event(monkeypatch):
+    # Evaluator nit (PR #189 r2): a source-quoted but generic link whose one
+    # declared Event is a DIFFERENT show must not donate its date.
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: _ONE_EVENT)
+    out = recover_dates_from_url("https://venue.example/e/1",
+                                 candidate_title="Completely Different Gala")
+    assert out == {}
+    aligned = recover_dates_from_url("https://venue.example/e/1",
+                                     candidate_title="Night Owls Live")
+    assert aligned["start_time"] == "2026-08-08T19:00:00-05:00"
+
+
+def test_stale_date_context_cleared_by_section_boundary():
+    # Evaluator finding (PR #189 r2): a later, unrelated section must not
+    # inherit a stale day header — dateless beats wrongly dated.
+    from worker.segment import segment_events
+
+    html = """
+    <html><body>
+    <h2>Tuesday, August 5</h2>
+    <ul>
+    <li class="event-card">Discovery Day, 10:00 AM - 4:00 PM</li>
+    <li class="event-card">Star Party, 7:30 PM - 9:00 PM</li>
+    </ul>
+    <h2>Ongoing exhibits</h2>
+    <ul>
+    <li class="event-card">Night Lab drop-in, 6:00 PM Thursdays</li>
+    <li class="event-card">Maker hours, 5:00 PM weekdays</li>
+    </ul>
+    </body></html>"""
+    blocks = segment_events(html, content_type="text/html")
+    assert blocks[0].startswith("Tuesday, August 5\n")
+    assert blocks[1].startswith("Tuesday, August 5\n")
+    assert not blocks[2].startswith("Tuesday, August 5")
+    assert not blocks[3].startswith("Tuesday, August 5")
+
+    text = (
+        "Saturday, August 8\n"
+        "7:00 PM Doors - Night Owls on the patio\n"
+        "Ongoing exhibits and standing programs\n"
+        "6:00 PM Night Lab drop-in\n"
+    )
+    tblocks = segment_events(text)
+    lab = [b for b in tblocks if "Night Lab" in b]
+    assert lab and not lab[0].startswith("Saturday, August 8")
