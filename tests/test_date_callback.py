@@ -444,3 +444,21 @@ def test_multi_event_microdata_calendar_selects_by_name(monkeypatch):
     out = recover_dates_from_url("https://venue.example/cal",
                                  candidate_title="Trivia Showdown")
     assert out == {"start_time": "2026-08-11T19:00:00"}
+
+def test_multi_event_selection_ignores_generic_words(monkeypatch):
+    # Evaluator blocker (PR #189, multi-event attribution): "Kids Night" and
+    # "Trivia Night" share only the generic word "night" — selecting on that
+    # would assign the WRONG event's date. Generic event words carry no
+    # identifying signal and are dropped from both sides before scoring.
+    cal = """
+    <html><script type="application/ld+json">
+    [{"@type": "Event", "name": "Trivia Night", "startDate": "2026-08-08T19:00"},
+     {"@type": "Event", "name": "Karaoke Night", "startDate": "2026-08-09T20:00"}]
+    </script></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: cal)
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="Kids Night") == {}
+    # A distinctive word still selects cleanly.
+    out = recover_dates_from_url("https://venue.example/cal",
+                                 candidate_title="Karaoke Night")
+    assert out == {"start_time": "2026-08-09T20:00"}
