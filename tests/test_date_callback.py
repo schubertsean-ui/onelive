@@ -462,3 +462,22 @@ def test_multi_event_selection_ignores_generic_words(monkeypatch):
     out = recover_dates_from_url("https://venue.example/cal",
                                  candidate_title="Karaoke Night")
     assert out == {"start_time": "2026-08-09T20:00"}
+
+def test_generic_words_are_stripped_of_punctuation(monkeypatch):
+    # Adversarial pre-review catch (2026-08-05): a bare split leaves "Night:"
+    # as its own token, which is NOT in the generic set and would score like
+    # a distinctive word — defeating the generic-word filter entirely.
+    from worker.date_callback import _title_tokens
+
+    assert _title_tokens("Trivia Night:") == {"trivia"}
+    assert _title_tokens("Kids' Night!") == {"kids"}
+    assert _title_tokens("(Live) — Music.") == set()
+
+    cal = """
+    <html><script type="application/ld+json">
+    [{"@type": "Event", "name": "Trivia Night:", "startDate": "2026-08-08T19:00"},
+     {"@type": "Event", "name": "Karaoke Night!", "startDate": "2026-08-09T20:00"}]
+    </script></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: cal)
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="Kids Night") == {}
