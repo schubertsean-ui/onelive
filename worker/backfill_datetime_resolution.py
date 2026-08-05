@@ -122,20 +122,24 @@ def run(limit: int, real: bool) -> dict:
 
                 # Published-but-dateless events inherit their candidate's
                 # freshly resolved dates (no new publish — the row exists).
+                #
+                # A DISPUTED public row is never mutated by this pass
+                # (evaluator #191 r3, absence-only): disputed is
+                # shown-never-hidden, and silently changing a disputed event's
+                # time is precisely the adjudication this pass has no authority
+                # to make. Counted OUTSIDE the `real` branch so a DRY RUN
+                # reports the skip too — a dry run that showed 0 disputed
+                # while disputed rows existed would under-report the very
+                # thing an operator runs it to see.
+                cur.execute(
+                    """
+                    select count(*) from event e
+                    join event_candidate c on c.promoted_event_id = e.event_id
+                    where e.start_time is null and c.start_time is not null
+                      and e.confidence = 'disputed'
+                    """)
+                counts["disputed_events_skipped"] = cur.fetchone()[0]
                 if real:
-                    # A DISPUTED public row is never mutated by this pass
-                    # (evaluator #191 r3, absence-only): disputed is
-                    # shown-never-hidden, and silently changing a disputed
-                    # event's time is precisely the adjudication this pass has
-                    # no authority to make. Counted, so the skip is visible.
-                    cur.execute(
-                        """
-                        select count(*) from event e
-                        join event_candidate c on c.promoted_event_id = e.event_id
-                        where e.start_time is null and c.start_time is not null
-                          and e.confidence = 'disputed'
-                        """)
-                    counts["disputed_events_skipped"] = cur.fetchone()[0]
                     # The public row inherits ONLY from a candidate this pass
                     # actually resolved (the datetime_resolution provenance key
                     # it just wrote), never from any incidental non-null
