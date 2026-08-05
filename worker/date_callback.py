@@ -341,8 +341,18 @@ def _select_event(events: List[dict], candidate_title: Optional[str],
       not be skipped): the candidate's TITLE selects the best name-token
       match. Matching here only ADDS recovery — it picks among the source's
       own declarations, it never refuses a single-event page. A page where
-      no name shares a word with the title, or where two tie, stays
+      no name matches the title strongly enough, or where two tie, stays
       unattributable and contributes nothing (the claim just stays as-is).
+
+    HOW STRONG A MATCH HAS TO BE. Adversarial-review catch (2026-08-05): any
+    unique positive overlap won, so "John Smith Trio" selected "John Doe Band"
+    off a shared "john" — and the wrong act's date was then stored as the
+    candidate's own source-authoritative date. A shared first name is not an
+    identification. The winner must now cover at least HALF the candidate's
+    comparable tokens (rounded up), which lets the real partial matches
+    through — "Ruby Fields" vs "Ruby Fields (Late Show)", "Patti Smith" vs
+    "An Evening with Patti Smith" — while a single incidental word never
+    carries a three-word title.
     """
     if len(events) == 1:
         return events[0]
@@ -351,6 +361,7 @@ def _select_event(events: List[dict], candidate_title: Optional[str],
     ct = _title_tokens(candidate_title)
     if not ct:
         return None
+    needed = (len(ct) + 1) // 2  # half the candidate's tokens, rounded up
     best: Optional[dict] = None
     best_score = 0
     tied = False
@@ -361,10 +372,11 @@ def _select_event(events: List[dict], candidate_title: Optional[str],
             best, best_score, tied = ev, score, False
         elif score == best_score and best is not None and ev is not best:
             tied = True
-    if best is None or best_score == 0 or tied:
-        logger.info("date callback: %d declared Events but none uniquely "
-                    "matches the candidate title — cannot attribute",
-                    len(events))
+    if best is None or best_score < needed or tied:
+        logger.info("date callback: %d declared Events but none matches the "
+                    "candidate title strongly enough (best %d of the %d "
+                    "needed) — cannot attribute",
+                    len(events), best_score, needed)
         return None
     return best
 

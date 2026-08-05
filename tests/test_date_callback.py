@@ -740,3 +740,40 @@ def test_declarations_sharing_no_field_are_not_treated_as_agreeing(monkeypatch):
     assert got == {"start_time": "2026-08-25T20:00:00"}, (
         f"a nameless declaration sharing NO field must contribute nothing; got {got}")
     assert "end_time" not in got
+
+
+def test_a_shared_first_name_is_not_an_identification(monkeypatch):
+    """Adversarial-review BLOCKER (2026-08-05): any unique positive token
+    overlap won the selection, so "John Smith Trio" selected "John Doe Band"
+    off a shared "john" — and the wrong act's date was stored as the
+    candidate's own source-authoritative date."""
+    page = """
+    <html><head><script type="application/ld+json">
+    [{"@type":"MusicEvent","name":"John Doe Band","startDate":"2026-09-04T21:00:00"},
+     {"@type":"MusicEvent","name":"Marfa Tapes","startDate":"2026-09-05T20:00:00"}]
+    </script></head><body></body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+    assert recover_dates_from_url("https://venue.example/cal",
+                                  candidate_title="John Smith Trio") == {}, (
+        "one shared first name must not carry a three-word title")
+
+
+def test_real_partial_matches_still_attribute(monkeypatch):
+    """The strength floor must not become a new way to lose events: the
+    ordinary partial matches a venue calendar actually produces still win."""
+    page = """
+    <html><head><script type="application/ld+json">
+    [{"@type":"MusicEvent","name":"Ruby Fields (Late Show)",
+      "startDate":"2026-09-10T22:30:00"},
+     {"@type":"MusicEvent","name":"An Evening with Patti Smith",
+      "startDate":"2026-09-11T20:00:00"},
+     {"@type":"MusicEvent","name":"Levitation 2026 Kickoff",
+      "startDate":"2026-09-12T19:00:00"}]
+    </script></head><body></body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+    for title, want in (("Ruby Fields", "2026-09-10T22:30:00"),
+                        ("Patti Smith", "2026-09-11T20:00:00"),
+                        ("Levitation", "2026-09-12T19:00:00")):
+        got = recover_dates_from_url("https://venue.example/cal",
+                                     candidate_title=title)
+        assert got == {"start_time": want}, f"{title} -> {got}"
