@@ -210,6 +210,14 @@ jobs:
             "${#GOOGLE_CSE_CX}" \
             "$([[ "$GOOGLE_CSE_CX" =~ ^[0-9a-f]{10,20}$ ]] && echo yes || echo no)" \
             "$([[ "$GOOGLE_CSE_CX" =~ [[:space:]] ]] && echo yes || echo no)"
+          # Key SHAPE too (same never-the-value discipline): a Google Cloud
+          # API key is 39 chars starting 'AIza'. This distinguishes "the
+          # secret never changed" from "the key is fine but its project
+          # rejects the API" when a 403 persists across re-pastes.
+          printf 'key shape: length=%s starts_AIza=%s has_whitespace=%s\n' \
+            "${#GOOGLE_CSE_KEY}" \
+            "$([[ "$GOOGLE_CSE_KEY" == AIza* ]] && echo yes || echo no)" \
+            "$([[ "$GOOGLE_CSE_KEY" =~ [[:space:]] ]] && echo yes || echo no)"
           http_code=$(curl -sS -o probe.json -w '%{http_code}' \
             "https://www.googleapis.com/customsearch/v1?key=$GOOGLE_CSE_KEY&cx=$GOOGLE_CSE_CX&q=austin+live+music")
           echo "HTTP $http_code"
