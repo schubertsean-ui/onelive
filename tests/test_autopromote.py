@@ -27,7 +27,7 @@ import pathlib
 import pytest
 
 import worker.autopromote as autopromote
-from worker.autopromote import AutopromoteReport, run_autopromote
+from worker.autopromote import AutopromoteReport, run_autopromote, stamp_backlog
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
@@ -41,6 +41,7 @@ class _FakeCursor:
     def __init__(self, conn):
         self._conn = conn
         self._result = []
+        self.rowcount = 0
 
     def __enter__(self):
         return self
@@ -53,6 +54,14 @@ class _FakeCursor:
         flat = " ".join(sql.split()).lower()
         if "from event_candidate" in flat and "status='ready_to_promote'" in flat:
             self._result = self._conn.candidate_rows[: params[0]]
+        elif "from event_candidate" in flat and "gate_reason is null" in flat:
+            self._result = self._conn.stamp_rows[: params[0]]
+        elif "update event_candidate" in flat:
+            self._result = []
+            # CAS semantics: params[3] is candidate_id; the fake honors a
+            # per-candidate stale set so tests can simulate a row that moved
+            # between the sweep's select and the guarded update.
+            self.rowcount = 0 if params[3] in self._conn.stale_candidates else 1
         elif "from candidate_evidence" in flat:
             self._result = [(c,) for c in self._conn.classes_by_candidate.get(params[0], [])]
         elif "from source_reliability" in flat:
@@ -75,8 +84,10 @@ class _FakeConn:
     (candidate_id, source_id, sxsw_mode) tuples the selection query returns."""
 
     def __init__(self, candidate_rows=None, classes_by_candidate=None,
-                 reliability_by_source=None):
+                 reliability_by_source=None, stamp_rows=None):
         self.candidate_rows = candidate_rows or []
+        self.stamp_rows = stamp_rows or []  # (candidate_id, sxsw_mode) for the sweep
+        self.stale_candidates = set()  # ids whose guarded update matches 0 rows
         self.classes_by_candidate = classes_by_candidate or {}
         self.reliability_by_source = reliability_by_source or {}
         self.calls = []
@@ -390,9 +401,146 @@ def test_cli_entrypoint_requires_real_and_limit(monkeypatch, capsys):
         monkeypatch.setattr("sys.argv", ["run_autopromote.py"])
         cli.main()  # argparse exits: --limit is required
 
-    monkeypatch.setattr("sys.argv", ["run_autopromote.py", "--limit", "5"])
+    with pytest.raises(SystemExit):
+        monkeypatch.setattr("sys.argv", ["run_autopromote.py", "--limit", "5"])
+        cli.main()  # argparse exits: --stamp-limit is required too
+
+    monkeypatch.setattr("sys.argv", ["run_autopromote.py", "--limit", "5",
+                                     "--stamp-limit", "100"])
     assert cli.main() == 2  # no --real → refuse, exit 2
 
     with pytest.raises(SystemExit):
         monkeypatch.setattr("sys.argv", ["run_autopromote.py", "--real", "--limit", "0"])
         cli.main()  # zero ceiling rejected by the argparse type (fail-closed)
+
+
+# ---------------------------------------------------------------------------
+# Gate-stamp sweep (2026-08-05): the never-stamped backlog gets the SAME gate
+# verdicts persisted with the SAME column contract as the human ops action.
+# ---------------------------------------------------------------------------
+
+def _fake_load_gate_signals(monkeypatch, by_candidate):
+    def fake(cur, candidate_id):
+        return by_candidate.get(candidate_id, ({}, {"start_times": [], "dedupe_ambiguous": False}))
+    monkeypatch.setattr(autopromote, "_load_gate_signals", fake)
+
+
+def _stamp_updates(conn):
+    return [(sql, params) for sql, params in conn.calls
+            if "update event_candidate" in sql.lower()]
+
+
+def test_stamp_sweep_targets_never_stamped_population(monkeypatch):
+    conn = _FakeConn(stamp_rows=[])
+    stamp_backlog(conn, limit=42)
+    sql, params = conn.calls[0]
+    flat = sql.lower()
+    assert "status='needs_review'" in flat and "gate_reason is null" in flat
+    assert "limit %s" in flat and params == (42,)
+
+
+def test_stamp_anchor_candidate_becomes_ready_to_promote(monkeypatch):
+    conn = _FakeConn(stamp_rows=[("c1", False)],
+                     classes_by_candidate={"c1": ["ticketing"]})
+    _fake_load_gate_signals(monkeypatch, {})
+    report = stamp_backlog(conn, limit=10)
+    assert report.counts == {"examined": 1, "stamped_ready": 1,
+                             "stamped_hold": 0, "escalated": 0,
+                             "skipped_stale": 0, "errors": 0}
+    ((sql, params),) = _stamp_updates(conn)
+    assert params[0] == "ready_to_promote" and params[3] == "c1"
+    assert any("gate_stamp" in str(params) for _sql, params in _audit_actions(conn))
+
+
+def test_stamp_single_weak_source_becomes_needs_more_confirmation(monkeypatch):
+    conn = _FakeConn(stamp_rows=[("c2", False)],
+                     classes_by_candidate={"c2": ["blog"]})
+    _fake_load_gate_signals(monkeypatch, {})
+    report = stamp_backlog(conn, limit=10)
+    assert report.counts["stamped_hold"] == 1
+    ((sql, params),) = _stamp_updates(conn)
+    assert params[0] == "needs_more_confirmation"
+    assert params[2]  # required_next carries the human-actionable step
+
+
+def test_stamp_escalate_keeps_needs_review_and_records_reason(monkeypatch):
+    conn = _FakeConn(stamp_rows=[("c3", False)],
+                     classes_by_candidate={"c3": ["ticketing"]})
+    _fake_load_gate_signals(monkeypatch, {
+        "c3": ({"is_private_rsvp": True}, {"start_times": [], "dedupe_ambiguous": False}),
+    })
+    report = stamp_backlog(conn, limit=10)
+    assert report.counts["escalated"] == 1
+    ((sql, params),) = _stamp_updates(conn)
+    assert params[0] == "needs_review"
+    assert params[1]  # gate_reason set -> leaves the sweep population
+
+
+def test_stamp_limit_zero_or_negative_is_rejected():
+    conn = _FakeConn()
+    for bad in (0, -5):
+        with pytest.raises(ValueError):
+            stamp_backlog(conn, limit=bad)
+    assert conn.calls == []  # fail-closed before any DB work
+
+
+def test_stamp_failure_is_isolated_and_counted(monkeypatch):
+    conn = _FakeConn(stamp_rows=[("bad", False), ("good", False)],
+                     classes_by_candidate={"good": ["ticketing"]})
+    def fake(cur, candidate_id):
+        if candidate_id == "bad":
+            raise RuntimeError("simulated signal-load failure")
+        return {}, {"start_times": [], "dedupe_ambiguous": False}
+    monkeypatch.setattr(autopromote, "_load_gate_signals", fake)
+    report = stamp_backlog(conn, limit=10)
+    assert report.counts["errors"] == 1
+    assert report.counts["stamped_ready"] == 1
+    assert conn.rollbacks == 1
+
+
+def test_stamp_skips_row_that_moved_mid_sweep_and_keeps_newer_state(monkeypatch):
+    # Compare-and-swap (evaluator finding r2): a candidate that ops/dispute
+    # moved between the sweep's select and the guarded update must be SKIPPED
+    # (0 rows matched), counted, and never audited as stamped.
+    conn = _FakeConn(stamp_rows=[("moved", False), ("fresh", False)],
+                     classes_by_candidate={"moved": ["ticketing"],
+                                           "fresh": ["ticketing"]})
+    conn.stale_candidates = {"moved"}
+    _fake_load_gate_signals(monkeypatch, {})
+    report = stamp_backlog(conn, limit=10)
+    assert report.counts["skipped_stale"] == 1
+    assert report.counts["stamped_ready"] == 1
+    assert conn.rollbacks == 1  # the missed CAS rolls back, sweep continues
+    audited = [p for _s, p in _audit_actions(conn)]
+    assert not any("moved" in str(p) for p in audited)
+    assert any("fresh" in str(p) for p in audited)
+
+
+def test_stamp_update_reasserts_selection_predicate_in_sql(monkeypatch):
+    conn = _FakeConn(stamp_rows=[("c1", False)],
+                     classes_by_candidate={"c1": ["ticketing"]})
+    _fake_load_gate_signals(monkeypatch, {})
+    stamp_backlog(conn, limit=10)
+    ((sql, _params),) = _stamp_updates(conn)
+    flat = " ".join(sql.split()).lower()
+    assert "status='needs_review'" in flat and "gate_reason is null" in flat
+
+
+def test_stamp_gate_verdict_cas_requires_unstamped_row():
+    # r3 (evaluator): the shared helper must re-assert BOTH halves of the
+    # unstamped predicate — an escalated row keeps status='needs_review'
+    # WITH its reason recorded, and a fresh verdict must never overwrite it.
+    from worker.candidate_store import stamp_gate_verdict
+
+    class _Cur:
+        rowcount = 0
+        def execute(self, sql, params):
+            self.sql = " ".join(sql.split()).lower()
+            self.params = params
+    cur = _Cur()
+    ok = stamp_gate_verdict("c9", status="ready_to_promote",
+                            gate_reason="Anchor evidence present: ticketing",
+                            required_next="", expected_status="needs_review",
+                            cur=cur)
+    assert "status=%s and gate_reason is null" in cur.sql
+    assert ok is False  # rowcount 0 = row moved/already adjudicated -> skip
