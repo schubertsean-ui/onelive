@@ -142,6 +142,52 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #44 (2026-08-05/06, founder-commissioned work order docs/ops/SESSION_KICKOFF_2026-08-06.md — kickoff execution session, branch claude/1live-kickoff-2026-587s4f)
+
+The plan below IS the founder's commissioned work order (kickoff committed at
+80adf16, landed on master via this branch); founder approval is the work
+order itself — presented, ratified, and scoped there. §4a fields:
+
+WHAT: (Bucket 1) land/verify #186/#185/#177 [VERIFIED MERGED at session
+open], drain the promotion backlog with repeated bounded autopromote sweeps,
+produce the AFTER db-report, deliver the ONE before/after 50:1 founder
+report, close the Clerk cert saga on TLS-handshake evidence, first source
+scan the moment the CSE 403 clears; (Bucket 2, TOP) cards-reflect-updated-
+content: audit every field the promote path writes vs what /tonight renders,
+then close the gap in small evaluator-reviewed PRs under the ratified design
+canon; then v0 prompt package; Eventbrite scheduled import; festival mode
+piece 1; 2026-08-05 session hygiene (Contract #43 close, changelog, arc,
+TODOS, Kaizen + KPI rows).
+
+HOW: workflow dispatches (autopromote.yml limit 400 / stamp_limit 1000 until
+promoted < limit and examined < stamp_limit; db-report.yml; ops-diagnostics
+site-probe) with evidence quoted from run logs; cards audit = enumerate
+promote.py's event insert columns → trace /tonight FeedApp.tsx + [id] +
+web/lib rendering → gap table committed as a docs audit → smallest align PR
+first; all product PRs through validate + non-Claude evaluator; merges
+silent on APPROVE + all-green; records-only STATE commits per precedent.
+
+WHY: the engine now publishes discovered events end-to-end (400/400 promoted,
+0 errors post-#186) but the consumer surface still renders the pre-engine
+card model — the founder's verbatim directive ("I want the UI/UX to reflect
+all the updated content on the cards now") names the gap; and the 50:1
+report is the founder's visibility into what the engine just did.
+
+WHY-THAT-WHY-MATTERS: discovered events are the product's entire
+differentiation (the 50:1 thesis); publishing them without surfacing their
+content honestly on cards wastes the trust machinery the whole charter
+exists to protect — and an unreported drained backlog leaves the founder
+blind to the first real payoff of months of gate-custody work.
+
+EXPECTED OUTCOMES: backlog drained to promoted < limit with zero errors;
+AFTER table showing discovered > 0 today/weekend/next-7; WS5 closed with
+handshake evidence; cards audit doc + first align PR merged; ONE founder
+report with the 50:1 table and a live /tonight link; hygiene debts cleared;
+CSE/source-scan either executed or still blocked-on-founder with the exact
+ask restated.
+
+STATUS: OPEN
+
 ## Session Contract #42 (2026-08-03, founder-directed — renumbered from this branch's #40 at the collision-resolution merge (#40 = GeoLibre ratification, #41 = the successor UI/UX shepherding session) — code-armed wording sweep, "not wait for the tripwire, deploy the dedicated code-armed PR that sweeps just those comments under evaluator review")
 
 GOAL: execute R-075's remainder now instead of at each file's next touch — sweep the gate-custodied-publication wording into code COMMENTS/DOCSTRINGS only, in a dedicated PR stacked on the records PR so R-075's row updates in the same change.
