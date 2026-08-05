@@ -65,6 +65,43 @@ _PROBE_B = datetime(2008, 2, 2)
 # date instead of jumping a year ahead and asserting a false future event.
 GRACE_PAST_DAYS = 7
 
+# Forward horizon on a year-from-context resolution (evaluator #191 r3,
+# attacker-smuggle lens). The 365-day window guarantees UNIQUENESS but not
+# PLAUSIBILITY: with context 2026-08-05 a stale "July 4" listing has no
+# in-window 2026 occurrence, so the window rolls it to 2027-07-04 and asserts
+# a confident event eleven months out that the page almost certainly meant as
+# last month. A no-year venue listing is a NEAR-TERM listing; past this
+# horizon the roll is a guess, so we refuse instead of publishing a date the
+# source never evidenced. Chosen so the legitimate wrap-around still works —
+# a December page listing "January 5" resolves 16 days out, and a season
+# announcement 7 months out still resolves — while the stale-listing roll
+# (always ~330+ days out, by construction) always refuses.
+MAX_FUTURE_DAYS = 300
+
+# Probe pair that differs in its TIME defaults, so what a claim evidences
+# about the CLOCK can be read the same way month/day evidence is read:
+# agreement means the string supplied it, disagreement means it came from the
+# default. _PROBE_A/_PROBE_B are both midnight, so they cannot tell "8pm" from
+# a claim carrying no time at all — which is exactly how a weekday-only claim
+# ("Friday") reached resolve_time_only_from_block and was given a FABRICATED
+# midnight start (evaluator #191 r3, attacker-smuggle lens).
+# The two probes differ ONLY in the hour. Differing in minutes or seconds
+# would break the detection instead of sharpening it: dateutil fills every
+# component the string omits from the default, so "8:00 pm" (which states no
+# seconds) would inherit two different SECOND values and read as time-less.
+_TIME_PROBE_A = datetime(2004, 1, 1, 0, 0, 0)
+_TIME_PROBE_B = datetime(2004, 1, 1, 13, 0, 0)
+
+
+def _evidences_a_time(raw: str) -> bool:
+    """True only when the claim's own text supplies a clock time."""
+    try:
+        a = _duparser.parse(raw, default=_TIME_PROBE_A)
+        b = _duparser.parse(raw, default=_TIME_PROBE_B)
+    except (ValueError, OverflowError, TypeError):
+        return False
+    return a.time() == b.time()
+
 _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday",
              "saturday", "sunday")
 _WEEKDAY_RE = re.compile(
@@ -131,6 +168,12 @@ def resolve_partial_date_claim(
     if len(candidates) != 1:
         return None, None
     resolved_date = candidates[0]
+
+    # Uniqueness is not plausibility: refuse a resolution that lands beyond the
+    # near-term horizon, which is exactly the shape a STALE no-year listing
+    # takes when the window rolls it into next year (see MAX_FUTURE_DAYS).
+    if (resolved_date - context.date()).days > MAX_FUTURE_DAYS:
+        return None, None
 
     claimed_wd = _claimed_weekday(s)
     if claimed_wd is not None and resolved_date.weekday() != claimed_wd:
@@ -201,6 +244,13 @@ def resolve_time_only_from_block(
     s = str(raw).strip()
     if not s or not _is_time_only(s):
         return None, None
+    # _is_time_only only says "no month/day evidence" — it is TRUE for a
+    # weekday-only claim ("Friday") too, which carries no clock time at all.
+    # Without this guard such a claim took dateutil's midnight default and
+    # published a start time the source never stated (evaluator #191 r3,
+    # attacker-smuggle lens). A claim that evidences no time is refused.
+    if not _evidences_a_time(s):
+        return None, None
 
     found = []  # (date_text, claimed_weekday_or_None)
     for m in _TEXT_DATE_RE.finditer(block_text):
@@ -241,6 +291,13 @@ def resolve_time_only_from_block(
         return None, None
 
     the_date = dates.pop()
+    # The RAW claim's own weekday is checked too, not just weekdays printed in
+    # the block (evaluator #191 r3, both openai lenses): "Friday 8pm" combined
+    # with a block whose single date is a Saturday is the claim contradicting
+    # its own page. Conflicting evidence is refused, never averaged.
+    claimed_wd = _claimed_weekday(s)
+    if claimed_wd is not None and the_date.weekday() != claimed_wd:
+        return None, None
     try:
         t = _duparser.parse(s, default=_PROBE_A).time()
     except (ValueError, OverflowError, TypeError):

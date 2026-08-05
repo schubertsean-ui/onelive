@@ -23,9 +23,15 @@ def test_recent_past_within_grace_stays_this_year():
     assert iso == "2026-08-02T21:00:00"  # 3 days past — the just-past show
 
 
-def test_past_beyond_grace_rolls_to_next_year():
-    iso, _ = resolve_partial_date_claim("July 20", CTX)
-    assert iso == "2027-07-20T00:00:00"
+def test_past_beyond_grace_refuses_rather_than_rolling_a_year_ahead():
+    """CHANGED at evaluator #191 r3 (attacker-smuggle lens), and the previous
+    expectation here WAS the defect: this asserted that "July 20" read on
+    2026-08-05 resolves to 2027-07-20. The 365-day window makes that the only
+    in-window occurrence, so it is unique — but uniqueness is not evidence. A
+    venue page listing a bare "July 20" two weeks after July 20 means the date
+    that just passed, and publishing a confident event eleven months out is a
+    fabrication the source never supports. Past MAX_FUTURE_DAYS: refuse."""
+    assert resolve_partial_date_claim("July 20", CTX) == (None, None)
 
 
 def test_december_fetch_january_claim_crosses_year_boundary():
@@ -127,3 +133,43 @@ def test_block_weekday_that_contradicts_the_date_refuses():
     # Aug 8 2026 is a Saturday, not a Friday: the block contradicts itself
     # (or our context year is wrong). Either way, publish nothing.
     assert _from_block("8:00 pm", "Fri, Aug 8 · Spoon · 8:00 pm", CTX) == (None, None)
+
+
+# ── Evaluator #191 r3 findings, each pinned by the case that proved it ───────
+
+
+def test_weekday_only_claim_never_takes_a_fabricated_midnight():
+    """attacker-smuggle lens: "Friday" evidences no month/day, so the
+    time-only branch accepted it and dateutil's midnight DEFAULT became a
+    published start time the source never stated. It must refuse."""
+    assert _from_block("Friday", "Sat, Aug 8 · Spoon · 8:00 pm", CTX) == (None, None)
+    assert _from_block("Saturday", "August 8 · Spoon", CTX) == (None, None)
+
+
+def test_raw_claim_weekday_contradicting_the_block_date_refuses():
+    """Both openai lenses: the block's single date is Saturday Aug 8, but the
+    claim itself says Friday. The claim contradicts its own page — refuse
+    rather than publish one side of conflicting evidence."""
+    assert _from_block("Friday 8pm", "August 8 · Spoon", CTX) == (None, None)
+
+
+def test_raw_claim_weekday_that_agrees_still_resolves():
+    """The guard must not cost the honest case: Aug 8 2026 IS a Saturday."""
+    iso, _ = _from_block("Saturday 8pm", "August 8 · Spoon", CTX)
+    assert iso == "2026-08-08T20:00:00"
+
+
+def test_stale_no_year_listing_is_refused_not_rolled_into_next_year():
+    """attacker-smuggle lens: with context 2026-08-05 a "July 4" listing has
+    no in-window 2026 occurrence, so the uniqueness window rolled it to
+    2027-07-04 — asserting a confident event eleven months out from a page
+    that meant last month. Past the horizon the roll is a guess: refuse."""
+    assert resolve_partial_date_claim("July 4 8:00 pm", CTX) == (None, None)
+
+
+def test_the_legitimate_year_wrap_still_resolves():
+    """The horizon must not break the case it shares a shape with: a December
+    page listing "January 5" is a real near-term event 16 days out."""
+    dec = datetime(2026, 12, 20, 19, 0, 0)
+    iso, _ = resolve_partial_date_claim("January 5 8:00 pm", dec)
+    assert iso == "2027-01-05T20:00:00"

@@ -40,7 +40,9 @@ logger = logging.getLogger(__name__)
 def run(limit: int, real: bool) -> dict:
     counts = {
         "examined": 0, "resolved_start": 0, "resolved_end": 0,
-        "unresolvable": 0, "events_dated": 0, "errors": 0,
+        "unresolvable": 0, "events_dated": 0,
+        "end_before_start_dropped": 0, "disputed_events_skipped": 0,
+        "errors": 0,
     }
     conn = psycopg2.connect(resolve_dsn())
     try:
@@ -84,6 +86,17 @@ def run(limit: int, real: bool) -> dict:
                             if end_iso is None:
                                 end_iso, end_rec = resolve_time_only_from_block(
                                     end_claim, raw_text, created_at)
+                            # An end that is not strictly after the start is
+                            # NOT stored (evaluator #191 r3, absence-only):
+                            # "Aug 8 8pm" + a bare "1am" resolves the end onto
+                            # the SAME calendar day, i.e. before the show
+                            # starts. The midnight rollover is the obvious
+                            # human reading and exactly the kind of obvious
+                            # reading this module refuses to make — a guessed
+                            # end is dropped, the start still lands.
+                            if end_iso is not None and end_iso <= iso:
+                                counts["end_before_start_dropped"] += 1
+                                end_iso = None
                             if end_iso is not None:
                                 resolution["end_time"] = end_rec
                                 counts["resolved_end"] += 1
@@ -110,6 +123,24 @@ def run(limit: int, real: bool) -> dict:
                 # Published-but-dateless events inherit their candidate's
                 # freshly resolved dates (no new publish — the row exists).
                 if real:
+                    # A DISPUTED public row is never mutated by this pass
+                    # (evaluator #191 r3, absence-only): disputed is
+                    # shown-never-hidden, and silently changing a disputed
+                    # event's time is precisely the adjudication this pass has
+                    # no authority to make. Counted, so the skip is visible.
+                    cur.execute(
+                        """
+                        select count(*) from event e
+                        join event_candidate c on c.promoted_event_id = e.event_id
+                        where e.start_time is null and c.start_time is not null
+                          and e.confidence = 'disputed'
+                        """)
+                    counts["disputed_events_skipped"] = cur.fetchone()[0]
+                    # The public row inherits ONLY from a candidate this pass
+                    # actually resolved (the datetime_resolution provenance key
+                    # it just wrote), never from any incidental non-null
+                    # candidate time — and only when the inherited pair is
+                    # internally consistent. Everything else stays NULL.
                     cur.execute(
                         """
                         update event e
@@ -120,6 +151,10 @@ def run(limit: int, real: bool) -> dict:
                         where c.promoted_event_id = e.event_id
                           and e.start_time is null
                           and c.start_time is not null
+                          and e.confidence <> 'disputed'
+                          and c.extracted->'_provenance'->'datetime_resolution'
+                              is not null
+                          and (c.end_time is null or c.end_time > c.start_time)
                         """)
                     counts["events_dated"] = cur.rowcount
     finally:
