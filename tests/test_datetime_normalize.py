@@ -172,7 +172,8 @@ def test_yearless_claim_resolves_against_reference():
     iso, note = resolve_yearless_claim("Saturday, August 8 7:00 PM", ref)
     assert iso == "2026-08-08T19:00:00"
     assert note == {"raw": "Saturday, August 8 7:00 PM",
-                    "resolved": "year-from-fetch-date", "reference": "2026-08-05"}
+                    "resolved": "year-from-fetch-date", "reference": "2026-08-05",
+                    "weekday_verified": "Saturday"}  # r3: claimed weekday checked
     # Year boundary, both directions.
     assert resolve_yearless_claim("Jan 2", datetime(2026, 12, 30))[0] == \
         "2027-01-02T00:00:00"

@@ -53,6 +53,23 @@ _PROBE_B = datetime(2002, 2, 2)
 
 _DATETIME_FIELDS = ("start_time", "end_time")
 
+# Weekday tokens for the year resolver's consistency check (evaluator
+# blocker, PR #189 r3): a claim that NAMES a weekday ("Friday, August 8")
+# must only resolve to a year where that month/day IS that weekday —
+# otherwise the resolution would contradict the source's own words.
+_WEEKDAY_INDEX = {
+    "mon": 0, "monday": 0,
+    "tue": 1, "tues": 1, "tuesday": 1,
+    "wed": 2, "weds": 2, "wednesday": 2,
+    "thu": 3, "thur": 3, "thurs": 3, "thursday": 3,
+    "fri": 4, "friday": 4,
+    "sat": 5, "saturday": 5,
+    "sun": 6, "sunday": 6,
+}
+_WEEKDAY_RE = re.compile(
+    r"\b(" + "|".join(sorted(_WEEKDAY_INDEX, key=len, reverse=True)) + r")\b",
+    re.IGNORECASE)
+
 # Pure-numeric day/month/year (or month/day/year) forms: when BOTH leading
 # fields could be a month, the order is a locale guess — "03/04/2026" is
 # March 4 in Austin and April 3 in London. We refuse to guess (PR #44 r1
@@ -158,12 +175,20 @@ def resolve_yearless_claim(
         return None, None  # more than the year is unevidenced — stays refused
     if reference is None:
         return None, None  # no fetch-time reference: fail closed, stay refused
+    # Weekday consistency (r3 blocker): a claimed weekday must match the
+    # resolved date's weekday, or the claim stays refused — resolving
+    # "Friday, August 8" into a year where Aug 8 is a Saturday would assert
+    # a date the source's own words contradict.
+    wd_match = _WEEKDAY_RE.search(s)
+    claimed_weekday = _WEEKDAY_INDEX[wd_match.group(1).lower()] if wd_match else None
     ref = reference
     resolved = None
     for year in (ref.year - 1, ref.year, ref.year + 1):
         try:
             cand = a.replace(year=year)
         except ValueError:  # Feb 29 in a non-leap candidate year
+            continue
+        if claimed_weekday is not None and cand.weekday() != claimed_weekday:
             continue
         delta = (cand.date() - ref.date()).days
         if -30 <= delta < 300:
@@ -173,6 +198,8 @@ def resolve_yearless_claim(
         return None, None
     note = {"raw": s, "resolved": "year-from-fetch-date",
             "reference": ref.date().isoformat()}
+    if claimed_weekday is not None:
+        note["weekday_verified"] = wd_match.group(1)
     return resolved.isoformat(), note
 
 
