@@ -64,7 +64,7 @@ export default async function TonightPage() {
     // client drops anything actually ended.
     const fromISO = new Date(nowMs - 12 * 60 * 60 * 1000).toISOString();
     // The consumer read path is `event ∪ licensed_event` (migration 0010):
-    // licensed rows (Ticketmaster/SeatGeek/…) PLUS pipeline-promoted long-tail
+    // licensed rows (Ticketmaster/SeatGeek/…) PLUS pipeline-promoted discovered
     // events. The promoted union is ADDITIVE — if it fails we still render the
     // licensed feed (never blank a working feed over the smaller source); a
     // licensed-read failure remains the hard error, exactly as before.

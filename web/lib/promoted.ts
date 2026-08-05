@@ -2,7 +2,7 @@
 // reshape them into the same LicensedEvent card shape the feed already renders,
 // so the consumer feed can show `event ∪ licensed_event` — the union the schema
 // (migration 0010) documents as the consumer read path. This is the read half
-// of "put reviewed events on the site": the crawl pipeline promotes long-tail
+// of "put reviewed events on the site": the crawl pipeline promotes discovered
 // events (venue calendars, festivals, university feeds) into `event`; without
 // this reader they were written but never displayed.
 //

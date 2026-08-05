@@ -242,7 +242,7 @@ export interface RegionFilterResult<T> {
  *
  * Dropping the unrecognised ones would be the easy call and it would be wrong.
  * The place table is a floor, not a census: a small Bastrop or Llano venue we
- * have not catalogued yet is exactly the long-tail coverage this product is
+ * have not catalogued yet is exactly the discovered-events coverage this product is
  * trying to win, and silently deleting it would turn a data gap into an
  * invisible one — while making the feed look cleaner. Seven of the ten counties
  * currently have zero coverage; a filter that quietly discards anything it does

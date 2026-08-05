@@ -32,7 +32,7 @@ describe("CAPCOG boundary on the read path", () => {
 
   it("KEEPS unrecognised cities and counts them, never silently drops", () => {
     // A small Bastrop or Llano venue we have not catalogued yet is exactly the
-    // long-tail coverage we are trying to win. Dropping it would hide a data
+    // discovered-events coverage we are trying to win. Dropping it would hide a data
     // gap while making the feed look cleaner.
     const out = filterToCapcog([{ venue_city: "Nowheresville", venue_name: "X" }]);
     expect(out.kept).toHaveLength(1);

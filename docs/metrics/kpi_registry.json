@@ -2,6 +2,20 @@
   "_comment": "OneLive KPI registry — the EDITABLE source of truth for tools/kpi_report.py. To change WHICH KPIs are tracked, their TARGETS, or their FREQUENCY: edit this file only, then `python tools/kpi_report.py --print` to verify. See docs/strategy/ONE_LIVE_KPI_FRAMEWORK_v1.md 'How to change a KPI' for the 3-step recipe. Adding a genuinely NEW measurement (one `compute` doesn't already cover) still needs one Python function registered in tools/kpi_report.py's _COMPUTE_FUNCTIONS map — everything else (target/frequency/area/owner/enable/disable, or a new KPI reusing an existing compute or 'manual_gap') is JSON-only. Schema per entry: id (unique), area, metric (display name), kind (leading|lagging), target (human string), direction (higher_better|lower_better|boolean|informational), frequency (per_run|daily|weekly|monthly|quarterly), owner, enabled (bool), compute (a key in _COMPUTE_FUNCTIONS, or the literal 'manual_gap' for a not-yet-instrumented KPI — 'manual_gap' entries also require 'why' and 'trigger'). Loaded and validated by tools.kpi_report.load_kpi_registry(); a malformed or unknown-compute entry fails LOUD (exit 2), never silently skipped.",
   "kpis": [
     {
+      "id": "coverage-discovered-to-licensed-ratio",
+      "area": "Ingestion/Coverage",
+      "metric": "Discovered:licensed event ratio per window (today / weekend / next 7 days)",
+      "kind": "lagging",
+      "target": ">=50:1 per window (founder 2026-08-04: 'The 50:1 is non-API ticketed events to API events on any given day weekend or weekly period.')",
+      "direction": "higher_better",
+      "frequency": "daily",
+      "owner": "sourcing engine (Sentinel)",
+      "enabled": true,
+      "compute": "manual_gap",
+      "why": "requires a live DB connection; the authoritative computation already exists as tools/db_scope_report.py::ratio_50_to_1 (windows in America/Chicago, discovered = pipeline-published canonical events, licensed = licensed_event rows), run by .github/workflows/db-report.yml",
+      "trigger": "each db-report.yml run's artifact carries ratio_50_to_1 per window; a session folds the latest values in"
+    },
+    {
       "id": "coverage-source-catalog-size",
       "area": "Ingestion/Coverage",
       "metric": "Source catalog size (enabled sources)",

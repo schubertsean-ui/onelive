@@ -9,7 +9,7 @@ already carries that human-vetted `cultural_domain` per source; this module is t
 join that finally FEEDS it to the promote-time classifier (worker.classify.
 resolve_category's `venue_domain_hint`, its signal #3 — above the title-keyword
 last resort). Before this, promote passed no signal at all, so every promoted
-long-tail event fell to the title read regardless of how well we knew the source.
+discovered event fell to the title read regardless of how well we knew the source.
 
 NON-FABRICATING, by construction:
   * only a `cultural_domain` that is a REAL OneLive domain id (in domain_map.DOMAINS)

@@ -128,7 +128,7 @@ def ratio_50_to_1(cur) -> dict:
 
     Interpretation, stated so it can be corrected rather than assumed: non-API
     = pipeline-published canonical events (extraction → gate → promote — the
-    long tail we discover ourselves); API = licensed_event rows (ticketing
+    DISCOVERED events — the events we find ourselves); API = licensed_event rows (ticketing
     APIs anyone can license). Windows are Austin days (America/Chicago):
     today, the containing-or-upcoming Fri→Sun weekend, and the next 7 days.
     """

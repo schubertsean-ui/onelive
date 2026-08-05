@@ -85,9 +85,11 @@ def test_weak_resolved_to_authority_verifies():
     assert d.basis == BASIS_RESOLVED and d.authority_kind == "venue"
 
 
-def test_weak_with_two_second_signals_is_validated_likely():
+def test_weak_with_two_second_signals_is_validated_confirmed():
+    # 2026-08-04 founder ruling: the corroborated tier publishes CONFIRMED;
+    # 'likely' is exclusively the single-trusted-source publish-policy tier.
     d = decide_verification(Provenance(WEAK), ResolutionOutcome(second_signals=2))
-    assert d.status == VALIDATED and d.confidence == "likely"
+    assert d.status == VALIDATED and d.confidence == "confirmed"
     assert d.basis == BASIS_SECOND_SIGNAL and d.publishable
 
 
