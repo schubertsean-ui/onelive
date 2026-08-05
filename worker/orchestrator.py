@@ -89,6 +89,24 @@ logger = logging.getLogger(__name__)
 RENDER_CAP_ENV = "ONELIVE_MAX_RENDERS_PER_RUN"
 DEFAULT_MAX_RENDERS_PER_RUN = 5
 
+# What separates one fetched page from the next in the combined document.
+#
+# NOT a newline. The segmenter carries a calendar's day header forward as the
+# governing date for the blocks that follow it, clearing only when other page
+# text intervenes — so a page whose LAST element is a day header handed that
+# date to the first event card of the NEXT page. Adversarial-review finding
+# (2026-08-05), reproduced against the real segmenter: page 1 ending on
+# "<h2>Friday, August 14, 2026</h2>" gave a page-2 block reading
+# "Brunch Jazz 11:00 AM" the context "Friday, August 14, 2026" — a Sunday
+# brunch published as Friday, from a page that never said so.
+#
+# The fix is the intervening text the segmenter already looks for: a
+# block-level element whose text is not a date, which drives _date_ctx back to
+# None at the seam. It carries no URL, so it cannot satisfy the callback's
+# source-quoted-link check, and it is not a capture-start tag, so it never
+# becomes a candidate block of its own.
+_PAGE_BOUNDARY = "\n<hr /><p>1LIVE PAGE BOUNDARY</p><hr />\n"
+
 # Keys tracked in RunReport.counts. Declared up front so every run reports the
 # full shape even when a count is zero (never omit a key because it's 0 —
 # that would make "nothing happened" indistinguishable from "not tracked").
@@ -239,6 +257,38 @@ def _max_pages_per_source() -> int:
     return n if n >= 1 else _DEFAULT_MAX_PAGES_PER_SOURCE
 
 
+def _extraction_block_budget() -> Optional[int]:
+    """How many candidate blocks one run will actually extract, or None.
+
+    Read from ai_extract so there is ONE cap, not a second copy that could
+    drift from the one doing the truncating. None means the cap is unreadable,
+    and the walk then behaves exactly as it did before this check existed —
+    an unknown budget must not silently stop paging.
+    """
+    try:
+        from worker.ai_extract import _max_events_per_page
+        return _max_events_per_page()
+    except Exception as exc:  # noqa: BLE001 — a budget probe must never break ingestion
+        logger.info("extraction block budget unreadable (%s) — paging without "
+                    "the budget stop", type(exc).__name__)
+        return None
+
+
+def _approx_blocks(text: str) -> int:
+    """Candidate blocks the accumulated text would segment into.
+
+    Uses the REAL segmenter rather than an estimate, so the walk's stop point
+    and extraction's truncation point are computed the same way.
+    """
+    try:
+        from worker.segment import segment_events
+        return len(segment_events(text))
+    except Exception as exc:  # noqa: BLE001 — never break ingestion on a probe
+        logger.info("block count unreadable (%s) — paging without the budget "
+                    "stop", type(exc).__name__)
+        return 0
+
+
 def _fetch_paginated(
     *,
     source_id: Optional[str],
@@ -269,12 +319,27 @@ def _fetch_paginated(
         return first
 
     texts = [first["text"]]
+    page_urls = [url]
     seen = {url}
     current_url = url
     current_html = first["text"]
     pages = 1
+    # The extraction budget is per RUN, and the pages are concatenated into one
+    # document before extraction — so once the accumulated text already carries
+    # more candidate blocks than a run can extract, every further page is
+    # fetched and then truncated away. Following them is pure cost (requests,
+    # rate-limit exposure, wall clock) for zero events, so the walk stops.
+    block_budget = _extraction_block_budget()
 
     while pages < max_pages:
+        if block_budget is not None and _approx_blocks(
+                _PAGE_BOUNDARY.join(texts)) >= block_budget:
+            logger.info(
+                "paginated fetch: %s stopping at %d page(s) — the extraction "
+                "budget (%d blocks) is already full, so a further page would "
+                "be fetched and then truncated away",
+                url, pages, block_budget)
+            break
         try:
             next_url = discover_next_page(current_html, current_url, seen)
         except Exception as exc:  # noqa: BLE001 — discovery must never break ingestion
@@ -296,14 +361,43 @@ def _fetch_paginated(
             break
         if not page_text:
             break
+        # SENSE THE PAGE BEFORE IT JOINS THE DOCUMENT. Adversarial pre-review
+        # catch (2026-08-05): the joined text is handed to assess_input as ONE
+        # string, and its checks scan the whole thing — so a later page that
+        # returns HTTP 200 with an interstitial ("Just a moment…"), an
+        # injection marker, or a truncated tail rejected pages 1..N-1 along
+        # with itself, dropping a source that reliably yields ~40 events to
+        # ZERO. Rate-limit interstitials are the realistic trigger, since the
+        # walk makes up to max_pages requests to a single host. The transport
+        # fail-soft above only ever covered non-ok status and exceptions; bad
+        # content behind a 200 slipped past it.
+        page_reading = assess_input(text=page_text,
+                                    content_type=page_result.get("content_type"))
+        if not page_reading.ok:
+            logger.info(
+                "page %d of %s did not pass the input sensor (%s) — keeping "
+                "%d good page(s) rather than losing them to it",
+                pages + 1, url, page_reading.reason, pages)
+            break
         seen.add(next_url)
         texts.append(page_text)
+        page_urls.append(next_url)
         current_url, current_html = next_url, page_text
         pages += 1
 
     if pages > 1:
         logger.info("paginated fetch: %s read %d pages", url, pages)
-    return {**first, "text": "\n".join(texts), "pages_fetched": pages}
+    return {
+        **first,
+        "text": _PAGE_BOUNDARY.join(texts),
+        "pages_fetched": pages,
+        # Which pages the text came from, in order. The combined document is
+        # extracted under the source's URL, so without this the run has no
+        # record that an event was found on page 3 rather than page 1
+        # (adversarial-review finding, 2026-08-05). Carried on the fetch result
+        # so the replay log and provenance can cite the real page.
+        "page_urls": page_urls,
+    }
 
 
 def _fetch_with_render_fallback(
