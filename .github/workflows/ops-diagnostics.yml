@@ -1,0 +1,193 @@
+name: ops-diagnostics
+
+# The founder's three 2026-08-05 delegations, exercised from CI instead of
+# founder click-paths (kickoff conduct rule 2: never direct the founder
+# through a vendor UI we cannot see): CLERK_SECRET_KEY_ADMIN (read domain /
+# certificate status for the accounts.1live.co SSL saga), VERCEL_TOKEN (env
+# hygiene — including deleting the stray AUTH_DISABLED var — and redeploys so
+# env changes take effect), HEALTHCHECKS_API_KEY (create/tune dead-man checks
+# programmatically). Plus a Google CSE probe (plain query, no site: operator)
+# to verify the search lane after the GOOGLE_CSE_CX re-entry.
+#
+# Manual dispatch ONLY — no schedule, so no dead-man check is owed (a
+# scheduled loop would require one from birth). Read modes print summaries;
+# the ONLY write modes are vercel-env-delete / vercel-redeploy /
+# healthchecks-create, each founder-delegated verbatim in the 2026-08-05
+# kickoff and each requiring its argument explicitly (no defaults that act).
+# No secret value is ever printed: Vercel env listing prints names/targets
+# only; the CSE probe prints the cx SHAPE (length + charset class), never the
+# value. This workflow holds no database credentials.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Which diagnostic/chore to run"
+        required: true
+        type: choice
+        options:
+          - clerk-domains
+          - vercel-env-list
+          - vercel-env-delete
+          - vercel-redeploy
+          - healthchecks-list
+          - healthchecks-create
+          - cse-probe
+      project:
+        description: "Vercel project name/id (vercel-* modes; fail-loud required there)"
+        required: false
+        default: ""
+      arg1:
+        description: "Mode argument: env var NAME to delete (vercel-env-delete) · check NAME (healthchecks-create)"
+        required: false
+        default: ""
+      arg2:
+        description: "healthchecks-create: period seconds (timeout between expected pings)"
+        required: false
+        default: ""
+      arg3:
+        description: "healthchecks-create: grace seconds (late allowance before alert)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ops-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  ops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Clerk domain + certificate status (Backend API, read-only)
+        if: ${{ github.event.inputs.mode == 'clerk-domains' }}
+        env:
+          CLERK_SECRET_KEY_ADMIN: ${{ secrets.CLERK_SECRET_KEY_ADMIN }}
+        run: |
+          : "${CLERK_SECRET_KEY_ADMIN:?CLERK_SECRET_KEY_ADMIN secret missing — founder delegation 2026-08-05}"
+          # Domain objects carry deployment/certificate state; they contain no
+          # secret material. --fail-with-body keeps the API's own error text.
+          curl -sS --fail-with-body -H "Authorization: Bearer $CLERK_SECRET_KEY_ADMIN" \
+            https://api.clerk.com/v1/domains | jq .
+      - name: Vercel env vars — names/targets ONLY (values never printed)
+        if: ${{ github.event.inputs.mode == 'vercel-env-list' }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PROJECT: ${{ github.event.inputs.project }}
+        run: |
+          : "${VERCEL_TOKEN:?VERCEL_TOKEN secret missing — founder delegation 2026-08-05}"
+          # Empty project = discovery mode, terminating on the same line (R4):
+          # list the token's visible project names and stop.
+          [ -n "$PROJECT" ] || { echo "No project given — projects visible to the token:"; curl -sS --fail-with-body -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects" | jq -r '.projects[].name'; exit 0; }
+          curl -sS --fail-with-body -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$PROJECT/env" \
+            | jq -r '.envs[] | [.key, (.target|join("+")), .type, .id] | @tsv'
+      - name: Vercel env var DELETE (founder-delegated; exact-name, all targets)
+        if: ${{ github.event.inputs.mode == 'vercel-env-delete' }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PROJECT: ${{ github.event.inputs.project }}
+          VAR_NAME: ${{ github.event.inputs.arg1 }}
+        run: |
+          : "${VERCEL_TOKEN:?VERCEL_TOKEN secret missing — founder delegation 2026-08-05}"
+          : "${PROJECT:?project input required for vercel-env-delete — failing closed}"
+          : "${VAR_NAME:?arg1 (env var NAME) required for vercel-env-delete — failing closed}"
+          ids=$(curl -sS --fail-with-body -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$PROJECT/env" \
+            | jq -r --arg k "$VAR_NAME" '.envs[] | select(.key == $k) | .id')
+          if [ -z "$ids" ]; then
+            echo "No env var named '$VAR_NAME' on project '$PROJECT' — nothing to delete (not an error: the goal state already holds)"
+            exit 0
+          fi
+          for id in $ids; do
+            curl -sS --fail-with-body -X DELETE -H "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v9/projects/$PROJECT/env/$id" >/dev/null
+            echo "deleted $VAR_NAME (env id $id) from $PROJECT"
+          done
+          echo "NOTE: env changes apply on the NEXT deployment — run mode=vercel-redeploy to make it live."
+      - name: Vercel production redeploy (founder-delegated; rebuilds latest production deployment)
+        if: ${{ github.event.inputs.mode == 'vercel-redeploy' }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          PROJECT: ${{ github.event.inputs.project }}
+        run: |
+          : "${VERCEL_TOKEN:?VERCEL_TOKEN secret missing — founder delegation 2026-08-05}"
+          : "${PROJECT:?project input required for vercel-redeploy — failing closed}"
+          pid=$(curl -sS --fail-with-body -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$PROJECT" | jq -r '.id')
+          latest=$(curl -sS --fail-with-body -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v6/deployments?projectId=$pid&target=production&limit=1&state=READY" \
+            | jq -r '.deployments[0].uid // empty')
+          : "${latest:?no READY production deployment found to redeploy — failing closed}"
+          curl -sS --fail-with-body -X POST -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.vercel.com/v13/deployments?forceNew=1" \
+            -d "{\"name\": \"$PROJECT\", \"deploymentId\": \"$latest\", \"target\": \"production\"}" \
+            | jq '{id: .id, url: .url, readyState: .readyState}'
+      - name: Healthchecks — list checks (name, schedule, status, last ping)
+        if: ${{ github.event.inputs.mode == 'healthchecks-list' }}
+        env:
+          HEALTHCHECKS_API_KEY: ${{ secrets.HEALTHCHECKS_API_KEY }}
+        run: |
+          : "${HEALTHCHECKS_API_KEY:?HEALTHCHECKS_API_KEY secret missing — founder delegation 2026-08-05}"
+          # ping_url is deliberately dropped from the output: it embeds the
+          # per-check ping uuid, which acts as a write credential (anyone
+          # holding it can keep a dead check looking alive).
+          curl -sS --fail-with-body -H "X-Api-Key: $HEALTHCHECKS_API_KEY" \
+            https://healthchecks.io/api/v3/checks/ \
+            | jq '[.checks[] | {name, slug, status, timeout, grace, schedule, last_ping, n_pings}]'
+      - name: Healthchecks — create/update a check (founder-delegated; unique_key upsert by name)
+        if: ${{ github.event.inputs.mode == 'healthchecks-create' }}
+        env:
+          HEALTHCHECKS_API_KEY: ${{ secrets.HEALTHCHECKS_API_KEY }}
+          CHECK_NAME: ${{ github.event.inputs.arg1 }}
+          PERIOD_S: ${{ github.event.inputs.arg2 }}
+          GRACE_S: ${{ github.event.inputs.arg3 }}
+        run: |
+          : "${HEALTHCHECKS_API_KEY:?HEALTHCHECKS_API_KEY secret missing — founder delegation 2026-08-05}"
+          : "${CHECK_NAME:?arg1 (check name) required — failing closed}"
+          : "${PERIOD_S:?arg2 (period seconds) required — failing closed}"
+          : "${GRACE_S:?arg3 (grace seconds) required — failing closed}"
+          [[ "$PERIOD_S" =~ ^[0-9]+$ ]] || { echo "arg2 must be integer seconds, got '$PERIOD_S'"; exit 2; }
+          [[ "$GRACE_S" =~ ^[0-9]+$ ]] || { echo "arg3 must be integer seconds, got '$GRACE_S'"; exit 2; }
+          # unique:["name"] makes this an upsert — re-dispatching tunes the
+          # existing check instead of minting duplicates. channels:"*" binds
+          # every configured alert channel (the founder's email integration).
+          # The response's ping_url (a write credential) is masked to its
+          # uuid tail length only.
+          curl -sS --fail-with-body -X POST -H "X-Api-Key: $HEALTHCHECKS_API_KEY" \
+            -H "Content-Type: application/json" \
+            https://healthchecks.io/api/v3/checks/ \
+            -d "{\"name\": \"$CHECK_NAME\", \"timeout\": $PERIOD_S, \"grace\": $GRACE_S, \"channels\": \"*\", \"unique\": [\"name\"]}" \
+            | jq '{name, slug, status, timeout, grace, created: (.n_pings == 0)}'
+          echo "check '$CHECK_NAME' upserted (period ${PERIOD_S}s, grace ${GRACE_S}s). Fetch its ping URL from the healthchecks dashboard or wire it as a repo secret."
+      - name: "Google CSE probe (plain query, no site-operator) + cx SHAPE report"
+        if: ${{ github.event.inputs.mode == 'cse-probe' }}
+        env:
+          GOOGLE_CSE_KEY: ${{ secrets.GOOGLE_CSE_KEY }}
+          GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
+        run: |
+          : "${GOOGLE_CSE_KEY:?GOOGLE_CSE_KEY secret missing}"
+          : "${GOOGLE_CSE_CX:?GOOGLE_CSE_CX secret missing}"
+          # Shape only — never the value: length + whether it matches the
+          # PSE engine-id charset (lowercase hex, no whitespace). A CX pasted
+          # with an embedded newline/space or a non-engine-id string shows up
+          # here without leaking anything.
+          printf 'cx shape: length=%s matches[0-9a-f]{10,20}=%s has_whitespace=%s\n' \
+            "${#GOOGLE_CSE_CX}" \
+            "$([[ "$GOOGLE_CSE_CX" =~ ^[0-9a-f]{10,20}$ ]] && echo yes || echo no)" \
+            "$([[ "$GOOGLE_CSE_CX" =~ [[:space:]] ]] && echo yes || echo no)"
+          http_code=$(curl -sS -o probe.json -w '%{http_code}' \
+            "https://www.googleapis.com/customsearch/v1?key=$GOOGLE_CSE_KEY&cx=$GOOGLE_CSE_CX&q=austin+live+music")
+          echo "HTTP $http_code"
+          # Success prints result COUNT only; failure prints Google's error
+          # body verbatim (it contains no secrets).
+          if [ "$http_code" = "200" ]; then
+            jq '{totalResults: .searchInformation.totalResults, items: (.items | length)}' probe.json
+          else
+            cat probe.json
+            exit 1
+          fi
