@@ -691,3 +691,52 @@ def test_several_named_events_plus_a_stray_unnamed_one(monkeypatch):
     assert recover_dates_from_url("https://v.example/c",
                                   candidate_title="Karaoke") == {}
     assert recover_dates_from_url("https://v.example/c") == {}
+
+
+def test_two_different_events_at_the_same_hour_do_not_collapse(monkeypatch):
+    """Adversarial-review BLOCKER (2026-08-05): start_time alone was treated as
+    identity, so two DIFFERENT named events at the same hour collapsed into one
+    and the survivor inherited the other's end_time. A 7pm early show and a 7pm
+    screening in the other room is ordinary programming, not a corner case.
+    """
+    page = """
+    <html><head><script type="application/ld+json">
+    [{"@type":"MusicEvent","name":"Early Set: Ruby Fields",
+      "startDate":"2026-08-22T19:00:00","endDate":"2026-08-22T20:30:00"},
+     {"@type":"ScreeningEvent","name":"Nosferatu on 35mm",
+      "startDate":"2026-08-22T19:00:00","endDate":"2026-08-22T23:45:00"}]
+    </script></head><body></body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+
+    got = recover_dates_from_url("https://venue.example/cal",
+                                 candidate_title="Early Set: Ruby Fields")
+    assert got == {"start_time": "2026-08-22T19:00:00",
+                   "end_time": "2026-08-22T20:30:00"}, (
+        f"the set must not inherit the film's 23:45 end; got {got}")
+
+    got = recover_dates_from_url("https://venue.example/cal",
+                                 candidate_title="Nosferatu on 35mm")
+    assert got["end_time"] == "2026-08-22T23:45:00"
+
+
+def test_declarations_sharing_no_field_are_not_treated_as_agreeing(monkeypatch):
+    """Adversarial-review BLOCKER (2026-08-05): _dates_agree ran all() over an
+    EMPTY shared-field set, which is vacuously True — so a named declaration
+    with only a start and an unrelated nameless one with only an end "agreed",
+    and the merge spliced a different event's end onto the candidate.
+    """
+    page = """
+    <html><head><script type="application/ld+json">
+    {"@type":"Event","endDate":"2031-06-30T23:00:00"}
+    </script></head><body>
+    <div itemscope itemtype="https://schema.org/Event">
+      <span itemprop="name">Tuesday Residency</span>
+      <meta itemprop="startDate" content="2026-08-25T20:00:00"/></div>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
+
+    got = recover_dates_from_url("https://venue.example/e/res",
+                                 candidate_title="Tuesday Residency")
+    assert got == {"start_time": "2026-08-25T20:00:00"}, (
+        f"a nameless declaration sharing NO field must contribute nothing; got {got}")
+    assert "end_time" not in got
