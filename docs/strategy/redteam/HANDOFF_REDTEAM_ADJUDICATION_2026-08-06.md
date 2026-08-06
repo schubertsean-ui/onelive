@@ -275,6 +275,31 @@ cannot be trusted, so a verifier was built downstream — and it is stronger tha
 the version Perplexity could make without the tree: the verifier itself has a
 blind spot, and four defects fell into it.
 
+**IMPORTANT COUNTERWEIGHT — the handoff is otherwise accurate, and the gap is
+exactly the shape of the verifier's coverage.** Spot-checking its load-bearing
+numbers against the tree:
+
+| Handoff claim | Checked | Result |
+|---|---|---|
+| The card contract is **30 fields** | `LicensedEvent` in `web/lib/licensed.ts` | **EXACT** — 30 |
+| Extraction schema is 11 fields, filling 7 card fields | `worker/ai_models.py` | **EXACT** — 11 |
+| `gating.py` has zero `start_time` | `grep -c` | **EXACT** — 0 |
+| The dateless dedupe bypass line | `worker/promote.py:132` | **EXACT**, verbatim |
+| `_jsonld_event_text` flattens to a joined string | `worker/segment.py` | **EXACT** |
+| 1,953 tests | not checkable here — pytest is not installed in this sandbox | **UNVERIFIED**, stated rather than guessed |
+
+Every claim that `lab/verify_claims.py` covers holds up precisely. The one class
+it does NOT cover — record-id citations — is exactly where four fabrications
+sit. **That is not general unreliability; it is a coverage hole with a crisp
+edge.** The remedy is correspondingly small: extend the same assembler that
+already refuses to build on code-claim drift so it also resolves every `R-###`
+in the prose against `RECORD.md`. One more claim function, same refusal
+behaviour, and this class cannot recur.
+
+Note also that Gemini's "we extract 11" and the handoff's "fills 7 of 30" are
+both correct and not in conflict — 11 extracted fields, 7 of which map onto card
+fields. Neither reviewer was wrong here.
+
 **Consequences, in order:**
 1. The date fix must **carry the R-081 row that was never written**, not assume
    it exists. Same for the other three when their fixes land.
