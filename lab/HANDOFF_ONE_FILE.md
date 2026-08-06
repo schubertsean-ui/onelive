@@ -33,7 +33,7 @@ source changes. Then fix how sources are found in the first place.
 
 **Fix these first. Hours of work each, and they block everything else:**
 
-1. `worker/ai_models.py` fills only 7 of the 26 fields the card contract
+1. `worker/ai_models.py` fills only 7 of the 30 fields the card contract
    requires. No price, is_free, category, subsegment, area, address, image or
    description — so crawled events cannot be filtered by area, price or free,
    three of the six filters the product offers. Extend the schema to the full
@@ -199,12 +199,12 @@ so theatre runs and festivals are dropped wholesale.
 Do not work from prose. Completeness is defined by three real consumers:
 
 * **the card** — `web/lib/licensed.ts:48` `LicensedEvent`, the single shape
-  both the licensed lane and the crawler lane render into. **26 fields.**
+  both the licensed lane and the crawler lane render into. **30 fields.**
 * **search** — the feed filters on `area`, `free`, `price`, `when`,
   `category`, `subsegment`.
 * **analysis** — segment rollups, cost per verified event, freshness.
 
-**The current extraction schema fills 7 of the card's 26 fields.** It cannot
+**The current extraction schema fills 7 of the card's 30 fields.** It cannot
 supply `area`, `price`, or `is_free` — three of the six filters the product
 offers. So even a perfect fix to the date problem leaves every crawled event
 priceless, image-less and half-unfilterable, displayed beside Ticketmaster
@@ -263,7 +263,7 @@ method, quoted from its own docstring:
 > API … collect result domains, and DIFF them against the committed source
 > catalog. Output: NEW domains only … CANDIDATES for human curation"
 
-The entire query pack is **21 hardcoded phrases**, prefixed with one city:
+The entire query pack is **20 hardcoded phrases**, prefixed with one city:
 
 ```
 live music venues · bars with live music · music venue calendar · comedy club
@@ -286,7 +286,7 @@ credential returns `403 PERMISSION_DENIED` at project level. So the only
 automated discovery lane is both unmerged and credential-blocked. **Every
 source in production got there by hand or by an Eventbrite harvest.**
 
-**D-2. Twenty-one generic queries is not a search strategy.** 21 queries × 10
+**D-2. Twenty generic queries is not a search strategy.** 20 queries × 10
 results = at most 210 domains, most of which are platforms and aggregators
 that get filtered out. That is the entire funnel, for a 23-segment taxonomy
 across a metro area plus the surrounding Hill Country.
@@ -356,7 +356,7 @@ else handles:
    guesses — multi-method (link graph, aggregator mining, directory mining,
    ticketing-platform enumeration, sitemaps, search), not search-only.
 2. Query and method coverage for **all 23 segments and every town in the
-   market**, not one city and 21 phrases.
+   market**, not one city and 20 phrases.
 3. An automatic **qualification** step: a candidate is not a source until
    something has confirmed the URL resolves to a page that lists dated events
    (this also fixes the wrong-site and homepage rows already in production).
@@ -367,7 +367,7 @@ else handles:
    have nothing" is visible the day it appears instead of being discovered
    months later by inspection.
 
-Treat a design that leaves discovery as "run 21 queries and have a human read
+Treat a design that leaves discovery as "run 20 queries and have a human read
 the output" as failing this brief.
 
 ## 4c. WORKING RULE — SOURCE OVER MEMORY (founder directive)
@@ -387,7 +387,7 @@ source survived scrutiny.
 | Asserted from memory | What the source actually said |
 |---|---|
 | "a third of sources publish bare times" explains 2,214 dateless events | It explains a fraction. The dominant causes were catalog rows pointing at non-event pages, and JS shells read as content. |
-| The card needs roughly the fields we extract | `web/lib/licensed.ts:48` defines **26**; `worker/ai_models.py` fills **7** |
+| The card needs roughly the fields we extract | `web/lib/licensed.ts:48` defines **30**; `worker/ai_models.py` fills **7** |
 | "2 affected sources" | **95** — the sample had been sorted by name and only its first page read |
 | A set of plausible venue URLs | 5 of 14 verified; one domain did not resolve at all — a fabricated fact inside a document |
 | "The plan is being red-teamed" | The job had died in `validate`; no reviewer seat ever ran |
@@ -395,7 +395,7 @@ source survived scrutiny.
 
 Read from source, and correct every time: `datetime_normalize`'s actual parse
 behaviour, `promote.py:132`, `segment.py:252`, `gating.py` containing **zero**
-occurrences of `start_time`, the card contract, the 21-phrase query pack.
+occurrences of `start_time`, the card contract, the 20-phrase query pack.
 
 ### What it costs, honestly
 
@@ -655,7 +655,7 @@ into the real database. Prove all four stages work: reading, extraction,
 ingestion, and updating when the source changes.
 
 CRITICAL, AND SEPARATE FROM EXTRACTION: how sources are found. The only
-automated discovery mechanism is 21 hardcoded search phrases prefixed with one
+automated discovery mechanism is 20 hardcoded search phrases prefixed with one
 city, sent to a Google CSE credential that currently returns 403, in a workflow
 that has never merged. It has no query for social dance, DJs, comedians, visual
 artists, open-mic organisers, bands or solo musicians — which is exactly why
@@ -666,7 +666,7 @@ venue's website, two homepages and an API documentation page. See section 4b —
 sourcing is part of this build, not someone else's prerequisite.
 
 FIX THESE FIRST — they are hours of work each and they block everything else:
-1. worker/ai_models.py fills only 7 of the 26 fields the card contract
+1. worker/ai_models.py fills only 7 of the 30 fields the card contract
    (web/lib/licensed.ts:48 LicensedEvent) requires. It has no price, is_free,
    category, subsegment, area, address, image or description — so crawled
    events cannot be filtered by area, price or free, which are three of the
@@ -804,7 +804,7 @@ sits across all of them rather than after them.
 
 **Job:** find websites that publish events we don't yet know about.
 
-**Today:** one mechanism, `tools/scan_new_sources.py`: **21 hardcoded search
+**Today:** one mechanism, `tools/scan_new_sources.py`: **20 hardcoded search
 phrases**, prefixed with **one city**, sent to Google Programmable Search;
 result domains diffed against the catalog; output is "CANDIDATES for human
 curation". Plus an Eventbrite organiser harvest. That is all of it.
@@ -813,7 +813,7 @@ curation". Plus an Eventbrite organiser harvest. That is all of it.
 1. It has **never run** — `source-scan.yml` is unmerged and the CSE credential
    returns `403 PERMISSION_DENIED`. Every production source arrived by hand or
    via the Eventbrite harvest.
-2. 21 queries × 10 results is the entire funnel for a 23-segment taxonomy.
+2. 20 queries × 10 results is the entire funnel for a 23-segment taxonomy.
 3. The pack has **no query** for social dance, DJs, comedians, visual artists,
    open-mic organisers, bands or solo musicians — which is exactly why those
    segments have no source. The gap is the query pack, not bad luck.
@@ -1030,7 +1030,7 @@ every stage's input/output digests — this is what made today's diagnosis
 possible.
 
 **Defect:** `AIEventExtraction` (`worker/ai_models.py`) defines **eleven**
-fields and can fill about **seven of the card's twenty-six**. No price, no
+fields and can fill about **seven of the card's thirty**. No price, no
 description, no category, no image, no area. What was asked for cannot be
 stored.
 
@@ -1067,7 +1067,7 @@ path has never filled one.
 ## 18. Serving (the read path) — ⚠️ the mismatch nobody caught
 
 **Today:** `web/lib/promoted.ts` reads `event` and reshapes it into
-`LicensedEvent` — the same 26-field card contract the licensed lane uses.
+`LicensedEvent` — the same 30-field card contract the licensed lane uses.
 Filters: `status`, and `start_time` `gte`/`lte`.
 
 **Defect:** PostgREST drops NULLs from a range filter, so **a dateless event is
@@ -1146,7 +1146,7 @@ Stages don't fail independently, and fixing them out of order wastes work.
 9. **20** — the funnel. *Arguably first: it is small, and it makes every other
    item measurable instead of argued.*
 10. **1** — REBUILD discovery, do not merely scale it. *Running the existing
-    21 queries harder cannot reach segments it never asks about. This needs
+    20 queries harder cannot reach segments it never asks about. This needs
     multi-method generation (link graph, aggregator mining, directory mining,
     ticketing-platform enumeration, sitemaps, search), coverage across all 23
     segments and every town, automatic qualification, and a feedback loop that
@@ -1291,7 +1291,7 @@ be scored against an intention; it is scored against this list. Derived from
 three real consumers, not from imagination:
 
 * **the card** — `web/lib/licensed.ts:48` `LicensedEvent`, the single shape
-  BOTH lanes render into (26 fields);
+  BOTH lanes render into (30 fields);
 * **search/filters** — `web/app/(public)/tonight/FeedApp.tsx` filters on
   `area` (29 refs), `free`, `price`, `when`, `category`, `subsegment`;
 * **analysis** — segment/tier rollups, cost-per-verified-event, the 50:1 KPI,
@@ -1369,7 +1369,7 @@ Acceptance (replaces the looser §7 wording for fields):
 ### Why this section exists
 
 `worker/ai_models.py` today defines eleven fields and can fill about seven of
-the card's twenty-six. **A discovered event cannot be filtered by area, price
+the card's thirty. **A discovered event cannot be filtered by area, price
 or free — three of the six filters the feed offers — because nothing extracts
 them.** Fixing dates alone would still leave every crawled event priceless,
 image-less and half-unfilterable, sitting next to Ticketmaster rows that have
@@ -1736,7 +1736,7 @@ may publish at `confirmed` remains founder-crucial.
 
 # APPENDIX A — VERBATIM SOURCE OF EVERY CITED DEFECT
 
-Copied out of the repository at commit `d6c4f6e`, not retyped. If you have no
+Copied out of the repository at commit `6a25356`, not retyped. If you have no
 repository access you still have everything needed to verify each claim.
 
 
@@ -1909,7 +1909,7 @@ export type LicensedEvent = {
 ```
 
 
-### `tools/scan_new_sources.py` lines 40-63 — THE ENTIRE SOURCE-DISCOVERY QUERY PACK. 21 phrases, one city. This is why nine of twenty-three segments have no source.
+### `tools/scan_new_sources.py` lines 40-63 — THE ENTIRE SOURCE-DISCOVERY QUERY PACK. 20 phrases, one city. This is why nine of twenty-three segments have no source.
 
 ```
 # The founder's query shapes, per catalog category family. Deliberately plain

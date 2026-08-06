@@ -10,6 +10,7 @@ Run: python3 lab/assemble_handoff.py
 from __future__ import annotations
 
 import subprocess
+import sys
 
 OUT = "lab/HANDOFF_ONE_FILE.md"
 
@@ -48,7 +49,7 @@ source changes. Then fix how sources are found in the first place.
 
 **Fix these first. Hours of work each, and they block everything else:**
 
-1. `worker/ai_models.py` fills only 7 of the 26 fields the card contract
+1. `worker/ai_models.py` fills only 7 of the 30 fields the card contract
    requires. No price, is_free, category, subsegment, area, address, image or
    description — so crawled events cannot be filtered by area, price or free,
    three of the six filters the product offers. Extend the schema to the full
@@ -156,7 +157,7 @@ EXCERPTS = [
      "the CARD CONTRACT — the shape both lanes render into. This is the field "
      "list extraction must satisfy."),
     ("tools/scan_new_sources.py", 40, 63,
-     "THE ENTIRE SOURCE-DISCOVERY QUERY PACK. 21 phrases, one city. This is "
+     "THE ENTIRE SOURCE-DISCOVERY QUERY PACK. 20 phrases, one city. This is "
      "why nine of twenty-three segments have no source."),
 ]
 
@@ -343,6 +344,15 @@ cannot find a venue nobody thought of, and that is the whole job.
 
 
 def main() -> int:
+    # MECHANISM, not a promise: every factual claim this document makes about
+    # the codebase is re-derived from the tree first. A stale or invented fact
+    # cannot reach the founder or an external engineer through this file,
+    # because the build stops here.
+    rc = subprocess.run([sys.executable, "lab/verify_claims.py"]).returncode
+    if rc != 0:
+        raise SystemExit("ASSEMBLY REFUSED — a documented claim no longer "
+                         "matches the source. Fix the claim against the tree.")
+
     parts = [HEADER]
     for path, title, drop in SECTIONS:
         body = "\n".join(open(path).read().split("\n")[drop:])

@@ -137,7 +137,7 @@ be scored against an intention; it is scored against this list. Derived from
 three real consumers, not from imagination:
 
 * **the card** — `web/lib/licensed.ts:48` `LicensedEvent`, the single shape
-  BOTH lanes render into (26 fields);
+  BOTH lanes render into (30 fields);
 * **search/filters** — `web/app/(public)/tonight/FeedApp.tsx` filters on
   `area` (29 refs), `free`, `price`, `when`, `category`, `subsegment`;
 * **analysis** — segment/tier rollups, cost-per-verified-event, the 50:1 KPI,
@@ -215,7 +215,7 @@ Acceptance (replaces the looser §7 wording for fields):
 ### Why this section exists
 
 `worker/ai_models.py` today defines eleven fields and can fill about seven of
-the card's twenty-six. **A discovered event cannot be filtered by area, price
+the card's thirty. **A discovered event cannot be filtered by area, price
 or free — three of the six filters the feed offers — because nothing extracts
 them.** Fixing dates alone would still leave every crawled event priceless,
 image-less and half-unfilterable, sitting next to Ticketmaster rows that have

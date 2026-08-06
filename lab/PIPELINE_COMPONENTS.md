@@ -47,7 +47,7 @@ sits across all of them rather than after them.
 
 **Job:** find websites that publish events we don't yet know about.
 
-**Today:** one mechanism, `tools/scan_new_sources.py`: **21 hardcoded search
+**Today:** one mechanism, `tools/scan_new_sources.py`: **20 hardcoded search
 phrases**, prefixed with **one city**, sent to Google Programmable Search;
 result domains diffed against the catalog; output is "CANDIDATES for human
 curation". Plus an Eventbrite organiser harvest. That is all of it.
@@ -56,7 +56,7 @@ curation". Plus an Eventbrite organiser harvest. That is all of it.
 1. It has **never run** — `source-scan.yml` is unmerged and the CSE credential
    returns `403 PERMISSION_DENIED`. Every production source arrived by hand or
    via the Eventbrite harvest.
-2. 21 queries × 10 results is the entire funnel for a 23-segment taxonomy.
+2. 20 queries × 10 results is the entire funnel for a 23-segment taxonomy.
 3. The pack has **no query** for social dance, DJs, comedians, visual artists,
    open-mic organisers, bands or solo musicians — which is exactly why those
    segments have no source. The gap is the query pack, not bad luck.
@@ -273,7 +273,7 @@ every stage's input/output digests — this is what made today's diagnosis
 possible.
 
 **Defect:** `AIEventExtraction` (`worker/ai_models.py`) defines **eleven**
-fields and can fill about **seven of the card's twenty-six**. No price, no
+fields and can fill about **seven of the card's thirty**. No price, no
 description, no category, no image, no area. What was asked for cannot be
 stored.
 
@@ -310,7 +310,7 @@ path has never filled one.
 ## 18. Serving (the read path) — ⚠️ the mismatch nobody caught
 
 **Today:** `web/lib/promoted.ts` reads `event` and reshapes it into
-`LicensedEvent` — the same 26-field card contract the licensed lane uses.
+`LicensedEvent` — the same 30-field card contract the licensed lane uses.
 Filters: `status`, and `start_time` `gte`/`lte`.
 
 **Defect:** PostgREST drops NULLs from a range filter, so **a dateless event is
@@ -389,7 +389,7 @@ Stages don't fail independently, and fixing them out of order wastes work.
 9. **20** — the funnel. *Arguably first: it is small, and it makes every other
    item measurable instead of argued.*
 10. **1** — REBUILD discovery, do not merely scale it. *Running the existing
-    21 queries harder cannot reach segments it never asks about. This needs
+    20 queries harder cannot reach segments it never asks about. This needs
     multi-method generation (link graph, aggregator mining, directory mining,
     ticketing-platform enumeration, sitemaps, search), coverage across all 23
     segments and every town, automatic qualification, and a feedback loop that
