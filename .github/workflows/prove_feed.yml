@@ -18,3 +18,10 @@ jobs:
           python-version: "3.12"
       - name: Print a diverse live sample of real events
         run: python3 tools/sample_feed.py
+      # LAB: verify candidate source URLs for the ratified supply segments that
+      # have no catalog representative. The dev sandbox has no outbound
+      # network, so a URL written from memory would be an unverified
+      # assertion; this checks each candidate against the real web. Read-only,
+      # no secrets, manual dispatch only.
+      - name: Verify candidate source URLs (lab)
+        run: python3 lab/verify_urls.py
