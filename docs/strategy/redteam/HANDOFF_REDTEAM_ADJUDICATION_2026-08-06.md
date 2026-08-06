@@ -9,11 +9,16 @@ Grok (Fix 01 review + root-cause analysis).
 **Adjudicator:** this session, checking every load-bearing claim against the
 committed code — file and line cited, or the function run and its output pasted.
 
-**Scope honesty.** `HANDOFF_ONE_FILE.md` is not in this repo, so I could not
-read the document three of the four reviewers cite by line number. This
-adjudicates **their claims about our code**, which is the axis that decides
-what we do. Claims purely about the document's shape are marked UNVERIFIABLE
-HERE and judged on logic, not evidence.
+**Scope.** *(Corrected mid-session — the first version of this document said the
+handoff was not in the repo. It is: `lab/HANDOFF_ONE_FILE.md` on branch
+`claude/crawler-lab`, **2,784 lines**, matching Perplexity's stated line count
+exactly. I had checked `master` only. The correction is kept visible rather than
+edited away, because a scope claim that was wrong is exactly the kind of thing
+this document exists to catch.)*
+
+This adjudication is still built primarily on **the reviewers' claims about our
+code**, checked against the tree — that is the axis that decides what we do.
+Where the handoff itself settles a question, it is now cited directly.
 
 ---
 
@@ -174,6 +179,20 @@ because its key doesn't work destroys work to fix a config problem. Its design
 *is* too narrow (20 phrases, one city) — that is an argument for the discovery
 redesign all three substantive reviewers want, not for deletion.
 
+**C5. "Commit the following script to `lab/census_structured.py` and run it."**
+(Gemini §5, and Grok §"$0 census") — **ALREADY BUILT.** On
+`claude/crawler-lab`: `lab/census_structured.py` (188 lines) and
+`lab/discover_sources.py` (208 lines) both exist, each substantially more
+developed than Gemini's ~60-line sketch. Gemini asked the founder to hand-commit
+a file that is already in the repo, and its discovery design §2 partly
+re-specifies `discover_sources.py`.
+
+**The real gap is one step later, and Grok named it correctly: the census has
+never been RUN.** No results are committed anywhere on the branch — no
+`census.json`, no `spend.jsonl`. So the instruments are built and the
+measurement is missing. That is the true blocking step for tiers 2–5, and it
+costs $0 to take.
+
 ---
 
 ## 3. WHAT ALL FOUR MISSED
@@ -199,6 +218,14 @@ Three reviewers attacked the flattening. This is the layer above it: on detail
 pages there is nothing to flatten, because the structured path never runs. Any
 "Tier 0 structured-first" ladder that doesn't fix this gate is decorative on the
 pages that matter most. **Both must be fixed together or the fix is cosmetic.**
+
+**Confirmed absent from the source document too**, now that it is readable:
+`grep -nE "_jsonld_event_blocks|_segment_html|len\(blocks" lab/HANDOFF_ONE_FILE.md`
+returns nothing on `claude/crawler-lab`. The handoff names the destroying
+function (`_jsonld_event_text`) but never the segmentation gate above it. So
+this defect is missed by the handoff and by all four reviewers — it is the one
+genuinely new finding of this exercise, and Fix 01 as currently specified would
+ship without it.
 
 **M2. Grok alone got close to the other gap** (§8: "how do parked
 `_provenance.structured` fields survive candidate → promote"). Extending it:

@@ -6,8 +6,9 @@ Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered fro
 team of the crawler/extraction handoff, ADJUDICATED.** PR #198 (draft),
 `docs/strategy/redteam/HANDOFF_REDTEAM_ADJUDICATION_2026-08-06.md`. The founder
 ran ChatGPT, Gemini, Perplexity and Grok against the crawler/extraction handoff
-(`HANDOFF_ONE_FILE.md`, NOT committed to this repo — the adjudication therefore
-judges the reviewers' claims about our CODE, and says so up front). Every
+(`lab/HANDOFF_ONE_FILE.md`, 2784 lines, on branch `claude/crawler-lab` — NOT on
+master, which is why the first version of the adjudication wrongly said it was
+absent from the repo; corrected in the same PR, correction left visible). Every
 load-bearing claim was checked against the tree, running the function where the
 claim was testable. Also closes the staleness drift left by the #193 squash
 (master tip 7609222 landed without a STATE line; drift was 1).
@@ -70,6 +71,26 @@ weekly attended-exam batching, and the Fix 01 Phase 2 offline window.
 RECORDS DRIFT NOTED: Grok cites the fabricated-year defect as R-081;
 `docs/RECORD.md` tops out at R-079. R-080/R-081 exist in the handoff but not in
 the committed record — to reconcile when the fix lands.
+
+ALREADY BUILT, contra two reviewers: `lab/census_structured.py` (188 lines) and
+`lab/discover_sources.py` (208 lines) exist on `claude/crawler-lab`. Gemini
+asked the founder to hand-commit the first one; its discovery design partly
+re-specifies the second. The real gap is one step later and Grok named it: NO
+census results are committed anywhere on that branch — the instruments are
+built and the measurement was never taken. That $0 measurement is the actual
+blocking step for tiers 2-5.
+
+CI BLOCKER (verified, not inferred): PR #198 has ZERO workflow runs. `trust-gate`
+and `adversarial-review` did not fire on branch
+`claude/chatgpt-red-team-handoff-db0jms` (`list_workflow_runs` filtered to the
+branch returns total_count 0), while `get_workflow trust-gate.yml` reports
+state=active and the same workflow ran successfully on `claude/crawler-lab` at
+16:30Z the same day. Repo-wide, the newest trust-gate run of any branch is that
+16:30Z one. Cause not determinable from the API surface available here (Actions
+quota/spend limit and a workflow-approval requirement both fit); surfaced to the
+founder rather than guessed at. Consequence for posture: drive-to-green cannot
+be satisfied on this PR while no check runs at all — stated plainly instead of
+reporting an absent red as a green.
 
 BUILD HELD pending founder approval of the §4a plan (no code changed).
 
