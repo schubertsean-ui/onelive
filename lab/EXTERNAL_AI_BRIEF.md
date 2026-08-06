@@ -10,6 +10,100 @@ prompt refers to.
 
 ---
 
+## 0. ACCESS — every route you need, and the workaround for every blocked one
+
+Read this first. It exists so that no part of this task can end in "I was
+unable to". **Every constraint below has a working route beside it.** If you
+find one that does not, that is a defect in this document — report it as such
+rather than stopping.
+
+### 0.1 The repository
+
+| | |
+|---|---|
+| Repo | `github.com/schubertsean-ui/onelive` |
+| Work branch | `claude/crawler-lab` (already exists; all lab work lives in `lab/`) |
+| Default branch | `master` |
+| Existing lab tools | `lab/verify_urls.py`, `lab/discover_sources.py`, `lab/census_structured.py`, `lab/verify_claims.py`, `lab/assemble_handoff.py` |
+
+Everything cited in this brief is also reproduced in Appendix A, so repository
+access is convenient, not required, for verifying claims.
+
+### 0.2 The dev sandbox has NO outbound internet
+
+Attempts to reach any external host fail at the proxy. **Route:** every
+real-world fetch runs from GitHub Actions, which has full network access.
+
+`.github/workflows/prove_feed.yml` is a manual-dispatch workflow that holds
+**no secrets** and already runs the lab scripts. Add a step, push, dispatch it,
+read the job log. Round trip is 2-10 minutes. This is the mechanism used for
+every measured number in this document.
+
+**Do not** treat "the sandbox cannot reach it" as a blocker. It means "run it
+in CI".
+
+### 0.3 Reading the production database
+
+Two routes, both live:
+
+1. **Public read, no secret** — the Supabase REST API with the publishable
+   anon key committed in `tools/sample_feed.py` and shipped to every browser by
+   `web/lib/licensed.ts`. RLS is the security boundary, not the key. This is
+   how `lab/sample_dateless.py` measured 2,214 dateless events. Endpoint shape:
+   `https://vqipjlvzfiwnandjumvx.supabase.co/rest/v1/event?select=...`
+2. **Full scope report** — `.github/workflows/db-report.yml`, manual dispatch,
+   master-only by design, runs `tools/db_scope_report.py` read-only against
+   production and uploads JSON.
+
+### 0.4 Writing to production (the ingestion proof)
+
+`.github/workflows/autopromote.yml` and `ingest.yml` hold the DB credentials as
+Actions secrets. **Route:** dispatch them; never handle the credential
+yourself. `ingest.yml` shares ONE concurrency slot with the live cron
+(`9,29,49 * * * *`) — dispatch once and leave it; a second dispatch cancels the
+first, and a cancelled run is not a failed one.
+
+Before writing proof rows: arming condition AC-1 in `lab/PLAN.md` §13a must be
+satisfied — an enforced tag and delete path, and proof rows structurally unable
+to masquerade as ordinary public events.
+
+### 0.5 Model access
+
+`ANTHROPIC_API_KEY` exists as an Actions secret with a console spend cap.
+`OPENAI_API_KEY` and `GEMINI_API_KEY` power the non-Claude review panel in
+`adversarial-review.yml`. **You never mint or handle a key** — you call the
+workflow that holds it.
+
+### 0.6 Things that ARE blocked, each with its route
+
+| Blocked | Route |
+|---|---|
+| Google CSE credential returns `403 PERMISSION_DENIED` at project level | **Do not build on it.** Use `lab/discover_sources.py`'s aggregator-mining method, which needs no credential. Search is one discovery method and the weakest available one here. |
+| `ra.co` returns 403 to bots | Use the venue-side listing instead; Resident Advisor is not required. |
+| Some artist sites render tour dates in JavaScript, so raw HTML shows nothing | Render them. `worker/fetch/render_fetch.py` is a working headless browser; Chromium is preinstalled in this environment at `/opt/pw-browsers/chromium` with `PLAYWRIGHT_BROWSERS_PATH` already set. Do NOT run `playwright install`. |
+| `tools/validate` gates the adversarial-review workflow; if it fails, no review runs | Run `bash tools/validate` locally first. It is 20 checks and 1,953 tests, about 6 minutes. |
+| `staleness_check` fails any branch that does not edit `STATE.md` when master has moved | Add a `STATE.md` entry describing your branch. This is expected, not a defect. |
+| Any change to one of the 27 runtime files invalidates `docs/evidence/ARMING_SMOKE_RUN.json` | Dispatch one ingest run against your branch head and bind it in a docs-only commit. `tools/arming_runtime.py` `runtime_files()` prints the exact set. |
+| `golden-exam` is red by design on any PR touching `worker/ai_extract.py` | Enumerated exception. Verify eligibility by reading the classifier line: it must print `NOT manifest-bound`. |
+| `worker/ai_models.py` is inside `HARNESS_MANIFEST` | A change there takes extraction OFFLINE at merge until a founder-attended exam re-certifies. Sequence accordingly — see `lab/FIX_01_JSONLD.md` §4b. |
+| GitHub Actions occasionally returns 500 / `Service Unavailable` on dispatch | Transient. Back off 60-90s and retry; it is not your code. Observed repeatedly on 2026-08-06. |
+
+### 0.7 The proving set is complete and reachable
+
+Appendix B carries every URL. **10 of the 14 slots for previously-unrepresented
+segments were verified live** from CI and are listed with their working URLs.
+Four remain open — one band, both solo musicians, one visual artist — and the
+open slots are themselves informative: segment 19 failed 0-for-4 because artist
+tour dates are rendered by JavaScript widgets, which makes those sites
+*valuable* render test cases rather than obstacles. **Fill them with
+`lab/discover_sources.py`, not by guessing**, and record how each was verified.
+
+### 0.8 If something still blocks you
+
+Say precisely what, what you tried, and what evidence you have — then take the
+nearest route that does work and note the deviation. **An unexplored blocker is
+not an acceptable outcome; a documented one with a workaround is.**
+
 ## 1. The product, in one paragraph
 
 1LIVE is a live-events discovery site for Austin and the surrounding Hill
