@@ -14,6 +14,16 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P3** — nice-to-have / ongoing background work.
 
 ## Session Contract #44 (2026-08-05/06 — kickoff execution; work order docs/ops/SESSION_KICKOFF_2026-08-06.md)
+
+### RESUME QUEUE at the 2026-08-06 founder stop (do these in order)
+- [ ] (P0, HALF DONE — resume here) Re-bind `docs/evidence/ARMING_SMOKE_RUN.json` to ingest run **31064504330** (dispatched on head `ec9b02aa`, still in flight at the stop; deliberately not cancelled). Docs-only commit; turns BOTH red checks on `ec9b02aa` green. The two reds (`trust-gate` 92499281976, `adversarial-review` 92499282010) are the SAME arming-binding assertion firing correctly because `ec9b02aa` touched `worker/ai_extract.py` + `worker/datetime_resolve.py` — not a code defect.
+- [ ] (P0, after the re-bind) Round 5 of the adversarial review on PR #191 — **never yet attempted**; round 4's check died in its pytest step before the review ran, so its red is not a verdict. Round 4 was 3-of-4 lenses APPROVE with one blocking finding, answered by retiring `resolve_time_only_from_block` (`ec9b02aa`). Then: APPROVE + all green → silent merge.
+- [ ] (P0, THE REAL BLOCKER — outranks #191) **R-084(a)**: `worker/candidate_store.py:174-181` feeds the gate the tz-AWARE `start_time` column AND its NAIVE `extracted` copy, so one instant reads as a conflict and every dated candidate ESCALATEs. Reproduced by hand, NOT fixed. With R-084(b) (`web/lib/promoted.ts:94` — `start_time=gte.` drops every dateless row, SQL NULL never matches) this is why ~1,363 published discovered events show zero upcoming. Plan: `docs/ops/PATH_TO_THOUSANDS.md` B0–B9 / T1–T14; this is B1.
+- [ ] (P1, FOUNDER — three unanswered asks, batched) (1) build the listing-provenance probe (do community-calendar listings link out to the org, so we can verify first-party per-listing instead of per-domain)? (2) target window: thousands per week or per month? (3) when to build the approved `local_media` masthead/UGC split?
+- [ ] (P1, founder-APPROVED, queued behind #191) `local_media` masthead/UGC split — masthead rows anchor, Trumba-style submission-widget rows do not. Decision record `docs/memory/decisions/2026-08-06_local-media-split-and-masthead-provenance.md`. A tightening, not a gate relaxation.
+- [ ] (P1) Re-gate sweep — re-adjudicate `needs_more_confirmation` under the ratified first-party rule (~1,373 unreachable candidates, R-085). Draft existed only in scratchpad at the stop and was NOT committed; treat as unstarted.
+- [ ] (P2) Site-probe rendered-card counting (R-085 last mile). CORRECTED approach: count DB-side via `date_distribution()` — an unauthenticated probe hits the Clerk wall and can never see a card.
+
 - [x] (P0) Bucket 1a — #186/#185/#177 verified MERGED (evaluator-APPROVED, green heads); records-only STATE reconciliation c03f40f. DONE.
 - [x] (P0) Bucket 1b engine half — promotion backlog DRAINED to examined 0 / promoted 0 (runs 31022426849, 31023273235, 31024392369, 31024529659; zero promote errors post-#186). DONE; founder report carries the honest windows story.
 - [x] (P1) Bucket 1c — Clerk cert saga CLOSED on TLS handshake evidence (run 31023053306). Remaining: founder /ops sign-in walkthrough (in the session report).

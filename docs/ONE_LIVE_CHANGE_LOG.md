@@ -4,6 +4,54 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-06 — Founder stop: everything committed to disk mid-flight
+
+The founder said "pause", then "stop. save all to disk." This entry is the
+save. No code changed; this is a records commit, and it does NOT turn the
+build green — saying so plainly matters more than a tidy-looking push.
+
+**Where PR #191 actually stands.** Head `ec9b02aa`, two red checks
+(`trust-gate`, `adversarial-review`), one cause between them: the arming smoke
+binding refusing stale evidence, because `ec9b02aa` edited two files inside the
+armed cron's runtime closure (`worker/ai_extract.py`,
+`worker/datetime_resolve.py`). The guardrail is working. The remedy is a
+docs-only re-bind of `docs/evidence/ARMING_SMOKE_RUN.json`, and it was already
+half done — ingest run 31064504330 was dispatched on that head and was still
+running when the stop came. It was left running rather than cancelled, because
+a cancelled run yields no usable evidence and wastes the pass.
+
+**A red check that is not a verdict.** The `adversarial-review` job failed in
+its pytest step, before the review itself executed. Round 5 of the panel has
+never run. Round 4 had 3 of 4 lenses approving with one blocking finding, and
+`ec9b02aa` answered it by RETIRING `resolve_time_only_from_block` rather than
+patching it a fifth time: the function read an event's date out of surrounding
+prose, four review rounds had found five separate ways that fabricates a public
+start time, and its measured yield across seven live smoke runs was zero. The
+need it served is now met by evidence instead of inference —
+`worker/date_callback.py` fetches the event's own linked page and reads the
+date the source DECLARES in schema.org markup.
+
+**The thing that still outranks all of it.** R-084(a) remains unfixed:
+`worker/candidate_store.py:174-181` hands the trust gate the timezone-aware
+`start_time` column *and* its naive copy from `extracted`, so the gate sees one
+instant as two conflicting strings and escalates every dated candidate. With
+R-084(b) — `web/lib/promoted.ts:94`, where a `start_time=gte.` filter silently
+drops every dateless promoted event because SQL NULL never compares true — that
+is the actual reason ~1,363 published discovered events yield zero upcoming.
+PR #191's fixes are real and proven live, and they would still not put one
+discovered event on the site. The ordered path is in
+`docs/ops/PATH_TO_THOUSANDS.md`.
+
+**Recorded, not resolved:** the founder approved splitting `local_media` into
+masthead (anchors alone) versus submission-widget UGC (needs corroboration),
+and in the same breath asked the harder question — how radio, TV, papers, and
+community bulletins get classified correctly *at scale*, without hand-judging
+each domain. Their own lead is the promising one: listings often link out to
+the organizing venue, which would let us verify first-party status per LISTING
+instead of per DOMAIN. Whether to build the probe that measures how often those
+links exist is one of three questions still with the founder. Decision record:
+`docs/memory/decisions/2026-08-06_local-media-split-and-masthead-provenance.md`.
+
 ## 2026-08-06 — The pause that found the real cause
 
 The founder asked when the testing ends and the site gets thousands of events.

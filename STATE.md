@@ -191,6 +191,70 @@ report with the 50:1 table and a live /tonight link; hygiene debts cleared;
 CSE/source-scan either executed or still blocked-on-founder with the exact
 ask restated.
 
+### STATUS AT FOUNDER STOP — 2026-08-06 ("pause", then "stop. save all to disk")
+
+Contract #44 remains OPEN. The founder halted work; this block is the resume
+point, written so a cold session can pick it up without reading the transcript.
+
+**Branch/PR:** `claude/1live-kickoff-2026-587s4f`, head `ec9b02aa`, PR #191
+open, working tree clean. Nothing unpushed except this records commit.
+
+**CI on `ec9b02aa`: TWO RED CHECKS, one cause, and it is not a code defect.**
+`trust-gate` (job 92499281976) and `adversarial-review` (job 92499282010) both
+fail on the SAME assertion —
+`tests/test_arming_smoke_binding.py::test_reviewed_head_is_runtime_code_identical_to_the_smoke_run`:
+
+> armed-cron runtime code changed since the recorded green smoke run — the
+> evidence no longer covers this head: `['worker/ai_extract.py', 'worker/datetime_resolve.py']`
+
+That is the binding working exactly as designed: `ec9b02aa` edited two files
+inside the armed cron's runtime closure, so the previously recorded evidence
+no longer covers this head. The fix is a docs-only re-bind of
+`docs/evidence/ARMING_SMOKE_RUN.json`, nothing more.
+
+**The re-bind is HALF DONE.** Ingest smoke run **31064504330** was dispatched
+on `ec9b02aa` and was still IN PROGRESS at the stop. It was deliberately NOT
+cancelled (a cancelled run leaves a half-finished ingest pass and no usable
+evidence). To resume: read that run's evidence — run id, `run_head_sha`, job
+id, artifact id + zip sha256, RunReport counts including `pages_fetched` and
+`sources_skipped_time_budget`, and the dead-man assertion line — write them
+into `docs/evidence/ARMING_SMOKE_RUN.json`, commit docs-only, push. That
+single commit turns both checks green. This is the SEVENTH re-bind on this PR;
+the structural cost is logged in AGENT_FEEDBACK and is a known, accepted tax of
+the binding, not a reason to weaken it.
+
+**No round-5 evaluator verdict exists.** The `adversarial-review` check died in
+its pytest step, BEFORE the review ran. Its red says nothing about the panel's
+opinion of `ec9b02aa`'s change (the retirement of `resolve_time_only_from_block`,
+made in answer to round 4's one blocking finding — 3 of 4 lenses had approved).
+Round 5 has never been attempted. Do not read the red as a rejection.
+
+**Golden-exam eligibility on `ec9b02aa`, verified two ways before the stop:**
+manifest-bound hits vs master = NONE (local check), and the classifier's own
+printed partition names only `worker/ai_extract.py` as NOT manifest-bound, with
+no `EXCEPTION-INELIGIBLE` marker. The refusal is the charter's compensated
+class (b).
+
+**What this records commit does and does not do:** it is docs-only, so it does
+NOT make CI green — the two checks stay red until the re-bind above lands. Said
+plainly so nobody reads a clean-looking records push as a fixed build.
+
+**The finding that outranks this PR.** R-084(a) — `worker/candidate_store.py`
+lines 174-181 hand the trust gate both the timezone-AWARE `start_time` column
+and its NAIVE copy from `extracted`, so the gate sees two strings for one
+instant and ESCALATEs every dated candidate. Reproduced by hand; NOT FIXED.
+This, with R-084(b) (`web/lib/promoted.ts:94`, where a `start_time=gte.` filter
+silently drops every dateless promoted event because SQL NULL never compares
+true), is the actual reason ~1,363 published discovered events show zero
+upcoming. PR #191's work is sound but would not by itself put one discovered
+event on the site. Full ordered plan: `docs/ops/PATH_TO_THOUSANDS.md` (B0–B9,
+T1–T14); B1 is R-084(a).
+
+**Awaiting the founder, do not act unilaterally:** (1) build the
+listing-provenance probe? (2) target window — thousands per week or per month?
+(3) when to build the founder-approved `local_media` masthead/UGC split
+(decision record `2026-08-06_local-media-split-and-masthead-provenance.md`).
+
 AMENDMENT (2026-08-05, in-session — contract-scope-violation discipline:
 scope moved, so the contract moves in the same push, quoting why): the
 founder ratified two new operating rules mid-session (verbatim "Ratified";
