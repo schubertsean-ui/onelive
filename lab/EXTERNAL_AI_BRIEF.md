@@ -142,6 +142,128 @@ Target: **≥98% on both required groups**, 100% correctness on
 cancelled/postponed marking, and **zero** fields asserted that the source does
 not state.
 
+## 4b. CRITICAL — HOW SOURCES ARE FOUND, AND WHY THAT IS THE DEEPER FAILURE
+
+**Read this before the extraction work. Extraction can only be as good as the
+list of sites it is pointed at, and the mechanism that produces that list is
+the least-built part of the system.**
+
+### What exists today
+
+Exactly one automated discovery mechanism: `tools/scan_new_sources.py`. Its
+method, quoted from its own docstring:
+
+> "run a category × term query pack through Google's Programmable Search JSON
+> API … collect result domains, and DIFF them against the committed source
+> catalog. Output: NEW domains only … CANDIDATES for human curation"
+
+The entire query pack is **21 hardcoded phrases**, prefixed with one city:
+
+```
+live music venues · bars with live music · music venue calendar · comedy club
+theater performances calendar · art gallery openings · museum events calendar
+dance hall · brewery live music events · winery events · coffee shop open mic
+bookstore author events · farmers market events · community center events
+calendar · church concert series · university events calendar · poetry reading
+open mic · trivia night bars · festival calendar · record store in-store
+performance
+```
+
+Plus an Eventbrite organiser harvest (`tools/search_discover_eventbrite.py`).
+That is the whole of "discovery".
+
+### Why this is critical, defect by defect
+
+**D-1. It has never run.** The workflow that would schedule it
+(`source-scan.yml`) sits on an unmerged pull request. The Google CSE
+credential returns `403 PERMISSION_DENIED` at project level. So the only
+automated discovery lane is both unmerged and credential-blocked. **Every
+source in production got there by hand or by an Eventbrite harvest.**
+
+**D-2. Twenty-one generic queries is not a search strategy.** 21 queries × 10
+results = at most 210 domains, most of which are platforms and aggregators
+that get filtered out. That is the entire funnel, for a 23-segment taxonomy
+across a metro area plus the surrounding Hill Country.
+
+**D-3. The query pack does not ask for most of the taxonomy.** There is no
+query for social-dance communities, DJs and electronic artists, comedians,
+visual artists, recurring-scene organisers, bands, or solo musicians. **Nine of
+the twenty-three ratified segments have no representative in the catalog — and
+the reason is simply that nothing ever searched for them.** The gap is not bad
+luck; it is the query pack.
+
+**D-4. One geography.** Queries are prefixed `--city "Austin"`. The catalog
+already contains Fredericksburg, Round Top, Blanco, Luling, Giddings, Marble
+Falls, Bertram, Schulenburg. Nothing searches for those towns, so the corpus
+can only grow where it already looked.
+
+**D-5. One method, and the cheapest one.** Search-index only. Nothing:
+- expands the link graph from venues already known (a venue's "friends",
+  "presented by", "also playing at" links);
+- mines the aggregators we already crawl (Do512, the Chronicle, Visit Austin)
+  for the venue names inside their listings — those pages are a venue
+  directory we already fetch and throw away;
+- mines chambers of commerce, arts councils, tourism boards, city cultural
+  offices — the places small operators are actually indexed;
+- reverse-looks-up from performers to the venues they play;
+- enumerates other customers of a ticketing platform we already know
+  (Ludus, Tixr, Prekindle, See Tickets), which is how you find the next fifty
+  theatres at once;
+- reads sitemaps.
+
+**D-6. Domain-level diffing hides platform-hosted venues.** Candidates are
+deduped by domain against the catalog. A new venue whose events live on a
+platform domain already in the catalog is invisible to it.
+
+**D-7. Human curation is the throughput ceiling.** Output is "CANDIDATES for
+human curation". The founder's stated intent was *"constantly identifying new
+sources"*; a mechanism gated on manual review cannot do that.
+
+**D-8. No qualification, so a candidate is never checked.** Nothing verifies
+that a discovered domain actually publishes dated events before it becomes a
+source. This is why production crawls a different venue's website for The
+Parish, a homepage for Stubb's, and Eventbrite's API *documentation* page.
+
+**D-9. No feedback loop.** Nothing measures which queries produced sources that
+went on to yield real events, so the pack cannot improve. It is a fixed list
+written once.
+
+### The evidence that this is the binding constraint
+
+When this brief needed two representatives for each of seven unrepresented
+segments, the system offered **nothing** — no discovery output, no candidate
+queue, no ranked list. The stopgap was an agent typing site names from memory
+into `lab/verify_urls.py` and checking whether they existed. On the first pass
+**5 of 14 slots verified**; the rest were 404s, bot-blocks, a domain that does
+not resolve at all, and pages with no dated content.
+
+**`lab/verify_urls.py` is a VERIFIER, not a discovery mechanism. Do not mistake
+it for one.** It checks hypotheses a human or model already had. It cannot find
+a venue nobody thought of, which is precisely what discovery must do.
+
+### What you are being asked to fix here
+
+Sourcing is a first-class component of this build, not a prerequisite someone
+else handles:
+
+1. A discovery mechanism that **generates** candidates rather than checking
+   guesses — multi-method (link graph, aggregator mining, directory mining,
+   ticketing-platform enumeration, sitemaps, search), not search-only.
+2. Query and method coverage for **all 23 segments and every town in the
+   market**, not one city and 21 phrases.
+3. An automatic **qualification** step: a candidate is not a source until
+   something has confirmed the URL resolves to a page that lists dated events
+   (this also fixes the wrong-site and homepage rows already in production).
+4. A **feedback loop**: measure which discovery methods and which queries
+   produce sources that actually yield published events, and let that steer the
+   next sweep.
+5. Coverage reporting **by segment and by town**, so a gap like "nine segments
+   have nothing" is visible the day it appears instead of being discovered
+   months later by inspection.
+
+Treat a design that leaves discovery as "run 21 queries and have a human read
+the output" as failing this brief.
+
 ## 5. The architecture you are replacing, and the one proposed
 
 **Today:** `fetch(one url)` → `segment text into blocks` → `model call per
@@ -360,6 +482,17 @@ every event the site publishes, with title, date, start time, venue/location,
 description, price, and any specials or notes the source states. Ingest them
 into the real database. Prove all four stages work: reading, extraction,
 ingestion, and updating when the source changes.
+
+CRITICAL, AND SEPARATE FROM EXTRACTION: how sources are found. The only
+automated discovery mechanism is 21 hardcoded search phrases prefixed with one
+city, sent to a Google CSE credential that currently returns 403, in a workflow
+that has never merged. It has no query for social dance, DJs, comedians, visual
+artists, open-mic organisers, bands or solo musicians — which is exactly why
+nine of the twenty-three supply segments have no source at all. It searches one
+city while the catalog spans a dozen towns. It never checks that a discovered
+domain actually lists events, which is why production crawls a different
+venue's website, two homepages and an API documentation page. See section 4b —
+sourcing is part of this build, not someone else's prerequisite.
 
 FIX THESE FIRST — they are hours of work each and they block everything else:
 1. worker/ai_models.py fills only 7 of the 26 fields the card contract

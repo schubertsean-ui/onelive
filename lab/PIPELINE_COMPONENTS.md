@@ -15,7 +15,7 @@ describing what it would do if it did.
 
 | # | Stage | Today |
 |---|---|---|
-| 1 | Source discovery (search) | ⚠️ |
+| 1 | Source discovery (search) | ❌ **CRITICAL** |
 | 2 | Source qualification | ❌ |
 | 3 | Entry-point resolution | ❌ |
 | 4 | Scheduling & budget | ✅ |
@@ -43,13 +43,47 @@ sits across all of them rather than after them.
 
 # PART ONE — SEARCHING (finding the supply)
 
-## 1. Source discovery — ⚠️ built, never run at scale
+## 1. Source discovery — ❌ CRITICAL. Effectively unbuilt.
 
 **Job:** find websites that publish events we don't yet know about.
 
-**Today:** `tools/scan_new_sources.py`, `tools/discover_eventbrite_orgs.py`,
-`tools/search_discover_eventbrite.py` exist. The Brave search lane and
-`source-scan.yml` are on unmerged PR #187. The launch sweep has never run.
+**Today:** one mechanism, `tools/scan_new_sources.py`: **21 hardcoded search
+phrases**, prefixed with **one city**, sent to Google Programmable Search;
+result domains diffed against the catalog; output is "CANDIDATES for human
+curation". Plus an Eventbrite organiser harvest. That is all of it.
+
+**Nine defects, each of them structural:**
+1. It has **never run** — `source-scan.yml` is unmerged and the CSE credential
+   returns `403 PERMISSION_DENIED`. Every production source arrived by hand or
+   via the Eventbrite harvest.
+2. 21 queries × 10 results is the entire funnel for a 23-segment taxonomy.
+3. The pack has **no query** for social dance, DJs, comedians, visual artists,
+   open-mic organisers, bands or solo musicians — which is exactly why those
+   segments have no source. The gap is the query pack, not bad luck.
+4. One city, while the catalog spans Fredericksburg, Round Top, Blanco,
+   Luling, Giddings, Marble Falls, Bertram, Schulenburg.
+5. **One method — the cheapest one.** No link-graph expansion from known
+   venues; no mining of the aggregators we already fetch and discard; no
+   chamber / arts-council / tourism-board directories; no performer→venue
+   reverse lookup; no enumeration of other customers on a ticketing platform we
+   already know; no sitemaps.
+6. Domain-level diffing hides a new venue hosted on a platform domain the
+   catalog already has.
+7. Human curation is the throughput ceiling, against a stated intent of
+   *"constantly identifying new sources"*.
+8. **No qualification** — nothing checks a candidate actually lists dated
+   events, which is how a different venue's website, two homepages and an API
+   documentation page became production sources.
+9. **No feedback loop** — nothing measures which queries yield sources that go
+   on to produce events, so the pack never improves.
+
+**Proof it is the binding constraint:** when two representatives were needed
+for each of seven unrepresented segments, the system produced nothing — no
+candidate queue, no ranked list. The stopgap was typing site names from memory
+into `lab/verify_urls.py`. First pass: **5 of 14 slots verified**; the rest
+were 404s, bot-blocks, a domain that does not resolve, and pages with no dated
+content. `verify_urls.py` is a VERIFIER — it checks hypotheses someone already
+had. It cannot find a venue nobody thought of, which is the whole job.
 
 **Defect:** 180 sources in the committed catalog, 266 enabled in production —
 86 seeded directly to the database and never audited. **Nine of the 23
@@ -354,8 +388,13 @@ Stages don't fail independently, and fixing them out of order wastes work.
 8. **19** — updates, cancellations, retirement. *Correctness over time.*
 9. **20** — the funnel. *Arguably first: it is small, and it makes every other
    item measurable instead of argued.*
-10. **1** — scale discovery. *Only worth doing once the engine works, or we
-    multiply garbage.*
+10. **1** — REBUILD discovery, do not merely scale it. *Running the existing
+    21 queries harder cannot reach segments it never asks about. This needs
+    multi-method generation (link graph, aggregator mining, directory mining,
+    ticketing-platform enumeration, sitemaps, search), coverage across all 23
+    segments and every town, automatic qualification, and a feedback loop that
+    measures which methods produce sources that actually yield events. Sequenced
+    last only because extraction must work first — not because it is small.*
 
 Items 1–3 are hours of work each and address more of the stated goal than any
 crawler change. Item 4 is the architecture. Items 9 and 3 could be done today.
