@@ -60,42 +60,6 @@ _DATETIME_FIELDS = ("start_time", "end_time")
 # don't match (first field is 4 digits).
 _NUMERIC_DATE = re.compile(r"^\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\b")
 
-# Evidence that the source stated a TIME OF DAY at all. Midnight is the
-# documented default when a full date is evidenced and no time is (see the
-# module docstring), so a midnight result needs no evidence — but any OTHER
-# clock time must be traceable to something the source actually wrote.
-_TIME_EVIDENCE = re.compile(
-    r"(\d\s*:\s*\d)"          # 7:30
-    r"|(\d\s*[ap]\.?m\.?)"    # 8pm / 8 p.m.
-    r"|(\bnoon\b)|(\bmidnight\b)"
-    r"|(\d{4}-\d{2}-\d{2}[T ]\d)",  # ISO date-time
-    re.I,
-)
-
-
-def _year_is_stated(source: str, year: int) -> bool:
-    """True when the parsed year literally appears in the source string.
-
-    The two-probe trick above detects components the string OMITS (dateutil
-    fills them from the differing defaults, so the probes disagree). It cannot
-    detect components dateutil MISASSIGNS: on a date range like
-    "Sept 4-27, 2026" the tokenizer takes the range's end day as the year and
-    the stated year as a clock time, deterministically — so both probes agree
-    and the omission guard passes a fact the source never asserted.
-
-    Requiring the 4-digit year to appear verbatim closes that hole for the
-    whole misassignment class, not just for ranges: a year we print must be a
-    year the page wrote.
-
-    Deliberate, stated tradeoff: a two-digit year ("Sept 4, 26") no longer
-    stores. It is REFUSED, not lost — the raw claim is preserved under
-    _provenance.unstored_datetime_claims and the candidate still reaches ops
-    review, which is this module's designed fallback. Matching the two-digit
-    form instead would re-open the very bug this closes, because a range's end
-    day ("...4-27...") is itself a two-digit number that would satisfy it.
-    """
-    return re.search(rf"(?<!\d){year}(?!\d)", source) is not None
-
 
 def normalize_datetime_claim(
     raw: Any,
@@ -108,8 +72,7 @@ def normalize_datetime_claim(
     - Anything we refuse to store carries its reason (r2 nit — a
       timezone-refused claim is dated but tz-unusable, not "undated"):
       "unparseable", "ambiguous-numeric-date",
-      "unrecognized-timezone-abbreviation", "no-full-date-evidence",
-      "year-not-stated-in-source", "time-not-stated-in-source".
+      "unrecognized-timezone-abbreviation", "no-full-date-evidence".
 
     The timezone rule (r1 nit): dateutil DROPS timezone abbreviations it
     cannot resolve ("7pm ET" parses as naive 19:00, which a timestamptz
@@ -144,13 +107,6 @@ def normalize_datetime_claim(
         return _refuse("unrecognized-timezone-abbreviation")
     if a.date() != b.date():
         return _refuse("no-full-date-evidence")
-    # The date agreed across probes, so nothing was OMITTED. Two further
-    # assertions catch what the probes structurally cannot see — components
-    # dateutil MISASSIGNED from tokens that meant something else.
-    if not _year_is_stated(s, a.year):
-        return _refuse("year-not-stated-in-source")
-    if (a.hour, a.minute, a.second) != (0, 0, 0) and not _TIME_EVIDENCE.search(s):
-        return _refuse("time-not-stated-in-source")
     return a.isoformat(), None
 
 
