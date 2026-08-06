@@ -15,6 +15,12 @@ Verdict per URL:
   LISTS_DATED_EVENTS  reachable AND shows evidence of dated event listings
   REACHABLE_NO_EVENTS reachable but nothing event-like — not a valid source
   UNREACHABLE         DNS/TLS/HTTP failure, with the reason
+
+KNOWN LIMITATION, stated rather than hidden: this reads RAW HTML and does not
+run JavaScript. A site that builds its listing in the browser will report
+REACHABLE_NO_EVENTS even when it has events. That is the same defect the
+production fetcher has, so a REACHABLE_NO_EVENTS verdict means "no events in
+the served HTML" — a render candidate, not a dead site.
 """
 from __future__ import annotations
 
@@ -28,41 +34,54 @@ UA = "OneLiveBot/0.1 (+contact: ops@1live.co) source-verification"
 
 # Candidates for the nine ratified supply segments with NO catalog
 # representative. These are HYPOTHESES to be checked, not claims.
+# Paths tried per candidate host. Round 1 probed site ROOTS and produced false
+# negatives: an artist's root page carries no dates while /tour does. A root is
+# not a listing page, and checking one is not checking the site.
+PATHS = ("", "/tour", "/tour-dates", "/shows", "/events", "/calendar",
+         "/schedule", "/live", "/upcoming")
+
 CANDIDATES = {
     "15 recurring-scene organizers": [
-        ("Austin Poetry Slam", "https://www.austinpoetryslam.com/"),
-        ("Kick Butt Coffee", "https://kickbuttcoffee.com/"),
-        ("The Hideout Theatre open mic", "https://hideouttheatre.com/"),
+        ("Kick Butt Coffee", "https://kickbuttcoffee.com"),
+        ("The Hideout Theatre", "https://hideouttheatre.com"),
+        ("Spider House Ballroom", "https://spiderhouseballroom.com"),
+        ("Austin Poetry Slam", "https://austinpoetryslam.org"),
     ],
     "16 social-dance & movement": [
-        ("Austin Swing Syndicate", "https://www.austinswingsyndicate.org/"),
-        ("Esquina Tango", "https://www.esquinatangoaustin.com/"),
-        ("Go Dance Austin", "https://www.godancestudio.com/"),
+        ("Go Dance Austin", "https://godancestudio.com"),
+        ("Esquina Tango", "https://www.esquinatango.org"),
+        ("Austin Swing Syndicate", "https://www.austinswingsyndicate.org"),
+        ("Dance Austin Studio", "https://danceaustinstudio.com"),
     ],
     "18 bands & musical acts": [
-        ("Black Pumas", "https://www.blackpumas.com/"),
-        ("Spoon", "https://www.spoontheband.com/"),
-        ("Explosions in the Sky", "https://www.explosionsinthesky.com/"),
+        ("Black Pumas", "https://www.blackpumas.com"),
+        ("Spoon", "https://spoontheband.com"),
+        ("Explosions in the Sky", "https://www.explosionsinthesky.com"),
+        ("Grupo Fantasma", "https://grupofantasma.com"),
     ],
     "19 solo musicians & singer-songwriters": [
-        ("Gary Clark Jr.", "https://www.garyclarkjr.com/"),
-        ("Shakey Graves", "https://www.shakeygraves.com/"),
-        ("Jackie Venson", "https://www.jackievenson.com/"),
+        ("Gary Clark Jr.", "https://www.garyclarkjr.com"),
+        ("Shakey Graves", "https://www.shakeygraves.com"),
+        ("Jackie Venson", "https://jackievenson.com"),
+        ("Bob Schneider", "https://bobschneider.com"),
     ],
     "20 DJs & electronic artists": [
-        ("Kastle", "https://www.kastlemusic.com/"),
-        ("Resident Advisor Austin events", "https://ra.co/events/us/austin"),
-        ("The Concourse Project calendar", "https://concourseproject.com/calendar/"),
+        ("The Concourse Project", "https://concourseproject.com"),
+        ("Kingdom Nightclub", "https://kingdomnightclub.com"),
+        ("Elysium", "https://www.elysiumonline.net"),
+        ("Empire Control Room", "https://empireatx.com"),
     ],
     "21 comedians & spoken-word": [
-        ("Cap City Comedy lineup", "https://www.capcitycomedy.com/"),
-        ("Matt Bearden", "https://www.mattbearden.com/"),
-        ("Fallout Theater", "https://www.fallouttheater.com/"),
+        ("Cap City Comedy", "https://www.capcitycomedy.com"),
+        ("The Velveeta Room", "https://www.thevelveetaroom.com"),
+        ("Fallout Comedy", "https://falloutcomedy.com"),
+        ("Creek and the Cave", "https://creekandcave.com"),
     ],
     "23 visual artists, makers & craft creators": [
-        ("Austin Studio Tour", "https://austinstudiotour.org/"),
-        ("Canopy Austin", "https://canopyaustin.com/"),
-        ("Blue Genie Art Bazaar", "https://www.bluegenieartbazaar.com/"),
+        ("Big Medium (Austin Studio Tour)", "https://bigmedium.org"),
+        ("Canopy Austin", "https://www.canopyaustin.com"),
+        ("Blue Genie Art Bazaar", "https://bluegenieartbazaar.com"),
+        ("Dougherty Arts Center", "https://www.austintexas.gov/department/dougherty-arts-center"),
     ],
 }
 
@@ -113,21 +132,39 @@ def probe(name: str, url: str) -> dict:
     }
 
 
+def best_of_paths(name: str, host: str) -> dict:
+    """Probe the host root AND the paths a listing normally lives at, and keep
+    the strongest result. Reporting only the root is how round 1 produced false
+    negatives on artist sites."""
+    tried = []
+    for path in PATHS:
+        r = probe(name, host.rstrip("/") + path)
+        r["path_tried"] = path or "/"
+        tried.append(r)
+        if r["verdict"] == "LISTS_DATED_EVENTS":
+            r["also_tried"] = len(tried)
+            return r
+    reachable = [t for t in tried if t["verdict"] != "UNREACHABLE"]
+    best = max(reachable, key=lambda t: t.get("date_mentions", 0)) if reachable else tried[0]
+    best["also_tried"] = len(tried)
+    return best
+
+
 def main() -> int:
     results = {}
     for segment, cands in CANDIDATES.items():
         print(f"\n=== {segment} ===")
         rows = []
         for name, url in cands:
-            row = probe(name, url)
+            row = best_of_paths(name, url)
             rows.append(row)
             if row["verdict"] == "UNREACHABLE":
-                print(f"  {row['verdict']:20} {name}  ({row['reason']})")
+                print(f"  {row['verdict']:20} {name}  {row['url']}  ({row['reason']})")
             else:
                 redirect = ""
-                if row.get("final_url") and row["final_url"].rstrip("/") != url.rstrip("/"):
+                if row.get("final_url") and row["final_url"].rstrip("/") != row["url"].rstrip("/"):
                     redirect = f"  -> REDIRECTED TO {row['final_url']}"
-                print(f"  {row['verdict']:20} {name}  {url}{redirect}")
+                print(f"  {row['verdict']:20} {name}  {row['url']}{redirect}")
                 print(f"      status={row['status']} bytes={row['bytes']} "
                       f"dates={row['date_mentions']} event_links={row['event_link_patterns']} "
                       f"jsonld_events={row['jsonld_event_objects']}")
