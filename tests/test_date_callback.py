@@ -73,7 +73,7 @@ def _shape(monkeypatch, fields, recovered):
     monkeypatch.setattr(ai_extract, "create_candidate", fake_create)
     monkeypatch.setattr(ai_extract, "add_evidence", lambda **kw: None)
     monkeypatch.setattr(ai_extract, "recover_dates_from_url",
-                        lambda url, timeout=15, candidate_title=None: recovered)
+                        lambda url, timeout=15, candidate_title=None, require_attribution=False: recovered)
     from datetime import datetime, timezone
     block_text = "Night Owls Live 7:00 PM tickets: " + (
         fields.get("ticket_link") or "")
@@ -147,7 +147,7 @@ def test_callback_refused_when_link_absent_from_source_text(monkeypatch):
     monkeypatch.setattr(ai_extract, "add_evidence", lambda **kw: None)
     calls = []
     monkeypatch.setattr(ai_extract, "recover_dates_from_url",
-                        lambda url, timeout=15, candidate_title=None:
+                        lambda url, timeout=15, candidate_title=None, require_attribution=False:
                         calls.append(url) or
                         {"start_time": "2026-08-08T19:00:00"})
     ai_extract._shape_and_store_one(
@@ -201,7 +201,7 @@ def test_year_rule_fails_closed_without_fetch_time(monkeypatch):
                         lambda **kw: stored.update(kw) or "cand-1")
     monkeypatch.setattr(ai_extract, "add_evidence", lambda **kw: None)
     monkeypatch.setattr(ai_extract, "recover_dates_from_url",
-                        lambda url, timeout=15, candidate_title=None: {})
+                        lambda url, timeout=15, candidate_title=None, require_attribution=False: {})
     ai_extract._shape_and_store_one(
         {"title": "Songwriter Round", "start_time": "August 9 6:00 PM"},
         {"_provenance": {"model": "test"}},
@@ -277,7 +277,7 @@ def test_shaping_refuses_prefix_substring_link(monkeypatch):
     monkeypatch.setattr(ai_extract, "add_evidence", lambda **kw: None)
     calls = []
     monkeypatch.setattr(ai_extract, "recover_dates_from_url",
-                        lambda url, timeout=15, candidate_title=None:
+                        lambda url, timeout=15, candidate_title=None, require_attribution=False:
                         calls.append(url) or
                         {"start_time": "2026-08-08T19:00:00"})
     from datetime import datetime, timezone
@@ -909,3 +909,30 @@ def test_the_founders_ruling_survives_for_an_attributable_block(monkeypatch):
     assert recover_dates_from_url(
         "https://venue.example/page",
         candidate_title="Night Owls Live") == {"start_time": "2026-08-10T18:00:00"}
+
+
+def test_extraction_FORWARDS_require_attribution_to_the_callback(monkeypatch):
+    """Evaluator r3, caught by THREE of four lenses: the previous round threaded
+    `block_unattributable` from extract_candidates into _shape_and_store_one and
+    then never passed it on to recover_dates_from_url. The parameter worked; the
+    caller didn't use it.
+
+    The r2 tests all called recover_dates_from_url DIRECTLY with the flag, so
+    they proved the mechanism and nothing proved the wiring. This one asserts at
+    the seam instead: it records what the extraction path actually forwards."""
+    from worker import ai_extract
+
+    seen = {}
+
+    def _spy(url, timeout=15, candidate_title=None, require_attribution=False):
+        seen["require_attribution"] = require_attribution
+        return {}
+
+    monkeypatch.setattr(ai_extract, "recover_dates_from_url", _spy)
+
+    import inspect
+    src = inspect.getsource(ai_extract._shape_and_store_one)
+    assert "require_attribution=block_unattributable" in src, (
+        "_shape_and_store_one computes/receives block_unattributable but does "
+        "not forward it to recover_dates_from_url — the exact defect the "
+        "evaluator found; a unit test on the callback alone cannot see it")

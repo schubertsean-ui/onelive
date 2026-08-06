@@ -216,3 +216,25 @@ def test_a_month_NAME_still_disambiguates_and_resolves():
     feb = datetime(2026, 2, 1, 19, 0, 0)
     assert resolve_partial_date_claim("March 4 8pm", feb)[0] == "2026-03-04T20:00:00"
     assert resolve_partial_date_claim("8 March 8pm", feb)[0] == "2026-03-08T20:00:00"
+
+
+def test_a_date_that_is_ABOUT_something_else_is_not_the_event_date():
+    """Evaluator r3 (attacker-smuggle): the exactly-one-date rule counted ANY
+    date in the block, so "Show 8pm; tickets on sale August 8" and "8pm (page
+    updated August 8)" each published August 8 as the show time. A date
+    qualified as being about a sale, an edit or a deadline is not when the
+    event happens."""
+    for block in (
+        "Spoon — Show 8pm; tickets on sale August 8",
+        "Spoon — 8pm  (page updated August 8)",
+        "Spoon — 8pm · applications due August 8",
+        "Spoon — 8pm · register by August 8",
+    ):
+        assert _from_block("8pm", block, CTX) == (None, None), block
+
+
+def test_a_qualified_date_elsewhere_does_not_block_the_real_one():
+    """The guard must not cost the honest case: the block states the event
+    date AND mentions a sale, and the event date still wins."""
+    iso, _ = _from_block("8:00 pm", "Sat, Aug 8 · Spoon · 8:00 pm · on sale now", CTX)
+    assert iso == "2026-08-08T20:00:00"

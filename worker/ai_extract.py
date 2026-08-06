@@ -228,8 +228,15 @@ def _shape_and_store_one(
             # 2026-08-05_source-site-authoritative.md) — no further gating.
             # The title is passed as a SELECTOR for multi-event pages (a
             # venue calendar names many events; ours picks its match).
+            # When the segmenter could NOT confidently split the page it hands
+            # back ONE block holding the whole document, so a link ANYWHERE on
+            # the page satisfies the source-quoted check and may belong to a
+            # neighbouring event. The founder's "a single declared Event is
+            # this candidate's" premise does not hold there, so the title must
+            # carry the attribution.
             recovered_raw = recover_dates_from_url(
-                link, candidate_title=shaped.get("title"))
+                link, candidate_title=shaped.get("title"),
+                require_attribution=block_unattributable)
             for field, claim in recovered_raw.items():
                 if field not in discarded_times:
                     continue

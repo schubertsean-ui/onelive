@@ -248,6 +248,27 @@ _ISO_DATE_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 # declaration rather than guessing from the URL string.
 _URL_RE = re.compile(r"(?:https?://|www\.)\S+", re.I)
 
+# A date in an event block is not automatically the EVENT'S date. Evaluator
+# finding on the consolidated head, reproduced before fixing: "Show 8pm;
+# tickets on sale August 8" and "8pm (page updated August 8)" each contain
+# exactly ONE date, so the exactly-one-date rule happily published August 8 as
+# the show time. These phrases mark a date as being ABOUT something else — a
+# sale opening, a page edit, a submission deadline — and a date so qualified is
+# dropped rather than read as the event's.
+#
+# HEURISTIC, and recorded as such (R-093): this is a named-phrase list, so a
+# non-event date introduced by wording not listed here still gets through. The
+# durable fix is to stop inferring from block prose at all and read the date
+# the source DECLARES (worker/date_callback.py's machine-readable path), which
+# is why this resolver's live yield is worth measuring before investing more
+# in it — across every smoke run on this branch it has resolved nothing.
+_NON_EVENT_DATE_CONTEXT = re.compile(
+    r"(?:on\s+sale|sale\s+(?:starts|begins|opens)|present(?:ed)?\s+sale|"
+    r"updated|last\s+modified|posted|published|submitted|revised|"
+    r"as\s+of|effective|copyright|©|added|deadline|expires?|"
+    r"applications?\s+(?:due|close)|register\s+by|rsvp\s+by)"
+    r"[^.;|·\n]{0,30}$", re.I)
+
 # A time-only claim: parses, but evidences neither month nor day.
 def _is_time_only(raw: str) -> bool:
     try:
@@ -285,11 +306,20 @@ def resolve_time_only_from_block(
     # Read dates from the block's PROSE only — never from a link's path.
     block_text = _URL_RE.sub(" ", block_text)
 
+    def _qualified_as_non_event(at: int) -> bool:
+        """True when the text immediately BEFORE this date marks it as being
+        about something other than when the event happens."""
+        return bool(_NON_EVENT_DATE_CONTEXT.search(block_text[:at]))
+
     found = []  # (date_text, claimed_weekday_or_None)
     for m in _TEXT_DATE_RE.finditer(block_text):
+        if _qualified_as_non_event(m.start()):
+            continue
         wd = m.group("wd1") or m.group("wd2")
         found.append((m.group(0), _WEEKDAY_PREFIX[wd[:3].lower()] if wd else None))
     for m in _ISO_DATE_RE.finditer(block_text):
+        if _qualified_as_non_event(m.start()):
+            continue
         found.append((m.group(0), None))
     if not found:
         return None, None
