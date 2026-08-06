@@ -25,3 +25,9 @@ jobs:
       # no secrets, manual dispatch only.
       - name: Verify candidate source URLs (lab)
         run: python3 lab/verify_urls.py
+      # LAB: source DISCOVERY — mine the aggregators the pipeline already
+      # fetches for outbound links to venues the catalog has never seen, rank
+      # by how many independent guides link them, and qualify the top ones.
+      # No credential, no model call, no search quota.
+      - name: Discover new sources by mining aggregators (lab)
+        run: python3 lab/discover_sources.py
