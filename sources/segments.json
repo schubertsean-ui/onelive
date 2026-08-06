@@ -1,0 +1,231 @@
+{
+  "version": 1,
+  "created": "2026-08-06",
+  "owner": "founder-directed 2026-08-06; codes are internal identity, never a provider's",
+  "why": [
+    "The 22 cultural DOMAINS in worker/importers/domain_map.py are ratified and are LAYER 1 here, unchanged and re-exported, so nothing forks.",
+    "LAYER 2 (subsegment) exists today ONLY as a passthrough of Ticketmaster/SeatGeek genre strings. That means a crawled venue event can never receive one, and our sub-taxonomy is owned by a vendor. This file makes layer 2 ours.",
+    "LAYER 3 (sub-subsegment) does not exist anywhere in the tree. It is the level at which a person actually chooses a night out: not 'live-music' but 'singer-songwriter residency'.",
+    "Codes are STABLE and opaque so an entity can be tagged once and re-labelled later without rewriting rows. Labels are display text and may change; codes may not."
+  ],
+  "code_rules": {
+    "segment": "2-3 uppercase letters, unique",
+    "subsegment": "<SEGMENT>-<3 letters>",
+    "sub_subsegment": "<SUBSEGMENT>-<3 letters>",
+    "assignment": "An entity carries the DEEPEST code that is EVIDENCED. Partial is normal and honest: LM is a complete answer when the act is unknown. Never deepen a code by inference — an unevidenced sub-subsegment is worse than an absent one."
+  },
+  "segments": [
+    {
+      "code": "LM", "domain": "live-music", "label": "Live Music",
+      "subsegments": [
+        {"code": "LM-ROC", "label": "Rock / Indie", "sub": [
+          {"code": "LM-ROC-PNK", "label": "Punk / Hardcore"},
+          {"code": "LM-ROC-PSY", "label": "Psych / Garage"},
+          {"code": "LM-ROC-MET", "label": "Metal"}
+        ]},
+        {"code": "LM-CTY", "label": "Country / Americana", "sub": [
+          {"code": "LM-CTY-HNK", "label": "Honky-tonk / Dancehall"},
+          {"code": "LM-CTY-RED", "label": "Red Dirt / Texas Country"},
+          {"code": "LM-CTY-BLU", "label": "Bluegrass"}
+        ]},
+        {"code": "LM-SGW", "label": "Singer-Songwriter", "sub": [
+          {"code": "LM-SGW-RES", "label": "Residency"},
+          {"code": "LM-SGW-WRT", "label": "Writers' Round"}
+        ]},
+        {"code": "LM-BLJ", "label": "Blues / Jazz / Soul", "sub": [
+          {"code": "LM-BLJ-JAZ", "label": "Jazz"},
+          {"code": "LM-BLJ-BLU", "label": "Blues"},
+          {"code": "LM-BLJ-SOU", "label": "Soul / R&B / Funk"}
+        ]},
+        {"code": "LM-LAT", "label": "Latin", "sub": [
+          {"code": "LM-LAT-TEJ", "label": "Tejano / Conjunto"},
+          {"code": "LM-LAT-CUM", "label": "Cumbia / Salsa"},
+          {"code": "LM-LAT-MAR", "label": "Mariachi"}
+        ]},
+        {"code": "LM-HIP", "label": "Hip-Hop / R&B", "sub": []},
+        {"code": "LM-ELE", "label": "Electronic / DJ", "sub": [
+          {"code": "LM-ELE-HOU", "label": "House / Techno"},
+          {"code": "LM-ELE-DJS", "label": "DJ Set / Open Format"}
+        ]},
+        {"code": "LM-WOR", "label": "World / Traditional", "sub": []},
+        {"code": "LM-CLS", "label": "Classical / Chamber / Choral", "sub": []},
+        {"code": "LM-OPN", "label": "Open Mic / Jam", "sub": []},
+        {"code": "LM-TRB", "label": "Tribute / Cover", "sub": []}
+      ]
+    },
+    {"code": "PA", "domain": "performing-arts", "label": "Performing Arts",
+     "subsegments": [
+       {"code": "PA-OPR", "label": "Opera", "sub": []},
+       {"code": "PA-ORC", "label": "Orchestral / Symphony", "sub": []},
+       {"code": "PA-CIR", "label": "Circus / Variety / Burlesque", "sub": []},
+       {"code": "PA-PUP", "label": "Puppetry / Object Theater", "sub": []}
+     ]},
+    {"code": "TH", "domain": "theater", "label": "Theater",
+     "subsegments": [
+       {"code": "TH-PLY", "label": "Play", "sub": []},
+       {"code": "TH-MUS", "label": "Musical", "sub": []},
+       {"code": "TH-IMM", "label": "Immersive / Site-Specific", "sub": []},
+       {"code": "TH-YTH", "label": "Youth / School", "sub": []},
+       {"code": "TH-STG", "label": "Staged Reading", "sub": []}
+     ]},
+    {"code": "CM", "domain": "comedy", "label": "Comedy",
+     "subsegments": [
+       {"code": "CM-STA", "label": "Stand-Up", "sub": [
+         {"code": "CM-STA-HDL", "label": "Headliner / Touring"},
+         {"code": "CM-STA-SHW", "label": "Showcase"},
+         {"code": "CM-STA-OPN", "label": "Open Mic"}
+       ]},
+       {"code": "CM-IMP", "label": "Improv", "sub": []},
+       {"code": "CM-SKT", "label": "Sketch", "sub": []},
+       {"code": "CM-POD", "label": "Live Podcast", "sub": []}
+     ]},
+    {"code": "VA", "domain": "visual-arts", "label": "Visual Arts",
+     "subsegments": [
+       {"code": "VA-EXH", "label": "Exhibition", "sub": []},
+       {"code": "VA-OPN", "label": "Opening / Reception", "sub": []},
+       {"code": "VA-STU", "label": "Studio Tour / Open Studio", "sub": []},
+       {"code": "VA-MKT", "label": "Art Market / Craft Fair", "sub": []},
+       {"code": "VA-MUR", "label": "Public Art / Mural", "sub": []}
+     ]},
+    {"code": "FI", "domain": "film", "label": "Film",
+     "subsegments": [
+       {"code": "FI-SCR", "label": "Screening", "sub": []},
+       {"code": "FI-FES", "label": "Film Festival", "sub": []},
+       {"code": "FI-OUT", "label": "Outdoor / Drive-In", "sub": []},
+       {"code": "FI-QNA", "label": "Screening + Q&A", "sub": []}
+     ]},
+    {"code": "LT", "domain": "literary", "label": "Literary",
+     "subsegments": [
+       {"code": "LT-RDG", "label": "Reading / Book Launch", "sub": []},
+       {"code": "LT-POE", "label": "Poetry / Spoken Word", "sub": []},
+       {"code": "LT-STY", "label": "Storytelling", "sub": []},
+       {"code": "LT-CLB", "label": "Book Club", "sub": []}
+     ]},
+    {"code": "ID", "domain": "ideas", "label": "Ideas & Learning",
+     "subsegments": [
+       {"code": "ID-TLK", "label": "Talk / Lecture", "sub": []},
+       {"code": "ID-WKS", "label": "Workshop / Class", "sub": []},
+       {"code": "ID-CON", "label": "Conference / Summit", "sub": []},
+       {"code": "ID-TEC", "label": "Tech / Startup Meetup", "sub": []},
+       {"code": "ID-CIV", "label": "Civic / Public Meeting", "sub": []}
+     ]},
+    {"code": "FE", "domain": "festivals", "label": "Festivals",
+     "subsegments": [
+       {"code": "FE-MUS", "label": "Music Festival", "sub": []},
+       {"code": "FE-CUL", "label": "Cultural / Heritage Festival", "sub": []},
+       {"code": "FE-FOO", "label": "Food Festival", "sub": []},
+       {"code": "FE-NBH", "label": "Neighborhood / Street Festival", "sub": []}
+     ]},
+    {"code": "FD", "domain": "food-drink", "label": "Food & Drink",
+     "subsegments": [
+       {"code": "FD-TAS", "label": "Tasting / Flight", "sub": [
+         {"code": "FD-TAS-WIN", "label": "Winery"},
+         {"code": "FD-TAS-BRW", "label": "Brewery"},
+         {"code": "FD-TAS-DIS", "label": "Distillery"}
+       ]},
+       {"code": "FD-DIN", "label": "Dinner / Pop-Up", "sub": []},
+       {"code": "FD-MKT", "label": "Farmers / Food Market", "sub": []},
+       {"code": "FD-CLS", "label": "Cooking Class", "sub": []},
+       {"code": "FD-TRK", "label": "Food Truck Event", "sub": []}
+     ]},
+    {"code": "NL", "domain": "nightlife", "label": "Nightlife",
+     "subsegments": [
+       {"code": "NL-CLB", "label": "Club / DJ Night", "sub": []},
+       {"code": "NL-DRG", "label": "Drag", "sub": []},
+       {"code": "NL-KAR", "label": "Karaoke", "sub": []},
+       {"code": "NL-TRV", "label": "Trivia / Bar Game", "sub": []},
+       {"code": "NL-LGB", "label": "LGBTQ+ Night", "sub": []}
+     ]},
+    {"code": "DA", "domain": "dance", "label": "Dance",
+     "subsegments": [
+       {"code": "DA-PRF", "label": "Performance", "sub": []},
+       {"code": "DA-SOC", "label": "Social Dance", "sub": [
+         {"code": "DA-SOC-TWO", "label": "Two-Step / Country"},
+         {"code": "DA-SOC-SAL", "label": "Salsa / Bachata"},
+         {"code": "DA-SOC-SWG", "label": "Swing"},
+         {"code": "DA-SOC-TAN", "label": "Tango"}
+       ]},
+       {"code": "DA-CLS", "label": "Class / Lesson", "sub": []}
+     ]},
+    {"code": "CO", "domain": "community", "label": "Community",
+     "subsegments": [
+       {"code": "CO-VOL", "label": "Volunteer / Service", "sub": []},
+       {"code": "CO-BEN", "label": "Benefit / Fundraiser", "sub": []},
+       {"code": "CO-NBH", "label": "Neighborhood Association", "sub": []},
+       {"code": "CO-MTP", "label": "Meetup / Social Club", "sub": []},
+       {"code": "CO-FTH", "label": "Faith Community", "sub": []}
+     ]},
+    {"code": "HE", "domain": "heritage", "label": "Heritage & History",
+     "subsegments": [
+       {"code": "HE-TOU", "label": "Historic Tour", "sub": []},
+       {"code": "HE-REN", "label": "Reenactment / Living History", "sub": []},
+       {"code": "HE-CUL", "label": "Cultural Observance", "sub": []}
+     ]},
+    {"code": "FA", "domain": "family", "label": "Family & Kids",
+     "subsegments": [
+       {"code": "FA-STY", "label": "Story Time", "sub": []},
+       {"code": "FA-CRF", "label": "Kids Craft / Make", "sub": []},
+       {"code": "FA-SHW", "label": "Kids Show / Performance", "sub": []},
+       {"code": "FA-CMP", "label": "Camp / Multi-Day Program", "sub": []}
+     ]},
+    {"code": "PB", "domain": "place-based", "label": "Place-Based",
+     "subsegments": [
+       {"code": "PB-PRK", "label": "Park / Outdoor Program", "sub": []},
+       {"code": "PB-NAT", "label": "Nature / Wildlife", "sub": []},
+       {"code": "PB-WTR", "label": "Water / Lake / River", "sub": []},
+       {"code": "PB-TRL", "label": "Trail / Hike", "sub": []}
+     ]},
+    {"code": "SP", "domain": "sports", "label": "Sports & Recreation",
+     "subsegments": [
+       {"code": "SP-PRO", "label": "Pro / Ticketed", "sub": []},
+       {"code": "SP-COL", "label": "College", "sub": []},
+       {"code": "SP-AMA", "label": "Amateur / League", "sub": []},
+       {"code": "SP-RUN", "label": "Race / Run / Ride", "sub": []},
+       {"code": "SP-REC", "label": "Rec / Pickup / Club", "sub": []}
+     ]},
+    {"code": "LB", "domain": "library", "label": "Library",
+     "subsegments": [
+       {"code": "LB-PRG", "label": "Library Program", "sub": []},
+       {"code": "LB-AUT", "label": "Author Event", "sub": []},
+       {"code": "LB-TEC", "label": "Tech / Maker Lab", "sub": []}
+     ]},
+    {"code": "FX", "domain": "fairs-expos", "label": "Fairs & Expos",
+     "subsegments": [
+       {"code": "FX-TRD", "label": "Trade Show / Expo", "sub": []},
+       {"code": "FX-CNV", "label": "Convention / Fandom", "sub": []},
+       {"code": "FX-CTY", "label": "County / State Fair", "sub": []},
+       {"code": "FX-RDO", "label": "Rodeo", "sub": []}
+     ]},
+    {"code": "SE", "domain": "seasonal", "label": "Seasonal & Holiday",
+     "subsegments": [
+       {"code": "SE-HOL", "label": "Holiday Event", "sub": []},
+       {"code": "SE-HAL", "label": "Halloween / Haunt", "sub": []},
+       {"code": "SE-LGT", "label": "Lights / Winter Display", "sub": []},
+       {"code": "SE-NYE", "label": "New Year's Eve", "sub": []}
+     ]},
+    {"code": "WE", "domain": "wellness", "label": "Wellness",
+     "subsegments": [
+       {"code": "WE-YOG", "label": "Yoga / Movement", "sub": []},
+       {"code": "WE-MED", "label": "Meditation / Sound Bath", "sub": []},
+       {"code": "WE-FIT", "label": "Fitness Class", "sub": []},
+       {"code": "WE-HEA", "label": "Health / Clinic", "sub": []}
+     ]},
+    {"code": "FN", "domain": "fashion-design", "label": "Fashion & Design",
+     "subsegments": [
+       {"code": "FN-SHW", "label": "Runway / Fashion Show", "sub": []},
+       {"code": "FN-MKT", "label": "Vintage / Design Market", "sub": []},
+       {"code": "FN-ARC", "label": "Architecture / Home Tour", "sub": []}
+     ]}
+  ],
+  "entity_kinds": [
+    {"code": "VEN", "label": "Venue", "note": "a physical place that hosts events"},
+    {"code": "ORG", "label": "Organization", "note": "presenter/producer/promoter; may be venueless"},
+    {"code": "PER", "label": "Person", "note": "artist, performer, DJ, speaker, host"},
+    {"code": "AGG", "label": "Aggregator", "note": "lists other parties' events; never the originator"}
+  ],
+  "open_questions_for_founder": [
+    "AI-identified segments: this file seeds layer 2/3 from the 22 ratified domains and observed Austin supply. It is explicitly NOT complete — the discovery sweep is expected to surface sub-subsegments nobody typed, and those land here as proposals, never auto-adopted.",
+    "PER (person) entities have no home today: the catalog holds exactly 1 artist across 180 rows. An artist registry is a schema decision, not a taxonomy one.",
+    "Whether this file stays JSON (disk-is-truth, reviewable in a diff) or becomes a Postgres table (joinable, RLS-governed). JSON first is reversible; a migration is not."
+  ]
+}

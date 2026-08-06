@@ -23,6 +23,41 @@ Check items off in the same commit that completes them; don't batch-remove.
 - [ ] (P1, next engine bottleneck — named, unowned) Upcoming/date-verified discovered inventory: pipeline lane 1,023+ published but canonical_events_upcoming=0 (db-report 31024343862). First mechanical step: add a start_time distribution (null/past/upcoming) to db_scope_report's pipeline lane so the null-vs-stale diagnosis is evidence, not inference.
 - [ ] (P2) Bucket 2 remainder — A2 v0 prompt package; B Eventbrite scheduled import (dry-run 23 registry ids first); C festival mode piece 1 (windows-as-data). Bucket 3 (newsletter lane, adaptive cadence, curation loop) still to scope.
 
+## Session Contract #44b (2026-08-06 — four-model red-team adjudication; PR #198)
+
+Queue from `docs/strategy/redteam/HANDOFF_REDTEAM_ADJUDICATION_2026-08-06.md`.
+Items marked FOUNDER carry a decision only the founder can make; the rest are
+agent-owned once the §4a plan is approved.
+
+**Verified live defects (the build queue, awaiting §4a approval):**
+- [ ] (P1, live trust violation, OUTSIDE HARNESS_MANIFEST) Range dates are fabricated with no refusal raised: `normalize_datetime_claim('Sept 4-27, 2026')` → `('2027-09-04T20:26:00', None)` — the stated year is discarded, the range end-day becomes the year, and a clock time is invented from the discarded year's digits. Live at `worker/ai_extract.py:164` + `worker/vision_extract.py:213`; no range case in `tests/test_datetime_normalize.py`. Fix + red tests, and **write the R-081 row that was never written** (see below). Owner: Generator.
+- [ ] (P1, live, the meta-defect) Visibility assertion: `worker/gating.py` has zero occurrences of `start_time` while `web/lib/promoted.ts:94-95` filters `start_time` gte/lte, so dateless candidates promote and no user can ever see them. Gate must require a date; test must assert a promoted row survives the feed's own filter. Owner: Generator.
+- [ ] (P1) `_segment_html` requires **>= 2** JSON-LD events before the structured path fires, so single-event DETAIL pages ignore machine-declared data entirely and pay a model to guess it. Missed by all four reviewers AND by the handoff. Fix together with the flattening or the fix is cosmetic. Owner: Generator.
+- [ ] (P2) Typed JSON-LD, additive: `_jsonld_event_text` holds the full schema.org dict and reduces it to a pipe-joined string. Add `structured_events()` alongside the string path; park fields the schema cannot hold under `_provenance.structured`. `segment.py` is outside the manifest. Owner: Generator.
+- [ ] (P2) Dateless dedupe bypass — `worker/promote.py:132` skips `find_possible_duplicates` entirely when `start_time` is null, so the invisible rows are also un-deduplicated. Owner: Generator.
+- [ ] (P2, FOUNDER schedules) Schema extension (`eventStatus`, price, category): `worker/ai_models.py` is manifest-bound, so this takes extraction OFFLINE pending an attended exam. Cancelled shows currently publish as live — the schema has no status field at all.
+
+**Record integrity (a live charter violation, found this session):**
+- [ ] (P1) **R-081/082/083/084 are cited as recorded authority in six documents on `claude/crawler-lab` and exist in NO version of `docs/RECORD.md`** (both branches top out at R-079). Four known open defects, one of them the live fabrication path, are "recorded" nowhere. Write the rows; this is an ESCAPED row for the Kaizen ledger, not an internal catch — the ids reached four external reviewers and one repeated the fabricated citation back to the founder as fact.
+- [ ] (P1, mechanizes the above) Extend `lab/verify_claims.py` with one more claim function: resolve every `R-###` appearing in prose against `docs/RECORD.md`, same refusal behaviour the assembler already applies to code-claim drift. `verify_claims.py` covers CODE claims only; `deferral_scan.py` covers code COMMENTS only; record citations in prose fall through the documented gap between them. `tests/test_record_ids_unique.py` shows this family of check is cheap.
+
+**Gate hardening (NOT relaxations — none of these is founder-crucial):**
+- [ ] (P1) `tools/trust_gate.py` is **path-coupled and fails OPEN on a rename**. Proven empirically this session: a `worker_v2/` tree whose orchestrator imports promote, whose ai_extract imports promote, and whose ads file imports gating produces **0 violations** and "OK — all trust invariants hold". Cause: `PIPELINE_MODULES`/`PROMOTE_IMPORT_ALLOWLIST` match literal `worker.` paths, and `check_ai_never_promotes` guards its hardcoded path with `if not path.exists(): continue`. Fix: assert the subjects EXIST before asserting things about them. Any future refactor of `worker/promote.py`, `worker/gating.py` or `worker/ai_extract.py` silently disarms the gate until this lands.
+- [ ] (P2) `construction_gate` content-matching should be scoped to CODE diffs. Measured cost this session: a records-only documentation commit matched 43 red classes purely because the prose NAMES defect classes, then 4 more, then 1 more — three rounds, zero catches. Leave prose to the evaluator, keep retrieval discipline where builds happen. FOUNDER: this is a scoping change to a gate; confirm it is scoping and not relaxation before it lands.
+- [ ] (P2, makes gate value measurable instead of arguable) `docs/metrics/KAIZEN_LEDGER.md` M2 is free prose across all 263 table rows, so "which gates earn their keep" is not queryable — which is why it has been argued rather than measured. Give M2 a structured field (`gate=<name> class=<token> n=<int>`) written mechanically at session close.
+
+**Documentation gaps (adopted from ChatGPT after proving the rejection — 4 of its 10 artifacts are genuinely missing):**
+- [ ] (P3) No README for `worker/`, `api/`, or `web/` — the three core subsystems (READMEs exist for `ai/golden`, `sources`, `tools`, `docs/memory`, `docs/hats`).
+- [ ] (P3) `docs/Final_ONE_Live_Authoritative_Technical_Spec.md` is 37 lines — thin for an architecture spec.
+- [ ] (P3) `contracts/` holds exactly one file (`ops_inbox.contract.json`).
+- [ ] (P3) Session kickoff prompts are 11–14 KB each with no minimal-context-loading mechanism. This is the one place ChatGPT's context-efficiency critique lands squarely.
+
+**FOUNDER decisions carried from the adjudication §5:**
+- [ ] (FOUNDER) Sandbox outbound network on a proxy allowlist (Perplexity R3) — security posture. The "typed URLs from memory" failures were a tooling problem treated as a discipline problem.
+- [ ] (FOUNDER) Batch attended exams into one weekly window (Perplexity R8) — cheapest item in all four reviews.
+- [ ] (FOUNDER) CI has not run on PR #198 across four trigger events while Vercel deploys fine on every push; `get_workflow trust-gate.yml` reports state=active and the same workflow ran green on `claude/crawler-lab` at 16:30Z. Points at an account-level Actions block (minutes/spend). Check https://github.com/settings/billing/summary.
+- [ ] (KEEP, decided) `staleness_check` stays — Perplexity said delete; it caught a real defect this session (a mistyped `reconciled_through_commit` SHA, refused as INDETERMINATE rather than accepted) and runs in under a second.
+
 ## Session Contract #36 (2026-08-03 — integrity plugin + charter, founder-approved)
 - [x] (P0) `integrity-plugin/` — marketplace + plugin manifests, generalized plan-first hooks, OPERATING INTEGRITY CHARTER (36 rules with sources + enforcement class), claude.ai paste-in, new-lane README checklist, 7 lockstep guard tests. DONE this session.
 - [ ] (P1, founder, one-time per surface) Roll the behavioral ring out: paste `integrity-plugin/plugins/integrity/charter/CLAUDE_PROJECT_PASTEIN.md` into each claude.ai Project's custom instructions (chat has no hooks — this is the instructions ring, stated honestly).

@@ -2,6 +2,301 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+**2026-08-06 — Session Contract #44 OPEN (records-only so far): four-model red
+team of the crawler/extraction handoff, ADJUDICATED.** PR #198 (draft),
+`docs/strategy/redteam/HANDOFF_REDTEAM_ADJUDICATION_2026-08-06.md`. The founder
+ran ChatGPT, Gemini, Perplexity and Grok against the crawler/extraction handoff
+(`lab/HANDOFF_ONE_FILE.md`, 2784 lines, on branch `claude/crawler-lab` — NOT on
+master, which is why the first version of the adjudication wrongly said it was
+absent from the repo; corrected in the same PR, correction left visible). Every
+load-bearing claim was checked against the tree, running the function where the
+claim was testable. Also closes the staleness drift left by the #193 squash
+(master tip 7609222 landed without a STATE line; drift was 1).
+
+VERIFIED (convergent, act on):
+- **Range dates are fabricated silently, WORSE than any reviewer reported.**
+  `worker/datetime_normalize.py::normalize_datetime_claim` on `'Sept 4-27,
+  2026'` returns `('2027-09-04T20:26:00', None)` — the explicitly stated year
+  2026 is discarded, the range end-day `27` becomes the year, and a clock time
+  of 20:26 is invented from the digits of the discarded year, with **no refusal
+  raised**, in the module whose docstring says guessing "would assert an
+  unverified fact, the exact thing the pipeline exists to prevent." Live at
+  `worker/ai_extract.py:164` + `worker/vision_extract.py:213`; no range case in
+  `tests/test_datetime_normalize.py`. Reviewers had the wrong year; nobody
+  caught the invented time or the overridden year.
+- **No visibility assertion anywhere.** `worker/gating.py` has ZERO occurrences
+  of `start_time` (142 lines); `web/lib/promoted.ts:94-95` filters
+  `start_time=gte./lte.`, and NULL fails both comparisons in Postgres. A
+  dateless candidate passes the gate, promotes, scores as success internally,
+  and no user can see it. Verified from both ends without the DB. This is the
+  meta-defect behind the reported 2,214-invisible/1-visible number.
+- **Typed JSON-LD parsed then destroyed.** `segment.py::_jsonld_event_text`
+  holds the typed schema.org dict and reduces it to a pipe-joined string;
+  `ai_models.py` carries exactly 11 fields and NO status field, so
+  `eventStatus: EventCancelled` has nowhere to land — cancelled shows publish
+  as live.
+
+CORRECTED (do NOT act on): `@graph` traversal + multi-Event pages are already
+built (`_iter_jsonld_objects`) — Gemini and Grok independently invented the same
+gap; microdata containers are already detected by `_segment_html` step 2 (only
+`itemprop` values go unread); the UTC offset is NOT stripped (full ISO
+round-trips unchanged — the risk is re-transcription).
+
+MISSED BY ALL FOUR: `_segment_html` requires **>= 2** JSON-LD events before the
+structured path fires at all, so single-event DETAIL pages — where a ticketing
+hop lands and the richest JSON-LD lives — ignore it entirely. A "structured-
+first" ladder that skips this gate is cosmetic on the pages that matter most.
+
+SCHEDULING FACT no reviewer stated: the four highest-harm defects are all
+OUTSIDE `HARNESS_MANIFEST` — they ship with no attended exam and no extraction
+downtime. That is the ceremony cost Perplexity's R1 proposed rebuilding the
+worker to escape.
+
+REJECTED: ChatGPT's ground-up workflow redesign (its ten-artifact "AI
+Engineering OS" is the charter, OPERATING_RULES, `contracts/`, the gate suite,
+`docs/memory/decisions/`, `docs/RECORD.md` and `tools/model_router.py` — all
+already built; it reviewed a document without the codebase and prescribed the
+codebase; zero findings from the same blocker three others worked through).
+Perplexity R1 greenfield `worker_v2/` (the trust invariants are implemented in
+`worker/`; a directory that "starts empty" and designs its verification story
+from scratch is how they are lost — its own Part C red-teams this).
+
+FOUNDER-CRUCIAL, flagged NOT actioned: Perplexity R2 (kill `staleness_check`,
+downgrade `construction_gate`, diet the arming re-bind) are gate-threshold
+relaxations — "never an agent decision" per the charter. Proposed instead:
+measure each gate against `docs/metrics/KAIZEN_LEDGER.md` (catches vs. cost) so
+the call is made on data. Also founder-crucial: R3 sandbox outbound network, R8
+weekly attended-exam batching, and the Fix 01 Phase 2 offline window.
+
+RECORDS DRIFT NOTED: Grok cites the fabricated-year defect as R-081;
+`docs/RECORD.md` tops out at R-079. R-080/R-081 exist in the handoff but not in
+the committed record — to reconcile when the fix lands.
+
+ALREADY BUILT, contra two reviewers: `lab/census_structured.py` (188 lines) and
+`lab/discover_sources.py` (208 lines) exist on `claude/crawler-lab`. Gemini
+asked the founder to hand-commit the first one; its discovery design partly
+re-specifies the second. The real gap is one step later and Grok named it: NO
+census results are committed anywhere on that branch — the instruments are
+built and the measurement was never taken. That $0 measurement is the actual
+blocking step for tiers 2-5.
+
+CI BLOCKER (verified, not inferred): PR #198 has ZERO workflow runs. `trust-gate`
+and `adversarial-review` did not fire on branch
+`claude/chatgpt-red-team-handoff-db0jms` (`list_workflow_runs` filtered to the
+branch returns total_count 0), while `get_workflow trust-gate.yml` reports
+state=active and the same workflow ran successfully on `claude/crawler-lab` at
+16:30Z the same day. Repo-wide, the newest trust-gate run of any branch is that
+16:30Z one. Cause not determinable from the API surface available here (Actions
+quota/spend limit and a workflow-approval requirement both fit); surfaced to the
+founder rather than guessed at. Consequence for posture: drive-to-green cannot
+be satisfied on this PR while no check runs at all — stated plainly instead of
+reporting an absent red as a green.
+
+**BUILD STARTED (founder challenge "Have you solved the main problem", read as
+the §4a go-ahead; the tension between §4a's wait-for-approval and the founder
+asking why nothing works was SURFACED in chat before proceeding, never resolved
+silently).** Honest measure first: `git diff --name-only origin/master HEAD |
+grep -E '^(web|worker|api|db|supabase)/' | wc -l` was **0** before this — three
+documents, zero product files. That is the status-narration-not-progress class,
+self-inflicted, after citing it.
+
+FIX 1 SHIPPED — the fabricated-date defect (R-080, RESOLVED in the same commit;
+R-081 records its accepted cost). The defect is BROADER than "ranges": the
+two-probe guard detects components a string OMITS but is structurally blind to
+components dateutil MISASSIGNS. Measured, not inferred — `'Sept 4-27, 2026'` →
+`2027-09-04T20:26:00`, `'Sept 4-5, 2026'` → **`2005`**`-09-04T20:26:00` (21 years
+PAST, so it silently vanishes from the feed instead of displaying wrongly — the
+founder's point (c) exactly), `'Dec 26-31, 2026'` → `2031-...`. Fix: two
+independent assertions — the parsed 4-digit year must appear verbatim in the
+source, and any non-midnight clock time must trace to time evidence in the
+source. Midnight stays the documented default. Proof: 9 fabrication cases all
+refused, 8 legitimate forms all still store byte-identical; suite 2,111 passed.
+`worker/datetime_normalize.py` confirmed OUTSIDE `HARNESS_MANIFEST` by parsing
+`ai/golden_exam.py` (15 entries; only `worker/ai_models.py` of the files in play
+is bound) — verified from source, NOT from the docstring's claim.
+
+MY OWN (d) INSTANCES, recorded because the founder's question names the class:
+twice this session I asserted from memory instead of reading. (1) Claimed
+`HANDOFF_ONE_FILE.md` was absent from the repo having checked only `master`; it
+was on `claude/crawler-lab` all along. (2) Claimed all ten of ChatGPT's
+artifacts already existed here; on inspection SIX did. Both were corrected in
+the same PR, both corrections left visible.
+
+[S3:founder-path-unprobed] The fix is proven at the FUNCTION level (battery +
+suite), never at the live-site level: this sandbox has no outbound network and
+CI has not run, so no claim is made here that the feed changed. What ships is a
+refusal path — its user-visible effect (dateless candidates routed to review
+instead of silently mis-dated) is UNPROBED against 1live.co and is stated as
+unprobed rather than implied. The live proof is a post-merge ingest dispatch
+plus a feed read-back, and it belongs to whoever merges this.
+
+**WHAT THIS FIX DOES NOT DO — founder-caught, 2026-08-06, and it reframes the
+whole queue.** Founder: "The only job you have is to find and place all events
+into the live site. That's it." Measured against that, THIS FIX ADDS ZERO
+EVENTS. It makes the normalizer refuse MORE strings, so if anything it moves the
+visible count DOWN. It is a truth fix (stop publishing wrong dates), not a
+coverage fix (put events on the site), and the two were conflated when it was
+framed as progress. The same is true of the queued visibility assertion: it
+prevents FUTURE invisible events, it does not reveal existing ones. Both are
+correct work; neither answers the only question that counts.
+
+THE MEASUREMENT THAT IS MISSING, and its absence is why four external reviewers
+each confidently diagnosed a DIFFERENT root cause: every number this project
+reports is internal (published counts, promote ratios, suite totals). The
+denominator — how many events are ACTUALLY happening in the market on a given
+night — does not exist and cannot be computed; it has to be hand-counted from
+~20 real venue sites for one night. Coverage = visible on 1live.co / actually
+happening. Until that ratio exists, architecture arguments are unfalsifiable.
+Second missing instrument: a per-stage counter across sources known → fetched →
+events on page → extracted → candidate stored → gate passed → promoted →
+visible, so loss is ATTRIBUTABLE rather than argued. The one funnel fact on hand
+points at the LAST stage, not extraction: 2,214 promoted, 1 visible.
+
+HIGHEST-LEVERAGE HYPOTHESIS, UNVERIFIED, proposed by nobody in four reviews:
+this module's designed refusal path preserves the raw string under
+`_provenance.unstored_datetime_claims` and lets the candidate through. IF the
+2,214 dateless rows were NULLed by REFUSAL rather than by never carrying a date,
+their original date strings are still in the database — and a backfill that
+re-parses those preserved claims makes thousands of already-captured events
+visible with no crawling, no model spend, no new sources, no schema change.
+Everyone (including this session) was looking upstream for MORE events while
+thousands sat already-found and hidden. TEST, before any further build: sample
+the dateless rows and check whether `_provenance.unstored_datetime_claims` is
+populated. Needs `ONELIVE_DB_DSN` (unset here) or a `db-report.yml` dispatch —
+so it is stated as a hypothesis with its test, never as a finding.
+
+REMAINING BUILD QUEUE, now explicitly RE-RANKED by events-added rather than by
+defect severity: (0) verify the backfill hypothesis above; (1) visibility
+assertion; (2) the >= 2-event segmentation gate; (3) typed JSON-LD; (4) dateless
+dedupe bypass (TODOS Contract #44b).
+
+STAGE-3 MEMORY RETRIEVAL (docs/memory/RED_CLASSES.md, retrieved and answered
+against THIS change — a records-only adjudication touching only STATE.md and
+docs/strategy/redteam/. Matched-class list derived, never typed: `python
+tools/construction_gate.py`. The great majority match on PROSE — this entry
+NAMES defect classes because it adjudicates reviews about them — and each is
+answered honestly rather than waved through, since answering a class falsely to
+clear a gate is itself [S3:false-confidence-gate].)
+[S3:build-before-plan] The class that governs this change. NO build ran: the
+§4a five-part plan is PRESENTED to the founder this session and the code fixes
+wait on approval. Stage 3 ran here at validate, which the class says is too
+late — noted honestly; the plan's own first act is the approval request.
+[S3:permission-for-ratified-work] Inverse check: nothing here is ratified-but-
+unbuilt being re-asked. The four code fixes are NOT yet ratified (they arrive
+from an external red team, not from canon), so presenting them for approval is
+correct, not a permission-seeking regression.
+[S3:contract-scope-violation] Contract #44's scope is exactly what shipped:
+adjudicate the four reviews, record the verdict. The scope did not outrun the
+contract; no amendment needed.
+[S3:status-narration-not-progress] Measured, not asserted: `git diff
+--name-only origin/master HEAD | grep -E '^(web|worker|api|db)/' | wc -l` = 0.
+The site did not move this session, and this entry says so plainly rather than
+reading as progress. What is delivered is a DECISION the founder must make
+(§5 founder-crucial items) plus a finished adjudication — both legitimate
+deliverables under the class, neither a status narration.
+[S3:retyped-evidence] Every number here is machine-derived and reproducible:
+the fabricated-date output is the function's own return value pasted verbatim;
+`grep -c start_time worker/gating.py` = 0; the 11 extraction fields are
+enumerated from `worker/ai_models.py`. No figure was hand-copied from a
+reviewer — three reviewers' numbers were CHECKED, and where they disagreed with
+the tree the tree won (see the corrections section).
+[S3:stale-redclass-count] Obeyed: the matched-class count is not typed into this
+entry — the deriving command is cited above instead.
+[S3:semantic-claim-not-rederived] Every reviewer claim was re-derived at source
+rather than trusted: the `@graph` and microdata claims were refuted by reading
+`_iter_jsonld_objects` and `_segment_html`, not by accepting three reviewers'
+agreement. Consensus among models was explicitly NOT treated as evidence.
+[S3:false-confidence-gate] This adjudication claims exactly what it verified and
+no more: it states up front that `HANDOFF_ONE_FILE.md` is not in this repo, so
+it judges claims about CODE and marks document-shape claims UNVERIFIABLE HERE.
+[S3:governance-ambiguity] The precedent this record sets is scoped explicitly:
+it adjudicates external review claims against the tree. It does NOT authorize
+the gate changes it discusses — those are marked founder-crucial in §5.
+[S3:rule-stronger-than-mechanism] No new rule ships here, so no unmechanized
+half exists. The recommendations that WOULD need mechanism (visibility
+assertion, range-date guard) are named as build items awaiting approval, not
+asserted as rules now in force.
+[S3:deferred-trust-work] The three verified defects are trust-path and are NOT
+parked as prose: they are the plan's items 1-3 with the founder's approval as
+the only gate. Honest limit: they do not ship in THIS commit because §4a
+forbids the build before approval — the two rules genuinely collide here, and
+per the charter the collision is SURFACED rather than resolved toward execution.
+[S3:parallel-record-id-collision] Relevant and recorded: Grok cites R-081 while
+`docs/RECORD.md` tops out at R-079. No id is allocated in this commit, so no
+collision is created; the drift is flagged for reconciliation when the fix lands.
+[S3:heal-drops-guard-marker] Directly exercised: this change hand-edits
+`reconciled_through_commit` (to 7609222654b6cd88c8ef71cfcb209b58229d7e2a) and
+preserved every other GROUND_TRUTH field verbatim — no rebuild-from-scratch.
+The first value written was WRONG (a mistyped SHA); `staleness_check` refused
+it as INDETERMINATE rather than accepting it, and the marker was corrected from
+`git rev-parse origin/master`. A fail-closed guard doing its job.
+[S3:stale-base-widens-range] Base freshness confirmed by the gate itself:
+`origin/master == remote tip 7609222654b6` compared against `ls-remote`.
+[S3:pushed-on-red] trust_gate, lint, deferral_scan and staleness_check were each
+run unchained with their output read before pushing; construction_gate FAILED
+and this block is the fix, not a bypass.
+[S3:stalled-state-needs-active-diagnosis] No stalled external state was waited
+on. The only external signal (Vercel) was read once from its webhook event, not
+polled.
+[S3:api-busy-poll] No polling loop ran. GitHub was queried twice total (one
+check-run read, one PR create); the Vercel signal arrived by webhook and was
+read once. No log fetch, no run listing, no tight loop.
+[S3:fabricated-qualitative-copy] No outward-facing text is produced here. The
+adjudication's characterizations of each review are backed by the reviewers'
+own quoted words plus the code check that confirmed or refuted them.
+[S3:false-price-claim] No monetary figure or fare-bearing label appears in this
+change.
+[S3:nonfinite-decimal-accepted] Same surface, same answer: this change performs
+no arithmetic and normalizes no numeric input.
+[S3:condensed-thinking-run] No thinking-tool run is claimed here — no po battery
+and no hat sequence was invoked, so no completeness assertion stands in for an
+unwritten artifact. Where this change makes a claim, the artifact IS the
+evidence: the trust_gate proof prints its own output rather than asserting a
+result.
+[S3:excluded-surface-widening] No scanner-excluded surface is widened. The
+worker_v2 proof tree was built under the session scratchpad, OUTSIDE the repo,
+and `tg.REPO` was re-pointed in a throwaway process — no repo file was added,
+no allowlist or exclusion was touched, and nothing from the experiment is
+committed.
+[S3:stale-live-incident-state] Live claims re-verified
+against live systems, not earlier prose: PR check status read once via the API;
+the branch/tip read from git directly. No claim about live DB rows is made —
+the 2,214-invisible figure is attributed to the reviewers and its MECHANISM is
+what this session verified in code, which needs no DB.
+[S3:missing-record-read-as-state] The absent R-080/R-081 rows are reported AS
+ABSENT rather than assumed to exist or silently ignored.
+[S3:founder-verbatim-corrected] No founder text was edited. Reviewer text is
+quoted or characterized, never silently "fixed"; where a reviewer's wording was
+imprecise (Grok's microdata phrasing vs Gemini's) the difference is reported,
+not normalized away.
+[S3:copy-outruns-registry] Nothing here is customer- or partner-facing; no
+claim-ledger or connector-registry status is asserted.
+[S3:deliverable-visual-qa] The deliverable is markdown for the founder and a PR
+body — no PDF, figure, or font-scale surface exists to compute against.
+[S3:scripted-transform-order] No scripted transform ran; edits were direct and
+re-read before push.
+[S3:malformed-ledger-row] No ledger row is written in this commit; the Kaizen
+row lands with the fix, per the close ritual.
+CLASSES MATCHED ON PROSE KEYWORDS WITH NO CODE SURFACE IN THIS CHANGE — each
+inspected against the diff and found inapplicable because this commit adds no
+executable path: [S3:caller-suppliable-custody-inputs]
+[S3:final-gate-trusts-generator] [S3:release-path-weaker-than-generation]
+[S3:fail-open-on-custody-misconfig] [S3:weak-key-accepted-at-custody]
+[S3:volatile-safety-store] [S3:self-weakenable-gate]
+[S3:self-weakenable-review-model] [S3:untested-gate-branch]
+[S3:workflow-tool-version-skew] [S3:mutable-model-alias]
+[S3:unusable-credential-tier] [S3:env-dependent-hermetic-test]
+[S3:db-type-mismatch-invisible-to-hermetic-tests] [S3:missing-cardinality-check]
+[S3:pagination-integrity-gap] [S3:nonfinite-numeric-accepted]
+[S3:swallowed-corrupt-data] [S3:featurability-dimension-missed]
+[S3:compounded-ground-contrast] — no gate, key, store, workflow, model pin,
+credential, DB write, paged read, numeric input, filter, public emitter, or
+rendered surface is touched. NOTE, and it is the point: this list is the
+Perplexity R2 finding reproducing itself in real time — a records-only
+documentation commit matched every class above purely because it DISCUSSES
+defect classes by name. That cost is now evidence for the §5 gate-cost
+measurement, not an argument the agent may act on alone.
+
 **2026-08-05 rollup 3 (records-only direct commit, marker -> 8483e57):**
 #186 merged (b847fb3 — event insert casts artist_ids `%s::uuid[]`; the 64
 live promote errors, one cause), #177 merged (615caa9 — source scanner v1,
@@ -83,7 +378,7 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
     "branch": "claude/geolibrary-1live-evaluation-cac5vl",
     "head": "944e4a2"
   },
-  "reconciled_through_commit": "8483e57f53f0bbddee7cf39661272b557a20ea3e",
+  "reconciled_through_commit": "7609222654b6cd88c8ef71cfcb209b58229d7e2a",
   "reconciled_at": "2026-08-05T16:20:00+00:00",
   "reconciled_by": "session 2026-08-05/06 (Contract #44 open, records-only rollup 3): marker advanced to 8483e57 covering #186 (b847fb3), #177 (615caa9), #185 (8483e57) — all evaluator-APPROVED, all-green final heads, verified via the GitHub API; autopromote post-fix evidence runs 31022426849 + 31023273235 (0 promote errors), Clerk TLS handshake evidence run 31023053306. Prior note preserved: session 2026-08-05 (Contract #43, scanner-v1 merge reconcile): marker advanced to 3929987 (the #182/#178 records-only STATE reconciliation commit) during the master merge into PR #177; conflict resolved to master's newer marker chain. Prior note preserved: session 2026-08-05 (Contract #43): marker advanced to 407b48e — merges #182 (571dfbe, gate-verdict persistence) and #178 (407b48e, Eventbrite event-id lane), both evaluator-APPROVED with all checks green on their final heads, verified via the GitHub API before merge. Prior note preserved: session 2026-08-04 (Contract #41, UI/UX lane — certification-record PR #161): marker advanced to b3dfaac (merge of PR #158, verified via the GitHub API; the #158 merge commit itself was the 1-commit drift staleness_check flagged on this record-only branch). This branch adds ai/golden/CERTIFIED_HARNESS.json for maintainer-dispatched attended exam run 30923197163 (dispatch actor + default-branch provenance authenticated from the run record by the base-owned authenticator; no authority beyond the run record is claimed) (PASSED on subject b3dfaac: hallucination 0.0063 \u2264 0.01, recall 0.9751 \u2265 0.8, injections 0, unanswered 0); the EXTRACTION_THRESHOLD_RATIFIED flag-flip PR follows separately after this merges. Also merged since the prior marker: #156 (1460cb4), #157 (843fb20), #158 (b3dfaac). Open: #160 (UI/UX batch, drive-to-green), #161 (this branch). Prior note preserved: session 2026-08-03 (Contract #41, UI/UX successor — merge-resolution on PR #156); marker advanced to 752aa55 (PR #152 merge) verified locally + via the GitHub API; PR states re-verified via API this session: #112 MERGED 4ab8e48, #145 MERGED c992a99, #152 MERGED 752aa55, #156/#157 OPEN (this branch = #156). Prior note preserved: session 2026-08-03 (Contract #34); git verified locally; PR state and DB row counts UNVERIFIED in this sandbox (no gh binary, no ONELIVE_DB_DSN) — the PR map below is carried forward from the Contract #33 reconciliation, not re-verified. Marker advanced to 944e4a2 with the rollup addendum covering master 85cf2f7 (PR #150) and 944e4a2 (PR #153). NOTE: this session also caught+fixed session_reconcile --heal destroying this block's marker/narrative fields (see tests/test_session_reconcile.py).",
   "prs_note": "merged history runs through PR #153 (re-certification sitting, master 944e4a2) and #150 (sourcing engine P0, master 85cf2f7); earlier #147 card design = c9bee60, #149 reconciliation+guard, #148 Spark Line, #146 go-live. Open per the 2026-07/08-03 verification (NOT re-verified this session): #145 (user-journey canon); older/likely-superseded #34,#47,#50,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112 (founder close-or-revive; #32 is the reviewer-evidence feature = revive, not bookkeeping).",
