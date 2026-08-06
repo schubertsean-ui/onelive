@@ -2,6 +2,28 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+**2026-08-06 LAB branch (claude/crawler-lab, PR #197 — PLAN ONLY, do not merge):**
+extraction-engine-v2 plan of record at `lab/PLAN.md`, pushed for adversarial
+red-team review BEFORE any code is written (founder: *"If I were you I would
+have it red teamed against a couple other AI before building a thing"*).
+Implements the founder's root-cause diagnosis — ingestion fetches ONE url and
+never clicks through to the page that states the date
+(`docs/ops/CRAWLER_DEPTH_DIAGNOSIS_2026-08-06.md`, on PR #196). Approach is an
+escalation ladder that pays a model only where a site publishes nothing
+structured: schema.org JSON-LD, then site feeds, then link-enumeration plus the
+detail page, then Haiku on a SINGLE detail page, then browser render, then
+follow the ticketing platform. Execution starts with a $0 census. Carries the
+62-site proving set (2 per each of the 23 ratified supply segments plus the 16
+agreed with the founder), ten decisions with three options each, numeric
+acceptance criteria set BEFORE running (100% date correctness, zero fabricated
+fields), a $100 hard cap with checkpoints, and a four-stage proof of reading,
+extraction, ingestion and updates. Nothing built; nothing merged; no product
+file, gate or pipeline workflow touched. Handoff prompt at
+`lab/NEW_SESSION_PROMPT.md`. Finding already on the record: nine of the
+twenty-three ratified segments have NO representative in the source catalog.
+This branch does NOT advance reconciled_through_commit — it is a lab branch that
+must never merge, and the marker advance for the #193 merge lives on PR #196.
+
 **2026-08-05 rollup 3 (records-only direct commit, marker -> 8483e57):**
 #186 merged (b847fb3 — event insert casts artist_ids `%s::uuid[]`; the 64
 live promote errors, one cause), #177 merged (615caa9 — source scanner v1,
