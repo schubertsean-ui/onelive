@@ -230,6 +230,114 @@ artist tour pages.
 | `web/lib/promoted.ts` | How the public feed reads events (the date filter that hides everything) |
 | `tools/sample_dateless.py` | Read-only diagnostic that produced the numbers above |
 
+## 10. THE RETURN CONTRACT — what you must hand back, and how it will be judged
+
+Read this before you start, because it changes how you work. Your output is not
+a report; it is **evidence that a third party can independently re-verify
+without trusting you**. Anything that cannot be re-verified will be discarded
+regardless of how good it looks.
+
+### 10.1 Artifacts you must produce (exact paths, machine-readable)
+
+| Path | Contents |
+|---|---|
+| `lab/snapshots/<site_id>/<page>.html` | The exact bytes you scored against. Committed. Without these nothing you claim can be checked. |
+| `lab/truth/<site_id>.json` | Hand-built ground truth: every event on that page, every field the page states, written BEFORE extraction ran, with the URL and the timestamp you read it. |
+| `lab/results/census.json` | Per site: structured data present (y/n, which), machine feed present (y/n, which), event links enumerable (y/n, count), render required (y/n), final URL after redirects, HTTP status, bytes. |
+| `lab/results/extraction.json` | Per site, per event, **per field**: the value, the method that produced it (`jsonld` / `feed` / `html` / `model` / `derived`), and its **provenance** — the JSON path, CSS selector, or byte offset in the snapshot it came from, plus the source URL. |
+| `lab/results/scores.json` | Per site, per field: true positives, false positives, false negatives, precision, recall. Computed, not asserted. |
+| `lab/results/failures.jsonl` | One line per miss or wrong value: expected, got, the raw snippet from the snapshot, and your classification of why. |
+| `lab/results/ingestion.json` | Rows written to the database: event ids, the tag identifying them as proof rows, and a **read-back from the public feed API** showing each one visible with its fields. |
+| `lab/results/updates.json` | The seeded change test: the three changes made (moved / cancelled / added), before and after state, and what the database and feed showed. |
+| `lab/spend.jsonl` | One line per model call: model id, input tokens, output tokens, unit prices used, computed cost, running total. |
+| `lab/RECOMMENDATION.md` | What to adopt into `worker/`, what to discard, and why — each claim citing an artifact above. |
+
+### 10.2 Evidence rules — non-negotiable
+
+1. **No summarizing.** Report raw counts and raw values. "Most sites worked" is
+   not a result; `47/62` with the list of the 15 is.
+2. **No assuming.** If something is unknown, write `UNKNOWN` and the reason.
+   An unknown that is stated is fine; an unknown presented as a fact is a
+   failed run.
+3. **No reliance on memory.** Re-read the artifact every time you cite it.
+   Never quote a number you have not just recomputed.
+4. **No making things up.** Every asserted field value must be locatable in the
+   committed snapshot at the provenance you recorded. A value that cannot be
+   found there is a fabrication, and fabrication fails the whole run — not
+   that field, the run.
+5. **Ground truth is written first.** If you author or amend a truth fixture
+   after seeing extractor output, say so explicitly on that fixture. An
+   unmarked post-hoc edit invalidates the site's score.
+6. **Every number must be reproducible** by running your scorer over your
+   snapshots and your fixtures with no network access.
+
+### 10.3 How your work will be judged — the adjudication protocol
+
+Stated in advance so it cannot be argued with afterwards.
+
+1. **Independent re-scoring.** Your snapshots and fixtures will be re-scored
+   with a *different* scorer. If the numbers differ materially from
+   `scores.json`, your scores are void and the re-score stands.
+2. **Ground-truth audit.** Your fixtures are a self-graded exam — you wrote
+   both the answers and the test. Truth will be independently re-derived for a
+   **random sample of sites** from your committed snapshots. Systematic
+   disagreement voids the fixture set and the run is repeated.
+3. **Provenance audit.** A random sample of asserted field values will be
+   checked against the snapshot at the cited provenance. **Any value not found
+   there fails the run.**
+4. **Visibility proof.** The public feed will be read directly to confirm the
+   ingested events are actually visible with their fields. This is the check
+   whose absence let 2,214 invisible events pass every gate in this repo.
+5. **Cost audit.** Spend is recomputed from `spend.jsonl`. A total that does
+   not reconcile is treated as an unmeasured run.
+6. **Adversarial pass.** Your recommendation goes to a non-Claude review panel
+   before adoption.
+7. **HOLDOUT TEST — declared now so you do not tune to the set.** A number of
+   sites are being held back that are **not** in the proving set and will not
+   be shown to you. Your engine will be run against them unchanged. If
+   performance on the holdout is materially worse than on the proving set, the
+   engine is overfitted and will not be adopted no matter how good the
+   in-sample numbers are. Build for the general case.
+
+### 10.4 The adopt / discard criteria — decided before your results exist
+
+**Adopted** only if ALL hold:
+- meets the acceptance thresholds in §4a and the plan's §7;
+- **zero fabrications** in the provenance audit;
+- holdout performance within a small margin of in-sample;
+- simpler than the code it replaces, or with the added complexity justified by
+  a measured failure it fixes;
+- cost per verified event inside budget;
+- no trust relaxation required to pass.
+
+**Discarded** if ANY hold:
+- per-site special-casing standing in for generalization;
+- thresholds met by narrowing the denominator (e.g. dropping hard sites);
+- claims that cannot be re-verified from the committed artifacts;
+- a gate, threshold or definition of "verified" had to be weakened.
+
+**Escalated to the founder, never decided by an agent:** anything touching
+money, legal posture, credentials, what counts as verified, or a gate
+threshold.
+
+### 10.5 How adoption will be proved to serve the stated vision
+
+Each objective, in the founder's own words, is bound to one measurable. A
+recommendation is adopted only when its column moves.
+
+| Objective (founder's words) | Measurable | Today |
+|---|---|---|
+| *"my site live and full of thousands of events"* | count of **visible, future-dated** events on the live feed | **1** |
+| *"every event, date, time, specifics, notes, descriptions, specials"* | field recall across both required groups, where the source states the field | unmeasured; schema can hold ~7 of 26 |
+| Cards that look like a product | % of published events carrying every required card field | ~0% (no price, image, description) |
+| Search that works | % of published events filterable by `area`, `price`, `free` | **0%** |
+| Data analysis | funnel exists end-to-end: sources → fetched → events → candidates → gate → promoted → **visible** | no funnel |
+| Trust | fabricated fields; cancelled events shown as live | 1 known fabrication path (R-081); cancellation discarded entirely |
+| Cost discipline | $ per verified event | unmeasured |
+
+A change that improves an internal metric while leaving the "visible events"
+column at 1 has not accomplished anything, and will be recorded as such.
+
 ---
 
 # THE PROMPT — paste everything below into the other AI
@@ -307,7 +415,25 @@ THINGS THAT WILL WASTE YOUR TIME IF YOU DON'T KNOW THEM
 - ingest.yml shares one concurrency slot with the production cron; dispatch
   once and leave it.
 
-DELIVER
+DELIVER — see the RETURN CONTRACT in section 10. Summary of the rules:
+- Commit the page snapshots you scored against. Without them nothing you claim
+  can be verified, and unverifiable claims are discarded.
+- Write ground truth BY HAND, BEFORE extraction runs. If you amend a fixture
+  after seeing output, mark it; an unmarked post-hoc edit voids that site.
+- Every asserted field value must carry provenance (JSON path, selector, or
+  byte offset in the snapshot) and must be findable there. A value that is not
+  is a fabrication, and one fabrication fails the entire run.
+- No summarizing ("most sites worked" is not a result — give 47/62 and name
+  the 15). No assuming (write UNKNOWN and why). No quoting a number you have
+  not just recomputed. No making things up.
+- Your scores will be independently re-computed from your artifacts, your
+  ground truth will be re-derived for a random sample, a random sample of
+  field values will be checked against provenance, and the live feed will be
+  read directly to confirm visibility.
+- A HOLDOUT SET of sites you will never see will be run against your engine
+  unchanged. If it performs materially worse there, the engine is overfitted
+  and will not be adopted. Build for the general case, not for the list.
+
 1. The census: how many sites each tier serves.
 2. A results table: 62 sites x method used x precision/recall/field accuracy
    against hand-built ground truth, with every failure shown.
