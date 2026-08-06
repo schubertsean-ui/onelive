@@ -32,7 +32,7 @@ problem is narrower than that, and item 1 is most of it.
 
 ## 1. The gate contradicts the publish policy — highest leverage by far
 
-**Status: fixed in PR #193, green, waiting on the merge freeze.**
+**Status: MERGED 2026-08-06 (PR #193, squash `7609222`) and MEASURED. Done.**
 
 This is the single biggest cause of low volume, and it is visible verbatim in
 the live autopromote log (run 31052244130):
@@ -52,10 +52,102 @@ PR #193 makes first-party and published-media classes promote on one source —
 classes found in the live DB that no code defined (`theater_arts`,
 `gallery_museum`, `food_culinary`, `university`).
 
-**Expected effect:** the `human_review` rows above become `promoted` rows.
-Based on the sampled 3:4 ratio this is plausibly a near-doubling of publish
-rate, but the sample is one pass — treat it as directional until measured
-(see item 8).
+**Expected effect (written BEFORE the merge):** the `human_review` rows above
+become `promoted` rows. Based on the sampled 3:4 ratio this is plausibly a
+near-doubling of publish rate, but the sample is one pass — treat it as
+directional until measured (see item 8).
+
+**MEASURED effect (run 31067808019, on the merged code, ceilings raised to
+`limit=3000 stamp_limit=20000` at founder direction — "Do Option 1 + the speed
+rule"):**
+
+```
+StampReport:       examined 418  stamped_ready 239  stamped_hold 111  escalated 68  errors 0
+AutopromoteReport: examined 292  promoted 292  human_review 0  errors 0
+```
+
+All 292 published as `confirmed`. **Zero held, zero errors** — the
+`policy would publish … but the fresh gate verdict is 'hold'` line does not
+appear once in the log. The prediction was directionally right and understated:
+the hold rate went to zero, not to half.
+
+Note what the ceiling proved: `limit=3000` was never the binding constraint —
+the ready queue held 292. The backlog was not thousands deep; the gate was
+simply refusing it.
+
+---
+
+## 1b. THE NEW HEADLINE: published discovered events carry no usable date
+
+**Status: FOUND 2026-08-06 by the first real end-to-end measurement. Not
+fixed. This is now the binding constraint, ahead of everything below.**
+
+Merging item 1 let the publish pass run at full rate, and running the
+read-only production scope report immediately afterwards
+(`db-report.yml` run 31068431505, `tools/db_scope_report.py`) produced the
+first honest picture of the live site:
+
+| | total rows | with a FUTURE start_time |
+|---|---|---|
+| licensed lane (Ticketmaster/ics/jsonld — events anyone can license) | 1,644 | **1,359** |
+| **pipeline lane (our discovered events)** | **2,215** | **1** |
+| published total | 3,859 | 1,360 |
+
+Read the second row again. We have **2,215 discovered events published**, every
+one of them gated and stamped `confirmed`, and **exactly one** of them has a
+start time in the future. The same report's 50:1 KPI block shows it from the
+other side: `non_api_events` is **0** for today, 0 for the weekend, and 0 for
+the next seven days, against 19 / 74 / 116 licensed events in those windows.
+
+So the site is not empty — it is showing the *licensed* feed. Almost nothing
+we discover ourselves is reaching a visitor, and item 1 did not change that,
+because item 1 was about whether events get published, not about whether a
+published event is findable.
+
+**The mechanism, traced end to end in committed code:**
+
+1. A third of sampled sources publish bare time strings — "8pm", "6:00 PM" —
+   with the calendar date living in a page header above the listing.
+2. `worker/datetime_normalize.py` **correctly refuses to guess** a date it
+   cannot see in the string (its module docstring states the rule: guessing
+   "would assert an unverified fact, the exact thing the pipeline exists to
+   prevent"). `start_time` is stored as NULL and the raw claim is preserved
+   under `_provenance.unstored_datetime_claims`.
+3. The trust gate has **no date requirement at all** — `worker/gating.py`
+   contains no reference to `start_time`. A dateless candidate passes.
+4. `worker/promote.py` publishes it anyway: line 132 reads
+   `dups = find_possible_duplicates(...) if start_time else []` — the promote
+   path explicitly tolerates a missing start time.
+5. The consumer feed then cannot show it. `web/lib/promoted.ts`
+   (`buildPromotedQuery`) filters `start_time` with `gte.`/`lte.` for the
+   requested window, and PostgREST excludes NULLs from a range filter. A
+   dateless event is published, correct, gated — and invisible.
+
+Nothing in that chain is a bug in isolation. Step 2 is the trust invariant
+working exactly as designed, and it must not be "fixed" by defaulting a date.
+The defect is that steps 3-5 treat a dateless candidate as publishable when the
+only surface that displays it requires a date.
+
+**This is what PR #189 is for.** Date recovery reads the date out of the page
+header and attaches it to the time-only blocks beneath it — recovering a date
+the source really did state, rather than inventing one. #189 has therefore gone
+from "a nice correctness PR in review" to **the highest-leverage unmerged work
+in the repo**, and its round-8 finding (a range header like "August 5-9" being
+read as a single day) is squarely on the same code path.
+
+**Two things must be planned, not assumed** (founder ruling 2026-08-06,
+plan-first):
+
+- **How many of the 2,215 are dateless vs genuinely past?** The scope report
+  measures "upcoming", which conflates NULL with past. The split decides
+  whether #189 recovers ~2,000 events or ~200. Getting it needs a small
+  read-only addition to `tools/db_scope_report.py` (a NULL/past/future
+  histogram of `event.start_time`), and `db-report.yml` is master-only by
+  design, so the addition has to land on master to be runnable.
+- **Should the gate hold a dateless candidate instead of publishing it?**
+  Arguable both ways — holding keeps the published set honest, publishing keeps
+  the row visible to ops and to a future backfill. Changing what the gate
+  requires is a gate change and therefore founder-crucial either way.
 
 ---
 
@@ -195,7 +287,8 @@ and neither has been used to produce a trend.
 
 | # | Item | Blocked on | Effort |
 |---|---|---|---|
-| 1 | Gate/policy contradiction | merge freeze only — **it is green** | done |
+| 1 | Gate/policy contradiction | — | **MERGED + measured 2026-08-06** |
+| 1b | **Dateless published events** | plan → #189 | **now the binding constraint** |
 | 2 | Pagination | PR #189 review | done, in review |
 | 8 | Measurement | nothing | small |
 | 4 | Audit the 86 DB-only sources | nothing | medium |
@@ -204,16 +297,33 @@ and neither has been used to produce a trend.
 | 5 | Source-discovery sweep | nothing | medium |
 | 7 | Throughput/cost re-derivation | founder (money) | small + decision |
 
-Items 1 and 2 are finished work sitting behind a review queue. Item 8 is small
-and makes everything else legible. Items 3-7 are the real remaining build.
+Item 1 is done and measured. Item 1b is the new front of the queue and it runs
+through #189. Item 8 is small and makes everything else legible. Items 3-7 are
+the real remaining build.
 
 ## What "thousands" plausibly requires
 
 Rough arithmetic, stated as an estimate: 266 sources × ~40 events on page 1 is
-already ~10,000 candidate events per full cycle. **The corpus is very likely
-large enough already** — items 1 and 2 are about letting what we already
-extract reach the site, not about finding more. Items 3-5 matter for breadth
-and freshness, not for clearing the first thousand.
+already ~10,000 candidate events per full cycle — and the live count is now
+measured rather than estimated: **9,223 candidates** in
+`event_candidate` (scope report, 2026-08-06). **The corpus is large enough
+already** — the remaining work is about letting what we already extract reach
+the site, not about finding more. Items 3-5 matter for breadth and freshness,
+not for clearing the first thousand.
 
-That is the most important sentence in this document: the bottleneck is the
-gate, not the supply.
+## The one sentence that matters, revised
+
+The original version of this document ended: *"the bottleneck is the gate, not
+the supply."* That was right, and item 1 removed it — 292 published in one pass
+with zero holds. Measuring immediately afterwards revealed the sentence was
+only half the truth, so it is superseded rather than deleted:
+
+> **The bottleneck was the gate. Now it is the date.** 2,215 discovered events
+> are published and exactly one of them has a future start time — so the events
+> exist, they are gated, they are `confirmed`, and the feed still cannot show
+> them. Supply was never the problem, and now publication is not either.
+
+Keeping both sentences on the page is deliberate. The first one was measured,
+acted on, and proved correct; it was also incomplete, and a document that
+quietly swapped it out would hide that a prediction ran out before the problem
+did.
