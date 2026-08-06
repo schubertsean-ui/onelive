@@ -60,6 +60,11 @@ Follow the ticketing platform one hop when a venue defers showtimes to it.
   measured failure, and record why.
 - **NEVER invent a fact.** Refusing to store a value is always correct;
   guessing one never is. One fabricated date fails the entire run.
+- **NEVER work from memory — read the source.** Every factual claim carries a
+  file:line, a run id, or a URL you just fetched; anything you cannot cite is
+  marked UNVERIFIED. Never quote a number from your own earlier output;
+  recompute it. A docstring is a claim about the code, not the code. This is a
+  founder directive with measured backing — see section 4c.
 - Build ground-truth fixtures by hand from the rendered pages BEFORE running
   extraction. Score precision, recall and per-field accuracy against them.
   Show every miss and every wrong value. Numbers, not assertions.
@@ -365,6 +370,71 @@ else handles:
 Treat a design that leaves discovery as "run 21 queries and have a human read
 the output" as failing this brief.
 
+## 4c. WORKING RULE — SOURCE OVER MEMORY (founder directive)
+
+**Never assert a fact you have not just read from the source.** Not from
+recall, not from an earlier turn's summary, not from what a docstring claims
+the code does. Read the code, the run log, or the page — then speak.
+
+This is not a style preference. It is the measured lesson of the session that
+produced this brief.
+
+### The evidence
+
+Every factual error in that session came from memory. Every claim taken from
+source survived scrutiny.
+
+| Asserted from memory | What the source actually said |
+|---|---|
+| "a third of sources publish bare times" explains 2,214 dateless events | It explains a fraction. The dominant causes were catalog rows pointing at non-event pages, and JS shells read as content. |
+| The card needs roughly the fields we extract | `web/lib/licensed.ts:48` defines **26**; `worker/ai_models.py` fills **7** |
+| "2 affected sources" | **95** — the sample had been sorted by name and only its first page read |
+| A set of plausible venue URLs | 5 of 14 verified; one domain did not resolve at all — a fabricated fact inside a document |
+| "The plan is being red-teamed" | The job had died in `validate`; no reviewer seat ever ran |
+| Three estimates of recoverable events | Three different wrong models of the problem |
+
+Read from source, and correct every time: `datetime_normalize`'s actual parse
+behaviour, `promote.py:132`, `segment.py:252`, `gating.py` containing **zero**
+occurrences of `start_time`, the card contract, the 21-phrase query pack.
+
+### What it costs, honestly
+
+- **Tokens:** reading the exact lines costs 1-5k. A wrong claim costs a full
+  correction round plus rework. Reading first is roughly an order of magnitude
+  cheaper.
+- **Time:** seconds slower per answer; hours faster per project.
+- **The real penalty:** external facts. A dev sandbox with no outbound network
+  turns "check this page" into a CI round trip of 2-10 minutes. That friction
+  is exactly why URLs got typed from memory instead of checked — **and it was
+  still the wrong trade.** Build the verification path early and use it.
+
+### How to apply it
+
+1. **Cite or mark.** Every factual claim carries `file:line`, a run id, or a
+   URL you just fetched. A claim you cannot cite is written `UNVERIFIED`, with
+   the reason.
+2. **Re-read, don't recall.** Never quote a number from earlier in your own
+   output. Recompute it.
+3. **Separate fact from judgment.** The rule forbids unsourced *assertions*,
+   not reasoning. Recommendations and designs are welcome — label them as
+   judgment so they cannot be mistaken for measurements.
+4. **Proof of absence is a read too.** "There is no date check in the gate" is
+   a claim; `grep -c start_time worker/gating.py` returning `0` is the
+   evidence.
+5. **Verify your own output.** Hand-assembling this document silently dropped
+   two appendices. The assembler now fails loudly when a section is missing.
+   Apply the same to every artifact you produce.
+6. **A docstring is not the code.** It is a claim about the code, possibly
+   wrong, possibly stale. Read the body.
+
+### Why this matters more here than on most projects
+
+The product's promise is that a date on the site was stated by its source. An
+engineer who works from memory will eventually write a date nobody published.
+The discipline that makes this brief trustworthy is the same discipline the
+extractor must embody: **capture what the source says, refuse what it does
+not, and never fill a gap from your own head.**
+
 ## 5. The architecture you are replacing, and the one proposed
 
 **Today:** `fetch(one url)` → `segment text into blocks` → `model call per
@@ -626,6 +696,11 @@ HARD RULES
   after a measured failure, and record why.
 - NEVER invent a fact. Refusing to store a value is always correct; guessing
   one never is. One fabricated date fails the entire run.
+- NEVER WORK FROM MEMORY — read the source (section 4c, founder directive with
+  measured backing). Every factual claim carries a file:line, a run id, or a
+  URL you just fetched; anything you cannot cite is marked UNVERIFIED. Never
+  quote a number from your own earlier output — recompute it. A docstring is a
+  claim about the code, not the code.
 - Build ground-truth fixtures by hand from the rendered pages BEFORE running
   extraction, and score precision, recall and per-field accuracy against them.
   Show every miss and every wrong value. Numbers, not assertions.
@@ -1661,7 +1736,7 @@ may publish at `confirmed` remains founder-crucial.
 
 # APPENDIX A — VERBATIM SOURCE OF EVERY CITED DEFECT
 
-Copied out of the repository at commit `fd02185`, not retyped. If you have no
+Copied out of the repository at commit `d6c4f6e`, not retyped. If you have no
 repository access you still have everything needed to verify each claim.
 
 

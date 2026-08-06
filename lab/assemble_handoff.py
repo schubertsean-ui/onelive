@@ -75,6 +75,11 @@ Follow the ticketing platform one hop when a venue defers showtimes to it.
   measured failure, and record why.
 - **NEVER invent a fact.** Refusing to store a value is always correct;
   guessing one never is. One fabricated date fails the entire run.
+- **NEVER work from memory — read the source.** Every factual claim carries a
+  file:line, a run id, or a URL you just fetched; anything you cannot cite is
+  marked UNVERIFIED. Never quote a number from your own earlier output;
+  recompute it. A docstring is a claim about the code, not the code. This is a
+  founder directive with measured backing — see section 4c.
 - Build ground-truth fixtures by hand from the rendered pages BEFORE running
   extraction. Score precision, recall and per-field accuracy against them.
   Show every miss and every wrong value. Numbers, not assertions.
