@@ -31,3 +31,8 @@ jobs:
       # No credential, no model call, no search quota.
       - name: Discover new sources by mining aggregators (lab)
         run: python3 lab/discover_sources.py
+      # LAB: the $0 census that decides Fix 01's go/no-go — which extraction
+      # tier can serve each proving-set site, and which card fields would
+      # arrive free from schema.org data we currently flatten and discard.
+      - name: Structured-data census over the proving set (lab)
+        run: python3 lab/census_structured.py
