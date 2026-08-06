@@ -1,6 +1,6 @@
-# 2026-08-06 — Five directives on how work is done (verbatim)
+# 2026-08-06 — Six directives on how work is done (verbatim)
 
-All five were given in one working session and all five are now CANON. Each is
+All six were given in one working session and all six are now CANON. Each is
 quoted exactly; the mechanism that enforces it is named beside it, because a
 directive with no mechanism is the `rule-stronger-than-mechanism` defect this
 repo already tracks.
@@ -150,6 +150,38 @@ returns all fourteen from one pass.
 
 ---
 
+## D6 — The standard is working perfectly, not clearing a threshold
+
+> O don't want sharpens - I want world class fixed and working perfectly.
+
+**Ruling:** a measurement may decide SEQUENCE — what to build first, how much a
+given method covers — but it may never decide whether a known defect gets fixed.
+"The data sharpens the decision" is a hedge when the defect is already proven.
+
+**What triggered it:** Fix 01's §6 gate read "GO if the census shows ≥30% of
+sites publish JSON-LD; NO-GO under 10%." That made repairing a defect
+conditional on how often the repair pays. But `_jsonld_event_text` ALREADY
+parses the complete schema.org object and then deletes `offers`, `description`,
+`endDate`, `performer`, `image`, `eventStatus`, `doorTime`, `organizer` and
+`location.geo`. Throwing away already-parsed data is wrong at 30% coverage and
+equally wrong at 5%. A low census would not have made the deletion correct — it
+would only have meant fewer sites are rescued by this one fix. The gate gave a
+real defect a way to survive a number.
+
+**Corrected:** Fix 01 is GO unconditionally. The census is re-scoped to what it
+actually measures — how much of the corpus tier 0 finishes, i.e. a sequencing
+input for tiers 2-5. The gates that remain are QUALITY gates on the finished
+work, none relaxable by any census value: zero fabricated values, >=98% on the
+Tier-B-required fields (D4), cancelled/postponed 100% correct and never rendered
+as live, and no regression against what extraction gets today.
+
+**Class rule for the brain:** `threshold-as-escape-hatch` — before writing a
+go/no-go criterion, ask what a NO-GO would license. If NO-GO means "keep the
+known defect," the criterion is measuring the wrong thing: the decision is
+sequencing, and it must be labelled as sequencing.
+
+---
+
 ## What binds where
 
 | Directive | Enforced by |
@@ -159,6 +191,7 @@ returns all fourteen from one pass.
 | D3 defect-writeup shape | `lab/FIX_01_JSONLD.md` is the template |
 | D4 Tier B required | acceptance thresholds in `lab/PLAN.md` §3a/§7 |
 | D5 sourcing critical | `lab/EXTERNAL_AI_BRIEF.md` §4b + `lab/discover_sources.py` |
+| D6 working perfectly, not a threshold | `lab/FIX_01_JSONLD.md` §6 — quality gates only, no build gate |
 
 Every directive now has a mechanism. D2 was the last one enforced only by the
 founder noticing; that gap was closed the same day it was recorded, on the

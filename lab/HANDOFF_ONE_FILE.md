@@ -2111,7 +2111,10 @@ Engineering record for a single defect, in the discipline the founder
 specified: problem → severity → cascade → measured effort → plan → testing →
 go/no-go/delay → proof.
 
-**Status: awaiting GO. Nothing built.**
+**Status: GO — ruled by the founder 2026-08-06, unconditionally and not
+contingent on the census (§6).** The standard is not "clears a threshold"; it is
+*world class, fixed, and working perfectly*: every field the source states is
+extracted, nothing is invented, cancelled and postponed are never shown as live.
 
 ---
 
@@ -2284,15 +2287,39 @@ Against the 16 agreed proving sites, from CI:
 - for those, field-by-field precision/recall against hand-built ground truth;
 - model calls and dollars, structured path vs today's path.
 
-## 6. Go / No-Go / Delay
+## 6. Go / No-Go / Delay — RULED: **GO**, unconditionally
 
-**Decision point A — before building Phase 1.**
+**Founder ruling, 2026-08-06, verbatim:**
 
-| Verdict | Criteria |
-|---|---|
-| **GO** | The lab census shows ≥30% of the 16 sites publish JSON-LD **and** field recall on those sites is ≥95% against hand-built truth |
-| **DELAY** | Census 10–30%: build it, but sequence it behind detail-page navigation, which would raise the JSON-LD hit rate first |
-| **NO-GO** | Census <10%: the method does not carry enough of the corpus to justify the re-arm and review cost; report and pursue detail-page navigation instead |
+> O don't want sharpens - I want world class fixed and working perfectly.
+
+**The original gate asked the wrong question, and that was an engineering error,
+not a wording one.** It read:
+
+> GO if the census shows ≥30% of sites publish JSON-LD; NO-GO under 10%.
+
+That makes fixing the defect conditional on how common the defect's payoff is.
+But `_jsonld_event_text` **already parses the complete schema.org object** and
+then deletes `offers`, `description`, `endDate`, `performer`, `image`,
+`eventStatus`, `doorTime`, `organizer` and `location.geo` before returning. Data
+that has already been fetched and already been parsed is thrown away. That is
+wrong at 30% coverage and equally wrong at 5% — a low census would not make it
+correct to keep destroying parsed fields; it would only mean fewer sites are
+rescued by this one fix.
+
+The census therefore measures **how much of the corpus tier 0 finishes**, which
+is a sequencing input for tiers 2–5. It never was a build-or-don't-build input,
+and treating it as one gave a real defect a way to survive a number.
+
+**The gates that remain are quality gates on the finished work, not permission
+to start.** None may be relaxed by any census result:
+
+| Gate | Criterion | Fails how |
+|---|---|---|
+| **Faithfulness** | Zero fabricated values. A field is emitted only if the source states it | One fabrication ends the phase — see §6 abort below |
+| **Required fields** | ≥98% correct across the proving set, on the Tier-B-required list (D4) | Below 98% is not done |
+| **Cancelled / postponed** | 100% correct, and never rendered as live (D4) | Any miss is a stop |
+| **No regression** | Every field extraction gets today, it still gets | Any loss is a stop |
 
 **Decision point B — before Phase 2 (founder-only).** Extending the schema
 takes extraction OFFLINE until an attended exam re-certifies. That is a founder
