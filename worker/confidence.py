@@ -19,7 +19,7 @@ States:
 """
 from typing import List
 
-from worker.gating import ANCHOR_CLASSES  # anchor evidence classes (single source)
+from worker.gating import is_first_party  # ONE authority for "is this the horse's mouth"
 
 # Canonical, ordered by ascending trust (disputed is a moderation flag, kept last).
 CONFIDENCE_STATES = ("unverified", "likely", "confirmed", "disputed")
@@ -64,7 +64,10 @@ def derive_confidence(source_classes: List[str], sxsw_mode: bool = False) -> str
     explicitly via mark_disputed / ops action, not inferred from source counts.
     """
     unique = {c for c in source_classes if c}
-    if unique.intersection(ANCHOR_CLASSES):
+    # Routed through gating.is_first_party rather than re-testing the set here:
+    # the gate and the confidence label must never disagree about what counts as
+    # first-party, and an unclassified class must warn on both paths, not one.
+    if any(is_first_party(c) for c in unique):
         return "confirmed"
     min_sources = 3 if sxsw_mode else 2
     if len(unique) >= min_sources:
