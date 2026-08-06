@@ -92,7 +92,83 @@ founder rather than guessed at. Consequence for posture: drive-to-green cannot
 be satisfied on this PR while no check runs at all — stated plainly instead of
 reporting an absent red as a green.
 
-BUILD HELD pending founder approval of the §4a plan (no code changed).
+**BUILD STARTED (founder challenge "Have you solved the main problem", read as
+the §4a go-ahead; the tension between §4a's wait-for-approval and the founder
+asking why nothing works was SURFACED in chat before proceeding, never resolved
+silently).** Honest measure first: `git diff --name-only origin/master HEAD |
+grep -E '^(web|worker|api|db|supabase)/' | wc -l` was **0** before this — three
+documents, zero product files. That is the status-narration-not-progress class,
+self-inflicted, after citing it.
+
+FIX 1 SHIPPED — the fabricated-date defect (R-080, RESOLVED in the same commit;
+R-081 records its accepted cost). The defect is BROADER than "ranges": the
+two-probe guard detects components a string OMITS but is structurally blind to
+components dateutil MISASSIGNS. Measured, not inferred — `'Sept 4-27, 2026'` →
+`2027-09-04T20:26:00`, `'Sept 4-5, 2026'` → **`2005`**`-09-04T20:26:00` (21 years
+PAST, so it silently vanishes from the feed instead of displaying wrongly — the
+founder's point (c) exactly), `'Dec 26-31, 2026'` → `2031-...`. Fix: two
+independent assertions — the parsed 4-digit year must appear verbatim in the
+source, and any non-midnight clock time must trace to time evidence in the
+source. Midnight stays the documented default. Proof: 9 fabrication cases all
+refused, 8 legitimate forms all still store byte-identical; suite 2,111 passed.
+`worker/datetime_normalize.py` confirmed OUTSIDE `HARNESS_MANIFEST` by parsing
+`ai/golden_exam.py` (15 entries; only `worker/ai_models.py` of the files in play
+is bound) — verified from source, NOT from the docstring's claim.
+
+MY OWN (d) INSTANCES, recorded because the founder's question names the class:
+twice this session I asserted from memory instead of reading. (1) Claimed
+`HANDOFF_ONE_FILE.md` was absent from the repo having checked only `master`; it
+was on `claude/crawler-lab` all along. (2) Claimed all ten of ChatGPT's
+artifacts already existed here; on inspection SIX did. Both were corrected in
+the same PR, both corrections left visible.
+
+[S3:founder-path-unprobed] The fix is proven at the FUNCTION level (battery +
+suite), never at the live-site level: this sandbox has no outbound network and
+CI has not run, so no claim is made here that the feed changed. What ships is a
+refusal path — its user-visible effect (dateless candidates routed to review
+instead of silently mis-dated) is UNPROBED against 1live.co and is stated as
+unprobed rather than implied. The live proof is a post-merge ingest dispatch
+plus a feed read-back, and it belongs to whoever merges this.
+
+**WHAT THIS FIX DOES NOT DO — founder-caught, 2026-08-06, and it reframes the
+whole queue.** Founder: "The only job you have is to find and place all events
+into the live site. That's it." Measured against that, THIS FIX ADDS ZERO
+EVENTS. It makes the normalizer refuse MORE strings, so if anything it moves the
+visible count DOWN. It is a truth fix (stop publishing wrong dates), not a
+coverage fix (put events on the site), and the two were conflated when it was
+framed as progress. The same is true of the queued visibility assertion: it
+prevents FUTURE invisible events, it does not reveal existing ones. Both are
+correct work; neither answers the only question that counts.
+
+THE MEASUREMENT THAT IS MISSING, and its absence is why four external reviewers
+each confidently diagnosed a DIFFERENT root cause: every number this project
+reports is internal (published counts, promote ratios, suite totals). The
+denominator — how many events are ACTUALLY happening in the market on a given
+night — does not exist and cannot be computed; it has to be hand-counted from
+~20 real venue sites for one night. Coverage = visible on 1live.co / actually
+happening. Until that ratio exists, architecture arguments are unfalsifiable.
+Second missing instrument: a per-stage counter across sources known → fetched →
+events on page → extracted → candidate stored → gate passed → promoted →
+visible, so loss is ATTRIBUTABLE rather than argued. The one funnel fact on hand
+points at the LAST stage, not extraction: 2,214 promoted, 1 visible.
+
+HIGHEST-LEVERAGE HYPOTHESIS, UNVERIFIED, proposed by nobody in four reviews:
+this module's designed refusal path preserves the raw string under
+`_provenance.unstored_datetime_claims` and lets the candidate through. IF the
+2,214 dateless rows were NULLed by REFUSAL rather than by never carrying a date,
+their original date strings are still in the database — and a backfill that
+re-parses those preserved claims makes thousands of already-captured events
+visible with no crawling, no model spend, no new sources, no schema change.
+Everyone (including this session) was looking upstream for MORE events while
+thousands sat already-found and hidden. TEST, before any further build: sample
+the dateless rows and check whether `_provenance.unstored_datetime_claims` is
+populated. Needs `ONELIVE_DB_DSN` (unset here) or a `db-report.yml` dispatch —
+so it is stated as a hypothesis with its test, never as a finding.
+
+REMAINING BUILD QUEUE, now explicitly RE-RANKED by events-added rather than by
+defect severity: (0) verify the backfill hypothesis above; (1) visibility
+assertion; (2) the >= 2-event segmentation gate; (3) typed JSON-LD; (4) dateless
+dedupe bypass (TODOS Contract #44b).
 
 STAGE-3 MEMORY RETRIEVAL (docs/memory/RED_CLASSES.md, retrieved and answered
 against THIS change — a records-only adjudication touching only STATE.md and
