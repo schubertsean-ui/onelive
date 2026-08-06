@@ -136,6 +136,21 @@ def main() -> int:
     if not shown:
         print("\n  none — no published event is missing a start_time.")
 
+    # Every row that DID get a stored date. With 2,214 of 2,215 dateless,
+    # this set is small enough to print in full — and a stored date is a fact
+    # we asserted publicly, so each one deserves to be eyeballed against its
+    # source rather than trusted because it parsed.
+    print("\n" + "=" * 78)
+    print("EVERY row with a STORED start_time (we asserted these dates publicly)")
+    print("=" * 78)
+    dated = _request(f"select={_SELECT}&start_time=not.is.null&order=start_time.asc&limit=200")
+    for row in dated:
+        print(f"\n   {row.get('start_time')}  {row.get('title') or '(untitled)'}")
+        print(f"   venue:  {_venue(row)}")
+        print(f"   source: {row.get('source_name')}  {row.get('source_url') or ''}")
+    if not dated:
+        print("\n  none.")
+
     print("\n" + "=" * 78)
     print("EVERY SOURCE with published-but-dateless events (whole population)")
     print("=" * 78)
