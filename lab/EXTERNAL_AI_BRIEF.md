@@ -60,7 +60,7 @@ site, staying correct when the source changes.
 Full evaluation in `docs/ops/CODE_EVALUATION_2026-08-06.md`. The four that
 will stop you on day one:
 
-**a) The extraction schema cannot hold what is being asked for.**
+**a) The extraction schema cannot hold what is being asked for — and the gap is bigger than dates.**
 `worker/ai_models.py` defines the entire set of fields the extractor may
 return: title, start_time, end_time, venue_name, city, artist_names,
 ticket_link, rsvp_link, is_private_rsvp, private_access, notes. There is **no
@@ -87,6 +87,48 @@ range end is read as a year, and the guard designed to prevent invented dates
 passes it because both of its probes agree. Meanwhile a fully-qualified range
 (`'Fri, Sep 4, 2026 – Sun, Sep 27, 2026'`) is refused outright as unparseable,
 so theatre runs and festivals are dropped wholesale.
+
+## 4a. What "100% of the data" means — the target schema
+
+Do not work from prose. Completeness is defined by three real consumers:
+
+* **the card** — `web/lib/licensed.ts:48` `LicensedEvent`, the single shape
+  both the licensed lane and the crawler lane render into. **26 fields.**
+* **search** — the feed filters on `area`, `free`, `price`, `when`,
+  `category`, `subsegment`.
+* **analysis** — segment rollups, cost per verified event, freshness.
+
+**The current extraction schema fills 7 of the card's 26 fields.** It cannot
+supply `area`, `price`, or `is_free` — three of the six filters the product
+offers. So even a perfect fix to the date problem leaves every crawled event
+priceless, image-less and half-unfilterable, displayed beside Ticketmaster
+rows that carry all of it.
+
+Tier A (required): title · start_time · end_time · venue_name · venue_city ·
+venue_address · venue_area · category · subsegment · price_min · price_max ·
+currency · is_free · ticket_url · description · image_url · the event's OWN
+page url.
+
+Tier B (required where the source states it): performer · door_time ·
+age_restriction · on_sale_status · event_status (cancelled/postponed) ·
+organizer · venue lat/lng/url/phone · series name for a run · specials (the
+free-text offer, e.g. "$5 tacos before 7").
+
+Tier C (analysis): supply segment · size tier · which extraction tier won ·
+recurrence rule and whether a row is an expanded occurrence · first_seen /
+last_verified · capacity.
+
+Nearly all of Tier A and much of Tier B is present in schema.org `Event`
+JSON-LD — `offers.price`, `offers.availability`, `description`, `image`,
+`endDate`, `performer`, `doorTime`, `location.address`, `location.geo`,
+`eventStatus` — and the current code discards every one of them (see blocker
+b). Getting these is mostly a matter of not throwing them away.
+
+**Scoring:** field recall = fields correctly extracted ÷ fields the source
+actually publishes, per field, against a hand-built fixture. A site that
+states no price is not penalised; a site that states one and loses it is.
+Target: ≥98% Tier A, ≥90% Tier B, and **zero** fields asserted that the source
+does not state.
 
 ## 5. The architecture you are replacing, and the one proposed
 
@@ -200,9 +242,13 @@ into the real database. Prove all four stages work: reading, extraction,
 ingestion, and updating when the source changes.
 
 FIX THESE FIRST — they are hours of work each and they block everything else:
-1. worker/ai_models.py has no price, description, category or image field, so
-   what I asked for cannot be stored. Add them, through the candidate table
-   and the promote INSERT.
+1. worker/ai_models.py fills only 7 of the 26 fields the card contract
+   (web/lib/licensed.ts:48 LicensedEvent) requires. It has no price, is_free,
+   category, subsegment, area, address, image or description — so crawled
+   events cannot be filtered by area, price or free, which are three of the
+   six filters the product offers. Extend the schema to the target list in
+   section 4a of the brief, through the candidate table and the promote
+   INSERT. This is a precondition, not a follow-up.
 2. worker/segment.py:252 finds schema.org JSON-LD, keeps 4 of ~12 fields,
    flattens it to a pipe-joined string, and pays a model to re-read it. Read
    the typed fields directly instead. This is free, exact, and gives you price

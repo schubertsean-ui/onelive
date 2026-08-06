@@ -130,6 +130,80 @@ representative**. Nine of the twenty-three ratified segments are unrepresented
 in the source catalog. That is a supply gap independent of extraction, and it
 belongs in the record whatever this engine achieves.
 
+## 3a. THE TARGET SCHEMA — what "100%" actually means
+
+**This section, not the prose elsewhere, defines completeness.** Recall cannot
+be scored against an intention; it is scored against this list. Derived from
+three real consumers, not from imagination:
+
+* **the card** — `web/lib/licensed.ts:48` `LicensedEvent`, the single shape
+  BOTH lanes render into (26 fields);
+* **search/filters** — `web/app/(public)/tonight/FeedApp.tsx` filters on
+  `area` (29 refs), `free`, `price`, `when`, `category`, `subsegment`;
+* **analysis** — segment/tier rollups, cost-per-verified-event, the 50:1 KPI,
+  freshness and coverage reporting.
+
+### Tier A — REQUIRED. A row missing any of these is incomplete.
+
+| Field | Consumer | Structured source (tier 0) | Today |
+|---|---|---|---|
+| `title` | card, search | `name` | ✅ |
+| `start_time` | card, `when` filter | `startDate` | ✅ |
+| `end_time` | card | `endDate` | ⚠️ dropped by segment.py |
+| `venue_name` | card, search | `location.name` | ✅ |
+| `venue_city` | card | `location.address.addressLocality` | ✅ |
+| `venue_address` | card, geocode→`area` | `location.address.streetAddress` | ❌ |
+| `venue_area` | **`area` filter** | derived from address/lat-lng | ❌ |
+| `category` | **`category` filter** | `@type` / site section | ❌ guessed downstream |
+| `subsegment` | **`subsegment` filter** | `@type` / genre / site section | ❌ guessed downstream |
+| `price_min`, `price_max`, `currency` | **`price` filter**, card | `offers.price`, `offers.priceCurrency`, `offers.lowPrice/highPrice` | ❌ |
+| `is_free` | **`free` filter**, card | `offers.price == 0` / "free" in text | ❌ |
+| `ticket_url` | card CTA | `offers.url` | ⚠️ via ticket_link |
+| `description` | card detail, search text | `description` | ❌ not extracted, and NOT in the card contract |
+| `image_url` | card | `image` | ❌ |
+| `source_url` (the event's OWN page) | trust display | detail page URL | ⚠️ currently the source's base URL |
+
+### Tier B — REQUIRED WHERE THE SOURCE STATES IT. Absence must be provable.
+
+`performer` / `artist_names` (`performer`) · `door_time` (`doorTime`) ·
+`age_restriction` (`typicalAgeRange` / page text) · `on_sale_status`
+(`offers.availability`) · `event_status` — cancelled/postponed/rescheduled
+(`eventStatus`) · `organizer` (`organizer.name`) · `venue_lat`/`venue_lng`
+(`location.geo`) · `venue_url`, `venue_phone` · `series_name` for a run ·
+`specials` — the free-text offer a venue states ("$5 tacos", "2-for-1 til 7").
+
+### Tier C — ANALYSIS. Not on the card; required for reporting.
+
+`supply_segment` (1–23) · `size_tier` · `extraction_tier` (0–5, which method
+won) · `recurrence_rule` + `is_expanded_occurrence` · `first_seen_at`,
+`last_verified_at` · `capacity` where stated.
+
+### The completeness metric
+
+For each site: **field-level recall = fields correctly extracted ÷ fields the
+source actually publishes**, judged per field against the hand-built fixture,
+NOT against this list — a site that states no price is not penalised for a
+missing price, and a site that states one and loses it IS.
+
+Acceptance (replaces the looser §7 wording for fields):
+
+| | Threshold |
+|---|---|
+| Tier A field recall, where the source states the field | **≥ 98%** |
+| Tier B field recall, where the source states the field | ≥ 90% |
+| Any field asserted that the source does NOT state | **0 — fails the run** |
+| Events filterable on `area`, `price`, `free` after ingestion | ≥ 95% |
+
+### Why this section exists
+
+`worker/ai_models.py` today defines eleven fields and can fill about seven of
+the card's twenty-six. **A discovered event cannot be filtered by area, price
+or free — three of the six filters the feed offers — because nothing extracts
+them.** Fixing dates alone would still leave every crawled event priceless,
+image-less and half-unfilterable, sitting next to Ticketmaster rows that have
+all of it. Extending the schema is a precondition of this project, not a
+follow-up to it.
+
 ## 4. Ground truth — the thing that makes "proof" mean anything
 
 For each site, before any extraction runs, a human-readable fixture is written
