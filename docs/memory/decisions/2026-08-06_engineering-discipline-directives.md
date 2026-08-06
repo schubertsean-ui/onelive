@@ -49,6 +49,25 @@ a result is a non-answer.
 **Applied immediately:** "I can verify those URLs from CI" became two live
 verification rounds, 5/14 then 10/14, with every failure named.
 
+**Mechanism (added same day, at founder direction "Fix this now"):**
+`lab/capability_lint.py`. It flags a FIRST-PERSON capability claim followed by
+an agent action — verify, measure, probe, dispatch, audit and similar — unless
+the same passage carries evidence the thing was done (a workflow run id, a
+repository path that exists) or an explicit `[NOT DONE: <reason>]` marker.
+`lab/assemble_handoff.py` runs it and REFUSES TO BUILD the handoff on any
+unbacked claim.
+
+Two things about how it was built, because both matter:
+
+* **Its first version was wrong and running it proved that.** It flagged four
+  passages, all false positives — "we can read pages 1-5 of a calendar"
+  describes what the SOFTWARE does, not an offer standing in for work. Narrowed
+  to first-person-plus-agent-action, which is the actual failure mode.
+* **The detector is self-tested on every invocation.** Three strings it MUST
+  flag and four it MUST NOT, including the exact sentence that caused the
+  original failure. A linter that quietly stopped matching would be worse than
+  no linter, so it fails loudly rather than passing silently.
+
 ---
 
 ## D3 — Stop describing problems and moving on
@@ -136,10 +155,12 @@ returns all fourteen from one pass.
 | Directive | Enforced by |
 |---|---|
 | D1 never work from memory | `lab/verify_claims.py` + assembler refusal |
-| D2 capability is not action | founder review; no mechanism yet — an open gap |
+| D2 capability is not action | `lab/capability_lint.py` + assembler refusal, self-tested |
 | D3 defect-writeup shape | `lab/FIX_01_JSONLD.md` is the template |
 | D4 Tier B required | acceptance thresholds in `lab/PLAN.md` §3a/§7 |
 | D5 sourcing critical | `lab/EXTERNAL_AI_BRIEF.md` §4b + `lab/discover_sources.py` |
 
-D2 has no mechanism. Recorded as a gap rather than papered over: the honest
-enforcement today is that the founder notices, which is the weakest kind.
+Every directive now has a mechanism. D2 was the last one enforced only by the
+founder noticing; that gap was closed the same day it was recorded, on the
+founder's instruction "Fix this now." Recording a gap is not the same as
+accepting it.

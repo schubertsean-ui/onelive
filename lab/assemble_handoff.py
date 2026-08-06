@@ -129,6 +129,45 @@ not asserted. A live read-back from the public feed.
 
 ---
 
+# REVIEW FIX 01 AND COMMENT — a required deliverable
+
+Part 7 is a complete engineering record for one defect: the destruction of
+structured event data at `worker/segment.py:252`. It runs problem → severity →
+cascade → measured effort → plan → testing → go/no-go/delay → proof. **Nothing
+in it has been built. It is awaiting a GO decision, and your evaluation is an
+input to that decision.**
+
+Review it adversarially and answer each of these in writing:
+
+1. **Is the severity right?** It is rated CRITICAL on three grounds —
+   correctness, cost, coverage. Argue it up or down.
+2. **Is the cascade complete or overstated?** It traces dropped fields to
+   priceless cards, two dead filters, and cancelled shows published as live.
+   Name any link that does not hold, and any consequence it missed.
+3. **Is the effort measurement sound?** Every number was read from the tree —
+   one production caller, the `List[str]` contract, 11 + 9 tests, 2
+   monkeypatches, membership of the 27-file arming closure, and
+   `HARNESS_MANIFEST` membership. Check the method, not just the numbers. If a
+   count is wrong, say which and how you derived yours.
+4. **Is the phase split correct?** It claims Phase 1 ships with extraction
+   running because `segment.py` is outside the manifest, while Phase 2 takes
+   extraction offline because `ai_models.py` is inside it. That constraint
+   drives the whole sequencing. Verify it.
+5. **Is the additive design the right call**, or should `segment_events` change
+   contract outright and take the test churn?
+6. **Are the go/no-go thresholds right?** GO at ≥30% structured coverage with
+   ≥95% field recall, DELAY at 10-30%, NO-GO under 10%. Are those the right
+   numbers, and is any of them gameable as written?
+7. **Is the proof list sufficient?** Seven items. Which would you add, and
+   which is theatre?
+8. **What is missing entirely?**
+
+Give a verdict: **GO**, **NO-GO**, or **DELAY**, with reasons. You are not
+bound by the founder's decision and the founder is not bound by yours — but an
+argued disagreement is more useful than agreement, and it is wanted.
+
+---
+
 # YOUR ALTERNATIVE — deliberately invited
 
 The approach above is a considered baseline, not a cage. **If you have a better
@@ -201,6 +240,8 @@ that does not survive re-scoring.
 6. A discovery design that generates candidates rather than checking guesses.
 7. If you took an alternative approach: the comparison, including where it is
    worse.
+8. Your review of Fix 01 (Part 7) — all eight questions answered, with a
+   GO / NO-GO / DELAY verdict and reasons.
 
 Do not narrate progress. Come back when it works, at a budget checkpoint, or
 when something genuinely needs a human decision — money, legal, credentials,
@@ -223,6 +264,8 @@ SECTIONS = [
     ("lab/PLAN.md",
      "PART 6 — THE FULL PLAN OF RECORD (decisions, acceptance criteria, "
      "budget)", 8),
+    ("lab/FIX_01_JSONLD.md",
+     "PART 7 — FIX 01 ENGINEERING RECORD — REVIEW THIS AND COMMENT", 0),
 ]
 
 # (path, first_line, last_line, why this excerpt is here)
@@ -439,6 +482,14 @@ def main() -> int:
         raise SystemExit("ASSEMBLY REFUSED — a documented claim no longer "
                          "matches the source. Fix the claim against the tree.")
 
+    # Directive D2 — "Can does not mean do or must or will." An offer to
+    # perform a verification, standing in for the verification, cannot reach
+    # the founder through this document.
+    rc = subprocess.run([sys.executable, "lab/capability_lint.py"]).returncode
+    if rc != 0:
+        raise SystemExit("ASSEMBLY REFUSED — an unexecuted capability claim. "
+                         "Do the thing, or mark it [NOT DONE: <reason>].")
+
     parts = [HEADER]
     for path, title, drop in SECTIONS:
         body = "\n".join(open(path).read().split("\n")[drop:])
@@ -450,7 +501,8 @@ def main() -> int:
     print(f"{OUT}: {text.count(chr(10))} lines, {len(text)} chars")
     for marker in ("THE ASSIGNMENT", "HOW — the baseline approach",
                    "YOUR ALTERNATIVE", "HARD RULES", "WHAT TO DELIVER",
-                   "PART 1-4", "PART 5", "PART 6", "APPENDIX A", "APPENDIX B"):
+                   "PART 1-4", "PART 5", "PART 6", "PART 7", "REVIEW FIX 01",
+                   "APPENDIX A", "APPENDIX B"):
         if marker not in text:
             raise SystemExit(f"ASSEMBLY FAILED — missing section: {marker}")
     print("all sections present")
