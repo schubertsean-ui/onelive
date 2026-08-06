@@ -98,13 +98,27 @@ def main() -> int:
     print("\n" + "=" * 78)
     print("REAL EXAMPLES of published-but-dateless events (what a visitor never sees)")
     print("=" * 78)
-    rows = _request(
-        f"select={_SELECT}&start_time=is.null&order=source_name.asc,title.asc&limit=60"
-    )
+    # Read the WHOLE dateless population, not a page of it. An earlier version
+    # took the first 60 rows ordered by source_name and reported "2 affected
+    # sources" — it had only ever seen the alphabetically-first two calendars.
+    # A page of a sorted table is not a sample of the table.
+    rows: list = []
+    page = 0
+    while True:
+        batch = _request(
+            f"select={_SELECT}&start_time=is.null&order=event_id.asc"
+            f"&limit=1000&offset={page * 1000}"
+        )
+        rows.extend(batch)
+        if len(batch) < 1000 or page > 20:
+            break
+        page += 1
+    print(f"\n(read {len(rows)} of the {dateless} dateless rows)")
+
     seen_sources: set = set()
     shown = 0
-    # One row per SOURCE first, so the sample shows breadth of affected venues
-    # rather than 60 listings from whichever calendar happens to sort first.
+    # One row per SOURCE, so the examples show the breadth of affected venues
+    # rather than many listings from a single calendar.
     for row in rows:
         src = row.get("source_name") or "(unknown source)"
         if src in seen_sources:
@@ -117,13 +131,13 @@ def main() -> int:
         print(f"   source_url: {row.get('source_url') or '—'}")
         print(f"   state:      status={row.get('status')} confidence={row.get('confidence')} start_time=NULL")
         print(f"   event_id:   {row.get('event_id')}")
-        if shown >= 15:
+        if shown >= 20:
             break
     if not shown:
         print("\n  none — no published event is missing a start_time.")
 
     print("\n" + "=" * 78)
-    print("SOURCE BREAKDOWN of the dateless sample (first 60 rows read, not the whole table)")
+    print("EVERY SOURCE with published-but-dateless events (whole population)")
     print("=" * 78)
     by_source: dict = {}
     for row in rows:
