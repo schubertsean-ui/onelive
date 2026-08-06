@@ -12,10 +12,41 @@ jobs:
   sample:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      # NO `uses:` STEPS, DELIBERATELY. On 2026-08-06 four consecutive runs of
+      # this workflow died in "Getting action download info" with
+      # "Failed to resolve action download info. Error: Service Unavailable" —
+      # a GitHub marketplace-resolution outage. The repo was never downloaded
+      # and not one line of lab code ran. Every script this job calls is
+      # stdlib-only, so actions/setup-python bought nothing, and the checkout
+      # action is replaceable by the git that is already on the runner.
+      # Removing both removes the whole dependency on that failing service:
+      # this job now needs only git, bash and the runner's own Python.
+      - name: Fetch the repository without the actions registry
+        env:
+          # Passed through env, never interpolated into the script body: a
+          # missing value would otherwise render as an empty string and the
+          # clone would silently target the wrong URL (workflow_env_lint).
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          : "${GH_TOKEN:?github.token is empty — refusing to clone}"
+          : "${REPO:?github.repository is empty — refusing to clone}"
+          test -z "$(ls -A .)" || { echo "workspace is not empty"; exit 1; }
+          # The credential goes in an auth HEADER, not in the remote URL, so it
+          # cannot be echoed back by a git error message or land in the remote.
+          git clone --depth 1 --quiet --branch "$GITHUB_REF_NAME" \
+            -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
+            "https://github.com/${REPO}" .
+          git config --unset-all http.extraheader || true
+          git log --oneline -1
+      # Pin the interpreter the way setup-python did, but fail LOUD instead of
+      # silently drifting if a future runner image moves off 3.12.
+      - name: Confirm the runner's Python is the version this job expects
+        run: |
+          set -euo pipefail
+          python3 --version
+          python3 -c "import sys; assert sys.version_info[:2] == (3, 12), sys.version"
       - name: Print a diverse live sample of real events
         run: python3 tools/sample_feed.py
       # LAB: verify candidate source URLs for the ratified supply segments that
