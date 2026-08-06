@@ -441,6 +441,36 @@ thresholds, the recommendation is "do not adopt", and the record says why.
 6. A record documenting what to adopt into `worker/`, and what to discard.
 7. A paste-ready prompt for the session that does the adoption.
 
+## 13a. Red-team result and the conditions it imposes
+
+The non-Claude panel (adversarial-review, run 31074395263, head a280d785)
+returned **APPROVE on all four seats**: openai/attacker-smuggle,
+openai/absence-only, gemini/dataflow-taint, gemini/spec-vs-contract.
+
+**Read that verdict narrowly.** The panel reviews DIFFS for defects that could
+reach a user, and this diff is documentation. Both openai seats said so in as
+many words — *"no executable crawler or posting loop"*, *"no extraction or
+publish path is added in this diff"*. An APPROVE here means "this text cannot
+hurt anyone," NOT "this architecture is sound." The plan has not been attacked
+on its merits by an independent model; `lab/EXTERNAL_AI_BRIEF.md` exists for
+that.
+
+Two ARMING conditions were raised, both independently by more than one seat.
+They are BINDING on the build session:
+
+**AC-1 — before the live-database ingestion proof (§9.3) may run.** The
+tag-and-delete path must be enforced in code, not merely intended, and proof
+rows must be structurally incapable of masquerading as ordinary public events.
+Panel wording: *"the future implementation needs an actual enforced tag/delete
+path and must ensure proof rows cannot masquerade as ordinary public events."*
+
+**AC-2 — before recurring-event expansion (D5) may be implemented.** The
+confidence and provenance treatment for an inferred occurrence must be settled
+first. Panel wording: *"recurring-event expansion is an inference, not a
+directly stated source fact … Clear confidence/provenance treatment before
+recurring expansion is implemented/adopted."* Whether an inferred occurrence
+may publish at `confirmed` remains founder-crucial.
+
 ## 14. Open risks I am not hiding
 
 - **Ground truth is hand-built by the same agent that writes the extractor.**
