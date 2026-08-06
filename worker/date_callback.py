@@ -332,11 +332,26 @@ def _title_tokens(name: str) -> set:
 
 
 def _select_event(events: List[dict], candidate_title: Optional[str],
-                  names_of) -> Optional[dict]:
+                  names_of, require_attribution: bool = False) -> Optional[dict]:
     """Which of the page's declared Events is the candidate's?
 
-    - Exactly one Event: it IS the candidate's (the source linked this page
-      from the candidate's own listing — authoritative, no matching).
+    - Exactly one Event, from a CONFIDENTLY SEGMENTED block: it IS the
+      candidate's (the source linked this page from the candidate's own
+      listing — authoritative, no matching, a nameless Event recovers too).
+      That is the founder's ruling and it is preserved.
+    - Exactly one Event, but `require_attribution` — the caller could NOT
+      confirm the link came from this candidate's own block, so the ruling's
+      premise does not hold and the title must carry the attribution.
+      Adversarial-review catch (2026-08-06): `_link_source_quoted` proves the
+      URL appears in the extraction block, and when the segmenter cannot
+      confidently split a page it falls back to ONE block containing the
+      WHOLE PAGE — so every link on the page satisfies it. An extraction
+      mistake then attaches a NEIGHBOURING event's genuine, source-published
+      link; that page declares exactly one Event; and the neighbour's date is
+      stored and published as this candidate's source-evidenced time.
+      Authority and attribution are different questions: the founder's ruling
+      makes the source's page authoritative, not our guess about WHICH event
+      on it is ours.
     - Several Events (founder ruling 2026-08-05: a venue calendar page must
       not be skipped): the candidate's TITLE selects the best name-token
       match. Matching here only ADDS recovery — it picks among the source's
@@ -354,7 +369,11 @@ def _select_event(events: List[dict], candidate_title: Optional[str],
     "An Evening with Patti Smith" — while a single incidental word never
     carries a three-word title.
     """
-    if len(events) == 1:
+    if len(events) == 1 and not require_attribution:
+        # The founder's ruling stands where its PREMISE holds: the link came
+        # from THIS candidate's own block, so the page it points at is this
+        # candidate's and its declarations are authoritative — no identity
+        # cross-examination, and a NAMELESS Event recovers too.
         return events[0]
     if not events or not candidate_title:
         return None
@@ -389,7 +408,8 @@ def _select_event(events: List[dict], candidate_title: Optional[str],
 
 
 def recover_dates_from_url(url: str, timeout: int = 15,
-                           candidate_title: Optional[str] = None) -> Dict[str, str]:
+                           candidate_title: Optional[str] = None,
+                           require_attribution: bool = False) -> Dict[str, str]:
     """Read explicit machine-declared dates off the event's own page.
 
     The caller has already PROVEN the URL is the source's own (verbatim
@@ -423,7 +443,8 @@ def recover_dates_from_url(url: str, timeout: int = 15,
     ]
     declared = [d for d in declared if d["dates"]]
     declared = _dedupe_declarations(declared)
-    chosen = _select_event(declared, candidate_title, lambda d: d["names"])
+    chosen = _select_event(declared, candidate_title, lambda d: d["names"],
+                           require_attribution=require_attribution)
     return dict(chosen["dates"]) if chosen else {}
 
 

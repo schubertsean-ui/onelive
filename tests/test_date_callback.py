@@ -40,7 +40,7 @@ _MICRODATA = """
 
 def test_single_jsonld_event_dates_recovered(monkeypatch):
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: _ONE_EVENT)
-    out = recover_dates_from_url("https://venue.example/e/1")
+    out = recover_dates_from_url("https://venue.example/e/1", candidate_title="Night Owls Live")
     assert out["start_time"] == "2026-08-08T19:00:00-05:00"
     assert out["end_time"] == "2026-08-08T22:00:00-05:00"
 
@@ -48,7 +48,7 @@ def test_single_jsonld_event_dates_recovered(monkeypatch):
 
 def test_microdata_content_attr_recovered(monkeypatch):
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: _MICRODATA)
-    out = recover_dates_from_url("https://venue.example/e/2")
+    out = recover_dates_from_url("https://venue.example/e/2", candidate_title="Night Owls Live")
     assert out == {"start_time": "2026-08-10T18:00:00"}
 
 
@@ -302,14 +302,14 @@ def test_microdata_outside_event_scope_yields_nothing(monkeypatch):
     <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
     </body></html>"""
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: html)
-    assert recover_dates_from_url("https://venue.example/page") == {}
+    assert recover_dates_from_url("https://venue.example/page", candidate_title="Night Owls Live") == {}
 
     bare = """
     <html><body>
     <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
     </body></html>"""
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: bare)
-    assert recover_dates_from_url("https://venue.example/page") == {}
+    assert recover_dates_from_url("https://venue.example/page", candidate_title="Night Owls Live") == {}
 
 
 
@@ -385,7 +385,7 @@ def test_source_page_declarations_are_authoritative(monkeypatch):
     <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
     </body></html>"""
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: nameless)
-    assert recover_dates_from_url("https://venue.example/page") == \
+    assert recover_dates_from_url("https://venue.example/page", candidate_title="Night Owls Live") == \
         {"start_time": "2026-08-10T18:00:00"}
 
 
@@ -402,7 +402,7 @@ def test_jsonld_precedence_when_formats_disagree(monkeypatch):
       <meta itemprop="startDate" content="2026-08-09T19:00:00"/>
     </div></body></html>"""
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
-    out = recover_dates_from_url("https://venue.example/e/1")
+    out = recover_dates_from_url("https://venue.example/e/1", candidate_title="Night Owls Live")
     assert out["start_time"] == "2026-08-08T19:00:00"
 
 def test_multi_event_page_title_selects_the_match(monkeypatch):
@@ -646,7 +646,9 @@ def test_unnamed_declaration_never_overrides_a_named_one_it_contradicts(
 def test_unnamed_repeat_of_the_same_event_still_merges(monkeypatch):
     """The case the contradiction check must NOT break: one event marked in
     JSON-LD and repeated in bare microdata is ONE event, and the page still
-    recovers freely without needing a title match."""
+    recovers. (Attribution by title is now required even for a single declared
+    Event — adversarial-review 2026-08-06 — so this passes the candidate title
+    exactly as live extraction does.)"""
     page = """
     <html><head><script type="application/ld+json">
     {"@type": "MusicEvent", "name": "Hotel Vegas: Night Two",
@@ -656,7 +658,7 @@ def test_unnamed_repeat_of_the_same_event_still_merges(monkeypatch):
       <meta itemprop="startDate" content="2026-08-11T21:00:00"/></div>
     </body></html>"""
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
-    assert recover_dates_from_url("https://venue.example/n2") == {
+    assert recover_dates_from_url("https://venue.example/n2", candidate_title="Hotel Vegas: Night Two") == {
         "start_time": "2026-08-11T21:00:00",
         "end_time": "2026-08-12T02:00:00"}
 
@@ -829,8 +831,10 @@ def test_a_recurring_event_does_not_collapse_into_one(monkeypatch):
 
 def test_the_same_event_in_two_notations_still_collapses(monkeypatch):
     """The recurrence check must not break the case it guards: one event
-    declared twice, agreeing on dates, is still ONE event and still recovers
-    without needing a title."""
+    declared twice, agreeing on dates, is still ONE event and still recovers.
+    (Title attribution is required even for one declared Event since
+    adversarial-review 2026-08-06, so the candidate title is supplied here
+    exactly as live extraction supplies it.)"""
     page = """
     <html><head><script type="application/ld+json">
     {"@type":"Event","name":"Open Mic","startDate":"2026-09-04T19:00:00",
@@ -841,7 +845,7 @@ def test_the_same_event_in_two_notations_still_collapses(monkeypatch):
       <meta itemprop="startDate" content="2026-09-04T19:00:00"/></div>
     </body></html>"""
     monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: page)
-    assert recover_dates_from_url("https://venue.example/e/mic") == {
+    assert recover_dates_from_url("https://venue.example/e/mic", candidate_title="Open Mic") == {
         "start_time": "2026-09-04T19:00:00",
         "end_time": "2026-09-04T22:00:00"}
 
@@ -867,3 +871,41 @@ def test_a_two_word_title_must_match_in_full(monkeypatch):
     assert recover_dates_from_url("https://venue.example/cal",
                                   candidate_title="Patti Smith") == {
         "start_time": "2026-09-04T21:00:00"}
+
+
+def test_unattributable_block_cannot_take_a_neighbours_date(monkeypatch):
+    """Adversarial-review catch (2026-08-06, attacker-smuggle lens).
+
+    The source-quoted-link guard proves a URL appears in the extraction BLOCK.
+    When the segmenter cannot confidently split a page it returns ONE block
+    holding the whole document, so every link on the page satisfies that guard
+    — and an extraction mistake can attach a NEIGHBOURING event's genuine,
+    source-published link. That page declares exactly one Event, the old rule
+    accepted it unmatched, and the neighbour's date became this candidate's
+    source-evidenced time on a confirmed first-party card.
+
+    Authority and attribution are different questions. Where the block IS the
+    candidate's, the founder's ruling stands untouched (next test)."""
+    other_event = """
+    <html><head><script type="application/ld+json">
+    {"@type":"Event","name":"Trivia Showdown","startDate":"2026-09-30T19:00:00"}
+    </script></head><body></body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: other_event)
+    assert recover_dates_from_url(
+        "https://venue.example/e/trivia",
+        candidate_title="Night Owls Live",
+        require_attribution=True) == {}
+
+
+def test_the_founders_ruling_survives_for_an_attributable_block(monkeypatch):
+    """The premise of the ruling is that the link came from THIS candidate's
+    own block. Where that holds, a single declared Event is the candidate's —
+    no identity cross-examination, and a NAMELESS Event recovers too."""
+    nameless = """
+    <html><body itemscope itemtype="https://schema.org/Event">
+    <meta itemprop="startDate" content="2026-08-10T18:00:00"/>
+    </body></html>"""
+    monkeypatch.setattr(date_callback, "_fetch", lambda url, timeout=15: nameless)
+    assert recover_dates_from_url(
+        "https://venue.example/page",
+        candidate_title="Night Owls Live") == {"start_time": "2026-08-10T18:00:00"}

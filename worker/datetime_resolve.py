@@ -102,6 +102,13 @@ def _evidences_a_time(raw: str) -> bool:
         return False
     return a.time() == b.time()
 
+# "3/4", "03/04", "3-4" — a numeric day pair with no month name. Which number
+# is the month is a LOCALE convention, not something the source stated. An ISO
+# date (2026-03-04) is excluded by requiring the pair not to be preceded by a
+# 4-digit year, and it carries its own year so it never reaches this resolver
+# as a year-less claim anyway.
+_AMBIGUOUS_NUMERIC_RE = re.compile(r"(?<!\d)(?<!\d-)\d{1,2}\s*[/.\-]\s*\d{1,2}(?!\d)")
+
 _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday",
              "saturday", "sunday")
 _WEEKDAY_RE = re.compile(
@@ -132,6 +139,17 @@ def resolve_partial_date_claim(
         return None, None
     s = str(raw).strip()
     if not s:
+        return None, None
+    # AMBIGUOUS NUMERIC FORMS ARE REFUSED, as this module's docstring has always
+    # claimed and as worker/datetime_normalize already enforces
+    # ('ambiguous-numeric-date'). Adversarial-review catch (2026-08-06): the
+    # year-less numeric form slipped through here, so "03/04 8pm" resolved to
+    # March 4 purely because dateutil defaults to a US reading — nothing in the
+    # source says whether the venue meant March 4 or April 3, and the caller
+    # then stores that guess as source evidence on a public card. A month NAME
+    # (or an ISO form, which carries its own year and is handled elsewhere) is
+    # what makes a numeric day unambiguous; without one, refuse.
+    if _AMBIGUOUS_NUMERIC_RE.search(s):
         return None, None
     try:
         a = _duparser.parse(s, default=_PROBE_A)

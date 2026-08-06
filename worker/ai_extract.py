@@ -162,6 +162,7 @@ def _shape_and_store_one(
     text: str,
     sxsw_mode: bool,
     fetched_at: Optional[datetime] = None,
+    block_unattributable: bool = False,
 ) -> str:
     """Validate, R-021-normalize, and persist ONE event as candidate + evidence.
 
@@ -365,6 +366,11 @@ def extract_candidates(
     source is never silently dropped.
     """
     blocks = segment_events(text)
+    # The segmenter returns the ORIGINAL content as a single block when it
+    # cannot confidently split the page. That block is not "this event's
+    # block", so a link found inside it proves nothing about which event it
+    # belongs to — the date callback is told to demand title attribution.
+    single_block_fallback = len(blocks) == 1 and blocks[0] == text
     # FinOps hard bound (R-043): one real extraction call per block, so cap the
     # calls PER PAGE. Overflow blocks are DEFERRED to a later run + LOGGED loudly,
     # never silently dropped — so a run's total AI spend stays max_sources x cap.
@@ -404,7 +410,9 @@ def extract_candidates(
         if not any(v for v in fields.values()):
             continue
         outcome.candidate_ids.append(
-            _shape_and_store_one(fields, meta, text=block, **store_kwargs)
+            _shape_and_store_one(fields, meta, text=block,
+                                     block_unattributable=single_block_fallback,
+                                     **store_kwargs)
         )
 
     if not outcome.candidate_ids:

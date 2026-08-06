@@ -195,3 +195,24 @@ def test_stated_date_still_resolves_even_when_a_link_is_present():
              "https://venue.example/events/1234/spoon-tickets")
     iso, _ = _from_block("8:00 pm", block, CTX)
     assert iso == "2026-08-08T20:00:00"
+
+
+def test_ambiguous_numeric_dates_are_refused_as_the_docstring_always_claimed():
+    """Adversarial-review catch (2026-08-06, absence-only lens): this module's
+    docstring says ambiguous numeric dates stay refused and
+    datetime_normalize enforces exactly that ('ambiguous-numeric-date'), but
+    the YEAR-LESS numeric form slipped through here. "03/04 8pm" resolved to
+    March 4 purely because dateutil defaults to a US reading — the source
+    never said whether it meant March 4 or April 3, and the caller stores the
+    guess as source evidence on a public card."""
+    feb = datetime(2026, 2, 1, 19, 0, 0)
+    for claim in ("03/04 8pm", "3/4 8pm", "04/03 8pm", "3-4 8pm"):
+        assert resolve_partial_date_claim(claim, feb) == (None, None), claim
+
+
+def test_a_month_NAME_still_disambiguates_and_resolves():
+    """The refusal must cost only the genuinely ambiguous case: a month name
+    is what makes a numeric day unambiguous."""
+    feb = datetime(2026, 2, 1, 19, 0, 0)
+    assert resolve_partial_date_claim("March 4 8pm", feb)[0] == "2026-03-04T20:00:00"
+    assert resolve_partial_date_claim("8 March 8pm", feb)[0] == "2026-03-08T20:00:00"
