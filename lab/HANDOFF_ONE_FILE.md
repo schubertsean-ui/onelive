@@ -2328,8 +2328,27 @@ number of events a visitor can see stays at 1.
 
 # APPENDIX A — VERBATIM SOURCE OF EVERY CITED DEFECT
 
-Copied out of the repository at commit `875df23`, not retyped. If you have no
-repository access you still have everything needed to verify each claim.
+Copied out of the repository, not retyped. If you have no repository access you
+still have everything needed to verify each claim.
+
+Every file quoted below is identified by the SHA-256 of its contents, so you can
+confirm your copy is the one that was quoted no matter which commit or branch
+you are on:
+
+```
+    e1f9507371a0be7e  tools/scan_new_sources.py
+    cb3906f82e2ea335  web/lib/licensed.ts
+    ca5af8b542529b98  web/lib/promoted.ts
+    fc3491e3aecc7106  worker/ai_models.py
+    015276be48cdf8a3  worker/fetch/render_fetch.py
+    c61ce48c17bc353d  worker/gating.py
+    38bb1a28011af295  worker/promote.py
+    174d1a9b5552b4b2  worker/segment.py
+```
+
+Re-derive with `sha256sum <path>` (the first 16 hex characters are shown).
+A mismatch means the file changed after this document was generated — re-run
+`lab/assemble_handoff.py` rather than trusting the excerpt.
 
 
 ### `worker/ai_models.py` lines 1-20 — the COMPLETE extraction schema. Count the fields.

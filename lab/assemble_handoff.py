@@ -9,6 +9,7 @@ Run: python3 lab/assemble_handoff.py
 """
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import sys
 
@@ -319,14 +320,33 @@ def excerpt(path: str, start: int, end: int, label: str) -> str:
 
 
 def appendix_a() -> str:
-    head = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
-                          capture_output=True, text=True).stdout.strip()
+    # Content identity, NOT a commit hash. The generated file is committed in
+    # the commit AFTER the one this script can see, so a `git rev-parse HEAD`
+    # stamp is stale by construction — it named the parent of the commit the
+    # document lives in, every single time. A SHA-256 of each quoted file is
+    # true whatever the commit, and the reader can re-derive it in one command.
+    quoted = sorted({e[0] for e in EXCERPTS} | {"worker/gating.py"})
+    digests = "\n".join(
+        f"    {hashlib.sha256(open(p, 'rb').read()).hexdigest()[:16]}  {p}"
+        for p in quoted)
     out = [f"""
 
 # APPENDIX A — VERBATIM SOURCE OF EVERY CITED DEFECT
 
-Copied out of the repository at commit `{head}`, not retyped. If you have no
-repository access you still have everything needed to verify each claim.
+Copied out of the repository, not retyped. If you have no repository access you
+still have everything needed to verify each claim.
+
+Every file quoted below is identified by the SHA-256 of its contents, so you can
+confirm your copy is the one that was quoted no matter which commit or branch
+you are on:
+
+```
+{digests}
+```
+
+Re-derive with `sha256sum <path>` (the first 16 hex characters are shown).
+A mismatch means the file changed after this document was generated — re-run
+`lab/assemble_handoff.py` rather than trusting the excerpt.
 """]
     out += [excerpt(*e) for e in EXCERPTS]
 
