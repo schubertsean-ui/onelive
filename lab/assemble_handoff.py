@@ -27,6 +27,28 @@ which refuses to build if any documented claim no longer matches the code.
 
 # THE ASSIGNMENT
 
+## Read Part 0.0 first — the vision, goals and objectives
+
+Part 0.0 quotes the product's vision, principles, Artist Bill of Rights, Venue
+Principles, Platform Rules, Red Lines, North Star and trust invariants directly
+from committed canon. **Measure every decision you make against that section,
+not against this summary.**
+
+The one thing to carry with you: a check passing is not the same as the work
+being right. This document is machine-verified for internal consistency — every
+factual claim re-derived from the tree, every capability claim backed by
+execution — and that says nothing about whether the work serves the goals.
+Part 0.0 is what "serves the goals" means.
+
+Stated plainly, because it is the reason this job exists: **the current state
+violates canon, not just performance targets.** The Artist Bill of Rights says
+"listed by default if playing"; 2,214 discovered events are published and
+invisible. The Venue Principles say venues "appear based on activity"; venues
+publishing calendars do not appear. The proposed North Star counts "verified
+live events a person actually sees" — that number is **1**. Meanwhile the
+licensed Ticketmaster lane shows 1,359. **A product whose stated position is
+artist and venue sovereignty is currently a Ticketmaster mirror.**
+
 ## What this is
 
 An event-discovery product for Austin and the Texas Hill Country. It crawls

@@ -11,6 +11,28 @@ which refuses to build if any documented claim no longer matches the code.
 
 # THE ASSIGNMENT
 
+## Read Part 0.0 first — the vision, goals and objectives
+
+Part 0.0 quotes the product's vision, principles, Artist Bill of Rights, Venue
+Principles, Platform Rules, Red Lines, North Star and trust invariants directly
+from committed canon. **Measure every decision you make against that section,
+not against this summary.**
+
+The one thing to carry with you: a check passing is not the same as the work
+being right. This document is machine-verified for internal consistency — every
+factual claim re-derived from the tree, every capability claim backed by
+execution — and that says nothing about whether the work serves the goals.
+Part 0.0 is what "serves the goals" means.
+
+Stated plainly, because it is the reason this job exists: **the current state
+violates canon, not just performance targets.** The Artist Bill of Rights says
+"listed by default if playing"; 2,214 discovered events are published and
+invisible. The Venue Principles say venues "appear based on activity"; venues
+publishing calendars do not appear. The proposed North Star counts "verified
+live events a person actually sees" — that number is **1**. Meanwhile the
+licensed Ticketmaster lane shows 1,359. **A product whose stated position is
+artist and venue sovereignty is currently a Ticketmaster mirror.**
+
 ## What this is
 
 An event-discovery product for Austin and the Texas Hill Country. It crawls
@@ -242,6 +264,132 @@ document alone, with or without repository access.
 
 # PART 1-4 — CONTEXT, BLOCKERS, SOURCING (CRITICAL), TARGET SCHEMA, PROVING SET, RETURN CONTRACT
 
+
+## 0.0 THE VISION, GOALS AND OBJECTIVES — quoted from canon
+
+**Read this before anything else, and measure every decision against it.**
+Everything below is quoted from committed repository canon, not paraphrased.
+Sources: `docs/strategy/ONE_LIVE_PRODUCT_VISION_AND_PRINCIPLES_v1.md`,
+`docs/strategy/ONE_LIVE_KPI_FRAMEWORK_v1.md`, `CLAUDE.md`.
+
+A check passing is not the same as the work being right. A document can be
+perfectly self-consistent, every claim re-derived, every capability backed —
+and still be aimed at the wrong thing. **This section is what "right" means.**
+
+### The vision
+
+> "Beyond listings, 1LIVE curates **'night out' experiences** (pre-drinks →
+> dinner → gig → cocktails → munchies…), **matches** artists / venues / bars /
+> restaurants for gigs, practice, and sessions on slow days, integrates
+> **transportation**, enables **opt-in livestreaming**, and provides
+> **'heartbeat' analytics** on city flows… 1LIVE is the ethical **heartbeat of
+> culture**."
+
+### The market position — anti–attention-economy (founder, verbatim)
+
+> "We want to execute on our claim that we are the opposite of the
+> attention-economy mindset: we get you in/out with what you want, fast. We
+> give you time back in your life and help you find the activities that will
+> enrich your life and help you thrive and flourish."
+
+Operationally binding, from the same canon:
+
+- **"Time-given-back is the success metric; time-in-app is an ANTI-GOAL."**
+- The North Star is **TTFR — time-to-first-trusted-relevant-result** — "never
+  session length or return-frequency-for-its-own-sake."
+- **"A satisfied exit is a WIN."**
+- **"No attention-economy dark patterns — ever."**
+
+### Core Principles (governance canon)
+
+No pay-to-rank · Time given back, not taken · Artist sovereignty (free data,
+instant corrections, 70% splits) · Social validates, never defines ·
+Amplification/livestreaming opt-in and separate · No artist-level data resale
+without consent · Aggregate insights only · Permission-first for AV.
+
+### Artist Bill of Rights
+
+1. **Listed by default if playing.**
+2. Never pay for discovery.
+3. Instant corrections.
+4. Proper genre representation.
+5. Free access to your own data.
+6. Opt-in monetization / livestreaming.
+7. No data sold without consent.
+8. Compete on music, not money.
+
+### Venue Principles
+
+**Appear based on activity** (not payment) · Instant corrections · Benefit from
+trust · Sharing for slow days / practice.
+
+### Platform Rules
+
+No sponsored discovery · No hidden boosts · **No algorithmic suppression** · No
+social-only listings · No attention-economy dark patterns · AV prompts opt-in.
+
+### Red Lines (dissolution triggers)
+
+> "Violations — e.g. **pay-to-rank**, **non-aggregate data resale** — trigger
+> **dissolution**."
+
+### The North Star metric (proposed; FOUNDER-RATIFY, not yet ratified)
+
+> "Verified live events on /tonight per served locale, trust-weighted… on any
+> given night, in a city we cover, how many REAL, verifiably-happening events
+> does a person actually see in the feed — counting a `confirmed` event as a
+> full '1', a `likely` event as a partial '0.6', and an `unverified` event as a
+> small '0.25'."
+
+### The current mission (`CLAUDE.md`)
+
+> "Ship the live site behind the stealth gate: Steps 5→10 of the critical path
+> — schedule ingestion…, extraction with eval-harness thresholds, gate→candidate
+> flow, admin review, implement the ratified design direction on /tonight
+> (feed+filters+detail), Clerk allowlist gate, Vercel deploy, founder go/no-go."
+
+### The trust invariants (`CLAUDE.md`, prime directive 1)
+
+Gate-custodied publication · no pay-to-rank surface, ever · **disputed shown,
+never hidden** · RLS fail-closed. *"Trust invariants are physics, not policy."*
+
+---
+
+### WHY THIS WORK EXISTS — the failure stated against the canon above
+
+This is not a performance problem. **The current state violates canon
+directly:**
+
+| Canon | Current state |
+|---|---|
+| Artist Bill of Rights #1 — **"Listed by default if playing"** | 2,214 discovered events are published and invisible. An artist playing tonight at a venue we crawl is **not listed**. |
+| Venue Principles — **"Appear based on activity"** | A venue publishing its calendar does not appear. Its activity is real; its listing is not. |
+| Platform Rules — **"No algorithmic suppression"** | Nothing suppresses deliberately, but the effect is identical: our own supply is filtered out of every query by a missing date. |
+| North Star — **verified live events a person actually sees** | That number is **1**. |
+| Anti-attention-economy — **TTFR, get them what they want fast** | There is no time-to-first-trusted-relevant-result when there is no result. |
+
+The licensed lane (Ticketmaster and similar) shows 1,359 upcoming events. The
+independent venues, artists and producers this product exists to serve show
+almost none. **A product whose stated position is artist and venue sovereignty
+is currently a Ticketmaster mirror.** That is the gap you are being asked to
+close.
+
+### HOW YOUR WORK WILL BE JUDGED AGAINST THE VISION
+
+Every recommendation must name which of the above it moves, and by how much.
+An improvement to an internal metric that leaves the "verified events a person
+actually sees" number at 1 has accomplished nothing, and will be recorded that
+way.
+
+Two constraints from canon that bind your design directly, not just your copy:
+
+1. **Never fabricate a fact.** Gate-custodied publication and "disputed shown,
+   never hidden" mean a listing's date must have been stated by its source. An
+   engine that guesses to raise coverage violates the invariant, and the
+   invariant is described in canon as *physics, not policy*.
+2. **Time given back.** More events is not automatically better if the person
+   cannot find theirs fast. Coverage and TTFR are both objectives; a design
+   that floods the feed to raise a count is optimising against the position.
 
 ## 0. ACCESS — every route you need, and the workaround for every blocked one
 
@@ -2180,7 +2328,7 @@ number of events a visitor can see stays at 1.
 
 # APPENDIX A — VERBATIM SOURCE OF EVERY CITED DEFECT
 
-Copied out of the repository at commit `5842b10`, not retyped. If you have no
+Copied out of the repository at commit `875df23`, not retyped. If you have no
 repository access you still have everything needed to verify each claim.
 
 
