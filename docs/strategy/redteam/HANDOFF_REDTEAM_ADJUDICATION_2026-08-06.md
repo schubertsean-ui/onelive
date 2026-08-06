@@ -237,6 +237,57 @@ V2 and this compound: we hoard invisible duplicates and score it as throughput.
 
 ---
 
+## 3b. A LIVE CHARTER VIOLATION, found while chasing a reviewer's citation
+
+Grok cited the fabricated-year defect as **R-081**. Chasing that ID down turned
+up something worse than a stale reference.
+
+**R-081, R-082, R-083 and R-084 do not exist in `docs/RECORD.md` — on `master`
+or on `claude/crawler-lab`.** Both branches top out at R-079. Yet the ids are
+cited as recorded authority across **six** documents on the lab branch
+(`HANDOFF_ONE_FILE.md`, `EXTERNAL_AI_BRIEF.md`, `NEW_SESSION_PROMPT.md`,
+`PIPELINE_COMPONENTS.md`, `PLAN.md`, `docs/ops/CODE_EVALUATION_2026-08-06.md`),
+including a summary row that reads:
+
+> `docs/RECORD.md` R-081/082/083/084 | Open defects: fabricated year, exam never
+> re-runs, bad catalog URLs, unmeasured cause split
+
+**So four known open defects — one of them the live fabrication path — are
+described everywhere as "recorded" and are recorded nowhere.** That is precisely
+what CLAUDE.md's *"The Record — no silent deferrals"* forbids: every deferral is
+written to `docs/RECORD.md` **in the same commit**, with the bar it deviates from
+and an objective resolution trigger. Grok relayed the id in good faith; the
+handoff is the source of the error.
+
+**Why the machinery missed it.** `lab/verify_claims.py` re-derives claims **from
+the source tree** — extraction field count, card field count, `start_time` hits
+in the trust gate, query-pack size, the promote dedupe line, the flattening
+function and the fields it keeps, the render trigger — and the assembler refuses
+to build when any drifts. Every one of those is a CODE claim. A cited `R-###` is
+not checked against `RECORD.md` at all. Meanwhile `tools/deferral_scan.py`
+enforces live `[R-###]` tags only on **code comments**; the charter states that
+prose is "covered by this rule + evaluator review," i.e. not mechanically. These
+citations are prose. **The escape went straight through the one documented gap
+between the two enforcers.**
+
+This is the concrete instance of Perplexity's §2.3 argument — that the tree
+cannot be trusted, so a verifier was built downstream — and it is stronger than
+the version Perplexity could make without the tree: the verifier itself has a
+blind spot, and four defects fell into it.
+
+**Consequences, in order:**
+1. The date fix must **carry the R-081 row that was never written**, not assume
+   it exists. Same for the other three when their fixes land.
+2. **New escape class for the ledger:** *a record id cited as authority when no
+   record exists.* It is mechanically detectable — every `R-###` in prose either
+   resolves to a row in `RECORD.md` or fails — and `tests/test_record_ids_unique.py`
+   already proves this family of check is cheap to write.
+3. It is a genuine **ESCAPED** row, not an internal catch: the ids reached four
+   external reviewers, and one of them repeated the fabricated citation back to
+   the founder as fact.
+
+---
+
 ## 4. REJECTED — with reasons
 
 ### ChatGPT: "Do not iterate. Redesign the entire AI engineering workflow."
