@@ -80,7 +80,7 @@ def test_hold_never_escalates_even_with_conflict_signals():
 
 def test_pass_requires_two_non_anchor_sources():
     verdict = evaluate_gate(
-        source_classes=["social", "local_media"],
+        source_classes=["social", "link_hub"],
         extracted={},
         evidence_signals={},
     )
@@ -90,7 +90,7 @@ def test_pass_requires_two_non_anchor_sources():
 def test_sxsw_mode_forwarded_to_base_gate():
     # Two non-anchor sources is enough normally but not under sxsw_mode.
     verdict = evaluate_gate(
-        source_classes=["social", "local_media"],
+        source_classes=["social", "link_hub"],
         sxsw_mode=True,
         extracted={},
         evidence_signals={},

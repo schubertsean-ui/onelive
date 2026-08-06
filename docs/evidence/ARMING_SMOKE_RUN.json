@@ -34,6 +34,8 @@
     "31029850460 (superseded: runtime changed by the r3 hardening ff9817e — section-boundary context clearing, orchestrator-threaded fetch time for the year rule, redirect re-validation, identity guard)",
     "31028560054 (superseded: runtime changed by the r2 hardening b381146 — date-DOMINANT headers, source-quoted callback links, private-IP guard)",
     "30971233791 (superseded: runtime changed by the date-recovery revision 6de72eb — segmenter context carry, date callback, year rule)",
+    "31050484548 (superseded: worker/gating.py changed again 81b8cd5 -> 55885ca — the unclassified-class warning moved to once-per-class after the perf gate caught it blowing multi_confirm_gate's 50us budget)",
+    "30971233791 (superseded on THIS branch: worker/gating.py is inside the armed runtime closure and this PR changes it — first-party class set, is_first_party, loud unclassified warning)",
     "30970500283 (superseded: runtime changed by the r3 CAS revision bb00d17 — full-predicate guard in stamp_gate_verdict)",
     "30969484227 (PR #182 head 9af3c17 - the pre-CAS revision, superseded because the compare-and-swap revision (r2) changed worker/orchestrator.py + worker/candidate_store.py + worker/autopromote.py in the armed runtime set)",
     "30968702944 (master tip bfbe761 - the cap-30 re-bind (#180), superseded because this PR changes worker/orchestrator.py + worker/candidate_store.py + worker/autopromote.py inside the armed cron's runtime closure: gate-verdict persistence, PR #182)",
