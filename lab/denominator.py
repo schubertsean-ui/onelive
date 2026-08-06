@@ -55,6 +55,8 @@ from collections import defaultdict
 UA = "OneLiveBot/0.1 (+contact: ops@1live.co) denominator-census"
 TIMEOUT = 25
 DELAY = 2.0
+DEEP_DELAY = 1.0
+DEEP_LIMIT_DEFAULT = 25
 
 # The aggregators that inventory this market. Founder-named 2026-08-06 plus the
 # two WebSearch surfaced the same day (showlists.net, austincomedyshows.com),
@@ -74,12 +76,12 @@ SOURCES: list[tuple[str, str, str]] = [
     ("Meetup Austin", "https://www.meetup.com/find/?location=us--tx--austin", "community"),
     ("Yelp Austin events", "https://www.yelp.com/events/austin", "community"),
     ("CultureMap Austin", "https://austin.culturemap.com/events/", "periodical"),
-    ("KUTX (public radio)", "https://kutx.org/events/", "radio"),
-    ("KUT (public radio)", "https://www.kut.org/events", "radio"),
+    ("KUTX (public radio)", "https://kutx.org/kutx-presents/", "radio"),
+    ("KUTX concert calendar", "https://kutx.org/features/concert-calendar/", "radio"),
     ("Austin Monitor", "https://www.austinmonitor.com/events/", "periodical"),
     ("Austin American-Statesman things to do", "https://www.statesman.com/things-to-do/", "newspaper"),
-    ("KVUE (TV)", "https://www.kvue.com/events", "tv"),
-    ("Austin Public Library", "https://library.austintexas.gov/events", "library"),
+    ("KVUE community (TV)", "https://www.kvue.com/community", "tv"),
+    ("Austin Public Library", "https://library.austintexas.gov/events/calendar", "library"),
 ]
 
 _JSONLD_RE = re.compile(
@@ -154,7 +156,77 @@ def _date_of(obj: dict) -> str:
     return ""
 
 
-def harvest(label: str, url: str, kind: str, target: str) -> dict:
+def _absolutize(base: str, href: str) -> str:
+    return urllib.parse.urljoin(base, href.replace("&amp;", "&"))
+
+
+def _events_from_html(html: str) -> list[dict]:
+    """Every schema.org Event object in one page, verbatim. No inference: a
+    field absent from the markup is absent from the row, never guessed."""
+    out: list[dict] = []
+    for m in _JSONLD_RE.finditer(html):
+        try:
+            data = json.loads(m.group(1).strip())
+        except (ValueError, TypeError):
+            continue
+        for obj in _iter_jsonld(data):
+            if not _is_event(obj):
+                continue
+            title = obj.get("name") if isinstance(obj.get("name"), str) else ""
+            if not title:
+                continue
+            out.append({
+                "title": title.strip(),
+                "date": _date_of(obj),
+                "venue": _venue_of(obj).strip(),
+                "start": obj.get("startDate") if isinstance(obj.get("startDate"), str) else "",
+                "end": obj.get("endDate") if isinstance(obj.get("endDate"), str) else "",
+                "status": obj.get("eventStatus") if isinstance(obj.get("eventStatus"), str) else "",
+                "url": obj.get("url") if isinstance(obj.get("url"), str) else "",
+            })
+    return out
+
+
+def deep_read(row: dict, html: str, limit: int) -> list[dict]:
+    """Follow an index page's event links and read the DETAIL pages.
+
+    The 2026-08-06 run showed why this is the load-bearing half: the readable
+    aggregators (Chronicle, Showlist, Visit Austin, CultureMap) all came back
+    "tier 2 links" — they publish a list of hrefs and no schema.org markup on
+    the index. The data is one click deeper. An index-only counter therefore
+    measures the wrong layer and reports 0 for sources that are full of events.
+
+    Bounded by `limit` per source, and the bound is REPORTED (deep_capped), so
+    a truncated read is never mistaken for an exhausted one.
+    """
+    base = row.get("final_url") or row["url"]
+    links: list[str] = []
+    seen: set[str] = set()
+    for href in _EVENT_HREF_RE.findall(html):
+        u = _absolutize(base, href)
+        if u in seen or u.rstrip("/") == base.rstrip("/"):
+            continue
+        seen.add(u)
+        links.append(u)
+
+    row["deep_links_found"] = len(links)
+    row["deep_capped"] = len(links) > limit
+    found: list[dict] = []
+    ok = fail = 0
+    for u in links[:limit]:
+        time.sleep(DEEP_DELAY)
+        page, err, _f = _fetch(u)
+        if page is None:
+            fail += 1
+            continue
+        ok += 1
+        found.extend(_events_from_html(page))
+    row["deep_pages_read"] = ok
+    row["deep_pages_failed"] = fail
+    return found
+
+
+def harvest(label: str, url: str, kind: str, target: str, deep: int = 0) -> dict:
     html, err, final = _fetch(url)
     row: dict = {"source": label, "kind": kind, "url": url, "final_url": final}
     if html is None:
@@ -194,6 +266,13 @@ def harvest(label: str, url: str, kind: str, target: str) -> dict:
     else:
         row["tier"] = "none"
 
+    # The index published links but no markup: the events are on the detail
+    # pages. Follow them rather than reporting a source full of events as 0.
+    if deep and not events and row["tier"] == "2 links":
+        events = deep_read(row, html, deep)
+        if events:
+            row["tier"] = "2 links -> 0 JSON-LD (deep)"
+
     # A JS shell that yielded nothing is BLOCKED, not empty — see module docstring.
     if not events and row["tier"] in ("4 needs render", "none"):
         row.update(status="BLOCKED", reason=f"no readable events ({row['tier']})",
@@ -221,6 +300,9 @@ def main() -> int:
     ap.add_argument("--date", default=_dt.date.today().isoformat(),
                     help="target night, YYYY-MM-DD (default: today, UTC)")
     ap.add_argument("--json", default="", help="write the full result here")
+    ap.add_argument("--deep", type=int, default=DEEP_LIMIT_DEFAULT,
+                    help="follow up to N event links per link-only source "
+                         "(0 disables; the cap is reported, never silent)")
     args = ap.parse_args()
     target = args.date
 
@@ -229,7 +311,7 @@ def main() -> int:
         if i:
             time.sleep(DELAY)
         print(f"  fetching {label} ...", flush=True)
-        rows.append(harvest(label, url, kind, target))
+        rows.append(harvest(label, url, kind, target, deep=args.deep))
 
     # Distinct union across sources. Same show, several aggregators.
     keys: dict[tuple, list[str]] = defaultdict(list)
