@@ -172,6 +172,16 @@ own quoted words plus the code check that confirmed or refuted them.
 change.
 [S3:nonfinite-decimal-accepted] Same surface, same answer: this change performs
 no arithmetic and normalizes no numeric input.
+[S3:condensed-thinking-run] No thinking-tool run is claimed here — no po battery
+and no hat sequence was invoked, so no completeness assertion stands in for an
+unwritten artifact. Where this change makes a claim, the artifact IS the
+evidence: the trust_gate proof prints its own output rather than asserting a
+result.
+[S3:excluded-surface-widening] No scanner-excluded surface is widened. The
+worker_v2 proof tree was built under the session scratchpad, OUTSIDE the repo,
+and `tg.REPO` was re-pointed in a throwaway process — no repo file was added,
+no allowlist or exclusion was touched, and nothing from the experiment is
+committed.
 [S3:stale-live-incident-state] Live claims re-verified
 against live systems, not earlier prose: PR check status read once via the API;
 the branch/tip read from git directly. No claim about live DB rows is made —

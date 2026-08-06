@@ -317,28 +317,53 @@ fields. Neither reviewer was wrong here.
 
 ### ChatGPT: "Do not iterate. Redesign the entire AI engineering workflow."
 
-**REJECTED.** The context-weight observation behind it is right (see V4) and is
-adopted there. The prescription is not.
+**REJECTED — but my first stated reason was OVERSTATED, and the correction is
+recorded here rather than quietly dropped.**
 
-1. **It recommends building what already exists.** Its ten-artifact "AI
-   Engineering Operating System" is: a Mission Charter (`CLAUDE.md`), an
-   Engineering Constitution (`docs/OPERATING_RULES.md` +
-   `docs/CODING_CONVENTIONS.md`), Interface Contracts (`contracts/`),
-   verification gates (`tools/validate`, `trust_gate.py`, `deferral_scan.py`,
-   the eval harness), a Decision Log (`docs/memory/decisions/`), an append-only
-   Record (`docs/RECORD.md`), and model-tier routing (`docs/MODEL_ROUTING.md`,
-   `tools/model_router.py`). It reviewed a document without the codebase and
-   prescribed the codebase.
-2. **The remedy is larger than the disease** — trading a live, publishing
-   engine for a months-long meta-project, on a critique that produced no
-   defects.
-3. **Zero findings.** Same blocker as everyone else; three others returned
+I originally wrote that its ten-artifact "AI Engineering Operating System"
+already exists in this repo. Challenged to prove it, I checked all ten. **Six
+exist. Four are real gaps.**
+
+| # | ChatGPT artifact | In the tree? | Evidence |
+|---|---|---|---|
+| 1 | Mission Charter | **YES** | `CLAUDE.md`, 127 lines |
+| 2 | Engineering Constitution | **YES** | `OPERATING_RULES.md` 497 + `CODING_CONVENTIONS.md` 97 + `MODEL_ROUTING.md` 96 (budget policy included) |
+| 3 | System Architecture Spec | **PARTIAL** | `docs/Final_ONE_Live_Authoritative_Technical_Spec.md` is **37 lines** |
+| 4 | Component Specs (one per subsystem) | **GAP** | READMEs exist for `ai/golden`, `sources`, `tools`, `docs/memory`, `docs/hats` — **none for `worker/`, `api/`, or `web/`**, the three core subsystems |
+| 5 | Interface Contracts | **PARTIAL** | `contracts/` holds exactly **one** file (`ops_inbox.contract.json`) + 19 SQL migrations |
+| 6 | Task Packs (minimal per-job context) | **PARTIAL** | Six kickoff prompts exist, but each is 11–14 KB; no minimal-context-loading mechanism |
+| 7 | Verification Packs | **YES** | `tools/validate`, `trust_gate.py`, `deferral_scan.py`, `lint.py` |
+| 8 | Decision Log (append-only) | **YES** | `docs/memory/decisions/` — **73 records** |
+| 9 | Evidence Store | **YES** | `docs/RECORD.md` + `docs/metrics/KAIZEN_LEDGER.md` (351 rows) |
+| 10 | Project Memory Index | **YES** | `docs/memory/` — README, RED_CLASSES, brain.jsonl, decisions, entities, gotchas |
+
+**So "it prescribes what already exists" was 6/10 true, not 10/10, and I should
+not have stated it as flatly as I did.** Items 3–6 are genuine gaps, and they
+are precisely the ones tied to the context-efficiency complaint — which makes
+ChatGPT's *diagnosis* on those four better than I credited.
+
+**The rejection nevertheless stands, on the corrected basis:**
+
+1. **The remedy is disproportionate to the disease it correctly names.** Four
+   missing artifacts are filled by writing four artifacts — three subsystem
+   READMEs, a real architecture spec, more interface contracts, and a
+   context-packing convention. That is a week of work inside the existing
+   system. "Do not iterate — redesign the entire AI engineering workflow" trades
+   a live, publishing engine for a months-long meta-project to reach the same
+   place.
+2. **Zero findings.** Same blocker as everyone else; three others returned
    verifiable claims. **Grading is not review.** The ratings (2/10 token
-   efficiency, 9.5/10 vision) carry no measurement and no method.
-4. **Wrong on mechanism where it is testable.** "A model doesn't remember
+   efficiency, 9.5/10 vision) carry no measurement and no method — and this
+   session's own gate-cost table (§5b) shows what it looks like when the same
+   question IS measured.
+3. **Wrong on mechanism where it is testable.** "A model doesn't remember
    because something is repeated" is asserted as fact and used to justify
    deleting repetition. Load-bearing invariants that must survive compaction are
    exactly what is worth restating.
+
+**ADOPTED as a consequence of being challenged:** items 3–6 go into TODOS as a
+scoped documentation contract. That is ChatGPT's real contribution, and it took
+proving the rejection to find it.
 
 ### Perplexity R1: "Retire `worker/`, build `worker_v2/` from empty."
 
@@ -354,6 +379,47 @@ that `worker_v2/` "starts empty" and gets "to design its verification story from
 scratch." That is the exact mechanism by which those invariants would be lost,
 and per the charter they are physics, not policy.
 
+**PROOF, not judgement — the invariants are enforced by literal module paths,
+and a rename voids them silently.** `tools/trust_gate.py` hardcodes:
+
+```python
+PIPELINE_MODULES = ("worker.gating", "worker.promote")
+PROMOTE_IMPORT_ALLOWLIST = {"api/ops_candidates.py", "worker/autopromote.py"}
+```
+
+and `check_ai_never_promotes` scans exactly `REPO/ai/**` plus the single
+hardcoded path `worker/ai_extract.py`, guarded by `if not path.exists():
+continue`. Every check keys on the string `worker.` — so I built the tree R1
+proposes and ran the real gate against it.
+
+The fake tree deliberately violates all three invariants: `orchestrator.py`
+imports promote (the AI loop publishing — the one thing the charter calls
+physics), `ai_extract.py` imports promote (extraction publishing), and
+`ads_ranking.py` imports the gating pipeline. Renamed to `worker_v2`, running
+the repo's own `check_ai_never_promotes` + `check_promote_import_allowlist` +
+`check_ads_tastemaker_isolation`:
+
+```
+files in the fake tree: ['worker_v2/ads_ranking.py', 'worker_v2/ai_extract.py',
+                         'worker_v2/promote.py', 'worker_v2/orchestrator.py']
+
+violations on a DELIBERATELY-violating worker_v2 tree: 0
+
+VERDICT: OK - all trust invariants hold
+```
+
+**Zero violations. The gate prints that the trust invariants hold, on a tree
+with no protection whatsoever.** The `path.exists()` guard skips the missing
+`worker/ai_extract.py` silently; nothing imports `worker.promote` because it no
+longer exists; `PIPELINE_MODULES` matches nothing.
+
+This is not "R1 risks losing the invariants through inattention." **R1 voids
+their enforcement mechanically while `trust_gate` continues to report OK** —
+their own `false-confidence-gate` red class ("a gate's self-description never
+claims more than its implementation"), triggered at the maximum possible blast
+radius. Any greenfield move must port these checks FIRST, path by path, and
+prove they fail on a violating tree before a single line moves.
+
 **The cheaper path to the same benefit.** The ceremony cost R1 is trying to
 escape is concentrated in one fact: `worker/ai_models.py` is bound into
 `HARNESS_MANIFEST`, so touching the schema takes extraction offline pending a
@@ -363,6 +429,14 @@ that covers the whole schema extension at once** instead of several. That is a
 scalpel where R1 is an amputation, and it is what makes Fix 01's Phase 1 /
 Phase 2 split correct — which is exactly what Gemini, Grok, and Perplexity's own
 R6.4 all independently concluded.
+
+**Second-order finding, worth its own fix regardless of R1:** the same proof
+shows `trust_gate` is *path-coupled*. Any future refactor that moves or renames
+`worker/promote.py`, `worker/gating.py`, or `worker/ai_extract.py` silently
+disarms it. A guard that passes vacuously when its subject disappears should
+fail closed instead — assert the subjects EXIST before asserting things about
+them. That is a gate-hardening change, not a relaxation, so it is not
+founder-crucial; queued in §6.
 
 ---
 
