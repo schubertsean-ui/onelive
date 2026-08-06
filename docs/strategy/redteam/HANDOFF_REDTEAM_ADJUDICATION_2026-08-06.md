@@ -317,6 +317,75 @@ execution:
 
 ---
 
+## 5b. GATE-COST MEASUREMENT (run, not argued)
+
+Perplexity's test — *has this gate ever caught a defect that would have reached
+a user?* — run against `docs/metrics/KAIZEN_LEDGER.md`, the instrument the
+charter created for exactly this.
+
+**First result is about the instrument, not the gates: the ledger cannot answer
+the question it exists to answer.** Its header promises one row per PR with
+"M2 catches by gate/class", but the M2 column is free prose, so a per-gate count
+is not queryable. 263 table rows, and the structured field is structured in name
+only. That is a fixable instrument defect and it is why this decision has been
+argued rather than measured until now.
+
+Proxy used instead — gate name mentioned in the same clause as catch language
+(`caught|catches|blocked|failed the|refused|flagged|surfaced`):
+
+| Gate | mentions | with catch-language |
+|---|---|---|
+| evaluator (non-Claude review) | 368 | **30** |
+| `tools/validate` (aggregate) | 85 | 11 |
+| golden exam | 46 | 4 |
+| `trust_gate` | 18 | 2 |
+| `construction_gate` | 13 | 2 |
+| `deferral_scan` | 6 | 1 |
+| `test_audit` | 3 | 1 |
+| `staleness_check` | 3 | 1 |
+| `commit_sweep` | 5 | 0 |
+| `visual_regression` | 3 | 0 |
+| `lint.py` | 2 | 0 |
+| `sca_gate` / `eval_harness` / db-integration | 0–1 | 0 |
+
+**Stated limits, because this proxy is weak in a specific direction.** Mention
+counting rewards gates that fire and punishes gates that DETER. A gate nobody
+tries to violate produces no ledger prose and looks worthless by this measure —
+`trust_gate` is the obvious case, and its low score is an artifact, not a
+verdict. Read the table as "which gates have a recorded history of catching
+things", never as "which gates are worth keeping."
+
+**What it supports, honestly:**
+
+1. **The independent evaluator is doing the overwhelming majority of the real
+   catching** — an order of magnitude above every mechanical gate. Whatever else
+   changes, that seat stays.
+2. **`construction_gate` is the one with a genuinely poor cost/catch ratio on
+   PROSE commits**, and this session is the evidence: it demanded citations for
+   43 red classes on a records-only document, then 4 more, then 1 more — three
+   rounds — because the prose NAMES defect classes. It caught nothing.
+   **Recommended fix is surgical, not deletion: scope its content matching to
+   code diffs and leave prose to the evaluator.** That keeps the retrieval
+   discipline where builds happen and stops taxing documentation.
+3. **`staleness_check` should be KEPT — I disagree with Perplexity's "Delete."**
+   It caught a real defect in this very session: a mistyped
+   `reconciled_through_commit` SHA, refused as INDETERMINATE rather than
+   accepted. A fail-closed guard that rejects a fabricated identifier is doing
+   precisely the job this project's canon exists to do, and it runs in
+   under a second. Its ledger score of 3/1 understates it.
+4. **Genuinely unevidenced:** `commit_sweep`, `visual_regression`, `lint.py`,
+   `sca_gate`. Worth asking of each whether it deters or merely costs — but that
+   question needs the M2 fix below before it can be answered rather than guessed.
+
+**The one change that makes this permanently measurable:** give M2 a real
+structured field (`gate=<name> class=<token> n=<int>`) and have the close ritual
+write it mechanically. Then "which gates earn their keep" is a query, not an
+argument, and the next reviewer who raises this gets a table instead of a
+debate. This is a gate-INSTRUMENTATION change, not a relaxation, so it is not
+founder-crucial — but it is queued behind the live trust defects in §6.
+
+---
+
 ## 6. ADJUDICATED PRIORITY
 
 Ordered by *user harm*, with the ceremony cost of each stated honestly.
