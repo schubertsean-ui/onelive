@@ -1661,7 +1661,7 @@ may publish at `confirmed` remains founder-crucial.
 
 # APPENDIX A — VERBATIM SOURCE OF EVERY CITED DEFECT
 
-Copied out of the repository at commit `1e46aec`, not retyped. If you have no
+Copied out of the repository at commit `fd02185`, not retyped. If you have no
 repository access you still have everything needed to verify each claim.
 
 
@@ -2026,17 +2026,46 @@ URLs below are copied verbatim from the committed source catalog
 
 **Segments 15, 16, 18, 19, 20, 21, 23 — no catalog representative exists.**
 
-This is not an oversight in the proving set; it is the sourcing defect in Part
-4b showing through. Nothing ever searched for these segments, so nothing was
-ever catalogued for them.
+Not an oversight in the proving set: it is the sourcing defect in Part 4b
+showing through. Nothing ever searched for these segments, so nothing was ever
+catalogued for them.
 
-Candidates for these were proposed from memory and then CHECKED against the
-live web (`lab/verify_urls.py`, run from CI because the dev sandbox has no
-outbound network). Verified survivors are listed in the lab results. Candidates
-that failed are recorded too — 404s, bot-blocks, a domain that does not resolve
-at all, and pages with no dated content — because a failed guess is data about
-how bad guessing is as a sourcing method.
+Candidates were proposed from memory and then CHECKED against the live web
+(`lab/verify_urls.py`, run from CI because the dev sandbox has no outbound
+network). **VERIFIED — reachable and showing dated event listings:**
 
-**Do not mistake that verifier for a discovery mechanism.** It checks
-hypotheses someone already had. Finding a venue nobody thought of is the job,
-and it is Part 4b.
+| Segment | Verified URL |
+|---|---|
+| 15 recurring-scene organizers | `https://kickbuttcoffee.com` |
+| 15 recurring-scene organizers | `https://hideouttheatre.com/calendar/` |
+| 16 social-dance & movement | `https://godancestudio.com` |
+| 16 social-dance & movement | `https://www.esquinatango.org` |
+| 18 bands & musical acts | `https://www.blackpumas.com` |
+| 20 DJs & electronic artists | `https://concourseproject.com` |
+| 20 DJs & electronic artists | `https://kingdomnightclub.com` |
+| 21 comedians & spoken-word | `https://www.capcitycomedy.com` |
+| 21 comedians & spoken-word | `https://falloutcomedy.com` |
+| 23 visual artists & makers | `https://www.austintexas.gov/dougherty` |
+
+**STILL OPEN — 4 of 14 slots, reported rather than filled with a guess:**
+one more band (18), **both** solo musicians (19), one more visual artist (23).
+
+**Segment 19 failed 0-for-4** — Gary Clark Jr., Shakey Graves, Jackie Venson
+and Bob Schneider were all reachable and all showed no dated content in the
+served HTML. That is not four coincidences. Artist tour dates are almost
+always rendered by a JavaScript widget (Bandsintown, Songkick, Seated), so a
+raw-HTML probe cannot see them — the same blindness the production fetcher
+has. **Segments 18, 19 and 23 are render-required by nature, which makes them
+valuable proving-set members rather than awkward ones.**
+
+**What two rounds of this actually proved.** Round 1 checked site roots and
+verified 5 of 14. Round 2 also tried `/tour`, `/shows`, `/events`, `/calendar`
+and five more paths, and reached 10 of 14. The failures were 404s, bot-blocks
+(403), a domain that does not resolve at all, and JS-rendered listings. Two
+rounds of an agent typing names from memory, and four slots are still empty.
+
+A working discovery mechanism would have produced all fourteen from one query
+pass. **That gap — 10/14 after two rounds of guessing, versus what one real
+search should return — is the measurement of the sourcing failure in Part 4b.**
+`verify_urls.py` is a VERIFIER: it checks hypotheses someone already had. It
+cannot find a venue nobody thought of, and that is the whole job.
