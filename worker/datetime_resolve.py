@@ -218,6 +218,18 @@ _TEXT_DATE_RE = re.compile(
 # ISO dates, which need no month-name.
 _ISO_DATE_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 
+# URLs are STRIPPED before any date is read from a block (evaluator finding on
+# the consolidated head). A link's path often carries a date-like slug —
+# ".../events/2026-08-08/spoon-tickets" — and that slug is an artefact of the
+# site's routing, not the page telling a reader when the show is. Reproduced
+# before fixing: a block whose only "date" was such a slug resolved a bare
+# "8:00 pm" to 2026-08-08 and would have published a date the source never
+# stated, through a first-party source, as confirmed. Machine-declared dates
+# from a linked page are a DIFFERENT and legitimate path — that is
+# worker/date_callback.py, which fetches the page and reads its schema.org
+# declaration rather than guessing from the URL string.
+_URL_RE = re.compile(r"(?:https?://|www\.)\S+", re.I)
+
 # A time-only claim: parses, but evidences neither month nor day.
 def _is_time_only(raw: str) -> bool:
     try:
@@ -251,6 +263,9 @@ def resolve_time_only_from_block(
     # attacker-smuggle lens). A claim that evidences no time is refused.
     if not _evidences_a_time(s):
         return None, None
+
+    # Read dates from the block's PROSE only — never from a link's path.
+    block_text = _URL_RE.sub(" ", block_text)
 
     found = []  # (date_text, claimed_weekday_or_None)
     for m in _TEXT_DATE_RE.finditer(block_text):

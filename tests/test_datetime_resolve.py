@@ -173,3 +173,25 @@ def test_the_legitimate_year_wrap_still_resolves():
     dec = datetime(2026, 12, 20, 19, 0, 0)
     iso, _ = resolve_partial_date_claim("January 5 8:00 pm", dec)
     assert iso == "2027-01-05T20:00:00"
+
+
+def test_a_date_in_a_LINK_is_not_the_page_stating_a_date():
+    """Evaluator finding on the consolidated head: resolve_time_only_from_block
+    scanned the whole block, so a ticket URL whose path carries a date slug
+    ('/events/2026-08-08/spoon-tickets') became the event's date — a
+    source-unsupported date published through a first-party source as
+    confirmed. A slug is site routing, not the page telling a reader when the
+    show is. Reading a LINKED page's machine-declared date is a different and
+    legitimate path: worker/date_callback.py fetches it."""
+    block = ("Spoon  8:00 pm  Buy tickets: "
+             "https://venue.example/events/2026-08-08/spoon-tickets")
+    assert _from_block("8:00 pm", block, CTX) == (None, None)
+
+
+def test_stated_date_still_resolves_even_when_a_link_is_present():
+    """The strip must not cost the honest case: the block SAYS August 8, and
+    also happens to carry a link."""
+    block = ("Sat, August 8 · Spoon · 8:00 pm · "
+             "https://venue.example/events/1234/spoon-tickets")
+    iso, _ = _from_block("8:00 pm", block, CTX)
+    assert iso == "2026-08-08T20:00:00"

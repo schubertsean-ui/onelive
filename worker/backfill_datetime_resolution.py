@@ -166,6 +166,59 @@ def run(limit: int, real: bool) -> dict:
     return counts
 
 
+class BackfillPreconditionError(RuntimeError):
+    """Raised when --real is requested before the one-way door is safe."""
+
+
+# The founder-settled timezone storage contract (R-083, second constraint).
+# Flipped to True ONLY by the PR that lands the ratified contract and its
+# migration for already-written rows. A backfill run before that writes
+# thousands of instants 5-6 hours early.
+TIMEZONE_CONTRACT_SETTLED = False
+
+
+def assert_safe_to_write() -> None:
+    """Refuse --real until the one-way door is actually closed (R-083).
+
+    R-083 records this as a HARD STOP, and the evaluator's finding on the
+    consolidated head was exactly right: a hard stop that lives only in a
+    markdown file is not a hard stop. This workflow holds production DB
+    credentials and can be dispatched by hand, so the stop belongs HERE.
+
+    The gate-fix precondition is checked BEHAVIOURALLY, not by a flag — the
+    probe below asks the real gate whether one instant written two ways still
+    reads as a conflict. A flag can drift from the code it claims to describe;
+    a probe cannot. If R-084(a) is unfixed, the gate escalates, every row this
+    pass dates acquires a gate_reason, and those rows leave every automated and
+    human path permanently (R-085). So we refuse.
+    """
+    from worker.trust_gate3 import _has_conflicting_start_time
+
+    same_instant_two_renderings = {
+        "start_times": ["2026-08-08T19:30:00+00:00", "2026-08-08T19:30:00"]
+    }
+    if _has_conflicting_start_time(same_instant_two_renderings):
+        raise BackfillPreconditionError(
+            "REFUSING --real: the trust gate still reports a CONFLICT for one "
+            "instant rendered two ways, so R-084(a) is not fixed on this "
+            "checkout. Every row this pass dated would immediately escalate "
+            "with a gate_reason written, which removes it from stamp_backlog, "
+            "from run_autopromote, and from the human promote path — "
+            "permanently (R-085). Land the canonical-instant gate fix first. "
+            "See docs/ops/PATH_TO_THOUSANDS.md B0-B9 for the required order."
+        )
+    if not TIMEZONE_CONTRACT_SETTLED:
+        raise BackfillPreconditionError(
+            "REFUSING --real: the timezone storage contract is not settled "
+            "(R-083). worker/datetime_normalize.py returns a NAIVE isoformat "
+            "into a timestamptz column and nothing sets a session TimeZone, so "
+            "8pm Central is stored as 3pm Central. Writing the backlog through "
+            "that lands thousands of events 5-6 hours early. This is a founder "
+            "decision; flip TIMEZONE_CONTRACT_SETTLED in the PR that lands the "
+            "ratified contract and its migration."
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--limit", type=int, required=True,
@@ -173,6 +226,10 @@ def main() -> int:
     ap.add_argument("--real", action="store_true",
                     help="write; without it the pass only reports")
     args = ap.parse_args()
+    if args.real:
+        # Fail BEFORE opening the connection: a refusal must cost nothing and
+        # must not half-run.
+        assert_safe_to_write()
     counts = run(args.limit, args.real)
     print("BackfillDatetimeReport:")
     print(f"  real:   {args.real}")
