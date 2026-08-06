@@ -78,30 +78,6 @@ GRACE_PAST_DAYS = 7
 # (always ~330+ days out, by construction) always refuses.
 MAX_FUTURE_DAYS = 300
 
-# Probe pair that differs in its TIME defaults, so what a claim evidences
-# about the CLOCK can be read the same way month/day evidence is read:
-# agreement means the string supplied it, disagreement means it came from the
-# default. _PROBE_A/_PROBE_B are both midnight, so they cannot tell "8pm" from
-# a claim carrying no time at all — which is exactly how a weekday-only claim
-# ("Friday") reached resolve_time_only_from_block and was given a FABRICATED
-# midnight start (evaluator #191 r3, attacker-smuggle lens).
-# The two probes differ ONLY in the hour. Differing in minutes or seconds
-# would break the detection instead of sharpening it: dateutil fills every
-# component the string omits from the default, so "8:00 pm" (which states no
-# seconds) would inherit two different SECOND values and read as time-less.
-_TIME_PROBE_A = datetime(2004, 1, 1, 0, 0, 0)
-_TIME_PROBE_B = datetime(2004, 1, 1, 13, 0, 0)
-
-
-def _evidences_a_time(raw: str) -> bool:
-    """True only when the claim's own text supplies a clock time."""
-    try:
-        a = _duparser.parse(raw, default=_TIME_PROBE_A)
-        b = _duparser.parse(raw, default=_TIME_PROBE_B)
-    except (ValueError, OverflowError, TypeError):
-        return False
-    return a.time() == b.time()
-
 # "3/4", "03/04", "3-4" — a numeric day pair with no month name. Which number
 # is the month is a LOCALE convention, not something the source stated. An ISO
 # date (2026-03-04) is excluded by requiring the pair not to be preceded by a
@@ -208,167 +184,24 @@ def resolve_partial_date_claim(
     }
 
 
-# ── Date-from-the-event's-own-text (the live gap the smoke run exposed) ──────
-# Run 31045743483's refusals were ALL bare times — "8:00 pm", "19:30" — because
-# venue calendars print the date once in the block ("AUG 8 · Spoon · 8:00 pm")
-# and the extractor returned only the time. resolve_partial_date_claim
-# correctly refuses those: a time alone evidences no date. But the date IS
-# right there in the event's own text, so reading it from the block is
-# EVIDENCE, not fabrication — the same standard as everything else here.
+# RETIRED 2026-08-06: resolve_time_only_from_block.
 #
-# The rule, deliberately strict: the block must evidence EXACTLY ONE distinct
-# calendar date. Zero → refuse (nothing to read). Two or more → refuse
-# (ambiguous: a block listing several dates cannot say which is this event's).
-
-_MONTHS = ("january|february|march|april|may|june|july|august|september|"
-           "october|november|december|jan|feb|mar|apr|jun|jul|aug|sept|sep|"
-           "oct|nov|dec")
-_WD = r"(?:mon|tue|tues|wed|weds|thu|thur|thurs|fri|sat|sun)[a-z]*"
-# "August 8", "Aug 8, 2026", "8 August", optionally led by the weekday the
-# page itself prints ("Sat, Aug 8"). The weekday is CAPTURED because a page
-# that names it is stating a checkable fact: if the resolved calendar date
-# lands on a different weekday, our year is wrong and we refuse rather than
-# publish a date the page's own text contradicts.
-_TEXT_DATE_RE = re.compile(
-    rf"\b(?:(?P<wd1>{_WD})\.?,?\s+)?(?:{_MONTHS})\.?\s+\d{{1,2}}(?:st|nd|rd|th)?(?:,?\s+\d{{4}})?\b"
-    rf"|\b(?:(?P<wd2>{_WD})\.?,?\s+)?\d{{1,2}}(?:st|nd|rd|th)?\s+(?:{_MONTHS})\.?(?:,?\s+\d{{4}})?\b",
-    re.I)
-# ISO dates, which need no month-name.
-_ISO_DATE_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
-
-# URLs are STRIPPED before any date is read from a block (evaluator finding on
-# the consolidated head). A link's path often carries a date-like slug —
-# ".../events/2026-08-08/spoon-tickets" — and that slug is an artefact of the
-# site's routing, not the page telling a reader when the show is. Reproduced
-# before fixing: a block whose only "date" was such a slug resolved a bare
-# "8:00 pm" to 2026-08-08 and would have published a date the source never
-# stated, through a first-party source, as confirmed. Machine-declared dates
-# from a linked page are a DIFFERENT and legitimate path — that is
-# worker/date_callback.py, which fetches the page and reads its schema.org
-# declaration rather than guessing from the URL string.
-_URL_RE = re.compile(r"(?:https?://|www\.)\S+", re.I)
-
-# A date in an event block is not automatically the EVENT'S date. Evaluator
-# finding on the consolidated head, reproduced before fixing: "Show 8pm;
-# tickets on sale August 8" and "8pm (page updated August 8)" each contain
-# exactly ONE date, so the exactly-one-date rule happily published August 8 as
-# the show time. These phrases mark a date as being ABOUT something else — a
-# sale opening, a page edit, a submission deadline — and a date so qualified is
-# dropped rather than read as the event's.
+# It read the date for a bare-time claim ("8:00 pm") out of the surrounding
+# block's PROSE, on the rule "exactly one date in the block is this event's".
+# Four adversarial-review rounds found five distinct ways that fabricates a
+# public start time: a date inside a ticket URL's path slug; "tickets on sale
+# August 8"; "page updated August 8"; and — the finding that ended it —
+# "member presale August 8" or "box office opens August 8", i.e. any phrasing
+# a blocklist has not met yet. The last review asked for a POSITIVE check that
+# the date is the event's. Prose cannot supply one: that is inference, which
+# is the thing R-021 exists to refuse.
 #
-# HEURISTIC, and recorded as such (R-093): this is a named-phrase list, so a
-# non-event date introduced by wording not listed here still gets through. The
-# durable fix is to stop inferring from block prose at all and read the date
-# the source DECLARES (worker/date_callback.py's machine-readable path), which
-# is why this resolver's live yield is worth measuring before investing more
-# in it — across every smoke run on this branch it has resolved nothing.
-_NON_EVENT_DATE_CONTEXT = re.compile(
-    r"(?:on\s+sale|sale\s+(?:starts|begins|opens)|present(?:ed)?\s+sale|"
-    r"updated|last\s+modified|posted|published|submitted|revised|"
-    r"as\s+of|effective|copyright|©|added|deadline|expires?|"
-    r"applications?\s+(?:due|close)|register\s+by|rsvp\s+by)"
-    r"[^.;|·\n]{0,30}$", re.I)
-
-# A time-only claim: parses, but evidences neither month nor day.
-def _is_time_only(raw: str) -> bool:
-    try:
-        a = _duparser.parse(raw, default=_PROBE_A)
-        b = _duparser.parse(raw, default=_PROBE_B)
-    except (ValueError, OverflowError, TypeError):
-        return False
-    return a.month != b.month or a.day != b.day
-
-
-def resolve_time_only_from_block(
-    raw: Any, block_text: Optional[str], context: datetime,
-) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
-    """Give a bare-time claim the date its OWN block text states.
-
-    Returns (naive_iso | None, resolution_record | None). Refuses unless the
-    claim is time-only AND the block evidences exactly one distinct date.
-    Numeric-ambiguous forms ("03/04/2026") are deliberately not read from
-    text at all — datetime_normalize already refuses those as unknowable, and
-    reading them here would smuggle the guess back in.
-    """
-    if raw is None or not block_text:
-        return None, None
-    s = str(raw).strip()
-    if not s or not _is_time_only(s):
-        return None, None
-    # _is_time_only only says "no month/day evidence" — it is TRUE for a
-    # weekday-only claim ("Friday") too, which carries no clock time at all.
-    # Without this guard such a claim took dateutil's midnight default and
-    # published a start time the source never stated (evaluator #191 r3,
-    # attacker-smuggle lens). A claim that evidences no time is refused.
-    if not _evidences_a_time(s):
-        return None, None
-
-    # Read dates from the block's PROSE only — never from a link's path.
-    block_text = _URL_RE.sub(" ", block_text)
-
-    def _qualified_as_non_event(at: int) -> bool:
-        """True when the text immediately BEFORE this date marks it as being
-        about something other than when the event happens."""
-        return bool(_NON_EVENT_DATE_CONTEXT.search(block_text[:at]))
-
-    found = []  # (date_text, claimed_weekday_or_None)
-    for m in _TEXT_DATE_RE.finditer(block_text):
-        if _qualified_as_non_event(m.start()):
-            continue
-        wd = m.group("wd1") or m.group("wd2")
-        found.append((m.group(0), _WEEKDAY_PREFIX[wd[:3].lower()] if wd else None))
-    for m in _ISO_DATE_RE.finditer(block_text):
-        if _qualified_as_non_event(m.start()):
-            continue
-        found.append((m.group(0), None))
-    if not found:
-        return None, None
-
-    # Normalize every hit to a concrete date; a hit without a year takes the
-    # year from context under the SAME unique-365-day-window rule above. A hit
-    # whose printed weekday contradicts the resolved date is DROPPED — the
-    # page contradicts itself (or our year is wrong), and neither is something
-    # to publish through.
-    dates = set()
-    for hit, claimed_wd in found:
-        resolved_date = None
-        iso, _ = resolve_partial_date_claim(hit, context)
-        if iso:
-            resolved_date = datetime.fromisoformat(iso).date()
-        else:
-            try:
-                p_a = _duparser.parse(hit, default=_PROBE_A)
-                p_b = _duparser.parse(hit, default=_PROBE_B)
-            except (ValueError, OverflowError, TypeError):
-                continue
-            if p_a.date() == p_b.date():  # fully evidenced, year included
-                resolved_date = p_a.date()
-        if resolved_date is None:
-            continue
-        if claimed_wd is not None and resolved_date.weekday() != claimed_wd:
-            continue
-        dates.add(resolved_date)
-    if len(dates) != 1:
-        # 0 = nothing readable; >1 = the block names several dates and cannot
-        # say which is this event's. Both refuse; the claim stays NULL.
-        return None, None
-
-    the_date = dates.pop()
-    # The RAW claim's own weekday is checked too, not just weekdays printed in
-    # the block (evaluator #191 r3, both openai lenses): "Friday 8pm" combined
-    # with a block whose single date is a Saturday is the claim contradicting
-    # its own page. Conflicting evidence is refused, never averaged.
-    claimed_wd = _claimed_weekday(s)
-    if claimed_wd is not None and the_date.weekday() != claimed_wd:
-        return None, None
-    try:
-        t = _duparser.parse(s, default=_PROBE_A).time()
-    except (ValueError, OverflowError, TypeError):
-        return None, None
-    resolved = datetime.combine(the_date, t)
-    return resolved.isoformat(), {
-        "raw": s,
-        "resolved": resolved.isoformat(),
-        "rule": "date-from-event-block-text(exactly-one-date-evidenced)",
-        "context": context.isoformat(),
-    }
+# It was removed rather than extended because its value was MEASURED and it was
+# zero — across seven smoke runs on this branch it resolved nothing, not once,
+# while accumulating five fabrication paths. R-093's own trigger said to
+# compare its realised yield against the callback's and retire it if the
+# callback covered the same cases; that comparison has now run.
+#
+# The need it addressed is real and is served by EVIDENCE instead of prose:
+# worker/date_callback.py fetches the event's own linked page and reads the
+# date the source DECLARES in schema.org markup.

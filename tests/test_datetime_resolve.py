@@ -77,86 +77,7 @@ def test_feb_29_resolves_only_into_a_leap_year():
     assert resolve_partial_date_claim("Feb 29", datetime(2026, 3, 15)) == (None, None)
 
 
-# ── date-from-the-event's-own-block-text ─────────────────────────────────────
-# The live gap: smoke run 31045743483's refusals were ALL bare times, because
-# venue calendars print the date once in the block and the extractor returned
-# only "8:00 pm". The date is in the block; reading it is evidence.
-
-from worker.datetime_resolve import resolve_time_only_from_block as _from_block
-
-
-def test_bare_time_takes_the_single_date_its_block_states():
-    block = "AUG 8 · Spoon with special guests · Doors 7:00 pm · Show 8:00 pm · $35"
-    iso, rec = _from_block("8:00 pm", block, CTX)
-    assert iso == "2026-08-08T20:00:00"
-    assert rec["rule"].startswith("date-from-event-block-text")
-
-
-def test_iso_date_in_block_works_too():
-    iso, _ = _from_block("19:30", "Event on 2026-08-09 at the Mohawk", CTX)
-    assert iso == "2026-08-09T19:30:00"
-
-
-def test_block_with_no_date_refuses():
-    assert _from_block("8:00 pm", "Spoon · Doors 7pm · $35", CTX) == (None, None)
-
-
-def test_block_naming_TWO_different_dates_refuses():
-    # A block listing several dates cannot say which is this event's.
-    block = "Summer series: August 8 and August 15 · 8:00 pm"
-    assert _from_block("8:00 pm", block, CTX) == (None, None)
-
-
-def test_same_date_written_twice_still_resolves():
-    block = "Sat, August 8 · doors 7 · August 8 show 8:00 pm"
-    iso, _ = _from_block("8:00 pm", block, CTX)
-    assert iso == "2026-08-08T20:00:00"
-
-
-def test_a_claim_that_is_not_time_only_is_left_to_the_other_resolver():
-    # "Aug 8 7:30 PM" carries its own month+day — this function must not touch it.
-    assert _from_block("Aug 8 7:30 PM", "August 8 · show", CTX) == (None, None)
-
-
-def test_missing_block_text_refuses():
-    assert _from_block("8:00 pm", None, CTX) == (None, None)
-    assert _from_block("8:00 pm", "", CTX) == (None, None)
-
-
-def test_block_weekday_that_matches_confirms_the_date():
-    # Aug 8 2026 IS a Saturday — the page's own weekday agrees, so resolve.
-    iso, _ = _from_block("8:00 pm", "Sat, Aug 8 · Spoon · 8:00 pm", CTX)
-    assert iso == "2026-08-08T20:00:00"
-
-
-def test_block_weekday_that_contradicts_the_date_refuses():
-    # Aug 8 2026 is a Saturday, not a Friday: the block contradicts itself
-    # (or our context year is wrong). Either way, publish nothing.
-    assert _from_block("8:00 pm", "Fri, Aug 8 · Spoon · 8:00 pm", CTX) == (None, None)
-
-
 # ── Evaluator #191 r3 findings, each pinned by the case that proved it ───────
-
-
-def test_weekday_only_claim_never_takes_a_fabricated_midnight():
-    """attacker-smuggle lens: "Friday" evidences no month/day, so the
-    time-only branch accepted it and dateutil's midnight DEFAULT became a
-    published start time the source never stated. It must refuse."""
-    assert _from_block("Friday", "Sat, Aug 8 · Spoon · 8:00 pm", CTX) == (None, None)
-    assert _from_block("Saturday", "August 8 · Spoon", CTX) == (None, None)
-
-
-def test_raw_claim_weekday_contradicting_the_block_date_refuses():
-    """Both openai lenses: the block's single date is Saturday Aug 8, but the
-    claim itself says Friday. The claim contradicts its own page — refuse
-    rather than publish one side of conflicting evidence."""
-    assert _from_block("Friday 8pm", "August 8 · Spoon", CTX) == (None, None)
-
-
-def test_raw_claim_weekday_that_agrees_still_resolves():
-    """The guard must not cost the honest case: Aug 8 2026 IS a Saturday."""
-    iso, _ = _from_block("Saturday 8pm", "August 8 · Spoon", CTX)
-    assert iso == "2026-08-08T20:00:00"
 
 
 def test_stale_no_year_listing_is_refused_not_rolled_into_next_year():
@@ -173,28 +94,6 @@ def test_the_legitimate_year_wrap_still_resolves():
     dec = datetime(2026, 12, 20, 19, 0, 0)
     iso, _ = resolve_partial_date_claim("January 5 8:00 pm", dec)
     assert iso == "2027-01-05T20:00:00"
-
-
-def test_a_date_in_a_LINK_is_not_the_page_stating_a_date():
-    """Evaluator finding on the consolidated head: resolve_time_only_from_block
-    scanned the whole block, so a ticket URL whose path carries a date slug
-    ('/events/2026-08-08/spoon-tickets') became the event's date — a
-    source-unsupported date published through a first-party source as
-    confirmed. A slug is site routing, not the page telling a reader when the
-    show is. Reading a LINKED page's machine-declared date is a different and
-    legitimate path: worker/date_callback.py fetches it."""
-    block = ("Spoon  8:00 pm  Buy tickets: "
-             "https://venue.example/events/2026-08-08/spoon-tickets")
-    assert _from_block("8:00 pm", block, CTX) == (None, None)
-
-
-def test_stated_date_still_resolves_even_when_a_link_is_present():
-    """The strip must not cost the honest case: the block SAYS August 8, and
-    also happens to carry a link."""
-    block = ("Sat, August 8 · Spoon · 8:00 pm · "
-             "https://venue.example/events/1234/spoon-tickets")
-    iso, _ = _from_block("8:00 pm", block, CTX)
-    assert iso == "2026-08-08T20:00:00"
 
 
 def test_ambiguous_numeric_dates_are_refused_as_the_docstring_always_claimed():
@@ -216,25 +115,3 @@ def test_a_month_NAME_still_disambiguates_and_resolves():
     feb = datetime(2026, 2, 1, 19, 0, 0)
     assert resolve_partial_date_claim("March 4 8pm", feb)[0] == "2026-03-04T20:00:00"
     assert resolve_partial_date_claim("8 March 8pm", feb)[0] == "2026-03-08T20:00:00"
-
-
-def test_a_date_that_is_ABOUT_something_else_is_not_the_event_date():
-    """Evaluator r3 (attacker-smuggle): the exactly-one-date rule counted ANY
-    date in the block, so "Show 8pm; tickets on sale August 8" and "8pm (page
-    updated August 8)" each published August 8 as the show time. A date
-    qualified as being about a sale, an edit or a deadline is not when the
-    event happens."""
-    for block in (
-        "Spoon — Show 8pm; tickets on sale August 8",
-        "Spoon — 8pm  (page updated August 8)",
-        "Spoon — 8pm · applications due August 8",
-        "Spoon — 8pm · register by August 8",
-    ):
-        assert _from_block("8pm", block, CTX) == (None, None), block
-
-
-def test_a_qualified_date_elsewhere_does_not_block_the_real_one():
-    """The guard must not cost the honest case: the block states the event
-    date AND mentions a sale, and the event date still wins."""
-    iso, _ = _from_block("8:00 pm", "Sat, Aug 8 · Spoon · 8:00 pm · on sale now", CTX)
-    assert iso == "2026-08-08T20:00:00"
