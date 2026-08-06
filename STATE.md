@@ -196,8 +196,11 @@ ask restated.
 Contract #44 remains OPEN. The founder halted work; this block is the resume
 point, written so a cold session can pick it up without reading the transcript.
 
-**Branch/PR:** `claude/1live-kickoff-2026-587s4f`, head `ec9b02aa`, PR #191
-open, working tree clean. Nothing unpushed except this records commit.
+**Branch/PR:** `claude/1live-kickoff-2026-587s4f`, PR #191 open, working tree
+clean. Head is `d09f5a25` — the records commit this block was written in.
+`ec9b02aa` is its parent and the last CODE commit; every SHA named below refers
+to that code head, because it is what the smoke run and the checks ran against.
+The records commit changed no code and no classification.
 
 **CI on `ec9b02aa`: TWO RED CHECKS, one cause, and it is not a code defect.**
 `trust-gate` (job 92499281976) and `adversarial-review` (job 92499282010) both
@@ -233,7 +236,13 @@ Round 5 has never been attempted. Do not read the red as a rejection.
 manifest-bound hits vs master = NONE (local check), and the classifier's own
 printed partition names only `worker/ai_extract.py` as NOT manifest-bound, with
 no `EXCEPTION-INELIGIBLE` marker. The refusal is the charter's compensated
-class (b).
+class (b). RE-VERIFIED on the records head `d09f5a25` (golden-exam job
+92518211679) rather than assumed to carry over — the classifier printed the
+same partition verbatim: "NOT manifest-bound (re-verified instead by
+base-owned execution, per-run data bindings, and the blocking adversarial
+review on this PR): worker/ai_extract.py". One file, non-manifest-bound, no
+ineligibility marker, no other failure. Eligibility is read off the
+classifier's own output on each head, never inherited.
 
 **What this records commit does and does not do:** it is docs-only, so it does
 NOT make CI green — the two checks stay red until the re-bind above lands. Said
