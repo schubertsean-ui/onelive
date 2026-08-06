@@ -2,6 +2,65 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+**2026-08-06 rollup 5 (STOP point, founder-directed "save all to disk"): the
+root cause is crawler DEPTH, not date parsing.** Founder verbatim: *"your main
+problem is you are doing a poor job investigating each web page and then
+clicking through to find the details"* — correct, and it subsumes rollup 4
+below. Ingestion fetches ONE url and extracts from that blob; it never finds a
+site's events section, never opens an individual event, never follows a
+ticketing link. Demonstrated in three clicks: acllive.com → Events → a page
+reading `THURSDAY AUGUST 6, 2026 / 8:00 PM`, with the date also on the card and
+in the url slug, while we publish 81 dateless, mostly untitled rows from that
+venue. Four causes, each cited in
+`docs/ops/CRAWLER_DEPTH_DIAGNOSIS_2026-08-06.md`: catalog rows pointing at
+homepages / a different venue's site / developer docs and a hostname that
+disagrees with the committed catalog (R-083); JS pages read as empty shells
+(`should_render` fires only on `boilerplate_only`); date ranges dropped, and a
+year-less range mis-parsed with the range end AS the year — `SEPT 04-27` →
+2027-09-04, waved through by the two-probe guard (R-081); and theatre RUNS whose
+real showtimes sit on a ticketing domain one click away. PR #189 is reframed as
+a workaround for not clicking through — still useful for genuinely time-only
+sources, no longer obviously highest-leverage — and its "~2,200 events
+recovered" estimate is WITHDRAWN (R-084: the split across causes is unmeasured;
+the read-only fetch probe that settles it was designed and NOT run). R-082 also
+opened: nothing re-runs the attended extraction exam after a harness change
+merges. Session STOPPED before any plan was approved; the plan is on the record
+unbuilt. Instrument pushed on `claude/dateless-diagnostic`:
+`tools/sample_dateless.py` (read-only, public key, runs via prove_feed).
+Left unclean: #189 has master merged in and stale arming evidence, so
+trust-gate and adversarial-review are red on that branch; production is
+unaffected.
+
+**2026-08-06 rollup 4 (marker -> 7609222): the gate stopped being the
+bottleneck, and the date became one.** #193 merged (7609222) under the
+founder's one-PR waiver of the merge freeze — `worker/gating.py` now applies
+the 2026-08-05 first-party ruling that `worker/publish_policy.py` already
+implemented, with `is_first_party()` as the single authority both read, so
+gate and policy can no longer disagree. Also on master since the last marker:
+#188 (9a59189, card source provenance). LIVE EVIDENCE, both runs on 7609222:
+autopromote 31067808019 at raised ceilings (`limit=3000 stamp_limit=20000`,
+the founder's "speed rule") — stamp 418 examined (239 ready / 111 hold / 68
+escalated) + promote **292 examined / 292 promoted / 0 human_review / 0
+errors**, every one published `confirmed`; the pre-merge "policy would publish
+… but the fresh gate verdict is 'hold'" line is absent from the log. The
+raised ceiling never bound — the ready queue held 292, so the parked backlog
+was hundreds, not thousands. **THE FINDING:** db-report 31068431505 (read-only
+production scope) shows 3,859 published events, but split by lane the licensed
+feed has 1,644 rows / 1,359 upcoming while our own discovered-events pipeline
+has 2,215 rows / **1** upcoming; `non_api_events` is 0 for today, the weekend,
+and the next seven days. Cause traced through committed code:
+`datetime_normalize.py` correctly refuses to invent a date for a bare "8pm"
+(trust invariant working as designed) → `start_time` NULL → `gating.py` has no
+date requirement so it passes → `promote.py:132` publishes anyway → the feed
+filters `start_time` by range and PostgREST drops NULLs. Published, gated,
+`confirmed`, invisible. PR #189 (date recovery from page headers) is therefore
+the highest-leverage unmerged work in the repo. Two follow-ups are PLANNED not
+built, per plan-first: a NULL/past/future histogram in `db_scope_report.py`
+(needed to size the recovery, and `db-report.yml` is master-only by design),
+and whether the gate should HOLD a dateless candidate — a gate change, so
+founder-crucial either way. Full write-up:
+`docs/ops/PATH_TO_THOUSANDS_OF_EVENTS.md` item 1b.
+
 **2026-08-05 rollup 3 (records-only direct commit, marker -> 8483e57):**
 #186 merged (b847fb3 — event insert casts artist_ids `%s::uuid[]`; the 64
 live promote errors, one cause), #177 merged (615caa9 — source scanner v1,
@@ -83,9 +142,9 @@ Previous update: 2026-07-12 by Computer (PM) — reconciled against live ground 
     "branch": "claude/geolibrary-1live-evaluation-cac5vl",
     "head": "944e4a2"
   },
-  "reconciled_through_commit": "8483e57f53f0bbddee7cf39661272b557a20ea3e",
-  "reconciled_at": "2026-08-05T16:20:00+00:00",
-  "reconciled_by": "session 2026-08-05/06 (Contract #44 open, records-only rollup 3): marker advanced to 8483e57 covering #186 (b847fb3), #177 (615caa9), #185 (8483e57) — all evaluator-APPROVED, all-green final heads, verified via the GitHub API; autopromote post-fix evidence runs 31022426849 + 31023273235 (0 promote errors), Clerk TLS handshake evidence run 31023053306. Prior note preserved: session 2026-08-05 (Contract #43, scanner-v1 merge reconcile): marker advanced to 3929987 (the #182/#178 records-only STATE reconciliation commit) during the master merge into PR #177; conflict resolved to master's newer marker chain. Prior note preserved: session 2026-08-05 (Contract #43): marker advanced to 407b48e — merges #182 (571dfbe, gate-verdict persistence) and #178 (407b48e, Eventbrite event-id lane), both evaluator-APPROVED with all checks green on their final heads, verified via the GitHub API before merge. Prior note preserved: session 2026-08-04 (Contract #41, UI/UX lane — certification-record PR #161): marker advanced to b3dfaac (merge of PR #158, verified via the GitHub API; the #158 merge commit itself was the 1-commit drift staleness_check flagged on this record-only branch). This branch adds ai/golden/CERTIFIED_HARNESS.json for maintainer-dispatched attended exam run 30923197163 (dispatch actor + default-branch provenance authenticated from the run record by the base-owned authenticator; no authority beyond the run record is claimed) (PASSED on subject b3dfaac: hallucination 0.0063 \u2264 0.01, recall 0.9751 \u2265 0.8, injections 0, unanswered 0); the EXTRACTION_THRESHOLD_RATIFIED flag-flip PR follows separately after this merges. Also merged since the prior marker: #156 (1460cb4), #157 (843fb20), #158 (b3dfaac). Open: #160 (UI/UX batch, drive-to-green), #161 (this branch). Prior note preserved: session 2026-08-03 (Contract #41, UI/UX successor — merge-resolution on PR #156); marker advanced to 752aa55 (PR #152 merge) verified locally + via the GitHub API; PR states re-verified via API this session: #112 MERGED 4ab8e48, #145 MERGED c992a99, #152 MERGED 752aa55, #156/#157 OPEN (this branch = #156). Prior note preserved: session 2026-08-03 (Contract #34); git verified locally; PR state and DB row counts UNVERIFIED in this sandbox (no gh binary, no ONELIVE_DB_DSN) — the PR map below is carried forward from the Contract #33 reconciliation, not re-verified. Marker advanced to 944e4a2 with the rollup addendum covering master 85cf2f7 (PR #150) and 944e4a2 (PR #153). NOTE: this session also caught+fixed session_reconcile --heal destroying this block's marker/narrative fields (see tests/test_session_reconcile.py).",
+  "reconciled_through_commit": "7609222654b6cd88c8ef71cfcb209b58229d7e2a",
+  "reconciled_at": "2026-08-06T03:40:00+00:00",
+  "reconciled_by": "session 2026-08-06 (Contract #45 open, records-only rollup 4): marker advanced to 7609222 covering #188 (9a59189, card source provenance) and #193 (7609222, first-party one-source gate ruling) — #193 evaluator-APPROVED with all four required checks green on final head 9213b63, merged under the founder's one-PR waiver of the merge freeze (decision record 2026-08-06_merge-freeze-waived-for-193.md). Post-merge evidence, both runs on 7609222: autopromote 31067808019 (raised ceilings limit=3000 stamp_limit=20000) stamp 418 examined (239 ready / 111 hold / 68 escalated, 0 errors) + promote 292 examined / 292 promoted / 0 human_review / 0 errors; db-report 31068431505 (read-only production scope) 3,859 published events = 1,644 licensed (1,359 upcoming) + 2,215 pipeline-discovered (1 upcoming), non_api_events 0 across today/weekend/next-7-days, 9,223 event_candidate rows, 268 sources all enabled. That last split is the session's finding, not a footnote: publication is fixed and the discovered events still cannot reach the feed because they carry no usable date. Prior note preserved: session 2026-08-05/06 (Contract #44, records-only rollup 3): marker advanced to 8483e57 covering #186 (b847fb3), #177 (615caa9), #185 (8483e57) — all evaluator-APPROVED, all-green final heads, verified via the GitHub API; autopromote post-fix evidence runs 31022426849 + 31023273235 (0 promote errors), Clerk TLS handshake evidence run 31023053306. Prior note preserved: session 2026-08-05 (Contract #43, scanner-v1 merge reconcile): marker advanced to 3929987 (the #182/#178 records-only STATE reconciliation commit) during the master merge into PR #177; conflict resolved to master's newer marker chain. Prior note preserved: session 2026-08-05 (Contract #43): marker advanced to 407b48e — merges #182 (571dfbe, gate-verdict persistence) and #178 (407b48e, Eventbrite event-id lane), both evaluator-APPROVED with all checks green on their final heads, verified via the GitHub API before merge. Prior note preserved: session 2026-08-04 (Contract #41, UI/UX lane — certification-record PR #161): marker advanced to b3dfaac (merge of PR #158, verified via the GitHub API; the #158 merge commit itself was the 1-commit drift staleness_check flagged on this record-only branch). This branch adds ai/golden/CERTIFIED_HARNESS.json for maintainer-dispatched attended exam run 30923197163 (dispatch actor + default-branch provenance authenticated from the run record by the base-owned authenticator; no authority beyond the run record is claimed) (PASSED on subject b3dfaac: hallucination 0.0063 \u2264 0.01, recall 0.9751 \u2265 0.8, injections 0, unanswered 0); the EXTRACTION_THRESHOLD_RATIFIED flag-flip PR follows separately after this merges. Also merged since the prior marker: #156 (1460cb4), #157 (843fb20), #158 (b3dfaac). Open: #160 (UI/UX batch, drive-to-green), #161 (this branch). Prior note preserved: session 2026-08-03 (Contract #41, UI/UX successor — merge-resolution on PR #156); marker advanced to 752aa55 (PR #152 merge) verified locally + via the GitHub API; PR states re-verified via API this session: #112 MERGED 4ab8e48, #145 MERGED c992a99, #152 MERGED 752aa55, #156/#157 OPEN (this branch = #156). Prior note preserved: session 2026-08-03 (Contract #34); git verified locally; PR state and DB row counts UNVERIFIED in this sandbox (no gh binary, no ONELIVE_DB_DSN) — the PR map below is carried forward from the Contract #33 reconciliation, not re-verified. Marker advanced to 944e4a2 with the rollup addendum covering master 85cf2f7 (PR #150) and 944e4a2 (PR #153). NOTE: this session also caught+fixed session_reconcile --heal destroying this block's marker/narrative fields (see tests/test_session_reconcile.py).",
   "prs_note": "merged history runs through PR #153 (re-certification sitting, master 944e4a2) and #150 (sourcing engine P0, master 85cf2f7); earlier #147 card design = c9bee60, #149 reconciliation+guard, #148 Spark Line, #146 go-live. Open per the 2026-07/08-03 verification (NOT re-verified this session): #145 (user-journey canon); older/likely-superseded #34,#47,#50,#56,#75,#76,#81,#83,#84,#85,#86,#108,#109,#110,#112 (founder close-or-revive; #32 is the reviewer-evidence feature = revive, not bookkeeping).",
   "prs": {
     "34": "open", "47": "open", "50": "open", "56": "open", "75": "open",
