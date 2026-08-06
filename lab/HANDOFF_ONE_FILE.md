@@ -1473,3 +1473,373 @@ may publish at `confirmed` remains founder-crucial.
   state** (D5). Whether that may publish at `confirmed` is founder-crucial.
 - **The live-site ingestion proof writes to production.** Tagged and reversible,
   but it is production.
+
+---
+
+**SELF-CONTAINMENT NOTE.** This document cites repository paths such as
+`worker/segment.py:252`. So that nothing depends on you having repository
+access, **Appendix A reproduces the actual source of every cited defect
+verbatim**, and Appendix B gives the exact URLs of the proving set. You can
+verify every claim in this document from this document alone.
+
+
+# APPENDIX A — VERBATIM SOURCE OF EVERY CITED DEFECT
+
+Copied directly out of the repository at the commit this file was assembled
+from, not retyped. If you have no repository access you still have everything
+needed to verify each claim in this document.
+
+
+### `worker/ai_models.py` lines 1-20 — the COMPLETE extraction schema. Count the fields.
+
+```
+"""Pydantic model for AI-extracted event data.
+Source: extracted from Entertainment-App-Code-v1-4 reference build (worker/ai_models.py)
+"""
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
+
+class AIEventExtraction(BaseModel):
+    title: Optional[str] = None
+    start_time: Optional[str] = None   # ISO string
+    end_time: Optional[str] = None
+    venue_name: Optional[str] = None
+    city: Optional[str] = None
+    artist_names: List[str] = Field(default_factory=list)
+    ticket_link: Optional[str] = None
+    rsvp_link: Optional[str] = None
+    is_private_rsvp: bool = False
+    private_access: dict = Field(default_factory=dict)
+    notes: Optional[str] = None
+
+```
+
+
+### `worker/segment.py` lines 252-281 — structured data found, then flattened to a string. Note which schema.org fields are never read.
+
+```
+def _jsonld_event_text(obj: Dict) -> Optional[str]:
+    t = obj.get("@type")
+    types = t if isinstance(t, list) else [t]
+    if not any(isinstance(x, str) and x.lower().endswith("event") for x in types):
+        return None
+    parts: List[str] = []
+    for key in ("name", "startDate", "start_date"):
+        v = obj.get(key)
+        if isinstance(v, str) and v.strip():
+            parts.append(v.strip())
+    loc = obj.get("location")
+    if isinstance(loc, dict):
+        name = loc.get("name")
+        if isinstance(name, str) and name.strip():
+            parts.append(name.strip())
+        addr = loc.get("address")
+        if isinstance(addr, str) and addr.strip():
+            parts.append(addr.strip())
+        elif isinstance(addr, dict):
+            for ak in ("streetAddress", "addressLocality"):
+                av = addr.get(ak)
+                if isinstance(av, str) and av.strip():
+                    parts.append(av.strip())
+    elif isinstance(loc, str) and loc.strip():
+        parts.append(loc.strip())
+    url = obj.get("url")
+    if isinstance(url, str) and url.strip():
+        parts.append(url.strip())
+    text = " | ".join(parts)
+    return text if len(text.strip()) >= _MIN_BLOCK_CHARS else None
+```
+
+
+### `worker/promote.py` lines 129-134 — the duplicate check runs ONLY when the event has a date
+
+```
+            artist_ids = resolve_artist_ids(cur, artist_names or [])
+
+            # Dedupe check (if duplicates exist, do not auto-merge; require ops decision)
+            dups = find_possible_duplicates(venue_id, start_time, cur=cur) if start_time else []
+            if dups:
+                raise ValueError(f"Possible duplicate canonical events exist: {dups}")
+```
+
+
+### `worker/fetch/render_fetch.py` lines 238-256 — the browser-render trigger — fires only on one flavour of emptiness
+
+```
+def should_render(reading: SensorReading) -> bool:
+    """Decide whether a plain fetch should be re-fetched through the browser.
+
+    The trigger is deliberately narrow: ONLY a boilerplate-only shell — the
+    exact "nav/cookie/consent chrome with no substantive content, or a page
+    that requires JS the fetcher doesn't run" case flagged by
+    `worker.sensors._is_boilerplate_only` (which owns the "enable javascript" /
+    "your browser is not supported" markers). Every other sensor rejection
+    (empty, too short, binary, mojibake, injection, truncated, error page) is a
+    genuinely bad input that rendering would not fix, so it does NOT pay for a
+    browser. A reading that already passed never renders.
+
+    Reads the `boilerplate_only` provenance signal the sensor records, not the
+    prose reason string, so the trigger can't drift if wording changes.
+    """
+    if reading.ok:
+        return False
+    return reading.signals.get("boilerplate_only") is True
+
+```
+
+
+### `web/lib/promoted.ts` lines 86-98 — the public feed query. PostgREST drops NULLs from a range filter, so a dateless row is invisible.
+
+```
+export function buildPromotedQuery(opts?: PromotedQueryOpts): string {
+  const p = new URLSearchParams();
+  p.set("select", EVENT_SELECT);
+  // never hide anything by confidence; anyStatus is the detail surface only
+  // (see LicensedQueryOpts.anyStatus for why one event by id is not a feed).
+  if (!opts?.anyStatus) p.append("status", "in.(scheduled,moved)");
+  if (opts?.eventId) p.append("event_id", `eq.${opts.eventId}`);
+  if (opts?.category) p.append("category", `eq.${opts.category}`);
+  if (opts?.fromISO) p.append("start_time", `gte.${opts.fromISO}`);
+  if (opts?.toISO) p.append("start_time", `lte.${opts.toISO}`);
+  p.set("order", "start_time.asc,event_id.asc");
+  return p.toString();
+}
+```
+
+
+### `web/lib/licensed.ts` lines 48-92 — the CARD CONTRACT — the shape both lanes render into. This is the field list extraction must satisfy.
+
+```
+export type LicensedEvent = {
+  licensed_event_id: string;
+  source_provider: string;
+  external_id: string;
+  title: string;
+  category: string | null;
+  subsegment: string | null;
+  performer: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  status: string;
+  on_sale_status: string | null;
+  price_min: number | null;
+  price_max: number | null;
+  currency: string | null;
+  is_free: boolean | null;
+  ticket_url: string | null;
+  image_url: string | null;
+  venue_name: string | null;
+  venue_city: string | null;
+  venue_area: string | null;
+  venue_address: string | null;
+  venue_lat: number | null;
+  venue_lng: number | null;
+  venue_url: string | null;
+  venue_phone: string | null;
+  confidence: string;
+  // The act's STABLE IDENTITY (e.g. a MusicBrainz id / Wikidata QID), resolved by
+  // the ratified identity-resolution enrichment (gated, founder-crucial). A
+  // performer NAME is not an identity — two acts can share a name — so a Spark
+  // Line is attached by this ref, never by name (lib/spark.ts). Absent until
+  // enrichment populates it (and adds it to COLUMNS); while absent, no Spark Line
+  // ever attaches — fail closed by construction.
+  artist_ref?: string | null;
+  // Optional, resolved at read time by identity ref (lib/spark.ts). Absent =
+  // no approved Spark Line for this act (an honest gap, never a fabricated one).
+  spark?: SparkLine | null;
+  // Source provenance for PROMOTED (pipeline-gated) rows: the real-world
+  // listing the event was published from (migration 0020 — event.source_name/
+  // source_url, written at promotion from the candidate's own data). Licensed
+  // rows leave both unset: their provenance IS the ticketing provider, already
+  // named by detailProviderLabel. Absent/null = the honest generic wording.
+  origin_name?: string | null;
+  origin_url?: string | null;
+};
+```
+
+
+### `worker/gating.py` — proof of absence
+
+The file is 142 lines. Occurrences of `start_time`: **0**.
+The trust gate has no date requirement at all; a candidate with no date passes it.
+
+
+### Date normalisation — actual output, run against the literal strings on bastropoperahouse.org
+
+```
+'2026-08-15T20:00:00-05:00'   -> 2026-08-15T20:00:00-05:00      OK
+'August 15, 2026 8:00 PM'     -> 2026-08-15T20:00:00            OK
+'Friday August 15, 2026'      -> 2026-08-15T00:00:00            OK
+'Fri, Sep 4, 2026'            -> 2026-09-04T00:00:00            OK
+'8pm'                         -> None   REFUSED no-full-date-evidence   (correct)
+'August 15'                   -> None   REFUSED no-full-date-evidence   (correct)
+
+'Friday, September 4, 2026, - Sunday, September 27, 2026,'  REFUSED unparseable   (WRONG: data lost)
+'Fri, Sep 4, 2026,  - Sun, Sep 27, 2026,'                   REFUSED unparseable   (WRONG: data lost)
+'Sep 4, 2026 - Sep 27, 2026'                                REFUSED unparseable   (WRONG: data lost)
+
+'September 4-27'              -> 2027-09-04    *** FABRICATED YEAR ***
+'SEPT 04-27'                  -> 2027-09-04    *** FABRICATED YEAR ***
+```
+
+`SEPT 04-27` is the literal string printed on the Bastrop Opera House poster for
+Disney's Newsies, which runs 4-27 September **2026**. The parser reads the range
+end as a year. The two-probe guard - whose entire purpose is to refuse dates the
+source did not state - passes it, because both probes agree the string supplied a
+month, a day and a "year".
+
+
+### Measured production state (runs are public; ids given so they can be re-read)
+
+```
+db-report run 31068431505  (read-only production scope report)
+  licensed lane (Ticketmaster / ics / jsonld):  1,644 rows,  1,359 with a future date
+  crawler pipeline:                             2,215 rows,      1 with a future date
+  50:1 KPI block: non_api_events = 0 today, 0 this weekend, 0 next 7 days
+
+prove-feed run 31069431885  (canonical event table split by date usability)
+  total            2215
+  NO start_time    2214
+  past start_time     0
+  future              1
+
+autopromote run 31067808019  (after the gate fix merged)
+  StampReport:       examined 418  ready 239  hold 111  escalated 68  errors 0
+  AutopromoteReport: examined 292  promoted 292  human_review 0  errors 0
+
+ingest run 31059045677  (30 sources, 20 minutes)
+  139 datetime refusals, every one 'no-full-date-evidence', e.g.
+  source 'UMLAUF Sculpture Garden + Museum': start_time {'raw': '11:00 AM'},
+                                             end_time  {'raw': '11:30 AM'}
+```
+
+
+# APPENDIX B — THE PROVING SET WITH EXACT URLS
+
+URLs marked ° are copied verbatim from the committed source catalog
+(`sources/master_sources_catalog_120.json`) — use these exactly.
+
+**Nine of the twenty-three ratified supply segments have NO representative in
+the catalog** (recurring-scene organizers, social-dance communities, bands,
+solo musicians, DJs, comedians, visual artists). For those, the site is named
+but the URL is deliberately left as MUST-VERIFY: this sandbox has no outbound
+network, so any URL written here would be an unverified assertion, and this
+project's core rule is that we do not assert what we have not checked. **Your
+first task for those rows is to find and verify the correct URL, and record how
+you verified it.**
+
+
+**16 agreed**
+
+- ACL Live at The Moody Theater: `https://www.acllive.com/` °
+- 3TEN ACL Live (Austin City Limits Live): `https://www.acllive.com/events/venue/acl-live-at-3ten` °
+- Bastrop: MUST-VERIFY
+- Palmer Events: MUST-VERIFY
+- Visit Austin Events: `https://www.austintexas.org/events/` °
+- Wimberley: MUST-VERIFY
+- Giddings: MUST-VERIFY
+- San Marcos: MUST-VERIFY
+- Science Mill: MUST-VERIFY
+- Austin Food & Wine Festival: `https://www.austinfoodandwinefestival.com/` °
+- The Saxon Pub: `https://saxonpub.com/` °
+- Antone's Nightclub: `https://antonesnightclub.com/` °
+- Becker Vineyards: `https://beckervineyards.com/events` °
+- William Chris Vineyards: `https://williamchriswines.com/events/` °
+- Jester King Brewery: `https://jesterkingbrewery.com/events-calendar` °
+- Treaty Oak Distilling: `https://www.treatyoakdistilling.com/events` °
+- Moody Amphitheater: MUST-VERIFY
+
+**1 live music**
+
+- Mohawk Austin: `https://mohawkaustin.com/` °
+- The White Horse (Austin): `https://thewhitehorseaustin.com/` °
+
+**2 bars/lounges**
+
+- Elephant Room: `https://elephantroom.com/calendar` °
+- Cheer Up Charlies: `https://cheerupcharlies.com/` °
+
+**3 producers**
+
+- Real Ale Brewing Company: `https://realalebrewing.com/events/` °
+- Still Austin Whiskey Co.: `https://www.stillaustin.com/tasting-room-events` °
+
+**4 restaurants/cafes**
+
+- Redbud Cafe: `https://redbudcafetx.com/music/` °
+- Altdorf Biergarten: `https://www.altdorfs.com/events/` °
+
+**5 theaters**
+
+- ZACH Theatre: `https://www.zachtheatre.org/` °
+- The Long Center for the Performing Arts: `https://thelongcenter.org/calendar/` °
+
+**6 comedy**
+
+- Cap City Comedy Club: `https://www.capcitycomedy.com/` °
+- The Velveeta Room: `https://www.thevelveetaroom.com/shows` °
+
+**7 nightlife**
+
+- Kingdom Nightclub: `https://kingdomnightclub.com/events/` °
+- The Concourse Project: `https://concourseproject.com/calendar/` °
+
+**8 galleries**
+
+- The Contemporary Austin: `https://thecontemporaryaustin.org/` °
+- UMLAUF Sculpture Garden & Museum: `https://www.umlaufsculpture.org/programs` °
+
+**9 museums**
+
+- Blanton Museum of Art: `https://blantonmuseum.org/calendar_events` °
+- Bullock Texas State History Museum: `https://www.thestoryoftexas.com/calendar/` °
+
+**10 cinema**
+
+- Austin Film Society (AFS Cinema): `https://www.austinfilm.org/calendar/` °
+
+**11 multi-use**
+
+- BookPeople Events: `https://bookpeople.com/upcoming-events` °
+- Waterloo Greenway Conservancy (Waterloo Park): `https://waterloogreenway.org/events/` °
+
+**12 festivals**
+
+- Fusebox Festival: `https://fuseboxlive.com/` °
+- Texas Book Festival: `https://texasbookfestival.org/schedule/` °
+
+**13 promoters**
+
+- KUTX Presents (KUT/KUTX Public Radio Events): `https://kutx.org/kutx-presents/` °
+- Golden Hornet: `https://www.goldenhornet.org/calendar` °
+
+**14 community orgs**
+
+- HAAM (Health Alliance for Austin Musicians): `https://www.myhaam.org/calendar-of-events` °
+- Austin History Center Association: `https://austinhistory.org/events/` °
+
+**17 markets/fairs**
+
+- SFC Farmers' Market (Sustainable Food Center): `https://sustainablefoodcenter.org/farmers-markets-support/sfc-farmers-markets/` °
+- Maker Faire Austin: `https://austin.makerfaire.com/schedule/` °
+
+**22 companies**
+
+- Ballet Austin: `https://my.balletaustin.org/events` °
+- Tapestry Dance Company: `https://tapestry.org/season-shows` °
+
+
+**Segments with no catalog representative — name given, URL MUST-VERIFY:**
+
+- 15 Recurring-scene organizers: an Austin poetry-slam organiser; a weekly open-mic host
+- 16 Social-dance & movement: an Austin swing-dance organisation; a tango studio
+- 18 Bands & musical acts: two Austin bands with official tour pages
+- 19 Solo musicians & singer-songwriters: two Austin solo artists with tour pages
+- 20 DJs & electronic artists: two artists with published date listings
+- 21 Comedians & spoken-word: two comedians with official tour pages
+- 23 Visual artists, makers & craft creators: two artists with exhibition/event listings
+
+Pick concrete, currently-active examples, verify each URL resolves to a page
+that actually lists dated events, and record the check. A site that does not
+list dated events is not a valid representative — say so and pick another.
