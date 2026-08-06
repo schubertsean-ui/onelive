@@ -18,3 +18,8 @@ jobs:
           python-version: "3.12"
       - name: Print a diverse live sample of real events
         run: python3 tools/sample_feed.py
+      # The pipeline half of the same proof: how many of OUR discovered events
+      # carry a date the feed can use, and which real venues/listings are
+      # published but dateless. Same public key, no secret, read-only.
+      - name: Split the canonical event table by date usability
+        run: python3 tools/sample_dateless.py
