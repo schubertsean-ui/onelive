@@ -64,7 +64,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from ai.provider import AIProvider
@@ -119,6 +119,17 @@ _COUNT_KEYS = (
     "held",
     "sensor_rejected",
     "errors",
+    # R-092: pages_fetched was recorded on the REPLAY record and nowhere a
+    # reader looks. Two consecutive smoke runs produced no page count in any
+    # log, so nobody could tell whether multi-page ingestion fired at all —
+    # a feature that is invisible in production is a feature nobody can
+    # operate. Summed across the run so the printed RunReport answers it.
+    "pages_fetched",
+    # Sources the run never STARTED because the wall-clock budget ran out.
+    # A non-zero value here is the run saying "I stopped early, on purpose,
+    # and here is how much I left" — the alternative is being killed
+    # mid-source at the job timeout with no record at all.
+    "sources_skipped_time_budget",
 )
 
 # _run_one_source's "not_modified" outcome intentionally does NOT also set
@@ -147,6 +158,33 @@ class RunReport:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+# Wall-clock budget for one run (R-092). Default 45 minutes, deliberately under
+# ingest.yml's timeout-minutes: 60 so the loop stops ITSELF with a report rather
+# than being killed without one. 0 or an unparseable value disables the budget
+# (and says so) — never silently.
+_DEFAULT_RUN_BUDGET_SECONDS = 45 * 60
+
+
+def _run_deadline(started_iso: str) -> Optional[datetime]:
+    """Absolute time after which no NEW source is started, or None if off."""
+    raw = os.environ.get("INGEST_RUN_BUDGET_SECONDS", "").strip()
+    seconds = _DEFAULT_RUN_BUDGET_SECONDS
+    if raw:
+        try:
+            seconds = int(raw)
+        except ValueError:
+            logger.warning(
+                "INGEST_RUN_BUDGET_SECONDS=%r is not an int — using the "
+                "default %d seconds", raw, _DEFAULT_RUN_BUDGET_SECONDS)
+    if seconds <= 0:
+        logger.warning(
+            "INGEST_RUN_BUDGET_SECONDS=%r disables the run wall-clock budget: "
+            "this run may be KILLED at the job timeout mid-source, losing its "
+            "RunReport and replay-log upload entirely.", raw)
+        return None
+    return datetime.fromisoformat(started_iso) + timedelta(seconds=seconds)
 
 
 def _read_fetched_text(fetch_result: Dict[str, Any]) -> str:
@@ -475,6 +513,7 @@ def _run_one_source(
     source: Dict[str, Any],
     sxsw_mode: bool,
     render_state: Dict[str, int],
+    run_metrics: Optional[Dict[str, int]] = None,
 ) -> tuple[SourceResult, List[str]]:
     """Drive a single source through fetch -> sensor -> extract -> gate3.
     Returns (SourceResult, count_keys) where count_keys is the ordered list of
@@ -507,6 +546,9 @@ def _run_one_source(
         "rendered": bool(fetch_result.get("rendered")),
         "pages_fetched": fetch_result.get("pages_fetched", 1),
     }
+    # Same number, but summed where an operator will actually see it (R-092).
+    if run_metrics is not None:
+        run_metrics["pages_fetched"] += int(fetch_result.get("pages_fetched", 1) or 1)
     # The pages this run actually read, in order, on the REPLAY record — the
     # run's audit trail, which is what "which page did this come from" is a
     # question about. Adversarial-review finding (2026-08-05): page_urls was
@@ -709,14 +751,30 @@ def run_loop(
     run_id = new_run_id()
     started = _now_iso()
     report = RunReport(run_id=run_id, started=started, finished="")
+    run_metrics = {"pages_fetched": 0}
+
+    # WALL-CLOCK BUDGET (R-092). The job this loop runs in has a hard
+    # timeout-minutes; measured on the consolidated head, ONE cap-saturated
+    # source costs ~200s (50 model calls at ~8-9s each), so ~18 saturated
+    # sources fill a 60-minute job while the scheduled cap is 30. Without a
+    # budget the runner simply KILLS the job mid-source: the RunReport is never
+    # printed, the replay log is never uploaded, and the run looks like nothing
+    # happened. This stops STARTING sources once the budget is spent and says
+    # how many it left, so a short run is a recorded fact instead of a silence.
+    # Rotation is least-recently-attempted, so skipped sources are first in
+    # line next fire — nothing is lost, only deferred.
+    deadline = _run_deadline(started)
 
     for source in sources:
         source_id = source.get("source_id")
         source_name = source.get("name", "<unnamed>")
+        if deadline is not None and datetime.now(timezone.utc) >= deadline:
+            report.counts["sources_skipped_time_budget"] += 1
+            continue
         try:
             result, count_keys = _run_one_source(
                 run_id=run_id, ai=ai, source=source, sxsw_mode=sxsw_mode,
-                render_state=render_state,
+                render_state=render_state, run_metrics=run_metrics,
             )
         except Exception as exc:  # noqa: BLE001 - deliberate, audited, isolated per spec
             # Per-source transient failure: caught, logged, and isolated so
@@ -740,5 +798,15 @@ def run_loop(
         for key in count_keys:
             report.counts[key] += 1
 
+    report.counts["pages_fetched"] = run_metrics["pages_fetched"]
+    if report.counts["sources_skipped_time_budget"]:
+        logger.warning(
+            "run %s stopped starting new sources: the wall-clock budget was "
+            "spent and %d source(s) were NOT attempted this run. They are "
+            "first in line next fire (least-recently-attempted rotation). "
+            "Raise INGEST_RUN_BUDGET_SECONDS deliberately, or reduce "
+            "--max-sources, if this is persistent.",
+            run_id, report.counts["sources_skipped_time_budget"],
+        )
     report.finished = _now_iso()
     return report
