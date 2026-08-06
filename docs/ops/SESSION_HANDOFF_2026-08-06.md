@@ -36,6 +36,45 @@ this.
    `docs/memory/decisions/2026-08-06_festival-budget-75.md`. Verbatim: *"Yes to
    $46 budget - go to $75 to ensure no issues."* Headroom, not a target.
 
+## PR #189 — the open finding, and why it is NOT fixed
+
+Round 8 (head `53e5af3`): **both gemini seats APPROVE clean.** One openai seat
+blocks, with a real finding:
+
+> `worker/segment.py:121` — `_is_date_header()` only verifies that a line
+> contains a full date and that the residue is date-like. It does not require
+> the context to be ONE specific calendar day. A header like "August 5–9" or
+> "Tuesday August 5 – Saturday August 9" is therefore eligible to be prepended
+> to time-only event blocks as if it governed a single occurrence — publishing
+> a date the source never stated for that listing.
+
+This is genuine and it matters: multi-day range headers are how festivals and
+gallery runs are written.
+
+**It was deliberately left unfixed.** The founder ruled plan-first thirty
+minutes before this finding arrived, and that record says in as many words
+that an evaluator finding is not an approval. Changing what counts as a
+governing date is a RULE change, not a typo. Recording the ruling and then
+working around it in the same session would make the ruling worthless.
+
+**Proposed fix, for the plan the next session should present:** `_is_date_header`
+should reject a line that resolves to more than one calendar day — a second
+date, or a range separator (en dash, em dash, "through", "to", "–") joining
+two date-like halves. The safe direction is to CLEAR context on such a header
+rather than carry it, since a range tells us the listing spans days but not
+which day this block is.
+
+**Note the pattern before fixing it.** This is the FIFTH variant of one
+mistake across eight rounds — one shared word (r3), a shared hour (r4), a
+shared name across recurrences (r6), a shared hour with no names (r7), and now
+a date range read as a single day (r8). Four were in `date_callback.py` and
+were eventually unified under a single stated rule (`_combine`). This one is
+in `segment.py` and is the same shape: **a signal that narrows the
+possibilities is being treated as one that determines the answer.** A plan
+that fixes only the range case will very likely meet a sixth variant. Worth
+considering whether `segment.py`'s date-context carry needs the same
+one-stated-rule treatment `_combine` got.
+
 ## The remaining work
 
 `docs/ops/PATH_TO_THOUSANDS_OF_EVENTS.md` — eight items, each measured from
