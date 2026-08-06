@@ -104,19 +104,30 @@ offers. So even a perfect fix to the date problem leaves every crawled event
 priceless, image-less and half-unfilterable, displayed beside Ticketmaster
 rows that carry all of it.
 
-Tier A (required): title · start_time · end_time · venue_name · venue_city ·
-venue_address · venue_area · category · subsegment · price_min · price_max ·
-currency · is_free · ticket_url · description · image_url · the event's OWN
-page url.
+**REQUIRED, group 1:** title · start_time · end_time · venue_name ·
+venue_city · venue_address · venue_area · category · subsegment · price_min ·
+price_max · currency · is_free · ticket_url · description · image_url · the
+event's OWN page url.
 
-Tier B (required where the source states it): performer · door_time ·
-age_restriction · on_sale_status · event_status (cancelled/postponed) ·
+**REQUIRED, group 2** (founder-ratified 2026-08-06, verbatim: *"Tier b is
+required"* — previously "where the source states it", now the same standard and
+the same threshold as group 1): performer · door_time · age_restriction ·
+on_sale_status · **event_status — cancelled / postponed / rescheduled** ·
 organizer · venue lat/lng/url/phone · series name for a run · specials (the
 free-text offer, e.g. "$5 tacos before 7").
 
-Tier C (analysis): supply segment · size tier · which extraction tier won ·
-recurrence rule and whether a row is an expanded occurrence · first_seen /
-last_verified · capacity.
+`event_status` is the one with teeth: it is discarded today, which means a
+cancelled show stays on the site reading as live. That is a worse failure than
+never listing it.
+
+**ANALYSIS** (computed, not extracted): supply segment · size tier · which
+extraction tier won · recurrence rule and whether a row is an expanded
+occurrence · first_seen / last_verified · capacity.
+
+**The one thing "required" does not mean:** never invent a field. A silent
+source yields an honest null; a stated value we drop is a defect. Required
+means we must capture what the source publishes, not manufacture what it
+doesn't.
 
 Nearly all of Tier A and much of Tier B is present in schema.org `Event`
 JSON-LD — `offers.price`, `offers.availability`, `description`, `image`,
@@ -127,8 +138,9 @@ b). Getting these is mostly a matter of not throwing them away.
 **Scoring:** field recall = fields correctly extracted ÷ fields the source
 actually publishes, per field, against a hand-built fixture. A site that
 states no price is not penalised; a site that states one and loses it is.
-Target: ≥98% Tier A, ≥90% Tier B, and **zero** fields asserted that the source
-does not state.
+Target: **≥98% on both required groups**, 100% correctness on
+cancelled/postponed marking, and **zero** fields asserted that the source does
+not state.
 
 ## 5. The architecture you are replacing, and the one proposed
 
@@ -246,8 +258,8 @@ FIX THESE FIRST — they are hours of work each and they block everything else:
    (web/lib/licensed.ts:48 LicensedEvent) requires. It has no price, is_free,
    category, subsegment, area, address, image or description — so crawled
    events cannot be filtered by area, price or free, which are three of the
-   six filters the product offers. Extend the schema to the target list in
-   section 4a of the brief, through the candidate table and the promote
+   six filters the product offers. Extend the schema to the full required list in
+   section 4a of the brief (both groups — group 2 is required, not optional), through the candidate table and the promote
    INSERT. This is a precondition, not a follow-up.
 2. worker/segment.py:252 finds schema.org JSON-LD, keeps 4 of ~12 fields,
    flattens it to a pipe-joined string, and pays a model to re-read it. Read

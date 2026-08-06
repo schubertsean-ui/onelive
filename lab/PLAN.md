@@ -143,7 +143,7 @@ three real consumers, not from imagination:
 * **analysis** — segment/tier rollups, cost-per-verified-event, the 50:1 KPI,
   freshness and coverage reporting.
 
-### Tier A — REQUIRED. A row missing any of these is incomplete.
+### REQUIRED — group 1. A row missing any of these is incomplete.
 
 | Field | Consumer | Structured source (tier 0) | Today |
 |---|---|---|---|
@@ -163,16 +163,32 @@ three real consumers, not from imagination:
 | `image_url` | card | `image` | ❌ |
 | `source_url` (the event's OWN page) | trust display | detail page URL | ⚠️ currently the source's base URL |
 
-### Tier B — REQUIRED WHERE THE SOURCE STATES IT. Absence must be provable.
+### REQUIRED — group 2 (founder-ratified 2026-08-06: *"Tier b is required"*)
 
-`performer` / `artist_names` (`performer`) · `door_time` (`doorTime`) ·
-`age_restriction` (`typicalAgeRange` / page text) · `on_sale_status`
-(`offers.availability`) · `event_status` — cancelled/postponed/rescheduled
-(`eventStatus`) · `organizer` (`organizer.name`) · `venue_lat`/`venue_lng`
-(`location.geo`) · `venue_url`, `venue_phone` · `series_name` for a run ·
-`specials` — the free-text offer a venue states ("$5 tacos", "2-for-1 til 7").
+Formerly "required where the source states it". **Now required at the same
+standard as group 1**, scored at the same threshold, and a source that publishes
+one of these and loses it is a failure of the run.
 
-### Tier C — ANALYSIS. Not on the card; required for reporting.
+| Field | Structured source (tier 0) | Consumer |
+|---|---|---|
+| `performer` / `artist_names` | `performer` | card, search, Spark Line binding |
+| `door_time` | `doorTime` | card |
+| `age_restriction` | `typicalAgeRange` / page text | card, filter |
+| `on_sale_status` | `offers.availability` | card CTA |
+| `event_status` — cancelled / postponed / rescheduled | `eventStatus` | **trust** — a cancelled show must never read as live |
+| `organizer` | `organizer.name` | analysis, claim routing |
+| `venue_lat` / `venue_lng` | `location.geo` | map, `area` derivation |
+| `venue_url`, `venue_phone` | `location.url` / `telephone` | card detail |
+| `series_name` (the run a performance belongs to) | `superEvent.name` | grouping |
+| `specials` — the free-text offer ("$5 tacos", "2-for-1 til 7") | page text | card, the owner-facing promise |
+
+The one thing this directive does not change, because it is the trust
+invariant: a field is never *invented*. "Required" means we must capture it
+wherever the source publishes it — not that we manufacture a value when the
+source is silent. A silent source yields an honest null; a stated value that we
+drop is a defect.
+
+### ANALYSIS — required for reporting, not rendered on the card.
 
 `supply_segment` (1–23) · `size_tier` · `extraction_tier` (0–5, which method
 won) · `recurrence_rule` + `is_expanded_occurrence` · `first_seen_at`,
@@ -189,10 +205,12 @@ Acceptance (replaces the looser §7 wording for fields):
 
 | | Threshold |
 |---|---|
-| Tier A field recall, where the source states the field | **≥ 98%** |
-| Tier B field recall, where the source states the field | ≥ 90% |
+| Required group 1 — field recall where the source states the field | **≥ 98%** |
+| Required group 2 — field recall where the source states the field | **≥ 98%** (raised from 90% by founder directive 2026-08-06) |
+| Analysis fields populated | 100% (they are computed, not extracted) |
 | Any field asserted that the source does NOT state | **0 — fails the run** |
 | Events filterable on `area`, `price`, `free` after ingestion | ≥ 95% |
+| Cancelled/postponed events correctly marked, never shown as live | **100%** |
 
 ### Why this section exists
 
