@@ -2,6 +2,35 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+**2026-08-06 rollup 5 (STOP point, founder-directed "save all to disk"): the
+root cause is crawler DEPTH, not date parsing.** Founder verbatim: *"your main
+problem is you are doing a poor job investigating each web page and then
+clicking through to find the details"* — correct, and it subsumes rollup 4
+below. Ingestion fetches ONE url and extracts from that blob; it never finds a
+site's events section, never opens an individual event, never follows a
+ticketing link. Demonstrated in three clicks: acllive.com → Events → a page
+reading `THURSDAY AUGUST 6, 2026 / 8:00 PM`, with the date also on the card and
+in the url slug, while we publish 81 dateless, mostly untitled rows from that
+venue. Four causes, each cited in
+`docs/ops/CRAWLER_DEPTH_DIAGNOSIS_2026-08-06.md`: catalog rows pointing at
+homepages / a different venue's site / developer docs and a hostname that
+disagrees with the committed catalog (R-083); JS pages read as empty shells
+(`should_render` fires only on `boilerplate_only`); date ranges dropped, and a
+year-less range mis-parsed with the range end AS the year — `SEPT 04-27` →
+2027-09-04, waved through by the two-probe guard (R-081); and theatre RUNS whose
+real showtimes sit on a ticketing domain one click away. PR #189 is reframed as
+a workaround for not clicking through — still useful for genuinely time-only
+sources, no longer obviously highest-leverage — and its "~2,200 events
+recovered" estimate is WITHDRAWN (R-084: the split across causes is unmeasured;
+the read-only fetch probe that settles it was designed and NOT run). R-082 also
+opened: nothing re-runs the attended extraction exam after a harness change
+merges. Session STOPPED before any plan was approved; the plan is on the record
+unbuilt. Instrument pushed on `claude/dateless-diagnostic`:
+`tools/sample_dateless.py` (read-only, public key, runs via prove_feed).
+Left unclean: #189 has master merged in and stale arming evidence, so
+trust-gate and adversarial-review are red on that branch; production is
+unaffected.
+
 **2026-08-06 rollup 4 (marker -> 7609222): the gate stopped being the
 bottleneck, and the date became one.** #193 merged (7609222) under the
 founder's one-PR waiver of the merge freeze — `worker/gating.py` now applies
