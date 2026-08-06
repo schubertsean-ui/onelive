@@ -32,13 +32,18 @@ from worker.db_config import resolve_dsn
 # which is the gate's whole reason to exist. Classification comes from the
 # catalog or not at all.
 KNOWN_SOURCE_CLASSES = frozenset({
-    # anchors — one is enough to promote (worker/gating.py ANCHOR_CLASSES)
+    # first-party — one is enough to promote (worker/gating.py ANCHOR_CLASSES)
     "festival_feed", "ticketing", "venue_calendar", "claimed_upload",
-    "email_opt_in",
-    # non-anchors — real classes, but they need corroboration
-    "local_media", "city_calendar", "social", "university_calendar",
-    "artist_aggregator", "music_platform", "search_benchmark", "link_hub",
-    "calendar_feed", "community", "directory", "library_calendar",
+    "email_opt_in", "calendar_feed", "local_media", "city_calendar",
+    "university_calendar", "university", "library_calendar",
+    # institutions publishing their own programs. These four already exist in
+    # the LIVE database, seeded outside this repo — the committed catalog
+    # holds 180 sources while the ingest run reports 266 enabled. They are
+    # named here so the importer and the gate share one vocabulary.
+    "theater_arts", "gallery_museum", "food_culinary",
+    # third-party — real classes, but they report on others and need corroboration
+    "social", "blog", "artist_aggregator", "music_platform",
+    "search_benchmark", "link_hub", "community", "directory",
     "artist_directory",
 })
 

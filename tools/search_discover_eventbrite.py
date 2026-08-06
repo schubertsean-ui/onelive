@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
-"""Discover Austin Eventbrite organizers via the Google Programmable Search API.
+"""Discover Austin Eventbrite organizers via the Brave Search API (licensed).
 
 Founder-approved discovery path #2 (2026-08-04, "Focus on 1 and 2"): search
 engines license their index for programmatic queries — this is the legitimate
 automated way to find `eventbrite.com/o/...` organizer pages without fetching
 eventbrite.com (whose edge blocks datacenter crawlers) and without deception.
 
-Uses Google's Custom Search JSON API (100 free queries/day):
-  GET https://www.googleapis.com/customsearch/v1?key=..&cx=..&q=..&start=N
-with queries like `site:eventbrite.com/o "austin"`. Organizer ids are read off
-result URLs/snippets — published by Eventbrite, surfaced by Google, never
+Uses Brave's Web Search API via tools/search_api.py (founder-ratified
+provider switch 2026-08-05 — Google's Custom Search refuses this account at
+the account level; see docs/memory/decisions/). Queries like
+`site:eventbrite.com/o "austin"`; organizer ids are read off result
+URLs/snippets — published by Eventbrite, surfaced by the search index, never
 guessed. Output is CANDIDATES for human review before anything is committed.
 
-Requires (repo secrets in CI; env vars locally):
-  GOOGLE_CSE_KEY — API key: https://developers.google.com/custom-search/v1/introduction
-  GOOGLE_CSE_CX  — Programmable Search Engine id ("search the entire web" on):
-                   https://programmablesearchengine.google.com/
+Requires (repo secret in CI; env var locally):
+  BRAVE_SEARCH_API_KEY — https://api-dashboard.search.brave.com/ (Free plan:
+                         2,000 queries/month, 1 request/second)
 
-Fail-loud contract: missing credentials exit 2; zero organizer ids across all
-queried pages exits 3 (quota/config problem or empty index — never an empty
-green). Bounded: --max-queries caps API calls (each returns <=10 results).
+Fail-loud contract: a missing credential exits 2; zero organizer ids across
+all queried pages exits 3 (quota/config problem or empty index — never an
+empty green). Bounded: --max-queries caps API calls (each returns <=20
+results).
 
 Usage: python tools/search_discover_eventbrite.py [--max-queries 8] [--terms austin]
 """
@@ -27,29 +28,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
-import time
 import urllib.parse
-import urllib.request
 
-API = "https://www.googleapis.com/customsearch/v1"
+from tools.search_api import MissingKey, SearchError, api_key, search
+
 # Scheme optional (snippets print bare "eventbrite.com/o/..."); domain pinned
 # to eventbrite.com; lookbehind blocks lookalike prefixes ("fakeeventbrite.com").
 _ORG_RE = re.compile(
     r"(?<![a-z0-9-])(?:www\.)?eventbrite\.com/o/([a-z0-9\-%]*?)-(\d{6,})",
     re.I)
-
-
-def search_page(key: str, cx: str, query: str, start: int, timeout: int = 20) -> dict:
-    """One Custom Search API call (documented endpoint, keyed access)."""
-    qs = urllib.parse.urlencode({"key": key, "cx": cx, "q": query,
-                                 "start": start, "num": 10})
-    req = urllib.request.Request(f"{API}?{qs}",
-                                 headers={"User-Agent": "1LiveSourceDiscovery/1.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8", errors="replace"))
 
 
 def extract_orgs(payload: dict) -> dict[str, str]:
@@ -65,18 +54,15 @@ def main(argv=None) -> int:
     """Query the search API for Austin organizer pages; emit JSON candidates."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--max-queries", type=int, default=8,
-                    help="API calls this run (free tier: 100/day)")
+                    help="API calls this run (Brave free plan: 2,000/month)")
     ap.add_argument("--terms", default="austin",
                     help='locality terms, comma-separated (default "austin")')
     args = ap.parse_args(argv)
 
-    key = os.environ.get("GOOGLE_CSE_KEY", "").strip()
-    cx = os.environ.get("GOOGLE_CSE_CX", "").strip()
-    if not key or not cx:
-        print("GOOGLE_CSE_KEY / GOOGLE_CSE_CX missing — create a free key at "
-              "https://developers.google.com/custom-search/v1/introduction and "
-              "an engine id at https://programmablesearchengine.google.com/",
-              file=sys.stderr)
+    try:
+        api_key()
+    except MissingKey as exc:
+        print(str(exc), file=sys.stderr)
         return 2
 
     terms = [t.strip() for t in args.terms.split(",") if t.strip()]
@@ -85,26 +71,30 @@ def main(argv=None) -> int:
     calls = 0
     failures = 0
     for q in queries:
-        start = 1
+        offset = 0
         while calls < args.max_queries:
             calls += 1
             try:
-                page = search_page(key, cx, q, start)
+                page = search(q, count=20, offset=offset)
+            except SearchError as exc:
+                failures += 1
+                print(f"  error body: {exc.body[:300]}", file=sys.stderr)
+                print(f"query {q!r} offset={offset}: failed ({exc})", file=sys.stderr)
+                break
             except Exception as exc:  # noqa: BLE001 — per-call report; zero-total fails below
                 failures += 1
-                body = getattr(exc, "read", lambda: b"")()
-                if body:
-                    print(f"  error body: {body[:300].decode('utf-8', 'replace')}",
-                          file=sys.stderr)
-                print(f"query {q!r} start={start}: failed ({exc})", file=sys.stderr)
+                print(f"query {q!r} offset={offset}: failed ({exc})", file=sys.stderr)
                 break
+            before = len(orgs)
             orgs.update({k: v for k, v in extract_orgs(page).items()
                          if k not in orgs})
-            nxt = (page.get("queries") or {}).get("nextPage")
-            if not nxt:
+            # Brave pages by offset (max 9); stop when a page adds nothing new
+            # or yields no results — there is no explicit next-page cursor.
+            if len(orgs) == before or not (page.get("web") or {}).get("results"):
                 break
-            start = nxt[0].get("startIndex", start + 10)
-            time.sleep(1)
+            offset += 1
+            if offset > 9:
+                break
         if calls >= args.max_queries:
             break
 

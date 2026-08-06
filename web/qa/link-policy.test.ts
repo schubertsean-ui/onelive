@@ -1,8 +1,12 @@
 // Nav-canon §13.1 as a mechanical check over the /tonight sources: internal
 // navigation never opens a new tab; every new-tab link is external AND carries
-// rel="noopener noreferrer"; the TERMINAL ticket handoff is same-tab (§8).
-// Source-level on purpose: it fails the moment a diff re-introduces the old
-// blanket target="_blank" pattern, with the offending file:line named.
+// rel="noopener noreferrer". The ticket handoff rule FLIPPED at founder
+// direction 2026-08-05 ("external links … should never take up the entire
+// screen … a user can always know where they are and easily get back to
+// 1live" — decision record 2026-08-05_trust-display-quiet.md): external
+// handoffs open a NEW TAB so 1live keeps its place; §8's old same-tab
+// terminal rule is superseded. Source-level on purpose: it fails the moment
+// a diff drifts from the ruled behavior, with the offending file:line named.
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -49,9 +53,10 @@ describe("link policy (nav canon §8/§13.1)", () => {
     }
   });
 
-  it("the terminal ticket handoff is SAME-TAB and labeled (never a stranded tab)", () => {
-    // The two ticket affordances (lens .lbtn on tix; detail .dtix) must not
-    // carry target=_blank, and must announce the external destination.
+  it("the ticket handoff opens a NEW TAB and is labeled (founder ruling 2026-08-05 — 1live keeps its place)", () => {
+    // The two ticket affordances (lens .lbtn on tix; detail .dtix) must
+    // carry target=_blank + noopener, and must announce the external
+    // destination. Superseded rule: §8's same-tab terminal handoff.
     const feedApp = files.find((f) => f.path.endsWith("FeedApp.tsx"));
     const detail = files.find((f) => f.path.endsWith(join("[id]", "page.tsx")));
     expect(feedApp && detail).toBeTruthy();
@@ -61,7 +66,8 @@ describe("link policy (nav canon §8/§13.1)", () => {
         .filter((tag) => tag.includes("{tix}") || tag.includes("href={tix}"));
       expect(ticketTags.length, `${path}: expected a ticket anchor`).toBeGreaterThan(0);
       for (const tag of ticketTags) {
-        expect(tag, `${path}: ticket handoff must be same-tab (§8 terminal row)`).not.toContain('target="_blank"');
+        expect(tag, `${path}: ticket handoff must open a new tab (founder ruling 2026-08-05)`).toContain('target="_blank"');
+        expect(tag, `${path}: new-tab handoff without rel`).toContain('rel="noopener noreferrer"');
         expect(tag, `${path}: ticket handoff must announce its destination`).toContain("externalAriaLabel");
       }
     }

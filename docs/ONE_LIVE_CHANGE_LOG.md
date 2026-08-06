@@ -4,6 +4,49 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-08-06 — The pause that found the real cause
+
+The founder asked when the testing ends and the site gets thousands of events.
+The honest answer required stopping the PR push and investigating properly, and
+the investigation overturned the session's own premise.
+
+**What was wrong with the work in flight.** PR #191 (first-party gate + date
+resolvers + cross-source dedupe) is real and its fixes are sound — the gate
+change is proven live across four same-branch runs, 1 of 4 sources passing to 8
+of 12 — but it would not have put a single discovered event on the site. Two
+complementary defects, both hand-verified, stand upstream of everything it does:
+`worker/candidate_store.py:174-181` hands the trust gate the timezone-AWARE
+`start_time` column AND its NAIVE copy from `extracted`, so the gate sees two
+strings for one instant and ESCALATEs every dated candidate; and
+`web/lib/promoted.ts:94`'s `start_time=gte.` filter silently drops every
+dateless promoted event, because SQL NULL never compares true. Dated events
+cannot publish; published events cannot display. That is why there are ~1,363
+published discovered events and zero upcoming.
+
+**A second correction, to the founder-facing diagnosis.** The "11 items on
+/tonight" that drove this whole batch of work is not a supply shortage. The feed
+hides anything past `start + 3h` while the DB "today" window counts from
+midnight, so at 19:00 CT the afternoon shows were correctly filtered as ended.
+The number was the code working.
+
+**What was codified.** `docs/ops/PATH_TO_THOUSANDS.md` — the ordered plan from
+today to thousands, every figure labelled MEASURED or ESTIMATE, backlog recovery
+(B0-B9) separated from ongoing throughput (T1-T14), with the arithmetic showing
+that "thousands" is a week or month number because Austin only carries 250-1,000
+events on any given night. Six Record entries: R-083 (the backfill is a one-way
+door and is now blocked in the record), R-084 (the gate/render pair), R-085 (the
+stamped backlog is unreachable by every automated and human path — ~1,373 rows),
+R-086 (two source registries with no mechanism to converge), R-087 (segmenter
+losses are unmeasurable), R-088 (no cost figure exists anywhere in the repo).
+Decision record `2026-08-06_path-to-thousands-and-the-gate-conflict-bug.md`;
+successor work order `docs/ops/SESSION_KICKOFF_2026-08-07.md`.
+
+**Method.** Seven-agent adversarial investigation (workflow run
+`wf_d8ea3440-e25`, 1.1M subagent tokens) with a completeness critic that
+corrected the investigators — including a factual correction that invalidated an
+entire lens's arithmetic. Four findings were re-verified by hand before
+publication rather than relayed.
+
 ## 2026-08-05/06 — Engine at scale: the promotion backlog drained to zero, and provenance reaches the cards
 
 The first full at-scale publish cycle of discovered events, end to end. #186

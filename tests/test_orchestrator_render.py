@@ -93,7 +93,7 @@ def _install_fakes(monkeypatch, tmp_path, *, plain_text_by_source, extracted_tex
             "content_type": "text/html",
         }
 
-    def fake_extract_candidate(*, ai, text, source_class, source_name, source_url, sxsw_mode=False, source_id=None):
+    def fake_extract_candidate(*, ai, text, source_class, source_name, source_url, sxsw_mode=False, source_id=None, fetched_at=None):
         if extracted_texts is not None:
             extracted_texts.append(text)
         return f"candidate-{source_name}"

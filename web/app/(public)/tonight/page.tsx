@@ -5,6 +5,7 @@ import {
   type LicensedEvent,
 } from "../../../lib/licensed";
 import { fetchPromotedEvents } from "../../../lib/promoted";
+import { dedupeEvents } from "../../../lib/dedupe_display";
 import { withSparkLines } from "../../../lib/spark";
 import { filterToCapcog } from "../../../lib/region";
 import {
@@ -97,9 +98,21 @@ export default async function TonightPage() {
         [...new Set(region.unknown.map((e) => e.venue_city))].join(", "),
       );
     }
+    // Cross-source duplicate collapse (founder-caught live 2026-08-05: the
+    // same show via ticketing + the venue's own feed rendered twice). Only
+    // identical venue+start+title collapses; disputed rows never do; the
+    // richest record is kept and the collapse is COUNTED, never silent.
+    const deduped = dedupeEvents(region.kept);
+    if (deduped.collapsed.length) {
+      console.warn(
+        `[dedupe] collapsed ${deduped.collapsed.length} cross-source duplicate ` +
+        `card(s): ` +
+        deduped.collapsed.map((e) => `${e.source_provider}:${e.external_id}`).join(", "),
+      );
+    }
     // Attach approved Spark Lines by performer (additive; never throws, never
     // reorders/filters — display only). A read failure leaves the feed unchanged.
-    events = await withSparkLines(region.kept);
+    events = await withSparkLines(deduped.kept);
   } catch (e) {
     error = e instanceof Error ? e.message : "Could not load events";
   }

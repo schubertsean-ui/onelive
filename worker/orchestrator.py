@@ -64,7 +64,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from ai.provider import AIProvider
@@ -75,6 +75,7 @@ from worker.candidate_store import (
     stamp_gate_verdict,
 )
 from worker.fetch.http_fetch import fetch_url
+from worker.fetch.paginate import discover_next_page
 from worker.fetch.render_fetch import RenderError, fetch_with_render, render_html
 from worker.replay_log import ReplayRecord, canonical_digest, log_step, new_run_id
 from worker.sensors import assess_input
@@ -88,6 +89,24 @@ logger = logging.getLogger(__name__)
 RENDER_CAP_ENV = "ONELIVE_MAX_RENDERS_PER_RUN"
 DEFAULT_MAX_RENDERS_PER_RUN = 5
 
+# What separates one fetched page from the next in the combined document.
+#
+# NOT a newline. The segmenter carries a calendar's day header forward as the
+# governing date for the blocks that follow it, clearing only when other page
+# text intervenes — so a page whose LAST element is a day header handed that
+# date to the first event card of the NEXT page. Adversarial-review finding
+# (2026-08-05), reproduced against the real segmenter: page 1 ending on
+# "<h2>Friday, August 14, 2026</h2>" gave a page-2 block reading
+# "Brunch Jazz 11:00 AM" the context "Friday, August 14, 2026" — a Sunday
+# brunch published as Friday, from a page that never said so.
+#
+# The fix is the intervening text the segmenter already looks for: a
+# block-level element whose text is not a date, which drives _date_ctx back to
+# None at the seam. It carries no URL, so it cannot satisfy the callback's
+# source-quoted-link check, and it is not a capture-start tag, so it never
+# becomes a candidate block of its own.
+_PAGE_BOUNDARY = "\n<hr /><p>1LIVE PAGE BOUNDARY</p><hr />\n"
+
 # Keys tracked in RunReport.counts. Declared up front so every run reports the
 # full shape even when a count is zero (never omit a key because it's 0 —
 # that would make "nothing happened" indistinguishable from "not tracked").
@@ -100,6 +119,17 @@ _COUNT_KEYS = (
     "held",
     "sensor_rejected",
     "errors",
+    # R-092: pages_fetched was recorded on the REPLAY record and nowhere a
+    # reader looks. Two consecutive smoke runs produced no page count in any
+    # log, so nobody could tell whether multi-page ingestion fired at all —
+    # a feature that is invisible in production is a feature nobody can
+    # operate. Summed across the run so the printed RunReport answers it.
+    "pages_fetched",
+    # Sources the run never STARTED because the wall-clock budget ran out.
+    # A non-zero value here is the run saying "I stopped early, on purpose,
+    # and here is how much I left" — the alternative is being killed
+    # mid-source at the job timeout with no record at all.
+    "sources_skipped_time_budget",
 )
 
 # _run_one_source's "not_modified" outcome intentionally does NOT also set
@@ -128,6 +158,33 @@ class RunReport:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+# Wall-clock budget for one run (R-092). Default 45 minutes, deliberately under
+# ingest.yml's timeout-minutes: 60 so the loop stops ITSELF with a report rather
+# than being killed without one. 0 or an unparseable value disables the budget
+# (and says so) — never silently.
+_DEFAULT_RUN_BUDGET_SECONDS = 45 * 60
+
+
+def _run_deadline(started_iso: str) -> Optional[datetime]:
+    """Absolute time after which no NEW source is started, or None if off."""
+    raw = os.environ.get("INGEST_RUN_BUDGET_SECONDS", "").strip()
+    seconds = _DEFAULT_RUN_BUDGET_SECONDS
+    if raw:
+        try:
+            seconds = int(raw)
+        except ValueError:
+            logger.warning(
+                "INGEST_RUN_BUDGET_SECONDS=%r is not an int — using the "
+                "default %d seconds", raw, _DEFAULT_RUN_BUDGET_SECONDS)
+    if seconds <= 0:
+        logger.warning(
+            "INGEST_RUN_BUDGET_SECONDS=%r disables the run wall-clock budget: "
+            "this run may be KILLED at the job timeout mid-source, losing its "
+            "RunReport and replay-log upload entirely.", raw)
+        return None
+    return datetime.fromisoformat(started_iso) + timedelta(seconds=seconds)
 
 
 def _read_fetched_text(fetch_result: Dict[str, Any]) -> str:
@@ -210,6 +267,177 @@ def _make_budgeted_render(render_state: Dict[str, int]):
     return _render
 
 
+# Founder-directed 2026-08-05 ("build multi-page ingestion next. It's the
+# single biggest lever left"): a paginated calendar is read for up to this
+# many pages per run. The proving case is the Austin Chronicle: 2,362 events
+# across 60 pages, of which a single-page fetch reads ~40.
+#
+# Why a small number is the RIGHT number, not a timid one: calendar pages are
+# date-ordered, so page 1 carries the soonest events — exactly what a tonight
+# product needs — and deeper events rise toward page 1 as their date
+# approaches. Front-following therefore reaches the whole calendar over time
+# without ever pulling sixty pages in one run. The existing per-page AI-call
+# cap (ai_extract._max_events_per_page) still bounds extraction cost: extra
+# pages add fetch bytes, never an unbounded number of model calls.
+_DEFAULT_MAX_PAGES_PER_SOURCE = 5
+
+
+def _max_pages_per_source() -> int:
+    raw = os.environ.get("INGEST_MAX_PAGES_PER_SOURCE", "").strip()
+    if not raw:
+        return _DEFAULT_MAX_PAGES_PER_SOURCE
+    try:
+        n = int(raw)
+    except ValueError:
+        logger.warning("INGEST_MAX_PAGES_PER_SOURCE=%r is not an int — using "
+                       "default %d", raw, _DEFAULT_MAX_PAGES_PER_SOURCE)
+        return _DEFAULT_MAX_PAGES_PER_SOURCE
+    return n if n >= 1 else _DEFAULT_MAX_PAGES_PER_SOURCE
+
+
+def _extraction_block_budget() -> Optional[int]:
+    """How many candidate blocks one run will actually extract, or None.
+
+    Read from ai_extract so there is ONE cap, not a second copy that could
+    drift from the one doing the truncating. None means the cap is unreadable,
+    and the walk then behaves exactly as it did before this check existed —
+    an unknown budget must not silently stop paging.
+    """
+    try:
+        from worker.ai_extract import _max_events_per_page
+        return _max_events_per_page()
+    except Exception as exc:  # noqa: BLE001 — a budget probe must never break ingestion
+        logger.info("extraction block budget unreadable (%s) — paging without "
+                    "the budget stop", type(exc).__name__)
+        return None
+
+
+def _approx_blocks(text: str) -> int:
+    """Candidate blocks the accumulated text would segment into.
+
+    Uses the REAL segmenter rather than an estimate, so the walk's stop point
+    and extraction's truncation point are computed the same way.
+    """
+    try:
+        from worker.segment import segment_events
+        return len(segment_events(text))
+    except Exception as exc:  # noqa: BLE001 — never break ingestion on a probe
+        logger.info("block count unreadable (%s) — paging without the budget "
+                    "stop", type(exc).__name__)
+        return 0
+
+
+def _fetch_paginated(
+    *,
+    source_id: Optional[str],
+    url: str,
+    render_state: Dict[str, int],
+) -> Dict[str, Any]:
+    """Fetch page 1, then follow the SOURCE'S OWN next-page links (bounded).
+
+    Page 1 keeps the full existing behavior — render fallback, 304 handling,
+    audit rows — untouched, and its result is what this returns. Additional
+    pages are PLAIN fetches (a render per page would multiply browser cost
+    for pages that are the same template) whose text is appended, so the
+    sensor, extractor, and gate see one longer document and every downstream
+    contract is unchanged.
+
+    Fail-soft by construction: any problem on page N>1 stops the walk and
+    keeps everything already read. A calendar that publishes no next link is
+    simply a one-page fetch, exactly as before.
+    """
+    first = _fetch_with_render_fallback(
+        source_id=source_id, url=url, render_state=render_state,
+    )
+    if first.get("status") != "ok" or not first.get("text"):
+        return first  # 304 / error: nothing to page through
+
+    max_pages = _max_pages_per_source()
+    if max_pages <= 1:
+        return first
+
+    texts = [first["text"]]
+    page_urls = [url]
+    seen = {url}
+    current_url = url
+    current_html = first["text"]
+    pages = 1
+    # The extraction budget is per RUN, and the pages are concatenated into one
+    # document before extraction — so once the accumulated text already carries
+    # more candidate blocks than a run can extract, every further page is
+    # fetched and then truncated away. Following them is pure cost (requests,
+    # rate-limit exposure, wall clock) for zero events, so the walk stops.
+    block_budget = _extraction_block_budget()
+
+    while pages < max_pages:
+        if block_budget is not None and _approx_blocks(
+                _PAGE_BOUNDARY.join(texts)) >= block_budget:
+            logger.info(
+                "paginated fetch: %s stopping at %d page(s) — the extraction "
+                "budget (%d blocks) is already full, so a further page would "
+                "be fetched and then truncated away",
+                url, pages, block_budget)
+            break
+        try:
+            next_url = discover_next_page(current_html, current_url, seen)
+        except Exception as exc:  # noqa: BLE001 — discovery must never break ingestion
+            logger.warning("next-page discovery failed for %s (%s) — keeping "
+                           "%d page(s)", current_url, type(exc).__name__, pages)
+            break
+        if not next_url:
+            break
+        try:
+            page_result = fetch_url(source_id=source_id, url=next_url)
+            if page_result.get("status") != "ok":
+                logger.info("page %d of %s returned %s — keeping %d page(s)",
+                            pages + 1, url, page_result.get("status"), pages)
+                break
+            page_text = _read_fetched_text(page_result)
+        except Exception as exc:  # noqa: BLE001 — a later page must never lose page 1
+            logger.warning("page %d fetch failed for %s (%s) — keeping %d "
+                           "page(s)", pages + 1, next_url, type(exc).__name__, pages)
+            break
+        if not page_text:
+            break
+        # SENSE THE PAGE BEFORE IT JOINS THE DOCUMENT. Adversarial pre-review
+        # catch (2026-08-05): the joined text is handed to assess_input as ONE
+        # string, and its checks scan the whole thing — so a later page that
+        # returns HTTP 200 with an interstitial ("Just a moment…"), an
+        # injection marker, or a truncated tail rejected pages 1..N-1 along
+        # with itself, dropping a source that reliably yields ~40 events to
+        # ZERO. Rate-limit interstitials are the realistic trigger, since the
+        # walk makes up to max_pages requests to a single host. The transport
+        # fail-soft above only ever covered non-ok status and exceptions; bad
+        # content behind a 200 slipped past it.
+        page_reading = assess_input(text=page_text,
+                                    content_type=page_result.get("content_type"))
+        if not page_reading.ok:
+            logger.info(
+                "page %d of %s did not pass the input sensor (%s) — keeping "
+                "%d good page(s) rather than losing them to it",
+                pages + 1, url, page_reading.reason, pages)
+            break
+        seen.add(next_url)
+        texts.append(page_text)
+        page_urls.append(next_url)
+        current_url, current_html = next_url, page_text
+        pages += 1
+
+    if pages > 1:
+        logger.info("paginated fetch: %s read %d pages", url, pages)
+    return {
+        **first,
+        "text": _PAGE_BOUNDARY.join(texts),
+        "pages_fetched": pages,
+        # Which pages the text came from, in order. The combined document is
+        # extracted under the source's URL, so without this the run has no
+        # record that an event was found on page 3 rather than page 1
+        # (adversarial-review finding, 2026-08-05). Carried on the fetch result
+        # so the replay log and provenance can cite the real page.
+        "page_urls": page_urls,
+    }
+
+
 def _fetch_with_render_fallback(
     *,
     source_id: Optional[str],
@@ -285,6 +513,7 @@ def _run_one_source(
     source: Dict[str, Any],
     sxsw_mode: bool,
     render_state: Dict[str, int],
+    run_metrics: Optional[Dict[str, int]] = None,
 ) -> tuple[SourceResult, List[str]]:
     """Drive a single source through fetch -> sensor -> extract -> gate3.
     Returns (SourceResult, count_keys) where count_keys is the ordered list of
@@ -305,7 +534,7 @@ def _run_one_source(
     url = source["url"]
     source_class = source["source_class"]
 
-    fetch_result = _fetch_with_render_fallback(
+    fetch_result = _fetch_paginated(
         source_id=source_id, url=url, render_state=render_state,
     )
     # Replay fetch entry: the original fields are all preserved; the render
@@ -315,7 +544,21 @@ def _run_one_source(
     fetch_outputs: Dict[str, Any] = {
         "status": fetch_result.get("status"),
         "rendered": bool(fetch_result.get("rendered")),
+        "pages_fetched": fetch_result.get("pages_fetched", 1),
     }
+    # Same number, but summed where an operator will actually see it (R-092).
+    if run_metrics is not None:
+        run_metrics["pages_fetched"] += int(fetch_result.get("pages_fetched", 1) or 1)
+    # The pages this run actually read, in order, on the REPLAY record — the
+    # run's audit trail, which is what "which page did this come from" is a
+    # question about. Adversarial-review finding (2026-08-05): page_urls was
+    # returned by _fetch_paginated and consumed by nothing, which is worse
+    # than absent — it reads like provenance while binding to none. Only
+    # recorded when the walk actually followed a page, so a single-page fetch
+    # carries no new noise.
+    page_urls = fetch_result.get("page_urls") or []
+    if len(page_urls) > 1:
+        fetch_outputs["page_urls"] = list(page_urls)
     if fetch_result.get("rendered"):
         fetch_outputs["plain_shell_reason"] = fetch_result.get("plain_shell_reason")
     if fetch_result.get("render_error"):
@@ -331,6 +574,12 @@ def _run_one_source(
             " (render fallback unavailable, proceeding un-rendered: "
             f"{fetch_result.get('render_error')})"
         )
+    if len(page_urls) > 1:
+        # In the READABLE field, not only the digest. outputs_digest binds
+        # page_urls cryptographically — a changed page list changes the hash —
+        # but a hash cannot answer "which page did this event come from",
+        # which is the whole question. The detail line can.
+        fetch_detail += f" (pages read: {', '.join(page_urls)})"
     log_step(ReplayRecord(
         run_id=run_id, ts=_now_iso(), source_id=str(source_id), source_name=source_name,
         stage="fetch", inputs_digest=canonical_digest({"url": url}),
@@ -502,14 +751,30 @@ def run_loop(
     run_id = new_run_id()
     started = _now_iso()
     report = RunReport(run_id=run_id, started=started, finished="")
+    run_metrics = {"pages_fetched": 0}
+
+    # WALL-CLOCK BUDGET (R-092). The job this loop runs in has a hard
+    # timeout-minutes; measured on the consolidated head, ONE cap-saturated
+    # source costs ~200s (50 model calls at ~8-9s each), so ~18 saturated
+    # sources fill a 60-minute job while the scheduled cap is 30. Without a
+    # budget the runner simply KILLS the job mid-source: the RunReport is never
+    # printed, the replay log is never uploaded, and the run looks like nothing
+    # happened. This stops STARTING sources once the budget is spent and says
+    # how many it left, so a short run is a recorded fact instead of a silence.
+    # Rotation is least-recently-attempted, so skipped sources are first in
+    # line next fire — nothing is lost, only deferred.
+    deadline = _run_deadline(started)
 
     for source in sources:
         source_id = source.get("source_id")
         source_name = source.get("name", "<unnamed>")
+        if deadline is not None and datetime.now(timezone.utc) >= deadline:
+            report.counts["sources_skipped_time_budget"] += 1
+            continue
         try:
             result, count_keys = _run_one_source(
                 run_id=run_id, ai=ai, source=source, sxsw_mode=sxsw_mode,
-                render_state=render_state,
+                render_state=render_state, run_metrics=run_metrics,
             )
         except Exception as exc:  # noqa: BLE001 - deliberate, audited, isolated per spec
             # Per-source transient failure: caught, logged, and isolated so
@@ -533,5 +798,15 @@ def run_loop(
         for key in count_keys:
             report.counts[key] += 1
 
+    report.counts["pages_fetched"] = run_metrics["pages_fetched"]
+    if report.counts["sources_skipped_time_budget"]:
+        logger.warning(
+            "run %s stopped starting new sources: the wall-clock budget was "
+            "spent and %d source(s) were NOT attempted this run. They are "
+            "first in line next fire (least-recently-attempted rotation). "
+            "Raise INGEST_RUN_BUDGET_SECONDS deliberately, or reduce "
+            "--max-sources, if this is persistent.",
+            run_id, report.counts["sources_skipped_time_budget"],
+        )
     report.finished = _now_iso()
     return report

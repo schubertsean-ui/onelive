@@ -1,0 +1,24 @@
+{
+  "_comment": "Festival windows as DATA — reviewed and committed, never scraped or inferred (docs/design/FESTIVAL_SPECIAL_SITUATIONS_v1.md piece 1; founder-ratified mode 2026-08-05: 'automatic daily inside festival windows'). 'Inside a window' is PHASED (tools/festival_phase.py; decision record docs/memory/decisions/2026-08-05_festival-window-phases.md): announce (months out — the standing weekly full sweep covers it), rampup (starts-28d..starts-1d — daily keyword_pack sweep), live (starts..ends — daily FULL sweep + keyword sweep), winddown (ends+1d — one more keyword sweep). Optional per-window overrides: rampup_days (default 28), winddown_days (default 1); widening a band raises spend — docs/ops/SEARCH_QUOTA_BUDGET.md governs. Dates are inclusive; timezone America/Chicago.",
+  "windows": [
+    {
+      "slug": "acl-2026",
+      "name": "Austin City Limits 2026",
+      "starts": "2026-10-02",
+      "ends": "2026-10-11",
+      "geo": "austin",
+      "sxsw_mode": true,
+      "keyword_pack": ["ACL", "Austin City Limits", "day party", "after party",
+                       "unofficial showcase", "pop-up", "free show Zilker"]
+    },
+    {
+      "slug": "f1-usgp-2026",
+      "name": "Formula 1 United States Grand Prix 2026",
+      "starts": "2026-10-23",
+      "ends": "2026-10-25",
+      "geo": "austin",
+      "sxsw_mode": true,
+      "keyword_pack": ["F1", "Grand Prix", "race week party", "COTA", "after party", "pop-up"]
+    }
+  ]
+}

@@ -49,6 +49,10 @@ docs/evidence/ARMING_SMOKE_RUN.json; marker advanced to bfbe761. Kaizen
 class: a closed-extraction-exempted runtime change must re-bind evidence at
 merge time, not at next-PR discovery.
 
+- **2026-08-05 (datefix branch, founder "No one will post or announce event with just a time" + "more of a call back position than a logic process"):** the dateless-discovered-events fix, three layers in the UN-certified shaping layer (extraction certification untouched): (1) segmenter date-context carry-forward — a calendar's day-header is prepended VERBATIM to split blocks lacking their own full date (both HTML-container and text-anchor paths); (2) NEW worker/date_callback.py — a refused date claim triggers ONE bounded fetch of the event's own ticket/RSVP link, reading machine-declared dates only (JSON-LD single-Event startDate/endDate, else microdata itemprop content), recovered strings re-enter the STRICT normalizer, method+URL recorded in provenance; (3) year rule LAST resort (founder-ratified) — resolve_yearless_claim maps a full-date-minus-year to the unique year within [-30,+300) days of fetch, basis recorded; time-only/ambiguous/unparseable stay refused. Preference order per directive: page context → callback → year rule. Decision record 2026-08-05_date-recovery-callback.md. Runtime-closure files touched (segment/datetime_normalize/ai_extract/date_callback) ⇒ branch smoke re-bind before merge. Follow-up parked: dateless-event supersede rule when a dated twin publishes. (Also this branch's staleness reconciliation.)
+- **2026-08-05 (brave branch r3, founder "define this. festivals usually start promoting lineups and activities months and weeks in advance…"):** "inside an active festival window" becomes a PHASED definition (decision record 2026-08-05_festival-window-phases.md): announce (months out — the standing weekly full sweep covers it), rampup (starts−28d..starts−1d — daily keyword_pack sweep, ~7 queries/day), live (starts..ends — the ratified daily FULL sweep + keyword sweep), winddown (ends+1d — one final keyword sweep). New testable resolver tools/festival_phase.py replaces the workflow's inline gate (boundary days pinned in tests); scan_new_sources gains --festival <slug> (keyword_pack × geo, same diff/custody/fail-loud); source-scan.yml daily cron now runs full/keyword/no per phase, plus a manual keyword-dispatch input; per-window rampup_days/winddown_days overrides are data. Budget v4 cost honesty: October 2026 carries BOTH ACL+F1 live phases ≈ $46 > the $40 tripwire — flagged to founder; single-festival month stays ≈ $36.
+- **2026-08-05 (brave branch r2, founder "do this: all the data at launch: full CAPCOG sweep immediately at launch (the depth-and-breadth proof), weekly full sweeps as the standing cadence, automatic daily inside festival windows"):** scanner v2 — query pack DERIVED from the canonical 22 cultural domains (44 phrases; sentinel test pins pack==DOMAINS so a new domain fails the suite until covered; v1's ad-hoc 20 missed film/sports/family/wellness/heritage/fashion-design/seasonal/ideas entirely), CAPCOG 22-city sweep (968 queries/sweep); NEW source-scan.yml (dispatch = launch sweep; weekly cron Mon 14:30 UTC with dead-man onelive-source-scan 7d; daily cron gated by sources/festival_windows.json — committed now with ACL 2026 + F1 2026, festival-mode piece 1 early); SEARCH_QUOTA_BUDGET v3 (~$7 ordinary month, ~$36 festival month, founder-authorized verbatim; >$40/mo returns to founder). Decision record 2026-08-05_launch-breadth-directive.md.
+- **2026-08-05 (brave branch, founder "Switch to Brave - do all the work"):** search lane switches provider — new shared client tools/search_api.py (Brave Web Search, documented endpoint, keyed via BRAVE_SEARCH_API_KEY, 1 rps throttle in code, MissingKey/SearchError fail-loud contract); scan_new_sources + search_discover_eventbrite query through it (custody + fail-loud exits unchanged); provider-dryrun search steps and ops-diagnostics probe (cse-probe → brave-probe) re-keyed; SEARCH_QUOTA_BUDGET v2 (2,000/month, festival-month worst case 930, headroom ≥768; paid tiers founder-crucial). Decision record 2026-08-05_search-lane-brave-switch.md (the new-service + money authorization, verbatim). Lane stays fail-closed until the founder adds the BRAVE_SEARCH_API_KEY secret; GOOGLE_CSE_* become inert. (Also this branch's staleness reconciliation.)
 - **2026-08-05 (records-only, engine-at-scale + google-verdict):** Stamp+promote passes 2-3 on the fixed uuid[] path: pass 2 stamped 699 (backlog SWEPT: examined < limit) and promoted 300/300 errors 0; pass 3 stamped 71 new arrivals, promoted 400/400 errors 0 — **836 discovered events published total**, pass 4 (limit 800) dispatched. Clerk cert saga CLOSED with handshake proof (site-probe run 31023053306: accounts.1live.co + clerk.1live.co both ssl_verify_result 0, Google Trust Services, issued 05:07-05:10Z = Folke's re-issue, expire Nov 3). Google Custom Search: founder-delegated API intervention (decision record 2026-08-05_founder-delegated-google-fix.md) proved the 403 is ACCOUNT-level on Google's side — fresh project + fresh key by API, identical refusal, engine entire-web fixed en route; account left as found; resolution founder-owned (support ticket or provider switch = founder-crucial). Interim db-report (run 31024343862): published_events_total 1633→2664; per-window discovered counts still 0 — promoted events carry NULL/out-of-window start_times (fail-closed datetime refusals), making DATE-VERIFIED discovered inventory the next engine bottleneck.
 - **2026-08-05 (clerk-tls branch):** Clerk support (Folke, 2026-08-05 ~05:06Z) manually re-issued the stuck SSL verification for 1live.co ("it all seems to be resolving now"); the Clerk domain object's updated_at moved to 05:13Z (clerk-domains diagnostic run 30979394754), but the domain object exposes no cert-status field — so this branch adds the honest ground truth to ops-diagnostics site-probe: TLS handshakes against accounts.1live.co + clerk.1live.co (verification on, fail-loud, public cert metadata only). Also pays down the parked evaluator nit: healthchecks-create builds its JSON payload with jq -n --arg/--argjson (no shell interpolation into JSON) with pipefail per the pipe-masked-exit rule. (Also this branch's staleness reconciliation.)
 - **2026-08-05 (artist-cast branch):** FIRST LIVE stamp+promote pass (autopromote run 30979536905 on master 3929987, limit 200 / stamp_limit 1000) proved the #182 engine at scale — StampReport examined 1000 / stamped_ready 234 / stamped_hold 744 / escalated 22 / errors 0; promote examined 200 / **promoted 136 as confirmed** / errors 64. All 64 errors are ONE defect this branch fixes: the `event` insert passed artist_ids as a Python str list, which psycopg2 adapts to text[] and Postgres refuses into the uuid[] column — every candidate WITH artists errored, artist-less ones published. Fix: explicit `%s::uuid[]` cast + hermetic source pin (fake-cursor tests can never hit server-side type checks — Kaizen class: db-type-mismatch-invisible-to-hermetic-tests). Full suite 2076 green. (Also this branch's staleness reconciliation.)
@@ -204,6 +208,71 @@ package (docs/design/V0_PROMPT_PACKAGE_v1.md).
 [S3:db-type-mismatch-invisible-to-hermetic-tests] The class's own mechanism is this build: the real-Postgres leg replays the escaped uuid[] insert (two distinct artists) against the server's type check plus registry-bound provenance and the 0020 backfill — proven 3/3 locally twice before commit.
 [S3:excluded-surface-widening] No scanner-excluded surface widens: the new workflow/tests are ordinary tracked files under the scanners' sweep; .claude and SKIP_PARTS untouched.
 
+AMENDMENT 4 (2026-08-05 night, founder-ratified gate change — verbatim
+record docs/memory/decisions/2026-08-05_first-party-is-authoritative.md):
+THE SECOND STRANGLER FOUND. worker/gating.py promoted on ONE source only for
+five anchor classes; the live DB's 268 sources carry theater_arts (24),
+gallery_museum (20), city_calendar (40), university (9), food_culinary (5) —
+first-party venue/institution sites, four of those classes defined NOWHERE
+in this repo — so 195 of 268 sources could never publish alone. ANCHOR_CLASSES
+now covers every live first-party class; THIRD_PARTY_CLASSES names the
+hearsay side explicitly; an UNKNOWN class holds AND logs loudly (never again
+a silent forever-hold); import_sources knows the live classes; 3 regression
+tests pin all three behaviors; R-081 records the unaudited `community` 55.
+[S3:silent-yield-collapse] Second instance found and closed the same night: the yield measurement this class demands is exactly what would have surfaced 195 dead sources months ago.
+[S3:fail-open-on-custody-misconfig] The change does NOT fail open: an unclassified class still HOLDS (safe direction) and shouts; only explicitly-named first-party classes promote alone.
+[S3:governance-ambiguity2] Gate loosening is founder-crucial by charter and the founder ratified it verbatim, repeatedly; the record states precisely what changed and what did not (trust_gate3 escalations, disputed display, full-gate promotion all unchanged).
+[S3:permission-for-ratified-work] The directive was a BUILD instruction, not a question — implemented immediately, recorded verbatim, no permission round-trip.
+[S3:stale-live-incident-state] Every class count here is read from db-report run 31026850025's own output, not from earlier prose.
+[S3:excluded-surface-widening] [S3:heal-drops-guard-marker] No scanner-excluded surface widens and no reconcile/heal path is touched — matched by amendment prose only.
+
+AMENDMENT 3 (2026-08-05 night, founder-directed at maximum urgency —
+verbatim record docs/memory/decisions/2026-08-05_ingestion-learns-or-it-
+fails.md): THE ROOT CAUSE OF ZERO UPCOMING DISCOVERED EVENTS FOUND AND
+FIXED. R-021's fail-closed datetime rule refused month+day claims whose
+year lives in page context — every venue-calendar event stored dateless.
+ADDED SCOPE, built this amendment: worker/datetime_resolve.py (page-context
+year resolution, deterministic stated rule, 10 tests incl. the
+double-occurrence window and leap-probe defects its own tests caught),
+live wiring in ai_extract (provenance-recorded), worker/
+backfill_datetime_resolution.py + backfill-dates.yml (master-only, bounded,
+dry-run first — resolves the preserved claims with zero re-crawl/AI spend
+and dates already-published events via promoted_event_id), red class
+silent-yield-collapse indexed, the yield-ledger/refusal-ledger systemic
+build committed as the next workstream.
+[S3:silent-yield-collapse] This build IS the instance and its first counter-measure; the class row + ledger mechanism land in the same push.
+[S3:release-path-weaker-than-generation2] n/a-guard: the resolver runs BEFORE the gate; every resolved candidate still passes the full unchanged gate to publish; backfilled events were already published and gain only their source-evidenced date.
+[S3:green-on-stale-base2] Branch is the current PR #191 head lineage on the post-#188 master.
+[S3:featurability-dimension-missed] The DATE dimension now reaches every public emitter for the discovered lane — resolved at extraction, backfilled for the published rows, visible in the windows.
+[S3:governance-ambiguity] [S3:missing-record-read-as-state] [S3:malformed-ledger-row] [S3:deliverable-visual-qa] Matched by the new decision-record/class-row prose riding this diff; the records state their scope precisely, cite live runs, and pipe-safe ledger formatting was kept — nothing in the build surface binds these.
+
+AMENDMENT 2 (2026-08-05 evening, founder-directed live: "THe number of
+events showing on the live site for today is worse than paltry - 11 items.
+What gives? Fix this. I want every event loaded asap" + "worse there are
+apparent duplicates" — decision record 2026-08-05_today-density-and-
+duplicates.md): ADDED SCOPE — cross-source duplicate collapse on the feed
+read (web/lib/dedupe_display.ts + page.tsx wiring, 8 tests), db_scope_report
+date-distribution + duplicate-report sections (the supply-lever diagnosis
+instrument), RECORD row R-080 (non-event rows from structured feeds — import
+-lane fix deferred with trigger), fresh import dispatches.
+[S3:swallowed-corrupt-data] The collapse returns every absorbed row and the caller logs the count; the SQL report totals over ALL duplicate groups before sampling 15 (the gate's own review caught my first LIMIT-50-then-count shape and it was fixed pre-push).
+[S3:final-gate-trusts-generator] [S3:release-path-weaker-than-generation] [S3:self-weakenable-gate] Display-only change: nothing publishes, no gate or threshold moves; disputed rows are structurally excluded from collapse (shown-never-hidden outranks tidiness, pinned by test both directions).
+[S3:false-confidence-gate] [S3:untested-gate-branch] Dedupe behavior pinned per branch: collapse case, both never-collapse cases (venue differs, time differs), disputed both directions, richness/authority/id tie-break chain, order preservation, and null-identity passthrough.
+[S3:db-type-mismatch-invisible-to-hermetic-tests] db_scope_report's new SQL is read-only reporting (no publish-path write); its correctness is proven on the live dispatch it exists for — stated honestly rather than faked hermetically.
+[S3:deferred-trust-work] The structured-feed non-event gap is NOT parked as prose: R-080 carries the bar citation and an objective trigger (next import-lane PR, evaluator-mandatory).
+[S3:stalled-state-needs-active-diagnosis] The thin-Today state gets a diagnostic probe (date-distribution + duplicate sections, dispatched) — not more waiting.
+[S3:scripted-transform-order] The scripted SQL-normalization replacement ran before any prose describing it was written; the edit was re-read after transform.
+[S3:stale-base-widens-range] Branch reset onto the fresh post-#188 master tip before this build; gate freshness check green.
+[S3:stale-redclass-count] [S3:status-narration-not-progress] [S3:unusable-credential-tier] Matched by record prose riding this diff (counts cited by command, the founder report delivers finished things, no credential logic touched) — dispositioned, not silently dropped.
+[S3:pagination-integrity-gap] The duplicate report exhausts every group before totaling; only the human-facing listing samples (15), labeled as a sample.
+[S3:parallel-record-id-collision] R-080 allocated after grepping the live register's highest id on the fresh master tip; test_record_ids_unique green.
+[S3:retyped-evidence] [S3:pushed-on-red] Run ids and counts in these records are pasted from tool output; validate runs unchained with its exit read before any push.
+[S3:founder-path-unprobed] This change alters the /tonight render — post-merge, site-probe re-runs before any founder-facing claim about the page.
+[S3:contract-scope-violation] This amendment IS the same-push contract move for the founder's new directive, quoting it verbatim.
+[S3:env-dependent-hermetic-test] [S3:rule-stronger-than-mechanism] [S3:mutable-model-alias] [S3:nonfinite-numeric-accepted] [S3:self-weakenable-review-model] [S3:volatile-safety-store] [S3:weak-key-accepted-at-custody] Matched by amendment prose keywords, not the build surface (no test env claims, no rule text, no model pins, no numeric config, no reviewer inputs, no stores or keys touched) — reviewed and dispositioned.
+[S3:caller-suppliable-custody-inputs] [S3:fail-open-on-custody-misconfig] [S3:missing-cardinality-check] [S3:semantic-claim-not-rederived] [S3:copy-outruns-registry] [S3:founder-verbatim-corrected] [S3:workflow-tool-version-skew] [S3:fabricated-qualitative-copy] [S3:false-price-claim] Same disposition — these tokens match this block's own wording, not anything the diff mechanizes; the build remains a display collapse + a read-only report, the founder quote above is carried exactly as typed, and no user-facing wording or pricing output changes anywhere in it.
+[S3:nonfinite-decimal-accepted] Likewise prose-matched only: the collapse compares field presence, not numeric values, and every number it touches was already normalized upstream.
+
 Stage-3 retrieval (construction loop; matched classes answered; the diff
 carries the whole kickoff work order's prose, so the trigger net matched far
 beyond the build surface — every match is answered or dispositioned, none
@@ -225,7 +294,43 @@ silently dropped):
 [S3:stale-live-incident-state] Live claims in this session's records (Clerk certs, promote counts, backlog) were re-verified against fresh run logs/probes this session, never carried from earlier prose.
 [S3:condensed-thinking-run] [S3:founder-verbatim-corrected] [S3:deliverable-visual-qa] [S3:copy-outruns-registry] [S3:malformed-ledger-row] [S3:missing-record-read-as-state] [S3:nonfinite-numeric-accepted] [S3:pagination-integrity-gap] [S3:parallel-record-id-collision] [S3:scripted-transform-order] [S3:heal-drops-guard-marker] [S3:mutable-model-alias] [S3:unusable-credential-tier] [S3:volatile-safety-store] [S3:stalled-state-needs-active-diagnosis] [S3:api-busy-poll] Matched by the kickoff work-order/decision-record PROSE riding this branch (their trigger words appear in the docs, not the build surface); reviewed each against the actual diff — none binds a mechanism this change touches; recorded here rather than silently dropped.
 
-STATUS: OPEN
+STATUS: PAUSED AT FOUNDER DIRECTION (2026-08-06, verbatim: "Find a place to
+pause. Create a detailed list of what remains to have thousands of events
+listed on the live site. Codify to the record. Create a prompt for a new
+session." — decision record
+`docs/memory/decisions/2026-08-06_path-to-thousands-and-the-gate-conflict-bug.md`).
+
+PAUSE STATE, so the successor session does not re-derive it:
+- Branch `claude/1live-kickoff-2026-587s4f` pushed at `cb6916f`. **PR #191 is
+  OPEN and NOT MERGED**, correctly: the founder's standing merge-freeze applies
+  while exam-bound #189 is open, and #193 rewrites the same `worker/gating.py`
+  region differently.
+- #191 carries fixes for all five evaluator r3 findings (fabricated midnight on
+  weekday-only claims; unchecked raw-claim weekday; stale year-roll; end before
+  start; unguarded write to public rows), each with a test. Local gates green:
+  trust_gate OK, lint OK, pytest 2119, perf 4/4. `golden-exam` red is the
+  charter's eligible compensated class, verified from the classifier's own
+  partition each round.
+- ONE mechanical step outstanding: the arming smoke re-bind
+  (`worker/datetime_resolve.py` is in the armed runtime closure). Two dispatches
+  were CANCELLED while queued, contending with a parallel session's branches for
+  the single `ingest` concurrency group.
+
+WHAT THE PAUSE FOUND (the reason it was worth pausing): the session's work was
+treating a symptom. Hand-verified root cause — `worker/candidate_store.py:174-181`
+feeds the gate both the timezone-AWARE `start_time` column and its NAIVE twin
+from `extracted`, so the gate ESCALATEs every dated candidate as
+self-contradictory; and `web/lib/promoted.ts:94`'s `gte.` filter drops every
+dateless promoted event because SQL NULL never compares true. Dated events
+cannot publish; published events cannot display. That pair explains "1,363
+published discovered events, ZERO upcoming". Recorded R-083 through R-088;
+ordered plan in `docs/ops/PATH_TO_THOUSANDS.md`; successor work order in
+`docs/ops/SESSION_KICKOFF_2026-08-07.md`.
+
+HARD STOP carried forward (R-083): `backfill-dates.yml` must NOT run with
+`real=true` until the canonical-instant gate fix AND the timezone contract are
+on master — running it early converts thousands of recoverable rows into
+permanently unpublishable ones.
 
 ## Session Contract #42 (2026-08-03, founder-directed — renumbered from this branch's #40 at the collision-resolution merge (#40 = GeoLibre ratification, #41 = the successor UI/UX shepherding session) — code-armed wording sweep, "not wait for the tripwire, deploy the dedicated code-armed PR that sweeps just those comments under evaluator review")
 
