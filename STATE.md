@@ -187,6 +187,26 @@ vendor; flyer-vision; city-fabrication smoke run; touching worker/ai_extract.py;
 dispatching an ingest/smoke run; hiding disputed rows; pay-to-rank; rebuilding the
 design system; taste quiz / plan-a-weekend; treating CAPCOG as a catalog delete.
 
+AMENDMENT (2026-09-01, after the first CI run on PR #202 — recorded per the
+contract-scope-violation rule rather than absorbed silently): the PR also bumps
+two TRANSITIVE npm dependencies via web/package.json `overrides`
+(browserslist ^4.28.8, nanoid ^3.3.18) and regenerates web/package-lock.json.
+Original contract said "OUT OF SCOPE: … new vendor/service"; this is neither —
+it adds no dependency and no service, it raises the pinned version of two
+existing transitive ones. Reason it moved: the adversarial-review job's SCA
+supply-chain gate (tools/sca_gate.py, high/critical production advisories) went
+red on three newly-published advisories — browserslist GHSA-c83g-rgw3-j3cx and
+GHSA-73wf-gq98-2v4g, nanoid GHSA-2v37-7h3g-55p8. PROVEN not this PR's: the diff
+touches neither package.json nor package-lock.json (`git diff origin/master...HEAD
+-- web/package.json web/package-lock.json` is empty), and the identical failure
+reproduces on an origin/master worktree. It surfaced here because the SCA step is
+path-conditional on `^web/` and this is the first web-touching PR since the
+advisories published. Fixed, not excused: an allowlist entry in
+security/sca_allowlist.json would be a gate-threshold relaxation (founder-crucial,
+not an agent decision), so the version bump is the honest fix and it follows the
+repo's own established pattern — the same `overrides` block already carries
+brace-expansion, fast-uri, postcss and sharp for exactly this reason.
+
 STAGE 3 — BLOCKING MEMORY RETRIEVAL (docs/memory/RED_CLASSES.md; classes matched
 by tools/construction_gate.py on this diff, answered against THIS build):
 [S3:build-before-plan] The plan was written to this contract BEFORE any product
@@ -312,6 +332,13 @@ by tools/construction_gate.py on this diff, answered against THIS build):
 [S3:missing-record-read-as-state] Where a fact is absent it is reported as
   absent: a row with no source name says so through the generic phrase, and an
   unrecognised place is counted as unrecognised, never as inside or outside.
+[S3:excluded-surface-widening] No scanner-excluded surface is widened: the
+  only allowlist in play (security/sca_allowlist.json) is deliberately NOT
+  touched — the SCA finding is fixed by raising the dependency versions, not by
+  granting the gate an exception.
+[S3:nonfinite-numeric-accepted] No numeric config input is added or parsed; the
+  version bumps are semver range strings resolved by npm, and the view's own
+  numbers are integer counts over arrays.
 [S3:permission-for-ratified-work] The founder's Session-2 list is a BUILD
   instruction, not a question: it was executed in full without asking for a
   second go-ahead, and the only thing held back is the one thing they reserved —
