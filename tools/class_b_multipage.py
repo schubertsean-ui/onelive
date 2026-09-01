@@ -96,6 +96,7 @@ class PageOutcome:
     outcome: str
     detail: str = ""
     candidates: int = 0
+    extract_error: str = ""
 
 
 @dataclass
@@ -112,6 +113,7 @@ class SourceOutcome:
     blocked_reason: str = ""
     discovery: Optional[DiscoveryResult] = None
     start_status: Optional[int] = None
+    extract_errors: List[str] = field(default_factory=list)
 
     @property
     def followed_ok(self) -> int:
@@ -270,7 +272,7 @@ def run_source(
     fetcher: Any,
     *,
     max_pages: int,
-    extract: bool,
+    extract: Optional[str] = None,
 ) -> SourceOutcome:
     """Follow ONE source: start page -> discovery -> up to max_pages sub-pages.
 
@@ -345,38 +347,96 @@ def run_source(
         )
         outcome.extract_ready += 1
         if extract:
-            written = _extract_page(
+            written, error = _extract_page(
                 entry=entry, url=page.url, text=fetched.text,
-                source_class=verdict.source_class,
+                source_class=verdict.source_class, provider=extract,
             )
             page_outcome.candidates = written
             outcome.candidates += written
+            if error:
+                page_outcome.extract_error = error
+                if error not in outcome.extract_errors:
+                    outcome.extract_errors.append(error)
         outcome.pages_followed.append(page_outcome)
 
     return outcome
 
 
-def _extract_page(*, entry: Dict[str, Any], url: str, text: str, source_class: str) -> int:
+#: Providers this tool may hand to the existing extract path. Both already exist
+#: in the repo — `claude` is the production extractor the scheduled loop uses,
+#: `stub` is the no-model provider `worker/run_once.py` uses for its offline
+#: smoke path. Nothing new is written here: adding an extractor is out of scope,
+#: and a hand-written provider that returned invented fields would be
+#: fabricating extraction results, which is worse than reporting a zero.
+PROVIDER_CLAUDE = "claude"
+PROVIDER_STUB = "stub"
+PROVIDERS = (PROVIDER_CLAUDE, PROVIDER_STUB)
+
+
+def _build_provider(name: str):
+    """Return the named EXISTING provider. Imported lazily so the no-extract
+    path never needs the model SDK."""
+    if name == PROVIDER_STUB:
+        from ai.bedrock_provider import BedrockProvider  # noqa: PLC0415
+
+        return BedrockProvider(client=None, model_id="stub")
+    from ai.claude_provider import ClaudeProvider  # noqa: PLC0415
+
+    return ClaudeProvider()
+
+
+def _failure_line(exc: BaseException) -> str:
+    """One line naming WHERE extraction died: file, function, error.
+
+    Read off the deepest traceback frame rather than the raise site, because
+    the useful answer to "why did this fixture not extract?" is the function
+    that actually refused, not the caller that asked.
+    """
+    tb = exc.__traceback__
+    filename, funcname = "(unknown)", "(unknown)"
+    while tb is not None:
+        frame = tb.tb_frame
+        try:
+            filename = os.path.relpath(frame.f_code.co_filename, REPO_ROOT)
+        except ValueError:
+            filename = frame.f_code.co_filename
+        funcname = frame.f_code.co_name
+        tb = tb.tb_next
+    message = " ".join(str(exc).split())
+    return f"{filename}, {funcname}, {type(exc).__name__}: {message}"
+
+
+def _extract_page(
+    *, entry: Dict[str, Any], url: str, text: str, source_class: str, provider: str,
+) -> tuple:
     """Hand ONE fetched page to the EXISTING extract path and count what it wrote.
 
     This is worker.ai_extract.extract_candidates — the same call the scheduled
-    loop makes, with the same provider and the same per-page fan-out cap. This
-    tool adds no extraction logic of its own and no second prompt; it only
-    changes WHICH page the certified path is pointed at. Imported lazily so the
-    dry-run path never needs a model client or a DB.
+    loop makes, with the same prompt, the same schema and the same per-page
+    fan-out cap. This tool adds no extraction logic of its own; it only changes
+    WHICH page the certified path is pointed at.
+
+    Returns (candidates_written, failure_line). A failure is CAUGHT and reported
+    per page rather than killing the walk, because "this fixture could not
+    extract, and here is the file/function/error" is the answer the run table
+    owes; a traceback that ends the run reports nothing about the other pages.
     """
-    from ai.claude_provider import ClaudeProvider  # noqa: PLC0415
     from worker.ai_extract import extract_candidates  # noqa: PLC0415
 
-    result = extract_candidates(
-        ai=ClaudeProvider(),
-        text=text,
-        source_class=source_class,
-        source_name=str(entry.get("name") or entry.get("id") or url),
-        source_url=url,
-        source_id=entry.get("source_id"),
-    )
-    return len(getattr(result, "candidate_ids", []) or [])
+    try:
+        result = extract_candidates(
+            ai=_build_provider(provider),
+            text=text,
+            source_class=source_class,
+            source_name=str(entry.get("name") or entry.get("id") or url),
+            source_url=url,
+            source_id=entry.get("source_id"),
+        )
+    except Exception as exc:  # noqa: BLE001 — reported, never swallowed
+        line = _failure_line(exc)
+        log.error("extract FAILED for %s — %s", url, line)
+        return 0, line
+    return len(getattr(result, "candidate_ids", []) or []), ""
 
 
 def _cell(value: str) -> str:
@@ -384,13 +444,17 @@ def _cell(value: str) -> str:
     return str(value).replace("|", "\\|").replace("\n", " ").strip()
 
 
-def render_table(outcomes: List[SourceOutcome], *, extract: bool, fixtures: bool) -> str:
+def render_table(outcomes: List[SourceOutcome], *, extract: Optional[str],
+                 fixtures: bool) -> str:
     """The founder's run table, exactly as commissioned:
 
         source | start URL | pages followed | candidates | blocked reason
 
-    When extraction did NOT run, the candidates column says so per row rather
-    than printing a zero that would read as "extraction found nothing".
+    When extraction ran, `candidates` is a NUMBER — the rows the existing
+    extract path actually wrote. A zero is followed by the reason it is zero,
+    one line per distinct failure: file, function, error. When extraction did
+    not run at all, the column header says so rather than printing a zero that
+    would read as "extraction found nothing".
     """
     header = "candidates" if extract else "candidates (extract not run)"
     lines = [
@@ -406,9 +470,23 @@ def render_table(outcomes: List[SourceOutcome], *, extract: bool, fixtures: bool
             f"| {_cell(o.name)} | <{o.start_url}> | {o.followed_ok} | "
             f"{candidates} | {_cell(o.blocked_reason) or '—'} |"
         )
-    note = []
+
+    note: List[str] = []
+    if extract:
+        failures: List[str] = []
+        for o in outcomes:
+            for error in o.extract_errors:
+                if error not in failures:
+                    failures.append(error)
+        if failures:
+            note += [
+                "",
+                "**Why those are zero — file, function, error:**",
+                "",
+            ]
+            note += [f"- `{f}`" for f in failures]
     if fixtures:
-        note = [
+        note += [
             "",
             "_Fixture run: pages came from saved HTML on disk, not from the live "
             "sites — every number above is the code path's verdict on that "
@@ -417,10 +495,9 @@ def render_table(outcomes: List[SourceOutcome], *, extract: bool, fixtures: bool
     if not extract:
         note += [
             "",
-            "_Extraction did not run: `--real` (live DB + model) is required for "
-            "the existing extract path to write candidates. \"extract-ready\" "
-            "counts pages that fetched and passed the input-quality sensor — the "
-            "pages that WOULD be handed to it._",
+            "_Extraction did not run. \"extract-ready\" counts pages that fetched "
+            "and passed the input-quality sensor — the pages that WOULD be handed "
+            "to it._",
         ]
     return "\n".join(lines + note)
 
@@ -430,6 +507,7 @@ def _as_json(outcomes: List[SourceOutcome]) -> str:
         return {
             "url": p.url, "via": p.via, "status": p.status,
             "outcome": p.outcome, "detail": p.detail, "candidates": p.candidates,
+            "extract_error": p.extract_error,
         }
 
     payload = []
@@ -443,6 +521,7 @@ def _as_json(outcomes: List[SourceOutcome]) -> str:
             "pages_followed": [page(p) for p in o.pages_followed],
             "candidates": o.candidates,
             "extract_ready": o.extract_ready,
+            "extract_errors": o.extract_errors,
             "blocked_reason": o.blocked_reason,
         }
         if o.discovery is not None:
@@ -495,12 +574,24 @@ def main(argv=None) -> int:
     parser.add_argument("--fixtures", default=None,
                         help="serve pages from a fixture directory instead of the network")
     parser.add_argument("--real", action="store_true",
-                        help="live fetch + the existing extract path (needs DSN + model key)")
+                        help="live fetch through worker.fetch.http_fetch (needs a DSN); "
+                             "implies --extract unless --no-extract is given")
+    parser.add_argument("--extract", dest="extract", action="store_true", default=None,
+                        help="run the EXISTING worker.ai_extract.extract_candidates on "
+                             "every extract-ready page (needs a DSN; the claude provider "
+                             "also needs ANTHROPIC_API_KEY)")
+    parser.add_argument("--no-extract", dest="extract", action="store_false",
+                        help="discovery + sensor only; write no candidate rows")
+    parser.add_argument("--provider", choices=PROVIDERS, default=PROVIDER_CLAUDE,
+                        help="which EXISTING provider the extract path uses "
+                             f"(default {PROVIDER_CLAUDE}, the production extractor)")
     parser.add_argument("--update-claim-queue", action="store_true",
                         help="write observed walls into docs/CLASS_D_CLAIM_QUEUE.md (requires --real)")
     parser.add_argument("--json-out", default=None, help="write the full run evidence as JSON")
     parser.add_argument("--table-out", default=None, help="write the markdown table here")
     args = parser.parse_args(argv)
+
+    extract = args.provider if (args.extract or (args.real and args.extract is None)) else None
 
     if args.update_claim_queue and not args.real:
         parser.error(
@@ -519,10 +610,10 @@ def main(argv=None) -> int:
         fetcher = (FixtureFetcher(args.fixtures) if args.fixtures
                    else LiveFetcher(entry.get("source_id")))
         outcomes.append(run_source(
-            entry, fetcher, max_pages=args.max_pages, extract=bool(args.real),
+            entry, fetcher, max_pages=args.max_pages, extract=extract,
         ))
 
-    table = render_table(outcomes, extract=bool(args.real), fixtures=bool(args.fixtures))
+    table = render_table(outcomes, extract=extract, fixtures=bool(args.fixtures))
     print(table)
     if args.table_out:
         os.makedirs(os.path.dirname(os.path.abspath(args.table_out)), exist_ok=True)

@@ -41,12 +41,23 @@ B source in the catalog has been worth roughly one page of prose.
    exist costs one request and is reported as a miss; the walk continues. One
    broken URL must never cost a venue's whole calendar.
 
-HONEST LIMIT: this sandbox refuses every outbound fetch (the agent proxy
-answers `Tunnel connection failed: 403 Forbidden` for all hosts, verified
-against two unrelated domains), so `--real` — the mode that fetches live and
-writes candidates — has never executed. The run table's numbers come from
-committed fixtures through the same code path, its candidate column reads
-"extract not run", and the gap is R-084 with two objective triggers.
+5. **Extraction is really called, and what it does is reported exactly.**
+   `--extract` runs `worker.ai_extract.extract_candidates` on every
+   extract-ready page, with `--provider` choosing between the two providers
+   that already exist (`claude`, the production extractor; `stub`, the
+   no-model one `worker/run_once.py` uses). A page that cannot extract is
+   reported as one line — file, function, error — and never kills the walk.
+
+HONEST LIMIT, in two halves. STORAGE: proven. Run against a local PostgreSQL 16
+with the 19 committed migrations applied (the `db-integration` job's own setup),
+the path wrote 14 `event_candidate` and 14 `candidate_evidence` rows through the
+real statements. MODEL: not proven. There is no `ANTHROPIC_API_KEY` here, so the
+production provider refuses at `ai/claude_provider.py, _get_client,
+ExtractionConfigError` and the run table's candidate column is 0 with that
+reason printed under it; the 14 rows came from the stub provider and are all
+flagged `source_returned_empty` — rows written, zero events found. Live fetching
+is also unproven: the agent proxy answers `Tunnel connection failed: 403
+Forbidden` for every host. Both gaps are R-084 with objective triggers.
 
 ## 2026-09-01 — Class D opens inward: a claim path that writes E/F at unverified (Coverage Law session 3)
 

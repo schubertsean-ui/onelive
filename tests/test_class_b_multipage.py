@@ -247,7 +247,7 @@ BODY = _page(
 
 def test_a_wall_on_the_start_page_ends_the_source_with_no_second_request():
     fetcher = _RecordingFetcher({HOME: {"status": 403}})
-    outcome = cbm.run_source(ENTRY, fetcher, max_pages=15, extract=False)
+    outcome = cbm.run_source(ENTRY, fetcher, max_pages=15, extract=None)
 
     assert outcome.source_class == "D"
     assert "403" in outcome.blocked_reason
@@ -263,7 +263,7 @@ def test_a_sign_in_redirect_on_a_followed_page_walls_the_whole_source():
             "status": 302, "final_url": "https://venue.example/account/login"},
         "https://venue.example/calendar": {"text": BODY},
     })
-    outcome = cbm.run_source(ENTRY, fetcher, max_pages=15, extract=False)
+    outcome = cbm.run_source(ENTRY, fetcher, max_pages=15, extract=None)
 
     assert outcome.source_class == "D"
     assert "login wall" in outcome.blocked_reason
@@ -278,7 +278,7 @@ def test_a_404_is_a_miss_not_a_wall_and_the_walk_continues():
         HOME: {"text": BODY},
         "https://venue.example/calendar": {"text": BODY},
     })
-    outcome = cbm.run_source(ENTRY, fetcher, max_pages=15, extract=False)
+    outcome = cbm.run_source(ENTRY, fetcher, max_pages=15, extract=None)
 
     assert outcome.source_class == "B"
     assert outcome.blocked_reason == ""
@@ -294,7 +294,7 @@ def test_a_sensor_rejected_page_is_recorded_and_never_counted_as_extract_ready()
         "https://venue.example/events": {"text": '<div id="cal"></div>'},
         "https://venue.example/calendar": {"text": BODY},
     })
-    outcome = cbm.run_source(ENTRY, fetcher, max_pages=15, extract=False)
+    outcome = cbm.run_source(ENTRY, fetcher, max_pages=15, extract=None)
 
     outcomes = {p.url: p.outcome for p in outcome.pages_followed}
     assert outcomes["https://venue.example/events"] == cbm.PAGE_SENSOR_REJECTED
@@ -303,22 +303,22 @@ def test_a_sensor_rejected_page_is_recorded_and_never_counted_as_extract_ready()
 
 def test_the_page_budget_is_enforced_by_the_walk():
     fetcher = _RecordingFetcher({HOME: {"text": BODY}})
-    outcome = cbm.run_source(ENTRY, fetcher, max_pages=3, extract=False)
+    outcome = cbm.run_source(ENTRY, fetcher, max_pages=3, extract=None)
     # start page + at most 3 followed pages
     assert len(fetcher.requested) == 4
     assert len(outcome.pages_followed) == 3
 
 
 def test_the_dry_run_never_reaches_the_extract_path():
-    """`extract=False` must not import or call the model path — that is what
+    """`extract=None` must not import or call the model path — that is what
     makes the default mode runnable with no DB and no key."""
     called = []
     original = cbm._extract_page
-    cbm._extract_page = lambda **kw: called.append(kw) or 0
+    cbm._extract_page = lambda **kw: called.append(kw) or (0, "")
     try:
         fetcher = _RecordingFetcher({HOME: {"text": BODY},
                                      "https://venue.example/events": {"text": BODY}})
-        cbm.run_source(ENTRY, fetcher, max_pages=15, extract=False)
+        cbm.run_source(ENTRY, fetcher, max_pages=15, extract=None)
     finally:
         cbm._extract_page = original
     assert called == []
@@ -330,23 +330,85 @@ def test_extract_mode_hands_each_ready_page_to_the_existing_extract_path():
     seen = []
     original = cbm._extract_page
 
-    def _fake(*, entry, url, text, source_class):
-        seen.append((url, source_class))
-        return 2
+    def _fake(*, entry, url, text, source_class, provider):
+        seen.append((url, source_class, provider))
+        return 2, ""
 
     cbm._extract_page = _fake
     try:
         fetcher = _RecordingFetcher({HOME: {"text": BODY},
                                      "https://venue.example/events": {"text": BODY},
                                      "https://venue.example/calendar": {"text": BODY}})
-        outcome = cbm.run_source(ENTRY, fetcher, max_pages=15, extract=True)
+        outcome = cbm.run_source(ENTRY, fetcher, max_pages=15,
+                                 extract=cbm.PROVIDER_CLAUDE)
     finally:
         cbm._extract_page = original
 
-    assert [u for u, _ in seen] == [
+    assert [u for u, _, _ in seen] == [
         "https://venue.example/events", "https://venue.example/calendar"]
-    assert {c for _, c in seen} == {"B"}
+    assert {c for _, c, _ in seen} == {"B"}
+    assert {p for _, _, p in seen} == {cbm.PROVIDER_CLAUDE}
     assert outcome.candidates == 4
+
+
+# --------------------------------------------------------------------------
+# Extraction: the path is really called, and a refusal is really reported
+# --------------------------------------------------------------------------
+
+def test_the_two_providers_are_the_ones_that_already_exist():
+    """No new extractor: `claude` is the production provider the scheduled loop
+    uses, `stub` is the no-model provider worker/run_once.py already uses."""
+    from ai.bedrock_provider import BedrockProvider
+    from ai.claude_provider import ClaudeProvider
+
+    assert isinstance(cbm._build_provider(cbm.PROVIDER_STUB), BedrockProvider)
+    assert isinstance(cbm._build_provider(cbm.PROVIDER_CLAUDE), ClaudeProvider)
+
+
+def test_a_page_that_cannot_extract_reports_file_function_error(monkeypatch):
+    """The founder's format, mechanically: one line naming WHERE it died.
+
+    Without a key the production provider refuses loudly rather than returning
+    an empty extraction, and that refusal is what the run table must show
+    instead of a bare zero.
+    """
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    count, line = cbm._extract_page(
+        entry=ENTRY, url="https://venue.example/events", text=BODY,
+        source_class="B", provider=cbm.PROVIDER_CLAUDE)
+
+    assert count == 0
+    file_part, func_part, error_part = (p.strip() for p in line.split(",", 2))
+    assert file_part == "ai/claude_provider.py"
+    assert func_part == "_get_client"
+    assert error_part.startswith("ExtractionConfigError:")
+
+
+def test_an_extraction_refusal_never_kills_the_walk(monkeypatch):
+    """One page that cannot extract must not cost the rest of the source."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    fetcher = _RecordingFetcher({HOME: {"text": BODY},
+                                 "https://venue.example/events": {"text": BODY},
+                                 "https://venue.example/calendar": {"text": BODY}})
+    outcome = cbm.run_source(ENTRY, fetcher, max_pages=15,
+                             extract=cbm.PROVIDER_CLAUDE)
+
+    assert outcome.candidates == 0
+    assert outcome.extract_ready == 2, "both pages were still fetched and sensed"
+    assert len(outcome.extract_errors) == 1, "one distinct reason, not one per page"
+
+
+def test_a_zero_carries_its_reason_into_the_table(monkeypatch):
+    """A bare 0 reads as \"extraction found nothing\"; it must read as why."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    outcome = cbm.SourceOutcome(
+        source_id="v", name="Venue", start_url=HOME, source_class="B",
+        extract_errors=["ai/claude_provider.py, _get_client, ExtractionConfigError: no key"])
+    table = cbm.render_table([outcome], extract=cbm.PROVIDER_CLAUDE, fixtures=True)
+
+    assert "| 0 |" in table
+    assert "Why those are zero — file, function, error" in table
+    assert "_get_client" in table
 
 
 # --------------------------------------------------------------------------
@@ -382,7 +444,7 @@ def test_a_ceiling_of_zero_or_less_is_rejected_never_read_as_uncapped(raw):
 def test_the_table_never_prints_a_zero_that_would_read_as_extraction_found_nothing():
     outcome = cbm.SourceOutcome(source_id="v", name="Venue", start_url=HOME,
                                 source_class="B", extract_ready=3)
-    table = cbm.render_table([outcome], extract=False, fixtures=True)
+    table = cbm.render_table([outcome], extract=None, fixtures=True)
 
     assert "candidates (extract not run)" in table
     assert "3 extract-ready" in table
@@ -411,18 +473,25 @@ def test_observed_walls_become_claim_queue_rows_with_a_human_next_step():
 # The committed fixture run — the PR table's own evidence
 # --------------------------------------------------------------------------
 
-def test_the_fixture_run_reproduces_the_committed_evidence():
+def test_the_fixture_run_reproduces_the_committed_evidence(monkeypatch):
     """The PR table's numbers are machine output, not hand-copied: this test
-    re-runs the walk over the committed fixtures and compares it to the
-    committed JSON record."""
-    fetcher_dir = FIXTURE_DIR
+    re-runs the walk over the committed fixtures — extraction included — and
+    compares it to the committed JSON record.
+
+    Hermetic by construction, not by hope: with ANTHROPIC_API_KEY removed the
+    production provider refuses at client construction, so no model call and no
+    DB write is reachable, and the recorded zero-plus-reason is deterministic
+    on any machine.
+    """
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     catalog = cbm.load_catalog(cbm.DEFAULT_CATALOG)
     selected = cbm.select_class_b(catalog, limit=10)
 
     produced = []
     for entry in selected:
         produced.append(cbm.run_source(
-            entry, cbm.FixtureFetcher(fetcher_dir), max_pages=15, extract=False))
+            entry, cbm.FixtureFetcher(FIXTURE_DIR), max_pages=15,
+            extract=cbm.PROVIDER_CLAUDE))
 
     evidence_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -436,7 +505,7 @@ def test_the_fixture_run_reproduces_the_committed_evidence():
 def test_the_fixture_run_follows_pages_and_walls_exactly_two_sources():
     catalog = cbm.load_catalog(cbm.DEFAULT_CATALOG)
     outcomes = [cbm.run_source(e, cbm.FixtureFetcher(FIXTURE_DIR), max_pages=15,
-                               extract=False)
+                               extract=None)
                 for e in cbm.select_class_b(catalog, limit=10)]
 
     walled = [o for o in outcomes if o.source_class == "D"]

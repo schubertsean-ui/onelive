@@ -1,7 +1,7 @@
 [
   {
     "blocked_reason": "",
-    "candidates": 0,
+    "candidates": 1,
     "discovered": [
       {
         "evidence": "link text 'discover events' matches 'events'",
@@ -39,18 +39,16 @@
         "via": "common path (guess)"
       }
     ],
-    "extract_errors": [
-      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
-    ],
+    "extract_errors": [],
     "extract_ready": 1,
     "ics_links": [],
     "jsonld_events": 0,
     "name": "Universe (Ticketmaster)",
     "pages_followed": [
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://www.universe.com/events",
@@ -119,7 +117,7 @@
   },
   {
     "blocked_reason": "",
-    "candidates": 0,
+    "candidates": 1,
     "discovered": [
       {
         "evidence": "link text 'concerts' matches 'concerts'",
@@ -157,18 +155,16 @@
         "via": "common path (guess)"
       }
     ],
-    "extract_errors": [
-      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
-    ],
+    "extract_errors": [],
     "extract_ready": 1,
     "ics_links": [],
     "jsonld_events": 0,
     "name": "SeatGeek",
     "pages_followed": [
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://seatgeek.com/concerts",
@@ -237,7 +233,7 @@
   },
   {
     "blocked_reason": "",
-    "candidates": 0,
+    "candidates": 2,
     "discovered": [
       {
         "evidence": "link text 'shows' matches 'shows'",
@@ -280,9 +276,7 @@
         "via": "common path (guess)"
       }
     ],
-    "extract_errors": [
-      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
-    ],
+    "extract_errors": [],
     "extract_ready": 2,
     "ics_links": [
       "https://www.stubbsaustin.com/events.ics"
@@ -291,18 +285,18 @@
     "name": "Stubb's Austin",
     "pages_followed": [
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://www.stubbsaustin.com/shows",
         "via": "link text"
       },
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://www.stubbsaustin.com/calendar",
@@ -376,7 +370,7 @@
   },
   {
     "blocked_reason": "",
-    "candidates": 0,
+    "candidates": 1,
     "discovered": [
       {
         "evidence": "link text 'events' matches 'events'",
@@ -414,18 +408,16 @@
         "via": "common path (guess)"
       }
     ],
-    "extract_errors": [
-      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
-    ],
+    "extract_errors": [],
     "extract_ready": 1,
     "ics_links": [],
     "jsonld_events": 1,
     "name": "ACL Live at The Moody Theater",
     "pages_followed": [
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://www.acllive.com/events",
@@ -494,7 +486,7 @@
   },
   {
     "blocked_reason": "",
-    "candidates": 0,
+    "candidates": 1,
     "discovered": [
       {
         "evidence": "link text 'calendar' matches 'calendar'",
@@ -537,9 +529,7 @@
         "via": "common path (guess)"
       }
     ],
-    "extract_errors": [
-      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
-    ],
+    "extract_errors": [],
     "extract_ready": 1,
     "ics_links": [],
     "jsonld_events": 0,
@@ -555,9 +545,9 @@
         "via": "link text"
       },
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://antonesnightclub.com/shows",
@@ -638,7 +628,7 @@
   },
   {
     "blocked_reason": "",
-    "candidates": 0,
+    "candidates": 2,
     "discovered": [
       {
         "evidence": "link text 'shows' matches 'shows'",
@@ -681,27 +671,25 @@
         "via": "common path (guess)"
       }
     ],
-    "extract_errors": [
-      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
-    ],
+    "extract_errors": [],
     "extract_ready": 2,
     "ics_links": [],
     "jsonld_events": 0,
     "name": "The Continental Club (Austin)",
     "pages_followed": [
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://continentalclub.com/shows",
         "via": "link text"
       },
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://continentalclub.com/calendar",
@@ -770,7 +758,7 @@
   },
   {
     "blocked_reason": "",
-    "candidates": 0,
+    "candidates": 1,
     "discovered": [
       {
         "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
@@ -803,18 +791,16 @@
         "via": "common path (guess)"
       }
     ],
-    "extract_errors": [
-      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
-    ],
+    "extract_errors": [],
     "extract_ready": 1,
     "ics_links": [],
     "jsonld_events": 0,
     "name": "The Parish Austin",
     "pages_followed": [
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://parishaustin.com/events",
@@ -874,7 +860,7 @@
   },
   {
     "blocked_reason": "redirected to a sign-in URL (https://emosaustin.com/account/login?next=/upcoming-shows) \u2014 login wall; queued for a claim path, not retried (at https://emosaustin.com/upcoming-shows)",
-    "candidates": 0,
+    "candidates": 1,
     "discovered": [
       {
         "evidence": "link text 'events' matches 'events'",
@@ -917,18 +903,16 @@
         "via": "common path (guess)"
       }
     ],
-    "extract_errors": [
-      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
-    ],
+    "extract_errors": [],
     "extract_ready": 1,
     "ics_links": [],
     "jsonld_events": 0,
     "name": "Emo's Austin",
     "pages_followed": [
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://emosaustin.com/events",
@@ -952,7 +936,7 @@
   },
   {
     "blocked_reason": "",
-    "candidates": 0,
+    "candidates": 4,
     "discovered": [
       {
         "evidence": "link text 'events' matches 'events'",
@@ -1010,45 +994,43 @@
         "via": "common path (guess)"
       }
     ],
-    "extract_errors": [
-      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
-    ],
+    "extract_errors": [],
     "extract_ready": 4,
     "ics_links": [],
     "jsonld_events": 0,
     "name": "Paramount Theatre (Austin)",
     "pages_followed": [
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://www.austintheatre.org/events",
         "via": "link text"
       },
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://www.austintheatre.org/calendar",
         "via": "link text"
       },
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://www.austintheatre.org/whats-on",
         "via": "link text"
       },
       {
-        "candidates": 0,
+        "candidates": 1,
         "detail": "",
-        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "extract_error": "",
         "outcome": "ok",
         "status": 200,
         "url": "https://www.austintheatre.org/film/screenings",
