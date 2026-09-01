@@ -143,8 +143,16 @@ def _log_fuzzy_merge(cur, entity_type: str, entity_id: str, input_name: str, sim
          json.dumps({"input_name": input_name, "similarity": round(sim, 3)})))
 
 
-def resolve_venue_id(cur, venue_name: str, city: str = "Austin") -> str:
-    """Resolve (or create) a venue id using the caller's cursor/transaction."""
+def resolve_venue_id(cur, venue_name: str, city: Optional[str] = None) -> str:
+    """Resolve (or create) a venue id using the caller's cursor/transaction.
+
+    An absent city stays UNKNOWN (stored NULL), never defaulted to a launch-
+    market name: defaulting would assert a locale we were never told, and
+    Coverage Law keeps rows by labelling them honestly rather than by guessing
+    them into the market. The exact-match query already treats a NULL-city
+    venue as matchable, so unknown-city rows still resolve to one venue row
+    instead of accumulating duplicates.
+    """
     venue_name = (venue_name or "").strip()
     city = (city or "").strip()
     # 1. exact match (city-scoped)

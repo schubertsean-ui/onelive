@@ -143,6 +143,17 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #45 (2026-09-01, founder — "ingest class A/B", branch claude/class-ab-source-ingestion-lv1mlv)
+
+STATUS: OPEN
+GOAL / WHAT: Session 1 only — (1) region/CAPCOG never drops a catalog row, (2) multi_confirm_gate labels and never deletes single-source rows, (3) docs/CLASS_D_CLAIM_QUEUE.md for the class D sources, (4) a <=15-source class A/B run table for the PR.
+HOW: classify sources from the catalog's own access fields; stop the write path defaulting an unknown city to "Austin"; run the EXISTING worker.importers.run_structured_import path (no new importer); lock 1 and 2 with tests.
+WHY: Coverage Law (2026-09-01) makes the catalog greedy and views picky; the write path must keep every legally-seen row.
+WHY-THAT-WHY-MATTERS: a dropped or mislabelled row leaves no trace, so the catalog cannot be audited after the fact.
+EXPECTED OUTCOMES: one PR; tests green; the table in the PR body; python tools/validate green.
+FILES: worker/sourcing/source_class.py, tools/class_d_queue.py, docs/CLASS_D_CLAIM_QUEUE.md, worker/ai_extract.py, worker/promote.py, worker/resolve_entities.py, tests/.
+OUT OF SCOPE: UI, flyer-vision, new vendor/service, new ingest stack, gate-threshold changes.
+
 ## Session Contract #44 (2026-08-05/06, founder-commissioned work order docs/ops/SESSION_KICKOFF_2026-08-06.md — kickoff execution session, branch claude/1live-kickoff-2026-587s4f)
 
 The plan below IS the founder's commissioned work order (kickoff committed at
