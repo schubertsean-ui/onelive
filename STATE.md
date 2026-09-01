@@ -180,6 +180,37 @@ not live. Executed: the message is rewritten to that shape (the old subject line
 receipt states are fixed in code as `RECEIPT_STATES` with a test asserting both
 the three words and the absence of the forbidden claims.
 
+AMENDMENT 2 (2026-09-01, docs-only — a founder ruling arrived mid-session and is
+recorded rather than left in chat). "Social is a hunt trigger, not a ban and not
+a publish": one unofficial social mention (not the venue/artist/rep) is a LEAD
+ONLY and never shows on 1Live.co; the engine must then check the official
+venue/artist/group page or calendar, ticket/aggregator pages, and other public
+mentions; publish only if (a) the named venue/artist/group or a known rep
+corroborates, or (b) at least two ADDITIONAL apparently independent people
+mention the same who/where/when (best effort, no formal affiliation); if
+neither, keep the lead and do not delete. Recorded verbatim in
+docs/memory/decisions/2026-09-01_social-is-a-hunt-trigger.md.
+
+NO CODE, per the founder's instruction, and the divergence it exposes is
+R-083 rather than a silent gap: worker/gating.py's multi_confirm_gate clears a
+non-anchor event at 2 distinct source CLASSES, while the ruling requires the
+originating mention PLUS TWO MORE distinct PEOPLE. The running gate is therefore
+one short on count AND wrong-unit on independence (two posts by two people are
+one `social` class today) — too permissive and too strict at the same time.
+gating.py is inside the armed cron's runtime closure, so the fix rides the same
+future PR as R-082. This session's claim path does NOT violate the ruling: a
+class-F human report holds at the gate and never reaches a reader alone.
+
+The founder's follow-on display ruling, same day, is recorded in the same
+decision record: path (a) lists with NO extra warning (and still no positive
+badge — the brief's ban on "confirmed" text stands); path (b) lists WITH the
+verbatim canon string "We have not confirmed this with the venue, artist, or
+group. Double-check before you go."; one unofficial mention is never listed.
+Priority is fixed as A/B/E feeds and public pages, with path (b) rare. Also
+unimplemented and folded into R-083. It carries ONE undecided question that
+blocks building it: "list it WITH" places the sentence on the listing rather
+than behind a sheet, but card face vs detail page vs both is unspecified.
+
 STAGE 3 — MEMORY RETRIEVAL (docs/memory/RED_CLASSES.md, answered for THIS build):
 [S3:permission-for-ratified-work] Nothing already ratified was re-proposed for permission and nothing founder-crucial was decided here: no credential minted, no vendor or mailbox added, no gate loosened. The two items that ARE the founder's call — confirming the intake address, and the verification action's design — are written down as asks, not built.
 [S3:swallowed-corrupt-data] Corrupt input is never quietly dropped: one unreadable CSV row refuses the whole file naming the spreadsheet row number, an over-cap file refuses whole rather than truncating, unknown columns are preserved rather than discarded, and only a wholly blank spacer line is skipped (pinned by test).
