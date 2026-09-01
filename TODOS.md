@@ -13,6 +13,14 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #46 (2026-09-01 — Coverage Law session 2, VIEW)
+- [x] (P0) Default /tonight view filters to CAPCOG as a VIEW SCOPE, not a catalog delete — read path forwards every row, FeedApp scopes, clearable, URL-borne. DONE.
+- [x] (P0) "Showing N of M known listings" for the selected window, M following the region scope, plus the held-back count under it (lib/feed.viewCounts). DONE.
+- [x] (P1) Evening/upcoming leads a single day without deleting morning rows (splitByDayPart, sum-preserving; "Evening first" chip). DONE.
+- [x] (P1) Card, lens and detail name the row's source and link its site; generic "a local listing" only when the fields are empty (lib/detail.sourceCredit). DONE — 0020 columns + promote's registry-bound copy already existed.
+- [x] (P1) A known-outside row reached by direct link renders LABELLED instead of being refused (Coverage Law repealed the refusal). DONE.
+- [ ] (P2) SSR the initial filter state from searchParams so a shared `?region=all` / `?when=` link renders server-side instead of correcting after mount. Not needed for this session's must-dos; would also let a DOM-free test cover the cleared-region render end to end.
+
 ## Session Contract #44 (2026-08-05/06 — kickoff execution; work order docs/ops/SESSION_KICKOFF_2026-08-06.md)
 - [x] (P0) Bucket 1a — #186/#185/#177 verified MERGED (evaluator-APPROVED, green heads); records-only STATE reconciliation c03f40f. DONE.
 - [x] (P0) Bucket 1b engine half — promotion backlog DRAINED to examined 0 / promoted 0 (runs 31022426849, 31023273235, 31024392369, 31024529659; zero promote errors post-#186). DONE; founder report carries the honest windows story.

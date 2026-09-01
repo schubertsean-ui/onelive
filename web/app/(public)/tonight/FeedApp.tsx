@@ -12,10 +12,12 @@ import {
   eventHref,
   httpOrNull as httpUrl,
   originLink,
+  sourceCredit,
   statusNote,
   telHref,
   venueWebsite,
 } from "../../../lib/detail";
+import { applyRegionScope, type RegionScope } from "../../../lib/region";
 import { contextualPreview } from "../../../lib/preview";
 import Link from "next/link";
 import type { LicensedEvent, SparkLine } from "../../../lib/licensed";
@@ -39,6 +41,9 @@ import {
   genreFacet,
   groupByDomain,
   liveEvents,
+  splitByDayPart,
+  viewCounts,
+  type DayPartSplit,
   type PlanScope,
 } from "../../../lib/feed";
 
@@ -140,6 +145,12 @@ function RichCard({ e, onNow, onOpen }: {
   // filler. Tapping the artist door opens the lens where the actual links live,
   // so the card stays spare (design canon §2/§6) while gaining a real hook.
   const preview = contextualPreview(e);
+  // Who says so, on the card itself (founder 2026-09-01). Rendered ONLY when
+  // the row carries a real name — never the generic phrase, which would add a
+  // line of chrome to every card while saying nothing. The generic wording
+  // still appears in the lens/detail "How we know" block, where a reader who
+  // asked for provenance gets the honest "we do not have the source name".
+  const credit = sourceCredit(e);
   return (
     <article className="room">
       {img
@@ -185,6 +196,11 @@ function RichCard({ e, onNow, onOpen }: {
           <span className="vname">{e.venue_name}{e.venue_area ? <span className="varea"> · {e.venue_area}</span> : null}</span>
           <span className="go" aria-hidden="true">venue ›</span>
         </button>
+        {/* Non-interactive by design: the card sits between two tappable
+            zones, and a third link here would both nest interactives and
+            compete with them. The tappable source URL lives in the lens and on
+            the full page, one tap away. */}
+        {credit.generic ? null : <p className="rsrc">via {credit.name}</p>}
       </div>
     </article>
   );
@@ -244,6 +260,7 @@ function Lens({ e, side, onNow, onSide, onClose }: {
   const site = venueWebsite(e.venue_url);
   const tel = telHref(e.venue_phone);
   const sub = trustFor(e);
+  const credit = sourceCredit(e);
   const preview = contextualPreview(e);
   const status = statusNote(e);
   const secondary = headline(e) !== e.title ? e.title : null;
@@ -344,11 +361,22 @@ function Lens({ e, side, onNow, onSide, onClose }: {
                 verify, so new-tab, labeled for screen readers. */}
             <div className="lknow">
               <span className="llbl">How we know</span>
+              {/* The SOURCE, named as a fact of its own — not only inside the
+                  trust prose. The confirmed/likely sheets name it; the
+                  unverified and disputed sheets are generic by design, so
+                  without this line the rows a reader most needs to check were
+                  the ones that never said who listed them (founder 2026-09-01).
+                  The name links the source's SITE (origin_url is the registry
+                  base_url, not a per-event page — the label claims exactly
+                  that). Generic wording only when the row has no source. */}
+              <p className="lsrc">
+                Source:{" "}
+                {credit.url ? (
+                  <a href={credit.url} target="_blank" rel="noopener noreferrer"
+                    aria-label={externalAriaLabel(`${credit.name} — the source's site`, credit.url)}>{credit.name} ↗</a>
+                ) : credit.name}
+              </p>
               <p>{sub.sheet}</p>
-              {originLink(e) ? (
-                <a className="lchip" href={originLink(e)!} target="_blank" rel="noopener noreferrer"
-                  aria-label={externalAriaLabel("See the source's site", originLink(e)!)}>See the source&rsquo;s site ↗</a>
-              ) : null}
             </div>
             <Link className="lfull" href={eventHref(e)}>Open full page ↗</Link>
           </div>
@@ -412,6 +440,13 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
   const [areas, setAreas] = useState<Set<string>>(new Set());
   const [genres, setGenres] = useState<Set<string>>(new Set());
   const [freeOnly, setFreeOnly] = useState(false);
+  // The REGION scope. CAPCOG is the founder-directed default test view; it is a
+  // view filter, never a catalog delete, so it is visible, counted and
+  // clearable (Coverage Law 2026-09-01).
+  const [region, setRegion] = useState<RegionScope>("capcog");
+  // Whether a single day leads with its evening/night block. Default on
+  // (founder 2026-09-01) — an ORDERING; the morning rows still render below.
+  const [eveningFirst, setEveningFirst] = useState(true);
   const [desire, setDesire] = useState<string | null>(null);
   const [plan, setPlan] = useState<PlanScope | null>(null);
   const [mode, setMode] = useState<"browse" | "ask" | "plan">("browse");
@@ -433,6 +468,8 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
     if (f.areas.size) setAreas(f.areas);
     if (f.genres.size) setGenres(f.genres);
     if (f.freeOnly) setFreeOnly(true);
+    if (f.region !== "capcog") setRegion(f.region);
+    if (!f.eveningFirst) setEveningFirst(false);
     setMounted(true);
   }, [qaFrozenClock]);
 
@@ -444,12 +481,12 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
     // Never rewrite the URL while the lens owns it (its entry carries the
     // event's own /tonight/<id> address).
     if (isLensHistoryState(window.history.state)) return;
-    const q = filtersToQuery({ tabKey, domains, areas, genres, freeOnly });
+    const q = filtersToQuery({ tabKey, domains, areas, genres, freeOnly, region, eveningFirst });
     const next = `${window.location.pathname}${q}`;
     if (`${window.location.pathname}${window.location.search}` !== next) {
       window.history.replaceState(window.history.state, "", next);
     }
-  }, [mounted, tabKey, domains, areas, genres, freeOnly]);
+  }, [mounted, tabKey, domains, areas, genres, freeOnly, region, eveningFirst]);
 
   // History-modeled lens (nav canon §6/§7): opening pushes a history entry AT
   // THE EVENT'S OWN URL, so (a) hardware/gesture Back closes the sheet before
@@ -466,11 +503,17 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // Base = the honest set minus only what has ENDED (a time filter, never a
-  // confidence filter). Before mount we keep everything (deterministic SSR).
-  const base = useMemo(() => (mounted ? liveEvents(events, nowMs) : events), [events, nowMs, mounted]);
+  // CATALOG side: everything we hold that has not ENDED (a time filter, never a
+  // confidence filter, and never a region one). Before mount we keep everything
+  // (deterministic SSR).
+  const live = useMemo(() => (mounted ? liveEvents(events, nowMs) : events), [events, nowMs, mounted]);
   const tabs = useMemo(() => dayTabs(nowMs, 7), [nowMs]);
   const tab = tabs.find((t) => t.key === tabKey) ?? tabs[0];
+  // VIEW side: the region scope. Everything downstream (facets, filters, the
+  // ask/plan lenses) works on this, so the scope is applied in exactly one
+  // place and no surface can quietly disagree with the count line.
+  const base = useMemo(() => applyRegionScope(live, region), [live, region]);
+
 
   const areaFacet = useMemo(() => facet(base, "venue_area").slice(0, 8), [base]);
   // Layer-0 genre rail: up to 12 canonical genres present in the live set.
@@ -481,6 +524,23 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
     () => applyFilters(base, { tab, domains, areas, genreIds: genres, freeOnly }),
     [base, tab, domains, areas, genres, freeOnly],
   );
+  // N / M / how-many-held-back, derived in one pure place (lib/feed.viewCounts)
+  // so the completeness sentence and the river it describes cannot drift.
+  const counts = useMemo(
+    () => viewCounts(live, filtered, tab, region),
+    [live, filtered, tab, region],
+  );
+
+  // The day-part split is computed HERE, once, and handed to the renderer.
+  // Both the ordering disclosure and the river read this same value: the
+  // evaluator-r4 rule is that the disclosure describes what actually renders,
+  // and two independent computations of "does the split apply" is exactly how
+  // that drifts (a day with no daytime rows renders one plain river, so the
+  // line must not promise "evening first, then earlier in the day").
+  const dayParts = useMemo(() => splitByDayPart(filtered), [filtered]);
+  const splitApplies =
+    tab.key !== "all" && eveningFirst &&
+    dayParts.evening.length > 0 && dayParts.earlier.length > 0;
 
   const isOnNow = (e: LicensedEvent) => mounted && eventOnNow(e, nowMs);
   const activeFilters = domains.size + areas.size + genres.size + (freeOnly ? 1 : 0);
@@ -542,6 +602,14 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
                 onClick={() => setFiltersOpen(!filtersOpen)}>
                 Filters{activeFilters ? <span className="n">{activeFilters}</span> : null}
               </button>
+              {/* An ORDERING control, deliberately not inside the filter
+                  panel: a filter removes rows and this one never does. Both
+                  states render every row in the window. */}
+              {tab.key !== "all" ? (
+                <button type="button" className={`chip${eveningFirst ? " on" : ""}`}
+                  aria-pressed={eveningFirst}
+                  onClick={() => setEveningFirst(!eveningFirst)}>Evening first</button>
+              ) : null}
               {(activeFilters || tabKey !== "today") ? (
                 <button className="chip clear" onClick={() => { setDomains(new Set()); setAreas(new Set()); setGenres(new Set()); setFreeOnly(false); setTabKey("today"); }}>Clear</button>
               ) : null}
@@ -585,9 +653,46 @@ export default function FeedApp({ events, serverNowMs, qaFrozenClock }: {
                 was founder-removed from this line 2026-08-04 (copy edit only —
                 the invariant is BEHAVIOR, ranking stays money-blind, and the
                 promise remains in the site description). */}
-            <div className="count">{filtered.length.toLocaleString()} shown · {tab.key === "all" ? "soonest first within each section" : "by category, soonest first"}</div>
+            {/* COMPLETENESS, stated (founder 2026-09-01). N = what this view
+                renders; M = the catalog rows we hold for the same window under
+                the same region scope. The two numbers together are the only
+                place a reader can see what the view is NOT showing them, which
+                is what keeps a picky view from reading as a small catalog. */}
+            <div className="count">
+              Showing {counts.shown.toLocaleString()} of {counts.windowTotal.toLocaleString()} known
+              {" "}listing{counts.windowTotal === 1 ? "" : "s"} for {tab.key === "all" ? "everything upcoming" : tab.label}
+              {" · "}
+              {tab.key === "all"
+                ? "soonest first within each section"
+                : splitApplies ? "evening first, then earlier in the day" : "by category, soonest first"}
+            </div>
+            <p className="rnote">
+              {region === "capcog" ? (
+                <>
+                  <span>
+                    Scoped to the CAPCOG test region
+                    {counts.heldBackByRegion > 0
+                      ? ` — ${counts.heldBackByRegion.toLocaleString()} more ` +
+                        `${counts.heldBackByRegion === 1 ? "listing in this window sits" : "listings in this window sit"}` +
+                        ` outside it, still in the catalog`
+                      : ""}
+                    .
+                  </span>{" "}
+                  <button type="button" className="rlink" onClick={() => setRegion("everywhere")}>
+                    Show everywhere
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>Region filter cleared — showing every place we hold.</span>{" "}
+                  <button type="button" className="rlink" onClick={() => setRegion("capcog")}>
+                    Back to the CAPCOG test region
+                  </button>
+                </>
+              )}
+            </p>
 
-            <EventList events={filtered} nowMs={nowMs} isOnNow={isOnNow} onOpen={openLens} singleDay={tab.key !== "all"} />
+            <EventList events={filtered} nowMs={nowMs} isOnNow={isOnNow} onOpen={openLens} singleDay={tab.key !== "all"} dayParts={splitApplies ? dayParts : null} />
           </>
         )}
 
@@ -650,8 +755,11 @@ function RichBucket({ items, isOnNow, onOpen }: {
 // (rich two-door cards, domain-grouped) · Later this month (compact rows) ·
 // Beyond (terse lines) — so longer-dated events are scannable instead of a wall
 // of tall cards. bucketByDate is sum-preserving, so nothing is dropped.
-function EventList({ events, nowMs, isOnNow, onOpen, singleDay }: {
+function EventList({ events, nowMs, isOnNow, onOpen, singleDay, dayParts }: {
   events: LicensedEvent[]; nowMs: number; isOnNow: (e: LicensedEvent) => boolean; onOpen: (e: LicensedEvent, side: LensSide) => void; singleDay?: boolean;
+  // Non-null ONLY when the parent decided the split applies — the same value
+  // its ordering disclosure describes. Never recomputed here.
+  dayParts?: DayPartSplit | null;
 }) {
   const buckets = useMemo(() => bucketByDate(events, nowMs), [events, nowMs]);
   if (events.length === 0) return <div className="err">No events match — clear a filter or pick another day.</div>;
@@ -659,6 +767,33 @@ function EventList({ events, nowMs, isOnNow, onOpen, singleDay }: {
   // chrome ("This week/Later/Beyond" headers only make sense across time —
   // founder 2026-08-04: the undifferentiated stack read as clutter).
   if (singleDay) {
+    // Founder 2026-09-01: the evening LEADS. This is an ordering, not a filter
+    // — the daytime rows keep their own labelled block below, so a morning
+    // listing is never removed from the day to make the evening look fuller.
+    // When a day is all-evening or all-daytime the split adds a header that
+    // says nothing, so the plain river renders instead.
+    if (dayParts) {
+      return (
+        <>
+          <section className="bucket b-rich">
+            <div className="bhead">
+              <h2>Evening &amp; night</h2>
+              <span className="bblurb">from 5pm</span>
+              <span className="n">{dayParts.evening.length}</span>
+            </div>
+            <RichBucket items={dayParts.evening} isOnNow={isOnNow} onOpen={onOpen} />
+          </section>
+          <section className="bucket b-rich">
+            <div className="bhead">
+              <h2>Earlier in the day</h2>
+              <span className="bblurb">before 5pm — still on, still listed</span>
+              <span className="n">{dayParts.earlier.length}</span>
+            </div>
+            <RichBucket items={dayParts.earlier} isOnNow={isOnNow} onOpen={onOpen} />
+          </section>
+        </>
+      );
+    }
     return <RichBucket items={events} isOnNow={isOnNow} onOpen={onOpen} />;
   }
   return (

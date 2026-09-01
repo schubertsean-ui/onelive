@@ -75,18 +75,30 @@ export default async function TonightPage() {
         return [] as LicensedEvent[];
       }),
     ]);
-    // MARKET BOUNDARY, enforced at the last step before a person sees a
-    // listing (evaluator blocker r2: fixing acquisition is not the same as
-    // protecting the reader — rows already stored, or from any future or
-    // mis-tagged source, would still reach this page). Known-outside places
-    // (San Antonio, New Braunfels, Seguin, Killeen…) are DROPPED; unrecognised
-    // places are KEPT and counted, because silently discarding them would turn
-    // a coverage gap into an invisible one while making the feed look cleaner.
-    const region = filterToCapcog<LicensedEvent>([...licensed, ...promoted]);
+    // MARKET BOUNDARY — a VIEW SCOPE from here on, not a server-side delete
+    // (Coverage Law 2026-09-01: "CAPCOG is the TEST LOCALE and a view filter,
+    // not the map … Views must not delete catalog rows").
+    //
+    // What changed and what did NOT: the classification is untouched
+    // (lib/region.ts still decides inside/outside/unrecognised the same way,
+    // and unrecognised is still KEPT), and the DEFAULT view the reader lands on
+    // is still CAPCOG-only. What changed is that the page now receives the
+    // whole window and applies the scope in the client, so it can (a) say how
+    // many rows the scope is holding back and (b) let the reader clear it. The
+    // old shape made the dropped rows unobservable, which meant the feed could
+    // not tell a market boundary apart from a coverage gap — the exact
+    // invisible-gap failure this file's own comment warns about, one level up.
+    //
+    // The boundary still holds on every surface: FeedApp scopes to CAPCOG by
+    // default, and /tonight/[id] labels an outside-market row as outside rather
+    // than presenting it as part of the test view.
+    const all: LicensedEvent[] = [...licensed, ...promoted];
+    const region = filterToCapcog<LicensedEvent>(all);
     if (region.droppedOutside.length) {
       console.warn(
-        `[region] dropped ${region.droppedOutside.length} event(s) outside ` +
-        `CAPCOG before render: ` +
+        `[region] ${region.droppedOutside.length} event(s) outside CAPCOG are ` +
+        `held back by the DEFAULT view scope (still in the catalog, counted in ` +
+        `the "of M" total when the reader clears the region filter): ` +
         [...new Set(region.droppedOutside.map((e) => e.venue_city))].join(", "),
       );
     }
@@ -99,7 +111,7 @@ export default async function TonightPage() {
     }
     // Attach approved Spark Lines by performer (additive; never throws, never
     // reorders/filters — display only). A read failure leaves the feed unchanged.
-    events = await withSparkLines(region.kept);
+    events = await withSparkLines(all);
   } catch (e) {
     error = e instanceof Error ? e.message : "Could not load events";
   }

@@ -9,6 +9,7 @@ import {
   externalHost,
   externalAriaLabel,
   handoffCaption,
+  type FeedFilterState,
 } from "./nav";
 
 describe("filters ⇄ URL (nav canon §6 — every meaningful view is a URL)", () => {
@@ -18,12 +19,14 @@ describe("filters ⇄ URL (nav canon §6 — every meaningful view is a URL)", (
   });
 
   it("round-trips a full filter state through the query string", () => {
-    const state = {
+    const state: FeedFilterState = {
       tabKey: "today",
       domains: new Set(["live-music", "comedy"]),
       areas: new Set(["East Austin"]),
       genres: new Set(["rock"]),
       freeOnly: true,
+      region: "everywhere",
+      eveningFirst: false,
     };
     const q = filtersToQuery(state);
     const back = queryToFilters(q);
@@ -32,6 +35,35 @@ describe("filters ⇄ URL (nav canon §6 — every meaningful view is a URL)", (
     expect([...back.areas]).toEqual(["East Austin"]);
     expect([...back.genres]).toEqual(["rock"]);
     expect(back.freeOnly).toBe(true);
+    expect(back.region).toBe("everywhere");
+    expect(back.eveningFirst).toBe(false);
+  });
+
+  // Coverage Law 2026-09-01: the region scope is a VIEW filter that travels in
+  // the URL like any other, and its default is the CAPCOG test view. A shared
+  // link must reproduce what the sender saw — including the cleared scope.
+  it("keeps the CAPCOG default out of the URL and carries only the opt-out", () => {
+    expect(filtersToQuery(DEFAULT_FILTERS)).toBe("");
+    expect(filtersToQuery({ ...DEFAULT_FILTERS, region: "everywhere" })).toBe("?region=all");
+    expect(queryToFilters("?region=all").region).toBe("everywhere");
+  });
+
+  it("falls back to the CAPCOG default for any region token but the opt-out", () => {
+    for (const bad of ["?region=", "?region=capcog", "?region=ALL", "?region=texas", ""]) {
+      expect(queryToFilters(bad).region).toBe("capcog");
+    }
+  });
+
+  it("carries the day-part ORDERING, whose default (evening first) is bare", () => {
+    expect(filtersToQuery({ ...DEFAULT_FILTERS, eveningFirst: true })).toBe("");
+    expect(filtersToQuery({ ...DEFAULT_FILTERS, eveningFirst: false })).toBe("?order=time");
+    expect(queryToFilters("?order=time").eveningFirst).toBe(false);
+    expect(queryToFilters("?order=whatever").eveningFirst).toBe(true);
+  });
+
+  it("counts a cleared region / plain ordering as NOT the default view", () => {
+    expect(isDefaultFilters({ ...DEFAULT_FILTERS, region: "everywhere" })).toBe(false);
+    expect(isDefaultFilters({ ...DEFAULT_FILTERS, eveningFirst: false })).toBe(false);
   });
 
   it("is deterministic regardless of set insertion order (shareable = stable)", () => {

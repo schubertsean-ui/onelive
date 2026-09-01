@@ -4,6 +4,57 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-01 — /tonight tells the truth about completeness (Coverage Law session 2, VIEW)
+
+The Coverage Law ratified the day before made the catalog greedy and the views
+picky. /tonight was still enforcing the CAPCOG boundary as a server-side
+DELETE — the rows never reached the page, so a reader could not tell a market
+boundary from a coverage gap, and the feed could only ever count what the
+server had already chosen to forward.
+
+Four changes, all view-side (no importer, no vendor, no extraction change, no
+schema change):
+
+1. **The region is a view scope, not a delete.** The read path now forwards
+   every legally-seen row; the DEFAULT view still scopes to CAPCOG, and the
+   classification in `web/lib/region.ts` is untouched (known-outside is scoped
+   out, unrecognised is still kept and counted). The scope is visible and
+   clearable, and it travels in the URL (`?region=all`) like any other filter —
+   with a malformed token failing closed to the CAPCOG default.
+2. **"Showing N of M known listings."** N is what the view renders; M is the
+   catalog rows in the same time window under the same region scope, counted
+   before any lens filter. Clearing the region raises M. Under the line, a
+   sentence names the scope and counts what it is holding back
+   ("1 more listing in this window sits outside it, still in the catalog").
+   All three numbers come from one pure function, `lib/feed.viewCounts`.
+3. **The evening leads, the morning is not deleted.** A single-day river now
+   renders "Evening & night" (from 5pm, in the MARKET clock) above "Earlier in
+   the day", with an "Evening first" chip to go back to the plain river. The
+   split is proven sum-preserving, and a date-TBA row leads rather than being
+   buried under a clock we do not have.
+4. **The source is named.** `sourceCredit()` puts the row's own source name on
+   the card ("via Mohawk Austin"), in the lens, and as a linked **Source** row
+   on the full page. It is confidence-INDEPENDENT, which closes the real gap:
+   the confirmed/likely trust sheets named the source in prose, but the
+   unverified and disputed wordings are generic by design — so the rows a
+   reader most needs to check were exactly the ones that never said who listed
+   them. The generic "a local listing" now appears only when the fields are
+   empty. No schema work was needed: migration 0020's columns and
+   `worker/promote.py`'s registry-bound copy already exist.
+
+One consequence, shipped in the same PR rather than deferred: a known-outside
+event reached by a direct `/tonight/<id>` link used to be REFUSED ("isn't one
+of our listings"). The Coverage Law repealed that reading, so it now renders,
+labelled as outside the CAPCOG test region.
+
+Evidence: `python tools/validate` green (every check PASS; commit_sweep and
+construction_gate advisory rows resolved/pre-existing), 2,127 Python tests and
+292 web tests passing, visual baselines recaptured and re-verified at 0.000%
+pixel diff, axe 0 violations in both colour schemes. Screenshots in
+`docs/evidence/2026-09-01_tonight-view/` are the repo's SYNTHETIC QA fixture
+mode — this container's egress policy blocks Supabase, so no claim is made
+here about the live site's rendered rows.
+
 ## 2026-08-05/06 — Engine at scale: the promotion backlog drained to zero, and provenance reaches the cards
 
 The first full at-scale publish cycle of discovered events, end to end. #186

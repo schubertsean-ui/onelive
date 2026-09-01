@@ -7,6 +7,7 @@ import {
   countyInPlace,
   inCapcogCounty,
   rowVerdict,
+  applyRegionScope,
 } from "./region";
 import boundary from "./capcog-boundary.json";
 
@@ -266,5 +267,47 @@ describe("CAPCOG boundary on the read path", () => {
     for (const { input, expected } of boundary.embedded_county_vectors) {
       expect(countyInPlace(input)).toBe(expected);
     }
+  });
+});
+
+
+// ── The region as a VIEW SCOPE (Coverage Law 2026-09-01) ─────────────────────
+// The classification above is unchanged; what changed is that the page applies
+// it as a clearable view filter instead of the server deleting the rows. These
+// tests pin the two properties that make that safe.
+describe("applyRegionScope — a view filter, never a catalog delete", () => {
+  const rows = [
+    { venue_city: "Austin", venue_name: "Mohawk" },                 // inside
+    { venue_city: "San Antonio", venue_name: "Majestic" },          // known outside
+    { venue_city: "Nowheresville", venue_name: "Unlisted Spot" },   // unrecognised
+    { venue_city: "Bastrop", venue_name: "Bastrop Opera House" },   // inside
+  ];
+
+  it("scopes out ONLY known-outside rows, keeping unrecognised places", () => {
+    const kept = applyRegionScope(rows, "capcog");
+    expect(kept.map((r) => r.venue_name)).toEqual([
+      "Mohawk", "Unlisted Spot", "Bastrop Opera House",
+    ]);
+    // Same asymmetry as filterToCapcog — one classifier, two callers.
+    expect(kept.length).toBe(filterToCapcog(rows).kept.length);
+  });
+
+  it("returns the WHOLE catalog set when the reader clears the region", () => {
+    const all = applyRegionScope(rows, "everywhere");
+    expect(all.length).toBe(rows.length);
+    expect(all.map((r) => r.venue_name)).toContain("Majestic");
+  });
+
+  it("never mutates or reorders the input (the catalog side stays intact)", () => {
+    const before = rows.map((r) => r.venue_name);
+    applyRegionScope(rows, "capcog");
+    applyRegionScope(rows, "everywhere");
+    expect(rows.map((r) => r.venue_name)).toEqual(before);
+  });
+
+  it("holds back a countable number — the 'M is not CAPCOG-only' arithmetic", () => {
+    // The count line subtracts these two; if the scope ever dropped an
+    // unrecognised row the difference would silently overstate the boundary.
+    expect(rows.length - applyRegionScope(rows, "capcog").length).toBe(1);
   });
 });

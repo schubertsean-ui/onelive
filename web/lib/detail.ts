@@ -42,6 +42,50 @@ export function originLink(e: LicensedEvent): string | null {
   return httpOrNull(e.origin_url ?? null);
 }
 
+// ── The named source, as a first-class visible fact ──────────────────────────
+// Founder directive (2026-09-01, Session 2 VIEW): "Card or detail shows source
+// name + source URL when the event row has them … Use generic 'a local listing'
+// only when the fields are empty."
+//
+// Before this, a promoted row's real source name reached the reader only INSIDE
+// the trust sheet's prose, and only for the confirmed/likely wordings — an
+// `unverified` or `disputed` row's sheet copy is generic by design, so the one
+// row a reader most needs to check was also the one that never named who said
+// it. This returns the credit as DATA so every surface renders the same fact.
+//
+// No fabrication and no guessing: the name is whatever the row carries
+// (registry-bound at promote — worker/promote.py writes the source registry's
+// canonical name/base_url or NULLs, never the candidate's raw label), the URL
+// survives only if it is http(s), and an empty pair degrades to the generic
+// phrase rather than to a plausible-sounding one. A licensed row's source IS
+// its ticketing provider, which is a name we hold but not a per-source URL —
+// its link is the ticket link the surfaces already carry, so `url` is null
+// rather than the provider's homepage dressed up as provenance.
+export type SourceCredit = {
+  /** Display name — the row's own source when it has one, else the generic. */
+  name: string;
+  /** The source's own site, http(s) only; null when the row carries none. */
+  url: string | null;
+  /** True when `name` is the generic fallback, not a name the row carries. */
+  generic: boolean;
+};
+
+export const GENERIC_SOURCE_NAME = "a local listing";
+
+export function sourceCredit(e: LicensedEvent): SourceCredit {
+  if (e.source_provider === "promoted") {
+    const name = (e.origin_name ?? "").trim();
+    return {
+      name: name || GENERIC_SOURCE_NAME,
+      url: originLink(e),
+      generic: !name,
+    };
+  }
+  const provider = PROVIDER_LABEL[e.source_provider] ?? e.source_provider;
+  const name = (provider ?? "").trim();
+  return { name: name || GENERIC_SOURCE_NAME, url: null, generic: !name };
+}
+
 export function detailTrustKind(e: LicensedEvent): "ticketing" | "listing" {
   return e.source_provider === "promoted" ? "listing" : "ticketing";
 }
@@ -193,14 +237,19 @@ export type DetailView =
   | { kind: "bad-link" }
   | { kind: "read-error"; message: string }
   | { kind: "not-found" }
-  // A known-OUTSIDE-market event reached by a direct/shared /tonight/[id] URL.
-  // The feed's CAPCOG filter never links to it, but the detail route fetches by
-  // id independently, so the same boundary must hold here or a direct link would
-  // render San Antonio to a user (PR #107, openai absence-only NIT — a
-  // half-enforced market invariant is the gap that bites). Distinct from
-  // not-found so the message is honest: the event is real, just not ours.
-  | { kind: "outside-market" }
-  | { kind: "event"; event: LicensedEvent };
+  // A real event that is in the CATALOG but outside the CAPCOG test region.
+  //
+  // This used to be its own REFUSAL branch (PR #107): a direct/shared link to a
+  // San Antonio row rendered "isn't one of our listings". The Coverage Law
+  // (2026-09-01) repealed exactly that reading — "CAPCOG is the TEST LOCALE and
+  // a view filter, not the map", and "dropping a legally seen row is a defect".
+  // So the fact survives as a LABEL on the event rather than as a refusal to
+  // show it: the row renders, honestly marked as outside the region the default
+  // /tonight view scopes to. Nothing about the marking is optional — a reader
+  // who followed a link must be told which market they are looking at, and the
+  // feed's default scope is unchanged (FeedApp still scopes to CAPCOG until the
+  // reader clears it).
+  | { kind: "event"; event: LicensedEvent; outsideRegion: boolean };
 
 export function resolveDetailView(input: {
   configured: boolean;
@@ -214,10 +263,12 @@ export function resolveDetailView(input: {
   // into one message: "the database is down" is not "there is no such event".
   if (input.error !== null) return { kind: "read-error", message: input.error };
   if (input.event === null) return { kind: "not-found" };
-  // The market boundary holds on EVERY user-facing surface, not just the feed:
-  // a known-outside event reached by a direct link is not one we carry. An
-  // unrecognised city still renders (keep-and-count discipline, same as the
-  // feed) — only a KNOWN-OUTSIDE reading is refused (PR #107).
-  if (rowVerdict(input.event) === false) return { kind: "outside-market" };
-  return { kind: "event", event: input.event };
+  // The boundary still CLASSIFIES on every surface — it just labels instead of
+  // refusing. An unrecognised city is not "outside" (keep-and-count discipline,
+  // same as the feed); only a KNOWN-OUTSIDE reading is marked.
+  return {
+    kind: "event",
+    event: input.event,
+    outsideRegion: rowVerdict(input.event) === false,
+  };
 }

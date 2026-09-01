@@ -3,10 +3,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 /**
  * THE READ PATH ITSELF, not the helper it happens to call.
  *
- * r15 blocker: `lib/region.test.ts` proves filterToCapcog is correct, and
- * would keep passing if /tonight stopped calling it altogether. The done
- * criterion is not "the helper works" — it is "San Antonio cannot reach a
- * user". This test binds the assertion to the page that renders to one.
+ * r15 blocker: `lib/region.test.ts` proves the boundary classifier is correct,
+ * and would keep passing if /tonight stopped consulting it altogether. The done
+ * criterion is not "the helper works" — it is "San Antonio cannot reach a user".
+ *
+ * Coverage Law (2026-09-01) moved WHERE that is enforced without weakening it.
+ * The catalog is greedy and the view is picky, so:
+ *   · the PAGE now hands the whole window to the view (a catalog row is never
+ *     deleted on the way to the reader) — asserted here;
+ *   · the DEFAULT VIEW scopes to CAPCOG, so San Antonio still cannot reach a
+ *     user unless they deliberately clear the region — asserted here too, on
+ *     the real rendered markup, because that is where the promise now lives.
+ * Both halves are needed: either one alone would let the invariant break while
+ * the suite stayed green.
  */
 const licensed = vi.fn();
 const promoted = vi.fn();
@@ -48,31 +57,38 @@ async function render() {
   };
   // A page that bailed to its error/unconfigured branch returns a <main>
   // banner, whose props carry no `events` at all. Defaulting that to `[]`
-  // would let a crashing page satisfy every "these rows are dropped"
-  // assertion below — failure reading as a pass. Fail loud instead.
+  // would let a crashing page satisfy every assertion below — failure reading
+  // as a pass. Fail loud instead.
   expect(el.type).toBe(FeedAppMock);
   return el.props;
 }
 
-describe("/tonight never renders an out-of-market event", () => {
-  it("drops San Antonio and every shape it arrives in", async () => {
-    licensed.mockResolvedValue([
-      row({ venue_name: "Majestic Theatre", venue_city: "San Antonio" }),
-      row({ venue_name: "Freeman", venue_city: "San Antonio, TX, USA" }),
-      row({ venue_name: "County only", venue_city: "Bexar County" }),
-      row({ venue_name: "Blank city", venue_city: "", city: "San Antonio" }),
-      row({ venue_name: "By county field", county: "Bexar" }),
-      row({ venue_name: "Mohawk", venue_city: "Austin" }),
-    ]);
+const OUT_OF_MARKET = [
+  row({ venue_name: "Majestic Theatre", venue_city: "San Antonio" }),
+  row({ venue_name: "Freeman", venue_city: "San Antonio, TX, USA" }),
+  row({ venue_name: "County only", venue_city: "Bexar County" }),
+  row({ venue_name: "Blank city", venue_city: "", city: "San Antonio" }),
+  row({ venue_name: "By county field", county: "Bexar" }),
+];
+
+describe("the PAGE hands the whole window to the view (catalog, not a delete)", () => {
+  it("passes out-of-market rows THROUGH — the view scopes them, nothing is dropped", async () => {
+    licensed.mockResolvedValue([...OUT_OF_MARKET, row({ venue_name: "Mohawk", venue_city: "Austin" })]);
     promoted.mockResolvedValue([
-      // Seguin (Guadalupe) is still outside — Comal/New Braunfels is now
-      // in-market, so an out-of-market example must use a county that stays out.
+      // Seguin (Guadalupe) is outside — Comal/New Braunfels is in-market, so an
+      // out-of-market example must use a county that stays out.
       row({ venue_name: "Seguin Coliseum", venue_city: "Seguin" }),
       row({ venue_name: "Cheatham", venue_city: "San Marcos" }),
     ]);
     const props = await render();
     const names = (props.events ?? []).map((e) => e.venue_name);
-    expect(names).toEqual(["Mohawk", "Cheatham"]);
+    // Every legally-seen row survives the read path. Losing one here would make
+    // the "of M" total a lie by construction — the count could only ever
+    // describe what the server chose to forward.
+    expect(names).toEqual([
+      "Majestic Theatre", "Freeman", "County only", "Blank city",
+      "By county field", "Mohawk", "Seguin Coliseum", "Cheatham",
+    ]);
   });
 
   it("KEEPS an unrecognised place, because a gap must stay visible", async () => {

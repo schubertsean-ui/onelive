@@ -57,13 +57,49 @@ describe("the calm opening surface (canon §6.5/§9)", () => {
     // count line (the INVARIANT is behavior — ranking stays money-blind, and
     // trust.test.ts still guards the ranking code; only the copy is gone).
     expect(html).not.toContain("no pay-to-rank");
-    expect(html).toContain("shown ·");
+    // The count line now states COMPLETENESS, not just a total (founder
+    // 2026-09-01 / Coverage Law: "Views should say 'Showing N of M'"). One
+    // event is in the default Today window, and it is the one rendered.
+    expect(html).toContain("Showing 1 of 1 known");
   });
   it("the ordering disclosure describes the rendered structure, never a false chronology (evaluator r4)", () => {
     // Default Today river is domain-grouped with each group start-time sorted —
     // claiming a flat "by start time" order was a misleading trust display.
+    // The day-part split is subject to the SAME rule: this fixture's only
+    // today-event is at 9pm, so there is no daytime block and the plain river
+    // renders — the line must not promise "evening first, then earlier".
     expect(html).toContain("by category, soonest first");
-    expect(html).not.toContain("shown · by start time");
+    expect(html).not.toContain("by start time");
+    expect(html).not.toContain("evening first, then earlier in the day");
+    expect(html).not.toContain("Earlier in the day");
+  });
+
+  it("says which region the default view is scoped to, and offers to clear it", () => {
+    // Coverage Law 2026-09-01: CAPCOG is a view filter, not the map. The
+    // default view may scope to it — but it must SAY so and be clearable,
+    // because a silent scope is indistinguishable from a coverage gap.
+    expect(html).toContain("Scoped to the CAPCOG test region");
+    expect(html).toContain("Show everywhere");
+  });
+
+  it("splits the day when there IS a daytime block, and never drops it", () => {
+    const morning = ev({
+      licensed_event_id: "m1", performer: "Morning Market",
+      start_time: new Date("2026-08-04T10:00:00-05:00").toISOString(),
+    });
+    const night = ev({
+      licensed_event_id: "n2", performer: "Night Set",
+      start_time: new Date("2026-08-04T21:00:00-05:00").toISOString(),
+    });
+    const h = renderToStaticMarkup(<FeedApp events={[morning, night]} serverNowMs={NOW} />);
+    expect(h).toContain("Evening &amp; night");
+    expect(h).toContain("Earlier in the day");
+    // The evening block LEADS…
+    expect(h.indexOf("Evening &amp; night")).toBeLessThan(h.indexOf("Earlier in the day"));
+    // …and the morning row is still rendered, and still counted in both N and M.
+    expect(h).toContain("Morning Market");
+    expect(h).toContain("Showing 2 of 2 known");
+    expect(h).toContain("evening first, then earlier in the day");
   });
 });
 

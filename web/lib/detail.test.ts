@@ -12,6 +12,8 @@ import {
   eventHref,
   httpOrNull,
   originLink,
+  sourceCredit,
+  GENERIC_SOURCE_NAME,
   telHref,
   venueWebsite,
   resolveDetailView,
@@ -469,7 +471,7 @@ describe("resolveDetailView", () => {
   it("returns the event when there is one — including a disputed one", () => {
     const disputed = ev({ confidence: "disputed" });
     const view = resolveDetailView({ ...base, event: disputed });
-    expect(view).toEqual({ kind: "event", event: disputed });
+    expect(view).toEqual({ kind: "event", event: disputed, outsideRegion: false });
   });
 
   it("shows a CANCELLED event rather than treating it as absent", () => {
@@ -479,20 +481,27 @@ describe("resolveDetailView", () => {
     expect(statusNote(cancelled)).toMatch(/cancelled/i);
   });
 
-  it("refuses a KNOWN-OUTSIDE event on the direct-link surface too (PR #107)", () => {
-    // The feed's CAPCOG filter never links to a San Antonio event, but the
-    // detail route fetches by id, so a direct/shared URL must not render it.
+  // Coverage Law 2026-09-01 replaced the PR #107 REFUSAL with a LABEL: the row
+  // is in the catalog and renders; the region is a view scope, not a delete.
+  // The classification itself is unchanged and still proven here.
+  it("LABELS a known-outside event instead of refusing it (Coverage Law)", () => {
     const outside = ev({ venue_city: "San Antonio", venue_name: "Majestic" });
-    expect(resolveDetailView({ ...base, event: outside }).kind).toBe("outside-market");
+    const v = resolveDetailView({ ...base, event: outside });
+    expect(v.kind).toBe("event");
+    expect(v.kind === "event" && v.outsideRegion).toBe(true);
     // A city string that embeds a contradictory in-market county cannot smuggle
-    // it back in (the reachable vector for a licensed row, which has no county field):
+    // its way to an UNLABELLED render (the reachable vector for a licensed row,
+    // which has no county field): the drop-direction rule still wins.
     const smuggled = ev({ venue_city: "San Antonio, Travis County, TX" });
-    expect(resolveDetailView({ ...base, event: smuggled }).kind).toBe("outside-market");
-    // An in-market event still renders; an unrecognised city still renders.
-    expect(resolveDetailView({ ...base, event: ev({ venue_city: "Austin" }) }).kind)
-      .toBe("event");
-    expect(resolveDetailView({ ...base, event: ev({ venue_city: "Nowheresville" }) }).kind)
-      .toBe("event");
+    const vs = resolveDetailView({ ...base, event: smuggled });
+    expect(vs.kind === "event" && vs.outsideRegion).toBe(true);
+    // An in-market event renders unlabelled; so does an unrecognised city —
+    // keep-and-count discipline: unrecognised is NOT "outside".
+    for (const city of ["Austin", "Nowheresville"]) {
+      const inv = resolveDetailView({ ...base, event: ev({ venue_city: city }) });
+      expect(inv.kind).toBe("event");
+      expect(inv.kind === "event" && inv.outsideRegion).toBe(false);
+    }
   });
 });
 
@@ -648,5 +657,100 @@ describe("venueWebsite — only the venue's OWN site, never a ticketing page", (
     expect(venueWebsite(null)).toBeNull();
     expect(venueWebsite("javascript:alert(1)")).toBeNull();
     expect(venueWebsite("not a url")).toBeNull();
+  });
+});
+
+
+// ── Naming the source (founder directive 2026-09-01, Session 2 VIEW) ─────────
+// "Card or detail shows source name + source URL when the event row has them …
+// Use generic 'a local listing' only when the fields are empty."
+describe("sourceCredit — who listed this, said out loud", () => {
+  it("names a promoted row's real source and links its site", () => {
+    const e = ev({
+      source_provider: "promoted",
+      origin_name: "Mohawk Austin",
+      origin_url: "https://mohawkaustin.com",
+    });
+    expect(sourceCredit(e)).toEqual({
+      name: "Mohawk Austin", url: "https://mohawkaustin.com", generic: false,
+    });
+  });
+
+  it("says the generic phrase ONLY when the row carries no source name", () => {
+    const bare = ev({ source_provider: "promoted", origin_name: null, origin_url: null });
+    expect(sourceCredit(bare)).toEqual({
+      name: GENERIC_SOURCE_NAME, url: null, generic: true,
+    });
+    expect(GENERIC_SOURCE_NAME).toBe("a local listing");
+    // Whitespace is not a name — a blank-but-present value must not render as
+    // an empty credit line pretending to be provenance.
+    const blank = ev({ source_provider: "promoted", origin_name: "   ", origin_url: null });
+    expect(sourceCredit(blank).generic).toBe(true);
+  });
+
+  it("keeps the NAME even when the URL is unusable, never the reverse", () => {
+    // A stored javascript:/data: URL must never reach an href, but losing the
+    // link is no reason to also lose the honest name of who listed the event.
+    const e = ev({
+      source_provider: "promoted",
+      origin_name: "Bastrop Opera House",
+      origin_url: "javascript:alert(1)",
+    });
+    expect(sourceCredit(e)).toEqual({
+      name: "Bastrop Opera House", url: null, generic: false,
+    });
+  });
+
+  it("names the ticketing provider for a licensed row, with no invented URL", () => {
+    // A licensed row's source IS its provider. We hold no per-source site for
+    // it — the ticket link is its link — so url stays null rather than the
+    // provider's homepage dressed up as provenance.
+    expect(sourceCredit(ev({ source_provider: "ticketmaster" })))
+      .toEqual({ name: "Ticketmaster", url: null, generic: false });
+    expect(sourceCredit(ev({ source_provider: "seatgeek" })).name).toBe("SeatGeek");
+    // An unmapped provider is reported AS ITSELF, never silently genericised —
+    // an unknown provider is a catalog fact, not an absent one.
+    expect(sourceCredit(ev({ source_provider: "somefeed" })))
+      .toEqual({ name: "somefeed", url: null, generic: false });
+  });
+
+  // PARTIAL provenance: a URL with no name. Registry-bound promote writes
+  // name+URL together or NULLs both, so this shape should not occur — but
+  // "should not occur" is exactly the assumption worth pinning, because the
+  // renderer has no way to know which half is missing (evaluator nit, PR #202).
+  // The honest rendering is the generic phrase carrying the real link: we do
+  // not know who listed it, and inventing a name from the hostname would be
+  // fabrication. A LINKED "a local listing" is therefore correct, not a bug.
+  it("keeps the link but stays generic when the row has a URL and no name", () => {
+    const e = ev({
+      source_provider: "promoted",
+      origin_name: null,
+      origin_url: "https://qa-source.example.com",
+    });
+    expect(sourceCredit(e)).toEqual({
+      name: GENERIC_SOURCE_NAME,
+      url: "https://qa-source.example.com",
+      generic: true,
+    });
+    // …and the card stays silent on it, because `generic` is what the card
+    // keys on — a card reading "via a local listing" would be pure chrome.
+    expect(sourceCredit(e).generic).toBe(true);
+  });
+
+  it("is independent of confidence — a DISPUTED row still names its source", () => {
+    // The whole reason this exists: the confirmed/likely trust sheets name the
+    // source in prose, but the unverified and disputed wordings are generic, so
+    // the rows a reader most needs to check were the ones that never said who
+    // listed them.
+    for (const confidence of ["confirmed", "likely", "unverified", "disputed"]) {
+      const e = ev({
+        confidence,
+        source_provider: "promoted",
+        origin_name: "Bastrop Opera House",
+        origin_url: "https://bastropoperahouse.com",
+      });
+      expect(sourceCredit(e).name).toBe("Bastrop Opera House");
+      expect(sourceCredit(e).url).toBe("https://bastropoperahouse.com");
+    }
   });
 });

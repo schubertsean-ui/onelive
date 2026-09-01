@@ -79,6 +79,13 @@ PAGES=(
   "tonight-feed-desktop|/tonight|1280,900|dark"
   "tonight-detail-disputed|/tonight/qa-4|390,844|dark"
   "tonight-detail-cancelled|/tonight/qa-9|390,844|dark"
+  # The PROMOTED row's full page: the named + linked Source row, and the
+  # provenance surfaces that only a promoted row reaches (founder 2026-09-01).
+  "tonight-detail-source|/tonight/qa-10|390,844|dark"
+  # The out-of-region row reached by DIRECT LINK: it renders, LABELLED — the
+  # Coverage Law replaced the old outright refusal, and a baseline is what
+  # stops that quietly reverting to "isn't one of our listings".
+  "tonight-detail-outside|/tonight/qa-12|390,844|dark"
   "tonight-feed-mobile-light|/tonight|390,844|light"
   "tonight-feed-desktop-light|/tonight|1280,900|light"
   "tonight-detail-disputed-light|/tonight/qa-4|390,844|light"
