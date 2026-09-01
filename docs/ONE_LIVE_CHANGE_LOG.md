@@ -4,6 +4,73 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-01 — Class D opens inward: a claim path that writes E/F at unverified (Coverage Law session 3)
+
+Coverage Law calls a login, paywall, or bot wall a **class D** source and gives
+exactly one lawful response: *do not fetch; open a claim/submit path instead.*
+Session 1 produced the list of doors (`docs/CLASS_D_CLAIM_QUEUE.md`, 14 of
+them). Nothing existed to knock with, so every walled organizer was permanently
+uncatalogued and the only way in was the scrape the law forbids.
+
+This session builds the smallest thing that makes them legal: a way for an
+organizer to HAND US the listings, and a way to record that as a catalog row.
+
+1. **Three ways in, one rule.** `worker/claim/intake.py` (pure, stdlib-only, no
+   DB and no network) takes a pasted calendar feed URL, a pasted/uploaded CSV,
+   or an email-forward opt-in. WHO hands the listings over decides the class,
+   mechanically: the organizer themselves = **class E** (first party), someone
+   reporting on their behalf = **class F** (human report). No judgement call.
+2. **Confidence is not an input.** Every claim is recorded `unverified`, and
+   `build_claim()` has no parameter that could say otherwise — a claim is an
+   assertion of ownership, not proof of one. The claim classes
+   (`claimed_upload_unverified`, `human_report`) are deliberately NOT the
+   verified anchors `claimed_upload` / `email_opt_in`, which promote on one
+   source. They are unknown to `worker/gating.py`, which fails closed on an
+   unknown class: `is_first_party()` answers False and the listings HOLD at the
+   existing gate until a person verifies the claimant. The test asserts that
+   PROPERTY, not membership in a set. (Founder decision same day, PR #203
+   option (b): registering them in `THIRD_PARTY_CLASSES` would have edited a
+   file inside the armed cron's runtime closure and invalidated its recorded
+   smoke evidence, so the classes stay unclassified for now and the cost is
+   carried as R-082. The trust property is identical either way.) Without this
+   split, the claim form would have been a path to publish as any venue.
+3. **No wall is opened.** The pasted URL is validated and fetched NOWHERE. A
+   sign-in page is refused (it is not a feed), and so is a URL carrying
+   `user:password@` — we do not accept, store, or replay a login. A
+   private-but-unguessable feed address the owner CHOSE to give us passes: that
+   is a handover, not a bypass. The sign-in test is the one already used by the
+   fetch path (`source_class.looks_like_login_url`), not a second copy that
+   could drift the permissive way.
+4. **Nothing is half-recorded.** One unreadable CSV row refuses the whole file,
+   naming the row number the person sees in their spreadsheet; an oversized file
+   is refused whole rather than truncated. The whole submission is parsed and
+   refused BEFORE any write, so a malformed CSV can never get partway in. The
+   claim write is NOT atomic across rows (same option-(b) reason: the shared
+   cursor would have edited `candidate_store.py`, a runtime-closure file), and
+   that is said rather than papered over — a failure mid-loop returns a PARTIAL
+   error naming the source id and how many listings landed. R-082.
+5. **What a human says at the door.** `docs/ops/VENUE_CLAIM_OUTREACH.md` carries
+   the message a person sends a venue, aimed at three sources straight from the
+   claim queue — DICE (partner-preferred), Eventbrite (credential), Bing
+   (`automated_ingest` disallowed in writing) — one of each reason a door is
+   shut. No tool in this repo sends it.
+6. **A founder rule on what we may say** (2026-09-01, quoted verbatim at the top
+   of that same file, because it governs every word of outreach): we may tell a
+   venue/artist/group what we read on their PUBLIC page and that those rows are
+   **held, not live**, citing the URL — and we still do not say we have their
+   calendar, that they are live on 1Live, or that a relationship exists, unless
+   they claimed or partnered. Outreach is an OPTIONAL public-read sentence plus
+   the claim ask, nothing more; the ops receipt is internal and says
+   **received / held / not live**. The message was rewritten to that shape (its
+   old subject line, "Your listings on 1Live", asserted a standing nobody had
+   given us), and the three receipt states are fixed in code as `RECEIPT_STATES`
+   with a test asserting both the words and the absence of the forbidden claims.
+
+No schema change (the claim lives in `source.config`, and the source is
+registered `enabled=false`). No importer, no fetch, no extraction change, no
+/tonight change. 44 new hermetic tests; the verification action that ENDS the
+hold is recorded as **R-080**, not left implicit.
+
 ## 2026-09-01 — /tonight tells the truth about completeness (Coverage Law session 2, VIEW)
 
 The Coverage Law ratified the day before made the catalog greedy and the views

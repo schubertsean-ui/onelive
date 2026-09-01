@@ -6,7 +6,10 @@ export default function OpsRoot() {
   return (
     <div className="card">
       <div className="h1">Ops</div>
-      <a className="btn btnPrimary" href="/ops/inbox">Go to Inbox</a>
+      <div className="row">
+        <a className="btn btnPrimary" href="/ops/inbox">Go to Inbox</a>
+        <a className="btn" href="/ops/claim">Record a venue claim</a>
+      </div>
     </div>
   );
 }
