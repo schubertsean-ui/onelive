@@ -67,18 +67,6 @@ THIRD_PARTY_CLASSES = frozenset({
     "social", "blog", "artist_aggregator", "artist_directory",
     "music_platform", "directory", "link_hub", "search_benchmark",
     "community",
-    # The two UNVERIFIED claim classes (worker/claim/intake.py, Coverage Law
-    # E/F). They sit here DELIBERATELY, next to their verified counterparts in
-    # the anchor tier above: `claimed_upload` and `email_opt_in` promote on one
-    # source because a human established that the claimant speaks for the
-    # venue. A self-serve claim has established nothing yet — it is an
-    # assertion of ownership, and treating an assertion as an anchor would let
-    # anyone with the claim form publish as any venue. So a fresh claim needs
-    # corroboration like any other stranger, and it is a human verification
-    # (re-classing the source to `claimed_upload`) that promotes it, never the
-    # claim itself. Tightening, not a relaxation: nothing that promoted before
-    # this line promotes less.
-    "claimed_upload_unverified", "human_report",
 })
 
 

@@ -76,12 +76,20 @@ COVERAGE_CLASS_BY_ROLE: Dict[str, str] = {
 #: The pipeline `source_class` strings a claim writes onto `source` rows and
 #: `event_candidate` rows. Deliberately NOT the existing `claimed_upload` /
 #: `email_opt_in` / `social` names: those are ANCHOR classes that promote on one
-#: source, and an UNVERIFIED claim has not earned that. Both names below are
-#: registered in worker/gating.py's THIRD_PARTY_CLASSES, so `is_first_party()`
-#: is False for them and the gate holds the listings until a human verifies the
-#: claimant and re-classes the source. Renaming either of these without moving
-#: the matching entry in gating.py would silently re-open the impersonation
-#: path — tests/test_claim_intake.py asserts the pairing.
+#: source, and an UNVERIFIED claim has not earned that.
+#:
+#: Both names below are UNKNOWN to worker/gating.py, and that is the founder's
+#: decision (2026-09-01, PR #203 option (b) — the alternative registered them in
+#: THIRD_PARTY_CLASSES, but gating.py is inside the armed cron's runtime closure
+#: and editing it invalidates the recorded smoke evidence). The trust property
+#: is IDENTICAL either way, because gating.py fails closed on an unknown class:
+#: `is_first_party()` returns False and the listings hold. What we give up is
+#: explicitness — the gate logs a loud one-time UNCLASSIFIED warning per class,
+#: which that module calls a config defect to fix in days (docs/RECORD.md
+#: R-082). tests/test_claim_intake.py therefore asserts the PROPERTY
+#: (`is_first_party(...) is False`, and neither name in ANCHOR_CLASSES) rather
+#: than membership in a set, so the impersonation path stays closed no matter
+#: which way the classification is later recorded.
 PIPELINE_SOURCE_CLASS: Dict[str, str] = {
     CLASS_E_FIRST_PARTY: "claimed_upload_unverified",
     CLASS_F_HUMAN_REPORT: "human_report",
@@ -402,15 +410,26 @@ def build_claim(
     )
 
 
+#: The three words the ops receipt is allowed to say, in order (founder rule
+#: 2026-09-01, docs/ops/VENUE_CLAIM_OUTREACH.md): the receipt is INTERNAL and
+#: states received / held / not live. It never says we have their calendar,
+#: that they are live on 1Live, or that a relationship exists.
+RECEIPT_STATES: Tuple[str, ...] = ("received", "held", "not live")
+
+
 def hold_reason(claim: ClaimIntake) -> str:
-    """The one-sentence truth to show the claimant and the operator.
+    """The internal receipt line for an operator. Not outward-facing copy.
 
     Says what WILL happen, not what we wish happened: an unverified claim is
-    recorded and held, and a human is the thing that moves it.
+    received, held, and not live, and a human is the thing that moves it. The
+    three states are fixed by the founder rule — no wording here may upgrade
+    "held" into a relationship we do not have.
     """
     return (
-        f"Recorded as class {claim.coverage_class} at confidence "
-        f"{claim.confidence}. Nothing publishes from this claim: the source is "
-        "registered disabled and any listings hold at the gate until a person "
-        "verifies that this contact speaks for this venue."
+        f"Received · held · not live. Class {claim.coverage_class} at "
+        f"confidence {claim.confidence}: the source is registered disabled and "
+        "any listings hold at the gate until a person verifies that this "
+        "contact speaks for this venue. Nothing from this claim is published, "
+        "and nothing here says we have their calendar or that they are on "
+        "1Live."
     )

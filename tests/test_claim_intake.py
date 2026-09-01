@@ -19,7 +19,7 @@ from worker.claim.intake import (
     resolve_forward_address,
 )
 from worker.confidence import CONFIDENCE_STATES
-from worker.gating import ANCHOR_CLASSES, THIRD_PARTY_CLASSES, is_first_party, multi_confirm_gate
+from worker.gating import ANCHOR_CLASSES, is_first_party, multi_confirm_gate
 
 
 # --- The class rule is mechanical --------------------------------------------
@@ -81,16 +81,23 @@ def test_claim_confidence_is_a_real_state_in_the_canonical_model():
 
 # --- The impersonation refusal: a fresh claim never reaches the anchor tier ---
 
-def test_claim_classes_are_third_party_not_anchors():
+def test_claim_classes_never_reach_the_first_party_tier():
     """The whole point of `unverified`. `claimed_upload` / `email_opt_in` are
     ANCHOR classes that promote on one source because a human established the
     claimant. A self-serve claim has established nothing, so its classes must
-    sit in the corroboration tier — otherwise the claim form is an
-    impersonation path straight to `confirmed`."""
+    never answer True to "is this the horse's mouth" — otherwise the claim form
+    is an impersonation path straight to `confirmed`.
+
+    This asserts the PROPERTY, not the mechanism: whatever set a claim class
+    does or does not belong to, `is_first_party()` must say False and the name
+    must not be an anchor. That holds while the classes are unknown to
+    gating.py (today — they ride its fail-closed unknown branch, founder
+    decision 2026-09-01 / R-082) and it would still hold if a later PR records
+    them in THIRD_PARTY_CLASSES. A membership assertion would have proven only
+    which set was edited."""
     for pipeline_class in intake.PIPELINE_SOURCE_CLASS.values():
-        assert pipeline_class in THIRD_PARTY_CLASSES, pipeline_class
-        assert pipeline_class not in ANCHOR_CLASSES, pipeline_class
         assert is_first_party(pipeline_class) is False, pipeline_class
+        assert pipeline_class not in ANCHOR_CLASSES, pipeline_class
 
 
 def test_a_claimed_listing_alone_does_not_promote():
@@ -116,10 +123,18 @@ def test_source_config_records_the_claim_as_unverified():
     assert config["claim"]["recorded_by"] == "ops@x.test"
 
 
-def test_hold_reason_states_that_nothing_publishes():
+def test_receipt_says_received_held_not_live_and_claims_no_relationship():
+    """The founder's receipt rule (2026-09-01): the ops receipt is internal and
+    states received / held / not live. It must never say we have their calendar
+    or that they are on 1Live."""
     claim = build_claim(venue_name="X", submitter_role="organizer", intake_mode="email_forward")
-    reason = hold_reason(claim)
-    assert "unverified" in reason and "hold" in reason
+    reason = hold_reason(claim).lower()
+    for state in intake.RECEIPT_STATES:
+        assert state in reason, state
+    assert "unverified" in reason
+    for forbidden in ("we have your calendar", "you are live", "they are live on 1live",
+                      "your calendar is live", "partnered with"):
+        assert forbidden not in reason, forbidden
 
 
 # --- No wall is opened -------------------------------------------------------

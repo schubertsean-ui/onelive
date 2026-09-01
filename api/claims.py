@@ -16,8 +16,15 @@ exactly two kinds of catalog row:
     hands over no listings yet, so it writes none: we never invent an event
     from the promise of a calendar).
 
-Both land in ONE transaction: a venue is never told "we have your calendar"
-over a half-written one.
+NOT one transaction, and said plainly rather than papered over: the source row
+commits on this router's connection and each listing is inserted by
+create_candidate on its own (founder decision 2026-09-01, PR #203 option (b) —
+candidate_store.py sits in the armed cron's runtime closure and must not change
+here). Two things keep that honest. The WHOLE submission is validated and
+parsed before any write, so a malformed CSV can never get partway in; and if an
+insert fails after the source row exists, the error names the source id and how
+many listings landed, so an operator sees a partial state instead of a silent
+one. The residual gap is docs/RECORD.md R-082.
 
 Nothing here publishes, and nothing here fetches. The candidates enter at
 `needs_review` in the classes worker/gating.py names THIRD-PARTY, so the
@@ -41,6 +48,7 @@ from api.deps import get_db, require_admin
 from worker.candidate_store import create_candidate
 from worker.claim.intake import (
     INTAKE_MODES,
+    RECEIPT_STATES,
     SUBMITTER_ROLES,
     ClaimRefused,
     build_claim,
@@ -141,21 +149,6 @@ def record_claim(payload: ClaimIn, admin=Depends(require_admin), conn=Depends(ge
                 )
             source_id = str(row[0])
 
-            candidate_ids: List[str] = []
-            for listing in claim.listings:
-                candidate_ids.append(create_candidate(
-                    source_id=source_id,
-                    source_name=claim.venue_name,
-                    source_url=listing.url or claim.feed_url or "",
-                    source_class=claim.pipeline_source_class,
-                    raw_text=(
-                        f"claimed listing (row {listing.row_number}) submitted via "
-                        f"{claim.intake_mode} by {claim.submitter_role}"
-                    ),
-                    extracted=listing.as_extracted(),
-                    sxsw_mode=False,
-                    cur=cur,
-                ))
         conn.commit()
     except HTTPException:
         conn.rollback()
@@ -164,7 +157,41 @@ def record_claim(payload: ClaimIn, admin=Depends(require_admin), conn=Depends(ge
         conn.rollback()
         raise
 
+    # The listings, each on create_candidate's own connection. The source row is
+    # already committed, so a failure here is a PARTIAL write: report it with the
+    # source id and the count that landed rather than a bare 500, because the
+    # operator needs to know exactly what is in the catalog before retrying.
+    candidate_ids: List[str] = []
+    try:
+        for listing in claim.listings:
+            candidate_ids.append(create_candidate(
+                source_id=source_id,
+                source_name=claim.venue_name,
+                source_url=listing.url or claim.feed_url or "",
+                source_class=claim.pipeline_source_class,
+                raw_text=(
+                    f"claimed listing (row {listing.row_number}) submitted via "
+                    f"{claim.intake_mode} by {claim.submitter_role}"
+                ),
+                extracted=listing.as_extracted(),
+                sxsw_mode=False,
+            ))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"PARTIAL: the claimed source {source_id} was recorded (disabled, "
+                f"unverified) and {len(candidate_ids)} of {claim.listing_count} "
+                f"listings were written before this failed: {exc}. Nothing is "
+                "published either way; re-submitting will update the same source "
+                "row and re-insert the listings."
+            ),
+        ) from exc
+
     return {
+        # INTERNAL receipt only (founder rule 2026-09-01): received / held /
+        # not live. Never "we have your calendar", never "live on 1Live".
+        "status": list(RECEIPT_STATES),
         "source_id": source_id,
         "venue_name": claim.venue_name,
         "coverage_class": claim.coverage_class,

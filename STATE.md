@@ -153,6 +153,33 @@ WHY-THAT-WHY-MATTERS: the two failure directions are both fatal — no path mean
 EXPECTED OUTCOMES: one PR; an ops screenshot of the submit path; claimed rows land class E/F unverified and HOLD at the existing gate (the two new claim classes are named THIRD-PARTY in `worker/gating.py`, so `is_first_party` is False and nothing self-promotes); hermetic tests (no DB, no network); `python tools/validate` green.
 OUT OF SCOPE (founder leash + "Must not", refused this session): the ingest stack; `worker/ai_extract.py`; any smoke/ingest run; /tonight chrome or redesign; logging into Facebook or any wall; a new CRM; a new vendor, mailbox or service.
 
+AMENDMENT (2026-09-01, after the first CI run on PR #203 — recorded per the
+contract-scope-violation rule rather than absorbed silently). Two founder
+directives landed mid-session and both are executed here.
+
+1. OPTION (b), verbatim: "Still (b): drop gating.py and candidate_store.py. No
+smoke run. No merge." Both files are restored byte-identical to master (`git
+diff origin/master` is empty for each), so the armed cron's runtime closure is
+untouched and the recorded smoke evidence covers this head again — the R-081
+blocker is closed WITHOUT a smoke run. The original contract's HOW named the
+gating edit; this supersedes it. The trust property is unchanged and now proven
+against the PROPERTY rather than a set: gating fails closed on an unknown class,
+so `is_first_party()` is False for both claim classes and the listings still
+hold. What (b) costs — two deliberately unclassified classes (a loud one-time
+warning each) and a non-atomic claim write (bounded: parse-and-refuse before any
+write, PARTIAL error naming what landed) — is carried as R-082, not absorbed.
+
+2. FOUNDER COPY RULE, recorded verbatim at the top of
+docs/ops/VENUE_CLAIM_OUTREACH.md: an agent may read a public page and we may say
+what we read and that those rows are held, not live, citing the URL; we still do
+not say we have their calendar, that they are live on One Live, or that a
+relationship exists, unless they claimed or partnered. Outreach = optional
+public-read sentence + claim ask. Ops receipt stays internal: received / held /
+not live. Executed: the message is rewritten to that shape (the old subject line
+"Your listings on 1Live" implied a standing they had not given us), and the
+receipt states are fixed in code as `RECEIPT_STATES` with a test asserting both
+the three words and the absence of the forbidden claims.
+
 STAGE 3 — MEMORY RETRIEVAL (docs/memory/RED_CLASSES.md, answered for THIS build):
 [S3:permission-for-ratified-work] Nothing already ratified was re-proposed for permission and nothing founder-crucial was decided here: no credential minted, no vendor or mailbox added, no gate loosened. The two items that ARE the founder's call — confirming the intake address, and the verification action's design — are written down as asks, not built.
 [S3:swallowed-corrupt-data] Corrupt input is never quietly dropped: one unreadable CSV row refuses the whole file naming the spreadsheet row number, an over-cap file refuses whole rather than truncating, unknown columns are preserved rather than discarded, and only a wholly blank spacer line is skipped (pinned by test).

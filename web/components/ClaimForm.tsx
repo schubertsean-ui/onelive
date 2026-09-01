@@ -11,6 +11,10 @@ import { apiPost } from "../lib/ops-api";
 // person confirms this contact speaks for this venue. See worker/claim/intake.py.
 
 type Receipt = {
+  // INTERNAL receipt (founder rule 2026-09-01): received / held / not live.
+  // This surface is for an operator; it is never evidence to show a venue, and
+  // it must never read as "we have your calendar" or "you are on 1Live".
+  status: string[];
   source_id: string;
   venue_name: string;
   coverage_class: string;
@@ -108,8 +112,8 @@ export function ClaimForm({ forwardTo }: { forwardTo: string }) {
       <p className="small">
         For an organizer whose listings sit behind a login, a paywall, or a bot wall. We
         do not fetch those — the organizer hands the listings over instead. Recorded as
-        class {coverageClass} at confidence <strong>unverified</strong>; nothing publishes
-        until a person verifies the contact.
+        class {coverageClass} at confidence <strong>unverified</strong>, and held —
+        <strong> not live</strong> — until a person verifies the contact.
       </p>
 
       <div className="row" style={{ marginTop: 12 }}>
@@ -228,7 +232,12 @@ export function ClaimForm({ forwardTo }: { forwardTo: string }) {
 
       {receipt && (
         <div className="card" style={{ marginTop: 12 }} role="status">
-          <div className="h1" style={{ fontSize: 16 }}>Recorded</div>
+          <div className="h1" style={{ fontSize: 16 }}>
+            {(receipt.status ?? []).join(" · ") || "received · held · not live"}
+          </div>
+          <p className="small" style={{ marginTop: -6, marginBottom: 10 }}>
+            Internal receipt. Not a standing to quote back to the venue.
+          </p>
           <table className="table">
             <tbody>
               <tr><th>Venue</th><td>{receipt.venue_name}</td></tr>

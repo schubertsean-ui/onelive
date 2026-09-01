@@ -11,17 +11,57 @@ something got around it.
 
 ---
 
+## THE RULE (founder, 2026-09-01) — read before writing any outreach
+
+Quoted verbatim. It governs every word we say to a venue, artist, or group, in
+this message and in any other:
+
+> An agent may read a venue/artist/group public page and we may tell them
+> what we read and that those rows are held, not live, citing the URL.
+> We still do not say we have their calendar, that they are live on One Live,
+> or that a relationship exists, unless they claimed or partnered.
+>
+> Outreach = optional public-read sentence + claim ask.
+> Ops receipt stays internal: received / held / not live.
+
+What that means in practice:
+
+**You may say** — that we read their public page (naming the URL and when),
+what we read there, and that those rows are **held, not live**.
+
+**You may not say** — that we have their calendar; that they are live, listed,
+or on 1Live; or that any relationship, partnership, or arrangement exists.
+Those become sayable only after they have **claimed or partnered**, and the
+receipt at `/ops/claim` is what records that they have not.
+
+**Shape of the message** — an *optional* public-read sentence, then the claim
+ask. Nothing else. Drop the first sentence entirely when we have not read
+anything public of theirs; it is optional precisely so nobody pads it out.
+
+**The ops receipt is internal.** It states **received / held / not live** and it
+is never forwarded to the venue as evidence of standing. Enforced in code:
+`RECEIPT_STATES` in `worker/claim/intake.py`, asserted by
+`tests/test_claim_intake.py`.
+
+---
+
 ## The message
 
-> **Subject: Your listings on 1Live — a feed, a spreadsheet, or a forwarded email**
+> **Subject: Can we list your events? A feed, a spreadsheet, or a forwarded email**
 >
 > Hi — I'm building 1Live, a listings guide that shows people what's happening
 > tonight and says plainly where each listing came from.
 >
-> We only read sources that are open to read. Yours sits behind a login or a
-> partner agreement, so we don't touch it — no scraping, no account, no
-> workaround. That means the only way your events show up is if you hand them
-> to us, and it's your call whether you do.
+> *[Optional — include only if we actually read a public page of theirs, and
+> name it:]* I read your public events page at **[exact URL]** on **[date]**,
+> and I've got **[N]** dates from it written down on our side. Those rows are
+> **held, not live** — nothing from them is published, and nobody outside our
+> team can see them.
+>
+> We only read sources that are open to read. The rest of your schedule sits
+> behind a login or a partner agreement, so we don't touch it — no scraping, no
+> account, no workaround. That means the only way the rest shows up is if you
+> hand it to us, and it's your call whether you do.
 >
 > If you want in, any one of these works, whichever is least effort for you:
 >
@@ -32,17 +72,21 @@ something got around it.
 > 3. **Forward the listings** — just email them to **events@1live.co** the way
 >    you'd send them to anyone else.
 >
-> What happens on our end: your listings are recorded as **unverified** until we
-> confirm you're the one who sent them, and nothing about you is published on
-> your say-so alone. You can ask us to stop at any time and we'll drop the feed.
-> We never charge for placement and there's no way to pay for a better spot.
+> What happens on our end: anything you send is recorded as **unverified** and
+> stays held until we confirm you're the one who sent it, and nothing is
+> published on your say-so alone. You can ask us to stop at any time and we'll
+> drop it. We never charge for placement and there's no way to pay for a better
+> spot.
 >
 > If you'd rather we didn't list you at all, say so and we won't.
 >
 > — [name], 1Live
 
 Keep it to that. Do not promise traffic, ranking, a launch date, or a feature
-they haven't seen — copy asserts only what the product already does.
+they haven't seen — copy asserts only what the product already does. And check
+the message against THE RULE above before it goes out: the commonest slip is a
+friendly-sounding phrase ("we've got you set up", "you're in our guide") that
+asserts a standing they have not given us.
 
 ---
 
@@ -67,15 +111,15 @@ When they reply, an operator opens **`/ops/claim`** and records it:
 2. **Who is handing this over** — the organizer themselves → **class E**;
    someone reporting on their behalf → **class F**. Nothing else picks the class.
 3. **How the listings reach us** — feed URL, CSV, or the email address.
-4. Submit. The receipt names the class, the confidence, and how many listings
-   landed.
+4. Submit. The receipt is internal and says **received · held · not live**,
+   with the class, the confidence, and how many listings landed.
 
 What the form will not let anyone do, by construction (`worker/claim/intake.py`):
 
 - **Set the confidence.** Every claim is recorded `unverified`. A claim is an
   assertion of ownership, not proof of one.
-- **Reach the anchor tier.** Claims are written in classes `worker/gating.py`
-  names third-party, so the listings HOLD at the existing gate until a person
+- **Reach the first-party tier.** `is_first_party()` answers False for both
+  claim classes, so the listings HOLD at the existing gate until a person
   verifies the claimant. The verified classes (`claimed_upload`, `email_opt_in`)
   promote on one source; an unverified claim must never inherit that, or the
   form becomes a way to publish as any venue.

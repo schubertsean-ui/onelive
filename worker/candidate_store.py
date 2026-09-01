@@ -22,56 +22,42 @@ def create_candidate(
     raw_text: str,
     extracted: Dict[str, Any],
     sxsw_mode: bool,
-    cur=None,
 ) -> str:
-    """Insert one candidate row. Pass `cur` to reuse an OPEN transaction (the
-    caller commits); otherwise a short-lived connection is opened and committed
-    here — the same convention stamp_gate_verdict below already uses.
-
-    The claim intake (api/claims.py) needs the transactional form: a claimed
-    source row and the listings that arrived with it must land together or not
-    at all, or a venue is told "we have your calendar" over a half-written one.
-    """
-    sql = """
-      insert into event_candidate(
-        source_id, source_name, source_url, source_class, raw_text, extracted,
-        title, start_time, end_time, venue_name, city, artist_names, ticket_link, rsvp_link,
-        is_private_rsvp, private_access, status, sxsw_mode
-      )
-      values (
-        %s,%s,%s,%s,%s,%s::jsonb,
-        %s,%s,%s,%s,%s,%s,%s,%s,
-        %s,%s::jsonb,%s,%s
-      )
-      returning candidate_id
-    """
-    params = (
-        source_id,
-        source_name,
-        source_url,
-        source_class,
-        raw_text,
-        json.dumps(extracted),
-        extracted.get("title"),
-        extracted.get("start_time"),
-        extracted.get("end_time"),
-        extracted.get("venue_name"),
-        extracted.get("city"),
-        extracted.get("artist_names") or [],
-        extracted.get("ticket_link"),
-        extracted.get("rsvp_link"),
-        bool(extracted.get("is_private_rsvp", False)),
-        json.dumps(extracted.get("private_access") or {}),
-        "needs_review",
-        bool(sxsw_mode),
-    )
-    if cur is not None:
-        cur.execute(sql, params)
-        return str(cur.fetchone()[0])
     with db() as conn:
-        with conn.cursor() as own:
-            own.execute(sql, params)
-            cid = own.fetchone()[0]
+        with conn.cursor() as cur:
+            cur.execute("""
+              insert into event_candidate(
+                source_id, source_name, source_url, source_class, raw_text, extracted,
+                title, start_time, end_time, venue_name, city, artist_names, ticket_link, rsvp_link,
+                is_private_rsvp, private_access, status, sxsw_mode
+              )
+              values (
+                %s,%s,%s,%s,%s,%s::jsonb,
+                %s,%s,%s,%s,%s,%s,%s,%s,
+                %s,%s::jsonb,%s,%s
+              )
+              returning candidate_id
+            """, (
+                source_id,
+                source_name,
+                source_url,
+                source_class,
+                raw_text,
+                json.dumps(extracted),
+                extracted.get("title"),
+                extracted.get("start_time"),
+                extracted.get("end_time"),
+                extracted.get("venue_name"),
+                extracted.get("city"),
+                extracted.get("artist_names") or [],
+                extracted.get("ticket_link"),
+                extracted.get("rsvp_link"),
+                bool(extracted.get("is_private_rsvp", False)),
+                json.dumps(extracted.get("private_access") or {}),
+                "needs_review",
+                bool(sxsw_mode),
+            ))
+            cid = cur.fetchone()[0]
         conn.commit()
     return str(cid)
 
