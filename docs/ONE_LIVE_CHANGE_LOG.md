@@ -4,6 +4,55 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-01 — Class D opens inward: a claim path that writes E/F at unverified (Coverage Law session 3)
+
+Coverage Law calls a login, paywall, or bot wall a **class D** source and gives
+exactly one lawful response: *do not fetch; open a claim/submit path instead.*
+Session 1 produced the list of doors (`docs/CLASS_D_CLAIM_QUEUE.md`, 14 of
+them). Nothing existed to knock with, so every walled organizer was permanently
+uncatalogued and the only way in was the scrape the law forbids.
+
+This session builds the smallest thing that makes them legal: a way for an
+organizer to HAND US the listings, and a way to record that as a catalog row.
+
+1. **Three ways in, one rule.** `worker/claim/intake.py` (pure, stdlib-only, no
+   DB and no network) takes a pasted calendar feed URL, a pasted/uploaded CSV,
+   or an email-forward opt-in. WHO hands the listings over decides the class,
+   mechanically: the organizer themselves = **class E** (first party), someone
+   reporting on their behalf = **class F** (human report). No judgement call.
+2. **Confidence is not an input.** Every claim is recorded `unverified`, and
+   `build_claim()` has no parameter that could say otherwise — a claim is an
+   assertion of ownership, not proof of one. The claim classes
+   (`claimed_upload_unverified`, `human_report`) are named THIRD-PARTY in
+   `worker/gating.py`, next to the verified anchors `claimed_upload` and
+   `email_opt_in` that promote on one source. So a fresh claim needs
+   corroboration like any other stranger and HOLDS at the existing gate; only a
+   human verification moves it. Without that split, the claim form would have
+   been a path to publish as any venue.
+3. **No wall is opened.** The pasted URL is validated and fetched NOWHERE. A
+   sign-in page is refused (it is not a feed), and so is a URL carrying
+   `user:password@` — we do not accept, store, or replay a login. A
+   private-but-unguessable feed address the owner CHOSE to give us passes: that
+   is a handover, not a bypass. The sign-in test is the one already used by the
+   fetch path (`source_class.looks_like_login_url`), not a second copy that
+   could drift the permissive way.
+4. **Nothing is half-recorded.** One unreadable CSV row refuses the whole file,
+   naming the row number the person sees in their spreadsheet; an oversized file
+   is refused whole rather than truncated. The source row and every listing that
+   came with it land in ONE transaction (`create_candidate` grew the optional
+   `cur=` the sibling `stamp_gate_verdict` already had), so a venue is never
+   told "we have your calendar" over a half-written one.
+5. **What a human says at the door.** `docs/ops/VENUE_CLAIM_OUTREACH.md` carries
+   the message a person sends a venue, aimed at three sources straight from the
+   claim queue — DICE (partner-preferred), Eventbrite (credential), Bing
+   (`automated_ingest` disallowed in writing) — one of each reason a door is
+   shut. No tool in this repo sends it.
+
+No schema change (the claim lives in `source.config`, and the source is
+registered `enabled=false`). No importer, no fetch, no extraction change, no
+/tonight change. 44 new hermetic tests; the verification action that ENDS the
+hold is recorded as **R-080**, not left implicit.
+
 ## 2026-09-01 — /tonight tells the truth about completeness (Coverage Law session 2, VIEW)
 
 The Coverage Law ratified the day before made the catalog greedy and the views

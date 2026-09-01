@@ -13,6 +13,13 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #47 (2026-09-01 — Coverage Law session 3, CLASS D → E/F)
+- [x] (P0) Smallest claim path writing a catalog row as class E or F at confidence `unverified` — paste ICS URL, paste/upload CSV, or forward to the intake mailbox (`worker/claim/intake.py`, `api/claims.py`, `/ops/claim`). DONE.
+- [x] (P0) A fresh claim can never reach the anchor tier: `claimed_upload_unverified` / `human_report` named THIRD-PARTY in `worker/gating.py`, so claimed listings hold at the existing gate. DONE.
+- [x] (P1) The short message a human sends a venue, aimed at three class-D sources from the claim queue (DICE, Eventbrite, Bing) — `docs/ops/VENUE_CLAIM_OUTREACH.md` + the PR body. DONE.
+- [ ] (P1, R-080) The human door that ENDS the hold: an authenticated ops VERIFY action recording who verified the claimant and re-classing the source to `claimed_upload` / `email_opt_in`. Trust-path → evaluator-mandatory in its own PR. Trigger: the first real claim recorded, or the next session touching the claim path / Owned Agent Phase A.
+- [ ] (P2, founder) Confirm `events@1live.co` is the address to print in the outreach message and that forwarded listings land somewhere a person reads. It is recorded as existing in `docs/ops/SESSION_KICKOFF_2026-08-05.md`; nothing in this session verified the live mailbox, and `ONELIVE_LISTINGS_INTAKE_EMAIL` overrides it without a code change.
+
 ## Session Contract #46 (2026-09-01 — Coverage Law session 2, VIEW)
 - [x] (P0) Default /tonight view filters to CAPCOG as a VIEW SCOPE, not a catalog delete — read path forwards every row, FeedApp scopes, clearable, URL-borne. DONE.
 - [x] (P0) "Showing N of M known listings" for the selected window, M following the region scope, plus the held-back count under it (lib/feed.viewCounts). DONE.

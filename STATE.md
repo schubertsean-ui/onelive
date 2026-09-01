@@ -143,6 +143,60 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #47 (2026-09-01, founder — "Session 3 only — CLASS D → E/F", branch claude/class-d-to-ef-claim-fq0g9f)
+
+STATUS: OPEN
+GOAL / WHAT: a login-only organizer's listings enter the catalog LEGALLY — one claim path (paste ICS URL · paste/upload CSV · forward to the intake mailbox) that writes a catalog row as class E or F at confidence `unverified`, plus the short message a human sends a venue (PR body, three CLASS_D_CLAIM_QUEUE.md sources as examples).
+HOW: pure `worker/claim/intake.py` decides the class mechanically (the organizer hands it over = E; a third party reports it = F), validates the pasted URL and parses the CSV; `api/claims.py` writes ONE `source` row (enabled=false, config carries coverage_class + confidence + the claim record) and one `event_candidate` per listing actually handed over, in a single transaction through the existing `candidate_store`; `/ops/claim` is the submit surface. No fetch of anything, no migration, no new vendor.
+WHY: Coverage Law makes class D a closed door — "do not fetch; open a claim/submit path instead." Until that path exists, every walled organizer is permanently uncatalogued and the only way in is the scrape the law forbids.
+WHY-THAT-WHY-MATTERS: the two failure directions are both fatal — no path means we either lose the row or bypass a login; an auto-trusted claim means anyone can impersonate a venue into `confirmed`. `unverified` + fail-closed is the only posture that refuses both.
+EXPECTED OUTCOMES: one PR; an ops screenshot of the submit path; claimed rows land class E/F unverified and HOLD at the existing gate (the two new claim classes are named THIRD-PARTY in `worker/gating.py`, so `is_first_party` is False and nothing self-promotes); hermetic tests (no DB, no network); `python tools/validate` green.
+OUT OF SCOPE (founder leash + "Must not", refused this session): the ingest stack; `worker/ai_extract.py`; any smoke/ingest run; /tonight chrome or redesign; logging into Facebook or any wall; a new CRM; a new vendor, mailbox or service.
+
+STAGE 3 — MEMORY RETRIEVAL (docs/memory/RED_CLASSES.md, answered for THIS build):
+[S3:permission-for-ratified-work] Nothing already ratified was re-proposed for permission and nothing founder-crucial was decided here: no credential minted, no vendor or mailbox added, no gate loosened. The two items that ARE the founder's call — confirming the intake address, and the verification action's design — are written down as asks, not built.
+[S3:swallowed-corrupt-data] Corrupt input is never quietly dropped: one unreadable CSV row refuses the whole file naming the spreadsheet row number, an over-cap file refuses whole rather than truncating, unknown columns are preserved rather than discarded, and only a wholly blank spacer line is skipped (pinned by test).
+[S3:build-before-plan] The five §4a fields were written to STATE.md and the gate satisfied BEFORE the first product file was touched; the founder's itemized Session-3 directive is the approved plan, restated above rather than re-negotiated.
+[S3:caller-suppliable-custody-inputs] The subject of the trust decision chooses NO input to it: build_claim() has no confidence, class, or verified parameter, the class comes from the role and the confidence is a module constant, and the recorder identity is read from the authenticated session rather than the request body.
+[S3:founder-verbatim-corrected] The founder's Session-3 wording is carried as given — the Must-do list, the leash and the Done line are restated, not tidied, and where two of their instructions pull against each other (an 8-line note vs the five plan fields plus these blocking retrieval lines) the tension is surfaced in the reply instead of being resolved by editing what they asked for.
+[S3:mutable-model-alias] No model identifier, alias, or pinned version is introduced or moved by this change.
+[S3:nonfinite-decimal-accepted] No decimal or currency value is parsed anywhere in this path; a claimed listing carries text fields and timestamps only.
+[S3:nonfinite-numeric-accepted] The single numeric input is the CSV row cap, a module constant compared against a length — nothing numeric arrives from a submitter, so there is no supplied number to range-check.
+[S3:unusable-credential-tier] No credential is minted, assumed, or inferred: the class-D sources needing one stay in the queue with that named as their blocker, and the claim path deliberately works with zero credentials on either side.
+[S3:contract-scope-violation] Scope held to the Must-do list; the one thing beyond its literal words — naming the two claim classes THIRD-PARTY in worker/gating.py — is stated in HOW/EXPECTED OUTCOMES above, not absorbed silently, because without it "confidence unverified" would be a label over an anchor-tier row.
+[S3:copy-outruns-registry] The outreach message and the UI copy assert only what ships: no traffic, ranking, launch date or feature promise; "no charge for placement" restates the standing no-pay-to-rank invariant; the intake mailbox is carried as a founder ask (TODOS P2), never asserted live.
+[S3:db-type-mismatch-invisible-to-hermetic-tests] No new insert shape was invented — listings go through the proven worker.candidate_store.create_candidate statement (its jsonb/array casts unchanged, now reusable inside a caller's transaction). The one new statement is a `source` upsert over existing columns. Hermetic tests CANNOT prove server-side types; that is stated, not claimed, and no DB was reachable this session.
+[S3:deferred-trust-work] The missing half (a human VERIFY action that ends the hold) ships as RECORD row R-080 in this same commit with an objective trigger, and the gap fails closed meanwhile: source enabled=false + a third-party class, so nothing promotes while it waits.
+[S3:deliverable-visual-qa] The three screenshots are element-cropped to the card at 2x (no whitespace pages) and show the SUBMIT PATH doing something: a filled CSV claim, the recorded receipt naming class E / unverified / 3 listings, and a refused sign-in URL — not an empty form.
+[S3:env-dependent-hermetic-test] tests/test_claim_intake.py is hermetic and was RUN in the deprived environment (no DB, no network, no credentials); a test asserts the intake module's own source contains no network/psycopg2 import, so the claim in the docstring is mechanical rather than a promise.
+[S3:fabricated-qualitative-copy] Nothing qualitative is generated: a listing's `start` is kept VERBATIM as the claimant typed it (guessing a timezone would fabricate a fact they never stated), unknown CSV columns are preserved rather than interpreted, and absent fields stay None.
+[S3:fail-open-on-custody-misconfig] Every branch refuses rather than proceeds: unknown role/mode, empty venue name, non-http scheme, hostless URL, embedded credentials, sign-in page, unreadable CSV row, oversized CSV; an upsert returning no row raises instead of returning a receipt; and the ops page prints "intake address unavailable" rather than guessing one when the API is down.
+[S3:false-confidence-gate] No gate's self-description was widened and no threshold moved. The claim path adds no gate — it feeds the existing one — and a test pins the PAIRING between PIPELINE_SOURCE_CLASS and gating's THIRD_PARTY_CLASSES so a future rename cannot silently promote claims into the anchor tier.
+[S3:false-price-claim] No price, money, or numeric-copy surface in this change.
+[S3:final-gate-trusts-generator] The claim path makes no trust decision it then asks the gate to honour: candidates enter at `needs_review` and multi_confirm_gate re-derives authority from the source class itself — pinned by test_a_claimed_listing_alone_does_not_promote.
+[S3:founder-path-unprobed] The submit path was DRIVEN, not described: a real browser filled the form, submitted it, and captured the receipt and a refusal. The limit is stated plainly — /ops always requires a real Clerk session, which this sandbox has no credential for, so the capture mounted the same ClaimForm component on a throwaway route that was deleted before commit.
+[S3:governance-ambiguity] Precise scope on the record: the gating change is a TIGHTENING (nothing that promoted before promotes less often — two names were added to the corroboration tier), and the verification action is explicitly out of this session's scope with its trigger written in R-080.
+[S3:missing-cardinality-check] The `source` upsert RETURNs one row and a None result raises 500 ("nothing was recorded") rather than proceeding on an assumed id.
+[S3:pagination-integrity-gap] The CSV row cap is a runaway backstop that REFUSES the whole file, never truncates it; tests pin both sides of the boundary (exactly MAX_CSV_ROWS accepted, one more refused with "nothing was recorded").
+[S3:parallel-record-id-collision] R-080 allocated from the highest existing id in docs/RECORD.md, and tests/test_record_ids_unique.py re-run green after the insert.
+[S3:pushed-on-red] tools/validate is run unchained with its exit code read before any push; the 6 python + 2 web failures present in this sandbox were PROVEN pre-existing by re-running them on a stashed tree, and their cause (a 113-commit shallow clone, and a vitest JSX transform issue in files this change does not touch) is named rather than assumed.
+[S3:release-path-weaker-than-generation] A claimed listing enters through the SAME candidate insert and the SAME gate as a pipeline-extracted one — there is no second, weaker write path, and the claim path cannot promote at all.
+[S3:retyped-evidence] Every count quoted (44 new tests; 2165 passed / 6 failed; 267 passed / 2 failed on web) is read off the run that produced it in this session, not recalled or carried forward.
+[S3:rule-stronger-than-mechanism] Each rule the docs state ships with its mechanism in the same commit: the class split is code + test, every refusal is code + test. The one unmechanized claim — that events@1live.co is a live mailbox — is quoted as a doc claim and routed to the founder as a question, not asserted.
+[S3:scripted-transform-order] Doc and STATE edits were single-pass insertions against a matched anchor with a count assertion, each read back after writing; no chained in-place rewrites.
+[S3:self-weakenable-gate] docs/memory/RED_CLASSES.md is untouched — no token removed, no trigger list narrowed.
+[S3:self-weakenable-review-model] No reviewer model, seat, workflow, or review input is changed by this PR.
+[S3:semantic-claim-not-rederived] The MEANING of "first party" is re-derived at custody from the source class every time, never trusted from the claim's own assertion of ownership — which is exactly why an unverified claim gets a different class name from a verified one.
+[S3:stale-base-widens-range] construction_gate confirmed origin/master == remote tip 8a2c9e4a3ad8 by ls-remote comparison before the diff range was taken.
+[S3:stale-live-incident-state] The intake mailbox is presented as what it is — a claim recorded in docs/ops/SESSION_KICKOFF_2026-08-05.md — and explicitly NOT verified against the live mailbox this session; the founder ask says so in those words.
+[S3:stale-redclass-count] No typed count or enumeration of "what this diff contains" is asserted in prose; the numbers named are run outputs at the moment they were produced.
+[S3:stalled-state-needs-active-diagnosis] Both capture servers were probed for readiness rather than waited on, and the pre-existing test failures were diagnosed to a cause (shallow clone) instead of re-run hopefully.
+[S3:status-narration-not-progress] The deliverable is the working path plus its screenshots; the founder-facing STATE note below is eight lines and says what now exists, not what was attempted.
+[S3:untested-gate-branch] Every refusal branch carries a committed test: scheme, missing host, embedded credentials, four sign-in URL shapes, unknown role, unknown mode, empty venue, six malformed-CSV shapes, and both sides of the row cap.
+[S3:volatile-safety-store] The claim record is a durable Postgres row (source.config jsonb) — no in-memory or file-local counter carries any part of the trust state.
+[S3:weak-key-accepted-at-custody] No key, secret, or signature is introduced. Credentials embedded in a pasted URL are REFUSED rather than stored or replayed.
+[S3:workflow-tool-version-skew] Nothing base-owned changed: no .github workflow, no adversarial_review, no trusted tool, no model constant.
+
 ## Session Contract #46 (2026-09-01, founder — "Session 2 only — VIEW", branch claude/tonight-view-completeness-biu25g)
 
 STATUS: OPEN
@@ -1459,3 +1513,13 @@ SKIP-loud for visual regression which needs a booted app). Test suite 78→120 p
 Founder ratified ONE-LIVE-COVERAGE-LAW.md. Scope = every event/activity, any locale.
 CAPCOG remains the test view / scoring region, not a catalog reject rule.
 Next session is ingest class A/B (new chat). This note is records-only.
+
+## 2026-09-01 — Class D → E/F claim path (Coverage Law session 3)
+A login-only organizer can now enter legally. `/ops/claim` records a claim three
+ways — paste a calendar feed URL, paste/upload a CSV, or forward listings to the
+intake address — writing ONE `source` row (enabled=false) plus one candidate per
+listing handed over, as class E (the organizer) or F (someone reporting), always
+at confidence `unverified`. The two claim classes are named third-party in
+gating.py, so claimed listings HOLD at the existing gate: no self-serve path to
+`confirmed`. No fetch, no schema change. The verify action that ends the hold is
+R-080; the outreach message a human sends is docs/ops/VENUE_CLAIM_OUTREACH.md.

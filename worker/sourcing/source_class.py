@@ -292,6 +292,18 @@ def _looks_like_login(value: str) -> bool:
     return any(marker in lowered for marker in _LOGIN_MARKERS)
 
 
+def looks_like_login_url(value: str) -> bool:
+    """Public name for the sign-in-surface test above.
+
+    The claim intake (worker/claim/intake.py) has to answer the SAME question
+    about a URL a venue pastes in — "is this a feed, or a login screen?" — and
+    two copies of the marker list would drift apart in exactly the direction
+    that costs us: one surface would start accepting a sign-in URL the other
+    refuses. One authority, two callers.
+    """
+    return _looks_like_login(value or "")
+
+
 def classify_catalog(catalog: list) -> Dict[str, ClassVerdict]:
     """Classify a whole catalog, keyed by entry id.
 
