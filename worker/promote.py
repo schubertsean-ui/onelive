@@ -125,11 +125,7 @@ def promote_candidate(candidate_id: str) -> str:
             # If dedupe raises and we roll back, those placeholders roll back too
             # (venue has no unique name constraint, so a leaked placeholder would
             # accumulate a duplicate on every retry of a duplicate-blocked candidate).
-            # city passes through AS-IS, including NULL. It is never defaulted to
-            # "Austin" (Coverage Law: label the truth, do not invent a locale) —
-            # resolve_venue_id stores an unknown city as NULL, and both view
-            # filters keep NULL-city rows, so nothing is lost by being honest.
-            venue_id = resolve_venue_id(cur, venue_name or "Unknown Venue", city)
+            venue_id = resolve_venue_id(cur, venue_name or "Unknown Venue", city or "Austin")
             artist_ids = resolve_artist_ids(cur, artist_names or [])
 
             # Dedupe check (if duplicates exist, do not auto-merge; require ops decision)

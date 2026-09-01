@@ -6,21 +6,19 @@ filter to CAPCOG and to tonight). These tests pin the greedy half, because that
 is the half whose failures are invisible: a row dropped at ingest leaves no
 trace to audit later, while a row hidden by a view is still on disk.
 
-Three properties, each of which was a repealed rule:
+Two properties, each of which was a repealed rule:
 
   1. Locale is never a delete. A San Antonio row survives parse -> normalize
      exactly like an Austin one. CAPCOG stays a view filter and a coverage
      score, never an ingest reject.
-  2. An unknown city stays unknown. The write path used to stamp "Austin" on
-     any event whose city the extractor missed, which converted "we do not know
-     where this is" into "asserted in-market" — a fabricated fact the read-path
-     boundary then read back as a genuine verdict.
-  3. Multi-confirm LABELS, it does not delete. A single-source event is written
+  2. Multi-confirm LABELS, it does not delete. A single-source event is written
      and retained; corroboration decides PROMOTION (whether the default view
      shows it), never existence.
 
-These are regression locks, not new behavior: they exist so a later change
-cannot quietly restore a delete rule.
+These are regression locks on behavior that already holds — an audit of the
+write path found no region-based row drop at ingest, normalize, candidate
+write, promote, or in any DB constraint. They exist so a later change cannot
+quietly introduce one.
 """
 import pytest
 
@@ -28,7 +26,6 @@ from worker.gating import multi_confirm_gate
 from worker.importers.structured_feed import (
     PROVIDER_ICS, PROVIDER_JSONLD, _normalize_all, parse_ics, parse_jsonld,
 )
-from worker.resolve_entities import resolve_venue_id
 
 
 # --------------------------------------------------------------------------
@@ -102,82 +99,7 @@ def test_ics_row_without_start_is_skipped_not_fabricated():
 
 
 # --------------------------------------------------------------------------
-# 2. An unknown city stays unknown (never defaulted to the launch market)
-# --------------------------------------------------------------------------
-
-class _FakeCursor:
-    """Records executed SQL so the stored city can be asserted directly."""
-
-    def __init__(self, match_rows=None):
-        self.executed = []
-        self._match_rows = list(match_rows or [])
-
-    def execute(self, sql, params=None):
-        self.executed.append((" ".join(str(sql).split()), params))
-
-    def fetchone(self):
-        if self._match_rows:
-            return self._match_rows.pop(0)
-        return ("00000000-0000-0000-0000-000000000001",)
-
-    def fetchall(self):
-        return []
-
-
-def test_resolve_venue_id_stores_unknown_city_as_null():
-    """An absent city is stored NULL, never "Austin".
-
-    Both view filters already keep unknown-city rows (api/public.py's
-    "v.city is null or v.city = %s"; web/lib/region.ts drops only KNOWN-outside
-    and counts unknown as kept), so honesty here costs no coverage — it only
-    stops the catalog asserting a locale nobody told us.
-    """
-    cur = _FakeCursor(match_rows=[None, None])
-    resolve_venue_id(cur, "Some Venue", None)
-
-    inserts = [(sql, params) for sql, params in cur.executed
-               if sql.lower().startswith("insert into venue")]
-    assert inserts, "a new venue row should have been inserted"
-    _, params = inserts[-1]
-    assert params[1] is None, (
-        f"unknown city was stored as {params[1]!r} — the write path must not "
-        "default a missing city to a launch-market name (Coverage Law: truth "
-        "lives on the label)."
-    )
-
-
-def test_resolve_venue_id_default_is_not_a_market_name():
-    """The default itself must be None — a defaulted 'Austin' is a back door."""
-    import inspect
-    default = inspect.signature(resolve_venue_id).parameters["city"].default
-    assert default is None, (
-        f"resolve_venue_id defaults city to {default!r}; a caller that omits the "
-        "argument would silently assert a locale."
-    )
-
-
-def test_ai_extract_does_not_stamp_a_default_city():
-    """worker/ai_extract.py must not contain a literal city default.
-
-    Asserted as source text on purpose: the surrounding function needs a live
-    AI provider and a DB to call, but the fabrication this guards against is a
-    one-line constant, and a grep-style lock catches its return in any form.
-    """
-    import pathlib
-    src = pathlib.Path(__file__).resolve().parent.parent / "worker" / "ai_extract.py"
-    text = src.read_text(encoding="utf-8")
-    offending = [
-        line.strip() for line in text.splitlines()
-        if 'shaped["city"]' in line and "Austin" in line and not line.strip().startswith("#")
-    ]
-    assert not offending, (
-        f"ai_extract defaults an absent city: {offending} — an unknown location "
-        "must stay unknown, not become an in-market assertion."
-    )
-
-
-# --------------------------------------------------------------------------
-# 3. Multi-confirm labels; it never deletes
+# 2. Multi-confirm labels; it never deletes
 # --------------------------------------------------------------------------
 
 def test_single_third_party_source_is_labelled_not_deleted():

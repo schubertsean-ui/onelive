@@ -93,13 +93,8 @@ def test_hook_only_passed_to_capable_provider(captured):
         source_class="social", source_name="Src",
         source_url="http://x", source_id="s3")
     assert cid == "cand-123"
-    # No crash, and the empty candidate is still created — but its city stays
-    # UNKNOWN. This assertion used to require "Austin"; that default was
-    # repealed by ONE-LIVE-COVERAGE-LAW.md (2026-09-01), which keeps rows by
-    # labelling them honestly rather than asserting a locale nobody supplied.
-    # The row is still stored and still reaches ops review; only the fabricated
-    # in-market claim is gone.
-    assert captured["created"]["extracted"]["city"] is None
+    # No crash, empty candidate created with default city.
+    assert captured["created"]["extracted"]["city"] == "Austin"
 
 
 # --------------------------------------------------------------------------

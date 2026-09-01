@@ -151,20 +151,10 @@ def _shape_and_store_one(
         prov = meta.get("_provenance")
         meta["_provenance"] = dict(prov) if isinstance(prov, dict) else {}
         meta["_provenance"]["validation_error"] = True
-    # City stays ABSENT when the model found none — it is never defaulted to
-    # "Austin" (ONE-LIVE-COVERAGE-LAW.md: "Truth lives on the label"; the
-    # charter's "do not invent events" covers inventing an event's facts).
-    #
-    # This used to stamp "Austin" on every city-less extraction, which turned
-    # "we do not know where this is" into "asserted in-market" at the moment of
-    # storage — a fabricated fact that the read-path CAPCOG filter then read
-    # back as a genuine in-market verdict. Costing us nothing to remove: BOTH
-    # view filters already keep unknown-city rows (api/public.py's
-    # "v.city is null or v.city = %s", and web/lib/region.ts, which drops only
-    # KNOWN-outside and counts unknown as kept), so an honest NULL is displayed
-    # exactly where the fabricated "Austin" was, and is labelled truthfully.
+    # Default city when absent OR explicitly null (setdefault alone misses the
+    # null case, which is the common one when the model finds no city).
     if not shaped.get("city"):
-        shaped["city"] = None
+        shaped["city"] = "Austin"
     # R-021 (PR #43): store a timestamp ONLY when the extracted string
     # evidences a full calendar date — never fabricate one. Time-only
     # claims ("6pm") become NULL with the raw claim preserved in
