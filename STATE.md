@@ -1239,3 +1239,8 @@ SKIP-loud for visual regression which needs a booted app). Test suite 78→120 p
 - Vercel: connected.
 - Clerk: connected.
 - Sentry: not needed until Phase 4.
+
+## 2026-09-01 — Coverage Law
+Founder ratified ONE-LIVE-COVERAGE-LAW.md. Scope = every event/activity, any locale.
+CAPCOG remains the test view / scoring region, not a catalog reject rule.
+Next session is ingest class A/B (new chat). This note is records-only.
