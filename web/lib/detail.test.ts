@@ -714,6 +714,29 @@ describe("sourceCredit — who listed this, said out loud", () => {
       .toEqual({ name: "somefeed", url: null, generic: false });
   });
 
+  // PARTIAL provenance: a URL with no name. Registry-bound promote writes
+  // name+URL together or NULLs both, so this shape should not occur — but
+  // "should not occur" is exactly the assumption worth pinning, because the
+  // renderer has no way to know which half is missing (evaluator nit, PR #202).
+  // The honest rendering is the generic phrase carrying the real link: we do
+  // not know who listed it, and inventing a name from the hostname would be
+  // fabrication. A LINKED "a local listing" is therefore correct, not a bug.
+  it("keeps the link but stays generic when the row has a URL and no name", () => {
+    const e = ev({
+      source_provider: "promoted",
+      origin_name: null,
+      origin_url: "https://qa-source.example.com",
+    });
+    expect(sourceCredit(e)).toEqual({
+      name: GENERIC_SOURCE_NAME,
+      url: "https://qa-source.example.com",
+      generic: true,
+    });
+    // …and the card stays silent on it, because `generic` is what the card
+    // keys on — a card reading "via a local listing" would be pure chrome.
+    expect(sourceCredit(e).generic).toBe(true);
+  });
+
   it("is independent of confidence — a DISPUTED row still names its source", () => {
     // The whole reason this exists: the confirmed/likely trust sheets name the
     // source in prose, but the unverified and disputed wordings are generic, so

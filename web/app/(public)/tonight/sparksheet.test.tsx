@@ -22,7 +22,13 @@ const tierB = { text: "brass. menace. amen.", tier: "B" as const, attribution: "
 
 function ev(over: Partial<LicensedEvent>): LicensedEvent {
   return {
-    id: "e1",
+    // The feed keys its card lists on licensed_event_id. This fixture carried a
+    // stale `id` instead (bypassing the type through the `as` cast below), so
+    // every render through FeedApp handed React key={undefined} and emitted
+    // "Each child in a list should have a unique key prop" — a warning that
+    // says nothing about the app and would mask a real one (evaluator nit,
+    // PR #202). The app code was always right; the test data was not.
+    licensed_event_id: "e1",
     title: "Quiet Hollow",
     performer: "Quiet Hollow",
     category: "live-music",
