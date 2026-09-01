@@ -4,6 +4,50 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-01 — Class B stops at the door no longer: follow the site's own calendar link
+
+A venue's homepage is marketing copy. The schedule lives one click away, behind
+the link the site itself labels "Events", "Calendar" or "Shows". The ingestion
+loop fetches each registered source's start URL and stops there, so every class
+B source in the catalog has been worth roughly one page of prose.
+
+1. **Discovery** (`worker/sourcing/page_discovery.py`, pure/stdlib, no network,
+   no DB). From HTML we already fetched, three ranked signals: link TEXT that
+   names a schedule (the site's own label), link PATH that names one, and the
+   handful of conventional locations offered last and MARKED as guesses. Each
+   returned page carries the deciding token as evidence. On-page ICS and
+   JSON-LD are read through the existing `worker/importers/structured_feed.py`
+   authority — no second copy of "find the calendar feed".
+
+2. **The walk** (`tools/class_b_multipage.py`). Composes the pieces the armed
+   loop already uses, in the same order: `http_fetch.fetch_url` ->
+   `sensors.assess_input` -> `ai_extract.extract_candidates`. No new importer
+   stack, no new vendor, no new prompt, and no file the armed cron executes was
+   edited. Bounded: <=15 extra pages per source per run, <=6 of them guesses,
+   <=10 sources per run, every ceiling rejected at parse time if <=0.
+
+3. **The wall rule is the load-bearing part.** Off-site links are dropped in
+   discovery, before the fetcher is ever handed the option — an off-site link is
+   a different source with its own catalog row and its own access class. A
+   sign-in URL is dropped the same way. A 401/402/403/407/429, or a redirect
+   landing on a sign-in page, on the start page OR on any followed page demotes
+   the whole source to class D through the existing `demote_on_response`: we
+   stop, record why, and route it to the claim queue. One knock. The tests prove
+   this by asserting the exact set of URLs the tool did NOT request, because a
+   tool that records a wall and keeps knocking would pass a report-shaped
+   assertion and still break the law.
+
+4. **A 404 is a miss, not a wall.** A conventional-path guess that does not
+   exist costs one request and is reported as a miss; the walk continues. One
+   broken URL must never cost a venue's whole calendar.
+
+HONEST LIMIT: this sandbox refuses every outbound fetch (the agent proxy
+answers `Tunnel connection failed: 403 Forbidden` for all hosts, verified
+against two unrelated domains), so `--real` — the mode that fetches live and
+writes candidates — has never executed. The run table's numbers come from
+committed fixtures through the same code path, its candidate column reads
+"extract not run", and the gap is R-084 with two objective triggers.
+
 ## 2026-09-01 — Class D opens inward: a claim path that writes E/F at unverified (Coverage Law session 3)
 
 Coverage Law calls a login, paywall, or bot wall a **class D** source and gives
