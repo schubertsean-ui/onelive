@@ -98,16 +98,28 @@ PIPELINE_SOURCE_CLASS: Dict[str, str] = {
 #: The `source.source_type` a claim registers under, per class. Same reasoning.
 SOURCE_TYPE_BY_CLASS: Dict[str, str] = dict(PIPELINE_SOURCE_CLASS)
 
+#: Exactly the `source.source_type` values a CLAIM owns. api/claims.py refuses
+#: to update any `source` row whose type is not in this set (evaluator finding,
+#: PR #203): the upsert keys on the venue NAME, which the claimant supplies, so
+#: without this an unverified claim naming an existing trusted source could
+#: overwrite its metadata and flip it `enabled=false` — silent coverage loss
+#: driven by untrusted input.
+CLAIM_OWNED_SOURCE_TYPES: frozenset = frozenset(SOURCE_TYPE_BY_CLASS.values())
+
 #: Every claim, always. NOT a parameter — see refusal 1 in the module docstring.
 CLAIM_CONFIDENCE = "unverified"
 assert CLAIM_CONFIDENCE in CONFIDENCE_STATES  # one authority for the state names
 
 #: Where an organizer forwards listings when they have neither a feed nor a
-#: spreadsheet. Recorded as existing in docs/ops/SESSION_KICKOFF_2026-08-05.md
-#: ("events@1live.co exists"); overridable per-environment so no code change is
-#: needed if the founder points the intake elsewhere. This module never sends
-#: mail — the address is DISPLAYED to the organizer and recorded on the claim.
-DEFAULT_FORWARD_ADDRESS = "events@1live.co"
+#: spreadsheet. There is deliberately NO hard-coded default (evaluator finding,
+#: PR #203): an address nobody has verified must not become the operational one
+#: just because it is in the source. `events@1live.co` is recorded as existing
+#: in docs/ops/SESSION_KICKOFF_2026-08-05.md, but no session has confirmed the
+#: live mailbox, and printing an unconfirmed address to a venue sends their
+#: listings into a hole. So the address comes from the environment or the
+#: email-forward lane REFUSES — fail closed, like every other custody input
+#: here. This module never sends mail; the address is DISPLAYED to the
+#: organizer and recorded on the claim.
 FORWARD_ADDRESS_ENV = "ONELIVE_LISTINGS_INTAKE_EMAIL"
 
 #: A runaway backstop, never a silent truncation: a CSV above this many rows is
@@ -225,52 +237,84 @@ class ClaimIntake:
 # --- Normalizers / refusals ---------------------------------------------------
 
 def resolve_forward_address(env: Optional[Mapping[str, str]] = None) -> str:
-    """The intake mailbox to show an organizer, environment-overridable.
+    """The configured intake mailbox, or "" when none is configured.
+
+    Returns the EMPTY STRING rather than a fallback address: an unconfigured
+    intake is a real state an operator must see, not one to paper over with a
+    guess. Callers that need an address (the email-forward lane) refuse on "".
 
     Takes the environment as an ARGUMENT rather than reading os.environ, so the
     module stays pure and the override is testable without monkeypatching.
     """
     if env:
-        override = (env.get(FORWARD_ADDRESS_ENV) or "").strip()
-        if override:
-            return override
-    return DEFAULT_FORWARD_ADDRESS
+        return (env.get(FORWARD_ADDRESS_ENV) or "").strip()
+    return ""
 
 
-def normalize_feed_url(raw: str) -> str:
-    """Validate a pasted calendar/feed URL. Never fetches it.
+def _validate_web_url(raw: str, *, what: str) -> str:
+    """The one URL check every claimant-supplied address goes through.
 
-    Refuses, in order: an empty value, a non-http(s) scheme (a `file:` or
-    `javascript:` paste is not a feed), a URL with no host, a URL carrying
-    embedded credentials, and a sign-in page. The credential and sign-in
-    refusals are the charter's "no login/paywall/bot-protection bypass" applied
-    at the one place a login could enter the system by invitation.
+    Refuses, in order: a non-http(s) scheme (a `file:` or `javascript:` paste is
+    not a web address), a URL with no host, a URL carrying embedded credentials,
+    and a sign-in page. The credential and sign-in refusals are the charter's
+    "no login/paywall/bot-protection bypass" applied at the places a login could
+    enter the system by invitation.
+
+    ONE function for feed URLs AND per-listing links (evaluator finding, PR
+    #203): the feed URL was validated while a CSV's `url` column went straight
+    to `extracted.ticket_link` and to the candidate's `source_url`, so a
+    `javascript:` or credential-bearing link could be stored and later rendered
+    as a user-facing ticket link. Two code paths handling claimant URLs is one
+    too many — the lax one is always the one that gets exercised.
     """
     value = (raw or "").strip()
-    if not value:
-        raise ClaimRefused("a calendar/feed URL is required for the 'ics_url' intake mode")
-
     parsed = urlparse(value)
     if parsed.scheme.lower() not in ("http", "https"):
         raise ClaimRefused(
-            f"feed URL must be http(s); got scheme {parsed.scheme or '(none)'!r}. "
-            "Paste the web address of the calendar feed."
+            f"{what} must be http(s); got scheme {parsed.scheme or '(none)'!r}."
         )
     if not parsed.hostname:
-        raise ClaimRefused(f"feed URL has no host: {value!r}")
+        raise ClaimRefused(f"{what} has no host: {value!r}")
     if parsed.username or parsed.password:
         raise ClaimRefused(
-            "feed URL carries embedded credentials (user:password@). We do not "
-            "accept or store logins — send a feed address that needs none, or "
-            "use the CSV or email option instead."
+            f"{what} carries embedded credentials (user:password@). We do not "
+            "accept or store logins."
         )
     if looks_like_login_url(value):
         raise ClaimRefused(
-            "that address is a sign-in page, not a calendar feed. We never log "
-            "in on your behalf — send the feed's own address, a CSV, or forward "
-            "the listings by email."
+            f"{what} is a sign-in page. We never log in on your behalf."
         )
     return value
+
+
+def normalize_feed_url(raw: str) -> str:
+    """Validate a pasted calendar/feed URL. Never fetches it."""
+    value = (raw or "").strip()
+    if not value:
+        raise ClaimRefused("a calendar/feed URL is required for the 'ics_url' intake mode")
+    try:
+        return _validate_web_url(value, what="feed URL")
+    except ClaimRefused as refusal:
+        raise ClaimRefused(
+            f"{refusal} Send the calendar feed's own web address, a CSV, or "
+            "forward the listings by email."
+        ) from None
+
+
+def normalize_listing_url(raw: str, *, row_number: int) -> str:
+    """Validate one CSV row's `url`. Empty is fine — a listing need not link.
+
+    A stored link becomes a user-facing ticket link the moment a candidate is
+    promoted, so it gets the same scrutiny as the feed address, and a bad one
+    refuses the whole file naming its row (same discipline as a missing title).
+    """
+    value = (raw or "").strip()
+    if not value:
+        return ""
+    try:
+        return _validate_web_url(value, what=f"the url in CSV row {row_number}")
+    except ClaimRefused as refusal:
+        raise ClaimRefused(f"{refusal} Nothing was recorded.") from None
 
 
 def _clean(value: Any) -> str:
@@ -337,7 +381,7 @@ def parse_listings_csv(text: str, *, max_rows: int = MAX_CSV_ROWS) -> Tuple[Clai
             end=row.get("end", ""),
             venue=row.get("venue", ""),
             city=row.get("city", ""),
-            url=row.get("url", ""),
+            url=normalize_listing_url(row.get("url", ""), row_number=offset),
             notes=row.get("notes", ""),
             extra={k: v for k, v in row.items() if k and k not in CSV_KNOWN_COLUMNS and v},
             row_number=offset,
@@ -392,6 +436,15 @@ def build_claim(
         listings = parse_listings_csv(csv_text)
     else:  # email_forward
         forward_to = resolve_forward_address(env)
+        if not forward_to:
+            # Fail closed rather than print a guess: telling an organizer to
+            # email an address nobody configured sends their listings nowhere.
+            raise ClaimRefused(
+                "no listings intake mailbox is configured, so there is no "
+                f"address to give this organizer. Set {FORWARD_ADDRESS_ENV} to a "
+                "mailbox someone actually reads, or take the calendar-feed or "
+                "CSV route instead."
+            )
 
     return ClaimIntake(
         venue_name=venue,

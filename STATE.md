@@ -207,9 +207,32 @@ badge — the brief's ban on "confirmed" text stands); path (b) lists WITH the
 verbatim canon string "We have not confirmed this with the venue, artist, or
 group. Double-check before you go."; one unofficial mention is never listed.
 Priority is fixed as A/B/E feeds and public pages, with path (b) rare. Also
-unimplemented and folded into R-083. It carries ONE undecided question that
-blocks building it: "list it WITH" places the sentence on the listing rather
-than behind a sheet, but card face vs detail page vs both is unspecified.
+unimplemented and folded into R-083. PLACEMENT ANSWERED same day: the note goes
+on BOTH the card face and the detail page, path (b) only, with "at a glance" as
+the acceptance test — a sheet-only treatment fails it. Still not built, now for
+a real reason rather than a missing decision: no row can BE path (b) until the
+gate can count independent PEOPLE rather than source classes, so the renderer
+would have no state to render. Gate work leads; display follows. Founder
+clarified further the same day that the presumption for all NON-(b) records is
+that they are verified, so they carry no per-row trust copy at all — no positive
+marker and no hedge — while the verification machinery is retained internally
+for audit. That leaves one question ASKED rather than assumed, because it
+touches a live consumer surface: whether the presumption retires /tonight's
+existing `unverified` quiet-icon + dismissible-sheet treatment. `disputed` is
+explicitly out of scope — shown-never-hidden is a standing trust invariant.
+
+AMENDMENT 3 (2026-09-01) — evaluator panel r2 on PR #203: openai REQUEST-CHANGES
+on both lenses, gemini APPROVE on both. Four real defects, all fixed in this
+push and none in the runtime closure: the `source` upsert keyed on the
+submitter-supplied venue name and could overwrite/disable an existing TRUSTED
+source (now fenced to claim-owned source_types, 409 naming the conflict); every
+API error rendered as "Refused — nothing was recorded", false on the PARTIAL
+path (now a distinct state); a CSV row's `url` skipped the feed URL validation
+and could store a javascript:/credential/sign-in link that later renders as a
+ticket link (one shared validator now serves both); and the unverified intake
+mailbox was a hard-coded default (removed — the email lane fails closed and the
+outreach template carries a placeholder plus a before-you-send precondition).
+tests/test_claims_api.py adds a hermetic test per DB branch.
 
 STAGE 3 — MEMORY RETRIEVAL (docs/memory/RED_CLASSES.md, answered for THIS build):
 [S3:permission-for-ratified-work] Nothing already ratified was re-proposed for permission and nothing founder-crucial was decided here: no credential minted, no vendor or mailbox added, no gate loosened. The two items that ARE the founder's call — confirming the intake address, and the verification action's design — are written down as asks, not built.

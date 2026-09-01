@@ -59,7 +59,7 @@ def test_every_claim_is_recorded_unverified():
         for mode, kwargs in (
             ("ics_url", {"feed_url": "https://x.test/e.ics"}),
             ("csv_upload", {"csv_text": "title,start\nA,2026-09-12T21:00:00-05:00\n"}),
-            ("email_forward", {}),
+            ("email_forward", {"env": {intake.FORWARD_ADDRESS_ENV: "listings@example.test"}}),
         ):
             claim = build_claim(venue_name="X", submitter_role=role,
                                 intake_mode=mode, **kwargs)
@@ -115,7 +115,8 @@ def test_claim_classes_are_distinct_from_the_verified_anchor_names():
 
 def test_source_config_records_the_claim_as_unverified():
     claim = build_claim(venue_name="Mohawk", submitter_role="organizer",
-                        intake_mode="email_forward", contact_email="booking@x.test")
+                        intake_mode="email_forward", contact_email="booking@x.test",
+                        env={intake.FORWARD_ADDRESS_ENV: "listings@example.test"})
     config = claim.source_config(received_at="2026-09-01T00:00:00+00:00", recorded_by="ops@x.test")
     assert config["coverage_class"] == "E"
     assert config["confidence"] == "unverified"
@@ -127,7 +128,8 @@ def test_receipt_says_received_held_not_live_and_claims_no_relationship():
     """The founder's receipt rule (2026-09-01): the ops receipt is internal and
     states received / held / not live. It must never say we have their calendar
     or that they are on 1Live."""
-    claim = build_claim(venue_name="X", submitter_role="organizer", intake_mode="email_forward")
+    claim = build_claim(venue_name="X", submitter_role="organizer", intake_mode="email_forward",
+                        env={intake.FORWARD_ADDRESS_ENV: "listings@example.test"})
     reason = hold_reason(claim).lower()
     for state in intake.RECEIPT_STATES:
         assert state in reason, state
@@ -267,7 +269,8 @@ def test_ics_and_email_modes_hand_over_no_listings_yet():
     ics = build_claim(venue_name="X", submitter_role="organizer",
                       intake_mode="ics_url", feed_url="https://x.test/e.ics")
     email = build_claim(venue_name="X", submitter_role="organizer",
-                        intake_mode="email_forward")
+                        intake_mode="email_forward",
+                        env={intake.FORWARD_ADDRESS_ENV: "listings@example.test"})
     assert ics.listing_count == 0 and email.listing_count == 0
     assert ics.feed_url == "https://x.test/e.ics"
     assert email.feed_url == ""
@@ -300,13 +303,77 @@ def test_ics_mode_requires_a_url_and_csv_mode_requires_rows():
 
 # --- The forwarding address ---------------------------------------------------
 
-def test_forward_address_defaults_and_is_environment_overridable():
-    assert resolve_forward_address({}) == intake.DEFAULT_FORWARD_ADDRESS
-    assert resolve_forward_address(None) == intake.DEFAULT_FORWARD_ADDRESS
+def test_forward_address_has_no_hard_coded_default():
+    """An address nobody verified must not become the operational one just
+    because it is in the source (evaluator finding, PR #203). Unconfigured is a
+    real state an operator has to see."""
+    assert resolve_forward_address({}) == ""
+    assert resolve_forward_address(None) == ""
+    assert resolve_forward_address({intake.FORWARD_ADDRESS_ENV: "  "}) == ""
     assert resolve_forward_address({intake.FORWARD_ADDRESS_ENV: " listings@example.test "}) \
         == "listings@example.test"
-    assert resolve_forward_address({intake.FORWARD_ADDRESS_ENV: "  "}) \
-        == intake.DEFAULT_FORWARD_ADDRESS
+    assert not hasattr(intake, "DEFAULT_FORWARD_ADDRESS")
+
+
+def test_email_mode_refuses_when_no_mailbox_is_configured():
+    """Telling an organizer to email an address nobody configured sends their
+    listings nowhere, and they will not write twice."""
+    with pytest.raises(ClaimRefused) as excinfo:
+        build_claim(venue_name="X", submitter_role="organizer",
+                    intake_mode="email_forward", env={})
+    assert intake.FORWARD_ADDRESS_ENV in str(excinfo.value)
+
+
+def test_claim_owned_source_types_are_exactly_the_two_claim_types():
+    """api/claims.py fences its `source` upsert on this set, so it must contain
+    the claim types and nothing else — a stray member would let a claim
+    overwrite a source it does not own."""
+    assert intake.CLAIM_OWNED_SOURCE_TYPES == frozenset(
+        {"claimed_upload_unverified", "human_report"})
+
+
+# --- A listing's own URL gets the same scrutiny as the feed URL ---------------
+
+def test_listing_url_is_validated_like_a_feed_url():
+    """A stored link becomes a user-facing ticket link the moment a candidate is
+    promoted (evaluator finding, PR #203)."""
+    rows = parse_listings_csv(
+        "title,start,url\nA,2026-09-12T21:00,https://example.com/tickets\n")
+    assert rows[0].url == "https://example.com/tickets"
+    assert rows[0].as_extracted()["ticket_link"] == "https://example.com/tickets"
+
+
+def test_listing_url_may_be_empty_because_a_listing_need_not_link():
+    rows = parse_listings_csv("title,start,url\nA,2026-09-12T21:00,\n")
+    assert rows[0].url == ""
+    assert rows[0].as_extracted()["ticket_link"] is None
+
+
+@pytest.mark.parametrize("bad_url", [
+    "javascript:alert(1)",
+    "file:///etc/passwd",
+    "ftp://example.com/t",
+    "https://user:hunter2@example.com/t",
+    "https://example.com/login?next=/t",
+    "not-a-url",
+])
+def test_a_bad_listing_url_refuses_the_whole_file_and_names_its_row(bad_url):
+    with pytest.raises(ClaimRefused) as excinfo:
+        parse_listings_csv(
+            "title,start,url\n"
+            "Good,2026-09-12T21:00,https://example.com/ok\n"
+            f"Bad,2026-09-13T21:00,{bad_url}\n")
+    message = str(excinfo.value)
+    assert "row 3" in message, message
+    assert "nothing was recorded" in message.lower(), message
+
+
+def test_normalize_listing_url_is_the_same_authority_as_the_feed_check():
+    """One function, two callers — the lax path is always the one exercised."""
+    with pytest.raises(ClaimRefused):
+        intake.normalize_listing_url("https://example.com/signin", row_number=2)
+    with pytest.raises(ClaimRefused):
+        normalize_feed_url("https://example.com/signin")
 
 
 def test_email_mode_records_the_address_it_told_the_organizer_to_use():

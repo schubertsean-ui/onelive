@@ -26,6 +26,17 @@ type Receipt = {
   hold_reason: string;
 };
 
+// A refusal and a PARTIAL failure are NOT the same state and must not read the
+// same (evaluator finding, PR #203). Every error used to render as "Refused —
+// nothing was recorded", which is false on the API's PARTIAL path: there the
+// source row and some listings ARE committed. Telling an operator the catalog is
+// clean when rows were written is a trust display defect — they would retry, or
+// tell a venue the wrong thing. The API marks that path with a leading
+// "PARTIAL:", which is the one thing this branch keys on.
+function isPartial(detail: string): boolean {
+  return detail.trimStart().startsWith("PARTIAL:");
+}
+
 // The API refuses with a message written for the venue owner to read (422 +
 // {"detail": "..."}), and `apiPost` surfaces the raw response body. Showing that
 // body verbatim would put the sentence behind JSON braces and \u-escapes — the
@@ -201,9 +212,20 @@ export function ClaimForm({ forwardTo }: { forwardTo: string }) {
 
       {mode === "email_forward" && (
         <p className="small" style={{ marginTop: 12 }}>
-          Ask the organizer to forward their listings to <strong>{forwardTo}</strong>.
-          Recording the claim registers the venue; the forwarded mail is parsed later
-          under the same gates as everything else.
+          {forwardTo.includes("@") ? (
+            <>
+              Ask the organizer to forward their listings to <strong>{forwardTo}</strong>.
+              Recording the claim registers the venue; the forwarded mail is parsed later
+              under the same gates as everything else.
+            </>
+          ) : (
+            <>
+              <strong>No intake mailbox is configured</strong>, so this route is closed
+              and recording will be refused — there is no address to give an organizer.
+              Set <code>ONELIVE_LISTINGS_INTAKE_EMAIL</code> to a mailbox someone reads,
+              or use the calendar-feed or CSV route.
+            </>
+          )}
         </p>
       )}
 
@@ -225,9 +247,15 @@ export function ClaimForm({ forwardTo }: { forwardTo: string }) {
       </div>
 
       {error && (
-        <p className="small" role="alert" style={{ marginTop: 12, color: "#a11" }}>
-          Refused — nothing was recorded. {error}
-        </p>
+        isPartial(error) ? (
+          <p className="small" role="alert" style={{ marginTop: 12, color: "#a11" }}>
+            <strong>Partially recorded — the catalog changed.</strong> {error}
+          </p>
+        ) : (
+          <p className="small" role="alert" style={{ marginTop: 12, color: "#a11" }}>
+            Refused — nothing was recorded. {error}
+          </p>
+        )
       )}
 
       {receipt && (

@@ -69,7 +69,7 @@ is never forwarded to the venue as evidence of standing. Enforced in code:
 >    already publish. Nothing to maintain; we read it as you update it.
 > 2. **Send a spreadsheet** — a CSV with columns `title` and `start` (optional:
 >    `end`, `venue`, `city`, `url`). Good for a one-off season or a run of dates.
-> 3. **Forward the listings** — just email them to **events@1live.co** the way
+> 3. **Forward the listings** — just email them to **[intake address]** the way
 >    you'd send them to anyone else.
 >
 > What happens on our end: anything you send is recorded as **unverified** and
@@ -81,6 +81,21 @@ is never forwarded to the venue as evidence of standing. Enforced in code:
 > If you'd rather we didn't list you at all, say so and we won't.
 >
 > — [name], 1Live
+
+### Before you send: the intake address
+
+**Do not send this message with a guessed address.** `[intake address]` is a
+placeholder on purpose (evaluator finding, PR #203): a venue that forwards its
+schedule to a mailbox nobody reads has been quietly dropped, and they will not
+write twice. Fill it in only with the mailbox configured as
+`ONELIVE_LISTINGS_INTAKE_EMAIL` and confirmed to be read by a person. If no such
+mailbox exists, DELETE option 3 and offer only the feed and the spreadsheet —
+the code takes the same position: `/ops/claim` refuses the email-forward route
+outright when no address is configured, rather than printing one.
+
+`events@1live.co` is recorded as existing in
+`docs/ops/SESSION_KICKOFF_2026-08-05.md`, but no session has verified the live
+mailbox, so it is not written into the template as though it were operational.
 
 Keep it to that. Do not promise traffic, ranking, a launch date, or a feature
 they haven't seen — copy asserts only what the product already does. And check

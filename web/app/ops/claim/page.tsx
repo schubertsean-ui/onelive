@@ -5,16 +5,17 @@ import { ClaimForm } from "../../../components/ClaimForm";
 export const dynamic = "force-dynamic";
 
 // The intake mailbox is served by the API (worker/claim/intake.py holds the one
-// authority for it) so a changed address never needs a web redeploy. If the API
-// is unreachable the form still works for the two modes that do not need it —
-// the address is shown as unavailable rather than guessed.
+// authority) so a changed address never needs a web redeploy. It legitimately
+// comes back EMPTY when no mailbox is configured — that is a real state, and the
+// form renders the email route as closed rather than inventing an address. An
+// unreachable API is the same story: return "" and let the form say so.
 async function forwardAddress(): Promise<string> {
   try {
     const { apiGet } = await import("../../../lib/ops-api");
     const options = await apiGet("/ops/claims/intake");
-    return String(options.forward_to || "(intake address unavailable)");
+    return String(options.forward_to || "");
   } catch {
-    return "(intake address unavailable — API unreachable)";
+    return "";
   }
 }
 

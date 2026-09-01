@@ -114,11 +114,60 @@ ruling does not overturn that — it is narrower and points the other way:
   deliberately raising the floor for this one class of row, and where the two
   disagree on a path-(b) row, this ruling governs.
 
-**Open design question, not decided here** (see R-083): the ruling says "list it
-WITH" the sentence, which places the warning ON the listing rather than behind a
-sheet the reader must open — but whether that means the card face, the detail
-page, or both is a placement call the founder has not made. Nothing is built
-until it is.
+**Placement — ANSWERED by the founder, same day:**
+
+> only the rare 'b' should have the note on both - that way people know at a
+> glance it is not verified
+
+So the warning goes on **both the card face and the detail page**, and on path
+(b) ONLY. The reason is stated in the ruling itself and is the acceptance test
+for any implementation: *at a glance*. A reader must be able to tell an
+unconfirmed row from a confirmed one while scrolling, without opening anything —
+which rules out putting the sentence only behind the "How we know" sheet, and
+rules out a quiet icon standing in for it on the card.
+
+Path (a) rows get nothing extra on either surface. Path (a) is the common case,
+so the note stays rare by construction: if it starts appearing everywhere, that
+is a signal the gate is mis-routing rows into (b), not that the copy needs
+softening.
+
+### The presumption for everything else, founder, same day
+
+> the presumption for all other records is they are verified so there is no need
+> for a card face or detail page 'verification' statement. We can retain the
+> verification process on the platform as designed for audit and other purposes.
+
+Two separate things, and the split is the whole point:
+
+- **The reader's view.** A row that is not path (b) is presented as trustworthy
+  by DEFAULT. No per-row verification statement on the card face or the detail
+  page — no "verified", no "confirmed", and equally no hedge. Silence IS the
+  statement. This agrees with the Master Design Brief's existing ban on badges
+  and "confirmed" text rather than overriding it: the brief forbade the positive
+  marker, and this forbids the negative one too, everywhere except path (b).
+- **The platform's records.** The verification process stays exactly as
+  designed — confidence states, the gate, the claim receipt, the audit trail.
+  Retained for audit and internal purposes; simply not surfaced per row.
+
+So the only per-row trust copy a reader ever sees is the path-(b) note. That is
+what makes it work: a note that appears on one row in a hundred is read; a
+qualifier on every row is wallpaper.
+
+### One thing this does NOT settle — flagged, not assumed
+
+Two live behaviours sit next to this and are deliberately NOT changed by it:
+
+1. **`disputed` is untouched.** "Disputed shown-never-hidden" is a standing
+   trust invariant (Coverage Law; CLAUDE.md prime directive 1). A disputed row
+   is a CONTRADICTION warning, not a "verification statement", so this ruling
+   does not reach it. Changing that is founder-crucial and would need saying
+   outright.
+2. **The existing `unverified` treatment on live /tonight is an open question.**
+   `/tonight` today gives a low-confidence row a quiet icon leading to a
+   dismissible sheet (Brief §trust display; shipped). Under this presumption an
+   ordinary `unverified` row arguably should not carry that either — but that is
+   a change to a LIVE consumer surface, so it is asked rather than assumed. See
+   R-083.
 
 ### Priority, stated so nobody inverts it
 

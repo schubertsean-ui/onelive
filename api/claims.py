@@ -47,6 +47,7 @@ from pydantic import BaseModel
 from api.deps import get_db, require_admin
 from worker.candidate_store import create_candidate
 from worker.claim.intake import (
+    CLAIM_OWNED_SOURCE_TYPES,
     INTAKE_MODES,
     RECEIPT_STATES,
     SUBMITTER_ROLES,
@@ -120,6 +121,17 @@ def record_claim(payload: ClaimIn, admin=Depends(require_admin), conn=Depends(ge
             # duplicating the venue — `source` has a unique index on
             # lower(name). enabled stays False on both paths: an update must
             # never be a way to switch a claim on.
+            #
+            # THE UPDATE IS FENCED to rows a claim already owns (evaluator
+            # finding, PR #203). The conflict key is the venue NAME, and the
+            # name comes from the submitter. Without the WHERE below, recording
+            # an unverified claim for "Mohawk Austin" would silently overwrite
+            # an existing TRUSTED source of that name — replacing its
+            # source_type with an unverified claim class, wiping its config, and
+            # flipping it `enabled=false`, which stops its ingestion. That is
+            # untrusted input causing real catalog coverage loss, so a name
+            # collision with anything that is not already a claim row refuses
+            # instead (409 below) and a human decides.
             cur.execute(
                 """
                 insert into source (name, source_type, base_url, enabled, config)
@@ -129,6 +141,7 @@ def record_claim(payload: ClaimIn, admin=Depends(require_admin), conn=Depends(ge
                       base_url    = coalesce(excluded.base_url, source.base_url),
                       enabled     = false,
                       config      = excluded.config
+                  where source.source_type = any(%s)
                 returning source_id
                 """,
                 (
@@ -136,13 +149,45 @@ def record_claim(payload: ClaimIn, admin=Depends(require_admin), conn=Depends(ge
                     claim.source_type,
                     claim.feed_url or None,
                     json.dumps(config),
+                    sorted(CLAIM_OWNED_SOURCE_TYPES),
                 ),
             )
             row = cur.fetchone()
             if row is None:
-                # An upsert that matches nothing is a schema/constraint change,
-                # not a normal outcome — fail loud rather than return a receipt
-                # for a row that may not exist.
+                # No row came back. Either the fence above declined the update
+                # (a real, expected collision) or something structural is wrong.
+                # Distinguish them: an operator needs to know WHICH.
+                cur.execute(
+                    "select source_id, source_type, enabled from source "
+                    "where lower(name) = lower(%s)",
+                    (claim.venue_name,),
+                )
+                existing = cur.fetchall()
+                if len(existing) == 1:
+                    _, existing_type, existing_enabled = existing[0]
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"{claim.venue_name!r} already exists in the source "
+                            f"catalog as a {existing_type!r} source "
+                            f"(enabled={existing_enabled}), which a claim does not "
+                            "own. Nothing was recorded — recording this claim "
+                            "would have overwritten that source and disabled it. "
+                            "Attach the claim to that source by hand, or record it "
+                            "under a name that distinguishes it."
+                        ),
+                    )
+                if len(existing) > 1:
+                    # lower(name) is uniquely indexed, so more than one row means
+                    # the index is gone. Never guess which row was meant.
+                    raise HTTPException(
+                        status_code=500,
+                        detail=(
+                            f"{len(existing)} source rows share the name "
+                            f"{claim.venue_name!r} — the unique index on lower(name) "
+                            "is not holding. Nothing was recorded."
+                        ),
+                    )
                 raise HTTPException(
                     status_code=500,
                     detail="claim source upsert returned no row — nothing was recorded",
