@@ -10,6 +10,11 @@ import {
   buildPlan,
   genreFacet,
   bucketByDate,
+  countInWindow,
+  viewCounts,
+  marketHour,
+  splitByDayPart,
+  EVENING_HOUR,
 } from "./feed";
 import type { LicensedEvent } from "./licensed";
 
@@ -319,5 +324,171 @@ describe("bucketByDate — the three-tier date density", () => {
     expect(line!.items.map((e) => e.licensed_event_id).sort()).toEqual(["bad", "tba"]);
     // sum-preserving even with undated rows — nothing dropped.
     expect(b.reduce((s, x) => s + x.items.length, 0)).toBe(3);
+  });
+});
+
+
+// ── Completeness + day part (founder directive 2026-09-01, Session 2 VIEW) ────
+// Coverage Law: views are picky, but a view must never DELETE a catalog row.
+// Both mechanisms added for that directive are proven sum-preserving here,
+// because "the view quietly lost a row" is the failure they exist to prevent.
+
+describe("countInWindow — the M of 'Showing N of M known listings'", () => {
+  // Fixed instant so day boundaries are deterministic: Thu 2026-10-15 20:30 CDT.
+  const now = Date.UTC(2026, 9, 16, 1, 30, 0);
+  const tabs = dayTabs(now, 7);
+  const today = tabs[0];
+  const all = tabs[tabs.length - 1];
+
+  it("counts every row in the window, INCLUDING the ones a lens would hide", () => {
+    const rows = [
+      ev({ start_time: new Date(now + 3600_000).toISOString(), category: "comedy" }),
+      ev({ start_time: new Date(now + 7200_000).toISOString(), category: "live-music" }),
+      ev({ start_time: new Date(now + 3 * 86_400_000).toISOString() }), // another day
+    ];
+    expect(countInWindow(rows, today)).toBe(2);
+    // A domain lens narrows N; it must not touch M — that is the whole point of
+    // the line, and computing M after the lens would make it a tautology.
+    const narrowed = applyFilters(rows, { tab: today, domains: new Set(["comedy"]) });
+    expect(narrowed.length).toBe(1);
+    expect(countInWindow(rows, today)).toBe(2);
+  });
+
+  it("counts a DISPUTED row like any other — completeness is not a trust filter", () => {
+    const rows = [
+      ev({ start_time: new Date(now + 3600_000).toISOString(), confidence: "disputed" }),
+      ev({ start_time: new Date(now + 3600_000).toISOString(), confidence: "confirmed" }),
+    ];
+    expect(countInWindow(rows, today)).toBe(2);
+  });
+
+  it("counts the whole set under 'All upcoming', date-TBA rows included", () => {
+    const rows = [ev({ start_time: null }), ev({ start_time: "2027-01-01T00:00:00Z" })];
+    expect(countInWindow(rows, all)).toBe(2);
+    // …and agrees with the filter that renders it — one source of truth.
+    expect(applyFilters(rows, { tab: all }).length).toBe(countInWindow(rows, all));
+  });
+
+  it("never exceeds the input and never counts a row twice", () => {
+    const rows = Array.from({ length: 9 }, (_, i) =>
+      ev({ start_time: new Date(now + i * 3600_000).toISOString() }));
+    for (const t of tabs) {
+      expect(countInWindow(rows, t)).toBe(applyFilters(rows, { tab: t }).length);
+      expect(countInWindow(rows, t)).toBeLessThanOrEqual(rows.length);
+    }
+  });
+});
+
+describe("splitByDayPart — the evening LEADS, the morning is never deleted", () => {
+  const at = (hourCdt: number) =>
+    // 2026-10-15 <hour>:00 CDT == UTC+5 that date (DST in effect).
+    new Date(Date.UTC(2026, 9, 15, hourCdt + 5, 0, 0)).toISOString();
+
+  it("is sum-preserving: every row lands in exactly one half", () => {
+    const rows = [at(9), at(12), at(16), at(17), at(20), at(23)].map((t) => ev({ start_time: t }));
+    const { evening, earlier } = splitByDayPart(rows);
+    expect(evening.length + earlier.length).toBe(rows.length);
+    const ids = [...evening, ...earlier].map((e) => e.licensed_event_id);
+    expect(new Set(ids).size).toBe(rows.length);
+  });
+
+  it("puts 5pm and later in the leading block, earlier hours below it", () => {
+    const { evening, earlier } = splitByDayPart(
+      [at(16), at(17), at(19)].map((t) => ev({ start_time: t })),
+    );
+    expect(evening.length).toBe(2);
+    expect(earlier.length).toBe(1);
+    expect(EVENING_HOUR).toBe(17);
+  });
+
+  it("uses the MARKET clock, not the runtime's (a UTC server must not re-sort the day)", () => {
+    // 2026-10-16T01:30:00Z is 8:30 PM CDT on the 15th — evening in Austin, and
+    // past midnight in UTC. A runtime-clock reading would file it as 01:00 =
+    // "earlier in the day", which is the dayTabs bug wearing a new hat.
+    expect(marketHour("2026-10-16T01:30:00Z")).toBe(20);
+    const { evening } = splitByDayPart([ev({ start_time: "2026-10-16T01:30:00Z" })]);
+    expect(evening.length).toBe(1);
+  });
+
+  it("leads with a date-TBA row rather than burying it under a clock we lack", () => {
+    expect(marketHour(null)).toBe(null);
+    expect(marketHour("not-a-date")).toBe(null);
+    const { evening, earlier } = splitByDayPart([ev({ start_time: null })]);
+    expect(evening.length).toBe(1);
+    expect(earlier.length).toBe(0);
+  });
+
+  it("never drops a DISPUTED morning row (shown-never-hidden holds across the split)", () => {
+    const rows = [
+      ev({ start_time: at(10), confidence: "disputed" }),
+      ev({ start_time: at(21), confidence: "confirmed" }),
+    ];
+    const { evening, earlier } = splitByDayPart(rows);
+    expect(earlier.map((e) => e.confidence)).toEqual(["disputed"]);
+    expect(evening.length + earlier.length).toBe(2);
+  });
+});
+
+
+describe("viewCounts — 'Showing N of M', and what the region is holding back", () => {
+  const now = Date.UTC(2026, 9, 16, 1, 30, 0); // Thu 2026-10-15 20:30 CDT
+  const tabs = dayTabs(now, 7);
+  const today = tabs[0];
+  const soon = new Date(now + 3600_000).toISOString();
+
+  const live = [
+    ev({ start_time: soon, venue_city: "Austin", category: "live-music" }),
+    ev({ start_time: soon, venue_city: "Bastrop", category: "comedy" }),
+    ev({ start_time: soon, venue_city: "Nowheresville", category: "live-music" }),
+    ev({ start_time: soon, venue_city: "San Antonio", category: "live-music" }),
+    ev({ start_time: soon, venue_city: "Seguin", category: "live-music" }),
+    ev({ start_time: new Date(now + 5 * 86_400_000).toISOString(), venue_city: "Austin" }),
+  ];
+
+  it("counts M under the CAPCOG scope and says how many it is holding back", () => {
+    const scoped = applyFilters(live.filter((e) => e.venue_city !== "San Antonio" && e.venue_city !== "Seguin"), { tab: today });
+    const c = viewCounts(live, scoped, today, "capcog");
+    // 5 rows fall in today's window; 2 are known-outside, so M = 3.
+    expect(c.windowTotal).toBe(3);
+    expect(c.shown).toBe(3);
+    expect(c.heldBackByRegion).toBe(2);
+  });
+
+  it("raises M when the reader clears the region — 'M is not CAPCOG-only'", () => {
+    const everything = live.filter((e) => e.start_time === soon);
+    const c = viewCounts(live, everything, today, "everywhere");
+    expect(c.windowTotal).toBe(5);
+    expect(c.shown).toBe(5);
+    // Nothing is being held back once the scope is cleared, so the sentence
+    // about held-back rows must not render at all.
+    expect(c.heldBackByRegion).toBe(0);
+  });
+
+  it("keeps M independent of the lens filters — N narrows, M does not", () => {
+    const capcogRows = live.filter(
+      (e) => !["San Antonio", "Seguin"].includes(e.venue_city ?? ""));
+    const narrowed = applyFilters(capcogRows, { tab: today, domains: new Set(["comedy"]) });
+    const c = viewCounts(live, narrowed, today, "capcog");
+    expect(c.shown).toBe(1);
+    expect(c.windowTotal).toBe(3); // unchanged by the domain chip
+    expect(c.heldBackByRegion).toBe(2);
+  });
+
+  it("an unrecognised place counts INSIDE M — a gap must not read as a border", () => {
+    // "Nowheresville" is unrecognised, not known-outside. Counting it as held
+    // back would make the boundary look bigger than it is and would hide the
+    // coverage gap the keep-and-count discipline exists to expose.
+    const c = viewCounts(
+      [ev({ start_time: soon, venue_city: "Nowheresville" })], [], today, "capcog");
+    expect(c.windowTotal).toBe(1);
+    expect(c.heldBackByRegion).toBe(0);
+  });
+
+  it("never reports a negative hold-back, whatever the window", () => {
+    for (const t of tabs) {
+      const c = viewCounts(live, [], t, "capcog");
+      expect(c.heldBackByRegion).toBeGreaterThanOrEqual(0);
+      expect(c.windowTotal).toBeLessThanOrEqual(countInWindow(live, t));
+    }
   });
 });

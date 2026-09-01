@@ -12,6 +12,8 @@
 //     mobile); reference links keep a new tab but always carry rel=noopener +
 //     a screen-reader "external" label (§8).
 
+import type { RegionScope } from "./region";
+
 // ── Filters ⇄ URL (§6) ────────────────────────────────────────────────────────
 export type FeedFilterState = {
   tabKey: string;
@@ -19,6 +21,15 @@ export type FeedFilterState = {
   areas: Set<string>;
   genres: Set<string>;
   freeOnly: boolean;
+  // The REGION scope (Coverage Law 2026-09-01): "capcog" is the default test
+  // view, "everywhere" is the reader having cleared it. It travels in the URL
+  // like every other filter so a shared link reproduces what the sender saw —
+  // including the un-scoped catalog view, which is the whole point of making
+  // the boundary clearable rather than silent.
+  region: RegionScope;
+  // Whether the evening/night block LEADS a single-day river (the default) or
+  // the day runs plainly by category/time. An ordering, never a filter.
+  eveningFirst: boolean;
 };
 
 export const DEFAULT_FILTERS: FeedFilterState = {
@@ -27,6 +38,8 @@ export const DEFAULT_FILTERS: FeedFilterState = {
   areas: new Set(),
   genres: new Set(),
   freeOnly: false,
+  region: "capcog", // founder-directed default 2026-09-01: CAPCOG is the test view
+  eveningFirst: true, // founder-directed default 2026-09-01: the evening leads
 };
 
 // Compact, human-readable query: /tonight?when=today&domain=live-music,comedy
@@ -39,6 +52,8 @@ export function filtersToQuery(f: FeedFilterState): string {
   if (f.areas.size) p.set("area", [...f.areas].sort().join(","));
   if (f.genres.size) p.set("genre", [...f.genres].sort().join(","));
   if (f.freeOnly) p.set("free", "1");
+  if (f.region === "everywhere") p.set("region", "all"); // absent = the CAPCOG default
+  if (!f.eveningFirst) p.set("order", "time"); // absent = evening leads
   const s = p.toString();
   return s ? `?${s}` : "";
 }
@@ -62,12 +77,19 @@ export function queryToFilters(search: string): FeedFilterState {
     areas: csv(p.get("area")),
     genres: csv(p.get("genre")),
     freeOnly: p.get("free") === "1",
+    // Only the exact opt-out token widens the region; anything else (absent,
+    // misspelled, injected) falls back to the CAPCOG default. A malformed
+    // shared link must never silently change what market a reader is looking
+    // at — it renders the default view, exactly like a bare /tonight.
+    region: p.get("region") === "all" ? "everywhere" : "capcog",
+    eveningFirst: p.get("order") !== "time",
   };
 }
 
 export function isDefaultFilters(f: FeedFilterState): boolean {
   return (
-    f.tabKey === "today" && !f.domains.size && !f.areas.size && !f.genres.size && !f.freeOnly
+    f.tabKey === "today" && !f.domains.size && !f.areas.size && !f.genres.size &&
+    !f.freeOnly && f.region === "capcog" && f.eveningFirst
   );
 }
 

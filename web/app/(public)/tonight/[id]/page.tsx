@@ -19,6 +19,7 @@ import {
   detailMapUrl,
   httpOrNull,
   originLink,
+  sourceCredit,
   telHref,
   venueWebsite,
   resolveDetailView,
@@ -135,7 +136,11 @@ export default async function EventDetailPage(
   let error: string | null = null;
   if (route) {
     if (qa) {
-      event = route.kind === "licensed" ? qaFixtureEventById(route.id) : null;
+      // Look up by the WHOLE id, not the routed inner one: a promoted fixture's
+      // id carries the "promoted:" prefix, and routing on it would send the
+      // lookup a stripped key that matches no fixture — the promoted surfaces
+      // would then be unreachable in the very mode that pins them.
+      event = qaFixtureEventById(id);
     } else {
       try {
         event = route.kind === "promoted"
@@ -187,19 +192,6 @@ export default async function EventDetailPage(
       </Shell>
     );
   }
-  if (view.kind === "outside-market") {
-    // A real event, just outside the CAPCOG market — the same boundary the feed
-    // enforces, held on the direct-link surface too (PR #107).
-    return (
-      <Shell>
-        <div className="err">
-          This event is outside the Central Texas area 1Live covers, so it
-          isn&rsquo;t one of our listings.
-        </div>
-      </Shell>
-    );
-  }
-
   const event_ = view.event;
 
   const trust = trustDisplay(
@@ -223,10 +215,23 @@ export default async function EventDetailPage(
   // Honest by construction (a search, never a claim); an un-previewable type
   // yields null (an honest gap, no filler).
   const preview = contextualPreview(event_);
+  // Who listed this, as a fact of its own (founder 2026-09-01) — name + link
+  // when the row carries them, the generic phrase only when it does not.
+  const credit = sourceCredit(event_);
 
   return (
     <Shell>
       <article className="detail">
+        {/* A catalog row outside the CAPCOG test region renders, LABELLED — it
+            used to be refused outright, which the Coverage Law (2026-09-01)
+            repealed: the region is a view scope, and a legally-seen row is
+            never deleted, only scoped out of the default view. */}
+        {view.outsideRegion ? (
+          <p className="dstatus">
+            This listing is outside the CAPCOG test region the default Tonight
+            view scopes to. It is in the catalog; it just isn&rsquo;t in that view.
+          </p>
+        ) : null}
         {/* An <img> element, NOT a CSS background (PR #87 r3, gemini
             dataflow-taint): `url(${img})` interpolates a stored value straight
             into CSS, and a perfectly valid https URL containing `')` breaks out
@@ -282,6 +287,23 @@ export default async function EventDetailPage(
               </dd>
             </>
           ) : null}
+
+          {/* WHO LISTED IT. A first-class fact, not prose buried in the trust
+              sheet: the confirmed/likely sheet wordings name the source, but
+              the unverified and disputed wordings are generic by design, so
+              without this row the rows a reader most needs to check were
+              exactly the ones that never said who listed them. The name links
+              the source's own SITE (origin_url is the registry base_url, not a
+              per-event page — the label claims no more than that). */}
+          <dt>Source</dt>
+          <dd>
+            {credit.url ? (
+              <a href={credit.url} target="_blank" rel="noopener noreferrer"
+                aria-label={externalAriaLabel(`${credit.name} — the source's site`, credit.url)}>
+                {credit.name} ↗
+              </a>
+            ) : credit.name}
+          </dd>
 
           {/* Check with the venue — the last word on any listing. Shown only
               when we have a real website and/or a dialable number. */}

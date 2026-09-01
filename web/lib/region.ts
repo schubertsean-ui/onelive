@@ -268,3 +268,32 @@ export function filterToCapcog<T extends RegionRow>(
   }
   return { kept, droppedOutside, unknown };
 }
+
+// ── The region as a VIEW SCOPE, not a catalog delete (Coverage Law 2026-09-01) ──
+//
+// The law that governs this file changed: the catalog is greedy (if we legally
+// saw it, it may exist) and views are picky (/tonight MAY filter to CAPCOG and
+// time). What a view must NOT do is delete a catalog row — "CAPCOG is the test
+// locale and a view filter, not the map".
+//
+// So the boundary above is unchanged in what it CLASSIFIES; what changed is
+// where it is applied. It used to run on the server and hand the page only the
+// survivors, which made the dropped rows unobservable — the reader could not
+// tell a quiet market boundary from a coverage gap, and the count line could
+// only ever describe what survived. Now the page receives every row, applies
+// this scope as the DEFAULT view filter, and can say how many rows the scope is
+// holding back (and let the reader clear it).
+//
+// The asymmetry of filterToCapcog is preserved exactly: only a KNOWN-OUTSIDE
+// verdict is scoped out. An unrecognised place is still KEPT and still counted
+// as coverage the table has not learned yet — guessing in either direction is
+// the defect this file exists to prevent.
+export type RegionScope = "capcog" | "everywhere";
+
+export function applyRegionScope<T extends RegionRow>(
+  rows: T[],
+  scope: RegionScope,
+): T[] {
+  if (scope === "everywhere") return rows;
+  return rows.filter((r) => rowVerdict(r) !== false);
+}

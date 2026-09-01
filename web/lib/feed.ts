@@ -8,6 +8,7 @@
 
 import { DOMAINS, DOMAIN_LABEL, domainLabel, timeBand, type Band, type DomainMeta } from "./domains";
 import { canonicalGenre, genreLabel, type GenreId } from "./genres";
+import { applyRegionScope, type RegionScope } from "./region";
 import type { LicensedEvent } from "./licensed";
 
 // ── Timing ───────────────────────────────────────────────────────────────────
@@ -86,6 +87,96 @@ export function dayTabs(nowMs: number, days = 7): DayTab[] {
   }
   tabs.push({ key: "all", label: "All upcoming", startMs: 0, endMs: Infinity });
   return tabs;
+}
+
+// ── Day part: let the evening LEAD without deleting the morning ──────────────
+// Founder directive (2026-09-01, Session 2 VIEW): "Default or control so
+// evening/upcoming can lead without deleting morning rows from the catalog."
+//
+// The split is an ORDERING, never a filter. Both halves render; their lengths
+// always sum to the input (proven in tests), so the day-part control can never
+// become a second, invisible way to drop a row — the exact failure the Coverage
+// Law names ("views must not delete catalog rows").
+export const EVENING_HOUR = 17; // 5pm in the MARKET's clock, not the runtime's
+
+/** The event's start hour in the market timezone (0–23), or null when the row
+ *  carries no usable start time. Uses the market clock for the same reason
+ *  dayTabs does: a UTC server would otherwise call an 8pm Austin show "next
+ *  day" and sort it into the wrong half. */
+export function marketHour(iso: string | null): number | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  const h = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: MARKET_TZ, hour: "2-digit", hour12: false,
+    }).format(new Date(t)),
+  );
+  if (Number.isNaN(h)) return null;
+  return h === 24 ? 0 : h; // en-US hour12:false renders midnight as "24"
+}
+
+export type DayPartSplit = { evening: LicensedEvent[]; earlier: LicensedEvent[] };
+
+/** Split a day's events into the leading evening/night block and the earlier
+ *  (daytime) block. A row with NO usable start time leads with the evening
+ *  block rather than being buried under it — a date-TBA row must not be
+ *  demoted by a clock we do not have. */
+export function splitByDayPart(events: LicensedEvent[]): DayPartSplit {
+  const evening: LicensedEvent[] = [];
+  const earlier: LicensedEvent[] = [];
+  for (const e of events) {
+    const h = marketHour(e.start_time);
+    (h === null || h >= EVENING_HOUR ? evening : earlier).push(e);
+  }
+  return { evening, earlier };
+}
+
+/** How many of `events` fall in the selected day tab — the M of "Showing N of
+ *  M known listings". Deliberately counted BEFORE any lens filter (domain,
+ *  genre, area, free) and AFTER the region scope, so the line answers the
+ *  question a reader actually has: how much of what we hold for this window is
+ *  this view showing me. */
+export function countInWindow(events: LicensedEvent[], tab: DayTab): number {
+  return events.reduce((n, e) => (inDayTab(e, tab) ? n + 1 : n), 0);
+}
+
+/** The three numbers the completeness line is built from, derived in ONE place
+ *  so the sentence a reader sees and the river they scroll cannot disagree:
+ *
+ *    shown            N — rows this view renders (after every lens filter)
+ *    windowTotal      M — catalog rows in the same window, under the SAME
+ *                     region scope, before any lens. Clearing the region
+ *                     raises M: "M is not CAPCOG-only" (founder 2026-09-01).
+ *    heldBackByRegion how many catalog rows in this window the CAPCOG scope is
+ *                     holding back — 0 once the reader clears it. This is the
+ *                     number that keeps a view filter from reading as a
+ *                     catalog border.
+ *
+ *  `live` is the catalog side (time-filtered only, never region- or
+ *  trust-filtered), so the arithmetic is measured against what we actually
+ *  hold rather than against what an earlier stage already discarded. */
+export type ViewCounts = {
+  shown: number;
+  windowTotal: number;
+  heldBackByRegion: number;
+};
+
+export function viewCounts(
+  live: LicensedEvent[],
+  shown: LicensedEvent[],
+  tab: DayTab,
+  region: RegionScope,
+): ViewCounts {
+  const catalogTotal = countInWindow(live, tab);
+  const windowTotal = region === "everywhere"
+    ? catalogTotal
+    : countInWindow(applyRegionScope(live, region), tab);
+  return {
+    shown: shown.length,
+    windowTotal,
+    heldBackByRegion: catalogTotal - windowTotal,
+  };
 }
 
 export function inDayTab(e: LicensedEvent, tab: DayTab): boolean {

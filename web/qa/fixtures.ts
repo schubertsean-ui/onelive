@@ -165,6 +165,48 @@ export function qaFixtureEvents(): LicensedEvent[] {
       confidence: "likely",
       ...venue(8, "Fictional Hall 8", "Downtown"),
     }),
+    // A PROMOTED (pipeline-gated) row carrying its source provenance — the
+    // 0020 columns worker/promote.py copies from the candidate's registry
+    // source. Exists so the source-credit surfaces are pinned by a baseline:
+    // "via <source>" on the card, and the linked Source row on the full page.
+    // Fictional source, example.com URL — never a real venue's name.
+    base(10, {
+      title: "Backroom Session (Fictional)",
+      performer: "The Paper Kites of Nowhere",
+      subsegment: "Indie",
+      start_time: iso(0.5 * H),
+      price_min: 10,
+      source_provider: "promoted",
+      origin_name: "QA Fictional Venue Calendar",
+      origin_url: "https://qa-source-10.example.com",
+      ...venue(10, "The Backroom (Fictional)", "East Austin"),
+    }),
+    // A DAYTIME row that is still running tonight — noon to 11:30pm. It proves
+    // the day-part ordering: the evening block leads, and this one still
+    // renders under "Earlier in the day" instead of being dropped to make the
+    // evening look fuller (founder 2026-09-01: "without deleting morning rows
+    // from the catalog").
+    base(11, {
+      title: "All-Day Fictional Market",
+      category: "food-drink",
+      start_time: iso(-8.5 * H),
+      end_time: iso(3 * H),
+      is_free: true,
+      price_min: 0,
+      ...venue(11, "QA Market Grounds", "South Austin"),
+    }),
+    // OUTSIDE the CAPCOG test region. The default view scopes it out and SAYS
+    // so ("1 more listing in this window sits outside it, still in the
+    // catalog") — a view filter, never a catalog delete (Coverage Law
+    // 2026-09-01). It is reachable by direct link, labelled as outside.
+    base(12, {
+      title: "Out-of-Region Fixture Show",
+      performer: "The Far Side of Nowhere",
+      start_time: iso(1.5 * H),
+      price_min: 22,
+      ...venue(12, "Fictional Hall 12", "Downtown"),
+      venue_city: "San Antonio",
+    }),
     // Cancelled tomorrow — the FEED drops it by status; the DETAIL page (linked
     // by id below) states it plainly. Exists so the status-note surface is
     // pinned by a baseline too.

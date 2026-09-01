@@ -49,10 +49,13 @@ describe("the fixture set exercises every display rule the canon pins", () => {
     }
   });
 
-  it("has exactly the states a live screenshot needs: one on-now, none ended", () => {
+  it("has exactly the states a live screenshot needs: two on-now, none ended", () => {
     const live = liveEvents(scheduled, QA_FROZEN_NOW_MS);
     expect(live.length).toBe(scheduled.length); // nothing silently dropped
-    expect(scheduled.filter((e) => eventTiming(e, QA_FROZEN_NOW_MS) === "on-now").length).toBe(1);
+    // qa-1 (an evening show already under way) and qa-11 (a noon-to-11:30pm
+    // daytime run). The second one is deliberate: it is the row that proves
+    // the day-part ordering keeps a DAYTIME listing instead of deleting it.
+    expect(scheduled.filter((e) => eventTiming(e, QA_FROZEN_NOW_MS) === "on-now").length).toBe(2);
   });
 
   it("carries both Spark Line registers (tier B attribution, tier C ✳)", () => {
@@ -82,8 +85,24 @@ describe("the fixture set exercises every display rule the canon pins", () => {
     }
   });
 
-  it("keeps every fixture inside the market (Austin) so the detail boundary check passes", () => {
-    for (const e of all) expect(e.venue_city).toBe("Austin");
+  it("keeps every fixture in Austin EXCEPT the one that pins the region scope", () => {
+    // Coverage Law 2026-09-01: CAPCOG is a view filter, not a catalog delete.
+    // One deliberate out-of-region fixture is what lets a baseline prove the
+    // default view scopes it out AND says how many rows it is holding back —
+    // without it, a scope that silently dropped everything would look
+    // identical to a correct one.
+    const outside = all.filter((e) => e.venue_city !== "Austin");
+    expect(outside.map((e) => e.venue_city)).toEqual(["San Antonio"]);
+    expect(outside).toHaveLength(1);
+  });
+
+  it("carries one PROMOTED row with fictional source provenance (0020 columns)", () => {
+    const promoted = all.filter((e) => e.source_provider === "promoted");
+    expect(promoted).toHaveLength(1);
+    expect(promoted[0].origin_name).toBe("QA Fictional Venue Calendar");
+    // Same no-real-entity discipline as venue_url: a source link in a fixture
+    // must never point at a real organization.
+    expect(promoted[0].origin_url).toMatch(/^https:\/\/[a-z0-9-]+\.example\.com$/);
   });
 
   it("has unique ids and qaFixtureEventById round-trips them", () => {

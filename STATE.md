@@ -143,9 +143,186 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
-## Session Contract #45 (2026-09-01, founder — "ingest class A/B", branch claude/class-ab-source-ingestion-lv1mlv)
+## Session Contract #46 (2026-09-01, founder — "Session 2 only — VIEW", branch claude/tonight-view-completeness-biu25g)
 
 STATUS: OPEN
+The founder's Session-2 directive (Must do 1-5 / Must not / Done, quoted below)
+IS the approved plan; this section restates it in the five §4a fields so the
+record carries it. §4a tension surfaced, not resolved silently: the directive
+arrived itemized and closed ("Only the Must-do list", "One PR"), so the plan is
+presented here and in the reply rather than blocking on a second approval.
+
+GOAL / WHAT: /tonight stays a readable CAPCOG test view AND tells the truth about
+completeness. (1) default Tonight view may filter to CAPCOG; (2) show "Showing N
+of M known listings" for the selected time window, where M = catalog rows in that
+window and N = rows the view is showing, and clearing the region filter makes M
+not CAPCOG-only; (3) a default/control so evening/upcoming leads without deleting
+morning rows from the catalog; (4) card or detail shows source name + source URL
+when the event row carries them, generic "a local listing" only when empty.
+HOW: move the CAPCOG boundary from a server-side DELETE to a client-side view
+FILTER with a visible, clearable region control (region.rowVerdict is already
+pure and shared); count M from the region-scoped rows in the selected day tab
+before any lens filter and N from the rendered set; split a single-day river into
+"Evening & night" (leads) and "Earlier in the day" — sum-preserving, nothing
+dropped, with a chip to go back to plain chronological; surface source name+URL
+via one shared lib/detail.sourceCredit() on the lens, the detail page and the
+card. event.source_name/source_url already exist (migration 0020) and
+worker/promote.py already copies them registry-bound — no schema change needed.
+WHY: Coverage Law (2026-09-01) makes the catalog greedy and views picky. A view
+that silently deletes rows turns a coverage gap into an invisible one, and a feed
+that cannot name its source cannot be checked by the reader.
+WHY-THAT-WHY-MATTERS: the count is the only place a reader (or the founder) can
+see what the view is hiding; without it CAPCOG reads as a catalog border, which
+is exactly what the Coverage Law repealed.
+EXPECTED OUTCOMES: one PR; N-of-M visible on the default CAPCOG view; region
+clearable and M following it; evening leads with morning rows still present;
+source name + link on the detail/lens surfaces; new unit tests for the count, the
+day-part split and the source credit; python tools/validate green; two screenshots
+in the PR body.
+FILES: web/app/(public)/tonight/page.tsx, web/app/(public)/tonight/FeedApp.tsx,
+web/app/(public)/tonight/[id]/page.tsx, web/lib/feed.ts, web/lib/detail.ts,
+web/lib/nav.ts, web/qa/fixtures.ts, web/lib/*.test.ts.
+OUT OF SCOPE (founder "Must not" + leash, refused this session): new importer or
+vendor; flyer-vision; city-fabrication smoke run; touching worker/ai_extract.py;
+dispatching an ingest/smoke run; hiding disputed rows; pay-to-rank; rebuilding the
+design system; taste quiz / plan-a-weekend; treating CAPCOG as a catalog delete.
+
+STAGE 3 — BLOCKING MEMORY RETRIEVAL (docs/memory/RED_CLASSES.md; classes matched
+by tools/construction_gate.py on this diff, answered against THIS build):
+[S3:build-before-plan] The plan was written to this contract BEFORE any product
+  file was touched, and the §4a-vs-autonomy tension is surfaced above rather
+  than resolved silently toward execution; the founder's itemized Session-2
+  directive is the approved WHAT.
+[S3:caller-suppliable-custody-inputs] No custody input moved. The region
+  classifier, promote.py's registry binding and every gate are untouched; the
+  reader chooses a view SCOPE, never a trust state or a publication decision.
+[S3:compounded-ground-contrast] The four new classes (.rnote/.rlink/.rsrc/.lsrc)
+  carry quiet with COLOR tokens (--dim/--glow/--ink), never opacity, and the axe
+  leg ran in BOTH schemes on the changed pages: 0 violations dark and light.
+[S3:contract-scope-violation] Two things exceed a literal reading of the four
+  must-dos — the detail page now LABELS an out-of-region row instead of refusing
+  it, and the card carries a source credit. Both are named in HOW above and in
+  the PR's In-scope list; neither is silent.
+[S3:copy-outruns-registry] Every new sentence asserts only what the row carries:
+  the name comes from event.source_name (registry-bound at promote), and the
+  link is labelled "the source's site", never a per-event listing page.
+[S3:db-type-mismatch-invisible-to-hermetic-tests] No publish-path or schema
+  change: migration 0020's columns and promote.py's copy of them already exist
+  and already ran; this PR only READS them.
+[S3:deferred-trust-work] Nothing is deferred and no RECORD row is owed: the
+  detail surface's outside-region handling ships in the SAME PR that first lets
+  the feed surface such a row, rather than being parked as a follow-up.
+[S3:deliverable-visual-qa] Full-page captures at 430 and 1280 were rendered AND
+  READ before commit; that is how the "1 more listing … sit" agreement bug and
+  the disclosure/render mismatch were caught. Baselines refreshed and re-verified
+  at 0.000% pixel diff.
+[S3:env-dependent-hermetic-test] The new tests are pure or SSR — no network, no
+  ambient clock (a frozen instant plus the market TZ), no credentials — and were
+  run in this offline sandbox, where Supabase egress is proxy-blocked.
+[S3:fabricated-qualitative-copy] No generated copy. "via <name>" and the Source
+  row print stored values verbatim; "a local listing" renders only when the
+  source fields are empty.
+[S3:false-confidence-gate] The count line claims exactly what viewCounts()
+  computes, and the ordering clause is driven by the SAME splitApplies value the
+  river renders from — one computation, not a description of one.
+[S3:false-price-claim] Price logic is untouched; detailPrice and its
+  denial-outranks-zero rule are unchanged.
+[S3:featurability-dimension-missed] Provenance now rides EVERY public surface —
+  card, lens and full page — and is confidence-independent, so a disputed row
+  names its source too. That gap (generic sheets for unverified/disputed) is the
+  instance of this class this PR closes.
+[S3:final-gate-trusts-generator] The view re-derives region, window and counts
+  from the rows it actually renders; it trusts no upstream "already filtered"
+  claim. The old server-side delete WAS that trusted claim.
+[S3:governance-ambiguity] The scope of the change is stated precisely in the
+  code comments and here: the classification is unchanged, only where it is
+  APPLIED moved (server delete -> default view scope).
+[S3:heal-drops-guard-marker] STATE.md was edited by hand in the prose sections
+  only; the machine-owned GROUND_TRUTH block and reconciled_through_commit are
+  untouched.
+[S3:missing-cardinality-check] Single-row reads are untouched — exactlyOneOrNull
+  still guards the by-id path, and this PR added no new by-id read.
+[S3:mutable-model-alias] No model or version pin is touched.
+[S3:nonfinite-decimal-accepted] The new numbers are integer counts from a reduce
+  over an array; no numeric parsing or arithmetic on stored values was added.
+[S3:pagination-integrity-gap] The Range-paged fetch loops in licensed.ts and
+  promoted.ts are untouched and still refuse to truncate silently — M counts the
+  window the page actually fetched, so a silent truncation would still fail loud.
+[S3:parallel-record-id-collision] No R-### was allocated in this session.
+[S3:pushed-on-red] tools/validate ran unchained with its exit code checked
+  explicitly; its evidence block is pasted verbatim in the PR, never retyped.
+[S3:release-path-weaker-than-generation] One shared implementation per fact —
+  sourceCredit(), viewCounts(), splitByDayPart(), applyRegionScope() — so no
+  surface can render a weaker or different claim about a row than another.
+[S3:retyped-evidence] The validate evidence is pasted from
+  .validate-evidence.txt; the screenshot facts are read off the captures.
+[S3:rule-stronger-than-mechanism] Every claim in this PR ships with its
+  mechanism: N-of-M (viewCounts unit tests + an SSR assertion on the rendered
+  numbers), the split (sum-preserving tests + SSR), the credit (sourceCredit
+  tests + SSR), and the default CAPCOG scope (a rendered-markup test).
+[S3:scripted-transform-order] Every scripted edit was re-read afterwards —
+  typecheck, the full JS and Python suites, and rendered screenshots — before
+  anything was committed.
+[S3:self-weakenable-gate] docs/memory/RED_CLASSES.md and every gate tool are
+  untouched by this PR.
+[S3:self-weakenable-review-model] No review input, workflow or reviewer pin is
+  touched.
+[S3:semantic-claim-not-rederived] The sentence's MEANING is re-derived at render:
+  "of M" is computed from the catalog rows in the window under the current
+  scope, never inherited from a count an earlier stage computed.
+[S3:stale-base-widens-range] Base refreshed before the gate ran —
+  construction_gate reports origin/master == remote tip 5c9c8ff8da74.
+[S3:stale-live-incident-state] No live-state claim is made. Supabase egress is
+  blocked by this container's proxy policy (diagnosed once, 403 CONNECT), so the
+  screenshots are the repo's SYNTHETIC QA fixture mode and the PR says so.
+[S3:stale-redclass-count] No count of classes or files is typed anywhere; the
+  matched list above is the gate's own printed output.
+[S3:stalled-state-needs-active-diagnosis] The blocked Supabase read got ONE
+  diagnostic probe, was identified as an egress-policy 403, and was reported —
+  not retried in a loop.
+[S3:status-narration-not-progress] The deliverable is a PR plus screenshots of
+  the changed surface; the site moved, measurable by
+  `git diff --name-only origin/master HEAD | grep -E '^(web|worker|api|db)/'`.
+[S3:swallowed-corrupt-data] Nothing is dropped silently: the scope PRINTS how
+  many rows it is holding back, unrecognised places are still kept and counted,
+  and the server still logs both partitions.
+[S3:untested-gate-branch] Every new branch is asserted by a test that says what
+  it DECIDES: capcog vs everywhere, split-applies vs plain river, named vs
+  generic credit, zero vs non-zero held-back, labelled vs unlabelled detail.
+[S3:unusable-credential-tier] No credential is used, minted or pinned.
+[S3:volatile-safety-store] No counter, ledger or durable safety state is added.
+[S3:weak-key-accepted-at-custody] No key, signature or HMAC path is touched.
+[S3:fail-open-on-custody-misconfig] Nothing custody-bearing is added, and the one
+  fail-direction this PR does own fails CLOSED: an unknown region token in a
+  shared link resolves to the CAPCOG default, never to the wider scope.
+[S3:founder-path-unprobed] Every founder-facing claim here was rendered and
+  looked at, not read off the source. What could NOT be probed is stated as
+  such: this container cannot reach Supabase, so no claim is made about how the
+  deployed site looks with real rows.
+[S3:founder-verbatim-corrected] The founder's Session-2 wording is quoted, not
+  tidied — "Showing N of M known listings" and "a local listing" ship as the
+  literal strings they wrote.
+[S3:grant-not-content-bound] No grant, autonomy record or ratification is
+  touched by this PR.
+[S3:green-on-stale-base] No gate here branches on base state, and the base was
+  refreshed before the range-derived gates ran; the visual baselines were
+  recaptured on THIS tree and re-verified against it.
+[S3:malformed-ledger-row] The Kaizen row this PR writes was written through the
+  ledger's own format and its parser re-run, never hand-shaped.
+[S3:missing-record-read-as-state] Where a fact is absent it is reported as
+  absent: a row with no source name says so through the generic phrase, and an
+  unrecognised place is counted as unrecognised, never as inside or outside.
+[S3:permission-for-ratified-work] The founder's Session-2 list is a BUILD
+  instruction, not a question: it was executed in full without asking for a
+  second go-ahead, and the only thing held back is the one thing they reserved —
+  the merge ("Do not merge until I say so").
+[S3:workflow-tool-version-skew] No workflow, pinned tool or behaviour-bearing
+  constant is changed; the visual-check page manifest gains two capture rows and
+  nothing about how any gate judges this PR.
+
+## Session Contract #45 (2026-09-01, founder — "ingest class A/B", branch claude/class-ab-source-ingestion-lv1mlv)
+
+STATUS: CLOSED — merged as PR #201 (master 5c9c8ff).
 GOAL / WHAT: Session 1 only — (1) region/CAPCOG never drops a catalog row, (2) multi_confirm_gate labels and never deletes single-source rows, (3) docs/CLASS_D_CLAIM_QUEUE.md for the class D sources, (4) a <=15-source class A/B run table for the PR.
 HOW: classify sources from the catalog's own access fields; stop the write path defaulting an unknown city to "Austin"; run the EXISTING worker.importers.run_structured_import path (no new importer); lock 1 and 2 with tests.
 WHY: Coverage Law (2026-09-01) makes the catalog greedy and views picky; the write path must keep every legally-seen row.
