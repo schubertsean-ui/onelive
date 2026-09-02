@@ -1902,6 +1902,13 @@ Founder ratified ONE-LIVE-COVERAGE-LAW.md. Scope = every event/activity, any loc
 CAPCOG remains the test view / scoring region, not a catalog reject rule.
 Next session is ingest class A/B (new chat). This note is records-only.
 
+## 2026-09-02 — Vision lock committed
+ONE-LIVE-VISION.md added at repo root (founder vision lock: map not shop,
+every category any locale, no category weighting, publishers trusted
+until wrong, on-device plans, Heartbeat = de-identified pulse, beautiful
++ automagical, trust serves the vision). CLAUDE.md's Operating Law
+section now points to it. Docs-only — no code, pipeline, or design change.
+
 ## 2026-09-01 — Class D → E/F claim path (Coverage Law session 3)
 A login-only organizer can now enter legally. `/ops/claim` records a claim three
 ways — paste a calendar feed URL, paste/upload a CSV, or forward listings to the
