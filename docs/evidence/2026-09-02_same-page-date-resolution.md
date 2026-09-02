@@ -32,6 +32,24 @@ closure (`tools/arming_runtime.runtime_files()` now reports it True, asserted by
 smoke evidence: the arming binding rightly goes red until a green run re-binds
 `docs/evidence/ARMING_SMOKE_RUN.json` to this head.
 
+**It ran on live pages.** Smoke run
+[33661195319](https://github.com/schubertsean-ui/onelive/actions/runs/33661195319)
+(success; 2 sources, 4 followed pages, 0 walls, 0 errors, 79 candidates) logged six
+refusals carrying the reason `ambiguous-same-page-dates`. That string is emitted from
+exactly one line in the tree — `worker/same_page_dates.py:381` — and R-021's normalizer
+cannot produce it, so the new path demonstrably executed against real venue calendars,
+and refused them for the honest reason: a page listing many dates, with a block that
+carries none of them, does not say which listing owns which day.
+
+**What that run does NOT tell us**, stated because the gap is easy to gloss: how many
+claims the resolver COMPLETED. `worker/ai_extract.py` logs resolutions at INFO, and
+`worker/run_once.py` never calls `logging.basicConfig`, so the cron's effective level is
+WARNING and that line never prints. The stored provenance is unaffected — the candidate
+row still carries `_provenance.same_page_date_resolutions` — but the log cannot be counted.
+Absence of resolution lines is NOT a zero. Recorded as R-089, OPEN; it is not fixed here
+because `ai_extract.py` is inside the armed runtime closure and editing it would invalidate
+the smoke evidence this PR just earned.
+
 ---
 
 ### Table 1 — real fixture pages, pipeline segmenter, pipeline resolver (MEASURED)

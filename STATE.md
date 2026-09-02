@@ -66,25 +66,19 @@ OUT OF SCOPE (Must-not, founder): Tonight redesign; catalog upsert; a second
 paid extract wave; new vendor; category weighting. Also refused by me:
 worker/vision_extract.py's identical call site (not the armed path, not named).
 
-SMOKE RUN ATTEMPTED AND BLOCKED (R-088). Expected outcome (5) is NOT delivered and
-cannot be from this sandbox. The authorized run 33657524265 was dispatched against
-head 9e06ee7 and failed: the Anthropic account has hit its configured API usage
-limit ("You will regain access on 2026-10-01 at 00:00 UTC"), so all 2 attempted
-sources errored and run_once raised TotalRunFailure. Account-wide, not this branch:
-the concurrent scheduled master run 33657364580 failed identically on 30 of 30
-sources with candidates=0, and the armed cron is ingesting nothing until the cap is
-lifted. The binding stays RED and untouched — not skipped, not relaxed, no evidence
-written from a failed run, no retry (a date-bound cap cannot be re-run past). PR #210
-is not mergeable until a green run re-binds the evidence; that is a founder money
-decision, escalated. RETRY (founder-authorized, after funds were added) FAILED
-IDENTICALLY: run 33658391826, same message, same 2026-10-01 date. The blocker is the
-founder-set $500/mo CONSOLE SPEND LIMIT recorded in ARMING_SMOKE_RUN.json, which is a
-configured monthly cap rather than a balance — adding funds cannot raise it and it
-resets 2026-10-01T00:00Z. Unblock = raise that limit. Stopped at one retry per the
-founder's instruction.
+SMOKE EVIDENCE EARNED (R-088 RESOLVED). Two dispatches failed on the founder-set
+console spend cap; the founder lifted it and the third, run 33661195319 on head
+58983d6, concluded SUCCESS — 2 sources fetched and extracted, 4 pages followed, 0
+walls, 0 errors, 79 candidates. ARMING_SMOKE_RUN.json is re-bound and
+test_arming_smoke_binding passes. The run PROVES the wiring executed live: six
+refusals carry reason `ambiguous-same-page-dates`, a string emitted from exactly one
+line in the tree (same_page_dates.py:381) that R-021 cannot produce. It does NOT show
+how many claims resolved — that log line is INFO and the cron runs at WARNING — which
+is R-089, OPEN, deliberately not fixed here because ai_extract.py sits in the armed
+runtime closure and editing it would invalidate the evidence just earned.
 
-STATUS: OPEN — code + tests + table DELIVERED; smoke evidence BLOCKED on the API
-usage cap (R-088), awaiting founder.
+STATUS: OPEN — code + tests + table + green smoke evidence all DELIVERED. Awaiting
+the founder's merge line; not merged, per the ticket. Carried forward: R-089.
 
 ## Session Contract #45 (2026-09-02 — founder: "what happened to the 198") — OPEN
 WHAT: read-only forensics on ingest run 33579093995 (198 candidates); no product code.
