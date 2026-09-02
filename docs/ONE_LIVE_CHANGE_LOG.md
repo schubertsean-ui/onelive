@@ -4,6 +4,26 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-02 — CAPCOG entity census: the universe we already know, in one table
+
+Docs-only, read-only session (no ingest, no worker/orchestrator/catalog edit).
+New `docs/CENSUS_CAPCOG.md` + `docs/CENSUS_CAPCOG.csv` census all 180 rows
+already committed in `sources/master_sources_catalog_120.json`: name,
+official_url, bucket (A–F, reused verbatim from the live
+`worker/sourcing/source_class.py::classify_entry()` — the same classifier
+`docs/CLASS_D_CLAIM_QUEUE.md` already runs, so this census cannot silently
+disagree with it), grade (official/trusted_publisher/aggregator_lead/social/
+unknown — new to this doc), and next_action (fetch/follow/claim/
+subscribe-inbox/blocked-D/unknown). Publishers (Austin Chronicle, KUT, KUTX,
+KVUE, KXAN, CBS Austin, FOX 7, CultureMap, KOOP, KLBJ, 101X, ACL Radio) get
+their own first-class 12-row section rather than a footnote. A short section
+documents the newsletter path as one shared inbox foldered by source, no
+per-venue accounts. Result: 142 official, 12 trusted_publisher, 21
+aggregator_lead, 4 social, 1 honestly `unknown`; 151 rows ready to fetch, 10
+follow-only leads, 4 claim + 1 subscribe-inbox rows, 14 already tracked in
+`docs/CLASS_D_CLAIM_QUEUE.md`. Zero network calls made; zero catalog rows
+added, removed, or re-scored.
+
 ## 2026-09-02 — Same-page date only: a listing may borrow the day its own page prints
 
 The 92 dateless candidates of run 33579093995 were all refused for the same

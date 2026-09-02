@@ -1,0 +1,181 @@
+name,official_url,bucket,grade,next_action
+SXSW Official Schedule,https://schedule.sxsw.com/,A,official,fetch
+Ticketmaster Discovery API,https://developer.ticketmaster.com/,D,aggregator_lead,blocked-D
+Eventbrite API,https://www.eventbrite.com/platform/api,D,aggregator_lead,blocked-D
+AXS,https://www.axs.com/,D,aggregator_lead,blocked-D
+DICE,https://dice.fm/,D,aggregator_lead,blocked-D
+See Tickets,https://www.seetickets.us/,D,aggregator_lead,blocked-D
+Tixr,https://www.tixr.com/,D,aggregator_lead,blocked-D
+TicketWeb,https://www.ticketweb.com/,D,aggregator_lead,blocked-D
+Universe (Ticketmaster),https://www.universe.com/,B,aggregator_lead,follow
+SeatGeek,https://seatgeek.com/,B,aggregator_lead,follow
+StubHub,https://www.stubhub.com/,D,aggregator_lead,blocked-D
+Mohawk Austin,https://mohawkaustin.com/,A,official,fetch
+Stubb's Austin,https://www.stubbsaustin.com/,B,official,fetch
+ACL Live at The Moody Theater,https://www.acllive.com/,B,official,fetch
+Antone's Nightclub,https://antonesnightclub.com/,B,official,fetch
+Empire Control Room & Garage,https://empireatx.com/,B,official,fetch
+The Continental Club (Austin),https://continentalclub.com/austin,B,official,fetch
+The Parish Austin,https://parishaustin.com/,B,official,fetch
+Emo's Austin,https://emosaustin.com/,B,official,fetch
+Paramount Theatre (Austin),https://www.austintheatre.org/,B,official,fetch
+The Saxon Pub,https://saxonpub.com/,B,official,fetch
+The White Horse (Austin),https://thewhitehorseaustin.com/,B,official,fetch
+Hotel Vegas,https://hotelvegasaustin.com/,B,official,fetch
+Visit Austin Events,https://www.austintexas.org/events/,A,official,fetch
+Do512,https://do512.com/,B,aggregator_lead,follow
+Austin Chronicle Events,https://www.austinchronicle.com/events/,B,trusted_publisher,fetch
+Bandsintown,https://artists.bandsintown.com/,B,aggregator_lead,follow
+Songkick,https://www.songkick.com/,A,aggregator_lead,follow
+Instagram Graph API,https://developers.facebook.com/docs/instagram-api/,E,social,claim
+Facebook Graph API,https://developers.facebook.com/docs/graph-api/,E,social,claim
+TikTok for Developers,https://developers.tiktok.com/,E,social,claim
+YouTube Data API,https://developers.google.com/youtube/v3,D,social,blocked-D
+Spotify Web API,https://developer.spotify.com/documentation/web-api,D,aggregator_lead,blocked-D
+SoundCloud,https://soundcloud.com/,B,aggregator_lead,follow
+Linktree,https://linktr.ee/,B,aggregator_lead,follow
+Claimed Venue Upload (ICS/CSV),,E,official,claim
+Opt-in Email Forwarding (Venue Schedules),,E,official,subscribe-inbox
+Google Calendar (Claimed OAuth),https://developers.google.com/calendar,D,official,blocked-D
+Resident Advisor,https://ra.co/,B,aggregator_lead,follow
+Meetup,https://www.meetup.com/,B,aggregator_lead,follow
+Google Places API (Venue Identity),https://developers.google.com/maps/documentation/places,D,unknown,blocked-D
+Texas Performing Arts (UT Austin),https://texasperformingarts.org/events/calendar/,A,official,fetch
+"UT Austin Events Calendar (Texas Today, Localist)",https://calendar.utexas.edu/,A,official,fetch
+Texas State Presents (Texas State University),https://txstatepresents.universitytickets.com/,B,official,fetch
+Texas State University Main Events,https://events.txst.edu/,A,official,fetch
+Austin Community College Events Calendar,https://students.austincc.edu/calendars/acc-events-calendar/,B,official,fetch
+Austin Public Library Events,https://library.austintexas.gov/events/calendar,A,official,fetch
+City of Austin Events (austintexas.gov),https://www.austintexas.gov/events,A,official,fetch
+Blanton Museum of Art,https://blantonmuseum.org/calendar_events,B,official,fetch
+The Contemporary Austin,https://thecontemporaryaustin.org/,B,official,fetch
+Mexic-Arte Museum,https://mexic-artemuseum.org/upcoming-events-calendar/,B,official,fetch
+ZACH Theatre,https://www.zachtheatre.org/,B,official,fetch
+The Long Center for the Performing Arts,https://thelongcenter.org/calendar/,B,official,fetch
+Austin Film Society (AFS Cinema),https://www.austinfilm.org/calendar/,B,official,fetch
+BookPeople Events,https://bookpeople.com/upcoming-events,A,official,fetch
+Cap City Comedy Club,https://www.capcitycomedy.com/,B,official,fetch
+The Hideout Theatre,https://hideouttheatre.com/,B,official,fetch
+The Velveeta Room,https://www.thevelveetaroom.com/shows,B,official,fetch
+KUTX Presents (KUT/KUTX Public Radio Events),https://kutx.org/kutx-presents/,A,trusted_publisher,fetch
+KUT 90.5 Events (Austin's NPR Station),https://www.kut.org/tags/kut-events,A,trusted_publisher,fetch
+KOOP 91.7 FM (Austin Community Radio) Events,https://koop.org/,A,trusted_publisher,fetch
+KLBJ 93.7 FM Concerts (The Rock of Austin),https://www.klbjfm.com/events/klbj-concerts,B,trusted_publisher,fetch
+101X (KROX-FM) Events,https://www.101x.com/events,B,trusted_publisher,fetch
+"Austin City Limits Radio (ACL Radio, fmr KGSR)",https://acl-radio.com/,B,trusted_publisher,fetch
+KVUE (ABC) Community Calendar,https://events.kvue.com/,A,trusted_publisher,fetch
+KXAN (NBC) Community Calendar,https://www.kxan.com/calendar/,A,trusted_publisher,fetch
+CBS Austin (KEYE) Community Calendar,https://cbsaustin.com/features/community-calendar,A,trusted_publisher,fetch
+FOX 7 Austin (KTBC) Community Calendar,https://www.fox7austin.com/community,A,trusted_publisher,fetch
+CultureMap Austin Events,https://austin.culturemap.com/events/,A,trusted_publisher,fetch
+Historic Scoot Inn,https://www.scootinnaustin.com/,B,official,fetch
+Cheer Up Charlies,https://cheerupcharlies.com/,A,official,fetch
+The Far Out Lounge & Stage,https://www.thefaroutaustin.com/events.html,B,official,fetch
+Come and Take It Live,https://www.comeandtakeitlive.com/,B,official,fetch
+Elephant Room,https://elephantroom.com/calendar,B,official,fetch
+C-Boy's Heart & Soul,https://www.cboys.com/calendar,A,official,fetch
+3TEN ACL Live (Austin City Limits Live),https://www.acllive.com/events/venue/acl-live-at-3ten,B,official,fetch
+MusicBrainz (Artist/Event/Place Spine),https://musicbrainz.org/ws/2/,A,aggregator_lead,follow
+Austin Symphony Orchestra,https://my.austinsymphony.org/events?view=list,B,official,fetch
+Ballet Austin,https://my.balletaustin.org/events,B,official,fetch
+Austin Opera,https://my.austinopera.org/events?view=list,B,official,fetch
+Fusebox Festival,https://fuseboxlive.com/,B,official,fetch
+Austin Chamber Music Center / Festival,https://austinchambermusic.org/concert-season/,B,official,fetch
+Golden Hornet,https://www.goldenhornet.org/calendar,B,official,fetch
+Round Rock Express (MiLB),https://www.milb.com/round-rock/schedule,B,official,fetch
+Austin FC (MLS),https://www.austinfc.com/schedule/,B,official,fetch
+Circuit of the Americas (COTA),https://circuitoftheamericas.com/events/,B,official,fetch
+Austin Spurs (NBA G League),https://austin.gleague.nba.com/schedule,B,official,fetch
+Austin Food & Wine Festival,https://www.austinfoodandwinefestival.com/,B,official,fetch
+SFC Farmers' Market (Sustainable Food Center),https://sustainablefoodcenter.org/farmers-markets-support/sfc-farmers-markets/,B,official,fetch
+Texas Craft Brewers Festival,https://texascraftbrewersfestival.org/,B,official,fetch
+Elysium,https://www.elysiumonline.net/events.html,B,official,fetch
+Kingdom Nightclub,https://kingdomnightclub.com/events/,B,official,fetch
+The Concourse Project,https://concourseproject.com/calendar/,B,official,fetch
+Tapestry Dance Company,https://tapestry.org/season-shows,B,official,fetch
+Bullock Texas State History Museum,https://www.thestoryoftexas.com/calendar/,B,official,fetch
+LBJ Presidential Library,https://www.lbjlibrary.org/events,B,official,fetch
+Austin History Center Association,https://austinhistory.org/events/,B,official,fetch
+"George Washington Carver Museum, Cultural & Genealogy Center",https://www.austintexas.gov/carver/events,B,official,fetch
+Asian American Resource Center (AARC),https://www.austintexas.gov/aarc/asian-american-resource-center-event-calendar,B,official,fetch
+Thinkery (Austin Children's Museum),https://my.thinkeryaustin.org/events,B,official,fetch
+Austin Nature & Science Center,https://www.austintexas.gov/parks/austin-nature-science-center-camps-events-and-community-programs,B,official,fetch
+UMLAUF Sculpture Garden & Museum,https://www.umlaufsculpture.org/programs,B,official,fetch
+Elisabet Ney Museum,https://www.austintexas.gov/ney/programs-education,B,official,fetch
+Republic Square (Downtown Austin Alliance),https://downtownaustin.com/republic-square-events/,B,official,fetch
+Waterloo Greenway Conservancy (Waterloo Park),https://waterloogreenway.org/events/,B,official,fetch
+Mueller Austin (Parks & Events),https://muelleraustin.com/events-at-mueller/,B,official,fetch
+Rodeo Austin (Star of Texas Fair & Rodeo),https://rodeoaustin.com/events/,B,official,fetch
+Maker Faire Austin,https://austin.makerfaire.com/schedule/,B,official,fetch
+Texas Book Festival,https://texasbookfestival.org/schedule/,B,official,fetch
+Austin Trail of Lights,https://austintrailoflights.org/the-event,B,official,fetch
+Eeyore's Birthday Party,https://eeyores.org/,B,official,fetch
+Austin Yoga Festival,http://www.austinyogafestival.com/,B,official,fetch
+HAAM (Health Alliance for Austin Musicians),https://www.myhaam.org/calendar-of-events,B,official,fetch
+Austin Fashion Week,https://austinfashionweek.sched.com/,B,official,fetch
+Bing Search (Benchmark Only),https://www.bing.com/,D,aggregator_lead,blocked-D
+DuckDuckGo Search (Benchmark Only),https://duckduckgo.com/,D,aggregator_lead,blocked-D
+Meanwhile Brewing Co.,https://www.meanwhilebeer.com/events,B,official,fetch
+Central Machine Works Brewery,https://www.cmwbrewery.com/live-music,B,official,fetch
+Austin Beerworks,https://austinbeerworks.com/calendar,B,official,fetch
+Jester King Brewery,https://jesterkingbrewery.com/events-calendar,B,official,fetch
+Still Austin Whiskey Co.,https://www.stillaustin.com/tasting-room-events,B,official,fetch
+Oasis Texas Brewing Company,https://www.otxbc.com/events,B,official,fetch
+Whitestone Brewery,https://whitestonebrewery.com/,B,official,fetch
+Rentsch Brewery,https://rentschbrewery.com/,B,official,fetch
+Barking Armadillo Brewing,https://barkingarmadillo.com/,B,official,fetch
+Vista Brewing,https://www.vistabrewingtx.com/calendars,B,official,fetch
+Fitzhugh Brewing,https://www.fitzhughbrewing.com/upcoming-events,B,official,fetch
+Treaty Oak Distilling,https://www.treatyoakdistilling.com/events,B,official,fetch
+Dripping Springs Distilling,https://drippingspringsdistilling.com/events/list/,B,official,fetch
+Bell Springs Winery,https://www.bellsprings.co/events,B,official,fetch
+Yegua Creek Brewery & Restaurant,https://www.yeguacreekbrewery.com/events,B,official,fetch
+Rising Sun Vineyard,https://www.risingsunvineyard.com/,B,official,fetch
+Garrison Brothers Distillery,https://www.garrisonbros.com/events,B,official,fetch
+Carter Creek Winery Resort & Spa,https://www.cartercreek.com/calendar-of-events,B,official,fetch
+Iron Wolf Ranch & Distillery,https://ironwolfranch.com/events/,B,official,fetch
+Fall Creek Vineyards (Tow),https://fcv.com/events/,B,official,fetch
+Wedding Oak Winery,http://www.weddingoakwinery.com/events,B,official,fetch
+Round Top Brewing Co.,http://www.roundtopbrewing.com/new-events-1,B,official,fetch
+Becker Vineyards,https://beckervineyards.com/events,B,official,fetch
+Pedernales Cellars,https://www.pedernalescellars.com/events-calendar/,B,official,fetch
+Signor Vineyards,https://www.signorvineyards.com/events,B,official,fetch
+Augusta Vin Winery,https://augustavin.com/events/,B,official,fetch
+Longhorn Cellars,https://longhorncellars.com/calendar/,B,official,fetch
+Ab Astris Winery,https://www.abastriswinery.com/events,B,official,fetch
+Meierstone Vineyards,https://www.meierstonevineyards.com/events/,B,official,fetch
+Barons Creek Vineyards,https://baronscreekvineyards.com/events/,B,official,fetch
+4.0 Cellars,https://www.fourpointwine.com,B,official,fetch
+Fiesta Winery,https://www.fiestawinery.com,B,official,fetch
+Fredericksburg Winery,https://fbgwinery.com,B,official,fetch
+Hilmy Cellars,https://hilmywine.com,B,official,fetch
+Slate Theory Winery,https://slatetheory.com,B,official,fetch
+Texas Wine Collective,https://www.texaswinecollective.com,B,official,fetch
+Adega Vinho Winery,https://adegavinho.com/events/,B,official,fetch
+K Estate Winery (Kuhlman Cellars),https://kuhlmancellars.com,B,official,fetch
+Messina Hof Hill Country Winery,https://messinahof.com/fredericksburg/,B,official,fetch
+Grape Creek Vineyards,https://grapecreek.com,B,official,fetch
+William Chris Vineyards,https://williamchriswines.com/events/,B,official,fetch
+Wildseed Farms,https://wildseedfarms.com/events/,B,official,fetch
+Salvation Spirits / The Speakeasy,https://salvationspeakeasy.com,B,official,fetch
+Altstadt Brewery,https://altstadtbeer.com/happenings/,B,official,fetch
+Altdorf Biergarten,https://www.altdorfs.com/events/,B,official,fetch
+Silver Creek Beer Garden & Grille,https://silvercreekfbg.com,B,official,fetch
+Lewis Wines,https://www.lewiswines.com/events,B,official,fetch
+Texas Hills Vineyard,https://texashillsvineyard.com/events/,B,official,fetch
+Siboney Cellars,https://siboneycellars.com/events/,B,official,fetch
+Vinovium,https://www.vinovium.wine/events,B,official,fetch
+Sandy Road Vineyards,https://sandyroadvineyards.com/pages/events,B,official,fetch
+Westcave Cellars Winery & Brewery,https://www.westcavecellars.com/events/category/westcave-cellars/list/,B,official,fetch
+290 Wine Castle,https://www.290winecastle.com/Events,B,official,fetch
+Esperanza Winery,https://www.esperanzawinery.com/events-1,B,official,fetch
+Hye Meadow Winery,https://www.hyemeadow.com/pages/events,B,official,fetch
+Ron Yates Wines,https://www.ronyateswines.com/events,B,official,fetch
+Pebble Rock Cellars,https://www.pebblerockcellars.wine/,B,official,fetch
+Real Ale Brewing Company,https://realalebrewing.com/events/,B,official,fetch
+Pecan Street Brewing,https://www.pecanstreetbrewing.com/events,B,official,fetch
+Texas Cannon Brewing Company,https://www.texascannonbrewing.com/,B,official,fetch
+Andalusia Whiskey Co.,https://www.andalusiawhiskey.com/event-calendar,B,official,fetch
+Milam & Greene Whiskey,https://milamandgreenewhiskey.com/pages/events,B,official,fetch
+Redbud Cafe,https://redbudcafetx.com/music/,B,official,fetch
+Uptown Blanco Arts & Entertainment,https://www.uptownblanco.com/ballroom,B,official,fetch
