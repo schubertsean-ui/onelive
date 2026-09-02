@@ -276,3 +276,5 @@ Doesn't fit the other four honestly. One row: Google Places API is venue-identit
 ## Provenance
 
 Every row traces to `sources/master_sources_catalog_120.json` (see that file's own `rank`/`id` for the join key back to it) and, for the historical why-this-source-was-added narrative, `sources/README.md`. `bucket` is recomputed from live code (`classify_entry()`), not hand-copied, so it cannot drift from `docs/CLASS_D_CLAIM_QUEUE.md`'s D/E rows — cross-check any bucket-D or bucket-E row against that document for the suggested claim path. This file is a snapshot, not a generated-and-regenerated artifact: unlike `CLASS_D_CLAIM_QUEUE.md` it carries no "do not hand-edit" notice, because no `tools/` generator for it was added in this session (Must-not: no new importer/taxonomy/service). Re-running the same method against a later catalog would need a fresh pass.
+
+`docs/CENSUS_CAPCOG.csv` quotes every field that contains a comma per RFC 4180 (e.g. the row for "George Washington Carver Museum, Cultural & Genealogy Center") — confirmed by parsing the committed file with Python's `csv` module: all 180 data rows read back as exactly 5 fields, no exceptions.
