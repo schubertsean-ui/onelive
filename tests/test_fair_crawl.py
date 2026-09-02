@@ -26,10 +26,21 @@ import datetime as _dt
 import pytest
 
 from worker.ai_extract import ExtractionOutcome
-from worker.crawl_state import DoorFingerprint, SourceCrawlState
+from worker.crawl_state import (
+    QUEUE_DISCOVER,
+    QUEUE_EVENT,
+    QUEUE_REFRESH,
+    UNVERIFIED,
+    VERIFIED_ABSENT,
+    VERIFIED_PRESENT,
+    DoorFingerprint,
+    EventRefresh,
+    SourceCrawlState,
+    TickBudget,
+)
 import worker.orchestrator as orchestrator
 from worker.orchestrator import CLASS_D_WALL_MARKER, render_run_table, run_loop
-from worker.run_once import order_for_rotation, take_due_wave
+from worker.run_once import order_for_rotation, plan_tick, render_outcomes
 
 _TZ = _dt.timezone.utc
 NOW = _dt.datetime(2026, 9, 2, 12, 0, tzinfo=_TZ)
@@ -146,42 +157,75 @@ def _row(name, last):
     return (name, name, f"https://{name}.example/", "venue_site", {}, last)
 
 
-def test_the_wave_is_the_next_k_due_sources_by_cursor():
-    """Round-robin: least-recently-attempted first, K of them, and the ones
-    that are not due are DEFERRED, not dropped — they lead the next wave."""
-    rows = order_for_rotation([
-        _row("fresh", NOW - _dt.timedelta(minutes=2)),
-        _row("stalest", NOW - _dt.timedelta(days=9)),
-        _row("never", None),
-        _row("stale", NOW - _dt.timedelta(days=2)),
+def _plan_sources(names_and_last):
+    rows = order_for_rotation([_row(n, t) for n, t in names_and_last])
+    return [{"source_id": r[0], "name": r[1], "url": r[2]} for r in rows]
+
+
+def test_the_tick_plan_is_ordered_most_overdue_first():
+    """Not "the next K sources": the plan is everything DUE, most overdue
+    first, and how much of it happens is decided by the tick's budgets."""
+    sources = _plan_sources([
+        ("fresh", NOW - _dt.timedelta(minutes=2)),
+        ("stalest", NOW - _dt.timedelta(days=9)),
+        ("never", None),
+        ("stale", NOW - _dt.timedelta(days=2)),
     ])
-    sources = [{"source_id": r[0], "name": r[1], "url": r[2]} for r in rows]
     states = {
         "fresh": SourceCrawlState("fresh", last_attempt_at=NOW - _dt.timedelta(minutes=2)),
         "stalest": SourceCrawlState("stalest", last_attempt_at=NOW - _dt.timedelta(days=9)),
         "stale": SourceCrawlState("stale", last_attempt_at=NOW - _dt.timedelta(days=2)),
     }
 
-    wave, deferred = take_due_wave(sources, states, 2, now=NOW)
+    planned, deferred = plan_tick(sources, states, now=NOW)
 
-    assert [s["source_id"] for s in wave] == ["never", "stalest"]
-    assert deferred == 1, "'fresh' is inside its interval; it is not in the wave"
+    assert [s["source_id"] for s in planned] == ["never", "stalest", "stale"]
+    assert deferred == 1, "'fresh' is inside its interval; it leads a later tick"
 
 
 def test_a_source_with_no_crawl_history_is_due():
-    """A row imported since the last run has no raw_fetch history. "We know
+    """A row imported since the last tick has no raw_fetch history. "We know
     nothing about it" must never read as "skip it" — that is silent coverage
     loss on exactly the rows an import just added."""
     sources = [{"source_id": "brand-new", "name": "n", "url": "https://n.example/"}]
-    wave, deferred = take_due_wave(sources, {}, 5, now=NOW)
-    assert [s["source_id"] for s in wave] == ["brand-new"]
+    planned, deferred = plan_tick(sources, {}, now=NOW)
+    assert [s["source_id"] for s in planned] == ["brand-new"]
+    assert planned[0]["queue"] == QUEUE_DISCOVER
     assert deferred == 0
 
 
-def test_no_source_takes_more_than_two_fetches_from_a_wave(monkeypatch, tmp_path):
+def test_event_proximity_pages_lead_the_plan_and_carry_their_door():
+    """A published event near a rung outranks routine turns, and the item is a
+    PAGE — the loop is handed the defining URL, not the source's homepage."""
+    sources = _plan_sources([("venue", None)])
+    refresh = EventRefresh(source_id="venue", url="https://venue.example/calendar",
+                           rung_hours=6, overdue_seconds=3600, events=4)
+
+    planned, _ = plan_tick(sources, {}, [refresh], now=NOW)
+
+    assert planned[0]["queue"] == QUEUE_EVENT
+    assert planned[0]["door"] == "https://venue.example/calendar"
+    assert "4 published event(s)" in planned[0]["queue_reason"]
+
+
+def test_one_page_is_not_fetched_twice_in_one_tick():
+    """Dedupe across queues: if the event page IS the source's best door, the
+    event item covers it and the source item is dropped for this tick."""
+    sources = _plan_sources([("venue", None)])
+    state = SourceCrawlState("venue", best_url="https://venue.example/calendar")
+    refresh = EventRefresh(source_id="venue", url="https://venue.example/calendar",
+                           rung_hours=6, overdue_seconds=3600)
+
+    planned, _ = plan_tick(sources, {"venue": state}, [refresh], now=NOW)
+
+    assert len(planned) == 1
+    assert planned[0]["queue"] == QUEUE_EVENT
+
+
+def test_no_source_takes_more_than_two_fetches_from_a_tick(monkeypatch, tmp_path):
     """The defect this pass fixes: a link-heavy calendar used to walk 15 pages
-    while the sources behind it got zero. Every source in this wave advertises
-    two event pages; none of them gets to spend more than its two fetches."""
+    while the sources behind it got zero. Every source here advertises two
+    event pages; none of them gets to spend more than its two fetches."""
     requested, _, _ = _install(monkeypatch, tmp_path, pages={
         f"https://{n}.example/": HOME_HTML for n in ("a", "b", "c")
     } | {
@@ -415,10 +459,213 @@ def test_the_run_table_reports_every_column_the_ticket_asks_for(monkeypatch, tmp
     print("\n" + table)
 
     header = table.splitlines()[0]
-    for column in ("source", "url fetched", "changed?", "candidates",
-                   "skipped-unchanged", "blocked"):
+    for column in ("source", "queue", "url fetched", "changed?", "verified?",
+                   "candidates", "skipped-unchanged", "blocked"):
         assert column in header
-    rows = {line.split("|")[0].strip(): line for line in table.splitlines()[2:]}
-    assert "yes" in rows["a"] and "4" in rows["a"]   # 2 candidates x 2 doors
-    assert "no" in rows["b"] and rows["b"].split("|")[4].strip() == "1"
-    assert "class D" in rows["c"]
+    cells = {line.split("|")[0].strip(): [c.strip() for c in line.split("|")]
+             for line in table.splitlines()[2:]}
+    assert cells["a"][3] == "yes" and cells["a"][5] == "4"  # 2 candidates x 2 doors
+    # b: identical bytes -> not changed, still VERIFIED present, extract saved.
+    assert cells["b"][3] == "no"
+    assert cells["b"][4] == "present"
+    assert cells["b"][6] == "1"
+    # c: a wall confirms nothing about c's listings — fail closed.
+    assert "class D" in cells["c"][7]
+    assert cells["c"][4] == "no"
+
+
+# --- 6. the tick stops on budgets, and says which one ------------------------
+
+class _Clock:
+    def __init__(self):
+        self.t = 0.0
+
+    def __call__(self):
+        return self.t
+
+
+def _many(monkeypatch, tmp_path, n):
+    names = [f"s{i}" for i in range(n)]
+    _install(monkeypatch, tmp_path,
+             pages={f"https://{n_}.example/": PAGE_HTML for n_ in names})
+    return [_source(n_, url=f"https://{n_}.example/") for n_ in names]
+
+
+def test_the_tick_stops_on_the_wall_clock_and_defers_the_rest(monkeypatch, tmp_path):
+    """How many sources a tick reaches is an OUTCOME. Everything it did not
+    reach is DEFERRED and counted — a tick that quietly stopped early would
+    look exactly like a catalog with nothing to say."""
+    sources = _many(monkeypatch, tmp_path, 5)
+    clock = _Clock()
+    budget = TickBudget(max_seconds=10, clock=clock)
+
+    real = orchestrator._run_one_source
+
+    def _slow(**kwargs):
+        clock.t += 4          # each source burns 4 of the 10 seconds
+        return real(**kwargs)
+
+    monkeypatch.setattr(orchestrator, "_run_one_source", _slow)
+    report = run_loop(ai=FakeAIProvider(), sources=sources, budget=budget)
+
+    assert report.outcomes["stop_reason"] == "wall_clock"
+    # Two sources ran inside the budget. The third started, found the clock
+    # spent at its first fetch, and was deferred individually; the remaining
+    # two never started and were deferred in bulk. Every one of the five is
+    # accounted for — a tick that quietly stopped early would look exactly
+    # like a catalog with nothing to say.
+    assert report.outcomes["sources_touched"] == 2
+    assert report.outcomes["sources_deferred"] == 3
+    assert report.counts["deferred"] == 3
+
+
+def test_the_tick_stops_on_the_model_budget(monkeypatch, tmp_path):
+    sources = _many(monkeypatch, tmp_path, 4)
+    report = run_loop(ai=FakeAIProvider(), sources=sources,
+                      budget=TickBudget(max_extract_calls=2))
+    assert report.outcomes["stop_reason"] == "model_budget"
+    assert report.outcomes["extract_calls"] == 2
+
+
+def test_the_fetch_cap_is_a_bug_safety_net_not_the_schedule(monkeypatch, tmp_path):
+    sources = _many(monkeypatch, tmp_path, 6)
+    report = run_loop(ai=FakeAIProvider(), sources=sources,
+                      budget=TickBudget(max_fetches=3))
+    assert report.outcomes["stop_reason"] == "fetch_budget"
+    assert report.outcomes["fetches"] == 3
+
+
+def test_host_politeness_defers_a_source_without_ending_the_tick(monkeypatch, tmp_path):
+    """Two catalog rows on one host: the second waits, and the tick goes on to
+    a source somewhere else."""
+    _install(monkeypatch, tmp_path, pages={
+        "https://shared.example/one": PAGE_HTML,
+        "https://shared.example/two": PAGE_HTML,
+        "https://other.example/": PAGE_HTML,
+    })
+    sources = [
+        _source("one", url="https://shared.example/one"),
+        _source("two", url="https://shared.example/two"),
+        _source("three", url="https://other.example/"),
+    ]
+    report = run_loop(ai=FakeAIProvider(), sources=sources,
+                      budget=TickBudget(max_fetches_per_host=1))
+
+    by_name = {r.source_name: r for r in report.results}
+    assert by_name["two"].decision == "deferred"
+    assert "host" in by_name["two"].detail
+    assert by_name["three"].decision != "deferred", "the tick was not ended"
+    assert report.outcomes["stop_reason"] == "exhausted"
+
+
+def test_a_tick_reports_fetches_extracts_and_dollars(monkeypatch, tmp_path):
+    """Founder: "Report fetches/extracts/$ as outcomes." Measured, not planned."""
+    sources = _many(monkeypatch, tmp_path, 2)
+    report = run_loop(ai=FakeAIProvider(), sources=sources, budget=TickBudget())
+    line = render_outcomes(report, model_id="claude-haiku-4-5-20251001")
+    assert "fetches:" in line and "extract calls:" in line
+    # Two discover sources: each spends its start page plus one probe of the
+    # conventional /events path, which 404s here.
+    assert report.outcomes["fetches"] == 4
+    assert report.outcomes["extract_calls"] == 2
+    # The fake extractor reports no token usage, so the cost must say so rather
+    # than print $0.00 — a fabricated cost is worse than no cost.
+    assert "unknown (the provider reported no token usage)" in line
+
+
+def test_an_unpriced_model_is_reported_as_unknown_not_as_free(monkeypatch, tmp_path):
+    sources = _many(monkeypatch, tmp_path, 1)
+    report = run_loop(ai=FakeAIProvider(), sources=sources, budget=TickBudget())
+    assert "not in the docs/MODEL_ROUTING.md price table" in render_outcomes(
+        report, model_id="claude-something-unreleased")
+
+
+# --- 7. verification is fail-closed ------------------------------------------
+
+def test_an_unchanged_page_is_positive_confirmation(monkeypatch, tmp_path):
+    """A 304 or an identical hash is EVIDENCE the page still says what it said —
+    stronger than a fresh parse, not weaker."""
+    _install(monkeypatch, tmp_path,
+             pages={"https://venue.example/": HOME_HTML},
+             hashes={"https://venue.example/": "same"},
+             fingerprints={"https://venue.example/": "same"})
+    report = run_loop(ai=FakeAIProvider(), sources=[_source()], budget=TickBudget())
+    assert report.results[0].verdict == VERIFIED_PRESENT
+
+
+@pytest.mark.parametrize("status,expected", [
+    (403, UNVERIFIED),      # a wall confirms nothing
+    (429, UNVERIFIED),      # rate limiting confirms nothing
+])
+def test_a_blocked_check_confirms_nothing(monkeypatch, tmp_path, status, expected):
+    _install(monkeypatch, tmp_path,
+             pages={"https://venue.example/": HOME_HTML},
+             errors={"https://venue.example/": _HttpError(status, "https://venue.example/")})
+    report = run_loop(ai=FakeAIProvider(), sources=[_source()], budget=TickBudget())
+    assert report.results[0].verdict == expected
+    assert "last good row stands" in report.results[0].verdict_reason
+
+
+def test_a_clear_404_on_the_defining_page_is_confirmed_absence(monkeypatch, tmp_path):
+    """And it is absence of the PAGE. Whether a particular event vanished from a
+    page that still loads is the mutation path's question, not this one's."""
+    _install(monkeypatch, tmp_path, pages={"https://venue.example/": HOME_HTML},
+             errors={"https://venue.example/events":
+                     _HttpError(404, "https://venue.example/events")})
+    state = SourceCrawlState("src-venue", best_url="https://venue.example/events")
+    report = run_loop(ai=FakeAIProvider(), sources=[_source(state=state)],
+                      budget=TickBudget())
+    # The best door 404'd, so the tick fell back to the start URL and the
+    # source's own verdict is about what it finally read. The 404 itself is
+    # classified where it happens:
+    from worker.crawl_state import classify_recheck
+    assert classify_recheck(door_kind="missed", http_status=404)[0] == VERIFIED_ABSENT
+    assert report.counts["errors"] == 0
+
+
+def test_the_loop_never_mutates_a_published_event():
+    """Founder: "no delete, no cancel, no date edit" unless confirmed. The loop
+    cannot do any of them, and this is checked STRUCTURALLY over the AST rather
+    than over the text, so prose in a docstring cannot fail it and — far more
+    important — cannot satisfy it either: the check looks at what the module
+    CALLS and at the SQL it actually carries."""
+    import ast
+    import pathlib
+    import re
+    tree = ast.parse(pathlib.Path(orchestrator.__file__).read_text())
+
+    called = {getattr(n.func, "id", None) or getattr(n.func, "attr", None)
+              for n in ast.walk(tree) if isinstance(n, ast.Call)}
+    assert "promote_candidate" not in called
+    assert "execute" not in called, (
+        "the loop issues no SQL of its own — every DB touch goes through the "
+        "candidate store, which cannot reach the `event` table")
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            assert not re.search(r"\b(update|delete\s+from)\s+event\b",
+                                 node.value, re.IGNORECASE), node.value[:80]
+
+
+def test_extraction_is_the_only_stage_that_may_call_a_model():
+    """Founder: "Extract is the only stage that may call Anthropic." The AI
+    provider must reach exactly one callee in the loop — extract_candidates.
+    Everything else (fetch, sensor, discovery, gate, scheduling) is
+    deterministic, so a model call anywhere else is spend nobody budgeted."""
+    import ast
+    import pathlib
+    tree = ast.parse(pathlib.Path(orchestrator.__file__).read_text())
+    callees = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        passes_ai = any(
+            kw.arg == "ai" and isinstance(kw.value, ast.Name) and kw.value.id == "ai"
+            for kw in node.keywords)
+        if passes_ai:
+            callees.add(getattr(node.func, "id", None) or getattr(node.func, "attr", None))
+    assert callees == {"extract_candidates", "_process_fetched_page",
+                       "_discover_second_door", "_run_one_source"}, callees
+    # ...and of those, only extract_candidates is not a function in this module
+    # that merely forwards it onward to the same place.
+    assert "extract_event_json" not in pathlib.Path(orchestrator.__file__).read_text()

@@ -4,8 +4,34 @@ The problem this exists to fix (founder, 2026-09-02): the ingest run spent its
 page budget IN SOURCE ORDER, so the first two link-heavy calendars consumed all
 30 follow-pages and every source behind them got zero. Coverage Law makes a
 missing locale or category a defect; a budget that starves all but two sources
-is that defect in scheduler form. The fix is fairness, not more spend: MANY
-sources per wave, FEW pages each.
+is that defect in scheduler form.
+
+INCREMENTAL CRAWL (founder correction, same day, verbatim: "K=30 is a spend/time
+safety cap, not the design"). A tick is not "N sources". A tick is: take the
+sources that are DUE, most overdue first, and keep going until a real budget
+says stop — wall clock, model spend, or host politeness. How many sources that
+turns out to be is an OUTCOME, reported after the fact, not an input someone
+picked. Two consequences that are easy to get wrong and are pinned by tests:
+
+  * ROUND-ROBIN IS ONLY A TIE-BREAK. Least-recently-attempted decides the order
+    between two sources that are equally overdue; it does not decide who is in
+    the tick. Overdue-ness does that.
+  * THERE IS NO CATEGORY WEIGHTING anywhere in this module. Nothing here reads
+    a source's category, type, city, or name to decide its turn — only its own
+    crawl history. A scheduler is exactly where a "music first" thumb would
+    hide, and there is no field here for it to hide in.
+
+TWO QUEUES, because a source in one costs a different amount than a source in
+the other:
+
+  * REFRESH — we know this source's door (`best_url`). One fetch: go straight
+    at it. This is the steady state and it is cheap.
+  * DISCOVER — we do not. One or two probes: the registered start URL, plus the
+    single top-ranked events/calendar/shows page it advertises.
+
+Discovery gets a bounded SHARE of the tick (DISCOVER_FETCH_SHARE) so a large
+import cannot consume a tick that the live catalog needed for refreshing, and
+refresh cannot starve discovery of ever finding a door.
 
 Four facts per source drive that, and all four are DERIVED from rows the
 pipeline already writes — there is no new table, no new column, no new vendor,
@@ -33,26 +59,27 @@ worker/run_once.py's rotation ordering already prints and carries.
 
 THE CURSOR is likewise not a stored integer index into the enabled-source list.
 An index breaks the moment a source is added, disabled, or renamed — it would
-point at a different source than it did last run, which is silent coverage
+point at a different source than it did last tick, which is silent coverage
 loss. The cursor is the least-recently-ATTEMPTED ordering
 (worker/run_once.py::order_for_rotation), persisted as raw_fetch rows and
-correct under insertion and deletion: whoever waited longest goes next.
+correct under insertion and deletion — and it is the TIE-BREAK, not the
+schedule: `order_due` sorts by how long each source has been overdue and only
+consults the cursor when two are equally overdue.
 
-DUE-NESS IS A SUPPRESSOR, NOT THE SCHEDULER. The cursor decides the order; the
-due window only REMOVES sources that should not be touched yet — a failing
-source backing off, a source visited minutes ago. That split is deliberate:
-if due-ness were the scheduler, a clock skew or an empty raw_fetch table would
-decide coverage. With the cursor scheduling, the worst a wrong due window can
-do is under-fill one wave.
-
-Pure functions plus three narrow SELECTs. No writes, no AI, no network.
+Pure functions plus two narrow SELECTs. No writes, no network — and NO MODEL
+CALL: extraction is the only stage in the pipeline that may reach Anthropic,
+so a scheduler that phoned a model to decide whose turn it was would be
+spending the extraction budget on itself.
 """
 from __future__ import annotations
 
 import logging
+import os
+import time
+import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -65,53 +92,98 @@ ATTEMPT_PREFIX = "attempt:"
 ATTEMPT_FAILED = "attempt:failed"
 ATTEMPT_NOT_MODIFIED = "attempt:not_modified"
 
-# --- Wave shape --------------------------------------------------------------
+# --- Queues ------------------------------------------------------------------
+#
+# A source is in exactly one of these, decided by ONE fact: do we know its
+# door? Nothing about what kind of place it is enters here (see the module
+# docstring: no category weighting, and no field to hide one in).
+QUEUE_REFRESH = "refresh"
+QUEUE_DISCOVER = "discover"
+#: EVENT-PROXIMITY refresh. Not a source's turn — a PAGE's turn, because a
+#: published event is getting close and its defining page is where a change
+#: (moved, cancelled, sold out, new time) would show up. See
+#: EVENT_REFRESH_LADDER.
+QUEUE_EVENT = "event"
 
-#: K — how many sources one wave crawls, and the armed cron's own ceiling.
+#: EVENT-PROXIMITY LADDER (founder, 2026-09-02: "Published rows with
+#: start_time: recheck their defining URL at T-30d, T-14d, T-7d, T-3d, T-1d,
+#: day-of, then stop after end"). Hours before an event's start_time, largest
+#: first. A daily re-crawl of everything would spend the whole budget on
+#: events three months out; this spends it where a change still matters.
 #:
-#: K is NOT a new knob: it is the existing per-run source ceiling
-#: (--max-sources / ONELIVE_MAX_SOURCES_PER_RUN), which already fails closed on
-#: a bad value. This constant is that ceiling's documented value, kept here
-#: next to the arithmetic it belongs to.
-#:
-#: WHY 30, when the founder's rule for this pass is "many sources per wave, few
-#: pages each": the fairness bound moved. It used to be K, because 30 sources
-#: shared a 30-page follow budget IN SOURCE ORDER and the first two link-heavy
-#: calendars took all of it. It is now the per-source DOOR (one), so a smaller
-#: K would buy no fairness at all — it would only sweep the catalog slower, and
-#: the 30 is a founder decision of its own (2026-08-04 freshness escalation,
-#: docs/memory/decisions/2026-08-04_ingest-cap-raise-30.md: "every source
-#: ~every 3h"). Undoing that to re-solve a problem the door cap already solves
-#: would be trading real freshness for nothing.
-#:
-#: The arithmetic, at the armed cadence of one run every 20 minutes (72
-#: waves/day) and <=2 doors per source: <=60 fetches per wave — the SAME
-#: ceiling as before this pass, since 30 sources + 30 follow-pages was also 60
-#: — and 2,160 source-slots/day, i.e. every source in a ~270-row catalog is
-#: reached roughly every 3 hours. The difference is not the size of the wave;
-#: it is that all 30 sources now get a door instead of two of them getting
-#: fifteen. Extraction spend goes DOWN, because an unchanged door no longer
-#: pays for one.
-DEFAULT_SOURCES_PER_WAVE = 30
+#: "day-of" is operationalized as SIX HOURS before start. Offset zero would put
+#: the last check at the moment the doors open, which is too late to be worth a
+#: fetch; six hours is the same calendar day for any event starting after 06:00
+#: and still ahead of the audience. This is the one number in the ladder that
+#: is an interpretation rather than the founder's own figure, so it is stated
+#: here and it is a one-line change.
+EVENT_REFRESH_LADDER_HOURS = (30 * 24, 14 * 24, 7 * 24, 3 * 24, 24, 6)
+
+#: The largest share of a tick's fetch budget that event-proximity refresh may
+#: take. Proximity items go FIRST — they are the only work with a deadline, and
+#: a show tonight that was cancelled is a user-visible error now, while a source
+#: taking its routine turn is not. This share is what stops that priority from
+#: becoming a monopoly: a night with hundreds of near events must not freeze
+#: the ordinary rotation, so half the tick stays with it.
+EVENT_FETCH_SHARE = 0.5
+
+#: The largest share of a tick's fetch budget discovery may take. A catalog
+#: import can add hundreds of door-less rows at once; without a share they
+#: would fill every tick and the live catalog would go stale while we probed.
+#: Half, because neither job is worth more than the other: refresh keeps what
+#: we have true, discovery is how we get more. Enforced in TickBudget.
+DISCOVER_FETCH_SHARE = 0.5
+
+# --- Tick budgets ------------------------------------------------------------
+#
+# What actually stops a tick. Each is a different real limit, and none of them
+# is a source count — how many sources a tick reached is an OUTCOME.
+
+#: WALL CLOCK. The armed cron fires every 20 minutes and its concurrency group
+#: does not cancel in flight, so a tick that runs long queues behind the next
+#: one. Ten minutes leaves half the cadence as headroom.
+MAX_TICK_SECONDS = 600
+
+#: MODEL BUDGET, in pages sent to extraction. Extraction is the ONLY stage that
+#: may call Anthropic (fetch, sensor, discovery and the gate are all
+#: deterministic), so counting extract calls counts the spend. Each page fans
+#: out to at most EXTRACT_MAX_EVENTS_PER_PAGE model calls (worker/ai_extract.py,
+#: default 50), which makes the per-tick AI ceiling 60 x 50 = 3000 calls — the
+#: SAME worst case the old (30 sources + 30 follow-pages) x 50 arithmetic gave,
+#: now expressed as the thing it actually bounds instead of as a source count.
+MAX_EXTRACT_CALLS_PER_TICK = 60
+
+#: BUG-SAFETY CAP, named for what it caps (founder: "if you need a bug-safety
+#: cap call it MAX_FETCHES_PER_TICK, not 30 sources theology"). At the fetch
+#: adapter's 2s politeness sleep plus real network time this lands near the
+#: wall-clock limit by design: in a healthy tick one of the two binds, and
+#: which one is not important. It exists so a loop bug cannot fetch forever.
+MAX_FETCHES_PER_TICK = 120
+
+#: HOST POLITENESS. Several catalog rows can share one host (a ticketing
+#: platform, a university, a city portal). Past this many fetches to the same
+#: host in one tick, further sources on that host are DEFERRED to the next tick
+#: — not dropped, and not slept on: sleeping would spend the wall clock we owe
+#: to every other source. The global 2s inter-fetch sleep in
+#: worker/fetch/http_fetch.py is unchanged and still applies to every request.
+MAX_FETCHES_PER_HOST_PER_TICK = 4
 
 # --- Backoff policy ----------------------------------------------------------
 #
 # Minutes. Deliberately few numbers, none of them env knobs: every knob is a
 # way for a scheduled loop to be mis-tuned in production without a code review.
 
-#: A healthy source is not re-crawled more often than this. It sits just UNDER
-#: the ~3h return interval K produces on the live catalog (see the arithmetic
-#: above), and that ordering is the whole design: the cursor picks the wave,
-#: the floor only catches a catalog small enough to lap itself, plus politeness
-#: on a source we read minutes ago. A floor ABOVE the natural interval would
-#: quietly become the scheduler and undo the founder's freshness setting —
-#: which is exactly what an unexamined "6 hours sounds polite" would have done.
+#: A healthy source is not re-crawled more often than this. It is politeness
+#: and nothing more: with the tick bounded by time and spend rather than by a
+#: source count, this floor is what stops a small catalog from being re-read
+#: every twenty minutes forever. Two and a half hours is under the ~3h cadence
+#: the live catalog gets anyway, so it does not slow a full sweep down.
 BASE_INTERVAL_MINUTES = 150
 
 #: First failure waits an hour, then doubles: 1h, 2h, 4h, 8h ... A source
 #: refusing an unauthenticated read (class D, 401/403) fails every time, so
 #: this is what makes "we knock once" true over days instead of only within a
-#: single run — no persisted closed-door flag to keep in sync with reality.
+#: single tick — no persisted closed-door flag to keep in sync with reality.
 FAIL_BACKOFF_MINUTES = 60
 
 #: Ceiling on that doubling. A week: long enough that a permanently walled
@@ -144,33 +216,64 @@ class SourceCrawlState:
 
     source_id: str
     last_attempt_at: Optional[datetime] = None
+    #: The last time we actually READ and parsed this source — not merely
+    #: knocked on it. Distinct from last_attempt_at by design: see the
+    #: last_verified_at subquery in _STATE_SQL for why the two must not merge.
+    last_verified_at: Optional[datetime] = None
     last_success_at: Optional[datetime] = None
     fail_streak: int = 0
     best_url: Optional[str] = None
 
+    @property
+    def queue(self) -> str:
+        """REFRESH when we know this source's door, DISCOVER when we do not.
+
+        The ONLY input is whether a `best_url` exists. Not the source's type,
+        category, city, or name — a scheduler is where a category thumb would
+        hide, and this property is the whole of the queue decision.
+        """
+        return QUEUE_REFRESH if self.best_url else QUEUE_DISCOVER
+
     def interval_minutes(self) -> int:
-        """How long this source waits between waves, from its own history."""
+        """How long this source waits between ticks, from its own history."""
         if self.fail_streak <= 0:
             return BASE_INTERVAL_MINUTES
         backoff = FAIL_BACKOFF_MINUTES * (2 ** (self.fail_streak - 1))
         return min(backoff, MAX_BACKOFF_MINUTES)
 
-    def due_at(self) -> Optional[datetime]:
+    def next_due_at(self) -> Optional[datetime]:
         """When this source may next be crawled. None = now (never attempted).
 
-        A never-attempted source is due immediately and, being the oldest in
-        the rotation, leads the cursor — new catalog rows are crawled first,
-        which is what makes an import visible in the same day.
+        A never-attempted source is due immediately and is infinitely overdue,
+        so it sorts to the front — new catalog rows are crawled the same day an
+        import adds them.
         """
         if self.last_attempt_at is None:
             return None
         return _as_utc(self.last_attempt_at) + timedelta(minutes=self.interval_minutes())
 
     def is_due(self, now: Optional[datetime] = None) -> bool:
-        due = self.due_at()
+        due = self.next_due_at()
         if due is None:
             return True
         return _as_utc(now or datetime.now(timezone.utc)) >= due
+
+    def overdue_seconds(self, now: Optional[datetime] = None) -> float:
+        """How long this source has been waiting past its own due time.
+
+        THIS is the priority. A source that came due an hour ago goes before
+        one that came due a minute ago, whatever their absolute last-fetch
+        times were, so a source with a long backoff is not permanently
+        outranked by a healthy one that is barely due.
+
+        A never-attempted source returns infinity: it has been waiting since it
+        entered the catalog and there is no honest finite answer.
+        """
+        due = self.next_due_at()
+        if due is None:
+            return float("inf")
+        moment = _as_utc(now or datetime.now(timezone.utc))
+        return (moment - due).total_seconds()
 
 
 @dataclass(frozen=True)
@@ -201,22 +304,490 @@ def _as_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
-def due_source_ids(
+def order_due(
     states: Sequence[SourceCrawlState],
     *,
     now: Optional[datetime] = None,
-) -> List[str]:
-    """The ids of the sources that may be crawled right now, order preserved.
+    rotation_rank: Optional[Dict[str, int]] = None,
+) -> List[SourceCrawlState]:
+    """The due sources, MOST OVERDUE FIRST, round-robin only as the tie-break.
 
-    Order in = order out: the caller (worker/run_once.py) has already sorted
-    least-recently-attempted first, and re-sorting here would put two
-    definitions of "the cursor" in the tree. Truncating to K is likewise NOT
-    done here — that is the budget ceiling, and it already has exactly one
-    fail-closed implementation (run_once.apply_source_ceiling). This function
-    does one job: drop what is not yet due.
+    Founder, verbatim: "round-robin is only a tie-break among due sources".
+    The two candidate orderings genuinely differ, which is why this matters: a
+    source with an 8-hour backoff that came due an hour ago has an OLDER
+    last_attempt_at than a healthy source due five minutes ago, so pure
+    round-robin would put the backing-off source first every single time.
+    Overdue-ness asks the question that actually matters — who has been waiting
+    longest past the moment we said we would come back?
+
+    `rotation_rank` is the caller's least-recently-attempted position per
+    source id (worker/run_once.py::order_for_rotation, the one definition of
+    the cursor in this tree). It breaks ties; source_id breaks ties after that,
+    so the order is total and deterministic.
+
+    Not-due sources are simply absent: DEFERRED to a later tick, never dropped.
+    Nothing here reads a source's category, type, city, or name.
     """
     moment = _as_utc(now or datetime.now(timezone.utc))
-    return [s.source_id for s in states if s.is_due(moment)]
+    ranks = rotation_rank or {}
+    due = [st for st in states if st.is_due(moment)]
+
+    def _key(st: SourceCrawlState):
+        # Negated so "most overdue" sorts first; a never-attempted source's
+        # infinite overdue-ness becomes -inf, which is exactly where it belongs.
+        return (-st.overdue_seconds(moment), ranks.get(st.source_id, 0), st.source_id)
+
+    return sorted(due, key=_key)
+
+
+# --- Verification: fail closed ------------------------------------------------
+#
+# Founder, 2026-09-02, verbatim: "If a scheduled check cannot confirm OR cannot
+# disconfirm, make no change to the listing (no delete, no cancel, no date
+# edit). Only mutate on confirmed same-page evidence. Fetch failure / cap / 429
+# / parse miss = last good row stands."
+#
+# So a re-check produces a VERDICT, and only two of the three verdicts could
+# ever license a change. The third — UNVERIFIED — is not a soft "probably
+# fine": it is a hard "we learned nothing, so nothing moves". Every failure
+# mode collapses into it, which is what makes the rule fail CLOSED: a new
+# failure we have not thought of yet is unverified by default, never confirmed.
+#
+# STATE OF PLAY, stated so nobody reads more into this than is here: the
+# orchestrator does not mutate published events at all. It cannot — it imports
+# no promote path, writes only candidates, and issues no UPDATE against
+# `event`. This vocabulary exists so the re-check RECORDS what it learned, and
+# so the eventual mutation path has one definition of "confirmed" to obey
+# rather than inventing a second. Building that mutation path would change what
+# the loop may do to published rows, which is a trust-invariant change and the
+# founder's call, not this module's.
+
+#: The page still says what it said: a clean parse, or bytes identical to the
+#: last good read. Evidence exists on the page itself.
+VERIFIED_PRESENT = "verified_present"
+
+#: The defining page is confirmed GONE — a clear 404. Note the boundary: this
+#: is a fact about the PAGE, not about any single event on it. Deciding that a
+#: particular event vanished from a page that still loads requires diffing a
+#: clean parse against the published rows, which belongs to the mutation path.
+VERIFIED_ABSENT = "verified_absent"
+
+#: We learned nothing. Fetch failure, 429/503 back-off, a budget cap, a wall, a
+#: sensor rejection, an off-site landing, an ambiguous or failed parse. The last
+#: good row stands, untouched.
+UNVERIFIED = "unverified"
+
+#: Door outcomes that confirm the page still stands. "unchanged" belongs here on
+#: purpose: a 304 or an identical body hash is positive evidence that the page
+#: says exactly what it said when we last read it — stronger, not weaker, than a
+#: fresh parse.
+_CONFIRMING_DOORS = frozenset({"changed", "unchanged"})
+
+#: Page-level decisions that mean the parse actually completed. A sensor
+#: rejection or a budget deferral did NOT read the page, whatever the fetch did.
+_CLEAN_PARSE_DECISIONS = frozenset({"held", "escalated", "ready_to_promote"})
+
+
+def classify_recheck(
+    *,
+    door_kind: str,
+    page_decision: Optional[str] = None,
+    http_status: Optional[int] = None,
+) -> Tuple[str, str]:
+    """The verdict of one re-check, and the reason in plain words.
+
+    Fail-closed by construction: only the two explicitly-confirming shapes
+    return a VERIFIED_* verdict, and everything else — including a shape this
+    function has never seen — falls through to UNVERIFIED. There is no
+    "probably", and no status is invented for a listing we could not read.
+    """
+    if door_kind == "unchanged":
+        return (VERIFIED_PRESENT,
+                "page byte-identical to the last good read (304 or same hash)")
+    if door_kind == "changed":
+        if page_decision in _CLEAN_PARSE_DECISIONS:
+            return (VERIFIED_PRESENT, "page fetched and parsed cleanly")
+        return (UNVERIFIED,
+                f"page fetched but not parsed ({page_decision or 'no decision'}) "
+                "— last good row stands")
+    if door_kind == "missed" and http_status == 404:
+        return (VERIFIED_ABSENT,
+                "defining page returned a clear 404 — the PAGE is gone (this "
+                "says nothing about any single event on it)")
+    if door_kind == "missed":
+        return (UNVERIFIED,
+                f"fetch failed ({http_status or 'no status'}) — last good row stands")
+    if door_kind == "backoff":
+        return (UNVERIFIED, "rate-limited (429/503) — last good row stands")
+    if door_kind == "wall":
+        return (UNVERIFIED, "closed door (401/403) — last good row stands")
+    if door_kind == "deferred":
+        return (UNVERIFIED, "budget or politeness deferred the check — last good row stands")
+    if door_kind == "offsite":
+        return (UNVERIFIED, "landed off-site — a different source; last good row stands")
+    return (UNVERIFIED, f"unrecognized check outcome ({door_kind}) — fail closed")
+
+
+def may_mutate_listing(verdict: str) -> bool:
+    """Whether a verdict could license a change to a published listing.
+
+    The single place that question is answered, so no caller has to re-derive
+    it — and the answer is False for UNVERIFIED, always. Nothing in this
+    repository mutates a published event on a re-check today; this exists so
+    that when something does, it asks here.
+    """
+    return verdict in (VERIFIED_PRESENT, VERIFIED_ABSENT)
+
+
+@dataclass(frozen=True)
+class EventRefresh:
+    """One PAGE that is due a re-read because an event it defines is near.
+
+    Keyed on the page, never on the event: "one page fetch covers all events on
+    that page" (founder). A venue calendar listing forty shows is one fetch on
+    the day the soonest of them crosses a rung, not forty.
+
+    `overdue_seconds` is how long ago that rung was crossed, so an event-refresh
+    item sorts against source items on exactly the same scale — one priority
+    order across all three queues, no queue given a standing head start.
+    """
+
+    source_id: str
+    url: str
+    rung_hours: int
+    overdue_seconds: float
+    events: int = 1
+
+    @property
+    def reason(self) -> str:
+        if self.rung_hours >= 24:
+            near = f"T-{self.rung_hours // 24}d"
+        else:
+            near = f"day-of (T-{self.rung_hours}h)"
+        return (f"event proximity {near}: {self.events} published event(s) on "
+                "this page")
+
+
+def crossed_rung(
+    start_time: datetime,
+    *,
+    last_fetch_at: Optional[datetime],
+    now: datetime,
+) -> Optional[int]:
+    """The ladder rung this event has crossed SINCE we last read its page.
+
+    Returns the rung (in hours before start) that is now due, or None if the
+    page has already been read since the last rung the event crossed. The
+    NEAREST crossed rung wins, so a page we have not touched in months owes one
+    fetch, not six.
+
+    A page never fetched (`last_fetch_at` None) owes its most recent crossed
+    rung — one fetch, not one per rung it has ever passed.
+    """
+    start = _as_utc(start_time)
+    moment = _as_utc(now)
+    seen = _as_utc(last_fetch_at) if last_fetch_at is not None else None
+    for hours in sorted(EVENT_REFRESH_LADDER_HOURS):   # nearest rung first
+        rung_at = start - timedelta(hours=hours)
+        if rung_at > moment:
+            continue          # not crossed yet
+        if seen is not None and seen >= rung_at:
+            return None       # already read since this rung; nearer rungs too
+        return hours
+    return None
+
+
+def plan_event_refreshes(
+    rows: Sequence[Sequence[Any]],
+    *,
+    now: Optional[datetime] = None,
+) -> List[EventRefresh]:
+    """Group per-event rows into one due item per PAGE, most overdue first.
+
+    `rows` are (source_id, source_url, start_time, end_time, last_fetch_at) for
+    published events that have not ended — the SQL below has already applied
+    "then stop after end", and dateless rows never appear because the query
+    requires a start_time (founder: "dateless rows: source-door schedule
+    only"). Nothing here reads a category, a venue, or a name: the only inputs
+    are a time and a URL.
+    """
+    moment = _as_utc(now or datetime.now(timezone.utc))
+    best: Dict[Tuple[str, str], EventRefresh] = {}
+    for source_id, url, start_time, _end_time, last_fetch_at in rows:
+        if not url or start_time is None:
+            continue
+        rung = crossed_rung(start_time, last_fetch_at=last_fetch_at, now=moment)
+        if rung is None:
+            continue
+        overdue = (moment - (_as_utc(start_time) - timedelta(hours=rung))).total_seconds()
+        key = (str(source_id), url)
+        existing = best.get(key)
+        if existing is None:
+            best[key] = EventRefresh(source_id=str(source_id), url=url,
+                                     rung_hours=rung, overdue_seconds=overdue)
+            continue
+        # Same page, another event on it: ONE fetch covers both. Keep the
+        # nearest rung (the most urgent reason to look) and count the events.
+        best[key] = EventRefresh(
+            source_id=existing.source_id, url=url,
+            rung_hours=min(existing.rung_hours, rung),
+            overdue_seconds=max(existing.overdue_seconds, overdue),
+            events=existing.events + 1,
+        )
+    # NEAREST RUNG FIRST, then most overdue. Sorting on overdue-ness alone was
+    # wrong and the test caught it: a T-30d rung crossed a day ago is "more
+    # overdue" (86400s) than a day-of rung crossed an hour ago (3600s), so an
+    # event a month out would outrank one starting in five hours. The whole
+    # point of the ladder is to concentrate attention where a change still
+    # matters to somebody tonight.
+    return sorted(best.values(), key=lambda r: (r.rung_hours, -r.overdue_seconds, r.url))
+
+
+def resolve_int_env(env_name: str, default: int, noun: str) -> int:
+    """Read + validate a non-negative integer budget knob, FAIL CLOSED.
+
+    Unset (or set to the empty string, which is how an absent CI variable
+    arrives) means the default. Anything else MUST parse as a base-10 integer
+    >= 0; a malformed value raises so the caller aborts loudly at start — a
+    budget knob that cannot be read is a structural failure, and silently
+    substituting the default would turn a typo into an unnoticed spend change.
+    0 disables the budgeted behaviour; it never means "uncapped".
+
+    ONE implementation for every knob in the pipeline: the render cap, the
+    probe ceilings and the tick budgets are the same rule about the same kind
+    of value, and two copies of "how a budget is parsed" would drift in the
+    direction that costs money. worker/orchestrator.py calls this one.
+    """
+    raw = os.getenv(env_name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        value = int(raw.strip())
+    except ValueError as exc:
+        raise ValueError(
+            f"{env_name} must be a base-10 integer >= 0 (got {raw!r}); "
+            f"refusing to run with an unvalidated {noun} budget — fail closed"
+        ) from exc
+    if value < 0:
+        raise ValueError(
+            f"{env_name} must be >= 0 (got {value}); a negative {noun} "
+            f"budget is meaningless — fail closed (use 0 to disable {noun}s)"
+        )
+    return value
+
+
+class TickBudget:
+    """What stops a tick, and the honest reason why.
+
+    A tick ends when a REAL limit is hit — wall clock, model spend, or the
+    bug-safety fetch cap — or when nothing due is left. It does NOT end at a
+    source count: how many sources a tick reached is reported afterwards as an
+    OUTCOME (founder: "K=30 is a spend/time safety cap, not the design").
+
+    Host politeness and the discovery share are deliberately NOT tick-stoppers.
+    Hitting either means THIS SOURCE waits; the tick moves on to somebody else.
+    Ending the whole tick because one host was popular would punish every other
+    source for it.
+
+    `clock` is injected (defaults to time.monotonic) so the wall-clock rule is
+    unit-testable without sleeping — a budget you cannot test is a budget you
+    do not have.
+    """
+
+    #: Reasons that end the whole tick, as opposed to deferring one source.
+    TICK_STOPPERS = ("wall_clock", "fetch_budget", "model_budget")
+
+    def __init__(
+        self,
+        *,
+        max_seconds: int = MAX_TICK_SECONDS,
+        max_fetches: int = MAX_FETCHES_PER_TICK,
+        max_extract_calls: int = MAX_EXTRACT_CALLS_PER_TICK,
+        max_fetches_per_host: int = MAX_FETCHES_PER_HOST_PER_TICK,
+        discover_share: float = DISCOVER_FETCH_SHARE,
+        event_share: float = EVENT_FETCH_SHARE,
+        clock=None,
+    ) -> None:
+        for name, value in (("max_seconds", max_seconds),
+                            ("max_fetches", max_fetches),
+                            ("max_extract_calls", max_extract_calls),
+                            ("max_fetches_per_host", max_fetches_per_host)):
+            if value < 0:
+                # The project-wide budget rule: 0 means "none of this",
+                # negative is a misconfiguration, and neither ever means
+                # "uncapped". Fail closed, at construction, before any fetch.
+                raise ValueError(
+                    f"{name}={value} is invalid — a tick budget must be >= 0; "
+                    "0 disables that activity, it never means uncapped."
+                )
+        for name, share in (("discover_share", discover_share),
+                            ("event_share", event_share)):
+            if not 0.0 <= share <= 1.0:
+                raise ValueError(
+                    f"{name}={share} is invalid — it is a share of the fetch "
+                    "budget and must be between 0 and 1."
+                )
+        self.max_seconds = max_seconds
+        self.max_fetches = max_fetches
+        self.max_extract_calls = max_extract_calls
+        self.max_fetches_per_host = max_fetches_per_host
+        self.discover_share = discover_share
+        self.event_share = event_share
+        # Until a plan is declared, a share is the whole budget: a share exists
+        # to protect the OTHER queues, and with nothing to protect there is
+        # nothing to share with. reserve_for_plan() narrows these.
+        self.max_discover_fetches = max_fetches
+        self.max_event_fetches = max_fetches
+        self._clock = clock or time.monotonic
+        self._started = self._clock()
+        self.fetches = 0
+        self.discover_fetches = 0
+        self.event_fetches = 0
+        self.extract_calls = 0
+        self.input_tokens = 0
+        self.output_tokens = 0
+        self.sources_touched = 0
+        self.sources_deferred = 0
+        self.per_host: Dict[str, int] = {}
+        self.stop_reason = "exhausted"
+
+    #: Env knobs, so the armed cron can declare its budgets where the spend
+    #: happens. Every one is parsed fail-closed by resolve_int_env.
+    ENV = {
+        "max_seconds": ("ONELIVE_MAX_TICK_SECONDS", MAX_TICK_SECONDS, "tick wall-clock"),
+        "max_fetches": ("ONELIVE_MAX_FETCHES_PER_TICK", MAX_FETCHES_PER_TICK, "tick fetch"),
+        "max_extract_calls": ("ONELIVE_MAX_EXTRACT_CALLS_PER_TICK",
+                              MAX_EXTRACT_CALLS_PER_TICK, "tick model"),
+        "max_fetches_per_host": ("ONELIVE_MAX_FETCHES_PER_HOST",
+                                 MAX_FETCHES_PER_HOST_PER_TICK, "per-host fetch"),
+    }
+
+    @classmethod
+    def from_env(cls, **overrides) -> "TickBudget":
+        """A tick budget from the environment, every knob validated fail-closed
+        BEFORE the first fetch — a typo aborts the tick, it never silently
+        means uncapped."""
+        kwargs = {name: resolve_int_env(env, default, noun)
+                  for name, (env, default, noun) in cls.ENV.items()}
+        kwargs.update(overrides)
+        return cls(**kwargs)
+
+    #: Fetches one planned item is expected to cost, by queue. Used ONLY to
+    #: size the reservations below — never to bound anything, so an item that
+    #: turns out to cost less does not leave budget stranded.
+    _EXPECTED_FETCHES = {QUEUE_EVENT: 1, QUEUE_REFRESH: 1, QUEUE_DISCOVER: 2}
+
+    def reserve_for_plan(self, queues: Sequence[str]) -> None:
+        """Size the per-queue caps against what this tick actually has to do.
+
+        A flat "discovery gets half" is wrong in the common case and the tests
+        caught it: a tick made entirely of discover items would cap itself at
+        half its own fetch budget and leave the rest unused, because there was
+        no refresh work for the other half to go to. A share is a RESERVATION
+        FOR THE OTHER QUEUES, so it should bind only as far as those queues can
+        actually use it:
+
+            reserved = min(what the other queues will plausibly spend,
+                           the share we promised them)
+            this queue's cap = the fetch budget minus that reservation
+
+        With no other work, the reservation is zero and a queue may use the
+        whole budget. With more other work than the share, the reservation is
+        the share and no more. Both extremes come out right, and so does the
+        middle: one refresh item beside a hundred discover items reserves one
+        fetch, not half the tick.
+        """
+        counts: Dict[str, int] = {}
+        for q in queues:
+            counts[q] = counts.get(q, 0) + 1
+
+        def _cap(queue: str, share: float) -> int:
+            others = sum(self._EXPECTED_FETCHES.get(q, 1) * n
+                         for q, n in counts.items() if q != queue)
+            reserved = min(others, int(self.max_fetches * (1.0 - share)))
+            return max(0, self.max_fetches - reserved)
+
+        self.max_discover_fetches = _cap(QUEUE_DISCOVER, self.discover_share)
+        self.max_event_fetches = _cap(QUEUE_EVENT, self.event_share)
+
+    # --- what the loop asks --------------------------------------------------
+
+    def elapsed(self) -> float:
+        return self._clock() - self._started
+
+    def tick_stop(self) -> Optional[str]:
+        """The reason the tick must end NOW, or None to keep going."""
+        if self.elapsed() >= self.max_seconds:
+            return "wall_clock"
+        if self.fetches >= self.max_fetches:
+            return "fetch_budget"
+        if self.extract_calls >= self.max_extract_calls:
+            return "model_budget"
+        return None
+
+    def may_fetch(self, host: str, *, queue: str) -> Optional[str]:
+        """None if this fetch may happen, else the reason it may not.
+
+        Callers tell a tick-stopper from a source-deferral by membership in
+        TICK_STOPPERS rather than by parsing the string.
+        """
+        stop = self.tick_stop()
+        if stop:
+            return stop
+        if self.per_host.get(host, 0) >= self.max_fetches_per_host:
+            return "host_politeness"
+        if (queue == QUEUE_DISCOVER
+                and self.discover_fetches >= self.max_discover_fetches):
+            return "discover_share"
+        if (queue == QUEUE_EVENT
+                and self.event_fetches >= self.max_event_fetches):
+            return "event_share"
+        return None
+
+    def may_extract(self) -> bool:
+        return self.extract_calls < self.max_extract_calls
+
+    # --- what the loop reports back ------------------------------------------
+
+    def record_fetch(self, host: str, *, queue: str) -> None:
+        self.fetches += 1
+        self.per_host[host] = self.per_host.get(host, 0) + 1
+        if queue == QUEUE_DISCOVER:
+            self.discover_fetches += 1
+        elif queue == QUEUE_EVENT:
+            self.event_fetches += 1
+
+    def record_extract(self, *, input_tokens: int = 0, output_tokens: int = 0) -> None:
+        """One PAGE sent to extraction, plus the tokens it really used.
+
+        Token counts are what the model itself reported (worker/ai_extract.py
+        sums the provider's own `_usage`). They are 0 when a provider reports
+        none, and a 0 is printed as "unknown" — never priced as free.
+        """
+        self.extract_calls += 1
+        self.input_tokens += input_tokens
+        self.output_tokens += output_tokens
+
+    def outcomes(self) -> Dict[str, Any]:
+        return {
+            "sources_touched": self.sources_touched,
+            "sources_deferred": self.sources_deferred,
+            "fetches": self.fetches,
+            "event_fetches": self.event_fetches,
+            "discover_fetches": self.discover_fetches,
+            "extract_calls": self.extract_calls,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "elapsed_seconds": round(self.elapsed(), 1),
+            "stop_reason": self.stop_reason,
+        }
+
+
+def host_of(url: str) -> str:
+    """The host a URL belongs to, for politeness accounting. `www.` is folded so
+    a site cannot get two budgets by linking itself both ways."""
+    host = (urllib.parse.urlsplit(url).hostname or "").lower()
+    return host[4:] if host.startswith("www.") else host
 
 
 def choose_primary_door(
@@ -260,6 +831,14 @@ _STATE_SQL = """
 select s.source_id,
        (select max(rf.fetched_at) from raw_fetch rf
          where rf.source_id = s.source_id) as last_attempt_at,
+       -- LAST VERIFIED, kept distinct from last ATTEMPT on purpose (founder:
+       -- "record last_attempt vs last_verified"). An attempt is any knock,
+       -- including the ones that told us nothing; a verification is a page we
+       -- actually read and parsed, and the proof of that is a candidate row
+       -- with evidence behind it. Collapsing the two would let a month of
+       -- 403s look like a month of confirmations.
+       (select max(ec.created_at) from event_candidate ec
+         where ec.source_id = s.source_id) as last_verified_at,
        (select max(rf.fetched_at) from raw_fetch rf
          where rf.source_id = s.source_id
            and rf.content_hash not like %(attempt_like)s) as last_success_at,
@@ -282,6 +861,21 @@ from source s
 where s.enabled = true
 """
 
+_EVENT_REFRESH_SQL = """
+select c.source_id,
+       c.source_url,
+       e.start_time,
+       e.end_time,
+       (select max(rf.fetched_at) from raw_fetch rf
+         where rf.source_id = c.source_id
+           and rf.fetch_url = c.source_url) as last_fetch_at
+from event e
+join event_candidate c on c.promoted_event_id = e.event_id
+where e.start_time is not null
+  and c.source_url is not null
+  and coalesce(e.end_time, e.start_time) > now()
+"""
+
 _FINGERPRINT_SQL = """
 select content_hash, headers->>'etag', headers->>'last_modified'
 from raw_fetch
@@ -299,11 +893,13 @@ def rows_to_states(rows: Sequence[Sequence[Any]]) -> Dict[str, SourceCrawlState]
     the same split worker/run_once.py::order_for_rotation already uses.
     """
     states: Dict[str, SourceCrawlState] = {}
-    for source_id, last_attempt_at, last_success_at, fail_streak, best_url in rows:
+    for (source_id, last_attempt_at, last_verified_at, last_success_at,
+         fail_streak, best_url) in rows:
         key = str(source_id)
         states[key] = SourceCrawlState(
             source_id=key,
             last_attempt_at=last_attempt_at,
+            last_verified_at=last_verified_at,
             last_success_at=last_success_at,
             fail_streak=int(fail_streak or 0),
             best_url=best_url,
@@ -358,3 +954,30 @@ def load_door_fingerprint(
     with db() as conn:
         with conn.cursor() as own:
             return _read(own)
+
+
+def load_event_refresh_rows(cur=None) -> List[Sequence[Any]]:
+    """Published events that have not ended, with their DEFINING page and when
+    we last read it.
+
+    The defining URL is `event_candidate.source_url` — the page the candidate
+    was actually extracted from — reached through `promoted_event_id`, NOT
+    `event.source_url`, which migration 0020 fills with the SOURCE's base_url
+    (a homepage). Re-reading a homepage would not tell us whether Friday's show
+    moved; re-reading the listing page it came from does.
+
+    Three of the founder's rules live in the WHERE clause, so they cannot be
+    forgotten by a caller: `e.start_time is not null` (dateless rows follow the
+    source-door schedule only), `coalesce(e.end_time, e.start_time) > now()`
+    ("then stop after end" — and no invented default duration for events with
+    no end_time), and nothing about category, venue, or name anywhere.
+    """
+    if cur is not None:
+        cur.execute(_EVENT_REFRESH_SQL)
+        return list(cur.fetchall())
+    from worker.candidate_store import db
+
+    with db() as conn:
+        with conn.cursor() as own:
+            own.execute(_EVENT_REFRESH_SQL)
+            return list(own.fetchall())

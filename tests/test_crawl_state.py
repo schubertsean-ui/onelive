@@ -23,14 +23,26 @@ import pytest
 from worker.crawl_state import (
     ATTEMPT_FAILED,
     BASE_INTERVAL_MINUTES,
+    EVENT_REFRESH_LADDER_HOURS,
     FAIL_BACKOFF_MINUTES,
     MAX_BACKOFF_MINUTES,
+    QUEUE_DISCOVER,
+    QUEUE_REFRESH,
+    UNVERIFIED,
+    VERIFIED_ABSENT,
+    VERIFIED_PRESENT,
     DoorFingerprint,
     SourceCrawlState,
+    TickBudget,
     choose_primary_door,
-    due_source_ids,
+    classify_recheck,
+    crossed_rung,
+    host_of,
     load_crawl_states,
     load_door_fingerprint,
+    may_mutate_listing,
+    order_due,
+    plan_event_refreshes,
     rows_to_states,
 )
 
@@ -68,7 +80,7 @@ def test_the_doubling_has_a_ceiling():
 
 def test_never_attempted_is_always_due():
     state = SourceCrawlState("new-row")
-    assert state.due_at() is None
+    assert state.next_due_at() is None
     assert state.is_due(NOW)
 
 
@@ -89,14 +101,44 @@ def test_a_failing_source_waits_longer_than_a_healthy_one():
         "a source that refuses every knock must not re-claim a wave slot")
 
 
-def test_due_ids_preserve_the_cursor_order_and_only_remove():
+def test_due_sources_are_ordered_most_overdue_first():
     states = [
+        SourceCrawlState("fresh", last_attempt_at=_ago(1)),          # not due
+        SourceCrawlState("barely", last_attempt_at=_ago(BASE_INTERVAL_MINUTES + 5)),
         SourceCrawlState("stalest", last_attempt_at=_ago(10_000)),
-        SourceCrawlState("fresh", last_attempt_at=_ago(1)),
         SourceCrawlState("never"),
     ]
-    assert due_source_ids(states, now=NOW) == ["stalest", "never"], (
-        "order in is order out — the cursor is the schedule, not this function")
+    assert [s.source_id for s in order_due(states, now=NOW)] == [
+        "never", "stalest", "barely"]
+
+
+def test_round_robin_is_only_the_tie_break_not_the_schedule():
+    """Founder, verbatim: "round-robin is only a tie-break among due sources".
+    The two orderings genuinely differ: `backing_off` was attempted LONGER ago,
+    so pure round-robin would put it first — but it only just came due, while
+    `healthy` has been waiting an extra day past its own interval."""
+    backing_off = SourceCrawlState(
+        "backing_off", last_attempt_at=_ago(8 * 60 + 1), fail_streak=4)  # due 1 min
+    healthy = SourceCrawlState(
+        "healthy", last_attempt_at=_ago(BASE_INTERVAL_MINUTES + 1440))   # due 1 day
+    rank = {"backing_off": 0, "healthy": 1}   # round-robin would say this order
+    assert [s.source_id for s in order_due([backing_off, healthy], now=NOW,
+                                           rotation_rank=rank)] == [
+        "healthy", "backing_off"]
+
+
+def test_the_cursor_breaks_ties_between_equally_overdue_sources():
+    a = SourceCrawlState("a", last_attempt_at=_ago(BASE_INTERVAL_MINUTES + 60))
+    b = SourceCrawlState("b", last_attempt_at=_ago(BASE_INTERVAL_MINUTES + 60))
+    assert [s.source_id for s in order_due([a, b], now=NOW,
+                                           rotation_rank={"b": 0, "a": 1})] == ["b", "a"]
+
+
+def test_queue_is_decided_by_the_door_alone_never_by_what_kind_of_place_it_is():
+    """No category weighting: the ONLY input to the queue is whether we know
+    this source's door. There is no field here for a thumb to sit on."""
+    assert SourceCrawlState("s").queue == QUEUE_DISCOVER
+    assert SourceCrawlState("s", best_url="https://v/events").queue == QUEUE_REFRESH
 
 
 def test_a_naive_timestamp_is_read_as_utc_not_rejected():
@@ -188,18 +230,21 @@ def test_a_url_never_read_before_has_no_fingerprint():
     assert load_door_fingerprint("src-1", "https://venue.example/new", cur=_FakeCursor([])) is None
 
 
-def test_states_are_keyed_by_source_id_and_carry_the_four_facts():
-    rows = [("11111111-1111-1111-1111-111111111111", _ago(30), _ago(30), 0,
-             "https://venue.example/events")]
-    states = rows_to_states(rows)
-    state = states["11111111-1111-1111-1111-111111111111"]
+def test_states_carry_last_attempt_and_last_verified_as_separate_facts():
+    """Founder: "record last_attempt vs last_verified". Merging them would let
+    a month of 403s read as a month of confirmations."""
+    rows = [("11111111-1111-1111-1111-111111111111", _ago(5), _ago(4000),
+             _ago(30), 0, "https://venue.example/events")]
+    state = rows_to_states(rows)["11111111-1111-1111-1111-111111111111"]
     assert state.best_url == "https://venue.example/events"
     assert state.fail_streak == 0
-    assert state.last_success_at == _ago(30)
+    assert state.last_attempt_at == _ago(5)
+    assert state.last_verified_at == _ago(4000)
+    assert state.last_attempt_at != state.last_verified_at
 
 
 def test_a_null_fail_streak_reads_as_zero_not_as_a_crash():
-    states = rows_to_states([("s", None, None, None, None)])
+    states = rows_to_states([("s", None, None, None, None, None)])
     assert states["s"].fail_streak == 0
 
 
@@ -217,3 +262,246 @@ def test_both_queries_bind_their_values_rather_than_interpolating():
     state_sql, state_params = cur.calls[0]
     assert state_params["failed"] == ATTEMPT_FAILED
     assert "%(failed)s" in state_sql
+
+
+# --- the tick budget: what actually stops a tick -----------------------------
+
+class _Clock:
+    """A hand-cranked monotonic clock, so the wall-clock rule is testable
+    without sleeping. A budget you cannot test is a budget you do not have."""
+
+    def __init__(self):
+        self.t = 0.0
+
+    def __call__(self):
+        return self.t
+
+
+def test_a_tick_ends_on_the_wall_clock():
+    clock = _Clock()
+    budget = TickBudget(max_seconds=600, clock=clock)
+    assert budget.tick_stop() is None
+    clock.t = 599
+    assert budget.tick_stop() is None
+    clock.t = 600
+    assert budget.tick_stop() == "wall_clock"
+
+
+def test_a_tick_ends_on_the_fetch_cap():
+    budget = TickBudget(max_fetches=2)
+    budget.record_fetch("a.example", queue=QUEUE_REFRESH)
+    assert budget.tick_stop() is None
+    budget.record_fetch("b.example", queue=QUEUE_REFRESH)
+    assert budget.tick_stop() == "fetch_budget"
+
+
+def test_a_tick_ends_on_the_model_budget():
+    """Extraction is the only stage that may call Anthropic, so extract calls
+    ARE the AI spend — there is no second place for cost to hide."""
+    budget = TickBudget(max_extract_calls=1)
+    assert budget.may_extract()
+    budget.record_extract(input_tokens=900, output_tokens=100)
+    assert not budget.may_extract()
+    assert budget.tick_stop() == "model_budget"
+    assert budget.outcomes()["input_tokens"] == 900
+
+
+def test_host_politeness_defers_the_source_it_does_not_end_the_tick():
+    """One popular host must not cost every other source its turn."""
+    budget = TickBudget(max_fetches_per_host=1, max_fetches=50)
+    budget.record_fetch("busy.example", queue=QUEUE_REFRESH)
+    assert budget.may_fetch("busy.example", queue=QUEUE_REFRESH) == "host_politeness"
+    assert budget.may_fetch("quiet.example", queue=QUEUE_REFRESH) is None
+    assert budget.tick_stop() is None, "the tick goes on"
+
+
+def test_discovery_cannot_spend_more_than_its_share_when_refresh_needs_it():
+    """A catalog import of door-less rows must not fill a tick the live catalog
+    needed for refreshing."""
+    budget = TickBudget(max_fetches=10, discover_share=0.2)
+    budget.reserve_for_plan([QUEUE_DISCOVER] * 20 + [QUEUE_REFRESH] * 20)
+    for _ in range(2):                       # 10 - min(20, 8) = 2
+        assert budget.may_fetch("a.example", queue=QUEUE_DISCOVER) is None
+        budget.record_fetch("a.example", queue=QUEUE_DISCOVER)
+    assert budget.may_fetch("b.example", queue=QUEUE_DISCOVER) == "discover_share"
+    assert budget.may_fetch("b.example", queue=QUEUE_REFRESH) is None
+
+
+def test_a_share_never_strands_budget_it_has_nobody_to_share_with():
+    """The bug these reservations replaced: a tick made entirely of discover
+    items used to cap itself at half its own fetch budget and leave the rest
+    unused, because there was no refresh work for the other half to go to."""
+    budget = TickBudget(max_fetches=10, discover_share=0.5)
+    budget.reserve_for_plan([QUEUE_DISCOVER] * 8)
+    for _ in range(10):
+        assert budget.may_fetch("a.example", queue=QUEUE_DISCOVER) != "discover_share"
+        budget.record_fetch("a.example", queue=QUEUE_DISCOVER)
+    assert budget.tick_stop() == "fetch_budget", "the FETCH cap binds, not the share"
+
+
+def test_one_refresh_item_reserves_one_fetch_not_half_the_tick():
+    budget = TickBudget(max_fetches=10, discover_share=0.5)
+    budget.reserve_for_plan([QUEUE_DISCOVER] * 50 + [QUEUE_REFRESH])
+    assert budget.max_discover_fetches == 9
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"max_seconds": -1}, {"max_fetches": -1}, {"max_extract_calls": -1},
+    {"max_fetches_per_host": -1}, {"discover_share": 1.5},
+])
+def test_a_malformed_budget_fails_closed_at_construction(kwargs):
+    with pytest.raises(ValueError):
+        TickBudget(**kwargs)
+
+
+def test_www_is_folded_so_a_site_cannot_get_two_host_budgets():
+    assert host_of("https://www.venue.example/x") == host_of("https://venue.example/y")
+
+
+# --- event proximity ---------------------------------------------------------
+
+def test_the_ladder_is_the_founders_rungs():
+    assert EVENT_REFRESH_LADDER_HOURS == (30 * 24, 14 * 24, 7 * 24, 3 * 24, 24, 6)
+
+
+@pytest.mark.parametrize("days_out,expected_rung", [
+    (40, None),          # nothing crossed yet
+    (20, 30 * 24),
+    (10, 14 * 24),
+    (5, 7 * 24),
+    (2, 3 * 24),
+])
+def test_a_never_read_page_owes_exactly_one_fetch_its_nearest_crossed_rung(
+        days_out, expected_rung):
+    """Not one fetch per rung it ever passed — one fetch, at the nearest."""
+    start = NOW + _dt.timedelta(days=days_out)
+    assert crossed_rung(start, last_fetch_at=None, now=NOW) == expected_rung
+
+
+def test_a_page_read_since_the_rung_is_not_due_again():
+    start = NOW + _dt.timedelta(days=6)          # T-7d crossed a day ago
+    assert crossed_rung(start, last_fetch_at=NOW - _dt.timedelta(hours=1),
+                        now=NOW) is None
+
+
+def test_one_page_fetch_covers_every_event_on_that_page():
+    """Founder: "Dedupe: one page fetch covers all events on that page." A
+    calendar listing forty shows is ONE item, at the nearest rung any of them
+    has crossed."""
+    rows = [
+        ("s1", "https://venue.example/calendar", NOW + _dt.timedelta(days=6), None, None),
+        ("s1", "https://venue.example/calendar", NOW + _dt.timedelta(hours=3), None, None),
+        ("s1", "https://venue.example/calendar", NOW + _dt.timedelta(days=20), None, None),
+    ]
+    planned = plan_event_refreshes(rows, now=NOW)
+    assert len(planned) == 1
+    assert planned[0].events == 3
+    assert planned[0].rung_hours == 6, "the nearest reason to look wins"
+
+
+def test_a_dateless_row_never_enters_the_proximity_queue():
+    """Founder: "Dateless rows: source-door schedule only."""
+    assert plan_event_refreshes(
+        [("s1", "https://venue.example/x", None, None, None)], now=NOW) == []
+
+
+def test_the_nearest_event_outranks_the_one_that_has_waited_longer():
+    """Caught by this test while writing it, and it was a real ordering bug:
+    a T-30d rung crossed a DAY ago is "more overdue" (86400s) than a day-of
+    rung crossed an HOUR ago (3600s), so ranking on overdue-ness alone put an
+    event a month out ahead of one starting in five hours. The ladder exists to
+    concentrate attention where a change still matters to somebody tonight."""
+    rows = [
+        ("s1", "https://a.example/x", NOW + _dt.timedelta(days=29), None, None),
+        ("s1", "https://b.example/x", NOW + _dt.timedelta(hours=5), None, None),
+    ]
+    assert [r.url for r in plan_event_refreshes(rows, now=NOW)] == [
+        "https://b.example/x", "https://a.example/x"]
+
+
+def test_overdue_ness_still_breaks_ties_within_one_rung():
+    rows = [
+        ("s1", "https://fresh.example/x", NOW + _dt.timedelta(hours=5), None, None),
+        ("s1", "https://stale.example/x", NOW + _dt.timedelta(hours=1), None, None),
+    ]
+    assert [r.url for r in plan_event_refreshes(rows, now=NOW)] == [
+        "https://stale.example/x", "https://fresh.example/x"]
+
+
+def test_the_event_queue_gets_priority_but_not_a_monopoly():
+    """A night full of near events must not freeze the ordinary rotation."""
+    from worker.crawl_state import QUEUE_EVENT
+    budget = TickBudget(max_fetches=10, event_share=0.3)
+    budget.reserve_for_plan([QUEUE_EVENT] * 20 + [QUEUE_REFRESH] * 20)
+    for _ in range(3):                       # 10 - min(20, 7) = 3
+        assert budget.may_fetch("a.example", queue=QUEUE_EVENT) is None
+        budget.record_fetch("a.example", queue=QUEUE_EVENT)
+    assert budget.may_fetch("b.example", queue=QUEUE_EVENT) == "event_share"
+    assert budget.may_fetch("b.example", queue=QUEUE_REFRESH) is None
+
+
+# --- verification: fail closed ------------------------------------------------
+
+def test_only_two_shapes_confirm_anything():
+    assert classify_recheck(door_kind="unchanged")[0] == VERIFIED_PRESENT
+    assert classify_recheck(door_kind="changed",
+                            page_decision="held")[0] == VERIFIED_PRESENT
+    assert classify_recheck(door_kind="missed",
+                            http_status=404)[0] == VERIFIED_ABSENT
+
+
+@pytest.mark.parametrize("kind,status,decision", [
+    ("wall", 403, None),
+    ("backoff", 429, None),
+    ("backoff", 503, None),
+    ("deferred", None, None),
+    ("offsite", None, None),
+    ("missed", 500, None),
+    ("missed", None, None),
+    ("changed", None, "sensor_rejected"),
+    ("changed", None, "deferred"),
+    ("something_new_nobody_wrote_yet", None, None),
+])
+def test_everything_else_is_unverified_and_the_last_good_row_stands(
+        kind, status, decision):
+    """Founder, verbatim: "Fetch failure / cap / 429 / parse miss = last good
+    row stands." Including the shape nobody has written yet — the default must
+    be the closed one, or the next new failure mode fails OPEN."""
+    verdict, reason = classify_recheck(
+        door_kind=kind, page_decision=decision, http_status=status)
+    assert verdict == UNVERIFIED
+    assert not may_mutate_listing(verdict)
+    assert reason
+
+
+def test_an_ambiguous_parse_keeps_rather_than_changes():
+    """A page we fetched but could not read tells us nothing about the listing.
+    "Ambiguous parse = keep."""
+    assert classify_recheck(
+        door_kind="changed", page_decision="sensor_rejected")[0] == UNVERIFIED
+
+
+def test_only_confirmed_evidence_could_ever_license_a_change():
+    assert may_mutate_listing(VERIFIED_PRESENT)
+    assert may_mutate_listing(VERIFIED_ABSENT)
+    assert not may_mutate_listing(UNVERIFIED)
+
+
+# --- the budgets come from the environment, fail-closed ----------------------
+
+@pytest.mark.parametrize("env", list(TickBudget.ENV.values()))
+def test_every_tick_budget_is_declarable_and_fails_closed(monkeypatch, env):
+    """The armed cron declares these where the spend happens. A typo must abort
+    the tick before the first fetch — never silently mean "the default", and
+    never mean "uncapped"."""
+    name, default, _noun = env
+    monkeypatch.setenv(name, "12")
+    assert TickBudget.from_env() is not None
+    monkeypatch.setenv(name, "not-a-number")
+    with pytest.raises(ValueError, match=name):
+        TickBudget.from_env()
+    monkeypatch.setenv(name, "-1")
+    with pytest.raises(ValueError, match=name):
+        TickBudget.from_env()
+    monkeypatch.setenv(name, "")          # how CI forwards an unset variable
+    assert TickBudget.from_env() is not None

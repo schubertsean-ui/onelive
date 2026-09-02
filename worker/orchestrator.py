@@ -105,9 +105,17 @@ from worker.candidate_store import (
 )
 from worker.crawl_state import (
     BACKOFF_STATUSES,
+    QUEUE_DISCOVER,
+    QUEUE_EVENT,
+    QUEUE_REFRESH,
+    UNVERIFIED,
     SourceCrawlState,
+    TickBudget,
     choose_primary_door,
+    classify_recheck,
+    host_of,
     load_door_fingerprint,
+    resolve_int_env,
 )
 from worker.fetch.http_fetch import fetch_url
 from worker.fetch.render_fetch import RenderError, fetch_with_render, render_html
@@ -197,6 +205,20 @@ _COUNT_KEYS = (
     # can never be read as "this venue has no events".
     "skipped_unchanged",
     "blocked",
+    # Deferred: a source the tick did not reach because ITS host had had
+    # enough, or discovery had spent its share. Not dropped — it leads a later
+    # tick. Counted so "we did not get to it" can never read as "it had
+    # nothing".
+    "deferred",
+    # The measured outcomes (founder: "report fetches/extracts/$"). `fetches`
+    # is every HTTP request the loop made; `extract_calls` is every page sent
+    # to the model, which — extraction being the only stage that may call
+    # Anthropic — is the whole of the AI spend. Tokens are what the provider
+    # itself reported.
+    "fetches",
+    "extract_calls",
+    "input_tokens",
+    "output_tokens",
 )
 
 # _run_one_source's "not_modified" outcome intentionally does NOT also set
@@ -222,6 +244,13 @@ class SourceResult:
     detail: str
     urls_fetched: List[str] = field(default_factory=list)
     changed: Optional[bool] = None
+    queue: str = ""
+    #: The fail-closed verification verdict for this check (worker.crawl_state:
+    #: verified_present / verified_absent / unverified). UNVERIFIED is the
+    #: default because a result that never reached a check has, by definition,
+    #: confirmed nothing — the default must never be the permissive one.
+    verdict: str = UNVERIFIED
+    verdict_reason: str = ""
     candidates: int = 0
     skipped_unchanged: int = 0
     blocked: str = ""
@@ -229,11 +258,18 @@ class SourceResult:
 
 @dataclass
 class RunReport:
+    """What one tick did. `outcomes` is TickBudget.outcomes(): the measured
+    fetches / extract calls / tokens / elapsed seconds, and the honest reason
+    the tick ended (`stop_reason`) — "exhausted" when nothing due was left,
+    otherwise the budget that bound. Sources reached is an outcome here, never
+    an input."""
+
     run_id: str
     started: str
     finished: str
     results: List[SourceResult] = field(default_factory=list)
     counts: Dict[str, int] = field(default_factory=lambda: {k: 0 for k in _COUNT_KEYS})
+    outcomes: Dict[str, Any] = field(default_factory=dict)
 
 
 def _now_iso() -> str:
@@ -257,36 +293,13 @@ def _read_fetched_text(fetch_result: Dict[str, Any]) -> str:
 
 
 def _resolve_budget(env_name: str, default: int, noun: str) -> int:
-    """Read + validate a per-run budget knob from the environment, fail-closed.
-
-    Unset (or set to the empty string, which is how an absent CI variable
-    arrives) means the default. Anything else MUST parse as a base-10 integer
-    >= 0; a malformed value raises ValueError so run_loop aborts loudly at
-    start — a budget knob that cannot be read is a structural/config failure
-    (same policy as an unwritable replay dir), and silently substituting the
-    default would turn a typo into an unnoticed spend change. 0 disables the
-    budgeted behaviour entirely.
-
-    One implementation for every knob: the render budget and the follow-page
-    budgets are the same rule about the same kind of value, and two copies of
-    "how a budget is parsed" would drift in the direction that costs money.
-    """
-    raw = os.getenv(env_name)
-    if raw is None or raw.strip() == "":
-        return default
-    try:
-        cap = int(raw.strip())
-    except ValueError as exc:
-        raise ValueError(
-            f"{env_name} must be a base-10 integer >= 0 (got {raw!r}); "
-            f"refusing to run with an unvalidated {noun} budget — fail closed"
-        ) from exc
-    if cap < 0:
-        raise ValueError(
-            f"{env_name} must be >= 0 (got {cap}); a negative {noun} "
-            f"budget is meaningless — fail closed (use 0 to disable {noun}s)"
-        )
-    return cap
+    """This module's budget knobs, parsed by the ONE fail-closed parser
+    (worker.crawl_state.resolve_int_env) that every budget in the pipeline
+    uses. Kept as a named local so the call sites below read as they always
+    did, and so there is still exactly one place to look for "how a budget is
+    parsed" — which must never become two, because the second copy always
+    drifts in the direction that costs money."""
+    return resolve_int_env(env_name, default, noun)
 
 
 def _resolve_render_cap() -> int:
@@ -457,6 +470,7 @@ class PageOutcome:
     decision: str
     detail: str
     candidates: int = 0
+    model_calls: int = 0
 
 
 def _process_fetched_page(
@@ -470,6 +484,7 @@ def _process_fetched_page(
     sxsw_mode: bool,
     text: str,
     content_type: Optional[str],
+    budget: TickBudget,
 ) -> PageOutcome:
     """sensor -> extract -> gate3 -> stamp, for one already-fetched page.
 
@@ -494,6 +509,23 @@ def _process_fetched_page(
     if not reading.ok:
         return PageOutcome("sensor", "sensor_rejected", reading.reason)
 
+    if not budget.may_extract():
+        # The model budget is the tick's real spend limit, so it is checked
+        # HERE — immediately before the only stage that may call Anthropic —
+        # and not merely between sources. The page was fetched and is fine; it
+        # is simply not extracted this tick, and the source's next_due_at is
+        # unchanged, so it comes back at the front of the next one.
+        log_step(ReplayRecord(
+            run_id=run_id, ts=_now_iso(), source_id=str(source_id), source_name=source_name,
+            stage="extract", inputs_digest=canonical_digest({"length": len(text)}),
+            outputs_digest=canonical_digest({"skipped": "model_budget"}),
+            decision="deferred",
+            detail="tick model budget spent — page fetched, extraction left for the next tick",
+        ))
+        return PageOutcome(
+            "extract", "deferred",
+            "tick model budget spent — extraction left for the next tick")
+
     # extract_candidates is the fan-out entrypoint: an N-event calendar page
     # produces N candidates. The FIRST id carries this page's gate3/replay
     # contract exactly as before (extract_candidate, the single-id wrapper this
@@ -509,6 +541,11 @@ def _process_fetched_page(
         sxsw_mode=sxsw_mode,
         source_id=source_id,
     )
+    # The AI spend of this tick, measured at the ONE place the pipeline calls a
+    # model. Tokens are what the provider reported; a provider that reports
+    # none leaves them 0, and 0 is rendered as "unknown" rather than priced.
+    budget.record_extract(
+        input_tokens=outcome.input_tokens, output_tokens=outcome.output_tokens)
     candidate_id = outcome.candidate_ids[0]
     n_candidates = len(outcome.candidate_ids)
     log_step(ReplayRecord(
@@ -622,6 +659,26 @@ def _class_verdict_for(source: Dict[str, Any]) -> Any:
         config=source.get("config")))
 
 
+#: Human-readable reasons a door was not knocked on. Each names the limit AND
+#: what happens next, because "deferred" alone reads like a failure and it is
+#: not one: the source leads a later tick.
+_DEFER_REASONS = {
+    "wall_clock": "tick wall-clock budget spent — deferred to the next tick",
+    "fetch_budget": "tick fetch budget spent — deferred to the next tick",
+    "model_budget": "tick model budget spent — deferred to the next tick",
+    "host_politeness": (
+        "this host has had its share of fetches this tick — deferred, so one "
+        "busy host cannot be hammered and cannot stop everybody else"),
+    "discover_share": (
+        "discovery has spent its share of this tick's fetches — deferred, so "
+        "an import backlog cannot starve the refresh of the live catalog"),
+}
+
+
+def _defer_reason(key: str) -> str:
+    return _DEFER_REASONS.get(key, f"deferred ({key})")
+
+
 @dataclass
 class DoorOutcome:
     """What ONE knock on ONE url produced, before any policy is applied.
@@ -642,6 +699,8 @@ class DoorOutcome:
       missed    404, 5xx, timeout, DNS — a broken page, not a closed door.
                 `error` carries the original exception so a caller that has
                 no fallback can re-raise it unchanged.
+      deferred  a tick budget or host politeness said not now. NOT a failure
+                and not a fact about the source: it leads a later tick.
     """
 
     url: str
@@ -652,6 +711,10 @@ class DoorOutcome:
     final_url: str = ""
     verdict: Any = None
     error: Optional[BaseException] = None
+    #: The HTTP status the response carried, when there was one. Used ONLY to
+    #: tell a CLEAR 404 (the page is gone — confirmable) from every other
+    #: failure (which confirms nothing). Never used to decide trust.
+    http_status: Optional[int] = None
 
 
 def _wall_observed(before: Any, after: Any) -> bool:
@@ -680,6 +743,8 @@ def _knock_door(
     verdict: Any,
     render_state: Dict[str, int],
     follow: bool,
+    budget: TickBudget,
+    queue: str,
 ) -> DoorOutcome:
     """Fetch ONE url and classify the answer. The single knock in the loop.
 
@@ -705,6 +770,16 @@ def _knock_door(
     calendar, and Coverage Law is explicit about which of those is the defect.
     """
     stage_fetch = "follow_fetch" if follow else "fetch"
+
+    # THE BUDGET GATE, before any work. Every HTTP request the loop makes goes
+    # through this one place, so the tick's stop conditions cannot be dodged by
+    # a code path that forgot to ask — and the refusal reason is returned, not
+    # swallowed, so the report can say which limit deferred which source.
+    refusal = budget.may_fetch(host_of(url), queue=queue)
+    if refusal is not None:
+        return DoorOutcome(url=url, kind="deferred", detail=_defer_reason(refusal))
+    budget.record_fetch(host_of(url), queue=queue)
+
     fingerprint = None
     try:
         fingerprint = load_door_fingerprint(source_id, url)
@@ -762,7 +837,8 @@ def _knock_door(
             decision="missed", detail=f"{type(exc).__name__}: {exc}",
         ))
         return DoorOutcome(url=url, kind="missed",
-                           detail=f"{type(exc).__name__}: {exc}", error=exc)
+                           detail=f"{type(exc).__name__}: {exc}", error=exc,
+                           http_status=status)
 
     if not follow:
         # The start-page replay entry, with its original shape preserved (the
@@ -870,7 +946,7 @@ def _knock_door(
     )
 
 
-def _follow_event_pages(
+def _discover_second_door(
     *,
     run_id: str,
     ai: AIProvider,
@@ -880,26 +956,23 @@ def _follow_event_pages(
     start_html: str,
     follow_state: Dict[str, int],
     verdict: Any,
+    budget: TickBudget,
 ) -> Dict[str, Any]:
-    """Knock on the ONE best event page the start page advertises (#204's
-    walker, inside the armed loop, now bounded to the fair-crawl door).
+    """The DISCOVER queue's second probe: the one best event page this start
+    page advertises.
 
-    Returns a summary dict: which door was tried, what it produced, and — if
-    the source hit a wall — the class-D reason that stopped it.
+    A source is in the discover queue because we do not know its door yet. The
+    start page is probe one; this is probe two, and there is no probe three.
+    `discover_event_pages` already ranks its results by evidence — link text
+    the site itself wrote, then event-shaped URL paths, then conventional
+    guesses — so asking it for `limit=1` IS "the scored events/calendar/shows
+    path". A second scorer here would be a second definition of what a schedule
+    link looks like.
 
-    Rules that cannot be relaxed here (Coverage Law), all now enforced in
-    _knock_door so there is one copy of each:
-      * ON-ORIGIN ONLY, checked TWICE — page_discovery drops every off-site
-        link before this function sees it, and the FINAL url of every
-        successful fetch is re-checked before its text reaches the extractor.
-      * A WALL ENDS THE SOURCE. We knock once. A 404 is a miss, not a wall.
-      * BOUNDED. Per-source doors and a per-run page ceiling, both fail-closed.
-
-    `discover_event_pages` returns its pages evidence-ranked (link text the
-    site itself wrote, then event-shaped URL paths, then conventional
-    guesses), so asking it for `limit=1` IS "the scored events/calendar/shows
-    path" — the ranking already exists and a second scorer here would be a
-    second definition of what a schedule link looks like.
+    Rules that cannot be relaxed, all enforced in _knock_door so there is one
+    copy of each: on-origin only (checked before the fetch by discovery, and
+    again on the FINAL url after redirects); a wall ends the source — we knock
+    once; a 404 is a miss, not a wall; every fetch passes the tick budget.
     """
     source_id = source.get("source_id")
     source_name = source["name"]
@@ -907,23 +980,23 @@ def _follow_event_pages(
     summary: Dict[str, Any] = {
         "followed": 0, "extracted": 0, "missed": 0, "walled": False,
         "candidates": 0, "blocked_reason": "", "discovered": 0,
-        "unchanged": 0, "urls": [],
+        "unchanged": 0, "deferred": 0, "urls": [],
     }
 
     if verdict.source_class != CLASS_B_PUBLIC_HTML:
         summary["blocked_reason"] = (
-            f"not followed: catalog class {verdict.source_class} — {verdict.reason}")
+            f"not probed: catalog class {verdict.source_class} — {verdict.reason}")
         return summary
 
-    budget = min(follow_state["source_cap"], follow_state["remaining"])
-    if budget <= 0:
+    budget_left = min(follow_state["source_cap"], follow_state["remaining"])
+    if budget_left <= 0:
         summary["blocked_reason"] = (
-            f"not followed: run follow-page budget spent "
+            f"not probed: run probe budget spent "
             f"({FOLLOW_RUN_CAP_ENV}={follow_state['run_cap']}) — the pages this "
-            "source advertises are left for a later run, not dropped")
+            "source advertises are left for a later tick, not dropped")
         return summary
 
-    discovery = discover_event_pages(start_html, start_url, limit=budget)
+    discovery = discover_event_pages(start_html, start_url, limit=budget_left)
     summary["discovered"] = len(discovery.pages)
     log_step(ReplayRecord(
         run_id=run_id, ts=_now_iso(), source_id=str(source_id), source_name=source_name,
@@ -936,7 +1009,7 @@ def _follow_event_pages(
         }),
         decision="discovered",
         detail=(f"{len(discovery.pages)} same-site event page(s) advertised; "
-                f"door budget {budget}"),
+                f"probe budget {budget_left}"),
     ))
     if not discovery.pages:
         summary["blocked_reason"] = "no same-site event page advertised by the start page"
@@ -945,7 +1018,7 @@ def _follow_event_pages(
     for page in discovery.pages:
         if follow_state["remaining"] <= 0:
             summary["blocked_reason"] = (
-                f"run follow-page budget spent after {summary['followed']} page(s) "
+                f"run probe budget spent after {summary['followed']} page(s) "
                 f"({FOLLOW_RUN_CAP_ENV}={follow_state['run_cap']})")
             break
         follow_state["remaining"] -= 1
@@ -954,7 +1027,13 @@ def _follow_event_pages(
             run_id=run_id, source_id=source_id, source_name=source_name,
             url=page.url, start_url=start_url, verdict=verdict,
             render_state=follow_state["render_state"], follow=True,
+            budget=budget, queue=QUEUE_DISCOVER,
         )
+        if door.kind == "deferred":
+            summary["deferred"] += 1
+            summary["blocked_reason"] = door.detail
+            summary["urls"].pop()
+            break
         if door.kind == "wall":
             # Narrowed isolation, deliberately: one broken sub-page must not
             # cost the rest of a venue's calendar, and a WALL must not be lost
@@ -977,11 +1056,11 @@ def _follow_event_pages(
             page_outcome = _process_fetched_page(
                 run_id=run_id, ai=ai, source_id=source_id, source_name=source_name,
                 page_url=page.url, source_class=source_class, sxsw_mode=sxsw_mode,
-                text=door.text, content_type=door.content_type,
+                text=door.text, content_type=door.content_type, budget=budget,
             )
         except Exception as exc:  # noqa: BLE001 — reported per page, never fatal
             summary["missed"] += 1
-            logger.error("follow page %s failed after fetch: %s", page.url, exc)
+            logger.error("probe page %s failed after fetch: %s", page.url, exc)
             log_step(ReplayRecord(
                 run_id=run_id, ts=_now_iso(), source_id=str(source_id),
                 source_name=source_name, stage="follow_error",
@@ -991,6 +1070,10 @@ def _follow_event_pages(
             ))
             continue
 
+        if page_outcome.decision == "deferred":
+            summary["deferred"] += 1
+            summary["blocked_reason"] = page_outcome.detail
+            continue
         if page_outcome.decision != "sensor_rejected":
             summary["extracted"] += 1
             summary["candidates"] += page_outcome.candidates
@@ -1006,25 +1089,24 @@ def _run_one_source(
     sxsw_mode: bool,
     render_state: Dict[str, int],
     follow_state: Dict[str, Any],
+    budget: TickBudget,
 ) -> tuple[SourceResult, Dict[str, int]]:
-    """Drive ONE source through at most TWO doors: fetch -> sensor -> extract
-    -> gate3 on each.
+    """Drive ONE source, from whichever queue it is in.
 
-    Fair crawl (founder, 2026-09-02). The doors, in order:
+    REFRESH — we know this source's door (`best_url`, the page that produced
+    the most candidates in the last 30 days). ONE fetch: go straight at it, and
+    do not spend a second fetch guessing at conventional paths beside a page we
+    know works. This is the steady state.
 
-      1. THE PRIMARY DOOR — the source's `best_url` (the page that produced
-         the most candidates in the last 30 days), else its registered start
-         URL. Going straight to the door that works is why a source costs one
-         fetch in the steady state instead of a homepage plus a walk.
-      2. AT MOST ONE MORE — either the single top-ranked events/calendar/shows
-         page the start page advertises (class B only), or, when the best_url
-         itself 404s/times out, a fallback to the registered start URL so a
-         moved calendar re-discovers itself on the very next run instead of
-         quietly costing the source its coverage.
+    DISCOVER — we do not know its door. ONE OR TWO probes: the registered start
+    URL, then the single top-ranked events/calendar/shows page it advertises.
 
-    An unchanged primary door ENDS the source for this wave: 304 or an
-    identical body hash means there is nothing new behind it, and spending the
-    second door to prove that again is the waste this pass removes.
+    Either way an UNCHANGED door ends the source for this tick: 304, or a body
+    hashing to what we already read, means there is nothing new behind it, and
+    re-proving that with a second fetch is the waste this pass removes. A dead
+    best_url is the one case a refresh spends a second fetch: it falls back to
+    the registered start URL, so a moved calendar re-discovers itself on the
+    next tick instead of quietly costing the source its coverage.
 
     Returns (SourceResult, counts) where counts is this source's DELTA on the
     RunReport buckets — every stage it reached, not a single terminal bucket.
@@ -1043,9 +1125,16 @@ def _run_one_source(
 
     verdict = _class_verdict_for(source)
     state: Optional[SourceCrawlState] = source.get("crawl_state")
+    # The scheduler may hand this source a specific door and queue — that is
+    # how EVENT-PROXIMITY refresh reaches the loop: the item is a PAGE with a
+    # near event on it, not a source taking its normal turn. Absent an
+    # override the source's own crawl state decides, exactly as before.
+    queue = source.get("queue") or (state.queue if state else QUEUE_DISCOVER)
     primary_url = choose_primary_door(
         start_url=start_url,
-        best_url=state.best_url if state else None,
+        # Routed through the same guard either way: a door read out of stored
+        # data is only used when it is on the REGISTERED start URL's own site.
+        best_url=source.get("door") or (state.best_url if state else None),
         same_site_fn=same_site,
     )
     urls: List[str] = [primary_url]
@@ -1053,13 +1142,13 @@ def _run_one_source(
     door = _knock_door(
         run_id=run_id, source_id=source_id, source_name=source_name,
         url=primary_url, start_url=start_url, verdict=verdict,
-        render_state=render_state, follow=False,
+        render_state=render_state, follow=False, budget=budget, queue=queue,
     )
     doors_spent = 0
     if door.kind == "missed" and primary_url != start_url:
-        # The remembered door is gone (moved calendar, retired path). Spend
-        # the second door on the registered start URL rather than losing the
-        # source for the wave — best_url is a shortcut, never a commitment.
+        # The remembered door is gone (moved calendar, retired path). Spend the
+        # second fetch on the registered start URL rather than losing the
+        # source for the tick — best_url is a shortcut, never a commitment.
         logger.warning(
             "best door %s missed (%s) — falling back to the registered start "
             "URL %s", primary_url, door.detail, start_url,
@@ -1070,14 +1159,43 @@ def _run_one_source(
         door = _knock_door(
             run_id=run_id, source_id=source_id, source_name=source_name,
             url=start_url, start_url=start_url, verdict=verdict,
-            render_state=render_state, follow=False,
+            render_state=render_state, follow=False, budget=budget, queue=queue,
+        )
+
+    def _verdict_kwargs(page_decision=None):
+        # ONE call site for the fail-closed verdict, so no branch below can
+        # forget it and quietly default to something permissive. Recorded on
+        # the result AND in the replay log; nothing acts on it — the loop does
+        # not mutate published events (see worker.crawl_state's verification
+        # section for why that boundary is where it is).
+        v, why = classify_recheck(
+            door_kind=door.kind, page_decision=page_decision,
+            http_status=door.http_status)
+        log_step(ReplayRecord(
+            run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+            source_name=source_name, stage="verify",
+            inputs_digest=canonical_digest({"url": primary_url, "queue": queue}),
+            outputs_digest=canonical_digest({"verdict": v}),
+            decision=v, detail=why,
+        ))
+        return {"verdict": v, "verdict_reason": why}
+
+    if door.kind == "deferred":
+        return (
+            SourceResult(
+                source_id, source_name, "budget", "deferred", door.detail,
+                urls_fetched=[], queue=queue, blocked=door.detail,
+                **_verdict_kwargs(),
+            ),
+            {"deferred": 1},
         )
 
     if door.kind == "unchanged":
         return (
             SourceResult(
                 source_id, source_name, "fetch", "not_modified", door.detail,
-                urls_fetched=urls, changed=False, skipped_unchanged=1,
+                urls_fetched=urls, changed=False, skipped_unchanged=1, queue=queue,
+                **_verdict_kwargs(),
             ),
             # A 304 keeps its own historical bucket (no bytes were newly
             # fetched); an identical body DID cost a fetch, so it counts as
@@ -1093,11 +1211,12 @@ def _run_one_source(
         return (
             SourceResult(
                 source_id, source_name, "fetch", door.kind, door.detail,
-                urls_fetched=urls, blocked=f"{blocked}: {door.detail}",
+                urls_fetched=urls, blocked=f"{blocked}: {door.detail}", queue=queue,
+                **_verdict_kwargs(),
             ),
-            # `blocked` only. pages_walled counts FOLLOWED pages that hit a
-            # wall; a start-page wall is not a followed page, and merging the
-            # two would make "the walk hit a wall" unreadable.
+            # `blocked` only. pages_walled counts PROBE pages that hit a wall;
+            # a start-page wall is not a probe page, and merging the two would
+            # make "the probe hit a wall" unreadable.
             {"blocked": 1},
         )
 
@@ -1112,69 +1231,79 @@ def _run_one_source(
     page = _process_fetched_page(
         run_id=run_id, ai=ai, source_id=source_id, source_name=source_name,
         page_url=primary_url, source_class=source_class, sxsw_mode=sxsw_mode,
-        text=door.text, content_type=door.content_type,
+        text=door.text, content_type=door.content_type, budget=budget,
     )
 
     if page.decision == "sensor_rejected":
         # The page told us nothing readable, so there is no markup to discover
-        # a second door FROM. Unchanged behaviour, stated: the walk reads the
+        # a second door FROM. Unchanged behaviour, stated: the probe reads the
         # fetched page's own links, it never guesses without one.
         return (
             SourceResult(
                 source_id, source_name, "sensor", "sensor_rejected", page.detail,
-                urls_fetched=urls, changed=True,
+                urls_fetched=urls, changed=True, queue=queue,
+                **_verdict_kwargs("sensor_rejected"),
             ),
             {"fetched": 1, "sensor_rejected": 1},
         )
 
-    # THE SECOND DOOR — spent only when there is something to discover it
-    # from, and only if it has not already been spent. Two ways it is skipped:
-    #
-    #   * the best door already worked. Discovery would spend the fetch on a
-    #     conventional-path GUESS (/calendar, /shows) beside a page we KNOW
-    #     produces candidates. That is precisely the waste this pass removes,
-    #     and the guess is not lost: it is what the next wave tries if the best
-    #     door stops producing.
-    #   * the fallback already used it, after the best door missed.
-    #
-    # Either way: <= 2 fetches per source per wave, always.
-    if doors_spent == 0 and primary_url == start_url:
-        follow = _follow_event_pages(
+    if page.decision == "deferred":
+        # Fetched fine; the model budget stopped short of extracting it.
+        return (
+            SourceResult(
+                source_id, source_name, "extract", "deferred", page.detail,
+                urls_fetched=urls, changed=True, queue=queue, blocked=page.detail,
+                **_verdict_kwargs("deferred"),
+            ),
+            {"fetched": 1, "deferred": 1},
+        )
+
+    # THE SECOND PROBE — discover queue only, and only if the first fetch has
+    # not already been spent on the start-URL fallback. A refresh source's
+    # door already answered; probing conventional paths beside a page we KNOW
+    # produces candidates is precisely the fetch this pass exists to save, and
+    # the guess is not lost — it is what a later tick tries if the best door
+    # stops producing.
+    if queue == QUEUE_DISCOVER and doors_spent == 0 and primary_url == start_url:
+        probe = _discover_second_door(
             run_id=run_id, ai=ai, source=source, sxsw_mode=sxsw_mode,
             start_url=primary_url, start_html=door.text,
-            follow_state=follow_state, verdict=verdict,
+            follow_state=follow_state, verdict=verdict, budget=budget,
         )
     else:
-        follow = {
+        if queue == QUEUE_EVENT:
+            why = ("event-proximity refresh: one page fetch covers every event "
+                   "on that page, so no probe is spent")
+        elif queue == QUEUE_REFRESH:
+            why = "refresh queue: the known best door answered, so no probe was spent"
+        else:
+            why = ("second probe spent on the start-URL fallback after the best "
+                   "door missed")
+        probe = {
             "followed": 0, "extracted": 0, "missed": 0, "walled": False,
-            "candidates": 0, "discovered": 0, "unchanged": 0, "urls": [],
-            "blocked_reason": (
-                "second door spent on the start-URL fallback after the best "
-                "door missed — one door per source per wave"
-                if doors_spent else
-                "not discovered: the remembered best door answered, and a "
-                "guessed path beside a working one is the fetch this pass "
-                "exists to save"),
+            "candidates": 0, "discovered": 0, "unchanged": 0, "deferred": 0,
+            "urls": [], "blocked_reason": why,
         }
-    urls.extend(follow["urls"])
+    urls.extend(probe["urls"])
 
     counts: Dict[str, int] = {
         "fetched": 1,
         "extracted": 1,
-        "candidates": page.candidates + follow["candidates"],
-        "pages_followed": follow["followed"],
-        "pages_extracted": follow["extracted"],
-        "pages_missed": follow["missed"],
-        "pages_walled": 1 if follow["walled"] else 0,
-        "skipped_unchanged": follow["unchanged"],
+        "candidates": page.candidates + probe["candidates"],
+        "pages_followed": probe["followed"],
+        "pages_extracted": probe["extracted"],
+        "pages_missed": probe["missed"],
+        "pages_walled": 1 if probe["walled"] else 0,
+        "skipped_unchanged": probe["unchanged"],
+        "deferred": probe["deferred"],
     }
     detail = page.detail
-    if follow["followed"] or follow["blocked_reason"] or follow["unchanged"]:
+    if probe["followed"] or probe["blocked_reason"] or probe["unchanged"]:
         detail += (
-            f" | door: {follow['followed']} page(s) fetched, "
-            f"{follow['candidates']} candidate(s)"
-            + (f", {follow['unchanged']} unchanged" if follow["unchanged"] else "")
-            + (f"; {follow['blocked_reason']}" if follow["blocked_reason"] else "")
+            f" | probe: {probe['followed']} page(s) fetched, "
+            f"{probe['candidates']} candidate(s)"
+            + (f", {probe['unchanged']} unchanged" if probe["unchanged"] else "")
+            + (f"; {probe['blocked_reason']}" if probe["blocked_reason"] else "")
         )
 
     terminal = {"held": "held", "escalated": "escalated",
@@ -1183,20 +1312,20 @@ def _run_one_source(
     return (
         SourceResult(
             source_id, source_name, "gate3", page.decision, detail,
-            urls_fetched=urls, changed=True,
-            candidates=page.candidates + follow["candidates"],
-            skipped_unchanged=follow["unchanged"],
-            blocked=follow["blocked_reason"] if follow["walled"] else "",
+            urls_fetched=urls, changed=True, queue=queue,
+            candidates=page.candidates + probe["candidates"],
+            skipped_unchanged=probe["unchanged"],
+            blocked=probe["blocked_reason"] if probe["walled"] else "",
+            **_verdict_kwargs(page.decision),
         ),
         counts,
     )
 
-
-
 def render_run_table(report: "RunReport") -> str:
     """The founder's run table, one row per source attempted.
 
-        source | url fetched | changed? | candidates | skipped-unchanged | blocked
+        source | queue | url fetched | changed? | verified? | candidates |
+        skipped-unchanged | blocked
 
     Printed by worker/run_once.py after every real run, and by the fixture
     tests, because the point of fair crawl is a claim about DISTRIBUTION —
@@ -1204,20 +1333,24 @@ def render_run_table(report: "RunReport") -> str:
     A blank `blocked` cell means nothing stopped this source; "0" candidates
     with an empty blocked cell means we read the page and it advertised no
     events, which is a different fact from "we never got in" (Operating Law:
-    a 403 is triage, not "this venue has no events").
+    a 403 is triage, not "this venue has no events"). `verified?` is the
+    fail-closed verdict — "present", "absent", or "no" — and "no" means we
+    learned nothing this tick, so the last good row stands.
 
     Pure formatting over the report the loop already built — it queries
     nothing and decides nothing, so printing it can never change a run.
     """
-    header = ("source", "url fetched", "changed?", "candidates",
-              "skipped-unchanged", "blocked")
+    header = ("source", "queue", "url fetched", "changed?", "verified?",
+              "candidates", "skipped-unchanged", "blocked")
     rows = [header]
     for r in report.results:
         changed = "-" if r.changed is None else ("yes" if r.changed else "no")
         rows.append((
             r.source_name,
+            r.queue or "-",
             " ".join(r.urls_fetched) if r.urls_fetched else "-",
             changed,
+            r.verdict.replace("verified_", "").replace("unverified", "no"),
             str(r.candidates),
             str(r.skipped_unchanged),
             r.blocked or "",
@@ -1236,18 +1369,35 @@ def run_loop(
     sources: List[Dict[str, Any]],
     sxsw_mode: bool = False,
     dsn: Optional[str] = None,
+    budget: Optional[TickBudget] = None,
 ) -> RunReport:
-    """Run the full Sensors -> Harness -> Loop pipeline over `sources`.
+    """Run one TICK of the pipeline over `sources`, in the order given.
 
-    Each source dict is {source_id, name, url, source_class}. The loop classifies
-    each candidate through the trust gate and STOPS at the gate: a PASS candidate
-    is left in the store ("ready_to_promote") for an authenticated ops action to
-    publish. There is no `promote` flag and no promotion path from this module —
-    the "AI never auto-promotes" invariant is enforced structurally, by the
-    absence of any promote_candidate call, not by a default a caller could flip.
+    A tick is not "N sources". `sources` is the work the scheduler planned —
+    already ordered most-overdue-first (worker/run_once.py) — and this loop
+    works down it until a REAL budget stops it: wall clock, model spend, or the
+    bug-safety fetch cap. Everything it did not reach is reported as DEFERRED
+    and leads the next tick. How many sources a tick covered is an OUTCOME
+    (report.outcomes), never an input.
 
-    Per-candidate gate signals (stored extraction provenance, private-RSVP,
-    start-time/dedupe facts) are loaded from the DB by candidate id via
+    Each source dict is {source_id, name, url, source_class} plus, optionally,
+    `crawl_state` (its derived history), `queue`, and `door` — the last two are
+    how the event-proximity queue hands the loop a specific PAGE to re-read
+    rather than a source taking its normal turn.
+
+    The loop classifies candidates through the trust gate and STOPS there: a
+    PASS candidate is left in the store ("ready_to_promote") for an
+    authenticated ops action to publish. There is no `promote` flag and no
+    promotion path from this module — "AI never auto-promotes" is enforced
+    structurally, by the absence of any promote_candidate call.
+
+    It also never MUTATES a published event. A re-check records a fail-closed
+    verdict (worker.crawl_state.classify_recheck) and nothing else: no delete,
+    no cancel, no date edit, whatever the page said. Only confirmed same-page
+    evidence could license a change, and building that path is a
+    trust-invariant decision, not this loop's.
+
+    Per-candidate gate signals are loaded from the DB by candidate id via
     worker.candidate_store.load_candidate_gate_signals — never injected per
     source — so the gate always evaluates real stored data.
 
@@ -1255,43 +1405,69 @@ def run_loop(
     (worker/candidate_store.py etc. read ONELIVE_DB_DSN from the environment)
     but is not passed further: none of the wired functions in this module
     accept a dsn parameter, so a caller wanting a non-default DSN must set
-    ONELIVE_DB_DSN before calling run_loop. Accepting-but-not-silently-using a
-    parameter would be dead code; we keep it in the signature (matching the
-    spec) and document the constraint here instead of pretending it works.
+    ONELIVE_DB_DSN before calling run_loop.
     """
     # Resolve the per-run render budget BEFORE touching any source: a
     # malformed value is a config/structural failure and aborts the run
     # loudly (fail closed), per this module's failure semantics.
     render_cap = _resolve_render_cap()
     render_state = {"cap": render_cap, "remaining": render_cap}
-    # Same fail-closed timing for the follow-pages budgets: a malformed
-    # ceiling must abort the run BEFORE the first fetch, never mid-walk.
+    # Same fail-closed timing for the probe budgets: a malformed ceiling must
+    # abort the run BEFORE the first fetch, never mid-walk.
     follow_caps = _resolve_follow_caps()
     follow_state: Dict[str, Any] = {
         "run_cap": follow_caps["run_cap"],
         "source_cap": follow_caps["source_cap"],
         "remaining": follow_caps["run_cap"],
-        # Followed pages share the run's ONE render budget: a JS-shell
-        # calendar is exactly the page worth rendering, and a second budget
-        # would double the spend the render cap exists to bound.
+        # Probes share the run's ONE render budget: a JS-shell calendar is
+        # exactly the page worth rendering, and a second budget would double
+        # the spend the render cap exists to bound.
         "render_state": render_state,
     }
+    tick = budget if budget is not None else TickBudget()
+    # Size the per-queue reservations against THIS tick's actual work, so a
+    # share never strands budget it was only meant to protect.
+    tick.reserve_for_plan([
+        str(src.get("queue") or QUEUE_DISCOVER) for src in sources])
 
     run_id = new_run_id()
     started = _now_iso()
     report = RunReport(run_id=run_id, started=started, finished="")
 
-    for source in sources:
+    for index, source in enumerate(sources):
         source_id = source.get("source_id")
         source_name = source.get("name", "<unnamed>")
+
+        stop = tick.tick_stop()
+        if stop:
+            # A REAL limit, so the tick ends here. Everything left is deferred,
+            # counted, and named — a tick that quietly stopped early would look
+            # exactly like a catalog that had nothing to say.
+            tick.stop_reason = stop
+            remaining = len(sources) - index
+            tick.sources_deferred += remaining
+            report.counts["deferred"] += remaining
+            logger.warning(
+                "tick stopped on %s after %d source(s); %d deferred to the next "
+                "tick (nothing dropped — they lead the next one).",
+                stop, tick.sources_touched, remaining,
+            )
+            log_step(ReplayRecord(
+                run_id=run_id, ts=_now_iso(), source_id="", source_name="",
+                stage="tick", inputs_digest=canonical_digest({"planned": len(sources)}),
+                outputs_digest=canonical_digest(tick.outcomes()),
+                decision="tick_stop", detail=f"{stop}; {remaining} source(s) deferred",
+            ))
+            break
+
         try:
             result, counts = _run_one_source(
                 run_id=run_id, ai=ai, source=source, sxsw_mode=sxsw_mode,
-                render_state=render_state, follow_state=follow_state,
+                render_state=render_state, follow_state=follow_state, budget=tick,
             )
         except Exception as exc:  # noqa: BLE001 - deliberate, audited, isolated per spec
             # Per-source transient failure: caught, logged, and isolated so
-            # one bad source cannot take down the run. This is the ONLY place
+            # one bad source cannot take down the tick. This is the ONLY place
             # a bare Exception is caught in this module, and it is always
             # logged to both the RunReport and the replay log — never
             # swallowed silently.
@@ -1303,13 +1479,27 @@ def run_loop(
             ))
             report.results.append(SourceResult(
                 source_id, source_name, "error", "error", f"{type(exc).__name__}: {exc}",
+                queue=str(source.get("queue") or ""),
             ))
             report.counts["errors"] += 1
+            tick.sources_touched += 1
             continue
 
+        if result.decision == "deferred":
+            tick.sources_deferred += 1
+        else:
+            tick.sources_touched += 1
         report.results.append(result)
         for key, delta in counts.items():
             report.counts[key] += delta
 
+    # The measured outcomes, written once at the end from the meter that did
+    # the counting — never recomputed from the buckets, which would be a second
+    # arithmetic to disagree with the first.
+    report.counts["fetches"] = tick.fetches
+    report.counts["extract_calls"] = tick.extract_calls
+    report.counts["input_tokens"] = tick.input_tokens
+    report.counts["output_tokens"] = tick.output_tokens
+    report.outcomes = tick.outcomes()
     report.finished = _now_iso()
     return report

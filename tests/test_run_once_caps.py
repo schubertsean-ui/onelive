@@ -118,11 +118,12 @@ def test_rotation_composes_with_ceiling_to_rotate_coverage():
 
 
 def test_run_real_wires_rotation_before_the_cap(monkeypatch):
-    """PR #43 r1 nit made regression-proof: _run_real must pass the DB rows
-    through order_for_rotation() BEFORE apply_source_ceiling(). The fake DB
-    returns fresh-first rows; with cap=2, only rotation-before-cap yields
-    [never-fetched, stalest] — a cap applied to raw DB order would keep
-    'fresh' and starve the tail, which is the exact defect rotation fixes."""
+    """PR #43 r1 nit made regression-proof: _run_real must order the DB rows
+    BEFORE applying the outer safety cap. The fake DB returns fresh-first rows;
+    with cap=2, only ordering-before-cap yields [never-fetched, stalest] — a cap
+    applied to raw DB order would keep 'fresh' and starve the tail, which is the
+    exact defect the rotation fixes. (All three are equally overdue here, so the
+    rotation cursor is what decides — which is its job: the tie-break.)"""
     import contextlib
 
     import ai.claude_provider as claude_provider
@@ -150,11 +151,17 @@ def test_run_real_wires_rotation_before_the_cap(monkeypatch):
             return False
 
         def execute(self, sql, params=None):  # noqa: ARG002
+            if "promoted_event_id" in sql:
+                # The event-proximity read: no published events in this test,
+                # so the tick plan is sources only and ORDER stays the subject.
+                self._rows = []
+                return
             if "fail_streak" in sql:
-                # (source_id, last_attempt_at, last_success_at, fail_streak,
-                #  best_url) — long ago, so every source is due.
+                # (source_id, last_attempt_at, last_verified_at,
+                #  last_success_at, fail_streak, best_url) — long ago, so
+                #  every source is due.
                 long_ago = _dt.datetime(2020, 1, 1, tzinfo=_TZ)
-                self._rows = [(r[0], long_ago, long_ago, 0, None)
+                self._rows = [(r[0], long_ago, long_ago, long_ago, 0, None)
                               for r in (fresh, stale, never)]
                 return
             assert "last_fetched_at" in sql  # the rotation column is queried
@@ -184,8 +191,9 @@ def test_run_real_wires_rotation_before_the_cap(monkeypatch):
         run_id = "wiring-test"
         counts = {"errors": 0}
         results = []
+        outcomes = {}
 
-    def _fake_run_loop(ai, sources, sxsw_mode, dsn):
+    def _fake_run_loop(ai, sources, sxsw_mode, dsn, budget=None):  # noqa: ARG001
         captured["sources"] = sources
         return _Report()
 

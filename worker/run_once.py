@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ai.bedrock_provider import BedrockProvider
-from worker.crawl_state import DEFAULT_SOURCES_PER_WAVE, due_source_ids
+from worker.crawl_state import TickBudget
 from worker.orchestrator import render_run_table, run_loop
 from worker.sentinel import deadman, init_sentry
 
@@ -112,6 +112,10 @@ def _run_stub() -> int:
     print(f"  counts:   {report.counts}")
     for r in report.results:
         print(f"  - {r.source_name}: stage={r.stage_reached} decision={r.decision} detail={r.detail}")
+    print()
+    print(render_run_table(report))
+    print()
+    print(render_outcomes(report, model_id=getattr(ai, "model_id", None)))
     return 0
 
 
@@ -193,39 +197,137 @@ def order_for_rotation(rows: Sequence[tuple]) -> list:
 _NEVER_FETCHED_SENTINEL = 0
 
 
-def take_due_wave(sources, states, cap, now=None):
-    """The next K DUE sources, in the rotation order `sources` already carries.
+def render_outcomes(report, *, model_id=None) -> str:
+    """The tick's OUTCOMES line: fetches, extracts, dollars, and why it stopped.
 
-    This is the fair-crawl wave (founder, 2026-09-02): "take the next K due
-    sources by cursor (round-robin), not whoever has the most pages."
+    Founder, 2026-09-02: "Report fetches/extracts/$ as outcomes." Everything
+    here is measured, not planned — fetches and extract calls are counted as
+    the loop makes them, tokens are what the provider itself reported, and the
+    dollar figure prices those tokens from the committed table in
+    docs/MODEL_ROUTING.md. When the model id is not in that table, or the
+    provider reported no usage, the cost cell says "unknown" rather than
+    showing a number nobody could stand behind.
 
-    Two separate jobs, kept separate on purpose:
-      * THE CURSOR decides the ORDER — order_for_rotation above, least
-        recently attempted first. It is the schedule.
-      * DUE-NESS only REMOVES — a source that failed and is backing off, or
-        one we read minutes ago. It is a suppressor, never the schedule; if
-        it were the schedule, a clock skew would decide coverage.
-
-    A source with no crawl state (never in raw_fetch, e.g. a row imported
-    since the last run) is DUE — new catalog rows are crawled the same day,
-    and "we have no history for it" must never read as "skip it".
-
-    `cap` is K, the existing per-run source ceiling; None means uncapped and
-    the caller logs that loudly. Returns (wave, deferred_count).
+    `sources reached` is deliberately printed as an outcome and not as a
+    setting: it is what the budgets allowed, which is the whole point.
     """
-    from worker.crawl_state import SourceCrawlState
+    from worker.spend_report import format_spend
 
+    o = report.outcomes or {}
+    spend = format_spend(
+        model_id=model_id,
+        input_tokens=o.get("input_tokens", 0),
+        output_tokens=o.get("output_tokens", 0),
+    )
+    return "\n".join([
+        "OUTCOMES (measured, not planned):",
+        f"  sources reached:   {o.get('sources_touched', 0)}"
+        f"   (deferred to a later tick: {o.get('sources_deferred', 0)})",
+        f"  fetches:           {o.get('fetches', 0)}"
+        f"   (discovery probes: {o.get('discover_fetches', 0)})",
+        f"  extract calls:     {o.get('extract_calls', 0)}"
+        f"   (pages sent to the model — the only stage that calls Anthropic)",
+        f"  tokens in/out:     {o.get('input_tokens', 0)} / {o.get('output_tokens', 0)}",
+        f"  estimated cost:    {spend}",
+        f"  elapsed:           {o.get('elapsed_seconds', 0)}s",
+        f"  tick stopped on:   {o.get('stop_reason', 'exhausted')}",
+        f"  unchanged (no extract): {report.counts.get('skipped_unchanged', 0)}",
+    ])
+
+
+def plan_tick(sources, states, event_refreshes=(), *, now=None):
+    """The work one tick will attempt, most overdue first, deduped by page.
+
+    Founder, 2026-09-02: a tick is not "K sources". This function decides WHAT
+    is worth doing and in what order; worker/orchestrator.py decides how much
+    of it fits inside the tick's real budgets. Three queues feed it:
+
+      EVENT    a published event is approaching a rung of the proximity ladder
+               (T-30d, T-14d, T-7d, T-3d, T-1d, day-of), so its DEFINING page
+               is re-read. One item per page, however many events sit on it.
+      REFRESH  a source whose door we know. One fetch, straight at it.
+      DISCOVER a source whose door we do not. The start URL, then at most one
+               probe of the events/calendar/shows page it advertises.
+
+    EVENT items go FIRST, nearest rung first. They are the only work with a
+    deadline: a show tonight that was cancelled is a user-visible error now,
+    while a source taking its routine turn is not. That priority is bounded,
+    not absolute — TickBudget caps event fetches at EVENT_FETCH_SHARE of the
+    tick, so a night full of near events cannot freeze the rotation.
+
+    SOURCE items follow, most overdue first, with round-robin (least-recently-
+    attempted) as the tie-break between equally-overdue sources and source_id
+    after that. Nothing here reads a source's category, type, city or name.
+
+    DEDUPE: one page fetch covers all events on that page, and it also covers a
+    source whose door is the same page. When an EVENT item and a source item
+    would fetch the same URL this tick, the event item wins (it is the more
+    urgent reason to look) and the source item is dropped for this tick only.
+
+    Returns (items, deferred_count). Items are the source dicts the loop takes,
+    each carrying `queue` and — for event items — the specific `door` to read.
+    """
+    from worker.crawl_state import (
+        QUEUE_EVENT, SourceCrawlState, choose_primary_door, order_due,
+    )
+    from worker.sourcing.page_discovery import same_site
+
+    by_id = {str(src.get("source_id")): src for src in sources}
+    rotation_rank = {str(src.get("source_id")): i for i, src in enumerate(sources)}
+
+    items = []
+    claimed_urls = set()
+
+    # 1. EVENT PROXIMITY first into the dedupe set, so a source item pointing
+    #    at the same page yields to it rather than duplicating the fetch.
+    for refresh in event_refreshes:
+        src = by_id.get(str(refresh.source_id))
+        if src is None:
+            # The event's source is disabled or gone. Not an error and not a
+            # silent drop: there is nothing to fetch it WITH, and the published
+            # row is untouched either way (the loop never mutates one).
+            logger.warning(
+                "event-proximity refresh for %s skipped: its source is not in "
+                "the enabled catalog this tick.", refresh.url)
+            continue
+        items.append({**src, "queue": QUEUE_EVENT, "door": refresh.url,
+                      "queue_reason": refresh.reason,
+                      "crawl_state": states.get(str(refresh.source_id))})
+        claimed_urls.add((str(refresh.source_id), refresh.url))
+
+    # 2. SOURCES that are due, on the same overdue scale.
     ordered_states = [
-        states.get(str(s.get("source_id")))
-        or SourceCrawlState(source_id=str(s.get("source_id")))
-        for s in sources
+        states.get(str(src.get("source_id")))
+        or SourceCrawlState(source_id=str(src.get("source_id")))
+        for src in sources
     ]
-    due_ids = set(due_source_ids(ordered_states, now=now))
-    due = [s for s in sources if str(s.get("source_id")) in due_ids]
-    deferred = len(sources) - len(due)
-    # The ceiling keeps its ONE fail-closed implementation: K is a budget cap
-    # and a mistyped cap must fail here exactly as it always has.
-    return apply_source_ceiling(due, cap), deferred
+    due_states = order_due(ordered_states, now=now, rotation_rank=rotation_rank)
+    for state in due_states:
+        src = by_id.get(state.source_id)
+        if src is None:
+            continue
+        door = choose_primary_door(
+            start_url=src["url"], best_url=state.best_url, same_site_fn=same_site)
+        if (state.source_id, door) in claimed_urls:
+            # Already being fetched this tick for a nearer reason: one page
+            # fetch covers everything that page defines.
+            continue
+        items.append({**src, "queue": state.queue, "crawl_state": state})
+        claimed_urls.add((state.source_id, door))
+
+    # `event_refreshes` arrives nearest-rung-first and `due_states` arrives
+    # most-overdue-first, so the concatenation is already in priority order —
+    # re-sorting the two together would need one scale for two different kinds
+    # of urgency, and inventing that scale is how a schedule starts lying.
+    planned = items
+    # Enabled sources with NO item in this tick's plan: inside their own crawl
+    # interval, or backing off. Deferred, never dropped — they lead a later
+    # tick. Counted from source ids, so a source that appears twice (an event
+    # page AND its own turn) is not double-counted as present or absent.
+    planned_ids = {str(item.get("source_id")) for item in planned}
+    deferred = sum(1 for src in sources
+                   if str(src.get("source_id")) not in planned_ids)
+    return planned, deferred
 
 
 def _resolve_source_cap(cli_value: int | None) -> int | None:
@@ -343,7 +445,9 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
     # configuration — only `--real` pays that cost.
     from ai.claude_provider import ClaudeProvider
     from worker.candidate_store import db as candidate_db
-    from worker.crawl_state import load_crawl_states
+    from worker.crawl_state import (
+        load_crawl_states, load_event_refresh_rows, plan_event_refreshes,
+    )
 
     dsn = os.getenv("ONELIVE_DB_DSN")
     if not dsn:
@@ -383,6 +487,10 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
             )
             rows = cur.fetchall()
             crawl_states = load_crawl_states(cur)
+            # Published events approaching a proximity rung, with the page
+            # that defines them. Read on the SAME cursor/snapshot as the
+            # source rows so the tick plan is internally consistent.
+            event_rows = load_event_refresh_rows(cur)
     rows = order_for_rotation(rows)
     sources = []
     skipped_no_url = []
@@ -420,26 +528,31 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
             source_class)
         return 1
 
-    if cap is None:
-        logger.warning(
-            "NO per-run source ceiling set (--max-sources / "
-            "ONELIVE_MAX_SOURCES_PER_RUN) — processing all %d sources. A "
-            "scheduled run should always set one (§14.3 budget caps).",
-            len(sources),
-        )
-
-    # THE WAVE: the next K due sources by rotation cursor. The ceiling is
-    # applied INSIDE take_due_wave (not by apply_source_ceiling) so K counts
-    # sources we will actually knock on — capping first and then dropping the
-    # not-yet-due ones would silently shrink every wave by the size of the
-    # backoff queue, which is the starvation this pass exists to remove.
+    # THE TICK PLAN: what is worth doing, most overdue first, across all three
+    # queues. How much of it actually happens is decided by the tick's real
+    # budgets inside run_loop — wall clock, model spend, host politeness — not
+    # by a source count picked in advance.
     total_enabled = len(sources)
-    sources, deferred = take_due_wave(sources, crawl_states, cap)
+    event_refreshes = plan_event_refreshes(event_rows)
+    sources, deferred = plan_tick(sources, crawl_states, event_refreshes)
     logger.warning(
-        "fair crawl: wave of %d source(s) (K=%s) out of %d enabled; %d not yet "
-        "due (backing off or read recently). Doors per source: <=2.",
-        len(sources), cap if cap is not None else "uncapped", total_enabled, deferred,
+        "tick plan: %d item(s) across %d enabled source(s) — %d event-proximity "
+        "page(s), %d not due this tick. The tick stops on wall clock, model "
+        "budget, or the fetch cap, whichever comes first.",
+        len(sources), total_enabled, len(event_refreshes), deferred,
     )
+    if cap is not None:
+        # The legacy per-run SOURCE ceiling, kept for exactly what the founder
+        # called it: a spend/time safety cap, not the design. It is an outer
+        # net above the tick budgets, and it truncates the TAIL of an
+        # already-prioritised plan, so the most overdue work is never what it
+        # cuts.
+        sources = apply_source_ceiling(sources, cap)
+    else:
+        logger.warning(
+            "NO outer source ceiling set (--max-sources / "
+            "ONELIVE_MAX_SOURCES_PER_RUN) — the tick is bounded by its own "
+            "wall-clock, model and fetch budgets alone.")
     if not sources:
         # Not a failure: every source is inside its own interval, so the
         # correct amount of work this wave is zero. The cron stays green and
@@ -447,13 +560,15 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
         # dead run. Loud, because a catalog small enough to lap itself is
         # worth seeing in the log.
         logger.warning(
-            "no source is due this wave (%d enabled, all inside their crawl "
-            "interval) — nothing to fetch; the next wave picks up whoever "
-            "comes due first.", total_enabled,
+            "nothing is due this tick (%d enabled source(s), all inside their "
+            "crawl interval, and no published event near a proximity rung) — "
+            "nothing to fetch; the next tick picks up whoever comes due first.",
+            total_enabled,
         )
         return 0
 
-    report = run_loop(ai=ai, sources=sources, sxsw_mode=False, dsn=dsn)
+    report = run_loop(ai=ai, sources=sources, sxsw_mode=False, dsn=dsn,
+                      budget=TickBudget.from_env())
     print("RunReport:")
     print(f"  run_id:   {report.run_id}")
     print(f"  counts:   {report.counts}")
@@ -461,6 +576,8 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
         print(f"  - {r.source_name}: stage={r.stage_reached} decision={r.decision} detail={r.detail}")
     print()
     print(render_run_table(report))
+    print()
+    print(render_outcomes(report, model_id=getattr(ai, "model", None)))
     # Attempted = per-source results actually recorded by the loop (a source
     # skipped before attempt has no result row), falling back to the input
     # list only if the report carries none — evaluator nit, PR #21 r2.
@@ -479,12 +596,13 @@ def main() -> int:
         "--max-sources",
         type=_positive_int,
         default=None,
-        help="Budget ceiling K: process at most N DUE sources this run "
+        help="Outer SAFETY cap: attempt at most N planned items this tick "
              "(positive integer; falls back to ONELIVE_MAX_SOURCES_PER_RUN; "
-             "unset = uncapped, logged loudly). Fair crawl uses a small K — "
-             "the armed cron's is {} — because each source costs up to two "
-             "fetches and a wave is meant to be wide, not deep.".format(
-                 DEFAULT_SOURCES_PER_WAVE),
+             "unset = no outer cap, logged loudly). This is a spend/time "
+             "safety net, NOT the schedule — the tick really stops on its "
+             "wall-clock, model-spend and fetch budgets "
+             "(worker/crawl_state.py), and how many sources it reached is "
+             "reported afterwards as an outcome.",
     )
     parser.add_argument(
         "--source-class",

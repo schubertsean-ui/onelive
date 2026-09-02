@@ -48,6 +48,18 @@ _REAL_PAGE = (
 )
 
 
+def _no_politeness():
+    """A tick budget that will not interfere with what these tests measure.
+
+    Every synthetic source here lives on example.com, so the real per-host
+    politeness cap (4 fetches per host per tick) would defer the 5th and 6th
+    and make a RENDER-cap test fail for a reason that has nothing to do with
+    rendering. Real catalog sources are spread across hundreds of hosts.
+    """
+    from worker.crawl_state import TickBudget
+    return TickBudget(max_fetches_per_host=99)
+
+
 def _no_fingerprint(source_id, url, cur=None):  # noqa: ARG001
     """No crawl history: every page is "changed", so these tests keep pinning
     the extract/gate path rather than the fair-crawl skip. Hermetic — the real
@@ -261,7 +273,9 @@ def test_default_cap_is_five(monkeypatch, tmp_path):
     _install_fakes(monkeypatch, tmp_path, plain_text_by_source=shells)
     _install_render(monkeypatch, render_calls, html=_RENDERED_PAGE)
 
-    report = run_loop(ai=FakeAIProvider(), sources=[_source(f"shell_{i}") for i in range(6)])
+    report = run_loop(ai=FakeAIProvider(),
+                          sources=[_source(f"shell_{i}") for i in range(6)],
+                          budget=_no_politeness())
 
     assert len(render_calls) == 5
     assert report.counts["extracted"] == 5

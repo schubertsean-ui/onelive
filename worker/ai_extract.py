@@ -117,9 +117,19 @@ class ExtractionOutcome:
     - ``source_returned_empty``: True when the page had real text but the
       model found zero events in every block — the "source may have
       moved/changed" signal.
+    - ``model_calls`` / ``input_tokens`` / ``output_tokens``: what this page
+      actually SPENT. Extraction is the only stage in the pipeline that may
+      call Anthropic, so these three numbers are the run's AI cost, measured
+      rather than assumed. Tokens are what the provider itself reported
+      (``_usage``, stamped by ai/claude_provider.py); a provider that reports
+      none leaves them at 0, and 0 must be printed as "unknown" upstream, never
+      priced as free.
     """
     candidate_ids: List[str] = field(default_factory=list)
     source_returned_empty: bool = False
+    model_calls: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 def _split_meta(d: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -336,6 +346,14 @@ def extract_candidates(
         # schema, same model as today — just run once per event on the page.
         raw = ai.extract_event_json(block, schema, **extract_kwargs) or {}
         meta, fields = _split_meta(raw)
+        # Cost telemetry, counted for EVERY call — including the ones whose
+        # blocks yield nothing below. A call that found no event still cost
+        # money, and a spend report that only counted successful blocks would
+        # under-report exactly the pages worth investigating.
+        outcome.model_calls += 1
+        usage = meta.get("_usage") or {}
+        outcome.input_tokens += int(usage.get("input_tokens") or 0)
+        outcome.output_tokens += int(usage.get("output_tokens") or 0)
         # A block that yields no content-bearing fields had no extractable event
         # (e.g. a footer/nav fragment caught by the split) — skip it. This is
         # NOT a silent drop of a real event; the whole-page zero-event case
