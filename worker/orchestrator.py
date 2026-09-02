@@ -92,7 +92,11 @@ from worker.fetch.render_fetch import RenderError, fetch_with_render, render_htm
 from worker.replay_log import ReplayRecord, canonical_digest, log_step, new_run_id
 from worker.sensors import assess_input
 from worker.sourcing.catalog_posture import resolve_entry
-from worker.sourcing.page_discovery import DEFAULT_MAX_PAGES, discover_event_pages
+from worker.sourcing.page_discovery import (
+    DEFAULT_MAX_PAGES,
+    discover_event_pages,
+    same_site,
+)
 from worker.sourcing.source_class import (
     CLASS_B_PUBLIC_HTML,
     classify_entry,
@@ -560,9 +564,13 @@ def _follow_event_pages(
     and — if the source hit a wall — the class-D reason that stopped the walk.
 
     Rules that cannot be relaxed here (Coverage Law):
-      * ON-ORIGIN ONLY. page_discovery drops every off-site link before this
-        function can see it; an off-site link is a different source with its
-        own catalog row and its own access posture.
+      * ON-ORIGIN ONLY, checked TWICE. page_discovery drops every off-site
+        link before this function can see it; and because a same-origin link
+        can still answer 200 from somewhere else after redirects, the FINAL
+        url of every successful fetch is re-checked before its text reaches
+        the extractor. An off-site page is a different source with its own
+        catalog row and its own access posture, and it must never be ingested
+        under this source's name.
       * A WALL ENDS THE SOURCE. 401/402/403/407/429, or a redirect landing on
         a sign-in URL, on any followed page demotes the whole source to class
         D through the existing demote_on_response: we stop, record why, and
@@ -656,6 +664,54 @@ def _follow_event_pages(
 
         if fetch_result.get("status") == "not_modified":
             summary["missed"] += 1
+            continue
+
+        # WHERE DID WE ACTUALLY LAND? (evaluator finding, PR #205 r1.)
+        # Discovery decided this URL was same-site and not a sign-in surface
+        # BEFORE the fetch. requests follows redirects, so a 200 OK can come
+        # back from somewhere else entirely — an off-origin ticketing host, or
+        # the venue's login page. Re-checking the FINAL url is the difference
+        # between "we read the venue's own calendar" and "we read a page we
+        # never classified and attributed it to the venue".
+        final_url = fetch_result.get("final_url") or page.url
+        landed = demote_on_response(verdict, final_url=final_url)
+        if landed.is_closed_door:
+            # A sign-in page reached by redirect is the same wall as a sign-in
+            # page reached by status: the source is class D and the walk ends.
+            summary["walled"] = True
+            summary["blocked_reason"] = f"{landed.reason} (following {page.url})"
+            logger.warning(
+                "%s source=%s url=%s reason=%s",
+                CLASS_D_WALL_MARKER, source_name, final_url, landed.reason,
+            )
+            log_step(ReplayRecord(
+                run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+                source_name=source_name, stage="follow_wall",
+                inputs_digest=canonical_digest({"url": page.url, "final_url": final_url}),
+                outputs_digest=canonical_digest({"source_class": landed.source_class}),
+                decision="class_d", detail=landed.reason,
+            ))
+            return summary
+        if not same_site(final_url, start_url):
+            # NOT a wall — the site simply sent us somewhere else, and that
+            # somewhere is a DIFFERENT source with its own catalog row, class
+            # and access posture. Drop the page rather than extract it here;
+            # the walk continues, because one outbound redirect says nothing
+            # about the venue's other pages.
+            summary["missed"] += 1
+            logger.warning(
+                "follow page %s redirected off-site to %s — not extracted "
+                "(an off-site page is a different source, never this one's)",
+                page.url, final_url,
+            )
+            log_step(ReplayRecord(
+                run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+                source_name=source_name, stage="follow_offsite",
+                inputs_digest=canonical_digest({"url": page.url}),
+                outputs_digest=canonical_digest({"final_url": final_url}),
+                decision="offsite_redirect",
+                detail=f"landed on {final_url}, which is not the start URL's site",
+            ))
             continue
 
         summary["followed"] += 1

@@ -351,6 +351,26 @@ def _classify_href(href: str, start_url: str) -> Tuple[Optional[str], Optional[s
     return normalized, None
 
 
+def same_site(url: str, other: str) -> bool:
+    """True when two URLs belong to the same site (host equal, ignoring a
+    leading "www.").
+
+    Public because the on-origin rule has to be enforced TWICE and by one
+    definition: once here, dropping off-site links before the fetcher is
+    offered them, and once by the caller on the fetch's FINAL url, because a
+    same-origin link may answer 200 from somewhere else entirely. Two copies
+    of "same site?" would drift in exactly the direction that lets an
+    off-origin page be ingested as a venue's own.
+
+    A URL with no host is never the same site as anything — fail closed.
+    """
+    a = urllib.parse.urlsplit(url or "")
+    b = urllib.parse.urlsplit(other or "")
+    if not a.netloc or not b.netloc:
+        return False
+    return _site_host(a.netloc) == _site_host(b.netloc)
+
+
 def common_path_candidates(start_url: str, paths: Sequence[str] = COMMON_EVENT_PATHS) -> List[str]:
     """The conventional event-page URLs for a site, normalized and de-duplicated.
 

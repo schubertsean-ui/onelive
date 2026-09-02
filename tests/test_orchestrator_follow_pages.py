@@ -88,11 +88,15 @@ def _source(name="venue", config=None, url="https://venue.example/"):
     }
 
 
-def _install(monkeypatch, tmp_path, *, pages=None, errors=None, candidates_per_page=1):
+def _install(monkeypatch, tmp_path, *, pages=None, errors=None, candidates_per_page=1,
+             lands_on=None):
     """Serve `pages` (url -> html) through a fake fetch_url; `errors` (url ->
-    exception) raises instead. Records every URL the loop asked for, in order."""
+    exception) raises instead. `lands_on` (url -> final url) simulates a 200 OK
+    that arrived after redirects, which is the whole point of the final-url
+    re-check. Records every URL the loop asked for, in order."""
     pages = dict(pages or {})
     errors = dict(errors or {})
+    lands_on = dict(lands_on or {})
     requested = []
     extracted_urls = []
 
@@ -106,6 +110,7 @@ def _install(monkeypatch, tmp_path, *, pages=None, errors=None, candidates_per_p
         path.write_bytes(pages[url].encode("utf-8"))
         return {
             "status": "ok", "url": url, "storage_ref": str(path),
+            "final_url": lands_on.get(url, url),
             "content_type": "text/html", "content_hash": f"h{len(requested)}",
         }
 
@@ -322,3 +327,83 @@ def test_following_pages_never_reaches_the_promote_path():
         for node in ast.walk(tree) if isinstance(node, ast.Call)
     }
     assert "promote_candidate" not in called
+
+
+# --- 7. where we LANDED, not where we aimed (evaluator finding, PR #205 r1) ---
+
+def test_a_followed_page_that_redirects_off_site_is_not_extracted(monkeypatch, tmp_path):
+    """Discovery cleared this link as same-site BEFORE the fetch. The site then
+    answered 200 from a ticketing host. Extracting that page would attribute a
+    third party's listings to this venue."""
+    requested, extracted = _install(
+        monkeypatch, tmp_path,
+        pages={"https://venue.example/": HOME_HTML,
+               "https://venue.example/events": PAGE_HTML,
+               "https://venue.example/calendar": PAGE_HTML},
+        lands_on={"https://venue.example/events": "https://tickets.example.com/venue"},
+    )
+
+    report = run_loop(ai=FakeAIProvider(), sources=[_source()])
+
+    assert "https://venue.example/events" in requested, "the fetch itself is fine"
+    assert "https://tickets.example.com/venue" not in extracted
+    assert "https://venue.example/events" not in extracted, (
+        "the page we landed on is a different source; it must not be ingested "
+        "under this one's name")
+    # Not a wall, and not fatal: the walk goes on to the venue's other page.
+    assert report.counts["pages_walled"] == 0
+    assert "https://venue.example/calendar" in extracted
+    assert report.counts["pages_followed"] == 1
+    assert report.counts["pages_missed"] >= 1
+
+
+def test_a_followed_page_that_redirects_to_sign_in_walls_the_source(monkeypatch, tmp_path, caplog):
+    """A 200 OK from a login page is the same wall as a 401 — one knock."""
+    requested, extracted = _install(
+        monkeypatch, tmp_path,
+        pages={"https://venue.example/": HOME_HTML,
+               "https://venue.example/events": PAGE_HTML,
+               "https://venue.example/calendar": PAGE_HTML},
+        lands_on={"https://venue.example/events": "https://venue.example/accounts/login"},
+    )
+
+    with caplog.at_level("WARNING"):
+        report = run_loop(ai=FakeAIProvider(), sources=[_source()])
+
+    assert report.counts["pages_walled"] == 1
+    assert requested == ["https://venue.example/", "https://venue.example/events"], (
+        "nothing after the wall may be requested")
+    assert extracted == ["https://venue.example/"], "the sign-in page is never extracted"
+    assert any(orchestrator.CLASS_D_WALL_MARKER in r.message for r in caplog.records)
+
+
+def test_landing_on_the_same_site_still_extracts(monkeypatch, tmp_path):
+    """The check must not cost a legitimate redirect: www., a trailing slash,
+    or a canonical path on the SAME site is still the venue's own page."""
+    _, extracted = _install(
+        monkeypatch, tmp_path,
+        pages={"https://venue.example/": HOME_HTML,
+               "https://venue.example/events": PAGE_HTML},
+        lands_on={"https://venue.example/events": "https://www.venue.example/events/upcoming"},
+    )
+    run_loop(ai=FakeAIProvider(), sources=[_source()])
+    assert "https://venue.example/events" in extracted
+
+
+def test_a_fetch_result_without_a_final_url_falls_back_to_the_requested_url(
+        monkeypatch, tmp_path):
+    """No regression for a fetch adapter that reports no final url: the URL we
+    asked for is the best available answer, and discovery already cleared it."""
+    def _no_final_url(*, source_id, url, **kwargs):
+        path = tmp_path / f"nf-{abs(hash(url))}.bin"
+        body = HOME_HTML if url.endswith("/") else PAGE_HTML
+        path.write_bytes(body.encode("utf-8"))
+        return {"status": "ok", "url": url, "storage_ref": str(path),
+                "content_type": "text/html", "content_hash": "h"}
+
+    _install(monkeypatch, tmp_path, pages={"https://venue.example/": HOME_HTML})
+    monkeypatch.setattr(orchestrator, "fetch_url", _no_final_url)
+
+    report = run_loop(ai=FakeAIProvider(), sources=[_source()])
+    assert report.counts["pages_followed"] > 0
+    assert report.counts["pages_walled"] == 0
