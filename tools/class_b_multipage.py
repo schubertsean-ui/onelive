@@ -71,6 +71,7 @@ from worker.sourcing.page_discovery import (  # noqa: E402
 )
 from worker.sourcing.source_class import (  # noqa: E402
     CLASS_B_PUBLIC_HTML, ClassVerdict, classify_entry, demote_on_response,
+    wall_signals_from_exception,
 )
 
 log = logging.getLogger("class_b_multipage")
@@ -191,9 +192,10 @@ class LiveFetcher:
         try:
             result = self._fetch_url(source_id=self.source_id, url=url)
         except Exception as exc:  # noqa: BLE001 — every failure is classified below
-            response = getattr(exc, "response", None)
-            status = getattr(response, "status_code", None)
-            final_url = getattr(response, "url", None)
+            # One authority for "what did this exception say about the wall?"
+            # (worker.sourcing.source_class) — the ingest loop reads the same
+            # two facts off the same object.
+            status, final_url = wall_signals_from_exception(exc)
             return FetchOutcome(
                 url=url, status=status, final_url=final_url, error=f"{type(exc).__name__}: {exc}",
             )

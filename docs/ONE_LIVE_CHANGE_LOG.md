@@ -4,6 +4,61 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-02 — The armed loop makes the click: follow-pages moves into the scheduled cron
+
+#204 built the class B walk and then parked it as a manual tool, because that
+session's leash forbade touching any file the armed cron executes. So the live
+loop kept reading one marketing page per class B source. Founder decision, this
+session: "the scheduled ingest loop may follow pages using the #204 walker (cap
+15 extra pages, on-origin, walls → class D)."
+
+1. **The walk is in the loop** (`worker/orchestrator.py`). The start page's
+   post-fetch pipeline — sensor → extract → gate3 → stamp — became ONE shared
+   implementation (`_process_fetched_page`) that the start page and every
+   followed page run identically. A followed page therefore faces the same
+   input sensor, the same certified extractor and the same trust gate: the
+   click buys reach, never a trust shortcut, and there is still no path from
+   this module to promote.
+2. **Which sources get walked** is the CATALOG's verdict, not a guess.
+   `worker/run_once.py` now reads `source.config` (the catalog entry the
+   importer stored verbatim) and `classify_entry` decides the Coverage Law
+   class. No config → class D → not walked. Every enabled source is still
+   FETCHED exactly as before, so reading the class letter can only add
+   coverage, never remove any.
+3. **The rules that cannot bend**, enforced where they are stated: on-origin
+   only (discovery drops off-site and sign-in links before the fetcher sees
+   them); a wall — 401/402/403/407/429 or a redirect landing on a sign-in URL —
+   demotes the source to class D and ENDS its walk (we knock once), logged with
+   the greppable `INGEST_WALL_OBSERVED_CLASS_D` marker and a replay entry; a 404
+   is a miss, not a wall, and the walk continues.
+4. **Two fail-closed budgets** (`ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE`, default
+   15 — the founder's number; `ONELIVE_MAX_FOLLOW_PAGES_PER_RUN`, default 30).
+   Pages, not sources, are what a run spends: the per-source cap alone would
+   have multiplied the cron's worst-case AI spend by sixteen. With the run
+   ceiling the worst case is (30 sources + 30 follow pages) × 50 blocks = 3000
+   extraction calls, twice the previous 1500 ceiling — stated in `ingest.yml`
+   where the spend happens, with the console monthly cap still the hard
+   backstop. Unspent pages are left for the next run, never dropped: rotation
+   already orders sources least-recently-attempted first.
+5. **One authority for "was that a wall?"** — `wall_signals_from_exception` in
+   `worker/sourcing/source_class.py`, read by both the loop and the #204 tool,
+   because `fetch_url` raises on non-2xx and the deciding status lives on the
+   exception's response.
+6. **Closure hygiene, not gate relaxation.** The cron's import closure now
+   reaches `worker/sourcing/` and `worker/importers/structured_feed.py`.
+   `worker/sourcing/__init__.py` dropped an eager re-export nobody imported
+   through it, whose `importlib` use would otherwise have made the closure
+   unprovable; `tests/test_arming_runtime.py` gained an explicit allowlist for
+   the three importer files that are now genuinely cron runtime, plus a
+   positive test. The dynamic-import refusal is unchanged.
+7. **Dispatch-only class filter** (`--source-class`, `ingest.yml` input) so a
+   deliberate run can be aimed at one Coverage Law class. The schedule sends
+   `ALL` and is unfiltered, exactly as before.
+
+Records: R-085 opened (an observed wall is auditable but does not become a
+`docs/CLASS_D_CLAIM_QUEUE.md` row — a cron cannot commit to the repo); R-084(b)
+CLOSED by the founder's decision.
+
 ## 2026-09-01 — Class B stops at the door no longer: follow the site's own calendar link
 
 A venue's homepage is marketing copy. The schedule lives one click away, behind

@@ -24,6 +24,7 @@ import json
 
 import pytest
 
+from worker.ai_extract import ExtractionOutcome
 import worker.orchestrator as orchestrator
 from worker.fetch.render_fetch import RenderError
 from worker.orchestrator import run_loop
@@ -48,11 +49,11 @@ _REAL_PAGE = (
 
 
 class FakeAIProvider:
-    """run_loop's signature requires an `ai` object; extract_candidate is
+    """run_loop's signature requires an `ai` object; extract_candidates is
     faked below so this must never actually be called."""
 
     def extract_event_json(self, text, schema_json, system_prompt=None):
-        raise AssertionError("extract_event_json must not be called; extract_candidate is faked")
+        raise AssertionError("extract_event_json must not be called; extract_candidates is faked")
 
 
 @pytest.fixture(autouse=True)
@@ -77,7 +78,7 @@ def _install_fakes(monkeypatch, tmp_path, *, plain_text_by_source, extracted_tex
     plain_text_by_source: source name -> the text the PLAIN fetch returns
     (written to a real tmp file so storage_ref/_read_fetched_text behave
     exactly as production). extracted_texts, when given, collects the text
-    each extract_candidate call receives — proving WHICH content flowed
+    each extract_candidates call receives — proving WHICH content flowed
     onward (plain vs rendered).
     """
 
@@ -93,10 +94,10 @@ def _install_fakes(monkeypatch, tmp_path, *, plain_text_by_source, extracted_tex
             "content_type": "text/html",
         }
 
-    def fake_extract_candidate(*, ai, text, source_class, source_name, source_url, sxsw_mode=False, source_id=None):
+    def fake_extract_candidates(*, ai, text, source_class, source_name, source_url, sxsw_mode=False, source_id=None):
         if extracted_texts is not None:
             extracted_texts.append(text)
-        return f"candidate-{source_name}"
+        return ExtractionOutcome(candidate_ids=[f"candidate-{source_name}"])
 
     def fake_list_candidate_source_classes(candidate_id):
         return ["ticketing"]
@@ -105,7 +106,7 @@ def _install_fakes(monkeypatch, tmp_path, *, plain_text_by_source, extracted_tex
         return {}, {"start_times": [], "dedupe_ambiguous": False}
 
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
-    monkeypatch.setattr(orchestrator, "extract_candidate", fake_extract_candidate)
+    monkeypatch.setattr(orchestrator, "extract_candidates", fake_extract_candidates)
     monkeypatch.setattr(orchestrator, "list_candidate_source_classes", fake_list_candidate_source_classes)
     monkeypatch.setattr(orchestrator, "load_candidate_gate_signals", fake_load_candidate_gate_signals)
     monkeypatch.setattr(orchestrator, "stamp_gate_verdict",

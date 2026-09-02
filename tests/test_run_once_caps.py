@@ -76,8 +76,11 @@ def test_argparse_type_accepts_positive():
     assert _positive_int("25") == 25
 
 
-def _row(sid, last):
-    return (sid, f"name-{sid}", f"https://x/{sid}", "venue_site", last)
+def _row(sid, last, config=None):
+    # Mirrors the real SELECT's column order, config included: the rotation key
+    # unpacks first/last by position-name precisely so a middle column can be
+    # added without shifting what gets sorted — this row proves that holds.
+    return (sid, f"name-{sid}", f"https://x/{sid}", "venue_site", config or {}, last)
 
 
 _TZ = _dt.timezone.utc

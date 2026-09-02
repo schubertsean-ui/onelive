@@ -3,8 +3,21 @@
 This module IS the Sensors -> Harness -> Loop structure, not a plain pipeline
 runner decorated with trust features later. For each source it drives:
 
-    fetch -> sensors.assess_input -> extract_candidate -> trust_gate3.evaluate_gate
+    fetch -> sensors.assess_input -> extract_candidates -> trust_gate3.evaluate_gate
         -> (PASS -> leave ready for ops promote | HOLD/ESCALATE -> needs_review)
+
+Class B multi-page follow (2026-09-02, founder-directed): a venue's registered
+start URL is almost always a HOMEPAGE, and a homepage is marketing copy — the
+schedule lives one click away, behind the link the site itself labels "Events"
+or "Calendar". After the start page runs the pipeline above, a class B source's
+same-site event pages (worker.sourcing.page_discovery, the #204 walker) run the
+SAME pipeline, one page at a time, under two fail-closed ceilings. Three rules
+are load-bearing and stated where they are enforced (_follow_event_pages):
+on-origin only; a wall (401/402/403/407/429 or a sign-in redirect) demotes the
+whole source to class D and ENDS the walk — we knock once; a 404 is a miss, not
+a wall. Following a link buys reach, never trust: every followed page faces the
+same sensor, the same certified extractor and the same gate, and the loop still
+never promotes.
 
 The orchestrator NEVER promotes. Promotion is the publish step and is the one
 place a human/ops decision is mandatory: only an authenticated ops action
@@ -68,7 +81,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from ai.provider import AIProvider
-from worker.ai_extract import extract_candidate
+from worker.ai_extract import extract_candidates
 from worker.candidate_store import (
     list_candidate_source_classes,
     load_candidate_gate_signals,
@@ -78,6 +91,13 @@ from worker.fetch.http_fetch import fetch_url
 from worker.fetch.render_fetch import RenderError, fetch_with_render, render_html
 from worker.replay_log import ReplayRecord, canonical_digest, log_step, new_run_id
 from worker.sensors import assess_input
+from worker.sourcing.page_discovery import DEFAULT_MAX_PAGES, discover_event_pages
+from worker.sourcing.source_class import (
+    CLASS_B_PUBLIC_HTML,
+    classify_entry,
+    demote_on_response,
+    wall_signals_from_exception,
+)
 from worker.trust_gate3 import GateDecision, evaluate_gate
 
 logger = logging.getLogger(__name__)
@@ -87,6 +107,21 @@ logger = logging.getLogger(__name__)
 # docstring above; validation is fail-closed in _resolve_render_cap().
 RENDER_CAP_ENV = "ONELIVE_MAX_RENDERS_PER_RUN"
 DEFAULT_MAX_RENDERS_PER_RUN = 5
+
+# Follow-pages budgets (see _resolve_follow_caps). The per-SOURCE default is
+# the walker's own cap, imported rather than restated so the two cannot drift.
+FOLLOW_RUN_CAP_ENV = "ONELIVE_MAX_FOLLOW_PAGES_PER_RUN"
+FOLLOW_SOURCE_CAP_ENV = "ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE"
+DEFAULT_MAX_FOLLOW_PAGES_PER_RUN = 30
+DEFAULT_MAX_FOLLOW_PAGES_PER_SOURCE = DEFAULT_MAX_PAGES
+
+# Greppable, structured marker logged when a source answers an unauthenticated
+# read with a wall (401/402/403/407/429 or a sign-in redirect) and is therefore
+# class D from that moment. Ops greps for it to build the claim queue: the
+# scheduled loop cannot commit to docs/CLASS_D_CLAIM_QUEUE.md, so the log line
+# and the replay entry ARE the routing (R-085). Do NOT rename without updating
+# the runbook that matches on it.
+CLASS_D_WALL_MARKER = "INGEST_WALL_OBSERVED_CLASS_D"
 
 # Keys tracked in RunReport.counts. Declared up front so every run reports the
 # full shape even when a count is zero (never omit a key because it's 0 —
@@ -100,6 +135,14 @@ _COUNT_KEYS = (
     "held",
     "sensor_rejected",
     "errors",
+    # Follow-pages (class B multi-page walk). Counted separately from the
+    # start-page buckets above so "what the homepage produced" and "what the
+    # click produced" can never be read as one number.
+    "pages_followed",
+    "pages_extracted",
+    "pages_missed",
+    "pages_walled",
+    "candidates",
 )
 
 # _run_one_source's "not_modified" outcome intentionally does NOT also set
@@ -146,33 +189,73 @@ def _read_fetched_text(fetch_result: Dict[str, Any]) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
-def _resolve_render_cap() -> int:
-    """Read + validate ONELIVE_MAX_RENDERS_PER_RUN, fail-closed.
+def _resolve_budget(env_name: str, default: int, noun: str) -> int:
+    """Read + validate a per-run budget knob from the environment, fail-closed.
 
     Unset (or set to the empty string, which is how an absent CI variable
     arrives) means the default. Anything else MUST parse as a base-10 integer
     >= 0; a malformed value raises ValueError so run_loop aborts loudly at
     start — a budget knob that cannot be read is a structural/config failure
     (same policy as an unwritable replay dir), and silently substituting the
-    default would turn a typo into an unnoticed spend change. 0 disables
-    rendering entirely.
+    default would turn a typo into an unnoticed spend change. 0 disables the
+    budgeted behaviour entirely.
+
+    One implementation for every knob: the render budget and the follow-page
+    budgets are the same rule about the same kind of value, and two copies of
+    "how a budget is parsed" would drift in the direction that costs money.
     """
-    raw = os.getenv(RENDER_CAP_ENV)
+    raw = os.getenv(env_name)
     if raw is None or raw.strip() == "":
-        return DEFAULT_MAX_RENDERS_PER_RUN
+        return default
     try:
         cap = int(raw.strip())
     except ValueError as exc:
         raise ValueError(
-            f"{RENDER_CAP_ENV} must be a base-10 integer >= 0 (got {raw!r}); "
-            "refusing to run with an unvalidated render budget — fail closed"
+            f"{env_name} must be a base-10 integer >= 0 (got {raw!r}); "
+            f"refusing to run with an unvalidated {noun} budget — fail closed"
         ) from exc
     if cap < 0:
         raise ValueError(
-            f"{RENDER_CAP_ENV} must be >= 0 (got {cap}); a negative render "
-            "budget is meaningless — fail closed (use 0 to disable rendering)"
+            f"{env_name} must be >= 0 (got {cap}); a negative {noun} "
+            f"budget is meaningless — fail closed (use 0 to disable {noun}s)"
         )
     return cap
+
+
+def _resolve_render_cap() -> int:
+    """The per-run JS-shell render budget (see module docstring). 0 disables
+    rendering entirely."""
+    return _resolve_budget(RENDER_CAP_ENV, DEFAULT_MAX_RENDERS_PER_RUN, "render")
+
+
+def _resolve_follow_caps() -> Dict[str, int]:
+    """The follow-pages budgets: per RUN and per SOURCE, both fail-closed.
+
+    Two ceilings, because they bound two different risks:
+
+    * PER SOURCE (default 15, the founder's number) stops one link-heavy venue
+      from being walked forever. It is the walker's own cap, unchanged.
+    * PER RUN is the FinOps bound. Extraction cost is one model call per event
+      block per page (R-043), so pages — not sources — are what a run spends.
+      Without a run ceiling, `max_sources x 15` extra pages would multiply the
+      armed cron's worst-case AI spend by sixteen; with it, the worst case is
+      `(max_sources + follow_pages_per_run) x EXTRACT_MAX_EVENTS_PER_PAGE`.
+
+    The run budget is spent in source order, and worker/run_once.py orders
+    sources least-recently-attempted first, so an early source using more of
+    it is not starvation: the next run starts from the sources this one did
+    not reach. Same principle as the source ceiling itself.
+
+    0 on either knob disables following entirely (a ceiling of 0 means no
+    walk, never "uncapped" — the project-wide budget rule).
+    """
+    return {
+        "run_cap": _resolve_budget(
+            FOLLOW_RUN_CAP_ENV, DEFAULT_MAX_FOLLOW_PAGES_PER_RUN, "follow-page"),
+        "source_cap": _resolve_budget(
+            FOLLOW_SOURCE_CAP_ENV, DEFAULT_MAX_FOLLOW_PAGES_PER_SOURCE,
+            "per-source follow-page"),
+    }
 
 
 class _RenderBudgetStop(RenderError):
@@ -278,77 +361,49 @@ def _fetch_with_render_fallback(
         }
 
 
-def _run_one_source(
+@dataclass
+class PageOutcome:
+    """What ONE fetched page produced downstream of the fetch step.
+
+    Shared by the start page and every followed page, because they are the
+    same page as far as sensors, extraction and the trust gate are concerned —
+    the only difference is which URL the loop was pointed at. `candidates` is
+    the number of candidate rows the extract path actually wrote for the page
+    (an N-event calendar writes N), so "pages followed" and "candidates" can
+    never be conflated in a report.
+    """
+
+    stage: str
+    decision: str
+    detail: str
+    candidates: int = 0
+
+
+def _process_fetched_page(
     *,
     run_id: str,
     ai: AIProvider,
-    source: Dict[str, Any],
+    source_id: Optional[str],
+    source_name: str,
+    page_url: str,
+    source_class: str,
     sxsw_mode: bool,
-    render_state: Dict[str, int],
-) -> tuple[SourceResult, List[str]]:
-    """Drive a single source through fetch -> sensor -> extract -> gate3.
-    Returns (SourceResult, count_keys) where count_keys is the ordered list of
-    RunReport.counts buckets this source's run touched (e.g. a source that
-    fetches, passes the sensor, extracts, then holds at the gate increments
-    ["fetched", "extracted", "held"] — each stage it reached, not a single
-    terminal bucket, so counts reflect real throughput at every stage rather
-    than only the final outcome). A PASS stops at "ready_to_promote": the loop
-    never publishes.
+    text: str,
+    content_type: Optional[str],
+) -> PageOutcome:
+    """sensor -> extract -> gate3 -> stamp, for one already-fetched page.
 
-    Any exception raised by a step in here is treated as a per-source
-    transient failure by the caller (run_loop) and is intentionally NOT
-    caught inside this function — the caller is the single place that
-    decides isolation vs. abort, so that policy lives in exactly one spot.
+    This is the single implementation of everything the loop does downstream
+    of a fetch. The start page and every followed page run through it
+    unchanged, so a class B source's calendar page is judged by exactly the
+    same sensor, the same certified extractor and the same trust gate as its
+    homepage — following a link buys reach, never a trust shortcut, and there
+    is no second, laxer path for the pages the walk discovered.
+
+    Exceptions propagate: run_loop's per-source isolation is still the ONE
+    place that decides isolate-vs-abort (for a followed page the caller
+    narrows that to the page, and says so there).
     """
-    source_id = source.get("source_id")
-    source_name = source["name"]
-    url = source["url"]
-    source_class = source["source_class"]
-
-    fetch_result = _fetch_with_render_fallback(
-        source_id=source_id, url=url, render_state=render_state,
-    )
-    # Replay fetch entry: the original fields are all preserved; the render
-    # outcome EXTENDS the payload so the audit trail records whether the text
-    # handed onward is the plain fetch or a headless re-render (and, on a
-    # failed/refused render, why the plain text proceeded anyway).
-    fetch_outputs: Dict[str, Any] = {
-        "status": fetch_result.get("status"),
-        "rendered": bool(fetch_result.get("rendered")),
-    }
-    if fetch_result.get("rendered"):
-        fetch_outputs["plain_shell_reason"] = fetch_result.get("plain_shell_reason")
-    if fetch_result.get("render_error"):
-        fetch_outputs["render_error"] = fetch_result.get("render_error")
-    fetch_detail = str(fetch_result.get("status"))
-    if fetch_result.get("rendered"):
-        fetch_detail += (
-            " (js-shell rendered via headless browser; plain fetch was: "
-            f"{fetch_result.get('plain_shell_reason')})"
-        )
-    elif fetch_result.get("render_error"):
-        fetch_detail += (
-            " (render fallback unavailable, proceeding un-rendered: "
-            f"{fetch_result.get('render_error')})"
-        )
-    log_step(ReplayRecord(
-        run_id=run_id, ts=_now_iso(), source_id=str(source_id), source_name=source_name,
-        stage="fetch", inputs_digest=canonical_digest({"url": url}),
-        outputs_digest=canonical_digest(fetch_outputs),
-        decision=fetch_result.get("status", "unknown"), detail=fetch_detail,
-    ))
-
-    if fetch_result.get("status") == "not_modified":
-        return (
-            SourceResult(source_id, source_name, "fetch", "not_modified", "content unchanged since last fetch"),
-            ["not_modified"],
-        )
-
-    # fetch_with_render already decoded (or rendered) the text; on any 'ok'
-    # result the key is always present. Rendered or not, it faces the same
-    # sensor below — a render buys readability, never trust.
-    text = fetch_result["text"]
-    content_type = fetch_result.get("content_type")
     reading = assess_input(text=text, content_type=content_type)
     log_step(ReplayRecord(
         run_id=run_id, ts=_now_iso(), source_id=str(source_id), source_name=source_name,
@@ -357,20 +412,25 @@ def _run_one_source(
         decision="sensor_rejected" if not reading.ok else "sensor_passed", detail=reading.reason,
     ))
     if not reading.ok:
-        return (
-            SourceResult(source_id, source_name, "sensor", "sensor_rejected", reading.reason),
-            ["fetched", "sensor_rejected"],
-        )
+        return PageOutcome("sensor", "sensor_rejected", reading.reason)
 
-    candidate_id = extract_candidate(
+    # extract_candidates is the fan-out entrypoint: an N-event calendar page
+    # produces N candidates. The FIRST id carries this page's gate3/replay
+    # contract exactly as before (extract_candidate, the single-id wrapper this
+    # call replaces, returned that same id); the rest are stamped by the
+    # orchestrator's backlog sweep. Counting them here is what makes the run
+    # report able to say how many rows a followed page was worth.
+    outcome = extract_candidates(
         ai=ai,
         text=text,
         source_class=source_class,
         source_name=source_name,
-        source_url=url,
+        source_url=page_url,
         sxsw_mode=sxsw_mode,
         source_id=source_id,
     )
+    candidate_id = outcome.candidate_ids[0]
+    n_candidates = len(outcome.candidate_ids)
     log_step(ReplayRecord(
         run_id=run_id, ts=_now_iso(), source_id=str(source_id), source_name=source_name,
         stage="extract", inputs_digest=canonical_digest({"length": len(text)}),
@@ -433,16 +493,10 @@ def _run_one_source(
         )
 
     if verdict.decision is GateDecision.HOLD:
-        return (
-            SourceResult(source_id, source_name, "gate3", "held", verdict.reason),
-            ["fetched", "extracted", "held"],
-        )
+        return PageOutcome("gate3", "held", verdict.reason, n_candidates)
 
     if verdict.decision is GateDecision.ESCALATE:
-        return (
-            SourceResult(source_id, source_name, "gate3", "escalated", verdict.reason),
-            ["fetched", "extracted", "escalated"],
-        )
+        return PageOutcome("gate3", "escalated", verdict.reason, n_candidates)
 
     # PASS — but the orchestrator NEVER promotes. Promotion is the publish step
     # and must be an explicit, authenticated ops action (api/ops_candidates.py).
@@ -457,13 +511,298 @@ def _run_one_source(
         decision="ready_to_promote",
         detail="PASS (trust gate); left for authenticated ops promote — never auto-promoted",
     ))
-    return (
-        SourceResult(source_id, source_name, "gate3", "ready_to_promote",
-                     "PASS (trust gate); awaiting authenticated ops promote"),
-        ["fetched", "extracted", "passed"],
+    return PageOutcome(
+        "gate3", "ready_to_promote",
+        "PASS (trust gate); awaiting authenticated ops promote", n_candidates,
     )
 
 
+def _class_verdict_for(source: Dict[str, Any]) -> Any:
+    """The Coverage Law class letter for a DB source row, from the catalog's
+    own declared access posture.
+
+    `source['config']` is the catalog entry tools/import_sources.py stored
+    verbatim on the row, so classify_entry() reads exactly what the catalog
+    declared — the class is never inferred from the URL and never guessed. A
+    row with no config (the live DB holds sources seeded outside this repo)
+    classifies as D on classify_entry's own unrecognized-posture rule, i.e.
+    NOT followed. That is deliberate and fail-closed: the walk is an extra
+    read of pages a source did not register, so it happens only where the
+    catalog says the door is open.
+
+    IMPORTANT: this decides FOLLOWING only. It must never gate the start-page
+    fetch — every enabled source is still fetched exactly as before, so
+    nothing here can shrink the catalog (Coverage Law: views are picky, the
+    catalog is greedy).
+    """
+    config = source.get("config") or {}
+    if not isinstance(config, dict):
+        config = {}
+    entry = dict(config)
+    entry.setdefault("base_url", source.get("url"))
+    return classify_entry(entry)
+
+
+def _follow_event_pages(
+    *,
+    run_id: str,
+    ai: AIProvider,
+    source: Dict[str, Any],
+    sxsw_mode: bool,
+    start_url: str,
+    start_html: str,
+    follow_state: Dict[str, int],
+) -> Dict[str, Any]:
+    """Walk the same-site event pages the start page advertises (#204's walker,
+    now inside the armed loop).
+
+    Returns a summary dict: how many pages were followed, what they produced,
+    and — if the source hit a wall — the class-D reason that stopped the walk.
+
+    Rules that cannot be relaxed here (Coverage Law):
+      * ON-ORIGIN ONLY. page_discovery drops every off-site link before this
+        function can see it; an off-site link is a different source with its
+        own catalog row and its own access posture.
+      * A WALL ENDS THE SOURCE. 401/402/403/407/429, or a redirect landing on
+        a sign-in URL, on any followed page demotes the whole source to class
+        D through the existing demote_on_response: we stop, record why, and
+        log the greppable marker ops sweeps into the claim queue. We knock
+        once. A 404 is a miss, not a wall, and the walk continues.
+      * BOUNDED. Per-source and per-run ceilings, both fail-closed.
+    """
+    source_id = source.get("source_id")
+    source_name = source["name"]
+    source_class = source["source_class"]
+    summary: Dict[str, Any] = {
+        "followed": 0, "extracted": 0, "missed": 0, "walled": False,
+        "candidates": 0, "blocked_reason": "", "discovered": 0,
+    }
+
+    verdict = _class_verdict_for(source)
+    if verdict.source_class != CLASS_B_PUBLIC_HTML:
+        summary["blocked_reason"] = (
+            f"not followed: catalog class {verdict.source_class} — {verdict.reason}")
+        return summary
+
+    budget = min(follow_state["source_cap"], follow_state["remaining"])
+    if budget <= 0:
+        summary["blocked_reason"] = (
+            f"not followed: run follow-page budget spent "
+            f"({FOLLOW_RUN_CAP_ENV}={follow_state['run_cap']}) — the pages this "
+            "source advertises are left for a later run, not dropped")
+        return summary
+
+    discovery = discover_event_pages(start_html, start_url, limit=budget)
+    summary["discovered"] = len(discovery.pages)
+    log_step(ReplayRecord(
+        run_id=run_id, ts=_now_iso(), source_id=str(source_id), source_name=source_name,
+        stage="follow_discovery", inputs_digest=canonical_digest({"start_url": start_url}),
+        outputs_digest=canonical_digest({
+            "pages": discovery.page_urls,
+            "ics_links": discovery.ics_links,
+            "jsonld_events": discovery.jsonld_events,
+            "skipped": discovery.skipped_reason_counts(),
+        }),
+        decision="discovered",
+        detail=(f"{len(discovery.pages)} same-site event page(s) advertised; "
+                f"budget {budget}"),
+    ))
+    if not discovery.pages:
+        summary["blocked_reason"] = "no same-site event page advertised by the start page"
+        return summary
+
+    for page in discovery.pages:
+        if follow_state["remaining"] <= 0:
+            summary["blocked_reason"] = (
+                f"run follow-page budget spent after {summary['followed']} page(s) "
+                f"({FOLLOW_RUN_CAP_ENV}={follow_state['run_cap']})")
+            break
+        follow_state["remaining"] -= 1
+        try:
+            fetch_result = _fetch_with_render_fallback(
+                source_id=source_id, url=page.url, render_state=follow_state["render_state"],
+            )
+        except Exception as exc:  # noqa: BLE001 — classified below, never swallowed
+            # Narrowed isolation, deliberately: one broken sub-page must not
+            # cost the rest of a venue's calendar, and a WALL must not be lost
+            # as a generic error — that distinction is the whole class-D rule.
+            status, final_url = wall_signals_from_exception(exc)
+            walled = demote_on_response(
+                verdict, status=status, final_url=final_url, error=str(exc))
+            if walled.is_closed_door:
+                summary["walled"] = True
+                summary["blocked_reason"] = f"{walled.reason} (at {page.url})"
+                logger.warning(
+                    "%s source=%s url=%s reason=%s",
+                    CLASS_D_WALL_MARKER, source_name, page.url, walled.reason,
+                )
+                log_step(ReplayRecord(
+                    run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+                    source_name=source_name, stage="follow_wall",
+                    inputs_digest=canonical_digest({"url": page.url}),
+                    outputs_digest=canonical_digest({"source_class": walled.source_class}),
+                    decision="class_d", detail=walled.reason,
+                ))
+                return summary
+            summary["missed"] += 1
+            log_step(ReplayRecord(
+                run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+                source_name=source_name, stage="follow_fetch",
+                inputs_digest=canonical_digest({"url": page.url}),
+                outputs_digest=canonical_digest({"error": str(exc)}),
+                decision="missed", detail=f"{type(exc).__name__}: {exc}",
+            ))
+            continue
+
+        if fetch_result.get("status") == "not_modified":
+            summary["missed"] += 1
+            continue
+
+        summary["followed"] += 1
+        text = fetch_result.get("text", "")
+        try:
+            page_outcome = _process_fetched_page(
+                run_id=run_id, ai=ai, source_id=source_id, source_name=source_name,
+                page_url=page.url, source_class=source_class, sxsw_mode=sxsw_mode,
+                text=text, content_type=fetch_result.get("content_type"),
+            )
+        except Exception as exc:  # noqa: BLE001 — reported per page, never fatal
+            summary["missed"] += 1
+            logger.error("follow page %s failed after fetch: %s", page.url, exc)
+            log_step(ReplayRecord(
+                run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+                source_name=source_name, stage="follow_error",
+                inputs_digest=canonical_digest({"url": page.url}),
+                outputs_digest=canonical_digest({"error": str(exc)}),
+                decision="error", detail=f"{type(exc).__name__}: {exc}",
+            ))
+            continue
+
+        if page_outcome.decision != "sensor_rejected":
+            summary["extracted"] += 1
+            summary["candidates"] += page_outcome.candidates
+
+    return summary
+
+
+def _run_one_source(
+    *,
+    run_id: str,
+    ai: AIProvider,
+    source: Dict[str, Any],
+    sxsw_mode: bool,
+    render_state: Dict[str, int],
+    follow_state: Dict[str, Any],
+) -> tuple[SourceResult, Dict[str, int]]:
+    """Drive a single source through fetch -> sensor -> extract -> gate3, then
+    follow the same-site event pages its start page advertises (class B only).
+
+    Returns (SourceResult, counts) where counts is this source's DELTA on the
+    RunReport buckets — every stage it reached, not a single terminal bucket,
+    so counts reflect real throughput at every stage rather than only the
+    final outcome (a source that fetches, extracts and then holds at the gate
+    contributes fetched=1, extracted=1, held=1, plus whatever its followed
+    pages produced). A PASS stops at "ready_to_promote": the loop never
+    publishes.
+
+    Any exception raised by a START-PAGE step in here is treated as a
+    per-source transient failure by the caller (run_loop) and is intentionally
+    NOT caught inside this function — the caller is the single place that
+    decides isolation vs. abort, so that policy lives in exactly one spot.
+    The follow phase narrows that policy to one page (a broken sub-page must
+    not cost the rest of a venue's calendar) and says so where it does it.
+    """
+    source_id = source.get("source_id")
+    source_name = source["name"]
+    url = source["url"]
+    source_class = source["source_class"]
+
+    fetch_result = _fetch_with_render_fallback(
+        source_id=source_id, url=url, render_state=render_state,
+    )
+    # Replay fetch entry: the original fields are all preserved; the render
+    # outcome EXTENDS the payload so the audit trail records whether the text
+    # handed onward is the plain fetch or a headless re-render (and, on a
+    # failed/refused render, why the plain text proceeded anyway).
+    fetch_outputs: Dict[str, Any] = {
+        "status": fetch_result.get("status"),
+        "rendered": bool(fetch_result.get("rendered")),
+    }
+    if fetch_result.get("rendered"):
+        fetch_outputs["plain_shell_reason"] = fetch_result.get("plain_shell_reason")
+    if fetch_result.get("render_error"):
+        fetch_outputs["render_error"] = fetch_result.get("render_error")
+    fetch_detail = str(fetch_result.get("status"))
+    if fetch_result.get("rendered"):
+        fetch_detail += (
+            " (js-shell rendered via headless browser; plain fetch was: "
+            f"{fetch_result.get('plain_shell_reason')})"
+        )
+    elif fetch_result.get("render_error"):
+        fetch_detail += (
+            " (render fallback unavailable, proceeding un-rendered: "
+            f"{fetch_result.get('render_error')})"
+        )
+    log_step(ReplayRecord(
+        run_id=run_id, ts=_now_iso(), source_id=str(source_id), source_name=source_name,
+        stage="fetch", inputs_digest=canonical_digest({"url": url}),
+        outputs_digest=canonical_digest(fetch_outputs),
+        decision=fetch_result.get("status", "unknown"), detail=fetch_detail,
+    ))
+
+    if fetch_result.get("status") == "not_modified":
+        return (
+            SourceResult(source_id, source_name, "fetch", "not_modified", "content unchanged since last fetch"),
+            {"not_modified": 1},
+        )
+
+    # fetch_with_render already decoded (or rendered) the text; on any 'ok'
+    # result the key is always present. Rendered or not, it faces the same
+    # sensor below — a render buys readability, never trust.
+    text = fetch_result["text"]
+    page = _process_fetched_page(
+        run_id=run_id, ai=ai, source_id=source_id, source_name=source_name,
+        page_url=url, source_class=source_class, sxsw_mode=sxsw_mode,
+        text=text, content_type=fetch_result.get("content_type"),
+    )
+
+    if page.decision == "sensor_rejected":
+        # The start page told us nothing readable, so there is no markup to
+        # discover follow pages FROM. Unchanged behaviour, stated: the walk
+        # reads the fetched page's own links, it never guesses without one.
+        return (
+            SourceResult(source_id, source_name, "sensor", "sensor_rejected", page.detail),
+            {"fetched": 1, "sensor_rejected": 1},
+        )
+
+    follow = _follow_event_pages(
+        run_id=run_id, ai=ai, source=source, sxsw_mode=sxsw_mode,
+        start_url=url, start_html=text, follow_state=follow_state,
+    )
+    counts: Dict[str, int] = {
+        "fetched": 1,
+        "extracted": 1,
+        "candidates": page.candidates + follow["candidates"],
+        "pages_followed": follow["followed"],
+        "pages_extracted": follow["extracted"],
+        "pages_missed": follow["missed"],
+        "pages_walled": 1 if follow["walled"] else 0,
+    }
+    detail = page.detail
+    if follow["followed"] or follow["blocked_reason"]:
+        detail += (
+            f" | follow: {follow['followed']} page(s) followed, "
+            f"{follow['candidates']} candidate(s)"
+            + (f"; {follow['blocked_reason']}" if follow["blocked_reason"] else "")
+        )
+
+    terminal = {"held": "held", "escalated": "escalated",
+                "ready_to_promote": "passed"}[page.decision]
+    counts[terminal] = counts.get(terminal, 0) + 1
+    return (
+        SourceResult(source_id, source_name, "gate3", page.decision, detail),
+        counts,
+    )
 def run_loop(
     *,
     ai: AIProvider,
@@ -498,6 +837,18 @@ def run_loop(
     # loudly (fail closed), per this module's failure semantics.
     render_cap = _resolve_render_cap()
     render_state = {"cap": render_cap, "remaining": render_cap}
+    # Same fail-closed timing for the follow-pages budgets: a malformed
+    # ceiling must abort the run BEFORE the first fetch, never mid-walk.
+    follow_caps = _resolve_follow_caps()
+    follow_state: Dict[str, Any] = {
+        "run_cap": follow_caps["run_cap"],
+        "source_cap": follow_caps["source_cap"],
+        "remaining": follow_caps["run_cap"],
+        # Followed pages share the run's ONE render budget: a JS-shell
+        # calendar is exactly the page worth rendering, and a second budget
+        # would double the spend the render cap exists to bound.
+        "render_state": render_state,
+    }
 
     run_id = new_run_id()
     started = _now_iso()
@@ -507,9 +858,9 @@ def run_loop(
         source_id = source.get("source_id")
         source_name = source.get("name", "<unnamed>")
         try:
-            result, count_keys = _run_one_source(
+            result, counts = _run_one_source(
                 run_id=run_id, ai=ai, source=source, sxsw_mode=sxsw_mode,
-                render_state=render_state,
+                render_state=render_state, follow_state=follow_state,
             )
         except Exception as exc:  # noqa: BLE001 - deliberate, audited, isolated per spec
             # Per-source transient failure: caught, logged, and isolated so
@@ -530,8 +881,8 @@ def run_loop(
             continue
 
         report.results.append(result)
-        for key in count_keys:
-            report.counts[key] += 1
+        for key, delta in counts.items():
+            report.counts[key] += delta
 
     report.finished = _now_iso()
     return report

@@ -36,6 +36,23 @@ name: Ingestion Run
 # max_sources x EXTRACT_MAX_EVENTS_PER_PAGE (worker/ai_extract.py, default 50),
 # i.e. <= 500 extraction calls/run at the fixed 10-source schedule ceiling.
 # The Anthropic console monthly cap is the hard backstop above both.
+#
+# CLASS B FOLLOW-PAGES (2026-09-02, founder-directed: "the scheduled ingest
+# loop may follow pages using the #204 walker, cap 15 extra pages, on-origin,
+# walls -> class D"). After a class B source's start page, the loop follows the
+# same-site event/calendar pages that page ADVERTISES. Pages, not sources, are
+# what a run spends, so the per-source cap alone would have multiplied the
+# worst case by sixteen; the run-level ceiling below is the FinOps bound and it
+# is declared HERE, on the armed cron, so the number is visible where the spend
+# happens. Worst case becomes:
+#     (max_sources + ONELIVE_MAX_FOLLOW_PAGES_PER_RUN) x EXTRACT_MAX_EVENTS_PER_PAGE
+#   = (30 + 30) x 50 = 3000 extraction calls/run, i.e. 2x the pre-follow
+#     ceiling of 1500 — a deliberate, stated doubling of the ceiling, not of
+#     the observed spend (a real page segments into a handful of blocks, not
+#     50). The console monthly cap remains the hard backstop.
+# The run budget is spent in source order and worker/run_once.py orders sources
+# least-recently-attempted first, so a source that does not get walked this run
+# leads the next one: coverage rotates, it is never dropped.
 
 on:
   schedule:
@@ -64,6 +81,14 @@ on:
         description: "Set 1 to print the dead-man check's 24h flip history after the assertion (R-023 PATH A probe; read-only, additive)"
         required: false
         default: "0"
+      source_class:
+        description: "Dispatch-only: run ONLY sources the catalog declares to be this Coverage Law class letter (e.g. B for the public-HTML follow-pages walk). ALL = every enabled source, exactly as the schedule runs."
+        required: false
+        default: "ALL"
+      follow_pages_per_run:
+        description: "Dispatch-only override of the run's follow-page budget (blank = the armed default, 30). 0 disables following entirely."
+        required: false
+        default: ""
 
 concurrency:
   group: ingest
@@ -193,11 +218,40 @@ jobs:
           # ceiling; dispatch stays fail-loud) — both steps must agree or the
           # validated value wouldn't be the executed value.
           MAX_SOURCES: ${{ github.event_name == 'schedule' && '30' || github.event.inputs.max_sources }}
+          # Class B follow-pages budgets. The per-SOURCE cap is the founder's
+          # number (15 extra pages); the per-RUN cap is the FinOps bound whose
+          # arithmetic is spelled out at the top of this file. Both are
+          # validated fail-closed in worker/orchestrator.py BEFORE the first
+          # fetch — a typo aborts the run, it never silently means "uncapped".
+          # Schedule events always use the armed defaults (callers cannot
+          # influence event_name); a dispatch may override the run budget.
+          ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE: "15"
+          # A blank dispatch input renders as the empty string, which is FALSY
+          # in a GitHub expression, so it falls through to the armed default —
+          # the same shape MAX_SOURCES above already uses. Both values are
+          # therefore ALWAYS non-empty, and an empty one is a real
+          # misconfiguration the terminating guards below refuse.
+          ONELIVE_MAX_FOLLOW_PAGES_PER_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.follow_pages_per_run || '30' }}
+          # Dispatch-only class filter. The "no filter" case has its own
+          # explicit value (ALL) rather than an empty string, so "empty" keeps
+          # meaning "something went wrong" instead of quietly meaning "run
+          # everything" — the schedule sends ALL and is unfiltered, exactly as
+          # before this input existed.
+          SOURCE_CLASS: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.source_class || 'ALL' }}
         run: |
           : "${MAX_SOURCES:?max_sources input missing — the budget ceiling is required — failing closed}"
+          : "${ONELIVE_MAX_FOLLOW_PAGES_PER_RUN:?follow-page budget rendered empty — the ceiling is required — failing closed}"
+          : "${SOURCE_CLASS:?source_class rendered empty — expected a Coverage Law letter or ALL — failing closed}"
+          # The class letter is untrusted dispatch input: it reaches the
+          # process through env only (never ${{ }}-interpolated into run:) and
+          # run_once.py rejects anything that is not a Coverage Law letter.
+          CLASS_ARGS=()
+          if [ "$SOURCE_CLASS" != "ALL" ]; then
+            CLASS_ARGS=(--source-class "$SOURCE_CLASS")
+          fi
           ONELIVE_DB_DSN="$(python3 tools/assemble_dsn.py)"
           export ONELIVE_DB_DSN
-          python worker/run_once.py --real --max-sources "$MAX_SOURCES"
+          python worker/run_once.py --real --max-sources "$MAX_SOURCES" "${CLASS_ARGS[@]}"
 
       - name: Persist the replay log (audit trail)
         if: always()

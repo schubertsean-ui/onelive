@@ -151,7 +151,8 @@ def order_for_rotation(rows: Sequence[tuple]) -> list:
     raw_fetch attempt rows — worker/fetch/http_fetch.py), so a
     permanently-dead source cannot monopolize the window.
 
-    Rows are (source_id, name, base_url, source_type, last_fetched_at);
+    Rows are (source_id, name, base_url, source_type, config,
+    last_fetched_at);
     the key unpacks first/last by position-name so middle-column changes
     cannot shift what gets sorted, and its leading bucket element keeps
     the never-attempted sentinel from ever meeting a datetime. Python-side
@@ -215,7 +216,47 @@ def _resolve_source_cap(cli_value: int | None) -> int | None:
     return value
 
 
-def _run_real(max_sources: int | None = None) -> int:
+def filter_by_coverage_class(sources: Sequence[dict], letter: str | None) -> list:
+    """Keep only sources the CATALOG declares to be Coverage Law class `letter`.
+
+    Dispatch-only selection, never a schedule behaviour: the armed cron passes
+    None and every enabled source is processed exactly as before. It exists so
+    a deliberate run can be aimed at one class (e.g. "the class B follow-pages
+    walk, on ten public-HTML sources") without hand-picking source names, and
+    so the run's own report says which class it ran.
+
+    The verdict comes from worker.sourcing.source_class.classify_entry reading
+    the row's stored catalog entry — the same authority the follow-pages walk
+    uses, so a source cannot be selected as class B here and judged otherwise
+    three lines later. An unknown letter FAILS CLOSED (SystemExit) rather than
+    silently matching nothing, which would look like an empty catalog.
+    """
+    if letter is None:
+        return list(sources)
+    from worker.sourcing.source_class import CLASS_LETTERS, classify_entry
+
+    letter = letter.strip().upper()
+    if letter not in CLASS_LETTERS:
+        raise SystemExit(
+            f"--source-class={letter!r} is not a Coverage Law class letter "
+            f"({', '.join(sorted(CLASS_LETTERS))}) — refusing to run a filter "
+            "that would silently match nothing."
+        )
+    kept = []
+    for source in sources:
+        entry = dict(source.get("config") or {})
+        entry.setdefault("base_url", source.get("url"))
+        if classify_entry(entry).source_class == letter:
+            kept.append(source)
+    logger.warning(
+        "class filter --source-class=%s: %d of %d enabled source(s) match "
+        "(dispatch-only; the scheduled loop never filters).",
+        letter, len(kept), len(sources),
+    )
+    return kept
+
+
+def _run_real(max_sources: int | None = None, source_class: str | None = None) -> int:
     # Budget-cap misconfiguration must fail loud DETERMINISTICALLY — before
     # any provider/DB access, so it can never hide behind "no enabled sources
     # found" or a connection error (evaluator finding, PR #12 round 2).
@@ -245,8 +286,16 @@ def _run_real(max_sources: int | None = None) -> int:
             # recurring loop must sweep the catalog, not re-fetch the same
             # head-of-table slice every run. The correlated max() rides
             # idx_raw_fetch_source_time (migration 0003).
+            # s.config is the catalog entry tools/import_sources.py stored
+            # verbatim on the row. The orchestrator's class B follow-pages
+            # walk reads its DECLARED access posture (access_method/allowed)
+            # to decide whether a source's own event pages may be followed —
+            # the class letter is the catalog's verdict, never inferred from
+            # the URL. A row with no config classifies D and is simply not
+            # followed; it is still FETCHED exactly as before, so reading
+            # this column can only add coverage, never remove any.
             cur.execute(
-                "select s.source_id, s.name, s.base_url, s.source_type, "
+                "select s.source_id, s.name, s.base_url, s.source_type, s.config, "
                 "       (select max(rf.fetched_at) from raw_fetch rf "
                 "         where rf.source_id = s.source_id) as last_fetched_at "
                 "from source s where s.enabled = true"
@@ -255,7 +304,7 @@ def _run_real(max_sources: int | None = None) -> int:
     rows = order_for_rotation(rows)
     sources = []
     skipped_no_url = []
-    for (sid, name, base_url, source_type, _last_fetched_at) in rows:
+    for (sid, name, base_url, source_type, config, _last_fetched_at) in rows:
         if not base_url:
             skipped_no_url.append(name)
             continue
@@ -264,6 +313,7 @@ def _run_real(max_sources: int | None = None) -> int:
             "name": name,
             "url": base_url,
             "source_class": source_type,
+            "config": config if isinstance(config, dict) else {},
         })
     if skipped_no_url:
         logger.warning(
@@ -272,6 +322,16 @@ def _run_real(max_sources: int | None = None) -> int:
         )
     if not sources:
         logger.error("no enabled, fetchable sources found in the `source` table.")
+        return 1
+
+    # The class filter runs BEFORE the budget ceiling so a "10 class B
+    # sources" run means ten class B sources, not ten rotation slots of which
+    # some happen to be class B.
+    sources = filter_by_coverage_class(sources, source_class)
+    if not sources:
+        logger.error(
+            "no enabled source matches --source-class=%s — nothing to run.",
+            source_class)
         return 1
 
     if cap is None:
@@ -311,6 +371,13 @@ def main() -> int:
              "integer; falls back to ONELIVE_MAX_SOURCES_PER_RUN; unset = "
              "uncapped, logged loudly).",
     )
+    parser.add_argument(
+        "--source-class",
+        default=None,
+        help="Dispatch-only: run ONLY sources the catalog declares to be this "
+             "Coverage Law class letter (A/B/C/D/E/F). The scheduled loop "
+             "never passes it and is unfiltered.",
+    )
     args = parser.parse_args()
     # Sentinel minimum (Session Contract #1): this is the scheduled entrypoint,
     # so it carries both signals — Sentry (no-op without SENTRY_DSN) and the
@@ -318,7 +385,13 @@ def main() -> int:
     # charter forbids scheduling a recurring loop until both env vars exist.
     init_sentry("worker")
     with deadman():
-        return _run_real(args.max_sources) if args.real else _run_stub()
+        if args.real:
+            return _run_real(args.max_sources, args.source_class)
+        if args.source_class:
+            raise SystemExit(
+                "--source-class applies to --real runs only (the stub path "
+                "has one in-memory source and no catalog to classify).")
+        return _run_stub()
 
 
 if __name__ == "__main__":
