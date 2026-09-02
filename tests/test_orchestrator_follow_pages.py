@@ -27,6 +27,13 @@ import worker.orchestrator as orchestrator
 from worker.orchestrator import run_loop
 
 # A catalog entry whose DECLARED posture is class B (public HTML, no login).
+def _no_fingerprint(source_id, url, cur=None):  # noqa: ARG001
+    """No crawl history: every page is "changed", so these tests keep pinning
+    the extract/gate path rather than the fair-crawl skip. Hermetic — the real
+    lookup would need a DB."""
+    return None
+
+
 CLASS_B_CONFIG = {"access_method": "public_web", "allowed": ["public_pages"]}
 # A structured open feed — class A. Fetched as always, never walked.
 CLASS_A_CONFIG = {"access_method": "public_web_or_ics", "allowed": ["official_feed"]}
@@ -73,7 +80,7 @@ def _hermetic(tmp_path, monkeypatch):
     monkeypatch.setattr(catalog_posture, "_INDEX", {})
     monkeypatch.setenv("ONELIVE_REPLAY_LOG_DIR", str(tmp_path / "replay"))
     monkeypatch.delenv("ONELIVE_MAX_FOLLOW_PAGES_PER_RUN", raising=False)
-    monkeypatch.delenv("ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE", raising=False)
+    monkeypatch.delenv("ONELIVE_DOORS_PER_SOURCE", raising=False)
     monkeypatch.setenv("ONELIVE_MAX_RENDERS_PER_RUN", "0")
     yield
 
@@ -122,6 +129,7 @@ def _install(monkeypatch, tmp_path, *, pages=None, errors=None, candidates_per_p
                            for i in range(candidates_per_page)])
 
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
+    monkeypatch.setattr(orchestrator, "load_door_fingerprint", _no_fingerprint)
     monkeypatch.setattr(orchestrator, "extract_candidates", fake_extract_candidates)
     monkeypatch.setattr(orchestrator, "list_candidate_source_classes",
                         lambda candidate_id: ["venue_site"])
@@ -136,6 +144,13 @@ def _install(monkeypatch, tmp_path, *, pages=None, errors=None, candidates_per_p
 # --- 1. the click actually happens, through the same pipeline ---------------
 
 def test_class_b_source_follows_the_pages_its_homepage_advertises(monkeypatch, tmp_path):
+    """FAIR CRAWL: the click still happens, but it is ONE click.
+
+    The homepage advertises both /events and /calendar. Under the default door
+    budget the loop takes the top-ranked one only — two fetches for this source
+    this wave, so eleven other sources get theirs. /calendar is not dropped: it
+    is what the NEXT wave discovers if /events stops being the best door.
+    """
     requested, extracted = _install(monkeypatch, tmp_path, pages={
         "https://venue.example/": HOME_HTML,
         "https://venue.example/events": PAGE_HTML,
@@ -144,19 +159,33 @@ def test_class_b_source_follows_the_pages_its_homepage_advertises(monkeypatch, t
 
     report = run_loop(ai=FakeAIProvider(), sources=[_source()])
 
-    assert "https://venue.example/events" in requested
-    assert "https://venue.example/calendar" in requested
-    # The SAME extract path ran on the followed pages, not just the homepage.
-    assert extracted == [
-        "https://venue.example/",
-        "https://venue.example/events",
-        "https://venue.example/calendar",
-    ]
-    assert report.counts["pages_followed"] == 2
-    assert report.counts["pages_extracted"] == 2
-    # 3 candidates per page x (1 start page + 2 followed) = 9.
-    assert report.counts["candidates"] == 9
+    assert requested == ["https://venue.example/", "https://venue.example/events"], (
+        "one source costs at most two fetches a wave")
+    # The SAME extract path ran on the followed page, not just the homepage.
+    assert extracted == ["https://venue.example/", "https://venue.example/events"]
+    assert report.counts["pages_followed"] == 1
+    assert report.counts["pages_extracted"] == 1
+    # 3 candidates per page x (1 start page + 1 followed) = 6.
+    assert report.counts["candidates"] == 6
     assert report.counts["errors"] == 0
+
+
+def test_the_door_budget_is_the_only_thing_that_widens_the_walk(monkeypatch, tmp_path):
+    """The fairness bound is a number, not a special case: raise it and the
+    same code walks two doors. This is what keeps the default honest — nothing
+    else in the loop knows about "1"."""
+    monkeypatch.setenv("ONELIVE_DOORS_PER_SOURCE", "2")
+    requested, extracted = _install(monkeypatch, tmp_path, pages={
+        "https://venue.example/": HOME_HTML,
+        "https://venue.example/events": PAGE_HTML,
+        "https://venue.example/calendar": PAGE_HTML,
+    })
+
+    report = run_loop(ai=FakeAIProvider(), sources=[_source()])
+
+    assert requested == ["https://venue.example/", "https://venue.example/events",
+                         "https://venue.example/calendar"]
+    assert report.counts["pages_followed"] == 2
 
 
 def test_follow_never_leaves_the_origin_or_knocks_on_a_login_page(monkeypatch, tmp_path):
@@ -235,6 +264,9 @@ def test_a_sign_in_redirect_is_a_wall_too(monkeypatch, tmp_path):
 def test_a_missing_page_is_a_miss_and_the_walk_continues(monkeypatch, tmp_path):
     # /events is absent from the fake server -> 404-shaped error with no
     # .response, exactly what a common-path GUESS produces at a real venue.
+    # Two doors, because "the walk continues" is only observable when there is
+    # a second door to continue TO; the default of one is pinned above.
+    monkeypatch.setenv("ONELIVE_DOORS_PER_SOURCE", "2")
     requested, extracted = _install(monkeypatch, tmp_path, pages={
         "https://venue.example/": HOME_HTML,
         "https://venue.example/calendar": PAGE_HTML,
@@ -253,7 +285,7 @@ def test_a_missing_page_is_a_miss_and_the_walk_continues(monkeypatch, tmp_path):
 # --- 5. the ceilings bind, and a bad one aborts before the first fetch ------
 
 def test_per_source_ceiling_bounds_the_walk(monkeypatch, tmp_path):
-    monkeypatch.setenv("ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE", "1")
+    monkeypatch.setenv("ONELIVE_DOORS_PER_SOURCE", "1")
     requested, _ = _install(monkeypatch, tmp_path, pages={
         "https://venue.example/": HOME_HTML,
         "https://venue.example/events": PAGE_HTML,
@@ -292,7 +324,7 @@ def test_zero_run_ceiling_disables_following_entirely(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("env", ["ONELIVE_MAX_FOLLOW_PAGES_PER_RUN",
-                                 "ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE"])
+                                 "ONELIVE_DOORS_PER_SOURCE"])
 @pytest.mark.parametrize("bad", ["fifteen", "-1", "3.5"])
 def test_malformed_ceiling_aborts_before_the_first_fetch(monkeypatch, tmp_path, env, bad):
     monkeypatch.setenv(env, bad)
@@ -335,6 +367,7 @@ def test_a_followed_page_that_redirects_off_site_is_not_extracted(monkeypatch, t
     """Discovery cleared this link as same-site BEFORE the fetch. The site then
     answered 200 from a ticketing host. Extracting that page would attribute a
     third party's listings to this venue."""
+    monkeypatch.setenv("ONELIVE_DOORS_PER_SOURCE", "2")
     requested, extracted = _install(
         monkeypatch, tmp_path,
         pages={"https://venue.example/": HOME_HTML,

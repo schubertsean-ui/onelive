@@ -4,6 +4,109 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-02 — Incremental crawl: three queues, tick budgets, fail-closed checks
+
+Three founder corrections in one session, each of which changed the shape of
+the answer rather than adding to it. The final design:
+
+**A tick is not "N sources."** It takes what is DUE, most overdue first, and
+runs until a REAL budget stops it — wall clock (`ONELIVE_MAX_TICK_SECONDS`),
+model spend (`ONELIVE_MAX_EXTRACT_CALLS_PER_TICK`), or the bug-safety fetch cap
+(`ONELIVE_MAX_FETCHES_PER_TICK`). How many sources it reached is an OUTCOME,
+printed after the run. `--max-sources` survives only as what the founder called
+it: a spend/time safety cap, an outer net above those budgets. Round-robin
+(least-recently-attempted) is the TIE-BREAK between equally-overdue sources, not
+the schedule — the two genuinely differ, and a test pins the case where they
+disagree.
+
+**Three queues, none of them a category.** EVENT-proximity: a published event
+with a start_time puts its DEFINING page (`event_candidate.source_url` via
+`promoted_event_id` — the listing page, not migration 0020's homepage) on a
+T-30d / T-14d / T-7d / T-3d / T-1d / day-of ladder, stopping after the event
+ends. One fetch covers every event on that page. REFRESH: a source whose door we
+know — one fetch, straight at it. DISCOVER: a source whose door we do not —
+start URL plus at most one probe of the top-ranked events/calendar/shows page it
+advertises. Event items go first (they are the only work with a deadline) but
+are capped at a share of the tick, and the shares are RESERVATIONS: a tick made
+entirely of discover work uses its whole budget rather than stranding half of it
+on refresh work that does not exist. Nothing anywhere reads a source's category,
+type, city or name.
+
+**Unchanged pages stop costing money.** The previous ETag/Last-Modified go out
+as conditional-GET headers so a well-behaved server answers 304; a server with
+no validators is caught by comparing the body's sha256 to the last successful
+`raw_fetch` row. Either way EXTRACTION is skipped — and extraction is the only
+stage in the pipeline that may call Anthropic, which an AST test now pins, so
+extract calls are the whole of a tick's AI spend.
+
+**Verification fails closed.** A re-check that can neither confirm nor
+disconfirm changes nothing: no delete, no cancel, no date edit. Every outcome is
+classified — `verified_present` (clean parse, or bytes identical to the last
+good read), `verified_absent` (a clear 404 on the defining page), or
+`unverified` — and *every* other shape, including one nobody has written yet,
+falls through to unverified. `last_attempt` and `last_verified` are recorded as
+separate facts, so a month of 403s can never read as a month of confirmations.
+The loop does not mutate published events at all; building that path would
+change what the loop may do to published rows, which is the founder's call.
+
+**Spend is measured, not estimated.** `ai/claude_provider.py` already stamps the
+SDK's own token usage onto each extraction as `_usage`, and `ai_extract`
+already persists the provider meta into the candidate's `extracted` jsonb — so
+the numbers were on disk already. The tick reads them back
+(`load_extraction_usage`) and `worker/spend_report.py` prices the total from the
+committed ladder in `docs/MODEL_ROUTING.md`. A model id that is not in that
+table, or a provider that reported no usage, prints "unknown" — never a guessed
+number and never $0.00.
+
+Reading them back rather than threading a counter through `worker/ai_extract.py`
+is deliberate and was a correction: the first attempt summed usage inside the
+extractor, which put a telemetry number on the extraction surface the attended
+golden exam does not execute — the exam correctly refused the PR for it. The
+number is identical either way, so the right place to read it is the one that
+certifies nothing.
+
+**Two product calls, founder-ratified during the session.** A confirmed check
+MAY update a published listing — `start_time`, `end_time`, `status`, `title` —
+but only on same-page evidence, and it may NEVER delete the row: cancel and
+postpone are statuses on a row that stays (migration 0001's
+`scheduled|cancelled|moved`), which agrees with Coverage Law and with the
+4-state model where disputed is shown, never hidden. The policy is encoded in
+`worker/crawl_state.py` and recorded in
+`docs/memory/decisions/2026-09-02_confirmed-check-may-update-listing.md`;
+nothing updates a published event yet, and wiring it is its own ticket.
+
+One case needed the two directives read together, and the reading is flagged
+rather than quietly resolved: a clear 404 confirms the PAGE is gone but carries
+no same-page evidence about any listing on it — a URL reorganization, a CMS
+migration and a real cancellation all 404 identically — so it licenses
+re-finding the door and no status change. The case that can license a cancel is
+a clean parse in which a published event is absent from a page that still loads.
+
+The ladder's day-of rung stays at 6 hours before start rather than the event's
+local midnight, under the founder's own escape clause, because local midnight
+is not computable on today's schema: `start_time` is a `timestamptz` that does
+not preserve the listing's wall clock, nothing carries a timezone, and assuming
+one would mis-time every non-CAPCOG row silently. Recorded as R-090 with the
+trigger that closes it.
+
+State lives nowhere new: best_url, next_due_at, fail streak, body fingerprint,
+last_attempt and last_verified are all DERIVED from `raw_fetch`,
+`event_candidate` and `event` rows the pipeline already writes. No new table, no
+new column, no `source.config` key for the next catalog import to clobber.
+
+Four defects were caught by the tests written alongside, and all four were mine:
+reading `is_closed_door` off the demotion verdict would have refused to fetch
+264 of 266 enabled rows (they declare no access posture, so they classify D
+before any fetch); enforcing same-origin on the REGISTERED start URL would have
+dropped every catalog row that 301s to another host; ranking event refreshes by
+overdue-ness put an event a month out ahead of one starting in five hours; and a
+flat "discovery gets half" capped a discover-only tick at half its own budget.
+
+`worker/run_once.py` prints a per-source table — source | queue | url fetched |
+changed? | verified? | candidates | skipped-unchanged | blocked — and a measured
+outcomes line (fetches / extracts / tokens / $ / why the tick stopped), because
+this is a claim about DISTRIBUTION and a counts dict cannot show distribution.
+
 ## 2026-09-02 — CAPCOG entity census: the universe we already know, in one table
 
 Docs-only, read-only session (no ingest, no worker/orchestrator/catalog edit).

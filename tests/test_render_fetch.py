@@ -67,7 +67,10 @@ def test_should_render_false_on_unrelated_rejection():
 def _fake_ok_fetch(storage_ref):
     """Build a fake fetch_url that returns an 'ok' result pointing at a file."""
 
-    def _fetch(*, source_id, url, user_agent):  # noqa: ARG001 — matches fetch_url kwargs
+    def _fetch(*, source_id, url, user_agent, **kwargs):  # noqa: ARG001 — matches fetch_url kwargs
+        # **kwargs absorbs the conditional-GET validators the real
+        # adapter takes (etag / last_modified); a fake that refused what
+        # fetch_url accepts would pass while production broke.
         return {
             "status": "ok",
             "url": url,
@@ -123,7 +126,7 @@ def test_fetch_with_render_skips_render_on_real_page(tmp_path):
 
 def test_fetch_with_render_passes_through_non_ok_fetch():
     # A 304 / failed fetch has no content to render — returned unchanged.
-    def _not_modified(*, source_id, url, user_agent):  # noqa: ARG001
+    def _not_modified(*, source_id, url, user_agent, **kwargs):  # noqa: ARG001
         return {"status": "not_modified", "url": url}
 
     def _fail_render(**_kwargs):

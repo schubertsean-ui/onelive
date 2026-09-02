@@ -275,6 +275,8 @@ def fetch_with_render(
     user_agent: str = DEFAULT_USER_AGENT,
     render_timeout_ms: int = DEFAULT_RENDER_TIMEOUT_MS,
     wait_selector: Optional[str] = None,
+    etag: Optional[str] = None,
+    last_modified: Optional[str] = None,
     _fetch_fn: Callable[..., Dict[str, Any]] = fetch_url,
     _render_fn: Callable[..., str] = render_html,
     _read_text: Callable[[Dict[str, Any]], str] = _read_fetched_text,
@@ -307,7 +309,15 @@ def fetch_with_render(
     A render failure is NOT swallowed: RenderError propagates, and the caller's
     per-source isolation records it as that source's loud failure.
     """
-    result = _fetch_fn(source_id=source_id, url=url, user_agent=user_agent)
+    # Conditional-GET validators, forwarded straight through to the adapter:
+    # the cheapest possible answer to "did this page change?" is the server
+    # saying 304 before it sends a body. They are pass-through only — nothing
+    # here interprets them, and an absent validator simply means an
+    # unconditional GET, exactly as before this parameter existed.
+    result = _fetch_fn(
+        source_id=source_id, url=url, user_agent=user_agent,
+        etag=etag, last_modified=last_modified,
+    )
 
     if result.get("status") != "ok":
         # 304 / failure — no content to render.

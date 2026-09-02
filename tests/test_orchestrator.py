@@ -19,6 +19,13 @@ import worker.orchestrator as orchestrator
 from worker.orchestrator import GateDecision, RunReport, run_loop
 
 
+def _no_fingerprint(source_id, url, cur=None):  # noqa: ARG001
+    """No crawl history: every page is "changed", so these tests keep pinning
+    the extract/gate path rather than the fair-crawl skip. Hermetic — the real
+    lookup would need a DB."""
+    return None
+
+
 class FakeAIProvider:
     """Minimal stand-in for AIProvider; orchestrator never calls this
     directly (extract_candidates is monkeypatched below), but run_loop's
@@ -108,6 +115,7 @@ def _install_fakes(
 
     monkeypatch.setattr(orchestrator, "stamp_gate_verdict", fake_stamp_gate_verdict)
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
+    monkeypatch.setattr(orchestrator, "load_door_fingerprint", _no_fingerprint)
     monkeypatch.setattr(orchestrator, "extract_candidates", fake_extract_candidates)
     monkeypatch.setattr(orchestrator, "list_candidate_source_classes", fake_list_candidate_source_classes)
     monkeypatch.setattr(orchestrator, "load_candidate_gate_signals", fake_load_candidate_gate_signals)
@@ -256,6 +264,7 @@ def test_transient_error_in_one_source_does_not_abort_others(monkeypatch):
         return {}, {"start_times": [], "dedupe_ambiguous": False}
 
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
+    monkeypatch.setattr(orchestrator, "load_door_fingerprint", _no_fingerprint)
     monkeypatch.setattr(orchestrator, "extract_candidates", fake_extract_candidates)
     monkeypatch.setattr(orchestrator, "list_candidate_source_classes", fake_list_candidate_source_classes)
     monkeypatch.setattr(orchestrator, "load_candidate_gate_signals", fake_load_candidate_gate_signals)
@@ -285,6 +294,7 @@ def test_error_isolation_writes_replay_step(monkeypatch, tmp_path):
         raise TimeoutError("simulated timeout")
 
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
+    monkeypatch.setattr(orchestrator, "load_door_fingerprint", _no_fingerprint)
 
     report = run_loop(ai=FakeAIProvider(), sources=sources)
     assert report.counts["errors"] == 1

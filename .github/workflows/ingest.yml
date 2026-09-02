@@ -37,22 +37,72 @@ name: Ingestion Run
 # i.e. <= 500 extraction calls/run at the fixed 10-source schedule ceiling.
 # The Anthropic console monthly cap is the hard backstop above both.
 #
-# CLASS B FOLLOW-PAGES (2026-09-02, founder-directed: "the scheduled ingest
-# loop may follow pages using the #204 walker, cap 15 extra pages, on-origin,
-# walls -> class D"). After a class B source's start page, the loop follows the
-# same-site event/calendar pages that page ADVERTISES. Pages, not sources, are
-# what a run spends, so the per-source cap alone would have multiplied the
-# worst case by sixteen; the run-level ceiling below is the FinOps bound and it
-# is declared HERE, on the armed cron, so the number is visible where the spend
-# happens. Worst case becomes:
-#     (max_sources + ONELIVE_MAX_FOLLOW_PAGES_PER_RUN) x EXTRACT_MAX_EVENTS_PER_PAGE
-#   = (30 + 30) x 50 = 3000 extraction calls/run, i.e. 2x the pre-follow
-#     ceiling of 1500 — a deliberate, stated doubling of the ceiling, not of
-#     the observed spend (a real page segments into a handful of blocks, not
-#     50). The console monthly cap remains the hard backstop.
-# The run budget is spent in source order and worker/run_once.py orders sources
-# least-recently-attempted first, so a source that does not get walked this run
-# leads the next one: coverage rotates, it is never dropped.
+# INCREMENTAL CRAWL (2026-09-02, founder-directed). Two corrections in one
+# session, both worth stating because they change what this workflow's numbers
+# MEAN:
+#
+#   1. "many sources per wave, few pages each" — the class B walk let one
+#      source take 15 pages and the run budget was spent IN SOURCE ORDER, so
+#      two link-heavy calendars consumed it and everything behind them got
+#      zero. The fairness ceiling moved from the RUN to the SOURCE: one door
+#      each (ONELIVE_DOORS_PER_SOURCE), at most two fetches per source.
+#   2. "K=30 is a spend/time safety cap, not the design" — a tick is no longer
+#      "N sources". It is: take what is DUE, most overdue first, and keep going
+#      until a REAL budget stops it. How many sources that reached is an
+#      OUTCOME, printed after the run, not a number picked in advance.
+#
+# WHAT STOPS A TICK (worker/crawl_state.py, all declared below, all parsed
+# fail-closed BEFORE the first fetch — a typo aborts the run, it never means
+# "uncapped"):
+#   * ONELIVE_MAX_TICK_SECONDS       wall clock. 600s, half the 20-minute
+#                                    cadence, so a long tick never queues
+#                                    behind the next one.
+#   * ONELIVE_MAX_EXTRACT_CALLS_PER_TICK  the MODEL budget, in pages sent to
+#                                    extraction. Extraction is the ONLY stage
+#                                    that may call Anthropic, so this is the
+#                                    AI spend, bounded directly instead of
+#                                    inferred from a source count.
+#   * ONELIVE_MAX_FETCHES_PER_TICK   the bug-safety cap, named for what it
+#                                    caps. It exists so a loop bug cannot
+#                                    fetch forever.
+#   * ONELIVE_MAX_FETCHES_PER_HOST   politeness. Past this, further sources on
+#                                    that host are DEFERRED to the next tick —
+#                                    the tick itself goes on, so one popular
+#                                    host cannot cost everybody else a turn.
+#
+# AI-SPEND BOUND (R-043), restated in the terms that now bind it:
+#     ONELIVE_MAX_EXTRACT_CALLS_PER_TICK x EXTRACT_MAX_EVENTS_PER_PAGE
+#   = 60 x 50 = 3000 extraction calls per tick — the SAME worst case the old
+#     (30 sources + 30 follow-pages) x 50 arithmetic gave. The ceiling has not
+#     moved; it is simply expressed as the thing it actually bounds. The
+#     Anthropic console monthly cap remains the hard backstop above it.
+#
+# EXPECTED SPEND GOES DOWN at that unchanged ceiling: the loop sends the
+# previous ETag/Last-Modified as conditional-GET headers and compares the
+# body's sha256 against the last successful raw_fetch row, so a page that has
+# not changed since the last tick costs one cheap GET and ZERO extraction
+# calls. Between 20-minute ticks most venue pages have not changed.
+#
+# THREE QUEUES feed the tick, ordered on their own urgency and never by
+# category (the model stays general — ONE-LIVE-VISION.md):
+#   EVENT     a published event is approaching a rung of the proximity ladder
+#             (T-30d, T-14d, T-7d, T-3d, T-1d, day-of), so its DEFINING page is
+#             re-read. One fetch covers every event on that page. These go
+#             first — they are the only work with a deadline — but they are
+#             capped at a share of the tick so a busy night cannot freeze the
+#             rotation.
+#   REFRESH   a source whose door we know. One fetch, straight at it.
+#   DISCOVER  a source whose door we do not. Start URL + at most one probe.
+#
+# VERIFICATION IS FAIL-CLOSED. A re-check that cannot confirm OR disconfirm
+# changes nothing: no delete, no cancel, no date edit. The loop does not mutate
+# published events at all (it writes candidates and stops at the gate); it
+# RECORDS a verdict — verified_present / verified_absent / unverified — and
+# every failure mode, including one nobody has written yet, is unverified.
+#
+# max_sources below is kept for exactly what the founder called it: a
+# spend/time SAFETY cap, an outer net above the tick budgets. It truncates the
+# tail of an already-prioritised plan, so it never cuts the most overdue work.
 
 on:
   schedule:
@@ -218,14 +268,20 @@ jobs:
           # ceiling; dispatch stays fail-loud) — both steps must agree or the
           # validated value wouldn't be the executed value.
           MAX_SOURCES: ${{ github.event_name == 'schedule' && '30' || github.event.inputs.max_sources }}
-          # Class B follow-pages budgets. The per-SOURCE cap is the founder's
-          # number (15 extra pages); the per-RUN cap is the FinOps bound whose
-          # arithmetic is spelled out at the top of this file. Both are
-          # validated fail-closed in worker/orchestrator.py BEFORE the first
-          # fetch — a typo aborts the run, it never silently means "uncapped".
-          # Schedule events always use the armed defaults (callers cannot
-          # influence event_name); a dispatch may override the run budget.
-          ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE: "15"
+          # THE TICK BUDGETS — what actually stops a tick. Declared here, on
+          # the armed cron, so the numbers live where the spend happens. All
+          # validated fail-closed before the first fetch.
+          ONELIVE_MAX_TICK_SECONDS: "600"
+          ONELIVE_MAX_EXTRACT_CALLS_PER_TICK: "60"
+          ONELIVE_MAX_FETCHES_PER_TICK: "120"
+          ONELIVE_MAX_FETCHES_PER_HOST: "4"
+          # The per-SOURCE fairness bound: ONE door, so no venue can spend the
+          # tick. The knob is a NEW NAME on purpose — the old
+          # ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE meant "up to 15 discovered
+          # pages", and re-pointing that name at "1" would have left any stale
+          # copy of it silently restoring the unfair walk. A removed knob
+          # cannot do that.
+          ONELIVE_DOORS_PER_SOURCE: "1"
           # A blank dispatch input renders as the empty string, which is FALSY
           # in a GitHub expression, so it falls through to the armed default —
           # the same shape MAX_SOURCES above already uses. Both values are

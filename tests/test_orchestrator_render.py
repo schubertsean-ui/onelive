@@ -48,6 +48,25 @@ _REAL_PAGE = (
 )
 
 
+def _no_politeness():
+    """A tick budget that will not interfere with what these tests measure.
+
+    Every synthetic source here lives on example.com, so the real per-host
+    politeness cap (4 fetches per host per tick) would defer the 5th and 6th
+    and make a RENDER-cap test fail for a reason that has nothing to do with
+    rendering. Real catalog sources are spread across hundreds of hosts.
+    """
+    from worker.crawl_state import TickBudget
+    return TickBudget(max_fetches_per_host=99)
+
+
+def _no_fingerprint(source_id, url, cur=None):  # noqa: ARG001
+    """No crawl history: every page is "changed", so these tests keep pinning
+    the extract/gate path rather than the fair-crawl skip. Hermetic — the real
+    lookup would need a DB."""
+    return None
+
+
 class FakeAIProvider:
     """run_loop's signature requires an `ai` object; extract_candidates is
     faked below so this must never actually be called."""
@@ -106,6 +125,7 @@ def _install_fakes(monkeypatch, tmp_path, *, plain_text_by_source, extracted_tex
         return {}, {"start_times": [], "dedupe_ambiguous": False}
 
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
+    monkeypatch.setattr(orchestrator, "load_door_fingerprint", _no_fingerprint)
     monkeypatch.setattr(orchestrator, "extract_candidates", fake_extract_candidates)
     monkeypatch.setattr(orchestrator, "list_candidate_source_classes", fake_list_candidate_source_classes)
     monkeypatch.setattr(orchestrator, "load_candidate_gate_signals", fake_load_candidate_gate_signals)
@@ -253,7 +273,9 @@ def test_default_cap_is_five(monkeypatch, tmp_path):
     _install_fakes(monkeypatch, tmp_path, plain_text_by_source=shells)
     _install_render(monkeypatch, render_calls, html=_RENDERED_PAGE)
 
-    report = run_loop(ai=FakeAIProvider(), sources=[_source(f"shell_{i}") for i in range(6)])
+    report = run_loop(ai=FakeAIProvider(),
+                          sources=[_source(f"shell_{i}") for i in range(6)],
+                          budget=_no_politeness())
 
     assert len(render_calls) == 5
     assert report.counts["extracted"] == 5
@@ -283,6 +305,7 @@ def test_malformed_cap_fails_closed_before_touching_sources(monkeypatch, tmp_pat
         raise AssertionError("no source may be touched when the render budget is unvalidatable")
 
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
+    monkeypatch.setattr(orchestrator, "load_door_fingerprint", _no_fingerprint)
 
     with pytest.raises(ValueError, match="ONELIVE_MAX_RENDERS_PER_RUN"):
         run_loop(ai=FakeAIProvider(), sources=[_source("shell_src")])
