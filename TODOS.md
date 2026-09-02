@@ -13,6 +13,17 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #48 (2026-09-01 — Coverage Law session, CLASS B MULTI-PAGE FOLLOW)
+- [x] (P0) Discover same-site public events/calendar/shows pages from a registered start URL — link text, url path, common paths, plus on-page ICS/JSON-LD read through the existing `structured_feed` authority (`worker/sourcing/page_discovery.py`). DONE.
+- [x] (P0) Fetch them under a bound: <=15 extra pages per source per run, on-origin only, off-site links refused before the fetcher sees them (`tools/class_b_multipage.py`). DONE.
+- [x] (P0) Run the EXISTING extract path on what comes back — `worker.ai_extract.extract_candidates`, no second extractor and no new prompt. DONE and REALLY EXECUTED on the fixtures: storage half proven against a local PostgreSQL 16 with the committed migrations (14 candidate + 14 evidence rows); model half refuses without a key, reported as 0 + `ai/claude_provider.py, _get_client, ExtractionConfigError`. See R-084.
+- [x] (P0) Login / paywall / bot wall -> class D, queued, never fetched: one knock, `demote_on_response` decides, `--update-claim-queue` writes the queue. Proven by tests asserting the exact URLs NOT requested. DONE.
+- [x] (P1) The run table for 10 class B sources with a homepage URL, backed by committed machine evidence (`docs/evidence/CLASS_B_MULTIPAGE_FIXTURE_RUN.json`). DONE — fixtures, because this sandbox 403s every outbound fetch.
+- [ ] (P1, R-084a) FIRST run with a real `ANTHROPIC_API_KEY` (and live network): record the run id and its table, and close the model-half + live-fetch limits. Founder-dispatched; needs no code change.
+- [ ] (P1, R-084b, FOUNDER DECISION) Should the scheduled loop follow pages, or does this stay a manual tool? Wiring it in means editing `worker/orchestrator.py` — inside the armed cron's runtime closure — which this session's leash forbids without asking. Asked in the PR body.
+- [ ] (P2) Pin the storage half in CI's existing `db-integration` lane: one integration test asserting the follow writes candidate + evidence rows against a real PostgreSQL, so the 14-row number is CI-checked rather than an artifact I generated once.
+- [ ] (P2) Feed the ICS links discovery already finds (e.g. an advertised `/events.ics`) to the existing structured importer instead of only reporting them — a free class A lane sitting inside a class B page. Scope after R-084a proves the walk live.
+
 ## Session Contract #47 (2026-09-01 — Coverage Law session 3, CLASS D → E/F)
 - [x] (P0) Smallest claim path writing a catalog row as class E or F at confidence `unverified` — paste ICS URL, paste/upload CSV, or forward to the intake mailbox (`worker/claim/intake.py`, `api/claims.py`, `/ops/claim`). DONE.
 - [x] (P0) A fresh claim can never reach the anchor tier: `claimed_upload_unverified` / `human_report` named THIRD-PARTY in `worker/gating.py`, so claimed listings hold at the existing gate. DONE.

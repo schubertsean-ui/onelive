@@ -1,0 +1,1132 @@
+[
+  {
+    "blocked_reason": "",
+    "candidates": 0,
+    "discovered": [
+      {
+        "evidence": "link text 'discover events' matches 'events'",
+        "url": "https://www.universe.com/events",
+        "via": "link text"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.universe.com/calendar",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.universe.com/shows",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.universe.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.universe.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.universe.com/whats-on",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.universe.com/live",
+        "via": "common path (guess)"
+      }
+    ],
+    "extract_errors": [
+      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
+    ],
+    "extract_ready": 1,
+    "ics_links": [],
+    "jsonld_events": 0,
+    "name": "Universe (Ticketmaster)",
+    "pages_followed": [
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://www.universe.com/events",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.universe.com/calendar",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.universe.com/shows",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.universe.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.universe.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.universe.com/whats-on",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.universe.com/live",
+        "via": "common path (guess)"
+      }
+    ],
+    "skipped": [],
+    "source_class": "B",
+    "source_id": "universe",
+    "start_status": 200,
+    "start_url": "https://www.universe.com/"
+  },
+  {
+    "blocked_reason": "",
+    "candidates": 0,
+    "discovered": [
+      {
+        "evidence": "link text 'concerts' matches 'concerts'",
+        "url": "https://seatgeek.com/concerts",
+        "via": "link text"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://seatgeek.com/events",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://seatgeek.com/calendar",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://seatgeek.com/shows",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://seatgeek.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://seatgeek.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://seatgeek.com/whats-on",
+        "via": "common path (guess)"
+      }
+    ],
+    "extract_errors": [
+      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
+    ],
+    "extract_ready": 1,
+    "ics_links": [],
+    "jsonld_events": 0,
+    "name": "SeatGeek",
+    "pages_followed": [
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://seatgeek.com/concerts",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://seatgeek.com/events",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://seatgeek.com/calendar",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://seatgeek.com/shows",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://seatgeek.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://seatgeek.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://seatgeek.com/whats-on",
+        "via": "common path (guess)"
+      }
+    ],
+    "skipped": [],
+    "source_class": "B",
+    "source_id": "seatgeek",
+    "start_status": 200,
+    "start_url": "https://seatgeek.com/"
+  },
+  {
+    "blocked_reason": "",
+    "candidates": 0,
+    "discovered": [
+      {
+        "evidence": "link text 'shows' matches 'shows'",
+        "url": "https://www.stubbsaustin.com/shows",
+        "via": "link text"
+      },
+      {
+        "evidence": "link text 'calendar' matches 'calendar'",
+        "url": "https://www.stubbsaustin.com/calendar",
+        "via": "link text"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.stubbsaustin.com/events",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.stubbsaustin.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.stubbsaustin.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.stubbsaustin.com/whats-on",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.stubbsaustin.com/live",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.stubbsaustin.com/lineup",
+        "via": "common path (guess)"
+      }
+    ],
+    "extract_errors": [
+      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
+    ],
+    "extract_ready": 2,
+    "ics_links": [
+      "https://www.stubbsaustin.com/events.ics"
+    ],
+    "jsonld_events": 0,
+    "name": "Stubb's Austin",
+    "pages_followed": [
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://www.stubbsaustin.com/shows",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://www.stubbsaustin.com/calendar",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.stubbsaustin.com/events",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.stubbsaustin.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.stubbsaustin.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.stubbsaustin.com/whats-on",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.stubbsaustin.com/live",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.stubbsaustin.com/lineup",
+        "via": "common path (guess)"
+      }
+    ],
+    "skipped": [
+      {
+        "reason": "not an HTML page (file asset or feed)",
+        "url": "https://www.stubbsaustin.com/season-brochure-events.pdf"
+      }
+    ],
+    "source_class": "B",
+    "source_id": "stubbs_austin",
+    "start_status": 200,
+    "start_url": "https://www.stubbsaustin.com/"
+  },
+  {
+    "blocked_reason": "",
+    "candidates": 0,
+    "discovered": [
+      {
+        "evidence": "link text 'events' matches 'events'",
+        "url": "https://www.acllive.com/events",
+        "via": "link text"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.acllive.com/calendar",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.acllive.com/shows",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.acllive.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.acllive.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.acllive.com/whats-on",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.acllive.com/live",
+        "via": "common path (guess)"
+      }
+    ],
+    "extract_errors": [
+      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
+    ],
+    "extract_ready": 1,
+    "ics_links": [],
+    "jsonld_events": 1,
+    "name": "ACL Live at The Moody Theater",
+    "pages_followed": [
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://www.acllive.com/events",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.acllive.com/calendar",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.acllive.com/shows",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.acllive.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.acllive.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.acllive.com/whats-on",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.acllive.com/live",
+        "via": "common path (guess)"
+      }
+    ],
+    "skipped": [],
+    "source_class": "B",
+    "source_id": "acllive",
+    "start_status": 200,
+    "start_url": "https://www.acllive.com/"
+  },
+  {
+    "blocked_reason": "",
+    "candidates": 0,
+    "discovered": [
+      {
+        "evidence": "link text 'calendar' matches 'calendar'",
+        "url": "https://antonesnightclub.com/calendar",
+        "via": "link text"
+      },
+      {
+        "evidence": "link text 'upcoming shows' matches 'shows'",
+        "url": "https://antonesnightclub.com/shows",
+        "via": "link text"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://antonesnightclub.com/events",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://antonesnightclub.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://antonesnightclub.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://antonesnightclub.com/whats-on",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://antonesnightclub.com/live",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://antonesnightclub.com/lineup",
+        "via": "common path (guess)"
+      }
+    ],
+    "extract_errors": [
+      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
+    ],
+    "extract_ready": 1,
+    "ics_links": [],
+    "jsonld_events": 0,
+    "name": "Antone's Nightclub",
+    "pages_followed": [
+      {
+        "candidates": 0,
+        "detail": "input too short (20 chars; need >= 40)",
+        "extract_error": "",
+        "outcome": "sensor_rejected",
+        "status": 200,
+        "url": "https://antonesnightclub.com/calendar",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://antonesnightclub.com/shows",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://antonesnightclub.com/events",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://antonesnightclub.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://antonesnightclub.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://antonesnightclub.com/whats-on",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://antonesnightclub.com/live",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://antonesnightclub.com/lineup",
+        "via": "common path (guess)"
+      }
+    ],
+    "skipped": [],
+    "source_class": "B",
+    "source_id": "antones",
+    "start_status": 200,
+    "start_url": "https://antonesnightclub.com/"
+  },
+  {
+    "blocked_reason": "HTTP 403 on first contact \u2014 the source refused an unauthenticated read; queued for a claim path, not retried",
+    "candidates": 0,
+    "extract_errors": [],
+    "extract_ready": 0,
+    "name": "Empire Control Room & Garage",
+    "pages_followed": [],
+    "source_class": "D",
+    "source_id": "empire_atx",
+    "start_status": 403,
+    "start_url": "https://empireatx.com/"
+  },
+  {
+    "blocked_reason": "",
+    "candidates": 0,
+    "discovered": [
+      {
+        "evidence": "link text 'shows' matches 'shows'",
+        "url": "https://continentalclub.com/shows",
+        "via": "link text"
+      },
+      {
+        "evidence": "link text 'calendar' matches 'calendar'",
+        "url": "https://continentalclub.com/calendar",
+        "via": "link text"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://continentalclub.com/events",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://continentalclub.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://continentalclub.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://continentalclub.com/whats-on",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://continentalclub.com/live",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://continentalclub.com/lineup",
+        "via": "common path (guess)"
+      }
+    ],
+    "extract_errors": [
+      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
+    ],
+    "extract_ready": 2,
+    "ics_links": [],
+    "jsonld_events": 0,
+    "name": "The Continental Club (Austin)",
+    "pages_followed": [
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://continentalclub.com/shows",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://continentalclub.com/calendar",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://continentalclub.com/events",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://continentalclub.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://continentalclub.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://continentalclub.com/whats-on",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://continentalclub.com/live",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://continentalclub.com/lineup",
+        "via": "common path (guess)"
+      }
+    ],
+    "skipped": [],
+    "source_class": "B",
+    "source_id": "continental_club",
+    "start_status": 200,
+    "start_url": "https://continentalclub.com/austin"
+  },
+  {
+    "blocked_reason": "",
+    "candidates": 0,
+    "discovered": [
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://parishaustin.com/events",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://parishaustin.com/calendar",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://parishaustin.com/shows",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://parishaustin.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://parishaustin.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://parishaustin.com/whats-on",
+        "via": "common path (guess)"
+      }
+    ],
+    "extract_errors": [
+      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
+    ],
+    "extract_ready": 1,
+    "ics_links": [],
+    "jsonld_events": 0,
+    "name": "The Parish Austin",
+    "pages_followed": [
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://parishaustin.com/events",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://parishaustin.com/calendar",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://parishaustin.com/shows",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://parishaustin.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://parishaustin.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://parishaustin.com/whats-on",
+        "via": "common path (guess)"
+      }
+    ],
+    "skipped": [],
+    "source_class": "B",
+    "source_id": "parish_austin",
+    "start_status": 200,
+    "start_url": "https://parishaustin.com/"
+  },
+  {
+    "blocked_reason": "redirected to a sign-in URL (https://emosaustin.com/account/login?next=/upcoming-shows) \u2014 login wall; queued for a claim path, not retried (at https://emosaustin.com/upcoming-shows)",
+    "candidates": 0,
+    "discovered": [
+      {
+        "evidence": "link text 'events' matches 'events'",
+        "url": "https://emosaustin.com/events",
+        "via": "link text"
+      },
+      {
+        "evidence": "link text 'upcoming shows' matches 'shows'",
+        "url": "https://emosaustin.com/upcoming-shows",
+        "via": "link text"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://emosaustin.com/calendar",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://emosaustin.com/shows",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://emosaustin.com/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://emosaustin.com/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://emosaustin.com/whats-on",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://emosaustin.com/live",
+        "via": "common path (guess)"
+      }
+    ],
+    "extract_errors": [
+      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
+    ],
+    "extract_ready": 1,
+    "ics_links": [],
+    "jsonld_events": 0,
+    "name": "Emo's Austin",
+    "pages_followed": [
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://emosaustin.com/events",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "redirected to a sign-in URL (https://emosaustin.com/account/login?next=/upcoming-shows) \u2014 login wall; queued for a claim path, not retried",
+        "extract_error": "",
+        "outcome": "wall",
+        "status": 302,
+        "url": "https://emosaustin.com/upcoming-shows",
+        "via": "link text"
+      }
+    ],
+    "skipped": [],
+    "source_class": "D",
+    "source_id": "emos",
+    "start_status": 200,
+    "start_url": "https://emosaustin.com/"
+  },
+  {
+    "blocked_reason": "",
+    "candidates": 0,
+    "discovered": [
+      {
+        "evidence": "link text 'events' matches 'events'",
+        "url": "https://www.austintheatre.org/events",
+        "via": "link text"
+      },
+      {
+        "evidence": "link text 'calendar' matches 'calendar'",
+        "url": "https://www.austintheatre.org/calendar",
+        "via": "link text"
+      },
+      {
+        "evidence": "link text 'what s on' matches 'what s on'",
+        "url": "https://www.austintheatre.org/whats-on",
+        "via": "link text"
+      },
+      {
+        "evidence": "link text 'summer classic film screenings' matches 'screenings'",
+        "url": "https://www.austintheatre.org/film/screenings",
+        "via": "link text"
+      },
+      {
+        "evidence": "link text 'education programs' matches 'programs'",
+        "url": "https://www.austintheatre.org/education/programs",
+        "via": "link text"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.austintheatre.org/shows",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.austintheatre.org/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.austintheatre.org/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.austintheatre.org/live",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.austintheatre.org/lineup",
+        "via": "common path (guess)"
+      },
+      {
+        "evidence": "conventional event-page location; not linked from the start page, so a miss here is a 404, not a lost event",
+        "url": "https://www.austintheatre.org/events/calendar",
+        "via": "common path (guess)"
+      }
+    ],
+    "extract_errors": [
+      "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly."
+    ],
+    "extract_ready": 4,
+    "ics_links": [],
+    "jsonld_events": 0,
+    "name": "Paramount Theatre (Austin)",
+    "pages_followed": [
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://www.austintheatre.org/events",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://www.austintheatre.org/calendar",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://www.austintheatre.org/whats-on",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "",
+        "extract_error": "ai/claude_provider.py, _get_client, ExtractionConfigError: ANTHROPIC_API_KEY is not set; refusing to silently return an empty extraction. Configure the key or use the stub provider explicitly.",
+        "outcome": "ok",
+        "status": 200,
+        "url": "https://www.austintheatre.org/film/screenings",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.austintheatre.org/education/programs",
+        "via": "link text"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.austintheatre.org/shows",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.austintheatre.org/schedule",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.austintheatre.org/upcoming",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.austintheatre.org/live",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.austintheatre.org/lineup",
+        "via": "common path (guess)"
+      },
+      {
+        "candidates": 0,
+        "detail": "HTTP 404",
+        "extract_error": "",
+        "outcome": "missing",
+        "status": 404,
+        "url": "https://www.austintheatre.org/events/calendar",
+        "via": "common path (guess)"
+      }
+    ],
+    "skipped": [
+      {
+        "reason": "not an HTML page (file asset or feed)",
+        "url": "https://www.austintheatre.org/2026-season-events.pdf"
+      }
+    ],
+    "source_class": "B",
+    "source_id": "paramount_austin",
+    "start_status": 200,
+    "start_url": "https://www.austintheatre.org/"
+  }
+]

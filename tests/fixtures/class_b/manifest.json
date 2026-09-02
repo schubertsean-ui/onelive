@@ -1,0 +1,81 @@
+{
+  "https://antonesnightclub.com/": {
+    "file": "antones_home.html"
+  },
+  "https://antonesnightclub.com/calendar": {
+    "file": "antones_calendar.html"
+  },
+  "https://antonesnightclub.com/shows": {
+    "file": "antones_shows.html"
+  },
+  "https://continentalclub.com/austin": {
+    "file": "continental_home.html"
+  },
+  "https://continentalclub.com/calendar": {
+    "file": "continental_calendar.html"
+  },
+  "https://continentalclub.com/shows": {
+    "file": "continental_shows.html"
+  },
+  "https://emosaustin.com/": {
+    "file": "emos_home.html"
+  },
+  "https://emosaustin.com/events": {
+    "file": "emos_events.html"
+  },
+  "https://emosaustin.com/upcoming-shows": {
+    "final_url": "https://emosaustin.com/account/login?next=/upcoming-shows",
+    "status": 302
+  },
+  "https://empireatx.com/": {
+    "status": 403
+  },
+  "https://parishaustin.com/": {
+    "file": "parish_home.html"
+  },
+  "https://parishaustin.com/events": {
+    "file": "parish_events.html"
+  },
+  "https://seatgeek.com/": {
+    "file": "seatgeek_home.html"
+  },
+  "https://seatgeek.com/concerts": {
+    "file": "seatgeek_concerts.html"
+  },
+  "https://www.acllive.com/": {
+    "file": "acllive_home.html"
+  },
+  "https://www.acllive.com/events": {
+    "file": "acllive_events.html"
+  },
+  "https://www.austintheatre.org/": {
+    "file": "paramount_home.html"
+  },
+  "https://www.austintheatre.org/calendar": {
+    "file": "paramount_calendar.html"
+  },
+  "https://www.austintheatre.org/events": {
+    "file": "paramount_events.html"
+  },
+  "https://www.austintheatre.org/film/screenings": {
+    "file": "paramount_screenings.html"
+  },
+  "https://www.austintheatre.org/whats-on": {
+    "file": "paramount_whatson.html"
+  },
+  "https://www.stubbsaustin.com/": {
+    "file": "stubbs_home.html"
+  },
+  "https://www.stubbsaustin.com/calendar": {
+    "file": "stubbs_calendar.html"
+  },
+  "https://www.stubbsaustin.com/shows": {
+    "file": "stubbs_shows.html"
+  },
+  "https://www.universe.com/": {
+    "file": "universe_home.html"
+  },
+  "https://www.universe.com/events": {
+    "file": "universe_events.html"
+  }
+}

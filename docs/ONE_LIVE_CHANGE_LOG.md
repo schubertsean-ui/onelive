@@ -4,6 +4,61 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-01 — Class B stops at the door no longer: follow the site's own calendar link
+
+A venue's homepage is marketing copy. The schedule lives one click away, behind
+the link the site itself labels "Events", "Calendar" or "Shows". The ingestion
+loop fetches each registered source's start URL and stops there, so every class
+B source in the catalog has been worth roughly one page of prose.
+
+1. **Discovery** (`worker/sourcing/page_discovery.py`, pure/stdlib, no network,
+   no DB). From HTML we already fetched, three ranked signals: link TEXT that
+   names a schedule (the site's own label), link PATH that names one, and the
+   handful of conventional locations offered last and MARKED as guesses. Each
+   returned page carries the deciding token as evidence. On-page ICS and
+   JSON-LD are read through the existing `worker/importers/structured_feed.py`
+   authority — no second copy of "find the calendar feed".
+
+2. **The walk** (`tools/class_b_multipage.py`). Composes the pieces the armed
+   loop already uses, in the same order: `http_fetch.fetch_url` ->
+   `sensors.assess_input` -> `ai_extract.extract_candidates`. No new importer
+   stack, no new vendor, no new prompt, and no file the armed cron executes was
+   edited. Bounded: <=15 extra pages per source per run, <=6 of them guesses,
+   <=10 sources per run, every ceiling rejected at parse time if <=0.
+
+3. **The wall rule is the load-bearing part.** Off-site links are dropped in
+   discovery, before the fetcher is ever handed the option — an off-site link is
+   a different source with its own catalog row and its own access class. A
+   sign-in URL is dropped the same way. A 401/402/403/407/429, or a redirect
+   landing on a sign-in page, on the start page OR on any followed page demotes
+   the whole source to class D through the existing `demote_on_response`: we
+   stop, record why, and route it to the claim queue. One knock. The tests prove
+   this by asserting the exact set of URLs the tool did NOT request, because a
+   tool that records a wall and keeps knocking would pass a report-shaped
+   assertion and still break the law.
+
+4. **A 404 is a miss, not a wall.** A conventional-path guess that does not
+   exist costs one request and is reported as a miss; the walk continues. One
+   broken URL must never cost a venue's whole calendar.
+
+5. **Extraction is really called, and what it does is reported exactly.**
+   `--extract` runs `worker.ai_extract.extract_candidates` on every
+   extract-ready page, with `--provider` choosing between the two providers
+   that already exist (`claude`, the production extractor; `stub`, the
+   no-model one `worker/run_once.py` uses). A page that cannot extract is
+   reported as one line — file, function, error — and never kills the walk.
+
+HONEST LIMIT, in two halves. STORAGE: proven. Run against a local PostgreSQL 16
+with the 19 committed migrations applied (the `db-integration` job's own setup),
+the path wrote 14 `event_candidate` and 14 `candidate_evidence` rows through the
+real statements. MODEL: not proven. There is no `ANTHROPIC_API_KEY` here, so the
+production provider refuses at `ai/claude_provider.py, _get_client,
+ExtractionConfigError` and the run table's candidate column is 0 with that
+reason printed under it; the 14 rows came from the stub provider and are all
+flagged `source_returned_empty` — rows written, zero events found. Live fetching
+is also unproven: the agent proxy answers `Tunnel connection failed: 403
+Forbidden` for every host. Both gaps are R-084 with objective triggers.
+
 ## 2026-09-01 — Class D opens inward: a claim path that writes E/F at unverified (Coverage Law session 3)
 
 Coverage Law calls a login, paywall, or bot wall a **class D** source and gives
