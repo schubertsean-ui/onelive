@@ -48,6 +48,13 @@ _REAL_PAGE = (
 )
 
 
+def _no_fingerprint(source_id, url, cur=None):  # noqa: ARG001
+    """No crawl history: every page is "changed", so these tests keep pinning
+    the extract/gate path rather than the fair-crawl skip. Hermetic — the real
+    lookup would need a DB."""
+    return None
+
+
 class FakeAIProvider:
     """run_loop's signature requires an `ai` object; extract_candidates is
     faked below so this must never actually be called."""
@@ -106,6 +113,7 @@ def _install_fakes(monkeypatch, tmp_path, *, plain_text_by_source, extracted_tex
         return {}, {"start_times": [], "dedupe_ambiguous": False}
 
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
+    monkeypatch.setattr(orchestrator, "load_door_fingerprint", _no_fingerprint)
     monkeypatch.setattr(orchestrator, "extract_candidates", fake_extract_candidates)
     monkeypatch.setattr(orchestrator, "list_candidate_source_classes", fake_list_candidate_source_classes)
     monkeypatch.setattr(orchestrator, "load_candidate_gate_signals", fake_load_candidate_gate_signals)
@@ -283,6 +291,7 @@ def test_malformed_cap_fails_closed_before_touching_sources(monkeypatch, tmp_pat
         raise AssertionError("no source may be touched when the render budget is unvalidatable")
 
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
+    monkeypatch.setattr(orchestrator, "load_door_fingerprint", _no_fingerprint)
 
     with pytest.raises(ValueError, match="ONELIVE_MAX_RENDERS_PER_RUN"):
         run_loop(ai=FakeAIProvider(), sources=[_source("shell_src")])

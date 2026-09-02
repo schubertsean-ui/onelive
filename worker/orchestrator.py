@@ -6,18 +6,34 @@ runner decorated with trust features later. For each source it drives:
     fetch -> sensors.assess_input -> extract_candidates -> trust_gate3.evaluate_gate
         -> (PASS -> leave ready for ops promote | HOLD/ESCALATE -> needs_review)
 
-Class B multi-page follow (2026-09-02, founder-directed): a venue's registered
-start URL is almost always a HOMEPAGE, and a homepage is marketing copy — the
-schedule lives one click away, behind the link the site itself labels "Events"
-or "Calendar". After the start page runs the pipeline above, a class B source's
-same-site event pages (worker.sourcing.page_discovery, the #204 walker) run the
-SAME pipeline, one page at a time, under two fail-closed ceilings. Three rules
-are load-bearing and stated where they are enforced (_follow_event_pages):
-on-origin only; a wall (401/402/403/407/429 or a sign-in redirect) demotes the
-whole source to class D and ENDS the walk — we knock once; a 404 is a miss, not
-a wall. Following a link buys reach, never trust: every followed page faces the
-same sensor, the same certified extractor and the same gate, and the loop still
-never promotes.
+FAIR CRAWL (2026-09-02, founder-directed: "many sources per wave, few pages
+each"). The earlier multi-page follow let one source walk up to 15 pages and
+spent the run's page budget in source order, so two link-heavy calendars
+consumed the whole run and every source behind them got nothing — a Coverage
+Law defect in scheduler form. Each source now costs AT MOST TWO fetches per
+wave (_run_one_source):
+
+  1. its PRIMARY DOOR — `best_url`, the page that produced the most candidates
+     in the last 30 days (worker.crawl_state), else its registered start URL;
+  2. at most ONE more — the single top-ranked events/calendar/shows page the
+     start page advertises (class B only, worker.sourcing.page_discovery's own
+     evidence ranking), or a fallback to the start URL when the best door has
+     moved.
+
+An unchanged door ends the source for the wave: the previous ETag/Last-Modified
+go out as conditional-GET headers so the server can answer 304, and a server
+with no validators still gets caught by comparing the body's sha256 against the
+last successful raw_fetch row. Either way the extraction — the part that costs
+money (R-043) — is not run.
+
+Three rules are load-bearing and are enforced in ONE place, _knock_door:
+on-origin only (checked before the fetch by discovery, and again on the FINAL
+url after redirects); a wall (401/402/403/407 or a sign-in redirect) demotes
+the source to class D and ends it — we knock once; 429/503 is a BACK-OFF, not
+a wall (worker.crawl_state.BACKOFF_STATUSES — the founder's rule, and the one
+place it differs from source_class.WALL_STATUSES); a 404 is a miss, not a wall.
+Following a link buys reach, never trust: every door faces the same sensor, the
+same certified extractor and the same gate, and the loop still never promotes.
 
 The orchestrator NEVER promotes. Promotion is the publish step and is the one
 place a human/ops decision is mandatory: only an authenticated ops action
@@ -87,6 +103,12 @@ from worker.candidate_store import (
     load_candidate_gate_signals,
     stamp_gate_verdict,
 )
+from worker.crawl_state import (
+    BACKOFF_STATUSES,
+    SourceCrawlState,
+    choose_primary_door,
+    load_door_fingerprint,
+)
 from worker.fetch.http_fetch import fetch_url
 from worker.fetch.render_fetch import RenderError, fetch_with_render, render_html
 from worker.replay_log import ReplayRecord, canonical_digest, log_step, new_run_id
@@ -113,12 +135,31 @@ logger = logging.getLogger(__name__)
 RENDER_CAP_ENV = "ONELIVE_MAX_RENDERS_PER_RUN"
 DEFAULT_MAX_RENDERS_PER_RUN = 5
 
-# Follow-pages budgets (see _resolve_follow_caps). The per-SOURCE default is
-# the walker's own cap, imported rather than restated so the two cannot drift.
+# Follow-pages budgets (see _resolve_follow_caps).
+#
+# FAIR CRAWL (founder, 2026-09-02: "many sources per wave, few pages each").
+# The per-SOURCE ceiling used to be the walker's own cap of 15, and the run
+# budget was spent in source order — so the first two link-heavy calendars
+# consumed all 30 pages and every source behind them got zero. That is a
+# Coverage Law defect in scheduler form, and no amount of budget fixes it:
+# the ceiling has to bind per SOURCE, not per run. It is now ONE door.
+#
+# The knob is a NEW name, not the old one re-pointed: a stale
+# ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE=15 left in some environment would
+# silently restore the unfair walk, and a removed knob cannot do that. The run
+# ceiling stays exactly what it was — the FinOps bound — and must be >= the
+# wave size K, or the tail of a wave loses its door to a budget the head
+# already spent.
 FOLLOW_RUN_CAP_ENV = "ONELIVE_MAX_FOLLOW_PAGES_PER_RUN"
-FOLLOW_SOURCE_CAP_ENV = "ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE"
+DOORS_PER_SOURCE_ENV = "ONELIVE_DOORS_PER_SOURCE"
 DEFAULT_MAX_FOLLOW_PAGES_PER_RUN = 30
-DEFAULT_MAX_FOLLOW_PAGES_PER_SOURCE = DEFAULT_MAX_PAGES
+#: One door per source, per run. The start page is not counted here: a source
+#: costs at most TWO fetches a wave (its primary door, plus one discovered
+#: events/calendar/shows page, or one fallback to its registered start URL).
+#: DEFAULT_MAX_PAGES (the walker's own 15) remains the discovery module's
+#: ceiling for callers that genuinely want a deep walk — tools/class_b_multipage
+#: .py — and is deliberately NOT what the armed loop uses.
+DEFAULT_DOORS_PER_SOURCE = 1
 
 # Greppable, structured marker logged when a source answers an unauthenticated
 # read with a wall (401/402/403/407/429 or a sign-in redirect) and is therefore
@@ -148,6 +189,14 @@ _COUNT_KEYS = (
     "pages_missed",
     "pages_walled",
     "candidates",
+    # Fair crawl. `skipped_unchanged` counts doors whose body the server or
+    # the fingerprint proved identical to the last read — the whole point of
+    # the pass: an unchanged page costs one conditional GET and ZERO AI calls.
+    # `blocked` counts sources a wall (401/403) or a back-off status
+    # (429/503) stopped before any extraction, so "we chose not to read it"
+    # can never be read as "this venue has no events".
+    "skipped_unchanged",
+    "blocked",
 )
 
 # _run_one_source's "not_modified" outcome intentionally does NOT also set
@@ -158,11 +207,24 @@ _COUNT_KEYS = (
 
 @dataclass
 class SourceResult:
+    """One source's outcome, plus the columns the founder's run table prints.
+
+    The report fields default so every existing construction site (including
+    run_loop's error path) stays valid, and so a row always renders — an empty
+    cell in the table means "this source never got that far", never "the
+    number was not tracked".
+    """
+
     source_id: Optional[str]
     source_name: str
     stage_reached: str
     decision: str
     detail: str
+    urls_fetched: List[str] = field(default_factory=list)
+    changed: Optional[bool] = None
+    candidates: int = 0
+    skipped_unchanged: int = 0
+    blocked: str = ""
 
 
 @dataclass
@@ -234,22 +296,27 @@ def _resolve_render_cap() -> int:
 
 
 def _resolve_follow_caps() -> Dict[str, int]:
-    """The follow-pages budgets: per RUN and per SOURCE, both fail-closed.
+    """The follow-pages budgets: DOORS per source and pages per RUN, both
+    fail-closed.
 
     Two ceilings, because they bound two different risks:
 
-    * PER SOURCE (default 15, the founder's number) stops one link-heavy venue
-      from being walked forever. It is the walker's own cap, unchanged.
+    * PER SOURCE (default 1 — the fair-crawl door) is the FAIRNESS bound. It
+      is what stops one link-heavy venue from being walked while the rest of
+      the wave gets nothing. This is the number the founder's rule turns into
+      code: many sources per wave, few pages each.
     * PER RUN is the FinOps bound. Extraction cost is one model call per event
       block per page (R-043), so pages — not sources — are what a run spends.
-      Without a run ceiling, `max_sources x 15` extra pages would multiply the
-      armed cron's worst-case AI spend by sixteen; with it, the worst case is
-      `(max_sources + follow_pages_per_run) x EXTRACT_MAX_EVENTS_PER_PAGE`.
 
-    The run budget is spent in source order, and worker/run_once.py orders
-    sources least-recently-attempted first, so an early source using more of
-    it is not starvation: the next run starts from the sources this one did
-    not reach. Same principle as the source ceiling itself.
+    Why the fairness bound is per SOURCE and not a smarter share of the run
+    budget: a share still has to be spent in some order, and whatever goes
+    first wins. A hard per-source door needs no ordering to be fair, and it is
+    one number a human can check against a run table.
+
+    The run budget must be at least `wave size x doors` or the tail of a wave
+    loses its door to a budget the head already spent — the cron sets both,
+    and worker/run_once.py orders sources least-recently-attempted first, so
+    a source that misses out leads the next wave rather than being dropped.
 
     0 on either knob disables following entirely (a ceiling of 0 means no
     walk, never "uncapped" — the project-wide budget rule).
@@ -258,8 +325,8 @@ def _resolve_follow_caps() -> Dict[str, int]:
         "run_cap": _resolve_budget(
             FOLLOW_RUN_CAP_ENV, DEFAULT_MAX_FOLLOW_PAGES_PER_RUN, "follow-page"),
         "source_cap": _resolve_budget(
-            FOLLOW_SOURCE_CAP_ENV, DEFAULT_MAX_FOLLOW_PAGES_PER_SOURCE,
-            "per-source follow-page"),
+            DOORS_PER_SOURCE_ENV, DEFAULT_DOORS_PER_SOURCE,
+            "per-source door"),
     }
 
 
@@ -303,6 +370,8 @@ def _fetch_with_render_fallback(
     source_id: Optional[str],
     url: str,
     render_state: Dict[str, int],
+    etag: Optional[str] = None,
+    last_modified: Optional[str] = None,
 ) -> Dict[str, Any]:
     """The orchestrator's fetch step: plain fetch + budgeted JS-shell render.
 
@@ -338,6 +407,12 @@ def _fetch_with_render_fallback(
         return fetch_with_render(
             source_id=source_id,
             url=url,
+            # The previous read's cache validators, so a well-behaved server
+            # can answer 304 and send no body at all — the cheapest possible
+            # "nothing changed here". Pass-through only; the decision about
+            # what an unchanged page MEANS is made by _knock_door.
+            etag=etag,
+            last_modified=last_modified,
             # Late-bound module globals on purpose: tests monkeypatch
             # orchestrator.fetch_url / orchestrator.render_html.
             _fetch_fn=fetch_url,
@@ -547,6 +622,254 @@ def _class_verdict_for(source: Dict[str, Any]) -> Any:
         config=source.get("config")))
 
 
+@dataclass
+class DoorOutcome:
+    """What ONE knock on ONE url produced, before any policy is applied.
+
+    A "door" is a URL we are willing to spend a fetch on: a source's best
+    known door, its registered start URL, or the single events/calendar page
+    its start page advertises. Every knock ends in exactly one `kind`, and the
+    caller — not this function — decides what that means for the source:
+
+      changed   the body is new; `text` is ready for sensor -> extract -> gate.
+      unchanged the server said 304, or the body hashes to what we already
+                read. Nothing to extract; the AI call is SAVED, not skipped
+                by guesswork.
+      wall      401/402/403/407 or a sign-in redirect: class D, we knock once.
+      backoff   429/503: "slow down", not "you are not invited" (see
+                crawl_state.BACKOFF_STATUSES for why these two differ).
+      offsite   a 200 that arrived from another site; a different source.
+      missed    404, 5xx, timeout, DNS — a broken page, not a closed door.
+                `error` carries the original exception so a caller that has
+                no fallback can re-raise it unchanged.
+    """
+
+    url: str
+    kind: str
+    detail: str = ""
+    text: str = ""
+    content_type: Optional[str] = None
+    final_url: str = ""
+    verdict: Any = None
+    error: Optional[BaseException] = None
+
+
+def _wall_observed(before: Any, after: Any) -> bool:
+    """Did THIS RESPONSE reveal a wall — as opposed to the catalog already
+    having declared the source closed?
+
+    demote_on_response's documented contract is "returns `verdict` unchanged
+    when nothing wall-like was seen", so a changed object IS the observation.
+    Reading `after.is_closed_door` instead would be a coverage bug with teeth:
+    264 of 266 enabled rows declare no access posture at all and therefore
+    classify D before any fetch happens, so that test would refuse to read
+    almost the entire catalog on the strength of a missing config field.
+    Following is gated on the declared class (see _class_verdict_for); FETCHING
+    never is.
+    """
+    return after is not before
+
+
+def _knock_door(
+    *,
+    run_id: str,
+    source_id: Optional[str],
+    source_name: str,
+    url: str,
+    start_url: str,
+    verdict: Any,
+    render_state: Dict[str, int],
+    follow: bool,
+) -> DoorOutcome:
+    """Fetch ONE url and classify the answer. The single knock in the loop.
+
+    Every fetch the ingest path makes goes through here — start page, best
+    door, followed page alike — so "what counts as a wall", "what counts as
+    unchanged" and "did we land where we aimed" have exactly one definition
+    each. Before this, the start page had no wall classification at all (a 403
+    surfaced as a generic per-source error) and no change detection (every run
+    re-extracted an identical page).
+
+    Two facts make the unchanged path real, and they are complementary:
+      * CONDITIONAL GET — the previous ETag/Last-Modified go out as
+        If-None-Match / If-Modified-Since, so a well-behaved server answers
+        304 and sends no body at all.
+      * BODY FINGERPRINT — a server with no validators still sends bytes, and
+        those bytes hash to the same sha256 the last successful raw_fetch row
+        stored. Comparing them costs nothing and saves the extraction, which
+        is where the money is (R-043: one model call per event block).
+
+    The fingerprint read is fail-OPEN on availability and closed on trust: if
+    the lookup itself errors, we treat the page as changed and extract it. A
+    lost optimisation costs one extraction; a lost page costs a venue's whole
+    calendar, and Coverage Law is explicit about which of those is the defect.
+    """
+    stage_fetch = "follow_fetch" if follow else "fetch"
+    fingerprint = None
+    try:
+        fingerprint = load_door_fingerprint(source_id, url)
+    except Exception as exc:  # noqa: BLE001 — an optimisation must never lose a page
+        logger.warning(
+            "fingerprint lookup failed for %s (%s) — treating the page as "
+            "changed and extracting it; coverage beats the saved call.",
+            url, exc,
+        )
+
+    try:
+        fetch_result = _fetch_with_render_fallback(
+            source_id=source_id, url=url, render_state=render_state,
+            etag=fingerprint.etag if fingerprint else None,
+            last_modified=fingerprint.last_modified if fingerprint else None,
+        )
+    except Exception as exc:  # noqa: BLE001 — classified here, never swallowed
+        status, exc_final_url = wall_signals_from_exception(exc)
+        if status in BACKOFF_STATUSES:
+            # "Slow down" is not "you are not invited". The source keeps its
+            # declared class; worker/crawl_state.py's fail-streak backoff is
+            # what makes the next knock later instead of sooner.
+            detail = f"HTTP {status} — backing off, class unchanged"
+            log_step(ReplayRecord(
+                run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+                source_name=source_name, stage=stage_fetch,
+                inputs_digest=canonical_digest({"url": url}),
+                outputs_digest=canonical_digest({"status": status}),
+                decision="backoff", detail=detail,
+            ))
+            return DoorOutcome(url=url, kind="backoff", detail=detail, error=exc)
+        walled = demote_on_response(
+            verdict, status=status, final_url=exc_final_url, error=str(exc))
+        if _wall_observed(verdict, walled):
+            logger.warning(
+                "%s source=%s url=%s reason=%s",
+                CLASS_D_WALL_MARKER, source_name, url, walled.reason,
+            )
+            log_step(ReplayRecord(
+                run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+                source_name=source_name,
+                stage="follow_wall" if follow else "wall",
+                inputs_digest=canonical_digest({"url": url}),
+                outputs_digest=canonical_digest({"source_class": walled.source_class}),
+                decision="class_d", detail=walled.reason,
+            ))
+            return DoorOutcome(url=url, kind="wall", detail=walled.reason,
+                               verdict=walled, error=exc)
+        log_step(ReplayRecord(
+            run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+            source_name=source_name,
+            stage="follow_fetch" if follow else "fetch",
+            inputs_digest=canonical_digest({"url": url}),
+            outputs_digest=canonical_digest({"error": str(exc)}),
+            decision="missed", detail=f"{type(exc).__name__}: {exc}",
+        ))
+        return DoorOutcome(url=url, kind="missed",
+                           detail=f"{type(exc).__name__}: {exc}", error=exc)
+
+    if not follow:
+        # The start-page replay entry, with its original shape preserved (the
+        # render fields are an extension of the same record, not a new one).
+        fetch_outputs: Dict[str, Any] = {
+            "status": fetch_result.get("status"),
+            "rendered": bool(fetch_result.get("rendered")),
+        }
+        if fetch_result.get("rendered"):
+            fetch_outputs["plain_shell_reason"] = fetch_result.get("plain_shell_reason")
+        if fetch_result.get("render_error"):
+            fetch_outputs["render_error"] = fetch_result.get("render_error")
+        fetch_detail = str(fetch_result.get("status"))
+        if fetch_result.get("rendered"):
+            fetch_detail += (
+                " (js-shell rendered via headless browser; plain fetch was: "
+                f"{fetch_result.get('plain_shell_reason')})"
+            )
+        elif fetch_result.get("render_error"):
+            fetch_detail += (
+                " (render fallback unavailable, proceeding un-rendered: "
+                f"{fetch_result.get('render_error')})"
+            )
+        log_step(ReplayRecord(
+            run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+            source_name=source_name, stage="fetch",
+            inputs_digest=canonical_digest({"url": url}),
+            outputs_digest=canonical_digest(fetch_outputs),
+            decision=fetch_result.get("status", "unknown"), detail=fetch_detail,
+        ))
+
+    if fetch_result.get("status") == "not_modified":
+        return DoorOutcome(url=url, kind="unchanged",
+                           detail="304 Not Modified — the server says the body is unchanged")
+
+    # WHERE DID WE ACTUALLY LAND? (evaluator finding, PR #205 r1.) The caller
+    # decided this URL was same-site and not a sign-in surface BEFORE the
+    # fetch. requests follows redirects, so a 200 OK can come back from
+    # somewhere else entirely — an off-origin ticketing host, or the venue's
+    # login page. Re-checking the FINAL url is the difference between "we read
+    # the venue's own calendar" and "we read a page we never classified and
+    # attributed it to the venue".
+    final_url = fetch_result.get("final_url") or url
+    landed = demote_on_response(verdict, final_url=final_url)
+    if _wall_observed(verdict, landed):
+        logger.warning(
+            "%s source=%s url=%s reason=%s",
+            CLASS_D_WALL_MARKER, source_name, final_url, landed.reason,
+        )
+        log_step(ReplayRecord(
+            run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+            source_name=source_name, stage="follow_wall" if follow else "wall",
+            inputs_digest=canonical_digest({"url": url, "final_url": final_url}),
+            outputs_digest=canonical_digest({"source_class": landed.source_class}),
+            decision="class_d", detail=landed.reason,
+        ))
+        return DoorOutcome(url=url, kind="wall", detail=landed.reason,
+                           final_url=final_url, verdict=landed)
+    if url != start_url and not same_site(final_url, start_url):
+        # NOT a wall — the site simply sent us somewhere else, and that
+        # somewhere is a DIFFERENT source with its own catalog row, class and
+        # access posture. Drop the page rather than extract it here.
+        #
+        # The `url != start_url` guard is load-bearing (Coverage Law: the
+        # catalog is greedy). A source's REGISTERED start URL defines its
+        # origin, so it cannot violate it — a catalog row that 301s to another
+        # host is simply where that source lives, and refusing it would delete
+        # rows we legally saw. The rule binds every door we CHOSE: a
+        # remembered best_url and every followed page.
+        logger.warning(
+            "door %s redirected off-site to %s — not extracted "
+            "(an off-site page is a different source, never this one's)",
+            url, final_url,
+        )
+        log_step(ReplayRecord(
+            run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+            source_name=source_name, stage="follow_offsite" if follow else "offsite",
+            inputs_digest=canonical_digest({"url": url}),
+            outputs_digest=canonical_digest({"final_url": final_url}),
+            decision="offsite_redirect",
+            detail=f"landed on {final_url}, which is not the start URL's site",
+        ))
+        return DoorOutcome(url=url, kind="offsite", final_url=final_url,
+                           detail=f"landed off-site on {final_url}")
+
+    if fingerprint is not None and fingerprint.unchanged(fetch_result.get("content_hash")):
+        detail = (
+            f"body fingerprint unchanged ({fingerprint.content_hash[:12]}...) — "
+            "extraction skipped, nothing new to read"
+        )
+        log_step(ReplayRecord(
+            run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+            source_name=source_name,
+            stage="follow_fingerprint" if follow else "fingerprint",
+            inputs_digest=canonical_digest({"url": url}),
+            outputs_digest=canonical_digest({"content_hash": fetch_result.get("content_hash")}),
+            decision="unchanged", detail=detail,
+        ))
+        return DoorOutcome(url=url, kind="unchanged", detail=detail, final_url=final_url)
+
+    return DoorOutcome(
+        url=url, kind="changed", final_url=final_url,
+        text=fetch_result.get("text") or "",
+        content_type=fetch_result.get("content_type"),
+    )
+
+
 def _follow_event_pages(
     *,
     run_id: str,
@@ -556,27 +879,27 @@ def _follow_event_pages(
     start_url: str,
     start_html: str,
     follow_state: Dict[str, int],
+    verdict: Any,
 ) -> Dict[str, Any]:
-    """Walk the same-site event pages the start page advertises (#204's walker,
-    now inside the armed loop).
+    """Knock on the ONE best event page the start page advertises (#204's
+    walker, inside the armed loop, now bounded to the fair-crawl door).
 
-    Returns a summary dict: how many pages were followed, what they produced,
-    and — if the source hit a wall — the class-D reason that stopped the walk.
+    Returns a summary dict: which door was tried, what it produced, and — if
+    the source hit a wall — the class-D reason that stopped it.
 
-    Rules that cannot be relaxed here (Coverage Law):
-      * ON-ORIGIN ONLY, checked TWICE. page_discovery drops every off-site
-        link before this function can see it; and because a same-origin link
-        can still answer 200 from somewhere else after redirects, the FINAL
-        url of every successful fetch is re-checked before its text reaches
-        the extractor. An off-site page is a different source with its own
-        catalog row and its own access posture, and it must never be ingested
-        under this source's name.
-      * A WALL ENDS THE SOURCE. 401/402/403/407/429, or a redirect landing on
-        a sign-in URL, on any followed page demotes the whole source to class
-        D through the existing demote_on_response: we stop, record why, and
-        log the greppable marker ops sweeps into the claim queue. We knock
-        once. A 404 is a miss, not a wall, and the walk continues.
-      * BOUNDED. Per-source and per-run ceilings, both fail-closed.
+    Rules that cannot be relaxed here (Coverage Law), all now enforced in
+    _knock_door so there is one copy of each:
+      * ON-ORIGIN ONLY, checked TWICE — page_discovery drops every off-site
+        link before this function sees it, and the FINAL url of every
+        successful fetch is re-checked before its text reaches the extractor.
+      * A WALL ENDS THE SOURCE. We knock once. A 404 is a miss, not a wall.
+      * BOUNDED. Per-source doors and a per-run page ceiling, both fail-closed.
+
+    `discover_event_pages` returns its pages evidence-ranked (link text the
+    site itself wrote, then event-shaped URL paths, then conventional
+    guesses), so asking it for `limit=1` IS "the scored events/calendar/shows
+    path" — the ranking already exists and a second scorer here would be a
+    second definition of what a schedule link looks like.
     """
     source_id = source.get("source_id")
     source_name = source["name"]
@@ -584,9 +907,9 @@ def _follow_event_pages(
     summary: Dict[str, Any] = {
         "followed": 0, "extracted": 0, "missed": 0, "walled": False,
         "candidates": 0, "blocked_reason": "", "discovered": 0,
+        "unchanged": 0, "urls": [],
     }
 
-    verdict = _class_verdict_for(source)
     if verdict.source_class != CLASS_B_PUBLIC_HTML:
         summary["blocked_reason"] = (
             f"not followed: catalog class {verdict.source_class} — {verdict.reason}")
@@ -613,7 +936,7 @@ def _follow_event_pages(
         }),
         decision="discovered",
         detail=(f"{len(discovery.pages)} same-site event page(s) advertised; "
-                f"budget {budget}"),
+                f"door budget {budget}"),
     ))
     if not discovery.pages:
         summary["blocked_reason"] = "no same-site event page advertised by the start page"
@@ -626,101 +949,35 @@ def _follow_event_pages(
                 f"({FOLLOW_RUN_CAP_ENV}={follow_state['run_cap']})")
             break
         follow_state["remaining"] -= 1
-        try:
-            fetch_result = _fetch_with_render_fallback(
-                source_id=source_id, url=page.url, render_state=follow_state["render_state"],
-            )
-        except Exception as exc:  # noqa: BLE001 — classified below, never swallowed
+        summary["urls"].append(page.url)
+        door = _knock_door(
+            run_id=run_id, source_id=source_id, source_name=source_name,
+            url=page.url, start_url=start_url, verdict=verdict,
+            render_state=follow_state["render_state"], follow=True,
+        )
+        if door.kind == "wall":
             # Narrowed isolation, deliberately: one broken sub-page must not
             # cost the rest of a venue's calendar, and a WALL must not be lost
             # as a generic error — that distinction is the whole class-D rule.
-            status, final_url = wall_signals_from_exception(exc)
-            walled = demote_on_response(
-                verdict, status=status, final_url=final_url, error=str(exc))
-            if walled.is_closed_door:
-                summary["walled"] = True
-                summary["blocked_reason"] = f"{walled.reason} (at {page.url})"
-                logger.warning(
-                    "%s source=%s url=%s reason=%s",
-                    CLASS_D_WALL_MARKER, source_name, page.url, walled.reason,
-                )
-                log_step(ReplayRecord(
-                    run_id=run_id, ts=_now_iso(), source_id=str(source_id),
-                    source_name=source_name, stage="follow_wall",
-                    inputs_digest=canonical_digest({"url": page.url}),
-                    outputs_digest=canonical_digest({"source_class": walled.source_class}),
-                    decision="class_d", detail=walled.reason,
-                ))
-                return summary
-            summary["missed"] += 1
-            log_step(ReplayRecord(
-                run_id=run_id, ts=_now_iso(), source_id=str(source_id),
-                source_name=source_name, stage="follow_fetch",
-                inputs_digest=canonical_digest({"url": page.url}),
-                outputs_digest=canonical_digest({"error": str(exc)}),
-                decision="missed", detail=f"{type(exc).__name__}: {exc}",
-            ))
-            continue
-
-        if fetch_result.get("status") == "not_modified":
-            summary["missed"] += 1
-            continue
-
-        # WHERE DID WE ACTUALLY LAND? (evaluator finding, PR #205 r1.)
-        # Discovery decided this URL was same-site and not a sign-in surface
-        # BEFORE the fetch. requests follows redirects, so a 200 OK can come
-        # back from somewhere else entirely — an off-origin ticketing host, or
-        # the venue's login page. Re-checking the FINAL url is the difference
-        # between "we read the venue's own calendar" and "we read a page we
-        # never classified and attributed it to the venue".
-        final_url = fetch_result.get("final_url") or page.url
-        landed = demote_on_response(verdict, final_url=final_url)
-        if landed.is_closed_door:
-            # A sign-in page reached by redirect is the same wall as a sign-in
-            # page reached by status: the source is class D and the walk ends.
             summary["walled"] = True
-            summary["blocked_reason"] = f"{landed.reason} (following {page.url})"
-            logger.warning(
-                "%s source=%s url=%s reason=%s",
-                CLASS_D_WALL_MARKER, source_name, final_url, landed.reason,
-            )
-            log_step(ReplayRecord(
-                run_id=run_id, ts=_now_iso(), source_id=str(source_id),
-                source_name=source_name, stage="follow_wall",
-                inputs_digest=canonical_digest({"url": page.url, "final_url": final_url}),
-                outputs_digest=canonical_digest({"source_class": landed.source_class}),
-                decision="class_d", detail=landed.reason,
-            ))
+            summary["blocked_reason"] = f"{door.detail} (at {page.url})"
             return summary
-        if not same_site(final_url, start_url):
-            # NOT a wall — the site simply sent us somewhere else, and that
-            # somewhere is a DIFFERENT source with its own catalog row, class
-            # and access posture. Drop the page rather than extract it here;
-            # the walk continues, because one outbound redirect says nothing
-            # about the venue's other pages.
+        if door.kind == "backoff":
+            summary["blocked_reason"] = f"{door.detail} (at {page.url})"
+            return summary
+        if door.kind == "unchanged":
+            summary["unchanged"] += 1
+            continue
+        if door.kind in ("missed", "offsite"):
             summary["missed"] += 1
-            logger.warning(
-                "follow page %s redirected off-site to %s — not extracted "
-                "(an off-site page is a different source, never this one's)",
-                page.url, final_url,
-            )
-            log_step(ReplayRecord(
-                run_id=run_id, ts=_now_iso(), source_id=str(source_id),
-                source_name=source_name, stage="follow_offsite",
-                inputs_digest=canonical_digest({"url": page.url}),
-                outputs_digest=canonical_digest({"final_url": final_url}),
-                decision="offsite_redirect",
-                detail=f"landed on {final_url}, which is not the start URL's site",
-            ))
             continue
 
         summary["followed"] += 1
-        text = fetch_result.get("text", "")
         try:
             page_outcome = _process_fetched_page(
                 run_id=run_id, ai=ai, source_id=source_id, source_name=source_name,
                 page_url=page.url, source_class=source_class, sxsw_mode=sxsw_mode,
-                text=text, content_type=fetch_result.get("content_type"),
+                text=door.text, content_type=door.content_type,
             )
         except Exception as exc:  # noqa: BLE001 — reported per page, never fatal
             summary["missed"] += 1
@@ -750,91 +1007,157 @@ def _run_one_source(
     render_state: Dict[str, int],
     follow_state: Dict[str, Any],
 ) -> tuple[SourceResult, Dict[str, int]]:
-    """Drive a single source through fetch -> sensor -> extract -> gate3, then
-    follow the same-site event pages its start page advertises (class B only).
+    """Drive ONE source through at most TWO doors: fetch -> sensor -> extract
+    -> gate3 on each.
+
+    Fair crawl (founder, 2026-09-02). The doors, in order:
+
+      1. THE PRIMARY DOOR — the source's `best_url` (the page that produced
+         the most candidates in the last 30 days), else its registered start
+         URL. Going straight to the door that works is why a source costs one
+         fetch in the steady state instead of a homepage plus a walk.
+      2. AT MOST ONE MORE — either the single top-ranked events/calendar/shows
+         page the start page advertises (class B only), or, when the best_url
+         itself 404s/times out, a fallback to the registered start URL so a
+         moved calendar re-discovers itself on the very next run instead of
+         quietly costing the source its coverage.
+
+    An unchanged primary door ENDS the source for this wave: 304 or an
+    identical body hash means there is nothing new behind it, and spending the
+    second door to prove that again is the waste this pass removes.
 
     Returns (SourceResult, counts) where counts is this source's DELTA on the
-    RunReport buckets — every stage it reached, not a single terminal bucket,
-    so counts reflect real throughput at every stage rather than only the
-    final outcome (a source that fetches, extracts and then holds at the gate
-    contributes fetched=1, extracted=1, held=1, plus whatever its followed
-    pages produced). A PASS stops at "ready_to_promote": the loop never
-    publishes.
+    RunReport buckets — every stage it reached, not a single terminal bucket.
+    A PASS stops at "ready_to_promote": the loop never publishes.
 
-    Any exception raised by a START-PAGE step in here is treated as a
-    per-source transient failure by the caller (run_loop) and is intentionally
-    NOT caught inside this function — the caller is the single place that
-    decides isolation vs. abort, so that policy lives in exactly one spot.
-    The follow phase narrows that policy to one page (a broken sub-page must
-    not cost the rest of a venue's calendar) and says so where it does it.
+    Any exception from a start-page step is still treated as a per-source
+    transient failure by the caller (run_loop) and is NOT caught here — the
+    caller is the single place that decides isolation vs. abort. A door that
+    misses (404/5xx/timeout) with no fallback left re-raises the ORIGINAL
+    exception so that policy, and the error text ops reads, are unchanged.
     """
     source_id = source.get("source_id")
     source_name = source["name"]
-    url = source["url"]
+    start_url = source["url"]
     source_class = source["source_class"]
 
-    fetch_result = _fetch_with_render_fallback(
-        source_id=source_id, url=url, render_state=render_state,
+    verdict = _class_verdict_for(source)
+    state: Optional[SourceCrawlState] = source.get("crawl_state")
+    primary_url = choose_primary_door(
+        start_url=start_url,
+        best_url=state.best_url if state else None,
+        same_site_fn=same_site,
     )
-    # Replay fetch entry: the original fields are all preserved; the render
-    # outcome EXTENDS the payload so the audit trail records whether the text
-    # handed onward is the plain fetch or a headless re-render (and, on a
-    # failed/refused render, why the plain text proceeded anyway).
-    fetch_outputs: Dict[str, Any] = {
-        "status": fetch_result.get("status"),
-        "rendered": bool(fetch_result.get("rendered")),
-    }
-    if fetch_result.get("rendered"):
-        fetch_outputs["plain_shell_reason"] = fetch_result.get("plain_shell_reason")
-    if fetch_result.get("render_error"):
-        fetch_outputs["render_error"] = fetch_result.get("render_error")
-    fetch_detail = str(fetch_result.get("status"))
-    if fetch_result.get("rendered"):
-        fetch_detail += (
-            " (js-shell rendered via headless browser; plain fetch was: "
-            f"{fetch_result.get('plain_shell_reason')})"
-        )
-    elif fetch_result.get("render_error"):
-        fetch_detail += (
-            " (render fallback unavailable, proceeding un-rendered: "
-            f"{fetch_result.get('render_error')})"
-        )
-    log_step(ReplayRecord(
-        run_id=run_id, ts=_now_iso(), source_id=str(source_id), source_name=source_name,
-        stage="fetch", inputs_digest=canonical_digest({"url": url}),
-        outputs_digest=canonical_digest(fetch_outputs),
-        decision=fetch_result.get("status", "unknown"), detail=fetch_detail,
-    ))
+    urls: List[str] = [primary_url]
 
-    if fetch_result.get("status") == "not_modified":
+    door = _knock_door(
+        run_id=run_id, source_id=source_id, source_name=source_name,
+        url=primary_url, start_url=start_url, verdict=verdict,
+        render_state=render_state, follow=False,
+    )
+    doors_spent = 0
+    if door.kind == "missed" and primary_url != start_url:
+        # The remembered door is gone (moved calendar, retired path). Spend
+        # the second door on the registered start URL rather than losing the
+        # source for the wave — best_url is a shortcut, never a commitment.
+        logger.warning(
+            "best door %s missed (%s) — falling back to the registered start "
+            "URL %s", primary_url, door.detail, start_url,
+        )
+        doors_spent = 1
+        urls.append(start_url)
+        primary_url = start_url
+        door = _knock_door(
+            run_id=run_id, source_id=source_id, source_name=source_name,
+            url=start_url, start_url=start_url, verdict=verdict,
+            render_state=render_state, follow=False,
+        )
+
+    if door.kind == "unchanged":
         return (
-            SourceResult(source_id, source_name, "fetch", "not_modified", "content unchanged since last fetch"),
-            {"not_modified": 1},
+            SourceResult(
+                source_id, source_name, "fetch", "not_modified", door.detail,
+                urls_fetched=urls, changed=False, skipped_unchanged=1,
+            ),
+            # A 304 keeps its own historical bucket (no bytes were newly
+            # fetched); an identical body DID cost a fetch, so it counts as
+            # fetched. Both are skipped_unchanged — that is the money bucket.
+            {"skipped_unchanged": 1,
+             **({"not_modified": 1} if door.detail.startswith("304")
+                else {"fetched": 1})},
         )
 
-    # fetch_with_render already decoded (or rendered) the text; on any 'ok'
-    # result the key is always present. Rendered or not, it faces the same
-    # sensor below — a render buys readability, never trust.
-    text = fetch_result["text"]
+    if door.kind in ("wall", "backoff"):
+        blocked = ("class D — closed door" if door.kind == "wall"
+                   else "rate-limited — backing off")
+        return (
+            SourceResult(
+                source_id, source_name, "fetch", door.kind, door.detail,
+                urls_fetched=urls, blocked=f"{blocked}: {door.detail}",
+            ),
+            # `blocked` only. pages_walled counts FOLLOWED pages that hit a
+            # wall; a start-page wall is not a followed page, and merging the
+            # two would make "the walk hit a wall" unreadable.
+            {"blocked": 1},
+        )
+
+    if door.kind in ("missed", "offsite"):
+        # No fallback left. Re-raise the ORIGINAL exception so run_loop's
+        # per-source isolation records exactly what it always did; an off-site
+        # landing has no exception, so it is reported as this source's error.
+        if door.error is not None:
+            raise door.error
+        raise RuntimeError(door.detail)
+
     page = _process_fetched_page(
         run_id=run_id, ai=ai, source_id=source_id, source_name=source_name,
-        page_url=url, source_class=source_class, sxsw_mode=sxsw_mode,
-        text=text, content_type=fetch_result.get("content_type"),
+        page_url=primary_url, source_class=source_class, sxsw_mode=sxsw_mode,
+        text=door.text, content_type=door.content_type,
     )
 
     if page.decision == "sensor_rejected":
-        # The start page told us nothing readable, so there is no markup to
-        # discover follow pages FROM. Unchanged behaviour, stated: the walk
-        # reads the fetched page's own links, it never guesses without one.
+        # The page told us nothing readable, so there is no markup to discover
+        # a second door FROM. Unchanged behaviour, stated: the walk reads the
+        # fetched page's own links, it never guesses without one.
         return (
-            SourceResult(source_id, source_name, "sensor", "sensor_rejected", page.detail),
+            SourceResult(
+                source_id, source_name, "sensor", "sensor_rejected", page.detail,
+                urls_fetched=urls, changed=True,
+            ),
             {"fetched": 1, "sensor_rejected": 1},
         )
 
-    follow = _follow_event_pages(
-        run_id=run_id, ai=ai, source=source, sxsw_mode=sxsw_mode,
-        start_url=url, start_html=text, follow_state=follow_state,
-    )
+    # THE SECOND DOOR — spent only when there is something to discover it
+    # from, and only if it has not already been spent. Two ways it is skipped:
+    #
+    #   * the best door already worked. Discovery would spend the fetch on a
+    #     conventional-path GUESS (/calendar, /shows) beside a page we KNOW
+    #     produces candidates. That is precisely the waste this pass removes,
+    #     and the guess is not lost: it is what the next wave tries if the best
+    #     door stops producing.
+    #   * the fallback already used it, after the best door missed.
+    #
+    # Either way: <= 2 fetches per source per wave, always.
+    if doors_spent == 0 and primary_url == start_url:
+        follow = _follow_event_pages(
+            run_id=run_id, ai=ai, source=source, sxsw_mode=sxsw_mode,
+            start_url=primary_url, start_html=door.text,
+            follow_state=follow_state, verdict=verdict,
+        )
+    else:
+        follow = {
+            "followed": 0, "extracted": 0, "missed": 0, "walled": False,
+            "candidates": 0, "discovered": 0, "unchanged": 0, "urls": [],
+            "blocked_reason": (
+                "second door spent on the start-URL fallback after the best "
+                "door missed — one door per source per wave"
+                if doors_spent else
+                "not discovered: the remembered best door answered, and a "
+                "guessed path beside a working one is the fetch this pass "
+                "exists to save"),
+        }
+    urls.extend(follow["urls"])
+
     counts: Dict[str, int] = {
         "fetched": 1,
         "extracted": 1,
@@ -843,12 +1166,14 @@ def _run_one_source(
         "pages_extracted": follow["extracted"],
         "pages_missed": follow["missed"],
         "pages_walled": 1 if follow["walled"] else 0,
+        "skipped_unchanged": follow["unchanged"],
     }
     detail = page.detail
-    if follow["followed"] or follow["blocked_reason"]:
+    if follow["followed"] or follow["blocked_reason"] or follow["unchanged"]:
         detail += (
-            f" | follow: {follow['followed']} page(s) followed, "
+            f" | door: {follow['followed']} page(s) fetched, "
             f"{follow['candidates']} candidate(s)"
+            + (f", {follow['unchanged']} unchanged" if follow["unchanged"] else "")
             + (f"; {follow['blocked_reason']}" if follow["blocked_reason"] else "")
         )
 
@@ -856,9 +1181,55 @@ def _run_one_source(
                 "ready_to_promote": "passed"}[page.decision]
     counts[terminal] = counts.get(terminal, 0) + 1
     return (
-        SourceResult(source_id, source_name, "gate3", page.decision, detail),
+        SourceResult(
+            source_id, source_name, "gate3", page.decision, detail,
+            urls_fetched=urls, changed=True,
+            candidates=page.candidates + follow["candidates"],
+            skipped_unchanged=follow["unchanged"],
+            blocked=follow["blocked_reason"] if follow["walled"] else "",
+        ),
         counts,
     )
+
+
+
+def render_run_table(report: "RunReport") -> str:
+    """The founder's run table, one row per source attempted.
+
+        source | url fetched | changed? | candidates | skipped-unchanged | blocked
+
+    Printed by worker/run_once.py after every real run, and by the fixture
+    tests, because the point of fair crawl is a claim about DISTRIBUTION —
+    many sources, few pages each — and a counts dict cannot show distribution.
+    A blank `blocked` cell means nothing stopped this source; "0" candidates
+    with an empty blocked cell means we read the page and it advertised no
+    events, which is a different fact from "we never got in" (Operating Law:
+    a 403 is triage, not "this venue has no events").
+
+    Pure formatting over the report the loop already built — it queries
+    nothing and decides nothing, so printing it can never change a run.
+    """
+    header = ("source", "url fetched", "changed?", "candidates",
+              "skipped-unchanged", "blocked")
+    rows = [header]
+    for r in report.results:
+        changed = "-" if r.changed is None else ("yes" if r.changed else "no")
+        rows.append((
+            r.source_name,
+            " ".join(r.urls_fetched) if r.urls_fetched else "-",
+            changed,
+            str(r.candidates),
+            str(r.skipped_unchanged),
+            r.blocked or "",
+        ))
+    widths = [max(len(row[i]) for row in rows) for i in range(len(header))]
+    out = [" | ".join(cell.ljust(widths[i]) for i, cell in enumerate(rows[0])).rstrip(),
+           "-+-".join("-" * w for w in widths)]
+    for row in rows[1:]:
+        out.append(" | ".join(cell.ljust(widths[i]) for i, cell in enumerate(row)).rstrip())
+    return "\n".join(out)
+
+
 def run_loop(
     *,
     ai: AIProvider,

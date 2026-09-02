@@ -134,25 +134,49 @@ def test_run_real_wires_rotation_before_the_cap(monkeypatch):
     never = _row("never", None)
 
     class _Cursor:
+        """Serves BOTH reads _run_real makes on one cursor: the enabled-source
+        rows, and worker.crawl_state's derived per-source crawl state. The
+        crawl-state rows say every source is stale enough to be due, so this
+        test keeps pinning ORDER (the thing it was written for) and not
+        due-ness (pinned separately in tests/test_crawl_state.py)."""
+
+        def __init__(self):
+            self._rows = []
+
         def __enter__(self):
             return self
 
         def __exit__(self, *exc):
             return False
 
-        def execute(self, sql):
+        def execute(self, sql, params=None):  # noqa: ARG002
+            if "fail_streak" in sql:
+                # (source_id, last_attempt_at, last_success_at, fail_streak,
+                #  best_url) — long ago, so every source is due.
+                long_ago = _dt.datetime(2020, 1, 1, tzinfo=_TZ)
+                self._rows = [(r[0], long_ago, long_ago, 0, None)
+                              for r in (fresh, stale, never)]
+                return
             assert "last_fetched_at" in sql  # the rotation column is queried
+            self._rows = [fresh, stale, never]  # deliberately freshest-first
 
         def fetchall(self):
-            return [fresh, stale, never]  # deliberately freshest-first
+            return self._rows
 
     class _Conn:
+        def __init__(self):
+            self._cursor = _Cursor()
+
         def cursor(self):
-            return _Cursor()
+            # ONE cursor for the whole `with` block, so the second read sees a
+            # live object exactly as psycopg2 would.
+            return self._cursor
+
+    conn = _Conn()
 
     @contextlib.contextmanager
     def _fake_db():
-        yield _Conn()
+        yield conn
 
     captured = {}
 

@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ai.bedrock_provider import BedrockProvider
-from worker.orchestrator import run_loop
+from worker.crawl_state import DEFAULT_SOURCES_PER_WAVE, due_source_ids
+from worker.orchestrator import render_run_table, run_loop
 from worker.sentinel import deadman, init_sentry
 
 class TotalRunFailure(RuntimeError):
@@ -70,6 +71,21 @@ def enforce_useful_work(counts: dict, attempted: int) -> None:
             "%d of %d source(s) errored this run — run succeeds because other "
             "sources progressed; per-source detail is in the RunReport and "
             "the replay log.", errors, attempted,
+        )
+    blocked = counts.get("blocked", 0)
+    if attempted and blocked >= attempted:
+        # LOUD, but NOT a failure. A wall (401/403) or a back-off (429/503) is
+        # a classified outcome routed to the claim queue — the catalog telling
+        # us something true — not the harness being broken, which is what
+        # TotalRunFailure and the dead-man alarm exist to catch. Failing the
+        # cron on a wave that legitimately hit walled sources would train the
+        # founder to ignore the alarm, and that costs more than this wave did.
+        logger.warning(
+            "every one of the %d source(s) in this wave was blocked (wall or "
+            "back-off) — no extraction ran. The run is a SUCCESS: each block is "
+            "classified and logged (grep INGEST_WALL_OBSERVED_CLASS_D for the "
+            "claim queue). If this repeats across waves, the catalog's access "
+            "postures are the thing to look at, not the loop.", attempted,
         )
 
 
@@ -175,6 +191,41 @@ def order_for_rotation(rows: Sequence[tuple]) -> list:
 # bucket element of the key above guarantees it is never compared against a
 # real timestamp — it only ties with itself, then source_id breaks the tie.
 _NEVER_FETCHED_SENTINEL = 0
+
+
+def take_due_wave(sources, states, cap, now=None):
+    """The next K DUE sources, in the rotation order `sources` already carries.
+
+    This is the fair-crawl wave (founder, 2026-09-02): "take the next K due
+    sources by cursor (round-robin), not whoever has the most pages."
+
+    Two separate jobs, kept separate on purpose:
+      * THE CURSOR decides the ORDER — order_for_rotation above, least
+        recently attempted first. It is the schedule.
+      * DUE-NESS only REMOVES — a source that failed and is backing off, or
+        one we read minutes ago. It is a suppressor, never the schedule; if
+        it were the schedule, a clock skew would decide coverage.
+
+    A source with no crawl state (never in raw_fetch, e.g. a row imported
+    since the last run) is DUE — new catalog rows are crawled the same day,
+    and "we have no history for it" must never read as "skip it".
+
+    `cap` is K, the existing per-run source ceiling; None means uncapped and
+    the caller logs that loudly. Returns (wave, deferred_count).
+    """
+    from worker.crawl_state import SourceCrawlState
+
+    ordered_states = [
+        states.get(str(s.get("source_id")))
+        or SourceCrawlState(source_id=str(s.get("source_id")))
+        for s in sources
+    ]
+    due_ids = set(due_source_ids(ordered_states, now=now))
+    due = [s for s in sources if str(s.get("source_id")) in due_ids]
+    deferred = len(sources) - len(due)
+    # The ceiling keeps its ONE fail-closed implementation: K is a budget cap
+    # and a mistyped cap must fail here exactly as it always has.
+    return apply_source_ceiling(due, cap), deferred
 
 
 def _resolve_source_cap(cli_value: int | None) -> int | None:
@@ -292,6 +343,7 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
     # configuration — only `--real` pays that cost.
     from ai.claude_provider import ClaudeProvider
     from worker.candidate_store import db as candidate_db
+    from worker.crawl_state import load_crawl_states
 
     dsn = os.getenv("ONELIVE_DB_DSN")
     if not dsn:
@@ -307,6 +359,10 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
     # skipped loudly (it cannot be fetched) rather than fed a None url.
     with candidate_db() as conn:
         with conn.cursor() as cur:
+            # Fair-crawl state for every enabled source, read on THIS cursor
+            # so the wave is chosen from the same snapshot the rotation
+            # ordering below sees. Derived from raw_fetch + event_candidate —
+            # no new table, no new column (worker/crawl_state.py says why).
             # last_fetched_at feeds order_for_rotation() below — the capped
             # recurring loop must sweep the catalog, not re-fetch the same
             # head-of-table slice every run. The correlated max() rides
@@ -326,6 +382,7 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
                 "from source s where s.enabled = true"
             )
             rows = cur.fetchall()
+            crawl_states = load_crawl_states(cur)
     rows = order_for_rotation(rows)
     sources = []
     skipped_no_url = []
@@ -339,6 +396,10 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
             "url": base_url,
             "source_class": source_type,
             "config": config if isinstance(config, dict) else {},
+            # The orchestrator reads best_url off this to pick the primary
+            # door. Absent (a source with no history) simply means "start
+            # URL", which is exactly what the loop did before fair crawl.
+            "crawl_state": crawl_states.get(str(sid)),
         })
     if skipped_no_url:
         logger.warning(
@@ -366,7 +427,31 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
             "scheduled run should always set one (§14.3 budget caps).",
             len(sources),
         )
-    sources = apply_source_ceiling(sources, cap)
+
+    # THE WAVE: the next K due sources by rotation cursor. The ceiling is
+    # applied INSIDE take_due_wave (not by apply_source_ceiling) so K counts
+    # sources we will actually knock on — capping first and then dropping the
+    # not-yet-due ones would silently shrink every wave by the size of the
+    # backoff queue, which is the starvation this pass exists to remove.
+    total_enabled = len(sources)
+    sources, deferred = take_due_wave(sources, crawl_states, cap)
+    logger.warning(
+        "fair crawl: wave of %d source(s) (K=%s) out of %d enabled; %d not yet "
+        "due (backing off or read recently). Doors per source: <=2.",
+        len(sources), cap if cap is not None else "uncapped", total_enabled, deferred,
+    )
+    if not sources:
+        # Not a failure: every source is inside its own interval, so the
+        # correct amount of work this wave is zero. The cron stays green and
+        # the dead-man still pings — a run that correctly did nothing is not a
+        # dead run. Loud, because a catalog small enough to lap itself is
+        # worth seeing in the log.
+        logger.warning(
+            "no source is due this wave (%d enabled, all inside their crawl "
+            "interval) — nothing to fetch; the next wave picks up whoever "
+            "comes due first.", total_enabled,
+        )
+        return 0
 
     report = run_loop(ai=ai, sources=sources, sxsw_mode=False, dsn=dsn)
     print("RunReport:")
@@ -374,6 +459,8 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
     print(f"  counts:   {report.counts}")
     for r in report.results:
         print(f"  - {r.source_name}: stage={r.stage_reached} decision={r.decision} detail={r.detail}")
+    print()
+    print(render_run_table(report))
     # Attempted = per-source results actually recorded by the loop (a source
     # skipped before attempt has no result row), falling back to the input
     # list only if the report carries none — evaluator nit, PR #21 r2.
@@ -392,9 +479,12 @@ def main() -> int:
         "--max-sources",
         type=_positive_int,
         default=None,
-        help="Budget ceiling: process at most N sources this run (positive "
-             "integer; falls back to ONELIVE_MAX_SOURCES_PER_RUN; unset = "
-             "uncapped, logged loudly).",
+        help="Budget ceiling K: process at most N DUE sources this run "
+             "(positive integer; falls back to ONELIVE_MAX_SOURCES_PER_RUN; "
+             "unset = uncapped, logged loudly). Fair crawl uses a small K — "
+             "the armed cron's is {} — because each source costs up to two "
+             "fetches and a wave is meant to be wide, not deep.".format(
+                 DEFAULT_SOURCES_PER_WAVE),
     )
     parser.add_argument(
         "--source-class",

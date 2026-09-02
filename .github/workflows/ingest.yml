@@ -37,22 +37,37 @@ name: Ingestion Run
 # i.e. <= 500 extraction calls/run at the fixed 10-source schedule ceiling.
 # The Anthropic console monthly cap is the hard backstop above both.
 #
-# CLASS B FOLLOW-PAGES (2026-09-02, founder-directed: "the scheduled ingest
-# loop may follow pages using the #204 walker, cap 15 extra pages, on-origin,
-# walls -> class D"). After a class B source's start page, the loop follows the
-# same-site event/calendar pages that page ADVERTISES. Pages, not sources, are
-# what a run spends, so the per-source cap alone would have multiplied the
-# worst case by sixteen; the run-level ceiling below is the FinOps bound and it
-# is declared HERE, on the armed cron, so the number is visible where the spend
-# happens. Worst case becomes:
+# FAIR CRAWL (2026-09-02, founder-directed: "many sources per wave, few pages
+# each. Stop two fat calendars from consuming the run."). The class B walk
+# stays, but its ceiling moved from the RUN to the SOURCE. Before: 30 sources
+# shared a 30-page follow budget spent IN SOURCE ORDER, so the first two
+# link-heavy calendars took all 30 and every source behind them got zero — a
+# Coverage Law defect in scheduler form, which no amount of budget fixes.
+# Now every source gets ONE door (ONELIVE_DOORS_PER_SOURCE below): its
+# `best_url` if the pipeline has learned one, else the single top-ranked
+# events/calendar/shows page its start page advertises. At most TWO fetches per
+# source per wave.
+#
+# The run-level page ceiling stays exactly what it was — it is the FinOps bound
+# and it is declared HERE, on the armed cron, so the number is visible where
+# the spend happens. It must be >= max_sources x doors, or the tail of a wave
+# loses its door to a budget the head already spent. Worst case, unchanged:
 #     (max_sources + ONELIVE_MAX_FOLLOW_PAGES_PER_RUN) x EXTRACT_MAX_EVENTS_PER_PAGE
-#   = (30 + 30) x 50 = 3000 extraction calls/run, i.e. 2x the pre-follow
-#     ceiling of 1500 — a deliberate, stated doubling of the ceiling, not of
-#     the observed spend (a real page segments into a handful of blocks, not
-#     50). The console monthly cap remains the hard backstop.
-# The run budget is spent in source order and worker/run_once.py orders sources
-# least-recently-attempted first, so a source that does not get walked this run
-# leads the next one: coverage rotates, it is never dropped.
+#   = (30 + 30) x 50 = 3000 extraction calls/run. The console monthly cap
+#     remains the hard backstop.
+#
+# EXPECTED SPEND GOES DOWN, not up, at the same ceiling: the loop now sends the
+# previous ETag/Last-Modified as conditional-GET headers and compares the body's
+# sha256 against the last successful raw_fetch row, so a page that has not
+# changed since the last wave costs one cheap GET and ZERO extraction calls.
+# Between 20-minute waves most venue pages have not changed.
+#
+# The wave itself is "the next K DUE sources by rotation cursor"
+# (worker/run_once.py::take_due_wave): least-recently-attempted first, minus
+# any source inside its own crawl interval (a failing source backs off
+# exponentially, so a closed door is knocked on once and then left to the claim
+# path). A source that does not make this wave leads the next one: coverage
+# rotates, it is never dropped.
 
 on:
   schedule:
@@ -218,14 +233,21 @@ jobs:
           # ceiling; dispatch stays fail-loud) — both steps must agree or the
           # validated value wouldn't be the executed value.
           MAX_SOURCES: ${{ github.event_name == 'schedule' && '30' || github.event.inputs.max_sources }}
-          # Class B follow-pages budgets. The per-SOURCE cap is the founder's
-          # number (15 extra pages); the per-RUN cap is the FinOps bound whose
-          # arithmetic is spelled out at the top of this file. Both are
-          # validated fail-closed in worker/orchestrator.py BEFORE the first
-          # fetch — a typo aborts the run, it never silently means "uncapped".
-          # Schedule events always use the armed defaults (callers cannot
-          # influence event_name); a dispatch may override the run budget.
-          ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE: "15"
+          # Fair-crawl budgets. The per-SOURCE cap is the FAIRNESS bound —
+          # ONE door, so no venue can spend the wave; the per-RUN cap is the
+          # FinOps bound whose arithmetic is spelled out at the top of this
+          # file. Both are validated fail-closed in worker/orchestrator.py
+          # BEFORE the first fetch — a typo aborts the run, it never silently
+          # means "uncapped". Schedule events always use the armed defaults
+          # (callers cannot influence event_name); a dispatch may override the
+          # run budget.
+          #
+          # The knob is a NEW NAME on purpose. The old
+          # ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE meant "up to 15 discovered
+          # pages"; re-pointing that name at "1" would have left any stale
+          # copy of it silently restoring the unfair walk. A removed knob
+          # cannot do that.
+          ONELIVE_DOORS_PER_SOURCE: "1"
           # A blank dispatch input renders as the empty string, which is FALSY
           # in a GitHub expression, so it falls through to the armed default —
           # the same shape MAX_SOURCES above already uses. Both values are

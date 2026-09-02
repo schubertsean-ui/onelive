@@ -4,6 +4,59 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-02 — Fair crawl: round-robin sources, best URL, skip unchanged
+
+Two fat calendars were eating the run. The class B walk let one source take up
+to 15 pages, and the 30-page run budget was spent IN SOURCE ORDER, so the first
+couple of link-heavy venues consumed it and everything behind them got zero —
+a Coverage Law defect in scheduler form, which no amount of budget fixes.
+
+The ceiling moved from the RUN to the SOURCE. Every source now gets ONE door
+(`ONELIVE_DOORS_PER_SOURCE`, default 1; the old
+`ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE` is REMOVED rather than re-pointed, so a
+stale copy of it cannot silently restore the unfair walk): its `best_url` if the
+pipeline has learned one, else the single top-ranked events/calendar/shows page
+its start page advertises. At most TWO fetches per source per wave, always.
+
+New `worker/crawl_state.py` holds the per-source facts — best_url, last
+success, last body fingerprint, fail streak, due_at — and DERIVES every one of
+them from rows the pipeline already writes (`raw_fetch` is the crawl log;
+`event_candidate.source_url` is the door each candidate came through). No new
+table, no new column, no `source.config` key for the next catalog import to
+clobber. The rotation cursor stays what it was: least-recently-attempted first.
+
+Unchanged pages stop costing money. The previous ETag/Last-Modified now go out
+as conditional-GET headers (`fetch_with_render` forwards them), so a
+well-behaved server answers 304 and sends no body; a server with no validators
+is still caught by comparing the body's sha256 against the last successful
+`raw_fetch` row. Either way the EXTRACTION — one model call per event block
+(R-043) — is skipped. The lookup fails OPEN on availability: a fingerprint read
+that errors extracts the page anyway, because a lost optimisation costs one
+call and a lost page costs a venue's whole calendar.
+
+Walls and back-offs are now told apart at the START page too (before, a 403
+surfaced as a generic per-source error): 401/402/403/407 or a sign-in redirect
+is class D, one knock, logged with the existing `INGEST_WALL_OBSERVED_CLASS_D`
+marker ops greps for the claim queue; 429/503 is a BACK-OFF that leaves the
+declared class alone (`crawl_state.BACKOFF_STATUSES` — the one documented place
+this differs from `source_class.WALL_STATUSES`). Neither counts as an error.
+
+Two defects caught in the same pass, both from applying the follow-walk's rules
+to the start page without thinking: reading `is_closed_door` off the demotion
+verdict would have refused to fetch 264 of 266 enabled rows (they declare no
+access posture, so they classify D before any fetch), and enforcing
+same-origin on the registered start URL would have dropped every catalog row
+that 301s to another host. Fetching is never gated on the class letter; the
+origin rule binds only doors we CHOSE.
+
+K (the wave size) is unchanged at 30: fairness now comes from the door cap, so
+shrinking K would have cost the founder's 2026-08-04 freshness escalation and
+bought nothing. Worst-case run ceiling is identical to before (60 pages);
+expected spend goes DOWN, because most pages have not changed since the last
+20-minute wave. `worker/run_once.py` prints a per-source run table — source |
+url fetched | changed? | candidates | skipped-unchanged | blocked — because
+fair crawl is a claim about DISTRIBUTION, and a counts dict cannot show it.
+
 ## 2026-09-02 — CAPCOG entity census: the universe we already know, in one table
 
 Docs-only, read-only session (no ingest, no worker/orchestrator/catalog edit).
