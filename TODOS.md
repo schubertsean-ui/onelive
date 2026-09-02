@@ -13,6 +13,11 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #51 (2026-09-02 — SAME-PAGE DATE ONLY, R-030)
+- [ ] (P0) FOUNDER DECISION — wire the same-page date resolver into the pipeline — founder — one line at `worker/ai_extract.py:164` passing the page text, the listing block and the fetch time into `normalize_extracted_datetimes_with_page` (worker/same_page_dates.py). Note it pulls both files into the armed cron's runtime closure, so that PR needs fresh smoke evidence as well as the guarded-surface red. The engine, its 28 tests and the measurement are merged and idle until then; that file sits on the extraction-eval guarded surface, which is why this session stopped short of it (must-do 5). Answering yes also closes Table 3 of docs/evidence/2026-09-02_same-page-date-resolution.md, because the next run prints the split.
+- [ ] (P2) `worker/segment.py` strips tags on the anchor-split path, so a listing block loses the `<time datetime>` / JSON-LD date its page published — the resolver works around it by reading page text too. Worth fixing at the source once the wiring lands — agent — found by tools/same_page_date_report.py.
+- [ ] (P3) The class-B fixtures print weekdays that contradict their own `<time datetime>` on two of four listings per page (they say "Thu Sep 11" and "Fri Sep 19"; in 2026 those are a Friday and a Saturday). Harmless to the tests, but it makes the fixture measurement read worse than the mechanism is — agent.
+
 ## Session Contract #49 (2026-09-02 — FOLLOW-PAGES IN THE LIVE LOOP)
 - [x] (P0) Wire the #204 walker into the existing scheduled path, smallest diff: `worker/orchestrator.py` follows a class B source's advertised same-site event pages through the SAME sensor -> extract -> gate3 -> stamp implementation as the start page. DONE.
 - [x] (P0) Bound it fail-closed: 15 pages per source (founder's number) and 30 per RUN — pages, not sources, are what a run spends. Worst-case AI calls (30+30)x50 = 3000 vs 1500, stated in `ingest.yml`. DONE.
