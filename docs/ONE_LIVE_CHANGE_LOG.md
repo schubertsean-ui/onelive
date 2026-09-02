@@ -65,6 +65,30 @@ golden exam does not execute — the exam correctly refused the PR for it. The
 number is identical either way, so the right place to read it is the one that
 certifies nothing.
 
+**Two product calls, founder-ratified during the session.** A confirmed check
+MAY update a published listing — `start_time`, `end_time`, `status`, `title` —
+but only on same-page evidence, and it may NEVER delete the row: cancel and
+postpone are statuses on a row that stays (migration 0001's
+`scheduled|cancelled|moved`), which agrees with Coverage Law and with the
+4-state model where disputed is shown, never hidden. The policy is encoded in
+`worker/crawl_state.py` and recorded in
+`docs/memory/decisions/2026-09-02_confirmed-check-may-update-listing.md`;
+nothing updates a published event yet, and wiring it is its own ticket.
+
+One case needed the two directives read together, and the reading is flagged
+rather than quietly resolved: a clear 404 confirms the PAGE is gone but carries
+no same-page evidence about any listing on it — a URL reorganization, a CMS
+migration and a real cancellation all 404 identically — so it licenses
+re-finding the door and no status change. The case that can license a cancel is
+a clean parse in which a published event is absent from a page that still loads.
+
+The ladder's day-of rung stays at 6 hours before start rather than the event's
+local midnight, under the founder's own escape clause, because local midnight
+is not computable on today's schema: `start_time` is a `timestamptz` that does
+not preserve the listing's wall clock, nothing carries a timezone, and assuming
+one would mis-time every non-CAPCOG row silently. Recorded as R-090 with the
+trigger that closes it.
+
 State lives nowhere new: best_url, next_due_at, fail streak, body fingerprint,
 last_attempt and last_verified are all DERIVED from `raw_fetch`,
 `event_candidate` and `event` rows the pipeline already writes. No new table, no

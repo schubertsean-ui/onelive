@@ -111,12 +111,31 @@ QUEUE_EVENT = "event"
 #: first. A daily re-crawl of everything would spend the whole budget on
 #: events three months out; this spends it where a change still matters.
 #:
-#: "day-of" is operationalized as SIX HOURS before start. Offset zero would put
-#: the last check at the moment the doors open, which is too late to be worth a
-#: fetch; six hours is the same calendar day for any event starting after 06:00
-#: and still ahead of the audience. This is the one number in the ladder that
-#: is an interpretation rather than the founder's own figure, so it is stated
-#: here and it is a one-line change.
+#: "day-of" is SIX HOURS before start, and that is a documented STAND-IN for
+#: what the founder actually asked for (2026-09-02): "day-of = start of that
+#: event's local calendar day (timezone of the listing). Not 'six hours before'
+#: unless that is easier to pin in one constant — if so, keep 6h and document
+#: it." It is not merely easier; on today's schema the local-calendar-day
+#: version is not computable at all, and the escape clause is taken for a
+#: stated reason rather than for convenience:
+#:
+#:   * `event.start_time` is `timestamptz` — an absolute instant. The wall
+#:     clock and UTC offset the listing was written in are not preserved, so
+#:     the event's own local midnight cannot be recovered from it.
+#:   * Nothing in the schema carries a timezone. `venue` has city/state/lat/lng
+#:     (migration 0010) and no tz column; deriving one from coordinates needs a
+#:     tz database dependency, which is a new vendor and the founder's call.
+#:   * Assuming a project timezone would be wrong by design: Coverage Law says
+#:     locale is not a border, so an Austin default would mis-time every row
+#:     outside CAPCOG — and silently, which is the worse half.
+#:
+#: Anchoring to the UTC day instead was considered and rejected as ERRATIC, not
+#: merely imprecise: for an 8pm CDT show the UTC day starts an hour before
+#: doors, but for a 2pm CDT matinee it starts the previous local evening. Six
+#: hours before start is consistent, always lands on the event's own local day
+#: for anything starting after 06:00 local, and is one constant.
+#:
+#: Recorded as a deviation with an objective trigger: docs/RECORD.md R-090.
 EVENT_REFRESH_LADDER_HOURS = (30 * 24, 14 * 24, 7 * 24, 3 * 24, 24, 6)
 
 #: The largest share of a tick's fetch budget that event-proximity refresh may
@@ -347,35 +366,66 @@ def order_due(
 # edit). Only mutate on confirmed same-page evidence. Fetch failure / cap / 429
 # / parse miss = last good row stands."
 #
-# So a re-check produces a VERDICT, and only two of the three verdicts could
-# ever license a change. The third — UNVERIFIED — is not a soft "probably
-# fine": it is a hard "we learned nothing, so nothing moves". Every failure
-# mode collapses into it, which is what makes the rule fail CLOSED: a new
-# failure we have not thought of yet is unverified by default, never confirmed.
+# Then, ratifying the policy (2026-09-02, verbatim): "Confirmed check MAY
+# update a published listing (time, cancel, postpone, title) only with
+# same-page evidence. Unconfirmed = no mutation. Do not delete the row from the
+# catalog; mark cancelled/moved and keep evidence. Ambiguous parse = keep."
+#
+# So a re-check produces a VERDICT, and the verdict is what an update has to
+# ask. UNVERIFIED is not a soft "probably fine": it is a hard "we learned
+# nothing, so nothing moves". Every failure mode collapses into it, which is
+# what makes the rule fail CLOSED — a failure nobody has written yet is
+# unverified by default, never confirmed.
+#
+# WHAT A 404 DOES AND DOES NOT LICENSE — the one place the two directives need
+# reading together, flagged rather than quietly resolved. A clear 404 confirms
+# the PAGE is gone. It is not same-page evidence about any listing on it,
+# because there is no page to have evidence from: a venue that reorganizes its
+# URLs, a CMS migration and a genuinely cancelled show all 404 identically.
+# Under "only with same-page evidence" and "do not delete the row", a 404
+# therefore licenses NO status change on any listing. What it does license is
+# re-finding the door — which the loop already does, by falling back to the
+# registered start URL and re-discovering from there. A clean parse in which a
+# published event is ABSENT is the case that carries same-page evidence, and
+# deciding that is the update path's job, not this vocabulary's.
 #
 # STATE OF PLAY, stated so nobody reads more into this than is here: the
-# orchestrator does not mutate published events at all. It cannot — it imports
-# no promote path, writes only candidates, and issues no UPDATE against
-# `event`. This vocabulary exists so the re-check RECORDS what it learned, and
-# so the eventual mutation path has one definition of "confirmed" to obey
-# rather than inventing a second. Building that mutation path would change what
-# the loop may do to published rows, which is a trust-invariant change and the
-# founder's call, not this module's.
+# orchestrator does not update published events. It cannot — it imports no
+# promote path, writes only candidates, and issues no UPDATE against `event`.
+# The policy is ratified and encoded HERE so the eventual update path has one
+# definition to obey rather than inventing a second; building that path is its
+# own ticket, and it changes the armed cron's runtime, which the founder has
+# capped for this one ("no second wave").
 
 #: The page still says what it said: a clean parse, or bytes identical to the
-#: last good read. Evidence exists on the page itself.
+#: last good read. This is the ONLY verdict that carries same-page evidence,
+#: and therefore the only one that could license an update.
 VERIFIED_PRESENT = "verified_present"
 
-#: The defining page is confirmed GONE — a clear 404. Note the boundary: this
-#: is a fact about the PAGE, not about any single event on it. Deciding that a
-#: particular event vanished from a page that still loads requires diffing a
-#: clean parse against the published rows, which belongs to the mutation path.
+#: The defining page is confirmed GONE — a clear 404. A fact about the PAGE,
+#: never about a listing on it (see the 404 note above): it licenses
+#: re-discovery of the source's door and NO listing change at all.
 VERIFIED_ABSENT = "verified_absent"
 
 #: We learned nothing. Fetch failure, 429/503 back-off, a budget cap, a wall, a
 #: sensor rejection, an off-site landing, an ambiguous or failed parse. The last
 #: good row stands, untouched.
 UNVERIFIED = "unverified"
+
+#: The fields a confirmed check may ever change on a published listing, from
+#: the founder's own enumeration: "time, cancel, postpone, title". `status`
+#: carries cancel and postpone (the 4-state moderation vocabulary in
+#: migration 0001: scheduled|cancelled|moved) — which is why "cancelled" and
+#: "moved" are STATUSES on a row that stays, not reasons to remove one.
+UPDATABLE_LISTING_FIELDS = ("start_time", "end_time", "status", "title")
+
+#: Founder, verbatim: "Do not delete the row from the catalog". There is no
+#: verdict, no evidence and no confidence level that licenses removing a
+#: published listing — which is also Coverage Law's own rule that a legally
+#: seen row is never dropped, and the 4-state model's rule that a disputed
+#: event is shown, never hidden. Stated as a constant so a caller can assert on
+#: it rather than re-derive it, and pinned by a test.
+DELETE_IS_NEVER_LICENSED = True
 
 #: Door outcomes that confirm the page still stands. "unchanged" belongs here on
 #: purpose: a 304 or an identical body hash is positive evidence that the page
@@ -412,8 +462,9 @@ def classify_recheck(
                 "— last good row stands")
     if door_kind == "missed" and http_status == 404:
         return (VERIFIED_ABSENT,
-                "defining page returned a clear 404 — the PAGE is gone (this "
-                "says nothing about any single event on it)")
+                "defining page returned a clear 404 — the PAGE is gone. No "
+                "same-page evidence exists about any listing on it, so this "
+                "licenses re-finding the door and no listing change")
     if door_kind == "missed":
         return (UNVERIFIED,
                 f"fetch failed ({http_status or 'no status'}) — last good row stands")
@@ -428,15 +479,33 @@ def classify_recheck(
     return (UNVERIFIED, f"unrecognized check outcome ({door_kind}) — fail closed")
 
 
-def may_mutate_listing(verdict: str) -> bool:
-    """Whether a verdict could license a change to a published listing.
+def may_update_listing(verdict: str) -> bool:
+    """Whether a verdict licenses updating a published listing's
+    UPDATABLE_LISTING_FIELDS — and only ever with the same-page evidence that
+    produced it.
 
-    The single place that question is answered, so no caller has to re-derive
-    it — and the answer is False for UNVERIFIED, always. Nothing in this
-    repository mutates a published event on a re-check today; this exists so
-    that when something does, it asks here.
+    VERIFIED_PRESENT only. VERIFIED_ABSENT is excluded deliberately: a 404
+    carries no page, so it carries no same-page evidence, and the founder's
+    rule is "only with same-page evidence". UNVERIFIED is excluded always.
+
+    The single place that question is answered, so no caller re-derives it.
+    Nothing in this repository updates a published event on a re-check today;
+    this exists so that when something does, it asks here.
     """
-    return verdict in (VERIFIED_PRESENT, VERIFIED_ABSENT)
+    return verdict == VERIFIED_PRESENT
+
+
+def may_delete_listing(verdict: str) -> bool:  # noqa: ARG001 — the answer is the point
+    """Always False. No verdict licenses removing a published row.
+
+    The parameter exists so a caller asks the question in the same shape it
+    asks may_update_listing, and gets the same answer every time: a listing
+    that is gone is marked (cancelled/moved) with its evidence and KEPT.
+    Founder-ratified, and it is also Coverage Law ("if we legally saw it, it
+    may exist"; dropping a row we saw is a defect) and the 4-state model
+    (disputed is shown, never hidden).
+    """
+    return not DELETE_IS_NEVER_LICENSED
 
 
 @dataclass(frozen=True)

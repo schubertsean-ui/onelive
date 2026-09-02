@@ -40,7 +40,9 @@ from worker.crawl_state import (
     host_of,
     load_crawl_states,
     load_door_fingerprint,
-    may_mutate_listing,
+    UPDATABLE_LISTING_FIELDS,
+    may_delete_listing,
+    may_update_listing,
     order_due,
     plan_event_refreshes,
     rows_to_states,
@@ -497,7 +499,7 @@ def test_everything_else_is_unverified_and_the_last_good_row_stands(
     verdict, reason = classify_recheck(
         door_kind=kind, page_decision=decision, http_status=status)
     assert verdict == UNVERIFIED
-    assert not may_mutate_listing(verdict)
+    assert not may_update_listing(verdict)
     assert reason
 
 
@@ -508,10 +510,57 @@ def test_an_ambiguous_parse_keeps_rather_than_changes():
         door_kind="changed", page_decision="sensor_rejected")[0] == UNVERIFIED
 
 
-def test_only_confirmed_evidence_could_ever_license_a_change():
-    assert may_mutate_listing(VERIFIED_PRESENT)
-    assert may_mutate_listing(VERIFIED_ABSENT)
-    assert not may_mutate_listing(UNVERIFIED)
+def test_only_same_page_evidence_licenses_an_update():
+    """Founder: "Confirmed check MAY update a published listing (time, cancel,
+    postpone, title) only with same-page evidence." VERIFIED_PRESENT is the
+    only verdict that HAS a page behind it."""
+    assert may_update_listing(VERIFIED_PRESENT)
+    assert not may_update_listing(UNVERIFIED)
+
+
+def test_a_404_licenses_re_finding_the_door_not_changing_a_listing():
+    """The one place the two directives had to be read together. A clear 404
+    confirms the PAGE is gone — but a venue reorganizing its URLs, a CMS
+    migration and a genuinely cancelled show all 404 identically, and there is
+    no page left to carry same-page evidence. So it licenses no status change.
+    (Re-finding the door is what the loop already does, by falling back to the
+    registered start URL.)"""
+    verdict, reason = classify_recheck(door_kind="missed", http_status=404)
+    assert verdict == VERIFIED_ABSENT
+    assert not may_update_listing(verdict), (
+        "a 404 has no page, so it has no same-page evidence")
+    assert "no listing change" in reason
+
+
+@pytest.mark.parametrize("verdict", [VERIFIED_PRESENT, VERIFIED_ABSENT, UNVERIFIED,
+                                     "something_nobody_wrote_yet"])
+def test_no_verdict_ever_licenses_deleting_a_published_row(verdict):
+    """Founder: "Do not delete the row from the catalog; mark cancelled/moved
+    and keep evidence." Also Coverage Law (a legally seen row is never dropped)
+    and the 4-state model (disputed is shown, never hidden)."""
+    assert not may_delete_listing(verdict)
+
+
+def test_the_updatable_fields_are_the_founders_enumeration():
+    """"time, cancel, postpone, title" — cancel and postpone are STATUSES on a
+    row that stays, which is why there is no delete in this list."""
+    assert UPDATABLE_LISTING_FIELDS == ("start_time", "end_time", "status", "title")
+
+
+def test_the_loop_still_updates_nothing_today():
+    """The policy is ratified and encoded; the update path is a separate
+    ticket. Pinned so "encoded" can never be mistaken for "wired": the
+    scheduler module imports nothing that can write to `event`."""
+    import ast
+    import pathlib
+    import worker.crawl_state as cs
+    tree = ast.parse(pathlib.Path(cs.__file__).read_text())
+    imported = {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
+    assert "worker.promote" not in imported
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            assert "update event" not in node.value.lower()
+            assert "delete from event" not in node.value.lower()
 
 
 # --- the budgets come from the environment, fail-closed ----------------------
