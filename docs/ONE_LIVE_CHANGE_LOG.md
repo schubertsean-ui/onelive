@@ -4,6 +4,23 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-02 — What happened to the 198 (read-only; no pipeline change)
+
+Records-only account of ingest run 33579093995's 198 candidates. Findings, all
+quoted from the runs' own logs: 8 of 10 class B sources passed the trust gate,
+1 escalated, 1 errored (Bullock, HTTP 403 — R-087); 107 of the 198 candidates
+are attributed per source by the RunReport and 91 are not; and **92 of the 198
+(46%) had their `start_time` claim refused as `no-full-date-evidence` and stored
+NULL**. The promote path is NOT the blocker — autopromote run 33584503550
+published 185 of 200 examined. The blocker is `web/lib/promoted.ts`
+`buildPromotedQuery()`: its `start_time=gte.<now-12h>` predicate can never match
+a NULL, so a dateless row publishes and is then permanently absent from the feed
+(still reachable at its own detail URL — the row is scoped out by the view, not
+deleted). This is R-030, OPEN since 2026-07-25, now re-measured. Both candidate
+fixes sit outside this session's leash, so the session ends in a founder
+decision rather than an edit. Evidence:
+`docs/evidence/2026-09-02_run-33579093995-wave.md`.
+
 ## 2026-09-02 — The armed loop makes the click: follow-pages moves into the scheduled cron
 
 #204 built the class B walk and then parked it as a manual tool, because that
