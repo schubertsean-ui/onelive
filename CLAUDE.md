@@ -14,6 +14,8 @@ Canonical copy: ONE-LIVE-OPERATING-LAW.md (identical text).
 This outranks curiosity, construction-loop ceremony, hats, po battery, friction logs, and "while I'm here."
 Coverage Law still outranks this file on *scope*. This file outranks everything on *how you work*.
 
+Vision: ONE-LIVE-VISION.md. If a ticket shrinks this vision, the ticket is wrong.
+
 ### Outcome
 Maximum work that changes the catalog or the live site per hour.
 Minimum tokens spent on STATE novels, ledger archaeology, and extra frameworks.
