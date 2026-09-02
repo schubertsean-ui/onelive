@@ -971,12 +971,20 @@ def load_door_fingerprint(
             return _read(own)
 
 
+# Each field is guarded INDEPENDENTLY. A single WHERE on input_tokens would
+# still have let a row with a numeric input and a non-numeric output raise on
+# the output cast — the failure mode a cost report must not have, since it
+# would take down a tick's telemetry over a malformed usage stamp. The
+# timestamp is cast explicitly rather than left to parameter-type inference.
 _EXTRACTION_USAGE_SQL = """
-select coalesce(sum((extracted->'_usage'->>'input_tokens')::bigint), 0),
-       coalesce(sum((extracted->'_usage'->>'output_tokens')::bigint), 0)
+select coalesce(sum(case
+         when jsonb_typeof(extracted->'_usage'->'input_tokens') = 'number'
+         then (extracted->'_usage'->>'input_tokens')::bigint else 0 end), 0),
+       coalesce(sum(case
+         when jsonb_typeof(extracted->'_usage'->'output_tokens') = 'number'
+         then (extracted->'_usage'->>'output_tokens')::bigint else 0 end), 0)
 from event_candidate
-where created_at >= %s
-  and jsonb_typeof(extracted->'_usage'->'input_tokens') = 'number'
+where created_at >= %s::timestamptz
 """
 
 
