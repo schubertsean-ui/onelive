@@ -225,14 +225,16 @@ def filter_by_coverage_class(sources: Sequence[dict], letter: str | None) -> lis
     walk, on ten public-HTML sources") without hand-picking source names, and
     so the run's own report says which class it ran.
 
-    The verdict comes from worker.sourcing.source_class.classify_entry reading
-    the row's stored catalog entry — the same authority the follow-pages walk
-    uses, so a source cannot be selected as class B here and judged otherwise
-    three lines later. An unknown letter FAILS CLOSED (SystemExit) rather than
+    The verdict comes from worker.sourcing.source_class.classify_entry over the
+    posture worker.sourcing.catalog_posture resolves (the row's own stored
+    declaration, else the committed catalog's entry for it) — the same two
+    authorities the follow-pages walk uses, so a source cannot be selected as
+    class B here and judged otherwise three lines later. An unknown letter FAILS CLOSED (SystemExit) rather than
     silently matching nothing, which would look like an empty catalog.
     """
     if letter is None:
         return list(sources)
+    from worker.sourcing.catalog_posture import resolve_entry
     from worker.sourcing.source_class import CLASS_LETTERS, classify_entry
 
     letter = letter.strip().upper()
@@ -250,9 +252,8 @@ def filter_by_coverage_class(sources: Sequence[dict], letter: str | None) -> lis
         config = source.get("config") or {}
         if not config:
             empty_config += 1
-        entry = dict(config)
-        entry.setdefault("base_url", source.get("url"))
-        verdict = classify_entry(entry)
+        verdict = classify_entry(resolve_entry(
+            name=source.get("name"), url=source.get("url"), config=config))
         distribution[verdict.source_class] = distribution.get(verdict.source_class, 0) + 1
         reasons[verdict.reason] = reasons.get(verdict.reason, 0) + 1
         if verdict.source_class == letter:

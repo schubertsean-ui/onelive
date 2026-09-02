@@ -59,6 +59,31 @@ Records: R-085 opened (an observed wall is auditable but does not become a
 `docs/CLASS_D_CLAIM_QUEUE.md` row — a cron cannot commit to the repo); R-084(b)
 CLOSED by the founder's decision.
 
+**What the first live dispatch found, for nothing.** The authorized run passed
+every precondition and then refused before fetching anything: `class filter
+--source-class=B: 0 of 266 enabled source(s) match`. The wiring was reading a
+field production does not have. The run's own diagnostic (run 33578656538)
+measured it: 264 of 266 enabled rows declare `access_method=''`/`allowed=[]`,
+one declares `official_feed_or_partner`, one `api_key`, 38 rows carry an empty
+`config`. The committed catalog declares a posture for all 180 of its entries —
+140 class B. The posture is not missing; it never reached the database.
+
+`worker/sourcing/catalog_posture.py` closes that read-only: a row that declares
+nothing gets the committed catalog's posture for it, matched by name (else by a
+base_url that belongs to exactly one entry — an ambiguous URL resolves to
+nothing rather than to the first match). DB-first precedence, deliberately: a
+venue's own claim must outrank a file that predates it. A missing or malformed
+catalog yields an empty index, every row classifies D, and nothing is followed —
+losing the file costs coverage, it can never grant access. The catalog is
+registered in `tools/arming_runtime.py`'s `_EXTRA_RUNTIME`, so editing it now
+re-fires the armed cron's smoke-evidence binding: it decides what the cron
+walks, which makes it cron runtime in fact.
+
+Not a fix, a workaround, and R-086 says so: the DATABASE still holds no posture,
+so every other reader of `source.config` still sees silence. Re-importing the
+catalog into production is a write with a 180-row blast radius and is the
+founder's call.
+
 ## 2026-09-01 — Class B stops at the door no longer: follow the site's own calendar link
 
 A venue's homepage is marketing copy. The schedule lives one click away, behind

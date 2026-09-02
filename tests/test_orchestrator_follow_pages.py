@@ -66,6 +66,11 @@ class _WallError(Exception):
 
 @pytest.fixture(autouse=True)
 def _hermetic(tmp_path, monkeypatch):
+    # Isolate the committed source catalog: these sources declare their own
+    # posture inline, and a real catalog entry that happened to share one of
+    # their synthetic names would silently change what they prove.
+    from worker.sourcing import catalog_posture
+    monkeypatch.setattr(catalog_posture, "_INDEX", {})
     monkeypatch.setenv("ONELIVE_REPLAY_LOG_DIR", str(tmp_path / "replay"))
     monkeypatch.delenv("ONELIVE_MAX_FOLLOW_PAGES_PER_RUN", raising=False)
     monkeypatch.delenv("ONELIVE_MAX_FOLLOW_PAGES_PER_SOURCE", raising=False)

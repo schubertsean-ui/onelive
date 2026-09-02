@@ -91,6 +91,7 @@ from worker.fetch.http_fetch import fetch_url
 from worker.fetch.render_fetch import RenderError, fetch_with_render, render_html
 from worker.replay_log import ReplayRecord, canonical_digest, log_step, new_run_id
 from worker.sensors import assess_input
+from worker.sourcing.catalog_posture import resolve_entry
 from worker.sourcing.page_discovery import DEFAULT_MAX_PAGES, discover_event_pages
 from worker.sourcing.source_class import (
     CLASS_B_PUBLIC_HTML,
@@ -521,26 +522,25 @@ def _class_verdict_for(source: Dict[str, Any]) -> Any:
     """The Coverage Law class letter for a DB source row, from the catalog's
     own declared access posture.
 
-    `source['config']` is the catalog entry tools/import_sources.py stored
-    verbatim on the row, so classify_entry() reads exactly what the catalog
-    declared — the class is never inferred from the URL and never guessed. A
-    row with no config (the live DB holds sources seeded outside this repo)
-    classifies as D on classify_entry's own unrecognized-posture rule, i.e.
-    NOT followed. That is deliberate and fail-closed: the walk is an extra
-    read of pages a source did not register, so it happens only where the
-    catalog says the door is open.
+    The posture is resolved DB-first by worker.sourcing.catalog_posture: the
+    row's own `config` when it declares one (a venue's claim must outrank a
+    file), else the committed catalog's entry for that source. Measured live
+    2026-09-02, 264 of 266 enabled rows declare nothing at all, so without the
+    catalog fallback this walk would never fire on any real source. Either
+    way the class is READ from a declaration — never inferred from the URL,
+    never guessed — and a source neither the row nor the catalog speaks for
+    classifies D on classify_entry's own unrecognized-posture rule, i.e. NOT
+    followed. Fail-closed: the walk is an extra read of pages a source did not
+    register, so it happens only where a declaration says the door is open.
 
     IMPORTANT: this decides FOLLOWING only. It must never gate the start-page
     fetch — every enabled source is still fetched exactly as before, so
     nothing here can shrink the catalog (Coverage Law: views are picky, the
     catalog is greedy).
     """
-    config = source.get("config") or {}
-    if not isinstance(config, dict):
-        config = {}
-    entry = dict(config)
-    entry.setdefault("base_url", source.get("url"))
-    return classify_entry(entry)
+    return classify_entry(resolve_entry(
+        name=source.get("name"), url=source.get("url"),
+        config=source.get("config")))
 
 
 def _follow_event_pages(
