@@ -50,7 +50,17 @@ INGEST = ROOT / ".github" / "workflows" / "ingest.yml"
 # here the moment the cron path starts reading one, so its change/deletion
 # re-fires the arming binding. Honest and explicit beats a false completeness
 # claim over constructed paths.
-_EXTRA_RUNTIME: tuple[str, ...] = ()
+_EXTRA_RUNTIME: tuple[str, ...] = (
+    # The source catalog became a cron INPUT on 2026-09-02: when a `source`
+    # row declares no access posture of its own — 264 of 266 live rows —
+    # worker/sourcing/catalog_posture.py reads this file's entry for it, and
+    # the resulting Coverage Law class decides whether the cron follows that
+    # source's event pages. Editing it therefore changes what the armed cron
+    # does, which is exactly what this registry exists to catch: a catalog
+    # edit now re-fires the smoke-evidence binding. Under-including it would
+    # be fail-open.
+    "sources/master_sources_catalog_120.json",
+)
 
 
 class DynamicImportError(RuntimeError):

@@ -173,6 +173,14 @@ def fetch_url(
         "status": "ok",
         "raw_fetch_id": str(raw_fetch_id),
         "url": url,
+        # Where the request actually LANDED after redirects, which is not
+        # necessarily where it was pointed: requests follows redirects, so a
+        # same-origin link can answer 200 from a different host or from a
+        # sign-in page. Callers that made a trust decision about `url` BEFORE
+        # the fetch (the class B follow-pages walk decides on-origin-ness from
+        # the link) must re-check it against this value afterwards, or the
+        # decision was made about a page that was never fetched.
+        "final_url": getattr(r, "url", None) or url,
         "content_hash": ch,
         "storage_ref": path,
         "etag": r.headers.get("ETag"),

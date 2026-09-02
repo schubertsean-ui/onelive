@@ -39,7 +39,7 @@ Pure/deterministic, stdlib-only (no network, no DB) → unit-testable.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 # The six Coverage Law classes. Kept as module constants so callers compare
 # against a symbol rather than a bare letter that a typo could silently break.
@@ -53,6 +53,14 @@ CLASS_F_HUMAN_REPORT = "F"
 #: Classes this session's ingest path is allowed to fetch. C is deferred by
 #: Coverage Law ("later"); D is never fetched by anyone, ever.
 FETCHABLE_CLASSES = frozenset({CLASS_A_STRUCTURED_OPEN, CLASS_B_PUBLIC_HTML})
+
+#: Every class letter classify_entry may return. Callers that accept a letter
+#: from a human (a workflow input, a CLI flag) validate against THIS set so an
+#: unknown letter fails closed instead of silently matching nothing.
+CLASS_LETTERS = frozenset({
+    CLASS_A_STRUCTURED_OPEN, CLASS_B_PUBLIC_HTML, CLASS_C_PUBLIC_VISUAL,
+    CLASS_D_CLOSED_DOOR, CLASS_E_FIRST_PARTY, CLASS_F_HUMAN_REPORT,
+})
 
 # --- Declared-posture vocabulary (read off the catalog, not invented) ---------
 #
@@ -278,6 +286,27 @@ def demote_on_response(
         )
 
     return verdict
+
+
+def wall_signals_from_exception(exc: BaseException) -> Tuple[Optional[int], Optional[str]]:
+    """The (http_status, final_url) a fetch adapter's exception carries.
+
+    worker.fetch.http_fetch.fetch_url calls raise_for_status(), so a wall
+    arrives as an EXCEPTION, not a return value — the status that decides
+    class D lives on the requests.HTTPError's `.response`. Every caller that
+    has to tell "you are not invited" (401/402/403/407/429, or a redirect that
+    landed on a sign-in page) from "the page is broken" (404, 5xx, timeout,
+    DNS) needs the same two facts off the same object, so the recovery lives
+    here once: the ingest loop and the class B walker both read it, and a
+    second copy would be a second definition of what counts as a wall.
+
+    Returns (None, None) for a transport failure that never produced a
+    response — the honest answer, and demote_on_response leaves the declared
+    class intact for it (a broken page is not a wall).
+    """
+    response = getattr(exc, "response", None)
+    return (getattr(response, "status_code", None),
+            getattr(response, "url", None))
 
 
 #: Substrings that mark a URL (or an error string) as a sign-in surface. Matched

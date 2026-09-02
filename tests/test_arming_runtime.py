@@ -40,15 +40,40 @@ def test_workflow_comment_paths_do_not_leak():
     assert not any(p.startswith("docs/") for p in rt), sorted(p for p in rt if p.startswith("docs/"))
 
 
+#: The ONLY worker/importers/ files the armed cron legitimately runs. The class B
+#: follow-pages walk (2026-09-02) reads a start page's ICS links and JSON-LD
+#: through structured_feed — the EXISTING authority for both — rather than
+#: growing a second copy inside page_discovery, so that module (its package
+#: init, and the domain map it imports) is genuinely cron runtime now and a
+#: change to it must re-fire the arming binding. Everything else in that
+#: package is the deterministic licensed-feed lane, which the cron never runs;
+#: this is an explicit allowlist so a NEW importer cannot join by accident.
+_CRON_IMPORTER_FILES = frozenset({
+    "worker/importers/__init__.py",
+    "worker/importers/domain_map.py",
+    "worker/importers/structured_feed.py",
+})
+
+
 def test_closure_excludes_non_cron_code():
     rt = _mod().runtime_files()
     # None of these run in the armed ingest cron; they must NOT trip the binding.
     for path in rt:
         assert not path.startswith("web/"), f"consumer app leaked in: {path}"
         assert not path.startswith("supabase/"), f"migration leaked in: {path}"
-        assert not path.startswith("worker/importers/"), f"importer leaked in: {path}"
+        if path.startswith("worker/importers/"):
+            assert path in _CRON_IMPORTER_FILES, f"importer leaked in: {path}"
         assert not path.startswith("tests/"), f"test leaked in: {path}"
         assert not path.startswith("docs/"), f"doc leaked in: {path}"
+
+
+def test_structured_feed_is_cron_runtime_now():
+    """The follow-pages walk reads ICS/JSON-LD through structured_feed, so a
+    change to it CAN alter what the armed cron does — the binding must say so
+    (the allowlist above is a statement of fact, not an exemption)."""
+    rt = _mod().runtime_files()
+    assert "worker/importers/structured_feed.py" in rt
+    assert "worker/sourcing/page_discovery.py" in rt
 
 
 def test_dynamic_import_fails_loud(tmp_path):

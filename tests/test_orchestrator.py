@@ -1,6 +1,6 @@
 """Tests for the orchestrator Loop (worker/orchestrator.py).
 
-Fully hermetic: fetch_url, extract_candidate, list_candidate_source_classes,
+Fully hermetic: fetch_url, extract_candidates, list_candidate_source_classes,
 and load_candidate_gate_signals are monkeypatched to fake, in-memory
 implementations — no network, no DB. The replay log is redirected to tmp_path
 so no test writes into the repo's real var/replay directory.
@@ -14,17 +14,18 @@ import os
 
 import pytest
 
+from worker.ai_extract import ExtractionOutcome
 import worker.orchestrator as orchestrator
 from worker.orchestrator import GateDecision, RunReport, run_loop
 
 
 class FakeAIProvider:
     """Minimal stand-in for AIProvider; orchestrator never calls this
-    directly (extract_candidate is monkeypatched below), but run_loop's
+    directly (extract_candidates is monkeypatched below), but run_loop's
     signature requires an `ai` object, so this documents the contract."""
 
     def extract_event_json(self, text, schema_json, system_prompt=None):
-        raise AssertionError("extract_event_json should not be called; extract_candidate is faked in tests")
+        raise AssertionError("extract_event_json should not be called; extract_candidates is faked in tests")
 
 
 @pytest.fixture(autouse=True)
@@ -83,8 +84,11 @@ def _install_fakes(
             result["storage_ref"] = path
         return result
 
-    def fake_extract_candidate(*, ai, text, source_class, source_name, source_url, sxsw_mode=False, source_id=None):
-        return f"candidate-{source_name}"
+    def fake_extract_candidates(*, ai, text, source_class, source_name, source_url, sxsw_mode=False, source_id=None):
+        # Mirrors the real fan-out entrypoint's return shape: the
+        # orchestrator takes candidate_ids[0] for gate3 and counts the
+        # rest, so a fake returning a bare id would hide that contract.
+        return ExtractionOutcome(candidate_ids=[f"candidate-{source_name}"])
 
     def fake_list_candidate_source_classes(candidate_id):
         return candidate_classes_by_candidate.get(candidate_id, [])
@@ -104,7 +108,7 @@ def _install_fakes(
 
     monkeypatch.setattr(orchestrator, "stamp_gate_verdict", fake_stamp_gate_verdict)
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
-    monkeypatch.setattr(orchestrator, "extract_candidate", fake_extract_candidate)
+    monkeypatch.setattr(orchestrator, "extract_candidates", fake_extract_candidates)
     monkeypatch.setattr(orchestrator, "list_candidate_source_classes", fake_list_candidate_source_classes)
     monkeypatch.setattr(orchestrator, "load_candidate_gate_signals", fake_load_candidate_gate_signals)
     return stamped
@@ -239,8 +243,11 @@ def test_transient_error_in_one_source_does_not_abort_others(monkeypatch):
             "good_src", "A perfectly fine real listing blurb with enough text content."
         )}
 
-    def fake_extract_candidate(*, ai, text, source_class, source_name, source_url, sxsw_mode=False, source_id=None):
-        return f"candidate-{source_name}"
+    def fake_extract_candidates(*, ai, text, source_class, source_name, source_url, sxsw_mode=False, source_id=None):
+        # Mirrors the real fan-out entrypoint's return shape: the
+        # orchestrator takes candidate_ids[0] for gate3 and counts the
+        # rest, so a fake returning a bare id would hide that contract.
+        return ExtractionOutcome(candidate_ids=[f"candidate-{source_name}"])
 
     def fake_list_candidate_source_classes(candidate_id):
         return ["ticketing"] if "good_src" in candidate_id else []
@@ -249,7 +256,7 @@ def test_transient_error_in_one_source_does_not_abort_others(monkeypatch):
         return {}, {"start_times": [], "dedupe_ambiguous": False}
 
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
-    monkeypatch.setattr(orchestrator, "extract_candidate", fake_extract_candidate)
+    monkeypatch.setattr(orchestrator, "extract_candidates", fake_extract_candidates)
     monkeypatch.setattr(orchestrator, "list_candidate_source_classes", fake_list_candidate_source_classes)
     monkeypatch.setattr(orchestrator, "load_candidate_gate_signals", fake_load_candidate_gate_signals)
     monkeypatch.setattr(orchestrator, "stamp_gate_verdict",
