@@ -76,3 +76,39 @@ No verdict, no evidence and no confidence level deletes a published row.
 including ones nobody has written yet, `worker/listing_update.py` contains no
 `DELETE` and no `INSERT INTO event`, and both facts are pinned structurally
 rather than by prose.
+
+## The live re-bind run, and what it does not show
+
+Founder-authorized dry smoke, run
+[33696784882](https://github.com/schubertsean-ui/onelive/actions/runs/33696784882)
+on head `6231147` — success, 75.4s, 2 sources, 29 candidates, $0.2457.
+Recorded in full in `docs/evidence/ARMING_SMOKE_RUN.json`.
+
+Its first line is the switch resolving:
+
+```
+listing-update writer DISABLED for this run (dry): no published row can be
+updated or marked, whatever any page says.
+```
+
+and its counters agree — `'listings_updated': 0, 'listings_marked_gone': 0`.
+
+**Those are two different facts and only one of them is evidence.** The
+DISABLED line proves the kill switch worked: the dispatched word `dry` reached
+the shell case and set the mutation budget to 0. The zero counters prove
+nothing on their own, because the same tick reported `0 event-proximity
+page(s)` due — a tick with no defining page to re-read would have printed zeros
+whether the writer was armed or not.
+
+What the run *does* certify about this PR's code, beyond "the runtime loads
+it": the R-091(a) tightening does not break the ordinary path. Both sources
+report `verified? present`, and under the new rule that column can only read
+`present` when the trust gate PASSED the page. Both did
+(`decision=ready_to_promote`), so the stricter verdict is exercised against
+live pages rather than only against fixtures.
+
+What it does **not** show: the listing-update path acting on real data. No
+published row was read for adjudication and none could have been written. That
+coverage is the table above, `tests/test_listing_update.py`, and section 8 of
+`tests/test_fair_crawl.py` — and the first armed tick that finds an
+event-proximity page due will be the first live exercise of it.
