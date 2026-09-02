@@ -43,6 +43,7 @@ WHY-IT-MATTERS: a show that was cancelled and still shows on /tonight is a user 
 outside a dark venue — the exact failure the map exists to prevent; and the opposite error,
 cancelling a real show on a page we could not actually read, is the same trust defect
 pointed the other way, which is why every unconfirmed shape is a no-op.
+PR: https://github.com/schubertsean-ui/onelive/pull/214 (draft, head 00a9e6c). Evaluator pending; merge is the founder's.
 EXPECTED OUTCOMES: the founder's table `event | check result | mutated? | why` from
 fixtures; tests pinning must-dos 2-4; `may_delete_listing` still False for every input;
 the orchestrator still imports no promote path. Out of scope (Must-not): Tonight redesign,
