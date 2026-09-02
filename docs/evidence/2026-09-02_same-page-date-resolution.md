@@ -18,7 +18,7 @@ no "today", no "tonight", no "this year", no next-occurrence guess. A year the
 page omits is supplied only when the page's OWN weekday pins exactly one year in
 a window anchored to the fetch time, and with no fetch anchor that path is off.
 
-**Wired (PR #211, founder-authorized).** `worker/ai_extract.py` now resolves
+**Wired (PR #210, founder-authorized).** `worker/ai_extract.py` now resolves
 dates through this engine instead of R-021's bare normalizer: each listing block
 is offered first as the "same page" scope, the whole fetched page second. Table 4
 below is the measurement THROUGH that wired path — the real segmenter, the real

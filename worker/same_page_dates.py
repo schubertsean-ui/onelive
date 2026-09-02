@@ -34,12 +34,12 @@ narrowest, most-depended-on piece of the date contract — stays
 byte-identical, so a defect found here can be reverted by unwiring one
 import rather than by unpicking a merged function.
 
-WIRED as of PR #211 (founder-authorized): worker/ai_extract.py calls
+WIRED as of PR #210 (founder-authorized): worker/ai_extract.py calls
 normalize_extracted_datetimes_with_page() on the live extract path,
 offering each listing block as the "same page" scope first and the whole
 fetched page second. That import puts this file inside the ARMED CRON's
 computed runtime closure (tools/arming_runtime.runtime_files()), which is
-why PR #211 carries a fresh smoke run re-binding
+why PR #210 carries a fresh smoke run re-binding
 docs/evidence/ARMING_SMOKE_RUN.json — exactly as this docstring predicted
 while the engine was still parked.
 

@@ -19,7 +19,7 @@ What IS measured, on real inputs:
     each page shape a venue calendar actually uses.
   Table 3 — the 92 by source, with the resolvable/NULL split marked
     UNVERIFIED and the reason it cannot be measured here.
-  Table 4 — the WIRED path (PR #211): the same fixture pages driven
+  Table 4 — the WIRED path (PR #210): the same fixture pages driven
     through worker/ai_extract.extract_candidates itself, with the DB
     writes stubbed, reporting resolved | still NULL | invented. The
     "invented" column is not an assertion: every stored date is checked

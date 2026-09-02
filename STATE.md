@@ -66,7 +66,20 @@ OUT OF SCOPE (Must-not, founder): Tonight redesign; catalog upsert; a second
 paid extract wave; new vendor; category weighting. Also refused by me:
 worker/vision_extract.py's identical call site (not the armed path, not named).
 
-STATUS: OPEN
+SMOKE RUN ATTEMPTED AND BLOCKED (R-088). Expected outcome (5) is NOT delivered and
+cannot be from this sandbox. The authorized run 33657524265 was dispatched against
+head 9e06ee7 and failed: the Anthropic account has hit its configured API usage
+limit ("You will regain access on 2026-10-01 at 00:00 UTC"), so all 2 attempted
+sources errored and run_once raised TotalRunFailure. Account-wide, not this branch:
+the concurrent scheduled master run 33657364580 failed identically on 30 of 30
+sources with candidates=0, and the armed cron is ingesting nothing until the cap is
+lifted. The binding stays RED and untouched — not skipped, not relaxed, no evidence
+written from a failed run, no retry (a date-bound cap cannot be re-run past). PR #210
+is not mergeable until a green run re-binds the evidence; that is a founder money
+decision, escalated.
+
+STATUS: OPEN — code + tests + table DELIVERED; smoke evidence BLOCKED on the API
+usage cap (R-088), awaiting founder.
 
 ## Session Contract #45 (2026-09-02 — founder: "what happened to the 198") — OPEN
 WHAT: read-only forensics on ingest run 33579093995 (198 candidates); no product code.
