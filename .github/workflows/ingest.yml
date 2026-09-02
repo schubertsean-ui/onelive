@@ -243,8 +243,11 @@ jobs:
           : "${ONELIVE_MAX_FOLLOW_PAGES_PER_RUN:?follow-page budget rendered empty — the ceiling is required — failing closed}"
           : "${SOURCE_CLASS:?source_class rendered empty — expected a Coverage Law letter or ALL — failing closed}"
           # The class letter is untrusted dispatch input: it reaches the
-          # process through env only (never ${{ }}-interpolated into run:) and
-          # run_once.py rejects anything that is not a Coverage Law letter.
+          # process through env only, never interpolated into this shell text
+          # (a workflow expression written here would be a script-injection
+          # surface AND, inside a run block, GitHub parses it as one even in a
+          # comment), and run_once.py rejects anything that is not a Coverage
+          # Law class letter.
           CLASS_ARGS=()
           if [ "$SOURCE_CLASS" != "ALL" ]; then
             CLASS_ARGS=(--source-class "$SOURCE_CLASS")
