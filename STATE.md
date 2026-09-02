@@ -81,10 +81,16 @@ prose instead, not as an extra table column).
 [S3:contract-scope-violation] [S3:status-narration-not-progress] [S3:stalled-state-needs-active-diagnosis] This build matches the founder's pasted Must-do exactly (5 columns, 2 files, 180-row cap, no catalog/worker/orchestrator edit); nothing here was amended past what this contract already names. Nothing in this PR is a status update standing in for a finished thing — the two files are the finished thing. No external/CI state is being watched or narrated.
 [S3:founder-verbatim-corrected] [S3:copy-outruns-registry] The founder's ticket text (Must-do/Must-not, Operating Law) is quoted/paraphrased faithfully with no "correction" of its wording. `docs/CENSUS_CAPCOG.md` makes no external-facing/customer claim beyond what `sources/master_sources_catalog_120.json` and the live `classify_entry()` actually contain.
 
-STATUS: OPEN — docs/CENSUS_CAPCOG.md + .csv delivered, pushed, PR opened as
-draft (https://github.com/schubertsean-ui/onelive/pull/212), subscribed for
-CI/review events. Awaiting the founder's merge line; not merged, per the
-ticket ("Then stop").
+STATUS: CLOSED — merged as `3d4d6a97a9b06857e96dc734d3724d94eba27214`
+(PR #212, https://github.com/schubertsean-ui/onelive/pull/212, all four
+checks green — trust-gate/db-integration/adversarial-review/Vercel — one
+`adversarial-review` transient network HARD-FAIL re-run once per the CI-red
+rule; the one real finding it then raised, an `absence-only` lens claiming
+the CSV's Carver Museum row was unquoted, was verified false against the
+committed file (RFC 4180-quoted, all 180 rows parse to 5 fields) and
+documented rather than "fixed"; fresh review pass after that commit
+APPROVED clean). Founder said "Mark #212 ready and merge" 2026-09-02;
+merged on that word.
 
 ## Session Contract #52 (2026-09-02, founder — "Session — wire same-page dates", branch claude/same-page-dates-extraction-c8rgjo) — OPEN
 
