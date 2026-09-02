@@ -17,9 +17,11 @@ drop: it fires the AI_EXTRACT_ZERO_EVENTS_SOURCE_MAY_HAVE_MOVED marker and still
 records one flagged empty candidate for ops.
 """
 from dataclasses import dataclass, field
+from datetime import date as _date, datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 import copy
 import inspect
+import json
 import logging
 import os
 
@@ -29,10 +31,8 @@ from ai.prompts import EXTRACTION_SYSTEM_PROMPT
 from ai.provider import AIProvider
 from worker.ai_models import AIEventExtraction
 from worker.candidate_store import create_candidate, add_evidence, record_ai_degradation
-from worker.datetime_normalize import (
-    normalize_extracted_datetimes,
-    preserve_discarded_claims,
-)
+from worker.datetime_normalize import preserve_discarded_claims
+from worker.same_page_dates import normalize_extracted_datetimes_with_page
 from worker.segment import segment_events
 
 logger = logging.getLogger(__name__)
@@ -58,6 +58,41 @@ def _max_events_per_page() -> int:
                        raw, _DEFAULT_MAX_EVENTS_PER_PAGE)
         return _DEFAULT_MAX_EVENTS_PER_PAGE
     return n if n >= 1 else _DEFAULT_MAX_EVENTS_PER_PAGE
+
+
+def _extraction_anchor() -> _date:
+    """The date a page's own weekday may be pinned against.
+
+    The orchestrator fetches a page and extracts it in the same pass, so the
+    extraction date IS the fetch date to within seconds — and the resolver's
+    window is -7/+365 days, so no timezone slop can move a pinned year. UTC is
+    used so two runners in different regions agree. Callers that must be
+    deterministic (tests, replays) pass ``as_of`` explicitly instead.
+    """
+    return datetime.now(timezone.utc).date()
+
+
+def _repair_provenance(meta: Dict[str, Any]) -> bool:
+    """Guarantee ``meta['_provenance']`` is a dict, preserving any malformed
+    original IN FULL under ``_provenance_malformed_original``.
+
+    Byte-for-byte the same repair worker.datetime_normalize.preserve_discarded_claims
+    performs, factored out so the same-page-date path cannot destroy a malformed
+    provenance that the refusal path would have preserved. Returns True when a
+    malformed value was encountered, so the caller can log it with source context.
+    """
+    prov = meta.get("_provenance")
+    malformed = prov is not None and not isinstance(prov, dict)
+    if malformed:
+        try:
+            json.dumps(prov)
+            meta["_provenance_malformed_original"] = prov
+        except (TypeError, ValueError):
+            meta["_provenance_malformed_original"] = repr(prov)
+    if not isinstance(prov, dict):
+        prov = {}
+    meta["_provenance"] = prov
+    return malformed
 
 # Meta keys the provider may attach (e.g. Claude provenance). These are NOT event
 # fields, so they are separated out before pydantic validation (which would drop
@@ -124,8 +159,15 @@ def _shape_and_store_one(
     source_class: str,
     text: str,
     sxsw_mode: bool,
+    page_text: Optional[str] = None,
+    as_of: Optional[_date] = None,
 ) -> str:
-    """Validate, R-021-normalize, and persist ONE event as candidate + evidence.
+    """Validate, R-021/R-030-normalize, and persist ONE event as candidate + evidence.
+
+    ``text`` is this event's OWN listing block and ``page_text`` the whole
+    fetched page; the date resolver is handed both, block first, because on a
+    calendar listing thirty shows the block is what "the same page as the time"
+    actually means.
 
     ``meta`` is DEEP-COPIED first: events on the same page may share provider
     provenance, and the per-event mutations below (validation_error flag,
@@ -161,7 +203,41 @@ def _shape_and_store_one(
     # provenance; the candidate row still reaches ops review, so no false
     # fact is asserted and no event is lost to a formatting detail. Applied
     # PER EVENT so each show's date claim is judged on its own text.
-    discarded_times = normalize_extracted_datetimes(shaped)
+    # R-030 (PR #209, wired here): before refusing a time-only claim, look for
+    # a date THIS PAGE already states — <time datetime>, JSON-LD startDate, ICS
+    # DTSTART, or a visible date next to the clock. The rule is unchanged from
+    # R-021 in every other respect: the date must come from this page's own
+    # text, a page date that contradicts the claim is refused rather than
+    # overwritten, several candidate dates with no owning block is refused, and
+    # a clock with no same-page date is still NULL. Nothing here invents a day —
+    # there is no "today", no "this year", no next-occurrence guess.
+    date_resolutions: Dict[str, Dict[str, str]] = {}
+    discarded_times = normalize_extracted_datetimes_with_page(
+        shaped,
+        block_text=text,
+        page_text=page_text,
+        as_of=as_of if as_of is not None else _extraction_anchor(),
+        resolutions=date_resolutions,
+    )
+    if date_resolutions:
+        # Provenance, not decoration: every date a page supplied is stored with
+        # the carrier, the scope and the exact string it came from, so ops can
+        # audit a stored timestamp back to the words that published it.
+        logger.info(
+            "source %r: %d datetime claim(s) completed from same-page evidence: %s",
+            source_name, len(date_resolutions), date_resolutions,
+        )
+        # A malformed _provenance is REPAIRED, never overwritten — the same
+        # contract preserve_discarded_claims enforces for refusals (PR #44 r1).
+        # Doing it here too matters because a page that resolves EVERY claim
+        # leaves discarded_times empty, so that helper never runs.
+        if _repair_provenance(meta):
+            logger.error(
+                "source %r: _provenance was malformed (non-dict) — replaced so "
+                "the same-page date evidence stays attached; original kept "
+                "under _provenance_malformed_original.", source_name,
+            )
+        meta["_provenance"]["same_page_date_resolutions"] = date_resolutions
     if discarded_times:
         logger.warning(
             "source %r: datetime claim(s) refused (stored as NULL, raw + "
@@ -211,6 +287,7 @@ def extract_candidates(
     source_url: str,
     sxsw_mode: bool = False,
     source_id: Optional[str] = None,
+    as_of: Optional[_date] = None,
 ) -> ExtractionOutcome:
     """Extract EVERY event on a page and fan out one candidate per event.
 
@@ -245,6 +322,12 @@ def extract_candidates(
         source_url=source_url,
         source_class=source_class,
         sxsw_mode=sxsw_mode,
+        # R-030: the WHOLE fetched page is the fallback scope for a date, and
+        # the anchor is resolved ONCE here so every block on a page pins its
+        # weekday against the same day — a page straddling UTC midnight must
+        # not date its first listings differently from its last.
+        page_text=text,
+        as_of=as_of if as_of is not None else _extraction_anchor(),
     )
     outcome = ExtractionOutcome()
 
@@ -299,6 +382,7 @@ def extract_candidate(
     source_url: str,
     sxsw_mode: bool = False,
     source_id: Optional[str] = None,
+    as_of: Optional[_date] = None,
 ) -> str:
     """Backward-compatible single-id entrypoint (used by worker/orchestrator.py).
 
@@ -316,6 +400,7 @@ def extract_candidate(
         source_url=source_url,
         sxsw_mode=sxsw_mode,
         source_id=source_id,
+        as_of=as_of,
     )
     # extract_candidates always records at least one candidate (a flagged empty
     # one on the zero-event path), so there is always an id to return.

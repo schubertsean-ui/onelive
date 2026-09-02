@@ -29,15 +29,19 @@ Anything not resolved stays exactly as R-021 left it: NULL, raw + reason
 preserved, candidate still routed to ops.
 
 WHY THIS IS ITS OWN MODULE, and not more of worker/datetime_normalize.py:
-that module is inside the ARMED CRON's computed runtime closure
-(tools/arming_runtime.runtime_files(), reached via worker/ai_extract.py),
-so changing a byte of it invalidates the recorded green smoke-run binding
-in docs/evidence/ARMING_SMOKE_RUN.json and rightly fails trust-gate. This
-engine is deliberately NOT wired into extraction yet — that one line is a
-founder decision — so it must not sit inside the armed runtime either.
-Living here, imported by nothing the cron runs, it leaves the armed cron's
-runtime bytes provably identical to the evidence that covers them. The PR
-that wires it in is the PR that legitimately carries a fresh smoke run.
+keeping the new rule in its own file means R-021's normalizer — the
+narrowest, most-depended-on piece of the date contract — stays
+byte-identical, so a defect found here can be reverted by unwiring one
+import rather than by unpicking a merged function.
+
+WIRED as of PR #210 (founder-authorized): worker/ai_extract.py calls
+normalize_extracted_datetimes_with_page() on the live extract path,
+offering each listing block as the "same page" scope first and the whole
+fetched page second. That import puts this file inside the ARMED CRON's
+computed runtime closure (tools/arming_runtime.runtime_files()), which is
+why PR #210 carries a fresh smoke run re-binding
+docs/evidence/ARMING_SMOKE_RUN.json — exactly as this docstring predicted
+while the engine was still parked.
 
 The R-021 primitives below are IMPORTED rather than re-implemented, on
 purpose: the date rule and its two probe dates must have exactly one
