@@ -243,16 +243,40 @@ def filter_by_coverage_class(sources: Sequence[dict], letter: str | None) -> lis
             "that would silently match nothing."
         )
     kept = []
+    distribution: dict = {}
+    reasons: dict = {}
+    empty_config = 0
     for source in sources:
-        entry = dict(source.get("config") or {})
+        config = source.get("config") or {}
+        if not config:
+            empty_config += 1
+        entry = dict(config)
         entry.setdefault("base_url", source.get("url"))
-        if classify_entry(entry).source_class == letter:
+        verdict = classify_entry(entry)
+        distribution[verdict.source_class] = distribution.get(verdict.source_class, 0) + 1
+        reasons[verdict.reason] = reasons.get(verdict.reason, 0) + 1
+        if verdict.source_class == letter:
             kept.append(source)
     logger.warning(
         "class filter --source-class=%s: %d of %d enabled source(s) match "
         "(dispatch-only; the scheduled loop never filters).",
         letter, len(kept), len(sources),
     )
+    if not kept:
+        # A filter that keeps nothing is a DIAGNOSIS, not a shrug: the same
+        # verdict decides whether the follow-pages walk ever fires, so "zero
+        # class B sources" must say WHY in the run's own output rather than
+        # send a human to guess at the database. Counts and the classifier's
+        # own reason strings only — no source names, no URLs, no config
+        # values, so a fail-closed diagnostic can never become a data leak.
+        logger.warning(
+            "class distribution across all %d source(s): %s; rows with an "
+            "EMPTY config (nothing declared, so classify_entry falls to its "
+            "unrecognized-posture rule): %d",
+            len(sources), sorted(distribution.items()), empty_config,
+        )
+        for reason, count in sorted(reasons.items(), key=lambda kv: -kv[1])[:5]:
+            logger.warning("  %4d source(s): %s", count, reason)
     return kept
 
 
