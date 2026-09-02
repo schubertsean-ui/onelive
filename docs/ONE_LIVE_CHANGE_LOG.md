@@ -8,7 +8,7 @@
 
 The 92 dateless candidates of run 33579093995 were all refused for the same
 reason — the extractor was handed a bare clock (`'9:00PM'`, `'10 am'`,
-`'19:00:00'`) and correctly refused to invent a day. `worker/datetime_normalize.py`
+`'19:00:00'`) and correctly refused to invent a day. The new `worker/same_page_dates.py`
 can now complete such a claim with a date **the same page already states**:
 JSON-LD `startDate`, a `time` element's `datetime` attribute, ICS `DTSTART`, or
 visible text. The honesty rules are the design — the event's own listing block
@@ -26,7 +26,21 @@ docs/evidence/2026-09-02_same-page-date-resolution.md.
 NOT wired, by the founder's instruction: the single call site is
 `worker/ai_extract.py` line 164, which sits on the extraction-eval guarded
 surface, so that one line is the founder's call (R-030 amended in place with the
-deferral and its trigger). Two findings worth the record, both from the
+deferral and its trigger).
+
+One defect, CI-caught, worth the record because the class already has a name.
+The first commit put this code in `worker/datetime_normalize.py`, which is inside
+the ARMED CRON's computed runtime closure, so it invalidated the recorded
+smoke-run binding and trust-gate went red — correctly. Local validate had passed
+because it ran with a DIRTY worktree and that binding test diffs `run_sha..HEAD`,
+commits rather than the working tree, so it was blind to the change. Class:
+`green-on-stale-base` (a green computed against a tree that lacks the change),
+reached by an uncommitted tree rather than a stale base. Two counter-measures:
+the engine moved to its own module outside the closure — an UNWIRED engine has no
+business in the armed runtime, and `worker/datetime_normalize.py` is restored
+byte-identical to master — and validate is re-run on a clean, committed tree
+before pushing, with `worktree: clean` in its evidence block as the proof. A
+committed test now pins the closure property against `runtime_files()` itself. Two findings worth the record, both from the
 measurement: the class-B fixtures print weekdays that contradict their own
 `time` elements on two of four listings, and the resolver refuses those — the
 rule working, not a defect; and `worker/segment.py` strips tags on the

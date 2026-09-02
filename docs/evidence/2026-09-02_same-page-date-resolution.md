@@ -11,7 +11,7 @@ refused `no-full-date-evidence`, because the extractor was handed a bare clock
 can never satisfy `/tonight`'s `start_time >= <from>` predicate, so those rows
 publish and are then invisible on every dated surface, forever.
 
-**The change.** `worker/datetime_normalize.py` may now complete such a claim with
+**The change.** The new `worker/same_page_dates.py` may now complete such a claim with
 a date **the same page already states** — JSON-LD `startDate`, `<time datetime>`,
 ICS `DTSTART`, or visible text. It never produces a date the page did not state:
 no "today", no "tonight", no "this year", no next-occurrence guess. A year the
@@ -21,6 +21,11 @@ a window anchored to the fetch time, and with no fetch anchor that path is off.
 **Not wired yet.** The call site is `worker/ai_extract.py:164`, which sits on the
 extraction-eval guarded surface. Per the session's must-do 5 that edit is the
 founder's call, so this PR ships the engine, the tests and this measurement only.
+The engine also lives deliberately OUTSIDE the armed cron's computed runtime
+closure (`tools/arming_runtime.runtime_files()` reports it False), so an unwired
+engine cannot invalidate the recorded smoke-run binding; wiring it pulls both
+files inside that closure, which is why the wiring PR is the one that must carry
+fresh smoke evidence.
 
 ---
 
