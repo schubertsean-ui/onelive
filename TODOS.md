@@ -13,6 +13,17 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #49 (2026-09-02 — FOLLOW-PAGES IN THE LIVE LOOP)
+- [x] (P0) Wire the #204 walker into the existing scheduled path, smallest diff: `worker/orchestrator.py` follows a class B source's advertised same-site event pages through the SAME sensor -> extract -> gate3 -> stamp implementation as the start page. DONE.
+- [x] (P0) Bound it fail-closed: 15 pages per source (founder's number) and 30 per RUN — pages, not sources, are what a run spends. Worst-case AI calls (30+30)x50 = 3000 vs 1500, stated in `ingest.yml`. DONE.
+- [x] (P0) Walls -> class D: 401/402/403/407/429 or a sign-in redirect ends the walk, records why, logs `INGEST_WALL_OBSERVED_CLASS_D`. Tests assert the exact URLs NOT requested after a wall. DONE.
+- [x] (P0) The class letter is the CATALOG's verdict (`source.config` -> `classify_entry`), fail-closed to D; the start-page fetch is NEVER gated on it, so coverage cannot shrink. DONE.
+- [x] (P1) Keep the armed cron's import closure statically provable without weakening `tools/arming_runtime.py`: drop an unused eager re-export from `worker/sourcing/__init__.py`; allowlist the three importer files that are genuinely cron runtime now. DONE.
+- [ ] (P0) The one founder-authorized live extract on <=10 class B sources, and the PR table with its real numbers. IN FLIGHT — ingest dispatch on this branch.
+- [ ] (P0) Refresh `docs/evidence/ARMING_SMOKE_RUN.json` to that run: armed-cron runtime code changed, so `test_arming_smoke_binding` is RED by design until it does.
+- [ ] (P1, R-085) An observed wall does not become a `docs/CLASS_D_CLAIM_QUEUE.md` row — a scheduled run has no commit path to the repo. Give the pipeline a DB-side wall record (natural carrier: the claim/verify work R-080 tracks), or sweep the marker by hand until then.
+- [ ] (P2) Report per-source START-page candidates in the RunReport detail line, not only the followed-page count — this run's table can only attribute the follow half per source. Next legitimate runtime touch (it re-fires the smoke binding, so it must ride a change that already does).
+
 ## Session Contract #48 (2026-09-01 — Coverage Law session, CLASS B MULTI-PAGE FOLLOW)
 - [x] (P0) Discover same-site public events/calendar/shows pages from a registered start URL — link text, url path, common paths, plus on-page ICS/JSON-LD read through the existing `structured_feed` authority (`worker/sourcing/page_discovery.py`). DONE.
 - [x] (P0) Fetch them under a bound: <=15 extra pages per source per run, on-origin only, off-site links refused before the fetcher sees them (`tools/class_b_multipage.py`). DONE.
@@ -20,7 +31,7 @@ Check items off in the same commit that completes them; don't batch-remove.
 - [x] (P0) Login / paywall / bot wall -> class D, queued, never fetched: one knock, `demote_on_response` decides, `--update-claim-queue` writes the queue. Proven by tests asserting the exact URLs NOT requested. DONE.
 - [x] (P1) The run table for 10 class B sources with a homepage URL, backed by committed machine evidence (`docs/evidence/CLASS_B_MULTIPAGE_FIXTURE_RUN.json`). DONE — fixtures, because this sandbox 403s every outbound fetch.
 - [ ] (P1, R-084a) FIRST run with a real `ANTHROPIC_API_KEY` (and live network): record the run id and its table, and close the model-half + live-fetch limits. Founder-dispatched; needs no code change.
-- [ ] (P1, R-084b, FOUNDER DECISION) Should the scheduled loop follow pages, or does this stay a manual tool? Wiring it in means editing `worker/orchestrator.py` — inside the armed cron's runtime closure — which this session's leash forbids without asking. Asked in the PR body.
+- [x] (P1, R-084b, FOUNDER DECISION) Should the scheduled loop follow pages, or does this stay a manual tool? ANSWERED 2026-09-02: YES — wired in Session Contract #49. Wiring it in means editing `worker/orchestrator.py` — inside the armed cron's runtime closure — which this session's leash forbids without asking. Asked in the PR body.
 - [ ] (P2) Pin the storage half in CI's existing `db-integration` lane: one integration test asserting the follow writes candidate + evidence rows against a real PostgreSQL, so the 14-row number is CI-checked rather than an artifact I generated once.
 - [ ] (P2) Feed the ICS links discovery already finds (e.g. an advertised `/events.ics`) to the existing structured importer instead of only reporting them — a free class A lane sitting inside a class B page. Scope after R-084a proves the walk live.
 
