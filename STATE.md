@@ -76,7 +76,12 @@ sources with candidates=0, and the armed cron is ingesting nothing until the cap
 lifted. The binding stays RED and untouched — not skipped, not relaxed, no evidence
 written from a failed run, no retry (a date-bound cap cannot be re-run past). PR #210
 is not mergeable until a green run re-binds the evidence; that is a founder money
-decision, escalated.
+decision, escalated. RETRY (founder-authorized, after funds were added) FAILED
+IDENTICALLY: run 33658391826, same message, same 2026-10-01 date. The blocker is the
+founder-set $500/mo CONSOLE SPEND LIMIT recorded in ARMING_SMOKE_RUN.json, which is a
+configured monthly cap rather than a balance — adding funds cannot raise it and it
+resets 2026-10-01T00:00Z. Unblock = raise that limit. Stopped at one retry per the
+founder's instruction.
 
 STATUS: OPEN — code + tests + table DELIVERED; smoke evidence BLOCKED on the API
 usage cap (R-088), awaiting founder.
