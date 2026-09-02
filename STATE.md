@@ -143,6 +143,55 @@ NEXT (top of queue, contract-first, evaluator mandatory): **Step 6 golden-set ga
 
 FOUNDER DECISIONS CLOSED 2026-07-15: PRs #4/#7 closed ("Close both" — R-009 resolved); 4-state confidence model CONFIRMED as final canon ("confirmed"). The same-day fifth-state question is RESOLVED: founder ratified the Certainty Display Stack ("Display stack accepted", 2026-07-15) — NO fifth state; state (frozen at 4) × freshness × provenance compose as attributes; event_status its own field (docs/strategy/ONE_LIVE_CERTAINTY_DISPLAY_v1.md, canon; Axes 2/3 + event_status build at Step 7). **No founder decision blocks the CRITICAL PATH (Steps 6–10).** The non-blocking founder-decision backlog remains OPEN in TODOS.md (monitoring-stack timing P1; trust-framework naming, payments, native-mobile timing P2; revenue reconciliation, sync licensing P3) — agents must not silently pick any of these.
 
+## Session Contract #50 (2026-09-02, founder — "Session — what happened to the 198", branch claude/run-33579093995-candidates-xcuqu6)
+STATUS: OPEN
+WHAT: a read-only account of run 33579093995's 198 candidates — the per-source wave table, the exact gate that keeps gate-passed rows off /tonight, and a promote decision. No pipeline change proposed.
+HOW: the run's own Actions log (RunReport + per-source lines) plus the 02:47Z autopromote log read as DB ground truth; DB-only columns are marked UNVERIFIED because this sandbox holds no DSN and the egress proxy refuses Supabase and 1live.co. Evidence: docs/evidence/2026-09-02_run-33579093995-wave.md.
+WHY: the wave's candidates passed the trust gate and the armed auto-promote is publishing them, yet the founder cannot find them on /tonight.
+WHY-THAT-WHY-MATTERS: the promote path is NOT the blocker — 92 of the 198 carry a refused (NULL) start_time, which the /tonight window predicate can never match — so building on the promote stage would spend a session and move nothing.
+EXPECTED OUTCOMES: the tables on the record, the gate named to file+function, R-030 re-measured against this wave, and a founder decision requested (must-do 4) rather than an out-of-leash edit to ai_extract.py or the /tonight reader.
+S3 RETRIEVAL (docs/memory/RED_CLASSES.md — every class the gate matched on this diff; broad triggers over-trigger by design, so an honest "does not bite, and here is why" is the answer the index asks for):
+[S3:contract-scope-violation] Contract #50 promises a read-only account plus a founder question; that is exactly what shipped — no code, so no scope to amend.
+[S3:copy-outruns-registry] Every claim in the evidence doc is quoted from a named run log or a cited file, and the columns I could not measure read UNVERIFIED rather than as live facts.
+[S3:db-type-mismatch-invisible-to-hermetic-tests] No publish-path code changed, so db-integration.yml has nothing new to prove; the NULL start_time reported here is a value the REAL pipeline stored, not a hermetic fixture.
+[S3:deferred-trust-work] BITES, and it is the founder question: the trust-path gap (dateless rows publish, then can never enter the view) is NOT fixed here because both available fixes sit outside this session's leash — it is R-030, OPEN since 2026-07-25, and it is re-measured in THIS commit rather than parked as a TODO.
+[S3:false-confidence-gate] This change adds no gate and weakens none; validate ran in full and its evidence block is pasted verbatim, INCOMPLETE row included.
+[S3:final-gate-trusts-generator] Unchanged — promote.py still re-runs evaluate_gate inside its own transaction. I only read that path, and the doc cites the code for it rather than inferring it from autopromote's log.
+[S3:governance-ambiguity] The evidence doc states its own precise scope (what is measured, what is UNVERIFIED, and why), so it cannot later be cited as proof of a number it never held.
+[S3:pagination-integrity-gap] No paged walk added; the job log was read whole. Where the RunReport itself does not attribute 91 of the 198 candidates to a source, the doc says so instead of implying the list is complete.
+[S3:parallel-record-id-collision] No new R-### allocated — R-030 is amended in place, so no id can collide with a parallel session's allocation.
+[S3:permission-for-ratified-work] No ratified-but-unbuilt work was re-asked for permission. The single interrupt is a genuine product-policy call (how /tonight should treat dateless catalog rows) plus an explicit leash boundary — founder-crucial by the charter's own list.
+[S3:release-path-weaker-than-generation] No release or re-render path touched.
+[S3:retyped-evidence] Every figure is quoted from a named, linked run (33579093995, 33584503550); the per-source refusal counts were derived by script over the fetched log, never counted by eye.
+[S3:rule-stronger-than-mechanism] This PR states no new rule, so it ships no unmechanized half.
+[S3:scripted-transform-order] The RECORD.md amendment was a scripted string replace; I re-read the rendered R-030 row afterwards and confirmed sentence order and parenthesis balance survived it.
+[S3:self-weakenable-gate] RED_CLASSES.md is untouched — no token removed, no trigger narrowed.
+[S3:semantic-claim-not-rederived] The central claim (a NULL start_time can never satisfy start_time=gte.X) is re-derived from buildPromotedQuery's predicate plus SQL three-valued logic, not inferred from the feed merely looking empty.
+[S3:stale-base-widens-range] construction_gate confirmed origin/master == remote tip 68777de against ls-remote on this run before any range-derived check.
+[S3:stale-redclass-count] Every number typed here (198, 92, 185/200, 487) describes a FIXED PAST RUN and cannot become wrong; no count of this diff's own contents is asserted anywhere.
+[S3:stalled-state-needs-active-diagnosis] The stalled state ("the 198 are not on the site") got exactly one diagnostic pass — the run's own logs plus the reader code — and ends in a decision request, not more waiting.
+[S3:status-narration-not-progress] BITES, and the class's own measure is reported honestly: `git diff --name-only origin/master HEAD | grep -E '^(web|worker|api|db)/' | wc -l` = 0. The site did not move this session. That is precisely why this ends in the one thing the class permits — a decision only the founder can make, with its smallest unblock named.
+[S3:untested-gate-branch] No gate-custody mechanism added, so no branch owes a test.
+[S3:volatile-safety-store] No safety counter, journal, or cap introduced.
+[S3:caller-suppliable-custody-inputs] No custody input is introduced or chosen here — this change writes records only.
+[S3:deliverable-visual-qa] The deliverable is two markdown tables read in a terminal and a PR body; there is no rendered surface to get wrong.
+[S3:env-dependent-hermetic-test] No test added, but one environment fault is worth the record: six certification tests failed in this sandbox purely because the clone was shallow, and all passed after `git fetch --unshallow` — never this diff.
+[S3:fabricated-qualitative-copy] Nothing outward-facing was written; the doc names its sources and quotes their own words.
+[S3:false-price-claim] No price or money figure appears in this change.
+[S3:founder-verbatim-corrected] The founder's leash wording and the run's log lines are reproduced exactly as given — nothing was tidied into better English.
+[S3:missing-cardinality-check] No read added. The single-row reader I inspected, fetchPromotedEventById, already routes through exactlyOneOrNull, and I did not touch it.
+[S3:pushed-on-red] validate ran unpiped with its exit code read; its real result is INCOMPLETE and is reported as INCOMPLETE, never dressed as a pass.
+[S3:weak-key-accepted-at-custody] No key, secret, or signature is handled here.
+[S3:nonfinite-decimal-accepted] No numeric parsing or normalizer is added; every figure quoted is an integer read straight out of a run log.
+[S3:fail-open-on-custody-misconfig] No custody mechanism is added or configured. Where I could not reach production, the report refuses to answer (UNVERIFIED) rather than reaching a success path on a guess.
+[S3:green-on-stale-base] The gate confirmed origin/master == remote tip 68777de against ls-remote on this run, and every check ran on this branch's own tree, never a synthetic merge.
+[S3:mutable-model-alias] No model id, alias, or pin is set or altered anywhere in this change.
+[S3:self-weakenable-review-model] This change alters no input to the review that judges it — the workflows, the evaluator seat and its tools are untouched.
+[S3:stale-live-incident-state] Every live claim is re-derived from the runs themselves (33579093995 and 33584503550, both linked), never from earlier prose in STATE; where the live system was unreachable I say unreachable instead of quoting an old number.
+[S3:swallowed-corrupt-data] Nothing is silently filtered. The two places evidence runs out — 91 candidates the RunReport does not attribute to a source, and every DB-only column — are printed as gaps, not smoothed over.
+[S3:workflow-tool-version-skew] No file under .github/ and no base-owned trusted tool is touched by this change.
+[S3:unusable-credential-tier] No credential is minted, requested, or assumed. The absent DB credential is reported as the reason a column is UNVERIFIED — the exact opposite of treating a missing one as usable.
+
 ## Session Contract #49 (2026-09-02, founder — "Session — follow-pages in the live loop", branch claude/follow-pages-live-loop-o0g3tm)
 
 STATUS: DELIVERED — PR #205, all four checks GREEN on 760c0e8 (evaluator panel APPROVE on every seat at r2; trust-gate, db-integration, Vercel green). NOT MERGED: the founder holds the merge ("Do not merge until I say so"), so the standing merge-on-green permission is explicitly overridden for this ticket. The walk is LIVE in the armed loop and proven live — run 33579093995: 19 pages followed, 198 candidates, 0 walls; runtime bound by run 33581604607. Two findings stay OPEN and are the founder's: R-086 (production declares no access posture — the catalog fallback is a read-only workaround, the fix is a 180-row upsert) and R-087 (a wall on a START page is still an error, not a class-D demotion).

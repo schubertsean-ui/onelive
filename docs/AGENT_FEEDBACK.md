@@ -194,3 +194,25 @@ sandboxes.
 - WORKED WELL: webhooks-as-the-trigger (§6a.2) — both CI reds on PR #152 arrived as events mid-session and were diagnosed+fixed in the same pass, no polling, no timers.
 - WORKED WELL: reviewing the FIRST captured baseline by eye before trusting it caught a real product defect (detail "Kind" rendered the raw slug) — "look at the artifact before pinning it" is worth keeping as a habit.
 - NOTE: the kickoff cited OPERATING_RULES §4a before it existed on master (it lived in open PR #145; merged this session) — a kickoff referencing in-flight canon should name the PR so the reader knows where the text lives.
+
+## 2026-09-02 — shallow clone fails six certification tests; no DB reach from the sandbox
+
+1. **A shallow clone is an invisible six-test red.** `tests/test_trust_gate_certification.py`
+   (5) and `tests/test_arming_smoke_binding.py` (1) failed on a CLEAN tree in this
+   remote sandbox, with the honest message "a shallow clone needs full history for
+   this check". `git fetch --unshallow` turned the suite green (2262 passed) with no
+   code change. The failure looks like a real trust-path red to anyone who has not
+   hit it before. Worth a preflight note in `docs/SESSION_START.md`, or a
+   `git rev-parse --is-shallow-repository` check in `tools/validate` that says
+   "unshallow first" instead of letting six trust tests report false red.
+2. **Python deps are absent by default.** pytest, pydantic, and fastapi are all
+   missing on a fresh remote session, so `tools/validate` reports FAIL for reasons
+   that have nothing to do with the diff. `pip install -r worker/requirements.txt
+   -r api/requirements.txt pytest` fixes it; a SessionStart hook could just do it.
+3. **The sandbox cannot reach production, and that silently caps what a
+   DB-shaped ask can deliver.** No `ONELIVE_DB_DSN`, and the egress proxy answers
+   `CONNECT tunnel failed, response 403` for both `*.supabase.co` and `1live.co`.
+   A founder ask phrased as a table of row counts is therefore unanswerable from
+   here, and the only honest output is UNVERIFIED cells. A read-only wave-query
+   dispatch on master (the `db-report.yml` pattern) would close this permanently.
+
