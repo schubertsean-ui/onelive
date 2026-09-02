@@ -13,6 +13,10 @@ Check items off in the same commit that completes them; don't batch-remove.
 - **P2** — real gap, not currently blocking.
 - **P3** — nice-to-have / ongoing background work.
 
+## Session Contract #53 (2026-09-02 — CAPCOG ENTITY CENSUS, docs + table only)
+- [x] (P0) Census every row in `sources/master_sources_catalog_120.json` by bucket/grade/next_action into `docs/CENSUS_CAPCOG.md` + `.csv`, publishers as first-class rows, newsletter-path note. DONE — see docs/CENSUS_CAPCOG.md.
+- [ ] (P2) Work the census's own worklist: 4 `claim` rows + 1 `subscribe-inbox` row through the existing `/ops/claim` flow (`worker/claim/intake.py`); treat the 10 `follow` rows (aggregators/social/MusicBrainz) as leads only, never as directly-ingested listings — agent, next sourcing session, no founder decision needed. Source: docs/CENSUS_CAPCOG.md.
+
 ## Session Contract #51 (2026-09-02 — SAME-PAGE DATE ONLY, R-030)
 - [ ] (P0) FOUNDER DECISION — wire the same-page date resolver into the pipeline — founder — one line at `worker/ai_extract.py:164` passing the page text, the listing block and the fetch time into `normalize_extracted_datetimes_with_page` (worker/same_page_dates.py). Note it pulls both files into the armed cron's runtime closure, so that PR needs fresh smoke evidence as well as the guarded-surface red. The engine, its 28 tests and the measurement are merged and idle until then; that file sits on the extraction-eval guarded surface, which is why this session stopped short of it (must-do 5). Answering yes also closes Table 3 of docs/evidence/2026-09-02_same-page-date-resolution.md, because the next run prints the split.
 - [ ] (P2) `worker/segment.py` strips tags on the anchor-split path, so a listing block loses the `<time datetime>` / JSON-LD date its page published — the resolver works around it by reading page text too. Worth fixing at the source once the wiring lands — agent — found by tools/same_page_date_report.py.

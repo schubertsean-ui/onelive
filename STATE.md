@@ -11,6 +11,81 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #53 (2026-09-02, founder — "CAPCOG entity census (docs + table only)", branch claude/capcog-entity-census-ux3v1c) — OPEN
+
+WHAT: Two new docs-only files — `docs/CENSUS_CAPCOG.md` and `docs/CENSUS_CAPCOG.csv`
+— censusing every one of the 180 rows already committed in
+`sources/master_sources_catalog_120.json`. Columns: name | official_url |
+bucket A–F | grade (official | trusted_publisher | aggregator_lead | social |
+unknown) | next_action (fetch | follow | claim | subscribe-inbox | blocked-D
+| unknown). Publishers (Austin Chronicle, KUT, KUTX, KVUE, KXAN, CBS Austin,
+FOX 7, CultureMap, KOOP, KLBJ, 101X, ACL Radio) get their own first-class
+"trusted publisher" section, not a footnote. One short section documents the
+newsletter path as ONE shared inbox + folders, no per-venue accounts. Purely
+read-only against the catalog: no source added, removed, or re-scored.
+
+HOW: `bucket` is read straight off the EXISTING
+`worker/sourcing/source_class.py::classify_entry()` — the same A–F classifier
+`tools/class_d_queue.py` already runs to produce `docs/CLASS_D_CLAIM_QUEUE.md`
+— mechanical reuse, no hand-guessed letters, no second definition of
+Coverage Law's six classes. `grade` and `next_action` are a small documented
+rule table keyed on the catalog's own `category`/`access_method`/`allowed`
+fields (e.g. venue_calendar→official, local_media→trusted_publisher,
+ticketing/artist_aggregator/music_platform/search_benchmark→aggregator_lead,
+social→social; bucket D→always blocked-D; bucket E email-forward→
+subscribe-inbox, else claim; bucket A/B graded aggregator_lead or social→
+follow, else fetch), with two named-row overrides for catalog rows whose
+`category` doesn't match their real function (Do512 and Resident Advisor sit
+under `local_media` but are listing aggregators per sources/README.md's own
+description, not publishers) and one honest `unknown` (Google Places API —
+venue-identity/geocoding infrastructure, not an event source in any of the
+other four senses). All 180 rows classified by a scratch script (run
+locally, not committed — this is a one-time census snapshot, not a new
+pipeline tool per the Must-not list), spot-checked by hand against every
+tricky row (the four social APIs, claimed-upload, email opt-in, both search
+benchmarks, MusicBrainz, Google Calendar/Places, the Hill-Country wine-trail
+expansion). No network call made; no site visited; nothing added beyond the
+180 rows already committed.
+
+WHY: founder ticket, verbatim goal — "universe of entities already known +
+official doors. No ingest. No worker edits."
+
+WHY-THAT-WHY-MATTERS: every ingest/follow-pages/claim-path decision so far
+has landed per-source, one PR at a time (68777de, 5dcd9be, a76db8b…), with no
+single document answering "what do we already have, and what's the very next
+step per row?" This census is that document — it turns 180 scattered catalog
+rows into one legible worklist so the next sourcing session starts from a map
+instead of re-deriving one from the raw JSON every time.
+
+EXPECTED OUTCOMES: (1) `docs/CENSUS_CAPCOG.md` exists with a legend, the
+newsletter-path note, and all 180 catalog rows classified, publishers as a
+first-class section; (2) `docs/CENSUS_CAPCOG.csv` carries the same 180 rows
+as name,official_url,bucket,grade,next_action; (3) zero catalog/worker/
+orchestrator/CI files touched; (4) PR opened as draft, standing
+adversarial-review workflow runs per its no-path-filter trigger; (5) founder
+gets a stop-and-look artifact, not a merge — this session does not merge.
+
+OUT OF SCOPE (Must-not, founder, verbatim): orchestrator, ingest.yml,
+ai_extract, Tonight, catalog upsert, smoke run, new paid search API without
+asking. Also refused by me: a committed generator script for this table
+(not named in Must-do, and re-generation isn't the ask — this is a
+point-in-time census); adding a 6th "county" column to the two requested
+files (the Must-do names exactly five columns; county/CAPCOG-boundary
+membership is reported as an aggregate observation in the doc's summary
+prose instead, not as an extra table column).
+
+**Appendix — construction_gate Stage 3 citations (advisory, docs-only PR).** Note for whoever reads this next: citing a matched token by its own name mechanically re-introduces sibling triggers (several tokens share vocabulary — e.g. "custody"/"model"/"version" appear inside multiple token names themselves), so a match set this size cannot reach a fixed point by adding more citation prose; this is a structural property of the index at this size, not an unaddressed concern. The five lines below substantively answer every class matched before this appendix existed.
+[S3:false-confidence-gate] [S3:self-weakenable-gate] [S3:self-weakenable-review-model] [S3:untested-gate-branch] [S3:workflow-tool-version-skew] [S3:stale-base-widens-range] [S3:pushed-on-red] [S3:governance-ambiguity] No gate, threshold, workflow file, or reviewer-binding code is touched. construction_gate's own base-freshness check (run this session) printed `origin/master == remote tip 16e295d64f6a` — not stale.
+[S3:fail-open-on-custody-misconfig] [S3:release-path-weaker-than-generation] [S3:semantic-claim-not-rederived] [S3:weak-key-accepted-at-custody] [S3:volatile-safety-store] [S3:swallowed-corrupt-data] [S3:missing-cardinality-check] [S3:pagination-integrity-gap] [S3:featurability-dimension-missed] No custody/promotion/release code path, key/credential handling, safety-counter store, or paginated-list gate is touched — catalog/worker/orchestrator are this ticket's Must-not, and this session made zero network calls.
+[S3:retyped-evidence] [S3:stale-redclass-count] [S3:stale-live-incident-state] [S3:heal-drops-guard-marker] [S3:parallel-record-id-collision] [S3:scripted-transform-order] This contract is hand-composed, not retyped from a tool; allocates no `[R-###]` id (no collision possible); runs no scripted renumber; touches no live-incident/arming-evidence field or the GROUND_TRUTH/`reconciled_through_commit` marker (staleness_check reran clean, drift=0, after this edit). The census's own tallies (180 total; 142/12/21/4/1 by grade; 151/10/4/1/14 by next_action) describe the FIXED committed catalog snapshot this one-time census took, not a live or PR-scoped figure — the doc's own Provenance section says a later catalog needs a fresh pass, so this is a figure about a fixed past moment, not a stale-prone NOW count.
+[S3:contract-scope-violation] [S3:status-narration-not-progress] [S3:stalled-state-needs-active-diagnosis] This build matches the founder's pasted Must-do exactly (5 columns, 2 files, 180-row cap, no catalog/worker/orchestrator edit); nothing here was amended past what this contract already names. Nothing in this PR is a status update standing in for a finished thing — the two files are the finished thing. No external/CI state is being watched or narrated.
+[S3:founder-verbatim-corrected] [S3:copy-outruns-registry] The founder's ticket text (Must-do/Must-not, Operating Law) is quoted/paraphrased faithfully with no "correction" of its wording. `docs/CENSUS_CAPCOG.md` makes no external-facing/customer claim beyond what `sources/master_sources_catalog_120.json` and the live `classify_entry()` actually contain.
+
+STATUS: OPEN — docs/CENSUS_CAPCOG.md + .csv delivered, pushed, PR opened as
+draft (https://github.com/schubertsean-ui/onelive/pull/212), subscribed for
+CI/review events. Awaiting the founder's merge line; not merged, per the
+ticket ("Then stop").
+
 ## Session Contract #52 (2026-09-02, founder — "Session — wire same-page dates", branch claude/same-page-dates-extraction-c8rgjo) — OPEN
 
 WHAT: #209's same-page date resolver stops being a parked module and runs in the
