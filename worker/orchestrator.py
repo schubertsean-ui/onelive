@@ -1146,6 +1146,15 @@ def _run_one_source(
         render_state=render_state, follow=False, budget=budget, queue=queue,
     )
     doors_spent = 0
+    # THE DEFINING DOOR: the page this tick actually came to read. Kept
+    # separate from `door` because the fallback below REPLACES `door`, and the
+    # verdict must keep describing the page we came for (evaluator finding,
+    # seat openai / lens absence-only). Without this, a best door that 404s
+    # and then falls back to a healthy homepage reports `verified_present` —
+    # a page that is gone displayed as re-verified, which is exactly the
+    # misleading trust display the fail-closed rule exists to prevent.
+    defining_door = door
+    defining_url = primary_url
     if door.kind == "missed" and primary_url != start_url:
         # The remembered door is gone (moved calendar, retired path). Spend the
         # second fetch on the registered start URL rather than losing the
@@ -1164,18 +1173,39 @@ def _run_one_source(
         )
 
     def _verdict_kwargs(page_decision=None):
-        # ONE call site for the fail-closed verdict, so no branch below can
-        # forget it and quietly default to something permissive. Recorded on
-        # the result AND in the replay log; nothing acts on it — the loop does
-        # not mutate published events (see worker.crawl_state's verification
-        # section for why that boundary is where it is).
+        """The fail-closed verdict for THE PAGE THIS TICK CAME TO READ.
+
+        ONE call site, so no branch below can forget it and quietly default to
+        something permissive. Recorded on the result AND in the replay log;
+        nothing acts on it — the loop does not mutate published events (see
+        worker.crawl_state's verification section for why that boundary is
+        where it is).
+
+        The verdict is computed from `defining_door`, NOT from whatever door
+        the source ended up reading. When a remembered best door 404s and the
+        loop falls back to the registered start URL, the fallback's success
+        says the SOURCE still has a door — it says nothing about the page that
+        vanished, and reporting `verified_present` for it would show a gone
+        page as re-verified. The fallback outcome is still reported, as the
+        separate fact it is: a re-found door, in the detail and the log.
+        """
+        fell_back = defining_door is not door
         v, why = classify_recheck(
-            door_kind=door.kind, page_decision=page_decision,
-            http_status=door.http_status)
+            door_kind=defining_door.kind,
+            # A page_decision belongs to the door that produced it. After a
+            # fallback it describes the OTHER page, so it must not be allowed
+            # to upgrade the defining page's verdict.
+            page_decision=None if fell_back else page_decision,
+            http_status=defining_door.http_status)
+        if fell_back:
+            why += (f"; the source's door was re-found at {primary_url} "
+                    f"({door.kind}), which does not re-verify {defining_url}")
         log_step(ReplayRecord(
             run_id=run_id, ts=_now_iso(), source_id=str(source_id),
             source_name=source_name, stage="verify",
-            inputs_digest=canonical_digest({"url": primary_url, "queue": queue}),
+            inputs_digest=canonical_digest({
+                "defining_url": defining_url, "read_url": primary_url,
+                "queue": queue, "fell_back": fell_back}),
             outputs_digest=canonical_digest({"verdict": v}),
             decision=v, detail=why,
         ))

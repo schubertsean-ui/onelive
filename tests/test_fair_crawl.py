@@ -271,6 +271,51 @@ def test_an_off_origin_best_url_is_refused_and_the_start_url_is_used(monkeypatch
     assert requested[0] == "https://venue.example/"
 
 
+def test_a_fallback_never_reports_the_gone_page_as_verified(monkeypatch, tmp_path):
+    """Evaluator finding (seat openai / lens absence-only, PR #213), and it was
+    a real one: when a remembered best door 404s, the loop falls back to the
+    registered start URL — and the fallback's SUCCESS was overwriting the
+    defining page's verdict, so a page that is gone displayed as
+    `verified? present`. A gone page shown as re-verified is precisely the
+    misleading trust display the fail-closed rule exists to prevent, and it
+    would have poisoned the listing-update path the moment that path is built.
+
+    The verdict must describe the page the tick came to read. The fallback is
+    still reported — as the different fact it is: the source's door was
+    re-found."""
+    _install(monkeypatch, tmp_path,
+             pages={"https://venue.example/": HOME_HTML},
+             errors={"https://venue.example/gone":
+                     _HttpError(404, "https://venue.example/gone")})
+    state = SourceCrawlState("src-venue", best_url="https://venue.example/gone")
+
+    report = run_loop(ai=FakeAIProvider(), sources=[_source(state=state)],
+                      budget=TickBudget())
+
+    result = report.results[0]
+    assert result.verdict == VERIFIED_ABSENT, (
+        "the defining page 404'd; the homepage answering says nothing about it")
+    assert "re-found" in result.verdict_reason
+    assert "https://venue.example/gone" in result.verdict_reason
+    # The table a human reads must not say "present" for the page that is gone.
+    assert "present" not in render_run_table(report).split("\n")[2]
+    # ...and the fallback still did its job: the source was read, not lost.
+    assert report.counts["extracted"] == 1
+    assert report.counts["errors"] == 0
+
+
+def test_a_healthy_door_still_reports_present(monkeypatch, tmp_path):
+    """The guard above must not make every source unverified — no fallback
+    happened here, so the door's own clean parse stands."""
+    _install(monkeypatch, tmp_path, pages={
+        "https://venue.example/": HOME_HTML,
+        "https://venue.example/events": PAGE_HTML})
+    state = SourceCrawlState("src-venue", best_url="https://venue.example/events")
+    report = run_loop(ai=FakeAIProvider(), sources=[_source(state=state)],
+                      budget=TickBudget())
+    assert report.results[0].verdict == VERIFIED_PRESENT
+
+
 def test_a_dead_best_url_falls_back_to_the_start_url_in_the_same_wave(monkeypatch, tmp_path):
     """A venue moves its calendar. best_url is a shortcut, never a commitment:
     the source re-discovers itself on the very next run instead of quietly

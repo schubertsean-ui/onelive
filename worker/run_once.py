@@ -115,7 +115,7 @@ def _run_stub() -> int:
     print()
     print(render_run_table(report))
     print()
-    print(render_outcomes(report, model_id=getattr(ai, "model_id", None)))
+    print(render_outcomes(report, model_id=_provider_model_id(ai)))
     return 0
 
 
@@ -195,6 +195,23 @@ def order_for_rotation(rows: Sequence[tuple]) -> list:
 # bucket element of the key above guarantees it is never compared against a
 # real timestamp — it only ties with itself, then source_id breaks the tie.
 _NEVER_FETCHED_SENTINEL = 0
+
+
+def _provider_model_id(ai) -> str | None:
+    """The model id a provider exposes, whatever it calls the attribute.
+
+    ClaudeProvider names it `model`; BedrockProvider names it `model_id`.
+    Asking for only one of them meant the cost line printed "unknown" against
+    the other — not a wrong number, but a missing one, and the founder asked
+    for $ as an outcome (evaluator nit, seat openai / lens absence-only).
+    Reading both is the fix; an unknown id still prints as unknown, never as a
+    guess.
+    """
+    for attr in ("model", "model_id"):
+        value = getattr(ai, attr, None)
+        if value:
+            return str(value)
+    return None
 
 
 def render_outcomes(report, *, model_id=None) -> str:
@@ -593,7 +610,7 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
     print()
     print(render_run_table(report))
     print()
-    print(render_outcomes(report, model_id=getattr(ai, "model", None)))
+    print(render_outcomes(report, model_id=_provider_model_id(ai)))
     # Attempted = per-source results actually recorded by the loop (a source
     # skipped before attempt has no result row), falling back to the input
     # list only if the report carries none — evaluator nit, PR #21 r2.
