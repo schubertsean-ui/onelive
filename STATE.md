@@ -2,6 +2,15 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #45 (2026-09-02 — founder: "what happened to the 198") — OPEN
+WHAT: read-only forensics on ingest run 33579093995 (198 candidates); no product code.
+HOW: run + autopromote job logs, code on disk; no DB (no DSN, egress 403) — gaps marked UNVERIFIED.
+WHY: founder needs to know the wave's time window and whether any row can reach /tonight.
+WHY-THAT-WHY-MATTERS: 92 of 198 (46%) stored start_time NULL, so no dated view can ever show them.
+EXPECTED OUTCOMES: forensics table + named gate + a founder ask; no promote PR (none is needed).
+FINDING: promote already auto-publishes hourly (185/pass) but LIMIT=200 vs 278-347 newly-ready/pass.
+DONE-CRITERIA: docs/session_arcs/2026-09-02_run-33579093995-candidate-forensics.md merged; 4 asks answered.
+
 **2026-08-05 rollup 3 (records-only direct commit, marker -> 8483e57):**
 #186 merged (b847fb3 — event insert casts artist_ids `%s::uuid[]`; the 64
 live promote errors, one cause), #177 merged (615caa9 — source scanner v1,
