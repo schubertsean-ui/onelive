@@ -11,6 +11,63 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #52 (2026-09-02, founder — "Session — wire same-page dates", branch claude/same-page-dates-extraction-c8rgjo) — OPEN
+
+WHAT: #209's same-page date resolver stops being a parked module and runs in the
+live extract path. `worker/ai_extract.py` calls it instead of R-021's bare
+normalizer, handing it the event's OWN block first and the whole fetched page
+second, so a listing that says "9:00PM" on a page that also prints "Sat Sep 6"
+stores 2025-09-06T21:00:00 instead of NULL. Rules unchanged from #209: the date
+must be stated on the SAME page as the time; a clock with no same-page date
+stays NULL; there is no today/tonight/this-year guess anywhere. The resolved
+date's carrier, scope and exact source string are written into the candidate's
+`_provenance.same_page_date_resolutions` so every stored date is auditable back
+to the words that published it. The three founder-named tests stay; one table
+(resolved | still NULL | invented) rides the PR, from fixtures — this sandbox
+has no DSN.
+
+HOW: the smallest diff that changes behavior. `_shape_and_store_one` swaps
+`normalize_extracted_datetimes(shaped)` for
+`normalize_extracted_datetimes_with_page(shaped, block_text=..., page_text=...,
+as_of=..., resolutions=...)` — a drop-in whose no-page-text result is already
+pinned byte-identical to R-021's by an existing test. `extract_candidates`
+already holds the full page text and passes each block as `text`, so block and
+page scope come from variables in hand; `as_of` is the extraction date (the page
+was fetched seconds earlier in the same run), threaded as an explicit optional
+parameter so tests pin it and nothing reads a wall clock implicitly. Wiring puts
+`worker/same_page_dates.py` inside the armed cron's computed runtime closure,
+which is exactly what #209 said the wiring PR would carry: the arming-evidence
+binding goes red until a fresh green smoke run re-binds it, and the founder
+authorized that one refresh. Test #22 ("the armed cron's own module is untouched")
+asserted the UNWIRED state and is inverted to assert the wired one against the
+same computation — the assertion flips, the guard does not weaken.
+
+WHY: 92 of run 33579093995's 198 candidates (46%) stored `start_time` NULL with
+reason `no-full-date-evidence`. A NULL can never satisfy /tonight's
+`start_time >= <from>` predicate, so those rows publish and are invisible
+forever. #209 built and tested the fix and deliberately did not connect it —
+extraction is the guarded surface and connecting it was a founder decision.
+
+WHY-THAT-WHY-MATTERS: the catalog already paid the model to read those pages.
+Every one of the 92 is a real event, extracted, gate-passed and promotable, that
+no friend can see because of a missing day the venue's own page printed a few
+characters away. This is the highest-yield line in the pipeline: it changes what
+the site shows without a single new fetch, vendor, prompt or paid wave.
+
+EXPECTED OUTCOMES: (1) `worker/ai_extract.py` resolves dates through the
+same-page engine; (2) `tools/arming_runtime.py` reports `worker/same_page_dates.py`
+in the armed runtime set; (3) the three named tests plus the 19 guards stay green,
+with test #22 inverted; (4) a resolved | still NULL | invented table in the PR
+body, invented = 0 by construction; (5) one green smoke run re-binds
+docs/evidence/ARMING_SMOKE_RUN.json to this head; (6) extraction-eval may go red
+by design under the charter's enumerated harness exception — no new exam.
+
+OUT OF SCOPE (Must-not, founder): Tonight redesign; catalog upsert; a second
+paid extract wave; new vendor; category weighting. Also refused by me:
+worker/vision_extract.py's identical call site (not the armed path, not named).
+
+STATUS: OPEN
+
 ## Session Contract #45 (2026-09-02 — founder: "what happened to the 198") — OPEN
 WHAT: read-only forensics on ingest run 33579093995 (198 candidates); no product code.
 HOW: run + autopromote job logs, code on disk; no DB (no DSN, egress 403) — gaps marked UNVERIFIED.

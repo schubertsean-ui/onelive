@@ -18,14 +18,19 @@ no "today", no "tonight", no "this year", no next-occurrence guess. A year the
 page omits is supplied only when the page's OWN weekday pins exactly one year in
 a window anchored to the fetch time, and with no fetch anchor that path is off.
 
-**Not wired yet.** The call site is `worker/ai_extract.py:164`, which sits on the
-extraction-eval guarded surface. Per the session's must-do 5 that edit is the
-founder's call, so this PR ships the engine, the tests and this measurement only.
-The engine also lives deliberately OUTSIDE the armed cron's computed runtime
-closure (`tools/arming_runtime.runtime_files()` reports it False), so an unwired
-engine cannot invalidate the recorded smoke-run binding; wiring it pulls both
-files inside that closure, which is why the wiring PR is the one that must carry
-fresh smoke evidence.
+**Wired (PR #211, founder-authorized).** `worker/ai_extract.py` now resolves
+dates through this engine instead of R-021's bare normalizer: each listing block
+is offered first as the "same page" scope, the whole fetched page second. Table 4
+below is the measurement THROUGH that wired path — the real segmenter, the real
+fan-out, the real store path — rather than the resolver in isolation, and it
+reproduces Table 1's numbers exactly, which is the point: wiring moved where the
+rule runs, not what it decides.
+
+Wiring pulls `worker/same_page_dates.py` inside the armed cron's computed runtime
+closure (`tools/arming_runtime.runtime_files()` now reports it True, asserted by
+`tests/test_same_page_dates.py`). That is why this is the PR that carries fresh
+smoke evidence: the arming binding rightly goes red until a green run re-binds
+`docs/evidence/ARMING_SMOKE_RUN.json` to this head.
 
 ---
 
@@ -85,22 +90,28 @@ Two things this table shows that a percentage would hide. First, these fixtures 
 
 The split is UNVERIFIED for one reason, stated plainly: deciding whether a given row resolves needs the text of the page it came from, and this sandbox has neither the database (no `ONELIVE_DB_DSN`) nor the fetched page text (never persisted — `raw_text` lives in the candidate row). Table 2 is what CAN be said about them without guessing: every one of the 92 carries a bare clock, so each resolves if and only if its own page states a date in one of the four carriers, and stays NULL otherwise.
 
----
+### Table 4 — the WIRED extract path (MEASURED)
 
-## What this does and does not prove
+Each fixture page driven through `worker.ai_extract.extract_candidates` itself — the real segmenter, the real fan-out, the real store path with its two DB writes stubbed — with a provider that returns the 92's exact shape: a title and a bare clock, never a date.
 
-MEASURED here: the resolver's behavior on real fixture pages through the
-pipeline's own segmenter, and on the 92's own refused strings against every page
-shape a venue calendar uses.
+| fixture page | time-only claims | resolved | still NULL | invented |
+|---|---:|---:|---:|---:|
+| `acllive_events.html` | 4 | 2 | 2 | 0 |
+| `acllive_home.html` | 1 | 1 | 0 | 0 |
+| `antones_shows.html` | 4 | 2 | 2 | 0 |
+| `continental_calendar.html` | 4 | 2 | 2 | 0 |
+| `continental_home.html` | 1 | 0 | 1 | 0 |
+| `continental_shows.html` | 4 | 2 | 2 | 0 |
+| `emos_events.html` | 4 | 2 | 2 | 0 |
+| `paramount_calendar.html` | 4 | 2 | 2 | 0 |
+| `paramount_events.html` | 4 | 2 | 2 | 0 |
+| `paramount_screenings.html` | 4 | 2 | 2 | 0 |
+| `paramount_whatson.html` | 4 | 2 | 2 | 0 |
+| `parish_events.html` | 4 | 2 | 2 | 0 |
+| `seatgeek_concerts.html` | 4 | 2 | 2 | 0 |
+| `stubbs_calendar.html` | 4 | 2 | 2 | 0 |
+| `stubbs_shows.html` | 4 | 2 | 2 | 0 |
+| `universe_events.html` | 4 | 2 | 2 | 0 |
+| **total** | **58** | **29** | **29** | **0** |
 
-NOT measured here, and not estimated: how many of the **92 actual rows** resolve.
-That needs the text of the page each row came from. This sandbox has no
-`ONELIVE_DB_DSN` and the fetched page text is not on disk, so the split stays
-UNVERIFIED rather than being filled with a plausible-looking number. The bound
-that IS honest: all 92 carry a bare clock and nothing else, so each one resolves
-if and only if its own page states a date in one of the four carriers — which is
-what Table 2 measures, claim by claim.
-
-The cheapest way to close Table 3 is to wire the resolver in (one call site) and
-read the next scheduled run's log: it prints a refusal line per claim, so the
-resolved/still-NULL split falls straight out of the run that follows.
+`invented` is COMPUTED, not claimed: for every candidate the wired path stored with a non-NULL `start_time`, the date part is looked up in the set of dates that page actually states (`same_page_dates` over the page and each of its blocks). A stored date outside that set would count here. The column is 0 because the resolver has no path that produces a date the page did not print — no `today`, no `tonight`, no current year, no next occurrence.

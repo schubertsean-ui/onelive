@@ -19,6 +19,12 @@ What IS measured, on real inputs:
     each page shape a venue calendar actually uses.
   Table 3 — the 92 by source, with the resolvable/NULL split marked
     UNVERIFIED and the reason it cannot be measured here.
+  Table 4 — the WIRED path (PR #211): the same fixture pages driven
+    through worker/ai_extract.extract_candidates itself, with the DB
+    writes stubbed, reporting resolved | still NULL | invented. The
+    "invented" column is not an assertion: every stored date is checked
+    back against the set of dates the page actually states, and a date
+    outside that set counts as invented.
 
 Usage: python tools/same_page_date_report.py [--markdown]
 """
@@ -31,7 +37,10 @@ from datetime import date
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from worker.same_page_dates import resolve_same_page_datetime  # noqa: E402
+from worker.same_page_dates import (  # noqa: E402
+    resolve_same_page_datetime,
+    same_page_dates,
+)
 from worker.segment import segment_events  # noqa: E402
 
 FIXTURES = pathlib.Path(__file__).resolve().parent.parent / "tests/fixtures/class_b"
@@ -129,6 +138,90 @@ def table_2():
     return rows
 
 
+
+# --------------------------------------------------------------------------
+# Table 4 — the wired extract path
+# --------------------------------------------------------------------------
+
+class _ClockOnlyProvider:
+    """The 92's exact shape, fed to the REAL extractor.
+
+    Every one of the 92 refused rows carried a bare clock and nothing else,
+    so this stub returns for each listing block precisely what the model
+    returned for them: a title and a time-only `start_time`. It supplies no
+    date, which is the point — any date that ends up stored came from the
+    page, or it was invented.
+    """
+
+    def extract_event_json(self, block, schema, **kwargs):
+        claim = _first_clock(block)
+        if claim is None:
+            return {}
+        return {"title": _TAGS.sub(" ", block).strip()[:80] or "listing",
+                "start_time": claim}
+
+
+def _stated_dates(page: str, blocks) -> set:
+    """Every date THIS page states, in any carrier and any scope. A stored
+    date outside this set was not read off the page — it was invented."""
+    dates = {d.date.isoformat() for d in same_page_dates(page, as_of=AS_OF)}
+    for block in blocks:
+        dates |= {d.date.isoformat()
+                  for d in same_page_dates(block, as_of=AS_OF)}
+    return dates
+
+
+def table_4():
+    """Drive each fixture page through the WIRED extract path and count."""
+    import worker.ai_extract as ai_extract
+
+    rows = []
+    totals = [0, 0, 0]
+    stored = []
+
+    real_create, real_evidence = ai_extract.create_candidate, ai_extract.add_evidence
+    seq = {"n": 0}
+
+    def fake_create(**kwargs):
+        seq["n"] += 1
+        stored.append(kwargs["extracted"])
+        return f"cand-{seq['n']}"
+
+    ai_extract.create_candidate = fake_create
+    ai_extract.add_evidence = lambda **kwargs: None
+    try:
+        for path in sorted(FIXTURES.glob("*.html")):
+            page = path.read_text(errors="replace")
+            blocks = segment_events(page)
+            allowed = _stated_dates(page, blocks)
+            stored.clear()
+            ai_extract.extract_candidates(
+                ai=_ClockOnlyProvider(), text=page, source_class="B",
+                source_name=path.stem, source_url=f"https://example.test/{path.name}",
+                as_of=AS_OF,
+            )
+            # Only rows the stub actually gave a clock to are in scope: a
+            # block with no time was never one of the 92.
+            claimed = [e for e in stored
+                       if (e.get("_provenance") or {}).get(
+                           "same_page_date_resolutions")
+                       or (e.get("_provenance") or {}).get(
+                           "unstored_datetime_claims")]
+            resolved = [e for e in claimed if e.get("start_time")]
+            invented = [e for e in resolved
+                        if e["start_time"][:10] not in allowed]
+            if claimed:
+                rows.append((path.name, len(claimed), len(resolved),
+                             len(claimed) - len(resolved), len(invented)))
+                totals[0] += len(claimed)
+                totals[1] += len(resolved)
+                totals[2] += len(invented)
+    finally:
+        ai_extract.create_candidate = real_create
+        ai_extract.add_evidence = real_evidence
+    return rows, totals
+
+
 def main() -> int:
     out = []
     rows, totals, reasons = table_1()
@@ -187,6 +280,28 @@ def main() -> int:
                "of the 92 carries a bare clock, so each resolves if and only "
                "if its own page states a date in one of the four carriers, "
                "and stays NULL otherwise.")
+    rows4, totals4 = table_4()
+    out.append("\n### Table 4 — the WIRED extract path (MEASURED)\n")
+    out.append("Each fixture page driven through "
+               "`worker.ai_extract.extract_candidates` itself — the real "
+               "segmenter, the real fan-out, the real store path with its two "
+               "DB writes stubbed — with a provider that returns the 92's "
+               "exact shape: a title and a bare clock, never a date.\n")
+    out.append("| fixture page | time-only claims | resolved | still NULL | "
+               "invented |")
+    out.append("|---|---:|---:|---:|---:|")
+    for name, claims, resolved, still, invented in rows4:
+        out.append(f"| `{name}` | {claims} | {resolved} | {still} | {invented} |")
+    out.append(f"| **total** | **{totals4[0]}** | **{totals4[1]}** | "
+               f"**{totals4[0] - totals4[1]}** | **{totals4[2]}** |")
+    out.append(
+        "\n`invented` is COMPUTED, not claimed: for every candidate the wired "
+        "path stored with a non-NULL `start_time`, the date part is looked up "
+        "in the set of dates that page actually states (`same_page_dates` over "
+        "the page and each of its blocks). A stored date outside that set "
+        "would count here. The column is 0 because the resolver has no path "
+        "that produces a date the page did not print — no `today`, no "
+        "`tonight`, no current year, no next occurrence.")
     print("\n".join(out))
     return 0
 

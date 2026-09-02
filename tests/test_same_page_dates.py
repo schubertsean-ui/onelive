@@ -265,16 +265,23 @@ def test_the_page_aware_helper_matches_r021_exactly_without_page_text():
     assert new_refused["start_time"]["reason"] == "no-full-date-evidence"
 
 
-def test_the_armed_crons_own_module_is_untouched_by_this_change():
-    """worker/datetime_normalize.py is inside the armed cron's computed
-    runtime closure, so a byte changed there invalidates the recorded
-    smoke-run binding. This engine is unwired by design and therefore
-    lives outside that closure — asserted here against the same
-    computation trust-gate uses, not against a hand-kept list."""
+def test_this_engine_is_now_inside_the_armed_crons_runtime_closure():
+    """The wiring PR (this one) is the PR #209 named: the moment
+    worker/ai_extract.py imports this engine, it joins the armed cron's
+    computed runtime closure and the arming-evidence binding rightly
+    demands a fresh smoke run.
+
+    #209's version of this test asserted the opposite — that the engine sat
+    OUTSIDE the closure — because it was unwired by design. The assertion
+    flips with the wiring; the guard does not weaken. It is still computed
+    against tools/arming_runtime.py, the same source trust-gate uses, never
+    a hand-kept list, so a future change that silently drops the engine out
+    of the armed path fails here."""
     from tools.arming_runtime import runtime_files
     runtime = runtime_files()
     assert "worker/datetime_normalize.py" in runtime
-    assert "worker/same_page_dates.py" not in runtime
+    assert "worker/same_page_dates.py" in runtime
+    assert "worker/ai_extract.py" in runtime
 
 
 def test_batch_helper_reports_resolutions_for_provenance():
@@ -286,3 +293,107 @@ def test_batch_helper_reports_resolutions_for_provenance():
     assert shaped["start_time"] == "2025-09-06T21:00:00"
     assert shaped["end_time"] == "2025-09-06T23:00:00"
     assert resolutions["start_time"]["raw"] == "Sat Sep 6"
+
+
+# --------------------------------------------------------------------------
+# The wired extract path (this PR): the rule now runs where the cron runs
+# --------------------------------------------------------------------------
+
+class _ClockOnlyProvider:
+    """The 92's exact shape: the model returns a title and a bare clock and
+    never a date. Any date that reaches the stored row came from the page."""
+
+    def extract_event_json(self, text, schema_json, system_prompt=None, **kw):
+        if "9:00PM" not in text:
+            return {}
+        return {"title": "Trio night", "start_time": "9:00PM"}
+
+
+@pytest.fixture
+def wired(monkeypatch):
+    """worker.ai_extract with both DB writes captured instead of executed."""
+    import worker.ai_extract as ai_extract
+    created = []
+    monkeypatch.setattr(ai_extract, "create_candidate",
+                        lambda **kw: created.append(kw) or f"c{len(created)}")
+    monkeypatch.setattr(ai_extract, "add_evidence", lambda **kw: None)
+    monkeypatch.setattr(ai_extract, "record_ai_degradation", lambda p: None)
+    return ai_extract, created
+
+
+def _extract(wired, page):
+    ai_extract, created = wired
+    ai_extract.extract_candidates(
+        ai=_ClockOnlyProvider(), text=page, source_class="B",
+        source_name="Elephant Room", source_url="https://example.test/shows",
+        as_of=FETCHED)
+    return created[0]["extracted"]
+
+
+def test_wired_a_same_page_date_now_reaches_the_stored_candidate(wired):
+    """Case (a) through the REAL extract path, not just the resolver: the
+    date the page printed is what the candidate row carries."""
+    stored = _extract(wired, PAGE_A)
+    assert stored["start_time"] == "2025-09-06T21:00:00"
+    assert "unstored_datetime_claims" not in stored["_provenance"]
+
+
+def test_wired_b_a_clock_with_no_page_date_is_still_stored_null(wired):
+    """Case (b) through the real path: the 92's shape on a dateless page
+    still stores NULL, with the raw claim preserved exactly as R-021 left it."""
+    stored = _extract(wired, PAGE_B)
+    assert stored["start_time"] is None
+    refused = stored["_provenance"]["unstored_datetime_claims"]["start_time"]
+    assert refused == {"raw": "9:00PM", "reason": "no-full-date-evidence"}
+    assert "same_page_date_resolutions" not in stored["_provenance"]
+
+
+def test_wired_the_stored_date_is_auditable_back_to_the_page(wired):
+    """A stored date that cannot be traced to the words that published it is
+    not evidence. The carrier, scope and exact source string ride the row."""
+    stored = _extract(wired, PAGE_A)
+    resolution = stored["_provenance"]["same_page_date_resolutions"]["start_time"]
+    assert resolution == {"date": "2025-09-06", "kind": "visible-weekday",
+                          "scope": "block", "raw": "Sat Sep 6",
+                          "claim": "9:00PM"}
+
+
+def test_wired_a_malformed_provenance_is_repaired_not_destroyed(wired):
+    """The refusal path REPLACES a malformed _provenance and keeps the
+    original (PR #44 r1). The resolution path must do the same, and it is
+    the only path that runs when every claim resolves."""
+    ai_extract, created = wired
+
+    class _BadProvProvider(_ClockOnlyProvider):
+        def extract_event_json(self, text, schema_json, system_prompt=None, **kw):
+            out = super().extract_event_json(text, schema_json, **kw)
+            if out:
+                out["_provenance"] = "not-a-dict"
+            return out
+
+    ai_extract.extract_candidates(
+        ai=_BadProvProvider(), text=PAGE_A, source_class="B",
+        source_name="Elephant Room", source_url="https://example.test/shows",
+        as_of=FETCHED)
+    stored = created[0]["extracted"]
+    assert stored["start_time"] == "2025-09-06T21:00:00"
+    assert stored["_provenance"]["same_page_date_resolutions"]
+    assert stored["_provenance_malformed_original"] == "not-a-dict"
+
+
+def test_wired_every_block_on_a_page_pins_against_one_anchor(wired):
+    """The anchor is resolved ONCE per page, not once per block: a page
+    extracted across UTC midnight must not date its last listing a day
+    differently from its first."""
+    import worker.ai_extract as ai_extract
+    calls = []
+    real = ai_extract._extraction_anchor
+    ai_extract._extraction_anchor = lambda: calls.append(1) or real()
+    try:
+        ai_extract.extract_candidates(
+            ai=_ClockOnlyProvider(), text=PAGE_A + PAGE_A + PAGE_A,
+            source_class="B", source_name="Elephant Room",
+            source_url="https://example.test/shows")
+    finally:
+        ai_extract._extraction_anchor = real
+    assert len(calls) == 1
