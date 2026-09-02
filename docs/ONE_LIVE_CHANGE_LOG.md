@@ -49,12 +49,21 @@ separate facts, so a month of 403s can never read as a month of confirmations.
 The loop does not mutate published events at all; building that path would
 change what the loop may do to published rows, which is the founder's call.
 
-**Spend is measured, not estimated.** `ai/claude_provider.py` already stamped
-the SDK's own token usage onto each extraction; `worker/ai_extract.py` now sums
-it, the loop sums those, and `worker/spend_report.py` prices the total from the
+**Spend is measured, not estimated.** `ai/claude_provider.py` already stamps the
+SDK's own token usage onto each extraction as `_usage`, and `ai_extract`
+already persists the provider meta into the candidate's `extracted` jsonb — so
+the numbers were on disk already. The tick reads them back
+(`load_extraction_usage`) and `worker/spend_report.py` prices the total from the
 committed ladder in `docs/MODEL_ROUTING.md`. A model id that is not in that
 table, or a provider that reported no usage, prints "unknown" — never a guessed
 number and never $0.00.
+
+Reading them back rather than threading a counter through `worker/ai_extract.py`
+is deliberate and was a correction: the first attempt summed usage inside the
+extractor, which put a telemetry number on the extraction surface the attended
+golden exam does not execute — the exam correctly refused the PR for it. The
+number is identical either way, so the right place to read it is the one that
+certifies nothing.
 
 State lives nowhere new: best_url, next_due_at, fail streak, body fingerprint,
 last_attempt and last_verified are all DERIVED from `raw_fetch`,

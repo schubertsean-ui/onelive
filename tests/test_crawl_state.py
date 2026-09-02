@@ -296,14 +296,41 @@ def test_a_tick_ends_on_the_fetch_cap():
 
 
 def test_a_tick_ends_on_the_model_budget():
-    """Extraction is the only stage that may call Anthropic, so extract calls
-    ARE the AI spend — there is no second place for cost to hide."""
+    """Extraction is the only stage that may call Anthropic, so extract CALLS
+    are what the model budget bounds — there is no second place for cost to
+    hide. Calls are counted in flight (that is what the budget enforces);
+    tokens arrive afterwards from what the provider itself reported."""
     budget = TickBudget(max_extract_calls=1)
     assert budget.may_extract()
-    budget.record_extract(input_tokens=900, output_tokens=100)
+    budget.record_extract()
     assert not budget.may_extract()
     assert budget.tick_stop() == "model_budget"
+    budget.record_tokens(input_tokens=900, output_tokens=100)
     assert budget.outcomes()["input_tokens"] == 900
+    assert budget.outcomes()["output_tokens"] == 100
+
+
+def test_usage_is_summed_from_what_the_provider_reported_not_from_the_extractor():
+    """The cost report reads `_usage` back off the candidate rows rather than
+    threading a number through worker/ai_extract.py — extraction-surface code
+    the attended golden exam does not execute. Same number, on the side of the
+    certification gate that certifies nothing."""
+    from worker.crawl_state import load_extraction_usage
+    cur = _FakeCursor([(12345, 678)])
+    assert load_extraction_usage("2026-09-02T00:00:00Z", cur=cur) == (12345, 678)
+    sql, params = cur.calls[0]
+    assert params == ("2026-09-02T00:00:00Z",), "the window is bound, not interpolated"
+    assert "jsonb_typeof" in sql, (
+        "a row whose usage is absent or malformed must contribute nothing, "
+        "never raise on a cast")
+
+
+def test_no_usage_at_all_reads_as_zero_which_prints_as_unknown():
+    from worker.crawl_state import load_extraction_usage
+    from worker.spend_report import format_spend
+    assert load_extraction_usage("t", cur=_FakeCursor([(None, None)])) == (0, 0)
+    assert "unknown" in format_spend(
+        model_id="claude-haiku-4-5", input_tokens=0, output_tokens=0)
 
 
 def test_host_politeness_defers_the_source_it_does_not_end_the_tick():

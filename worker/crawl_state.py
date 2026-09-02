@@ -757,14 +757,29 @@ class TickBudget:
         elif queue == QUEUE_EVENT:
             self.event_fetches += 1
 
-    def record_extract(self, *, input_tokens: int = 0, output_tokens: int = 0) -> None:
-        """One PAGE sent to extraction, plus the tokens it really used.
+    def record_extract(self) -> None:
+        """One PAGE sent to extraction — the unit the model budget bounds.
 
-        Token counts are what the model itself reported (worker/ai_extract.py
-        sums the provider's own `_usage`). They are 0 when a provider reports
-        none, and a 0 is printed as "unknown" — never priced as free.
+        Deliberately counts CALLS and nothing else. Tokens are recorded
+        separately by record_tokens() from what the provider actually reported,
+        because the budget must be enforceable in-flight (calls are known the
+        moment they are made) while the spend is only knowable afterwards.
         """
         self.extract_calls += 1
+
+    def record_tokens(self, *, input_tokens: int, output_tokens: int) -> None:
+        """The tokens this tick really used, read back from what the provider
+        itself reported (ai/claude_provider.py stamps the SDK `usage` object
+        into each candidate's `extracted` jsonb; load_extraction_usage sums it).
+
+        Read back rather than threaded through the extractor ON PURPOSE:
+        worker/ai_extract.py is extraction-surface code that the attended
+        golden exam does not execute, so touching it to carry a telemetry
+        number would put a cost report on the wrong side of the extraction
+        certification gate. The number is identical either way — it is the
+        provider's own count — so the cheaper place to read it is the one that
+        certifies nothing.
+        """
         self.input_tokens += input_tokens
         self.output_tokens += output_tokens
 
@@ -954,6 +969,47 @@ def load_door_fingerprint(
     with db() as conn:
         with conn.cursor() as own:
             return _read(own)
+
+
+_EXTRACTION_USAGE_SQL = """
+select coalesce(sum((extracted->'_usage'->>'input_tokens')::bigint), 0),
+       coalesce(sum((extracted->'_usage'->>'output_tokens')::bigint), 0)
+from event_candidate
+where created_at >= %s
+  and jsonb_typeof(extracted->'_usage'->'input_tokens') = 'number'
+"""
+
+
+def load_extraction_usage(since, cur=None) -> Tuple[int, int]:
+    """(input_tokens, output_tokens) the model reported for work done since
+    `since` — the tick's own AI spend, measured.
+
+    ai/claude_provider.py stamps the SDK's `usage` object onto each extraction
+    as `_usage`, and worker/ai_extract.py persists the provider meta into the
+    candidate's `extracted` jsonb, so the numbers are already on disk. Summing
+    them here keeps the cost report entirely OUT of the extraction surface the
+    attended exam certifies.
+
+    Two properties make the scope honest:
+      * A concurrent importer writing candidates cannot inflate this. Importer
+        rows carry no `_usage` (they call no model), and the jsonb_typeof guard
+        counts only rows where the provider reported a real number — so a
+        malformed or absent usage object contributes nothing rather than
+        raising on a cast.
+      * A provider that reports no usage at all yields 0, which
+        worker/spend_report.py renders as "unknown" — never as free.
+    """
+    if cur is not None:
+        cur.execute(_EXTRACTION_USAGE_SQL, (since,))
+        row = cur.fetchone() or (0, 0)
+        return int(row[0] or 0), int(row[1] or 0)
+    from worker.candidate_store import db
+
+    with db() as conn:
+        with conn.cursor() as own:
+            own.execute(_EXTRACTION_USAGE_SQL, (since,))
+            row = own.fetchone() or (0, 0)
+            return int(row[0] or 0), int(row[1] or 0)
 
 
 def load_event_refresh_rows(cur=None) -> List[Sequence[Any]]:

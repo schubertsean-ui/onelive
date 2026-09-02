@@ -446,7 +446,8 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
     from ai.claude_provider import ClaudeProvider
     from worker.candidate_store import db as candidate_db
     from worker.crawl_state import (
-        load_crawl_states, load_event_refresh_rows, plan_event_refreshes,
+        load_crawl_states, load_event_refresh_rows, load_extraction_usage,
+        plan_event_refreshes,
     )
 
     dsn = os.getenv("ONELIVE_DB_DSN")
@@ -567,8 +568,23 @@ def _run_real(max_sources: int | None = None, source_class: str | None = None) -
         )
         return 0
 
+    tick_budget = TickBudget.from_env()
     report = run_loop(ai=ai, sources=sources, sxsw_mode=False, dsn=dsn,
-                      budget=TickBudget.from_env())
+                      budget=tick_budget)
+    # The tick's real AI spend, read back from what the provider itself
+    # reported on the rows this tick wrote. Read AFTER the loop, and never
+    # allowed to fail it: a cost report is telemetry, and losing it must not
+    # lose a tick's actual work.
+    try:
+        tokens_in, tokens_out = load_extraction_usage(report.started)
+        tick_budget.record_tokens(input_tokens=tokens_in, output_tokens=tokens_out)
+        report.counts["input_tokens"] = tokens_in
+        report.counts["output_tokens"] = tokens_out
+        report.outcomes = tick_budget.outcomes()
+    except Exception as exc:  # noqa: BLE001 — telemetry, never the work
+        logger.warning(
+            "could not read this tick's token usage (%s) — the outcomes line "
+            "will say the cost is unknown rather than guess it.", exc)
     print("RunReport:")
     print(f"  run_id:   {report.run_id}")
     print(f"  counts:   {report.counts}")

@@ -541,11 +541,12 @@ def _process_fetched_page(
         sxsw_mode=sxsw_mode,
         source_id=source_id,
     )
-    # The AI spend of this tick, measured at the ONE place the pipeline calls a
-    # model. Tokens are what the provider reported; a provider that reports
-    # none leaves them 0, and 0 is rendered as "unknown" rather than priced.
-    budget.record_extract(
-        input_tokens=outcome.input_tokens, output_tokens=outcome.output_tokens)
+    # The AI spend of this tick, counted at the ONE place the pipeline calls a
+    # model. CALLS only: that is what the model budget bounds, and it is
+    # knowable in flight. The token totals are read back afterwards from what
+    # the provider itself reported (worker/crawl_state.load_extraction_usage),
+    # which keeps the cost report out of the extraction surface entirely.
+    budget.record_extract()
     candidate_id = outcome.candidate_ids[0]
     n_candidates = len(outcome.candidate_ids)
     log_step(ReplayRecord(
