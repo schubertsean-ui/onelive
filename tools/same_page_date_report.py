@@ -31,7 +31,7 @@ from datetime import date
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from worker.datetime_normalize import resolve_same_page_datetime  # noqa: E402
+from worker.same_page_dates import resolve_same_page_datetime  # noqa: E402
 from worker.segment import segment_events  # noqa: E402
 
 FIXTURES = pathlib.Path(__file__).resolve().parent.parent / "tests/fixtures/class_b"

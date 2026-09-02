@@ -16,8 +16,9 @@ from datetime import date
 
 import pytest
 
-from worker.datetime_normalize import (
-    normalize_extracted_datetimes,
+from worker.datetime_normalize import normalize_extracted_datetimes
+from worker.same_page_dates import (
+    normalize_extracted_datetimes_with_page,
     resolve_same_page_datetime,
     same_page_dates,
 )
@@ -251,20 +252,35 @@ def test_a_full_date_in_the_claim_is_never_overridden_by_the_page():
 # The batch helper stays backward-compatible
 # --------------------------------------------------------------------------
 
-def test_batch_helper_is_unchanged_without_page_text():
-    """Every existing caller (worker/ai_extract.py, worker/vision_extract.py)
-    passes no page text and must keep R-021's exact behavior."""
-    shaped = {"start_time": "9:00PM", "end_time": "11:00PM"}
-    refused = normalize_extracted_datetimes(shaped)
-    assert shaped == {"start_time": None, "end_time": None}
-    assert set(refused) == {"start_time", "end_time"}
-    assert refused["start_time"]["reason"] == "no-full-date-evidence"
+def test_the_page_aware_helper_matches_r021_exactly_without_page_text():
+    """The wiring PR swaps one call, so the page-aware helper must be a
+    true drop-in: with no page text its result is identical, field for
+    field, to the R-021 helper the armed cron runs today."""
+    claims = {"start_time": "9:00PM", "end_time": "11:00PM"}
+    old_shaped, new_shaped = dict(claims), dict(claims)
+    old_refused = normalize_extracted_datetimes(old_shaped)
+    new_refused = normalize_extracted_datetimes_with_page(new_shaped)
+    assert old_shaped == new_shaped == {"start_time": None, "end_time": None}
+    assert old_refused == new_refused
+    assert new_refused["start_time"]["reason"] == "no-full-date-evidence"
+
+
+def test_the_armed_crons_own_module_is_untouched_by_this_change():
+    """worker/datetime_normalize.py is inside the armed cron's computed
+    runtime closure, so a byte changed there invalidates the recorded
+    smoke-run binding. This engine is unwired by design and therefore
+    lives outside that closure — asserted here against the same
+    computation trust-gate uses, not against a hand-kept list."""
+    from tools.arming_runtime import runtime_files
+    runtime = runtime_files()
+    assert "worker/datetime_normalize.py" in runtime
+    assert "worker/same_page_dates.py" not in runtime
 
 
 def test_batch_helper_reports_resolutions_for_provenance():
     shaped = {"start_time": "9:00PM", "end_time": "11:00PM"}
     resolutions = {}
-    refused = normalize_extracted_datetimes(
+    refused = normalize_extracted_datetimes_with_page(
         shaped, page_text=PAGE_A, as_of=FETCHED, resolutions=resolutions)
     assert refused == {}
     assert shaped["start_time"] == "2025-09-06T21:00:00"
