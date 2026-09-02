@@ -42,6 +42,7 @@ from worker.crawl_state import (
     load_door_fingerprint,
     UPDATABLE_LISTING_FIELDS,
     may_delete_listing,
+    may_mark_gone,
     may_update_listing,
     order_due,
     plan_event_refreshes,
@@ -474,9 +475,38 @@ def test_the_event_queue_gets_priority_but_not_a_monopoly():
 def test_only_two_shapes_confirm_anything():
     assert classify_recheck(door_kind="unchanged")[0] == VERIFIED_PRESENT
     assert classify_recheck(door_kind="changed",
-                            page_decision="held")[0] == VERIFIED_PRESENT
+                            page_decision="ready_to_promote")[0] == VERIFIED_PRESENT
     assert classify_recheck(door_kind="missed",
                             http_status=404)[0] == VERIFIED_ABSENT
+
+
+@pytest.mark.parametrize("gate_decision", ["held", "escalated"])
+def test_the_gates_verdict_verifies_not_the_parse(gate_decision):
+    """R-091(a), founder must-do 1 (2026-09-02): "classify_recheck must use the
+    gate/adjudication verdict, not 'page parsed cleanly'. A parse-then-escalate
+    page is not verified_present."
+
+    This is the precondition on the listing-update path, and it is a REVERSAL:
+    the previous pass counted held/escalated/ready_to_promote all as a clean
+    parse, which was harmless only while nothing consumed the verdict. A page
+    whose evidence the gate ESCALATED (conflicting start times, a schema-invalid
+    extraction, a private/RSVP listing, dedupe ambiguity) or HELD (not
+    promotable at all) must not be able to rewrite a published listing."""
+    verdict, reason = classify_recheck(door_kind="changed",
+                                       page_decision=gate_decision)
+    assert verdict == UNVERIFIED
+    assert not may_update_listing(verdict)
+    assert gate_decision in reason and "trust gate did not confirm" in reason
+
+
+def test_a_page_that_never_reached_the_gate_reads_differently_from_one_it_declined():
+    """Both are UNVERIFIED and both mutate nothing — but an operator reading the
+    run table has to be able to tell "we never got to the gate" from "the gate
+    said no", because they are different problems with different fixes."""
+    _, never = classify_recheck(door_kind="changed", page_decision="sensor_rejected")
+    _, declined = classify_recheck(door_kind="changed", page_decision="held")
+    assert "never reached the gate" in never
+    assert "trust gate did not confirm" in declined
 
 
 @pytest.mark.parametrize("kind,status,decision", [
@@ -518,18 +548,33 @@ def test_only_same_page_evidence_licenses_an_update():
     assert not may_update_listing(UNVERIFIED)
 
 
-def test_a_404_licenses_re_finding_the_door_not_changing_a_listing():
-    """The one place the two directives had to be read together. A clear 404
-    confirms the PAGE is gone — but a venue reorganizing its URLs, a CMS
-    migration and a genuinely cancelled show all 404 identically, and there is
-    no page left to carry same-page evidence. So it licenses no status change.
-    (Re-finding the door is what the loop already does, by falling back to the
-    registered start URL.)"""
+def test_a_clean_404_marks_the_listing_gone_but_may_not_retime_or_retitle_it():
+    """FOUNDER OVERRULE 2026-09-02, verbatim: "Confirmed gone (clean 404 of
+    defining URL, or clean parse that the event is absent from that calendar):
+    mark cancelled/moved with evidence; row remains."
+
+    The previous pass read the two directives together and concluded a 404
+    licensed nothing, flagging it as an interpretation the founder should be
+    able to overrule in one line. That line arrived. What survives the overrule
+    is the BOUND: a page that is gone cannot supply a new start time or title,
+    so a 404 may only ever move `status` — may_update_listing is still
+    VERIFIED_PRESENT-only."""
     verdict, reason = classify_recheck(door_kind="missed", http_status=404)
     assert verdict == VERIFIED_ABSENT
+    assert may_mark_gone(verdict), "a clean 404 of the defining URL is confirmed gone"
     assert not may_update_listing(verdict), (
-        "a 404 has no page, so it has no same-page evidence")
-    assert "no listing change" in reason
+        "a 404 has no page, so it cannot state a new time or title")
+    assert reason
+
+
+def test_an_unverified_check_marks_nothing_gone():
+    """The other half of the same rule: only a CONFIRMED shape may mark a row.
+    A timeout, a 429, a cap or an ambiguous parse cancels nothing."""
+    assert not may_mark_gone(UNVERIFIED)
+    assert not may_mark_gone("something_nobody_wrote_yet")
+    assert may_mark_gone(VERIFIED_PRESENT), (
+        "a page that still loads is the other confirmed-gone shape — the "
+        "absence itself is adjudicated in worker/listing_update.py")
 
 
 @pytest.mark.parametrize("verdict", [VERIFIED_PRESENT, VERIFIED_ABSENT, UNVERIFIED,
@@ -547,10 +592,10 @@ def test_the_updatable_fields_are_the_founders_enumeration():
     assert UPDATABLE_LISTING_FIELDS == ("start_time", "end_time", "status", "title")
 
 
-def test_the_loop_still_updates_nothing_today():
-    """The policy is ratified and encoded; the update path is a separate
-    ticket. Pinned so "encoded" can never be mistaken for "wired": the
-    scheduler module imports nothing that can write to `event`."""
+def test_the_scheduler_module_itself_still_writes_nothing():
+    """The policy lives here; the WRITER lives in worker/listing_update.py.
+    Pinned so this module stays a vocabulary: it imports no promote path and
+    contains no statement that can write to `event`."""
     import ast
     import pathlib
     import worker.crawl_state as cs

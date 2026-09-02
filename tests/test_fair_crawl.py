@@ -142,8 +142,14 @@ def _install(monkeypatch, tmp_path, *, pages=None, errors=None, hashes=None,
     monkeypatch.setattr(orchestrator, "fetch_url", fake_fetch_url)
     monkeypatch.setattr(orchestrator, "extract_candidates", fake_extract_candidates)
     monkeypatch.setattr(orchestrator, "load_door_fingerprint", fake_fingerprint)
+    # The class the GATE sees for this page's evidence. `venue_calendar` is an
+    # anchor class (worker/gating.py), so a page that parses cleanly reaches
+    # PASS — which since R-091(a) is what `verified_present` requires. The
+    # earlier fixture used `venue_site`, a class the gate does not recognise at
+    # all (it logs UNCLASSIFIED and HOLDs), so every fixture check would now be
+    # unverified for a reason that was never what these tests are about.
     monkeypatch.setattr(orchestrator, "list_candidate_source_classes",
-                        lambda candidate_id: ["venue_site"])
+                        lambda candidate_id: ["venue_calendar"])
     monkeypatch.setattr(orchestrator, "load_candidate_gate_signals",
                         lambda candidate_id, cur=None: (
                             {}, {"start_times": [], "dedupe_ambiguous": False}))
@@ -668,12 +674,18 @@ def test_a_clear_404_on_the_defining_page_is_confirmed_absence(monkeypatch, tmp_
     assert report.counts["errors"] == 0
 
 
-def test_the_loop_never_mutates_a_published_event():
-    """Founder: "no delete, no cancel, no date edit" unless confirmed. The loop
-    cannot do any of them, and this is checked STRUCTURALLY over the AST rather
-    than over the text, so prose in a docstring cannot fail it and — far more
-    important — cannot satisfy it either: the check looks at what the module
-    CALLS and at the SQL it actually carries."""
+def test_the_loop_never_publishes_and_carries_no_sql_of_its_own():
+    """Founder: "no delete, no cancel, no date edit" unless confirmed.
+
+    RESTATED at Session Contract #55, because the loop now CAN change a
+    published listing and a test claiming otherwise would be a false green. What
+    is still structurally true, and is what this checks: the loop never
+    PROMOTES, and it carries no SQL of its own — the one path that can change
+    an `event` row is worker/listing_update.py, which owns every guard, has no
+    DELETE and no INSERT, and is pinned by its own structural test
+    (tests/test_listing_update.py). Checked over the AST rather than the text,
+    so prose in a docstring cannot fail it and — far more important — cannot
+    satisfy it either."""
     import ast
     import pathlib
     import re
@@ -683,13 +695,34 @@ def test_the_loop_never_mutates_a_published_event():
               for n in ast.walk(tree) if isinstance(n, ast.Call)}
     assert "promote_candidate" not in called
     assert "execute" not in called, (
-        "the loop issues no SQL of its own — every DB touch goes through the "
-        "candidate store, which cannot reach the `event` table")
+        "the loop issues no SQL of its own — every DB touch goes through a "
+        "store module that owns the statement and its guards")
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             assert not re.search(r"\b(update|delete\s+from)\s+event\b",
                                  node.value, re.IGNORECASE), node.value[:80]
+
+
+def test_only_the_event_proximity_queue_can_change_a_published_listing():
+    """A published row may only be touched by the queue whose whole purpose is
+    re-reading the page that defines it. A refresh or discover source taking its
+    ordinary turn never reaches the writer — checked structurally, because this
+    is a guard that a later "while I'm here" edit could quietly widen."""
+    import ast
+    import pathlib
+    tree = ast.parse(pathlib.Path(orchestrator.__file__).read_text())
+    calls = [n for n in ast.walk(tree)
+             if isinstance(n, ast.Call)
+             and (getattr(n.func, "id", None) == "_update_listings_for")]
+    assert len(calls) == 1, "exactly one call site, so the guard has one home"
+    guarded = [n for n in ast.walk(tree)
+               if isinstance(n, ast.If)
+               and any(isinstance(c, ast.Call)
+                       and getattr(c.func, "id", None) == "_update_listings_for"
+                       for c in ast.walk(n))
+               and "QUEUE_EVENT" in ast.dump(n.test)]
+    assert guarded, "the call site is not guarded on QUEUE_EVENT"
 
 
 def test_extraction_is_the_only_stage_that_may_call_a_model():
@@ -714,3 +747,199 @@ def test_extraction_is_the_only_stage_that_may_call_a_model():
     # ...and of those, only extract_candidates is not a function in this module
     # that merely forwards it onward to the same place.
     assert "extract_event_json" not in pathlib.Path(orchestrator.__file__).read_text()
+
+# --- 8. the listing-update path, end to end through the loop -----------------
+#
+# The adjudication itself is pinned field by field in tests/test_listing_update.py.
+# These prove the WIRING, which is the half a pure test cannot reach: that the
+# loop reaches the writer at all, that it reaches it ONLY from the
+# event-proximity queue, and that the verdict it hands over is the defining
+# page's own.
+
+def _install_listings(monkeypatch, *, published, gate_pass=True):
+    """Fake the four DB touches the listing path makes, in the orchestrator's
+    namespace. `written` collects the decisions that reached the writer, so a
+    test can assert what WOULD have been written without a database."""
+    from worker import listing_update
+
+    written = []
+    monkeypatch.setattr(orchestrator, "load_published_on_page",
+                        lambda source_id, url: list(published))
+    monkeypatch.setattr(
+        orchestrator, "load_parsed_listings",
+        lambda ids: [listing_update.ParsedListing(
+            candidate_id=str(c), title="Nightjar",
+            start_time=_dt.datetime(2026, 9, 15, 2, 0, tzinfo=_TZ)) for c in ids])
+    monkeypatch.setattr(orchestrator, "gate_passes_for", lambda cid: gate_pass)
+
+    def fake_apply(decisions, **kw):
+        written.extend(d for d in decisions if d.mutates)
+        return {"updated": sum(1 for d in decisions if d.action == "update"),
+                "marked_gone": sum(1 for d in decisions if d.action == "mark_gone"),
+                "skipped_budget": 0}
+
+    monkeypatch.setattr(orchestrator, "apply_decisions", fake_apply)
+    return written
+
+
+def _published(**kw):
+    from worker.listing_update import PublishedListing
+    base = dict(event_id="e1", title="Nightjar",
+                start_time=_dt.datetime(2026, 9, 15, 1, 0, tzinfo=_TZ))
+    base.update(kw)
+    return PublishedListing(**base)
+
+
+def _event_source(door="https://venue.example/events"):
+    src = _source()
+    src["queue"] = QUEUE_EVENT
+    src["door"] = door
+    return src
+
+
+def test_a_confirmed_event_recheck_updates_the_listing_through_the_loop(
+        monkeypatch, tmp_path):
+    """The whole pipe: the ladder hands the loop a PAGE, the page is fetched,
+    extracted and gate-PASSed, and the published row it defines gets the new
+    time the page now states."""
+    _install(monkeypatch, tmp_path, pages={
+        "https://venue.example/": HOME_HTML,
+        "https://venue.example/events": PAGE_HTML})
+    written = _install_listings(monkeypatch, published=[_published()])
+
+    report = run_loop(ai=FakeAIProvider(), sources=[_event_source()],
+                      budget=TickBudget())
+
+    assert report.results[0].verdict == VERIFIED_PRESENT
+    assert [d.action for d in written] == ["update"]
+    assert "start_time" in written[0].fields
+    assert report.counts["listings_updated"] == 1
+
+
+def test_an_ordinary_source_turn_never_reaches_the_writer(monkeypatch, tmp_path):
+    """Coverage Law's own shape of this rule: a refresh or discover source
+    taking its normal turn re-reads pages all day and changes nothing
+    published. Only the queue whose PURPOSE is the defining page may."""
+    _install(monkeypatch, tmp_path, pages={
+        "https://venue.example/": HOME_HTML,
+        "https://venue.example/events": PAGE_HTML})
+    written = _install_listings(monkeypatch, published=[_published()])
+
+    for queue in (QUEUE_REFRESH, QUEUE_DISCOVER):
+        src = _source()
+        src["queue"] = queue
+        report = run_loop(ai=FakeAIProvider(), sources=[src], budget=TickBudget())
+        assert written == [], f"{queue} reached the listing writer"
+        assert report.counts["listings_updated"] == 0
+
+
+def test_a_walled_event_recheck_changes_nothing(monkeypatch, tmp_path):
+    """Founder: "Unconfirmed = no mutation." A 403 on the defining page is a
+    closed door, not a cancelled show."""
+    _install(monkeypatch, tmp_path,
+             pages={"https://venue.example/": HOME_HTML},
+             errors={"https://venue.example/events":
+                     _HttpError(403, "https://venue.example/events")})
+    written = _install_listings(monkeypatch, published=[_published()])
+
+    report = run_loop(ai=FakeAIProvider(), sources=[_event_source()],
+                      budget=TickBudget())
+
+    assert report.results[0].verdict == UNVERIFIED
+    assert written == []
+
+
+def test_a_dead_defining_page_marks_gone_even_though_the_fallback_answered(
+        monkeypatch, tmp_path):
+    """The founder's 404 overrule, through the loop, WITH the property the
+    evaluator forced on PR #213 still holding: the best door 404s, the loop
+    falls back to the registered start URL and reads it fine — and the verdict
+    is still about the page that vanished, so the row is marked from the 404
+    and NOT from the healthy homepage's parse."""
+    _install(monkeypatch, tmp_path,
+             pages={"https://venue.example/": HOME_HTML},
+             errors={"https://venue.example/events":
+                     _HttpError(404, "https://venue.example/events")})
+    written = _install_listings(monkeypatch, published=[_published()])
+
+    report = run_loop(ai=FakeAIProvider(), sources=[_event_source()],
+                      budget=TickBudget())
+
+    assert report.results[0].verdict == VERIFIED_ABSENT
+    assert [d.action for d in written] == ["mark_gone"]
+    assert written[0].fields == {"status": "cancelled"}
+    assert report.counts["listings_marked_gone"] == 1
+
+
+def test_a_failure_in_the_writer_costs_one_source_not_the_tick(
+        monkeypatch, tmp_path):
+    """Per-source isolation, same as the read pass. A listing-update failure
+    leaves the last good rows standing and the tick goes on."""
+    _install(monkeypatch, tmp_path, pages={
+        "https://venue.example/": HOME_HTML,
+        "https://venue.example/events": PAGE_HTML,
+        "https://other.example/": HOME_HTML,
+        "https://other.example/events": PAGE_HTML})
+    _install_listings(monkeypatch, published=[_published()])
+    monkeypatch.setattr(orchestrator, "load_published_on_page",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("db down")))
+
+    report = run_loop(ai=FakeAIProvider(),
+                      sources=[_event_source(), _source(name="other",
+                                                        url="https://other.example/")],
+                      budget=TickBudget())
+
+    assert len(report.results) == 2
+    assert report.counts["errors"] == 0
+    assert report.counts["listings_updated"] == 0
+
+
+def test_the_founders_listing_table_from_fixtures(monkeypatch, tmp_path, capsys):
+    """`event | check result | mutated? | why` — the ticket's artifact, over one
+    fixture wave carrying every outcome class the founder enumerated."""
+    from worker.listing_update import render_decision_table
+
+    rows = []
+
+    # 1. confirmed change on the defining page.
+    _install(monkeypatch, tmp_path, pages={
+        "https://venue.example/": HOME_HTML,
+        "https://venue.example/events": PAGE_HTML})
+    _install_listings(monkeypatch, published=[_published()])
+    r = run_loop(ai=FakeAIProvider(), sources=[_event_source()],
+                 budget=TickBudget()).results[0]
+    rows.append(("Nightjar (time moved)", r.verdict, r.listing_decisions[0]))
+
+    # 2. the gate declined the matched listing's evidence.
+    _install_listings(monkeypatch, published=[_published(event_id="e2")],
+                      gate_pass=False)
+    r = run_loop(ai=FakeAIProvider(), sources=[_event_source()],
+                 budget=TickBudget()).results[0]
+    rows.append(("Nightjar (gate declined)", r.verdict, r.listing_decisions[0]))
+
+    # 3. rate-limited: unconfirmed.
+    _install(monkeypatch, tmp_path,
+             pages={"https://venue.example/": HOME_HTML},
+             errors={"https://venue.example/events":
+                     _HttpError(429, "https://venue.example/events")})
+    _install_listings(monkeypatch, published=[_published(event_id="e3")])
+    r = run_loop(ai=FakeAIProvider(), sources=[_event_source()],
+                 budget=TickBudget()).results[0]
+    rows.append(("Nightjar (429)", r.verdict, r.listing_decisions[0]))
+
+    # 4. clean 404 of the defining URL: confirmed gone.
+    _install(monkeypatch, tmp_path,
+             pages={"https://venue.example/": HOME_HTML},
+             errors={"https://venue.example/events":
+                     _HttpError(404, "https://venue.example/events")})
+    _install_listings(monkeypatch, published=[_published(event_id="e4")])
+    r = run_loop(ai=FakeAIProvider(), sources=[_event_source()],
+                 budget=TickBudget()).results[0]
+    rows.append(("Nightjar (page 404)", r.verdict, r.listing_decisions[0]))
+
+    table = render_decision_table(rows)
+    print(table)
+    assert [c.strip() for c in table.splitlines()[0].split("|")] == [
+        "event", "check result", "mutated?", "why"]
+    body = table.splitlines()[2:]
+    assert [line.split("|")[2].strip() for line in body] == ["yes", "no", "no", "yes"]

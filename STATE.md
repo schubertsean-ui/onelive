@@ -11,6 +11,51 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #55 (2026-09-02, founder — "confirmed listing update (fail-closed)", branch claude/confirmed-listing-update-wepyg5) — OPEN
+
+STATUS: OPEN
+WHAT: The listing-update path, plus its R-091 precondition. (1) `worker/crawl_state.py`:
+`classify_recheck` stops treating "the page parsed" as verification and reads the TRUST
+GATE's own verdict — only a gate PASS is `verified_present`; HOLD and ESCALATE are
+`unverified`. (2) New `worker/listing_update.py`: pure per-event adjudication of a re-read
+defining page against the rows it publishes, plus the writer that applies the result to
+`event` with evidence. (3) `worker/orchestrator.py` calls it on the EVENT-proximity queue
+only. (4) `tests/test_listing_update.py` + additions to `tests/test_crawl_state.py`.
+Founder's must-do 4 OVERRULES the flagged 404 reading in
+docs/memory/decisions/2026-09-02_confirmed-check-may-update-listing.md — recorded, not
+silently reversed.
+HOW: Per EVENT, never per page. A page-level PASS licenses nothing on its own: each
+published row is matched against the page's freshly parsed listings on normalized title OR
+exact start_time; exactly one match with a field diff UPDATES `start_time`/`end_time`/
+`title` and only when that MATCHED candidate's own `evaluate_gate` verdict is PASS
+(re-computed from its real stored signals, never a stamped status). Zero matches marks
+`status='cancelled'` — the row stays — but only when the page produced listings AND its own
+parsed listings BRACKET the missing event in time (a truncated calendar that never reached
+the date proves nothing). A clean 404 of the defining URL is the second confirmed-gone
+shape. Two or more matches, an empty parse, an unbracketed absence, a non-PASS gate, or any
+UNVERIFIED verdict (timeout, 429, cap, wall, deferral, off-site, ambiguous parse) mutate
+NOTHING. Every mutation writes a `candidate_evidence` row quoting the same page and an
+`audit_log` row carrying the before/after; a per-tick mutation cap stops a bug from
+cascading. No delete, ever, at any verdict.
+WHY: the event-proximity ladder re-reads the page that defines a published event as it
+approaches, and until now the loop could see a show move or vanish and do nothing about it.
+WHY-IT-MATTERS: a show that was cancelled and still shows on /tonight is a user standing
+outside a dark venue — the exact failure the map exists to prevent; and the opposite error,
+cancelling a real show on a page we could not actually read, is the same trust defect
+pointed the other way, which is why every unconfirmed shape is a no-op.
+EXPECTED OUTCOMES: the founder's table `event | check result | mutated? | why` from
+fixtures; tests pinning must-dos 2-4; `may_delete_listing` still False for every input;
+the orchestrator still imports no promote path. Out of scope (Must-not): Tonight redesign,
+ingest interval YAML, category weighting, new vendor, census rewrite, beauty UI.
+
+**Appendix — construction_gate Stage 3 citations (Operating Law rule 9: minimum the gate will accept):**
+[S3:build-before-plan] [S3:contract-scope-violation] [S3:excluded-surface-widening] [S3:status-narration-not-progress] [S3:stalled-state-needs-active-diagnosis] Contract written to STATE.md before the first product edit; scope is the founder's five Must-dos and the Must-not list. Nothing in Tonight, ingest interval YAML, category weighting, a new vendor, the census, or UI was touched — the only web file READ was `web/lib/promoted.ts`/`licensed.ts`/`detail.ts` to learn what `status` does to a reader before writing one, and none was edited.
+[S3:founder-verbatim-corrected] [S3:governance-ambiguity] [S3:permission-for-ratified-work] The founder's must-do 4 OVERRULES the ratified 404 reading in `docs/memory/decisions/2026-09-02_confirmed-check-may-update-listing.md`, which itself invited a one-line overrule. Recorded as a new decision record with a pointer added to the superseded one — never silently reversed, and the overrule's cost is stated rather than glossed. The plan-first hook (§4a approval) versus Operating Law's "one ticket, then stop" tension is surfaced to the founder in the PR body rather than resolved silently toward execution.
+[S3:false-confidence-gate] [S3:self-weakenable-gate] [S3:self-weakenable-review-model] [S3:final-gate-trusts-generator] [S3:rule-stronger-than-mechanism] [S3:untested-gate-branch] [S3:release-path-weaker-than-generation] [S3:heal-drops-guard-marker] [S3:weak-key-accepted-at-custody] [S3:caller-suppliable-custody-inputs] [S3:unusable-credential-tier] [S3:mutable-model-alias] [S3:workflow-tool-version-skew] No gate, threshold, workflow, reviewer binding, credential or model id changes. `classify_recheck` is TIGHTENED, not relaxed: two outcomes that used to verify no longer do. The orchestrator still imports no promote path and issues no SQL of its own (both pinned structurally). The per-listing licence is RE-COMPUTED from stored evidence through the same `evaluate_gate` the loop runs — never read off a stamped status a caller could have set — and every failure to compute it is a NO. Every new branch is covered: the gate-declined, ambiguous, unbracketed, empty-parse, lost-race and budget-exhausted paths each have a test.
+[S3:deferred-trust-work] [S3:semantic-claim-not-rederived] [S3:featurability-dimension-missed] [S3:copy-outruns-registry] R-091(a) is CLOSED with a test, not an assertion, and closed wider than the nit asked (per-listing licence, not just per-page); (b) is met by this PR's own adversarial review; (c) is untouched and stays OPEN. Two new deferrals recorded in the same commit: R-092 (postpone is not written as `moved` — no timezone to tell a reschedule from a typo) and R-093 (the two published-event readers disagree about `moved`). No user-facing copy is added; `status='cancelled'` is rendered by the EXISTING `web/lib/detail.ts::statusNote` string, and what that status costs on the live feed is stated in the module docstring and the PR body rather than discovered later.
+[S3:db-type-mismatch-invisible-to-hermetic-tests] [S3:missing-cardinality-check] [S3:pagination-integrity-gap] [S3:nonfinite-numeric-accepted] [S3:nonfinite-decimal-accepted] [S3:volatile-safety-store] [S3:swallowed-corrupt-data] No migration and no new store: the writer touches `event`, `candidate_evidence` and `audit_log`, all existing, all with static parameterized SQL (trust_gate PASS). The published-rows read carries `distinct` and the four filters that bound it (`start_time is not null`, not ended, `override_lock = false`, `status = 'scheduled'`); the parsed read is by candidate ID from THIS run, never a URL sweep that would mix in older reads. A naive timestamp is read as UTC by the same `_as_utc` the scheduler uses. Nothing is swallowed: a failed re-gate logs loudly and returns NO, a lost UPDATE race logs and is not retried, and a writer exception is logged, replay-logged, and costs one source.
+[S3:pushed-on-red] [S3:green-on-stale-base] [S3:fabricated-qualitative-copy] [S3:false-price-claim] [S3:compounded-ground-contrast] [S3:env-dependent-hermetic-test] [S3:deliverable-visual-qa] [S3:scripted-transform-order] [S3:retyped-evidence] [S3:stale-redclass-count] [S3:stale-base-widens-range] [S3:stale-live-incident-state] [S3:parallel-record-id-collision] Full suite 2457 passed / 31 skipped on a full-history clone; trust_gate, lint, deferral_scan, staleness_check, perf, test_audit all PASS. New tests are hermetic — fetch, extract, candidate store, crawl-state reads AND the four listing-path DB touches are faked, no network, no model, no database. The decision table in `docs/evidence/` is machine-generated by `render_decision_table` and pasted verbatim, never retyped. Base is origin/master tip 5206455 at drift 0, printed by the gate against ls-remote. R-092/R-093 are the next free ids on a branch cut from that tip. The armed-cron smoke evidence is NOT retyped: this PR changes runtime-closure files, so the binding test fails until a real re-bind run replaces it. No qualitative copy, price, or contrast claim is made anywhere in this change — no money number is printed, no user-facing string is added, and the only colour/contrast surface in the repo is untouched.
+
 ## Session Contract #54 (2026-09-02, founder — "fair crawl: round-robin sources, best URL, skip unchanged", branch claude/fair-crawl-round-robin-ybevyr) — OPEN
 
 STATUS: OPEN

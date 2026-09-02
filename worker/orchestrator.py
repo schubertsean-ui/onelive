@@ -118,6 +118,13 @@ from worker.crawl_state import (
     resolve_int_env,
 )
 from worker.fetch.http_fetch import fetch_url
+from worker.listing_update import (
+    adjudicate_page,
+    apply_decisions,
+    gate_passes_for,
+    load_parsed_listings,
+    load_published_on_page,
+)
 from worker.fetch.render_fetch import RenderError, fetch_with_render, render_html
 from worker.replay_log import ReplayRecord, canonical_digest, log_step, new_run_id
 from worker.sensors import assess_input
@@ -219,6 +226,14 @@ _COUNT_KEYS = (
     "extract_calls",
     "input_tokens",
     "output_tokens",
+    # Listing updates (event-proximity queue only). What a CONFIRMED re-check
+    # changed about rows that are already published: `listings_updated` is a
+    # time or title the defining page now states differently,
+    # `listings_marked_gone` is a confirmed-gone row marked and KEPT (never
+    # deleted, at any verdict). Both are zero on every other queue by
+    # construction, and zero whenever the check did not confirm.
+    "listings_updated",
+    "listings_marked_gone",
 )
 
 # _run_one_source's "not_modified" outcome intentionally does NOT also set
@@ -254,6 +269,18 @@ class SourceResult:
     candidates: int = 0
     skipped_unchanged: int = 0
     blocked: str = ""
+    #: The founder's listing table rows for this check — one per published row
+    #: the re-read page defines, whether or not anything changed. Empty on
+    #: every queue but EVENT, and empty when there was nothing published to
+    #: adjudicate. A no-op decision is still a row: "we looked and changed
+    #: nothing, here is why" is the answer a fail-closed loop most often has.
+    listing_decisions: List[Any] = field(default_factory=list)
+    #: The page this check came to read, and the listings it produced. Kept
+    #: separate from `urls_fetched` because a best door that 404s falls back to
+    #: the registered start URL, and the defining page is the one the verdict —
+    #: and therefore any listing change — is about.
+    defining_url: str = ""
+    candidate_ids: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -471,6 +498,12 @@ class PageOutcome:
     detail: str
     candidates: int = 0
     model_calls: int = 0
+    #: The candidate ids this page just produced, in extraction order. Carried
+    #: (not just counted) because the listing-update path adjudicates against
+    #: THIS read of the page: a query by URL would also sweep up candidates
+    #: from earlier runs, and "what the page says now" is the whole basis for
+    #: changing a published row.
+    candidate_ids: List[str] = field(default_factory=list)
 
 
 def _process_fetched_page(
@@ -610,11 +643,15 @@ def _process_fetched_page(
             candidate_id,
         )
 
+    ids = [str(c) for c in outcome.candidate_ids]
+
     if verdict.decision is GateDecision.HOLD:
-        return PageOutcome("gate3", "held", verdict.reason, n_candidates)
+        return PageOutcome("gate3", "held", verdict.reason, n_candidates,
+                           candidate_ids=ids)
 
     if verdict.decision is GateDecision.ESCALATE:
-        return PageOutcome("gate3", "escalated", verdict.reason, n_candidates)
+        return PageOutcome("gate3", "escalated", verdict.reason, n_candidates,
+                           candidate_ids=ids)
 
     # PASS — but the orchestrator NEVER promotes. Promotion is the publish step
     # and must be an explicit, authenticated ops action (api/ops_candidates.py).
@@ -632,6 +669,7 @@ def _process_fetched_page(
     return PageOutcome(
         "gate3", "ready_to_promote",
         "PASS (trust gate); awaiting authenticated ops promote", n_candidates,
+        candidate_ids=ids,
     )
 
 
@@ -1209,7 +1247,11 @@ def _run_one_source(
             outputs_digest=canonical_digest({"verdict": v}),
             decision=v, detail=why,
         ))
-        return {"verdict": v, "verdict_reason": why}
+        # `defining_url` rides out on the SAME dict as the verdict, from the
+        # same single call site, so no return below can report a verdict about
+        # one page while naming another — the exact confusion the fallback
+        # introduced and the defining-door split fixed.
+        return {"verdict": v, "verdict_reason": why, "defining_url": defining_url}
 
     if door.kind == "deferred":
         return (
@@ -1347,10 +1389,79 @@ def _run_one_source(
             candidates=page.candidates + probe["candidates"],
             skipped_unchanged=probe["unchanged"],
             blocked=probe["blocked_reason"] if probe["walled"] else "",
+            candidate_ids=page.candidate_ids,
             **_verdict_kwargs(page.decision),
         ),
         counts,
     )
+
+def _update_listings_for(
+    result: "SourceResult",
+    *,
+    run_id: str,
+    source: Dict[str, Any],
+    budget: TickBudget,
+) -> Dict[str, int]:
+    """Apply the founder's listing-update rule to ONE finished event-proximity
+    check. Returns the report deltas.
+
+    Called ONLY from run_loop, and ONLY for QUEUE_EVENT results. That placement
+    is the design, not convenience: `_run_one_source` is the read pass — fetch,
+    sensor, extract, gate — and keeping the only write to published data
+    outside it means the read pass has no branch that can mutate, whatever it
+    decides. It also keeps the mutation inside the loop's existing per-source
+    isolation, so a failure here costs this source and no other.
+
+    Every guard lives in worker/listing_update.py; this function's whole job is
+    to hand it the page, the rows and the gate, and to record what came back.
+    Nothing published changes on any other queue, and nothing changes at all
+    unless the check CONFIRMED — an unverified verdict reaches adjudicate_page
+    and comes back as no-ops, which are still printed, because "we looked and
+    changed nothing" is an answer the founder's table asks for.
+    """
+    deltas: Dict[str, int] = {}
+    url = result.defining_url
+    source_id = result.source_id
+    if not url:
+        return deltas
+    published = load_published_on_page(str(source_id) if source_id else None, url)
+    if not published:
+        return deltas
+    parsed = load_parsed_listings(result.candidate_ids)
+    decisions = adjudicate_page(
+        verdict=result.verdict,
+        verdict_reason=result.verdict_reason,
+        published=published,
+        parsed=parsed,
+        gate_passes=gate_passes_for,
+    )
+    result.listing_decisions = decisions
+    for d in decisions:
+        log_step(ReplayRecord(
+            run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+            source_name=result.source_name, stage="listing_update",
+            inputs_digest=canonical_digest({
+                "defining_url": url, "event_id": d.event_id,
+                "verdict": result.verdict, "parsed": len(parsed)}),
+            outputs_digest=canonical_digest(
+                {"action": d.action, "fields": sorted(d.fields)}),
+            decision=d.action, detail=d.why,
+        ))
+    written = apply_decisions(
+        decisions,
+        source_id=source_id,
+        source_name=result.source_name,
+        source_class=str(source.get("source_class") or ""),
+        page_url=url,
+        run_id=run_id,
+        budget=budget,
+    )
+    if written["updated"]:
+        deltas["listings_updated"] = written["updated"]
+    if written["marked_gone"]:
+        deltas["listings_marked_gone"] = written["marked_gone"]
+    return deltas
+
 
 def render_run_table(report: "RunReport") -> str:
     """The founder's run table, one row per source attempted.
@@ -1520,6 +1631,30 @@ def run_loop(
             tick.sources_deferred += 1
         else:
             tick.sources_touched += 1
+
+        if result.queue == QUEUE_EVENT:
+            # The ONLY place in this loop that can change published data, and
+            # it can change four columns of a row that already went through the
+            # gate — never insert one, never remove one. Isolated exactly like
+            # the read pass: a failure here is this source's, logged, and the
+            # tick goes on with the last good rows standing.
+            try:
+                for key, delta in _update_listings_for(
+                        result, run_id=run_id, source=source, budget=tick).items():
+                    counts[key] = counts.get(key, 0) + delta
+            except Exception as exc:  # noqa: BLE001 - isolated per source, never silent
+                logger.warning(
+                    "listing update failed for %s (%s) — no published row was "
+                    "changed for this source; the last good rows stand.",
+                    source_name, exc)
+                log_step(ReplayRecord(
+                    run_id=run_id, ts=_now_iso(), source_id=str(source_id),
+                    source_name=source_name, stage="listing_update",
+                    inputs_digest=canonical_digest({"source": source_name}),
+                    outputs_digest=canonical_digest({"error": str(exc)}),
+                    decision="error", detail=f"{type(exc).__name__}: {exc}",
+                ))
+
         report.results.append(result)
         for key, delta in counts.items():
             report.counts[key] += delta

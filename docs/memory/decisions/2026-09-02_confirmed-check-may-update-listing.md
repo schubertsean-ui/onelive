@@ -1,5 +1,13 @@
 # A confirmed check may update a published listing — never delete it
 
+> **SUPERSEDED IN PART, 2026-09-02.** The section "The 404 reading, flagged
+> rather than quietly resolved" below invited a one-line founder overrule and
+> got one: a clean 404 of the defining URL is now a CONFIRMED-GONE shape and
+> marks the listing (status only, row kept). See
+> `2026-09-02_404-of-defining-url-marks-the-listing-gone.md`. Everything else
+> in this record still stands, including "Status: encoded, not wired" being
+> superseded by fact — the path is built (Session Contract #55).
+
 **Founder-ratified 2026-09-02.** Verbatim:
 
 > Confirmed check MAY update a published listing (time, cancel, postpone,
