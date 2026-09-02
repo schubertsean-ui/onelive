@@ -4,6 +4,36 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-02 — Same-page date only: a listing may borrow the day its own page prints
+
+The 92 dateless candidates of run 33579093995 were all refused for the same
+reason — the extractor was handed a bare clock (`'9:00PM'`, `'10 am'`,
+`'19:00:00'`) and correctly refused to invent a day. `worker/datetime_normalize.py`
+can now complete such a claim with a date **the same page already states**:
+JSON-LD `startDate`, a `time` element's `datetime` attribute, ICS `DTSTART`, or
+visible text. The honesty rules are the design — the event's own listing block
+wins over the page, a page stating several dates with no block-level date is
+REFUSED rather than guessed, a page date that contradicts the claim's month/day
+or weekday is refused, and a year the page omits is supplied only when the
+page's own weekday pins exactly one year in a window anchored to the fetch time
+(with no anchor, that path is off entirely). There is no "today", no "tonight",
+no next-occurrence guess anywhere. Everything unresolved stays exactly as R-021
+left it: NULL, raw and reason preserved in provenance, candidate still routed to
+ops. 28 new tests, the 36 existing R-021 tests unchanged, full suite 2290 passed
+/ 34 skipped. Measurement: `tools/same_page_date_report.py` →
+docs/evidence/2026-09-02_same-page-date-resolution.md.
+
+NOT wired, by the founder's instruction: the single call site is
+`worker/ai_extract.py` line 164, which sits on the extraction-eval guarded
+surface, so that one line is the founder's call (R-030 amended in place with the
+deferral and its trigger). Two findings worth the record, both from the
+measurement: the class-B fixtures print weekdays that contradict their own
+`time` elements on two of four listings, and the resolver refuses those — the
+rule working, not a defect; and `worker/segment.py` strips tags on the
+anchor-split path, so the listing block handed to extraction no longer contains
+the machine-readable date the page published, which is why the resolver reads
+the page text alongside the block.
+
 ## 2026-09-02 — What happened to the 198 (read-only; no pipeline change)
 
 Records-only account of ingest run 33579093995's 198 candidates. Findings, all
