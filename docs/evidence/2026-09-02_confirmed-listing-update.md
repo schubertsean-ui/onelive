@@ -143,7 +143,7 @@ rather than by prose.
 
 ## The live re-bind runs
 
-Six founder-authorized dry smokes, one per adversarial round, each binding
+Seven founder-authorized dry smokes, one per adversarial round, each binding
 the head the panel had just judged. All recorded in
 `docs/evidence/ARMING_SMOKE_RUN.json`; the current binding is the last.
 
@@ -155,6 +155,7 @@ the head the panel had just judged. All recorded in
 | [33702677748](https://github.com/schubertsean-ui/onelive/actions/runs/33702677748) | `0d013e1` | 2 sources, 60 candidates, $0.3196, 177.1s | **the gate's HOLD branch** — the last outcome |
 | [33704092379](https://github.com/schubertsean-ui/onelive/actions/runs/33704092379) | `70a5b42` | 2 sources, 8 candidates, $0.0426, 35.0s | HOLD and the fingerprint skip again, on new sources |
 | [33705264950](https://github.com/schubertsean-ui/onelive/actions/runs/33705264950) | `42b17b3` | 2 sources, 39 candidates, $0.1895, 132.0s | ESCALATE again, on a new source — no skip, both pages read |
+| [33707495850](https://github.com/schubertsean-ui/onelive/actions/runs/33707495850) | `1a0f12b` | 2 sources, 13 candidates, $0.0561, 44.4s | ESCALATE on a third venue type, and a **second live 304** |
 
 Every one printed the switch, from the resolved env and then from the loop:
 
@@ -182,15 +183,24 @@ run 33702677748   Meetup                         | no      | gate HELD
 run 33704092379   Asian American Resource Center | no      | gate HELD
 run 33705264950   Paramount Theatre (Austin)     | present | gate PASS
 run 33705264950   Blanton Museum of Art          | no      | gate ESCALATED
+run 33707495850   The Contemporary Austin        | present | 304, unchanged
+run 33707495850   Kingdom Nightclub              | no      | gate ESCALATED
 ```
 
-The last three rows are repeats, and repeats are worth recording: a behaviour
-seen once on one venue could be that venue. **Both** declining outcomes have
-now been seen on two unrelated venues each — HOLD on a community platform and
-a city-hosted calendar, ESCALATE on a music hall and an art museum — which
-makes them ordinary runtime behaviour rather than a property of one awkward
-page. R-091(a) rests on exactly that: a declining verdict has to be a common
-thing live pages produce, or the fix guards nothing.
+The later rows are repeats, and repeats are worth recording: a behaviour seen
+once on one venue could be that venue. **Both** declining outcomes are now
+ordinary — HOLD on a community platform and on a city-hosted calendar,
+ESCALATE on a music hall, an art museum and a nightclub, three venue types
+with nothing structurally in common. R-091(a) rests on exactly that: a
+declining verdict has to be a common thing live pages produce, or the fix
+guards nothing.
+
+The Contemporary Austin row is the other half of the same point, from the
+opposite direction: a **real HTTP 304** (`not_modified: 1`,
+`skipped_unchanged: 1`, zero model calls for that source) reading as
+`verified_present` through the byte-identical branch. That is the second live
+304 after run 33700477027's Bandsintown, so the cheap-confirmation path is
+ordinary too.
 
 **Historic Scoot Inn** fetched fine, parsed fine, produced **25** candidates —
 then escalated: *"conflicting start_time across evidence; dedupe-ambiguity hint
@@ -226,7 +236,7 @@ and 98 were **deferred rather than dropped** (R-043).
 ### What none of them show
 
 The listing-update path acting on real data. The writer was disabled in all
-six and no event-proximity page was ever due, so no published row was read
+seven and no event-proximity page was ever due, so no published row was read
 for adjudication and none could have been written. That coverage is the table
 above, `tests/test_listing_update.py`, and section 8 of
 `tests/test_fair_crawl.py` — the first armed tick that finds a defining page
