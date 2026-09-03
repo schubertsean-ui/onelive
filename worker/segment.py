@@ -195,7 +195,7 @@ class _ElementTextCollector(HTMLParser):
 
       1. the container IS an anchor (the card-as-link pattern, reachable via the
          schema.org-microdata strategy) -> its href;
-      2. something inside is labelled ``itemprop="url"``       -> that address;
+      2. something inside is labelled ``itemprop="url"`` ONCE  -> that address;
       3. the container's heading states exactly one address    -> that href;
       4. the container states exactly one address in total     -> that href;
       5. anything else -> NO address (an ambiguous card is not an identity).
@@ -213,7 +213,7 @@ class _ElementTextCollector(HTMLParser):
         self._depth = 0
         self._buf: List[str] = []
         self._cap_href: Optional[str] = None
-        self._itemprop_url: Optional[str] = None
+        self._itemprop_urls: List[str] = []
         self._heading_depth = 0
         self._heading_hrefs: List[str] = []
         self._hrefs: List[str] = []
@@ -222,8 +222,9 @@ class _ElementTextCollector(HTMLParser):
 
     def _note_attrs(self, tag: str, attrs: Dict[str, str]) -> None:
         """Record what an element INSIDE the current capture states."""
-        if self._itemprop_url is None:
-            self._itemprop_url = _itemprop_url_of(attrs)
+        labelled = _itemprop_url_of(attrs)
+        if labelled is not None and labelled not in self._itemprop_urls:
+            self._itemprop_urls.append(labelled)
         if tag != "a":
             return
         href = _href_of(attrs)
@@ -238,8 +239,16 @@ class _ElementTextCollector(HTMLParser):
         """The rungs above, in order. None when the card is ambiguous."""
         if self._cap_href:
             return self._cap_href
-        if self._itemprop_url:
-            return self._itemprop_url
+        if len(self._itemprop_urls) == 1:
+            return self._itemprop_urls[0]
+        if self._itemprop_urls:
+            # A card labelling TWO different addresses as its url has
+            # contradicted itself, and a contradiction is never an identity
+            # (worker/identity.py's own rule). Refuse outright rather than
+            # falling to a weaker rung: the weaker rungs read conventions, and
+            # a convention must not outrank a declaration the source made —
+            # even when the source made it twice and disagreed with itself.
+            return None
         if len(self._heading_hrefs) == 1:
             return self._heading_hrefs[0]
         if len(self._hrefs) == 1:
@@ -251,7 +260,7 @@ class _ElementTextCollector(HTMLParser):
         self._depth = 0
         self._buf = []
         self._cap_href = None
-        self._itemprop_url = None
+        self._itemprop_urls = []
         self._heading_depth = 0
         self._heading_hrefs = []
         self._hrefs = []
@@ -273,7 +282,7 @@ class _ElementTextCollector(HTMLParser):
             self._depth = 1
             self._buf = []
             self._cap_href = _href_of(a) if t == "a" else None
-            self._itemprop_url = None
+            self._itemprop_urls = []
             self._heading_depth = 0
             self._heading_hrefs = []
             self._hrefs = []

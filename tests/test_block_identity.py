@@ -24,8 +24,10 @@ two listings share, the anchor-split path, and the whole-page fallback all state
 NOTHING, and a page url or a ticket link is never an identity at any rung.
 """
 import contextlib
+import copy
 import json
 import pathlib
+import pickle
 from datetime import datetime, timedelta, timezone
 
 from worker.candidate_store import _with_identity
@@ -302,6 +304,25 @@ def test_an_itemprop_url_outranks_every_other_link_in_the_card():
     assert hrefs == ["/e/8817", "/e/8818"]
 
 
+def test_a_card_labelling_two_different_urls_states_no_identity():
+    """Rung 2 refuses a contradiction instead of taking the first: a card that
+    labels TWO different addresses `itemprop="url"` has disagreed with itself,
+    and a contradiction is never an identity. It does NOT fall through to the
+    heading rung either — a convention must not outrank a declaration, even a
+    self-contradicting one."""
+    html = ("<div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "<h3><a href='/e/8817'>Castle Creek</a></h3>Fri Aug 1, 8pm "
+            "<a itemprop='url' href='/e/8817'>details</a> "
+            "<a itemprop='url' href='/e/9999'>also details</a></div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "<h3><a href='/e/8818'>River Delta</a></h3>Sat Aug 2, 9pm "
+            "<a itemprop='url' href='/e/8818'>details</a></div></div>")
+    hrefs = [carried_identity(b).source_href
+             for b in segment_events(html, content_type="text/html")]
+    assert hrefs == [None, "/e/8818"]
+
+
 def test_a_heading_with_two_links_is_ambiguous_at_every_rung():
     """Rung 3 refuses rather than picking: a heading naming both the artist and
     the venue has not said which one the listing lives at, and rung 4 then sees
@@ -350,6 +371,24 @@ def test_the_carrier_leaves_the_block_text_byte_identical():
     assert json.dumps(block) == json.dumps(str(block))
     assert type(block[:500]) is str          # the evidence quote stays a plain str
     assert hash(block) == hash(str(block))
+
+
+def test_a_block_survives_being_copied_and_pickled_with_its_identity():
+    """A `str` subclass whose `__new__` takes a second argument raises
+    TypeError the moment anything copies it, and `copy.deepcopy` is already in
+    use on the per-event payloads beside the block in `worker/ai_extract.py`.
+
+    Pinned because the trap only springs when someone later moves a line, and
+    because a copy that forgot which listing it was would be a hole invented by
+    a copy rather than by a source."""
+    block = blocks_of("cards_with_hrefs")[0]
+    for clone in (copy.copy(block), copy.deepcopy(block),
+                  pickle.loads(pickle.dumps(block))):
+        assert clone == str(block)
+        assert carried_identity(clone).source_href == "/events/8817-castle-creek"
+    # A plain block stays plain through the same round trip.
+    plain = blocks_of("cards_without_hrefs")[0]
+    assert type(copy.deepcopy(plain)) is str
 
 
 def test_the_driver_is_handed_a_plain_string_for_raw_text(monkeypatch):

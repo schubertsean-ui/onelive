@@ -349,6 +349,21 @@ class IdentifiedBlock(str):
         obj.identity = identity
         return obj
 
+    def __getnewargs__(self) -> Tuple[str, ListingIdentity]:
+        """Both constructor arguments, so `copy` and `pickle` can rebuild one.
+
+        Without this a `str` subclass whose `__new__` takes a second argument
+        raises `TypeError` the moment anything copies it — and `copy.deepcopy`
+        is already used on the per-event payloads beside this block in
+        `worker/ai_extract.py`. The block is not copied there today, which is
+        exactly why this had to be fixed rather than left: a landmine that only
+        goes off when someone later moves a line is worse than one that goes
+        off now. Rebuilding carries the identity with the text, because a copy
+        of a listing that forgot which listing it was would be a hole invented
+        by a copy.
+        """
+        return (str(self), self.identity)
+
 
 def carry_identity(text: str, identity: ListingIdentity) -> str:
     """`text` carrying `identity`, or `text` UNCHANGED when nothing is stated.
