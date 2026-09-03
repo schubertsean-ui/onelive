@@ -168,6 +168,17 @@ class ClaimedListing:
 
         Carries `confidence` explicitly so the claim's trust state is visible in
         the row itself, not only inferable from the source class.
+
+        `listing_url` carries the SAME url a second time, deliberately, and the
+        duplication is the point: `ticket_link` is a display field the model
+        also fills by guessing from block text on the crawl path, so a reader
+        cannot tell a stated address from an inferred one there. `listing_url`
+        is the identity carrier worker/identity.py reads, and on this path it
+        is what the CLAIMANT typed in their own CSV row for their own listing —
+        first-party, per-listing, and already validated as a real web address by
+        `normalize_listing_url` (no credentials, no sign-in page). Nothing is
+        invented: an empty url stays absent and the listing simply has no
+        identity.
         """
         return {
             "title": self.title,
@@ -177,6 +188,7 @@ class ClaimedListing:
             "city": self.city or None,
             "artist_names": [],
             "ticket_link": self.url or None,
+            "listing_url": self.url or None,
             "confidence": CLAIM_CONFIDENCE,
             "claim_row_number": self.row_number,
             "claim_notes": self.notes or None,

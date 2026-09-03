@@ -394,12 +394,16 @@ def test_the_tick_mutation_budget_bounds_the_blast_radius():
     a safety cap costs."""
     cur = FakeCursor()
     budget = TickBudget(max_listing_mutations=1)
-    # Distinct titles on purpose: three rows sharing one title and one time are
-    # refused by the one-to-one rule below before the budget is ever consulted,
-    # and this test is about the CAP, not about identity.
-    rows = [published(event_id=f"e{i}", title=f"Show {i}") for i in range(3)]
+    # Distinct titles AND distinct minutes on purpose: three rows sharing one
+    # title and one time are refused by the one-to-one rule, and three sharing
+    # one MINUTE are refused by the founder's collision clause (two titles, one
+    # minute, no unique id — see _contested_minutes). This test is about the
+    # CAP, so the fixture keeps all three cleanly identifiable.
+    rows = [published(event_id=f"e{i}", title=f"Show {i}",
+                      start_time=DAY + timedelta(hours=i)) for i in range(3)]
     news = [parsed(candidate_id=f"c{i}", title=f"Show {i}",
-                   end_time=DAY + timedelta(hours=5))
+                   start_time=DAY + timedelta(hours=i),
+                   end_time=DAY + timedelta(hours=5 + i))
             for i in range(3)]
     decisions = adjudicate_page(verdict=VERIFIED_PRESENT, published=rows,
                                 parsed=news, gate_passes=ALWAYS_PASSES)
@@ -967,11 +971,15 @@ def test_a_moved_start_is_refused_whatever_else_the_page_states():
         assert "a repeat cannot be told from a move" in d.why
 
 
-def test_no_update_decision_can_ever_write_a_start_time():
-    """The structural consequence, asserted rather than described: the only
-    writing match is a shared start minute, and a shared minute has no start
-    change. Recorded as R-099, and this is what would fail if the identity rule
-    were ever loosened without a per-listing identifier to justify it."""
+def test_no_update_decision_writes_a_start_time_without_an_identity():
+    """R-099, now stated with the scope it always had: WITHOUT a per-listing
+    identifier the only writing match is a shared start minute, and a shared
+    minute has no start change — so `start_time` is unwritable by construction.
+    Every fixture below carries NO identity on either side, which is what makes
+    the claim true; the identity stack lifts exactly this and nothing else
+    (tests/test_identity_stack.py holds the paired case where it is written).
+    This is what would fail if the title/time rules were ever loosened without
+    an identifier to justify it."""
     shifts = [None, DAY - timedelta(hours=6), DAY, DAY + timedelta(hours=3)]
     for new_start in shifts:
         for new_end in shifts:
@@ -989,11 +997,11 @@ def test_no_update_decision_can_ever_write_a_start_time():
 
 
 def test_the_window_rules_still_guard_the_writer_they_can_reach():
-    """`_incoherent` is unit-tested directly because one of its two rules is now
-    UNREACHABLE through the adjudicator: a diff can no longer carry a moved
-    start, so "start moved, end not stated" cannot arise. It is kept as a guard
-    rather than deleted, so that a future change to the match rules cannot
-    silently reintroduce the `coalesce` hazard it was written for."""
+    """`_incoherent` is unit-tested directly because one of its two rules is
+    unreachable through the adjudicator on the NO-IDENTITY path: a diff there
+    can no longer carry a moved start, so "start moved, end not stated" cannot
+    arise. It is not dead code — an identity match does move a start, and it is
+    the rule that stops the `coalesce` hazard from reaching the writer there."""
     from worker import listing_update as lu
     row = published(start_time=DAY, end_time=DAY + timedelta(hours=2))
     silent = parsed(start_time=DAY + timedelta(hours=3))

@@ -29,6 +29,23 @@ recomputed here from its real stored evidence (worker/trust_gate3.evaluate_gate,
 the same gate the orchestrator runs) rather than read off a stamped status that
 may be stale or may never have been written at all.
 
+THE IDENTITY STACK (2026-09-03) is the third anchor everything below waited
+for. R-095, R-097, R-099 and R-102 each ended at the same recorded trigger —
+"a stable per-listing identifier on the candidate row" — because title and time
+cannot tell a rename from a replacement, a re-time from the next occurrence, or
+one of two 8pm bands from the other. When the SOURCE ITSELF states an id (an
+ICS `UID`, a schema.org `Event.url`/`@id`, a claimant's own row url) that
+question is answered by the source rather than inferred, and the fields the
+inference could not license — `title`, `start_time` — become writable on
+exactly that evidence and on nothing weaker. `worker/identity.py` holds the
+stack; the order is the founder's: ADOPT the stated id, else COMPOSITE
+(source, normalized title, start date), else REFUSE.
+
+WITHOUT an id, every #214 refusal below stands verbatim, which is the common
+case today: no class-B fixture in this repository carries a per-listing id, and
+`worker/segment.py` reduces each event block to TEXT before the extractor sees
+it, so nothing on the crawl path can state one yet (docs/RECORD.md R-103).
+
 WHAT CANNOT HAPPEN HERE, structurally:
 
   * No delete. There is no DELETE statement in this file, at any verdict, for
@@ -75,6 +92,14 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
+from worker.identity import (
+    DIFFERENT,
+    NO_IDENTITY,
+    SAME,
+    ListingIdentity,
+    identity_verdict,
+    read_identity,
+)
 from worker.crawl_state import (
     UNVERIFIED,
     UPDATABLE_LISTING_FIELDS,
@@ -123,6 +148,14 @@ class PublishedListing:
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     status: str = "scheduled"
+    #: What the SOURCE said identifies this listing, carried from the candidate
+    #: that promoted it (worker/identity.py). NO_IDENTITY is the honest default
+    #: and the common case — see the module note on the identity stack.
+    identity: ListingIdentity = NO_IDENTITY
+    #: The source the promoting candidate was read from. The first element of
+    #: the founder's composite key, and a guard rather than a matcher: two rows
+    #: from different sources are never one listing, whatever they agree about.
+    source_id: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -138,6 +171,11 @@ class ParsedListing:
     #: labelled with its own provenance — see _write_all for why a default here
     #: would be a fabricated upgrade.
     source_class: Optional[str] = None
+    #: What the SOURCE said identifies this listing, read from the candidate's
+    #: own stored `extracted["_identity"]` (worker/identity.py).
+    identity: ListingIdentity = NO_IDENTITY
+    #: The source this listing was read from — see PublishedListing.source_id.
+    source_id: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -304,15 +342,19 @@ def _same_minute(a: Optional[datetime], b: Optional[datetime]) -> bool:
 #: is what it is genuinely evidence of, and nothing more. The window still
 #: separates MATCH_TITLE from MATCH_FAR for that purpose.
 #:
-#: Consequence, stated rather than buried: `start_time` is now unwritable BY
-#: CONSTRUCTION, because the only writing match is a shared minute and a shared
-#: minute has no start change. The founder's "update time" survives as an
-#: end-time correction on a listing that agrees with us on both title and start
-#: minute; the cancel and postpone paths are untouched. docs/RECORD.md R-099.
+#: Consequence, stated rather than buried: WITHOUT AN IDENTITY `start_time` is
+#: unwritable BY CONSTRUCTION, because the only writing match left is a shared
+#: minute and a shared minute has no start change. The founder's "update time"
+#: survives there as an end-time correction on a listing that agrees with us on
+#: both title and start minute; the cancel and postpone paths are untouched.
+#: docs/RECORD.md R-099 — whose own trigger, a per-listing identifier, is what
+#: MATCH_IDENTITY now supplies: a listing the source itself says is ours may
+#: move its start, because the identity does not rest on the time that moved.
 MAX_TITLE_ONLY_RETIME = timedelta(hours=12)
 
 #: The identity a match establishes. These are not degrees of confidence —
 #: they are different EVIDENCE, and they license different things.
+MATCH_IDENTITY = "identity"  #: the SOURCE's own id says these are one listing
 MATCH_TIME = "time"        #: same start time, and nothing contradicts it
 MATCH_TITLE = "title"      #: same title — enough to keep the row, never to write it
 MATCH_FAR = "far"          #: same title, too far away — probably another occurrence
@@ -348,7 +390,53 @@ def match_kind(published: PublishedListing, parsed: ParsedListing) -> Optional[s
     rewritten listing comes back through the normal extract → gate → promote
     path as the new row it now is.
     """
+    # RUNG 1 — ADOPT. The source's own id, before anything is inferred from a
+    # name or a clock. This is the third anchor R-095/R-097/R-099/R-102 all
+    # named as their trigger, and it is decisive in BOTH directions:
+    #
+    #   SAME      — one listing, whatever the title and the clock now say. That
+    #               is precisely what makes a rename and a re-time writable:
+    #               identity no longer rests on the fields being changed.
+    #   DIFFERENT — NOT this row, whatever they agree about. Two listings the
+    #               source gave different ids are two listings, so a shared 8pm
+    #               and even a shared title cannot make them one. The
+    #               fall-through is blocked, because a weaker signal must never
+    #               overrule a stronger one that already answered.
+    #
+    # A DIFFERENT verdict still returns a NON-IDENTITY rather than nothing when
+    # the listings overlap, and that is deliberate: something known to be a
+    # different event sitting on our start minute (or carrying our title) is a
+    # reason to say nothing, never a reason to read our row as absent. Same
+    # answer #214 gives without ids, reached with more certainty.
+    verdict = identity_verdict(published.identity, parsed.identity)
+    if verdict is SAME:
+        return MATCH_IDENTITY
+
     pt, ct = normalize_title(published.title), normalize_title(parsed.title)
+
+    if verdict is DIFFERENT:
+        if _same_minute(published.start_time, parsed.start_time):
+            return MATCH_COLLISION
+        if pt is not None and pt == ct:
+            return MATCH_FAR
+        return None
+
+    # RUNG 2 — COMPOSITE. No id on either side, so identity has to be inferred,
+    # and the founder's key opens with the source: "(locale or source_id,
+    # normalized title, start date)". There is no locale column anywhere in
+    # supabase/migrations, so source_id is the element that exists.
+    #
+    # A GUARD rather than a matcher. `load_published_on_page` and
+    # `load_parsed_listings` already scope both sides to one page of one source
+    # through SQL, so this can only fire for a caller that assembled the two
+    # lists itself — and `adjudicate_page` is PURE and takes whatever it is
+    # given. Structural scoping in one function is not a property of the policy
+    # in another, and a cross-source match writes one venue's change onto
+    # another venue's row.
+    if (published.source_id is not None and parsed.source_id is not None
+            and str(published.source_id) != str(parsed.source_id)):
+        return None
+
     if _same_minute(published.start_time, parsed.start_time):
         # A SHARED MINUTE IS NOT AN IDENTITY WHEN THE TITLES CONTRADICT IT, and
         # this was a blocking finding both openai seats raised on PR #214 r3.
@@ -394,7 +482,7 @@ def matches(published: PublishedListing, parsed: ParsedListing) -> bool:
     MATCH_FAR and MATCH_COLLISION are deliberately not identities — see
     match_kind.
     """
-    return match_kind(published, parsed) in (MATCH_TIME, MATCH_TITLE)
+    return match_kind(published, parsed) in (MATCH_IDENTITY, MATCH_TIME, MATCH_TITLE)
 
 
 _TAG = re.compile(r"<[^>]*>")
@@ -503,7 +591,7 @@ def _brackets(
 
 
 def _field_diff(
-    published: PublishedListing, parsed: ParsedListing
+    published: PublishedListing, parsed: ParsedListing, *, kind: Optional[str] = None
 ) -> Dict[str, Any]:
     """The updatable fields the page now states DIFFERENTLY.
 
@@ -511,21 +599,35 @@ def _field_diff(
     silence never blanks a published value. `status` is absent by construction
     — extraction has no status field (ai/prompts.py), so the only status this
     module can ever write is the confirmed-gone one, from the absence branch.
+
+    `kind` is the match that produced this pair, because WHICH fields may be
+    written depends on WHAT identified the row — see the title note below.
     """
     diff: Dict[str, Any] = {}
-    # `title` IS NOT WRITTEN, and its absence here is the honest conclusion of
-    # the r3 finding rather than an oversight. Ask what would license a
-    # rewrite: proof that this parsed listing IS that published row, holding
-    # while the title itself changes. Same start time cannot supply it (a
-    # different band in the other room shares the minute — MATCH_COLLISION),
-    # and same title supplies it only by being EQUAL, in which case there is no
-    # title change to write. On same-page evidence alone there is no third
-    # anchor, so a rename and a replacement are indistinguishable, and one of
-    # those two outcomes puts a fabricated name on a public listing.
+    # `title` IS WRITTEN ONLY ON MATCH_IDENTITY, and that condition is R-095's
+    # own recorded trigger arriving rather than a rule being relaxed.
     #
-    # The published row therefore keeps the name it was promoted with until
-    # something can actually identify the listing across a rename. Recorded,
-    # with the shape that closes it: docs/RECORD.md R-095.
+    # R-095 asked what would license a rewrite: proof that this parsed listing
+    # IS that published row, HOLDING WHILE THE TITLE ITSELF CHANGES. Same start
+    # time cannot supply it (a different band in the other room shares the
+    # minute — MATCH_COLLISION), and same title supplies it only by being
+    # EQUAL, in which case there is no title change to write. On title and time
+    # alone there is no third anchor, so a rename and a replacement are
+    # indistinguishable and one of those two outcomes puts a fabricated name on
+    # a public listing. The record's stated trigger: "A STABLE PER-LISTING
+    # IDENTIFIER captured at extraction... When a per-listing URL reaches the
+    # candidate row, identity survives a rename and `title` becomes writable on
+    # exactly that evidence."
+    #
+    # MATCH_IDENTITY is that evidence and nothing weaker is: the source itself
+    # said these two are one listing, so the name changing is the source
+    # renaming its own show. Every other match kind keeps the #214 refusal
+    # verbatim, which is what the founder's "no identity -> no start_time/title
+    # mutation" asks for.
+    if kind == MATCH_IDENTITY and parsed.title is not None:
+        pt, ct = normalize_title(published.title), normalize_title(parsed.title)
+        if ct is not None and pt != ct:
+            diff["title"] = parsed.title
     if parsed.start_time is not None and not _same_minute(
             published.start_time, parsed.start_time):
         diff["start_time"] = _as_utc(parsed.start_time)
@@ -579,6 +681,38 @@ def _incoherent(published: PublishedListing, parsed: ParsedListing,
         return ("the page's own times do not make a window (it would end at or "
                 "before it starts)")
     return None
+
+
+def _contested_minutes(parsed: Sequence[ParsedListing]) -> set:
+    """Start minutes on this page that carry two or more listings with no id.
+
+    A minute is contested when at least two parsed listings sit on it and the
+    identities present cannot separate all of them: any listing there with no
+    stated identity leaves the slot ambiguous, because an unidentified listing
+    could be any of them. Two listings on one minute that BOTH state ids the
+    source distinguished are separated, so that minute is not contested.
+
+    Listings with no start time are skipped — they hold no minute to contest.
+    """
+    by_minute: Dict[datetime, List[ParsedListing]] = {}
+    for item in parsed:
+        when = _as_utc(item.start_time)
+        if when is None:
+            continue
+        by_minute.setdefault(when.replace(second=0, microsecond=0), []).append(item)
+    contested = set()
+    for minute, items in by_minute.items():
+        if len(items) < 2:
+            continue
+        # Separated only when every listing on the minute states an identity
+        # and no two of them are the SAME one.
+        stated = [i.identity for i in items if i.identity.stated]
+        if len(stated) == len(items) and not any(
+                identity_verdict(a, b) is SAME
+                for x, a in enumerate(stated) for b in stated[x + 1:]):
+            continue
+        contested.add(minute)
+    return contested
 
 
 def adjudicate_page(
@@ -657,11 +791,38 @@ def adjudicate_page(
     # the catalog ends up publishing a real event at an hour nobody announced.
     # A page listing is ONE listing: if two rows claim it, it identifies
     # neither, and both keep what they have.
-    hits_by_row = [(row, [p for p in parsed if matches(row, p)]) for row in published]
+    #
+    # ADOPT THEN COMPOSITE, at the page level too: when a row is identified by
+    # the source's own id AND by a weaker inference from some other listing's
+    # title or clock, the id wins and the weaker hits are dropped rather than
+    # counted as ambiguity. Otherwise the stack would be self-defeating — a
+    # calendar that finally states an id would answer the question and then be
+    # overruled into "ambiguous" by the very guesswork the id replaces. If two
+    # listings both claim the row by IDENTITY, that is the source contradicting
+    # itself and the ambiguity is real, so it falls through to the count below.
+    hits_by_row = []
+    for row in published:
+        row_hits = [p for p in parsed if matches(row, p)]
+        adopted = [p for p in row_hits if match_kind(row, p) == MATCH_IDENTITY]
+        hits_by_row.append((row, adopted or row_hits))
     claims: Dict[str, int] = {}
     for _row, row_hits in hits_by_row:
         for p in row_hits:
             claims[p.candidate_id] = claims.get(p.candidate_id, 0) + 1
+
+    # FOUNDER, VERBATIM: "Collision (two titles, one minute, no unique id) =
+    # refuse write." Two listings sharing a start minute with nothing unique to
+    # tell them apart make a same-minute identity NON-UNIQUE, even when one of
+    # the two carries our exact title — because the other one could be the
+    # renamed show and we cannot tell. #214's one-to-one rule does not reach
+    # this: it counts how many listings match a ROW, and here exactly one does.
+    #
+    # The refusal is a NON-WRITE, not a non-match: a contested slot is still a
+    # reason not to read the row as absent. And it is lifted by exactly what
+    # the founder's clause says lifts it — a unique id. A listing whose
+    # identity was ADOPTED is not on this list, because then the minute is not
+    # what identified it.
+    contested_minutes = _contested_minutes(parsed)
 
     for row, hits in hits_by_row:
         if len(hits) > 1:
@@ -740,7 +901,24 @@ def adjudicate_page(
             continue
 
         hit = hits[0]
-        diff = _field_diff(row, hit)
+        kind = match_kind(row, hit)
+        hit_minute = _as_utc(hit.start_time)
+        if (kind != MATCH_IDENTITY and hit_minute is not None
+                and hit_minute.replace(second=0, microsecond=0) in contested_minutes):
+            # The founder's collision clause. Something else sits on this exact
+            # minute and nothing unique separates them, so a same-minute match
+            # is not an identity here — even though this listing carries our
+            # title, the other one could be the show that was renamed to it.
+            # Non-writing, never a non-match: a contested slot still means the
+            # row is not absent.
+            decisions.append(ListingDecision(
+                event_id=row.event_id, action=ACTION_NONE,
+                matched_candidate_id=hit.candidate_id,
+                why=("another listing shares this row's start minute and no "
+                     "unique id separates them — collision; last good row "
+                     "stands")))
+            continue
+        diff = _field_diff(row, hit, kind=kind)
         if not diff:
             decisions.append(ListingDecision(
                 event_id=row.event_id, action=ACTION_NONE,
@@ -757,7 +935,7 @@ def adjudicate_page(
                 why=("the page states a change, but the trust gate did not PASS "
                      "that listing's own evidence — last good row stands")))
             continue
-        if match_kind(row, hit) == MATCH_TITLE:
+        if kind == MATCH_TITLE:
             # A TITLE IS NOT AN OCCURRENCE. Both openai seats blocked here at
             # r8, from the two sides of one defect: this branch would write a
             # start_time from a same-title listing at a different hour, and an
@@ -786,20 +964,33 @@ def adjudicate_page(
                 matched_candidate_id=hit.candidate_id,
                 why=f"{bad_window} — last good row stands"))
             continue
+        licence = ("the source's own id identifies this listing"
+                   if kind == MATCH_IDENTITY
+                   else "same start minute and a title that does not contradict it")
         decisions.append(ListingDecision(
             event_id=row.event_id, action=ACTION_UPDATE, fields=diff,
             matched_candidate_id=hit.candidate_id,
             matched_source_class=hit.source_class,
-            why=("confirmed same-page change, gate PASS on that listing: "
-                 + ", ".join(sorted(diff)))))
+            why=(f"confirmed same-page change ({licence}), gate PASS on that "
+                 "listing: " + ", ".join(sorted(diff)))))
 
     return decisions
 
 
 # --- reads -------------------------------------------------------------------
 
+#: `distinct on (e.event_id)` replaces a plain `distinct` because the identity
+#: comes from the PROMOTING CANDIDATE and several candidates can point at one
+#: event: projecting `c.extracted` under a plain DISTINCT would return the same
+#: event once per differing payload and adjudicate it twice. The tie-break is
+#: the EARLIEST promoting candidate (`c.created_at`, then `c.candidate_id` so
+#: two rows written in the same transaction still order deterministically) —
+#: the row that actually established this listing, and a stable choice across
+#: runs rather than whichever the planner happened to return.
 _PUBLISHED_ON_PAGE_SQL = """
-select distinct e.event_id, e.title, e.start_time, e.end_time, e.status
+select distinct on (e.event_id)
+       e.event_id, e.title, e.start_time, e.end_time, e.status,
+       c.extracted, c.source_id
 from event e
 join event_candidate c on c.promoted_event_id = e.event_id
 where c.source_id = %s
@@ -808,10 +999,11 @@ where c.source_id = %s
   and coalesce(e.end_time, e.start_time) > now()
   and e.override_lock = false
   and e.status = 'scheduled'
+order by e.event_id, c.created_at, c.candidate_id
 """
 
 _PARSED_ON_PAGE_SQL = """
-select candidate_id, title, start_time, end_time, source_class
+select candidate_id, title, start_time, end_time, source_class, extracted, source_id
 from event_candidate
 where candidate_id = any(%s::uuid[])
 """
@@ -843,9 +1035,25 @@ def load_published_on_page(source_id: str, url: str, cur=None) -> List[Published
             return _to_published(own.fetchall())
 
 
+def _identity_of(row: Sequence[Any], index: int) -> ListingIdentity:
+    """The identity stored on a candidate's `extracted`, or NO_IDENTITY.
+
+    Tolerant of a short row on purpose: `_to_published`/`_to_parsed` are also
+    fed by test doubles and by older callers that select fewer columns, and a
+    missing column is an absent identity (a hole), never an error and never a
+    guess.
+    """
+    if len(row) <= index:
+        return NO_IDENTITY
+    return read_identity(row[index])
+
+
 def _to_published(rows: Sequence[Sequence[Any]]) -> List[PublishedListing]:
     return [PublishedListing(event_id=str(r[0]), title=r[1], start_time=r[2],
-                             end_time=r[3], status=r[4]) for r in rows]
+                             end_time=r[3], status=r[4],
+                             identity=_identity_of(r, 5),
+                             source_id=str(r[6]) if len(r) > 6 and r[6] else None)
+            for r in rows]
 
 
 def load_parsed_listings(candidate_ids: Sequence[str], cur=None) -> List[ParsedListing]:
@@ -871,7 +1079,9 @@ def load_parsed_listings(candidate_ids: Sequence[str], cur=None) -> List[ParsedL
 def _to_parsed(rows: Sequence[Sequence[Any]]) -> List[ParsedListing]:
     return [ParsedListing(candidate_id=str(r[0]), title=r[1],
                           start_time=r[2], end_time=r[3],
-                          source_class=r[4] if len(r) > 4 else None)
+                          source_class=r[4] if len(r) > 4 else None,
+                          identity=_identity_of(r, 5),
+                          source_id=str(r[6]) if len(r) > 6 and r[6] else None)
             for r in rows]
 
 
