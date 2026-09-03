@@ -98,3 +98,27 @@ normalizes to the word "amp". Titles with an ampersand are ordinary, so this was
 the common case, not an exotic one. Tags become SPACES, never nothing, or a
 title split across two table cells fuses with its neighbour's words into a match
 that was never there.
+
+## Round four: an evidence row is an attestation, so every column must be real
+
+Two findings, one lesson. The `candidate_evidence` row this path wrote on an
+update had a `quote` column filled with the adjudicator's own sentence
+("re-check <run>: <why>") and a `source_class` that fell back to
+`"venue_calendar"` when the caller supplied none.
+
+Both looked like reasonable defaults while writing them. Both were fabrications
+in a table whose entire purpose is to attest to something that happened:
+
+- `quote` holds text FROM THE PAGE — `worker/ai_extract.py` puts the listing's
+  own block there. Filling it with system prose means anything that surfaces a
+  quote shows a person words the venue never published. Empty is honest; the
+  reason belongs in `audit_log`.
+- `"venue_calendar"` is an ANCHOR class in `worker/gating.py`. Defaulting to it
+  silently upgraded unknown provenance to the strongest tier in the trust
+  vocabulary, on a row attached to a published-data mutation. The listing's own
+  class is the only honest value, and when there is none the honest move is to
+  write no row at all.
+
+**The rule: never reach for a default in a table that attests.** A plausible
+default in a provenance record is a claim nobody made. "No row" and "empty
+field" are both available and both true; a filled-in guess is neither.

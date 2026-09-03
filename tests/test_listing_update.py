@@ -683,3 +683,72 @@ def test_a_404_needs_no_bracket_at_all():
     d = only(adjudicate_page(verdict=verdict, published=[published()],
                              parsed=[], gate_passes=NEVER_PASSES, page_text=None))
     assert d.action == ACTION_MARK_GONE
+
+
+# --- round 4: an evidence row attests, so every column must be real ----------
+
+def _one_update(gate=ALWAYS_PASSES, **parsed_kw):
+    return adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[published()],
+        parsed=[parsed(start_time=DAY + timedelta(hours=2), **parsed_kw)],
+        gate_passes=gate)
+
+
+def test_the_evidence_quote_is_never_the_adjudicators_own_sentence():
+    """PR #214 r4, openai/attacker-smuggle: `candidate_evidence.quote` was
+    populated with "re-check <run>: <why>" — the system's own adjudication
+    text, in a column that holds text FROM THE PAGE (worker/ai_extract.py puts
+    the listing's own block there). Anything surfacing a quote would show a
+    person words the venue never published."""
+    cur = FakeCursor()
+    apply_decisions(_one_update(source_class="venue_calendar"),
+                    source_id="s1", source_name="Granite Hall",
+                    source_class="venue_calendar", page_url="https://gh.example/c",
+                    run_id="run-1", budget=TickBudget(), cur=cur)
+    quote = cur.sql_matching("insert into candidate_evidence")[0][1][4]
+    assert quote == "", "the quote column holds page text or nothing at all"
+    # The reason is still recorded — in the audit row, where the founder ruled
+    # it belongs (2026-09-03).
+    assert "run-1" in cur.sql_matching("insert into audit_log")[0][1][1]
+
+
+def test_the_evidence_class_is_the_listings_own_never_an_anchor_default():
+    """The same seat's second finding: `source_class or "venue_calendar"` wrote
+    an ANCHOR class (worker/gating.py) whenever the caller supplied none, so
+    unknown provenance was silently upgraded to the strongest tier in the trust
+    vocabulary — on a row attached to a published-data mutation."""
+    cur = FakeCursor()
+    apply_decisions(_one_update(source_class="social"),
+                    source_id="s1", source_name="Granite Hall",
+                    source_class="venue_calendar",   # the caller's, NOT the listing's
+                    page_url="u", run_id="r", budget=TickBudget(), cur=cur)
+    written_class = cur.sql_matching("insert into candidate_evidence")[0][1][1]
+    assert written_class == "social", "the listing's own class wins"
+
+
+def test_an_unlabelled_listing_gets_no_evidence_row_but_still_an_audit_row():
+    """No default, at all. A row asserting provenance it cannot support is
+    worse than no row — and the mutation is still recorded."""
+    cur = FakeCursor()
+    counts = apply_decisions(_one_update(source_class=None),
+                             source_id="s1", source_name="Granite Hall",
+                             source_class="", page_url="u", run_id="r",
+                             budget=TickBudget(), cur=cur)
+    assert cur.sql_matching("insert into candidate_evidence") == []
+    assert len(cur.sql_matching("insert into audit_log")) == 1
+    assert counts["updated"] == 1
+
+
+def test_no_anchor_class_can_be_invented_for_any_caller_input():
+    """Belt and braces over the whole default surface: whatever the caller
+    passes, the written class is one that some row actually recorded."""
+    for caller_class in ("", None, "venue_calendar", "ticketing"):
+        cur = FakeCursor()
+        apply_decisions(_one_update(source_class=None),
+                        source_id="s1", source_name="G", source_class=caller_class,
+                        page_url="u", run_id="r", budget=TickBudget(), cur=cur)
+        rows = cur.sql_matching("insert into candidate_evidence")
+        if rows:
+            assert rows[0][1][1] == caller_class, (
+                "with no class on the listing, only the caller's real value may "
+                "be used — never a substituted anchor")

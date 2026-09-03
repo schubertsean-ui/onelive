@@ -132,6 +132,11 @@ class ParsedListing:
     title: Optional[str] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
+    #: The class the CANDIDATE ROW itself records, not the one the caller
+    #: happens to be holding. Any evidence written about this listing must be
+    #: labelled with its own provenance — see _write_all for why a default here
+    #: would be a fabricated upgrade.
+    source_class: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -147,6 +152,9 @@ class ListingDecision:
     why: str
     fields: Dict[str, Any] = field(default_factory=dict)
     matched_candidate_id: Optional[str] = None
+    #: The matched listing's OWN source class, carried so the evidence row can
+    #: be labelled with the provenance it actually has.
+    matched_source_class: Optional[str] = None
 
     @property
     def mutates(self) -> bool:
@@ -576,6 +584,7 @@ def adjudicate_page(
         decisions.append(ListingDecision(
             event_id=row.event_id, action=ACTION_UPDATE, fields=diff,
             matched_candidate_id=hit.candidate_id,
+            matched_source_class=hit.source_class,
             why=("confirmed same-page change, gate PASS on that listing: "
                  + ", ".join(sorted(diff)))))
 
@@ -597,7 +606,7 @@ where c.source_id = %s
 """
 
 _PARSED_ON_PAGE_SQL = """
-select candidate_id, title, start_time, end_time
+select candidate_id, title, start_time, end_time, source_class
 from event_candidate
 where candidate_id = any(%s::uuid[])
 """
@@ -656,7 +665,9 @@ def load_parsed_listings(candidate_ids: Sequence[str], cur=None) -> List[ParsedL
 
 def _to_parsed(rows: Sequence[Sequence[Any]]) -> List[ParsedListing]:
     return [ParsedListing(candidate_id=str(r[0]), title=r[1],
-                          start_time=r[2], end_time=r[3]) for r in rows]
+                          start_time=r[2], end_time=r[3],
+                          source_class=r[4] if len(r) > 4 else None)
+            for r in rows]
 
 
 def gate_passes_for(candidate_id: str, cur=None) -> bool:
@@ -738,10 +749,12 @@ def apply_decisions(
 
     Every write carries its evidence in the same transaction as the change:
 
-      * `candidate_evidence` — the same-page evidence itself, tied to the
-        matched candidate, quoting the page and what it now says. Absent for a
-        404 (there is no candidate and no page to quote); the audit row carries
-        that case.
+      * `candidate_evidence` — the same-page provenance: the matched candidate,
+        the page it was read from, and that listing's OWN source class. Absent
+        for a 404 (no candidate, no page) and absent when the candidate records
+        no class, because an evidence row asserting provenance it cannot
+        support is worse than none. The `quote` column stays EMPTY: it holds
+        text from the page, and this path has no page snippet to put in it.
       * `audit_log` — before and after, the page, the run, and the reason, for
         every mutation including the 404 one. An `edit_event` row on the
         `event` entity, the vocabulary migration 0001 already declares.
@@ -801,12 +814,39 @@ def _write_all(cur, decisions, counts, *, source_id, source_name, source_class,
             continue
         if budget is not None:
             budget.record_listing_mutation()
-        if d.matched_candidate_id:
+        # THE EVIDENCE ROW CARRIES PROVENANCE, NEVER PROSE — two blocking
+        # findings from openai/attacker-smuggle on PR #214 r4, and both were
+        # right about the same thing: an evidence row is an ATTESTATION, so
+        # every column of it has to be something that actually happened.
+        #
+        #   * `quote` holds text FROM THE PAGE. worker/ai_extract.py writes the
+        #     listing's own block into it (text[:500]); this path was writing
+        #     "re-check <run>: <why>" — the adjudicator's own sentence. Anything
+        #     that surfaces a quote would then show a person words the venue
+        #     never published. It is left EMPTY now, which is what
+        #     candidate_store.add_evidence defaults to, and the reason lives in
+        #     the audit row where the founder ruled it belongs (2026-09-03).
+        #   * `source_class` is the listing's OWN class, read from the candidate
+        #     row. The previous default of "venue_calendar" was an ANCHOR class
+        #     in worker/gating.py, so a blank or unknown provenance was being
+        #     silently upgraded to the strongest tier in the trust vocabulary —
+        #     on a row attached to a published-data mutation. There is no
+        #     default now: an unlabelled listing gets NO evidence row and says
+        #     so in the log, because a row asserting a class it cannot support
+        #     is worse than no row at all. The audit entry still records the
+        #     mutation either way.
+        evidence_class = d.matched_source_class or source_class
+        if d.matched_candidate_id and evidence_class:
             cur.execute(_EVIDENCE_SQL, (
-                d.matched_candidate_id, source_class or "venue_calendar",
-                source_name, page_url,
-                f"re-check {run_id}: {d.why}",
+                d.matched_candidate_id, evidence_class,
+                source_name, page_url, "",
             ))
+        elif d.matched_candidate_id:
+            logger.warning(
+                "listing update for event %s wrote NO evidence row: candidate "
+                "%s records no source class, and this path will not label "
+                "evidence with a class it cannot support. The audit_log entry "
+                "still records the change.", d.event_id, d.matched_candidate_id)
         cur.execute(_AUDIT_SQL, (d.event_id, json.dumps({
             "run_id": run_id,
             "kind": d.action,
