@@ -395,9 +395,13 @@ def test_the_tick_mutation_budget_bounds_the_blast_radius():
     a safety cap costs."""
     cur = FakeCursor()
     budget = TickBudget(max_listing_mutations=1)
-    rows = [published(event_id=f"e{i}") for i in range(3)]
-    news = [parsed(candidate_id=f"c{i}", start_time=DAY + timedelta(hours=2))
-            for i in range(1)]
+    # Distinct titles on purpose: three rows sharing one title and one time are
+    # refused by the one-to-one rule below before the budget is ever consulted,
+    # and this test is about the CAP, not about identity.
+    rows = [published(event_id=f"e{i}", title=f"Show {i}") for i in range(3)]
+    news = [parsed(candidate_id=f"c{i}", title=f"Show {i}",
+                   start_time=DAY + timedelta(hours=2))
+            for i in range(3)]
     decisions = adjudicate_page(verdict=VERIFIED_PRESENT, published=rows,
                                 parsed=news, gate_passes=ALWAYS_PASSES)
     counts = apply_decisions(decisions, source_id="s1", source_name="G", page_url="u",
@@ -766,3 +770,163 @@ def test_an_update_whose_candidate_has_no_class_writes_only_the_audit_row():
     assert cur.sql_matching("insert into candidate_evidence") == []
     assert len(cur.sql_matching("insert into audit_log")) == 1
     assert counts["updated"] == 1
+
+
+# --- round 6: two ways to be confidently wrong about identity ----------------
+#
+# Both blocking findings on this round were the same shape: a rule that reads
+# correctly for one row, one page, one alphabet, and turns into a confident
+# wrong answer the moment reality is slightly wider than the fixture.
+
+
+@pytest.mark.parametrize("published_title, page_title", [
+    ("Beyoncé", "Beyonce"),          # the accent is ours, the page's is plain
+    ("Beyonce", "Beyoncé"),          # and the other way round
+    ("Sigur Rós", "Sigur Ros"),      # accent INSIDE the word, not at the end
+    ("Café Tacvba", "Cafe Tacvba"),
+    ("Mötley Crüe", "Motley Crue"),
+    ("Núria & Són", "Nuria & Son"),
+])
+def test_an_accent_is_not_an_absence(published_title, page_title):
+    """openai/attacker-smuggle, r6. The old reduction DELETED every non-ASCII
+    letter, so `Beyoncé` became `beyonc` and a page saying `Beyonce` did not
+    contain it. That is the single answer that can license a cancellation, so a
+    typographic difference between our row and the venue's CMS could take a
+    real, still-listed event off the live feed."""
+    assert title_still_on_page(
+        published_title, f"<p>Tonight: {page_title} live</p>") is True
+
+
+def test_a_folded_title_still_has_to_be_the_same_words():
+    """Folding accents is not folding meaning: it must not make the guard
+    answer True for a title the page does not carry."""
+    assert title_still_on_page("Beyoncé", "<p>Tonight: Solange live</p>") is False
+
+
+def test_a_non_latin_title_keeps_its_letters_instead_of_vanishing():
+    """The same defect in its severe form: a title whose letters have no ASCII
+    form used to reduce to whatever Latin scraps it carried, so `Кино Night`
+    became the needle `night` — a word half the internet contains. Now the
+    letters survive, and the question is asked about the actual title."""
+    assert normalize_title("Кино Night") == "кино night"
+    assert title_still_on_page("Кино Night", "<p>Кино Night, 9pm</p>") is True
+    assert title_still_on_page("Кино Night", "<p>Jazz Night, 9pm</p>") is False
+
+
+def test_the_accent_fold_reaches_the_match_path_too():
+    """Not only the absence guard: the same reduction decides whether a page
+    listing IS this row, so both sides have to fold or the two rules disagree
+    about what a title is."""
+    assert normalize_title("Beyoncé") == normalize_title("Beyonce")
+    assert match_kind(published(title="Café Tacvba"),
+                      parsed(title="Cafe Tacvba")) is not None
+
+
+def _two_same_title_nights():
+    """Two published occurrences of one recurring night, close enough together
+    that either could be read as a retime of the other."""
+    early = published(event_id="e_early", title="Open Mic",
+                      start_time=DAY.replace(hour=20))
+    late = published(event_id="e_late", title="Open Mic",
+                     start_time=DAY.replace(hour=23))
+    return early, late
+
+
+def test_one_page_listing_cannot_identify_two_published_rows():
+    """openai/absence-only, r6. Cardinality was checked in ONE direction —
+    how many listings match this row — never the other. A page returning only
+    the later of two same-title occurrences gives BOTH rows exactly one match,
+    the same one, so the earlier row reads it as "the page moved me" and is
+    retimed onto an event that is not it, while the later row keeps its own
+    time. The catalog would then publish a real event at an hour nobody
+    announced, which is the exact failure this whole path exists to prevent."""
+    early, late = _two_same_title_nights()
+    only_the_later = parsed(candidate_id="c_late", title="Open Mic",
+                            start_time=DAY.replace(hour=23, minute=30))
+
+    decisions = adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[early, late],
+        parsed=[only_the_later], gate_passes=ALWAYS_PASSES,
+        page_text=PAGE_THAT_STILL_NAMES_IT)
+
+    assert [d.action for d in decisions] == [ACTION_NONE, ACTION_NONE]
+    for d in decisions:
+        assert "one listing cannot be two rows" in d.why
+
+
+def test_the_contested_listing_is_named_in_the_decision():
+    """The refusal says WHICH listing it could not attribute, so the table and
+    the audit trail can be read without re-deriving the match."""
+    early, late = _two_same_title_nights()
+    contested = parsed(candidate_id="c_late", title="Open Mic",
+                       start_time=DAY.replace(hour=23, minute=30))
+    decisions = adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[early, late], parsed=[contested],
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT)
+    assert {d.matched_candidate_id for d in decisions} == {"c_late"}
+
+
+def test_a_contested_listing_writes_nothing():
+    """The decision is a no-op, so it must reach the writer as one: no update,
+    no evidence row, no audit row."""
+    early, late = _two_same_title_nights()
+    contested = parsed(candidate_id="c_late", title="Open Mic",
+                       start_time=DAY.replace(hour=23, minute=30))
+    decisions = adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[early, late], parsed=[contested],
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT)
+    cur = FakeCursor()
+    counts = apply_decisions(decisions, source_id="s1", source_name="Granite Hall",
+                             page_url="u", run_id="r", budget=TickBudget(), cur=cur)
+    assert cur.calls == []
+    assert counts == {"updated": 0, "marked_gone": 0, "skipped_budget": 0}
+
+
+def test_two_rows_matched_by_their_own_listings_still_both_update():
+    """The guard is one-to-ONE, not "give up whenever a page has two of
+    anything". Two rows the page distinguishes cleanly both get their change.
+
+    (Two occurrences of the SAME title inside the retime window are refused by
+    the older `len(hits) > 1` rule before this one is reached — the page offers
+    each row two readings of itself. That is the r1 recurring-title finding,
+    and it stays refused; this test is about rows a page CAN tell apart.)"""
+    supper = published(event_id="e_supper", title="Supper Club",
+                       start_time=DAY.replace(hour=20))
+    matinee = published(event_id="e_matinee", title="Matinee Reading",
+                        start_time=DAY.replace(hour=23))
+    p_supper = parsed(candidate_id="c_supper", title="Supper Club",
+                      start_time=DAY.replace(hour=20, minute=30))
+    p_matinee = parsed(candidate_id="c_matinee", title="Matinee Reading",
+                       start_time=DAY.replace(hour=23, minute=30))
+
+    decisions = adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[supper, matinee],
+        parsed=[p_supper, p_matinee], gate_passes=ALWAYS_PASSES,
+        page_text=PAGE_THAT_STILL_NAMES_IT)
+
+    assert [d.action for d in decisions] == [ACTION_UPDATE, ACTION_UPDATE]
+    assert [d.matched_candidate_id for d in decisions] == ["c_supper", "c_matinee"]
+
+
+def test_a_contested_listing_cannot_cancel_the_row_it_could_not_identify():
+    """A row whose only match is contested keeps its data AND its status: the
+    refusal is a no-op, never a fall-through into the absence branch."""
+    early, late = _two_same_title_nights()
+    contested = parsed(candidate_id="c_late", title="Open Mic",
+                       start_time=DAY.replace(hour=23, minute=30))
+    decisions = adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[early, late],
+        parsed=[contested] + bracket(), gate_passes=ALWAYS_PASSES,
+        page_text=PAGE_WITHOUT_IT)
+    assert all(d.action == ACTION_NONE for d in decisions)
+    assert all(not d.fields for d in decisions)
+
+
+def test_an_uncontested_page_is_unaffected_by_the_new_check():
+    """The ordinary single-row page still updates — the guard fires on
+    contested identity, not on every page."""
+    decisions = adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[published()],
+        parsed=[parsed(start_time=DAY + timedelta(hours=1))],
+        gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT)
+    assert only(decisions).action == ACTION_UPDATE

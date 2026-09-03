@@ -122,3 +122,38 @@ in a table whose entire purpose is to attest to something that happened:
 **The rule: never reach for a default in a table that attests.** A plausible
 default in a provenance record is a claim nobody made. "No row" and "empty
 field" are both available and both true; a filled-in guess is neither.
+
+## Round six: identity was checked in one direction, and in one alphabet
+
+Two findings, and the same underlying habit: a rule that reads correctly for
+one row, one page, one script — and turns into a *confident wrong answer* the
+moment reality is slightly wider than the fixture that shaped it.
+
+**Cardinality has two directions.** The adjudicator asked "how many listings on
+this page match this published row?" and refused when the answer was more than
+one. It never asked the mirror question: "how many published rows does this
+listing match?" A page holding two occurrences of a recurring night that
+returns only the later one gives BOTH rows exactly one match — the same one.
+Each row passes the one-way check alone, so the earlier row reads it as "the
+page moved me" and is retimed onto an event that is not it. The one-way check
+did not just miss the case; it *certified* it.
+
+**Deleting a character is not normalizing it.** The title reduction was
+`[^0-9a-z]+ -> space`, applied to both sides, which reads as symmetric and
+therefore safe. It is not: it deletes information rather than folding it, so
+`Beyoncé` reduced to `beyonc` while `Beyonce` reduced to `beyonce`, and the two
+sides disagreed about a name a CMS prints either way. The absence guard then
+answered a confident False about a page naming the event in plain sight — and
+False is the single answer that can license a cancellation. Symmetric
+destruction is still destruction.
+
+**The rule: a guard whose failure mode is a CONFIDENT answer needs its inputs
+attacked, not just its logic.** Both of these had correct logic over inputs
+that had already lost the distinction the logic depended on. Ask of any
+identity test: what pairs does my normalization make indistinguishable, and
+what happens when one page shows me fewer of something than the catalog holds?
+
+The fixture that hid both was the same shape — one published row, one page, one
+alphabet. A fixture with two rows would have caught the first; a fixture with
+one accent would have caught the second. Neither needed a cleverer test, only a
+less tidy one.

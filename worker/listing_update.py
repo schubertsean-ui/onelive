@@ -70,6 +70,7 @@ import html
 import json
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional, Sequence
@@ -171,12 +172,42 @@ def _as_utc(value: Optional[datetime]) -> Optional[datetime]:
     return value.astimezone(timezone.utc)
 
 
-_PUNCT = re.compile(r"[^0-9a-z]+")
+#: Everything that is not a letter or a digit, IN ANY SCRIPT. `\W` is
+#: Unicode-aware for str patterns, so Cyrillic and CJK words survive instead of
+#: being erased; `_` is added because `\W` alone would keep it.
+_PUNCT = re.compile(r"[\W_]+")
+
+#: The combining marks NFKD leaves behind, DELETED rather than turned into
+#: spaces. An accent sits inside a word — `Sigur Rós` decomposes to
+#: `sigur ro` + mark + `s` — so replacing it with a space would split the word
+#: in half and make the fold worse than no fold at all. These are the Unicode
+#: combining-diacritic blocks; a script whose marks fall outside them still
+#: keeps its letters, which is the direction that keeps rows.
+_COMBINING = re.compile(
+    r"[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20f0\ufe20-\ufe2f]")
+
+
+def _fold(text: str) -> str:
+    """Accented letters folded ONTO the letters they are written with.
+
+    `Beyoncé` and `Beyonce` are one name typed two ways, and a CMS prints
+    either — often both, on the same site. Decompose (NFKD splits the accent
+    off as its own combining mark), then drop the mark.
+
+    This is not cosmetic. It was a blocking finding from openai/attacker-smuggle
+    on PR #214 r6, and it pointed at the cancel path: the old reduction dropped
+    every non-ASCII letter, so a published `Beyoncé` reduced to `beyonc` while
+    the page's `Beyonce` reduced to `beyonce`, and the absence guard answered a
+    confident False for a page that was still naming the event in plain sight.
+    A confident False is the one answer that can license a cancellation, so a
+    typographic difference could take a real event off the live feed.
+    """
+    return _COMBINING.sub("", unicodedata.normalize("NFKD", text))
 
 
 def normalize_title(title: Optional[str]) -> Optional[str]:
-    """A title reduced to what a match may turn on: case, punctuation and
-    spacing are noise a CMS changes on its own; words are not.
+    """A title reduced to what a match may turn on: case, accents, punctuation
+    and spacing are noise a CMS changes on its own; words are not.
 
     None for anything that reduces to nothing, INCLUDING an empty or missing
     title — two rows that both lack a title have not been shown to be the same
@@ -186,7 +217,7 @@ def normalize_title(title: Optional[str]) -> Optional[str]:
     """
     if not title:
         return None
-    reduced = _PUNCT.sub(" ", title.strip().casefold()).strip()
+    reduced = _PUNCT.sub(" ", _fold(title.strip().casefold())).strip()
     return reduced or None
 
 
@@ -340,7 +371,7 @@ def title_still_on_page(title: Optional[str], page_text: Optional[str]) -> Optio
     needle = normalize_title(title)
     if not needle or not page_text:
         return None
-    haystack = _PUNCT.sub(" ", _visible_text(page_text).casefold())
+    haystack = _PUNCT.sub(" ", _fold(_visible_text(page_text).casefold()))
     return f" {needle} " in f" {haystack} "
 
 
@@ -499,14 +530,37 @@ def adjudicate_page(
                      "nothing to compare; last good row stands")))
         return decisions
 
-    for row in published:
-        hits = [p for p in parsed if matches(row, p)]
+    # Matching is resolved for the WHOLE PAGE before any row is decided,
+    # because one-to-many has two directions and only one of them was checked.
+    # openai/absence-only blocked PR #214 at r6 on the other one: a page with
+    # two same-title occurrences inside MAX_TITLE_ONLY_RETIME that returns only
+    # the LATER one this read gives each published row exactly one match — the
+    # same match. The earlier row then reads as "the page moved me" and is
+    # retimed onto the later event, while the later row keeps its own time, so
+    # the catalog ends up publishing a real event at an hour nobody announced.
+    # A page listing is ONE listing: if two rows claim it, it identifies
+    # neither, and both keep what they have.
+    hits_by_row = [(row, [p for p in parsed if matches(row, p)]) for row in published]
+    claims: Dict[str, int] = {}
+    for _row, row_hits in hits_by_row:
+        for p in row_hits:
+            claims[p.candidate_id] = claims.get(p.candidate_id, 0) + 1
 
+    for row, hits in hits_by_row:
         if len(hits) > 1:
             decisions.append(ListingDecision(
                 event_id=row.event_id, action=ACTION_NONE,
                 why=(f"{len(hits)} listings on the page match this row on title "
                      "or time — ambiguous; last good row stands")))
+            continue
+
+        if hits and claims.get(hits[0].candidate_id, 0) > 1:
+            decisions.append(ListingDecision(
+                event_id=row.event_id, action=ACTION_NONE,
+                matched_candidate_id=hits[0].candidate_id,
+                why=("another published row on this page matches the same "
+                     "listing — one listing cannot be two rows; ambiguous; "
+                     "last good row stands")))
             continue
 
         if not hits:

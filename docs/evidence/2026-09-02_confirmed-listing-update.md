@@ -15,8 +15,20 @@ runtime EXECUTES; this table proves what it DECIDES.
 
 `check result` is the fail-closed verdict from
 `worker.crawl_state.classify_recheck` — `present`, `absent`, or `no` (nothing
-was learned). Read the three "yes" rows against the nineteen "no" rows: the default is no
-mutation, and confirmation is the exception that has to be earned.
+was learned). Read the four "yes" rows against the twenty-one "no" rows: the
+default is no mutation, and confirmation is the exception that has to be earned.
+
+**Count correction, stated rather than quietly fixed:** earlier versions of this
+page said "three yes rows against the nineteen no rows" while the table below
+them held four and eighteen. The table was right and the sentence was wrong,
+twice, in opposite directions. Nothing about the decisions changed; the
+arithmetic describing them did. The table below was regenerated from scratch
+this round by a fixture script written independently of the one that produced
+the earlier version, and it reproduces all twenty-two of the original rows
+character-for-character — which is the check that says the regeneration is
+faithful rather than merely new. The three rows it adds are the round-6 refusal
+class, an accent case, and the off-site verdict, which `classify_recheck` has
+always produced and this enumeration had simply never listed.
 
 ```
 event                                                | check result | mutated? | why
@@ -30,7 +42,9 @@ Nightjar — moved, but the gate declined that listing | present      | no      
 Nightjar — two listings match it                     | present      | no       | 2 listings on the page match this row on title or time — ambiguous; last good row stands
 Nightjar — absent, page brackets its date            | present      | yes      | absent from a clean parse of the page that defines it, its title is absent from the page's own raw text, and the page's GATE-PASSED listings bracket its date — confirmed gone; marked cancelled, row kept with its evidence
 Nightjar — extraction missed it, page still names it | present      | no       | the page still names this listing but the extraction did not return it — an extraction miss is not a cancellation; last good row stands
+Nightjär — the page spells it with an umlaut         | present      | no       | the page still names this listing but the extraction did not return it — an extraction miss is not a cancellation; last good row stands
 Open Mic — only next week's occurrence listed        | present      | no       | the page still lists this title, but at a date too far off to be the same occurrence — ambiguous; last good row stands
+Open Mic — one listing, two published nights         | present      | no       | another published row on this page matches the same listing — one listing cannot be two rows; ambiguous; last good row stands
 Nightjar — doors moved one hour                      | present      | yes      | confirmed same-page change, gate PASS on that listing: start_time
 Nightjar — absent, calendar stops before its date    | present      | no       | not on the page, but the page's own gate-passed listings do not reach this date — a short calendar, or one the gate did not confirm, has not said this event is gone; last good row stands
 Nightjar — page loaded but listed nothing            | present      | no       | page verified but it produced no listings this read — nothing to compare; last good row stands
@@ -40,6 +54,7 @@ Nightjar — fetch timed out                           | no           | no      
 Nightjar — rate limited (429/503)                    | no           | no       | unconfirmed — rate-limited (429/503) — last good row stands
 Nightjar — closed door (401/403)                     | no           | no       | unconfirmed — closed door (401/403) — last good row stands
 Nightjar — tick budget deferred it                   | no           | no       | unconfirmed — budget or politeness deferred the check — last good row stands
+Nightjar — landed off-site                           | no           | no       | unconfirmed — landed off-site — a different source; last good row stands
 Nightjar — page parsed, gate HELD                    | no           | no       | unconfirmed — page fetched and parsed, but the trust gate did not confirm it (held) — last good row stands
 Nightjar — page parsed, gate ESCALATED               | no           | no       | unconfirmed — page fetched and parsed, but the trust gate did not confirm it (escalated) — last good row stands
 Nightjar — sensor rejected the page                  | no           | no       | unconfirmed — page fetched but never reached the gate (sensor_rejected) — last good row stands
@@ -54,12 +69,12 @@ Nightjar — sensor rejected the page                  | no           | no      
 | absent, page brackets its date | Four things at once: the page loads, the raw page text no longer names the listing, its own listings bracket this date, and **those bracketing listings each pass the trust gate**. Writes `status='cancelled'`; the row is KEPT. |
 | defining page 404 | The founder's 2026-09-02 overrule (`docs/memory/decisions/2026-09-02_404-of-defining-url-marks-the-listing-gone.md`). Writes `status='cancelled'` and nothing else — a page that is gone cannot state a new time or title. The row is KEPT. |
 
-## Reading the nineteen refusals
+## Reading the twenty-one refusals
 
-Eight of them are the ones worth arguing about, because each is a case where
-something DID change and the loop still refused. **The last two were caught by
-the adversarial panel on this PR, not by me** — both were real defects on the
-published-data path, both are fixed here, and both are pinned by tests:
+Ten of them are the ones worth arguing about, because each is a case where
+something DID change and the loop still refused. **Nine of the ten were caught
+by the adversarial panel on this PR, not by me** — every one was a real defect
+on the published-data path, all are fixed here, and all are pinned by tests:
 
 - **"moved, but the gate declined that listing"** — R-091(a). A page's gate
   verdict is the verdict of its FIRST extracted candidate, so on a
@@ -101,6 +116,22 @@ published-data path, both are fixed here, and both are pinned by tests:
   omits the real event and emits plausible earlier+later listings around its
   date would manufacture the very coverage window the guard demands. The
   bracket must now be gate-passed on both sides.
+- **"one listing, two published nights"** — cardinality was checked in one
+  direction only: how many listings match this row, never how many rows match
+  this listing. A page holding two occurrences of a recurring night that
+  returns only the later one gives BOTH published rows exactly one match — the
+  same one. The earlier row reads it as "the page moved me" and is retimed onto
+  an event that is not it, while the later row keeps its own time, so the
+  catalog publishes a real show at an hour nobody announced. A page listing is
+  one listing: if two rows claim it, it identifies neither.
+- **"the page spells it with an umlaut"** — the title reduction DELETED every
+  non-ASCII letter rather than folding it, so a published `Beyoncé` reduced to
+  `beyonc` while the page's `Beyonce` reduced to `beyonce`. The absence guard
+  then answered a confident *False* about a page that was naming the event in
+  plain sight — and a confident False is the single answer that can license a
+  cancellation. Accents now fold onto the letters they are written with, and
+  letters with no ASCII form (Cyrillic, CJK) are kept instead of erased, so
+  `Кино Night` stops reducing to the needle `night`.
 
 ## What no row can do
 
