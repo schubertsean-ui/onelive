@@ -4,6 +4,35 @@
 > entries below keep their original "OneLive"/"ONE LIVE" text — they are
 > append-only records of what was done when the brand was OneLive.
 
+## 2026-09-03 — A listing can now carry the id its own source gave it
+
+Until now, deciding "is this listing on the page the row we published?" had two
+things to go on: the name and the clock. Neither is an identity. A venue puts
+two bands on at 8pm; a weekly night repeats its exact title; a page renames a
+show. So four separate rules had ended up refusing to act — a rename was never
+followed, a re-time was never followed, a recurring series was never re-timed,
+and a published row with no time was never filled in — and all four had written
+down the same thing as what would unblock them: an id the source itself states.
+
+That id now has somewhere to live and something that uses it. When a calendar
+publishes one (an iCalendar `UID`, a schema.org `Event.url` or `@id`, or the
+address a venue typed next to their own listing when they sent us their
+calendar), it is kept with the candidate and consulted FIRST: agreeing ids mean
+one listing whatever the name and the hour now say, and disagreeing ids mean two
+listings whatever they seem to have in common. One rule got stricter rather than
+looser at the founder's direction — two shows on the same minute with nothing
+unique to tell them apart no longer license a change to either.
+
+Honest limit, and it is the headline rather than a footnote: **no venue calendar
+we currently crawl publishes such an id.** We checked rather than assumed — every
+one of the 24 saved sample pages was scanned, and none carries one
+(`python3 tools/identity_capture_scan.py` re-runs the count). The only place a
+per-listing address exists on that path today is a guess the AI made from the
+page's words, and a guess is exactly what must not become an identity, so it is
+not used as one. Today the venue calendars behave exactly as they did yesterday;
+a venue that sends us their own calendar gets the new behaviour immediately.
+Recorded as R-103 with the two things that would change it.
+
 ## 2026-09-02 — A confirmed check may now change a published listing
 
 The event-proximity ladder has been re-reading the page that defines a

@@ -437,3 +437,31 @@ def test_every_non_identity_update_agrees_on_the_composite_key():
                         "s1", normalize_title(hit.title), hit.start_time), (
                         f"a write was licensed on a pair whose composite key "
                         f"disagrees: {d.fields}")
+
+
+def test_the_certified_extraction_schema_states_no_identity_field():
+    """FAIL-OPEN GUARD, and the reason the crawl path is a proven no-op rather
+    than an assumed one.
+
+    `worker/ai_extract` stores `AIEventExtraction(...).model_dump()` plus the
+    provider meta (keys prefixed `_`), so an identity could only reach a
+    crawled candidate if the CERTIFIED schema grew a field named like one. It
+    has none today — which is what makes `_with_identity` a no-op on every
+    crawled row, and what makes R-103's "no producer on the class-B path" a
+    structural fact instead of a claim about fixtures.
+
+    If someone adds `url` or `uid` to worker/ai_models.py, identity would start
+    flowing from a MODEL GUESS into a stack that licenses title and start_time
+    rewrites on public rows. That is the one way this change could turn
+    fail-open, so it fails here first."""
+    from worker.ai_models import AIEventExtraction
+
+    fields = set(AIEventExtraction().model_dump())
+    assert fields.isdisjoint(set(IDENTITY_FIELDS) | {"url"}), (
+        "the certified extraction schema now states an identity-shaped field: "
+        f"{sorted(fields & (set(IDENTITY_FIELDS) | {'url'}))}. A model-guessed "
+        "value must never become an identity — capture it deterministically "
+        "outside the extractor, or teach worker/identity.py to refuse it.")
+    # And the payload the crawl path actually builds carries no identity.
+    assert _with_identity(AIEventExtraction().model_dump()) == (
+        AIEventExtraction().model_dump())
