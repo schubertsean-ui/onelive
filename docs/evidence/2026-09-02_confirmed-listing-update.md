@@ -101,50 +101,69 @@ including ones nobody has written yet, `worker/listing_update.py` contains no
 `DELETE` and no `INSERT INTO event`, and both facts are pinned structurally
 rather than by prose.
 
-## The live re-bind run — where the R-091 tightening fired for real
+## The live re-bind runs
 
-Founder-authorized dry smoke, run
-[33698783298](https://github.com/schubertsean-ui/onelive/actions/runs/33698783298)
-on head `d29dc5c` — success, 123.3s, 2 sources, 26 candidates, $0.5991.
-Recorded in full in `docs/evidence/ARMING_SMOKE_RUN.json`.
+Three founder-authorized dry smokes, one per adversarial round, each binding
+the head the panel had just judged. All recorded in
+`docs/evidence/ARMING_SMOKE_RUN.json`; the current binding is the last.
 
-**The switch, proven twice:** `LISTING_UPDATE_MODE: dry` resolved in the step
-env, and then the run's own line —
+| run | head | shape | what it showed |
+|---|---|---|---|
+| [33696784882](https://github.com/schubertsean-ui/onelive/actions/runs/33696784882) | `6231147` | 2 sources, 29 candidates, $0.0986→$0.2457, 75.4s | the dry switch resolves and prints; runtime loads the listing path |
+| [33698783298](https://github.com/schubertsean-ui/onelive/actions/runs/33698783298) | `d29dc5c` | 2 sources, 26 candidates, $0.5991, 123.3s | **the R-091(a) tightening fired live** |
+| [33700477027](https://github.com/schubertsean-ui/onelive/actions/runs/33700477027) | `9632882` | 2 sources, 50 candidates, $0.2336, 167.5s | **a real HTTP 304**, and the discover queue |
+
+Every one printed the switch, from the resolved env and then from the loop:
 
 ```
+LISTING_UPDATE_MODE: dry
 listing-update writer DISABLED for this run (dry): no published row can be
 updated or marked, whatever any page says.
 ```
 
-The counters agree (`'listings_updated': 0, 'listings_marked_gone': 0`) but
-they are consistency, not evidence: the tick reported `0 event-proximity
-page(s)` due, so it would have printed zeros with the writer armed. The
-DISABLED line is the proof.
+The `listings_updated: 0 / listings_marked_gone: 0` counters agree, and remain
+**consistency rather than evidence**: every tick reported `0 event-proximity
+page(s)` due, so they would read zero with the writer armed too. The DISABLED
+line is the proof.
 
-**What this run showed that no fixture could.** The R-091(a) tightening fired
-live, on both branches, in a single ordinary tick:
+### What the second run showed, and no fixture could
 
 ```
-source             | queue   | url fetched                          | changed? | verified? | candidates
--------------------+---------+--------------------------------------+----------+-----------+-----------
-Thinkery           | refresh | https://my.thinkeryaustin.org/events | yes      | present   | 1
-Historic Scoot Inn | refresh | https://www.scootinnaustin.com/      | yes      | no        | 25
+Thinkery           | present  | gate PASS
+Historic Scoot Inn | no       | gate ESCALATED
 ```
 
-Historic Scoot Inn's page fetched fine, parsed fine, and produced **25**
-candidates — and then ESCALATED at the trust gate: *"conflicting start_time
-across evidence; dedupe-ambiguity hint present."* Its verdict reads `no`.
+Historic Scoot Inn's page fetched fine, parsed fine, produced **25** candidates
+— then escalated at the trust gate: *"conflicting start_time across evidence;
+dedupe-ambiguity hint present."* Its verdict reads `no`.
 
 **Under the previous rule that same page would have read `verified_present`,**
 because it parsed cleanly. That is exactly the case the PR #213 panel named —
 "a parsed-but-escalated page cannot accidentally authorize a misleading
-published update" — and it turned up unprompted, on a real venue calendar, on
-the second source of a two-source tick. Thinkery is the control: a gate PASS,
-and `present`.
+published update" — on a real venue calendar, arriving unprompted on the second
+source of a two-source tick. Thinkery is the control.
 
-**What it does not show:** the listing-update path acting on real data. The
-writer was disabled and no event-proximity page was due, so no published row
-was read for adjudication and none could have been written. That coverage is
-the table above, `tests/test_listing_update.py`, and section 8 of
+### What the third run closed
+
+Two scope limits every earlier binding had carried **in writing**:
+
+- **The 304 half fired live.** Previous evidence said the skip-unchanged saving
+  had only ever been shown by a body-fingerprint match, and that the 304 half
+  "still rests on hermetic and real-Postgres coverage only". Bandsintown
+  answered a genuine `304 Not Modified` — `not_modified: 1`,
+  `skipped_unchanged: 1`, and zero extract calls spent on it.
+- **The discover queue ran.** Earlier bindings were refresh-only and said so.
+  This tick reports `fetches: 2 (discovery probes: 1)`.
+
+It also showed the per-page cost cap behaving as documented on a real page:
+Mexic-Arte Museum segmented into 148 event blocks, the cap took the first 50,
+and 98 were **deferred rather than dropped** (R-043).
+
+### What none of them show
+
+The listing-update path acting on real data. The writer was disabled in all
+three and no event-proximity page was ever due, so no published row was read
+for adjudication and none could have been written. That coverage is the table
+above, `tests/test_listing_update.py`, and section 8 of
 `tests/test_fair_crawl.py` — the first armed tick that finds a defining page
 due will be the first live exercise of it.
