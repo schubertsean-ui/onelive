@@ -534,3 +534,81 @@ def test_a_404_still_marks_gone_without_any_page_text():
                              published=[published()], parsed=[],
                              gate_passes=NEVER_PASSES, page_text=None))
     assert d.action == ACTION_MARK_GONE
+
+
+# --- round 2: the bracket that proves absence must itself be gated ------------
+
+def test_an_ungated_bracket_cannot_cancel_a_published_row():
+    """PR #214 r2, both openai seats: absence cancellation was licensed by
+    ungated AI-extracted bracketing listings.
+
+    The asymmetry pointed the wrong way. An UPDATE already required the matched
+    listing's own trust-gate PASS, while a CANCEL — the larger, user-visible
+    action that takes a row off the live feed — rested on bracket timestamps
+    straight from the extractor. A garbled or hostile extraction that omits the
+    real event and emits plausible earlier+later listings around its date would
+    manufacture exactly the coverage window the guard demands.
+
+    This is the fixture the panel's nit asked for: the title IS absent from the
+    raw page text, the parsed listings DO bracket the date, and the bracketing
+    candidates fail the gate."""
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[published()], parsed=bracket(),
+        gate_passes=NEVER_PASSES, page_text=PAGE_WITHOUT_IT))
+    assert d.action == ACTION_NONE
+    assert "gate-passed listings do not reach this date" in d.why
+
+
+def test_one_gated_side_is_not_a_bracket():
+    """Half a coverage window is not a coverage window: if only the EARLIER
+    listing passes the gate, the page has not shown it reaches the date."""
+    earlier, later = bracket()
+    passes_earlier_only = lambda cid: cid == earlier.candidate_id  # noqa: E731
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[published()],
+        parsed=[earlier, later], gate_passes=passes_earlier_only,
+        page_text=PAGE_WITHOUT_IT))
+    assert d.action == ACTION_NONE
+
+
+def test_the_bracket_scan_only_asks_the_gate_about_listings_that_could_help():
+    """The gate re-computes a verdict from stored evidence, so the scan must not
+    ask about every listing on a forty-show calendar. It stops as soon as both
+    sides are satisfied and skips anything that cannot move the answer."""
+    asked = []
+
+    def counting_gate(cid):
+        asked.append(cid)
+        return True
+
+    noise = [ParsedListing(candidate_id=f"noise{i}", title=f"Other {i}",
+                           start_time=EARLIER - timedelta(days=i + 1))
+             for i in range(20)]
+    earlier, later = bracket()
+    d = only(adjudicate_page(
+        verdict=VERIFIED_PRESENT, published=[published()],
+        parsed=[earlier, later] + noise, gate_passes=counting_gate,
+        page_text=PAGE_WITHOUT_IT))
+    assert d.action == ACTION_MARK_GONE
+    # Both sides are settled by the first two listings; the twenty redundant
+    # earlier ones are never asked about.
+    assert asked == [earlier.candidate_id, later.candidate_id]
+
+
+def test_a_listing_exactly_on_the_moment_can_still_supply_the_missing_side():
+    """A guard on the short-circuit itself: a listing AT the moment satisfies
+    both comparisons, so "skip anything on a side I already have" would drop it
+    while the side it could fill was still missing."""
+    from worker.listing_update import _brackets
+    at_moment = ParsedListing(candidate_id="cX", title="Same Minute", start_time=DAY)
+    earlier = ParsedListing(candidate_id="cA", title="Earlier", start_time=EARLIER)
+    assert _brackets([earlier, at_moment], DAY, ALWAYS_PASSES) is True
+
+
+def test_a_404_needs_no_bracket_at_all():
+    """The bracket is evidence about a page that LOADS. A clean 404 has no
+    listings to gate and must not be blocked by a test it cannot satisfy."""
+    verdict, _ = classify_recheck(door_kind="missed", http_status=404)
+    d = only(adjudicate_page(verdict=verdict, published=[published()],
+                             parsed=[], gate_passes=NEVER_PASSES, page_text=None))
+    assert d.action == ACTION_MARK_GONE

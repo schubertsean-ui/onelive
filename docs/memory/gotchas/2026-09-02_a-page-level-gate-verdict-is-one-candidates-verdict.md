@@ -50,3 +50,20 @@ AI's silence when the raw input is still in hand.
 Both defects had passing tests around them. The tests asserted the guard I had
 thought of (a truncated calendar cannot cancel) and said nothing about the two
 I had not. A green suite is evidence about the cases you imagined.
+
+## And a third, which is the pattern behind the other two
+
+**Gate the evidence for the BIGGER action at least as hard as for the smaller
+one.** The update path required the matched listing's own gate PASS from the
+start. The cancel path — which takes a row off the live feed, a strictly larger
+user-visible action — rested on bracket timestamps that came straight out of
+the extractor with no gate at all. Nobody designed that asymmetry; it appeared
+because the two branches were written at different moments and only the first
+one had "what licenses this?" in mind.
+
+The check that would have caught all three findings, and is worth running on
+any guard: **list every input the decision rests on, and ask of each one
+whether it is validated to the standard the decision deserves.** A guard is
+only as strong as its least-validated input, and the inputs that get missed are
+the ones that feel like context rather than evidence — the other listings on
+the page, the raw text, the title.

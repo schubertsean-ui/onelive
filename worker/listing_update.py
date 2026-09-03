@@ -297,21 +297,57 @@ def title_still_on_page(title: Optional[str], page_text: Optional[str]) -> Optio
     return f" {needle} " in f" {haystack} "
 
 
-def _brackets(parsed: Sequence[ParsedListing], start_time: datetime) -> bool:
-    """Do the page's own listings reach both sides of this moment?
+def _brackets(
+    parsed: Sequence[ParsedListing],
+    start_time: datetime,
+    gate_passes: Callable[[str], bool],
+) -> bool:
+    """Do the page's own GATE-PASSED listings reach both sides of this moment?
 
     The false-absence guard. A page proves it covers a date by listing
     something at or before it and something at or after it; a calendar
     truncated before that date has said nothing about it at all. Listings with
-    no start time cannot bracket anything and are ignored here — they still
-    count as evidence the page produced listings, just not as evidence about
-    when.
+    no start time cannot bracket anything and are skipped — they are still
+    evidence the page produced listings, just not evidence about when.
+
+    THE BRACKET ITSELF MUST BE GATED, and this was a blocking finding both
+    openai seats raised on PR #214 r2. The asymmetry was mine and it pointed
+    the wrong way: an UPDATE already required the matched listing's own
+    trust-gate PASS, while a CANCEL — the larger, user-visible action that
+    takes a row off the live feed — rested on bracket timestamps that came
+    straight from the extractor with no gate at all. A garbled or hostile
+    extraction that omits the real event and emits plausible earlier+later
+    listings around its date would manufacture exactly the coverage window this
+    guard exists to demand, and the row would be marked cancelled on evidence
+    the pipeline never validated.
+
+    So a listing only counts toward the bracket if the gate PASSES it, on the
+    same re-computed verdict every other decision here uses. The scan
+    short-circuits: it stops as soon as both sides are satisfied, and it only
+    asks the gate about candidates that could contribute at all, so the common
+    case costs a handful of evaluations rather than one per listing on the page.
     """
     moment = _as_utc(start_time)
-    times = [_as_utc(p.start_time) for p in parsed if p.start_time is not None]
-    if not times:
-        return False
-    return any(t <= moment for t in times) and any(t >= moment for t in times)
+    before = after = False
+    for item in parsed:
+        if item.start_time is None:
+            continue
+        when = _as_utc(item.start_time)
+        # Only ask the gate about a listing that would actually move the
+        # answer. Written as "does it supply a side we still need" rather than
+        # "is it on a side we already have": a listing exactly AT the moment
+        # satisfies both comparisons, and the inverted form would skip it while
+        # the side it could still fill was missing.
+        supplies = (when <= moment and not before) or (when >= moment and not after)
+        if not supplies:
+            continue
+        if not gate_passes(item.candidate_id):
+            continue
+        before = before or when <= moment
+        after = after or when >= moment
+        if before and after:
+            return True
+    return False
 
 
 def _field_diff(
@@ -441,12 +477,13 @@ def adjudicate_page(
                               "listing — absence unconfirmed; last good row stands")))
                 continue
             bracketed = (row.start_time is not None
-                         and _brackets(parsed, row.start_time))
+                         and _brackets(parsed, row.start_time, gate_passes))
             if not bracketed or not may_mark_gone(verdict):
                 decisions.append(ListingDecision(
                     event_id=row.event_id, action=ACTION_NONE,
-                    why=("not on the page, but the page's own listings do not "
-                         "reach this date — a short calendar has not said this "
+                    why=("not on the page, but the page's own gate-passed "
+                         "listings do not reach this date — a short calendar, "
+                         "or one the gate did not confirm, has not said this "
                          "event is gone; last good row stands")))
                 continue
             decisions.append(ListingDecision(
@@ -454,7 +491,8 @@ def adjudicate_page(
                 action=ACTION_MARK_GONE,
                 why=("absent from a clean parse of the page that defines it, "
                      "its title is absent from the page's own raw text, and "
-                     "the page's listings bracket its date — confirmed gone; "
+                     "the page's GATE-PASSED listings bracket its date — "
+                     "confirmed gone; "
                      f"marked {GONE_STATUS}, row kept with its evidence"),
                 fields={"status": GONE_STATUS},
             ))
