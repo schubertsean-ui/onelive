@@ -218,7 +218,7 @@ rather than by prose.
 
 ## The live re-bind runs
 
-Nine founder-authorized dry smokes, one per adversarial round, each binding
+Ten founder-authorized dry smokes, one per adversarial round, each binding
 the head the panel had just judged. All recorded in
 `docs/evidence/ARMING_SMOKE_RUN.json`; the current binding is the last.
 
@@ -233,6 +233,7 @@ the head the panel had just judged. All recorded in
 | [33707495850](https://github.com/schubertsean-ui/onelive/actions/runs/33707495850) | `1a0f12b` | 2 sources, 13 candidates, $0.0561, 44.4s | ESCALATE on a third venue type, and a **second live 304** |
 | [33708942367](https://github.com/schubertsean-ui/onelive/actions/runs/33708942367) | `18d9de4` | 2 sources, 36 candidates, $0.2710, 112.3s | a fourth ESCALATE, a third 304, and **14 live date refusals** |
 | [33710564656](https://github.com/schubertsean-ui/onelive/actions/runs/33710564656) | `23ad24e` | 2 sources, 67 candidates, $0.2580, 224.8s | a **PASS control beside a fifth ESCALATE**, and 24 date refusals |
+| [33712522472](https://github.com/schubertsean-ui/onelive/actions/runs/33712522472) | `b90ec5b` | 2 sources, 26 candidates, $0.1308, 99.9s | **two PASSes, nothing declining** — and the 58→50 cost cap |
 
 Every one printed the switch, from the resolved env and then from the loop:
 
@@ -266,6 +267,8 @@ run 33708942367   Come and Take It Live          | present | 304, unchanged
 run 33708942367   Emo's Austin                   | no      | gate ESCALATED
 run 33710564656   Ballet Austin                  | present | gate PASS
 run 33710564656   Elephant Room                  | no      | gate ESCALATED
+run 33712522472   Antone's Nightclub             | present | gate PASS
+run 33712522472   Carver Museum                  | present | gate PASS
 ```
 
 The later rows are repeats, and repeats are worth recording: a behaviour seen
@@ -292,11 +295,20 @@ raw value and reason in provenance. A page whose listings do not pin their own
 dates yields no times rather than guessed ones: the fail-closed path running
 loudly, at volume, on two real calendars.
 
-Run 33710564656 also carries the **PASS control** the previous two bindings
+Run 33710564656 also carries the **PASS control** the two bindings before it
 lacked, and its own wording is worth quoting: Ballet Austin came back
 `PASS (trust gate); awaiting authenticated ops promote`. That trailing clause is
 the publication invariant stating itself in live output — a gate PASS does not
 publish, it waits for the authenticated promote.
+
+Run 33712522472 is the first tick in ten with **no declining verdict at all** —
+`'passed': 2`, zero escalated, zero held. That is the other half of the R-091(a)
+evidence and worth as much as the declining runs: it took HOLD and ESCALATE
+being ordinary to show the fix guards something real, and it takes a clean
+two-PASS tick to show the gate is not simply refusing everything. Its Antone's
+page also fired the per-page cost cap on real data — `58 event blocks; extracting
+the first 50 this run ... 8 block(s) DEFERRED to a later run, NOT dropped
+(R-043)` — the second sighting after Mexic-Arte.
 
 **Historic Scoot Inn** fetched fine, parsed fine, produced **25** candidates —
 then escalated: *"conflicting start_time across evidence; dedupe-ambiguity hint
@@ -332,7 +344,7 @@ and 98 were **deferred rather than dropped** (R-043).
 ### What none of them show
 
 The listing-update path acting on real data. The writer was disabled in all
-nine and no event-proximity page was ever due, so no published row was read
+ten and no event-proximity page was ever due, so no published row was read
 for adjudication and none could have been written. That coverage is the table
 above, `tests/test_listing_update.py`, and section 8 of
 `tests/test_fair_crawl.py` — the first armed tick that finds a defining page
