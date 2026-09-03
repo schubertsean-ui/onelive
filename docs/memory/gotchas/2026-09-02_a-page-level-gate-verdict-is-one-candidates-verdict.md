@@ -206,3 +206,41 @@ headline `yes` row for five rounds, and I had read it many times.
 the delta.** The test that catches this is not another fixture; it is the one
 that enumerates published/parsed combinations and asserts that whatever an
 update writes, the pair the row ends up with is a window the page stated.
+
+## Round eight: three records ending at the same unlock was the finding
+
+Both openai seats blocked on one defect from opposite sides — a same-title
+listing at a different hour moving a published `start_time`, and a same-title
+listing with no time attaching an `end_time`. Both reduce to: **a title is not
+an occurrence.** A venue that runs the same show twice in an evening makes "the
+page moved it" and "this is the other one" indistinguishable, and the r6
+one-to-one rule only catches it when both occurrences are already published,
+which a young catalog rarely has.
+
+The fix removed a capability: a title-only match now writes nothing, and
+`start_time` became unwritable by construction. Eighteen existing tests went
+red, which is an honest measure of how much of the module had been resting on
+that identity.
+
+**The lesson is not in the fix, it is in the pattern nobody read.** Three
+separate records — R-094 (no retime beyond 12h), R-095 (no title ever written),
+R-097 (no retime when two rows claim one listing) — had already been opened over
+five rounds, each with a different proximate cause, and *every one of them ended
+at the same resolution trigger: a stable per-listing identifier*. Three entries
+converging on one unlock was the design telling us the anchor was missing, and
+it was legible after the second. Instead each round treated its finding as
+local, patched the case in front of it, and opened another record ending in the
+same place. The panel found the fourth instance before we read the pattern.
+
+**The rule: when a second record resolves to the same trigger as an earlier one,
+stop and ask what is actually missing.** Records are a register, but they are
+also data about the design. Two entries sharing an unlock is a coincidence worth
+noting; three is a missing primitive, and continuing to add narrow guards around
+it is more expensive than building it. `docs/RECORD.md` should be read
+column-wise — down the resolution triggers — not only row-wise when something
+breaks.
+
+The counter-move is mechanical, not a resolution: before opening a record, grep
+the register for its trigger. If the trigger already appears, say so in the new
+entry and name what the shared unlock is, so the next reader sees the cluster
+instead of three unrelated-looking rows.

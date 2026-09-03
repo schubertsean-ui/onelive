@@ -96,26 +96,23 @@ def only(decisions):
 
 # --- must-do 2: confirmed same-page evidence may update -----------------------
 
-@pytest.mark.parametrize("field,new_value", [
-    ("start_time", DAY + timedelta(hours=2)),
-    ("end_time", DAY + timedelta(hours=5)),
-])
-def test_a_confirmed_page_updates_the_field_it_now_states_differently(field, new_value):
+def test_a_confirmed_page_updates_the_field_it_now_states_differently():
     """Founder: "Confirmed check MAY update a published listing (time, cancel,
     postpone, title) only with same-page evidence."
 
-    Each field is matched on the OTHER one — a retimed show still matches by
-    title, a retitled show still matches by time — which is why the matcher
-    takes title OR time and never both."""
-    fresh = {"end_time": DAY + timedelta(hours=3)}
-    fresh[field] = new_value
+    Rewritten at r8. This test used to run over BOTH time fields, on the premise
+    that "each field is matched on the OTHER one — a retimed show still matches
+    by title". Both openai seats blocked that premise: a title is not an
+    occurrence, so a listing matched only by title writes nothing at all now.
+    What a page can still confirm is a listing it agrees with on title AND start
+    minute, stating a different end."""
     d = only(adjudicate_page(
         verdict=VERIFIED_PRESENT,
         published=[published(end_time=DAY + timedelta(hours=3))],
-        parsed=[parsed(**fresh)],
+        parsed=[parsed(end_time=DAY + timedelta(hours=5))],
         gate_passes=ALWAYS_PASSES))
     assert d.action == ACTION_UPDATE
-    assert d.fields == {field: new_value}
+    assert d.fields == {"end_time": DAY + timedelta(hours=5)}
     assert d.matched_candidate_id == "c1"
 
 
@@ -156,7 +153,7 @@ def test_the_matched_listings_own_gate_verdict_licenses_the_update(caplog):
     d = only(adjudicate_page(
         verdict=VERIFIED_PRESENT,
         published=[published()],
-        parsed=[parsed(start_time=DAY + timedelta(hours=2))],
+        parsed=[parsed(end_time=DAY + timedelta(hours=5))],
         gate_passes=NEVER_PASSES))
     assert d.action == ACTION_NONE
     assert "did not PASS" in d.why
@@ -335,7 +332,7 @@ def test_every_mutation_writes_its_evidence_and_its_audit_row():
     cur = FakeCursor()
     decisions = adjudicate_page(
         verdict=VERIFIED_PRESENT, published=[published()],
-        parsed=[parsed(start_time=DAY + timedelta(hours=2),
+        parsed=[parsed(end_time=DAY + timedelta(hours=5),
                        source_class="venue_calendar")],
         gate_passes=ALWAYS_PASSES)
     counts = apply_decisions(
@@ -371,7 +368,7 @@ def test_the_update_re_asserts_the_human_lock_in_its_own_where_clause():
     cur = FakeCursor()
     decisions = adjudicate_page(
         verdict=VERIFIED_PRESENT, published=[published()],
-        parsed=[parsed(start_time=DAY + timedelta(hours=2))],
+        parsed=[parsed(end_time=DAY + timedelta(hours=5))],
         gate_passes=ALWAYS_PASSES)
     apply_decisions(decisions, source_id="s1", source_name="Granite Hall", page_url="u", run_id="r",
                     budget=TickBudget(), cur=cur)
@@ -383,7 +380,7 @@ def test_a_lost_race_is_a_no_op_never_a_retry():
     cur = FakeCursor(rowcount=0)      # somebody moved the row first
     decisions = adjudicate_page(
         verdict=VERIFIED_PRESENT, published=[published()],
-        parsed=[parsed(start_time=DAY + timedelta(hours=2))],
+        parsed=[parsed(end_time=DAY + timedelta(hours=5))],
         gate_passes=ALWAYS_PASSES)
     counts = apply_decisions(decisions, source_id="s1", source_name="G", page_url="u",
                              run_id="r", budget=TickBudget(), cur=cur)
@@ -402,7 +399,7 @@ def test_the_tick_mutation_budget_bounds_the_blast_radius():
     # and this test is about the CAP, not about identity.
     rows = [published(event_id=f"e{i}", title=f"Show {i}") for i in range(3)]
     news = [parsed(candidate_id=f"c{i}", title=f"Show {i}",
-                   start_time=DAY + timedelta(hours=2))
+                   end_time=DAY + timedelta(hours=5))
             for i in range(3)]
     decisions = adjudicate_page(verdict=VERIFIED_PRESENT, published=rows,
                                 parsed=news, gate_passes=ALWAYS_PASSES)
@@ -421,7 +418,7 @@ def test_the_table_prints_a_row_per_event_with_its_reason():
     answer a fail-closed loop most often has."""
     updated = only(adjudicate_page(
         verdict=VERIFIED_PRESENT, published=[published()],
-        parsed=[parsed(start_time=DAY + timedelta(hours=2))],
+        parsed=[parsed(end_time=DAY + timedelta(hours=5))],
         gate_passes=ALWAYS_PASSES))
     kept = only(adjudicate_page(
         verdict=UNVERIFIED, verdict_reason="rate-limited (429/503)",
@@ -701,7 +698,7 @@ def test_a_404_needs_no_bracket_at_all():
 def _one_update(gate=ALWAYS_PASSES, **parsed_kw):
     return adjudicate_page(
         verdict=VERIFIED_PRESENT, published=[published()],
-        parsed=[parsed(start_time=DAY + timedelta(hours=2), **parsed_kw)],
+        parsed=[parsed(end_time=DAY + timedelta(hours=5), **parsed_kw)],
         gate_passes=gate)
 
 
@@ -902,9 +899,11 @@ def test_two_rows_matched_by_their_own_listings_still_both_update():
     matinee = published(event_id="e_matinee", title="Matinee Reading",
                         start_time=DAY.replace(hour=23))
     p_supper = parsed(candidate_id="c_supper", title="Supper Club",
-                      start_time=DAY.replace(hour=20, minute=30))
+                      start_time=DAY.replace(hour=20),
+                      end_time=DAY.replace(hour=22))
     p_matinee = parsed(candidate_id="c_matinee", title="Matinee Reading",
-                       start_time=DAY.replace(hour=23, minute=30))
+                       start_time=DAY.replace(hour=23),
+                       end_time=DAY.replace(hour=23, minute=59))
 
     decisions = adjudicate_page(
         verdict=VERIFIED_PRESENT, published=[supper, matinee],
@@ -934,7 +933,7 @@ def test_an_uncontested_page_is_unaffected_by_the_new_check():
     contested identity, not on every page."""
     decisions = adjudicate_page(
         verdict=VERIFIED_PRESENT, published=[published()],
-        parsed=[parsed(start_time=DAY + timedelta(hours=1))],
+        parsed=[parsed(end_time=DAY + timedelta(hours=5))],
         gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT)
     assert only(decisions).action == ACTION_UPDATE
 
@@ -942,56 +941,79 @@ def test_an_uncontested_page_is_unaffected_by_the_new_check():
 # --- round 7: what a page STATES, and what it merely fails to contradict -----
 
 
-def test_a_moved_start_with_no_stated_end_is_refused():
-    """openai/attacker-smuggle, r7. `_UPDATE_SQL` writes with `coalesce`, so a
-    diff naming only `start_time` KEEPS the published end. A row published
-    20:00-22:00 whose page now says 23:00, without restating an end, would be
-    written as 23:00-22:00 — an event that ends before it begins, which any
-    reader using `end_time` treats as already over."""
-    d = only(adjudicate_page(
-        verdict=VERIFIED_PRESENT,
-        published=[published(start_time=DAY, end_time=DAY + timedelta(hours=2))],
-        parsed=[parsed(start_time=DAY + timedelta(hours=3))],
-        gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT))
-    assert d.action == ACTION_NONE
-    assert "states no end" in d.why
+def test_a_moved_start_is_refused_whatever_else_the_page_states():
+    """Rewritten at r8. These cases used to be the window rule's territory: a
+    moved start with no stated end was refused, one with a stated end was
+    written. Both openai seats then blocked the identity underneath — a listing
+    matched only by title is not shown to be the same occurrence — so a moved
+    start is now refused BEFORE the window is ever considered, and `start_time`
+    is unwritable by construction."""
+    for parsed_kw in [
+        {"start_time": DAY + timedelta(hours=3)},                       # no end stated
+        {"start_time": DAY + timedelta(hours=3),
+         "end_time": DAY + timedelta(hours=5)},                         # whole window stated
+    ]:
+        d = only(adjudicate_page(
+            verdict=VERIFIED_PRESENT,
+            published=[published(start_time=DAY, end_time=DAY + timedelta(hours=2))],
+            parsed=[parsed(**parsed_kw)],
+            gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT))
+        assert d.action == ACTION_NONE, parsed_kw
+        assert "a repeat cannot be told from a move" in d.why
 
 
-def test_a_moved_start_is_written_when_the_page_states_the_whole_window():
-    """The rule is about what the page STATES, not about what changed: a read
-    that restates the end has published it, so the window is the page's."""
-    d = only(adjudicate_page(
-        verdict=VERIFIED_PRESENT,
-        published=[published(start_time=DAY, end_time=DAY + timedelta(hours=2))],
-        parsed=[parsed(start_time=DAY + timedelta(hours=3),
-                       end_time=DAY + timedelta(hours=5))],
-        gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT))
-    assert d.action == ACTION_UPDATE
-    assert set(d.fields) == {"start_time", "end_time"}
+def test_no_update_decision_can_ever_write_a_start_time():
+    """The structural consequence, asserted rather than described: the only
+    writing match is a shared start minute, and a shared minute has no start
+    change. Recorded as R-099, and this is what would fail if the identity rule
+    were ever loosened without a per-listing identifier to justify it."""
+    shifts = [None, DAY - timedelta(hours=6), DAY, DAY + timedelta(hours=3)]
+    for new_start in shifts:
+        for new_end in shifts:
+            for pub_end in (None, DAY + timedelta(hours=2)):
+                for gate in (ALWAYS_PASSES, NEVER_PASSES):
+                    for d in adjudicate_page(
+                            verdict=VERIFIED_PRESENT,
+                            published=[published(start_time=DAY, end_time=pub_end)],
+                            parsed=[parsed(start_time=new_start, end_time=new_end)],
+                            gate_passes=gate,
+                            page_text=PAGE_THAT_STILL_NAMES_IT):
+                        assert "start_time" not in d.fields, (
+                            f"{new_start}/{new_end} on a row ending {pub_end} "
+                            f"wrote {d.fields}")
 
 
-def test_a_moved_start_is_written_when_the_row_carries_no_end_at_all():
-    """Nothing incoherent can be left behind when there is no end to leave."""
-    d = only(adjudicate_page(
-        verdict=VERIFIED_PRESENT, published=[published(end_time=None)],
-        parsed=[parsed(start_time=DAY + timedelta(hours=1))],
-        gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT))
-    assert d.action == ACTION_UPDATE
-    assert set(d.fields) == {"start_time"}
+def test_the_window_rules_still_guard_the_writer_they_can_reach():
+    """`_incoherent` is unit-tested directly because one of its two rules is now
+    UNREACHABLE through the adjudicator: a diff can no longer carry a moved
+    start, so "start moved, end not stated" cannot arise. It is kept as a guard
+    rather than deleted, so that a future change to the match rules cannot
+    silently reintroduce the `coalesce` hazard it was written for."""
+    from worker import listing_update as lu
+    row = published(start_time=DAY, end_time=DAY + timedelta(hours=2))
+    silent = parsed(start_time=DAY + timedelta(hours=3))
+    assert "states no end" in lu._incoherent(
+        row, silent, {"start_time": DAY + timedelta(hours=3)})
+    stated = parsed(start_time=DAY + timedelta(hours=3),
+                    end_time=DAY + timedelta(hours=5))
+    assert lu._incoherent(row, stated, {"start_time": DAY + timedelta(hours=3),
+                                        "end_time": DAY + timedelta(hours=5)}) is None
+    assert lu._incoherent(row, parsed(), {}) is None
 
 
-@pytest.mark.parametrize("p_start, p_end", [
-    (DAY + timedelta(hours=3), DAY + timedelta(hours=1)),   # ends before it starts
-    (DAY + timedelta(hours=3), DAY + timedelta(hours=3)),   # zero-length window
+@pytest.mark.parametrize("new_end", [
+    DAY - timedelta(hours=1),   # ends before the start we keep
+    DAY,                        # zero-length window
 ])
-def test_a_page_whose_own_times_are_not_a_window_is_refused(p_start, p_end):
-    """openai/attacker-smuggle, r7, second half. A gate PASS proves a listing's
-    evidence was corroborated, not that its fields are sane — an extraction that
-    emits an end before its own start goes through a gate that never asked."""
+def test_a_page_whose_own_times_are_not_a_window_is_refused(new_end):
+    """openai/attacker-smuggle, r7, still reachable at r8 through the one match
+    that writes: the page agrees with us on title and start minute, and states
+    an end that is not after it. A gate PASS proves a listing's evidence was
+    corroborated, not that its fields are sane."""
     d = only(adjudicate_page(
         verdict=VERIFIED_PRESENT,
         published=[published(start_time=DAY, end_time=DAY + timedelta(hours=2))],
-        parsed=[parsed(start_time=p_start, end_time=p_end)],
+        parsed=[parsed(start_time=DAY, end_time=new_end)],
         gate_passes=ALWAYS_PASSES, page_text=PAGE_THAT_STILL_NAMES_IT))
     assert d.action == ACTION_NONE
     assert "do not make a window" in d.why

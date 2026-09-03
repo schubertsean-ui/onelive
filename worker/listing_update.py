@@ -274,12 +274,30 @@ def _same_minute(a: Optional[datetime], b: Optional[datetime]) -> bool:
 #: A genuine reschedule of more than half a day is therefore NOT applied. That
 #: is a real narrowing of the founder's "update time", taken deliberately over
 #: a proven way to publish a wrong night, and recorded: docs/RECORD.md R-094.
+#:
+#: r8 WENT FURTHER, and this window no longer licenses a write at all. BOTH
+#: openai seats blocked on the same defect from opposite sides: a same-title
+#: listing with a DIFFERENT time inside the window (absence-only) and a
+#: same-title listing with NO time (attacker-smuggle). The window was an attempt
+#: to tell a re-time from another occurrence by distance alone, and it cannot:
+#: a screening, a comedy early/late show, a museum tour and a club session all
+#: repeat the same title within a few HOURS, and a catalog holding one published
+#: occurrence sees exactly one match for the other one. So a title-only match is
+#: now a NON-WRITING identity — it keeps the row from reading as absent, which
+#: is what it is genuinely evidence of, and nothing more. The window still
+#: separates MATCH_TITLE from MATCH_FAR for that purpose.
+#:
+#: Consequence, stated rather than buried: `start_time` is now unwritable BY
+#: CONSTRUCTION, because the only writing match is a shared minute and a shared
+#: minute has no start change. The founder's "update time" survives as an
+#: end-time correction on a listing that agrees with us on both title and start
+#: minute; the cancel and postpone paths are untouched. docs/RECORD.md R-099.
 MAX_TITLE_ONLY_RETIME = timedelta(hours=12)
 
 #: The identity a match establishes. These are not degrees of confidence —
 #: they are different EVIDENCE, and they license different things.
 MATCH_TIME = "time"        #: same start time, and nothing contradicts it
-MATCH_TITLE = "title"      #: same title, close enough in time to be the same one
+MATCH_TITLE = "title"      #: same title — enough to keep the row, never to write it
 MATCH_FAR = "far"          #: same title, too far away — probably another occurrence
 MATCH_COLLISION = "collision"  #: same start time, but it is plainly a DIFFERENT event
 MATCH_UNTITLED = "untitled"    #: same start time, but one side has no title to check
@@ -297,8 +315,9 @@ def match_kind(published: PublishedListing, parsed: ParsedListing) -> Optional[s
       * MATCH_TIME — the start times agree. The DATE pins which occurrence of a
         series this is, so a differing title is safely a rename.
       * MATCH_TITLE — the titles agree and the times are within
-        MAX_TITLE_ONLY_RETIME (or the page states no time at all, which cannot
-        move anything). A re-time.
+        MAX_TITLE_ONLY_RETIME (or the page states no time at all). THIS WRITES
+        NOTHING. It is enough to keep a row from reading as absent and no more
+        — see the narrowing note under MAX_TITLE_ONLY_RETIME.
       * MATCH_FAR — the titles agree and the times are far apart. This is NOT
         an identity: it is very likely the next occurrence of a recurring
         listing. It is reported rather than dropped, because "something on this
@@ -720,6 +739,28 @@ def adjudicate_page(
                 matched_candidate_id=hit.candidate_id,
                 why=("the page states a change, but the trust gate did not PASS "
                      "that listing's own evidence — last good row stands")))
+            continue
+        if match_kind(row, hit) == MATCH_TITLE:
+            # A TITLE IS NOT AN OCCURRENCE. Both openai seats blocked here at
+            # r8, from the two sides of one defect: this branch would write a
+            # start_time from a same-title listing at a different hour, and an
+            # end_time from a same-title listing with no time at all. In both
+            # the identity rests on the title alone, and a venue that runs the
+            # same show twice in an evening — a screening, an early and late
+            # set, a repeating tour slot — makes "the page moved it" and "this
+            # is the other one" indistinguishable. The one-to-one rule above
+            # catches it only when we have published BOTH occurrences; a
+            # catalog holding one sees a single clean match for the other.
+            #
+            # The match still matters: something on the page carries our title,
+            # so the row is not absent and must not be cancelled. That is what
+            # a title match is evidence OF, and it is now all it does.
+            decisions.append(ListingDecision(
+                event_id=row.event_id, action=ACTION_NONE,
+                matched_candidate_id=hit.candidate_id,
+                why=("the page carries this row's title at a different time, and "
+                     "a repeat cannot be told from a move on same-page evidence "
+                     "— last good row stands")))
             continue
         bad_window = _incoherent(row, hit, diff)
         if bad_window:

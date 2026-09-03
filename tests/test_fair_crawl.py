@@ -770,7 +770,8 @@ def _install_listings(monkeypatch, *, published, gate_pass=True, parsed=None):
         (lambda ids: list(parsed)) if parsed is not None else
         (lambda ids: [listing_update.ParsedListing(
             candidate_id=str(c), title="Nightjar",
-            start_time=_dt.datetime(2026, 9, 15, 2, 0, tzinfo=_TZ)) for c in ids]))
+            start_time=_dt.datetime(2026, 9, 15, 1, 0, tzinfo=_TZ),
+            end_time=_dt.datetime(2026, 9, 15, 4, 0, tzinfo=_TZ)) for c in ids]))
     monkeypatch.setattr(orchestrator, "gate_passes_for", lambda cid: gate_pass)
 
     def fake_apply(decisions, **kw):
@@ -813,7 +814,11 @@ def test_a_confirmed_event_recheck_updates_the_listing_through_the_loop(
 
     assert report.results[0].verdict == VERIFIED_PRESENT
     assert [d.action for d in written] == ["update"]
-    assert "start_time" in written[0].fields
+    # end_time, not start_time: r8 made a title-only match non-writing, so the
+    # only change a page can confirm is one on a listing it agrees with about
+    # the start minute. R-099.
+    assert "end_time" in written[0].fields
+    assert "start_time" not in written[0].fields
     assert report.counts["listings_updated"] == 1
 
 

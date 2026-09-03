@@ -15,8 +15,27 @@ runtime EXECUTES; this table proves what it DECIDES.
 
 `check result` is the fail-closed verdict from
 `worker.crawl_state.classify_recheck` — `present`, `absent`, or `no` (nothing
-was learned). Read the four "yes" rows against the twenty-four "no" rows: the
+was learned). Read the three "yes" rows against the twenty-seven "no" rows: the
 default is no mutation, and confirmation is the exception that has to be earned.
+
+**Round 8 removed a capability, and it should be read before the table.** Both
+openai seats blocked on the same thing from opposite sides: a listing matched
+only by its TITLE had been treated as the same occurrence — enough to move a
+published start time, or to attach an end time when the page stated no time at
+all. A venue that runs the same show twice in an evening (a screening, an early
+and late set, a repeating tour slot) makes "the page moved it" and "this is the
+other one" indistinguishable, and a catalog holding one of the two occurrences
+sees a single clean match for the other. The one-to-one rule from round 6 only
+catches this when BOTH occurrences are published.
+
+So a title-only match now writes nothing. It still keeps a row from reading as
+absent — which is what it is genuinely evidence of — and that is all it does.
+**The consequence is that `start_time` is unwritable by construction**, since
+the only writing match is a shared start minute and a shared minute has no start
+change. The founder's "update time" survives as an end-time correction on a
+listing that agrees with us on both title and start minute; cancel, postpone and
+the whole refusal machinery are untouched. Recorded as R-099, with the unlock
+(a stable per-listing identifier) that R-095 and R-097 are already waiting on.
 
 **Count correction, stated rather than quietly fixed:** earlier versions of this
 page said "three yes rows against the nineteen no rows" while the table below
@@ -42,8 +61,9 @@ where the published row carries no end to contradict.
 ```
 event                                                 | check result | mutated? | why
 ------------------------------------------------------+--------------+----------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-Nightjar — page moved it to 3am and says when it ends | present      | yes      | confirmed same-page change, gate PASS on that listing: end_time, start_time
-Nightjar — moved, but the page states no end          | present      | no       | the page moves the start but states no end, and the published end was set against the old start — the window it would leave is one no page has stated — last good row stands
+Nightjar — page states a later end for tonight's show | present      | yes      | confirmed same-page change, gate PASS on that listing: end_time
+Nightjar — page moved it to 3am and says when it ends | present      | no       | the page carries this row's title at a different time, and a repeat cannot be told from a move on same-page evidence — last good row stands
+Nightjar — moved, but the page states no end          | present      | no       | the page carries this row's title at a different time, and a repeat cannot be told from a move on same-page evidence — last good row stands
 Nightjar — the page's own times are not a window      | present      | no       | the page's own times do not make a window (it would end at or before it starts) — last good row stands
 Nightjar — an untitled listing holds its 8pm slot     | present      | no       | something on the page holds this row's start time with no title to check it against, so its absence cannot be read cleanly — ambiguous; last good row stands
 Nightjar — page renamed it at the same time           | present      | no       | a different event holds this row's start time on the page, so its absence cannot be read cleanly — ambiguous; last good row stands
@@ -57,7 +77,8 @@ Nightjar — extraction missed it, page still names it  | present      | no     
 Nightjär — the page spells it with an umlaut          | present      | no       | the page still names this listing but the extraction did not return it — an extraction miss is not a cancellation; last good row stands
 Open Mic — only next week's occurrence listed         | present      | no       | the page still lists this title, but at a date too far off to be the same occurrence — ambiguous; last good row stands
 Open Mic — one listing, two published nights          | present      | no       | another published row on this page matches the same listing — one listing cannot be two rows; ambiguous; last good row stands
-Nightjar (no published end) — doors moved one hour    | present      | yes      | confirmed same-page change, gate PASS on that listing: start_time
+Nightjar (no published end) — doors moved one hour    | present      | no       | the page carries this row's title at a different time, and a repeat cannot be told from a move on same-page evidence — last good row stands
+Nightjar — page states no time for it at all          | present      | no       | the page carries this row's title at a different time, and a repeat cannot be told from a move on same-page evidence — last good row stands
 Nightjar — absent, calendar stops before its date     | present      | no       | not on the page, but the page's own gate-passed listings do not reach this date — a short calendar, or one the gate did not confirm, has not said this event is gone; last good row stands
 Nightjar — page loaded but listed nothing             | present      | no       | page verified but it produced no listings this read — nothing to compare; last good row stands
 Nightjar — absent, but the bracket failed the gate    | present      | no       | not on the page, but the page's own gate-passed listings do not reach this date — a short calendar, or one the gate did not confirm, has not said this event is gone; last good row stands
@@ -72,19 +93,18 @@ Nightjar — page parsed, gate ESCALATED                | no           | no     
 Nightjar — sensor rejected the page                   | no           | no       | unconfirmed — page fetched but never reached the gate (sensor_rejected) — last good row stands
 ```
 
-## Reading the four mutations
+## Reading the three mutations
 
 | row | why it is allowed to change a published listing |
 |---|---|
-| page moved it to 3am | Same page, still lists the show under the same title, states a different time. The MATCHED listing's own trust-gate verdict was re-computed and PASSed. Writes `start_time`; the row stays `scheduled` and visible with the new time. |
-| doors moved one hour | Same title, a shift small enough to be a re-time rather than another occurrence of a recurring series. Writes `start_time`. |
+| page states a later end for tonight's show | The page agrees with us on the title AND the start minute — two events at one venue sharing both are the same event by any reading — and states a different end. The MATCHED listing's own trust-gate verdict was re-computed and PASSed, and the resulting window is one the page stated. Writes `end_time`; the row stays `scheduled` and visible. |
 | absent, page brackets its date | Four things at once: the page loads, the raw page text no longer names the listing, its own listings bracket this date, and **those bracketing listings each pass the trust gate**. Writes `status='cancelled'`; the row is KEPT. |
 | defining page 404 | The founder's 2026-09-02 overrule (`docs/memory/decisions/2026-09-02_404-of-defining-url-marks-the-listing-gone.md`). Writes `status='cancelled'` and nothing else — a page that is gone cannot state a new time or title. The row is KEPT. |
 
-## Reading the twenty-four refusals
+## Reading the twenty-seven refusals
 
-Thirteen of them are the ones worth arguing about, because each is a case where
-something DID change and the loop still refused. **Twelve of the thirteen were
+Fourteen of them are the ones worth arguing about, because each is a case where
+something DID change and the loop still refused. **Thirteen of the fourteen were
 caught by the adversarial panel on this PR, not by me** — every one was a real
 defect on the published-data path, all are fixed here, and all are pinned by
 tests:
@@ -160,6 +180,13 @@ tests:
 - **"the page's own times are not a window"** — a gate PASS proves a listing's
   evidence was corroborated, not that its fields are sane. An extraction that
   emits an end before its own start passes a gate that never asked the question.
+- **"page moved it to 3am and says when it ends"**, **"moved, but the page
+  states no end"** and **"page states no time for it at all"** — the round-8
+  narrowing above, in its three shapes. A title is not an occurrence. Note the
+  first of the three was a `yes` row one round ago and the second was refused
+  for the WRONG reason (the window rule) while the identity underneath went
+  unexamined; the window rule was right about its case and simply not the
+  deepest thing wrong.
 - **"an untitled listing holds its 8pm slot"** — a shared minute was an identity
   whenever nothing *contradicted* it, and a listing with no title contradicts
   nothing. But it confirms nothing either: the gate PASS proves the anonymous
