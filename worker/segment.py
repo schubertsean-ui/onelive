@@ -64,6 +64,7 @@ from worker.identity import (
     NO_IDENTITY,
     carried_identity,
     carry_identity,
+    identity_value,
     jsonld_identity,
 )
 
@@ -120,12 +121,6 @@ _VOID_TAGS = frozenset({
     "meta", "param", "source", "track", "wbr",
 })
 
-# Schemes that are not the address of anything a calendar lists. A declaration
-# pointing at one of these is not an address of a listing, so it is refused
-# rather than stored. This is a fact about the schemes, not a preference between
-# two candidate links.
-_NON_ADDRESS_SCHEMES = ("javascript:", "mailto:", "tel:", "sms:", "data:")
-
 # Block-level tags: stripping HTML to text, we insert a newline at each so that
 # date anchors that begin a listing land at the start of a line for the
 # anchor-split fallback.
@@ -163,14 +158,13 @@ def _href_of(attrs: Dict[str, str]) -> Optional[str]:
     resolving one against a url we were never given would be inventing an
     address (founder, verbatim: "Do not invent URLs"). Comparisons downstream
     are source-scoped, so a relative anchor is still a usable identity.
+
+    What counts as usable is `worker.identity.identity_value`'s question, not
+    this module's — one check for every carrier of an identity, here and in the
+    JSON-LD reader, because three review rounds found the same defect three
+    times in the shape of one carrier validated and its siblings not.
     """
-    raw = (attrs.get("href") or "").strip()
-    if not raw or raw == "#":
-        # A bare "#" is a no-op link (a menu toggle), not an address.
-        return None
-    if raw.lower().startswith(_NON_ADDRESS_SCHEMES):
-        return None
-    return raw
+    return identity_value(attrs.get("href"))
 
 
 def _itemprop_url_of(attrs: Dict[str, str]) -> Optional[str]:
@@ -186,12 +180,14 @@ def _itemprop_url_of(attrs: Dict[str, str]) -> Optional[str]:
     license a public write. Caught by the adversarial panel (round 2, both
     openai seats; the gemini dataflow-taint seat raised the identical thing as
     a nit with this exact fix). One validation for one meaning: the label says
-    "this is a url", so the value has to be one.
+    "this is a url", so the value has to be one — and since round 3 that one
+    validation is `worker.identity.identity_value`, shared with the JSON-LD
+    carrier rather than mirrored beside it.
     """
     tokens = (attrs.get("itemprop") or "").lower().split()
     if "url" not in tokens:
         return None
-    return _href_of(attrs) or _href_of({"href": attrs.get("content") or ""})
+    return _href_of(attrs) or identity_value(attrs.get("content"))
 
 
 class _ElementTextCollector(HTMLParser):

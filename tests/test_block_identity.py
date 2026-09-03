@@ -45,6 +45,7 @@ from worker.identity import (
     NO_IDENTITY,
     IdentifiedBlock,
     carried_identity,
+    jsonld_identity,
     read_identity,
 )
 from worker.listing_update import (
@@ -302,6 +303,52 @@ def test_a_declaration_pointing_at_a_non_address_is_refused():
             "<a itemprop='url' href='#'>more</a></div></div>")
     assert all(carried_identity(b) == NO_IDENTITY
                for b in segment_events(html, content_type="text/html"))
+
+
+def test_a_fragment_only_address_is_never_an_identity():
+    """THE PANEL'S ROUND-3 FINDING. The segmenter deliberately never resolves a
+    relative address against the page url — it is not given one — so a
+    fragment-only `#event-1` is stored verbatim, and the SAME anchor on a
+    DIFFERENT page of the same source would compare equal and license a write
+    from another occurrence's facts.
+
+    A fragment WITH a path is a different thing entirely: it names the page AND
+    the anchor, which is exactly the per-listing address `normalize_url`
+    preserves fragments for. Both halves are pinned here, because deleting the
+    wrong one would either re-open the alias or throw away real ids."""
+    html = ("<div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Fri Aug 1, 8pm Castle Creek<a itemprop='url' href='#event-1'>details</a></div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Sat Aug 2, 9pm River Delta"
+            "<a itemprop='url' href='/calendar#event-2'>details</a></div></div>")
+    hrefs = [carried_identity(b).source_href
+             for b in segment_events(html, content_type="text/html")]
+    assert hrefs == [None, "/calendar#event-2"]
+
+
+def test_the_jsonld_carrier_answers_to_the_same_checks_as_the_html_one():
+    """The round-3 sibling: the HTML declaration was validated and the JSON-LD
+    one was not, both feeding the same sink. `jsonld_identity` now routes
+    through the same `identity_value`, and reads a field stating SEVERAL
+    different values as stating none — a source that lists an artist url and an
+    event url has not said which is the listing's, and taking the first would
+    adopt whichever the page happened to put first.
+
+    Asserted on the reader directly rather than through a page, because the
+    defect is in what the reader accepts, and a fixture would only prove one
+    spelling of it."""
+    assert jsonld_identity({"url": "javascript:alert(1)"}) == NO_IDENTITY
+    assert jsonld_identity({"url": "#e1"}) == NO_IDENTITY
+    assert jsonld_identity({"@id": "#frag"}) == NO_IDENTITY
+    # Several DIFFERENT values is a contradiction; the same value twice is not.
+    assert jsonld_identity({"url": ["https://a/1", "https://b/2"]}) == NO_IDENTITY
+    assert jsonld_identity({"@id": ["x", "y"]}) == NO_IDENTITY
+    assert jsonld_identity({"url": ["https://a/1", "https://a/1"]}).listing_url == "https://a/1"
+    # An opaque, non-url identifier is untouched — it is an id, not an address.
+    stated = jsonld_identity({"identifier": "8818", "url": "https://v.example/e/8818"})
+    assert stated.uid == "8818"
+    assert stated.listing_url == "https://v.example/e/8818"
 
 
 def test_the_page_s_own_url_never_becomes_a_listing_identity():

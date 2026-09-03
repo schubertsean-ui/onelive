@@ -104,7 +104,9 @@ def normalize_url(url: Optional[str]) -> Optional[str]:
         (`/calendar#event-8817`). A normalizer that strips fragments — which
         most do, because for a page fetch a fragment is noise — would erase
         exactly the identity being captured and silently collapse every listing
-        on a calendar into one.
+        on a calendar into one. (A FRAGMENT-ONLY value never reaches here:
+        `identity_value` refuses one, because with no path it says nothing
+        about which page it anchors into.)
 
     A trailing slash is NOT removed either: `/events` and `/events/` are the
     same page on most servers and different ones on some, and being wrong here
@@ -279,6 +281,52 @@ def weak_key(
     return (sid, title, when.astimezone(_dt.timezone.utc).date())
 
 
+#: Schemes that are not the address of anything a calendar lists. A value
+#: naming one is not an address, whichever carrier states it — an `href`, a
+#: `<meta content>`, or a JSON-LD `url`.
+NON_ADDRESS_SCHEMES: Tuple[str, ...] = (
+    "javascript:", "mailto:", "tel:", "sms:", "data:",
+)
+
+
+def identity_value(value: Any) -> Optional[str]:
+    """The ONE check every stated identity value passes, or None.
+
+    Three rounds of the adversarial panel found the same shape three times: a
+    validation applied to one carrier of a value and not to its siblings, all
+    feeding one sink. So the check lives HERE, at the identity module, and
+    every producer routes through it — `worker/segment.py`'s `href` and
+    `<meta content>` declarations, and this module's own JSON-LD reader.
+
+    Refused, and each for a reason about the VALUE rather than a preference:
+
+      * empty / whitespace — a source that stated nothing stated nothing;
+      * a non-address scheme (`javascript:`, `mailto:`, `tel:`, `sms:`,
+        `data:`) — none of these is the address of a listing, so a placeholder
+        repeated across ticks must not read as one listing;
+      * a FRAGMENT-ONLY value (`#`, `#event-1`) — this is the round-3 finding
+        and the subtle one. `worker/segment.py` deliberately does not resolve a
+        relative address against the page url (it is never given one), so a
+        bare `#event-1` is stored verbatim; the SAME anchor on a different page
+        of the same source would then compare equal and license a write from
+        another occurrence's facts. A fragment WITH a path (`/calendar#e-8817`)
+        is still a per-listing anchor and is still kept — that distinction is
+        the whole point, and `normalize_url` preserves fragments because of it.
+
+    An opaque `uid` goes through the same door: a JSON-LD `@id` of `#event-1`
+    aliases across pages exactly like a url does, while an ordinary token like
+    `"8818"` passes untouched.
+    """
+    raw = _clean(value)
+    if raw is None:
+        return None
+    if raw.startswith("#"):
+        return None
+    if raw.lower().startswith(NON_ADDRESS_SCHEMES):
+        return None
+    return raw
+
+
 def ld_scalar(v: Any) -> Optional[str]:
     """A JSON-LD scalar string, or None — never a fabricated value.
 
@@ -300,6 +348,25 @@ def ld_scalar(v: Any) -> Optional[str]:
     return None
 
 
+def _ld_single(v: Any) -> Optional[str]:
+    """The one value a JSON-LD field states, or None when it states several.
+
+    `ld_scalar` takes the FIRST element of a list, which is right for a fact
+    (a name, a start date) and wrong for an identity: a source listing several
+    urls has not said which one is the listing's, and silently taking the first
+    would adopt whichever the page happened to put first — an artist page, a
+    vendor page. Two distinct values are a contradiction, and a contradiction
+    is never an identity; the HTML path already refuses the same shape (two
+    `itemprop="url"` declarations), and this is that rule's sibling carrier.
+    """
+    if isinstance(v, list):
+        stated = {s for s in (ld_scalar(item) for item in v) if s}
+        if len(stated) != 1:
+            return None
+        return stated.pop()
+    return ld_scalar(v)
+
+
 def jsonld_identity(obj: Optional[Mapping[str, Any]]) -> ListingIdentity:
     """The identity ONE schema.org Event object states, and nothing else.
 
@@ -314,13 +381,20 @@ def jsonld_identity(obj: Optional[Mapping[str, Any]]) -> ListingIdentity:
     ``offers.url`` is a ticket vendor's page — a different resource, often
     shared across several listings, and never the listing's identity.
 
-    An object stating none of the three returns NO_IDENTITY.
+    Both values pass `identity_value` and both are read with `_ld_single`, so
+    the JSON-LD carrier answers to exactly the checks the HTML carrier does: a
+    `javascript:`/`#` placeholder is refused, and a field stating several
+    different values states none. An object stating none of the three returns
+    NO_IDENTITY.
     """
     if not isinstance(obj, Mapping):
         return NO_IDENTITY
+    stated_id = obj.get("@id")
+    if stated_id is None:
+        stated_id = obj.get("identifier")
     return ListingIdentity(
-        uid=_clean(ld_scalar(obj.get("@id") or obj.get("identifier"))),
-        listing_url=_clean(ld_scalar(obj.get("url"))),
+        uid=identity_value(_ld_single(stated_id)),
+        listing_url=identity_value(_ld_single(obj.get("url"))),
     )
 
 
