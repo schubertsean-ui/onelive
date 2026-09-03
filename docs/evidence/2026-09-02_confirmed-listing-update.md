@@ -112,7 +112,7 @@ rather than by prose.
 
 ## The live re-bind runs
 
-Five founder-authorized dry smokes, one per adversarial round, each binding
+Six founder-authorized dry smokes, one per adversarial round, each binding
 the head the panel had just judged. All recorded in
 `docs/evidence/ARMING_SMOKE_RUN.json`; the current binding is the last.
 
@@ -123,6 +123,7 @@ the head the panel had just judged. All recorded in
 | [33700477027](https://github.com/schubertsean-ui/onelive/actions/runs/33700477027) | `9632882` | 2 sources, 50 candidates, $0.2336, 167.5s | **a real HTTP 304**, and the discover queue |
 | [33702677748](https://github.com/schubertsean-ui/onelive/actions/runs/33702677748) | `0d013e1` | 2 sources, 60 candidates, $0.3196, 177.1s | **the gate's HOLD branch** — the last outcome |
 | [33704092379](https://github.com/schubertsean-ui/onelive/actions/runs/33704092379) | `70a5b42` | 2 sources, 8 candidates, $0.0426, 35.0s | HOLD and the fingerprint skip again, on new sources |
+| [33705264950](https://github.com/schubertsean-ui/onelive/actions/runs/33705264950) | `42b17b3` | 2 sources, 39 candidates, $0.1895, 132.0s | ESCALATE again, on a new source — no skip, both pages read |
 
 Every one printed the switch, from the resolved env and then from the loop:
 
@@ -148,17 +149,26 @@ run 33698783298   Historic Scoot Inn             | no      | gate ESCALATED
 run 33702677748   Waterloo Greenway Conservancy  | present | gate PASS
 run 33702677748   Meetup                         | no      | gate HELD
 run 33704092379   Asian American Resource Center | no      | gate HELD
+run 33705264950   Paramount Theatre (Austin)     | present | gate PASS
+run 33705264950   Blanton Museum of Art          | no      | gate ESCALATED
 ```
 
-The last row is a repeat, and repeats are worth recording: a behaviour seen
-once on one venue could be that venue. HOLD declining to verify a
-city-hosted calendar as well as a community platform makes it ordinary.
+The last three rows are repeats, and repeats are worth recording: a behaviour
+seen once on one venue could be that venue. **Both** declining outcomes have
+now been seen on two unrelated venues each — HOLD on a community platform and
+a city-hosted calendar, ESCALATE on a music hall and an art museum — which
+makes them ordinary runtime behaviour rather than a property of one awkward
+page. R-091(a) rests on exactly that: a declining verdict has to be a common
+thing live pages produce, or the fix guards nothing.
 
 **Historic Scoot Inn** fetched fine, parsed fine, produced **25** candidates —
 then escalated: *"conflicting start_time across evidence; dedupe-ambiguity hint
 present."* **Meetup** fetched fine, parsed fine, produced **12** candidates —
 then held: *"Insufficient corroboration (have 1; need 2)"*, because a community
 platform is third-party in `worker/gating.py` and one of it alone is hearsay.
+**The Blanton** fetched fine, parsed fine, produced **15** candidates — then
+escalated on the same conflicting-`start_time` reason, on a museum tour
+calendar that has nothing structurally in common with a music hall.
 
 **Under the rule this PR replaced, both would have read `verified_present`,**
 because both parsed cleanly — and either could have licensed a published
@@ -185,7 +195,7 @@ and 98 were **deferred rather than dropped** (R-043).
 ### What none of them show
 
 The listing-update path acting on real data. The writer was disabled in all
-five and no event-proximity page was ever due, so no published row was read
+six and no event-proximity page was ever due, so no published row was read
 for adjudication and none could have been written. That coverage is the table
 above, `tests/test_listing_update.py`, and section 8 of
 `tests/test_fair_crawl.py` — the first armed tick that finds a defining page
