@@ -40,7 +40,7 @@ describe("buildLicensedQuery", () => {
     );
     expect(p.get("category")).toBe("eq.live-music");
     expect(p.get("or")).toBe(
-      "(and(start_time.gte.2026-07-24T00:00:00Z,start_time.lte.2026-07-31T00:00:00Z),start_time.is.null)",
+      "(and(start_time.gte.2026-07-24T00:00:00.000Z,start_time.lte.2026-07-31T00:00:00.000Z),start_time.is.null)",
     );
   });
 
@@ -50,9 +50,44 @@ describe("buildLicensedQuery", () => {
   it("a date-TBA row is inside the window, not outside it", () => {
     const p = params(buildLicensedQuery({ fromISO: "2026-07-24T00:00:00Z" }));
     expect(p.get("or")).toBe(
-      "(start_time.gte.2026-07-24T00:00:00Z,start_time.is.null)",
+      "(start_time.gte.2026-07-24T00:00:00.000Z,start_time.is.null)",
     );
     expect(p.getAll("start_time")).toEqual([]);
+  });
+
+  // PR #216 r2, both openai seats (blocking): moving a caller string from a
+  // VALUE slot (`start_time=gte.X`) into PostgREST GRAMMAR (`or=( … )`) made `,`
+  // and `)` syntax rather than data. Safety comes from RE-SERIALIZING the
+  // instant, never from a blacklist — so these assert the payloads the seats
+  // named, and assert the canonical form the grammar actually receives.
+  it("a window bound carrying PostgREST grammar cannot inject a disjunct", () => {
+    expect(() =>
+      buildLicensedQuery({ fromISO: "2026-01-01,status.eq.cancelled" }),
+    ).toThrow(/fromISO is not a parseable timestamp/);
+    expect(() => buildLicensedQuery({ fromISO: "2026-01-01)" })).toThrow();
+    expect(() => buildLicensedQuery({ toISO: "2026-01-01,or=(a.b.c)" })).toThrow(
+      /toISO is not a parseable timestamp/,
+    );
+  });
+
+  it("a valid bound is re-serialized to a canonical instant, whatever form it arrived in", () => {
+    const p = params(buildLicensedQuery({ fromISO: "2026-07-24T05:00:00+05:00" }));
+    // Not the string the caller passed — the instant it named.
+    expect(p.get("or")).toBe("(start_time.gte.2026-07-24T00:00:00.000Z,start_time.is.null)");
+  });
+
+  it("every emitted bound is free of grammar characters by construction", () => {
+    const or = params(
+      buildLicensedQuery({
+        fromISO: "2026-07-24T05:00:00+05:00",
+        toISO: "2026-07-31T00:00:00Z",
+      }),
+    ).get("or") ?? "";
+    const bounds = [...or.matchAll(/start_time\.(?:gte|lte)\.([^,)]*)/g)].map((m) => m[1]);
+    expect(bounds.length).toBe(2);
+    for (const b of bounds) {
+      expect(b).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    }
   });
 
   it("adds no window predicate at all when no window is asked for", () => {
