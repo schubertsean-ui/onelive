@@ -364,6 +364,73 @@ def test_an_itemprop_url_is_read_wherever_it_sits_in_the_card():
     assert hrefs == ["/e/8817", "/e/8818"]
 
 
+def test_a_nested_items_url_is_not_the_events_url():
+    """THE PANEL'S ROUND-2 FINDING: a well-formed Event card NESTS other items —
+    `performer`, `location`, `offers` — and each has its own `url`: the artist's
+    page, the venue's page, the ticket vendor's. Reading one of those as the
+    EVENT's url is the deleted artist-link convention wearing microdata clothes,
+    and it would do the same harm across ticks.
+
+    An `itemprop` belongs to its nearest enclosing `itemscope` (the microdata
+    spec), so a declaration is read only at the card's OWN scope. Here every
+    declaration sits inside a nested item, and both cards state nothing."""
+    html = ("<div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Fri Aug 1, 8pm Castle Creek"
+            "<span itemprop='performer' itemscope itemtype='https://schema.org/MusicGroup'>"
+            "<a itemprop='url' href='/artists/castle-creek'>Castle Creek</a></span>"
+            "<span itemprop='location' itemscope itemtype='https://schema.org/Place'>"
+            "<a itemprop='url' href='/venues/wren'>Wren Hall</a></span></div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Sat Aug 2, 9pm River Delta"
+            "<span itemprop='performer' itemscope itemtype='https://schema.org/MusicGroup'>"
+            "<a itemprop='url' href='/artists/river-delta'>River Delta</a></span></div></div>")
+    blocks = segment_events(html, content_type="text/html")
+    assert len(blocks) == 2
+    assert all(carried_identity(b) == NO_IDENTITY for b in blocks)
+
+
+def test_the_cards_own_declaration_is_read_beside_a_nested_one():
+    """The other half of the scope rule: a nested performer's url must not
+    SUPPRESS the card's own. The event states `/events/8817` at its own scope
+    while the performer states `/artists/castle-creek` at its own — one card,
+    two scopes, and only the card's belongs to the listing."""
+    html = ("<div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Fri Aug 1, 8pm Castle Creek"
+            "<span itemprop='performer' itemscope itemtype='https://schema.org/MusicGroup'>"
+            "<a itemprop='url' href='/artists/castle-creek'>Castle Creek</a></span>"
+            "<a itemprop='url' href='/events/8817'>details</a></div>"
+            "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+            "Sat Aug 2, 9pm River Delta"
+            "<a itemprop='url' href='/events/8818'>details</a></div></div>")
+    hrefs = [carried_identity(b).source_href
+             for b in segment_events(html, content_type="text/html")]
+    assert hrefs == ["/events/8817", "/events/8818"]
+
+
+def test_a_meta_content_declaration_is_validated_like_an_href():
+    """`<meta itemprop="url" content="...">` is the microdata spelling of the
+    same declaration, so it passes the SAME address check. A placeholder
+    repeated across ticks would otherwise read as one listing and license a
+    public write — the panel's round-2 second finding."""
+    def cards(first, second):
+        return ("<div>"
+                "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+                f"Fri Aug 1, 8pm Castle Creek<meta itemprop='url' content='{first}'></div>"
+                "<div itemscope itemtype='https://schema.org/MusicEvent'>"
+                f"Sat Aug 2, 9pm River Delta<meta itemprop='url' content='{second}'></div></div>")
+
+    refused = segment_events(cards("javascript:alert(1)", "#"), content_type="text/html")
+    assert len(refused) == 2
+    assert all(carried_identity(b) == NO_IDENTITY for b in refused)
+
+    kept = segment_events(cards("https://v.example/e/1", "https://v.example/e/2"),
+                          content_type="text/html")
+    assert [carried_identity(b).source_href for b in kept] == [
+        "https://v.example/e/1", "https://v.example/e/2"]
+
+
 # --- the carrier changes nothing the extraction surface can see ---------------
 
 def test_the_carrier_leaves_the_block_text_byte_identical():

@@ -111,6 +111,15 @@ _ANCHOR_LINE_RE = re.compile(
 # case-insensitive — matches "event-card", "eventItem", "show", "listing", etc.
 _CARDISH_CLASS_RE = re.compile(r"event|card|listing|show|gig|happening", re.I)
 
+# Elements that cannot contain content, so an `itemscope` on one opens no
+# nested item worth tracking. Listed so a stray `<meta itemscope>` cannot leave
+# a scope permanently open (which would silently refuse every later
+# declaration on the page — the safe direction, but for the wrong reason).
+_VOID_TAGS = frozenset({
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+    "meta", "param", "source", "track", "wbr",
+})
+
 # Schemes that are not the address of anything a calendar lists. A declaration
 # pointing at one of these is not an address of a listing, so it is refused
 # rather than stored. This is a fact about the schemes, not a preference between
@@ -167,11 +176,22 @@ def _href_of(attrs: Dict[str, str]) -> Optional[str]:
 def _itemprop_url_of(attrs: Dict[str, str]) -> Optional[str]:
     """The address an element states while LABELLING itself the listing's url
     (``itemprop="url"``), or None — the source naming the field itself, which
-    is the strongest signal a card can carry short of being the anchor."""
+    is the strongest signal a card can carry short of being the anchor.
+
+    BOTH carriers go through `_href_of`. A `<meta itemprop="url" content="...">`
+    is the microdata spelling of the same declaration, and the `content` value
+    used to be taken verbatim — so `content="javascript:..."`, `content="#"` or
+    `content="mailto:..."` could be stored as a listing's identity, and a
+    placeholder repeated across ticks would then read as the same listing and
+    license a public write. Caught by the adversarial panel (round 2, both
+    openai seats; the gemini dataflow-taint seat raised the identical thing as
+    a nit with this exact fix). One validation for one meaning: the label says
+    "this is a url", so the value has to be one.
+    """
     tokens = (attrs.get("itemprop") or "").lower().split()
     if "url" not in tokens:
         return None
-    return _href_of(attrs) or (attrs.get("content") or "").strip() or None
+    return _href_of(attrs) or _href_of({"href": attrs.get("content") or ""})
 
 
 class _ElementTextCollector(HTMLParser):
@@ -188,9 +208,18 @@ class _ElementTextCollector(HTMLParser):
       1. the container IS an anchor (the card-as-link pattern, reachable via the
          schema.org-microdata strategy) -> its href: the markup says this whole
          listing is that link;
-      2. something inside is labelled ``itemprop="url"`` exactly ONCE -> that
-         address: the source has named the field itself;
+      2. something inside is labelled ``itemprop="url"`` exactly ONCE, AT THE
+         CARD'S OWN SCOPE -> that address: the source has named the field
+         itself, for this listing;
       3. anything else -> NO address.
+
+    "At the card's own scope" is the microdata spec, and skipping it let the
+    deleted convention back in through the front door (the adversarial panel's
+    round-2 finding): a well-formed Event card nests `performer`, `location`
+    and `offers` items, and each of those has its own `url` — the artist's
+    page, the venue's page, the ticket vendor's. Reading a descendant's `url`
+    as the EVENT's is exactly the artist-link defect wearing microdata clothes,
+    so a declaration is recorded only while no nested `itemscope` is open.
 
     An earlier round of this module also read two CONVENTIONS — a card's heading
     anchor, and a card's sole link — and both were removed at the adversarial
@@ -223,18 +252,31 @@ class _ElementTextCollector(HTMLParser):
         self._buf: List[str] = []
         self._cap_href: Optional[str] = None
         self._itemprop_urls: List[str] = []
+        #: Tag names of the nested `itemscope` items currently open inside the
+        #: capture. Non-empty means "we are describing something OTHER than
+        #: this listing", so no declaration is read.
+        self._scope_stack: List[str] = []
 
     # -- capture bookkeeping --------------------------------------------------
 
-    def _note_attrs(self, attrs: Dict[str, str]) -> None:
-        """Record an address an element INSIDE the current capture DECLARES.
+    def _note_attrs(self, tag: str, attrs: Dict[str, str], *, nests: bool) -> None:
+        """Record an address an element INSIDE the current capture DECLARES
+        FOR THIS LISTING, and track nested microdata scopes.
 
         Undeclared `<a href>`s are not recorded at all — not counted, not
         ranked, not remembered. There is no rung they could feed.
+
+        The property is read BEFORE this element's own `itemscope` is pushed,
+        because an `itemprop` belongs to its nearest ENCLOSING scope: an
+        element that is both `itemprop="url"` of the card and a nested item in
+        its own right still states the card's url.
         """
-        labelled = _itemprop_url_of(attrs)
-        if labelled is not None and labelled not in self._itemprop_urls:
-            self._itemprop_urls.append(labelled)
+        if not self._scope_stack:
+            labelled = _itemprop_url_of(attrs)
+            if labelled is not None and labelled not in self._itemprop_urls:
+                self._itemprop_urls.append(labelled)
+        if nests and "itemscope" in attrs and tag not in _VOID_TAGS:
+            self._scope_stack.append(tag)
 
     def _resolved_href(self) -> Optional[str]:
         """The declared address, or None. Never a conventional one."""
@@ -254,6 +296,7 @@ class _ElementTextCollector(HTMLParser):
         self._buf = []
         self._cap_href = None
         self._itemprop_urls = []
+        self._scope_stack = []
 
     # -- parser callbacks -----------------------------------------------------
 
@@ -263,7 +306,7 @@ class _ElementTextCollector(HTMLParser):
         if self._cap_tag is not None:
             if t == self._cap_tag:
                 self._depth += 1
-            self._note_attrs(a)
+            self._note_attrs(t, a, nests=True)
             return
         if self._should_start(t, a):
             self._cap_tag = t
@@ -271,19 +314,33 @@ class _ElementTextCollector(HTMLParser):
             self._buf = []
             self._cap_href = _href_of(a) if t == "a" else None
             self._itemprop_urls = []
+            # The CARD's own itemscope is the scope we are reading properties
+            # at, so it is deliberately not pushed: only items nested INSIDE it
+            # are somebody else's.
+            self._scope_stack = []
 
     def handle_startendtag(self, tag, attrs):
         # A self-closing element carries no text content; the only effects we
         # care about are separating adjacent text and the address a void
         # element can still state (<link itemprop="url" href="..."/>).
         if self._cap_tag is not None:
-            self._note_attrs({k.lower(): (v or "") for k, v in attrs})
+            # A self-closing element is closed the moment it opens, so it never
+            # nests a scope — recording only.
+            self._note_attrs(tag.lower(),
+                             {k.lower(): (v or "") for k, v in attrs},
+                             nests=False)
             self._buf.append(" ")
 
     def handle_endtag(self, tag):
         if self._cap_tag is None:
             return
-        if tag.lower() == self._cap_tag:
+        t = tag.lower()
+        if self._scope_stack and self._scope_stack[-1] == t:
+            self._scope_stack.pop()
+        # Both apply: a nested item can be opened on the same tag name the
+        # capture was opened on, and that end tag closes the item AND one level
+        # of same-tag nesting.
+        if t == self._cap_tag:
             self._depth -= 1
             if self._depth == 0:
                 self.blocks.append((_ws(" ".join(self._buf)), self._resolved_href()))

@@ -37,8 +37,14 @@ An identity attaches ONLY to a block CUT FROM the thing that stated it: a JSON-L
 object, or an HTML container element. The anchor-split path (text offsets, no structure)
 and the whole-page single-block fallback carry NOTHING — the page url is every listing's
 url, and adopting it would make forty shows one show. Within a container ONLY A
-DECLARATION is read: the container's own `<a href>` if it IS the anchor, or an
-`itemprop="url"` stated exactly once. Nothing conventional — an undeclared `<a href>` is
+DECLARATION is read, AT THE CARD'S OWN SCOPE: the container's own `<a href>` if it IS
+the anchor, or an `itemprop="url"` stated exactly once with no nested `itemscope` open —
+the microdata spec's own rule, added at the panel's round-2 finding, because a
+well-formed Event card nests `performer`/`location`/`offers` items whose own `url`s are
+the artist's, the venue's and the vendor's pages, which is r1's deleted convention
+walking back in wearing microdata. Both carriers of that declaration (`href` and a
+`<meta content>`) go through ONE address validation, so a `javascript:`/`#` placeholder
+cannot become an identity through the spelling that skipped the check. Nothing conventional — an undeclared `<a href>` is
 not counted, ranked or remembered. The first round of this build also read a card's
 heading anchor and a card's sole link, and the adversarial panel blocked both (round 1,
 head 189c56e, openai/attacker-smuggle and openai/absence-only on one defect from opposite
