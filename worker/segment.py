@@ -30,10 +30,12 @@ Design rules (in priority order, matching CLAUDE.md's truth-first bar):
      every JSON-LD `@id` before `worker/ai_extract.py` ever saw the block. So a
      block cut from a JSON-LD Event object carries that object's `url`/`@id`,
      and a block cut from an HTML container carries the address that container
-     DECLARES for itself (it IS an anchor, or it labels one `itemprop="url"`) —
-     never one merely conventional, such as a title link or a card's sole link,
-     which points at an artist or a ticket vendor as readily as at the listing
-     (the adversarial panel's blocking finding, and it was right). As a SIDECAR
+     DECLARES for itself — an `itemprop="url"` stated once at the card's own
+     scope, and nothing else. Never one merely conventional: not a title link,
+     not a card's sole link, and not the href of a container that happens to BE
+     an anchor. Each of those points at an artist or a ticket vendor as readily
+     as at the listing, and all three were deleted at adversarial-panel
+     findings (rounds 1 and 4), which were right. As a SIDECAR
      on the block object
      (`worker.identity.carry_identity`), leaving the block TEXT byte-identical.
      The extractor's input, and the surface exam's, are unchanged.

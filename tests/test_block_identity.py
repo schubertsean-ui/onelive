@@ -45,6 +45,8 @@ from worker.identity import (
     NO_IDENTITY,
     IdentifiedBlock,
     carried_identity,
+    identity_address,
+    identity_token,
     jsonld_identity,
     read_identity,
 )
@@ -421,6 +423,27 @@ def test_a_page_relative_address_is_never_an_identity():
     hrefs = [carried_identity(b).source_href
              for b in segment_events(html, content_type="text/html")]
     assert hrefs == [None, "/e/8818"]
+
+
+def test_only_a_web_scheme_can_be_a_listings_address():
+    """ROUND 5. The scheme check was a DENYLIST plus "has a host", so `ftp://`
+    and `webcal://` looked like addresses — each has an authority, so each
+    passed, and a repeated non-listing one would satisfy the identity rung on a
+    later occurrence.
+
+    It is an ALLOW-LIST now: `http`, `https`, or no scheme at all. Which
+    schemes a listing CAN live at is a closed question; which it cannot is an
+    open one, and open questions are how this defect kept coming back."""
+    assert identity_address("https://v.example/e/1") == "https://v.example/e/1"
+    assert identity_address("http://v.example/e/1") == "http://v.example/e/1"
+    assert identity_address("//v.example/e/1") == "//v.example/e/1"
+    assert identity_address("/events/8817") == "/events/8817"
+    for refused in ("ftp://v.example/e/1", "webcal://v.example/e.ics",
+                    "custom://v.example/e/1", "details", "?id=1", "#e1", ""):
+        assert identity_address(refused) is None, refused
+    # An opaque id is not an address and keeps its own, looser door.
+    assert identity_token("8818") == "8818"
+    assert identity_token("abc123@venue.example") == "abc123@venue.example"
 
 
 def test_a_nested_item_stays_closed_through_same_tag_nesting():

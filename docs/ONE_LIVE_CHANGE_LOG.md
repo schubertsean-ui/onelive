@@ -19,18 +19,22 @@ out of a page receives exactly the characters it received before, so nothing
 about extraction moved.
 
 What we will and will not treat as an id is the whole of the care here, and one
-of those lines was drawn for us. A show that IS a link, or one the page
-explicitly labels with its own address, is taken at its word — the page has said
-where the show lives. Everything else is not. We first also read the everyday
-card by convention: a title that links somewhere, plus a "Tickets" button, and we
-took the title's link as the show's. Our independent reviewers stopped that, and
-they were right. A venue's title link points at the ARTIST as often as at the
-show, and an artist comes back next month — so a later check would have seen the
-same address on a different night, decided it was the same show, and rewritten a
-published listing with the wrong night's details. We had written that risk down
-and shipped it anyway; writing a risk down is not the same as fixing it, and that
-is the second time that lesson has cost us a round. It is fixed: an unlabelled
-link is now not read at all.
+of those lines was drawn for us, several times over. Only a show whose page
+EXPLICITLY LABELS its own address is taken at its word. Everything else is not.
+
+We first also read the everyday card by convention: a title that links somewhere,
+plus a "Tickets" button, and we took the title's link as the show's. Our
+independent reviewers stopped that, and they were right. A venue's title link
+points at the ARTIST as often as at the show, and an artist comes back next month
+— so a later check would have seen the same address on a different night, decided
+it was the same show, and rewritten a published listing with the wrong night's
+details. We had written that risk down and shipped it anyway; writing a risk down
+is not the same as fixing it, and that is the second time that lesson has cost us
+a round. Three more rounds followed, each finding another shape of the same
+mistake: a link that only makes sense on the page it was found on, an address
+form nobody had thought to exclude, a whole card that happens to be a link. Each
+was deleted rather than argued with. What remains is one narrow rule, narrow on
+purpose — a page must say "this is this show's address" before we believe it.
 
 The rest of the care stands. Where two shows on one page point at the SAME
 address, that address describes something they share and not either of them, so

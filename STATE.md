@@ -20,8 +20,11 @@ WHAT: The missing PRODUCER for the identity stack #217 shipped. (1) `worker/iden
 says WHICH JSON-LD keys are an identity: `url` -> listing_url, `@id`/`identifier` -> uid),
 `IdentifiedBlock` (a `str` that also remembers the identity its own markup stated) and
 `carried_identity(value)`. (2) `worker/segment.py`: a block cut from a JSON-LD Event
-object carries that object's identity; a block cut from an HTML container carries that
-container's own `<a href>` as `source_href`. (3) `worker/candidate_store._with_identity`:
+object carries that object's identity; a block cut from an HTML container carries as
+`source_href` only the address that container DECLARES for itself — an `itemprop="url"`
+stated once at its own scope. (The first rounds also read a heading anchor, a sole link
+and an anchor container; all three were conventions and all three were deleted at panel
+findings.) (3) `worker/candidate_store._with_identity`:
 when the caller's `extracted` states no identity, the identity CARRIED BY THE BLOCK
 (`raw_text`) is canonicalized into `extracted["_identity"]` — the existing jsonb, no
 migration, no new column. (4) `worker/importers/structured_feed.py`: `_ld_str` and the
@@ -47,7 +50,9 @@ after round 4 there are TWO because the carriers are two kinds: `identity_token`
 opaque `uid` (refuse empty, fragment-only, non-address schemes — `8818` is a fine id) and
 `identity_address` for every url-valued carrier (segment's `href`, segment's
 `<meta content>`, the JSON-LD `url`), which adds the requirement that the value name a
-page INDEPENDENTLY — absolute, protocol-relative, or root-relative. A page-relative
+page INDEPENDENTLY — absolute, protocol-relative, or root-relative — under an ALLOW-LIST
+of schemes (`http`, `https`, or none). Round 5 inverted that check: a denylist let
+`ftp://` and `webcal://` through, because each has a host and so looked like an address. A page-relative
 `details` is refused because the segmenter has no page url to resolve it against, so the
 same string on two pages would compare equal. JSON-LD identity fields also take the HTML
 path's cardinality rule: several DIFFERENT values state none. Three conventions were tried

@@ -288,6 +288,11 @@ NON_ADDRESS_SCHEMES: Tuple[str, ...] = (
     "javascript:", "mailto:", "tel:", "sms:", "data:",
 )
 
+#: The schemes a LISTING can live at. An allow-list, because "which schemes are
+#: wrong?" is an open question and "which are right?" is a closed one — see
+#: `identity_address`, where a denylist let `ftp://` and `webcal://` through.
+WEB_SCHEMES: Tuple[str, ...] = ("http", "https")
+
 
 def identity_token(value: Any) -> Optional[str]:
     """An OPAQUE id a source stated, or None. For `uid` only.
@@ -336,11 +341,21 @@ def identity_address(value: Any) -> Optional[str]:
 
     Accepted, because each names its own location without a page to lean on:
 
-      * an absolute url (`https://v.example/e/8817`), and the
+      * an absolute WEB url (`https://v.example/e/8817`), and the
         protocol-relative form (`//v.example/e/8817`), which names the host;
       * a ROOT-relative path (`/events/8817`), which names the path from the
         host's root — still relative to the source, which is exactly the scope
         every identity comparison already runs in.
+
+    The scheme rule is an ALLOW-LIST — `http`, `https`, or none — and that
+    inversion is the round-5 finding. A denylist of obviously-wrong schemes
+    left `ftp://`, `webcal://` and any other authority-bearing scheme through:
+    each has a `netloc`, so each looked like an address, and a repeated
+    non-listing one would satisfy the identity rung on a later occurrence.
+    Listing the schemes a listing CAN live at is a closed question; listing the
+    ones it cannot is an open one, and open questions are how this defect kept
+    coming back. (`identity_token` keeps a denylist because a uid is opaque —
+    there is no set of schemes an id must be drawn from.)
 
     Anything else is refused. Under-matching costs a refusal; over-matching
     costs a wrong public listing.
@@ -354,6 +369,8 @@ def identity_address(value: Any) -> Optional[str]:
         # Unparseable: it cannot be shown to name a page-independent location,
         # so it does not get to be one. (The identity ladder's other rungs are
         # unaffected — a refusal here is a hole, never a match.)
+        return None
+    if parts.scheme and parts.scheme.lower() not in WEB_SCHEMES:
         return None
     if parts.netloc:
         return raw
