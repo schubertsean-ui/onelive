@@ -7,10 +7,34 @@ import json
 import psycopg2
 
 from worker.db_config import resolve_dsn
+from worker.identity import IDENTITY_KEY, read_identity
 
 
 def db():
     return psycopg2.connect(resolve_dsn())
+
+
+def _with_identity(extracted: Dict[str, Any]) -> Dict[str, Any]:
+    """`extracted` plus a canonical `_identity`, or unchanged when the payload
+    states none.
+
+    A COPY is returned rather than a mutation of the caller's dict: the caller
+    (worker/ai_extract.py's fan-out, api/claims.py's loop) may hold the payload
+    across events, and a shared dict that grows an `_identity` from one listing
+    would attach it to the next.
+
+    An identity ALREADY canonicalized is re-read from `_identity` and rewritten
+    from itself, so a re-submitted candidate cannot end up with two disagreeing
+    copies of its own id (red class: a tool rewriting a shared artifact must
+    preserve the fields it does not own — here, by re-deriving from the field
+    that owns the answer).
+    """
+    identity = read_identity(extracted)
+    if not identity.stated:
+        return extracted
+    out = dict(extracted)
+    out[IDENTITY_KEY] = identity.as_dict()
+    return out
 
 
 def create_candidate(
@@ -23,6 +47,21 @@ def create_candidate(
     extracted: Dict[str, Any],
     sxsw_mode: bool,
 ) -> str:
+    """Write one candidate. The single seam every producer goes through, which
+    is why the identity canonicalization lives HERE rather than in each caller.
+
+    `extracted` is stored with a canonical `_identity` sub-object holding
+    whatever identity the CALLER'S OWN payload stated (an ICS `UID`, a
+    schema.org `Event.url`/`@id`, a claimant's row url, a listing's anchor) —
+    see worker/identity.py for the three carriers and for what is deliberately
+    NOT read as one. Nothing is invented: a payload stating no identity gets no
+    `_identity` key at all, and the ladder then falls to its composite rung.
+
+    The `_provenance` key on the same jsonb is the precedent for a namespaced
+    machine-read sub-object, so this needs no migration, no new column and no
+    change to any workflow that applies one.
+    """
+    extracted = _with_identity(extracted)
     with db() as conn:
         with conn.cursor() as cur:
             cur.execute("""

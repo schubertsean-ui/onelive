@@ -12,6 +12,69 @@
 
 Last updated: 2026-08-03 by Claude Code (Session Contract #40 — renumbered from #39 at the PR #152 merge — records-only: GeoLibre evaluated; draw-to-search UX prototype bench founder-ratified into the design formality; R-073 recorded (renumbered from R-068); merged with the parallel session's Contracts #34–#38 — Heartbeat strategy, plan-first hooks, integrity charter — same day). Previous same-day update (Session Contract #33 — FULL RECONCILIATION): The disk-truth docs had fallen ~50 merged PRs stale (STATE narrative frozen at 2026-07-22; changelog top at 2026-07-12; no session arcs since 2026-07-25) while the product shipped to PUBLIC GO-LIVE (PR #146). This session reconciled STATE/TODOS/changelog/arcs/memory against verified ground truth (git locally + PR state via GitHub API; DB row counts remain UNVERIFIED — no Supabase connector in this sandbox) and installed a mechanical guard so it cannot recur (`tools/staleness_check.py`, blocking in `tools/validate`, reading the `reconciled_through_commit` marker above). See "## Where we are (2026-08-03 — RECONCILED)
 
+## Session Contract #57 (2026-09-03, founder — "identity stack (adopt, then composite, then refuse)", branch claude/identity-stack-happenings-66apvi) — OPEN
+
+STATUS: OPEN
+WHAT: A stable per-listing identity stack, and the match ladder that uses it. (1) NEW
+`worker/identity.py`: `ListingIdentity` (uid | listing_url | source_href), read ONLY from
+fields a parse literally stated, plus the founder's three-rung ladder — identity, then
+(source_id, normalized title, start DATE), then REFUSE. (2) `worker/candidate_store.py`:
+`create_candidate` canonicalizes whatever identity the caller's `extracted` states into
+`extracted["_identity"]` (the existing jsonb column, `_provenance`'s own precedent — no
+migration, no new column, no workflow change). (3) `worker/claim/intake.py`: a claimed
+listing's OWN url is carried as `listing_url`, so class E has a real producer. (4)
+`worker/listing_update.py`: `PublishedListing`/`ParsedListing` carry identity + source_id;
+`match_kind` consults identity FIRST; a tier-1 match licenses `title`/`start_time`
+(firing R-095/R-097/R-099's own recorded trigger); no identity keeps #214 verbatim.
+(5) `tests/test_identity_stack.py` + additions to `tests/test_listing_update.py`.
+HOW: Adopt, then composite, then refuse — exactly the founder's order. ADOPT: two
+identities that both carry a uid (or both a listing_url/source_href) and AGREE are the
+same listing whatever the title and clock say; two that both carry one and DISAGREE are
+NOT the same listing, and that disqualification also blocks the fall-through, so a
+stronger signal can never be overruled by a weaker one. COMPOSITE: with no identity on
+either side, the weak key is (source_id, normalized title, start date) — looser than
+#214's shared minute on purpose, and licensed for NOTHING beyond keeping a row from
+reading as absent. REFUSE: two titles on one minute with no unique id stays
+MATCH_COLLISION and writes nothing; every #214 refusal (untitled slot-holder, one-listing-
+two-rows, unbracketed absence, incoherent window, non-PASS gate) is untouched.
+`normalize_title` keeps its single home in listing_update and is passed IN to the ladder,
+so the publish side and the mutation side can never disagree about a name.
+WHY: MUST-DO 1's inventory came back with a STOP. On the class-B crawl corpus the pipeline
+actually runs (tests/fixtures/class_b/, 24 files) there are ZERO ICS UIDs, ZERO JSON-LD
+Event.url, ZERO @id/identifier and ZERO per-listing block hrefs; the one JSON-LD Event in
+the corpus carries name/startDate/location and no identity field at all. `worker/segment.py`
+reduces every block to TEXT before `worker/ai_extract.py` sees it, so the only per-listing
+URL that can reach a candidate today is the model's guessed `ticket_link`. That is the
+founder's own stop condition, so `worker/ai_extract.py` is NOT opened and no capture path
+for `source_href` is built.
+WHY-IT-MATTERS: four RECORD entries — R-095 (title unwritable), R-097 (recurring series
+never retimed), R-099 (`start_time` unwritable BY CONSTRUCTION), R-102 (a published hole is
+never filled) — all name the SAME objective trigger: "a stable per-listing identifier on
+the candidate row." They are not four defects, they are one missing column read four ways,
+and every one of them is a listing the map shows wrong or refuses to correct. Building the
+stack now means the day a source states an id, maintenance works; building it on a guessed
+`ticket_link` would launder a model's guess into an identity and rewrite public rows from it.
+EXPECTED OUTCOMES: the inventory table (path | field | already captured?) with the fixture
+proof behind it; the ladder with ICS-UID and JSON-LD-url matches proved against the REAL
+`parse_ics`/`parse_jsonld` output; two bands at 8pm refusing; a missing id listing without
+mutating; R-103 recording that the stack has no class-B producer yet. Armed-cron runtime
+files DO change (worker/identity.py joins the closure; candidate_store, listing_update),
+so must-do 6's one dry 2-source smoke is owed and is stated up front.
+Out of scope (Must-not): Tonight beauty, cadence YAML, catalog-wide backfill crawl,
+`worker/ai_extract.py`, user/PII, Heartbeat dashboard UI, and any locale_id counter (no
+such column exists anywhere in supabase/migrations — "locale or source_id" resolves to
+source_id).
+
+**Appendix — construction_gate Stage 3 citations (Operating Law rule 9: minimum the gate will accept):**
+[S3:contract-scope-violation] [S3:build-before-plan] [S3:governance-ambiguity] [S3:status-narration-not-progress] [S3:stalled-state-needs-active-diagnosis] [S3:founder-path-unprobed] [S3:founder-verbatim-corrected] Scope is the founder's six Must-dos and the Must-not list; the contract above was written to STATE.md BEFORE the first product edit and the plan-first hook enforced it. Must-do 1's own STOP condition is HONORED rather than reasoned around: `worker/ai_extract.py` is untouched and the fixture proof is the reason, not a preference. The founder's wording is taken at its word — "locale or source_id" resolves to source_id because no locale column exists in any migration (checked, not assumed), and "existing columns if they exist" resolves to the existing `extracted` jsonb, `_provenance`'s own precedent, rather than a new column invented on top of founder wording. The founder's path was PROBED: the ladder was run against the REAL `parse_ics`/`parse_jsonld` output, which is how the JSON-LD `@id` carrier surfaced at all.
+[S3:false-confidence-gate] [S3:self-weakenable-gate] [S3:untested-gate-branch] [S3:rule-stronger-than-mechanism] [S3:final-gate-trusts-generator] [S3:release-path-weaker-than-generation] [S3:self-weakenable-review-model] [S3:fail-open-on-custody-misconfig] This ticket LOOSENS a write refusal at founder direction, so the loosening is bounded, named and mechanically pinned rather than general: `title` and `start_time` become writable ONLY on `MATCH_IDENTITY`, and `test_without_an_identity_no_title_is_ever_written` plus the rescoped `test_no_update_decision_writes_a_start_time_without_an_identity` enumerate the no-identity combinations rather than asserting one fixture. Every #214 refusal (non-PASS gate, one-listing-two-rows, unbracketed absence, incoherent window, untitled slot-holder, `may_delete_listing` False) is untouched, and the new collision rule only ever REFUSES. No threshold, workflow, reviewer binding, credential, model id or `tools/` file is edited.
+[S3:weak-key-accepted-at-custody] [S3:missing-cardinality-check] [S3:partial-write-whole-row] [S3:destructive-normalization] [S3:swallowed-corrupt-data] [S3:semantic-claim-not-rederived] The weak-key class is this ticket's central risk and it is answered by REFUSING to launder one: `_stable_external_id`'s minted `provider:sha1(source|title|start)` is deliberately NOT read as an identity (it is the composite rung wearing the adopt rung's clothes), and neither is the page-wide `source_url` nor the model's guessed `ticket_link` — pinned by `test_nothing_but_the_three_carriers_is_read_as_an_identity`. Cardinality is asked in BOTH directions: identity hits are adopted over weaker ones so a stated id is not overruled into "ambiguous", and two listings that both claim a row by identity still fall through to the ambiguity count. `normalize_url` folds ONLY scheme and host — the fragment is frequently the per-listing anchor and the query frequently carries the id, so stripping either would collapse a calendar into one listing (`test_url_normalization_folds_only_what_http_says_is_case_insensitive`). An unparseable url is compared verbatim rather than dropped, because dropping it silently widens the ladder to the weaker rung. `_with_identity` returns a COPY, so a payload shared across the fan-out cannot carry one listing's id onto the next.
+[S3:db-type-mismatch-invisible-to-hermetic-tests] [S3:env-dependent-hermetic-test] [S3:pagination-integrity-gap] [S3:volatile-safety-store] [S3:mutable-model-alias] [S3:workflow-tool-version-skew] [S3:unusable-credential-tier] No migration, no new column, no new store, no key path, no model id and no workflow tooling: identity rides the existing `extracted` jsonb, which psycopg2 already returns as a dict, so there is no new type seam between hermetic tests and production. The one SQL shape change is `distinct` -> `distinct on (e.event_id) ... order by e.event_id, c.created_at, c.candidate_id`, made BECAUSE projecting `c.extracted` under a plain DISTINCT would have returned one event once per differing payload — a cardinality defect the widened projection would otherwise have introduced silently. SQL stays static and parameterized (trust_gate PASS). `_identity_of` tolerates a short row so older callers and test doubles read an absent identity as a HOLE, never an error.
+[S3:deferred-trust-work] [S3:records-sharing-one-trigger] [S3:copy-outruns-registry] [S3:fabricated-qualitative-copy] [S3:false-price-claim] [S3:featurability-dimension-missed] R-103 is recorded in the same commit and it is the honest headline rather than a footnote: the stack has NO producer on the class-B crawl path, so R-095/R-097/R-099/R-102 are unblocked in code and still open in effect there — it names their shared trigger explicitly instead of opening four look-alike records. Nothing user-facing changes: no copy, no price, no qualitative claim, and no view's contents move (a crawled row's title and time are refused exactly as before, because no crawled row has an id). The consumer dimension WAS asked rather than assumed — a `title` write reaches `web/lib/detail.ts` and the card, which is precisely why it is gated on the source's own id and on nothing weaker.
+[S3:grant-not-content-bound] The smoke grant is treated as bound to its stated content and it is SPENT: must-do 6 says 'one dry 2-source smoke only', and exactly one run was dispatched (33786481713) at exactly max_sources=2, source_class=B, follow_pages_per_run=2, listing_update=dry, into an idle queue so nothing was evicted. What it proved and what it did NOT is stated first in the evidence file rather than buried: the tick had 0 event-proximity pages due, so `adjudicate_page` — where this PR's ladder lives — never ran; the run binds the runtime and exercises `create_candidate` 68 times on real crawled payloads, which is the other half of the change and the half that runs every tick. PR #216's standing re-bind was explicitly scoped 'for the rest of #216 only' and is NOT reused; this ticket's own standing dry re-bind covers later rounds of THIS PR and authorizes no armed run and no merge.
+[S3:caller-suppliable-custody-inputs] [S3:nonfinite-decimal-accepted] [S3:nonfinite-numeric-accepted] No custody input becomes caller-suppliable: `adjudicate_page` stays PURE and its identity comes from the candidate's OWN stored `extracted`, read by the loaders' static SQL — and because a pure function takes whatever it is given, the founder's composite key is enforced INSIDE it as a source guard rather than relied on from the loaders' scoping (`test_a_different_source_is_never_the_same_listing`). No numeric or Decimal value is parsed, compared or written anywhere in this change: the ladder compares opaque strings, urls and timestamps only, and `weak_key`'s date is taken from a datetime, so there is no path by which a NaN-shaped value could compare equal to everything or to nothing.
+[S3:green-on-stale-base] [S3:heal-drops-guard-marker] [S3:stale-redclass-count] [S3:parallel-record-id-collision] [S3:scripted-transform-order] [S3:stale-live-incident-state] [S3:stale-base-widens-range] [S3:retyped-evidence] [S3:pushed-on-red] [S3:compounded-ground-contrast] [S3:deliverable-visual-qa] Base is origin/master tip 37298b1 at drift 0 (the gate's own freshness line, compared against ls-remote — not retyped). R-103 is the next free id on a branch cut from that tip; no renumber script runs and the `reconciled_through_commit` marker is untouched. Evidence is pasted from `.validate-evidence.txt`. NOTE, because it nearly became a false report: five certification tests failed on the FIRST run and were NOT this change — the sandbox clone was shallow so `git cat-file` could not resolve the certified subject commit; `git fetch --unshallow` made all five green, the same diagnosis Contract #56 recorded. No visual or contrast surface is touched. The arming-evidence field is rewritten only after the authorized dry smoke, from that run's own output.
+
 ## Session Contract #56 (2026-09-03, founder — "existence vs field vs mutation (gate audit)", branch claude/gate-audit-rules-kmc0rp) — OPEN
 
 STATUS: OPEN
