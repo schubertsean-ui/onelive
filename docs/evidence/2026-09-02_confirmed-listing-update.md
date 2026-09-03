@@ -205,7 +205,7 @@ rather than by prose.
 
 ## The live re-bind runs
 
-Eight founder-authorized dry smokes, one per adversarial round, each binding
+Nine founder-authorized dry smokes, one per adversarial round, each binding
 the head the panel had just judged. All recorded in
 `docs/evidence/ARMING_SMOKE_RUN.json`; the current binding is the last.
 
@@ -219,6 +219,7 @@ the head the panel had just judged. All recorded in
 | [33705264950](https://github.com/schubertsean-ui/onelive/actions/runs/33705264950) | `42b17b3` | 2 sources, 39 candidates, $0.1895, 132.0s | ESCALATE again, on a new source — no skip, both pages read |
 | [33707495850](https://github.com/schubertsean-ui/onelive/actions/runs/33707495850) | `1a0f12b` | 2 sources, 13 candidates, $0.0561, 44.4s | ESCALATE on a third venue type, and a **second live 304** |
 | [33708942367](https://github.com/schubertsean-ui/onelive/actions/runs/33708942367) | `18d9de4` | 2 sources, 36 candidates, $0.2710, 112.3s | a fourth ESCALATE, a third 304, and **14 live date refusals** |
+| [33710564656](https://github.com/schubertsean-ui/onelive/actions/runs/33710564656) | `23ad24e` | 2 sources, 67 candidates, $0.2580, 224.8s | a **PASS control beside a fifth ESCALATE**, and 24 date refusals |
 
 Every one printed the switch, from the resolved env and then from the loop:
 
@@ -250,13 +251,15 @@ run 33707495850   The Contemporary Austin        | present | 304, unchanged
 run 33707495850   Kingdom Nightclub              | no      | gate ESCALATED
 run 33708942367   Come and Take It Live          | present | 304, unchanged
 run 33708942367   Emo's Austin                   | no      | gate ESCALATED
+run 33710564656   Ballet Austin                  | present | gate PASS
+run 33710564656   Elephant Room                  | no      | gate ESCALATED
 ```
 
 The later rows are repeats, and repeats are worth recording: a behaviour seen
 once on one venue could be that venue. **Both** declining outcomes are now
 ordinary — HOLD on a community platform and on a city-hosted calendar,
-ESCALATE on a music hall, an art museum, a nightclub and a large music venue —
-four venue types with nothing structurally in common. R-091(a) rests on exactly that: a
+ESCALATE on a music hall, an art museum, a nightclub, a large music venue and a
+jazz club — five venue types with nothing structurally in common. R-091(a) rests on exactly that: a
 declining verdict has to be a common thing live pages produce, or the fix
 guards nothing.
 
@@ -267,12 +270,20 @@ opposite direction: a **real HTTP 304** (`not_modified: 1`,
 304 after run 33700477027's Bandsintown, and a third followed on Come and Take
 It Live, so the cheap-confirmation path is ordinary too.
 
-One more thing run 33708942367 shows, on a mechanism this ticket did not build
-but depends on: the same-page-date resolver refused **fourteen** separate
-`start_time` claims on the Emo's Austin page with `ambiguous-same-page-dates`,
-storing NULL and keeping the raw value and the reason in provenance. A page
-whose listings do not pin their own dates yields no times rather than guessed
-ones — the fail-closed path running loudly, at volume, on a real calendar.
+One more thing runs 33708942367 and 33710564656 show, on a mechanism this ticket
+did not build but depends on: the same-page-date resolver refused **fourteen**
+separate `start_time` claims on the Emo's Austin page and **twenty-four** on
+Ballet Austin's summer-intensive schedule, most of the latter refusing start and
+end together, with `ambiguous-same-page-dates` — storing NULL and keeping each
+raw value and reason in provenance. A page whose listings do not pin their own
+dates yields no times rather than guessed ones: the fail-closed path running
+loudly, at volume, on two real calendars.
+
+Run 33710564656 also carries the **PASS control** the previous two bindings
+lacked, and its own wording is worth quoting: Ballet Austin came back
+`PASS (trust gate); awaiting authenticated ops promote`. That trailing clause is
+the publication invariant stating itself in live output — a gate PASS does not
+publish, it waits for the authenticated promote.
 
 **Historic Scoot Inn** fetched fine, parsed fine, produced **25** candidates —
 then escalated: *"conflicting start_time across evidence; dedupe-ambiguity hint
@@ -308,7 +319,7 @@ and 98 were **deferred rather than dropped** (R-043).
 ### What none of them show
 
 The listing-update path acting on real data. The writer was disabled in all
-eight and no event-proximity page was ever due, so no published row was read
+nine and no event-proximity page was ever due, so no published row was read
 for adjudication and none could have been written. That coverage is the table
 above, `tests/test_listing_update.py`, and section 8 of
 `tests/test_fair_crawl.py` — the first armed tick that finds a defining page
