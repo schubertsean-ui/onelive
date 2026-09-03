@@ -1,5 +1,6 @@
 # OneLive — STATE
 
+**2026-09-03:** Trust doctrine committed — ONE-LIVE-TRUST.md at root (existence vs field vs mutation); CLAUDE.md points to it. Docs only.
 **2026-09-02:** Operating Law in force. Ceremony does not outrank the ticket.
 
 **Appendix — construction_gate Stage 3 citations (docs-only ticket, founder-capped at 5 lines):**

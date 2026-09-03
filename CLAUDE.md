@@ -15,6 +15,8 @@ This outranks curiosity, construction-loop ceremony, hats, po battery, friction 
 Coverage Law still outranks this file on *scope*. This file outranks everything on *how you work*.
 
 Vision: ONE-LIVE-VISION.md. If a ticket shrinks this vision, the ticket is wrong.
+Trust doctrine: ONE-LIVE-TRUST.md. Existence vs field vs mutation.
+If a gate answers existence with a field or mutation test, the gate is wrong.
 
 ### Outcome
 Maximum work that changes the catalog or the live site per hour.
