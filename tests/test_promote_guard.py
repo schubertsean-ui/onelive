@@ -46,16 +46,32 @@ def test_validation_error_provenance_is_refused():
     assert "validation_error" in str(exc.value)
 
 
-def test_conflicting_start_times_are_refused():
-    with pytest.raises(ValueError) as exc:
-        _call(evidence_signals={"start_times": ["2026-07-11T20:00:00", "2026-07-11T21:30:00"]})
-    assert "conflicting start_time" in str(exc.value)
+def test_conflicting_start_times_publish_with_a_hole_on_the_clock():
+    """Founder, 2026-09-03. The guard's job is "may this be published at all?",
+    and an unsettled clock does not answer it. The verdict names the hole and
+    promote_candidate writes NULL rather than choosing a reading."""
+    from worker.trust_gate3 import FIELD_START_TIME
+
+    verdict = _call(evidence_signals={
+        "start_times": ["2026-07-11T20:00:00", "2026-07-11T21:30:00"]})
+    assert verdict.decision.value == "pass"
+    assert FIELD_START_TIME in verdict.field_holes
 
 
-def test_dedupe_ambiguity_is_refused():
-    with pytest.raises(ValueError) as exc:
-        _call(evidence_signals={"start_times": [], "dedupe_ambiguous": True})
-    assert "dedupe" in str(exc.value).lower()
+def test_one_clock_in_two_renderings_is_not_a_conflict_at_the_guard():
+    """The shape production actually produces: `event_candidate.start_time` is
+    `timestamptz` so psycopg2 returns an aware datetime ('...+00:00') while the
+    stored extraction keeps the parser's string ('...Z')."""
+    verdict = _call(evidence_signals={
+        "start_times": ["2026-07-11T20:00:00+00:00", "2026-07-11T20:00:00Z"]})
+    assert verdict.decision.value == "pass"
+    assert not verdict.field_holes
+
+
+def test_dedupe_ambiguity_publishes_and_is_recorded():
+    verdict = _call(evidence_signals={"start_times": [], "dedupe_ambiguous": True})
+    assert verdict.decision.value == "pass"
+    assert any("identity" in n for n in verdict.notes)
 
 
 def test_promote_candidate_uses_the_guard():

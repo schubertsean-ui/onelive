@@ -346,7 +346,11 @@ def test_validation_error_provenance_from_stored_extraction_escalates(monkeypatc
     assert "validation_error" in report.results[0].detail
 
 
-def test_conflicting_start_times_from_stored_evidence_escalates(monkeypatch):
+def test_conflicting_start_times_from_stored_evidence_still_pass(monkeypatch):
+    """Founder, 2026-09-03: two clocks is a hole on the clock, not a banned
+    door. The whole page still yields its candidates and the loop reports PASS;
+    the unsettled field is carried on the verdict and written NULL at publish
+    (worker/promote.py), never guessed."""
     sources = [_source("conflict_src", source_class="ticketing")]
     _install_fakes(
         monkeypatch,
@@ -362,12 +366,15 @@ def test_conflicting_start_times_from_stored_evidence_escalates(monkeypatch):
     )
 
     report = run_loop(ai=FakeAIProvider(), sources=sources)
-    assert report.counts["passed"] == 0
-    assert report.counts["escalated"] == 1
-    assert "conflicting start_time" in report.results[0].detail
+    assert report.counts["passed"] == 1
+    assert report.counts["escalated"] == 0
+    assert report.counts["candidates"] >= 1
 
 
-def test_dedupe_ambiguous_from_stored_evidence_escalates(monkeypatch):
+def test_dedupe_ambiguous_from_stored_evidence_still_passes(monkeypatch):
+    """A second crawl of the same page creates the sibling candidate that
+    raises this hint, so treating it as an escalation zeroed a page for
+    being read twice."""
     sources = [_source("dupe_src", source_class="festival_feed")]
     _install_fakes(
         monkeypatch,
@@ -380,8 +387,8 @@ def test_dedupe_ambiguous_from_stored_evidence_escalates(monkeypatch):
     )
 
     report = run_loop(ai=FakeAIProvider(), sources=sources)
-    assert report.counts["passed"] == 0
-    assert report.counts["escalated"] == 1
+    assert report.counts["passed"] == 1
+    assert report.counts["escalated"] == 0
 
 
 def test_run_report_shape_has_all_declared_count_keys():
