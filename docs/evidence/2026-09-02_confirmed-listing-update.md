@@ -112,7 +112,7 @@ rather than by prose.
 
 ## The live re-bind runs
 
-Three founder-authorized dry smokes, one per adversarial round, each binding
+Four founder-authorized dry smokes, one per adversarial round, each binding
 the head the panel had just judged. All recorded in
 `docs/evidence/ARMING_SMOKE_RUN.json`; the current binding is the last.
 
@@ -121,6 +121,7 @@ the head the panel had just judged. All recorded in
 | [33696784882](https://github.com/schubertsean-ui/onelive/actions/runs/33696784882) | `6231147` | 2 sources, 29 candidates, $0.0986→$0.2457, 75.4s | the dry switch resolves and prints; runtime loads the listing path |
 | [33698783298](https://github.com/schubertsean-ui/onelive/actions/runs/33698783298) | `d29dc5c` | 2 sources, 26 candidates, $0.5991, 123.3s | **the R-091(a) tightening fired live** |
 | [33700477027](https://github.com/schubertsean-ui/onelive/actions/runs/33700477027) | `9632882` | 2 sources, 50 candidates, $0.2336, 167.5s | **a real HTTP 304**, and the discover queue |
+| [33702677748](https://github.com/schubertsean-ui/onelive/actions/runs/33702677748) | `0d013e1` | 2 sources, 60 candidates, $0.3196, 177.1s | **the gate's HOLD branch** — the last outcome |
 
 Every one printed the switch, from the resolved env and then from the loop:
 
@@ -135,24 +136,31 @@ The `listings_updated: 0 / listings_marked_gone: 0` counters agree, and remain
 page(s)` due, so they would read zero with the writer armed too. The DISABLED
 line is the proof.
 
-### What the second run showed, and no fixture could
+### All three gate outcomes, observed on real pages
+
+This is the R-091(a) fix demonstrated live rather than in fixtures, and it took
+two runs to collect because each tick only shows what its own sources did.
 
 ```
-Thinkery           | present  | gate PASS
-Historic Scoot Inn | no       | gate ESCALATED
+run 33698783298   Thinkery                      | present | gate PASS
+run 33698783298   Historic Scoot Inn            | no      | gate ESCALATED
+run 33702677748   Waterloo Greenway Conservancy | present | gate PASS
+run 33702677748   Meetup                        | no      | gate HELD
 ```
 
-Historic Scoot Inn's page fetched fine, parsed fine, produced **25** candidates
-— then escalated at the trust gate: *"conflicting start_time across evidence;
-dedupe-ambiguity hint present."* Its verdict reads `no`.
+**Historic Scoot Inn** fetched fine, parsed fine, produced **25** candidates —
+then escalated: *"conflicting start_time across evidence; dedupe-ambiguity hint
+present."* **Meetup** fetched fine, parsed fine, produced **12** candidates —
+then held: *"Insufficient corroboration (have 1; need 2)"*, because a community
+platform is third-party in `worker/gating.py` and one of it alone is hearsay.
 
-**Under the previous rule that same page would have read `verified_present`,**
-because it parsed cleanly. That is exactly the case the PR #213 panel named —
-"a parsed-but-escalated page cannot accidentally authorize a misleading
-published update" — on a real venue calendar, arriving unprompted on the second
-source of a two-source tick. Thinkery is the control.
+**Under the rule this PR replaced, both would have read `verified_present`,**
+because both parsed cleanly — and either could have licensed a published
+update. That is exactly the case the PR #213 panel named: "a parsed-but-
+escalated page cannot accidentally authorize a misleading published update."
+Both arrived unprompted, on real Austin pages, on ordinary two-source ticks.
 
-### What the third run closed
+### What the third run closed (33700477027)
 
 Two scope limits every earlier binding had carried **in writing**:
 
@@ -171,7 +179,7 @@ and 98 were **deferred rather than dropped** (R-043).
 ### What none of them show
 
 The listing-update path acting on real data. The writer was disabled in all
-three and no event-proximity page was ever due, so no published row was read
+four and no event-proximity page was ever due, so no published row was read
 for adjudication and none could have been written. That coverage is the table
 above, `tests/test_listing_update.py`, and section 8 of
 `tests/test_fair_crawl.py` — the first armed tick that finds a defining page
