@@ -145,6 +145,58 @@ export type LicensedQueryOpts = {
 // included, is dropped), and it bakes in NO row limit — windowing is done by the
 // pagination loop below via Range headers, so nothing is capped by position. The
 // order carries a unique tiebreaker (licensed_event_id) so paging is stable.
+// ONE home for turning a caller-supplied window bound into something safe to
+// place inside PostgREST's `or=(...)` grammar. `promoted.ts` imports this rather
+// than keeping a second copy: the two feed readers must never disagree about
+// what a window bound is allowed to be.
+//
+// WHY THIS EXISTS (PR #216 r2, both openai seats, blocking). Before the
+// date-TBA fix, `fromISO`/`toISO` went into `start_time=gte.<value>` — a VALUE
+// slot, where a stray `,` or `)` is just part of the timestamp and can change
+// nothing. Inside `or=( … )` those same characters are SYNTAX: `,` separates
+// disjuncts and `)` closes the group, so a crafted bound could append a
+// disjunct or truncate the predicate and change which rows a public feed
+// returns. Moving a string from a value slot into a grammar slot is what made
+// it dangerous, and that move was mine.
+//
+// The safety property is RE-SERIALIZATION, not validation: whatever arrives, an
+// instant is parsed out of it and a fresh `Date(...).toISOString()` is emitted,
+// which is always `YYYY-MM-DDTHH:mm:ss.sssZ` and can therefore contain no
+// comma, no parenthesis and no operator text by construction. A blacklist of
+// bad characters would be a guess about PostgREST's grammar; this is not.
+//
+// Unparseable input THROWS rather than being dropped or passed through. A
+// dropped bound silently widens the window (a past event on tonight's feed);
+// a passed-through bound is the injection. The only live callers build these
+// with `toISOString()`, so a throw here can only mean a real programming
+// error, and the project's rule for those is to fail loudly.
+export function windowBound(value: string, field: string): string {
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) {
+    throw new Error(
+      `${field} is not a parseable timestamp: ${JSON.stringify(value)}`,
+    );
+  }
+  return new Date(ms).toISOString();
+}
+
+// The window predicate both readers share, as a PostgREST `or=` value, or null
+// when no window was asked for. Bounds are re-serialized above before they ever
+// touch the grammar.
+export function windowFilter(
+  fromISO?: string,
+  toISO?: string,
+): string | null {
+  const from = fromISO ? windowBound(fromISO, "fromISO") : null;
+  const to = toISO ? windowBound(toISO, "toISO") : null;
+  if (from && to) {
+    return `(and(start_time.gte.${from},start_time.lte.${to}),start_time.is.null)`;
+  }
+  if (from) return `(start_time.gte.${from},start_time.is.null)`;
+  if (to) return `(start_time.lte.${to},start_time.is.null)`;
+  return null;
+}
+
 export function buildLicensedQuery(opts?: LicensedQueryOpts): string {
   const p = new URLSearchParams();
   p.set("select", COLUMNS);
@@ -152,8 +204,20 @@ export function buildLicensedQuery(opts?: LicensedQueryOpts): string {
   if (!opts?.anyStatus) p.append("status", "in.(scheduled,moved)");
   if (opts?.eventId) p.append("licensed_event_id", `eq.${opts.eventId}`);
   if (opts?.category) p.append("category", `eq.${opts.category}`);
-  if (opts?.fromISO) p.append("start_time", `gte.${opts.fromISO}`);
-  if (opts?.toISO) p.append("start_time", `lte.${opts.toISO}`);
+  // A row with NO start_time is DATE-TBA, not absent. A bare `gte` drops NULLs,
+  // so a row whose clock the evidence never settled was never even FETCHED —
+  // while feed.ts already carries the opposite intent
+  // (`if (!e.start_time) return false; // date-TBA only shows under "All"`),
+  // i.e. the client is written to place these rows and never received them.
+  // That is Coverage Law's "views must not delete catalog rows": the window is
+  // a VIEW filter and a hole in the clock is not a reason to be outside it.
+  // PostgREST needs one `or=` for this — two bare `start_time` params AND
+  // together. Bounds are re-serialized by windowBound first. Bucketing stays
+  // the client's job, unchanged.
+  const window = windowFilter(opts?.fromISO, opts?.toISO);
+  if (window) p.append("or", window);
+  // NULLs sort last under PostgREST's `asc` default, so date-TBA rows land at
+  // the end rather than ahead of everything that has a time.
   p.set("order", "start_time.asc,licensed_event_id.asc");
   return p.toString();
 }

@@ -16,7 +16,12 @@
 //     `venue` (PostgREST embed) and resolve `artist_ids` → names for `performer`.
 //     No fabrication: fields absent on a promoted row stay null.
 
-import { exactlyOneOrNull, supaEnv, type LicensedEvent } from "./licensed";
+import {
+  exactlyOneOrNull,
+  supaEnv,
+  windowFilter,
+  type LicensedEvent,
+} from "./licensed";
 
 // Event listing columns granted to anon in migration 0012 (privacy/internal
 // columns are deliberately NOT granted). `venue:venue_id(...)` is a PostgREST
@@ -91,8 +96,20 @@ export function buildPromotedQuery(opts?: PromotedQueryOpts): string {
   if (!opts?.anyStatus) p.append("status", "in.(scheduled,moved)");
   if (opts?.eventId) p.append("event_id", `eq.${opts.eventId}`);
   if (opts?.category) p.append("category", `eq.${opts.category}`);
-  if (opts?.fromISO) p.append("start_time", `gte.${opts.fromISO}`);
-  if (opts?.toISO) p.append("start_time", `lte.${opts.toISO}`);
+  // A row with NO start_time is DATE-TBA, not absent. A bare `gte` drops NULLs,
+  // so a promoted row whose clock the evidence never settled was never even FETCHED —
+  // while feed.ts already carries the opposite intent
+  // (`if (!e.start_time) return false; // date-TBA only shows under "All"`),
+  // i.e. the client is written to place these rows and never received them.
+  // That is Coverage Law's "views must not delete catalog rows": the window is
+  // a VIEW filter and a hole in the clock is not a reason to be outside it.
+  // PostgREST needs one `or=` for this — two bare `start_time` params AND
+  // together. Bounds are re-serialized by windowBound first. Bucketing stays
+  // the client's job, unchanged.
+  const window = windowFilter(opts?.fromISO, opts?.toISO);
+  if (window) p.append("or", window);
+  // NULLs sort last under PostgREST's `asc` default, so date-TBA rows land at
+  // the end rather than ahead of everything that has a time.
   p.set("order", "start_time.asc,event_id.asc");
   return p.toString();
 }

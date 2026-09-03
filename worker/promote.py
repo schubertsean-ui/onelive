@@ -9,11 +9,13 @@ from worker.candidate_store import load_candidate_gate_signals
 from worker.classify import resolve_category
 from worker.confidence import derive_confidence, is_valid_confidence
 from worker.db_config import resolve_dsn
-from worker.dedupe import find_possible_duplicates
+from worker.dedupe import classify_window
 from worker.importers.domain_map import UNMAPPED
 from worker.resolve_entities import resolve_venue_id, resolve_artist_ids
 from worker.source_catalog import cultural_domain_for_source
-from worker.trust_gate3 import GateDecision, evaluate_gate
+from worker.trust_gate3 import (
+    FIELD_START_TIME, GateDecision, evaluate_gate, start_time_instants,
+)
 
 
 def db():
@@ -95,7 +97,7 @@ def promote_candidate(candidate_id: str) -> str:
             # refused here regardless of how it got to this call. evaluate_gate
             # wraps multi_confirm_gate, so the count-based check is subsumed.
             extracted, evidence_signals = load_candidate_gate_signals(candidate_id, cur=cur)
-            assert_promotable(
+            verdict = assert_promotable(
                 source_classes=classes,
                 sxsw_mode=sxsw_mode,
                 extracted=extracted,
@@ -120,6 +122,42 @@ def promote_candidate(candidate_id: str) -> str:
             (title, start_time, end_time, venue_name, city, artist_names, is_private,
              private_access, ticket_link, rsvp_link, raw_text, source_name) = c
 
+            # HONEST HOLE ON THE CLOCK (founder, 2026-09-03; ONE-LIVE-TRUST.md
+            # "Parser got two times → still a trusted door. Hole on the clock").
+            # When the evidence carries irreconcilable start-time claims the row
+            # is still published — the door said this is on — but the clock is
+            # written as NULL rather than picked from the competing readings.
+            # `web/lib/feed.ts` already renders a null start_time honestly
+            # ("Date TBA", visible under All), so the hole needs no new column
+            # and no new copy. The end goes with it: an end_time with no start
+            # is not a window, and a reader using it treats the event as already
+            # over (the same reasoning R-098 forced onto the mutation path).
+            clock_hole = verdict.field_holes.get(FIELD_START_TIME)
+            if clock_hole:
+                cur.execute(
+                    """
+                    insert into audit_log(actor_type, action, entity_type, entity_id, payload)
+                    values ('system','promote_field_hole','candidate',%s,%s::jsonb)
+                    """,
+                    (candidate_id, json.dumps({
+                        "field": FIELD_START_TIME,
+                        "reason": clock_hole,
+                        "claims": [str(t) for t in (evidence_signals.get("start_times") or [])],
+                        "written_as": None,
+                    })))
+                start_time = None
+                end_time = None
+
+            # Identity is unsettled but existence is not (see trust_gate3):
+            # record it so ops can see the collision, and publish.
+            for note in verdict.notes:
+                cur.execute(
+                    """
+                    insert into audit_log(actor_type, action, entity_type, entity_id, payload)
+                    values ('system','promote_ambiguity','candidate',%s,%s::jsonb)
+                    """,
+                    (candidate_id, json.dumps({"note": note})))
+
             # Resolve entities on THIS cursor so placeholder venue/artist rows are
             # part of the same transaction as the dedupe-check-and-insert below.
             # If dedupe raises and we roll back, those placeholders roll back too
@@ -128,10 +166,40 @@ def promote_candidate(candidate_id: str) -> str:
             venue_id = resolve_venue_id(cur, venue_name or "Unknown Venue", city or "Austin")
             artist_ids = resolve_artist_ids(cur, artist_names or [])
 
-            # Dedupe check (if duplicates exist, do not auto-merge; require ops decision)
-            dups = find_possible_duplicates(venue_id, start_time, cur=cur) if start_time else []
-            if dups:
-                raise ValueError(f"Possible duplicate canonical events exist: {dups}")
+            # Dedupe: refuse a RE-PUBLISH, never a neighbour (founder,
+            # 2026-09-03; ONE-LIVE-TRUST.md "existence must not use mutation
+            # tests"). Every event inside a 90-minute window at this venue used
+            # to raise, so a double bill, a second stage and an early-and-late
+            # set were each answered "you do not exist" by a dedupe probe. Only
+            # the identity shape — same venue, same start MINUTE, same
+            # normalized title — is a re-publish, and that refusal stays: it
+            # stops one show appearing on the map twice, which is what the check
+            # was for. A neighbour publishes and is RECORDED, so ops can still
+            # see the collision without a real show going missing.
+            #
+            # PROBED WITH THE CLAIMS, NOT WITH WHAT WE WROTE (PR #216 r1, both
+            # openai seats, from two sides). The first pass ran this check on
+            # `start_time` AFTER the clock hole had nulled it, so `if start_time`
+            # was False and the guard asked nothing at all — and it is reachable
+            # on purpose, not only by accident: a source that adds a second,
+            # conflicting time to an already-published show forces the hole path
+            # and lands a duplicate "Date TBA" row beside the real one. The
+            # identity question is about what the evidence CLAIMED; the hole is
+            # only what we print. So every claimed instant is probed, plus the
+            # column value when it survived — strictly more than the old single
+            # probe, and it cannot be skipped by a later change to what gets
+            # written, because it never reads the written value.
+            probes = list(start_time_instants(evidence_signals))
+            if start_time is not None:
+                probes.append(start_time)
+            same_show: list = []
+            for probe in probes:
+                found = classify_window(venue_id, probe, title=title, cur=cur)
+                same_show.extend(e for e in found.same_show if e not in same_show)
+            if same_show:
+                raise ValueError(
+                    f"Already published: this venue/minute/title is canonical "
+                    f"event(s) {same_show}")
 
             # User-facing card columns (title/category/subsegment/ticket_url) from
             # the candidate's OWN data — the fields 0010 added and named promote.py
